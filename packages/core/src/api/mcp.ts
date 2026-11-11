@@ -1,9 +1,15 @@
 import {Hono} from 'hono'
 import {z} from 'zod'
 import {defineTool} from '@conciv/protocol/chat-tool-types'
-import {isContentParts, type ContentPart} from '@conciv/protocol/chat-message-types'
-import type {ChatEvent} from '@conciv/protocol/chat-event-types'
-import type {EngineStaleness} from '@conciv/contract'
+import {
+  imageBlocks,
+  imagesIn,
+  isContentParts,
+  withoutImages,
+  type ContentPart,
+} from '@conciv/protocol/chat-message-types'
+import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import type {CodeDescriptions, CodeExecuteResult, EngineStaleness} from '@conciv/contract'
 import {HTTPException} from 'hono/http-exception'
 import {
   CONCIV_CLAUDE_SESSION_HEADER,
@@ -26,12 +32,12 @@ import {
   type CodeRunner,
   type CodeTool,
 } from '@conciv/chat'
-import {createMCPServer, imageBlocks, imagesIn, withoutImages} from '@conciv/ai/server'
+import {createMCPServer} from '@conciv/ai/server'
 import {loopbackHostAllowlist} from '../lib/cors.js'
 import {callTrace} from './call-trace.js'
-import {EXECUTE_TOOL_NAME, ExecuteInputSchema, ExecuteResultSchema} from './execute-schemas.js'
+import {EXECUTE_TOOL_NAME, ExecuteInputSchema, ExecuteResultSchema, type ExecuteResult} from './execute-schemas.js'
 import {queueNotice} from '../page-queue.js'
-import type {PageQueueResult} from '@conciv/protocol/page-types'
+import type {PageQueueHandle, PageQueueResult} from '@conciv/protocol/page-types'
 
 export function sessionIdFromHeaders(headers: Headers): SessionId | null {
   const raw = headers.get(CONCIV_SESSION_HEADER)?.trim()
@@ -51,6 +57,8 @@ type TextContent = {type: 'text'; text: string}
 type ImageContent = {type: 'image'; data: string; mimeType: string}
 
 type ExecuteReply = {content: (TextContent | ImageContent)[]; isError?: boolean}
+
+type CodeExecuteError = Extract<CodeExecuteResult, {ok: false}>['error']
 
 function partToContent(part: ContentPart): TextContent | ImageContent {
   if (part.type === 'text') return {type: 'text', text: part.content}
@@ -157,15 +165,19 @@ function decodeDeclaredCode(message: string, declaredCodes: ReadonlySet<string>)
   return candidate
 }
 
-function errorReply(result: z.infer<typeof ExecuteResultSchema>, declaredCodes: ReadonlySet<string>): ExecuteReply {
+function executeError(result: ExecuteResult, declaredCodes: ReadonlySet<string>): CodeExecuteError {
   const message = result.error?.message ?? 'execution failed'
   const code = decodeDeclaredCode(message, declaredCodes)
+  return {
+    message,
+    ...(result.error?.name === undefined ? {} : {name: result.error.name}),
+    ...(code === undefined ? {} : {code}),
+  }
+}
+
+function errorReply(result: ExecuteResult, declaredCodes: ReadonlySet<string>): ExecuteReply {
   const payload = {
-    error: {
-      message,
-      ...(result.error?.name === undefined ? {} : {name: result.error.name}),
-      ...(code === undefined ? {} : {code}),
-    },
+    error: executeError(result, declaredCodes),
     ...(result.logs === undefined || result.logs.length === 0 ? {} : {logs: result.logs}),
   }
   return {content: [{type: 'text', text: cappedText(safeStringify(payload))}], isError: true}
@@ -204,7 +216,7 @@ function logsPart(logs: string[]): TextContent[] {
   return [{type: 'text', text: cappedText(safeStringify({logs}))}]
 }
 
-function successReply(result: z.infer<typeof ExecuteResultSchema>): ExecuteReply {
+function successReply(result: ExecuteResult): ExecuteReply {
   if (isContentParts(result.result)) {
     return {content: cappedParts([...result.result.map(partToContent), ...logsPart(result.logs ?? [])])}
   }
@@ -233,7 +245,9 @@ async function publishResult(calls: CallPublisher, reply: ExecuteReply): Promise
   await calls.settle()
 }
 
-async function runExecute(runner: CodeRunner, typescriptCode: string, calls: CallPublisher): Promise<ExecuteReply> {
+type Executed = {result: ExecuteResult; reply: ExecuteReply}
+
+async function runExecute(runner: CodeRunner, typescriptCode: string, calls: CallPublisher): Promise<Executed> {
   calls.publish(calls.trace.start(calls.run, EXECUTE_TOOL_NAME, {typescriptCode}))
   const raw = await runner
     .run(typescriptCode, calls.trace.callId, calls.signal)
@@ -244,7 +258,7 @@ async function runExecute(runner: CodeRunner, typescriptCode: string, calls: Cal
     : {success: false, error: {message: 'the sandbox returned an unreadable result'}}
   const reply = result.success ? successReply(result) : errorReply(result, runner.declaredCodes)
   await publishResult(calls, reply)
-  return reply
+  return {result, reply}
 }
 
 async function runDirect(tool: CodeTool, input: unknown, calls: CallPublisher): Promise<ExecuteReply> {
@@ -260,12 +274,6 @@ async function runDirect(tool: CodeTool, input: unknown, calls: CallPublisher): 
   return reply
 }
 
-async function runDiscover(runner: CodeRunner, toolNames: string[]): Promise<ExecuteReply> {
-  if (runner.discover === null) return {content: [{type: 'text', text: 'no tools to discover'}], isError: true}
-  const found = await runner.discover.run(toolNames)
-  return {content: [{type: 'text', text: cappedText(safeStringify(cappedValue(found)))}]}
-}
-
 type McpDeps = {
   codeRunner: (
     sessionId: SessionId,
@@ -274,6 +282,7 @@ type McpDeps = {
     outside?: boolean,
   ) => Promise<CodeRunner | null>
   finishedQueues: (sessionId: SessionId, outside: boolean) => PageQueueResult[]
+  startedQueues: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => PageQueueHandle[]
   outsideCapabilities: (sessionId: SessionId) => CodeCapability[]
   resolveSession: (header: SessionId | null, nativeId: HarnessSessionId | null) => Promise<SessionScope>
   admitOutside: (scope: SessionScope, client: string | null, signal: AbortSignal) => Promise<string | null>
@@ -291,7 +300,7 @@ function gated<Args>(admit: () => Promise<string | null>, run: (args: Args) => P
   }
 }
 
-type McpCaller = {trace: CallTrace; outside: boolean; signal: AbortSignal}
+type CodeCaller = {trace: CallTrace; outside: boolean; signal: AbortSignal}
 
 function withFinishedQueues(reply: ExecuteReply, finished: readonly PageQueueResult[]): ExecuteReply {
   if (finished.length === 0) return reply
@@ -299,28 +308,35 @@ function withFinishedQueues(reply: ExecuteReply, finished: readonly PageQueueRes
   return {...reply, content: [...notices, ...reply.content]}
 }
 
-async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCaller) {
-  const origin = caller.trace.hub
-  const admit = async (): Promise<string | null> => {
-    if (origin === null) return null
-    const refusal = deps.hubRefusal(origin.client)
-    if (refusal !== null || caller.outside) return refusal
-    return (await deps.admitOutside(scope, origin.client, caller.signal)) ?? deps.hubRefusal(origin.client)
-  }
+type CodeRun = {result: CodeExecuteResult; reply: ExecuteReply}
+
+export type CodeSession = {
+  runner: CodeRunner
+  describe: () => CodeDescriptions
+  execute: (typescriptCode: string) => Promise<CodeRun>
+  discover: (toolNames: string[]) => Promise<unknown>
+  direct: (tool: CodeTool, input: unknown) => Promise<ExecuteReply>
+}
+
+export async function openCodeSession(
+  deps: McpDeps,
+  scope: SessionScope,
+  caller: CodeCaller,
+): Promise<CodeSession | null> {
+  const hub = caller.trace.hub !== null
   const run = {threadId: scope.id, live: await scope.run.live()}
   const mirror = caller.trace.mirror(run, {publish: scope.stream.publish, record: scope.run.record})
+  const childCalls = new Set<string>()
   const runner = await deps.codeRunner(
     scope.id,
-    (chunk) => mirror.publish([caller.trace.mark(chunk)]),
-    origin !== null && caller.outside ? deps.outsideCapabilities(scope.id) : undefined,
-    origin !== null,
+    (chunk) => {
+      if (chunk.type === ChatEventType.TOOL_CALL_START) childCalls.add(chunk.toolCallId)
+      mirror.publish([caller.trace.mark(chunk)])
+    },
+    hub && caller.outside ? deps.outsideCapabilities(scope.id) : undefined,
+    hub,
   )
-  const delivered = (reply: ExecuteReply): ExecuteReply =>
-    withFinishedQueues(reply, deps.finishedQueues(scope.id, origin !== null))
-  if (runner === null) {
-    logError('[mcp] code mode is unavailable (no isolate driver or an empty registry); no tools registered')
-    return []
-  }
+  if (runner === null) return null
   const calls: CallPublisher = {
     publish: mirror.publish,
     settle: mirror.settle,
@@ -328,7 +344,51 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCalle
     run,
     signal: caller.signal,
   }
-  const discover = runner.discover
+  const finished = (): PageQueueResult[] => deps.finishedQueues(scope.id, hub)
+  return {
+    runner,
+    describe: () => ({
+      execute: executeDescription(runner, deps.staleness()),
+      discover: runner.discover?.description ?? null,
+    }),
+    execute: async (typescriptCode) => {
+      const executed = await runExecute(runner, typescriptCode, calls)
+      const delivery = {queued: deps.startedQueues(scope.id, childCalls), finished: finished()}
+      return {
+        result: typedResult(executed.result, runner.declaredCodes, delivery),
+        reply: withFinishedQueues(executed.reply, delivery.finished),
+      }
+    },
+    discover: async (toolNames) => {
+      if (runner.discover === null) throw new Error('no tools to discover')
+      return cappedValue(await runner.discover.run(toolNames))
+    },
+    direct: async (tool, input) => withFinishedQueues(await runDirect(tool, input, calls), finished()),
+  }
+}
+
+type Delivery = Pick<CodeExecuteResult, 'queued' | 'finished'>
+
+function typedResult(result: ExecuteResult, declaredCodes: ReadonlySet<string>, delivery: Delivery): CodeExecuteResult {
+  const logs = result.logs ?? []
+  if (result.success) return {ok: true, result: cappedValue(result.result), logs, ...delivery}
+  return {ok: false, error: executeError(result, declaredCodes), logs, ...delivery}
+}
+
+async function sessionTools(deps: McpDeps, scope: SessionScope, caller: CodeCaller) {
+  const origin = caller.trace.hub
+  const admit = async (): Promise<string | null> => {
+    if (origin === null) return null
+    const refusal = deps.hubRefusal(origin.client)
+    if (refusal !== null || caller.outside) return refusal
+    return (await deps.admitOutside(scope, origin.client, caller.signal)) ?? deps.hubRefusal(origin.client)
+  }
+  const code = await openCodeSession(deps, scope, caller)
+  if (code === null) {
+    logError('[mcp] code mode is unavailable (no isolate driver or an empty registry); no tools registered')
+    return []
+  }
+  const discover = code.runner.discover
   const discoverTools =
     discover === null
       ? []
@@ -337,21 +397,25 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCalle
             name: DISCOVER_TOOL_NAME,
             description: discover.description,
             inputSchema: DiscoverInputSchema,
-          }).server(gated(admit, (args) => runDiscover(runner, args.toolNames))),
+          }).server(
+            gated(admit, async (args) => ({
+              content: [{type: 'text', text: cappedText(safeStringify(await code.discover(args.toolNames)))}],
+            })),
+          ),
         ]
-  const askingTools = runner.asking.map((tool) =>
+  const askingTools = code.runner.asking.map((tool) =>
     defineTool({name: tool.name, description: tool.description, inputSchema: tool.inputSchema}).server(
-      gated(admit, async (args) => delivered(await runDirect(tool, args, calls))),
+      gated(admit, (args) => code.direct(tool, args)),
     ),
   )
   const executeTool = defineTool({
     name: EXECUTE_TOOL_NAME,
-    description: executeDescription(runner, deps.staleness()),
+    description: code.describe().execute,
     inputSchema: ExecuteInputSchema,
   }).server(
     gated(admit, async (args) => {
       try {
-        return delivered(await runExecute(runner, args.typescriptCode, calls))
+        return (await code.execute(args.typescriptCode)).reply
       } catch (error) {
         logError(`[mcp] ${EXECUTE_TOOL_NAME} failed outside the sandbox: ${String(error)}`)
         throw error

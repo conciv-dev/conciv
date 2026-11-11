@@ -4114,7 +4114,7 @@ describe('outside sessions', () => {
     await expect(engine.stop()).resolves.toBeUndefined()
   })
 
-  describe('GET /api/tabs', () => {
+  describe('tabs.list and tabs.get', () => {
     const repo = tempDir('conciv-tabs-')
     const app = join(repo, 'apps', 'web')
     const instructions = 'be careful in this page'
@@ -4134,14 +4134,8 @@ describe('outside sessions', () => {
       await vi.waitFor(async () => expect((await listTabs()).tabs).toEqual([]), {timeout: 5000})
     })
 
-    async function getJson(path: string): Promise<unknown> {
-      const response = await fetch(`${kit().base}${path}`)
-      expect(response.status).toBe(200)
-      return response.json()
-    }
-
     async function listTabs() {
-      return TabsSchema.parse(await getJson('/api/tabs'))
+      return TabsSchema.parse(await kit().rpc.tabs.list())
     }
 
     async function joinPage(answers: boolean): Promise<void> {
@@ -4154,19 +4148,19 @@ describe('outside sessions', () => {
       pages.push(() => abort.abort())
     }
 
-    it('/api/tabs and /api/mcp refuse a missing or wrong token, and /health a malformed one', async () => {
-      const paths = ['/api/tabs', '/api/mcp'].flatMap((path) => [path, `/t/${randomUUID()}${path}`])
+    it('tabs.list and /api/mcp refuse a missing or wrong token, and /health a malformed one', async () => {
+      const paths = ['/rpc/tabs/list', '/api/mcp'].flatMap((path) => [path, `/t/${randomUUID()}${path}`])
       const statuses = await Promise.all(
         [...paths, '/t/nope/health'].map(async (path) => (await fetch(`${kit().origin}${path}`)).status),
       )
       expect(statuses).toEqual([401, 401, 401, 401, 401])
     })
 
-    it('/api/tabs lists a joined page, and ?session= answers open and not open with the engine prompt', async () => {
-      const path = `/api/tabs?session=${await kit().session()}`
-      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: false, instructions})
+    it('tabs.list lists a joined page, and tabs.get answers open and not open with the engine prompt', async () => {
+      const tabOpen = async () => TabOpenSchema.parse(await kit().rpc.tabs.get({sessionId: await kit().session()}))
+      expect(await tabOpen()).toEqual({open: false, instructions})
       await joinPage(true)
-      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: true, instructions})
+      expect(await tabOpen()).toEqual({open: true, instructions})
       const session = {title: expect.any(String), updatedAt: expect.any(Number), running: false}
       const page = {href: route.href, title: route.title, state: route.state}
       expect(await listTabs()).toEqual({
@@ -4342,7 +4336,7 @@ describe('outside agent consent', () => {
         if (!listening.aborted) throw error
       }),
     )
-    const tabOpen = async () => TabOpenSchema.parse(await (await fetch(`${base}/api/tabs?session=${sessionId}`)).json())
+    const tabOpen = async () => TabOpenSchema.parse(await makeRpcClient(base).tabs.get({sessionId}))
     await vi.waitFor(async () => expect((await tabOpen()).open).toBe(true), {timeout: 3000})
     return sessionId
   }
@@ -4996,7 +4990,7 @@ describe('page action queue delivery', () => {
       await once(arrivals, 'chunk')
       return finishedEvent(queueId)
     }
-    const tabOpen = async () => TabOpenSchema.parse(await (await fetch(`${base}/api/tabs?session=${sessionId}`)).json())
+    const tabOpen = async () => TabOpenSchema.parse(await makeRpcClient(base).tabs.get({sessionId}))
     await vi.waitFor(async () => expect((await tabOpen()).open).toBe(true), {timeout: 3000})
     const hub = (code: string) => executeOverMcp(base, {...HUB, [CONCIV_SESSION_HEADER]: sessionId}, code)
     const close = async () => {
@@ -5013,6 +5007,57 @@ describe('page action queue delivery', () => {
   function handleOf(reply: unknown): {queueId: string; actions: number} {
     return QueueHandleSchema.parse(JSON.parse(String(reply))).result
   }
+
+  it('code.execute and /api/mcp execute_typescript run one shared path and give the same result for the same script', async () => {
+    const page = await engineWithTab()
+    const typed = makeRpcClient(page.base, {headers: HUB})
+    const script = 'console.log("seen"); return {sum: 1 + 1}'
+    const overMcp = JSON.parse(String(await page.hub(script)))
+    expect(await typed.code.execute({sessionId: page.sessionId, typescriptCode: script})).toEqual({
+      ok: true,
+      result: overMcp.result,
+      logs: overMcp.logs,
+      queued: [],
+      finished: [],
+    })
+    const failing = "throw new Error('deliberate failure')"
+    const failedOverMcp = await executeOverMcp(
+      page.base,
+      {...HUB, [CONCIV_SESSION_HEADER]: page.sessionId},
+      failing,
+    ).then(String, (error: unknown) => String(error))
+    const failed = await typed.code.execute({sessionId: page.sessionId, typescriptCode: failing})
+    expect(failed).toMatchObject({ok: false, error: {message: expect.stringContaining('deliberate failure')}})
+    expect(failedOverMcp).toContain('deliberate failure')
+  })
+
+  it('code.execute lists in queued the queues the script started, taken from the queue store and never from what it returns', async () => {
+    const page = await engineWithTab()
+    const typed = makeRpcClient(page.base, {headers: HUB})
+    const started = await typed.code.execute({
+      sessionId: page.sessionId,
+      typescriptCode: `await external_page_queue({actions: ${JSON.stringify(ACTIONS)}}); return 'started, handle dropped'`,
+    })
+    const onTab = await page.nextQueue()
+    expect(started).toMatchObject({
+      ok: true,
+      result: 'started, handle dropped',
+      queued: [{queueId: onTab.id, actions: 2}],
+    })
+    const lookalike = await typed.code.execute({
+      sessionId: page.sessionId,
+      typescriptCode: "return {queueId: 'q_x', actions: 1}",
+    })
+    expect(lookalike).toMatchObject({ok: true, result: {queueId: 'q_x', actions: 1}, queued: []})
+    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    await page.finishedEvent(onTab.id)
+    expect(await typed.page.queue.wait({sessionId: page.sessionId, queueId: onTab.id, waitMs: 0})).toMatchObject({
+      queueId: onTab.id,
+      status: 'finished',
+      played: 2,
+    })
+  })
 
   it('external_page_queue answers with a queue id before the tab has played anything', async () => {
     const page = await engineWithTab()

@@ -1,18 +1,27 @@
+import {randomUUID} from 'node:crypto'
 import {once} from 'node:events'
 import {z} from 'zod'
 import {command, description, name, option, schema} from '@bomb.sh/router'
-import {createMCPClient, type MCPClient} from '@tanstack/ai-mcp'
+import {ORPCError} from '@orpc/client'
 import {createMCPServer, type McpServer} from '@tanstack/ai-mcp/server'
 import {serveMCPStdio} from '@tanstack/ai-mcp/server/stdio'
 import {checkEngines, concivHome, type EngineRow} from '@conciv/db'
 import {
-  CONCIV_CLIENT_HEADER,
-  CONCIV_ORIGIN_HEADER,
-  CONCIV_SESSION_HEADER,
-  SessionId,
-  TabOpenSchema,
-  type TabOpen,
-} from '@conciv/protocol/chat-types'
+  engineTooOld,
+  makeRpcClient,
+  type CodeDescriptions,
+  type CodeExecuteResult,
+  type RpcClient,
+} from '@conciv/contract'
+import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER, SessionId, type TabOpen} from '@conciv/protocol/chat-types'
+import {
+  imageBlocks,
+  imagesIn,
+  isContentParts,
+  withoutImages,
+  type ContentPart,
+} from '@conciv/protocol/chat-message-types'
+import type {PageQueueHandle, PageQueueResult} from '@conciv/protocol/page-types'
 import type {InitHarnessId} from '@conciv/protocol/harness-types'
 import {HubAgentSchema} from './hub-agent.js'
 import cliManifest from '../package.json' with {type: 'json'}
@@ -52,12 +61,6 @@ const DiscoverInputSchema = z.object({toolNames: z.array(z.string()), tab: TabIn
 
 const RefusedSchema = z.object({cause: z.object({code: z.literal('ECONNREFUSED')})})
 
-const ErrorReplySchema = z.object({isError: z.literal(true)})
-
-const QueueHandleSchema = z.object({result: z.strictObject({queueId: z.string(), actions: z.number()})})
-
-const QueueWaitSchema = z.object({result: z.looseObject({queueId: z.string(), status: z.string()})})
-
 const TasksCapableSchema = z.object({
   [CLIENT_CAPABILITIES]: z.object({extensions: z.object({[TASKS_EXTENSION]: z.unknown()})}),
 })
@@ -75,19 +78,32 @@ const FALLBACK_DESCRIPTIONS = {
 
 type ToolName = keyof typeof FALLBACK_DESCRIPTIONS
 
-type Runner = {root: string; client: MCPClient}
+type Content = {type: 'text'; text: string} | {type: 'image'; data: string; mimeType: string}
 
-type CallResult = Awaited<ReturnType<MCPClient['callTool']>>
+type Reply = {content: Content[]; isError?: true}
 
-type Reply = {content: {type: 'text'; text: string}[]; isError: true}
+type Runner = {root: string; rpc: RpcClient; described: CodeDescriptions | null}
 
-type Probed = Pick<EngineRow, 'root' | 'apiBase'>
-
-type TabOwner = {root: string; apiBase: string; instructions: string | null; client: MCPClient}
+type TabOwner = {root: string; apiBase: string; instructions: string | null; rpc: RpcClient}
 
 type TabEntry = {owner: Promise<TabOwner> | null; greeted: boolean}
 
-type QueueTask = {tab: SessionId; createdAt: string; lastUpdatedAt: string; reply: CallResult}
+type QueueTask = {tab: SessionId; queued: PageQueueHandle[]; createdAt: string; lastUpdatedAt: string; reply: Reply}
+
+type EngineCall<Value> = (rpc: RpcClient, signal: AbortSignal | undefined) => Promise<Value>
+
+type TaskReply = {
+  content: Content[]
+  resultType: 'task'
+  taskId: string
+  status: 'working'
+  createdAt: string
+  lastUpdatedAt: string
+  ttlMs: null
+  pollIntervalMs: number
+}
+
+type Routed<Value> = {reply: Reply; value: Value | null}
 
 async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<CliOutcome> {
   const home = concivHome({env})
@@ -106,25 +122,25 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
     return picking
   }
 
-  async function dropRunner(picked: Promise<Runner>, runner: Runner): Promise<void> {
-    if (held.runner !== picked) return
-    held.runner = null
-    await closeClient(runner)
+  function dropRunner(picked: Promise<Runner>): void {
+    if (held.runner === picked) held.runner = null
   }
 
-  async function forward(
-    toolName: ToolName,
-    input: unknown,
+  async function forward<Value>(
+    call: EngineCall<Value>,
+    format: (value: Value) => Reply,
     signal: AbortSignal | undefined,
     resent = false,
-  ): Promise<CallResult> {
+  ): Promise<Routed<Value>> {
     const picked = currentRunner()
     const runner = await picked
     try {
-      return await runner.client.callTool(toolName, input, {signal})
+      const value = await call(runner.rpc, signal)
+      return {reply: format(value), value}
     } catch (error) {
-      await dropRunner(picked, runner)
-      if (!resent && RefusedSchema.safeParse(error).success) return forward(toolName, input, signal, true)
+      if (answered(error)) return {reply: failed(answerText(runner.root, error)), value: null}
+      dropRunner(picked)
+      if (!resent && RefusedSchema.safeParse(error).success) return forward(call, format, signal, true)
       const after = await currentRunner().then(
         (next) => `the next call runs on ${next.root}`,
         () => 'no other conciv dev server is running',
@@ -144,34 +160,33 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
     return created
   }
 
-  async function forget(entry: TabEntry, kept: Promise<TabOwner>, owner: TabOwner): Promise<void> {
-    if (entry.owner !== kept) return
-    entry.owner = null
-    await closeClient(owner)
+  function forget(entry: TabEntry, kept: Promise<TabOwner>): void {
+    if (entry.owner === kept) entry.owner = null
   }
 
-  async function onTab(
-    toolName: ToolName,
-    input: unknown,
+  async function onTab<Value>(
     tab: SessionId,
+    call: EngineCall<Value>,
+    format: (value: Value) => Reply,
     signal: AbortSignal | undefined,
     resent = false,
-  ): Promise<CallResult> {
+  ): Promise<Routed<Value>> {
     const entry = entryOf(tab)
-    const kept = (entry.owner ??= findOwner(home, tab, {...headers, [CONCIV_SESSION_HEADER]: tab}))
+    const kept = (entry.owner ??= findOwner(home, tab, headers))
     const owner = await kept.catch((error: unknown) => {
-      if (entry.owner === kept) entry.owner = null
+      forget(entry, kept)
       throw error
     })
     try {
-      const reply = await owner.client.callTool(toolName, input, {signal})
-      if (ErrorReplySchema.safeParse(reply).success && !(await holdsTab(owner, tab))) {
-        await forget(entry, kept, owner)
-      }
-      return greeted(entry, owner, reply)
+      const value = await call(owner.rpc, signal)
+      return {reply: greeted(entry, owner, format(value)), value}
     } catch (error) {
-      await forget(entry, kept, owner)
-      if (!resent && RefusedSchema.safeParse(error).success) return onTab(toolName, input, tab, signal, true)
+      if (answered(error)) {
+        if (!(await holdsTab(owner, tab))) forget(entry, kept)
+        return {reply: greeted(entry, owner, failed(answerText(owner.root, error))), value: null}
+      }
+      forget(entry, kept)
+      if (!resent && RefusedSchema.safeParse(error).success) return onTab(tab, call, format, signal, true)
       throw new Error(
         `the call on tab ${tab} failed on the conciv engine at ${owner.root} (${errorText(error)}); it was not retried, since the block may already have acted on a page; the next call looks up the engine holding the tab again`,
         {cause: error},
@@ -179,33 +194,40 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
     }
   }
 
-  function routed(toolName: ToolName) {
-    return async (
-      {tab: given, ...input}: {tab?: string | undefined},
-      context?: {abortSignal?: AbortSignal},
-    ): Promise<CallResult> => {
-      const tab = TabInputSchema.parse(given)
-      const signal = context?.abortSignal
-      const call = tab === undefined ? forward(toolName, input, signal) : onTab(toolName, input, tab, signal)
-      return call.catch((error: unknown) => failed(errorText(error)))
-    }
+  async function routed<Value>(
+    tab: SessionId | undefined,
+    call: EngineCall<Value>,
+    format: (value: Value) => Reply,
+    signal: AbortSignal | undefined,
+  ): Promise<Routed<Value>> {
+    const sent = tab === undefined ? forward(call, format, signal) : onTab(tab, call, format, signal)
+    return sent.catch((error: unknown) => ({reply: failed(errorText(error)), value: null}))
   }
 
   async function executeCall(
     input: z.infer<typeof ExecuteInputSchema>,
     envelope: unknown,
-    abortSignal: AbortSignal,
-  ): Promise<CallResult> {
-    const reply = await routed(EXECUTE_TOOL_NAME)(input, {abortSignal})
-    if (input.tab === undefined || !TasksCapableSchema.safeParse(envelope).success) return reply
-    const queueId = reply.isError === true ? undefined : queueHandleIn(reply)
-    if (queueId === undefined) return reply
+    signal: AbortSignal,
+  ): Promise<Reply | TaskReply> {
+    const tab = TabInputSchema.parse(input.tab)
+    const typescriptCode = input.typescriptCode
+    const executed = await routed(
+      tab,
+      (rpc, aborted) => rpc.code.execute({...sessionOf(tab), typescriptCode}, {signal: aborted}),
+      executeReply,
+      signal,
+    )
+    const queued = executed.value?.queued ?? []
+    if (tab === undefined || queued.length === 0 || !TasksCapableSchema.safeParse(envelope).success) {
+      return executed.reply
+    }
+    const taskId = randomUUID()
     const now = new Date().toISOString()
-    queueTasks.set(queueId, {tab: input.tab, createdAt: now, lastUpdatedAt: now, reply})
+    queueTasks.set(taskId, {tab, queued, createdAt: now, lastUpdatedAt: now, reply: executed.reply})
     return {
       content: [],
       resultType: 'task',
-      taskId: queueId,
+      taskId,
       status: 'working',
       createdAt: now,
       lastUpdatedAt: now,
@@ -218,13 +240,20 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
     const {taskId} = TaskIdParamsSchema.parse(params)
     const task = queueTasks.get(taskId)
     if (task === undefined) throw Object.assign(new Error(`no queue task ${taskId}`), {code: UNKNOWN_TASK})
-    const typescriptCode = `return await external_page_queue_wait({queueId: ${JSON.stringify(taskId)}, waitMs: 0})`
-    const reply = await onTab(EXECUTE_TOOL_NAME, {typescriptCode}, task.tab, undefined).catch((error: unknown) =>
-      failed(errorText(error)),
+    const polled = await Promise.all(
+      task.queued.map(async ({queueId}) => {
+        const waited = await routed(
+          task.tab,
+          (rpc, aborted) => rpc.page.queue.wait({sessionId: task.tab, queueId, waitMs: 0}, {signal: aborted}),
+          () => ({content: []}),
+          undefined,
+        )
+        return waited.value
+      }),
     )
-    const waited = reply.isError === true ? undefined : queueWaitIn(reply)
+    const results = polled.flatMap((state) => (state === null || state.status === 'playing' ? [] : [state]))
     const stamped = {taskId, createdAt: task.createdAt, ttlMs: null}
-    if (waited === 'playing') {
+    if (results.length < task.queued.length) {
       return {
         resultType: 'complete',
         ...stamped,
@@ -233,13 +262,21 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
         pollIntervalMs: TASK_POLL_MS,
       }
     }
-    const lastUpdatedAt = new Date().toISOString()
     queueTasks.delete(taskId)
-    const result =
-      waited === undefined
-        ? {...reply, isError: true}
-        : {...task.reply, content: [...task.reply.content, ...reply.content]}
-    return {resultType: 'complete', ...stamped, status: 'completed', lastUpdatedAt, result}
+    const result = {...task.reply, content: [...task.reply.content, ...results.map(queueNotice)]}
+    return {resultType: 'complete', ...stamped, status: 'completed', lastUpdatedAt: new Date().toISOString(), result}
+  }
+
+  async function discoverCall(input: z.infer<typeof DiscoverInputSchema>, signal: AbortSignal): Promise<Reply> {
+    const tab = TabInputSchema.parse(input.tab)
+    const toolNames = input.toolNames
+    const discovered = await routed(
+      tab,
+      (rpc, aborted) => rpc.code.discover({...sessionOf(tab), toolNames}, {signal: aborted}),
+      (value) => ({content: [{type: 'text', text: JSON.stringify(value) ?? 'null'}]}),
+      signal,
+    )
+    return discovered.reply
   }
 
   function serveQueueTasks(server: McpServer): void {
@@ -251,21 +288,15 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
     server.registerTool(
       DISCOVER_TOOL_NAME,
       {description: descriptions[DISCOVER_TOOL_NAME], inputSchema: DiscoverInputSchema},
-      async (input, ctx) => routed(DISCOVER_TOOL_NAME)(input, {abortSignal: ctx.mcpReq.signal}),
+      async (input, ctx) => discoverCall(input, ctx.mcpReq.signal),
     )
     server.server.setRequestHandler('tasks/get', {params: TaskIdParamsSchema}, queueTask)
   }
 
   const descriptions: Record<ToolName, string> = {...FALLBACK_DESCRIPTIONS}
-  const startup = currentRunner()
-  void startup
+  void currentRunner()
     .then(
-      (runner) =>
-        startupDescriptions(runner).catch(async (error: unknown) => {
-          logHub('reading the runner tool descriptions failed; using the built-in text', error)
-          await dropRunner(startup, runner)
-          return FALLBACK_DESCRIPTIONS
-        }),
+      (runner) => toolDescriptions(runner.described),
       () => FALLBACK_DESCRIPTIONS,
     )
     .then((described) => Object.assign(descriptions, described))
@@ -278,7 +309,6 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
   const served = serveMCPStdio({...server, fetch: async (request) => server.fetch(await withTaskName(request))})
   await once(process.stdin, 'end')
   await served.close()
-  await Promise.all([held.runner, ...[...tabs.values()].map((entry) => entry.owner)].map(closeHeld))
   return {report: 'none', code: 0}
 }
 
@@ -297,25 +327,45 @@ export const serveCommand = command(
 
 async function pickRunner(home: string, headers: Record<string, string>): Promise<Runner> {
   const checked = await liveEngines(home)
-  const row = checked.live[0]
-  if (row === undefined) {
+  if (checked.live.length === 0) {
     throw new Error(`no conciv dev server is running; start one and open its page (conciv home folder read: ${home})`)
   }
-  return {root: row.root, client: await connect(row, headers)}
+  return firstUsable(checked.live, headers, [])
 }
 
-async function startupDescriptions(runner: Runner): Promise<Record<ToolName, string>> {
-  const tools = await runner.client.tools()
-  const described = (tool: ToolName) =>
-    tools.find((entry) => entry.name === tool)?.description ?? FALLBACK_DESCRIPTIONS[tool]
-  return {[EXECUTE_TOOL_NAME]: described(EXECUTE_TOOL_NAME), [DISCOVER_TOOL_NAME]: described(DISCOVER_TOOL_NAME)}
+async function firstUsable(rows: EngineRow[], headers: Record<string, string>, tooOld: string[]): Promise<Runner> {
+  const [row, ...rest] = rows
+  if (row === undefined) throw new Error(`no conciv dev server this hub can use is running: ${tooOld.join('; ')}`)
+  const probed = await runnerAt(row, headers)
+  if ('runner' in probed) return probed.runner
+  return firstUsable(rest, headers, [...tooOld, `${probed.tooOld} (${TOO_OLD})`])
+}
+
+async function runnerAt(row: EngineRow, headers: Record<string, string>): Promise<{runner: Runner} | {tooOld: string}> {
+  const rpc = makeRpcClient(row.apiBase, {headers, validated: true})
+  return rpc.code.describe().then(
+    (described) => ({runner: {root: row.root, rpc, described}}),
+    (error: unknown) => {
+      if (engineTooOld(error)) return {tooOld: row.root}
+      logHub(`reading the tool descriptions of the conciv engine at ${row.root} failed; using the built-in text`, error)
+      return {runner: {root: row.root, rpc, described: null}}
+    },
+  )
+}
+
+function toolDescriptions(described: CodeDescriptions | null): Record<ToolName, string> {
+  if (described === null) return FALLBACK_DESCRIPTIONS
+  return {
+    [EXECUTE_TOOL_NAME]: described.execute,
+    [DISCOVER_TOOL_NAME]: described.discover ?? FALLBACK_DESCRIPTIONS[DISCOVER_TOOL_NAME],
+  }
 }
 
 async function findOwner(home: string, tab: SessionId, headers: Record<string, string>): Promise<TabOwner> {
   const checked = await liveEngines(home)
   const probes = await Promise.allSettled(checked.live.map(async (row) => ({row, answer: await tabAnswer(row, tab)})))
-  const answered = probes.flatMap((probe) => (probe.status === 'fulfilled' ? [probe.value] : []))
-  const [only, second] = answered.filter(({answer}) => answer.open)
+  const answers = probes.flatMap((probe) => (probe.status === 'fulfilled' ? [probe.value] : []))
+  const [only, second] = answers.filter(({answer}) => answer.open)
   const failures = probes.flatMap((probe) => (probe.status === 'rejected' ? [probe.reason] : []))
   if (only === undefined) throw notOpen(tab, failures)
   if (second !== undefined) {
@@ -323,8 +373,12 @@ async function findOwner(home: string, tab: SessionId, headers: Record<string, s
       `tab ${tab} is open on two conciv engines (${only.row.root} and ${second.row.root}); ask the user to close one of the browser tabs`,
     )
   }
-  const client = await connect(only.row, headers)
-  return {root: only.row.root, apiBase: only.row.apiBase, instructions: only.answer.instructions, client}
+  return {
+    root: only.row.root,
+    apiBase: only.row.apiBase,
+    instructions: only.answer.instructions,
+    rpc: makeRpcClient(only.row.apiBase, {headers, validated: true}),
+  }
 }
 
 function notOpen(tab: SessionId, failures: unknown[]): Error {
@@ -341,31 +395,12 @@ function liveEngines(home: string): ReturnType<typeof checkEngines> {
   })
 }
 
-function connect(row: EngineRow, headers: Record<string, string>): Promise<MCPClient> {
-  return createMCPClient({transport: {type: 'http', url: `${row.apiBase}/api/mcp`, headers}, name: 'conciv-hub'}).catch(
-    (error: unknown) => {
-      throw new Error(`connecting to the conciv engine at ${row.root} failed (${errorText(error)}); nothing ran`, {
-        cause: error,
-      })
-    },
-  )
-}
-
-async function tabAnswer(engine: Probed, tab: SessionId): Promise<TabOpen> {
-  const response = await fetch(`${engine.apiBase}/api/tabs?session=${tab}`, {
-    signal: AbortSignal.timeout(PROBE_MS),
-  }).catch(probeFailed(engine))
-  if (response.status === 404) throw new Error(`${engine.root} (${TOO_OLD})`)
-  if (!response.ok) throw new Error(`${engine.root} (/api/tabs answered HTTP ${response.status})`)
-  const answer = TabOpenSchema.safeParse(await response.json().catch(probeFailed(engine)))
-  if (!answer.success) throw new Error(`${engine.root} (${TOO_OLD})`, {cause: answer.error})
-  return answer.data
-}
-
-function probeFailed(engine: Probed) {
-  return (error: unknown): never => {
-    throw new Error(`${engine.root} (${errorText(error)})`, {cause: error})
-  }
+async function tabAnswer(engine: Pick<EngineRow, 'root' | 'apiBase'>, tab: SessionId): Promise<TabOpen> {
+  return makeRpcClient(engine.apiBase, {validated: true})
+    .tabs.get({sessionId: tab}, {signal: AbortSignal.timeout(PROBE_MS)})
+    .catch((error: unknown) => {
+      throw new Error(`${engine.root} (${engineTooOld(error) ? TOO_OLD : errorText(error)})`, {cause: error})
+    })
 }
 
 async function holdsTab(owner: TabOwner, tab: SessionId): Promise<boolean> {
@@ -378,55 +413,69 @@ async function holdsTab(owner: TabOwner, tab: SessionId): Promise<boolean> {
   )
 }
 
-function greeted(entry: TabEntry, owner: TabOwner, reply: CallResult): CallResult {
+function greeted(entry: TabEntry, owner: TabOwner, reply: Reply): Reply {
   if (entry.greeted) return reply
   entry.greeted = true
   if (owner.instructions === null) return reply
   return {...reply, content: [{type: 'text', text: owner.instructions}, ...reply.content]}
 }
 
-async function withTaskName(request: Request): Promise<Request> {
-  if (!request.headers.get('mcp-method')?.startsWith('tasks/') || request.headers.has('mcp-name')) return request
-  const body = await request.text()
-  const taskId = TaskRequestSchema.safeParse(parsedText(body)).data?.params.taskId
-  const headers = new Headers(request.headers)
-  if (taskId !== undefined) headers.set('mcp-name', taskId)
-  return new Request(request.url, {method: request.method, headers, body, signal: request.signal})
+function sessionOf(tab: SessionId | undefined): {sessionId?: SessionId} {
+  return tab === undefined ? {} : {sessionId: tab}
 }
 
-function textsOf(reply: CallResult): string[] {
-  return reply.content.flatMap((part) => (part.type === 'text' ? [part.text] : []))
+function executeReply(executed: CodeExecuteResult): Reply {
+  const notices = executed.finished.map(queueNotice)
+  if (!executed.ok) {
+    const logs = executed.logs.length === 0 ? {} : {logs: executed.logs}
+    return {
+      content: [...notices, {type: 'text', text: JSON.stringify({error: executed.error, ...logs})}],
+      isError: true,
+    }
+  }
+  return {content: [...notices, ...resultContent(executed.result, executed.logs)]}
 }
 
-function parsedText(text: string): unknown {
-  try {
-    return JSON.parse(text)
-  } catch (error) {
-    if (error instanceof SyntaxError) return null
-    throw error
+function resultContent(result: unknown, logs: string[]): Content[] {
+  if (!isContentParts(result)) {
+    const body = JSON.stringify({result: withoutImages(result ?? null), logs})
+    return [{type: 'text', text: body}, ...imageBlocks(imagesIn(result))]
+  }
+  const logged: Content[] = logs.length === 0 ? [] : [{type: 'text', text: JSON.stringify({logs})}]
+  return [...result.map(partContent), ...logged]
+}
+
+function partContent(part: ContentPart): Content {
+  if (part.type === 'text') return {type: 'text', text: part.content}
+  if (part.type === 'image') {
+    return {type: 'image', data: part.source.value, mimeType: part.source.mimeType ?? 'application/octet-stream'}
+  }
+  return {type: 'text', text: JSON.stringify(part)}
+}
+
+function queueNotice(result: PageQueueResult): Content {
+  return {
+    type: 'text',
+    text: `queue ${result.queueId} ${result.status}: ${result.played} played, ${result.failed} failed\n${JSON.stringify(result)}`,
   }
 }
 
-function queueHandleIn(reply: CallResult): string | undefined {
-  return textsOf(reply)
-    .map((text) => QueueHandleSchema.safeParse(parsedText(text)))
-    .find((handle) => handle.success)?.data?.result.queueId
+function answered(error: unknown): boolean {
+  return error instanceof ORPCError || engineTooOld(error)
 }
 
-function queueWaitIn(reply: CallResult): string | undefined {
-  return textsOf(reply)
-    .map((text) => QueueWaitSchema.safeParse(parsedText(text)))
-    .find((waited) => waited.success)?.data?.result.status
+function answerText(root: string, error: unknown): string {
+  return engineTooOld(error) ? `${root} (${TOO_OLD})` : errorText(error)
 }
 
-async function closeHeld(held: Promise<Runner> | null): Promise<void> {
-  await held?.then(closeClient, () => undefined)
-}
-
-async function closeClient(owner: Runner): Promise<void> {
-  await owner.client
-    .close()
-    .catch((error: unknown) => logHub(`closing the client of the conciv engine at ${owner.root} failed`, error))
+async function withTaskName(request: Request): Promise<Request> {
+  if (!request.headers.get('mcp-method')?.startsWith('tasks/') || request.headers.has('mcp-name')) return request
+  const body = await request.text()
+  const message: unknown = await new Response(body).json().catch(() => null)
+  const taskId = TaskRequestSchema.safeParse(message).data?.params.taskId
+  const headers = new Headers(request.headers)
+  if (taskId !== undefined) headers.set('mcp-name', taskId)
+  return new Request(request.url, {method: request.method, headers, body, signal: request.signal})
 }
 
 function failed(text: string): Reply {

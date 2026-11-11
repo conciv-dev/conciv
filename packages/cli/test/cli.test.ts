@@ -1475,8 +1475,7 @@ describe('cli', () => {
         const chunks: Buffer[] = []
         for await (const chunk of request) chunks.push(Buffer.from(chunk))
         const body = Buffer.concat(chunks)
-        const method = z.object({method: z.string()}).safeParse(JSON.parse(body.toString() || 'null')).data?.method
-        if (mode.dropCalls && method === 'tools/call') {
+        if (mode.dropCalls && request.url?.endsWith('/rpc/code/execute')) {
           request.socket.destroy()
           return
         }
@@ -1541,8 +1540,7 @@ describe('cli', () => {
           ReplySchema.parse(await client.callTool('execute_typescript', {typescriptCode, tab: engine.sessionId}))
             .content
         const instructionsOf = async (engine: {base: string; sessionId: string}) =>
-          TabOpenSchema.parse(await (await fetch(`${engine.base}/api/tabs?session=${engine.sessionId}`)).json())
-            .instructions
+          TabOpenSchema.parse(await makeRpcClient(engine.base).tabs.get({sessionId: engine.sessionId})).instructions
         for (const engine of [newer, older]) {
           const [lead, ...rest] = await onTab(engine, route)
           expect(lead).toEqual({type: 'text', text: await instructionsOf(engine)})
@@ -1561,9 +1559,9 @@ describe('cli', () => {
         const signatures = await ownerMcp.callTool('discover_tools', {toolNames: ['page_route']})
         await ownerMcp.close()
         expect(JSON.stringify(signatures)).toContain('page_route')
-        expect(await client.callTool('discover_tools', {toolNames: ['page_route'], tab: older.sessionId})).toEqual(
-          signatures,
-        )
+        expect(
+          (await client.callTool('discover_tools', {toolNames: ['page_route'], tab: older.sessionId})).content,
+        ).toEqual(signatures.content)
         expect(await onTab({sessionId: 'conciv_gone'}, route)).toEqual([
           {type: 'text', text: 'TAB_NOT_OPEN: tab conciv_gone is not open; call external_tabs({})'},
         ])
@@ -1577,7 +1575,7 @@ describe('cli', () => {
         await direct.close()
         expect(JSON.stringify(engineReply.content)).toContain('{\\"result\\":2')
         await newer.engine.stop()
-        expect(await run(client, 'return 1 + 1')).toBe(JSON.stringify(engineReply))
+        expect(await run(client, 'return 1 + 1')).toContain(JSON.stringify(engineReply.content))
         expect(JSON.stringify(await onTab(older, route))).toContain(`"pathname\\":\\"${older.root}`)
         front.dropCalls(true)
         const failed = await run(client, 'return 1 + 1')
@@ -1585,7 +1583,7 @@ describe('cli', () => {
         expect(failed).toContain('it was not retried')
         expect(failed).toContain(`the next call runs on ${older.root}`)
         front.dropCalls(false)
-        expect(await run(client, 'return 1 + 1')).toBe(JSON.stringify(engineReply))
+        expect(await run(client, 'return 1 + 1')).toContain(JSON.stringify(engineReply.content))
         await front.close()
         await older.engine.stop()
         const resent = await run(client, 'return await external_tabs({})')
@@ -1745,7 +1743,7 @@ describe('cli', () => {
           JSON.stringify([
             {
               type: 'text',
-              text: `cannot tell whether tab conciv_gone is open: no engine that answered has it, and the tab probe failed on ${crashing.root} (/api/tabs answered HTTP 500); ${old.root} (engine too old; upgrade its @conciv packages); nothing ran`,
+              text: `cannot tell whether tab conciv_gone is open: no engine that answered has it, and the tab probe failed on ${crashing.root} (Internal Server Error); ${old.root} (engine too old; upgrade its @conciv packages); nothing ran`,
             },
           ]),
         )
@@ -1791,11 +1789,13 @@ describe('cli', () => {
       },
     )
 
-    describe('queue as an MCP task', () => {
-      const QUEUE = `return await external_page_queue({actions: ${JSON.stringify([
+    describe('hub over oRPC', () => {
+      const ACTIONS = [
         {tool: 'page_fill', selector: '#first', value: 'Ada'},
         {tool: 'page_check', selector: '#agree'},
-      ])}})`
+      ]
+      const QUEUE = `return await external_page_queue({actions: ${JSON.stringify(ACTIONS)}})`
+      const SNAPSHOT = 'return await external_page_snapshot({})'
       const ENVELOPE = {
         'io.modelcontextprotocol/protocolVersion': '2026-07-28',
         'io.modelcontextprotocol/clientInfo': {name: 'cli-test', version: '1.0.0'},
@@ -1806,20 +1806,20 @@ describe('cli', () => {
         result: z.looseObject({}).optional(),
         error: z.unknown().optional(),
       })
+      const TaskSchema = z.object({resultType: z.literal('task'), taskId: z.string(), status: z.literal('working')})
 
       async function queueTab() {
         const {home, mcp} = fakeClaude()
         expect(mcp('connect', 'claude')).toMatchObject({status: 0})
         const accepted: Array<{id: string; replies: string[]}> = []
         const engine = await engineWithTab(home, {hubAccess: 'open', queued: (queue) => accepted.push(queue)})
-        const play = async () => {
-          await vi.waitFor(() => expect(accepted).toHaveLength(1))
-          const [queue] = accepted
-          for (const requestId of queue?.replies ?? []) {
+        const play = async (index: number) => {
+          await vi.waitFor(() => expect(accepted.length).toBeGreaterThan(index))
+          for (const requestId of accepted[index]?.replies ?? []) {
             await engine.page.page.reply({requestId, outcome: {ok: true, result: {ok: true}}})
           }
         }
-        return {home, engine, play}
+        return {home, engine, play, accepted}
       }
 
       function rawHub(home: string) {
@@ -1845,44 +1845,81 @@ describe('cli', () => {
           child.stdin.write(`${JSON.stringify({jsonrpc: '2.0', id, method, params: {...params, _meta: ENVELOPE}})}\n`)
           return replied
         }
+        const execute = async (typescriptCode: string, tab: string) =>
+          (await request('tools/call', {name: 'execute_typescript', arguments: {typescriptCode, tab}})).result
+        const poll = async (taskId: string) => (await request('tasks/get', {taskId})).result
         const close = async () => {
           child.stdin.end()
           await once(child, 'exit')
         }
-        return {request, close}
+        return {request, execute, poll, close}
       }
 
-      it('a client on 2026-07-28 with tasks gets a task, and tasks/get goes from working to completed with the result', async () => {
-        const {home, engine, play} = await queueTab()
+      it('a tasks-capable client queuing through execute_typescript gets a task every time, in both call orders seen live', async () => {
+        const {home, engine} = await queueTab()
         const client = rawHub(home)
+        const tab = engine.sessionId
         try {
-          const called = await client.request('tools/call', {
-            name: 'execute_typescript',
-            arguments: {typescriptCode: QUEUE, tab: engine.sessionId},
-          })
-          const task = z
-            .object({resultType: z.literal('task'), taskId: z.string(), status: z.literal('working')})
-            .parse(called.result)
-          expect(task.taskId).toMatch(/^q_/)
-          const get = async () => (await client.request('tasks/get', {taskId: task.taskId})).result
-          expect(await get()).toMatchObject({taskId: task.taskId, status: 'working'})
-          await play()
-          const done = await vi.waitFor(async () => {
-            const polled = await get()
-            expect(polled).toMatchObject({status: 'completed'})
-            return polled
-          })
-          const text = JSON.stringify(done?.['result'])
-          expect(text).toContain(`\\"queueId\\":\\"${task.taskId}\\",\\"status\\":\\"finished\\"`)
-          expect(text).toContain('\\"played\\":2')
-          expect((await client.request('tasks/get', {taskId: task.taskId})).error).toMatchObject({code: -32602})
+          await client.request('tools/call', {name: 'discover_tools', arguments: {toolNames: ['page_queue'], tab}})
+          await client.execute(SNAPSHOT, tab)
+          const discoverFirst = TaskSchema.safeParse(await client.execute(QUEUE, tab))
+          await client.execute(SNAPSHOT, tab)
+          const refused = await client.execute('return await external_page_queue({actions: []})', tab)
+          expect(refused).toMatchObject({isError: true})
+          const handedBack = `const handle = await external_page_queue({actions: ${JSON.stringify(ACTIONS)}}); return {handle}`
+          const afterRefusal = TaskSchema.safeParse(await client.execute(handedBack, tab))
+          expect([discoverFirst.success, afterRefusal.success]).toEqual([true, true])
+          expect(discoverFirst.data?.taskId).not.toBe(afterRefusal.data?.taskId)
         } finally {
           await client.close()
           await engine.engine.stop()
         }
       })
 
-      it('a client without tasks gets the plain queue reply and the result on its next call', async () => {
+      it('a script that returns a queue-shaped object without queuing is not a task', async () => {
+        const {home, engine, accepted} = await queueTab()
+        const client = rawHub(home)
+        try {
+          const reply = await client.execute("return {queueId: 'x', actions: 1}", engine.sessionId)
+          expect(TaskSchema.safeParse(reply).success).toBe(false)
+          expect(JSON.stringify(reply)).toContain('{\\"result\\":{\\"queueId\\":\\"x\\",\\"actions\\":1}')
+          expect(accepted).toEqual([])
+        } finally {
+          await client.close()
+          await engine.engine.stop()
+        }
+      })
+
+      it('tasks/get reports working then completed with every outcome, and a poll against a stopped engine keeps the task working', async () => {
+        const {home, engine, play} = await queueTab()
+        const client = rawHub(home)
+        const stopping: {engine?: Promise<void>} = {}
+        const stop = () => (stopping.engine ??= engine.engine.stop())
+        try {
+          const task = TaskSchema.parse(await client.execute(QUEUE, engine.sessionId))
+          expect(await client.poll(task.taskId)).toMatchObject({taskId: task.taskId, status: 'working'})
+          await play(0)
+          const done = await vi.waitFor(async () => {
+            const polled = await client.poll(task.taskId)
+            expect(polled).toMatchObject({status: 'completed'})
+            return polled
+          })
+          const text = JSON.stringify(done?.['result'])
+          expect(text).toContain('\\"status\\":\\"finished\\"')
+          expect(text).toContain('\\"index\\":0,\\"tool\\":\\"page_fill\\",\\"ok\\":true')
+          expect(text).toContain('\\"index\\":1,\\"tool\\":\\"page_check\\",\\"ok\\":true')
+          expect(text).toContain('\\"played\\":2')
+          expect((await client.request('tasks/get', {taskId: task.taskId})).error).toMatchObject({code: -32602})
+          const stranded = TaskSchema.parse(await client.execute(QUEUE, engine.sessionId))
+          await stop()
+          expect(await client.poll(stranded.taskId)).toMatchObject({taskId: stranded.taskId, status: 'working'})
+        } finally {
+          await client.close()
+          await stop()
+        }
+      })
+
+      it('a client without tasks gets the plain reply, and the finished result leads its next reply exactly once', async () => {
         const {home, engine, play} = await queueTab()
         const client = await hub(home)
         try {
@@ -1894,17 +1931,78 @@ describe('cli', () => {
           const queued = await onTab(QUEUE)
           const queueId = /"queueId\\":\\"(q_[^\\]+)/.exec(queued)?.[1]
           expect(queueId).toMatch(/^q_/)
-          await play()
+          await play(0)
           const next = await vi.waitFor(async () => {
             const reply = await onTab('return 1')
             expect(reply).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
             return reply
           })
           expect(next).toContain('\\"result\\":1')
+          expect(next.split(`queue ${queueId} finished`)).toHaveLength(2)
           expect(await onTab('return 2')).not.toContain(`queue ${queueId}`)
         } finally {
           await client.close()
           await engine.engine.stop()
+        }
+      })
+
+      async function engineBeforeOrpcTabs(home: string) {
+        const id = 'engine-before-orpc-tabs'
+        const root = mkdtempSync(join(tmpdir(), 'conciv-before-orpc-'))
+        const server = createHttpServer((request, response) => {
+          const url = new URL(request.url ?? '/', 'http://127.0.0.1')
+          const json = (body: unknown) =>
+            response.writeHead(200, {'content-type': 'application/json'}).end(JSON.stringify(body))
+          if (url.pathname === '/health') return json({ok: true, id})
+          if (url.pathname === '/api/tabs' && url.searchParams.has('session')) {
+            return json({open: false, instructions: null})
+          }
+          if (url.pathname === '/api/tabs') return json({project: {name: null, root, branch: null}, tabs: []})
+          response.writeHead(404).end()
+        })
+        server.listen(0, '127.0.0.1')
+        await once(server, 'listening')
+        const port = z.object({port: z.number()}).parse(server.address()).port
+        withHomeDb(home, (db) => registerEngine(db, {id, pid: process.pid, root, apiBase: `http://127.0.0.1:${port}`}))
+        return {
+          root,
+          close: async () => {
+            server.closeAllConnections()
+            server.close()
+            await once(server, 'close')
+          },
+        }
+      }
+
+      it('an engine without the new procedures is listed as too old and skipped, and a healthy engine still answers', async () => {
+        const {home, mcp} = fakeClaude()
+        expect(mcp('connect', 'claude')).toMatchObject({status: 0})
+        const old = await engineBeforeOrpcTabs(home)
+        const healthy = await engineWithTab(home, {hubAccess: 'open'})
+        const client = await hub(home)
+        try {
+          const onTab = async (tab: string) =>
+            JSON.stringify(
+              ReplySchema.parse(
+                await client.callTool('execute_typescript', {
+                  typescriptCode: 'return await external_page_route({})',
+                  tab,
+                }),
+              ).content,
+            )
+          expect(await onTab(healthy.sessionId)).toContain(`"pathname\\":\\"${healthy.root}`)
+          expect(await onTab('conciv_gone')).toContain(`${old.root} (engine too old; upgrade its @conciv packages)`)
+          const listed = await run(client, 'return await external_tabs({})')
+          expect(listed).toContain(healthy.sessionId)
+          expect(listed).toContain(
+            JSON.stringify(
+              JSON.stringify({root: old.root, error: 'engine too old; upgrade its @conciv packages'}),
+            ).slice(1, -1),
+          )
+        } finally {
+          await client.close()
+          await old.close()
+          await healthy.engine.stop()
         }
       })
     })

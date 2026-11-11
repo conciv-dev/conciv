@@ -8,6 +8,7 @@ import {
   PageQueueActionsSchema,
   type PageOutcome,
   type PageQueueOutcome,
+  type PageQueueHandle,
   type PageQueueProgress,
   type PageQueueResult,
 } from '@conciv/protocol/page-types'
@@ -44,6 +45,7 @@ export type PageQueues = {
   start: (sessionId: SessionId, start: QueueStart) => Promise<{queueId: string; actions: number}>
   wait: (sessionId: SessionId, queueId: string, waitMs: number) => Promise<PageQueueResult | PageQueueProgress>
   undelivered: (sessionId: SessionId, outside: boolean) => PageQueueResult[]
+  startedBy: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => PageQueueHandle[]
   deliver: (record: QueueRecord) => boolean
   owedTurn: (sessionId: SessionId) => QueueRecord[]
   finished: (listener: (record: QueueRecord) => void) => void
@@ -224,6 +226,14 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
     })
   }
 
+  function startedBy(sessionId: SessionId, toolCallIds: ReadonlySet<string>): PageQueueHandle[] {
+    return [...records.values()].flatMap((record) =>
+      record.sessionId === sessionId && record.toolCallId !== undefined && toolCallIds.has(record.toolCallId)
+        ? [{queueId: record.queueId, actions: record.tools.length}]
+        : [],
+    )
+  }
+
   function deliver(record: QueueRecord): boolean {
     if (record.delivered || record.result === null) return false
     record.delivered = true
@@ -240,6 +250,7 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
     start,
     wait,
     undelivered,
+    startedBy,
     deliver,
     owedTurn,
     finished: (listener) => void listeners.push(listener),

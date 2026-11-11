@@ -1,10 +1,9 @@
 import {readFile} from 'node:fs/promises'
 import {dirname, join, resolve} from 'node:path'
 import {setTimeout as delay} from 'node:timers/promises'
-import {Hono} from 'hono'
 import {z} from 'zod'
 import type {SessionMeta} from '@conciv/contract'
-import {SessionId, TabsSchema, type TabOpen, type Tabs} from '@conciv/protocol/chat-types'
+import {TabsSchema, type SessionId, type TabOpen, type Tabs} from '@conciv/protocol/chat-types'
 import {isPageFailure} from '@conciv/protocol/page-types'
 import type {PageBus} from '../page-bus.js'
 
@@ -16,10 +15,6 @@ type TabsDeps = {
   root: string
   instructions: string
 }
-
-export type TabsVars = {tabs: TabsDeps}
-
-const SessionQuerySchema = SessionId.optional().catch(undefined)
 
 const PageSchema = TabsSchema.shape.tabs.element.shape.page
 
@@ -45,16 +40,15 @@ const GitdirSchema = z
   .startsWith(GITDIR)
   .transform((line) => line.slice(GITDIR.length))
 
-const app = new Hono<{Variables: TabsVars}>().get('/', async (c) => {
-  const deps = c.var.tabs
-  const sessionId = SessionQuerySchema.parse(c.req.query('session'))
-  if (sessionId !== undefined) {
-    const open = deps.bus.openSessions().some((entry) => entry.sessionId === sessionId)
-    const instructions = deps.instructions === '' ? null : deps.instructions
-    return c.json({open, instructions} satisfies TabOpen)
+export function createTabs(deps: TabsDeps) {
+  return {
+    list: (): Promise<Tabs> => listTabs(deps),
+    get: (sessionId: SessionId): TabOpen => ({
+      open: deps.bus.openSessions().some((entry) => entry.sessionId === sessionId),
+      instructions: deps.instructions === '' ? null : deps.instructions,
+    }),
   }
-  return c.json(await listTabs(deps))
-})
+}
 
 async function listTabs(deps: TabsDeps): Promise<Tabs> {
   const open = deps.bus.openSessions()
@@ -137,5 +131,3 @@ async function worktreeHead(root: string): Promise<string | null> {
   if (!gitdir.success) return null
   return readText(join(resolve(root, gitdir.data), 'HEAD'))
 }
-
-export default app

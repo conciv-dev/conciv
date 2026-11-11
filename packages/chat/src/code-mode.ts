@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {imagesIn, withoutImages} from '@conciv/ai/server'
+import {imagesIn, withoutImages} from '@conciv/protocol/chat-message-types'
 import {defineTool, type ChatTool} from '@conciv/protocol/chat-tool-types'
 import type {ToolRequest} from '@conciv/extension'
 import {type SandboxTool} from '@conciv/extension/registry'

@@ -126,6 +126,9 @@ export const PageQueueResultSchema = z.object({
 })
 export type PageQueueResult = z.infer<typeof PageQueueResultSchema>
 
+export const PageQueueHandleSchema = z.object({queueId: z.string(), actions: z.number().int()})
+export type PageQueueHandle = z.infer<typeof PageQueueHandleSchema>
+
 export const PageQueueProgressSchema = z.object({
   queueId: z.string(),
   status: z.literal('playing'),

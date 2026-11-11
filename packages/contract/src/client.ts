@@ -1,6 +1,7 @@
-import {createORPCClient} from '@orpc/client'
+import {createORPCClient, ORPCError} from '@orpc/client'
 import {RPCLink} from '@orpc/client/fetch'
-import type {ContractRouterClient} from '@orpc/contract'
+import {ValidationError, type ContractRouterClient} from '@orpc/contract'
+import {ResponseValidationPlugin} from '@orpc/contract/plugins'
 import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
 import {contract} from './contract.js'
 import contractManifest from '../package.json' with {type: 'json'}
@@ -13,7 +14,7 @@ import {
 
 export type RpcClient = ContractRouterClient<typeof contract, RpcClientContext>
 
-export type RpcClientOptions = {headers?: Record<string, string>}
+export type RpcClientOptions = {headers?: Record<string, string>; validated?: boolean}
 
 export function abortableFetch(
   request: Request,
@@ -28,8 +29,13 @@ export function makeRpcClient(apiBase: string, options: RpcClientOptions = {}): 
     url: `${apiBase}/rpc`,
     fetch: abortableFetch,
     headers: {...options.headers, [CONCIV_VERSION_HEADER]: contractManifest.version},
+    plugins: options.validated === true ? [new ResponseValidationPlugin(contract)] : [],
   })
   return createORPCClient(link)
+}
+
+export function engineTooOld(error: unknown): boolean {
+  return error instanceof ValidationError || (error instanceof ORPCError && error.code === 'NOT_FOUND')
 }
 
 export type BrowserRpcClientOptions = {session?: SessionAccessor}

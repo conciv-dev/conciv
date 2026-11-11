@@ -59,7 +59,7 @@ import type {RpcContext} from '@conciv/protocol/rpc-types'
 import {os} from '@orpc/server'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {createHubInstaller} from './api/rpc/hub.js'
-import tabsApp, {type TabsVars} from './api/tabs.js'
+import {createTabs} from './api/tabs.js'
 import {createOutsideTabs} from './api/outside-tabs.js'
 import {outsideRefusal} from './api/outside-refusal.js'
 import {outsideRunCapabilities} from './api/outside-run.js'
@@ -310,7 +310,7 @@ const HealthSchema = z.object({
   id: z.string(),
 })
 
-export type CoreVars = CorsVars & {harnessId: string} & McpVars & TabsVars
+export type CoreVars = CorsVars & {harnessId: string} & McpVars
 
 function composeRoutes(
   vars: CoreVars,
@@ -335,7 +335,6 @@ function composeRoutes(
       c.set('cors', vars.cors)
       c.set('harnessId', vars.harnessId)
       c.set('mcp', vars.mcp)
-      c.set('tabs', vars.tabs)
       await next()
     })
     .use(corsMiddleware())
@@ -359,7 +358,6 @@ function composeRoutes(
     )
     .use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(rpc))
     .route('/api/mcp', mcpApp)
-    .route('/api/tabs', tabsApp)
 }
 
 export type AppType = ReturnType<typeof composeRoutes>
@@ -640,7 +638,30 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
 
   const search = createSessionSearch({db, cwd: chatDeps.cwd, harnesses: chatDeps.harnesses})
+  const mcp: McpVars['mcp'] = {
+    codeRunner: (sessionId, publish, capabilities, outside) =>
+      plane.codeRunner(sessionId, publish, capabilities, outside),
+    finishedQueues: (sessionId, outside) => primitives.page.queues.undelivered(sessionId, outside),
+    startedQueues: (sessionId, toolCallIds) => primitives.page.queues.startedBy(sessionId, toolCallIds),
+    outsideCapabilities: (sessionId) =>
+      outsideRunCapabilities([
+        ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall),
+        ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
+      ]),
+    resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),
+    admitOutside,
+    hubRefusal: hub.refusal,
+    staleness,
+  }
   const rpcDeps: RpcDeps = {
+    code: mcp,
+    tabs: createTabs({
+      bus: primitives.page.bus,
+      session: (sessionId) => rpcSessionMeta(chatDeps, sessionId),
+      root: opts.cwd,
+      instructions: systemPromptText,
+    }),
+    queues: primitives.page.queues,
     chat: chatDeps,
     search,
     settings,
@@ -682,26 +703,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     {
       cors: {allowedOrigins: opts.allowedOrigins ?? []},
       harnessId: harness.id,
-      mcp: {
-        codeRunner: (sessionId, publish, capabilities, outside) =>
-          plane.codeRunner(sessionId, publish, capabilities, outside),
-        finishedQueues: (sessionId, outside) => primitives.page.queues.undelivered(sessionId, outside),
-        outsideCapabilities: (sessionId) =>
-          outsideRunCapabilities([
-            ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall),
-            ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
-          ]),
-        resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),
-        admitOutside,
-        hubRefusal: hub.refusal,
-        staleness,
-      },
-      tabs: {
-        bus: primitives.page.bus,
-        session: (sessionId) => rpcSessionMeta(chatDeps, sessionId),
-        root: opts.cwd,
-        instructions: systemPromptText,
-      },
+      mcp,
     },
     compositeRpc,
     {
