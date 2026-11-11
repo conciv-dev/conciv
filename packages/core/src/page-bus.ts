@@ -103,7 +103,7 @@ const UNREPORTED: BrowserTabFocus = {focusedAt: 0, visible: false}
 
 const BROWSER_TAB_RETURN_MS = 5000
 
-export function makePageBus(timeoutMs = 5000): PageBus {
+export function makePageBus(timeoutMs = 5000, queuedActionMs = QUEUED_ACTION_MS): PageBus {
   const bySession = new Map<SessionId, SessionPage>()
   const subscribed = {count: 0}
   const arrivals = new EventTarget()
@@ -277,7 +277,7 @@ export function makePageBus(timeoutMs = 5000): PageBus {
       if (refused !== null) return refused
       if (!page.browserTabs.has(tab.id))
         throw pageFailure('no-widget', `browser tab ${tab.id} closed before it replied`)
-      return page.pending.await(id, tab.id, QUEUED_ACTION_MS)
+      return page.pending.await(id, tab.id, queuedActionMs)
     }
     const played = replies.map((id) => lane.add(() => playedNext(id)))
     void Promise.allSettled([accepted, ...played]).then(() => dropIfIdle(sessionId, page))

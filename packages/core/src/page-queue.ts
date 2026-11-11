@@ -51,6 +51,8 @@ export type PageQueues = {
 
 const KEPT_QUEUES = 200
 
+const OWED_QUEUES = 1000
+
 export function queueNotice(result: PageQueueResult): string {
   return `queue ${result.queueId} ${result.status}: ${result.played} played, ${result.failed} failed\n${JSON.stringify(result)}`
 }
@@ -66,6 +68,12 @@ function unconfirmedOutcome(index: number, tool: string, error: unknown): Settle
   if (isPageFailure(error) && error.error.code === 'no-widget') {
     return {
       outcome: {index, tool, ok: false, error: `the page reloaded or closed during ${tool}; it may already have run`},
+      landed: 'lost',
+    }
+  }
+  if (isPageFailure(error) && error.error.code === 'timeout') {
+    return {
+      outcome: {index, tool, ok: false, error: `the page did not confirm ${tool} in time; it may already have run`},
       landed: 'lost',
     }
   }
@@ -125,10 +133,26 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
     return result
   }
 
+  const evictBeyond = (kept: QueueRecord[], limit: number): QueueRecord[] => {
+    const evicted = kept.slice(0, Math.max(0, kept.length - limit))
+    for (const old of evicted) records.delete(old.queueId)
+    return evicted
+  }
+
   const keep = (record: QueueRecord): void => {
     records.set(record.queueId, record)
     const finished = [...records.values()].filter((each) => each.result !== null)
-    for (const old of finished.slice(0, Math.max(0, records.size - KEPT_QUEUES))) records.delete(old.queueId)
+    evictBeyond(
+      finished.filter((each) => each.delivered),
+      KEPT_QUEUES,
+    )
+    const dropped = evictBeyond(
+      finished.filter((each) => !each.delivered),
+      OWED_QUEUES,
+    )
+    for (const old of dropped) {
+      logError(`[core] queue ${old.queueId} was dropped with its result never delivered; ${OWED_QUEUES} are kept`)
+    }
   }
 
   async function start(sessionId: SessionId, given: QueueStart): Promise<{queueId: string; actions: number}> {
