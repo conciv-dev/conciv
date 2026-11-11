@@ -1,4 +1,3 @@
-import {omit} from 'es-toolkit'
 import type {Component, Scheme, TokenMap} from '../../shared/catalog-defs.js'
 import type {GateRow} from '../../shared/defs.js'
 
@@ -14,7 +13,7 @@ export function classifyDrift(input: {
     (drift) => drift.key,
   )
   return judged.flatMap(({row, drift}) => {
-    if (drift === null) return [bare(row)]
+    if (drift === null) return [row]
     return groups.get(drift.key)?.[0] === drift ? [drift.row] : []
   })
 }
@@ -30,13 +29,13 @@ function driftOf(input: {
   scheme: Scheme
 }): Drift | null {
   const {row, relation, tokens, scheme} = input
-  const {token, pageValue, designValue} = row
+  const {token, actual, expected} = row
   if (row.magnitude !== 'paint' || token === undefined || token === null) return null
-  if (pageValue === undefined || designValue === undefined) return null
+  if (actual === undefined || expected === undefined) return null
   const component = relation.get(row.node)
   if (component === undefined) return null
   const kit = tokens
-    .kitTokensFor({kind: row.kind, value: pageValue, scheme})
+    .kitTokensFor({kind: row.kind, value: actual, scheme})
     .map((kitToken) => kitToken.name)
     .join(ALTERNATIVES)
   if (kit === '') return null
@@ -44,16 +43,12 @@ function driftOf(input: {
   return {
     key: `${component.id}\n${kit}`,
     row: {
-      ...bare(row),
+      ...row,
       magnitude: 'token-drift',
       component: name,
       kitToken: kit,
       designToken: token,
-      text: `${name} uses ${kit} (${pageValue}); the design wants ${token} (${designValue})`,
+      text: `${name} uses ${kit} (${actual}); the design wants ${token} (${expected})`,
     },
   }
-}
-
-function bare(row: GateRow): GateRow {
-  return omit(row, ['pageValue', 'designValue'])
 }

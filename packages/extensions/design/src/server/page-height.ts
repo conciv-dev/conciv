@@ -33,6 +33,10 @@ export function pageHeightRows(input: {
       text: `the page is ${page} px tall, the frame is ${frame}${named}`,
       magnitude: 'reflow',
       width,
+      property: 'height',
+      expected: `${frame}px`,
+      actual: `${page}px`,
+      delta: page - frame,
     },
   ]
 }

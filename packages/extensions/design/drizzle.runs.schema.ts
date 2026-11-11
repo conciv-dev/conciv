@@ -17,6 +17,7 @@ export const {
   labels,
   notes,
   node_components,
+  hints,
   artifacts,
 } = storeTables
 

@@ -13,7 +13,7 @@ import {
 } from 'drizzle-orm/sqlite-core'
 import {RUN_STATUSES} from '@conciv/protocol/chat-event-types'
 import type {TokenUsage} from '@conciv/protocol/usage-types'
-import {BROKEN_BY, DESIGN_VERDICTS, WIDGETS, type Design, type IdTree} from '../shared/defs.js'
+import {BROKEN_BY, DESIGN_VERDICTS, ROUND_STATES, WIDGETS, type Design} from '../shared/defs.js'
 import {DESIGN_TOOLS} from '../shared/design-tools.js'
 import {MAGNITUDES} from '../shared/magnitudes.js'
 import {RUN_VERDICTS} from '../shared/run-verdicts.js'
@@ -21,6 +21,7 @@ import type {ToolReply} from '../shared/tool-reply.js'
 
 export function designTables(table: SQLiteTableFn) {
   const runId = () => integer().notNull()
+  const session = () => text().notNull()
   const keyOf = (self: Keyed): Key => [self.run_id, self.target_id]
   const ofRun = (self: {run_id: SQLiteColumn}) =>
     foreignKey({columns: [self.run_id], foreignColumns: [runs.run_id]}).onDelete('cascade')
@@ -55,7 +56,7 @@ export function designTables(table: SQLiteTableFn) {
       tools_head: text(),
       tools_version: text(),
       tools_fingerprint: text(),
-      session_id: text(),
+      session: text(),
       status: text({enum: RUN_STATUSES}),
       harness: text(),
       agent_id: text(),
@@ -65,7 +66,7 @@ export function designTables(table: SQLiteTableFn) {
       harness_session_id: text(),
     },
     (self) => [
-      index('runs_by_session').on(self.session_id, self.status),
+      index('runs_by_session').on(self.session, self.status),
       check('runs_verdict', inArray(self.verdict, [...RUN_VERDICTS]).inlineParams()),
       check('runs_status', inArray(self.status, [...RUN_STATUSES]).inlineParams()),
     ],
@@ -100,7 +101,10 @@ export function designTables(table: SQLiteTableFn) {
       seq: integer().primaryKey({autoIncrement: true}),
       target_id: text().notNull(),
       run_id: runId(),
+      session: session(),
       round: integer().notNull(),
+      state: text({enum: ROUND_STATES}).notNull(),
+      same_as: integer(),
       much: integer().notNull().default(0),
       noticeably: integer().notNull().default(0),
       slightly: integer().notNull().default(0),
@@ -124,17 +128,19 @@ export function designTables(table: SQLiteTableFn) {
       changed_ratio: real(),
       changed_regions: integer(),
       note: text(),
-      tree: text().notNull(),
+      image_mismatch: text({mode: 'json'}).$type<Record<string, number>>(),
+      tree: text().notNull().default(''),
       verdict: text(),
       unsettled: text(),
       broken: text(),
       broken_by: text({enum: BROKEN_BY}),
-      live: text(),
-      diff: text(),
-      ids: text({mode: 'json'}).$type<IdTree>(),
       at: integer().notNull(),
     },
-    (self) => [...owned(self), uniqueIndex('rounds_round').on(self.run_id, self.target_id, self.round)],
+    (self) => [
+      ...owned(self),
+      uniqueIndex('rounds_round').on(self.run_id, self.target_id, self.round),
+      check('rounds_state', inArray(self.state, [...ROUND_STATES]).inlineParams()),
+    ],
   )
   return {
     targets,
@@ -145,8 +151,10 @@ export function designTables(table: SQLiteTableFn) {
         seq: integer().primaryKey({autoIncrement: true}),
         target_id: text().notNull(),
         run_id: runId(),
+        session: session(),
         round: integer().notNull(),
         node: text().notNull(),
+        name: text(),
         kind: text({enum: COVERAGE_LISTS}).notNull(),
       },
       (self) => [
@@ -160,6 +168,7 @@ export function designTables(table: SQLiteTableFn) {
         seq: integer().primaryKey({autoIncrement: true}),
         target_id: text().notNull(),
         run_id: runId(),
+        session: session(),
         round: integer().notNull(),
         node: text().notNull(),
         selector: text().notNull(),
@@ -173,6 +182,7 @@ export function designTables(table: SQLiteTableFn) {
         seq: integer().primaryKey({autoIncrement: true}),
         target_id: text().notNull(),
         run_id: runId(),
+        session: session(),
         round: integer().notNull(),
         width: real().notNull(),
         from: text().notNull(),
@@ -187,6 +197,7 @@ export function designTables(table: SQLiteTableFn) {
         seq: integer().primaryKey({autoIncrement: true}),
         target_id: text().notNull(),
         run_id: runId(),
+        session: session(),
         round: integer().notNull(),
         x: real().notNull(),
         y: real().notNull(),
@@ -207,6 +218,7 @@ export function designTables(table: SQLiteTableFn) {
         seq: integer().primaryKey({autoIncrement: true}),
         target_id: text().notNull(),
         run_id: runId(),
+        session: session(),
         round: integer().notNull(),
         id: text(),
         node: text().notNull(),
@@ -217,6 +229,10 @@ export function designTables(table: SQLiteTableFn) {
         magnitude: text({enum: MAGNITUDES}).notNull(),
         width: real(),
         text: text().notNull(),
+        property: text(),
+        expected: text(),
+        actual: text(),
+        delta: real(),
         token: text(),
         component: text(),
         specifier: text(),
@@ -239,6 +255,7 @@ export function designTables(table: SQLiteTableFn) {
         seq: integer().primaryKey({autoIncrement: true}),
         target_id: text().notNull(),
         run_id: runId(),
+        session: session(),
         id: text().notNull(),
         node: text().notNull(),
         name: text(),
@@ -261,6 +278,7 @@ export function designTables(table: SQLiteTableFn) {
         seq: integer().primaryKey({autoIncrement: true}),
         target_id: text().notNull(),
         run_id: runId(),
+        session: session(),
         node: text().notNull(),
         type: text().notNull(),
         name: text().notNull(),
@@ -300,6 +318,7 @@ export function designTables(table: SQLiteTableFn) {
         seq: integer().primaryKey({autoIncrement: true}),
         target_id: text().notNull(),
         run_id: runId(),
+        session: session(),
         round: integer().notNull(),
         node: text().notNull(),
         name: text(),
@@ -320,6 +339,7 @@ export function designTables(table: SQLiteTableFn) {
         seq: integer().primaryKey({autoIncrement: true}),
         target_id: text(),
         run_id: runId(),
+        session: session(),
         tool: text().notNull(),
         round: integer(),
         input: text({mode: 'json'}).$type<unknown>(),
@@ -342,6 +362,7 @@ export function designTables(table: SQLiteTableFn) {
         seq: integer().primaryKey({autoIncrement: true}),
         target_id: text().notNull(),
         run_id: runId(),
+        session: text(),
         round: integer(),
         node: text().notNull(),
         id: text(),
@@ -357,6 +378,7 @@ export function designTables(table: SQLiteTableFn) {
       {
         seq: integer().primaryKey({autoIncrement: true}),
         target_id: text().notNull(),
+        session: session(),
         run_id: runId(),
         round: integer().notNull(),
         node: text().notNull(),
@@ -367,12 +389,27 @@ export function designTables(table: SQLiteTableFn) {
       },
       (self) => [...byRound('node_components')(self), index('node_components_by_component').on(self.component_id)],
     ),
+    hints: table(
+      'hints',
+      {
+        seq: integer().primaryKey({autoIncrement: true}),
+        target_id: text().notNull(),
+        run_id: runId(),
+        session: session(),
+        round: integer().notNull(),
+        node: text().notNull(),
+        hint: text().notNull(),
+        specifier: text(),
+      },
+      (self) => [...owned(self), index('hints_by_node').on(self.run_id, self.target_id, self.node)],
+    ),
     notes: table(
       'notes',
       {
         seq: integer().primaryKey({autoIncrement: true}),
         target_id: text().notNull(),
         run_id: runId(),
+        session: text(),
         round: integer(),
         text: text().notNull(),
         at: integer().notNull().default(NOW_MS),
@@ -382,7 +419,7 @@ export function designTables(table: SQLiteTableFn) {
   }
 }
 
-const COVERAGE_LISTS = ['missing', 'not_rendered', 'dupe'] as const
+const COVERAGE_LISTS = ['missing', 'not_rendered', 'dupe', 'gone'] as const
 
 const FILL_KINDS = ['solid', 'gradient', 'image', 'image-stack', 'none'] as const
 

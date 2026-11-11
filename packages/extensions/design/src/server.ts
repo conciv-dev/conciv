@@ -31,6 +31,7 @@ import {createSessionRuns} from './server/runs/session-runs.js'
 import {storeTables} from './server/runs/store-tables.js'
 import {projectKey} from './server/catalog/project-key.js'
 import {storeSources} from './server/runs/sources.js'
+import {createArtifacts} from './server/runs/artifacts.js'
 
 const DESIGN_EXTENSION_NAME = 'design'
 
@@ -86,7 +87,13 @@ const design = defineExtension({
     project,
     files,
     runs,
-    store: createStore({db: store, home: server.home, state, runs, project: projectKey({cwd: server.cwd}), catalog}),
+    store: createStore({
+      db: store,
+      artifacts: createArtifacts(server.home),
+      runs,
+      project: projectKey({cwd: server.cwd}),
+      catalog,
+    }),
     adapters: [
       createImageAdapter({config}),
       createFigmaAdapter({

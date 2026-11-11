@@ -12,6 +12,7 @@ export async function backfillRelation(input: {db: DesignDb; catalog: Catalog}):
     .select({
       targetId: fom.target_id,
       runId: fom.run_id,
+      session: fom.session,
       round: fom.round,
       node: fom.node,
       source: fom.source,
@@ -27,6 +28,7 @@ export async function backfillRelation(input: {db: DesignDb; catalog: Catalog}):
       catalog,
       targetId: first.targetId,
       runId: first.runId,
+      session: first.session,
       round: first.round,
       sites: sites.flatMap((row) => {
         const source = row.source ?? row.site

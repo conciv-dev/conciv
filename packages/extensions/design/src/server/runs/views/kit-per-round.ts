@@ -3,11 +3,12 @@ import {integer, text, sqliteView} from 'drizzle-orm/sqlite-core'
 
 export const kitPerRoundView = sqliteView('kit_per_round', {
   run_id: integer().notNull(),
+  session: text().notNull(),
   target_id: text().notNull(),
   round: integer().notNull(),
   component_id: text().notNull(),
   component: text(),
   specifier: text(),
   nodes: integer().notNull(),
-}).as(sql`SELECT run_id, target_id, round, component_id, component, specifier, count(DISTINCT node) AS nodes
-FROM design_node_components GROUP BY run_id, target_id, round, component_id, component, specifier`)
+}).as(sql`SELECT run_id, session, target_id, round, component_id, component, specifier, count(DISTINCT node) AS nodes
+FROM design_node_components GROUP BY run_id, session, target_id, round, component_id, component, specifier`)

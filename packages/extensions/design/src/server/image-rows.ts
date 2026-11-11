@@ -26,7 +26,8 @@ export async function imageRowsOf(input: {
     nodeLooks(input.design).map(async (look): Promise<Checked[]> => {
       const element = reads.of(look.node)[0]
       const named = reads.named(look.node)
-      if (look.asset === null || element === undefined || named.selector === null) return []
+      const {asset} = look
+      if (asset === null || element === undefined || named.selector === null) return []
       const row = (text: string): GateRow => ({
         node: look.node,
         ...named,
@@ -35,11 +36,15 @@ export async function imageRowsOf(input: {
         text,
         magnitude: 'paint',
         token: null,
+        property: IMAGE,
+        expected: asset,
+        actual: foundIn(element),
+        delta: null,
       })
       const background = look.image && look.fill_kind !== IMAGE
-      const expected = `wrong image at [${look.node}]: ${look.asset} expected${background ? ' as the background' : ''}`
+      const expected = `wrong image at [${look.node}]: ${asset} expected${background ? ' as the background' : ''}`
       const box = smaller({a: {w: look.w, h: look.h}, b: element.box})
-      if (!(await showsAsset({shown: element.styles.image ?? '', asset: look.asset, box, pictures})))
+      if (!(await showsAsset({shown: element.styles.image ?? '', asset: asset, box, pictures})))
         return [{row: row(`${expected}, ${foundIn(element)}`), node: look.node, shot: null}]
       if (background) return []
       const shot = {
@@ -47,7 +52,7 @@ export async function imageRowsOf(input: {
         width: side(look.w),
         height: side(look.h),
         scale: 1,
-        reference: look.asset,
+        reference: asset,
       }
       return [{row: row(expected), node: look.node, shot}]
     }),

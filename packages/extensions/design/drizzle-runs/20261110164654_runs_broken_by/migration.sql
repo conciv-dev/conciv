@@ -1,1 +1,0 @@
-ALTER TABLE `design_rounds` ADD `broken_by` text;

@@ -1,4 +1,4 @@
-import {and, desc, eq} from 'drizzle-orm'
+import {and, desc, eq, inArray} from 'drizzle-orm'
 import {z} from 'zod'
 import type {RunStatus} from '@conciv/protocol/chat-event-types'
 import type {TranscriptUsage} from '@conciv/protocol/harness-types'
@@ -25,7 +25,7 @@ export function createSessionRuns(input: {
     const [row] = await orm
       .insert(runs)
       .values({
-        session_id: request.sessionId,
+        session: request.sessionId,
         status: 'running',
         model: request.model,
         agent_id: request.agentId,
@@ -43,13 +43,13 @@ export function createSessionRuns(input: {
     const open = await orm
       .select({run: runs.run_id, started: runs.started, model: runs.model})
       .from(runs)
-      .where(and(eq(runs.session_id, sessionId), eq(runs.status, RUNNING)))
+      .where(and(eq(runs.session, sessionId), eq(runs.status, RUNNING)))
     await Promise.all(
       open.map(async ({run, started, model}) => {
         const [last] = await orm
           .select({verdict: rounds.verdict})
           .from(rounds)
-          .where(eq(rounds.run_id, run))
+          .where(and(eq(rounds.run_id, run), inArray(rounds.state, JUDGED)))
           .orderBy(desc(rounds.seq))
           .limit(1)
         const verdict = VerdictSchema.parse(last?.verdict?.replaceAll(' ', '-') ?? null)
@@ -129,6 +129,8 @@ type Closed = {
 }
 
 const RUNNING = 'running'
+
+const JUDGED: ('measured' | 'broken')[] = ['measured', 'broken']
 
 const NO_TRANSCRIPT = 'no-transcript'
 

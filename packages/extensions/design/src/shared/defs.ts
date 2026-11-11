@@ -27,6 +27,23 @@ const WidgetSchema = z
 
 export const BROKEN_BY = ['compile', 'runtime'] as const
 
+export const ROUND_STATES = ['measured', 'unsettled', 'unchanged', 'broken', 'refused'] as const
+
+export const ARTIFACT_KINDS = [
+  'dom',
+  'cssom',
+  'fom',
+  'screenshot',
+  'diff',
+  'mask',
+  'figma',
+  'design',
+  'frame',
+  'source_diff',
+] as const
+
+export const RECORDED_FIELDS = ['property', 'expected', 'actual', 'delta'] as const
+
 const MeasureSourceSchema = z.enum(['dom', 'mirror', 'takumi'])
 const CapturePathSchema = z.enum(['region', 'snapdom-live', 'snapdom-mirror', 'cdp'])
 const MirrorLimitsSchema = z.object({canvases: z.number(), fonts: z.array(z.string()), inlineWidths: z.number()})
@@ -247,6 +264,27 @@ const IdNodeSchema = z.object({
 
 export const IdTreeSchema = z.object({root: IdNodeSchema, revoted: z.array(z.string()), gone: z.array(z.string())})
 
+const DomSiteSchema = z.object({
+  id: z.string(),
+  dom: IdNodeSchema.shape.dom,
+  src: IdNodeSchema.shape.src,
+  get children(): z.ZodArray<typeof DomSiteSchema> {
+    return z.array(DomSiteSchema)
+  },
+})
+
+const CssomSiteSchema = z.object({
+  id: z.string(),
+  cssom: IdNodeSchema.shape.cssom,
+  get children(): z.ZodArray<typeof CssomSiteSchema> {
+    return z.array(CssomSiteSchema)
+  },
+})
+
+export const DomSnapshotSchema = IdTreeSchema.pick({revoted: true, gone: true}).extend({root: DomSiteSchema})
+
+export const CssomSnapshotSchema = z.object({queries: z.array(z.number()), root: CssomSiteSchema})
+
 const MagnitudeSchema = z.enum(MAGNITUDES)
 
 const GateRowSchema = z.object({
@@ -271,8 +309,10 @@ const GateRowSchema = z.object({
   specifier: z.string().optional().describe('on a component row, the import path of the component the design names'),
   kitToken: z.string().optional().describe('on a token-drift row, the kit token the page value is'),
   designToken: z.string().optional().describe('on a token-drift row, the design variable the field is bound to'),
-  pageValue: z.string().optional().describe('the value the page shows, while the round is classified'),
-  designValue: z.string().optional().describe('the value the design wants, while the round is classified'),
+  property: z.string().optional().describe('the property the row compares; recorded, never sent'),
+  expected: z.string().optional().describe('the value the design wants, with its unit; recorded, never sent'),
+  actual: z.string().optional().describe('the value the page shows, with its unit; recorded, never sent'),
+  delta: z.number().nullable().optional().describe('actual less expected when both are numbers; recorded, never sent'),
 })
 
 const ReflowSchema = z.object({
@@ -534,6 +574,8 @@ export type Widget = z.output<typeof WidgetSchema>
 export type LiveComponent = z.output<typeof LiveComponentSchema>
 export type Mapping = z.output<typeof MappingSchema>
 export type IdTree = z.output<typeof IdTreeSchema>
+export type DomSite = z.output<typeof DomSiteSchema>
+export type CssomSite = z.output<typeof CssomSiteSchema>
 export type IdNode = z.output<typeof IdNodeSchema>
 export type Round = z.output<typeof RoundSchema>
 export type GateRow = z.output<typeof GateRowSchema>
@@ -573,7 +615,7 @@ export type TargetAdapter = {
     project: Storage
     files: Storage
     attachments: {document?: unknown; image?: Uint8Array}
-  }): Promise<{design: Design; image: Uint8Array; warnings: string[]}>
+  }): Promise<{design: Design; image: Uint8Array; warnings: string[]; raw?: unknown}>
   dispose?(): Promise<void>
 }
 

@@ -7,19 +7,18 @@ import type {storeTables} from './runs/store-tables.js'
 export function writeFom(written: {
   tx: Transaction
   fom: DesignDb['tables']['fom']
-  id: string
-  runId: number
-  round: number
+  own: {target_id: string; run_id: number; session: string; round: number}
   ids: {tree: IdTree; revoted: Record<string, string>}
   names: Map<string, string>
   before: FomRow[]
   at: number
 }): void {
-  const {tx, fom, id, runId, round, names, at} = written
+  const {tx, fom, own, names, at} = written
+  const {round} = own
   const {tree, revoted} = written.ids
   const carried = new Map(written.before.map((row) => [`${row.id}/${row.node}`, row]))
   tx.delete(fom)
-    .where(and(eq(fom.run_id, runId), eq(fom.target_id, id), eq(fom.round, round)))
+    .where(and(eq(fom.run_id, own.run_id), eq(fom.target_id, own.target_id), eq(fom.round, round)))
     .run()
   for (const {node: site} of walk(tree.root)) {
     for (const entry of site.fom) {
@@ -28,8 +27,7 @@ export function writeFom(written: {
       const {at: loc} = site.src
       tx.insert(fom)
         .values({
-          target_id: id,
-          run_id: runId,
+          ...own,
           id: site.id,
           node: entry.nodeId,
           name: names.get(entry.nodeId) ?? null,
@@ -38,7 +36,6 @@ export function writeFom(written: {
           site: site.src.site ?? null,
           confidence: entry.confidence,
           margin: entry.margin,
-          round,
           voted_round: entry.round,
           revoted_round: reason === undefined ? (previous?.revoted_round ?? null) : round,
           reason: reason ?? previous?.reason ?? null,

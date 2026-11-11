@@ -1,15 +1,23 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "08db92ea-d2aa-47ab-80d3-b517c2611afb",
+  "id": "482e70b9-1192-4147-a12e-1cc706d9f99a",
   "prevIds": ["00000000-0000-0000-0000-000000000000"],
   "ddl": [
+    {
+      "name": "design_artifacts",
+      "entityType": "tables"
+    },
     {
       "name": "design_candidates",
       "entityType": "tables"
     },
     {
       "name": "design_fom",
+      "entityType": "tables"
+    },
+    {
+      "name": "design_hints",
       "entityType": "tables"
     },
     {
@@ -65,6 +73,126 @@
       "entityType": "tables"
     },
     {
+      "table": "design_artifacts",
+      "name": "artifact_id",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": true,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_artifacts",
+      "name": "run_id",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_artifacts",
+      "name": "session",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_artifacts",
+      "name": "target_id",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_artifacts",
+      "name": "round",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_artifacts",
+      "name": "width",
+      "type": "real",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_artifacts",
+      "name": "kind",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_artifacts",
+      "name": "path",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_artifacts",
+      "name": "content_type",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_artifacts",
+      "name": "size",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_artifacts",
+      "name": "checksum",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_artifacts",
+      "name": "written",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
       "table": "design_candidates",
       "name": "seq",
       "type": "integer",
@@ -88,6 +216,16 @@
       "table": "design_candidates",
       "name": "run_id",
       "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_candidates",
+      "name": "session",
+      "type": "text",
       "notNull": true,
       "autoincrement": false,
       "default": null,
@@ -158,6 +296,16 @@
       "table": "design_fom",
       "name": "run_id",
       "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_fom",
+      "name": "session",
+      "type": "text",
       "notNull": true,
       "autoincrement": false,
       "default": null,
@@ -295,6 +443,86 @@
       "entityType": "columns"
     },
     {
+      "table": "design_hints",
+      "name": "seq",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": true,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_hints",
+      "name": "target_id",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_hints",
+      "name": "run_id",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_hints",
+      "name": "session",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_hints",
+      "name": "round",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_hints",
+      "name": "node",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_hints",
+      "name": "hint",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_hints",
+      "name": "specifier",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
       "table": "design_labels",
       "name": "seq",
       "type": "integer",
@@ -319,6 +547,16 @@
       "name": "run_id",
       "type": "integer",
       "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_labels",
+      "name": "session",
+      "type": "text",
+      "notNull": false,
       "autoincrement": false,
       "default": null,
       "generated": null,
@@ -426,6 +664,16 @@
     },
     {
       "table": "design_missing",
+      "name": "session",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_missing",
       "name": "round",
       "type": "integer",
       "notNull": true,
@@ -439,6 +687,16 @@
       "name": "node",
       "type": "text",
       "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_missing",
+      "name": "name",
+      "type": "text",
+      "notNull": false,
       "autoincrement": false,
       "default": null,
       "generated": null,
@@ -467,6 +725,16 @@
     {
       "table": "design_node_components",
       "name": "target_id",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_node_components",
+      "name": "session",
       "type": "text",
       "notNull": true,
       "autoincrement": false,
@@ -516,6 +784,26 @@
     },
     {
       "table": "design_node_components",
+      "name": "component",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_node_components",
+      "name": "specifier",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_node_components",
       "name": "source",
       "type": "text",
       "notNull": true,
@@ -548,6 +836,16 @@
       "table": "design_nodes",
       "name": "run_id",
       "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_nodes",
+      "name": "session",
+      "type": "text",
       "notNull": true,
       "autoincrement": false,
       "default": null,
@@ -886,6 +1184,16 @@
     },
     {
       "table": "design_notes",
+      "name": "session",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_notes",
       "name": "round",
       "type": "integer",
       "notNull": false,
@@ -938,6 +1246,16 @@
       "table": "design_regions",
       "name": "run_id",
       "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_regions",
+      "name": "session",
+      "type": "text",
       "notNull": true,
       "autoincrement": false,
       "default": null,
@@ -1086,9 +1404,39 @@
     },
     {
       "table": "design_rounds",
+      "name": "session",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
       "name": "round",
       "type": "integer",
       "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
+      "name": "state",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
+      "name": "same_as",
+      "type": "integer",
+      "notNull": false,
       "autoincrement": false,
       "default": null,
       "generated": null,
@@ -1326,11 +1674,21 @@
     },
     {
       "table": "design_rounds",
+      "name": "image_mismatch",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
       "name": "tree",
       "type": "text",
       "notNull": true,
       "autoincrement": false,
-      "default": null,
+      "default": "''",
       "generated": null,
       "entityType": "columns"
     },
@@ -1366,27 +1724,7 @@
     },
     {
       "table": "design_rounds",
-      "name": "live",
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "design_rounds",
-      "name": "diff",
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "design_rounds",
-      "name": "ids",
+      "name": "broken_by",
       "type": "text",
       "notNull": false,
       "autoincrement": false,
@@ -1428,6 +1766,16 @@
       "table": "design_rows",
       "name": "run_id",
       "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rows",
+      "name": "session",
+      "type": "text",
       "notNull": true,
       "autoincrement": false,
       "default": null,
@@ -1529,6 +1877,46 @@
       "name": "text",
       "type": "text",
       "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rows",
+      "name": "property",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rows",
+      "name": "expected",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rows",
+      "name": "actual",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rows",
+      "name": "delta",
+      "type": "real",
+      "notNull": false,
       "autoincrement": false,
       "default": null,
       "generated": null,
@@ -1648,7 +2036,7 @@
       "table": "design_runs",
       "name": "model",
       "type": "text",
-      "notNull": true,
+      "notNull": false,
       "autoincrement": false,
       "default": null,
       "generated": null,
@@ -1658,7 +2046,7 @@
       "table": "design_runs",
       "name": "prompt_head",
       "type": "text",
-      "notNull": true,
+      "notNull": false,
       "autoincrement": false,
       "default": null,
       "generated": null,
@@ -1706,7 +2094,7 @@
     },
     {
       "table": "design_runs",
-      "name": "source_path",
+      "name": "project_key",
       "type": "text",
       "notNull": false,
       "autoincrement": false,
@@ -1716,8 +2104,128 @@
     },
     {
       "table": "design_runs",
-      "name": "source_run_id",
-      "type": "integer",
+      "name": "branch",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_runs",
+      "name": "head",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_runs",
+      "name": "tools_head",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_runs",
+      "name": "tools_version",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_runs",
+      "name": "tools_fingerprint",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_runs",
+      "name": "session",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_runs",
+      "name": "status",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_runs",
+      "name": "harness",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_runs",
+      "name": "agent_id",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_runs",
+      "name": "usage",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_runs",
+      "name": "error",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_runs",
+      "name": "error_code",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_runs",
+      "name": "harness_session_id",
+      "type": "text",
       "notNull": false,
       "autoincrement": false,
       "default": null,
@@ -1896,6 +2404,16 @@
     },
     {
       "table": "design_tool_calls",
+      "name": "session",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_tool_calls",
       "name": "tool",
       "type": "text",
       "notNull": true,
@@ -1998,6 +2516,16 @@
       "table": "design_votes",
       "name": "run_id",
       "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_votes",
+      "name": "session",
+      "type": "text",
       "notNull": true,
       "autoincrement": false,
       "default": null,
@@ -2146,6 +2674,16 @@
     },
     {
       "table": "design_widths",
+      "name": "session",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_widths",
       "name": "round",
       "type": "integer",
       "notNull": true,
@@ -2195,6 +2733,46 @@
       "entityType": "columns"
     },
     {
+      "table": "design_artifacts",
+      "name": "artifacts_path",
+      "columns": [
+        {
+          "value": "path",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "entityType": "indexes"
+    },
+    {
+      "table": "design_artifacts",
+      "name": "artifacts_by_round",
+      "columns": [
+        {
+          "value": "run_id",
+          "isExpression": false
+        },
+        {
+          "value": "target_id",
+          "isExpression": false
+        },
+        {
+          "value": "round",
+          "isExpression": false
+        },
+        {
+          "value": "kind",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "entityType": "indexes"
+    },
+    {
       "table": "design_candidates",
       "name": "candidates_by_round",
       "columns": [
@@ -2242,6 +2820,28 @@
       "table": "design_fom",
       "name": "fom_by_node",
       "columns": [
+        {
+          "value": "target_id",
+          "isExpression": false
+        },
+        {
+          "value": "node",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "entityType": "indexes"
+    },
+    {
+      "table": "design_hints",
+      "name": "hints_by_node",
+      "columns": [
+        {
+          "value": "run_id",
+          "isExpression": false
+        },
         {
           "value": "target_id",
           "isExpression": false
@@ -2400,18 +3000,18 @@
     },
     {
       "table": "design_runs",
-      "name": "runs_source",
+      "name": "runs_by_session",
       "columns": [
         {
-          "value": "source_path",
+          "value": "session",
           "isExpression": false
         },
         {
-          "value": "source_run_id",
+          "value": "status",
           "isExpression": false
         }
       ],
-      "isUnique": true,
+      "isUnique": false,
       "where": null,
       "origin": "manual",
       "entityType": "indexes"
@@ -2477,6 +3077,17 @@
       "where": null,
       "origin": "manual",
       "entityType": "indexes"
+    },
+    {
+      "table": "design_artifacts",
+      "name": "fk_design_artifacts_run_id_design_runs_run_id_fk",
+      "columns": ["run_id"],
+      "tableTo": "design_runs",
+      "columnsTo": ["run_id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "entityType": "fks"
     },
     {
       "table": "design_candidates",
@@ -2545,6 +3156,28 @@
       "entityType": "fks"
     },
     {
+      "table": "design_hints",
+      "name": "fk_design_hints_run_id_design_runs_run_id_fk",
+      "columns": ["run_id"],
+      "tableTo": "design_runs",
+      "columnsTo": ["run_id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "entityType": "fks"
+    },
+    {
+      "table": "design_hints",
+      "name": "fk_design_hints_run_id_target_id_design_targets_run_id_target_id_fk",
+      "columns": ["run_id", "target_id"],
+      "tableTo": "design_targets",
+      "columnsTo": ["run_id", "target_id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "entityType": "fks"
+    },
+    {
       "table": "design_labels",
       "name": "fk_design_labels_run_id_design_runs_run_id_fk",
       "columns": ["run_id"],
@@ -2561,17 +3194,6 @@
       "columns": ["run_id", "target_id"],
       "tableTo": "design_targets",
       "columnsTo": ["run_id", "target_id"],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "nameExplicit": false,
-      "entityType": "fks"
-    },
-    {
-      "table": "design_labels",
-      "name": "fk_design_labels_run_id_target_id_round_design_rounds_run_id_target_id_round_fk",
-      "columns": ["run_id", "target_id", "round"],
-      "tableTo": "design_rounds",
-      "columnsTo": ["run_id", "target_id", "round"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -2682,17 +3304,6 @@
       "columns": ["run_id", "target_id"],
       "tableTo": "design_targets",
       "columnsTo": ["run_id", "target_id"],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "nameExplicit": false,
-      "entityType": "fks"
-    },
-    {
-      "table": "design_notes",
-      "name": "fk_design_notes_run_id_target_id_round_design_rounds_run_id_target_id_round_fk",
-      "columns": ["run_id", "target_id", "round"],
-      "tableTo": "design_rounds",
-      "columnsTo": ["run_id", "target_id", "round"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -2820,17 +3431,6 @@
       "entityType": "fks"
     },
     {
-      "table": "design_tool_calls",
-      "name": "fk_design_tool_calls_run_id_target_id_round_design_rounds_run_id_target_id_round_fk",
-      "columns": ["run_id", "target_id", "round"],
-      "tableTo": "design_rounds",
-      "columnsTo": ["run_id", "target_id", "round"],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "nameExplicit": false,
-      "entityType": "fks"
-    },
-    {
       "table": "design_votes",
       "name": "fk_design_votes_run_id_design_runs_run_id_fk",
       "columns": ["run_id"],
@@ -2904,6 +3504,13 @@
       "entityType": "pks"
     },
     {
+      "table": "design_artifacts",
+      "name": "design_artifacts_pk",
+      "columns": ["artifact_id"],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
       "table": "design_candidates",
       "name": "design_candidates_pk",
       "columns": ["seq"],
@@ -2913,6 +3520,13 @@
     {
       "table": "design_fom",
       "name": "design_fom_pk",
+      "columns": ["seq"],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "table": "design_hints",
+      "name": "design_hints_pk",
       "columns": ["seq"],
       "nameExplicit": false,
       "entityType": "pks"
@@ -3002,6 +3616,12 @@
       "entityType": "pks"
     },
     {
+      "table": "design_artifacts",
+      "name": "artifacts_kind",
+      "value": "\"kind\" in ('dom', 'cssom', 'fom', 'screenshot', 'diff', 'mask', 'figma', 'design', 'frame', 'source_diff')",
+      "entityType": "checks"
+    },
+    {
       "table": "design_labels",
       "name": "verdict",
       "value": "\"verdict\" in ('right', 'wrong')",
@@ -3010,7 +3630,13 @@
     {
       "table": "design_missing",
       "name": "missing_kind",
-      "value": "\"kind\" in ('missing', 'not_rendered', 'dupe')",
+      "value": "\"kind\" in ('missing', 'not_rendered', 'dupe', 'gone')",
+      "entityType": "checks"
+    },
+    {
+      "table": "design_rounds",
+      "name": "rounds_state",
+      "value": "\"state\" in ('measured', 'unsettled', 'unchanged', 'broken', 'refused')",
       "entityType": "checks"
     },
     {
@@ -3026,6 +3652,12 @@
       "entityType": "checks"
     },
     {
+      "table": "design_runs",
+      "name": "runs_status",
+      "value": "\"status\" in ('running', 'interrupted', 'completed', 'failed', 'aborted')",
+      "entityType": "checks"
+    },
+    {
       "table": "design_targets",
       "name": "targets_widget",
       "value": "\"widget\" in ('hidden', 'shown')",
@@ -3036,6 +3668,76 @@
       "name": "tool_calls_tool",
       "value": "\"tool\" in ('design_get', 'design_check', 'design_status', 'design_measure', 'design_shots', 'design_components')",
       "entityType": "checks"
+    },
+    {
+      "name": "broken_rounds",
+      "definition": "SELECT b.run_id, b.session, b.target_id, t.width, b.round, b.broken_by, b.broken,\n  EXISTS (SELECT 1 FROM design_rounds x WHERE x.run_id = b.run_id AND x.target_id = b.target_id AND x.round > b.round\n    AND x.state = 'measured') AS fixed_after\nFROM design_rounds b\nJOIN design_targets t ON t.run_id = b.run_id AND t.target_id = b.target_id\nWHERE b.broken IS NOT NULL",
+      "isExisting": false,
+      "error": null,
+      "entityType": "views"
+    },
+    {
+      "name": "fom_nodes",
+      "definition": "SELECT f.seq, f.target_id, f.run_id, f.session, f.id, f.node, f.name, f.instance, f.source, f.site, f.confidence,\n  f.margin, f.round, f.voted_round, f.revoted_round, f.reason, f.at, n.type, n.within, n.depth, n.x, n.y, n.w, n.h,\n  n.fill_kind, n.fill, n.fill_opacity, n.stroke, n.stroke_weight, n.radius, n.font_family, n.font_weight, n.font_size,\n  n.line_height, n.text_align, n.text, n.opacity, n.image, n.asset, n.token_fill, n.token_stroke, n.token_radius,\n  n.token_font, n.token_gap, n.token_padding\nFROM design_fom f\nLEFT JOIN design_nodes n ON n.run_id = f.run_id AND n.target_id = f.target_id AND n.node = f.node",
+      "isExisting": false,
+      "error": null,
+      "entityType": "views"
+    },
+    {
+      "name": "hint_vs_drawn",
+      "definition": "SELECT h.run_id, h.session, h.target_id, h.round AS hint_round, r.round, h.node, h.hint,\n  h.specifier AS hint_specifier, group_concat(DISTINCT nc.component) AS drawn,\n  coalesce(max(nc.component = h.hint AND nc.specifier = h.specifier), 0) AS same\nFROM design_hints h\nLEFT JOIN design_rounds r ON r.run_id = h.run_id AND r.target_id = h.target_id AND r.state = 'measured'\n  AND r.round > h.round\nLEFT JOIN design_node_components nc ON nc.run_id = h.run_id AND nc.target_id = h.target_id\n  AND nc.round = r.round AND nc.node = h.node\nGROUP BY h.run_id, h.session, h.target_id, h.round, r.round, h.node, h.hint, h.specifier",
+      "isExisting": false,
+      "error": null,
+      "entityType": "views"
+    },
+    {
+      "name": "kit_per_round",
+      "definition": "SELECT run_id, session, target_id, round, component_id, component, specifier, count(DISTINCT node) AS nodes\nFROM design_node_components GROUP BY run_id, session, target_id, round, component_id, component, specifier",
+      "isExisting": false,
+      "error": null,
+      "entityType": "views"
+    },
+    {
+      "name": "lost_components",
+      "definition": "SELECT run_id, session, target_id, round, node, component, specifier\nFROM design_rows WHERE magnitude = 'component'",
+      "isExisting": false,
+      "error": null,
+      "entityType": "views"
+    },
+    {
+      "name": "lowest_rendered",
+      "definition": "WITH ranked AS (\n  SELECT run_id, session, target_id, round, rendered, nodes,\n    row_number() OVER (PARTITION BY run_id, target_id ORDER BY rendered, round) AS low,\n    row_number() OVER (PARTITION BY run_id, target_id ORDER BY round DESC) AS late\n  FROM design_rounds WHERE nodes > 0 AND state = 'measured'\n)\nSELECT l.run_id, l.session, l.target_id, t.width, l.rendered AS lowest, l.nodes, l.round, z.rendered AS last_rendered\nFROM ranked l\nJOIN ranked z ON z.run_id = l.run_id AND z.target_id = l.target_id AND z.late = 1\nJOIN design_targets t ON t.run_id = l.run_id AND t.target_id = l.target_id\nWHERE l.low = 1",
+      "isExisting": false,
+      "error": null,
+      "entityType": "views"
+    },
+    {
+      "name": "mispairs",
+      "definition": "WITH ranked AS (\n  SELECT run_id, session, target_id, round, node, path, total, won,\n    row_number() OVER (PARTITION BY run_id, target_id, round, node ORDER BY total DESC) AS place\n  FROM design_votes\n), winners AS (\n  SELECT w.run_id, w.session, w.target_id, w.round, w.node, w.path, f.total - coalesce(s.total, 0) AS margin\n  FROM ranked w\n  JOIN ranked f ON f.run_id = w.run_id AND f.target_id = w.target_id AND f.round = w.round\n    AND f.node = w.node AND f.place = 1\n  LEFT JOIN ranked s ON s.run_id = w.run_id AND s.target_id = w.target_id AND s.round = w.round\n    AND s.node = w.node AND s.place = 2\n  WHERE w.won = 1\n), paths AS (\n  SELECT run_id, session, target_id, node, round, path, margin,\n    lag(path) OVER (PARTITION BY run_id, target_id, node ORDER BY round) AS before,\n    first_value(round) OVER (PARTITION BY run_id, target_id, node ORDER BY round) AS first_round,\n    first_value(path) OVER (PARTITION BY run_id, target_id, node ORDER BY round) AS first_path\n  FROM winners\n)\nSELECT run_id, session, target_id, node, first_round, first_path, round, before, path, margin\nFROM paths WHERE before IS NOT NULL AND before <> path AND margin < 0.08",
+      "isExisting": false,
+      "error": null,
+      "entityType": "views"
+    },
+    {
+      "name": "page_height_rows",
+      "definition": "SELECT r.run_id, r.session, r.target_id, t.width, r.round, r.text, last.round AS last_round,\n  (SELECT max(p.round) FROM design_rows p WHERE p.run_id = r.run_id AND p.target_id = r.target_id AND p.kind = 'page')\n    < last.round AS fixed\nFROM design_rows r\nJOIN design_targets t ON t.run_id = r.run_id AND t.target_id = r.target_id\nJOIN (SELECT run_id, target_id, max(round) AS round FROM design_rounds WHERE state = 'measured'\n  GROUP BY run_id, target_id) last\n  ON last.run_id = r.run_id AND last.target_id = r.target_id\nWHERE r.kind = 'page'",
+      "isExisting": false,
+      "error": null,
+      "entityType": "views"
+    },
+    {
+      "name": "round_rows",
+      "definition": "SELECT run_id, session, target_id, round, kind, magnitude, count(*) AS count\nFROM design_rows GROUP BY run_id, session, target_id, round, kind, magnitude",
+      "isExisting": false,
+      "error": null,
+      "entityType": "views"
+    },
+    {
+      "name": "run_summary",
+      "definition": "SELECT r.run_id, r.session, r.model, r.harness, r.agent_id, r.status, r.ended, r.cost, r.usage, r.error, r.error_code,\n  r.harness_session_id, (r.ended - r.started) / 60000.0 AS minutes, r.ended - r.started AS duration_ms, r.verdict AS run_verdict,\n  t.target_id, t.width, last.round, last.verdict, last.rows_count AS rows, last.much, last.noticeably, last.slightly,\n  last.reflow, last.paint, last.pixel_share AS pixels,\n  (SELECT count(*) FROM design_tool_calls c\n    WHERE c.run_id = r.run_id AND c.tool = 'design_check' AND (r.ended IS NULL OR c.at <= r.ended)) AS checks\nFROM design_runs r\nLEFT JOIN design_targets t ON t.run_id = r.run_id\nLEFT JOIN design_rounds last ON last.run_id = t.run_id AND last.target_id = t.target_id\n  AND last.round = (SELECT max(x.round) FROM design_rounds x WHERE x.run_id = t.run_id AND x.target_id = t.target_id\n    AND x.state IN ('measured', 'broken') AND (r.ended IS NULL OR x.at <= r.ended))",
+      "isExisting": false,
+      "error": null,
+      "entityType": "views"
     }
   ],
   "renames": []

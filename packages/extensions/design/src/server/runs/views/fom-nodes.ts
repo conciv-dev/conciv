@@ -5,6 +5,7 @@ export const fomNodesView = sqliteView('fom_nodes', {
   seq: integer().notNull(),
   target_id: text().notNull(),
   run_id: integer().notNull(),
+  session: text().notNull(),
   id: text().notNull(),
   node: text().notNull(),
   name: text(),
@@ -46,7 +47,8 @@ export const fomNodesView = sqliteView('fom_nodes', {
   token_font: text(),
   token_gap: text(),
   token_padding: text(),
-}).as(sql`SELECT f.seq, f.target_id, f.run_id, f.id, f.node, f.name, f.instance, f.source, f.site, f.confidence,
+})
+  .as(sql`SELECT f.seq, f.target_id, f.run_id, f.session, f.id, f.node, f.name, f.instance, f.source, f.site, f.confidence,
   f.margin, f.round, f.voted_round, f.revoted_round, f.reason, f.at, n.type, n.within, n.depth, n.x, n.y, n.w, n.h,
   n.fill_kind, n.fill, n.fill_opacity, n.stroke, n.stroke_weight, n.radius, n.font_family, n.font_weight, n.font_size,
   n.line_height, n.text_align, n.text, n.opacity, n.image, n.asset, n.token_fill, n.token_stroke, n.token_radius,

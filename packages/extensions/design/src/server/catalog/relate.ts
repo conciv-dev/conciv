@@ -9,10 +9,11 @@ export async function relateRound(input: {
   catalog: Catalog
   targetId: string
   runId: number
+  session: string
   round: number
   sites: {node: string; source: string}[]
 }): Promise<{relation: Map<string, Component>; write: (tx: Transaction) => void}> {
-  const {db, catalog, targetId, runId, round} = input
+  const {db, catalog, targetId, runId, session, round} = input
   const {node_components: nodeComponents} = db.tables
   const sourced = uniqBy(input.sites, (row) => `${row.node}\n${row.source}`)
   const components = await catalog.componentsOf(uniq(sourced.map((row) => row.source)))
@@ -32,6 +33,7 @@ export async function relateRound(input: {
         .values({
           target_id: targetId,
           run_id: runId,
+          session,
           round,
           node,
           component_id: component.id,

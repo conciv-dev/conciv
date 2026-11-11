@@ -1,4 +1,5 @@
 import {formatHex, interpolate, parse} from 'culori'
+import {partition} from 'es-toolkit'
 import {z} from 'zod'
 import type {Box, Counts, Coverage, Design, DesignNode, GateRow, LiveComponent} from '../shared/defs.js'
 import {box as shapes} from '../shared/box.js'
@@ -43,7 +44,17 @@ export function gateOf(input: {design: Design; reads: ReturnType<typeof readIds>
     const element = first(wrap.node)
     if (record === undefined || element === undefined) return []
     const base = {node: record.id, ...reads.named(record.id), kind: record.kind, name: record.name}
-    return [{...base, text: `${labelOf({record, element})}: ${wrapped(wrap)}`, magnitude: 'reflow'}]
+    return [
+      {
+        ...base,
+        text: `${labelOf({record, element})}: ${wrapped(wrap)}`,
+        magnitude: 'reflow',
+        property: LINES,
+        expected: `${wrap.frame}`,
+        actual: `${wrap.lines}`,
+        delta: wrap.lines - wrap.frame,
+      },
+    ]
   })
   const rows = records.flatMap((record) => {
     const element = first(record.id)
@@ -67,16 +78,24 @@ export function gateOf(input: {design: Design; reads: ReturnType<typeof readIds>
     dupes: records.filter((record) => reads.of(record.id).length > 1).map((record) => record.id),
   }
   const painted = [...wrapRows, ...rows, ...lookRows({design: input.design, reads, live: input.live, held})]
-  return {rows: painted.filter((row) => row.magnitude !== 'slightly'), coverage, counts: countsOf(painted)}
+  const [slight, kept] = partition(painted, (row) => row.magnitude === 'slightly')
+  return {rows: kept, slight, coverage, counts: countsOf(painted)}
 }
 
 type Side = 'shorter' | 'taller'
 
-type Gate = {rows: GateRow[]; coverage: Coverage; counts: Counts}
+type Gate = {rows: GateRow[]; slight: GateRow[]; coverage: Coverage; counts: Counts}
 
 type Placed = {record: Record; box: Box | null}
 
-type Row = {head: string; measured?: {a: number; b: number; position: boolean}; kind?: string}
+type Row = {
+  head: string
+  measured?: {a: number; b: number; position: boolean}
+  kind?: string
+  property: string
+  expected?: string
+  actual?: string
+}
 
 type Record = {
   id: string
@@ -106,6 +125,8 @@ const AXES = {
   h: {property: 'height', less: 'shorter', more: 'taller', edge: 'y'},
 } as const
 const FLAT_KINDS = new Set(['text', 'line'])
+const LINES = 'lines'
+const SIZING = {expected: 'auto', actual: 'fixed'}
 const FlowSchema = z.object({mode: z.enum(['HORIZONTAL', 'VERTICAL']), gap: z.number(), pad: z.array(z.number())})
 
 function heldTexts(input: {design: Design; reads: ReturnType<typeof readIds>}): Set<string> {
@@ -204,12 +225,20 @@ function pinRows(input: {label: string; r: Record; d: LiveComponent; container: 
   const pinsWidth = d.styles.sizing.width === 'fixed'
   const pinsHeight = d.styles.sizing.height === 'fixed'
   return [
-    ...(container && pinsWidth ? [{head: `${label}: pins width; the design box fills or hugs`}] : []),
+    ...(container && pinsWidth
+      ? [{head: `${label}: pins width; the design box fills or hugs`, ...SIZING, property: 'width sizing'}]
+      : []),
     ...(container && pinsHeight
-      ? [{head: `${label}: pins height; the design box takes its height from its children`}]
+      ? [
+          {
+            head: `${label}: pins height; the design box takes its height from its children`,
+            ...SIZING,
+            property: 'height sizing',
+          },
+        ]
       : []),
     ...(r.kind === 'text' && (pinsWidth || pinsHeight)
-      ? [{head: `${label}: text has a pixel size; it should fit its text`}]
+      ? [{head: `${label}: text has a pixel size; it should fit its text`, ...SIZING, property: 'text sizing'}]
       : []),
   ]
 }
@@ -234,6 +263,7 @@ function boxRows(input: {
           {
             head: `${label}: ${contentWord({r, d, kids: kidsOf(r.id), axis: 'w'}) ?? ww}`,
             measured: {a: box.w, b: r.box.w, position: false},
+            property: 'width',
           },
         ]
       : []),
@@ -242,6 +272,7 @@ function boxRows(input: {
           {
             head: `${label}: ${contentWord({r, d, kids: kidsOf(r.id), axis: 'h'}) ?? `box ${side} than the design`}${input.causes(r.id)}`,
             measured: {a: box.h, b: r.box.h, position: false},
+            property: 'height',
           },
         ]
       : []),
@@ -253,7 +284,14 @@ function directionRows(input: {label: string; r: Record; d: LiveComponent}): Row
   const want = r.direction === 'row' ? 'row' : 'column'
   const dir = d.styles.flexDirection
   if (r.direction === undefined || !d.styles.display.includes('flex') || dir.startsWith(want)) return []
-  return [{head: `${label}: flex-direction ${dir}; the design is a ${want}`}]
+  return [
+    {
+      head: `${label}: flex-direction ${dir}; the design is a ${want}`,
+      property: 'flex-direction',
+      expected: want,
+      actual: dir,
+    },
+  ]
 }
 
 function displacedRow(input: {label: string; r: Record; box: Box; parent: Record; pd: LiveComponent}): Row[] | null {
@@ -267,7 +305,14 @@ function displacedRow(input: {label: string; r: Record; box: Box; parent: Record
   const down = dy === 0 ? [] : [`${Math.abs(dy)}px ${dy > 0 ? 'below' : 'above'}`]
   const where = `${[...across, ...down].join(' and ')}${down.length === 0 ? ' of' : ''}`
   const far = Math.round(Math.hypot(dx, dy))
-  return [{head: `${label}: drawn ${where} its place`, measured: {a: far, b: 0, position: true}, kind: DISPLACED}]
+  return [
+    {
+      head: `${label}: drawn ${where} its place`,
+      measured: {a: far, b: 0, position: true},
+      kind: DISPLACED,
+      property: 'offset',
+    },
+  ]
 }
 
 const DISPLACED = 'displaced'
@@ -368,6 +413,7 @@ function positionRows(input: {
           {
             head: `${label}: sits ${dl - rl > 0 ? 'further right' : 'further left'} inside its parent than the design${placedBy({r, d, pd, siblings, axis: 'w', off: dl - rl})}`,
             measured: {a: dl, b: rl, position: true},
+            property: 'left',
           },
         ]
       : []),
@@ -376,6 +422,7 @@ function positionRows(input: {
           {
             head: `${label}: sits ${dt - rt > 0 ? 'lower' : 'higher'} inside its parent than the design${placedBy({r, d, pd, siblings, axis: 'h', off: dt - rt})}`,
             measured: {a: dt, b: rt, position: true},
+            property: 'top',
           },
         ]
       : []),
@@ -388,11 +435,26 @@ function worded(input: {
   row: Row
 }): GateRow {
   const {record, named, row} = input
-  const base = {node: record.id, ...named, kind: row.kind ?? record.kind, name: record.name}
-  if (row.measured === undefined)
-    return {...base, text: row.head, magnitude: row.head.includes('pins') ? 'pin' : 'other'}
-  const magnitude = magnitudeOf(row.measured)
-  return {...base, text: `${row.head} (${magnitude})`, magnitude}
+  const base = {node: record.id, ...named, kind: row.kind ?? record.kind, name: record.name, property: row.property}
+  const {measured} = row
+  if (measured === undefined)
+    return {
+      ...base,
+      text: row.head,
+      magnitude: row.head.includes('pins') ? 'pin' : 'other',
+      ...(row.expected === undefined ? {} : {expected: row.expected}),
+      ...(row.actual === undefined ? {} : {actual: row.actual}),
+      delta: null,
+    }
+  const magnitude = magnitudeOf(measured)
+  return {
+    ...base,
+    text: `${row.head} (${magnitude})`,
+    magnitude,
+    expected: `${measured.b}px`,
+    actual: `${measured.a}px`,
+    delta: measured.a - measured.b,
+  }
 }
 
 function magnitudeOf(input: {a: number; b: number; position: boolean}): 'much' | 'noticeably' | 'slightly' {
@@ -425,7 +487,7 @@ type Look = ReturnType<typeof nodeLooks>[number]
 
 type Seen = {look: Look; element: LiveComponent; under: string}
 
-type Compared = {kind: PaintKind; expected: string; found: string; token: string | null}
+type Compared = {kind: PaintKind; expected: string; found: string; token: string | null; delta?: number}
 
 type PaintKind =
   | 'fill'
@@ -468,8 +530,10 @@ function lookRows(input: {
       text: `wrong ${found.kind} at [${look.node}]: ${found.token === null ? found.expected : `${found.token} (${found.expected})`} expected, ${found.found} found`,
       magnitude: 'paint',
       token: found.token,
-      pageValue: found.found,
-      designValue: found.expected,
+      property: found.kind,
+      expected: found.expected,
+      actual: found.found,
+      delta: found.delta ?? null,
     }))
   })
 }
@@ -521,7 +585,15 @@ function textRows(seen: Seen): Compared[] {
       : [{kind: 'font family' as const, expected: look.font_family, found: family, token}]),
     ...(look.font_weight === null || hundred(look.font_weight) === hundred(styles.fontWeight)
       ? []
-      : [{kind: 'font weight' as const, expected: `${look.font_weight}`, found: `${styles.fontWeight}`, token}]),
+      : [
+          {
+            kind: 'font weight' as const,
+            expected: `${look.font_weight}`,
+            found: `${styles.fontWeight}`,
+            token,
+            delta: styles.fontWeight - look.font_weight,
+          },
+        ]),
     ...pxRow({kind: 'font size', expected: look.font_size, found: styles.fontSize, token}),
     ...pxRow({kind: 'line height', expected: look.lineAuto ? null : look.line_height, found: styles.lineHeight, token}),
   ]
@@ -553,7 +625,9 @@ function opacityRows(seen: Seen): Compared[] {
   const shown = element.styles.opacity ?? 1
   const found = blended({color: background, over: under, alpha: shown})
   if (near({a: expected, b: found}) || own === shown) return []
-  return [{kind: 'opacity', expected: `${own} ${expected}`, found: `${shown} ${found}`, token: null}]
+  return [
+    {kind: 'opacity', expected: `${own} ${expected}`, found: `${shown} ${found}`, token: null, delta: shown - own},
+  ]
 }
 
 function endsOf(input: {gradient: NonNullable<Look['gradient']>; under: string}): {from: string; to: string} {
@@ -567,7 +641,7 @@ function endsOf(input: {gradient: NonNullable<Look['gradient']>; under: string})
 function pxRow(input: {kind: PaintKind; expected: number | null; found: number; token: string | null}): Compared[] {
   const {kind, expected, found, token} = input
   if (expected === null || Math.abs(expected - found) <= PX) return []
-  return [{kind, expected: `${expected}px`, found: `${found}px`, token}]
+  return [{kind, expected: `${expected}px`, found: `${found}px`, token, delta: found - expected}]
 }
 
 function shownColor(input: {element: LiveComponent; under: string}): string {

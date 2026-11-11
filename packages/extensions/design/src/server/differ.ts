@@ -11,12 +11,14 @@ import {consoleDef, reloadDef, routeDef as pageRouteDef} from '@conciv/extension
 import {SessionId} from '@conciv/protocol/chat-types'
 import {
   BROKEN_BY,
+  RECORDED_FIELDS,
   type Checked,
   type CompileError,
   type DesignRuntime,
   type Differ,
   type GateRow,
   type Got,
+  type Round,
   type RoundReply,
   type Runner,
   type Status,
@@ -38,8 +40,8 @@ export function createDiffer(input: {
   show: readonly string[]
 }): Differ {
   const {runtime, runner, page} = input
-  const shown = <Reply extends {progress?: unknown; rows: GateRow[]}>(reply: Reply) => {
-    const grouped = {...reply, rows: tokenGroups(reply.rows)}
+  const shown = <Reply extends {progress?: unknown; rows: GateRow[]; reflow?: RoundReplyReflow}>(reply: Reply) => {
+    const grouped = {...reply, rows: tokenGroups(reply.rows).map(sent), ...toldReflow(reply.reflow)}
     return input.show.includes('progress') ? grouped : omit(grouped, ['progress'])
   }
   const {store} = runtime
@@ -49,8 +51,11 @@ export function createDiffer(input: {
   const edits = watchEdits({bundler: input.bundler, cwd: runtime.cwd})
   const brokenOne = async (asked: {record: TargetRecord; error: CompileError; by: BrokenBy}) => {
     const {record, error, by} = asked
-    const [design, rounds] = await Promise.all([store.design(record.id), store.rounds(record.id)])
-    const round = (rounds.at(-1)?.round ?? 0) + 1
+    const [design, rounds, round] = await Promise.all([
+      store.design(record.id),
+      store.rounds(record.id),
+      store.nextRound(record.id),
+    ])
     const written = {
       ...NOTHING_MEASURED,
       round,
@@ -59,7 +64,7 @@ export function createDiffer(input: {
       broken: compileLine(error),
       brokenBy: by,
     }
-    await store.writeRound({id: record.id, round: written, live: new Uint8Array(), diff: new Uint8Array()})
+    await store.writeRound({id: record.id, round: written})
     const {reasons} = verdictOf({design, rounds: [...rounds, written]})
     const judged = {round, verdict: 'broken' as const, reasons}
     return by === 'compile' ? {...judged, compile: error} : {...judged, thrown: error}
@@ -252,6 +257,7 @@ async function registered(input: {
   return runtime.store.put({
     design: loaded.design,
     image: loaded.image,
+    ...(loaded.raw === undefined ? {} : {raw: loaded.raw}),
     session,
     notes: loaded.warnings,
     ...(route === undefined ? {} : {route}),
@@ -536,6 +542,17 @@ function compileLine(compile: CompileError): string {
   const place = [compile.file, compile.line, compile.column].filter((part) => part !== null).join(':')
   return place === '' ? compile.message : `${place}: ${compile.message}`
 }
+
+function sent(row: GateRow): GateRow {
+  return omit(row, RECORDED_FIELDS)
+}
+
+function toldReflow(reflow: RoundReplyReflow | undefined): {reflow?: RoundReplyReflow} {
+  if (reflow === undefined) return {}
+  return {reflow: {...reflow, results: reflow.results.map((result) => ({...result, rows: result.rows.map(sent)}))}}
+}
+
+type RoundReplyReflow = Round['reflow']
 
 function tokenGroups(rows: GateRow[]): GateRow[] {
   const keyOf = (row: GateRow): string | null =>

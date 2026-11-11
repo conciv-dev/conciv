@@ -38,6 +38,7 @@ import {openStore} from '../../extensions/design/src/server/runs/open-store.js'
 import {storeSources} from '../../extensions/design/src/server/runs/sources.js'
 import {designSources} from '../../extensions/design/src/server/sources.js'
 import {storeTables} from '../../extensions/design/src/server/runs/store-tables.js'
+import {createArtifacts} from '../../extensions/design/src/server/runs/artifacts.js'
 import {createRaster} from '../../extensions/design/src/server/raster.js'
 import {createImageAdapter} from '../../extensions/design/src/server/sources/image.js'
 import {figmaRefused} from '../../extensions/design/src/server/sources/figma-refused.js'
@@ -275,8 +276,7 @@ describe('store', () => {
     const catalog = createCatalog({home, db, cwd: HOST_ROOT, sources: []})
     const store = createStore({
       db,
-      home: homeDir,
-      state: createStorage({driver: memoryDriver()}),
+      artifacts: createArtifacts(homeDir),
       runs: {of: async () => run?.run_id ?? null, latest: async () => null},
       project: Promise.resolve('p'),
       catalog,
@@ -328,9 +328,8 @@ describe('store', () => {
     await store.writeRound({
       id: 'store-1',
       round,
-      live: blankPng({width: 100, height: 50}),
-      diff: new Uint8Array(),
       ids: {tree: ids, revoted: {}},
+      shots: [{width: 100, screenshot: blankPng({width: 100, height: 50}), tree: ids}],
     })
     expect(await store.mapping('store-1')).toEqual(mapping)
     expect((await store.ids({id: 'store-1', round: 1}))?.root.id).toBe('abc')
@@ -882,7 +881,7 @@ describe('catalog hints on design_get', () => {
     const [{run: runId} = {run: 0}] = z.array(z.object({run: z.number()})).parse(
       await kit.rpc.db.read({
         from: 'design_stored_runs',
-        where: `session_id == "${kit.session}" && status == "running"`,
+        where: `session == "${kit.session}" && status == "running"`,
         select: ['run'],
       }),
     )
@@ -894,6 +893,19 @@ describe('catalog hints on design_get', () => {
       }),
     )
     expect(new Set(rows.map((row) => row.hint))).toEqual(new Set(['Button', 'TooltipIconButton']))
+    const hints = z.array(z.object({node: z.string(), hint: z.string(), round: z.number()})).parse(
+      await kit.rpc.db.read({
+        from: 'design_stored_hints',
+        where: `run == ${runId} && target == "${got.target}" && session == "${kit.session}"`,
+        select: ['node', 'hint', 'round'],
+      }),
+    )
+    const told = got.nodes.flatMap((node) =>
+      node.hint === undefined ? [] : [{node: node.id, hint: node.hint.component}],
+    )
+    expect(new Set(hints.map(({node, hint, round}) => JSON.stringify({node, hint, round})))).toEqual(
+      new Set(told.map((entry) => JSON.stringify({...entry, round: 0}))),
+    )
     await expect(
       kit.rpc.db.write({into: 'design_stored_notes', values: {target: 't', run: 1, text: 'x'}}),
     ).rejects.toThrow('design_stored_notes is read-only')
@@ -958,8 +970,10 @@ describe('node components', () => {
     try {
       const catalog = createCatalog({home, db, cwd: HOST_ROOT, sources: [createViteOxcSource()]})
       const [run = 0] = seededRuns(store)
-      await orm.insert(storeTables.rounds).values({target_id: 't', run_id: run, round: 2, tree: '', at: 1})
-      const stored = {target_id: 't', run_id: run, confidence: 1, margin: 1, round: 2, at: 1}
+      await orm
+        .insert(storeTables.rounds)
+        .values({target_id: 't', run_id: run, session: 's', round: 2, state: 'measured', tree: '', at: 1})
+      const stored = {target_id: 't', run_id: run, session: 's', confidence: 1, margin: 1, round: 2, at: 1}
       await orm.insert(db.tables.fom).values([
         {...stored, id: 'stat', node: '7:1', source: 'src/XrayPage.tsx:11:7'},
         {...stored, id: 'markup', node: '7:2', source: 'index.html:3:1'},
@@ -1437,12 +1451,42 @@ describe('design_check on a button whose label is bare text', () => {
     await goto('barebutton')
     const image = join(kit.targetsDir, 'bare-button.png')
     await writeFile(image, blankPng({width: bareButton.frame.w, height: bareButton.frame.h}))
-    await call('design_get', {figma: bareButton.link, image, document: bareButton.document})
+    const got = await call('design_get', {figma: bareButton.link, image, document: bareButton.document})
     const checked = roundOf(await call('design_check', {}))
     const label = checked.rows.filter((row) => row.node === bareButton.label).map((row) => row.kind)
     expect([checked.coverage.missing.includes(bareButton.label), label.includes('font family')]).toEqual([false, true])
+    expect(checked.rows.filter((row) => 'expected' in row || 'actual' in row || 'property' in row)).toEqual([])
+    const recorded = RecordedRowsSchema.parse(
+      await kit.rpc.db.read({
+        from: 'design_stored_rows',
+        where: `target == "${got.target}" && round == ${String(checked.round)} && session == "${kit.session}"`,
+        select: ['node', 'kind', 'magnitude', 'property', 'expected', 'actual', 'delta'],
+      }),
+    )
+    const font = recorded.find((row) => row.node === bareButton.label && row.kind === 'font family')
+    expect([font?.property, typeof font?.expected, typeof font?.actual, font?.delta]).toEqual([
+      'font family',
+      'string',
+      'string',
+      null,
+    ])
+    expect(recorded.filter((row) => row.magnitude === 'slightly')).toHaveLength(checked.counts.slightly)
+    const sized = recorded.filter((row) => row.property === 'width' || row.property === 'height')
+    expect(sized.every((row) => row.delta !== null && row.expected?.endsWith('px') === true)).toBe(true)
   })
 })
+
+const RecordedRowsSchema = z.array(
+  z.object({
+    node: z.string(),
+    kind: z.string(),
+    magnitude: z.string(),
+    property: z.string().nullable(),
+    expected: z.string().nullable(),
+    actual: z.string().nullable(),
+    delta: z.number().nullable(),
+  }),
+)
 
 describe('design_check at a width other than the tab', () => {
   it('keeps a margin the page sets from a variable, though a later rule in the block sets one side again', async () => {
@@ -1646,6 +1690,7 @@ const STORED = [
   'runs',
   'labels',
   'node_components',
+  'hints',
   'notes',
   'artifacts',
 ]
@@ -1717,7 +1762,9 @@ function seededRuns(store: Store): number[] {
       .values({
         target_id: 't',
         run_id: run.run_id,
+        session: 's',
         round: 1,
+        state: 'measured',
         rows_count: seed.rows,
         pixel_share: seed.pixels,
         nodes: 9,
@@ -1846,9 +1893,9 @@ describe('the store is written at the source', () => {
         '--from',
         'design_stored_runs',
         '--where',
-        `session_id == "${kit.session}"`,
+        `session == "${kit.session}"`,
         '--select',
-        'run,status,session_id,project_key,harness,agent_id',
+        'run,status,session,project_key,harness,agent_id',
       ],
     })
     const remote = await git({cwd: kit.hostRoot, args: ['remote', 'get-url', 'origin']})
@@ -1856,7 +1903,7 @@ describe('the store is written at the source', () => {
       {
         run: expect.any(Number),
         status: 'running',
-        session_id: kit.session,
+        session: kit.session,
         project_key: `${remote}#packages/it/test/fixtures/design/host/`,
         harness: expect.any(String),
         agent_id: kit.session,
@@ -1874,16 +1921,28 @@ describe('the store is written at the source', () => {
   })
 })
 
-const ArtifactRowsSchema = z.array(z.object({kind: z.string(), width: z.number().nullable(), path: z.string()}))
+const ArtifactRowsSchema = z.array(
+  z.object({
+    kind: z.string(),
+    target: z.string().nullable(),
+    round: z.number().nullable(),
+    width: z.number().nullable(),
+    path: z.string(),
+    content_type: z.string(),
+    size: z.number(),
+  }),
+)
+
+const DomFileSchema = z.object({root: z.object({id: z.string(), children: z.array(z.unknown())})})
 
 describe('artifacts at the source', () => {
-  it('writes one screenshot and one design artifact per measured width of a check, each file under the home', async () => {
+  it('writes the screenshot, dom, cssom and fom of every measured width as files with a catalog row each, the diff and mask at the frame width, and the frame and design per target', async () => {
     await goto('target')
     const got = await cardsTarget()
     const checked = roundOf(await call('design_check', {}))
     const [running] = await homeQuery({
       home: kit.home,
-      args: ['--from', 'design_stored_runs', '--where', `session_id == "${kit.session}"`, '--select', 'run'],
+      args: ['--from', 'design_stored_runs', '--where', `session == "${kit.session}"`, '--select', 'run'],
     })
     const stored = ArtifactRowsSchema.parse(
       await homeQuery({
@@ -1892,26 +1951,38 @@ describe('artifacts at the source', () => {
           '--from',
           'design_stored_artifacts',
           '--where',
-          `run == ${String(running?.run)}`,
+          `run == ${String(running?.run)} && target == "${got.target}"`,
           '--select',
-          'kind,width,path',
+          'kind,target,round,width,path,content_type,size',
         ],
       }),
     )
-    const ofRound = stored.filter(
-      (row) =>
-        row.path.startsWith(`${String(running?.run)}/${got.target}/`) &&
-        row.path.includes(`-${String(checked.round)}-`),
-    )
+    const ofRound = stored.filter((row) => row.round === checked.round)
     const widths = checked.reflow.widths.map(({width}) => width).toSorted((a, b) => a - b)
     const widthsOf = (kind: string) =>
       ofRound
         .filter((row) => row.kind === kind)
         .map((row) => row.width)
         .toSorted((a, b) => (a ?? 0) - (b ?? 0))
-    expect(widthsOf('screenshot')).toEqual(widths)
-    expect(widthsOf('design')).toEqual(widths)
-    expect(ofRound.filter((row) => !existsSync(join(kit.home, 'artifacts', row.path)))).toEqual([])
+    expect(['screenshot', 'dom', 'cssom', 'fom'].map(widthsOf)).toEqual([widths, widths, widths, widths])
+    expect([widthsOf('diff'), widthsOf('mask')]).toEqual([[1200], [1200]])
+    expect(
+      ofRound.every(
+        (row) =>
+          row.path ===
+          `${String(running?.run)}/${got.target}/${String(checked.round)}/${String(row.width)}/${row.kind}.${row.content_type === 'image/png' ? 'png' : 'json'}`,
+      ),
+    ).toBe(true)
+    expect(
+      stored
+        .filter((row) => row.round === null)
+        .map((row) => row.kind)
+        .toSorted(),
+    ).toEqual(['design', 'figma', 'frame'])
+    expect(stored.filter((row) => !existsSync(join(kit.home, 'artifacts', row.path)))).toEqual([])
+    const dom = ofRound.find((row) => row.kind === 'dom' && row.width === 1200)
+    const file = DomFileSchema.parse(JSON.parse(await readFile(join(kit.home, 'artifacts', dom?.path ?? ''), 'utf8')))
+    expect(file.root.children.length).toBeGreaterThan(0)
   })
 })
 
@@ -1940,7 +2011,7 @@ function runningChatRun(input: {stateRoot: string; session: string; runId: strin
 function crashed(input: {home: string; session: string}): void {
   const store = new DatabaseSync(join(input.home, 'runs.db'))
   store
-    .prepare("UPDATE design_runs SET status = 'running', ended = NULL, verdict = NULL WHERE session_id = ?")
+    .prepare("UPDATE design_runs SET status = 'running', ended = NULL, verdict = NULL WHERE session = ?")
     .run(input.session)
   store.close()
 }
@@ -1949,7 +2020,7 @@ function reachedDone(input: {home: string; session: string}): void {
   const store = new DatabaseSync(join(input.home, 'runs.db'))
   store
     .prepare(
-      "UPDATE design_rounds SET verdict = 'done' WHERE run_id IN (SELECT run_id FROM design_runs WHERE session_id = ? AND status = 'running')",
+      "UPDATE design_rounds SET verdict = 'done' WHERE run_id IN (SELECT run_id FROM design_runs WHERE session = ? AND status = 'running')",
     )
     .run(input.session)
   store.close()
@@ -2028,7 +2099,7 @@ describe('a run closes with its session', () => {
           '--from',
           'design_stored_runs',
           '--where',
-          `session_id == "${session}"`,
+          `session == "${session}"`,
           '--select',
           'status,ended,cost,usage,verdict',
           '--order',
@@ -2078,7 +2149,7 @@ describe('a run closes from its harness transcript', () => {
           '--from',
           'design_stored_runs',
           '--where',
-          `session_id == "${session}"`,
+          `session == "${session}"`,
           '--select',
           'run,model,usage,cost,harness_session_id,error_code',
         ],
@@ -2130,7 +2201,7 @@ describe('a run closes from its harness transcript', () => {
           '--from',
           'design_stored_runs',
           '--where',
-          `session_id == "${session}"`,
+          `session == "${session}"`,
           '--select',
           'model,usage,cost,harness_session_id,error,error_code',
         ],
@@ -2252,7 +2323,7 @@ describe('a run closes with its engine', () => {
         '--from',
         'design_stored_runs',
         '--where',
-        `session_id == "${session}"`,
+        `session == "${session}"`,
         '--select',
         'status,ended,cost,verdict',
       ],
@@ -2274,20 +2345,21 @@ describe('a run closes with its engine', () => {
     }
     const closed = await homeQuery({
       home: homeDir,
-      args: ['--from', 'design_stored_runs', '--where', `session_id == "${session}"`, '--select', 'status,verdict'],
+      args: ['--from', 'design_stored_runs', '--where', `session == "${session}"`, '--select', 'status,verdict'],
     })
     expect(closed).toEqual([{status: 'completed', verdict: 'done'}])
   })
 })
 
 describe('the tool calls of a run', () => {
-  it('records the round a check at every width wrote, none for a check that wrote none, and the run round at get and status', async () => {
+  it('writes a round for every check, unsettled, measured and unchanged, and records the round each call wrote or read', async () => {
     const homeDir = await tempDir('conciv-design-call-rounds-home-')
     const engine = await bootDesignHost({homeDir})
     const {session} = engine
     try {
       await engine.goto('target')
       await engine.call('design_get', {...(await framePerWidth()), route: BUILT_ROUTE})
+      expect(await engine.call('design_check', {})).toMatchObject({verdict: 'unsettled'})
       await engine.call('design_check', {})
       await engine.call('design_check', {})
       await engine.call('design_status', {})
@@ -2296,7 +2368,7 @@ describe('the tool calls of a run', () => {
     }
     const [run] = await homeQuery({
       home: homeDir,
-      args: ['--from', 'design_stored_runs', '--where', `session_id == "${session}"`, '--select', 'run'],
+      args: ['--from', 'design_stored_runs', '--where', `session == "${session}"`, '--select', 'run'],
     })
     const calls = await homeQuery({
       home: homeDir,
@@ -2313,10 +2385,45 @@ describe('the tool calls of a run', () => {
     })
     expect(calls).toEqual([
       {tool: 'design_get', round: null},
-      {tool: 'design_check', round: null},
       {tool: 'design_check', round: 1},
-      {tool: 'design_status', round: 1},
+      {tool: 'design_check', round: 2},
+      {tool: 'design_check', round: 3},
+      {tool: 'design_status', round: 3},
     ])
+    const rounds = await homeQuery({
+      home: homeDir,
+      args: [
+        '--from',
+        'design_stored_rounds',
+        '--where',
+        `session == "${session}"`,
+        '--select',
+        'target,round,state,same_as',
+        '--order',
+        'seq',
+      ],
+    })
+    const byTarget = Object.values(Object.groupBy(rounds, (row) => String(row.target)))
+    expect(byTarget.map((listed = []) => listed.map(({round, state, same_as}) => ({round, state, same_as})))).toEqual(
+      byTarget.map(() => [
+        {round: 1, state: 'unsettled', same_as: null},
+        {round: 2, state: 'measured', same_as: null},
+        {round: 3, state: 'unchanged', same_as: 2},
+      ]),
+    )
+    expect(byTarget).toHaveLength(FRAME_WIDTHS.length)
+    const unsettledShots = await homeQuery({
+      home: homeDir,
+      args: [
+        '--from',
+        'design_stored_artifacts',
+        '--where',
+        `session == "${session}" && round == 1`,
+        '--select',
+        'kind',
+      ],
+    })
+    expect(new Set(unsettledShots.map((row) => row.kind))).toEqual(new Set(['screenshot', 'dom', 'cssom', 'fom']))
   })
 })
 
@@ -2333,7 +2440,7 @@ describe('run_summary of a run that never checked', () => {
     }
     const [run] = await homeQuery({
       home: homeDir,
-      args: ['--from', 'design_stored_runs', '--where', `session_id == "${session}"`, '--select', 'run'],
+      args: ['--from', 'design_stored_runs', '--where', `session == "${session}"`, '--select', 'run'],
     })
     const summary = await homeQuery({
       home: homeDir,
@@ -2365,7 +2472,7 @@ describe('a run closes when its dev server is interrupted', () => {
     }
     const closed = await homeQuery({
       home: homeDir,
-      args: ['--from', 'design_stored_runs', '--where', `session_id == "${session}"`, '--select', 'status,ended'],
+      args: ['--from', 'design_stored_runs', '--where', `session == "${session}"`, '--select', 'status,ended'],
     })
     expect(closed).toEqual([{status: 'aborted', ended: expect.any(Number)}])
   })
@@ -2391,9 +2498,9 @@ describe('a run closes with its turn', () => {
     try {
       const read = (where: string, select: string) =>
         homeQuery({home: homeDir, args: ['--from', 'design_stored_runs', '--where', where, '--select', select]})
-      const [closed] = ClosedSchema.parse(await read(`session_id == "${session}"`, 'run,status,ended,cost'))
+      const [closed] = ClosedSchema.parse(await read(`session == "${session}"`, 'run,status,ended,cost'))
       expect(closed).toEqual({run: expect.any(Number), status: 'aborted', ended: expect.any(Number), cost: 1.5})
-      const [usage] = await read(`session_id == "${session}"`, 'usage')
+      const [usage] = await read(`session == "${session}"`, 'usage')
       expect(TurnUsageSchema.parse(usage?.usage)).toEqual({
         promptTokens: 10,
         completionTokens: 5,

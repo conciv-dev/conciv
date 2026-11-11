@@ -1,7 +1,17 @@
 import type {Storage} from 'unstorage'
 import type {RawFrame, SourceLoc} from '@conciv/protocol/page-types'
 import {toolError} from '@conciv/extension'
-import type {CompileError, DesignRuntime, IdTree, Measured, Raster, Round, RoundReply, Runner} from '../shared/defs.js'
+import type {
+  CompileError,
+  DesignRuntime,
+  IdNode,
+  IdTree,
+  Measured,
+  Raster,
+  Round,
+  RoundReply,
+  Runner,
+} from '../shared/defs.js'
 import type {Component} from '../shared/catalog-defs.js'
 import {designConfig} from '../shared/tolerances.js'
 import {readIds} from '../shared/id-tree.js'
@@ -41,24 +51,44 @@ async function run(input: {runtime: DesignRuntime; folder: Storage; call: Call})
   if (thrown !== null) return {thrown}
   const count = held.streak + 1
   const facts = factsOf(measured)
-  const blank = measured.pageError !== undefined || measured.live.children.length === 0
-  if (blank && count < TOLERANCES.stallRounds) {
-    await store.writeUnsettledCount({id: record.id, count})
-    return {unsettled: true, rendered: 0, ...facts}
-  }
   const history = historyOf(held.rounds)
   const {previous} = history
   const built = idTreeOf({live: measured.live, sheets: measured.sheets, mapping: held.stored, previous: held.ids})
+  const round = await store.nextRound(record.id)
+  const blank = measured.pageError !== undefined || measured.live.children.length === 0
+  const early = (state: {unsettled: string | null; rendered: number; root: IdNode}) =>
+    store.writeCheck({
+      id: record.id,
+      round,
+      state: 'unsettled',
+      rendered: state.rendered,
+      tree: built.hash,
+      shots: [
+        {width: measured.width, screenshot: measured.raster.png(), tree: treeOf(state.root), queries: measured.queries},
+      ],
+      ...(state.unsettled === null ? {} : {unsettled: state.unsettled}),
+    })
+  if (blank && count < TOLERANCES.stallRounds) {
+    await store.writeUnsettledCount({id: record.id, count})
+    await early({
+      unsettled: unsettledReason({measured, rendered: 0, settled: history.settled}),
+      rendered: 0,
+      root: built.root,
+    })
+    return {unsettled: true, rendered: 0, ...facts}
+  }
   if (previous !== undefined && previous === history.last && previous.tree === built.hash) {
     await store.writeUnsettledCount({id: record.id, count: previous.unsettled === null ? 0 : count})
+    await store.writeCheck({id: record.id, round, state: 'unchanged', sameAs: previous.round})
     return {...shown(previous), unchanged: true}
   }
-  const round = (history.last?.round ?? 0) + 1
   const paired = await pairedOf({runtime, held, measured, round, built, settled: history.settled})
   const unsettled = unsettledReason({measured, rendered: paired.coverage.rendered, settled: history.settled})
   await store.writeUnsettledCount({id: record.id, count: unsettled === null ? 0 : count})
-  if (unsettled !== null && count < TOLERANCES.stallRounds)
+  if (unsettled !== null && count < TOLERANCES.stallRounds) {
+    await early({unsettled, rendered: paired.coverage.rendered, root: paired.mapped.root})
     return {unsettled: true, rendered: paired.coverage.rendered, ...facts}
+  }
   const reply = await measuredRound({...input, held, measured, history, built, round, paired, unsettled, oneWidth})
   return unsettled === null ? reply : {...reply, unsettled: true, rendered: paired.coverage.rendered, ...facts}
 }
@@ -146,6 +176,14 @@ async function measuredRound(input: {
   const listed = await listedRows({...input, relation, failures: reflowed.failures})
   const {rows, counts} = listed
   const pixels = compared({live: measured.raster, target: paired.target, comparator: runtime.comparator})
+  const designShot = {
+    width: measured.width,
+    screenshot: measured.raster.png(),
+    diff: pixels.diff,
+    mask: pixels.mask,
+    tree,
+    queries: measured.queries,
+  }
   const progress = await progressAt({...input, rows, pixels})
   const judged = unsettled === null ? coverage : {...coverage, gone: goneOf({design, missing: coverage.missing})}
   const drawn: Round = {
@@ -170,15 +208,11 @@ async function measuredRound(input: {
   await store.writeRound({
     id: record.id,
     round: written,
-    live: measured.raster.png(),
-    diff: pixels.diff,
-    artifacts: {design: held.image, shots: reflowed.shots},
+    slight: paired.gate.slight,
+    shots: [designShot, ...reflowed.shots],
+    imageMismatch: Object.fromEntries(listed.ratios.map(({node, ratio}) => [node, ratio])),
     ...(unsettled === null ? {ids: {tree, revoted: mapped.reasons}} : {}),
-    notes: [
-      `capture ${measured.path}`,
-      ...(input.oneWidth ? [WIDGET_SHOWN] : []),
-      ...listed.ratios.map(({node, ratio}) => `image ${node} mismatch ${ratio.toFixed(RATIO_DIGITS)}`),
-    ],
+    notes: [`capture ${measured.path}`, ...(input.oneWidth ? [WIDGET_SHOWN] : [])],
   })
   const late = reflowed.waits.length === 0 ? {} : {fontsLoading: Math.max(...reflowed.waits)}
   return {round, rows, reflow: reflowed.reflow, coverage: judged, counts, progress, ...late}
@@ -200,15 +234,16 @@ async function reflowOf(input: {
   const results = []
   const failures = []
   const waits = measured.fontsLoading === undefined ? [] : [measured.fontsLoading]
-  const shots = []
+  const shots: Shot[] = []
   for (const {width} of widths) {
     const narrow =
       width === measured.width
         ? measured
         : await runtime.measurer.measure({page: call.page, width, height: REFLOW_HEIGHT, widget: call.record.widget})
-    shots.push({width, png: narrow.raster.png()})
     if (narrow !== measured && narrow.fontsLoading !== undefined) waits.push(narrow.fontsLoading)
     const at = idTreeOf({live: narrow.live, sheets: narrow.sheets, mapping, previous: null})
+    if (narrow !== measured)
+      shots.push({width, screenshot: narrow.raster.png(), tree: treeOf(at.root), queries: narrow.queries})
     const measuredAt = reflowAt({
       root: design.root,
       reads: readIds({root: at.root, live: narrow.live}),
@@ -315,8 +350,6 @@ const REFLOW_HEIGHT = 900
 
 const WIDGET_SHOWN = 'widget shown: one width'
 
-const RATIO_DIGITS = 3
-
 async function revotedOf(input: Omit<Parameters<typeof mappingOf>[0], 'built'> & {previous: IdTree | null}) {
   const {measured, stored, previous} = input
   const built = idTreeOf({live: measured.live, sheets: measured.sheets, mapping: stored, previous, revote: true})
@@ -384,10 +417,16 @@ function shown(last: Round): RoundReply {
   return {round, rows, reflow, coverage, counts, progress}
 }
 
-function compared(input: {live: Raster; target: Raster; comparator: string}): {share: number; diff: Uint8Array} {
+function compared(input: {live: Raster; target: Raster; comparator: string}) {
   const {live, target} = input
   const box = {x: 0, y: 0, w: Math.min(live.width, target.width), h: Math.min(live.height, target.height)}
   const cropped = live.crop({box})
   const {mismatch, mask} = cropped.compare({other: target.crop({box}), comparator: input.comparator})
-  return {share: mismatch, diff: cropped.paintDiff({mask, width: box.w}).png()}
+  return {share: mismatch, diff: cropped.paintDiff({mask, width: box.w}).png(), mask: {pixels: mask, width: box.w}}
 }
+
+function treeOf(root: IdNode): IdTree {
+  return {root, revoted: [], gone: []}
+}
+
+type Shot = NonNullable<Parameters<DesignRuntime['store']['writeRound']>[0]['shots']>[number]

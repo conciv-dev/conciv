@@ -18,7 +18,7 @@ export function storeSources(): Record<string, Source> {
 
 const RUNS = 'runs'
 
-const RENAMED: Record<string, string> = {run_id: 'run', target_id: 'target'}
+const RENAMED: Record<string, string> = {run_id: 'run', target_id: 'target', artifact_id: 'id'}
 
 function fieldsOf(columns: Record<string, SQLiteColumn>): Record<string, SQLiteColumn> {
   return Object.fromEntries(Object.values(columns).map((column) => [RENAMED[column.name] ?? column.name, column]))

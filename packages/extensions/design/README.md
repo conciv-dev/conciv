@@ -28,7 +28,7 @@ src/
     tree.ts            walk over any tree
     box.ts             box geometry
   server/
-    store.ts           the target store over the runs store, live and diff images on unstorage
+    store.ts           the target store over the runs store; snapshots are artifact files with a catalog row
     runs/              the runs store: tables, views, sources, the session runs, artifacts and the commands
     differ.ts          the three tool bodies: register or return the design, quiet then run and judge, last round
     tools.ts           the server tool bindings
@@ -86,7 +86,8 @@ src/
   mapping, and returns `{round, rows, reflow, coverage, counts, verdict, reasons}`. A row is `{node, key, kind, name, text, magnitude}`;
   rows at `slightly` are counted, not listed. `reflow` holds one entry per width (1024, 768): `rootHeight,
   sticksOut, overflowX, overlaps, tags` with `ok` and `why`. A page error, or a page that renders under half the nodes
-  of the last settled round, answers `{unsettled: true, rendered, route, verdict: 'unsettled', reasons}` and writes nothing.
+  of the last settled round, answers `{unsettled: true, rendered, route, verdict: 'unsettled', reasons}`; its round is recorded with state
+  `unsettled` and is never judged.
   An error the page throws answers `broken` with `thrown`, except the browser's `ResizeObserver loop completed with
   undelivered notifications.`, which an observer that changes layout in its own callback raises and which is benign.
   Under half is decided after every stored pin is voted again: a restructured page is measured on a fresh vote, not
@@ -129,13 +130,24 @@ under 32 px, else `much`.
 Every design session is recorded in one store, `<conciv home>/runs.db`, migrated whenever it is opened. A project's
 `.conciv` keeps no design tables.
 
-- A session's first `design_get` or `design_check` opens a `running` run with its provenance: `session_id`, `model`,
+- A session's first `design_get` or `design_check` opens a `running` run with its provenance: `session`, `model`,
   `harness`, `agent_id`, `project_key`, `branch`, `head`, and the tools head, version and fingerprint. Its targets,
   rounds, rows and tool calls are written there as they happen.
-- A tool call row carries its round: for `design_check` the round it wrote (the highest across widths, null when it
-  wrote none), for the other tools the run's latest round when the call ended.
-- Each check writes a `screenshot` and a `design` artifact per measured width under `<home>/artifacts/<run>/<target>/`;
-  nothing expires.
+- Every per-run table carries `run` and `session`; per-check tables also `target`, `round` and, where it applies,
+  `width`, so `--where 'session == "..."'` works on every source.
+- Every check writes a round with a `state`: `measured`, `unsettled` (the page rendered too little and the check
+  replied unsettled), `unchanged` (with `same_as`, the round it equals, and nothing else copied) or `broken`. Round
+  numbers count every check of a target. Image mismatch shares are the round's `image_mismatch`, by node.
+- Rows keep `property`, `expected` and `actual` (design and page value, with unit) and `delta` (null when not numeric);
+  rows graded `slightly` are stored too, `coverage.gone` names are `missing` rows of kind `gone`. The replies leave all
+  of that out, as before.
+- `design_get` writes the hints it tells as `hints` rows at round 0; `hint_vs_drawn` reads them.
+- A tool call row carries its round: the run's latest round when the call ended, null when it failed.
+- Snapshots are files under `<home>/artifacts/<run>/<target>/<round>/<width>/<kind>.<ext>`, one `artifacts` row each
+  (`id, run, session, target, round, width, kind, path, content_type, size, checksum, written`): per check and per
+  measured width `screenshot`, `dom`, `cssom` (with the widths the page's queries name) and `fom`, plus `diff` and
+  `mask` at the frame width; per target under `<run>/<target>/` the `frame` image, the `design` tree and the raw
+  `figma` document. Nothing expires.
 - The run closes with the chat run that ends the turn, or that the next boot sweeps as aborted: `status`, `ended`,
   `usage`, `cost`, `error`, `error_code` and the verdict of its last round. A later check opens a new run and copies
   the target into it.

@@ -50,7 +50,7 @@ export function createFigmaAdapter(input: {
       const assets = await figmaAssets({design: plain, image: fetched.image, fileKey, token, folder, cache})
       const design = {...assets.design, root: hashed(assets.design.root)}
       const warnings = [...frame.warnings, ...unmapped(frame.node), named.line, assets.line]
-      return {design, image: fetched.image, warnings}
+      return {design, image: fetched.image, warnings, raw: fetched.raw}
     },
   }
 }
@@ -61,7 +61,7 @@ const FIGMA_SOURCE_MESSAGE = getDef.errors?.['figma-source'].message
 
 type FigmaLink = {fileKey: string; nodeId: string}
 type Attachments = {document?: unknown; image?: Uint8Array}
-type Fetched = {document: FigmaDocument; image: Uint8Array; version: string}
+type Fetched = {document: FigmaDocument; image: Uint8Array; version: string; raw: unknown}
 
 const {document: FigmaDocumentSchema, images: FigmaImagesSchema} = figmaSchemas
 
@@ -160,8 +160,9 @@ async function attached(input: {
   project: Storage
   files: Storage
 }): Promise<Fetched> {
-  const document = parsedDocument(await documentBody(input))
-  return {document, image: input.image, version: document.version ?? document.lastModified ?? ''}
+  const raw = await documentBody(input)
+  const document = parsedDocument(raw)
+  return {document, image: input.image, version: document.version ?? document.lastModified ?? '', raw}
 }
 
 async function documentBody(input: {document: unknown; project: Storage; files: Storage}): Promise<unknown> {
@@ -196,7 +197,7 @@ async function restLoad(input: {link: FigmaLink; scale: number; token: string}):
     throw toolError('figma-request', {message: `Figma rendered no image for ${link.nodeId}`})
   const png = await figmaFetch({url: render, headers: {}, link})
   const document = parsedDocument(body)
-  return {document, image: new Uint8Array(await png.arrayBuffer()), version: document.version ?? ''}
+  return {document, image: new Uint8Array(await png.arrayBuffer()), version: document.version ?? '', raw: body}
 }
 
 async function figmaJson(input: {url: string; headers: Record<string, string>; link: FigmaLink}): Promise<unknown> {

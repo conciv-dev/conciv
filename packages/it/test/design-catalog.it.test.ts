@@ -133,7 +133,7 @@ describe('catalog component rows', () => {
     const [{run: runId} = {run: 0}] = z.array(z.object({run: z.number()})).parse(
       await kit.rpc.db.read({
         from: 'design_stored_runs',
-        where: `session_id == "${kit.session}" && status == "running"`,
+        where: `session == "${kit.session}" && status == "running"`,
         select: ['run'],
       }),
     )

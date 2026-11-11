@@ -3,6 +3,7 @@ import {integer, real, text, sqliteView} from 'drizzle-orm/sqlite-core'
 
 export const runSummaryView = sqliteView('run_summary', {
   run_id: integer().notNull(),
+  session: text(),
   model: text(),
   harness: text(),
   agent_id: text(),
@@ -28,7 +29,8 @@ export const runSummaryView = sqliteView('run_summary', {
   paint: integer(),
   pixels: real(),
   checks: integer().notNull(),
-}).as(sql`SELECT r.run_id, r.model, r.harness, r.agent_id, r.status, r.ended, r.cost, r.usage, r.error, r.error_code,
+})
+  .as(sql`SELECT r.run_id, r.session, r.model, r.harness, r.agent_id, r.status, r.ended, r.cost, r.usage, r.error, r.error_code,
   r.harness_session_id, (r.ended - r.started) / 60000.0 AS minutes, r.ended - r.started AS duration_ms, r.verdict AS run_verdict,
   t.target_id, t.width, last.round, last.verdict, last.rows_count AS rows, last.much, last.noticeably, last.slightly,
   last.reflow, last.paint, last.pixel_share AS pixels,
@@ -38,4 +40,4 @@ FROM design_runs r
 LEFT JOIN design_targets t ON t.run_id = r.run_id
 LEFT JOIN design_rounds last ON last.run_id = t.run_id AND last.target_id = t.target_id
   AND last.round = (SELECT max(x.round) FROM design_rounds x WHERE x.run_id = t.run_id AND x.target_id = t.target_id
-    AND (r.ended IS NULL OR x.at <= r.ended))`)
+    AND x.state IN ('measured', 'broken') AND (r.ended IS NULL OR x.at <= r.ended))`)
