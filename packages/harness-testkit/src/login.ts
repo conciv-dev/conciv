@@ -1,5 +1,11 @@
-import {makeBrowserRpcClient, type RpcClient} from '@conciv/contract'
+import {readFileSync} from 'node:fs'
+import {join} from 'node:path'
+import {z} from 'zod'
+import {makeBrowserRpcClient, makeRpcClient, type RpcClient} from '@conciv/contract'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import {until} from './until.js'
+
+const RecordedEngineSchema = z.object({port: z.number().int().min(1).max(65535), token: z.string().min(1)})
 
 const PRINTED_CODE = /#conciv_otp=(\d{6})/g
 
@@ -41,6 +47,21 @@ export async function loginThroughTerminal(origin: string, terminal: TerminalRea
   return exchangePrintedCode(origin, await requestPrintedCode(origin, terminal))
 }
 
-export async function magicLink(origin: string, terminal: TerminalReader, pageUrl: string): Promise<string> {
-  return `${pageUrl}#conciv_otp=${await requestPrintedCode(origin, terminal)}`
+async function issuedCode(engineBase: string): Promise<string> {
+  return (await makeRpcClient(engineBase).auth.issueCode()).code
+}
+
+export async function magicLink(engineBase: string, pageUrl: string): Promise<string> {
+  return `${pageUrl}#conciv_otp=${await issuedCode(engineBase)}`
+}
+
+export async function trustedBrowserToken(engineBase: string): Promise<string> {
+  return exchangePrintedCode(new URL(engineBase).origin, await issuedCode(engineBase))
+}
+
+export function recordedEngineBase(projectDir: string): string {
+  const recorded = RecordedEngineSchema.parse(
+    JSON.parse(readFileSync(join(concivStateDir(projectDir), 'server.json'), 'utf8')),
+  )
+  return `http://127.0.0.1:${recorded.port}/t/${recorded.token}`
 }

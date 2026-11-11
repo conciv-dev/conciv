@@ -55,7 +55,7 @@ export async function getExtensionTestApi(extension: ExtensionUnderTest): Promis
     const session = await resolveSession(apiBase)
     const {origin, close} = await extension.host({apiBase: engine.origin, session})
     teardown.push({name: 'close', run: () => close()})
-    const {page, context, close: closeBrowser} = await launch(await magicLink(engine.origin, engine.terminal, origin))
+    const {page, context, close: closeBrowser} = await launch(await magicLink(apiBase, origin))
     teardown.push({name: 'closeBrowser', run: () => closeBrowser()})
     await rpcObserverFor(page).completed({path: ['auth', 'exchange'], status: 200})
     return {

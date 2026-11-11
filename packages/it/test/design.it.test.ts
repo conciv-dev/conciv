@@ -124,16 +124,10 @@ async function injectWidget(page: Page, apiBase: string): Promise<void> {
 async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
   const stateRoot = await mkdtemp(join(tmpdir(), 'conciv-design-state-'))
   const devEndpointDir = await mkdtemp(join(tmpdir(), 'conciv-design-endpoint-'))
-  const printed: string[] = []
   const server = await createServer({
     root: HOST_ROOT,
     configFile: false,
-    customLogger: {
-      ...createLogger('silent'),
-      info: (message) => {
-        printed.push(message)
-      },
-    },
+    customLogger: createLogger('silent'),
     server: {host: '127.0.0.1', port: 0},
     plugins: [
       react(),
@@ -167,7 +161,7 @@ async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
         timeout: PAGE_DRIVER_TIMEOUT_MS,
       })
     })
-  await goto(await magicLink(new URL(apiBase).origin, () => printed.join('\n'), '/'))
+  await goto(await magicLink(apiBase, '/'))
   return {
     rpc,
     browser,

@@ -22,7 +22,7 @@ import getPort from 'get-port'
 import {chromium, type Browser, type Page} from 'playwright'
 import {expect as expectLocator} from 'playwright/test'
 import {DevTools} from '@vitejs/devtools'
-import {createServer, type Plugin, type PluginOption, type ViteDevServer} from 'vite'
+import {createLogger, createServer, type Plugin, type PluginOption, type ViteDevServer} from 'vite'
 import type {Engine} from '@conciv/core/start'
 import {EXTENSIONS_RESOLVED_ID, NO_BUILTINS, type Builtins} from '@conciv/extension-compiler/extensions'
 import ios from '@conciv/extension-ios'
@@ -44,7 +44,6 @@ import {makeViteBridge} from '@conciv/extension/vite'
 import {makeViteHook} from '../src/core/vite.js'
 import {EXTENSIONS_ROUTE, type Middleware, makeWidgetInject} from '../src/core/widget-middleware.js'
 import {
-  capturedLogger,
   devServers,
   installConcivPackage,
   magicLinkUrl,
@@ -1090,11 +1089,10 @@ describe('vite devtools dock', () => {
       join(root, 'index.html'),
       `<!doctype html><html><head><meta charset="utf-8">${hostHead}<title>host</title></head><body><h1>host</h1></body></html>`,
     )
-    const printed = capturedLogger()
     const server = await createServer({
       root,
       configFile: false,
-      customLogger: printed.logger,
+      customLogger: createLogger('silent'),
       server: {host: '127.0.0.1', port: 0, watch: null},
       plugins,
     })
@@ -1102,7 +1100,7 @@ describe('vite devtools dock', () => {
     await server.listen()
     const address = server.httpServer?.address()
     const url = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}/`
-    return {server, root, terminal: printed.text, url}
+    return {server, root, url}
   }
 
   function concivHook(root: string, builtins: Builtins, widget?: false) {
@@ -1517,16 +1515,12 @@ describe('vite devtools dock', () => {
       const builtins = prepare(root)
       const logged: string[] = []
       const remember = (message: string): void => void logged.push(message)
-      const printed = capturedLogger()
       const server = await createServer({
         root,
         configFile: false,
         customLogger: {
-          ...printed.logger,
-          info: (message) => {
-            remember(message)
-            printed.logger.info(message)
-          },
+          ...createLogger('silent'),
+          info: remember,
           warn: remember,
           warnOnce: remember,
         },
@@ -1547,7 +1541,7 @@ describe('vite devtools dock', () => {
         if (message.type() === 'warning') warnings.push(message.text())
       })
       const recorderPlayer = page.waitForResponse(/rrweb-player/, {timeout: 60_000})
-      await page.goto(await magicLinkUrl({server, root, terminal: printed.text}, url), {waitUntil: 'domcontentloaded'})
+      await page.goto(await magicLinkUrl({server, root}, url), {waitUntil: 'domcontentloaded'})
       await page.getByRole('button', {name: /conciv chat$/}).click({timeout: 45_000})
       const chat = page.getByRole('dialog', {name: 'conciv chat agent'})
       await chat.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 15_000})
@@ -1743,11 +1737,10 @@ describe('extension load isolation', () => {
     writeFileSync(join(root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title><h1>host</h1>')
     const blockedEntry = join(root, 'blocked-extension.js')
     writeFileSync(blockedEntry, "export default {name: 'blocked'}\n")
-    const printed = capturedLogger()
     const server = await createServer({
       root,
       configFile: false,
-      customLogger: printed.logger,
+      customLogger: createLogger('silent'),
       server: {host: '127.0.0.1', port: 0},
       plugins: [
         makeViteHook(
@@ -1767,7 +1760,7 @@ describe('extension load isolation', () => {
     const page = await browser.newPage()
     await page.route(/blocked-extension\.js/, (route) => route.abort('blockedbyclient'))
     const url = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}/`
-    await page.goto(await magicLinkUrl({server, root, terminal: printed.text}, url), {waitUntil: 'domcontentloaded'})
+    await page.goto(await magicLinkUrl({server, root}, url), {waitUntil: 'domcontentloaded'})
     const notice = page.getByText(/blocked-extension.*failed to load.*content blocker/)
     const shown = notice.waitFor({timeout: 45_000})
     await page.getByRole('button', {name: /conciv chat$/}).waitFor({timeout: 45_000})
