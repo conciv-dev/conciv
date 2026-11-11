@@ -25,11 +25,16 @@ export type OpenPool = {pool: Piscina<ReturnType<typeof move>, ExecutionResult>;
 
 type Retired = {signal: AbortSignal; result: ExecutionResult}
 
-type ToolContext = {bindings: IsolateConfig['bindings']; retire: (result: ExecutionResult) => void}
+type ToolContext = {
+  bindings: IsolateConfig['bindings']
+  started: () => void
+  retire: (result: ExecutionResult) => void
+}
 
 export type CodeDriver = IsolateDriver & {dispose: () => Promise<void>}
 
 const toolRouter = {
+  started: os.$context<ToolContext>().handler(({context}) => context.started()),
   call: os
     .$context<ToolContext>()
     .input(z.object({name: z.string(), args: z.unknown()}))
@@ -127,7 +132,10 @@ async function run(
     retired.result = result
     retiring.abort()
   }
-  toolHandler.upgrade(port1, {context: {bindings: config.bindings, retire}})
+  const hardStop = new AbortController()
+  const started = () =>
+    AbortSignal.timeout(timeout + HARD_STOP_GRACE_MS).addEventListener('abort', () => hardStop.abort(), {once: true})
+  toolHandler.upgrade(port1, {context: {bindings: config.bindings, started, retire}})
   const task: QuickJSTask = {
     code,
     names: Object.keys(config.bindings),
@@ -136,8 +144,7 @@ async function run(
     maxStackSize: limits.maxStackSize,
     port: port2,
   }
-  const timedOut = AbortSignal.timeout(timeout + HARD_STOP_GRACE_MS)
-  const signal = AbortSignal.any([disposed, timedOut, retiring.signal])
+  const signal = AbortSignal.any([disposed, hardStop.signal, retiring.signal])
   const aborting: {threads: Worker[]} = {threads: []}
   signal.addEventListener('abort', () => (aborting.threads = pool.threads), {once: true})
   try {
@@ -145,7 +152,7 @@ async function run(
   } catch (error) {
     if (!signal.aborted) return closed.signal.aborted ? STOPPED : workerFailure(error, log)
     await exited(pool, aborting.threads)
-    return abortedWith(signal.reason, timedOut, retired)
+    return abortedWith(signal.reason, hardStop.signal, retired)
   } finally {
     port1.close()
   }

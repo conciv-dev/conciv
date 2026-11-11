@@ -33,6 +33,7 @@ await loaded.dispose()
 export default async function runQuickJS(task: QuickJSTask): Promise<ExecutionResult> {
   const host: Host = createORPCClient(new RPCLink({port: task.port}))
   try {
+    await host.started()
     const result = await execution(task, host).catch(failedRun)
     const retiring = retiringError(result)
     if (retiring === null) return result
