@@ -1,11 +1,12 @@
 import {randomUUID} from 'node:crypto'
+import {EventEmitter, on} from 'node:events'
 import {mkdir, rename, rm, writeFile} from 'node:fs/promises'
 import {dirname, join} from 'node:path'
 import {createStorage, type Driver, type Storage} from 'unstorage'
 import fsDriver from 'unstorage/drivers/fs'
-import {EventPublisher} from '@orpc/server'
-import {Debouncer} from '@tanstack/pacer'
-import {isEqual, omit} from 'es-toolkit'
+import {debounce} from 'devframe/utils/debounce'
+import {createSharedState} from 'devframe/utils/shared-state'
+import {isEqual} from 'es-toolkit'
 import {z} from 'zod'
 import {SettingsNamespaceSchema, type SettingsScope, type SettingsSnapshot} from '@conciv/contract'
 import {
@@ -16,6 +17,8 @@ import {
 } from '@conciv/extension'
 
 const WRITE_DEBOUNCE_MS = 100
+
+const FROM_DISK = 'conciv-settings-disk:'
 
 const SavedSettingsSchema = z.record(z.string(), z.unknown())
 
@@ -54,33 +57,36 @@ function atomicFsDriver(base: string): Driver {
 
 export function createSettingsStorage(storages: SettingsStorages) {
   const generation = randomUUID()
-  const files = new Map<string, ReturnType<typeof createSettingsFile>>()
-  const file = (scope: SettingsScope, namespace: string) => {
-    const key = `${scope}:${settingsKey(namespace)}`
-    const opened = files.get(key) ?? createSettingsFile(storages[scope], settingsKey(namespace), generation)
-    files.set(key, opened)
+  const files = new Map<string, Promise<SettingsFile>>()
+  const file = (scope: SettingsScope, namespace: string): Promise<SettingsFile> => {
+    const key = settingsKey(namespace)
+    const opened = files.get(`${scope}:${key}`) ?? openSettingsFile(storages[scope], key, generation)
+    files.set(`${scope}:${key}`, opened)
     return opened
   }
   const watching = storages.global
     .watch((_event, key) => {
       files
         .get(`global:${key}`)
-        ?.reload()
-        .catch((error: unknown) => console.error(`conciv: reloading the global settings file ${key} failed`, error))
+        ?.then((opened) => opened.takeSaved())
+        .catch((error: unknown) =>
+          console.warn(`conciv: the global settings file ${key} is unreadable, keeping the settings in memory`, error),
+        )
     })
     .catch((error: unknown) => {
       console.error('conciv: watching the global settings folder failed', error)
       return async () => {}
     })
-  const flush = (): Promise<void> =>
-    Promise.all([...files.values()].map((opened) => opened.flush())).then(() => undefined)
+  const flush = async (): Promise<void> => {
+    await Promise.all([...files.values()].map(async (opened) => (await opened).flush()))
+  }
   return {
     file,
     scope: <Namespace extends string>(namespace: Namespace): ExtensionScope<Namespace> => ({
       namespace,
       settings: {
-        global: createSettingsStore<SettingsForNamespace<Namespace>>(async () => file('global', namespace)),
-        project: createSettingsStore<SettingsForNamespace<Namespace>>(async () => file('project', namespace)),
+        global: createSettingsStore<SettingsForNamespace<Namespace>>(() => file('global', namespace)),
+        project: createSettingsStore<SettingsForNamespace<Namespace>>(() => file('project', namespace)),
       },
     }),
     flush,
@@ -101,78 +107,61 @@ function settingsKey(namespace: string): string {
   return `${parsed.data}.json`
 }
 
-function createSettingsFile(storage: Storage, key: string, generation: string) {
-  const current: {snapshot: SettingsSnapshot} = {snapshot: {generation, version: 0, value: {}}}
-  const loaded = readSaved(storage, key).then(
-    (value) => {
-      current.snapshot = {...current.snapshot, value}
-    },
-    (error: unknown) => {
-      console.warn(`conciv: the settings file ${key} is unreadable, starting empty until the next change`, error)
-    },
-  )
-  const publisher = new EventPublisher<{changed: SettingsSnapshot}>()
-  const writes: {pending: Promise<void>} = {pending: Promise.resolve()}
-  const writer = new Debouncer(
-    () => {
-      const value = current.snapshot.value
-      writes.pending = writes.pending.then(() => writeSaved(storage, key, value))
-    },
-    {wait: WRITE_DEBOUNCE_MS},
-  )
-  const advance = (value: Record<string, unknown>): SettingsSnapshot => {
-    current.snapshot = {generation, version: current.snapshot.version + 1, value}
-    publisher.publish('changed', current.snapshot)
-    return current.snapshot
-  }
-  const commit = (value: Record<string, unknown>): SettingsSnapshot => {
-    advance(value)
-    writer.maybeExecute()
-    return current.snapshot
-  }
-  const reload = async (): Promise<void> => {
-    await loaded
-    if (writer.store.state.isPending) return
-    await writes.pending
-    const version = current.snapshot.version
-    const value = await readSaved(storage, key).catch((error: unknown) => {
-      console.warn(`conciv: the settings file ${key} is unreadable, keeping the settings in memory`, error)
-      return current.snapshot.value
-    })
-    if (writer.store.state.isPending || current.snapshot.version !== version) return
-    if (isEqual(value, current.snapshot.value)) return
-    advance(value)
-  }
-  const state: SettingsState = {
-    read: async () => {
-      await reload()
-      return current.snapshot
-    },
-    set: async (name, value) => {
-      await loaded
-      const saved = current.snapshot.value
-      if (Object.hasOwn(saved, name) && Object.is(saved[name], value)) return current.snapshot
-      return commit({...saved, [name]: value})
+type SettingsFile = Awaited<ReturnType<typeof openSettingsFile>>
+
+async function openSettingsFile(storage: Storage, key: string, generation: string) {
+  const value = await readSaved(storage, key).catch((error: unknown) => {
+    console.warn(`conciv: the settings file ${key} is unreadable, starting empty until the next change`, error)
+    return {}
+  })
+  const state = createSharedState<SettingsSnapshot>({initialValue: {generation, version: 0, value}})
+  const write = debounce((snapshot: SettingsSnapshot) => writeSaved(storage, key, snapshot.value), WRITE_DEBOUNCE_MS)
+  state.on('updated', (snapshot, _patches, syncId) => {
+    if (!syncId.startsWith(FROM_DISK)) write(snapshot).catch(() => undefined)
+  })
+  const settings: SettingsState = {
+    read: async () => state.value(),
+    set: async (name, next) => {
+      state.mutate((draft) => {
+        if (Object.hasOwn(draft.value, name) && Object.is(draft.value[name], next)) return
+        draft.value[name] = next
+        draft.version += 1
+      })
+      return state.value()
     },
     delete: async (name) => {
-      await loaded
-      if (!Object.hasOwn(current.snapshot.value, name)) return current.snapshot
-      return commit(omit(current.snapshot.value, [name]))
+      state.mutate((draft) => {
+        if (!Object.hasOwn(draft.value, name)) return
+        Reflect.deleteProperty(draft.value, name)
+        draft.version += 1
+      })
+      return state.value()
     },
-    subscribe: async (listener) => publisher.subscribe('changed', listener),
+    subscribe: async (listener) => state.on('updated', (snapshot) => listener(snapshot)),
   }
   return {
-    ...state,
+    ...settings,
     async *changes(signal: AbortSignal | undefined): AsyncGenerator<SettingsSnapshot, void, void> {
-      await loaded
-      const later = publisher.subscribe('changed', {signal})
-      yield current.snapshot
-      yield* later
+      const relay = new EventEmitter()
+      const stop = state.on('updated', () => relay.emit('updated'))
+      try {
+        const later = on(relay, 'updated', {signal})
+        yield state.value()
+        while (!(await later.next()).done) yield state.value()
+      } finally {
+        stop()
+      }
     },
-    reload,
+    takeSaved: async (): Promise<void> => {
+      const saved = await readSaved(storage, key)
+      if (isEqual(saved, state.value().value)) return
+      state.mutate((draft) => {
+        draft.value = saved
+        draft.version += 1
+      }, `${FROM_DISK}${randomUUID()}`)
+    },
     flush: async (): Promise<void> => {
-      writer.flush()
-      await writes.pending
+      await write.flush()
     },
   }
 }

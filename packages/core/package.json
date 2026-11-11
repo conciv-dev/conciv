@@ -85,6 +85,7 @@
     "@orpc/server": "catalog:",
     "@tanstack/ai-mcp": "catalog:",
     "@tanstack/pacer": "catalog:",
+    "devframe": "catalog:",
     "drizzle-orm": "catalog:",
     "es-toolkit": "catalog:",
     "hono": "catalog:",
