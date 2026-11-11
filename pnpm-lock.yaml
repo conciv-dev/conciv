@@ -3071,6 +3071,9 @@ importers:
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../../ui-kit-system
+      '@tanstack/hotkeys':
+        specifier: ^0.18.0
+        version: 0.18.0
       '@tanstack/solid-pacer':
         specifier: 'catalog:'
         version: 0.24.0(solid-js@1.9.17)

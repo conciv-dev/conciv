@@ -538,7 +538,7 @@ export const pressDef = pageTool({
   label: {running: 'Pressing a key', done: 'Pressed'},
   mutating: true,
   keywords: ['keyboard', 'key'],
-  input: z.object({...ElementTarget, key: z.string().describe('keyboard key, e.g. Enter')}),
+  input: z.object({...ElementTarget, key: z.string().describe('a key or a hotkey binding, e.g. Enter or Mod+Shift+X')}),
   output: OkResult,
 })
 

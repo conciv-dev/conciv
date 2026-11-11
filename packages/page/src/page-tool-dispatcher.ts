@@ -15,6 +15,7 @@ import type {
 import {addRef, type Refs} from './page-snapshot.js'
 import type {ConsoleEntry} from './console-buffer.js'
 import {elementByName} from './react-bridge.js'
+import {selectDeep} from './select-deep.js'
 import {badArgs, fail, unknownVerb} from './page-failure.js'
 import {isJsonSerializable, rethrow} from './page-tool-outcome.js'
 import {toCssBundle, type PendingCssText} from './css-bundle.js'
@@ -40,7 +41,7 @@ function locatorTarget(locator: ClientToolLocator, refs: Refs): Element | null {
     return el?.isConnected ? notOurs(el) : null
   }
   if (locator.selector !== undefined) {
-    return Array.from(document.querySelectorAll(locator.selector)).find((el) => !isOurs(el)) ?? null
+    return selectDeep(locator.selector).find((el) => !isOurs(el)) ?? null
   }
   if (locator.name !== undefined) return notOurs(elementByName(locator.name))
   return null

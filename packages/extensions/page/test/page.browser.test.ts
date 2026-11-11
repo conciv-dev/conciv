@@ -427,6 +427,50 @@ describe.skipIf(inFirefox)('page tools', () => {
       expect(keys).toEqual(['down:Enter', 'up:Enter'])
     })
 
+    it('presses a binding with its modifiers and code so a host hotkey listener fires', async () => {
+      const fired: string[] = []
+      const listener = (event: KeyboardEvent): void => {
+        if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'x')
+          fired.push(event.code)
+      }
+      document.addEventListener('keydown', listener)
+      onTestFinished(() => document.removeEventListener('keydown', listener))
+      expect(await resultOf('press', {key: 'Mod+Shift+X'})).toEqual({ok: true})
+      expect(fired).toEqual(['KeyX'])
+    })
+
+    it('reaches into open shadow roots by selector, but never into the widget own shadow root', async () => {
+      const host = document.createElement('div')
+      const root = host.attachShadow({mode: 'open'})
+      const clicked: string[] = []
+      const button = document.createElement('button')
+      button.id = 'shadow-btn'
+      button.textContent = 'in the shadow'
+      button.addEventListener('click', () => clicked.push('clicked'))
+      root.appendChild(button)
+      const ours = document.createElement('div')
+      ours.setAttribute('data-conciv-root', '')
+      const oursButton = document.createElement('button')
+      oursButton.id = 'ours-btn'
+      oursButton.textContent = 'widget button'
+      ours.attachShadow({mode: 'open'}).appendChild(oursButton)
+      container.append(host, ours)
+      onTestFinished(() => {
+        host.remove()
+        ours.remove()
+      })
+      expect(await resultOf('exists', {selector: '#shadow-btn'})).toEqual({exists: true, count: 1})
+      expect(await resultOf('click', {selector: '#shadow-btn'})).toEqual({ok: true})
+      expect(clicked).toEqual(['clicked'])
+      const snapshot = await resultOf('snapshot')
+      const names = (Array.isArray(snapshot.nodes) ? snapshot.nodes : []).flatMap((node) =>
+        typeof node === 'object' && node !== null && 'name' in node ? [node.name] : [],
+      )
+      expect(names).toContain('in the shadow')
+      expect(names).not.toContain('widget button')
+      expect(await resultOf('exists', {selector: '#ours-btn'})).toEqual({exists: false, count: 0})
+    })
+
     it('hovers with bubbling mouseover and mouseenter', async () => {
       const seen: string[] = []
       document.querySelector('#hovbtn')?.addEventListener('mouseover', () => seen.push('over'))
@@ -691,6 +735,32 @@ describe.skipIf(inFirefox)('page tools', () => {
             typeof entry === 'object' && entry !== null && 'text' in entry && entry.text === 'console-marker-inclusive',
         ),
       ).toBe(false)
+    })
+  })
+
+  describe('page errors', () => {
+    it('records an uncaught error and an unhandled rejection with their stacks', async () => {
+      setTimeout(() => {
+        throw new Error('page-boom-uncaught')
+      })
+      void Promise.reject(new Error('page-boom-unhandled'))
+      await vi.waitFor(async () => {
+        const all = await resultOf('console')
+        const entries = Array.isArray(all.entries) ? all.entries : []
+        const levelOf = (marker: string): string[] =>
+          entries.flatMap((entry) =>
+            typeof entry === 'object' &&
+            entry !== null &&
+            'text' in entry &&
+            'level' in entry &&
+            String(entry.text).includes(marker) &&
+            String(entry.text).includes('page.browser.test')
+              ? [String(entry.level)]
+              : [],
+          )
+        expect(levelOf('page-boom-uncaught')).toEqual(['uncaught'])
+        expect(levelOf('page-boom-unhandled')).toEqual(['unhandled'])
+      })
     })
   })
 

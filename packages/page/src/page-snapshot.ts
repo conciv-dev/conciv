@@ -1,3 +1,5 @@
+import {CONCIV_UI_SELECTOR} from '@conciv/extension'
+
 export type Refs = {map: Map<string, WeakRef<Element>>; n: number}
 export type RefAdder = (el: Element) => string
 export type SnapNode = {
@@ -113,10 +115,14 @@ export function buildSnapshot(root: Element, addRef: RefAdder): SnapNode[] {
   const out: SnapNode[] = []
   const walk = (el: Element): void => {
     if (isInteresting(el)) out.push(snapNode(el, addRef))
-    for (const child of Array.from(el.children)) walk(child)
+    for (const child of [...Array.from(pageShadowRoot(el)?.children ?? []), ...Array.from(el.children)]) walk(child)
   }
   walk(root)
   return out
+}
+
+function pageShadowRoot(element: Element): ShadowRoot | null {
+  return element.closest(CONCIV_UI_SELECTOR) === null ? element.shadowRoot : null
 }
 
 export function addRef(el: Element, refs: Refs): string {
