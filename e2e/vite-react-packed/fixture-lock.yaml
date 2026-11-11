@@ -409,91 +409,91 @@ packages:
     engines: {node: '>= 20.12.0'}
 
   '@conciv/ai@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ai-0.0.22.tgz':
-    resolution: {integrity: sha512-YEREDZnF/AZ9H4XPCG9KwqAs/8h3m1WzThXyGm9nva23rsQvjaZKL0T9KdVpDLXJnEdXQ4IkVgeeJ2z1cZY2hQ==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ai-0.0.22.tgz}
+    resolution: {integrity: sha512-b5s+GcSyE58782JVVYjJF7O48wHKO8iIjfci8qQ2vlPult0XYCzATlpmhp7KwSyVCwuxvSpthmSEsKzsixJ9Sw==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ai-0.0.22.tgz}
     version: 0.0.22
 
   '@conciv/chat@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-chat-0.0.22.tgz':
-    resolution: {integrity: sha512-XzNh3nZywmDxO5yViDWuc1275ZyYoq6Ks51/UwKjnbsxr9xupNWVcPG6dzVfqy+XCj335Xx5698L4lFi0vsLlg==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-chat-0.0.22.tgz}
+    resolution: {integrity: sha512-3t+gWKv0XdIpp4/QPv6xCzTVSiciiwd1sDBatjYDWrP8wn9bFjwN9RAI1l68cq5pYkq4AfhuJuTCSXKUvGDw9w==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-chat-0.0.22.tgz}
     version: 0.0.22
     engines: {node: '>=26.0.0'}
 
   '@conciv/cli@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-cli-0.0.22.tgz':
-    resolution: {integrity: sha512-9WAyYtussMgxx4bwpAZ3eqMr/xSDnk1fCDSfxruwRuYukE4yVqgwHIixRo2GcbzkEY/E+sJed89fgdIsICfe4g==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-cli-0.0.22.tgz}
+    resolution: {integrity: sha512-YGN/7/W9fTTz1bdSrpRYXauchynawBAeESiqlzYENSz0eSGwpNN7Xev9UZQuq7ROddQzojgakf94lQxoCIKoHQ==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-cli-0.0.22.tgz}
     version: 0.0.22
     hasBin: true
 
   '@conciv/client@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-client-0.0.22.tgz':
-    resolution: {integrity: sha512-hRktvdbk0d2iXZ0GPOpS3gdnpx9n1tE7fDpBAQET7UQTg5FIMXbzdB9MySsU4ZF3atSAYflhVvvRRFr6tkDmDg==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-client-0.0.22.tgz}
+    resolution: {integrity: sha512-MWfCbkolipxUxioT3VZICNmLgBAZIdWZeMTGdfJd5HMwOL7IKY0W+iWXXz3dbCq0pVc5A/YnPRo+vlrHK9NB9Q==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-client-0.0.22.tgz}
     version: 0.0.22
 
   '@conciv/contract@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-contract-0.0.22.tgz':
-    resolution: {integrity: sha512-bvKbNgSQZ2cvkj5hzSWRyGjJ1XL2eqWVE2HpG3uT/T0ONX4KHv559FOIXknKGAWFuHitHGBEz6Ynh4Ap3FChvA==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-contract-0.0.22.tgz}
+    resolution: {integrity: sha512-VUQ8DrTCfzSm8sSpCFkx6qhA3kP5Tako+chxYmGpttVIDEDjMxgq32vaRcbOnxukvRDbiHcPVHfzLQqOzk+hVQ==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-contract-0.0.22.tgz}
     version: 0.0.22
 
   '@conciv/core@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-core-0.0.22.tgz':
-    resolution: {integrity: sha512-Fa65M+DlrxWAJ8gRsJan4XRHZHSoKqo3XlvHVP/2JEABTFfmBSHNM+Ga5ZT8uP5W/Uuf0P6+KeAPpD0fi1nsWw==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-core-0.0.22.tgz}
+    resolution: {integrity: sha512-FBc7Lf7cTJjqoGLejivVv6sSNdFgRp1Szzo1kwE/tCdyqyYBS2uHuHfQTIxKw+A3iE8GP1zEIK6q78rZWDhKZg==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-core-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/db@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-db-0.0.22.tgz':
-    resolution: {integrity: sha512-3GchaqIt1kiwOf77S2/dg3AfpA2cuBwqvxA3U4WUIUpxapE54PwBDiqqGMPnw/4YtY6i8LPujoDJE+WAOhSKYw==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-db-0.0.22.tgz}
+    resolution: {integrity: sha512-JSgU7jbdpc34wQywWNG9oZbC7IYwfjow5+obkXQ9f/RikMU1mo9yPfQ2+znviaPEVOvFuXwJMFSW4W5roI6naQ==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-db-0.0.22.tgz}
     version: 0.0.22
     engines: {node: '>=26.0.0'}
 
   '@conciv/embed@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-embed-0.0.22.tgz':
-    resolution: {integrity: sha512-f39wAbw6vtkY9DhUkdCLaOYqSE8krbI7S0V5u/zxXwzlqoQYntNRzZLsufI9LG4YfkOKjSN0JbFjiJD43F6AVA==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-embed-0.0.22.tgz}
+    resolution: {integrity: sha512-9N9WuiECgeJ0Q5Rds9CtxwhxdoPWed4zHtlikmowLFEceVO8qgbG5PjBVfBpyB+Iwb0SARKGJVP+Zm1fti1QdA==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-embed-0.0.22.tgz}
     version: 0.0.22
     engines: {node: '>=26.0.0'}
 
   '@conciv/extension-compiler@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-compiler-0.0.22.tgz':
-    resolution: {integrity: sha512-8E5Zl4JESn9fmN/SIOenTq8PYr77iTX0XeY+oqVjX2e1Oxm9rq1vxZExO6RHskHv8jap8/LYF5CGtBZ/mARXFw==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-compiler-0.0.22.tgz}
+    resolution: {integrity: sha512-tygzZnbEHpX8DhaHvQMD8VIFjMfrtqYMyhp+skyQtaixYlFhAEdHCaB7BOXy4zU12/vNCWzupePQV17eFm4GYQ==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-compiler-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/extension-design@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-design-0.0.22.tgz':
-    resolution: {integrity: sha512-MuG15/USwyMFx5qHM63uvdoJ+VuGEVaX201RtJfBweLWQRqf1BKuKVJqcDmhKz7mxMK1uPORH5aBd4lhOZA6Tw==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-design-0.0.22.tgz}
+    resolution: {integrity: sha512-NlyMW7b/o6EA8PJQLO7bzqP54VmABLUNLGVHWbfEKWoryJYOt6xJrwgZ9hGVh552ZCnFrBPiN6Ow7cbN7P5peA==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-design-0.0.22.tgz}
     version: 0.0.22
 
   '@conciv/extension-ios@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-ios-0.0.22.tgz':
-    resolution: {integrity: sha512-Tlg0DGFXkNlqAskwfiHlZlhXM7NRASytBsN8NyZSfGBKeQ5aAI9HO5y9Hnp/8MSFpni026x8b0rlcDSeD4hqpg==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-ios-0.0.22.tgz}
+    resolution: {integrity: sha512-fZEs+FvT3TCElJQjUw9b90gnfJYwm+H0hD0qTn6oAKwGOZu5njodRBs12LjYsSVqfnrNiBpfiJxtQW/1Hmi9FQ==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-ios-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/extension-page@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-page-0.0.22.tgz':
-    resolution: {integrity: sha512-L3NvOf8ahDs4dJuAaC7Sfkx8HBIRmXmImq/IYzbZvZZWDbjD/H2p9PU1Z8OKxxc0109TtEx56CWaTytYGHrjYA==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-page-0.0.22.tgz}
+    resolution: {integrity: sha512-73zJ6AQTKjc/TkXSGENCiV1g5ioThiVjaiHB3YSwzuX2AG3Sdo12nnBJJhp6oTR9sk/wUQvGeYb6wHr5yC+4cw==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-page-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/extension-recorder@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-recorder-0.0.22.tgz':
-    resolution: {integrity: sha512-tPnQTsJXlJUxoknkiRaj6Maat1T99pKIxM2Qes4jQ/N2WtbPwiuDyMP+EvgoK7nzDrbQsikcIQ6GOJCWdKzRzA==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-recorder-0.0.22.tgz}
+    resolution: {integrity: sha512-U2CpZ/E8BEfGikksrn/GTIY448ueYOXCkZkP9ZFpJ1nJ0JXMOs2Qb/dPhb/04BEUx2mxKelH50tJyOV5ybev9w==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-recorder-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/extension-terminal@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-terminal-0.0.22.tgz':
-    resolution: {integrity: sha512-DARIb7/bHnQ0R1k2rLmN5nj9w7WqlVBxwW6FJWIsP1j9hnd4FPfFgpFKteUmv6ksjFwJFx9ka68Soey0pAfhvg==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-terminal-0.0.22.tgz}
+    resolution: {integrity: sha512-D1umvYVvHFRxWklejABwhCaUU/NQGxAsjIZU4EPHZwZBy7QCaX0/+U2D/z/53MrJ7qefLVTA3iIsBfDfy0zluQ==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-terminal-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/extension-test-runner@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-test-runner-0.0.22.tgz':
-    resolution: {integrity: sha512-1oVBr2TxKZPoBJdtp+VgleUtkYVfrXM+ZDS137yaTJhMZQmULtv97x9epvVcsdnBhpqWVapgWddYGgOlmOCxXg==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-test-runner-0.0.22.tgz}
+    resolution: {integrity: sha512-ic5LqwRAGO02S3NyyNvRAnqn0Q6DEIWsAnG40SFcE+JSISP0+tzbmbMlNI9/tEeBKv6qs7QLCOb/Ur1P1sy0jw==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-test-runner-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/extension-whiteboard@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-whiteboard-0.0.22.tgz':
-    resolution: {integrity: sha512-9htjvXZFoeMIdpY7dDW5OY5QKyDl/QeH46TILzG8vP7U+gk3XpmI3Dr0VF1nr6CRgAqiz30W4dpPJFCMIydbrw==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-whiteboard-0.0.22.tgz}
+    resolution: {integrity: sha512-arGDv5cIuBt4tUOxC0qJnlRcTVfYsL4AkPRw52tUznfRt/yB9P3GEfXY6ta3Qi6BE2YdZB6JoTQeqJpMxjQvxA==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-whiteboard-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/extension@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-0.0.22.tgz':
-    resolution: {integrity: sha512-I7ejM+LzKU8pKZk+MgNaVHFzuCuQlSC1ww7ASv7Qr99VObjETZdvzzJbcIkEvJZSISxt+XctBhQ5C+TKVlCIRw==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-0.0.22.tgz}
+    resolution: {integrity: sha512-1MlKxNdTE+bxC1S73ycecj1RiPk007NV70f5xWg20Rv/s2aorqfZI+6L0A0i5kbAZjbABBTpLE2mXC6MZnljqQ==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
@@ -503,19 +503,19 @@ packages:
         optional: true
 
   '@conciv/grab@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-grab-0.0.22.tgz':
-    resolution: {integrity: sha512-yznBwQOpCr3rLQ5Z9tlQDUD78KG5YELJlvz0971mFjfqioEedp+CVzbB3LYamL6VptM7ToMhhoxGUVMBuxek1w==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-grab-0.0.22.tgz}
+    resolution: {integrity: sha512-3CMO4Y1JBDPVoziKtkK8u5nfYZzwPGXjXpVai0HQJgwrmkJ06exMZW1R4KBLToyJDgMis7R/+TlY1Wgg5hbiNA==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-grab-0.0.22.tgz}
     version: 0.0.22
 
   '@conciv/harness-init@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-harness-init-0.0.22.tgz':
-    resolution: {integrity: sha512-uJTvmnIw+fzF7qiwH8+XiwFs01b/KEo3BCp0Kl5qhprklbZSYKyB4oCxqM50UbGt5uUWLZTlEkeBlGzFZfHnJg==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-harness-init-0.0.22.tgz}
+    resolution: {integrity: sha512-83zxvnmVkhjYQ7R2tyiDYl733yCtc+VWgJ4jZDf3T3/onSAWjeN0hqZZ9evIgt2HLA4QzmyufZ43PxGP4ZE6CQ==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-harness-init-0.0.22.tgz}
     version: 0.0.22
 
   '@conciv/harness@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-harness-0.0.22.tgz':
-    resolution: {integrity: sha512-D+XP4HRSky6w+dggtrxa8QepWExbrczbHi+eRovGe1jkIJKDXHvIPBHXR/jOWqTwkSwhZdecfD6yANa4noGADg==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-harness-0.0.22.tgz}
+    resolution: {integrity: sha512-tQ/CtUtWA8lcnauivn77bnOpVVYmukDZNaN1dcRqhVveAD63wB6EuXiXWg9fgH42TTo/NlI4SUrasHRknqH7PQ==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-harness-0.0.22.tgz}
     version: 0.0.22
 
   '@conciv/it@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-it-0.0.22.tgz':
-    resolution: {integrity: sha512-PEslJhDI+EwPCPL5ihvlAYFxx5bFFVHnJGggoZnwV4yg6YmS+2htFrP2jpFH2//a0KBomxSaYHNFqkxb/DPXsA==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-it-0.0.22.tgz}
+    resolution: {integrity: sha512-srD0g5NS0pnVW+IN/hyBfS2rwngDtiHMU7SHv9I+JsvOOq64pXMVQAQmUHTCC+yLSyQPgldi9USmXbLn06L7/w==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-it-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       next: ^15.3.0 || ^16.0.0
@@ -527,7 +527,7 @@ packages:
         optional: true
 
   '@conciv/mascot@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-mascot-0.0.22.tgz':
-    resolution: {integrity: sha512-TDsQyxeVLqix3CdV//uPISyoRJKPIYvKTaJr6McIZYlhRnDCMzzezJz/8Sk0ZNyRErXq1mr+zo/iAFRLNgsZRw==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-mascot-0.0.22.tgz}
+    resolution: {integrity: sha512-yXbOIhrYaCdHcT6McqVD5hDopgbGaSYNkSQLfhEr5RzmfrJHzeWYSKVKZ0mbMbWTE+Nr+MWvAWKLl1UPTRBI1w==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-mascot-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: '>=1.8'
@@ -536,11 +536,11 @@ packages:
         optional: true
 
   '@conciv/page@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-page-0.0.22.tgz':
-    resolution: {integrity: sha512-VXb276VRGVUhlQOV/MDdgy1VVJ1fBRACHMSXa8JUBsZgkSsxxKvk3gEehYuf8ttDl3FBTMaTeecNR+9GklsjQQ==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-page-0.0.22.tgz}
+    resolution: {integrity: sha512-5C6GXOhERQ0wwZl+tu+Hj+iHx3xanuWF698EmOSLYU+2Jcsdqy9dY8zyFXWJL6k9HqsRQHw6SIZyRkzslBzvTA==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-page-0.0.22.tgz}
     version: 0.0.22
 
   '@conciv/plugin@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-plugin-0.0.22.tgz':
-    resolution: {integrity: sha512-AMoeQJDbMQ9Vtdqwu0+Th6rSM2ocCF16+DyRbEfzR3VjHDWiPPmUODuxbBkd1WLaBam22iUxBOV76rsvlCUBOg==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-plugin-0.0.22.tgz}
+    resolution: {integrity: sha512-GOYCEJmkbBLdQiOesmIctnFsj321xEq+5qcAT5tMeai2EGj2vhbkgsbRPFIuGl77X5/TVrpYAE1kGQVAi1WFSg==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-plugin-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       next: ^15.3.0 || ^16.0.0
@@ -552,64 +552,64 @@ packages:
         optional: true
 
   '@conciv/protocol@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-protocol-0.0.22.tgz':
-    resolution: {integrity: sha512-8n/opVA7C9ew+pn/M3wioRqT+HWnd+kJapz+PnudMW0iaQL+iXeQAiyftv9r6rhqfs9m8JvSeSjLtladUc9MaQ==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-protocol-0.0.22.tgz}
+    resolution: {integrity: sha512-8qE+VxFvzTxXpp28likGBzP2tTfftkaiJxg95TCBQRoH7SJur4shCyo86ka0Of8cf+bZhDjINAfhXHm7OxxN6Q==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-protocol-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/serve@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-serve-0.0.22.tgz':
-    resolution: {integrity: sha512-tDPV+dcxPqncVnA+ZLzlEW/v2CAVRjVnlweohdMDsfeZS2BEgT2gK90xG9UnYFgQMTIRRlwOk/rq/JegZg2dMw==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-serve-0.0.22.tgz}
+    resolution: {integrity: sha512-XPkZB/37ai3xsyJHuWzJXBQ4PbVCceZ7ygqNuJAc4BcaVRQHKfXuqAgBPpUBA3qbnD0GB5vc9L2vAGCQWPWQ/Q==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-serve-0.0.22.tgz}
     version: 0.0.22
 
   '@conciv/solid-diffs@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-solid-diffs-0.0.22.tgz':
-    resolution: {integrity: sha512-mgwVSRHZBPZO1VRpScHso17SSQZfiQuKrBPzcME/tw6ZAIn/LV3/RgFUmEV1UzSbktplj4eVfA2MZ3UfDVW7jw==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-solid-diffs-0.0.22.tgz}
+    resolution: {integrity: sha512-5O8Fywe/nqypYSECoZtmVsjDvo5aLhOD0KPYanSRx7r4ypQAP2Nij+WtukauYIM9+V7oJRjLL+Am8EEZ0Q8piw==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-solid-diffs-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/solid-streamdown@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-solid-streamdown-0.0.22.tgz':
-    resolution: {integrity: sha512-ObtmxyerdnSf5/YH2q/dWpXrSP5HEMhxFKjvonI6t8RO/uZCqjFhmCV0iVWcys/5U/r6kRHV81F7bt2T8fFBZg==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-solid-streamdown-0.0.22.tgz}
+    resolution: {integrity: sha512-5S0Awc6ZQf16HWIjmmoZWCcZPN8YxUGraohXqr4gHDYuoj+zxNDDfx6ZONk2XqR63MHIf3yLcsINC7v827RfwA==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-solid-streamdown-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       shiki: ^4.2.0
       solid-js: ^1.9.13
 
   '@conciv/storage-history@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-storage-history-0.0.22.tgz':
-    resolution: {integrity: sha512-LyWmpV6rnLVr2ctUvKiD90eg5ToFIGSrz+9YVy3XNkzsWmAM30wyQQJe6zaYqN2G61SdzC18/kOupn/5nMdAmQ==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-storage-history-0.0.22.tgz}
+    resolution: {integrity: sha512-Eu8oErhQdg/ZBjCjiPCZGFIUfNMoZJPKsBBXd4QxtD8HNfnPMYIdYIScLPvzyPKpRzWgO7yX9IVTMyXZTcHE+w==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-storage-history-0.0.22.tgz}
     version: 0.0.22
 
   '@conciv/tools@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-tools-0.0.22.tgz':
-    resolution: {integrity: sha512-cuvUyOnEY8JM+mlu3nfDNtPlvg04mFwBwwn9q2/Ypry2lblodInBDtVaxh6xmLYws4K0hNlHY6770KWHrui4IQ==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-tools-0.0.22.tgz}
+    resolution: {integrity: sha512-AhlzO+/DYBxZRunMVq4GBR5bFxAlrtTyQ7c4keNiBdx4aqZFXheKIj9xHyjhR0ePDTz988NODyzPJ4Dokw4F2Q==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-tools-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/ui-kit-chat-tools@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ui-kit-chat-tools-0.0.22.tgz':
-    resolution: {integrity: sha512-9wM0BxfcELYSzSJ5Uxh3hjQTMHa1xOpS/x7AcQfztUgpbJdycSFmbkM5si+Bem/6ea2OayXT8bhJSUdagMiP8w==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ui-kit-chat-tools-0.0.22.tgz}
+    resolution: {integrity: sha512-D3L1ih5rEZ9Iln22TCqB3rzhuIHUnnVy76VW28GF09yPWIRwNAl8yjU03yCF54vxp784Jlb7E9z7umVE/ii6RQ==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ui-kit-chat-tools-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/ui-kit-chat@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ui-kit-chat-0.0.22.tgz':
-    resolution: {integrity: sha512-tl6XDzTknYlIu3yxgaSagGCwSP2LUnyd8DPwDnUshMM+d1Pt5h4mBmJw42u+eQae0mYTD1CPXGpbyCiojSRiSA==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ui-kit-chat-0.0.22.tgz}
+    resolution: {integrity: sha512-Ox1qnnwUbVtTxprTyK1PS1Z9prNNNxsYPHTEondZ4ZyC3twG1uu92dzEgB6Y0ocvuGIbAEiDCVGf2Q7Rf/jeug==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ui-kit-chat-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/ui-kit-system@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ui-kit-system-0.0.22.tgz':
-    resolution: {integrity: sha512-tKPGeZe7bVxloQvl7XkJ69x1IQ2+Lgx+6ZAr3cf/I6yH2IQJyNJcjZpf/9UIFwk7Pm2A0JXY8CEZ2qsSTCbHLQ==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ui-kit-system-0.0.22.tgz}
+    resolution: {integrity: sha512-nEaBZlT35Q23LblqTP6WovJyPeQOauqxATv5iJp36dhAp5gMJHRXqu4PLRRWmYcg57a/HZ/HALVl4iY27Bp1nA==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ui-kit-system-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/ui-kit-tap@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ui-kit-tap-0.0.22.tgz':
-    resolution: {integrity: sha512-mpOSvEpHDSxNOjeoQ5+/RFJ5rXQJmA9V1Jk8SLA6/HOo2RIeTncy7x8ymjuAZfqqGiDTphRTD08cnbArNbPM5w==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ui-kit-tap-0.0.22.tgz}
+    resolution: {integrity: sha512-ztNsgc2d22alriZYLNUFS2L7wF7jKcUMhlzNtvhPr+yKN67HnmRM5KuNl51Mrhv1jpB0lKO/URbtA6LfHEyQHQ==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ui-kit-tap-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/ui-kit-terminal@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ui-kit-terminal-0.0.22.tgz':
-    resolution: {integrity: sha512-3ukOAVMApWZC3X3uiLYKxyRSv1umepPCIIEvwTJ52jrRuCKCR63HyhV0bCSL+VrEaAewiHyvgs7w+B3zP333vg==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ui-kit-terminal-0.0.22.tgz}
+    resolution: {integrity: sha512-M3vCnr+vECDFy94bqZqfcLElWfhSVKJ+hXngwFVNTuVzpUb4KoKUV945dUBnuWXosRE45jG9qF7LCOBMgLrCEQ==, tarball: file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ui-kit-terminal-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
@@ -1875,6 +1875,22 @@ packages:
       react:
         optional: true
 
+  '@tanstack/ai-acp@1.0.1':
+    resolution: {integrity: sha512-KhX7j718g7HozG83JUlc1dUX+kBftFxZnxEFf9Y9zwLDFFXAVHPSX503yfcQh/BLtoQm1diasacGTU8Dauksng==}
+    peerDependencies:
+      '@tanstack/ai': ^1.1.0
+      '@tanstack/ai-harness': ^0.2.0
+      '@tanstack/ai-sandbox': ^1.1.0
+    peerDependenciesMeta:
+      '@tanstack/ai-harness':
+        optional: true
+
+  '@tanstack/ai-claude-code@1.0.1':
+    resolution: {integrity: sha512-MY4xSlZiRc3lHxzS6B+30DA+GT0ZXTdt6sZHRw4lDM0M/2Hn3MustuPy8k9Ikoe7fWKPSWbClracZgwstcGohw==}
+    peerDependencies:
+      '@tanstack/ai': ^1.1.0
+      '@tanstack/ai-sandbox': ^1.1.0
+
   '@tanstack/ai-client@1.1.0':
     resolution: {integrity: sha512-XMTdKzB9JG851Sztd/ywaL9D9Mw5DS87nV2i+5/Yq9dT+JKMcGoXCriztyO+djwxHu5ZGY32o9o29zbMMBo9VQ==}
 
@@ -1888,6 +1904,12 @@ packages:
     peerDependenciesMeta:
       '@tanstack/ai-harness':
         optional: true
+
+  '@tanstack/ai-codex@1.0.1':
+    resolution: {integrity: sha512-M64Bng41mg3K3jVZS/W1Y1LJ/zPKL76AETBOFxNIsHs09ZhFtgQnB84W9sGnhVqySuGPIT8wBPf/D/VNJFmGrA==}
+    peerDependencies:
+      '@tanstack/ai': ^1.1.0
+      '@tanstack/ai-sandbox': ^1.1.0
 
   '@tanstack/ai-event-client@1.0.1':
     resolution: {integrity: sha512-IURnn4oRKJbtbAuC3GcXRcuKHi8DrPmwuACqaTq6ApSGlyJyHhq0NTksKEmzql2Z12+njFjsKSXG9c7UbSHTxg==}
@@ -1912,6 +1934,12 @@ packages:
       '@tanstack/ai-harness':
         optional: true
 
+  '@tanstack/ai-opencode@1.0.1':
+    resolution: {integrity: sha512-h9FjxCCrUXrqi7nMbki3YIOTo6/QwpYWO5PyGhxYu/sSglCJ3uCmOhAmxEyuaa4MWp3lhB6mBW3VgTP3tl/K8w==}
+    peerDependencies:
+      '@tanstack/ai': ^1.1.0
+      '@tanstack/ai-sandbox': ^1.1.0
+
   '@tanstack/ai-persistence@1.0.1':
     resolution: {integrity: sha512-nsQ6kHRyN/tN41Ccxxk6LRsmru9YnoE9aM3G9X888iBtYK0znh7bBGCMHGDc+dt5GAeHVKq7GLqW7wt92c0U4A==}
     peerDependencies:
@@ -1920,6 +1948,49 @@ packages:
     peerDependenciesMeta:
       vitest:
         optional: true
+
+  '@tanstack/ai-sandbox-local-process@1.0.0':
+    resolution: {integrity: sha512-f1QUdoNVxPrR2OCaL4uR2t0cEiKbnx+wEAmg48a66vEW8/wr2FTKGLlVFDW+c9Tr+7jtSavoQk/Z6Zkms+VtjA==}
+    peerDependencies:
+      '@tanstack/ai-sandbox': ^1.0.0
+
+  '@tanstack/ai-sandbox@1.2.0':
+    resolution: {integrity: sha512-xPLgSa1r9phYQO6PLDAln2cjwr7DiFMr/rCeoU2Dw4KNeFSrOTzvmMQurMWkm64n+HeFfCDI43+06+0roAOc2g==}
+    peerDependencies:
+      '@ngrok/ngrok': ^1.0.0
+      '@tanstack/ai': ^1.2.0
+      '@tanstack/ai-harness': ^0.2.0
+      '@tanstack/ai-persistence': ^1.0.1
+      vitest: ^4.1.10
+    peerDependenciesMeta:
+      '@ngrok/ngrok':
+        optional: true
+      '@tanstack/ai-harness':
+        optional: true
+      '@tanstack/ai-persistence':
+        optional: true
+      vitest:
+        optional: true
+
+  '@tanstack/ai-skills@1.0.2':
+    resolution: {integrity: sha512-snOdkl6rLUvfykR6Z7kK0bqS0mp0iXIZ646txNzB2O5vkK9yOh2FzyYAofehhjdUNNC+iU+3fyhMKFuyjPKNyA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@tanstack/ai': ^1.3.0
+      '@tanstack/ai-harness': ^0.3.0
+      vitest: ^4.1.10
+      zod: ^3.0.0 || ^4.0.0
+    peerDependenciesMeta:
+      '@tanstack/ai-harness':
+        optional: true
+      vitest:
+        optional: true
+
+  '@tanstack/ai-solid@1.0.1':
+    resolution: {integrity: sha512-6HHPjs0SDXrFJ2LSXvSC5xQVo9NEPDYgZh/FcIupBbZiuGMUvrlxECGKQcbG/pkrhdGv82F2N6ytQKtud+tNRQ==}
+    peerDependencies:
+      '@tanstack/ai': ^1.1.0
+      solid-js: ^1.9.10
 
   '@tanstack/ai-utils@1.1.0':
     resolution: {integrity: sha512-li47v/794azVLourgteS/+jjH/ZF+cIp/3RMVA1VybtKAFiMy3ZGxREU10OzfUghMzYLdfpK2l6ahvlWxNVHug==}
@@ -1968,6 +2039,17 @@ packages:
   '@tanstack/hotkeys@0.19.0':
     resolution: {integrity: sha512-w/YnW06vfyhomWwEpa3+sJWix3Xz1E+3AFXXPmZxg8wbeafq6F+0klVawLdzg994IetgfDjx6PaStkc8u62Z9g==}
     engines: {node: '>=20'}
+
+  '@tanstack/markdown@0.0.13':
+    resolution: {integrity: sha512-ZSQP2ulBvlPzdpZeRheBJnaELo7e4ET/D/XrfgweHyqhhLMN5vUJJAUl7ufSRd7GlfO/vwdzjKPh0E0JwqJkDA==}
+    peerDependencies:
+      octane: '>=0.1.12'
+      react: '>=18'
+    peerDependenciesMeta:
+      octane:
+        optional: true
+      react:
+        optional: true
 
   '@tanstack/pacer-lite@0.2.2':
     resolution: {integrity: sha512-eQ1MyLKCHyXiH7NbdmB80W77OhiMgGBUb+qDx/8WMGbwg5Lf/NlfD0TfNYAqY77i8V3AxoDoYdICrQE5ADw4Yw==}
@@ -5510,21 +5592,26 @@ snapshots:
       fast-wrap-ansi: 0.2.2
       sisteransi: 1.0.5
 
-  '@conciv/ai@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ai-0.0.22.tgz(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(crossws@0.3.5)(ws@8.22.2)':
+  '@conciv/ai@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ai-0.0.22.tgz(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(crossws@0.3.5)(react@19.3.1)(ws@8.22.2)':
     dependencies:
-      '@agentclientprotocol/sdk': 1.8.0(zod@4.6.7)
       '@conciv/db': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-db-0.0.22.tgz(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
       '@conciv/protocol': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
-      '@opencode-ai/sdk': 1.19.5
       '@orpc/client': 1.16.1(@opentelemetry/api@1.10.0)
       '@orpc/server': 1.16.1(@opentelemetry/api@1.10.0)(crossws@0.3.5)(ws@8.22.2)
       '@tanstack/ai': 1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
+      '@tanstack/ai-acp': 1.0.1(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
+      '@tanstack/ai-claude-code': 1.0.1(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))
       '@tanstack/ai-client': 1.1.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
       '@tanstack/ai-code-mode': 1.1.0(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
+      '@tanstack/ai-codex': 1.0.1(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))
       '@tanstack/ai-event-client': 1.0.1
       '@tanstack/ai-isolate-quickjs': 1.1.0(@tanstack/ai-code-mode@1.1.0(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7))
       '@tanstack/ai-mcp': 1.1.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
+      '@tanstack/ai-opencode': 1.0.1(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))
       '@tanstack/ai-persistence': 1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))
+      '@tanstack/ai-sandbox': 1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
+      '@tanstack/ai-sandbox-local-process': 1.0.0(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7))
+      '@tanstack/ai-solid': 1.0.1(@opentelemetry/api@1.10.0)(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(react@19.3.1)(solid-js@1.9.18)(zod@4.6.7)
       '@tanstack/store': 0.11.2
       drizzle-orm: 1.0.0-rc.5(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(zod@4.6.7)
       piscina: 5.3.2
@@ -5551,6 +5638,7 @@ snapshots:
       - '@libsql/client'
       - '@libsql/client-wasm'
       - '@neondatabase/serverless'
+      - '@ngrok/ngrok'
       - '@op-engineering/op-sqlite'
       - '@opentelemetry/api'
       - '@planetscale/database'
@@ -5579,8 +5667,10 @@ snapshots:
       - fastify
       - mssql
       - mysql2
+      - octane
       - pg
       - postgres
+      - react
       - sql.js
       - sqlite3
       - typebox
@@ -5590,11 +5680,11 @@ snapshots:
 
   '@conciv/chat@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-chat-0.0.22.tgz(@anthropic-ai/sdk@1.6.0(zod@4.6.7))(@libsql/client@0.18.0)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.10.0)(@shikijs/themes@4.6.0)(crossws@0.3.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.2)':
     dependencies:
-      '@conciv/ai': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ai-0.0.22.tgz(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(crossws@0.3.5)(ws@8.22.2)
+      '@conciv/ai': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ai-0.0.22.tgz(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(crossws@0.3.5)(react@19.3.1)(ws@8.22.2)
       '@conciv/contract': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-contract-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.3.1)(solid-js@1.9.18)
       '@conciv/db': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-db-0.0.22.tgz(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
       '@conciv/extension': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-0.0.22.tgz(@opentelemetry/api@1.10.0)(crossws@0.3.5)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.2)
-      '@conciv/harness': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-harness-0.0.22.tgz(@anthropic-ai/sdk@1.6.0(zod@4.6.7))(@libsql/client@0.18.0)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.10.0)(crossws@0.3.5)(solid-js@1.9.18)(ws@8.22.2)
+      '@conciv/harness': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-harness-0.0.22.tgz(@anthropic-ai/sdk@1.6.0(zod@4.6.7))(@libsql/client@0.18.0)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.10.0)(crossws@0.3.5)(react@19.3.1)(solid-js@1.9.18)(ws@8.22.2)
       '@conciv/protocol': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
       '@conciv/tools': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-tools-0.0.22.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.6.0)(crossws@0.3.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.2)
       drizzle-orm: 1.0.0-rc.5(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(zod@4.6.7)
@@ -5621,6 +5711,7 @@ snapshots:
       - '@libsql/client-wasm'
       - '@modelcontextprotocol/sdk'
       - '@neondatabase/serverless'
+      - '@ngrok/ngrok'
       - '@op-engineering/op-sqlite'
       - '@opentelemetry/api'
       - '@planetscale/database'
@@ -5650,6 +5741,7 @@ snapshots:
       - fastify
       - mssql
       - mysql2
+      - octane
       - pg
       - postgres
       - react
@@ -5736,7 +5828,7 @@ snapshots:
 
   '@conciv/client@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-client-0.0.22.tgz(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(crossws@0.3.5)(react@19.3.1)(ws@8.22.2)':
     dependencies:
-      '@conciv/ai': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ai-0.0.22.tgz(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(crossws@0.3.5)(ws@8.22.2)
+      '@conciv/ai': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ai-0.0.22.tgz(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(crossws@0.3.5)(react@19.3.1)(ws@8.22.2)
       '@conciv/contract': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-contract-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.3.1)(solid-js@1.9.18)
       '@conciv/protocol': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
       '@orpc/client': 1.16.1(@opentelemetry/api@1.10.0)
@@ -5765,6 +5857,7 @@ snapshots:
       - '@libsql/client'
       - '@libsql/client-wasm'
       - '@neondatabase/serverless'
+      - '@ngrok/ngrok'
       - '@op-engineering/op-sqlite'
       - '@opentelemetry/api'
       - '@planetscale/database'
@@ -5793,6 +5886,7 @@ snapshots:
       - fastify
       - mssql
       - mysql2
+      - octane
       - pg
       - postgres
       - react
@@ -5823,7 +5917,7 @@ snapshots:
       '@conciv/db': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-db-0.0.22.tgz(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
       '@conciv/extension': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-0.0.22.tgz(@opentelemetry/api@1.10.0)(crossws@0.3.5)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.2)
       '@conciv/extension-page': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-extension-page-0.0.22.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.6.0)(crossws@0.3.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.2)
-      '@conciv/harness': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-harness-0.0.22.tgz(@anthropic-ai/sdk@1.6.0(zod@4.6.7))(@libsql/client@0.18.0)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.10.0)(crossws@0.3.5)(solid-js@1.9.18)(ws@8.22.2)
+      '@conciv/harness': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-harness-0.0.22.tgz(@anthropic-ai/sdk@1.6.0(zod@4.6.7))(@libsql/client@0.18.0)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.10.0)(crossws@0.3.5)(react@19.3.1)(solid-js@1.9.18)(ws@8.22.2)
       '@conciv/harness-init': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-harness-init-0.0.22.tgz(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
       '@conciv/protocol': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
       '@conciv/serve': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-serve-0.0.22.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
@@ -5874,6 +5968,7 @@ snapshots:
       - '@modelcontextprotocol/sdk'
       - '@neondatabase/serverless'
       - '@netlify/blobs'
+      - '@ngrok/ngrok'
       - '@op-engineering/op-sqlite'
       - '@opentelemetry/api'
       - '@planetscale/database'
@@ -5911,6 +6006,7 @@ snapshots:
       - ioredis
       - mssql
       - mysql2
+      - octane
       - pg
       - postgres
       - react
@@ -6028,6 +6124,7 @@ snapshots:
       - '@libsql/client'
       - '@libsql/client-wasm'
       - '@neondatabase/serverless'
+      - '@ngrok/ngrok'
       - '@op-engineering/op-sqlite'
       - '@opentelemetry/api'
       - '@planetscale/database'
@@ -6057,6 +6154,7 @@ snapshots:
       - fastify
       - mssql
       - mysql2
+      - octane
       - pg
       - postgres
       - react
@@ -6204,6 +6302,7 @@ snapshots:
       - '@libsql/client'
       - '@libsql/client-wasm'
       - '@neondatabase/serverless'
+      - '@ngrok/ngrok'
       - '@op-engineering/op-sqlite'
       - '@opentelemetry/api'
       - '@planetscale/database'
@@ -6234,6 +6333,7 @@ snapshots:
       - fastify
       - mssql
       - mysql2
+      - octane
       - pg
       - postgres
       - react
@@ -6283,6 +6383,7 @@ snapshots:
       - '@libsql/client'
       - '@libsql/client-wasm'
       - '@neondatabase/serverless'
+      - '@ngrok/ngrok'
       - '@op-engineering/op-sqlite'
       - '@opentelemetry/api'
       - '@planetscale/database'
@@ -6312,6 +6413,7 @@ snapshots:
       - fastify
       - mssql
       - mysql2
+      - octane
       - pg
       - postgres
       - react
@@ -6504,10 +6606,10 @@ snapshots:
       - typebox
       - valibot
 
-  '@conciv/harness@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-harness-0.0.22.tgz(@anthropic-ai/sdk@1.6.0(zod@4.6.7))(@libsql/client@0.18.0)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.10.0)(crossws@0.3.5)(solid-js@1.9.18)(ws@8.22.2)':
+  '@conciv/harness@file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-harness-0.0.22.tgz(@anthropic-ai/sdk@1.6.0(zod@4.6.7))(@libsql/client@0.18.0)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.10.0)(crossws@0.3.5)(react@19.3.1)(solid-js@1.9.18)(ws@8.22.2)':
     dependencies:
       '@anthropic-ai/claude-agent-sdk': 0.3.319(@anthropic-ai/sdk@1.6.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(zod@4.6.7)
-      '@conciv/ai': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ai-0.0.22.tgz(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(crossws@0.3.5)(ws@8.22.2)
+      '@conciv/ai': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-ai-0.0.22.tgz(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(crossws@0.3.5)(react@19.3.1)(ws@8.22.2)
       '@conciv/harness-init': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-harness-init-0.0.22.tgz(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
       '@conciv/protocol': file:../../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-e2e-vite-react-packed/tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
       zod: 4.6.7
@@ -6532,6 +6634,7 @@ snapshots:
       - '@libsql/client-wasm'
       - '@modelcontextprotocol/sdk'
       - '@neondatabase/serverless'
+      - '@ngrok/ngrok'
       - '@op-engineering/op-sqlite'
       - '@opentelemetry/api'
       - '@planetscale/database'
@@ -6560,8 +6663,10 @@ snapshots:
       - fastify
       - mssql
       - mysql2
+      - octane
       - pg
       - postgres
+      - react
       - solid-js
       - sql.js
       - sqlite3
@@ -6615,6 +6720,7 @@ snapshots:
       - '@neondatabase/serverless'
       - '@netlify/blobs'
       - '@netlify/db'
+      - '@ngrok/ngrok'
       - '@op-engineering/op-sqlite'
       - '@opentelemetry/api'
       - '@planetscale/database'
@@ -6666,6 +6772,7 @@ snapshots:
       - kysely
       - mssql
       - mysql2
+      - octane
       - onnxruntime-node
       - onnxruntime-react-native
       - pg
@@ -6759,6 +6866,7 @@ snapshots:
       - '@modelcontextprotocol/sdk'
       - '@neondatabase/serverless'
       - '@netlify/blobs'
+      - '@ngrok/ngrok'
       - '@op-engineering/op-sqlite'
       - '@opentelemetry/api'
       - '@planetscale/database'
@@ -6800,6 +6908,7 @@ snapshots:
       - ioredis
       - mssql
       - mysql2
+      - octane
       - pg
       - postgres
       - react
@@ -8087,6 +8196,19 @@ snapshots:
     optionalDependencies:
       react: 19.3.1
 
+  '@tanstack/ai-acp@1.0.1(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)':
+    dependencies:
+      '@agentclientprotocol/sdk': 1.8.0(zod@4.6.7)
+      '@tanstack/ai': 1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
+      '@tanstack/ai-sandbox': 1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
+    transitivePeerDependencies:
+      - zod
+
+  '@tanstack/ai-claude-code@1.0.1(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))':
+    dependencies:
+      '@tanstack/ai': 1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
+      '@tanstack/ai-sandbox': 1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
+
   '@tanstack/ai-client@1.1.0(@opentelemetry/api@1.10.0)(zod@4.6.7)':
     dependencies:
       '@tanstack/ai': 1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
@@ -8102,6 +8224,11 @@ snapshots:
       '@tanstack/ai': 1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
       sucrase: 3.35.1
       zod: 4.6.7
+
+  '@tanstack/ai-codex@1.0.1(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))':
+    dependencies:
+      '@tanstack/ai': 1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
+      '@tanstack/ai-sandbox': 1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
 
   '@tanstack/ai-event-client@1.0.1':
     dependencies:
@@ -8128,10 +8255,49 @@ snapshots:
       - '@opentelemetry/api'
       - zod
 
+  '@tanstack/ai-opencode@1.0.1(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))':
+    dependencies:
+      '@opencode-ai/sdk': 1.19.5
+      '@tanstack/ai': 1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
+      '@tanstack/ai-sandbox': 1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
+
   '@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))':
     dependencies:
       '@tanstack/ai': 1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
       '@tanstack/ai-utils': 1.1.0
+
+  '@tanstack/ai-sandbox-local-process@1.0.0(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7))':
+    dependencies:
+      '@tanstack/ai-sandbox': 1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
+      '@tanstack/ai-utils': 1.1.0
+
+  '@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)':
+    dependencies:
+      '@modelcontextprotocol/server': 2.4.0
+      '@tanstack/ai': 1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
+      '@tanstack/ai-skills': 1.0.2(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
+      '@tanstack/ai-utils': 1.1.0
+    optionalDependencies:
+      '@tanstack/ai-persistence': 1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))
+    transitivePeerDependencies:
+      - zod
+
+  '@tanstack/ai-skills@1.0.2(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)':
+    dependencies:
+      '@tanstack/ai': 1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
+      zod: 4.6.7
+
+  '@tanstack/ai-solid@1.0.1(@opentelemetry/api@1.10.0)(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(react@19.3.1)(solid-js@1.9.18)(zod@4.6.7)':
+    dependencies:
+      '@tanstack/ai': 1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
+      '@tanstack/ai-client': 1.1.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
+      '@tanstack/markdown': 0.0.13(react@19.3.1)
+      solid-js: 1.9.18
+    transitivePeerDependencies:
+      - '@opentelemetry/api'
+      - octane
+      - react
+      - zod
 
   '@tanstack/ai-utils@1.1.0': {}
 
@@ -8185,6 +8351,10 @@ snapshots:
   '@tanstack/hotkeys@0.19.0':
     dependencies:
       '@tanstack/store': 0.11.2
+
+  '@tanstack/markdown@0.0.13(react@19.3.1)':
+    optionalDependencies:
+      react: 19.3.1
 
   '@tanstack/pacer-lite@0.2.2': {}
 
