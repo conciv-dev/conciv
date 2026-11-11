@@ -68,7 +68,7 @@
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:*",
     "@conciv/ui-kit-system": "workspace:^",
-    "@tanstack/hotkeys": "^0.18.0",
+    "@tanstack/hotkeys": "catalog:",
     "@tanstack/solid-pacer": "catalog:",
     "@zumer/snapdom": "catalog:",
     "ai-motion": "catalog:",
