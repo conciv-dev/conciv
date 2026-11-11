@@ -3305,6 +3305,9 @@ importers:
       '@conciv/core':
         specifier: workspace:^
         version: link:../../core
+      '@conciv/e2e-utils':
+        specifier: workspace:*
+        version: link:../../../e2e/e2e-utils
       '@conciv/extension-compiler':
         specifier: workspace:^
         version: link:../../extension-compiler
@@ -4074,6 +4077,9 @@ importers:
         specifier: 'catalog:'
         version: 3.15.0
     devDependencies:
+      '@conciv/e2e-utils':
+        specifier: workspace:*
+        version: link:../../e2e/e2e-utils
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
@@ -4123,6 +4129,9 @@ importers:
         specifier: workspace:^
         version: link:../mascot
     devDependencies:
+      '@conciv/e2e-utils':
+        specifier: workspace:*
+        version: link:../../e2e/e2e-utils
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig

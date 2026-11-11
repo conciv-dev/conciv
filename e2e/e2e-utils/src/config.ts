@@ -55,6 +55,7 @@ export function e2eConfig(
 }
 
 export function packedE2eConfig(): ReturnType<typeof defineConfig> {
+  isolatedConcivHome()
   return defineConfig({
     testDir: './tests',
     testMatch: PACKED_SPECS,

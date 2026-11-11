@@ -3,23 +3,38 @@ name: Packed
 # The packed install suites build the @conciv closure, `pnpm pack` it and install the
 # tarballs into throwaway consumer fixtures, the way an npm user gets conciv. They are
 # the only place pack runs: `pnpm test`, `test:e2e` and the CI planner never select
-# them, and nobody runs them locally. Each suite is a `test:packed` script:
+# them, and every pack helper (e2e-utils packed.ts) throws outside GitHub Actions.
+# Each suite is a `test:packed` script:
 #   - vitest packages tag the describes `packed` (skipped outside `vitest --mode packed`)
 #   - e2e/nextjs keeps its packed specs as tests/packed-*.spec.ts, run by
 #     playwright.packed.config.ts (the default config ignores them)
 #   - e2e/vite-react-packed is packed end to end
-# The fixture lockfiles are refreshed here too: dispatch this workflow with
-# update-lockfiles on the branch, download the packed-fixture-locks artifact and
-# commit the files it holds (paths are repo-relative).
+# release.yml calls this workflow too, so a broken tarball blocks npm publish.
+#
+# Refreshing the fixture lockfiles (never locally):
+#   1. gh workflow run packed.yml --ref <branch> -f update-lockfiles=true
+#   2. take the run id of YOUR dispatch (gh run list --workflow packed.yml --event workflow_dispatch)
+#   3. gh run download <run-id> -n packed-fixture-locks -D e2e
+#      Always by run id: a fork PR can upload an artifact with the same name.
+#   4. Check the diff (also in the run summary) holds only the expected name@version changes
+#      and no tarball or git resolution other than the @conciv/*@file: entries, then commit.
 on:
   pull_request:
     paths:
       - .github/workflows/packed.yml
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
+      - turbo.json
+      - patches/**
+      - apps/conciv/**
       - packages/**/package.json
+      - packages/**/src/**
       - packages/**/tsdown*.config.ts
-      - packages/mascot/tests/unit/**
+      - packages/**/vite*.config.ts
+      - packages/**/tsconfig*.json
+      - packages/**/uno.config.ts
+      - packages/vitest-config/**
+      - packages/mascot/tests/**
       - packages/mascot/vitest.config.ts
       - packages/mascot-react/tests/unit/**
       - packages/mascot-react/vitest.config.ts
@@ -27,11 +42,13 @@ on:
       - packages/extensions/tanstack/vitest.config.ts
       - e2e/e2e-utils/**
       - e2e/vite-react-packed/**
+      - e2e/vite-react/**
       - e2e/nextjs/packed/**
       - e2e/nextjs/tests/packed-*.spec.ts
       - e2e/nextjs/playwright.packed.config.ts
   push:
     branches: [main]
+  workflow_call: {}
   workflow_dispatch:
     inputs:
       update-lockfiles:
@@ -39,8 +56,11 @@ on:
         type: boolean
         default: false
 
+# Inside a called workflow the github context is the caller's (github.workflow reads
+# "Release"), so the workflow name and event keep a release call, a standalone main push
+# and a dispatch on the same ref from cancelling each other.
 concurrency:
-  group: packed-${{ github.event.pull_request.number || github.ref }}
+  group: packed-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions: {}
@@ -59,6 +79,8 @@ jobs:
       options: --user 1001 --init --ipc=host
     permissions:
       contents: read
+    env:
+      UPDATE_LOCKFILES: ${{ github.event_name == 'workflow_dispatch' && inputs.update-lockfiles }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -69,8 +91,9 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
-          cache: pnpm
-      # Restore only: this workflow never saves a cache, so a PR run cannot seed one.
+      # No pnpm store cache: setup-node's cache would SAVE the store on main after the
+      # unlocked fixture installs, and ci.yml and release.yml restore that store. The
+      # turbo cache is restore-only: this workflow never saves a cache.
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .turbo
@@ -83,37 +106,49 @@ jobs:
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
 
       - name: Regenerate fixture lockfiles
-        if: inputs.update-lockfiles
+        if: env.UPDATE_LOCKFILES == 'true'
         run: |
           pnpm --filter conciv-e2e-vite-react-packed run update-packed-lockfile
           pnpm --filter conciv-e2e-nextjs run update-packed-lockfile
+      - name: Summarize fixture lockfile changes
+        if: env.UPDATE_LOCKFILES == 'true'
+        run: |
+          {
+            echo '### Packed fixture lockfile changes'
+            echo 'Package keys and resolutions that differ from the committed lockfiles:'
+            echo '```diff'
+            git -c safe.directory="$PWD" diff -U0 -- e2e/vite-react-packed/fixture-lock.yaml e2e/nextjs/packed/fixture-lock.yaml |
+              grep -E '^(\+\+\+|---) |^[+-] {2}[^ ]|^[+-] {4}resolution:' || echo 'no package changes'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: inputs.update-lockfiles
+        if: env.UPDATE_LOCKFILES == 'true'
         with:
           name: packed-fixture-locks
+          # Both paths sit under e2e/, so the artifact is rooted there: download it with -D e2e.
           path: |
             e2e/vite-react-packed/fixture-lock.yaml
             e2e/nextjs/packed/fixture-lock.yaml
           if-no-files-found: error
 
-      # The vitest suites pack the package's own dist (and tanstack its prod closure),
-      # so build those first; the e2e suites build their closure themselves.
+      # The vitest suites pack the package's own dist (and tanstack its closure), so build
+      # those first; the e2e suites build their closure themselves.
       - name: Build packed packages
-        if: ${{ !inputs.update-lockfiles }}
+        if: env.UPDATE_LOCKFILES != 'true'
         run: pnpm exec turbo run build --filter=@conciv/mascot --filter=@conciv/mascot-react --filter=@conciv/extension-tanstack
       # Each suite runs even when an earlier one failed, so one run reports them all.
       - name: mascot
-        if: ${{ !inputs.update-lockfiles && !cancelled() }}
+        if: env.UPDATE_LOCKFILES != 'true' && !cancelled()
         run: pnpm --filter @conciv/mascot run test:packed
       - name: mascot-react
-        if: ${{ !inputs.update-lockfiles && !cancelled() }}
+        if: env.UPDATE_LOCKFILES != 'true' && !cancelled()
         run: pnpm --filter @conciv/mascot-react run test:packed
       - name: extension-tanstack
-        if: ${{ !inputs.update-lockfiles && !cancelled() }}
+        if: env.UPDATE_LOCKFILES != 'true' && !cancelled()
         run: pnpm --filter @conciv/extension-tanstack run test:packed
       - name: nextjs
-        if: ${{ !inputs.update-lockfiles && !cancelled() }}
+        if: env.UPDATE_LOCKFILES != 'true' && !cancelled()
         run: pnpm --filter conciv-e2e-nextjs run test:packed
       - name: vite-react-packed
-        if: ${{ !inputs.update-lockfiles && !cancelled() }}
+        if: env.UPDATE_LOCKFILES != 'true' && !cancelled()
         run: pnpm --filter conciv-e2e-vite-react-packed run test:packed

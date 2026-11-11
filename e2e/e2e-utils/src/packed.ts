@@ -116,10 +116,29 @@ export async function run(command: string, args: string[], cwd: string): Promise
   }
 }
 
+export function assertPackAllowed(): void {
+  if (process.env.GITHUB_ACTIONS === 'true') return
+  throw new Error(
+    'packing @conciv tarballs runs only in CI (.github/workflows/packed.yml); it never runs locally. Push the branch and read the Packed workflow run instead.',
+  )
+}
+
+export function packTarball(packageDir: string, destination: string): string {
+  assertPackAllowed()
+  const output = execFileSync('pnpm', ['pack', '--pack-destination', destination], {
+    cwd: packageDir,
+    encoding: 'utf8',
+  })
+  const tarball = output.trim().split('\n').at(-1)
+  if (tarball === undefined || !existsSync(tarball)) throw new Error(`pnpm pack produced no tarball:\n${output}`)
+  return tarball
+}
+
 export async function buildAndPack(
   tgzDir: string,
   roots: string[],
 ): Promise<{overrides: Record<string, string>; closure: string[]}> {
+  assertPackAllowed()
   const byName = workspacePackages()
   const closure = closureOf(byName, roots)
   await run('pnpm', ['turbo', 'run', 'build', ...closure.flatMap((name) => ['--filter', name])], WORKSPACE_ROOT)
@@ -146,7 +165,7 @@ function workspaceConfig(key: string): unknown {
   return JSON.parse(execFileSync('pnpm', ['config', 'get', key, '--json'], {cwd: WORKSPACE_ROOT, encoding: 'utf8'}))
 }
 
-function releaseAgeYaml(): string[] {
+export function releaseAgeYaml(): string[] {
   const minimumReleaseAge = workspaceConfig('minimumReleaseAge')
   if (typeof minimumReleaseAge !== 'number') throw new Error('minimumReleaseAge not set in root pnpm-workspace.yaml')
   const exclude = workspaceConfig('minimumReleaseAgeExclude')
@@ -158,19 +177,18 @@ function releaseAgeYaml(): string[] {
   ]
 }
 
+export function firewalledPnpm(args: string[]): [string, string[]] {
+  assertPackAllowed()
+  return ['sfw', ['pnpm', ...args]]
+}
+
 export type PackedInstallOptions = {
   root: string
   packages: string[]
   allowBuilds: Record<string, boolean>
   overrides: Record<string, string>
-  lockPath: string
+  lockPath?: string
   fresh: boolean
-}
-
-function installCommand(): [string, string[]] {
-  const args = ['install', '--no-frozen-lockfile', '--config.confirmModulesPurge=false']
-  if (process.env.GITHUB_ACTIONS === 'true') return ['sfw', ['pnpm', ...args]]
-  return ['pnpm', args]
 }
 
 export async function installPacked(options: PackedInstallOptions): Promise<void> {
@@ -185,13 +203,14 @@ export async function installPacked(options: PackedInstallOptions): Promise<void
     '',
   ].join('\n')
   writeFileSync(join(options.root, 'pnpm-workspace.yaml'), workspaceYaml)
-  if (!options.fresh && existsSync(options.lockPath)) {
-    writeFileSync(join(options.root, 'pnpm-lock.yaml'), readFileSync(options.lockPath, 'utf8'))
+  const lockPath = options.fresh ? undefined : options.lockPath
+  if (lockPath !== undefined && existsSync(lockPath)) {
+    writeFileSync(join(options.root, 'pnpm-lock.yaml'), readFileSync(lockPath, 'utf8'))
   }
-  const [command, args] = installCommand()
+  const [command, args] = firewalledPnpm(['install', '--no-frozen-lockfile', '--config.confirmModulesPurge=false'])
   await run(command, args, options.root)
   assertClosed(options.root)
-  if (!options.fresh) assertLockNotDrifted(options.root, options.lockPath)
+  if (lockPath !== undefined) assertLockNotDrifted(options.root, lockPath)
 }
 
 const REGISTRY_PINNED = /(?<![\w/@-])@conciv\/[a-z0-9-]+@(?!file:)\d/
@@ -209,39 +228,82 @@ export function assertClosed(root: string): void {
 }
 
 const PACKAGE_CATALOG_ENTRY = /^ {2}'?(\S+?)'?:$/
+const RESOLUTION_LINE = /^ {4}resolution: \{(.*)\}$/
+const PACKED_CONCIV_ENTRY = /^@conciv\/[a-z0-9-]+@file:/
 
-export function packageCatalogKeys(lockText: string): Set<string> {
-  const lines = lockText.split('\n')
-  const start = lines.indexOf('packages:')
-  if (start === -1) return new Set()
-  const end = lines.indexOf('snapshots:', start + 1)
-  const slice = lines.slice(start + 1, end === -1 ? undefined : end)
-  const keys = new Set<string>()
-  for (const line of slice) {
-    const match = PACKAGE_CATALOG_ENTRY.exec(line)
-    const key = match?.[1]
-    if (key === undefined || key.includes('conciv')) continue
-    keys.add(key)
-  }
-  return keys
+type LockResolutions = Map<string, string>
+
+function packageResolutions(lockText: string): LockResolutions {
+  const section = lockText.split('\npackages:\n')[1]?.split('\nsnapshots:\n')[0] ?? ''
+  return new Map(section.split('\n\n').flatMap(entryResolution))
+}
+
+function entryResolution(block: string): [string, string][] {
+  const [head = '', ...body] = block.split('\n').filter((line) => line !== '')
+  const key = PACKAGE_CATALOG_ENTRY.exec(head)?.[1]
+  const resolution = body.map((line) => RESOLUTION_LINE.exec(line)?.[1]).find((value) => value !== undefined)
+  if (key === undefined || resolution === undefined || PACKED_CONCIV_ENTRY.test(key)) return []
+  return [[key, resolution]]
+}
+
+function resolutionField(resolution: string, field: string): string | undefined {
+  return new RegExp(`(?:^|, )${field}: ([^,]+)`).exec(resolution)?.[1]
+}
+
+function untrustedResolutions(resolutions: LockResolutions): string[] {
+  return [...resolutions].flatMap(([key, resolution]) => {
+    const tarball = resolutionField(resolution, 'tarball')
+    const remoteTarball = tarball !== undefined && !tarball.startsWith('file:')
+    const git = resolutionField(resolution, 'type') === 'git' || resolutionField(resolution, 'commit') !== undefined
+    return remoteTarball || git ? [`${key}: {${resolution}}`] : []
+  })
+}
+
+function integrityOf(resolution: string): string {
+  return resolutionField(resolution, 'integrity') ?? resolution
+}
+
+function lockDrift(committed: LockResolutions, produced: LockResolutions): string[] {
+  const added = [...produced.keys()].filter((key) => !committed.has(key)).map((key) => `+ ${key}`)
+  const removed = [...committed.keys()].filter((key) => !produced.has(key)).map((key) => `- ${key}`)
+  const changed = [...produced]
+    .filter(([key, resolution]) => {
+      const before = committed.get(key)
+      return before !== undefined && integrityOf(before) !== integrityOf(resolution)
+    })
+    .map(([key]) => `~ ${key} (integrity changed)`)
+  return [...added, ...removed, ...changed].toSorted((left, right) => left.slice(2).localeCompare(right.slice(2)))
 }
 
 export function assertLockNotDrifted(root: string, lockPath: string): void {
   if (!existsSync(lockPath)) return
-  const committed = packageCatalogKeys(readFileSync(lockPath, 'utf8'))
-  const produced = packageCatalogKeys(readFileSync(join(root, 'pnpm-lock.yaml'), 'utf8'))
-  const added = [...produced].filter((key) => !committed.has(key)).toSorted()
-  const removed = [...committed].filter((key) => !produced.has(key)).toSorted()
-  if (added.length === 0 && removed.length === 0) return
-  const diff = [...added.map((key) => `+ ${key}`), ...removed.map((key) => `- ${key}`)]
+  const produced = packageResolutions(readFileSync(join(root, 'pnpm-lock.yaml'), 'utf8'))
+  const untrusted = untrustedResolutions(produced)
+  if (untrusted.length > 0) {
+    throw new Error(
+      ['packed fixture install resolved packages outside the npm registry (remote tarball or git):', ...untrusted].join(
+        '\n',
+      ),
+    )
+  }
+  const diff = lockDrift(packageResolutions(readFileSync(lockPath, 'utf8')), produced)
+  if (diff.length === 0) return
   throw new Error(
     [
       'packed fixture install resolved different registry packages than the committed lockfile',
       `${relative(WORKSPACE_ROOT, lockPath)}:`,
       ...diff,
-      'refresh it in CI, never locally: run the Packed workflow on your branch with update-lockfiles',
-      '(`gh workflow run packed.yml --ref <branch> -f update-lockfiles=true`), download its',
-      'packed-fixture-locks artifact and commit the fixture-lock.yaml files it holds.',
+      REFRESH_INSTRUCTIONS,
     ].join('\n'),
   )
 }
+
+const REFRESH_INSTRUCTIONS = [
+  'Refresh it in CI, never locally:',
+  '  1. gh workflow run packed.yml --ref <branch> -f update-lockfiles=true',
+  '  2. find YOUR dispatch: gh run list --workflow packed.yml --branch <branch> --event workflow_dispatch',
+  '  3. gh run download <run-id> -n packed-fixture-locks -D e2e',
+  '     (always by the run id of your dispatch: a fork PR can upload a same-named artifact)',
+  '  4. before committing, check the diff holds only the expected name@version changes, and no',
+  '     tarball or git resolution other than the @conciv/*@file: entries.',
+].join('\n')

@@ -66,14 +66,29 @@ CI planner, or on a laptop. Each suite is a `test:packed` script:
   `e2eConfig` ignores that pattern, so `test:e2e` never picks them up.
 - `mascot`, `mascot-react`, `extension-tanstack`: describes tagged `packed`; their vitest configs define the
   `packed` tag as skipped unless vitest runs in `packed` mode, and `test:packed` runs
-  `vitest run --mode packed --project <node project> --tags-filter=packed`. Any other vitest run, a bare
-  `vitest run <file>` included, skips them (hooks too) and never packs.
+  `vitest run --mode packed --project <node project> --tags-filter=packed`. Any other vitest run skips
+  them (hooks too).
 
-The workflow runs on pull requests touching published manifests, `pnpm-lock.yaml`, `e2e-utils` or the
-packed fixtures, on pushes to main, and on demand. When a registry dependency changes, the drift guard
-fails the run; refresh the fixture lockfiles from CI with
-`gh workflow run packed.yml --ref <branch> -f update-lockfiles=true`, download the run's
-`packed-fixture-locks` artifact and commit the two `fixture-lock.yaml` files it holds.
+Every pack helper in `e2e-utils/src/packed.ts` (`packTarball`, `buildAndPack`, the firewalled install)
+calls `assertPackAllowed()`, which throws outside GitHub Actions, so even a `vitest run <file>:<line>`
+that targets a packed test (a line filter overrides the tag skip) fails before anything is packed.
+Every fixture install goes through Socket Firewall (`sfw`) with the root `minimumReleaseAge`.
+
+The workflow runs on pull requests touching published package sources and manifests, `pnpm-lock.yaml`,
+`patches/`, `e2e-utils` or the packed fixtures, on pushes to main, on demand, and from `release.yml`,
+whose npm publish waits on it.
+
+When a registry dependency changes, the drift guard fails the run: it compares every registry package's
+`name@version` and integrity against the committed `fixture-lock.yaml`, and rejects any remote tarball or
+git resolution outside the packed `@conciv/*@file:` entries. Refresh the fixture lockfiles from CI, never
+locally:
+
+1. `gh workflow run packed.yml --ref <branch> -f update-lockfiles=true`
+2. Find the run id of YOUR dispatch: `gh run list --workflow packed.yml --branch <branch> --event workflow_dispatch`.
+3. `gh run download <run-id> -n packed-fixture-locks -D e2e`. Always download by the run id: a fork PR can
+   upload an artifact with the same name.
+4. Before committing, check the diff (the run summary shows it too) holds only the expected `name@version`
+   changes, and no tarball or git resolution other than the `@conciv/*@file:` entries.
 
 `e2e-utils` holds the shared Playwright config factory, the widget boot assertions, and the fixed
 port registry (`src/ports.ts`) so suites can run side by side.

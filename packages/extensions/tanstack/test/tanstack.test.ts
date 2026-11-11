@@ -14,6 +14,7 @@ import {loadServerExtensions} from '@conciv/extension-compiler/extensions'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
 import {makeCallTool, resolveSession, type CallTool} from '@conciv/harness-testkit'
 import {makeViteBridge} from '@conciv/extension/vite'
+import {buildAndPack, installPacked, packTarball} from '@conciv/e2e-utils/packed'
 import type {BundlerBridge, BundlerDiagnostic} from '@conciv/protocol/bundler-types'
 import tanstackExtension from '../src/server.js'
 import {
@@ -154,11 +155,7 @@ describe('framework adapter', () => {
 
 describe('packed resolution', {tags: ['packed']}, () => {
   test('packed tarball has no workspace protocol and ships the conditional export map', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'conciv-packed-'))
-    execFileSync('pnpm', ['pack', '--pack-destination', dir], {cwd: process.cwd()})
-    const tgz = execFileSync('sh', ['-c', `ls ${dir}/*.tgz`])
-      .toString()
-      .trim()
+    const tgz = packTarball(process.cwd(), mkdtempSync(join(tmpdir(), 'conciv-packed-')))
     const manifestText = execFileSync('tar', ['-xzOf', tgz, 'package/package.json']).toString()
     expect(manifestText).not.toContain('workspace:')
     const manifest: unknown = JSON.parse(manifestText)
@@ -180,69 +177,32 @@ describe('resolution matrix', {tags: ['packed']}, () => {
 
   const rootPackage = '@conciv/extension-tanstack'
 
-  type PackedPackage = {name: string; version: string; tarball: string}
+  type PackedPackage = {name: string; tarball: string}
 
   type Fixture = {dir: string; packDir: string; packed: PackedPackage[]}
 
   const ctx: {fixture?: Fixture} = {}
 
-  function readManifest(dir: string): {name: string; version: string} {
-    const raw: unknown = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
-    if (typeof raw !== 'object' || raw === null || !('name' in raw) || !('version' in raw)) {
-      throw new Error(`invalid manifest at ${dir}`)
-    }
-    const {name, version} = raw
-    if (typeof name !== 'string' || typeof version !== 'string') throw new Error(`invalid name/version at ${dir}`)
-    return {name, version}
-  }
-
-  function closureEntryDir(entry: unknown): string {
-    if (typeof entry !== 'object' || entry === null || !('path' in entry)) {
-      throw new Error('pnpm listed a closure entry without a path')
-    }
-    const {path} = entry
-    if (typeof path !== 'string') throw new Error('pnpm listed a closure entry whose path is not a string')
-    return path
-  }
-
-  function prodClosureDirs(): string[] {
-    const output = execFileSync('pnpm', ['--filter-prod', `${rootPackage}...`, 'ls', '--depth', '-1', '--json'], {
-      cwd: workspaceRoot,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    }).toString()
-    if (output.trim().length === 0) throw new Error(`pnpm reported no production closure for ${rootPackage}`)
-    const parsed: unknown = JSON.parse(output)
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      throw new Error(`pnpm reported an empty production closure for ${rootPackage}`)
-    }
-    return parsed.map(closureEntryDir)
-  }
-
-  function tarballSlug(name: string, version: string): string {
-    return `${name.replace('@', '').replace('/', '-')}-${version}.tgz`
-  }
-
   function escapeRegExp(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   }
 
-  function packWorkspaceClosure(packDir: string): PackedPackage[] {
-    const packed: PackedPackage[] = []
-    for (const packageDir of prodClosureDirs()) {
-      const {name, version} = readManifest(packageDir)
-      execFileSync('pnpm', ['pack', '--pack-destination', packDir], {cwd: packageDir, stdio: 'pipe'})
-      const slug = tarballSlug(name, version)
-      const tarball = join(packDir, slug)
+  async function packWorkspaceClosure(
+    packDir: string,
+  ): Promise<{packed: PackedPackage[]; overrides: Record<string, string>}> {
+    const {overrides} = await buildAndPack(packDir, [rootPackage])
+    const packed = Object.entries(overrides).map(([name, override]) => {
+      const tarball = override.replace(/^file:/, '')
       const manifestText = execFileSync('tar', ['-xzOf', tarball, 'package/package.json']).toString()
       expect(manifestText, `${name} tarball must not carry workspace protocol`).not.toContain('workspace:')
-      packed.push({name, version, tarball})
-    }
-    return packed
+      return {name, tarball}
+    })
+    return {packed, overrides}
   }
 
-  function writeFixtureManifest(dir: string, packed: PackedPackage[]): void {
-    const root = packed.find((entry) => entry.name === rootPackage)
-    if (!root) throw new Error('root package missing from closure')
+  function writeFixtureManifest(dir: string, overrides: Record<string, string>): void {
+    const root = overrides[rootPackage]
+    if (root === undefined) throw new Error('root package missing from closure')
     const {packageManager} = z
       .object({packageManager: z.string()})
       .parse(JSON.parse(readFileSync(join(workspaceRoot, 'package.json'), 'utf8')))
@@ -253,22 +213,26 @@ describe('resolution matrix', {tags: ['packed']}, () => {
       type: 'module',
       packageManager,
       dependencies: {
-        [rootPackage]: `file:${root.tarball}`,
+        [rootPackage]: root,
         '@tanstack/react-router': '^1.170.0',
         'solid-js': '^1.9.13',
       },
     }
     writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest, null, 2))
-    const overrideLines = packed.map((entry) => `  '${entry.name}': 'file:${entry.tarball}'`)
-    writeFileSync(join(dir, 'pnpm-workspace.yaml'), ['overrides:', ...overrideLines, ''].join('\n'))
   }
 
-  function buildFixture(): Fixture {
+  async function buildFixture(): Promise<Fixture> {
     const dir = mkdtempSync(join(tmpdir(), 'conciv-resolution-matrix-'))
     const packDir = mkdtempSync(join(tmpdir(), 'conciv-resolution-packs-'))
-    const packed = packWorkspaceClosure(packDir)
-    writeFixtureManifest(dir, packed)
-    execFileSync('pnpm', ['install', '--no-frozen-lockfile'], {cwd: dir, stdio: 'pipe'})
+    const {packed, overrides} = await packWorkspaceClosure(packDir)
+    writeFixtureManifest(dir, overrides)
+    await installPacked({
+      root: dir,
+      packages: ['.'],
+      allowBuilds: {'isolated-vm': false, protobufjs: false},
+      overrides,
+      fresh: true,
+    })
     return {dir, packDir, packed}
   }
 
@@ -277,8 +241,8 @@ describe('resolution matrix', {tags: ['packed']}, () => {
     return ctx.fixture
   }
 
-  beforeAll(() => {
-    ctx.fixture = buildFixture()
+  beforeAll(async () => {
+    ctx.fixture = await buildFixture()
   }, 420_000)
 
   afterAll(() => {

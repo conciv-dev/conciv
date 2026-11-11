@@ -3,7 +3,7 @@ import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {promisify} from 'node:util'
-import {buildAndPack} from '@conciv/e2e-utils/packed'
+import {buildAndPack, firewalledPnpm, releaseAgeYaml} from '@conciv/e2e-utils/packed'
 import {CLOSURE_ROOTS} from './harness.js'
 
 const execFileAsync = promisify(execFile)
@@ -27,18 +27,20 @@ export async function runTrustPolicyInstall(): Promise<TrustPolicyInstallResult>
     const workspaceYaml = [
       'packages:',
       "  - '.'",
+      ...releaseAgeYaml(),
       'trustPolicy: no-downgrade',
       'trustPolicyExclude:',
       ...UPSTREAM_BLOCKED_TRUST_EXCLUDES.map((name) => `  - ${JSON.stringify(name)}`),
       'allowBuilds:',
-      '  isolated-vm: true',
+      '  isolated-vm: false',
       '  protobufjs: false',
       'overrides:',
       ...Object.entries(overrides).map(([name, value]) => `  ${JSON.stringify(name)}: ${JSON.stringify(value)}`),
       '',
     ].join('\n')
     writeFileSync(join(root, 'pnpm-workspace.yaml'), workspaceYaml)
-    const {stdout, stderr} = await execFileAsync('pnpm', ['add', '-D', concivIt], {
+    const [command, args] = firewalledPnpm(['add', '-D', concivIt])
+    const {stdout, stderr} = await execFileAsync(command, args, {
       cwd: root,
       env: {...process.env, CI: 'true'},
       maxBuffer: 64 * 1024 * 1024,
