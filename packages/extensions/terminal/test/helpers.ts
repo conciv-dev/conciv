@@ -131,7 +131,7 @@ export async function startTerminalServer(
   const sessions = fakeSessions()
   const api: ServerApi<Record<never, never>> = {
     config: {},
-    settings: terminalExtension.readSettings(memoryScope('terminal').settings.project),
+    settings: terminalExtension.readSettings(memoryScope('terminal').settings),
     scope: memoryScope,
     cwd: process.cwd(),
     basePath: opts.basePath ?? '',
