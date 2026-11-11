@@ -316,8 +316,6 @@ function assertUniqueCapabilityNames(sources: [string, string[]][]): void {
   }
 }
 
-const OUTSIDE_DECISION_WAIT_MS = 50_000
-
 const HealthSchema = z.object({
   ok: z.literal(true),
   harness: z.string(),
@@ -651,7 +649,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       input: {client},
       publish: scope.stream.publish,
       title: outsideTitle(client),
-      until: AbortSignal.any([signal, AbortSignal.timeout(OUTSIDE_DECISION_WAIT_MS)]),
+      until: signal,
     })
     if (refusal === null) return null
     return refusal.reason === 'missing' ? refusal.message : outsideRefusal(scope, client, refusal.reason)

@@ -1,5 +1,4 @@
 import {z} from 'zod'
-import {safe} from '@orpc/client'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {connectMcpClient} from './mcp-client.js'
@@ -184,12 +183,8 @@ export async function approvePending(apiBase: string, session: string): Promise<
 
 export function makeApprovingRegistryCall(apiBase: string, session: string): CallTool {
   const sessionRpc = makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: session}})
-  return async (name, input) => {
-    const call = () => sessionRpc.registry.call({name, input: RegistryInputSchema.parse(input ?? {})})
-    const first = await safe(call())
-    if (first.isSuccess) return first.data
-    if (!first.isDefined || first.error.code !== 'APPROVAL_DENIED') throw first.error
-    await approvePending(apiBase, session)
-    return call()
-  }
+  return (name, input) =>
+    withAutoApproval(apiBase, session, () =>
+      sessionRpc.registry.call({name, input: RegistryInputSchema.parse(input ?? {})}),
+    )
 }

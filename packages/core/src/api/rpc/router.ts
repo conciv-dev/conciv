@@ -64,7 +64,12 @@ async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, cal
   const asks = deps.runtime.engine.catalog().find((tool) => tool.name === name)?.approval === 'ask'
   if (!asks) return
   const scope = call.context.session
-  const refusal = await deps.chat.plane.admitCall(scope.id, {toolName: name, input, publish: scope.stream.publish})
+  const refusal = await deps.chat.plane.admitCall(scope.id, {
+    toolName: name,
+    input,
+    publish: scope.stream.publish,
+    ...(call.signal === undefined ? {} : {until: call.signal}),
+  })
   if (refusal !== null) throw call.errors.APPROVAL_DENIED({message: refusal.message})
 }
 

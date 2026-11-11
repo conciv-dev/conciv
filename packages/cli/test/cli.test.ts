@@ -553,10 +553,14 @@ describe('cli', () => {
           },
         })
         const session = await approvedSession(kit)
-        expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/hot.ts'])).toBe(1)
+        const reload = runCli(cliMain, ['tools', 'server', 'reload', 'src/hot.ts'])
+        await vi.waitFor(async () => {
+          const {pendingApprovals} = await kit.rpc.chat.hydrate({sessionId: session.sessionId})
+          expect(pendingApprovals).toHaveLength(1)
+        })
         expect(reloaded).toEqual([])
         expect(await session.approve()).toHaveLength(1)
-        expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/hot.ts'])).toBe(0)
+        expect(await reload).toBe(0)
         expect(reloaded).toEqual(['src/hot.ts'])
       })
 
@@ -793,21 +797,23 @@ describe('cli', () => {
         expect(onlyDocument(written)).toEqual({ok: true, data: []})
       })
 
-      it('server restart is refused through the session and an approval lets the retry run', async () => {
+      it('server restart through the session waits for the user: an approval runs it, a deny refuses the next', async () => {
         const bridge = restartCapableBridge()
         const kit = await bootCli(cleanups, {bridge})
         const session = await approvedSession(kit)
-        expect(await runCli(cliMain, ['tools', 'server', 'restart'])).toBe(1)
-        expect(onlyDocument(written)).toMatchObject({
-          ok: false,
-          error: {kind: 'user', code: 'APPROVAL_DENIED', message: expect.stringContaining('needs the user')},
-        })
-        written.length = 0
+        const sessionRpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: session.sessionId}})
+        const pending = async () => (await sessionRpc.chat.hydrate({sessionId: session.sessionId})).pendingApprovals
+        const approved = runCli(cliMain, ['tools', 'server', 'restart'])
+        await vi.waitFor(async () => expect(await pending()).toHaveLength(1))
         expect(await session.approve()).toEqual(['conciv:tool:server_restart'])
-        expect(await runCli(cliMain, ['tools', 'server', 'restart'])).toBe(0)
+        expect(await approved).toBe(0)
         expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true}})
         written.length = 0
-        expect(await runCli(cliMain, ['tools', 'server', 'restart'])).toBe(1)
+        const refused = runCli(cliMain, ['tools', 'server', 'restart'])
+        await vi.waitFor(async () => expect(await pending()).toHaveLength(1))
+        await sessionRpc.chat.permissionDecision({approvalId: 'conciv:tool:server_restart', approved: false})
+        expect(await refused).toBe(1)
+        expect(onlyDocument(written)).toMatchObject({ok: false, error: {kind: 'user', code: 'APPROVAL_DENIED'}})
         expect((await kit.rpc.chat.hydrate({sessionId: session.sessionId})).lastRun).toBeNull()
       })
 

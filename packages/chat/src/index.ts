@@ -37,6 +37,8 @@ export type {AttachmentExpanders, SessionPort} from './turn.js'
 
 const FIRST_OUTPUT_TIMEOUT_MS = 30_000
 
+const DECISION_WAIT_MS = 50_000
+
 const OUTSIDE_DENIED = 'the user denied outside agents for this session'
 
 type ChatPlaneDeps = TurnDeps & {
@@ -142,7 +144,11 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     const decided = approvals.decided(
       sessionId,
       approvalId,
-      AbortSignal.any([call.until ?? AbortSignal.abort(), settled.signal]),
+      AbortSignal.any([
+        ...(call.until === undefined ? [] : [call.until]),
+        AbortSignal.timeout(DECISION_WAIT_MS),
+        settled.signal,
+      ]),
     )
     try {
       const admission = await approvals.admit(sessionId, approvalId)

@@ -1694,13 +1694,17 @@ describe('rpc wire', () => {
       expect(await kit.rpc.server.urls(undefined)).toEqual({local: ['http://localhost:3000'], network: []})
       const {sessionId} = await kit.rpc.sessions.create(undefined)
       const sessionRpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
-      await expect(sessionRpc.server.reload({file: 'src/hot.ts'})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
-      await expect(sessionRpc.server.restart({force: true})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+      const reload = sessionRpc.server.reload({file: 'src/hot.ts'})
+      const restart = sessionRpc.server.restart({force: true})
+      await vi.waitFor(async () => {
+        const {pendingApprovals} = await sessionRpc.chat.hydrate({sessionId})
+        expect(pendingApprovals).toHaveLength(2)
+      })
       expect(reloaded).toEqual([])
       expect(restarted).toEqual([])
       await approvePending(kit.base, sessionId)
-      expect(await sessionRpc.server.reload({file: 'src/hot.ts'})).toEqual({ok: true})
-      expect(await sessionRpc.server.restart({force: true})).toEqual({ok: true})
+      expect(await reload).toEqual({ok: true})
+      expect(await restart).toEqual({ok: true})
       expect(reloaded).toEqual(['src/hot.ts'])
       expect(restarted).toEqual([true])
     })
@@ -2144,8 +2148,14 @@ describe('rpc wire', () => {
         })
         await expect(browserRpc.server.reload({file: 'a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
         await expect(browserRpc.server.config(undefined)).rejects.toMatchObject({code: 'NO_BUNDLER'})
-        await expect((await mcpTool('fixture_ask')).execute({target: 'agent'})).rejects.toThrow(/needs the user/)
+        const agent = (await mcpTool('fixture_ask')).execute({target: 'agent'})
+        await vi.waitFor(async () =>
+          expect((await chatKit().hydrate(app.mcpSession)).pendingApprovals).toMatchObject([{approvalId: ASK_ID}]),
+        )
         expect(toolRuns.ask).toBe(ran + 1)
+        await decide(app.mcpSession, ASK_ID, true)
+        expect(String(await agent)).toContain('agent')
+        expect(toolRuns.ask).toBe(ran + 2)
         await expect(callerWithout().registry.call({name: 'fixture_read', input: {}})).rejects.toMatchObject({
           code: 'BAD_REQUEST',
         })
@@ -2158,17 +2168,14 @@ describe('rpc wire', () => {
         expect((await mcpPost({[CONCIV_SESSION_HEADER]: 'nope'})).status).toBe(400)
       })
 
-      it('a caller outside the widget is refused, shows the ask, and one approval runs one retry', async () => {
+      it('a caller outside the widget waits for the user: an approval runs the waiting call once, a deny refuses the next', async () => {
         const sessionId = await newSession()
         const ran = toolRuns.ask
         const call = () => callerWith(sessionId).registry.call({name: 'fixture_ask', input: {target: 'x'}})
         const abort = new AbortController()
         const events = await chatKit().rpc.chat.events({sessionId}, {signal: abort.signal})
         const firstEvent = events.next()
-        await expect(call()).rejects.toMatchObject({
-          code: 'APPROVAL_DENIED',
-          message: expect.stringMatching(/needs the user/),
-        })
+        const waiting = call()
         expect((await firstEvent).value).toMatchObject({name: 'approval-requested', value: {approvalId: ASK_ID}})
         abort.abort()
         expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([
@@ -2176,10 +2183,14 @@ describe('rpc wire', () => {
         ])
         expect(toolRuns.ask).toBe(ran)
         await expect(decide(sessionId, ASK_ID, true)).resolves.toEqual({ok: true, startsTurn: false})
-        await finished(sessionId, 'an unrelated turn')
-        await expect(call()).resolves.toEqual({done: 'x'})
+        await expect(waiting).resolves.toEqual({done: 'x'})
         expect(toolRuns.ask).toBe(ran + 1)
-        await expect(call()).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+        await finished(sessionId, 'an unrelated turn')
+        const refused = call()
+        await vi.waitFor(async () => expect((await chatKit().hydrate(sessionId)).pendingApprovals).toHaveLength(1))
+        await expect(decide(sessionId, ASK_ID, false)).resolves.toEqual({ok: true, startsTurn: false})
+        await expect(refused).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+        expect(toolRuns.ask).toBe(ran + 1)
         const unknown = callerWith('conciv_unknown_probe').registry.call({name: 'fixture_ask', input: {}})
         await expect(unknown).rejects.toThrow('session "conciv_unknown_probe" does not exist')
       })
