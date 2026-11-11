@@ -2967,6 +2967,21 @@ importers:
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
+      '@tiptap/core':
+        specifier: 'catalog:'
+        version: 3.32.1(@tiptap/pm@3.32.1)
+      '@tiptap/extension-document':
+        specifier: 'catalog:'
+        version: 3.32.1(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))
+      '@tiptap/extension-paragraph':
+        specifier: 'catalog:'
+        version: 3.32.1(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))
+      '@tiptap/extension-text':
+        specifier: 'catalog:'
+        version: 3.32.1(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))
+      '@tiptap/pm':
+        specifier: 'catalog:'
+        version: 3.32.1
       '@types/js-beautify':
         specifier: ^1.14.3
         version: 1.14.3
