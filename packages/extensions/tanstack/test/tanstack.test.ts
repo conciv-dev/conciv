@@ -1,16 +1,16 @@
-import {execFileSync, spawnSync} from 'node:child_process'
-import {cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
+import {execFileSync} from 'node:child_process'
+import {cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {mkdtemp, realpath} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
-import {createRequire} from 'node:module'
-import {dirname, join} from 'node:path'
+import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {afterAll, afterEach, beforeAll, describe, expect, it, test} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
-import {createServer, type ViteDevServer} from 'vite'
+import type {ViteDevServer} from 'vite'
 import {z} from 'zod'
 import {start, type Engine, type StartOpts} from '@conciv/core/start'
-import {loadServerExtensions} from '@conciv/extension-compiler/extensions'
+import {loadExtensionPackages} from '@conciv/extension-compiler/extensions'
+import tanstack from '../src/index.js'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
 import {makeCallTool, resolveSession, type CallTool} from '@conciv/harness-testkit'
 import {makeViteBridge} from '@conciv/extension/vite'
@@ -48,19 +48,13 @@ describe('boot', () => {
   })
 })
 
-describe('folder install', () => {
-  const packageRoot = fileURLToPath(new URL('../', import.meta.url))
-
-  test('a dropped re-export is discovered by loadServerExtensions and its server tool runs on the real engine', async () => {
+describe('package install', () => {
+  test('the factory loads as an installed extension package and its server tool runs on the real engine', async () => {
     const root = await realpath(await mkdtemp(join(await realpath(tmpdir()), 'conciv-fi-')))
     cpSync(fileURLToPath(new URL('./fixtures/route-manifest-app', import.meta.url)), root, {recursive: true})
-    mkdirSync(join(root, 'node_modules/@conciv'), {recursive: true})
-    symlinkSync(packageRoot, join(root, 'node_modules/@conciv/extension-tanstack'))
-    mkdirSync(join(root, 'conciv/extensions'), {recursive: true})
-    writeFileSync(join(root, 'conciv/extensions/tanstack.tsx'), "export {default} from '@conciv/extension-tanstack'\n")
 
-    const extensions = await loadServerExtensions(root, [])
-    expect(extensions.map((extension) => extension.name)).toContain('tanstack')
+    const {extensions} = await loadExtensionPackages([tanstack()])
+    expect(extensions.map((extension) => extension.name)).toEqual(['tanstack'])
 
     const {engine, apiBase} = await startTrusted({
       options: {stateRoot: root, systemPrompt: false},
@@ -153,7 +147,7 @@ describe('framework adapter', () => {
 })
 
 describe.skip('packed resolution', () => {
-  test('packed tarball has no workspace protocol and ships the conditional export map', () => {
+  test('packed tarball has no workspace protocol and its root export is the factory', () => {
     const dir = mkdtempSync(join(tmpdir(), 'conciv-packed-'))
     execFileSync('pnpm', ['pack', '--pack-destination', dir], {cwd: process.cwd()})
     const tgz = execFileSync('sh', ['-c', `ls ${dir}/*.tgz`])
@@ -164,12 +158,10 @@ describe.skip('packed resolution', () => {
     const manifest: unknown = JSON.parse(manifestText)
     if (typeof manifest !== 'object' || manifest === null || !('exports' in manifest)) throw new Error('no exports')
     expect(manifest.exports).toMatchObject({
-      '.': {
-        browser: {types: './dist/client.d.ts', default: './dist/client.js'},
-        import: {types: './dist/server.d.ts', default: './dist/server.js'},
-      },
+      '.': {types: './dist/index.d.ts', import: './dist/index.js', default: './dist/index.js'},
     })
     const files = execFileSync('tar', ['-tzf', tgz]).toString()
+    expect(files).toContain('package/dist/index.js')
     expect(files).toContain('package/dist/client.js')
     expect(files).toContain('package/dist/server.js')
   })
@@ -299,86 +291,23 @@ describe.skip('resolution matrix', () => {
       expect(lock).not.toContain('registry.npmjs.org/@conciv')
     })
 
-    test('node default conditions resolve and execute the server entry', () => {
+    test('the installed factory names the packed server and client entries and the server entry runs', () => {
       const {dir} = fixture()
       const probe = join(dir, 'node-probe.mjs')
       writeFileSync(
         probe,
         [
-          `import m from '${rootPackage}'`,
-          `const resolved = import.meta.resolve('${rootPackage}')`,
-          `process.stdout.write(JSON.stringify({resolved, name: m.name}))`,
+          `import tanstack from '${rootPackage}'`,
+          `const installed = tanstack()`,
+          `const server = await import(installed.server)`,
+          `process.stdout.write(JSON.stringify({server: installed.server, client: installed.client, name: server.default.name}))`,
         ].join('\n'),
       )
       const output = execFileSync('node', [probe], {cwd: dir}).toString()
-      const parsed: unknown = JSON.parse(output)
-      if (typeof parsed !== 'object' || parsed === null || !('resolved' in parsed) || !('name' in parsed)) {
-        throw new Error('probe produced no result')
-      }
-      const {resolved, name} = parsed
-      if (typeof resolved !== 'string') throw new Error('resolved path missing')
-      expect(fileURLToPath(resolved).endsWith(join('dist', 'server.js'))).toBe(true)
-      expect(name).toBe('tanstack')
-    })
-
-    test('vite client and ssr resolves split browser and node conditions', async () => {
-      const {dir} = fixture()
-      const importer = join(dir, 'importer.tsx')
-      const server = await createServer({
-        root: dir,
-        configFile: false,
-        logLevel: 'silent',
-        server: {middlewareMode: true, ws: false},
-        optimizeDeps: {noDiscovery: true, include: []},
-      })
-      try {
-        const client = await server.pluginContainer.resolveId(rootPackage, importer, {ssr: false})
-        const ssr = await server.pluginContainer.resolveId(rootPackage, importer, {ssr: true})
-        if (!client || !ssr) throw new Error('vite failed to resolve the extension')
-        expect(client.id.endsWith(join('dist', 'client.js'))).toBe(true)
-        expect(ssr.id.endsWith(join('dist', 'server.js'))).toBe(true)
-      } finally {
-        await server.close()
-      }
-    })
-
-    test('typescript resolves types by customConditions', () => {
-      const {dir} = fixture()
-      const probeDir = join(dir, 'conditions-probe')
-      mkdirSync(probeDir, {recursive: true})
-      writeFileSync(
-        join(probeDir, 'probe.ts'),
-        `import type * as extension from '${rootPackage}'\nexport type {extension}\n`,
-      )
-      const tsc = join(dirname(createRequire(import.meta.url).resolve('typescript/package.json')), 'bin', 'tsc')
-      const resolvedTypes = (conditions: string[]) => {
-        const trace = spawnSync(
-          process.execPath,
-          [
-            tsc,
-            '--noEmit',
-            '--traceResolution',
-            '--module',
-            'esnext',
-            '--moduleResolution',
-            'bundler',
-            '--target',
-            'esnext',
-            '--types',
-            '',
-            ...conditions,
-            'probe.ts',
-          ],
-          {cwd: probeDir, encoding: 'utf8'},
-        ).stdout
-        const resolved = new RegExp(
-          `Module name '${escapeRegExp(rootPackage)}' was successfully resolved to '([^']+)'`,
-        ).exec(trace)?.[1]
-        if (resolved === undefined) throw new Error(`tsc did not resolve ${rootPackage}:\n${trace}`)
-        return resolved
-      }
-      expect(resolvedTypes([]).endsWith(join('dist', 'server.d.ts'))).toBe(true)
-      expect(resolvedTypes(['--customConditions', 'browser']).endsWith(join('dist', 'client.d.ts'))).toBe(true)
+      const probed = z.object({server: z.string(), client: z.string(), name: z.string()}).parse(JSON.parse(output))
+      expect(probed.server).toContain(join('node_modules', '@conciv', 'extension-tanstack', 'dist', 'server.js'))
+      expect(probed.client).toContain(join('node_modules', '@conciv', 'extension-tanstack', 'dist', 'client.js'))
+      expect(probed.name).toBe('tanstack')
     })
   })
 })

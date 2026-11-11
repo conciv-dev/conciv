@@ -10,7 +10,7 @@ function closeQuietly(watcher: FSWatcher): void {
   watcher.close().catch((error) => console.error('conciv extensions watcher: close failed', error))
 }
 
-export function watchExtensionsDir(root: string): () => Promise<void> {
+export function watchExtensionsDir(root: string, clientEntries: readonly string[]): () => Promise<void> {
   const resolvedRoot = resolve(root)
   const watchDir = join(resolvedRoot, 'conciv')
 
@@ -32,9 +32,9 @@ export function watchExtensionsDir(root: string): () => Promise<void> {
 
   function arm(): FSWatcher {
     const watcher = watch(watchDir, {ignoreInitial: true})
-    watcher.on('ready', () => writeExtensionsEntry(resolvedRoot))
+    watcher.on('ready', () => writeExtensionsEntry(resolvedRoot, clientEntries))
     watcher.on('all', (event, path) => {
-      writeExtensionsEntry(resolvedRoot)
+      writeExtensionsEntry(resolvedRoot, clientEntries)
       if (event === 'unlinkDir' && path === watchDir) rearm()
     })
     watcher.on('error', (error) => {

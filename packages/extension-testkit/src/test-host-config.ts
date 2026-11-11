@@ -10,12 +10,11 @@ import {
   resolveExtensionsModule,
   transformConcivModule,
 } from '@conciv/extension-compiler/vite-plumbing'
-import {type Builtins, NO_BUILTINS} from '@conciv/extension-compiler/extensions'
 
 const VIRTUAL_ID = 'virtual:conciv-extension-under-test'
 const RESOLVED_VIRTUAL_ID = `\0${VIRTUAL_ID}`
 
-function concivBuildPlugin(builtins: Builtins): Plugin {
+function concivBuildPlugin(): Plugin {
   let root = process.cwd()
   return {
     name: 'conciv:build',
@@ -25,8 +24,7 @@ function concivBuildPlugin(builtins: Builtins): Plugin {
       root = config.root
     },
     resolveId: (id) => resolveExtensionsModule(id),
-    load: (id) =>
-      loadExtensionsModule(id, builtins.clientEntries, undefined, builtins.embedEntry, builtins.dedupeEntry),
+    load: (id) => loadExtensionsModule(id, []),
     transform(code, id, opts) {
       return transformConcivModule(code, id, opts?.ssr ?? false, {root, keys: null})
     },
@@ -54,7 +52,7 @@ export function testHostConfig(options: TestHostConfigOptions): UserConfig {
     root,
     logLevel: 'silent',
     plugins: [
-      concivBuildPlugin(NO_BUILTINS),
+      concivBuildPlugin(),
       extensionUnderTestPlugin(options.clientEntry),
       UnoCSS({
         configFile: false,
