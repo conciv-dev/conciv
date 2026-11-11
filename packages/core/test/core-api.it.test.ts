@@ -4011,14 +4011,19 @@ describe('outside agent consent', () => {
     return `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
   }
 
-  async function openTab(base: string, silent?: () => void, heard: string[] = []): Promise<string> {
+  async function openTab(
+    base: string,
+    silent?: () => void,
+    heard: string[] = [],
+    answer: (query: unknown) => Record<string, unknown> = pageAnswer,
+  ): Promise<string> {
     const sessionId = await newSession(base)
     const queries = await rpcOf(base, sessionId).page.queries(undefined, {signal: pages.signal})
     const replies = async () => {
       for await (const {requestId, query} of queries) {
         heard.push(queryName(query))
         if (silent) silent()
-        else await rpcOf(base, sessionId).page.reply({requestId, outcome: {ok: true, result: pageAnswer(query)}})
+        else await rpcOf(base, sessionId).page.reply({requestId, outcome: {ok: true, result: answer(query)}})
       }
     }
     replies().catch(() => {})
@@ -4156,6 +4161,15 @@ describe('outside agent consent', () => {
     expect(await outside(runner, `${pick} return await external_page_route({})`)).toContain(ROUTE.href)
     expect(await outside(runner, 'return await external_page_route({})')).toContain('NO_TAB')
     expect(await outside(runner, 'return await external_use_tab({id: "conciv_gone"})')).toContain('TAB_NOT_OPEN')
+  })
+
+  it('a forwarded call larger than the reply cap hands the block its typed result, not a truncated string', async () => {
+    const home = tempDir('conciv-home-')
+    const [runner, owner] = [await boot('open', home), await boot('open', home)]
+    const title = 'T'.repeat(RESULT_CAP_CHARS + 1)
+    const theirs = await openTab(owner, undefined, [], () => ({...ROUTE, title}))
+    const code = `await external_use_tab({id: "${theirs}"}); const route = await external_page_route({}); return route.title.length`
+    expect(await outside(runner, code)).toContain(`"result":${title.length}`)
   })
 
   it('cancelling an outside block while its forwarded call waits for the allow leaves nothing to run after a later allow', async () => {

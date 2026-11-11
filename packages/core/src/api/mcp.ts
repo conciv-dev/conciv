@@ -205,12 +205,14 @@ function logsPart(logs: string[]): TextContent[] {
   return [{type: 'text', text: cappedText(safeStringify({logs}))}]
 }
 
-function successReply(result: z.infer<typeof ExecuteResultSchema>): ExecuteReply {
+function successReply(input: {result: z.infer<typeof ExecuteResultSchema>; forwarded: boolean}): ExecuteReply {
+  const {result, forwarded} = input
   if (isContentParts(result.result)) {
-    return {content: cappedParts([...result.result.map(partToContent), ...logsPart(result.logs ?? [])])}
+    const parts = [...result.result.map(partToContent), ...logsPart(result.logs ?? [])]
+    return {content: forwarded ? parts : cappedParts(parts)}
   }
   const body = safeStringify({result: withoutImages(result.result ?? null), logs: result.logs ?? []})
-  return {content: [{type: 'text', text: cappedText(body)}, ...imageBlocks(imagesIn(result.result))]}
+  return {content: [{type: 'text', text: forwarded ? body : cappedText(body)}, ...imageBlocks(imagesIn(result.result))]}
 }
 
 type PublishChunks = (chunks: readonly ChatEvent[]) => void
@@ -243,7 +245,9 @@ async function runExecute(runner: CodeRunner, typescriptCode: string, calls: Cal
   const result = parsed.success
     ? parsed.data
     : {success: false, error: {message: 'the sandbox returned an unreadable result'}}
-  const reply = result.success ? successReply(result) : errorReply(result, runner.declaredCodes)
+  const reply = result.success
+    ? successReply({result, forwarded: calls.trace.hub?.forwarded === true})
+    : errorReply(result, runner.declaredCodes)
   await publishResult(calls, executionId, reply)
   return reply
 }
