@@ -80,7 +80,7 @@ function skillFile(): string {
 }
 
 const DESIGN_SKILL_DESCRIPTION =
-  'Use when the user hands over a design image and asks to build a page from it or make a page match it, such as a PNG mockup, a screenshot of a design or a Figma export. Registers the image as the design target and drives the conciv design diff loop until it stops.'
+  'Use when the user hands over a design and asks to build a page from it or make a page match it, such as a Figma frame link or a PNG mockup. Gets the design with conciv design get and drives the conciv design check loop until its verdict is done.'
 
 const DESIGN_SKILL_SOURCES = [
   'packages/extensions/design/src/shared/defs.ts',

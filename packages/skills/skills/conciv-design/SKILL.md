@@ -1,13 +1,13 @@
 ---
 name: conciv-design
-description: Use when the user hands over a design image and asks to build a page from it or make a page match it, such as a PNG mockup, a screenshot of a design or a Figma export. Registers the image as the design target and drives the conciv design diff loop until it stops.
+description: Use when the user hands over a design and asks to build a page from it or make a page match it, such as a Figma frame link or a PNG mockup. Gets the design with conciv design get and drives the conciv design check loop until its verdict is done.
 metadata:
   package: '@conciv/skills'
 ---
 
 # Building a page from a design image
 
-Building or matching a page from a design image ("build this page from this image", "make this page match the design", a mockup, a Figma export): register it with `.conciv/bin/conciv tools design target <image>` (add `--scale 2` for a retina export). When the page is new, build it with the app's own components before the first diff. Then save, run `.conciv/bin/conciv tools design diff`, fix only what its brief lists, and repeat until the report sets `stop`. Never replace an expression with the design's sample text, and never set a width or height to a pixel value to match the image. Do not judge a design match from a screenshot.
+Building or matching a page from a design ("build this page from this Figma frame", "make this page match the design", a Figma link or a PNG mockup): get the design with `.conciv/bin/conciv tools design get --figma <frame link>` (repeat `--figma` with one frame link per width, or pass `--image <png>` for an image). When the page is new, build it with the app's own components (`.conciv/bin/conciv tools design components`) before the first check. Then save, run `.conciv/bin/conciv tools design check`, fix only what its rows name, and repeat until its verdict is `done`. Never replace an expression with the design's sample text, and never set a width or height to a pixel value to match the design. Do not judge a design match from a screenshot.
 
 ## Sources
 

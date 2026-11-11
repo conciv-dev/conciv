@@ -322,6 +322,16 @@ describe('cli', () => {
 
     const acmeExtension = defineExtension({name: 'acme-tools', tools: [serverStatus, paint]})
 
+    const frame = defineTool({
+      name: 'acme_frame',
+      description: 'Frame the acme page from one link or a list of links.',
+      inputSchema: z.object({link: z.union([z.url(), z.array(z.url()).min(1)])}),
+      outputSchema: z.object({framed: z.boolean()}),
+      meta: {summary: 'frame the acme page from links', mutating: true},
+    }).client()
+
+    const frameExtension = defineExtension({name: 'acme-frame', tools: [frame]})
+
     const ONE_PIXEL_PNG =
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 
@@ -361,6 +371,18 @@ describe('cli', () => {
         expect(answer.seen()).toMatchObject({
           name: 'design_winner',
           input: {selector: '#a', properties: ['padding', 'gap']},
+        })
+      })
+
+      it('sends every repeat of a flag whose field takes one value or a list as one array', async () => {
+        const kit = await bootCli(cleanups, {extensions: [frameExtension]})
+        const answer = await answerNextQuery(kit, {ok: true, result: {framed: true}})
+        expect(
+          await runCli(cliMain, ['tools', 'acme', 'frame', '--link', 'https://a.test/1', '--link', 'https://a.test/2']),
+        ).toBe(0)
+        expect(answer.seen()).toMatchObject({
+          name: 'acme_frame',
+          input: {link: ['https://a.test/1', 'https://a.test/2']},
         })
       })
 
