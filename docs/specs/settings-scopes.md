@@ -7,8 +7,9 @@ debounced write) and `settings-extensions.md` (generated extension pages).
 
 - A sticky switch at the top of the settings page, above the scrolling body, on every tab:
   a kit `Switch` (Ark) labelled `All projects`, off for this project (the default), on for all projects.
-- Switching keeps the page in place: the forms stay mounted, their values change to the other scope's and the notes
-  sit beside the label, so no card replays its entrance and no row changes height.
+- Switching keeps the page in place: the form is rebuilt for the new scope, but the cards' entrance plays only
+  when a tab opens (it sits on the tab page, keyed on the tab), and notes sit beside the label, so no card fades
+  in again and no row changes height.
 - `This project` (default) shows and edits the project file (`<project>/.conciv/settings/<namespace>.json`).
 - `All projects` shows and edits the global file (`<concivHome>/settings/<namespace>.json`).
 - The choice is a search param on the settings layout route, so a reload keeps it.

@@ -1,4 +1,4 @@
-import {For, Match, Show, Switch, createComputed, on, type Accessor, type JSX} from 'solid-js'
+import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import {useMutation} from '@conciv/client'
 import type {AnyFieldApi} from '@tanstack/solid-form'
 import {isEqual} from 'es-toolkit'
@@ -31,14 +31,18 @@ export function ExtensionSettingsForm(): JSX.Element {
   })
   return (
     <SettingsLoad status={layers.status()} retry={layers.retry}>
-      <SettingNote.Provider value={(key) => layers.note(search().scope, key)}>
-        {scopedForm({extension, layers, scope: () => search().scope})}
-      </SettingNote.Provider>
+      <Show when={search().scope} keyed>
+        {(scope) => (
+          <SettingNote.Provider value={(key) => layers.note(scope, key)}>
+            {scopedForm({extension, layers, scope})}
+          </SettingNote.Provider>
+        )}
+      </Show>
     </SettingsLoad>
   )
 }
 
-type ScopedForm = {extension: AnyExtension; layers: SettingsLayers; scope: Accessor<SettingsScope>}
+type ScopedForm = {extension: AnyExtension; layers: SettingsLayers; scope: SettingsScope}
 
 function scopedForm(scoped: ScopedForm): JSX.Element {
   const page = extensionSettingsPage(scoped.extension)
@@ -92,11 +96,10 @@ function scopedForm(scoped: ScopedForm): JSX.Element {
 
 function createExtensionForm(scoped: ScopedForm, fields: ExtensionField[]) {
   const announce = useAnnounce()
-  const settings = getHostApi().useScope<string>(scoped.extension.name).settings
+  const store = getHostApi().useScope<string>(scoped.extension.name).settings[scoped.scope]
   const save = useMutation(() => ({
-    mutationFn: (change: {scope: SettingsScope; key: string; value: unknown}) => {
-      const store = settings[change.scope]
-      const fallback = scoped.extension.parseSettings(scoped.layers.fallthrough(change.scope))[change.key]
+    mutationFn: (change: {key: string; value: unknown}) => {
+      const fallback = scoped.extension.parseSettings(scoped.layers.fallthrough(scoped.scope))[change.key]
       return isEqual(change.value, fallback) ? store.delete(change.key) : store.set(change.key, change.value)
     },
   }))
@@ -108,7 +111,7 @@ function createExtensionForm(scoped: ScopedForm, fields: ExtensionField[]) {
       field.setErrorMap({onChange: invalidMessage(fields.find((entry) => entry.key === field.name))})
       return
     }
-    save.mutateAsync({scope: scoped.scope(), key: field.name, value: parsed.data}).then(
+    save.mutateAsync({key: field.name, value: parsed.data}).then(
       () => field.setErrorMap({onChange: undefined}),
       () => {
         field.setErrorMap({onChange: 'Could not save this setting. Change it again to retry.'})
@@ -116,13 +119,10 @@ function createExtensionForm(scoped: ScopedForm, fields: ExtensionField[]) {
       },
     )
   }
-  const shown = (scope: SettingsScope) => scoped.extension.parseSettings(scoped.layers.shown(scope))
-  const form = useAppForm(() => ({
-    defaultValues: shown(scoped.scope()),
+  return useAppForm(() => ({
+    defaultValues: scoped.extension.parseSettings(scoped.layers.shown(scoped.scope)),
     listeners: {onChange: ({fieldApi}) => persist(fieldApi)},
   }))
-  createComputed(on(scoped.scope, (current) => form.reset(shown(current)), {defer: true}))
-  return form
 }
 
 function invalidMessage(field: ExtensionField | undefined): string {

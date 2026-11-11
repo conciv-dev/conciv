@@ -37,8 +37,8 @@ const TAB_ICON = 'size-3.75 shrink-0 group-data-[selected]:text-chat-accent'
 const INDICATOR =
   'rounded-t-[var(--chat-radius-sm)] data-[orientation=vertical]:rounded-[var(--chat-radius-sm)] bg-chat-fill-strong [left:var(--left)] [top:var(--top)] [width:var(--width)] [height:var(--height)] [--transition-duration:var(--chat-duration-slow)] [--transition-timing-function:var(--chat-ease-expo)] before:content-[""] before:absolute before:inset-x-0 before:bottom-0 before:h-0.5 before:rounded-chat-pill before:bg-chat-accent data-[orientation=vertical]:before:inset-x-auto data-[orientation=vertical]:before:start-0 data-[orientation=vertical]:before:top-1.25 data-[orientation=vertical]:before:bottom-1.25 data-[orientation=vertical]:before:w-0.5 data-[orientation=vertical]:before:h-auto'
 const SPACER = 'flex-1 min-h-3'
-const BODY =
-  'flex flex-1 min-h-0 min-w-0 flex-col gap-3.5 overflow-y-auto p-3.5 focus-visible:outline-none [&>*]:shrink-0'
+const BODY = 'flex flex-1 min-h-0 min-w-0 flex-col overflow-y-auto p-3.5 focus-visible:outline-none'
+const TAB_PAGE = 'flex shrink-0 flex-col gap-3.5 anim-rise [&>*]:shrink-0'
 const FOOTER =
   'flex h-8.5 shrink-0 items-center justify-between px-4 [border-block-start:1px_solid_var(--chat-line-soft)]'
 const SAVED_DOT = 'inline-block size-1.5 me-1.5 rounded-chat-pill bg-chat-success'
@@ -166,7 +166,11 @@ function SettingsLayout(): JSX.Element {
           <TabTrigger tab={advancedTab} />
         </Tabs.List>
         <Tabs.Content class={BODY} value={current()}>
-          <Outlet />
+          <Show when={current()} keyed>
+            <div class={TAB_PAGE}>
+              <Outlet />
+            </div>
+          </Show>
         </Tabs.Content>
       </Tabs.Root>
       <footer class={FOOTER}>

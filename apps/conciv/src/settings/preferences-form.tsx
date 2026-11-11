@@ -1,4 +1,4 @@
-import {createComputed, on, type Accessor, type JSX} from 'solid-js'
+import {Show, type JSX} from 'solid-js'
 import {useMutation} from '@conciv/client'
 import type {AnyFieldApi} from '@tanstack/solid-form'
 import {getRouteApi} from '@tanstack/solid-router'
@@ -20,40 +20,38 @@ type PreferencesFormProps = {
 
 export function PreferencesForm(props: PreferencesFormProps): JSX.Element {
   const preferences = usePreferences()
+  const search = settingsRoute.useSearch()
   return (
     <SettingsLoad status={preferences.status()} retry={preferences.retry}>
-      <ScopedPreferencesForm label={props.label}>{props.children}</ScopedPreferencesForm>
+      <Show when={search().scope} keyed>
+        {(scope) => {
+          const form = createPreferencesForm(scope)
+          return (
+            <SettingNote.Provider value={(key) => preferences.note(scope, key)}>
+              <form class={FORM} aria-label={props.label} onSubmit={(event) => event.preventDefault()}>
+                {props.children(form)}
+              </form>
+            </SettingNote.Provider>
+          )
+        }}
+      </Show>
     </SettingsLoad>
-  )
-}
-
-function ScopedPreferencesForm(props: PreferencesFormProps): JSX.Element {
-  const preferences = usePreferences()
-  const search = settingsRoute.useSearch()
-  const scope = () => search().scope
-  const form = createPreferencesForm(scope)
-  return (
-    <SettingNote.Provider value={(key) => preferences.note(scope(), key)}>
-      <form class={FORM} aria-label={props.label} onSubmit={(event) => event.preventDefault()}>
-        {props.children(form)}
-      </form>
-    </SettingNote.Provider>
   )
 }
 
 type PreferencesFormApi = ReturnType<typeof createPreferencesForm>
 
-function createPreferencesForm(scope: Accessor<SettingsScope>) {
+function createPreferencesForm(scope: SettingsScope) {
   const preferences = usePreferences()
   const announce = useAnnounce()
   const save = useMutation(() => ({
-    mutationFn: (change: {scope: SettingsScope; key: keyof Preferences; value: unknown}) =>
-      preferences.write(change.scope, change.key, change.value),
+    mutationFn: (change: {key: keyof Preferences; value: unknown}) =>
+      preferences.write(scope, change.key, change.value),
   }))
   const persist = (field: AnyFieldApi): void => {
     const key = PreferenceKeySchema.safeParse(field.name)
     if (!key.success) return
-    save.mutateAsync({scope: scope(), key: key.data, value: field.state.value}).then(
+    save.mutateAsync({key: key.data, value: field.state.value}).then(
       () => field.setErrorMap({onChange: undefined}),
       () => {
         field.setErrorMap({onChange: 'Could not save this setting. Change it again to retry.'})
@@ -61,10 +59,8 @@ function createPreferencesForm(scope: Accessor<SettingsScope>) {
       },
     )
   }
-  const form = useAppForm(() => ({
-    defaultValues: preferences.shown(scope()),
+  return useAppForm(() => ({
+    defaultValues: preferences.shown(scope),
     listeners: {onChange: ({fieldApi}) => persist(fieldApi)},
   }))
-  createComputed(on(scope, (current) => form.reset(preferences.shown(current)), {defer: true}))
-  return form
 }
