@@ -3080,6 +3080,9 @@ importers:
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../../ui-kit-system
+      '@solid-primitives/map':
+        specifier: 'catalog:'
+        version: 0.7.4(solid-js@1.9.17)
       '@tanstack/solid-pacer':
         specifier: 'catalog:'
         version: 0.24.0(solid-js@1.9.17)

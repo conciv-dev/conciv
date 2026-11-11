@@ -1,6 +1,6 @@
 import {createDebouncer, type SolidDebouncer} from '@tanstack/solid-pacer'
 import {For, onCleanup, untrack} from 'solid-js'
-import {createStore} from 'solid-js/store'
+import {ReactiveMap} from '@solid-primitives/map'
 import {
   ARROW_CLASS,
   BORDER_CLASS,
@@ -60,7 +60,7 @@ const pass: {dirty: boolean; seenLayout: number} = {dirty: false, seenLayout: -1
 const frameLoop: {scheduled: boolean; layout: number} = {scheduled: false, layout: 0}
 const watchedDocuments = new WeakSet<Document>()
 
-const [aimedStore, setAimed] = createStore<Record<string, CursorLook | undefined>>({})
+const aimed = new ReactiveMap<string, CursorLook>()
 
 export function reducedMotion(): boolean {
   return matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -146,7 +146,7 @@ function watchLayoutOf(at: CursorAt): void {
 }
 
 function aimedCursors(look: CursorLook): string[] {
-  return Object.keys(aimedStore).filter((id) => aimedStore[id] === look)
+  return [...aimed].flatMap(([id, aimedLook]) => (aimedLook === look ? [id] : []))
 }
 
 function settleAim(id: string): void {
@@ -164,7 +164,7 @@ function cannotAnimate(): boolean {
 export function dropCursor(id: string): void {
   settleAim(id)
   aims.delete(id)
-  setAimed(id, undefined)
+  aimed.delete(id)
   pass.dirty = true
   request()
 }
@@ -196,7 +196,7 @@ export function aimCursor(options: {id: string; at: CursorAt; look: CursorLook})
   const from = shown && !reducedMotion() ? sampleOf(windowAt(shown)) : sampleOf(at)
   settleAim(id)
   aims.set(id, {from, to: sampleOf(at), t: from.at === at ? 1 : 0, last: 0, arrived: arrival.resolve})
-  setAimed(id, look)
+  aimed.set(id, look)
   watchLayoutOf(at)
   pass.dirty = true
   request()
