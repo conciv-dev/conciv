@@ -11,10 +11,10 @@ type Minted = {handle: SandboxHandle; signal: AbortSignal | undefined; spawned: 
 
 export function localSandbox(config: {dir: string}): SandboxProvider {
   const provider = localProcessSandbox(config)
-  const minted: Minted[] = []
+  let minted: Minted[] = []
   const track = (handle: SandboxHandle, signal: AbortSignal | undefined): SandboxHandle => {
     const entry: Minted = {handle, signal, spawned: []}
-    minted.splice(0, minted.length, ...minted.filter((earlier) => !finished(earlier)), entry)
+    minted = [...minted.filter((earlier) => !finished(earlier)), entry]
     const tracked: SandboxHandle['process'] = {
       exec: (command, options) => handle.process.exec(command, options),
       spawn: async (command, options) => {
@@ -36,19 +36,18 @@ export function localSandbox(config: {dir: string}): SandboxProvider {
       return handle === null ? null : track(handle, input.signal)
     },
     destroy: async (input) => {
-      const entry = takeForDestroy(minted, input.id)
+      const entry = pickForDestroy(minted, input.id)
       if (entry === undefined) return provider.destroy(input)
+      minted = minted.filter((other) => other !== entry)
       await entry.handle.destroy()
       await Promise.all(entry.spawned.map(killLeftovers))
     },
   }
 }
 
-function takeForDestroy(minted: Minted[], id: string): Minted | undefined {
+function pickForDestroy(minted: Minted[], id: string): Minted | undefined {
   const forId = minted.filter((entry) => entry.handle.id === id)
-  const chosen = forId.find((entry) => entry.signal?.reason === RUN_CANCEL_REASON) ?? forId[0]
-  if (chosen !== undefined) minted.splice(minted.indexOf(chosen), 1)
-  return chosen
+  return forId.find((entry) => entry.signal?.reason === RUN_CANCEL_REASON) ?? forId[0]
 }
 
 function finished(entry: Minted): boolean {
