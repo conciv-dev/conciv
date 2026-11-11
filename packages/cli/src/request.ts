@@ -5,6 +5,7 @@ import {
   CONCIV_ORIGIN_HEADER,
   CONCIV_SESSION_HEADER,
   isSessionId,
+  TabsSchema,
   type SessionId,
 } from '@conciv/protocol/chat-types'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
@@ -55,9 +56,18 @@ async function sessionId(origin: string): Promise<SessionId> {
   if (declared !== null) return declared
   const held = processSession.id
   if (held !== null) return held
-  const resolved = await makeRpcClient(origin).sessions.resolve({})
-  processSession.id = resolved.sessionId
-  return resolved.sessionId
+  const resolved = (await oneOpenTab(origin)) ?? (await makeRpcClient(origin).sessions.resolve({})).sessionId
+  processSession.id = resolved
+  return resolved
+}
+
+async function oneOpenTab(origin: string): Promise<SessionId | null> {
+  const response = await fetch(`${origin}/api/tabs`)
+  if (!response.ok) return null
+  const listed = TabsSchema.safeParse(await response.json())
+  if (!listed.success) return null
+  const [only, second] = listed.data.tabs
+  return only !== undefined && second === undefined ? only.sessionId : null
 }
 
 export type CliTarget = {tab: SessionId | null; home?: string}

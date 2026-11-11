@@ -81,6 +81,8 @@ const FIGMA_LINK = 'https://www.figma.com/design/ItFixtureKey/x?node-id=1-2'
 
 const CliEnvelopeSchema = z.object({ok: z.literal(true), data: z.object({text: z.string()})})
 
+const PrintedSchema = z.object({stdout: z.string()})
+
 const [getDef, checkDef] = DESIGN_TOOLS
 
 type ToolOutput<Tool extends {outputSchema?: z.ZodType}> = z.output<NonNullable<Tool['outputSchema']>>
@@ -1917,6 +1919,33 @@ describe('a run closes with its session', () => {
         {...closed, status: 'completed', verdict: 'done'},
         {...closed, status: 'aborted', verdict: null},
       ])
+    } finally {
+      await engine.dispose()
+    }
+  })
+})
+
+describe('design_check through the CLI', () => {
+  it('measures the one open tab when the session the engine resolves last is not the one the tab shows', async () => {
+    const engine = await bootDesignHost({homeDir: await tempDir('conciv-design-cli-home-')})
+    try {
+      await engine.goto('target')
+      await engine.call('design_get', await cardsDesign(engine.targetsDir))
+      await engine.rpc.sessions.create()
+      const printed = await promisify(execFile)(
+        process.execPath,
+        [fileURLToPath(import.meta.resolve('@conciv/cli/bin')), 'tools', 'design', 'check'],
+        {
+          cwd: engine.stateRoot,
+          env: {
+            ...process.env,
+            CONCIV_PORT: new URL(engine.apiBase).port,
+            CONCIV_TOKEN: engine.token,
+            CONCIV_SESSION_ID: '',
+          },
+        },
+      ).catch((failed: unknown) => PrintedSchema.parse(failed))
+      expect(JSON.parse(printed.stdout)).toMatchObject({ok: true, data: {verdict: expect.any(String)}})
     } finally {
       await engine.dispose()
     }
