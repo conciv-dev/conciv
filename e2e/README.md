@@ -80,15 +80,15 @@ whose npm publish waits on it.
 
 When a registry dependency changes, the drift guard fails the run: it compares every registry package's
 `name@version` and integrity against the committed `fixture-lock.yaml`, and rejects any remote tarball or
-git resolution outside the packed `@conciv/*@file:` entries. Refresh the fixture lockfiles from CI, never
-locally:
+git resolution outside the packed `@conciv/*@file:` entries. On drift the CI run writes the lockfile it
+produced over the committed one, shows the diff in the run summary and uploads both fixture locks as the
+`packed-fixture-locks` artifact. Refresh from that run, never locally:
 
-1. `gh workflow run packed.yml --ref <branch> -f update-lockfiles=true`
-2. Find the run id of YOUR dispatch: `gh run list --workflow packed.yml --branch <branch> --event workflow_dispatch`.
-3. `gh run download <run-id> -n packed-fixture-locks -D e2e`. Always download by the run id: a fork PR can
+1. Take the id of the failed Packed run on YOUR PR: `gh run list --workflow packed.yml --branch <branch>`.
+2. `gh run download <run-id> -n packed-fixture-locks -D e2e`. Always download by the run id: a fork PR can
    upload an artifact with the same name.
-4. Before committing, check the diff (the run summary shows it too) holds only the expected `name@version`
-   changes, and no tarball or git resolution other than the `@conciv/*@file:` entries.
+3. Before committing, check the diff holds only the expected `name@version` changes, and no tarball or git
+   resolution other than the `@conciv/*@file:` entries.
 
 `e2e-utils` holds the shared Playwright config factory, the widget boot assertions, and the fixed
 port registry (`src/ports.ts`) so suites can run side by side.

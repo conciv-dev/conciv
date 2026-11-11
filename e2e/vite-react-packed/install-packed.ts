@@ -1,4 +1,4 @@
-import {copyFileSync, cpSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {cpSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {E2E_DEV_ENDPOINT_DIR} from '@conciv/e2e-utils/dev-endpoint'
 import {WORKSPACE_ROOT, buildAndPack, installPacked, readManifest} from '@conciv/e2e-utils/packed'
@@ -49,7 +49,6 @@ function writeConsumer(): void {
   writeFileSync(join(PACKED_APP_DIR, 'vite.config.ts'), viteConfigSource())
 }
 
-const updateLockfile = process.argv.includes('--update-lockfile')
 rmSync(PACKED_ROOT, {recursive: true, force: true})
 mkdirSync(TARBALL_DIR, {recursive: true})
 mkdirSync(PACKED_APP_DIR, {recursive: true})
@@ -62,7 +61,5 @@ await timed('install', () =>
     allowBuilds: {'isolated-vm': false, protobufjs: false},
     overrides,
     lockPath: LOCK_PATH,
-    fresh: updateLockfile,
   }),
 )
-if (updateLockfile) copyFileSync(join(PACKED_APP_DIR, 'pnpm-lock.yaml'), LOCK_PATH)

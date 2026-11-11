@@ -223,7 +223,6 @@ describe('resolution matrix', {tags: ['packed']}, () => {
       packages: ['.'],
       allowBuilds: {'isolated-vm': false, protobufjs: false},
       overrides,
-      fresh: true,
     })
     return {dir, packDir, packed}
   }

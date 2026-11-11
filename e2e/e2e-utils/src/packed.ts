@@ -1,5 +1,5 @@
 import {execFile, execFileSync} from 'node:child_process'
-import {existsSync, readFileSync, writeFileSync} from 'node:fs'
+import {copyFileSync, existsSync, readFileSync, writeFileSync} from 'node:fs'
 import {dirname, join, relative} from 'node:path'
 import {promisify} from 'node:util'
 
@@ -188,7 +188,6 @@ export type PackedInstallOptions = {
   allowBuilds: Record<string, boolean>
   overrides: Record<string, string>
   lockPath?: string
-  fresh: boolean
 }
 
 export async function installPacked(options: PackedInstallOptions): Promise<void> {
@@ -203,7 +202,7 @@ export async function installPacked(options: PackedInstallOptions): Promise<void
     '',
   ].join('\n')
   writeFileSync(join(options.root, 'pnpm-workspace.yaml'), workspaceYaml)
-  const lockPath = options.fresh ? undefined : options.lockPath
+  const {lockPath} = options
   if (lockPath !== undefined && existsSync(lockPath)) {
     writeFileSync(join(options.root, 'pnpm-lock.yaml'), readFileSync(lockPath, 'utf8'))
   }
@@ -288,6 +287,7 @@ export function assertLockNotDrifted(root: string, lockPath: string): void {
   }
   const diff = lockDrift(packageResolutions(readFileSync(lockPath, 'utf8')), produced)
   if (diff.length === 0) return
+  if (process.env.GITHUB_ACTIONS === 'true') copyFileSync(join(root, 'pnpm-lock.yaml'), lockPath)
   throw new Error(
     [
       'packed fixture install resolved different registry packages than the committed lockfile',
@@ -299,11 +299,11 @@ export function assertLockNotDrifted(root: string, lockPath: string): void {
 }
 
 const REFRESH_INSTRUCTIONS = [
-  'Refresh it in CI, never locally:',
-  '  1. gh workflow run packed.yml --ref <branch> -f update-lockfiles=true',
-  '  2. find YOUR dispatch: gh run list --workflow packed.yml --branch <branch> --event workflow_dispatch',
-  '  3. gh run download <run-id> -n packed-fixture-locks -D e2e',
-  '     (always by the run id of your dispatch: a fork PR can upload a same-named artifact)',
-  '  4. before committing, check the diff holds only the expected name@version changes, and no',
-  '     tarball or git resolution other than the @conciv/*@file: entries.',
+  'The failed CI run wrote the fresh lockfile over this one and uploaded both fixture locks. Refresh it from',
+  'that run, never locally:',
+  '  1. take the id of THIS failed Packed run on your PR (gh run list --workflow packed.yml --branch <branch>)',
+  '  2. gh run download <run-id> -n packed-fixture-locks -D e2e',
+  '     (always by run id: a fork PR can upload an artifact with the same name)',
+  '  3. before committing, check the diff (also in the run summary) holds only the expected name@version',
+  '     changes, and no tarball or git resolution other than the @conciv/*@file: entries.',
 ].join('\n')
