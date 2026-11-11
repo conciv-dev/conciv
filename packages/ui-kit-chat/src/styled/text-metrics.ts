@@ -15,6 +15,7 @@ import {
   ANSWER_ROW_CLASS,
   ASSISTANT_ROOT_CLASS,
   PROMPT_TEXT_CLASS,
+  TURN_LEAD_CLASS,
 } from './turn-classes.js'
 
 const PROMPT_WIDTH_FRACTION = 0.94
@@ -46,6 +47,7 @@ type Metrics = {
   assistantActionY: number
   paragraphGapY: number
   viewportPadX: number
+  turnLeadY: number
 }
 
 export type TurnEstimatorOptions = {
@@ -120,8 +122,12 @@ function resolveMetrics(viewport: HTMLElement): Metrics {
   actionRow.className = ANSWER_ACTION_ROW_CLASS
   assistantRoot.append(answerRow, actionRow)
 
+  const turnLead = document.createElement('div')
+  turnLead.className = TURN_LEAD_CLASS
+
   probe.appendChild(userBubble)
   probe.appendChild(assistantRoot)
+  probe.appendChild(turnLead)
   viewport.appendChild(probe)
 
   const viewportStyle = getComputedStyle(viewport)
@@ -141,6 +147,7 @@ function resolveMetrics(viewport: HTMLElement): Metrics {
     assistantActionY: actionRow.getBoundingClientRect().height,
     paragraphGapY: Math.max(0, proseHeight - 2 * assistant.lineHeight),
     viewportPadX: num(viewportStyle.paddingLeft) + num(viewportStyle.paddingRight),
+    turnLeadY: num(getComputedStyle(turnLead).paddingTop),
   }
   probe.remove()
   return metrics
@@ -267,18 +274,25 @@ export function createTurnEstimator(
     return allowExact ? estimate : {height: estimate.height, exact: false}
   }
 
+  const contentEstimate = (turn: Turn, containerWidth: number): TurnEstimate | undefined => {
+    const cached = heights.get(turn)
+    if (cached?.containerWidth === containerWidth) return cached.estimate
+    const estimate = computeEstimate(turn, containerWidth)
+    if (!estimate) return undefined
+    const resolved = applyExactPolicy(estimate)
+    heights.set(turn, {containerWidth, estimate: resolved})
+    return resolved
+  }
+
   return {
-    estimateTurn: (turn) => {
+    estimateTurn: (turn, index) => {
       if (options?.disabled?.()) return undefined
       const containerWidth = resolveContainerWidth()
       if (containerWidth === undefined) return undefined
-      const cached = heights.get(turn)
-      if (cached?.containerWidth === containerWidth) return cached.estimate
-      const estimate = computeEstimate(turn, containerWidth)
-      if (!estimate) return undefined
-      const resolved = applyExactPolicy(estimate)
-      heights.set(turn, {containerWidth, estimate: resolved})
-      return resolved
+      const content = contentEstimate(turn, containerWidth)
+      if (!content) return undefined
+      const lead = index === 0 ? 0 : (metrics?.turnLeadY ?? 0)
+      return {height: content.height + lead, exact: content.exact}
     },
     reset: () => {
       metrics = undefined

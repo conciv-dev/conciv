@@ -60,6 +60,8 @@ import {
   PROMPT_ROOT_CLASS,
   PROMPT_TEXT_CLASS,
   PROMPT_TIME_CLASS,
+  TURN_FRAME_CLASS,
+  TURN_LEAD_CLASS,
 } from './turn-classes.js'
 import {AttachmentByMime, type AttachmentCardSlot} from './attachment-dispatch.js'
 import {partIsModelOnly} from '../primitives/message-part/part-visibility.js'
@@ -97,8 +99,6 @@ export type ThreadMessagesProps = {
 const PLAN_LABEL = 'plan'
 const REASONING_LABEL = 'reasoning'
 const PLAN_INLINE_LENGTH = 90
-
-const OUTSIDE_JOIN_CLASS = '-mt-1.5'
 
 const PROMPT_TIME_FORMAT = new Intl.DateTimeFormat(undefined, {hour: '2-digit', minute: '2-digit', hour12: false})
 
@@ -140,6 +140,19 @@ function planBody(part: () => Extract<ChatPart, {type: 'thinking'}>): (() => JSX
   return () => <TraceBodyFrame>{text}</TraceBodyFrame>
 }
 
+function useOutsideAt(): (offset: number) => boolean {
+  const message = useMessage()
+  const thread = useThread()
+  return (offset) => isOutsideTurn(thread.turns[message.index() + offset]?.turn())
+}
+
+function TurnFrame(props: ParentProps): JSX.Element {
+  const message = useMessage()
+  const outsideAt = useOutsideAt()
+  const lead = createMemo(() => message.index() > 0 && !(outsideAt(0) && outsideAt(-1)))
+  return <div class={lead() ? `${TURN_FRAME_CLASS} ${TURN_LEAD_CLASS}` : TURN_FRAME_CLASS}>{props.children}</div>
+}
+
 function createCallDuration(callId: string | undefined, ctx: ToolViewCtx): Accessor<number | undefined> {
   return createMemo(() => (callId === undefined ? undefined : ctx.durationFor?.(callId)))
 }
@@ -175,9 +188,8 @@ function AssistantTurn(props: {
   const groupStillOpen = (node: GroupNodeGroup): boolean => (node.indices.at(-1) ?? -1) === lastGroupedPartIndex()
   const nodeLive = (node: GroupNode): boolean =>
     node.type === 'part' ? partLive(node.index) : node.indices.some(partLive) || (runActive() && groupStillOpen(node))
-  const outsideAt = (offset: number): boolean => isOutsideTurn(thread.turns[message.index() + offset]?.turn())
+  const outsideAt = useOutsideAt()
   const outside = createMemo(() => outsideAt(0))
-  const joinsAbove = createMemo(() => outside() && outsideAt(-1))
   const joinsBelow = createMemo(() => outside() && outsideAt(1))
   const folded = () => !message.isLast() && !outside()
   const ChainGroup = (groupProps: GroupRenderProps): JSX.Element => {
@@ -326,10 +338,7 @@ function AssistantTurn(props: {
     </Key>
   )
   return (
-    <Message.Root
-      data-conciv-msg
-      class={joinsAbove() ? `${ASSISTANT_ROOT_CLASS} ${OUTSIDE_JOIN_CLASS}` : ASSISTANT_ROOT_CLASS}
-    >
+    <Message.Root data-conciv-msg class={ASSISTANT_ROOT_CLASS}>
       <NodeListView nodes={nodes()} />
       <Message.Error />
       <Show when={!runActive() && !outside()}>
@@ -358,7 +367,7 @@ function UserTurn(): JSX.Element {
   const promptText = createMemo(() => promptTextOf(message.message()))
   const timeLabel = createMemo(() => promptTimeLabel(message.message().messages[0]?.createdAt))
   return (
-    <>
+    <TurnFrame>
       <TurnPrefix />
       <Message.If hasAttachments>
         <div class="flex flex-wrap gap-1 self-end">
@@ -376,7 +385,7 @@ function UserTurn(): JSX.Element {
           <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
         </Message.Root>
       </Message.If>
-    </>
+    </TurnFrame>
   )
 }
 
@@ -417,7 +426,7 @@ function TurnPrefix(): JSX.Element {
 function AssistantMessageView(): JSX.Element {
   const config = useContext(ThreadConfigContext)
   return (
-    <>
+    <TurnFrame>
       <TurnPrefix />
       <Show
         when={config.assistant()}
@@ -433,7 +442,7 @@ function AssistantMessageView(): JSX.Element {
       >
         {(component) => <Dynamic component={component()} />}
       </Show>
-    </>
+    </TurnFrame>
   )
 }
 
@@ -481,7 +490,7 @@ function ThreadViewport(props: ParentProps<{ref?: (element: HTMLElement) => void
     <div class="flex flex-1 flex-col min-h-0 relative">
       <ThreadPrimitive.Viewport
         ref={props.ref}
-        class="px-5 pb-4 pt-3 flex flex-1 flex-col gap-1.5 min-h-0 relative overflow-y-auto"
+        class="px-5 pb-4 pt-3 flex flex-1 flex-col gap-1.5 min-h-0 relative overflow-y-auto [&>[data-thread-list]]:gap-0"
         role="log"
         aria-live="off"
         footer={<LatestStrip />}

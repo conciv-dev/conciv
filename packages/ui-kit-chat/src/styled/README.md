@@ -17,6 +17,7 @@ The themed component set built on the primitives: thread, composer, markdown wit
 ## Invariants
 
 - `markdown.tsx` caches highlights and diagrams in bounded stores of `MAX_CACHE_ENTRIES` (512), evicting oldest first.
+- Turns are spaced by padding, not by the list gap: each turn sits in a `TURN_FRAME_CLASS` frame with `TURN_LEAD_CLASS` top padding, except the first turn and an outside call that follows an outside call (`thread.tsx:TurnFrame`); the viewport zeroes its `data-thread-list` gap and the estimator adds the same padding.
 - `markdown.tsx:createBackend` returns `null` when `Worker` is undefined, so highlighting is skipped outside browsers.
 - `now-line.tsx` and `morph-label.tsx` honor `(prefers-reduced-motion: reduce)`.
 
