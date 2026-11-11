@@ -1,6 +1,6 @@
 {
   "name": "@conciv/mascot-react",
-  "version": "0.0.21",
+  "version": "0.0.22",
   "description": "The conciv robot mascot as a React compound component, built on the framework-free @conciv/mascot service.",
   "keywords": [
     "conciv",
