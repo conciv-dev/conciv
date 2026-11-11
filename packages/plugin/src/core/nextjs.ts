@@ -1,6 +1,6 @@
 import {existsSync} from 'node:fs'
 import {join} from 'node:path'
-import type {ConcivConfig} from '@conciv/protocol/config-types'
+import {ConcivConfigSchema, type ConcivConfig} from '@conciv/protocol/config-types'
 import {writeExtensionsEntry} from './extensions-entry.js'
 
 export const CONCIV_DEFAULT_PORT = 41700
@@ -92,7 +92,7 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
 export async function register(): Promise<void> {
   if (process.env.NODE_ENV === 'production') return
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
-  const options = JSON.parse(process.env.CONCIV_OPTIONS ?? '{}') as ConcivConfig
+  const options = readConcivOptions(process.env.CONCIV_OPTIONS ?? '{}')
   if (options.enabled === false) return
   const root = process.cwd()
   try {
@@ -103,6 +103,20 @@ export async function register(): Promise<void> {
   }
   const {makeEngineBooter} = await import('./boot.js')
   await makeEngineBooter(options, root, {}, 'exact')()
+}
+
+function readConcivOptions(text: string): ConcivConfig {
+  const parsed = ConcivConfigSchema.safeParse(parseJson(text))
+  if (parsed.success) return parsed.data
+  throw new Error(`conciv: CONCIV_OPTIONS is not a valid conciv config: ${parsed.error.message}`)
+}
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch (error) {
+    throw new Error('conciv: CONCIV_OPTIONS is not JSON', {cause: error})
+  }
 }
 
 function clientEntriesOf(options: ConcivConfig): string[] {

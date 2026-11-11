@@ -33,7 +33,7 @@ import {installConcivBinShim} from '../src/core/bin-shim.js'
 import {makeEngineBooter} from '../src/core/boot.js'
 import {generateExtensionsEntrySource, writeExtensionsEntry} from '../src/core/extensions-entry.js'
 import {watchExtensionsDir} from '../src/core/extensions-watch.js'
-import {CONCIV_DEFAULT_PORT, withConciv} from '../src/core/nextjs.js'
+import {CONCIV_DEFAULT_PORT, register, withConciv} from '../src/core/nextjs.js'
 import {makeViteBridge} from '@conciv/extension/vite'
 import {makeViteHook} from '../src/core/vite.js'
 import {EXTENSIONS_ROUTE, type Middleware, makeWidgetInject} from '../src/core/widget-middleware.js'
@@ -690,7 +690,7 @@ describe('native page vite boot', () => {
 
 describe('nextjs config', () => {
   const SPECIFIER = '@conciv/app-extensions'
-  const ENV_KEYS = ['NEXT_PUBLIC_CONCIV_PORT', 'CONCIV_OPTIONS'] as const
+  const ENV_KEYS = ['NEXT_PUBLIC_CONCIV_PORT', 'CONCIV_OPTIONS', 'NEXT_RUNTIME'] as const
 
   type WebpackConfig = {resolve?: {alias?: Record<string, string | false>}}
 
@@ -778,6 +778,14 @@ describe('nextjs config', () => {
       const specifier = relative(dirname(generatedPath()), installed.client)
       expect(generated).toContain(`import extension0 from '${specifier}'`)
       expect(JSON.parse(cfg.env.CONCIV_OPTIONS ?? '{}').extensions).toEqual([installed])
+    })
+
+    it('register refuses options whose extensions are not installed extension packages', async () => {
+      process.env.NEXT_RUNTIME = 'nodejs'
+      process.env.CONCIV_OPTIONS = JSON.stringify({extensions: [{client: 'client.mjs'}]})
+      await expect(register()).rejects.toThrow(/CONCIV_OPTIONS is not a valid conciv config[\s\S]*server/)
+      process.env.CONCIV_OPTIONS = '{not json'
+      await expect(register()).rejects.toThrow('conciv: CONCIV_OPTIONS is not JSON')
     })
 
     it('is a passthrough when disabled: no aliases, no generation', () => {
