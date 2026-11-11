@@ -557,6 +557,8 @@ error codes, `HANDLER_ERROR` wrapping), since the CLI's `--tab` uses it.
 
 ### 6. Page actions do not wait on the simulated pointer (Omri's yes, 2026-11-10: for every caller)
 
+Queued actions play toolbar style again, without the agent waiting: see `docs/specs/page-action-queue.md`.
+
 - Today the action happens after the pointer animation and the reply after that
   (`packages/extensions/page/src/client/simulator.ts`). Now the action and the reply happen at once, for the in-page
   agent and outside callers alike. The field fills before the pointer arrives; that is accepted.
