@@ -95,6 +95,30 @@ although every sub-step passed; the session picker's options render off-screen a
 (design extension: route, ResizeObserver, external-session close, `wave` in `run_summary`; core/widget/cli: the other five). Check
 `git log 8abedf806..HEAD` for what landed.
 
+**Run 3** = store runs 175, 176, 177 (04:12 to 04:52, 40 min cap, $6.44, the sonnet parent delegated the whole job to one
+opus subagent, so this is an opus run): **`design_check` said `done` at all three widths** (round 6 at 1440 and 390, round 7 at
+1920; rows went 115/88/85 at round 2, 15/42/10 at 3, 13/8/6 at 5, 2/0/0 at 6, 0 at 7). Screenshots in the session scratch
+`w34/design-1440.png` and `design-390.png`. Three store runs because every dev-server restart opens a new run. Defects seen, the
+run's cost in minutes in brackets:
+
+- TanStack devtools' `injectSource` stamps `data-tsd-source` first and conciv defers to it, so the page had no conciv stamps
+  and the check measured 0 nodes [the agent read conciv's source and disabled devtools inject-source in vite.config.ts, 12 min].
+  The zero-nodes hint ("call design_get with route set") pointed the wrong way.
+- The browser's authorization is lost at every dev-server restart (the OTP trust is per engine process) [two more Authorize clicks].
+- A session id changes across restarts; the agent's pinned tab id then fails "not open in any of the 4 running conciv dev
+  servers" (the other three engines are other worktrees' dev servers).
+- `design_get` through the CLI returned `APPROVAL_DENIED` three times over 10 minutes instead of waiting, and with the widget
+  panel collapsed the only sign was the launcher label; the agent needs the "Allow claude" click to surface. Those refused calls
+  are not recorded in `design_stored_tool_calls`.
+- `mcp__conciv-hub__discover_tools` was truncated at 50,000 characters, so the agent dropped MCP and used the CLI.
+- SIGINT dispose did not close run 177 (`running`, no `ended`); a config-change restart did close 175 and 176 as `aborted`.
+- Conciv's on-disk stamping rewrote Footer.tsx, Header.tsx and ThemeToggle.tsx with `data-conciv-key`, and the server and client
+  keys differ (38 hydration mismatch warnings).
+- `conciv init` refuses to run over the AGENTS.md and CLAUDE.md its previous run wrote ("uncommitted changes").
+- Session-level: Fable dispatched a build agent in the same worktree during the live run; its `dist` rebuilds reloaded the page,
+  broke the widget ("failed to start widget") and showed "Engine is running outdated code". Never build in a worktree while a
+  run uses it.
+
 ## Known defects of the tools, from the store
 
 - A page that rendered as a 569k px blank strip at 390 passed `design_check` with 3 rows (run 169). Task 11 addresses it.
