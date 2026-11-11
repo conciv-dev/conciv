@@ -91,31 +91,32 @@ ConcivWidget.attach(launcher: .native)
 
 ## Let the agent build and run the app
 
-Everything above is all you need to see the widget. Optionally, give the agent the `ios` extension so
+Everything above is all you need to see the widget. Optionally, install the `ios` extension (`pnpm add -D @conciv/extension-ios`) so
 it can build, launch, and screenshot the app for you (via the `ios_build` and `ios_run` tools) instead
 of you rebuilding by hand.
 
 <Accordions type="single">
 <Accordion title="Configure the ios extension">
 
-Point the extension at your native project in the vite config:
+Add it to the conciv options and point it at your native project:
 
 ```ts title="vite.config.ts"
 import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import conciv from '@conciv/it/plugin/vite'
+import ios from '@conciv/extension-ios'
 
 export default defineConfig({
   plugins: [
     conciv({
       port: 4599,
-      extensions: {
-        ios: {
+      extensions: [
+        ios({
           projectRoot: fileURLToPath(new URL('./ios', import.meta.url)),
           bundleId: 'dev.conciv.YourApp',
           simulator: 'iPhone 17 Pro',
-        },
-      },
+        }),
+      ],
     }),
   ],
 })

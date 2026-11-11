@@ -1814,6 +1814,9 @@ importers:
 
   native/swift:
     dependencies:
+      '@conciv/extension-ios':
+        specifier: workspace:*
+        version: link:../../packages/extensions/ios
       '@conciv/it':
         specifier: workspace:*
         version: link:../../packages/it
