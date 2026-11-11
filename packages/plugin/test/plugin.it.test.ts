@@ -1131,6 +1131,11 @@ describe('vite devtools dock', () => {
     return (await startDockServer(...options)).url
   }
 
+  async function openServedPage(page: Page, url: string): Promise<void> {
+    await page.goto(url, {waitUntil: 'commit'})
+    await page.waitForLoadState('domcontentloaded', {timeout: 0})
+  }
+
   it('fills the dock panel with the widget and keeps it there when the dock entry is reopened', async () => {
     const page = await browser.newPage({viewport: {width: 1280, height: 800}})
     await page.goto(await dockServer(), {waitUntil: 'domcontentloaded'})
@@ -1335,7 +1340,7 @@ describe('vite devtools dock', () => {
     if (floatingUrl === undefined) throw new Error('dev server did not start')
     const floatingPage = await browser.newPage({viewport: {width: 1280, height: 800}})
     await rpcSocketFor(floatingPage).installed
-    await floatingPage.goto(await magicLinkUrl(floating, floatingUrl), {waitUntil: 'domcontentloaded'})
+    await openServedPage(floatingPage, await magicLinkUrl(floating, floatingUrl))
     await floatingPage.getByRole('button', {name: /conciv chat$/}).click({timeout: 45_000})
     const floatingComposer = floatingPage.getByRole('textbox', {name: 'Message the conciv agent'})
     await floatingComposer.waitFor()
@@ -1350,7 +1355,7 @@ describe('vite devtools dock', () => {
     await floatingPage.close()
     await floating.server.close()
     const page = await browser.newPage({viewport: {width: 1280, height: 800}})
-    await page.goto(await dockServer(undefined, NO_BUILTINS, root), {waitUntil: 'domcontentloaded'})
+    await openServedPage(page, await dockServer(undefined, NO_BUILTINS, root))
     await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
     await expectLocator(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
     await page.close()
