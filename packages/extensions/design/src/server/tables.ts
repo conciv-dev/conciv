@@ -102,7 +102,8 @@ export function designTables(table: SQLiteTableFn) {
       target_id: text().notNull(),
       run_id: runId(),
       session: session(),
-      round: integer().notNull(),
+      check: integer().notNull(),
+      round: integer(),
       state: text({enum: ROUND_STATES}).notNull(),
       same_as: integer(),
       much: integer().notNull().default(0),
@@ -139,6 +140,7 @@ export function designTables(table: SQLiteTableFn) {
     (self) => [
       ...owned(self),
       uniqueIndex('rounds_round').on(self.run_id, self.target_id, self.round),
+      uniqueIndex('rounds_check').on(self.run_id, self.target_id, self.check),
       check('rounds_state', inArray(self.state, [...ROUND_STATES]).inlineParams()),
     ],
   )
@@ -342,6 +344,7 @@ export function designTables(table: SQLiteTableFn) {
         session: session(),
         tool: text().notNull(),
         round: integer(),
+        check: integer(),
         input: text({mode: 'json'}).$type<unknown>(),
         reply: text({mode: 'json'}).$type<ToolReply>(),
         reply_bytes: integer(),

@@ -44,7 +44,6 @@ export type Store = {
   }): Promise<Round>
   writeCheck(input: {
     id: string
-    round: number
     state: 'unsettled' | 'unchanged'
     sameAs?: number
     unsettled?: string

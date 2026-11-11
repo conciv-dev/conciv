@@ -3,6 +3,7 @@ CREATE TABLE `design_artifacts` (
 	`run_id` integer NOT NULL,
 	`session` text NOT NULL,
 	`target_id` text,
+	`check` integer,
 	`round` integer,
 	`width` real,
 	`kind` text NOT NULL,
@@ -190,7 +191,8 @@ CREATE TABLE `design_rounds` (
 	`target_id` text NOT NULL,
 	`run_id` integer NOT NULL,
 	`session` text NOT NULL,
-	`round` integer NOT NULL,
+	`check` integer NOT NULL,
+	`round` integer,
 	`state` text NOT NULL,
 	`same_as` integer,
 	`much` integer DEFAULT 0 NOT NULL,
@@ -316,6 +318,7 @@ CREATE TABLE `design_tool_calls` (
 	`session` text NOT NULL,
 	`tool` text NOT NULL,
 	`round` integer,
+	`check` integer,
 	`input` text,
 	`reply` text,
 	`reply_bytes` integer,
@@ -374,6 +377,7 @@ CREATE INDEX `node_components_by_round` ON `design_node_components` (`run_id`,`t
 CREATE INDEX `node_components_by_component` ON `design_node_components` (`component_id`);--> statement-breakpoint
 CREATE INDEX `regions_by_round` ON `design_regions` (`run_id`,`target_id`,`round`);--> statement-breakpoint
 CREATE UNIQUE INDEX `rounds_round` ON `design_rounds` (`run_id`,`target_id`,`round`);--> statement-breakpoint
+CREATE UNIQUE INDEX `rounds_check` ON `design_rounds` (`run_id`,`target_id`,`check`);--> statement-breakpoint
 CREATE INDEX `rows_by_round` ON `design_rows` (`run_id`,`target_id`,`round`);--> statement-breakpoint
 CREATE INDEX `rows_by_node` ON `design_rows` (`target_id`,`node`);--> statement-breakpoint
 CREATE INDEX `runs_by_session` ON `design_runs` (`session`,`status`);--> statement-breakpoint

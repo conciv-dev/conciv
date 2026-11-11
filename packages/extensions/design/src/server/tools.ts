@@ -37,6 +37,10 @@ const QUERY_SUMMARY = `Reads one design source and returns its rows as JSON: fro
 
 const WRITE_SUMMARY = `Writes one row into labels or notes: into names the source, values maps its fields to values; at is filled in. Every other source is written by the design tools only. ${SOURCES}`
 
+const WrittenSchema = z.object({round: z.number(), unchanged: z.literal(true).optional()})
+
+const VariantsSchema = z.object({variants: z.array(z.unknown())})
+
 const RowsSchema = z.array(z.record(z.string(), z.unknown()))
 
 const queryDef = designDataTool({
@@ -105,7 +109,7 @@ export const SERVER_STEPS = [
       tool: checkDef.name,
       input,
       session: request.sessionId,
-      round: async (reply) => (reply === null ? null : ctx.design.store.runRound(request.sessionId)),
+      round: async (reply) => writtenRound(reply),
       call: async () => {
         await ctx.design.runs.open(request)
         return ctx.differ.check({nodes: input.nodes, session: request.sessionId})
@@ -292,4 +296,13 @@ async function recorded<Reply extends ToolReply>(input: {
     })
     throw error
   }
+}
+
+function writtenRound(reply: unknown): number | null {
+  const each = VariantsSchema.safeParse(reply).data?.variants ?? [reply]
+  const rounds = each.flatMap((one) => {
+    const written = WrittenSchema.safeParse(one).data
+    return written === undefined || written.unchanged === true ? [] : [written.round]
+  })
+  return rounds.length === 0 ? null : Math.max(...rounds)
 }

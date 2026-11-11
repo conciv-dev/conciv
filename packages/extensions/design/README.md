@@ -136,15 +136,17 @@ Every design session is recorded in one store, `<conciv home>/runs.db`, migrated
 - Every per-run table carries `run` and `session`; per-check tables also `target`, `round` and, where it applies,
   `width`, so `--where 'session == "..."'` works on every source.
 - Every check writes a round with a `state`: `measured`, `unsettled` (the page rendered too little and the check
-  replied unsettled), `unchanged` (with `same_as`, the round it equals, and nothing else copied) or `broken`. Round
-  numbers count every check of a target. Image mismatch shares are the round's `image_mismatch`, by node.
+  replied unsettled), `unchanged` (with `same_as`, the round it equals, and nothing else copied) or `broken`. `check`
+  counts every check of a target; `round` is the number the replies show, set on measured and broken rounds only and
+  null on unsettled and unchanged checks. Image mismatch shares are the round's `image_mismatch`, by node.
 - Rows keep `property`, `expected` and `actual` (design and page value, with unit) and `delta` (null when not numeric);
   rows graded `slightly` are stored too, `coverage.gone` names are `missing` rows of kind `gone`. The replies leave all
   of that out, as before.
 - `design_get` writes the hints it tells as `hints` rows at round 0; `hint_vs_drawn` reads them.
-- A tool call row carries its round: the run's latest round when the call ended, null when it failed.
-- Snapshots are files under `<home>/artifacts/<run>/<target>/<round>/<width>/<kind>.<ext>`, one `artifacts` row each
-  (`id, run, session, target, round, width, kind, path, content_type, size, checksum, written`): per check and per
+- A tool call row carries its round: for `design_check` the round it wrote (the highest across widths, null when it
+  wrote none) and the `check` it recorded, for the other tools the run's latest round when the call ended.
+- Snapshots are files under `<home>/artifacts/<run>/<target>/<check>/<width>/<kind>.<ext>`, one `artifacts` row each
+  (`id, run, session, target, check, round, width, kind, path, content_type, size, checksum, written`): per check and per
   measured width `screenshot`, `dom`, `cssom` (with the widths the page's queries name) and `fom`, plus `diff` and
   `mask` at the frame width; per target under `<run>/<target>/` the `frame` image, the `design` tree and the raw
   `figma` document. Nothing expires.

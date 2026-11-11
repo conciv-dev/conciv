@@ -147,13 +147,14 @@ export function createStore(input: {
     const candidatesBy = byRound(listedCandidates)
     const widthsBy = byRound(listedWidths)
     const regionsBy = byRound(listedRegions)
-    const built = heads.map((head, index) =>
+    const judged = heads.flatMap((head) => (head.round === null ? [] : [{...head, round: head.round}]))
+    const built = judged.map((head, index) =>
       roundOf({
         head,
-        before: heads[index - 1] ?? null,
+        before: judged[index - 1] ?? null,
         rows: rowsBy.get(head.round) ?? [],
         missing: missingBy.get(head.round) ?? [],
-        missingBefore: missingBy.get(heads[index - 1]?.round ?? -1) ?? [],
+        missingBefore: missingBy.get(judged[index - 1]?.round ?? -1) ?? [],
         candidates: candidatesBy.get(head.round) ?? [],
         widths: widthsBy.get(head.round) ?? [],
         regions: regionsBy.get(head.round) ?? [],
@@ -253,7 +254,15 @@ export function createStore(input: {
     return new Map(earlier.map((row) => [rowKey(row), row.repeat + 1]))
   }
 
-  function writeShots(written: {tx: Transaction; own: Own; shots: Shot[]}): void {
+  async function nextCheck(where: {run: number; id: string}): Promise<number> {
+    const [last] = await orm
+      .select({check: max(rounds.check)})
+      .from(rounds)
+      .where(and(eq(rounds.run_id, where.run), eq(rounds.target_id, where.id)))
+    return (last?.check ?? 0) + 1
+  }
+
+  function writeShots(written: {tx: Transaction; own: Checked; shots: Shot[]}): void {
     const {tx, own} = written
     for (const shot of written.shots)
       for (const file of snapshotFiles(shot))
@@ -261,7 +270,8 @@ export function createStore(input: {
           run: own.run_id,
           session: own.session,
           target: own.target_id,
-          round: own.round,
+          check: own.check,
+          ...(own.round === null ? {} : {round: own.round}),
           width: file.width,
           kind: file.kind,
           bytes: file.bytes,
@@ -381,12 +391,17 @@ export function createStore(input: {
         .where(and(eq(targets.run_id, run), eq(targets.session, session)))
         .orderBy(desc(targets.at))
         .limit(1)
+      const [checked] = await orm
+        .select({check: max(rounds.check)})
+        .from(rounds)
+        .where(eq(rounds.run_id, run))
       await orm.insert(toolCalls).values({
         target_id: latest?.id ?? null,
         run_id: run,
         session,
         tool,
         round,
+        check: tool === CHECK_TOOL ? (checked?.check ?? null) : null,
         input: given,
         reply,
         reply_bytes: replyBytes,
@@ -414,7 +429,7 @@ export function createStore(input: {
         .where(and(keyed(rounds, found), round === undefined ? settled : eq(rounds.round, round)))
         .orderBy(desc(rounds.seq))
         .limit(1)
-      if (stored === undefined) return null
+      if (stored === undefined || stored.round === null) return null
       const tree = await snapshotTree({found, round: stored.round})
       if (tree === null) return null
       return {...tree, root: attached({node: tree.root, mapping: await mappingOf({id, round: stored.round})})}
@@ -462,16 +477,17 @@ export function createStore(input: {
       const {run: runId, row: found} = await runOf(id)
       const own = {target_id: id, run_id: runId, session: found.session, round: written.round}
       const repeats = await repeatsBefore({found, round: written.round})
+      const check = await nextCheck({run: runId, id})
       orm.transaction((tx) => {
         for (const text of told)
           tx.insert(notes)
             .values({...own, text})
             .run()
         tx.insert(rounds)
-          .values({...roundValues({own, written}), image_mismatch: imageMismatch ?? null})
+          .values({...roundValues({own, written}), check, image_mismatch: imageMismatch ?? null})
           .run()
         if (ids !== undefined) writeFom({tx, fom, own, ids, names, before, at: written.at})
-        writeShots({tx, own, shots})
+        writeShots({tx, own: {...own, check}, shots})
         const key = roundKey({run: runId, id, round: written.round})
         for (const write of pending.get(key) ?? []) write(tx)
         pending.delete(key)
@@ -483,9 +499,10 @@ export function createStore(input: {
       })
       return written
     },
-    writeCheck: async ({id, round, state, sameAs, unsettled, rendered, tree, shots = []}) => {
+    writeCheck: async ({id, state, sameAs, unsettled, rendered, tree, shots = []}) => {
       const {run: runId, row: found} = await runOf(id)
-      const own = {target_id: id, run_id: runId, session: found.session, round}
+      const check = await nextCheck({run: runId, id})
+      const own = {target_id: id, run_id: runId, session: found.session, round: null, check}
       orm.transaction((tx) => {
         tx.insert(rounds)
           .values({
@@ -551,6 +568,8 @@ type Transaction = Parameters<Parameters<DesignDb['orm']['transaction']>[0]>[0]
 
 type Own = {target_id: string; run_id: number; session: string; round: number}
 
+type Checked = Omit<Own, 'round'> & {round: number | null; check: number}
+
 type Shot = NonNullable<Parameters<Store['writeRound']>[0]['shots']>[number]
 
 const MEASURED = 'measured'
@@ -559,9 +578,11 @@ const JUDGED: ('measured' | 'broken')[] = [MEASURED, 'broken']
 
 const SLIGHTLY = 'slightly'
 
+const CHECK_TOOL = 'design_check'
+
 type Into = {tx: Transaction; tables: Tables; own: Own}
 
-function roundValues(input: {own: Own; written: Round}): Tables['rounds']['$inferInsert'] {
+function roundValues(input: {own: Own; written: Round}): Omit<Tables['rounds']['$inferInsert'], 'check'> {
   const {own, written} = input
   const {counts, coverage} = written
   return {

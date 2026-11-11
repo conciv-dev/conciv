@@ -59,7 +59,6 @@ async function run(input: {runtime: DesignRuntime; folder: Storage; call: Call})
   const early = (state: {unsettled: string | null; rendered: number; root: IdNode}) =>
     store.writeCheck({
       id: record.id,
-      round,
       state: 'unsettled',
       rendered: state.rendered,
       tree: built.hash,
@@ -79,7 +78,7 @@ async function run(input: {runtime: DesignRuntime; folder: Storage; call: Call})
   }
   if (previous !== undefined && previous === history.last && previous.tree === built.hash) {
     await store.writeUnsettledCount({id: record.id, count: previous.unsettled === null ? 0 : count})
-    await store.writeCheck({id: record.id, round, state: 'unchanged', sameAs: previous.round})
+    await store.writeCheck({id: record.id, state: 'unchanged', sameAs: previous.round})
     return {...shown(previous), unchanged: true}
   }
   const paired = await pairedOf({runtime, held, measured, round, built, settled: history.settled})

@@ -19,6 +19,7 @@ const artifacts = table(
       .references(() => runs.run_id, {onDelete: 'cascade'}),
     session: text().notNull(),
     target_id: text(),
+    check: integer(),
     round: integer(),
     width: real(),
     kind: text({enum: ARTIFACT_KINDS}).notNull(),

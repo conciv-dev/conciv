@@ -18,6 +18,7 @@ export function createArtifacts(home: string) {
         run_id: artifact.run,
         session: artifact.session,
         target_id: artifact.target ?? null,
+        check: artifact.check ?? null,
         round: artifact.round ?? null,
         width: artifact.width ?? null,
         kind: artifact.kind,
@@ -51,6 +52,7 @@ type Artifact = {
   run: number
   session: string
   target?: string
+  check?: number
   round?: number
   width?: number
   kind: Kind
@@ -78,7 +80,7 @@ const FORMATS: Record<Kind, {type: string; extension: string}> = {
 
 function pathOf(input: {artifact: Artifact; extension: string}): string {
   const {artifact} = input
-  const levels = [artifact.target, artifact.round, artifact.width].flatMap((level) =>
+  const levels = [artifact.target, artifact.check, artifact.width].flatMap((level) =>
     level === undefined ? [] : [String(level)],
   )
   return join(String(artifact.run), ...levels, `${artifact.kind}.${input.extension}`)

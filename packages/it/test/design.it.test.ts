@@ -972,7 +972,7 @@ describe('node components', () => {
       const [run = 0] = seededRuns(store)
       await orm
         .insert(storeTables.rounds)
-        .values({target_id: 't', run_id: run, session: 's', round: 2, state: 'measured', tree: '', at: 1})
+        .values({target_id: 't', run_id: run, session: 's', check: 2, round: 2, state: 'measured', tree: '', at: 1})
       const stored = {target_id: 't', run_id: run, session: 's', confidence: 1, margin: 1, round: 2, at: 1}
       await orm.insert(db.tables.fom).values([
         {...stored, id: 'stat', node: '7:1', source: 'src/XrayPage.tsx:11:7'},
@@ -1763,6 +1763,7 @@ function seededRuns(store: Store): number[] {
         target_id: 't',
         run_id: run.run_id,
         session: 's',
+        check: 1,
         round: 1,
         state: 'measured',
         rows_count: seed.rows,
@@ -1925,6 +1926,7 @@ const ArtifactRowsSchema = z.array(
   z.object({
     kind: z.string(),
     target: z.string().nullable(),
+    check: z.number().nullable(),
     round: z.number().nullable(),
     width: z.number().nullable(),
     path: z.string(),
@@ -1953,7 +1955,7 @@ describe('artifacts at the source', () => {
           '--where',
           `run == ${String(running?.run)} && target == "${got.target}"`,
           '--select',
-          'kind,target,round,width,path,content_type,size',
+          'kind,target,check,round,width,path,content_type,size',
         ],
       }),
     )
@@ -1970,12 +1972,12 @@ describe('artifacts at the source', () => {
       ofRound.every(
         (row) =>
           row.path ===
-          `${String(running?.run)}/${got.target}/${String(checked.round)}/${String(row.width)}/${row.kind}.${row.content_type === 'image/png' ? 'png' : 'json'}`,
+          `${String(running?.run)}/${got.target}/${String(row.check)}/${String(row.width)}/${row.kind}.${row.content_type === 'image/png' ? 'png' : 'json'}`,
       ),
     ).toBe(true)
     expect(
       stored
-        .filter((row) => row.round === null)
+        .filter((row) => row.check === null)
         .map((row) => row.kind)
         .toSorted(),
     ).toEqual(['design', 'figma', 'frame'])
@@ -2378,17 +2380,17 @@ describe('the tool calls of a run', () => {
         '--where',
         `run == ${String(run?.run)}`,
         '--select',
-        'tool,round',
+        'tool,round,check',
         '--order',
         'seq',
       ],
     })
     expect(calls).toEqual([
-      {tool: 'design_get', round: null},
-      {tool: 'design_check', round: 1},
-      {tool: 'design_check', round: 2},
-      {tool: 'design_check', round: 3},
-      {tool: 'design_status', round: 3},
+      {tool: 'design_get', round: null, check: null},
+      {tool: 'design_check', round: null, check: 1},
+      {tool: 'design_check', round: 1, check: 2},
+      {tool: 'design_check', round: null, check: 3},
+      {tool: 'design_status', round: 1, check: null},
     ])
     const rounds = await homeQuery({
       home: homeDir,
@@ -2398,17 +2400,19 @@ describe('the tool calls of a run', () => {
         '--where',
         `session == "${session}"`,
         '--select',
-        'target,round,state,same_as',
+        'target,check,round,state,same_as',
         '--order',
         'seq',
       ],
     })
     const byTarget = Object.values(Object.groupBy(rounds, (row) => String(row.target)))
-    expect(byTarget.map((listed = []) => listed.map(({round, state, same_as}) => ({round, state, same_as})))).toEqual(
+    expect(
+      byTarget.map((listed = []) => listed.map(({check, round, state, same_as}) => ({check, round, state, same_as}))),
+    ).toEqual(
       byTarget.map(() => [
-        {round: 1, state: 'unsettled', same_as: null},
-        {round: 2, state: 'measured', same_as: null},
-        {round: 3, state: 'unchanged', same_as: 2},
+        {check: 1, round: null, state: 'unsettled', same_as: null},
+        {check: 2, round: 1, state: 'measured', same_as: null},
+        {check: 3, round: null, state: 'unchanged', same_as: 1},
       ]),
     )
     expect(byTarget).toHaveLength(FRAME_WIDTHS.length)
@@ -2418,7 +2422,7 @@ describe('the tool calls of a run', () => {
         '--from',
         'design_stored_artifacts',
         '--where',
-        `session == "${session}" && round == 1`,
+        `session == "${session}" && check == 1`,
         '--select',
         'kind',
       ],
