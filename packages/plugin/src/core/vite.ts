@@ -173,6 +173,13 @@ async function bootEngine(
   })
 }
 
+const runningEngines = new Map<string, Engine>()
+
+function stopEngine(input: {stateRoot: string; engine: Engine}): Promise<void> {
+  if (runningEngines.get(input.stateRoot) === input.engine) runningEngines.delete(input.stateRoot)
+  return input.engine.stop()
+}
+
 function whenListening(server: ViteDevServer): Promise<void> | undefined {
   const http = server.httpServer
   if (http === null) return undefined
@@ -377,6 +384,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       if (!cfg.enabled) return
       const extensions = await loadServerExtensions(server.config.root, builtins.serverExtensions)
       served = serveExtensions(server, options, extensions)
+      await runningEngines.get(cfg.stateRoot)?.stop()
       engine = await bootEngine(
         server,
         options,
@@ -385,10 +393,11 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
         builtins.nativePageDir,
       )
       const booted = engine
+      runningEngines.set(cfg.stateRoot, booted)
       apiBase = `http://127.0.0.1:${booted.port}`
       devServer = server
       mountWidget(server, apiBase, options.widget)
-      server.httpServer?.on('close', () => void booted.stop())
+      server.httpServer?.on('close', () => void stopEngine({stateRoot: cfg.stateRoot, engine: booted}))
     },
   }
 }

@@ -231,7 +231,11 @@ export async function start(opts: StartOpts): Promise<Engine> {
 
   const endpointDir = opts.devEndpointDir ?? defaultDevEndpointDir()
   const base = tokenScopedBase()
-  const lifecycle = {stopped: false, retire: (): void => {}}
+  const lifecycle: {stopped: boolean; retire: () => void; stopping: Promise<void> | null} = {
+    stopped: false,
+    retire: () => {},
+    stopping: null,
+  }
   const publish = async (): Promise<void> => {
     if (!base || lifecycle.stopped) return
     if (opts.nativePageDir) writeDevEndpoint(endpointDir, {apiBase: base, token: agentToken, pid: process.pid})
@@ -274,17 +278,21 @@ export async function start(opts: StartOpts): Promise<Engine> {
       console.error('conciv: failed to remove the dev endpoint file', error)
     }
   }
+  const stopNow = async (): Promise<void> => {
+    lifecycle.stopped = true
+    clearEndpoint()
+    lifecycle.retire()
+    await runInOrder([close, dispose], 'conciv: stopping the engine failed')
+  }
   return {
     port,
     agentToken,
     cfg,
     extensionContexts,
     trustBrowser,
-    stop: async () => {
-      lifecycle.stopped = true
-      clearEndpoint()
-      lifecycle.retire()
-      await runInOrder([close, dispose], 'conciv: stopping the engine failed')
+    stop: () => {
+      lifecycle.stopping ??= stopNow()
+      return lifecycle.stopping
     },
   }
 }

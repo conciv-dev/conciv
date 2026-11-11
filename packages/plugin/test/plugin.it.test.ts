@@ -34,6 +34,7 @@ import testRunner from '@conciv/extension-test-runner'
 import whiteboard from '@conciv/extension-whiteboard'
 import type {BundlerDiagnostic} from '@conciv/protocol/bundler-types'
 import {readTrustedBrowsers} from '@conciv/protocol/engine-trust'
+import {loginThroughTerminal} from '@conciv/harness-testkit/login'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {installConcivBinShim} from '../src/core/bin-shim.js'
 import {makeEngineBooter} from '../src/core/boot.js'
@@ -191,6 +192,27 @@ describe('engine port fallback', () => {
       expect(secondBase).not.toBe(`http://127.0.0.1:${preferred}`)
       expect((await fetch(`${secondBase}/health`)).ok).toBe(true)
       expect((await fetch(`http://127.0.0.1:${preferred}/health`)).ok).toBe(true)
+    }, 60_000)
+  })
+})
+
+describe('engine restart', () => {
+  describe('a dev server that restarts, as a vite.config.ts change restarts it', () => {
+    const servers = devServers()
+
+    afterEach(() => servers.stopAll())
+
+    it('boots the new engine on the port the old one held, so a browser it trusted stays trusted', async () => {
+      const started = await servers.start({widget: false})
+      const before = await pageApiBase(started.server)
+      const token = await loginThroughTerminal(before, started.terminal)
+
+      await started.server.restart()
+
+      const after = await pageApiBase(started.server)
+      expect(after).toBe(before)
+      const trusted = await fetch(`${after}/api/tabs`, {headers: {authorization: `Bearer ${token}`}})
+      expect(trusted.status).toBe(200)
     }, 60_000)
   })
 })
