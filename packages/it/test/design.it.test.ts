@@ -1280,6 +1280,46 @@ describe('design_check on a page that breaks the widget or the build', () => {
   })
 })
 
+const OTHER_ERROR = 'the page throws after a ResizeObserver loop'
+
+describe('design_check on a page whose ResizeObserver loop the browser reports', () => {
+  it('measures the page as it would without the report, and a page that throws another error is still broken', async () => {
+    await goto('target')
+    await cardsTarget()
+    await kit.page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          const box = document.createElement('div')
+          box.style.position = 'fixed'
+          window.addEventListener(
+            'error',
+            () => {
+              box.remove()
+              resolve()
+            },
+            {once: true},
+          )
+          document.body.append(box)
+          new ResizeObserver(() => {
+            if (box.dataset.grown !== undefined) return
+            box.dataset.grown = ''
+            box.style.width = '2px'
+          }).observe(box)
+        }),
+    )
+    expect(roundOf(await call('design_check', {})).verdict).not.toBe('broken')
+    await kit.page.evaluate((message) => {
+      setTimeout(() => {
+        throw new TypeError(message)
+      })
+    }, OTHER_ERROR)
+    await kit.page.waitForEvent('pageerror', {timeout: PAGE_DRIVER_TIMEOUT_MS})
+    const broken = await call('design_check', {})
+    const thrown = 'thrown' in broken ? broken.thrown.message : null
+    expect([broken.verdict, thrown]).toEqual(['broken', expect.stringContaining(OTHER_ERROR)])
+  })
+})
+
 const ROUTE_LINK = 'https://www.figma.com/design/ItRouteKey/x?node-id=1-2'
 const BUILT_ROUTE = '/built?variant=target'
 

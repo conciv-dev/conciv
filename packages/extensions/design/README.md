@@ -84,7 +84,9 @@ src/
   mapping, and returns `{round, rows, reflow, coverage, counts, verdict, reasons}`. A row is `{node, key, kind, name, text, magnitude}`;
   rows at `slightly` are counted, not listed. `reflow` holds one entry per width (1024, 768): `rootHeight,
   sticksOut, overflowX, overlaps, tags` with `ok` and `why`. A page error, or a page that renders under half the nodes
-  of the last settled round, answers `{unsettled: true, rendered, verdict: 'unsettled', reasons}` and writes nothing.
+  of the last settled round, answers `{unsettled: true, rendered, route, verdict: 'unsettled', reasons}` and writes nothing.
+  An error the page throws answers `broken` with `thrown`, except the browser's `ResizeObserver loop completed with
+  undelivered notifications.`, which an observer that changes layout in its own callback raises and which is benign.
   Under half is decided after every stored pin is voted again: a restructured page is measured on a fresh vote, not
   on pins that point at elements it no longer has.
   The target counts unsettled checks in a row; from the second, the reply also carries `round, rows, reflow, coverage,

@@ -3,7 +3,7 @@ import type {ClientConsoleEntry} from '@conciv/extension'
 import type {MeasureResultSchema} from '../shared/defs.js'
 
 export function thrownOf(entries: ClientConsoleEntry[]): {thrown?: Thrown} {
-  const last = entries.findLast((entry) => THROWN_LEVELS.has(entry.level))
+  const last = entries.findLast((entry) => THROWN_LEVELS.has(entry.level) && !BENIGN.has(entry.text.trim()))
   if (last === undefined) return {}
   const [first = '', ...rest] = last.text.split(LINE_BREAK)
   return {thrown: {message: first.trim(), frames: rest.flatMap(frameOf), ago: Date.now() - last.ts}}
@@ -14,6 +14,8 @@ type Thrown = NonNullable<z.output<typeof MeasureResultSchema>['thrown']>
 type Frame = Thrown['frames'][number]
 
 const THROWN_LEVELS = new Set(['uncaught', 'unhandled'])
+
+const BENIGN = new Set(['ResizeObserver loop completed with undelivered notifications.'])
 
 const LINE_BREAK = '\n'
 
