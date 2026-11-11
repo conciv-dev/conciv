@@ -102,12 +102,12 @@ const SCRUB_STEP_MS = 5000
 const scrubStep = z.union([z.literal('ArrowLeft'), z.literal('ArrowRight')])
 const SCRUB_DELTA_MS = {ArrowLeft: -SCRUB_STEP_MS, ArrowRight: SCRUB_STEP_MS}
 
-function enhanceControllerAccess(container: HTMLDivElement, player: Player): () => void {
+function enhanceControllerAccess(container: HTMLDivElement, player: Player): void {
   const buttons = container.querySelectorAll('.rr-controller__btns > button')
   buttons[0]?.setAttribute('aria-label', 'Toggle playback')
   if (buttons.length > 1) buttons[buttons.length - 1]?.setAttribute('aria-label', 'Toggle fullscreen')
   const progress = container.querySelector('.rr-progress')
-  if (!(progress instanceof HTMLElement)) return () => undefined
+  if (!(progress instanceof HTMLElement)) return
   progress.setAttribute('role', 'slider')
   progress.setAttribute('aria-label', 'Timeline')
   progress.setAttribute('aria-valuemin', '0')
@@ -117,8 +117,7 @@ function enhanceControllerAccess(container: HTMLDivElement, player: Player): () 
     progress.setAttribute('aria-valuemax', String(Math.round(player.getMetaData().totalTime)))
     progress.setAttribute('aria-valuenow', String(Math.round(current)))
   }
-  announcePosition()
-  player.getReplayer().on('event-cast', announcePosition)
+  player.getReplayer().service.subscribe(announcePosition)
   player.addEventListener('ui-update-current-time', (payload) => {
     const parsed = controllerTime.safeParse(payload)
     if (parsed.success) current = parsed.data.payload
@@ -137,7 +136,6 @@ function enhanceControllerAccess(container: HTMLDivElement, player: Player): () 
     },
     true,
   )
-  return announcePosition
 }
 
 const LIVE_EDGE_MS = 2500
@@ -160,7 +158,7 @@ export function mountStreamPlayer(
   let cursor = initial.cursor
   let lastTs = buffer.at(-1)?.timestamp ?? 0
   let aspect = recordedAspect(buffer)
-  let mounted: {player: Player; announcePosition: () => void} | undefined
+  let mounted: {player: Player} | undefined
   const following = new AbortController()
 
   const tailOffset = (): number => lastTs - (buffer[0]?.timestamp ?? 0)
@@ -189,7 +187,8 @@ export function mountStreamPlayer(
       },
     })
     demoteInjectedStyles(scope, known)
-    mounted = {player, announcePosition: enhanceControllerAccess(container, player)}
+    enhanceControllerAccess(container, player)
+    mounted = {player}
     player.goto(tailOffset() + 1, true)
     player.addEventListener('ui-update-player-state', announceLive)
     player.addEventListener('ui-update-current-time', announceLive)
@@ -215,7 +214,6 @@ export function mountStreamPlayer(
     const atEdge = isLive()
     for (const event of fresh.events) feed(event, atEdge)
     cursor = Math.max(cursor, fresh.cursor)
-    mounted?.announcePosition()
     announceLive()
   }
 
