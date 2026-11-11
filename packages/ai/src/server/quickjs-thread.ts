@@ -11,6 +11,8 @@ import type {QuickJSTask} from './quickjs-worker.js'
 
 const HARD_STOP_GRACE_MS = 1000
 
+const BOOT_DEADLINE_MS = 30_000
+
 const SPARE_IDLE_MS = 60_000
 
 const CLOSE_PASSES = 3
@@ -25,11 +27,18 @@ export type OpenPool = {pool: Piscina<ReturnType<typeof move>, ExecutionResult>;
 
 type Retired = {signal: AbortSignal; result: ExecutionResult}
 
-type ToolContext = {bindings: IsolateConfig['bindings']; retire: (result: ExecutionResult) => void}
+type Deadlines = {notStarted: AbortSignal; hardStop: AbortSignal}
+
+type ToolContext = {
+  bindings: IsolateConfig['bindings']
+  started: () => void
+  retire: (result: ExecutionResult) => void
+}
 
 export type CodeDriver = IsolateDriver & {dispose: () => Promise<void>}
 
 const toolRouter = {
+  started: os.$context<ToolContext>().handler(({context}) => context.started()),
   call: os
     .$context<ToolContext>()
     .input(z.object({name: z.string(), args: z.unknown()}))
@@ -127,7 +136,18 @@ async function run(
     retired.result = result
     retiring.abort()
   }
-  toolHandler.upgrade(port1, {context: {bindings: config.bindings, retire}})
+  const notStarted = new AbortController()
+  const began = new AbortController()
+  AbortSignal.timeout(BOOT_DEADLINE_MS).addEventListener('abort', () => notStarted.abort(), {
+    once: true,
+    signal: began.signal,
+  })
+  const hardStop = new AbortController()
+  const started = () => {
+    began.abort()
+    AbortSignal.timeout(timeout + HARD_STOP_GRACE_MS).addEventListener('abort', () => hardStop.abort(), {once: true})
+  }
+  toolHandler.upgrade(port1, {context: {bindings: config.bindings, started, retire}})
   const task: QuickJSTask = {
     code,
     names: Object.keys(config.bindings),
@@ -136,8 +156,7 @@ async function run(
     maxStackSize: limits.maxStackSize,
     port: port2,
   }
-  const timedOut = AbortSignal.timeout(timeout + HARD_STOP_GRACE_MS)
-  const signal = AbortSignal.any([disposed, timedOut, retiring.signal])
+  const signal = AbortSignal.any([disposed, notStarted.signal, hardStop.signal, retiring.signal])
   const aborting: {threads: Worker[]} = {threads: []}
   signal.addEventListener('abort', () => (aborting.threads = pool.threads), {once: true})
   try {
@@ -145,15 +164,16 @@ async function run(
   } catch (error) {
     if (!signal.aborted) return closed.signal.aborted ? STOPPED : workerFailure(error, log)
     await exited(pool, aborting.threads)
-    return abortedWith(signal.reason, timedOut, retired)
+    return abortedWith(signal.reason, {notStarted: notStarted.signal, hardStop: hardStop.signal}, retired)
   } finally {
     port1.close()
   }
 }
 
-function abortedWith(reason: unknown, timedOut: AbortSignal, retired: Retired): ExecutionResult {
+function abortedWith(reason: unknown, deadlines: Deadlines, retired: Retired): ExecutionResult {
   if (reason === retired.signal.reason) return retired.result
-  return reason === timedOut.reason ? TIMED_OUT : STOPPED
+  if (reason === deadlines.notStarted.reason) return NOT_STARTED
+  return reason === deadlines.hardStop.reason ? TIMED_OUT : STOPPED
 }
 
 async function exited(pool: Piscina, threads: Worker[]): Promise<void> {
@@ -178,3 +198,8 @@ function failure(name: string, message: string): ExecutionResult {
 const TIMED_OUT = failure('TimeoutError', 'Code execution timed out')
 
 const STOPPED = failure('AbortError', 'Code execution was stopped')
+
+const NOT_STARTED = failure(
+  'WORKER_NOT_STARTED',
+  `the code mode worker did not start within ${BOOT_DEADLINE_MS / 1000}s`,
+)
