@@ -28,7 +28,7 @@ const NODE_FIELDS =
   'Every node has its id, type, name, within (the node it sits in), absolute box, fills, strokes, text, font and auto-layout fields, tokens: the design variables its fields are bound to, and asset: the file to show for an image or vector node, or the finished background of a frame that has children, its fill layers already flattened into it (assetLayers lists them).'
 
 const RULES = [
-  'The dev server stamps data-conciv-key attributes into your JSX as you save; keep them, never strip or rewrite them, and edit around them.',
+  'The dev server keys the elements it serves with data-conciv-key; the keys are not in your files, and an element keeps its key while you edit it.',
   'Lay the page out with normal flow, flex and grid: no position absolute, no px width or height on containers or text; sizes come from content, gaps and flex/grid rules, percentages and ratios, so the page stays a page and reflows at other widths.',
   'A node with asset and no children renders that file (an <img src> for a png, an inline svg or an <img> for an svg) sized by its box ratio, and draws nothing else; never a data url, emoji or CSS shape.',
   'A node with asset and children (image: true) is a box whose background-image is that file, background-size cover, with its children inside it; the file is the complete look of the box, so add no filter, blend mode, overlay or tint of your own.',

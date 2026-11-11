@@ -19,6 +19,7 @@ import {
   dropIncludedFromExcludes,
   resolveExtensionsModule,
   transformConcivModule,
+  type TransformContext,
 } from '@conciv/extension-compiler/vite-plumbing'
 
 function isErrorPayload(value: unknown): value is ErrorPayload {
@@ -279,6 +280,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
   let docked = false
   let devServer: ViteDevServer | undefined
   let served: ExtensionDevServer[] = []
+  const keys: TransformContext['keys'] = new Map()
   return {
     name: 'conciv',
     apply: 'serve',
@@ -360,7 +362,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
     },
     transform(code, id, opts) {
       if (options.enabled === false) return null
-      return transformConcivModule(code, id, opts?.ssr ?? false, {root, persist: true})
+      return transformConcivModule(code, id, opts?.ssr ?? false, {root, keys})
     },
     transformIndexHtml: {
       order: 'pre',

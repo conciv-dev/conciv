@@ -72,7 +72,7 @@ const LiveComponentFieldsSchema = z.object({
     .string()
     .optional()
     .describe('file:line of the component call that rendered it, from data-conciv-site, when it has no source'),
-  key: z.string().nullable().describe('the data-conciv-key the compiler wrote, null without one'),
+  key: z.string().nullable().describe('the data-conciv-key the compiler served, null without one'),
   instance: z.string().nullable().default(null).describe('the call-site and React keys of the fiber chain'),
   repeat: z.string().nullable().default(null).describe('data-conciv-instance where siblings share the key'),
   owner: z.string().nullable().describe('the component owner path from the root, null when the framework is unknown'),

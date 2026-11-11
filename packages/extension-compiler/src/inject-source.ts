@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto'
-import {readFileSync, writeFileSync} from 'node:fs'
-import {isAbsolute, relative, sep} from 'node:path'
+import {readFileSync} from 'node:fs'
+import {isAbsolute, relative} from 'node:path'
+import {diffArrays} from 'diff'
 import {parseSync} from 'oxc-parser'
 import MagicString from 'magic-string'
 
@@ -15,7 +16,17 @@ const JSX_EXTENSIONS = ['.jsx', '.tsx']
 
 type Disk = {text: string; openings: Node[]; locate: (offset: number) => {line: number; column: number}}
 
-type Stamp = {node: Node; index: number; key: string; served: boolean; fresh: boolean}
+type Stamp = {node: Node; index: number; key: string; served: boolean}
+
+type Opening = {text: string; tag: string}
+
+type KeyedFile = {openings: Opening[]; keys: Array<string | null>}
+
+type Pair = readonly [number, number]
+
+type Walk = {from: number; to: number; gapFrom: number; gapTo: number; pairs: Pair[]; gaps: Gap[]}
+
+type Gap = {from: number; fromEnd: number; to: number; toEnd: number}
 
 type Parsed = {openings: Node[]; imported: Set<string>}
 
@@ -23,7 +34,7 @@ export function addSourceToJsx(input: {
   code: string
   id: string
   root: string
-  persist: boolean
+  keys: Map<string, KeyedFile> | null
 }): {code: string; map: ReturnType<MagicString['generateMap']>} | null {
   const {code, id, root} = input
   const file = id.split('?')[0] ?? id
@@ -35,28 +46,29 @@ export function addSourceToJsx(input: {
   const onDisk = alignedDisk({file, text: readText(file), expected: openings.length})
   const rel = inside({file, root}) ? relative(root, file) : file
   const sites = openings.flatMap((node, index) => (calledComponent({node, imported}) ? [{node, index}] : []))
+  const now = onDisk === null ? [] : openingsOf(onDisk)
+  const carried = carriedKeys({before: input.keys?.get(file), after: now})
   const stamps = openings.flatMap((node, index): Stamp[] => {
     if (!hostElement(node.name) || attribute({node, name: SOURCE_ATTR}) !== undefined) return []
-    if (attribute({node, name: KEY_ATTR}) !== undefined) return [{node, index, key: '', served: false, fresh: false}]
-    const kept = literalKey(onDisk?.openings[index])
-    return [
-      {node, index, key: kept ?? mintKey({rel, index, text: onDisk?.text ?? code}), served: true, fresh: kept === null},
-    ]
+    if (attribute({node, name: KEY_ATTR}) !== undefined) return [{node, index, key: '', served: false}]
+    const key =
+      literalKey(onDisk?.openings[index]) ?? carried.get(index) ?? mintKey({rel, index, text: onDisk?.text ?? code})
+    return [{node, index, key, served: true}]
   })
   if (stamps.length === 0 && sites.length === 0) return null
-  const written = input.persist && onDisk !== null ? persistKeys({file, root, disk: onDisk, stamps}) : null
-  const disk = written === null ? onDisk : alignedDisk({file, text: written, expected: openings.length})
+  if (onDisk !== null) input.keys?.set(file, {openings: now, keys: servedKeys({stamps, count: now.length})})
   const locate = makeLocator(code)
   const s = new MagicString(code)
   stamps.forEach((stamp) => {
-    const placed = disk?.openings[stamp.index]
-    const {line, column} = placed === undefined || disk === null ? locate(stamp.node.start) : disk.locate(placed.start)
+    const placed = onDisk?.openings[stamp.index]
+    const {line, column} =
+      placed === undefined || onDisk === null ? locate(stamp.node.start) : onDisk.locate(placed.start)
     const source = ` ${SOURCE_ATTR}=${JSON.stringify(`${rel}:${line}:${column}`)}`
     s.appendLeft(insertAt(stamp.node), stamp.served ? `${source}${keyText(stamp.key)}` : source)
   })
   sites.forEach((site) => {
-    const placed = disk?.openings[site.index]
-    const {line} = placed === undefined || disk === null ? locate(site.node.start) : disk.locate(placed.start)
+    const placed = onDisk?.openings[site.index]
+    const {line} = placed === undefined || onDisk === null ? locate(site.node.start) : onDisk.locate(placed.start)
     s.appendLeft(insertAt(site.node), ` ${SITE_ATTR}=${JSON.stringify(`${rel}:${line}`)}`)
   })
   return {code: s.toString(), map: s.generateMap({source: file, hires: true})}
@@ -68,19 +80,56 @@ function mintKey(input: {rel: string; index: number; text: string}): string {
     .digest('base64url')
 }
 
-function persistKeys(input: {file: string; root: string; disk: Disk; stamps: Stamp[]}): string | null {
-  const fresh = input.stamps.filter((stamp) => stamp.fresh)
-  if (fresh.length === 0 || !inside(input) || input.file.split(sep).includes('node_modules')) return null
-  const keyed = new MagicString(input.disk.text)
-  fresh.forEach((stamp) => keyed.appendLeft(insertAt(input.disk.openings[stamp.index]), keyText(stamp.key)))
-  const text = keyed.toString()
-  if (readText(input.file) !== input.disk.text) return null
-  try {
-    writeFileSync(input.file, text)
-    return text
-  } catch {
-    return null
-  }
+function openingsOf(disk: Disk): Opening[] {
+  return disk.openings.map((node) => ({
+    text: disk.text.slice(node.start, node.end),
+    tag: disk.text.slice(node.name?.start ?? node.start, node.name?.end ?? node.start),
+  }))
+}
+
+function servedKeys(input: {stamps: Stamp[]; count: number}): Array<string | null> {
+  const served = new Map(input.stamps.flatMap((stamp) => (stamp.served ? [[stamp.index, stamp.key] as const] : [])))
+  return Array.from({length: input.count}, (_unused, index) => served.get(index) ?? null)
+}
+
+function carriedKeys(input: {before: KeyedFile | undefined; after: Opening[]}): Map<number, string> {
+  const {before, after} = input
+  if (before === undefined) return new Map()
+  const exact = aligned({before: before.openings, after, same: (left, right) => left.text === right.text})
+  const retagged = exact.gaps.flatMap((gap) =>
+    aligned({
+      before: before.openings.slice(gap.from, gap.fromEnd),
+      after: after.slice(gap.to, gap.toEnd),
+      same: (left, right) => left.tag === right.tag,
+    }).pairs.map(([from, to]): Pair => [from + gap.from, to + gap.to]),
+  )
+  return new Map(
+    [...exact.pairs, ...retagged].flatMap(([from, to]) => {
+      const key = before.keys[from]
+      return key === null || key === undefined ? [] : [[to, key] as const]
+    }),
+  )
+}
+
+function aligned(input: {before: Opening[]; after: Opening[]; same: (left: Opening, right: Opening) => boolean}): {
+  pairs: Pair[]
+  gaps: Gap[]
+} {
+  const start: Walk = {from: 0, to: 0, gapFrom: 0, gapTo: 0, pairs: [], gaps: []}
+  const walked = diffArrays(input.before, input.after, {comparator: input.same}).reduce((walk, change): Walk => {
+    if (change.added) return {...walk, to: walk.to + change.count}
+    if (change.removed) return {...walk, from: walk.from + change.count}
+    const kept = Array.from({length: change.count}, (_unused, offset): Pair => [walk.from + offset, walk.to + offset])
+    const from = walk.from + change.count
+    const to = walk.to + change.count
+    return {from, to, gapFrom: from, gapTo: to, pairs: [...walk.pairs, ...kept], gaps: withGap(walk)}
+  }, start)
+  return {pairs: walked.pairs, gaps: withGap(walked)}
+}
+
+function withGap(walk: Walk): Gap[] {
+  if (walk.from === walk.gapFrom || walk.to === walk.gapTo) return walk.gaps
+  return [...walk.gaps, {from: walk.gapFrom, fromEnd: walk.from, to: walk.gapTo, toEnd: walk.to}]
 }
 
 function inside(input: {file: string; root: string}): boolean {

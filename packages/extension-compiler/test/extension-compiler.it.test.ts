@@ -21,7 +21,7 @@ import {parseSync, Visitor, type JSXAttributeItem, type JSXElementName} from 'ox
 import {scaffold} from '@conciv/extension/catalog'
 
 describe('client entry inject', () => {
-  const CTX = {root: '/app', persist: false}
+  const CTX = {root: '/app', keys: null}
 
   describe('client-entry module-graph injection', () => {
     it('matches framework client-entry ids, not ordinary modules', () => {
@@ -222,7 +222,7 @@ describe('inject source', () => {
   describe('addSourceToJsx', () => {
     it('stamps a host element with data-conciv-source="<relpath>:<line>:<col>"', () => {
       const code = `export const A = () => <div className="x">hi</div>\n`
-      const out = addSourceToJsx({code, id: `${ROOT}/src/App.tsx`, root: ROOT, persist: true})
+      const out = addSourceToJsx({code, id: `${ROOT}/src/App.tsx`, root: ROOT, keys: new Map()})
       expect(out).not.toBeNull()
       expect(out!.code).toContain('data-conciv-source="src/App.tsx:1:24"')
       expect(out!.code).toContain('className="x"')
@@ -230,7 +230,7 @@ describe('inject source', () => {
 
     it('handles self-closing elements', () => {
       const code = `export const B = () => <img src="a.png" />\n`
-      const out = addSourceToJsx({code, id: `${ROOT}/src/B.tsx`, root: ROOT, persist: true})
+      const out = addSourceToJsx({code, id: `${ROOT}/src/B.tsx`, root: ROOT, keys: new Map()})
       expect(out!.code).toMatch(
         /<img src="a\.png"\s+data-conciv-source="src\/B\.tsx:1:\d+"\s+data-conciv-key="[\w-]{6}" \/>/,
       )
@@ -238,7 +238,7 @@ describe('inject source', () => {
 
     it('skips Fragments', () => {
       const code = `export const C = () => <><span>x</span></>\n`
-      const out = addSourceToJsx({code, id: `${ROOT}/src/C.tsx`, root: ROOT, persist: true})
+      const out = addSourceToJsx({code, id: `${ROOT}/src/C.tsx`, root: ROOT, keys: new Map()})
 
       expect(out!.code).toContain('<span data-conciv-source=')
       expect(out!.code).not.toContain('<> data-conciv-source')
@@ -246,25 +246,25 @@ describe('inject source', () => {
 
     it('returns null for non-JSX files', () => {
       expect(
-        addSourceToJsx({code: 'export const x = 1', id: `${ROOT}/src/util.ts`, root: ROOT, persist: true}),
+        addSourceToJsx({code: 'export const x = 1', id: `${ROOT}/src/util.ts`, root: ROOT, keys: new Map()}),
       ).toBeNull()
     })
 
     it('returns null when there is no JSX', () => {
       expect(
-        addSourceToJsx({code: 'export const x = 1', id: `${ROOT}/src/util.tsx`, root: ROOT, persist: true}),
+        addSourceToJsx({code: 'export const x = 1', id: `${ROOT}/src/util.tsx`, root: ROOT, keys: new Map()}),
       ).toBeNull()
     })
 
     it('does not double-stamp an element that already has the attribute', () => {
       const code = `export const D = () => <div data-conciv-source="x">y</div>\n`
-      const out = addSourceToJsx({code, id: `${ROOT}/src/D.tsx`, root: ROOT, persist: true})
+      const out = addSourceToJsx({code, id: `${ROOT}/src/D.tsx`, root: ROOT, keys: new Map()})
       expect(out).toBeNull()
     })
 
     it('JSON-escapes the path so a quote cannot break out of the attribute', () => {
       const code = `export const E = () => <div>q</div>\n`
-      const out = addSourceToJsx({code, id: `${ROOT}/src/we"ird.tsx`, root: ROOT, persist: true})
+      const out = addSourceToJsx({code, id: `${ROOT}/src/we"ird.tsx`, root: ROOT, keys: new Map()})
 
       expect(out!.code).toContain('\\"')
       expect(out!.code).not.toContain('data-conciv-source="src/we"ird')
@@ -286,12 +286,12 @@ describe('inject source', () => {
       const file = join(dir, 'App.tsx')
       writeFileSync(file, raw)
 
-      const client = addSourceToJsx({code: raw, id: file, root: dir, persist: true})
+      const client = addSourceToJsx({code: raw, id: file, root: dir, keys: new Map()})
       const server = addSourceToJsx({
         code: '// injected by SSR transform\n'.repeat(12) + raw,
         id: file,
         root: dir,
-        persist: true,
+        keys: new Map(),
       })
 
       expect(client).not.toBeNull()
@@ -301,24 +301,21 @@ describe('inject source', () => {
       expect(sourceValues(client!.code)).toContain('App.tsx:5:7')
     })
 
-    it('writes a fresh data-conciv-key into the source file and serves it; the written file serves the same key and writes nothing', () => {
+    it('serves a fresh data-conciv-key without writing the source file, and the same file serves the same key again', () => {
       const dir = mkdtempSync(join(tmpdir(), 'conciv-key-'))
       const file = join(dir, 'Card.tsx')
       const raw = 'export const Card = () => <section className="card"><h3>Pricing</h3></section>\n'
       writeFileSync(file, raw)
-
-      const first = keyValues(addSourceToJsx({code: raw, id: file, root: dir, persist: true})?.code ?? '')
-      const written = readFileSync(file, 'utf8')
       const writtenAt = statSync(file).mtimeMs
-      const second = keyValues(addSourceToJsx({code: written, id: file, root: dir, persist: true})?.code ?? '')
+
+      const first = keyValues(addSourceToJsx({code: raw, id: file, root: dir, keys: new Map()})?.code ?? '')
+      const second = keyValues(addSourceToJsx({code: raw, id: file, root: dir, keys: new Map()})?.code ?? '')
 
       expect(first).toHaveLength(2)
       expect(first.filter((key) => key.length !== 6)).toEqual([])
       expect(new Set(first).size).toBe(2)
-      expect(keyValues(written)).toEqual(first)
-      expect(sourceValues(written)).toEqual([])
       expect(second).toEqual(first)
-      expect(readFileSync(file, 'utf8')).toBe(written)
+      expect(readFileSync(file, 'utf8')).toBe(raw)
       expect(statSync(file).mtimeMs).toBe(writtenAt)
     })
 
@@ -328,7 +325,7 @@ describe('inject source', () => {
       const raw = 'export const Kept = () => <div data-conciv-key="kept01" className="a">x</div>\n'
       writeFileSync(file, raw)
 
-      const out = addSourceToJsx({code: raw, id: file, root: dir, persist: true})
+      const out = addSourceToJsx({code: raw, id: file, root: dir, keys: new Map()})
 
       expect(keyValues(out?.code ?? '')).toEqual(['kept01'])
       expect(sourceValues(out?.code ?? '')).toEqual(['Kept.tsx:1:27'])
@@ -342,7 +339,7 @@ describe('inject source', () => {
       const edited = 'export const Moved = () => <main><p>a</p><p>b</p></main>\n'
       writeFileSync(file, edited)
 
-      const keys = keyValues(addSourceToJsx({code, id: file, root: dir, persist: true})?.code ?? '')
+      const keys = keyValues(addSourceToJsx({code, id: file, root: dir, keys: new Map()})?.code ?? '')
 
       expect(readFileSync(file, 'utf8')).toBe(edited)
       expect(keys).toHaveLength(2)
@@ -375,7 +372,7 @@ describe('inject source', () => {
         '}',
         '',
       ].join('\n')
-      const out = addSourceToJsx({code, id: `${ROOT}/src/Panel.tsx`, root: ROOT, persist: false})
+      const out = addSourceToJsx({code, id: `${ROOT}/src/Panel.tsx`, root: ROOT, keys: null})
       expect(stampsOf(out?.code ?? '')).toEqual([
         {tag: 'section', site: null, source: 'src/Panel.tsx:8:5', keyed: true},
         {tag: 'Show', site: null, source: null, keyed: false},
@@ -386,13 +383,13 @@ describe('inject source', () => {
       ])
     })
 
-    it('a transform that does not persist writes nothing and still serves keys', () => {
+    it('a transform with no key memory writes nothing and still serves keys', () => {
       const dir = mkdtempSync(join(tmpdir(), 'conciv-key-'))
       const file = join(dir, 'Built.tsx')
       const raw = 'export const Built = () => <main><p>a</p></main>\n'
       writeFileSync(file, raw)
 
-      const keys = keyValues(addSourceToJsx({code: raw, id: file, root: dir, persist: false})?.code ?? '')
+      const keys = keyValues(addSourceToJsx({code: raw, id: file, root: dir, keys: null})?.code ?? '')
 
       expect(readFileSync(file, 'utf8')).toBe(raw)
       expect(keys).toHaveLength(2)

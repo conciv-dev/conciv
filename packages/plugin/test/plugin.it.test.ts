@@ -556,7 +556,7 @@ describe('inject source hook', () => {
       expect(out?.code.split('data-conciv-key=')).toHaveLength(3)
     })
 
-    it('serves the server render and the client render of one file the same keys, and writes them into the file', async () => {
+    it('serves the server render and the client render of one file the same keys, and leaves the file as it was', async () => {
       const raw = 'export const App = () => <main className="app"><p>hi</p></main>\n'
       const {file, tsdCode, conciv} = await throughDevtools(raw)
 
@@ -565,7 +565,24 @@ describe('inject source hook', () => {
 
       expect(server).toHaveLength(2)
       expect(client).toEqual(server)
-      expect(keysOf(readFileSync(file, 'utf8'))).toEqual(server)
+      expect(readFileSync(file, 'utf8')).toBe(raw)
+    })
+
+    it('keeps the key of an element whose own tag or other lines of its file were edited, and never writes the file', async () => {
+      const raw = 'export const App = () => (\n  <main className="app">\n    <p className="a">hi</p>\n  </main>\n)\n'
+      const edited =
+        'export const App = () => (\n  <main className="app">\n    <h2>new</h2>\n    <p className="b">hi</p>\n  </main>\n)\n'
+      const {file, conciv} = await throughDevtools(raw)
+      const [main, p] = keysOf((await conciv(raw, false))?.code)
+      expect(readFileSync(file, 'utf8')).toBe(raw)
+
+      writeFileSync(file, edited)
+      const after = keysOf((await conciv(edited, false))?.code)
+
+      expect(readFileSync(file, 'utf8')).toBe(edited)
+      expect([after[0], after[2]]).toEqual([main, p])
+      expect(after[1]).not.toBe(main)
+      expect(after[1]).not.toBe(p)
     })
   })
 })

@@ -75,7 +75,7 @@ export function isClientEntry(id: string): boolean {
   return id.includes('client-entry')
 }
 
-export type TransformContext = {root: string; persist: boolean}
+export type TransformContext = {root: string; keys: Parameters<typeof addSourceToJsx>[0]['keys']}
 
 export function transformConcivModule(
   code: string,
@@ -95,5 +95,5 @@ export function transformConcivModule(
     const split = splitExtension(code, id, 'browser')
     return compileExtensionSolid(split?.code ?? code, id, ssr)
   }
-  return addSourceToJsx({code, id, root: ctx.root, persist: ctx.persist})
+  return addSourceToJsx({code, id, root: ctx.root, keys: ctx.keys})
 }
