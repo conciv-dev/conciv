@@ -1,35 +1,27 @@
 import {createContext, createSignal, onMount, Show, useContext, type JSX} from 'solid-js'
-import {createStore, produce, unwrap} from 'solid-js/store'
 import {mapValues} from 'es-toolkit'
+import {ReactiveMap} from '@solid-primitives/map'
 import {Highlight} from '@conciv/ui-kit-system'
 import {Streamdown, type HastElement, type HighlightCode} from '@conciv/solid-streamdown'
 import type {WorkerToMainMessage} from './highlight-shared.js'
 
 const MAX_CACHE_ENTRIES = 512
 
-function createBoundedStore<Value>() {
-  const [store, setStore] = createStore<Record<string, Value>>({})
-  const insertionOrder: Array<string> = []
+function createBoundedCache<Value>() {
+  const entries = new ReactiveMap<string, Value>()
   function remember(key: string, value: Value): void {
-    const isNewKey = !(key in store)
-    setStore(key, () => value)
-    if (!isNewKey) return
-    insertionOrder.push(key)
-    if (insertionOrder.length <= MAX_CACHE_ENTRIES) return
-    const oldestKey = insertionOrder.shift()
+    entries.set(key, value)
+    if (entries.size <= MAX_CACHE_ENTRIES) return
+    const oldestKey = entries.keys().next().value
     if (oldestKey === undefined) return
-    setStore(
-      produce((draft) => {
-        delete draft[oldestKey]
-      }),
-    )
+    entries.delete(oldestKey)
   }
-  return {store, remember}
+  return {entries, remember}
 }
 
-const highlights = createBoundedStore<HastElement>()
-const diagrams = createBoundedStore<string>()
-const [latestStreamedCode, setLatestStreamedCode] = createStore<Record<string, string>>({})
+const highlights = createBoundedCache<HastElement>()
+const diagrams = createBoundedCache<string>()
+const latestStreamedCode = createBoundedCache<string>()
 const pendingHighlights = new Set<string>()
 const [backendReadyTick, bumpBackendReadyTick] = createSignal(0, {equals: false})
 
@@ -64,11 +56,11 @@ function createWorkerBackend(worker: Promise<Worker | null>): HighlightBackend {
       pendingHighlights.delete(key)
       if (pre) highlights.remember(key, pre)
       if (!streaming) return
-      if (pre) setLatestStreamedCode(language, code)
+      if (pre) latestStreamedCode.remember(language, code)
       const deferred = streamingRequests.get(language)
       streamingRequests.delete(language)
       if (deferred === null || deferred === undefined) return
-      if (!(deferred.key in highlights.store)) postHighlight(deferred.key, language, deferred.code, true)
+      if (!highlights.entries.has(deferred.key)) postHighlight(deferred.key, language, deferred.code, true)
     })
     void worker.then((ready) => ready?.postMessage({type: 'highlight', id, code, lang: language}))
   }
@@ -202,7 +194,7 @@ function MermaidDiagram(props: {code: string}): JSX.Element {
     if (!source) return
     const style = diagramStyle(source)
     const key = cacheKey(`mermaid:${JSON.stringify(style)}`, props.code)
-    const cached = diagrams.store[key]
+    const cached = diagrams.entries.get(key)
     if (cached !== undefined) return setSvg(cached)
     void renderDiagram(props.code, style)
       .then((markup) => {
@@ -249,12 +241,12 @@ function withStreamedTail(pre: HastElement, tail: string): HastElement {
 }
 
 function highlightedWithTail(language: string, highlighted: string, fenceText: string): HastElement | undefined {
-  const cached = highlights.store[cacheKey(language, highlighted)]
-  return cached && withStreamedTail(unwrap(cached), fenceText.slice(highlighted.length))
+  const cached = highlights.entries.get(cacheKey(language, highlighted))
+  return cached && withStreamedTail(cached, fenceText.slice(highlighted.length))
 }
 
 function streamedPrefix(language: string, fenceText: string): HastElement | undefined {
-  const prefix = latestStreamedCode[language]
+  const prefix = latestStreamedCode.entries.get(language)
   if (prefix === undefined || !fenceText.startsWith(prefix)) return undefined
   return highlightedWithTail(language, prefix, fenceText)
 }

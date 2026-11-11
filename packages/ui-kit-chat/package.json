@@ -67,6 +67,7 @@
     "@shikijs/langs-precompiled": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/keyed": "catalog:",
+    "@solid-primitives/map": "^0.7.4",
     "@solid-primitives/media": "^2.3.6",
     "@solid-primitives/resize-observer": "catalog:",
     "@solid-primitives/timer": "catalog:",
