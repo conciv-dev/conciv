@@ -1,6 +1,6 @@
 # Page action queue: hand the page a list, keep working, get the results pushed back
 
-Status: draft 1 (2026-11-11), for Omri's review. Owner: web-c0. Index entry in `docs/specs/conciv-mcp-hub.md`.
+Status: approved (2026-11-11). Owner: web-c0. Index entry in `docs/specs/conciv-mcp-hub.md`.
 
 ## Goal
 
@@ -32,16 +32,13 @@ fallbacks, and every path carries the same result.
 - When the queue ends, one result goes back with every action's outcome, failures listed.
 - Delivery picks the best path the harness supports, automatically, with fallbacks. No setting, no flag.
 
-## Open for Omri
+## Decided (Omri, 2026-11-11, answers to draft 1)
 
-1. **Single actions outside a queue.** Part 6 stays as is (instant, pointer as decoration), or single act calls
-   play toolbar style too (about 0.7 s each, the agent waits)? Recommendation: keep part 6 for single calls; while a
-   queue is playing on a tab, a single act call on that tab waits behind it (see "Ordering").
-2. **In-page agent whose turn ended before its queue finished.** Recommendation: the engine starts a follow-up turn
-   for that session carrying the queue result, the way `plane.compact` starts a server-driven turn today
-   (`packages/chat/src/index.ts:216-222`, `server.drive`). The alternative, attaching it to the next user turn, loses
-   it on resumed harnesses (see "In-page agent").
-3. **Queue size cap.** Recommendation: 50 actions per queue, refused above that with the cap in the message.
+1. Single act calls outside a queue stay instant (part 6 unchanged). While a queue is playing on a tab, they wait
+   their turn behind it (see "Ordering"), then run instantly.
+2. An in-page agent whose turn ended before its queue finished gets a server-driven follow-up turn carrying the
+   result, the way `plane.compact` starts one (`packages/chat/src/index.ts:216-222`, `server.drive`).
+3. A queue holds at most 50 actions; more is refused with the cap in the message.
 
 ## The call
 
@@ -94,7 +91,7 @@ in-page and outside alike (the hub adds no MCP tools of its own: revision 5).
 - Each action runs its existing body (`fill`, `simulateClick`, `select`, `setChecked`, `press`, scroll) unchanged,
   but awaits the pointer the way the toolbar does: move (`MOVE_MS` 300), ripple (`AFTER_RIPPLE_MS` 100), the action,
   then `AFTER_CLICK_MS` 200 or `AFTER_INPUT_MS` 100. These constants come back into `simulator.ts` for the queue
-  path only; single calls keep part 6 unless Omri decides otherwise (open item 1).
+  path only; single calls keep part 6.
 - The action lands when the pointer arrives, not before: the field fills after the ripple, as in the toolbar.
 - `arrived` must always settle. Today it can hang: `aims.set` replaces an aim without resolving it, `dropCursor`
   deletes one, `glide` returns early when the point is not visible, and `requestAnimationFrame` does not run in a
@@ -139,7 +136,8 @@ store; a result is never delivered twice down the same path.
 4. **In-page agent.** A finished queue is published to the session's chat as a `conciv.page-queue` event
    (`defineChatEvent`, `packages/protocol/src/chat-event-types.ts`) and recorded (`scope.run.record`), so the widget
    shows it as a card under the call that queued it. If the agent's turn is still running, path 2 hands it the result
-   on its next tool call. If the turn has ended, open item 2 decides (recommendation: a server-driven follow-up turn).
+   on its next tool call. If the turn has ended, the engine starts a follow-up turn for that session (`kind: 'page-queue'`, beside
+   `'chat' | 'compact'` in `delivery.ts:18`) whose input is the queue result, so the agent reacts to it unprompted.
    Attaching it to the next user turn alone does not work for resumed harnesses: `providerMessages` sends only from
    the last user message on (`packages/chat/src/turn.ts:134-141`).
 
