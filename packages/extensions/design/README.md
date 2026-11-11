@@ -146,9 +146,10 @@ Every design session is recorded in one store, `<conciv home>/runs.db`, migrated
 - A tool call row carries its round: for `design_check` the round it wrote (the highest across widths, null when it
   wrote none) and the `check` it recorded, for the other tools the run's latest round when the call ended.
 - Snapshots are files under `<home>/artifacts/<run>/<target>/<check>/<width>/<kind>.<ext>`, one `artifacts` row each
-  (`id, run, session, target, check, round, width, kind, path, content_type, size, checksum, written`): per check and per
+  (`id, run, session, target, check, round, width, kind, path, content_type, size, checksum, written`, `path`
+  relative to the home; the lazy `content` field reads the file, so `--select 'content'` returns a JSON snapshot): per check and per
   measured width `screenshot`, `dom`, `cssom` (with the widths the page's queries name) and `fom`, plus `diff` and
-  `mask` at the frame width; per target under `<run>/<target>/` the `frame` image, the `design` tree and the raw
+  `mask` at the frame width; per target under `<home>/artifacts/<run>/<target>/` the `frame` image, the `design` tree and the raw
   `figma` document. Nothing expires.
 - The run closes with the chat run that ends the turn, or that the next boot sweeps as aborted: `status`, `ended`,
   `usage`, `cost`, `error`, `error_code` and the verdict of its last round. A later check opens a new run and copies

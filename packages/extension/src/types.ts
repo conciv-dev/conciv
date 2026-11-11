@@ -19,6 +19,7 @@ import type {
   CommandValues,
   Source,
   SourceListing,
+  SourcePage,
   SourceRead,
   SourceWrite,
 } from '@conciv/db'
@@ -62,7 +63,7 @@ export type ExtensionDb<Tables extends ExtensionTables> = {
   orm: NodeSQLiteDatabase
   tables: Tables
   sources(): SourceListing[]
-  read(query: SourceRead): Promise<Record<string, unknown>[]>
+  read(query: SourceRead): Promise<SourcePage>
   write(query: SourceWrite): Promise<Record<string, unknown>[]>
 }
 

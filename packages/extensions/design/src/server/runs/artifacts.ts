@@ -6,12 +6,11 @@ import type {openStore} from './open-store.js'
 import {storeTables} from './store-tables.js'
 
 export function createArtifacts(home: string) {
-  const root = join(home, ARTIFACTS)
   return {
     write: (tx: Tx, artifact: Artifact): string => {
       const format = FORMATS[artifact.kind]
       const path = pathOf({artifact, extension: format.extension})
-      const file = join(root, path)
+      const file = join(home, path)
       mkdirSync(dirname(file), {recursive: true})
       writeFileSync(file, artifact.bytes)
       const row = {
@@ -35,7 +34,7 @@ export function createArtifacts(home: string) {
       return path
     },
     read: (path: string): Promise<Uint8Array | null> =>
-      readFile(join(root, path)).then(
+      readFile(join(home, path)).then(
         (bytes) => new Uint8Array(bytes),
         () => null,
       ),
@@ -83,5 +82,5 @@ function pathOf(input: {artifact: Artifact; extension: string}): string {
   const levels = [artifact.target, artifact.check, artifact.width].flatMap((level) =>
     level === undefined ? [] : [String(level)],
   )
-  return join(String(artifact.run), ...levels, `${artifact.kind}.${input.extension}`)
+  return join(ARTIFACTS, String(artifact.run), ...levels, `${artifact.kind}.${input.extension}`)
 }

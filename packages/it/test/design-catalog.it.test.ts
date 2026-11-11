@@ -131,16 +131,18 @@ describe('catalog component rows', () => {
   it('reads the component rows of the running run from lost_components', async () => {
     await componentRows({on: kit, page: 'drift-hand'})
     const [{run: runId} = {run: 0}] = z.array(z.object({run: z.number()})).parse(
-      await kit.rpc.db.read({
-        from: 'design_stored_runs',
-        where: `session == "${kit.session}" && status == "running"`,
-        select: ['run'],
-      }),
+      await kit.rpc.db
+        .read({
+          from: 'design_stored_runs',
+          where: `session == "${kit.session}" && status == "running"`,
+          select: fields('run'),
+        })
+        .then((page) => page.results),
     )
-    const rows = await kit.rpc.db.read({
+    const {results: rows} = await kit.rpc.db.read({
       from: 'design_lost_components',
       where: `component == "Chip" && run == ${runId}`,
-      select: ['node', 'component', 'specifier'],
+      select: fields('node', 'component', 'specifier'),
     })
     expect(new Set(rows.map((row) => JSON.stringify(row)))).toEqual(
       new Set([JSON.stringify({node: '10:2', component: 'Chip', specifier: './Chip.tsx'})]),
@@ -255,21 +257,25 @@ describe('catalog component rows', () => {
     const checked = roundOf(await call('design_check', {}))
     const read = async (input: {from: string; select: string[]}) =>
       z
-        .array(z.record(z.string(), z.unknown()))
+        .object({results: z.array(z.record(z.string(), z.unknown()))})
         .parse(
           await kit.rpc.registry.call({
             name: 'design_query',
-            input: {...input, where: `target == "${got.target}" && round == ${checked.round} && node == "18:2"`},
+            input: {
+              ...input,
+              select: fields(...input.select),
+              where: `target == "${got.target}" && round == ${checked.round} && node == "18:2"`,
+            },
           }),
         )
-        .map((row) => input.select.map((field) => row[field]))
+        .results.map((row) => input.select.map((field) => row[field]))
     const layers = await xrayRpc.xray.layers({id: got.target, round: checked.round})
     const placed = layers === null ? [] : [...walk(layers.root)].flatMap(({node}) => node.fom)
     expect([
       await read({from: 'node_components', select: ['node', 'source']}),
       await read({from: 'fom', select: ['node', 'id', 'site']}),
       placed.find((entry) => entry.nodeId === '18:2')?.component?.name,
-    ]).toEqual([[['18:2', 'src/App.tsx:223']], [['18:2', 'kItPlA', 'src/App.tsx:223']], 'Pill'])
+    ]).toEqual([[['18:2', 'src/App.tsx:224']], [['18:2', 'kItPlA', 'src/App.tsx:224']], 'Pill'])
   })
 
   describe('a kit root that carries only its call site', () => {
@@ -554,3 +560,7 @@ describe('a component row where the component can be used', () => {
     expect(badge?.framework).toBe('react')
   })
 })
+
+function fields(...names: string[]): string {
+  return `{${names.map((name) => `"${name}": ${name}`).join(', ')}}`
+}

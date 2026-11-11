@@ -78,7 +78,7 @@ export type {
   ToolRequest,
   TurnRun,
 } from './types.js'
-export type {Source, SourceField, SourceListing, SourceOrder, SourceRead, SourceWrite} from '@conciv/db'
+export type {Source, SourceField, SourceListing, SourceOrder, SourcePage, SourceRead, SourceWrite} from '@conciv/db'
 export {MountedExtension, MountedSurface, MountedView} from './mount-extension.js'
 export type {MountedExtensionProps, MountedSurfaceProps, MountedViewProps} from './mount-extension.js'
 export {ensureEffectsSurface, openSource, EFFECTS_SURFACE_ATTR, CONCIV_UI_SELECTOR} from './client-host.js'
