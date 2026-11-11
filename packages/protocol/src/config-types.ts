@@ -1,22 +1,33 @@
-import type {HubAccess} from './chat-types.js'
+import {z} from 'zod'
+import {HubAccessSchema} from './chat-types.js'
 
-export type TriggerPosition = 'top-left' | 'top-right' | 'middle-left' | 'middle-right' | 'bottom-left' | 'bottom-right'
+const TriggerPositionSchema = z.enum([
+  'top-left',
+  'top-right',
+  'middle-left',
+  'middle-right',
+  'bottom-left',
+  'bottom-right',
+])
 
-export interface ModalConfig {
-  position?: TriggerPosition
-}
+export type TriggerPosition = z.infer<typeof TriggerPositionSchema>
 
-export interface QuickTerminalConfig {
-  hotkey?: string | string[]
-}
+const ModalConfigSchema = z.object({position: TriggerPositionSchema.optional()})
+
+export type ModalConfig = z.infer<typeof ModalConfigSchema>
+
+const QuickTerminalConfigSchema = z.object({hotkey: z.union([z.string(), z.array(z.string())]).optional()})
+
+export type QuickTerminalConfig = z.infer<typeof QuickTerminalConfigSchema>
 
 export type ConcivSurface = 'page' | 'dock'
 
-export interface WidgetConfig {
-  modal?: boolean | ModalConfig
+const WidgetConfigSchema = z.object({
+  modal: z.union([z.boolean(), ModalConfigSchema]).optional(),
+  quickTerminal: z.union([z.boolean(), QuickTerminalConfigSchema]).optional(),
+})
 
-  quickTerminal?: boolean | QuickTerminalConfig
-}
+export type WidgetConfig = z.infer<typeof WidgetConfigSchema>
 
 export interface ConcivSettingsInit extends WidgetConfig {
   defaultOpen?: boolean
@@ -28,32 +39,33 @@ export interface ConcivSettingsInit extends WidgetConfig {
 
 export interface ExtensionRegistry {}
 
-export type RegisteredExtensionConfig<Entry> = Entry extends {config: infer Config} ? Config : never
+const ExtensionPackageSchema = z.object({
+  server: z.string().min(1),
+  client: z.string().min(1),
+  config: z.unknown().optional(),
+})
 
-export interface ConcivConfig {
-  enabled?: boolean
+export type ExtensionPackage = z.infer<typeof ExtensionPackageSchema>
 
-  extensions?: {[Name in keyof ExtensionRegistry]?: RegisteredExtensionConfig<ExtensionRegistry[Name]>}
-  widgetUrl?: string
+export const ConcivConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  extensions: z.array(ExtensionPackageSchema).readonly().optional(),
+  widgetUrl: z.string().optional(),
+  widget: z.union([WidgetConfigSchema, z.literal(false)]).optional(),
+  stateRoot: z.string().optional(),
+  harness: z.string().optional(),
+  harnessBin: z.string().optional(),
+  sessionId: z.string().optional(),
+  port: z.number().optional(),
+  devEndpointDir: z.string().optional(),
+  homeDir: z.string().optional(),
+  hubAccess: HubAccessSchema.optional(),
+  systemPrompt: z.union([z.string(), z.boolean()]).optional(),
+  claudePath: z.string().optional(),
+  claudeSessionId: z.string().optional(),
+})
 
-  widget?: WidgetConfig | false
-  stateRoot?: string
-  harness?: string
-  harnessBin?: string
-  sessionId?: string
-
-  port?: number
-
-  devEndpointDir?: string
-
-  homeDir?: string
-
-  hubAccess?: HubAccess
-
-  systemPrompt?: string | boolean
-  claudePath?: string
-  claudeSessionId?: string
-}
+export type ConcivConfig = z.infer<typeof ConcivConfigSchema>
 
 export function defineConfig<T extends ConcivConfig>(config: T): T {
   return config

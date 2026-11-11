@@ -1,4 +1,4 @@
-import {copyFileSync, cpSync, mkdirSync, rmSync, writeFileSync} from 'node:fs'
+import {copyFileSync, cpSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {E2E_DEV_ENDPOINT_DIR} from '@conciv/e2e-utils/dev-endpoint'
 import {WORKSPACE_ROOT, buildAndPack, installPacked, readManifest} from '@conciv/e2e-utils/packed'
@@ -9,6 +9,7 @@ const SCAFFOLD_ENTRIES = ['index.html', 'src', 'public']
 const VITE_TOOLING = ['vite', '@vitejs/plugin-react']
 const TARBALL_DIR = join(PACKED_ROOT, 'tarballs')
 const LOCK_PATH = join(import.meta.dirname, 'fixture-lock.yaml')
+const DEV_ENDPOINT_IMPORT = `import {E2E_DEV_ENDPOINT_DIR} from '@conciv/e2e-utils/dev-endpoint'`
 
 async function timed<T>(label: string, step: () => Promise<T>): Promise<T> {
   const started = performance.now()
@@ -23,22 +24,20 @@ function installedVersion(name: string): string {
   return version
 }
 
+function sourceDependencyNames(): string[] {
+  return Object.keys(readManifest(join(SOURCE_APP, 'package.json')).dependencies ?? {})
+}
+
 function consumerDependencies(): Record<string, string> {
-  const names = [...Object.keys(readManifest(join(SOURCE_APP, 'package.json')).dependencies ?? {}), ...VITE_TOOLING]
+  const names = [...sourceDependencyNames(), ...VITE_TOOLING]
   return Object.fromEntries(names.map((name) => [name, installedVersion(name)]))
 }
 
 function viteConfigSource(): string {
-  return [
-    `import {defineConfig} from 'vite'`,
-    `import react from '@vitejs/plugin-react'`,
-    `import conciv from '@conciv/it/plugin/vite'`,
-    ``,
-    `export default defineConfig({`,
-    `  plugins: [react(), conciv({devEndpointDir: ${JSON.stringify(E2E_DEV_ENDPOINT_DIR)}})],`,
-    `})`,
-    ``,
-  ].join('\n')
+  const source = readFileSync(join(SOURCE_APP, 'vite.config.ts'), 'utf8')
+  if (!source.includes(DEV_ENDPOINT_IMPORT))
+    throw new Error(`e2e/vite-react/vite.config.ts no longer imports ${DEV_ENDPOINT_IMPORT}`)
+  return source.replace(DEV_ENDPOINT_IMPORT, `const E2E_DEV_ENDPOINT_DIR = ${JSON.stringify(E2E_DEV_ENDPOINT_DIR)}`)
 }
 
 function writeConsumer(): void {
@@ -54,7 +53,7 @@ const updateLockfile = process.argv.includes('--update-lockfile')
 rmSync(PACKED_ROOT, {recursive: true, force: true})
 mkdirSync(TARBALL_DIR, {recursive: true})
 mkdirSync(PACKED_APP_DIR, {recursive: true})
-const {overrides} = await timed('pack', () => buildAndPack(TARBALL_DIR, ['@conciv/it']))
+const {overrides} = await timed('pack', () => buildAndPack(TARBALL_DIR, sourceDependencyNames()))
 writeConsumer()
 await timed('install', () =>
   installPacked({
