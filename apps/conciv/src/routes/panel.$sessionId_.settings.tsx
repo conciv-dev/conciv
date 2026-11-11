@@ -1,6 +1,7 @@
 import {Outlet, createFileRoute, useMatchRoute} from '@tanstack/solid-router'
-import {For, Show, type Component, type JSX} from 'solid-js'
+import {For, Show, createMemo, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {createElementSize} from '@solid-primitives/resize-observer'
 import {TabsPrimitive as Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
 import SlidersHorizontal from 'lucide-solid/icons/sliders-horizontal'
 import LayoutPanelTop from 'lucide-solid/icons/layout-panel-top'
@@ -17,7 +18,7 @@ const HEADER = 'flex h-13 shrink-0 items-center gap-1.5 px-2 [border-block-end:1
 const TITLE =
   'flex-1 m-0 [font-family:var(--chat-font-display)] text-[0.9375rem] font-semibold text-chat-text-hi leading-[1.25]'
 const BACK = 'size-9 shrink-0'
-const SPLIT = 'flex flex-1 min-h-0 flex-col data-[orientation=vertical]:flex-row'
+const SPLIT = 'flex flex-1 min-h-0 flex-col @lg:[--settings-rail:wide] data-[orientation=vertical]:flex-row'
 const RAIL =
   'relative flex shrink-0 gap-0.5 pt-1.5 px-2 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [border-block-end:1px_solid_var(--chat-line-soft)] data-[orientation=vertical]:flex-col data-[orientation=vertical]:w-37.5 data-[orientation=vertical]:py-2.5 data-[orientation=vertical]:overflow-x-hidden data-[orientation=vertical]:overflow-y-auto data-[orientation=vertical]:[border-block-end:none] data-[orientation=vertical]:[border-inline-end:1px_solid_var(--chat-line-soft)]'
 const TAB =
@@ -67,6 +68,14 @@ function SettingsLayout(): JSX.Element {
   const navigate = Route.useNavigate()
   const context = Route.useRouteContext()
   const matchRoute = useMatchRoute()
+  let split: HTMLDivElement | undefined
+  const splitSize = createElementSize(() => split)
+  const wide = createMemo(
+    () =>
+      splitSize.width !== null &&
+      split !== undefined &&
+      getComputedStyle(split).getPropertyValue('--settings-rail').trim() === 'wide',
+  )
   const builtin = (tab: BuiltinTab): SettingsTab => ({
     ...tab,
     selected: matchRoute({from: Route.fullPath, to: `./${tab.id}`, fuzzy: true}),
@@ -92,7 +101,7 @@ function SettingsLayout(): JSX.Element {
         }),
     }))
   const tabs = [...mainTabs, ...extensionTabs, advancedTab]
-  const orientation = tabs.length <= MAX_TOP_ROW_TABS ? 'horizontal' : 'vertical'
+  const orientation = () => (wide() || tabs.length > MAX_TOP_ROW_TABS ? 'vertical' : 'horizontal')
   const current = () => tabs.find((tab) => tab.selected())?.id ?? 'general'
   const select = (id: string) => tabs.find((tab) => tab.id === id)?.open()
   const close = () =>
@@ -111,15 +120,18 @@ function SettingsLayout(): JSX.Element {
         <h2 class={TITLE}>Settings</h2>
       </header>
       <Tabs.Root
+        ref={(element: HTMLDivElement) => {
+          split = element
+        }}
         class={SPLIT}
         value={current()}
-        orientation={orientation}
+        orientation={orientation()}
         onValueChange={(details) => select(details.value)}
       >
         <Tabs.List class={RAIL} aria-label="Settings sections">
           <Tabs.Indicator class={INDICATOR} />
           <For each={[...mainTabs, ...extensionTabs]}>{(tab) => <TabTrigger tab={tab} />}</For>
-          <Show when={orientation === 'vertical'}>
+          <Show when={orientation() === 'vertical'}>
             <span class={SPACER} aria-hidden="true" />
           </Show>
           <TabTrigger tab={advancedTab} />
