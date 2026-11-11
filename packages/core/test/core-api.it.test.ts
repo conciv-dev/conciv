@@ -3425,7 +3425,7 @@ return seen`
 
   type SeenRun = {
     sessionId: string
-    kind: 'chat' | 'compact'
+    kind: HarnessChatDeps['kind']
     model: string | undefined
     effort: string | undefined
     resumeSessionId: string | null
