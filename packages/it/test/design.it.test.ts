@@ -1341,7 +1341,19 @@ describe('design_check on the route the design is for', () => {
     expect([kit.page.url().endsWith(BUILT_ROUTE), built.coverage.rendered]).toEqual([true, expect.any(Number)])
     expect(built.coverage.rendered).toBeGreaterThan(0)
   })
+
+  it('leads a check that misses more design nodes than it renders with the route it measured and design_get with route', async () => {
+    await goto('sections')
+    await call('design_get', {...(await cardsDesign(kit.targetsDir)), figma: SECTIONS_LINK})
+    const sparse = roundOf(await call('design_check', {}))
+    expect([sparse.verdict, sparse.coverage.rendered, sparse.coverage.nodes]).toEqual(['not yet', 1, 4])
+    expect(sparse.reasons[0]).toBe(
+      'The page at / renders 1 of 4 design nodes. If the design is for another page, call design_get with route set to its path, and design_check measures that route.',
+    )
+  })
 })
+
+const SECTIONS_LINK = 'https://www.figma.com/design/ItSectionsKey/x?node-id=1-2'
 
 const WIDTHS_KEY = 'https://www.figma.com/design/ItRoutesKey/x?node-id='
 const FRAME_WIDTHS = [1200, 800, 400]

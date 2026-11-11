@@ -8,6 +8,6 @@ test('the conciv-design skill is the rendered design skill file, with its source
   const skill = readFileSync(SKILL, 'utf8')
   expect(skill).toBe(designSkillFile())
   expect(skill).toContain('name: conciv-design')
-  expect(skill).toContain('tools design get --figma <frame link>')
+  expect(skill).toContain('tools design get --figma <frame link> --route <path of the page you are building>')
   expect(skill).toContain('## Sources')
 })

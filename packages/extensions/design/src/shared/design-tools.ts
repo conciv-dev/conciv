@@ -16,7 +16,7 @@ import {componentsDef} from './components-def.js'
 const getDef = designTool({
   name: `${DESIGN_TOOL_PREFIX}get`,
   summary:
-    'Returns the design to build from a Figma frame link: every node of the frame with its id, box, paint, text, auto layout, the groups its layout implies and how it reflows at narrower widths, plus the rules the page must follow. The first call registers the frame as the design of the page; later calls return the stored design. With several links, one frame per width, each frame is registered and the reply holds one design per frame in variants.',
+    'Returns the design to build from a Figma frame link for the page at route, the path of the page you are building (design_check measures that route; without route it measures the page the tab showed at this call): every node of the frame with its id, box, paint, text, auto layout, the groups its layout implies and how it reflows at narrower widths, plus the rules the page must follow. The first call registers the frame as the design of the page; later calls return the stored design. With several links, one frame per width, each frame is registered and the reply holds one design per frame in variants.',
   running: 'Reading the design',
   done: 'Read the design',
   input: GetInputSchema,

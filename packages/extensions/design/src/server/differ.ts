@@ -84,7 +84,10 @@ export function createDiffer(input: {
       return {...measured, verdict: 'unsettled' as const, reasons: [unsettledReason(measured)]}
     const {verdict, reasons} = verdictOf({design: await store.design(record.id), rounds: await store.rounds(record.id)})
     const late = measured.fontsLoading === undefined ? [] : [fontsLine(measured.fontsLoading)]
-    const checked = shown({...measured, verdict, reasons: [...reasons, ...late]})
+    const lead = verdict === 'done' ? [] : lowCoverage({coverage: measured.coverage, route: record.route})
+    const pageRows = measured.rows.filter((row) => row.kind === designConfig.rowKinds.page).length
+    const led = [...reasons.slice(0, pageRows), ...lead, ...reasons.slice(pageRows)]
+    const checked = shown({...measured, verdict, reasons: [...led, ...late]})
     return nodes === undefined ? checked : only({checked, nodes})
   }
   const statusOne = async (record: TargetRecord) =>
@@ -426,6 +429,12 @@ function unsettledReason(measured: Exclude<RoundReply, {round: number} | {thrown
   if (measured.error !== undefined) return `The page shows an error, so nothing was measured: ${measured.error}`
   const told = `The page at ${measured.route} rendered ${measured.rendered} design nodes, too few to measure; no round was written. If the next check is unsettled too, it returns the coverage and the rows of what did render.`
   return measured.rendered === 0 ? `${told} ${ROUTE_HINT}` : told
+}
+
+function lowCoverage(input: {coverage: {nodes: number; rendered: number}; route: string | undefined}): string[] {
+  const {nodes, rendered} = input.coverage
+  if (rendered >= nodes - rendered) return []
+  return [`The page at ${input.route ?? 'the tab route'} renders ${rendered} of ${nodes} design nodes. ${ROUTE_HINT}`]
 }
 
 function fontsLine(waited: number): string {

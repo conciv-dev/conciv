@@ -644,12 +644,14 @@ describe('plugin files', () => {
       expect(body.trimStart().startsWith('This project has conciv installed.')).toBe(true)
       expect(body).toContain('Use browser MCP tools only when a conciv command cannot do what you need.')
       expect(body).toContain('### When to use conciv instead of the browser MCP')
-      expect(body).toContain('`.conciv/bin/conciv tools design get --figma <frame link>`')
+      expect(body).toContain(
+        'first get the design with `.conciv/bin/conciv tools design get --figma <frame link> --route <path of the page you are building>`',
+      )
+      expect(body).toContain('the check measures the page at that route')
       expect(body).toContain('`.conciv/bin/conciv tools design check`')
       expect(body).not.toContain('design target')
       expect(body).not.toContain('design diff')
       expect(body).not.toContain('--width')
-      expect(body).not.toContain('--route')
       expect(body).toContain('`.conciv/bin/conciv tools react locate <selector>`')
       expect(body).toContain('`.conciv/bin/conciv tools server graph|transform|reload`')
       expect(body).not.toMatch(/`conciv /)
