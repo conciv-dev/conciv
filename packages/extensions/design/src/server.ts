@@ -143,6 +143,7 @@ const design = defineExtension({
           }),
     dispose: async () => {
       await backfilled
+      await runs.closeAll({status: 'aborted', ended: Date.now()})
       await Promise.all(runtime.adapters.map((adapter) => adapter.dispose?.()))
       differ.dispose()
       measurer.dispose()

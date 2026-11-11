@@ -135,6 +135,11 @@ Every design session is recorded in one store, `<conciv home>/runs.db`, migrated
 - The run closes with the chat run that ends the turn, or that the next boot sweeps as aborted: `status`, `ended`,
   `usage`, `cost`, `error`, `error_code` and the verdict of its last round. A later check opens a new run and copies
   the target into it.
+- When the engine is disposed (the dev server stops), every run it opened that is still `running` closes as `aborted`
+  with `ended` and the verdict of its last round.
+- A session of origin `external` (an agent connected through the hub or the CLI) has no chat run, so no turn end closes
+  its run; it stays `running` until the engine is disposed. Its `usage` and `cost` stay null: the engine records no
+  usage for an external agent.
 
 Commands, all home scope:
 

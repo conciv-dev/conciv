@@ -1851,6 +1851,41 @@ function runningChatRun(input: {stateRoot: string; session: string; runId: strin
   project.close()
 }
 
+function crashed(input: {home: string; session: string}): void {
+  const store = new DatabaseSync(join(input.home, 'runs.db'))
+  store
+    .prepare("UPDATE design_runs SET status = 'running', ended = NULL, verdict = NULL WHERE session_id = ?")
+    .run(input.session)
+  store.close()
+}
+
+describe('a run closes with its engine', () => {
+  it('closes every open run of an engine as aborted when the engine is disposed, with its verdict and no cost', async () => {
+    const homeDir = await tempDir('conciv-design-dispose-home-')
+    const engine = await bootDesignHost({homeDir})
+    const {session} = engine
+    try {
+      await engine.goto('target')
+      await engine.call('design_get', await cardsDesign(engine.targetsDir))
+      roundOf(await engine.call('design_check', {}))
+    } finally {
+      await engine.dispose()
+    }
+    const closed = await homeQuery({
+      home: homeDir,
+      args: [
+        '--from',
+        'design_stored_runs',
+        '--where',
+        `session_id == "${session}"`,
+        '--select',
+        'status,ended,cost,verdict',
+      ],
+    })
+    expect(closed).toEqual([{status: 'aborted', ended: expect.any(Number), cost: null, verdict: expect.any(String)}])
+  })
+})
+
 describe('a run closes with its turn', () => {
   it('closes the design run with the chat run the next boot swept, once, keeps its rounds, and a check after opens a new run', async () => {
     const stateRoot = await tempDir('conciv-design-turn-state-')
@@ -1864,6 +1899,7 @@ describe('a run closes with its turn', () => {
     } finally {
       await first.dispose()
     }
+    crashed({home: homeDir, session})
     runningChatRun({stateRoot, session, runId: 'it-turn-1', cost: 1.5})
     runningChatRun({stateRoot, session, runId: 'it-turn-2', cost: 9})
     const second = await bootDesignHost({stateRoot, homeDir})

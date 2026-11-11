@@ -39,6 +39,36 @@ export function createSessionRuns(input: {
     return row.run
   }
 
+  async function close(sessionId: string, state: Closed): Promise<void> {
+    held.delete(sessionId)
+    const open = await orm
+      .select({run: runs.run_id})
+      .from(runs)
+      .where(and(eq(runs.session_id, sessionId), eq(runs.status, RUNNING)))
+    await Promise.all(
+      open.map(async ({run}) => {
+        const [last] = await orm
+          .select({verdict: rounds.verdict})
+          .from(rounds)
+          .where(eq(rounds.run_id, run))
+          .orderBy(desc(rounds.seq))
+          .limit(1)
+        await orm
+          .update(runs)
+          .set({
+            status: state.status,
+            ended: state.ended,
+            usage: state.usage ?? null,
+            cost: state.usage === undefined ? null : (tokenUsageToSnapshot(state.usage).totalCostUsd ?? null),
+            error: state.error?.message ?? null,
+            error_code: state.error?.code ?? null,
+            verdict: VerdictSchema.parse(last?.verdict?.replaceAll(' ', '-') ?? null),
+          })
+          .where(and(eq(runs.run_id, run), eq(runs.status, RUNNING)))
+      }),
+    )
+  }
+
   return {
     open: (request: Pick<ToolRequest, 'sessionId' | 'agentId' | 'model'>): Promise<number> => {
       const known = held.get(request.sessionId)
@@ -55,34 +85,9 @@ export function createSessionRuns(input: {
       if (last === null || !held.has(last.sessionId)) return null
       return {sessionId: last.sessionId, run: await last.run}
     },
-    close: async (sessionId: string, state: Closed): Promise<void> => {
-      held.delete(sessionId)
-      const open = await orm
-        .select({run: runs.run_id})
-        .from(runs)
-        .where(and(eq(runs.session_id, sessionId), eq(runs.status, RUNNING)))
-      await Promise.all(
-        open.map(async ({run}) => {
-          const [last] = await orm
-            .select({verdict: rounds.verdict})
-            .from(rounds)
-            .where(eq(rounds.run_id, run))
-            .orderBy(desc(rounds.seq))
-            .limit(1)
-          await orm
-            .update(runs)
-            .set({
-              status: state.status,
-              ended: state.ended,
-              usage: state.usage ?? null,
-              cost: state.usage === undefined ? null : (tokenUsageToSnapshot(state.usage).totalCostUsd ?? null),
-              error: state.error?.message ?? null,
-              error_code: state.error?.code ?? null,
-              verdict: VerdictSchema.parse(last?.verdict?.replaceAll(' ', '-') ?? null),
-            })
-            .where(and(eq(runs.run_id, run), eq(runs.status, RUNNING)))
-        }),
-      )
+    close,
+    closeAll: async (state: Closed): Promise<void> => {
+      await Promise.all([...held.keys()].map((sessionId) => close(sessionId, state)))
     },
   }
 }
