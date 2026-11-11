@@ -9,6 +9,48 @@ export function toTokenUsage(usage: ReportedUsage): TokenUsage | undefined {
   return Array.isArray(usage) ? fromSpecTokenUsage(usage) : usage
 }
 
+const TokenCountSchema = z.number().int().nonnegative()
+
+export const TokenUsageSchema = z.object({
+  promptTokens: TokenCountSchema,
+  completionTokens: TokenCountSchema,
+  totalTokens: TokenCountSchema,
+  promptTokensDetails: z
+    .object({
+      cachedTokens: TokenCountSchema.optional(),
+      cacheWriteTokens: TokenCountSchema.optional(),
+      cacheWrite1hTokens: TokenCountSchema.optional(),
+      audioTokens: TokenCountSchema.optional(),
+      videoTokens: TokenCountSchema.optional(),
+      imageTokens: TokenCountSchema.optional(),
+      textTokens: TokenCountSchema.optional(),
+      documentTokens: TokenCountSchema.optional(),
+    })
+    .optional(),
+  completionTokensDetails: z
+    .object({
+      reasoningTokens: TokenCountSchema.optional(),
+      audioTokens: TokenCountSchema.optional(),
+      videoTokens: TokenCountSchema.optional(),
+      imageTokens: TokenCountSchema.optional(),
+      textTokens: TokenCountSchema.optional(),
+      documentTokens: TokenCountSchema.optional(),
+    })
+    .optional(),
+  billed: z.object({quantity: z.number().nonnegative(), unit: z.string()}).optional(),
+  providerUsageDetails: z
+    .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.unknown()), z.looseObject({})]))
+    .optional(),
+  cost: z.number().nonnegative().optional(),
+  costDetails: z
+    .object({
+      upstreamCost: z.number().nonnegative().optional(),
+      upstreamInputCost: z.number().nonnegative().optional(),
+      upstreamOutputCost: z.number().nonnegative().optional(),
+    })
+    .optional(),
+}) satisfies z.ZodType<TokenUsage>
+
 export const UsageSnapshotSchema = z.object({
   modelId: z.string().optional(),
   contextWindow: z.number().int().nonnegative().optional(),

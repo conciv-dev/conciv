@@ -167,6 +167,11 @@ Queries: `conciv db query --from design_run_summary` (one row per run and target
 its `round`, `verdict` and `rows` null), `design_judged` and `design_wave_summary` (per wave, arm and measured width,
 so a run never checked is not in them); every stored table is `design_stored_<table>`.
 
+A run row the close got wrong is corrected with the house write: `conciv db write --into design_runs --values
+'{"run": 182, "model": "claude-sonnet-5-5", "cost": 3.01, "status": "aborted", "ended": 1794381815406}'`. `run` must
+exist; only `model`, `usage` (a `TokenUsage`), `cost`, `harness_session_id`, `status`, `ended`, `verdict`, `error` and
+`error_code` can be set, and only the columns named change.
+
 ## Sources
 
 Each delta names the source that measured it, and each report lists the sources of its run.

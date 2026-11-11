@@ -39,6 +39,7 @@ import {createStore} from '../../extensions/design/src/server/store.js'
 import {runsMigrations} from '../../extensions/design/src/server/runs-migrations.gen.js'
 import {openStore} from '../../extensions/design/src/server/runs/open-store.js'
 import {storeSources} from '../../extensions/design/src/server/runs/sources.js'
+import {designSources} from '../../extensions/design/src/server/sources.js'
 import {storeTables} from '../../extensions/design/src/server/runs/store-tables.js'
 import {storeArtifacts} from '../../extensions/design/src/server/runs/artifacts.js'
 import {createRaster} from '../../extensions/design/src/server/raster.js'
@@ -1615,7 +1616,9 @@ type Store = ReturnType<typeof openStore>
 
 type Sources = ReturnType<typeof catalogSources>
 
-async function withStore<T>(run: (input: {store: Store; sources: Sources}) => Promise<T>): Promise<T> {
+async function withStore<T>(
+  run: (input: {store: Store; sources: Sources; home: string; orm: ReturnType<typeof openHomeDb>}) => Promise<T>,
+): Promise<T> {
   const home = await mkdtemp(join(tmpdir(), 'conciv-runs-home-'))
   const store = openStore(home)
   const homeOrm = openHomeDb(home)
@@ -1624,7 +1627,7 @@ async function withStore<T>(run: (input: {store: Store; sources: Sources}) => Pr
     sources: sourceCatalog({extension: 'design', sources: storeSources(), home}),
   })
   try {
-    return await run({store, sources})
+    return await run({store, sources, home, orm: homeOrm})
   } finally {
     closeHomeDb(homeOrm)
     store.close()
@@ -1800,6 +1803,54 @@ describe('the runs store', () => {
       await expect(sources.write({into: 'design_stored_notes', values: {target: 't', run, text: 'x'}})).rejects.toThrow(
         'design_stored_notes is read-only',
       )
+    })
+  })
+
+  it('corrects a run row through the house write in the columns it names, and refuses anything else', async () => {
+    await withStore(async ({store, home, orm}) => {
+      const [run, other] = seededRuns(store)
+      const sources = catalogSources({
+        orm,
+        sources: sourceCatalog({extension: 'design', sources: designSources(), home}),
+      })
+      const correction = {
+        run,
+        model: 'claude-sonnet-5-5',
+        usage: {promptTokens: 10, completionTokens: 5, totalTokens: 15, cost: 3.01},
+        cost: 3.01,
+        harness_session_id: 'h',
+        status: 'aborted',
+        ended: 1794381815406,
+      }
+      await sources.write({into: 'design_runs', values: correction})
+      expect(
+        await sources.read({
+          from: 'design_runs',
+          select: [...Object.keys(correction), 'verdict', 'wave'],
+          order: [{field: 'run', dir: 'asc'}],
+        }),
+      ).toEqual([
+        {...correction, verdict: 'done', wave: 'thirty'},
+        {
+          run: other,
+          model: 'm',
+          usage: null,
+          cost: 3,
+          harness_session_id: null,
+          status: null,
+          ended: 60_000,
+          verdict: 'not-yet',
+          wave: 'thirty',
+        },
+      ])
+      const refused = (values: Record<string, unknown>) => sources.write({into: 'design_runs', values})
+      await expect(refused({run: 9999, cost: 1})).rejects.toThrow('no run 9999 in design_runs')
+      await expect(refused({cost: 1})).rejects.toThrow('design_runs takes the run to correct')
+      await expect(refused({run, wave: 'x'})).rejects.toThrow(
+        'no writable field wave in design_runs; the writable fields are model, ended, cost, verdict, status, usage, error, error_code, harness_session_id',
+      )
+      await expect(refused({run, usage: {promptTokens: 'many'}})).rejects.toThrow('usage is not valid')
+      await expect(refused({run, status: 'fine'})).rejects.toThrow('status is not valid')
     })
   })
 

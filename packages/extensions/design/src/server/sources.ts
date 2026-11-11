@@ -1,5 +1,9 @@
 import {mapValues} from 'es-toolkit'
+import {z} from 'zod'
 import type {Source} from '@conciv/extension'
+import {RUN_STATUSES} from '@conciv/protocol/chat-event-types'
+import {TokenUsageSchema} from '@conciv/protocol/usage-types'
+import {RUN_VERDICTS} from '../shared/run-verdicts.js'
 import {storeTables} from './runs/store-tables.js'
 import {fomNodesView} from './runs/views/fom-nodes.js'
 
@@ -308,6 +312,24 @@ export function designSources(): Record<string, Source> {
         arm: runs.arm,
         harness: runs.harness,
         agent_id: runs.agent_id,
+        usage: runs.usage,
+        error: runs.error,
+        error_code: runs.error_code,
+        harness_session_id: runs.harness_session_id,
+      },
+      correctable: {
+        key: 'run',
+        fields: {
+          model: z.string().nullable(),
+          usage: TokenUsageSchema.nullable(),
+          cost: z.number().nonnegative().nullable(),
+          harness_session_id: z.string().nullable(),
+          status: z.enum(RUN_STATUSES),
+          ended: z.int().nonnegative().nullable(),
+          verdict: z.enum(RUN_VERDICTS).nullable(),
+          error: z.string().nullable(),
+          error_code: z.string().nullable(),
+        },
       },
     },
     labels: {

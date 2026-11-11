@@ -2,6 +2,7 @@ import {existsSync} from 'node:fs'
 import {and, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, ne, or, sql, type SQL} from 'drizzle-orm'
 import type {NodeSQLiteDatabase} from 'drizzle-orm/node-sqlite'
 import {parse, type ASTNode} from '@marcbachmann/cel-js'
+import {z} from 'zod'
 import type {CatalogDatabase, CatalogField, CatalogSource, SourceRead, SourceWrite} from './source-types.js'
 
 export function catalogSources(input: {orm: NodeSQLiteDatabase; sources: readonly CatalogSource[]}) {
@@ -57,6 +58,8 @@ export function catalogSources(input: {orm: NodeSQLiteDatabase; sources: readonl
         )
         throw new Error(`${query.into} is read-only; the writable sources are ${writable.join(', ') || 'none'}`)
       }
+      const key = source.fields.find((field) => field.key === true)
+      if (key !== undefined) return corrected({orm, source, key, into: query.into, values: query.values})
       const entries = Object.entries(query.values).map(([name, value]) => ({field: columnField({source, name}), value}))
       const columns = sql.join(
         entries.map(({field}) => sql.identifier(field.column)),
@@ -66,18 +69,68 @@ export function catalogSources(input: {orm: NodeSQLiteDatabase; sources: readonl
         entries.map(({field, value}) => sql`${encoded({field, value})}`),
         sql`, `,
       )
-      const returned = sql.join(
-        source.fields.flatMap((field) =>
-          field.path === null ? [sql`${sql.identifier(field.column)} as ${sql.identifier(field.name)}`] : [],
-        ),
-        sql`, `,
-      )
       const rows = orm.all<Record<string, unknown>>(
-        sql`insert into ${tableOf({orm, source})} (${columns}) values (${values}) returning ${returned}`,
+        sql`insert into ${tableOf({orm, source})} (${columns}) values (${values}) returning ${returnedOf(source)}`,
       )
       return rows.map((row) => decoded({source, row}))
     },
   }
+}
+
+function corrected(input: {
+  orm: NodeSQLiteDatabase
+  source: CatalogSource
+  key: CatalogField
+  into: string
+  values: Record<string, unknown>
+}): Record<string, unknown>[] {
+  const {orm, source, key, into, values} = input
+  const id = values[key.name]
+  if (id === undefined) throw new Error(`${into} takes the ${key.name} to correct`)
+  const settable = source.fields.filter((field) => field.schema !== undefined)
+  const entries = Object.entries(values)
+    .filter(([name]) => name !== key.name)
+    .map(([name, value]) => {
+      const field = settableField({settable, name, into})
+      return {field, value: checked({field, value})}
+    })
+  if (entries.length === 0)
+    throw new Error(`${into} takes at least one of ${settable.map((field) => field.name).join(', ')}`)
+  const assignments = sql.join(
+    entries.map(({field, value}) => sql`${sql.identifier(field.column)} = ${encoded({field, value})}`),
+    sql`, `,
+  )
+  const rows = orm.all<Record<string, unknown>>(
+    sql`update ${tableOf({orm, source})} set ${assignments} where ${sql.identifier(key.column)} = ${id} returning ${returnedOf(source)}`,
+  )
+  if (rows.length === 0) throw new Error(`no ${key.name} ${String(id)} in ${into}`)
+  return rows.map((row) => decoded({source, row}))
+}
+
+function settableField(input: {settable: CatalogField[]; name: string; into: string}): CatalogField {
+  const {settable, name, into} = input
+  const field = settable.find((entry) => entry.name === name)
+  if (field !== undefined) return field
+  throw new Error(
+    `no writable field ${name} in ${into}; the writable fields are ${settable.map((entry) => entry.name).join(', ')}`,
+  )
+}
+
+function checked(input: {field: CatalogField; value: unknown}): unknown {
+  const {field, value} = input
+  if (field.schema === undefined) return value
+  const result = z.fromJSONSchema(field.schema).safeParse(value)
+  if (result.success) return result.data
+  throw new Error(`${field.name} is not valid: ${z.prettifyError(result.error)}`)
+}
+
+function returnedOf(source: CatalogSource): SQL {
+  return sql.join(
+    source.fields.flatMap((field) =>
+      field.path === null ? [sql`${sql.identifier(field.column)} as ${sql.identifier(field.name)}`] : [],
+    ),
+    sql`, `,
+  )
 }
 
 function tableOf(input: {orm: NodeSQLiteDatabase; source: CatalogSource}): SQL {

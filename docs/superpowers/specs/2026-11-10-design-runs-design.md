@@ -114,6 +114,16 @@ A design run is the design work of one session. `runs` gains `session_id` and `s
 A store row is never updated after its close, and never deleted by anything but gc. The exceptions are the lifecycle columns above
 and `targets.unsettled`, which the tools own while the run is open.
 
+### Correcting a run row
+
+An operator corrects a run the close got wrong through the house write, never with SQL:
+`conciv db write --into design_runs --values '{"run": 182, "model": "claude-sonnet-5-5", "usage": {...}, "cost": 3.01,
+"status": "aborted", "ended": 1794381815406}'`. The source declares `correctable: {key, fields}`: `run` is the key and must name
+an existing run; only `model`, `usage`, `cost`, `harness_session_id`, `status`, `ended`, `verdict`, `error` and `error_code` may
+be set, each checked against its schema (`usage` the house `TokenUsageSchema`, `status` the run statuses, `verdict` the run
+verdicts); any other field is refused with that list; the write updates only the columns it names and returns the row. The
+catalog carries the key flag and each field's JSON Schema, so the CLI validates without the extension loaded.
+
 ### Artifacts have a lifetime
 
 `artifacts` (store only): `artifact_id`, `run_id`, `kind` (`screenshot`, `source`, `transcript`, `report`), `width` (null unless a

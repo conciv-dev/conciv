@@ -1,4 +1,5 @@
 import type {AnySQLiteColumn, AnySQLiteTable, SQLiteView} from 'drizzle-orm/sqlite-core'
+import type {z} from 'zod'
 
 export type SourceField = AnySQLiteColumn | {column: AnySQLiteColumn; path: string}
 
@@ -7,8 +8,11 @@ export type Source = {
   database?: string
   fields: Record<string, SourceField>
   writable?: true
+  correctable?: SourceCorrection
   order?: SourceOrder[]
 }
+
+export type SourceCorrection = {key: string; fields: Record<string, z.ZodType>}
 
 export type SourceOrder = {field: string; dir: 'asc' | 'desc'}
 
@@ -24,7 +28,14 @@ export type SourceWrite = {into: string; values: Record<string, unknown>}
 
 export type SourceListing = {name: string; fields: string[]; writable: boolean; order: SourceOrder[]}
 
-export type CatalogField = {name: string; column: string; path: string | null; type: string}
+export type CatalogField = {
+  name: string
+  column: string
+  path: string | null
+  type: string
+  key?: true
+  schema?: z.core.JSONSchema.JSONSchema
+}
 
 export type CatalogDatabase = {name: string; file: string}
 
