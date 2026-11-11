@@ -1950,6 +1950,27 @@ describe('a run closes with its engine', () => {
   })
 })
 
+describe('a run closes when its dev server is interrupted', () => {
+  it('closes the open run as aborted with its end time when the dev server process gets SIGINT, as Ctrl-C sends it', async () => {
+    const homeDir = await tempDir('conciv-design-sigint-home-')
+    const engine = await bootDesignHost({homeDir, spawned: true})
+    const {session} = engine
+    try {
+      await engine.goto('target')
+      await engine.call('design_get', await cardsDesign(engine.targetsDir))
+      roundOf(await engine.call('design_check', {}))
+      expect(await engine.interrupt('SIGINT')).toBe('SIGINT')
+    } finally {
+      await engine.dispose()
+    }
+    const closed = await homeQuery({
+      home: homeDir,
+      args: ['--from', 'design_stored_runs', '--where', `session_id == "${session}"`, '--select', 'status,ended'],
+    })
+    expect(closed).toEqual([{status: 'aborted', ended: expect.any(Number)}])
+  })
+})
+
 describe('a run closes with its turn', () => {
   it('closes the design run with the chat run the next boot swept, once, keeps its rounds, and a check after opens a new run', async () => {
     const stateRoot = await tempDir('conciv-design-turn-state-')

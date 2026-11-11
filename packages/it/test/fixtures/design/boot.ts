@@ -1,24 +1,24 @@
+import {fork} from 'node:child_process'
+import {once} from 'node:events'
 import {mkdtemp, readFile, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import react from '@vitejs/plugin-react'
 import {chromium, type Browser, type Page} from 'playwright'
-import {createLogger, createServer, type Connect, type Plugin} from 'vite'
 import {z} from 'zod'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import {CONCIV_SESSION_HEADER, type SessionId} from '@conciv/protocol/chat-types'
-import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
 import {magicLink} from '@conciv/harness-testkit/login'
 import type {} from '@conciv/extension-design/client'
 import {DESIGN_TOOLS} from '@conciv/extension-design/design-tools'
-import {unplugin} from '../../../src/plugin-instance.js'
+import {HOST_ROOT, serveDesignHost, type DesignConfigInput} from './host-server.js'
 import {renderTargets} from './render-targets.js'
 
 export async function bootDesignHost(
-  options: {config?: DesignConfigInput; stateRoot?: string; homeDir?: string} = {},
+  options: {config?: DesignConfigInput; stateRoot?: string; homeDir?: string; spawned?: boolean} = {},
 ): Promise<Kit> {
   const stateRoot = options.stateRoot ?? (await mkdtemp(join(tmpdir(), 'conciv-design-state-')))
   const devEndpointDir = await mkdtemp(join(tmpdir(), 'conciv-design-endpoint-'))
@@ -28,34 +28,11 @@ export async function bootDesignHost(
     ...(options.homeDir === undefined ? [homeDir] : []),
   ]
   const printed: string[] = []
-  const server = await createServer({
-    root: HOST_ROOT,
-    configFile: false,
-    customLogger: {
-      ...createLogger('silent'),
-      info: (message) => {
-        printed.push(message)
-      },
-    },
-    server: {host: '127.0.0.1', port: 0},
-    resolve: {alias: {'@app': join(HOST_ROOT, 'src')}},
-    plugins: [
-      slowFonts(),
-      react(),
-      unplugin.vite({
-        stateRoot,
-        harnessBin: 'true',
-        systemPrompt: false,
-        devEndpointDir,
-        homeDir,
-        extensions: {design: options.config ?? {}},
-      }),
-    ],
+  const host = await hostOf({
+    spawned: options.spawned === true,
+    hosted: {stateRoot, homeDir, devEndpointDir, config: options.config, print: (line) => printed.push(line)},
   })
-  await server.listen()
-  const local = server.resolvedUrls?.local[0]
-  if (local === undefined) throw new Error('the fixture dev server has no local url')
-  const origin = new URL(local).origin
+  const {origin} = host
   const {apiBase, token} = EndpointSchema.parse(JSON.parse(await readFile(join(devEndpointDir, ENDPOINT_FILE), 'utf8')))
   const session = (await makeRpcClient(apiBase).sessions.resolve({})).sessionId
   const rpc = makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: session}})
@@ -88,18 +65,16 @@ export async function bootDesignHost(
     hostRoot: HOST_ROOT,
     call: makeCall(rpc),
     goto,
+    interrupt: host.interrupt,
     dispose: async () => {
       await browser.close()
-      await server.close()
+      await host.close()
       await Promise.all([...owned, devEndpointDir].map((dir) => rm(dir, {recursive: true, force: true})))
       await rm(targetsDir, {recursive: true, force: true})
     },
   }
 }
 
-const HOST_ROOT = fileURLToPath(new URL('host/', import.meta.url))
-const SLOW_PREFIX = '/slow/'
-const SLOW_FONT_MS = 3000
 const ENDPOINT_FILE = 'dev-endpoint.json'
 const PAGE_DRIVER_TIMEOUT_MS = 30_000
 
@@ -107,7 +82,6 @@ const EndpointSchema = z.object({apiBase: z.string().min(1), token: z.string().m
 
 const [getDef, checkDef, statusDef, , , componentsDef] = DESIGN_TOOLS
 
-type DesignConfigInput = NonNullable<ConcivConfig['extensions']>['design']
 type ToolOutput<Tool extends {outputSchema?: z.ZodType}> = z.output<NonNullable<Tool['outputSchema']>>
 type OneFrame<Reply> = Exclude<Reply, {variants: unknown}>
 type Got = OneFrame<ToolOutput<typeof getDef>>
@@ -136,6 +110,7 @@ type Kit = {
   hostRoot: string
   call: Call
   goto: (to: string) => Promise<void>
+  interrupt: (signal: NodeJS.Signals) => Promise<string | null>
   dispose: () => Promise<void>
 }
 
@@ -173,18 +148,47 @@ async function injectWidget(page: Page, apiBase: string): Promise<void> {
   )
 }
 
-function slowFonts(): Plugin {
+type Host = {
+  origin: string
+  interrupt: (signal: NodeJS.Signals) => Promise<string | null>
+  close: () => Promise<void>
+}
+
+type Hosted = Parameters<typeof serveDesignHost>[0]
+
+const HostMessageSchema = z.union([z.object({line: z.string()}), z.object({origin: z.string()})])
+
+async function hostOf(input: {spawned: boolean; hosted: Hosted}): Promise<Host> {
+  if (!input.spawned) {
+    const {server, origin} = await serveDesignHost(input.hosted)
+    return {
+      origin,
+      interrupt: () => Promise.reject(new Error('only a spawned host can be interrupted')),
+      close: () => server.close(),
+    }
+  }
+  const {print, ...passed} = input.hosted
+  const child = fork(HOST_PROCESS, [JSON.stringify(passed)], {execArgv: ['--import', 'tsx']})
+  const exited = once(child, 'exit').then(([, signal]: unknown[]) => (typeof signal === 'string' ? signal : null))
+  const origin = new Promise<string>((resolve, reject) => {
+    child.on('message', (message) => {
+      const parsed = HostMessageSchema.parse(message)
+      if ('line' in parsed) print(parsed.line)
+      if ('origin' in parsed) resolve(parsed.origin)
+    })
+    void exited.then(() => reject(new Error('the spawned design host exited before it listened')))
+  })
+  const interrupt = async (signal: NodeJS.Signals): Promise<string | null> => {
+    if (child.exitCode === null && child.signalCode === null) child.kill(signal)
+    return exited
+  }
   return {
-    name: 'conciv-it-slow-fonts',
-    configureServer: (server) => {
-      server.middlewares.use(slowly)
+    origin: await origin,
+    interrupt,
+    close: async () => {
+      await interrupt('SIGTERM')
     },
   }
 }
 
-function slowly(request: Connect.IncomingMessage, _response: unknown, next: () => void): void {
-  const url = request.url ?? ''
-  if (!url.startsWith(SLOW_PREFIX)) return next()
-  request.url = url.slice(SLOW_PREFIX.length - 1)
-  setTimeout(next, SLOW_FONT_MS)
-}
+const HOST_PROCESS = fileURLToPath(new URL('host-process.ts', import.meta.url))

@@ -374,6 +374,10 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
         })
       },
     },
+    async closeServer({reason}) {
+      if (reason === 'restart') return
+      await engine?.stop()
+    },
     async configureServer(server: ViteDevServer) {
       const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return

@@ -161,6 +161,34 @@ export function composeSystemPrompt(
   return [base, ...prompts].filter(Boolean).join('\n\n')
 }
 
+const STOP_SIGNALS = ['SIGINT', 'SIGTERM'] as const
+
+type StopSignal = (typeof STOP_SIGNALS)[number]
+
+const runningStops = new Set<() => Promise<void>>()
+
+const signalListeners: Record<StopSignal, () => void> = {
+  SIGINT: () => stopAllOn('SIGINT'),
+  SIGTERM: () => stopAllOn('SIGTERM'),
+}
+
+function stopAllOn(signal: StopSignal): void {
+  STOP_SIGNALS.forEach((each) => process.off(each, signalListeners[each]))
+  void Promise.allSettled([...runningStops].map((stop) => stop())).then(() => {
+    if (process.listenerCount(signal) === 0) process.kill(process.pid, signal)
+  })
+}
+
+function holdSignals(stop: () => Promise<void>): void {
+  if (runningStops.size === 0) STOP_SIGNALS.forEach((signal) => process.on(signal, signalListeners[signal]))
+  runningStops.add(stop)
+}
+
+function releaseSignals(stop: () => Promise<void>): void {
+  runningStops.delete(stop)
+  if (runningStops.size === 0) STOP_SIGNALS.forEach((signal) => process.off(signal, signalListeners[signal]))
+}
+
 export async function start(opts: StartOpts): Promise<Engine> {
   assertAccessToken(opts.accessToken)
   const cfg = resolveConfig(opts.options, opts.root)
@@ -278,21 +306,24 @@ export async function start(opts: StartOpts): Promise<Engine> {
       console.error('conciv: failed to remove the dev endpoint file', error)
     }
   }
+  const stop = (): Promise<void> => {
+    lifecycle.stopping ??= stopNow()
+    return lifecycle.stopping
+  }
   const stopNow = async (): Promise<void> => {
+    releaseSignals(stop)
     lifecycle.stopped = true
     clearEndpoint()
     lifecycle.retire()
     await runInOrder([close, dispose], 'conciv: stopping the engine failed')
   }
+  holdSignals(stop)
   return {
     port,
     agentToken,
     cfg,
     extensionContexts,
     trustBrowser,
-    stop: () => {
-      lifecycle.stopping ??= stopNow()
-      return lifecycle.stopping
-    },
+    stop,
   }
 }
