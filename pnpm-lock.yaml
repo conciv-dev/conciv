@@ -264,6 +264,9 @@ catalogs:
     culori:
       specifier: ^4.0.2
       version: 4.0.2
+    diff:
+      specifier: ^9.0.0
+      version: 9.0.0
     drizzle-kit:
       specifier: 1.0.0-rc.5
       version: 1.0.0-rc.5
@@ -2176,7 +2179,7 @@ importers:
         specifier: 'catalog:'
         version: 1.1.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
       diff:
-        specifier: ^9.0.0
+        specifier: 'catalog:'
         version: 9.0.0
       es-toolkit:
         specifier: 'catalog:'
@@ -2747,7 +2750,7 @@ importers:
         specifier: ^1.9.16
         version: 1.9.16(@babel/core@7.29.7)(solid-js@1.9.17)
       diff:
-        specifier: ^9.0.0
+        specifier: 'catalog:'
         version: 9.0.0
       jiti:
         specifier: ^2.7.0

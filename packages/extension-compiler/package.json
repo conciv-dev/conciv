@@ -63,7 +63,7 @@
     "@conciv/protocol": "workspace:^",
     "babel-dead-code-elimination": "^2.0.0",
     "babel-preset-solid": "^1.9.16",
-    "diff": "^9.0.0",
+    "diff": "catalog:",
     "jiti": "^2.7.0",
     "magic-string": "^1.4.5",
     "oxc-parser": "catalog:"
