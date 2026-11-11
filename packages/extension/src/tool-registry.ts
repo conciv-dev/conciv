@@ -4,6 +4,7 @@ import {TOOL_ICON_KEYS, type ToolIconKey, type ToolLabel} from '@conciv/protocol
 import type {ExtensionRegistry} from '@conciv/protocol/config-types'
 import {
   createRouterClient,
+  ORPCError,
   os,
   type AnyRouter,
   type MergedErrorMap,
@@ -345,6 +346,14 @@ type ToolRegistrationOf = {owner: string; context?: unknown; middleware?: ToolMi
 
 const passThrough: ToolMiddleware = ({next}) => next()
 
+type Admission = {admitted: boolean; refusal: unknown}
+
+function unadmitted(name: string): ORPCError<'FORBIDDEN', unknown> {
+  return new ORPCError('FORBIDDEN', {
+    message: `tool "${name}": its extension middleware answered the call before conciv admitted it`,
+  })
+}
+
 function compileTool(
   tool: RegistryTool,
   pageCaller: RegistryPageCaller | undefined,
@@ -361,10 +370,26 @@ function compileTool(
   const declaredErrors: ToolErrors =
     tool.binding === 'client' ? {...tool.errors, ...TOOL_TRANSPORT_ERRORS} : (tool.errors ?? {})
   const procedure = registryBase
+    .use(async ({context: call, next}) => {
+      const admission: Admission = {admitted: false, refusal: null}
+      const result = await next({context: {admission}})
+      if (call.gate === undefined || admission.admitted) return result
+      throw admission.refusal ?? unadmitted(tool.name)
+    })
     .use(registration.middleware ?? passThrough)
-    .use(async ({context: call, next}, _input, output) =>
-      call.gate === undefined ? next() : output(await call.gate(async () => (await next()).output)),
-    )
+    .use(async ({context: call, next}, _input, output) => {
+      const admitted = async () => {
+        call.admission.admitted = true
+        return (await next()).output
+      }
+      if (call.gate === undefined) return output(await admitted())
+      try {
+        return output(await call.gate(admitted))
+      } catch (error) {
+        if (!call.admission.admitted) call.admission.refusal = error
+        throw error
+      }
+    })
     .meta(meta)
     .errors(declaredErrors)
     .input(tool.inputSchema)

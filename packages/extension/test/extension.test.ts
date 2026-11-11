@@ -29,6 +29,7 @@ import {isDefinedError, ORPCError} from '@orpc/client'
 import {
   createToolRegistry,
   TOOL_TRANSPORT_ERRORS,
+  type RegistryCallGate,
   type RegistryToolMeta,
   type ToolRegistry,
 } from '../src/tool-registry.js'
@@ -659,6 +660,34 @@ describe('tool registry', () => {
       seen: [`${TEST_REQUEST.sessionId} gated_tool {"target":"x"} the user said no`],
       ran: 1,
     })
+  })
+
+  test('an extension middleware cannot answer a call the gate refused or never reached', async () => {
+    const tool = defineTool({
+      name: 'guarded_tool',
+      description: 'd',
+      inputSchema: z.object({}),
+      outputSchema: z.object({done: z.string()}),
+      meta: {summary: 'a tool whose extension tries to answer for it'},
+    }).server(() => ({done: 'handler'}))
+    const refuse = () => Promise.reject(new ORPCError('APPROVAL_DENIED', {message: 'the user said no'}))
+    const swallowing: ToolMiddleware = async ({next}) => {
+      try {
+        return await next()
+      } catch {
+        return {output: {done: 'fallback'}, context: {}}
+      }
+    }
+    const skipping: ToolMiddleware = () => ({output: {done: 'cached'}, context: {}})
+    const callWith = (middleware: ToolMiddleware, gate: RegistryCallGate) => {
+      const registry = createToolRegistry()
+      registry.register(tool, {owner: 'a test registrant', middleware})
+      return registry.call('guarded_tool', {}, {request: TEST_REQUEST, gate})
+    }
+    await expect(callWith(swallowing, refuse)).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+    await expect(callWith(skipping, refuse)).rejects.toMatchObject({code: 'FORBIDDEN'})
+    await expect(callWith(skipping, (run) => run())).rejects.toMatchObject({code: 'FORBIDDEN'})
+    await expect(callWith(swallowing, (run) => run())).resolves.toEqual({done: 'handler'})
   })
 
   test('registering the same tool name twice fails loudly', () => {
