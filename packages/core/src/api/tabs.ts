@@ -92,8 +92,13 @@ function probePage(bus: PageBus, sessionId: SessionId, browserTab: string): Prom
   const answered = bus.ask(sessionId, {name: 'page_route', input: {}, agentId: sessionId}, {browserTab}).then(
     (answer) => PageSchema.catch(null).parse(answer.result),
     (error: unknown) => {
-      if (isPageFailure(error)) return null
-      throw error
+      if (!isPageFailure(error)) {
+        console.warn(
+          `conciv: reading the page of browser tab ${browserTab} failed; the tab is listed without it`,
+          error,
+        )
+      }
+      return null
     },
   )
   return Promise.race([answered, delay(PAGE_PROBE_MS, null)])
@@ -101,8 +106,10 @@ function probePage(bus: PageBus, sessionId: SessionId, browserTab: string): Prom
 
 function readText(path: string): Promise<string | null> {
   return readFile(path, 'utf8').catch((error: unknown) => {
-    if (AbsentFileSchema.safeParse(error).success) return null
-    throw error
+    if (!AbsentFileSchema.safeParse(error).success) {
+      console.warn(`conciv: reading ${path} failed; the tab listing leaves it out`, error)
+    }
+    return null
   })
 }
 

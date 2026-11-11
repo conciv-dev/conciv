@@ -18,8 +18,12 @@ const NO_SESSION_CLOSE_CODE = 4400
 
 const STREAM_FAILED_CLOSE_CODE = 1011
 
-async function forward<T>(source: AsyncIterable<T>, emit: (item: T) => void): Promise<void> {
-  for await (const item of source) emit(item)
+async function forward<T>(
+  source: (signal: AbortSignal) => AsyncIterable<T>,
+  signal: AbortSignal,
+  emit: (item: T) => void,
+): Promise<void> {
+  for await (const item of source(signal)) emit(item)
 }
 
 function pump<T>(
@@ -28,7 +32,7 @@ function pump<T>(
   emit: (item: T) => void,
   failed: (error: unknown) => void,
 ): void {
-  forward(source(signal), emit).catch((error: unknown) => {
+  forward(source, signal, emit).catch((error: unknown) => {
     if (!signal.aborted) failed(error)
   })
 }

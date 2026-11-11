@@ -86,8 +86,9 @@ const sim: Simulator = {
 
 function ignore(): void {}
 
-function ignoreCanceled(reason: unknown): void {
-  if (reason !== GLOW_CANCELED) throw reason
+function warnUnlessCanceled(reason: unknown): void {
+  if (reason === GLOW_CANCELED) return
+  console.warn('[conciv] agent glow fade failed', reason)
 }
 
 function isHtml(element: Element): element is HTMLElement {
@@ -213,7 +214,7 @@ function show(agent: string): void {
   sim.shown = true
   sim.run ??= mountRun(sim.root)
   sim.run.glow?.start()
-  sim.run.glow?.fadeIn().catch(ignoreCanceled)
+  sim.run.glow?.fadeIn().catch(warnUnlessCanceled)
   sim.run.layer.classList.add(VISIBLE_CLASS)
   aimAtCenter({run: sim.run, agent})
 }
@@ -223,7 +224,7 @@ function hide(): void {
   if (!sim.shown || !run) return
   sim.shown = false
   disarm()
-  run.glow?.fadeOut().catch(ignoreCanceled)
+  run.glow?.fadeOut().catch(warnUnlessCanceled)
   run.glow?.pause()
   setTimeout(() => {
     if (sim.shown || sim.run !== run) return

@@ -26,6 +26,8 @@ const DISCOVER_TOOL_NAME = 'discover_tools'
 
 const PROBE_MS = 300
 
+const TOO_OLD = 'engine too old; upgrade its @conciv packages'
+
 const TabInputSchema = SessionId.optional().describe(
   "The conciv tab this call acts on. List the open tabs with external_tabs({}) in a call without tab, match the user's words against project, branch, root, href, pageTitle and sessionTitle, then pass that tab's id as tab on every execute_typescript and discover_tools call. Leave it out only to call external_tabs({}).",
 )
@@ -59,6 +61,8 @@ type ToolName = keyof typeof FALLBACK_DESCRIPTIONS
 type Runner = {root: string; client: MCPClient}
 
 type Reply = {content: {type: 'text'; text: string}[]; isError: true}
+
+type Probed = Pick<EngineRow, 'root' | 'apiBase'>
 
 type TabOwner = {root: string; apiBase: string; instructions: string | null; client: MCPClient}
 
@@ -128,7 +132,7 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
     })
     try {
       const reply = await owner.client.callTool(toolName, input)
-      if (ErrorReplySchema.safeParse(reply).success && !(await holdsTab(owner.apiBase, tab))) {
+      if (ErrorReplySchema.safeParse(reply).success && !(await holdsTab(owner, tab))) {
         await forget(entry, kept, owner)
       }
       return greeted(entry, owner, reply)
@@ -214,16 +218,26 @@ async function startupDescriptions(runner: Runner): Promise<Record<ToolName, str
 
 async function findOwner(home: string, tab: SessionId, headers: Record<string, string>): Promise<TabOwner> {
   const checked = await liveEngines(home)
-  const answers = await Promise.all(checked.live.map(async (row) => ({row, answer: await tabAnswer(row.apiBase, tab)})))
-  const [only, second] = answers.filter(({answer}) => answer?.open === true)
-  if (only === undefined) throw new Error(`TAB_NOT_OPEN: tab ${tab} is not open; call external_tabs({})`)
+  const probes = await Promise.allSettled(checked.live.map(async (row) => ({row, answer: await tabAnswer(row, tab)})))
+  const answered = probes.flatMap((probe) => (probe.status === 'fulfilled' ? [probe.value] : []))
+  const [only, second] = answered.filter(({answer}) => answer.open)
+  const failures = probes.flatMap((probe) => (probe.status === 'rejected' ? [probe.reason] : []))
+  if (only === undefined) throw notOpen(tab, failures)
   if (second !== undefined) {
     throw new Error(
       `tab ${tab} is open on two conciv engines (${only.row.root} and ${second.row.root}); ask the user to close one of the browser tabs`,
     )
   }
   const client = await connect(only.row, headers)
-  return {root: only.row.root, apiBase: only.row.apiBase, instructions: only.answer?.instructions ?? null, client}
+  return {root: only.row.root, apiBase: only.row.apiBase, instructions: only.answer.instructions, client}
+}
+
+function notOpen(tab: SessionId, failures: unknown[]): Error {
+  if (failures.length === 0) return new Error(`TAB_NOT_OPEN: tab ${tab} is not open; call external_tabs({})`)
+  return new Error(
+    `cannot tell whether tab ${tab} is open: no engine that answered has it, and the tab probe failed on ${failures.map(errorText).join('; ')}; nothing ran`,
+    {cause: new AggregateError(failures, 'the tab probes failed')},
+  )
 }
 
 function liveEngines(home: string): ReturnType<typeof checkEngines> {
@@ -242,24 +256,31 @@ function connect(row: EngineRow, headers: Record<string, string>): Promise<MCPCl
   )
 }
 
-async function tabAnswer(apiBase: string, tab: SessionId): Promise<TabOpen | null> {
-  try {
-    const response = await fetch(`${apiBase}/api/tabs?session=${tab}`, {signal: AbortSignal.timeout(PROBE_MS)})
-    if (!response.ok) return null
-    return TabOpenSchema.safeParse(await response.json()).data ?? null
-  } catch (error) {
-    if (isUnanswered(error)) return null
-    throw error
+async function tabAnswer(engine: Probed, tab: SessionId): Promise<TabOpen> {
+  const response = await fetch(`${engine.apiBase}/api/tabs?session=${tab}`, {
+    signal: AbortSignal.timeout(PROBE_MS),
+  }).catch(probeFailed(engine))
+  if (response.status === 404) throw new Error(`${engine.root} (${TOO_OLD})`)
+  if (!response.ok) throw new Error(`${engine.root} (/api/tabs answered HTTP ${response.status})`)
+  const answer = TabOpenSchema.safeParse(await response.json().catch(probeFailed(engine)))
+  if (!answer.success) throw new Error(`${engine.root} (${TOO_OLD})`, {cause: answer.error})
+  return answer.data
+}
+
+function probeFailed(engine: Probed) {
+  return (error: unknown): never => {
+    throw new Error(`${engine.root} (${errorText(error)})`, {cause: error})
   }
 }
 
-function isUnanswered(error: unknown): boolean {
-  if (error instanceof TypeError || error instanceof SyntaxError) return true
-  return error instanceof DOMException && error.name === 'TimeoutError'
-}
-
-async function holdsTab(apiBase: string, tab: SessionId): Promise<boolean> {
-  return (await tabAnswer(apiBase, tab))?.open === true
+async function holdsTab(owner: TabOwner, tab: SessionId): Promise<boolean> {
+  return tabAnswer(owner, tab).then(
+    (answer) => answer.open,
+    (error: unknown) => {
+      logHub(`checking whether tab ${tab} is still open failed; the next call looks up its engine again`, error)
+      return false
+    },
+  )
 }
 
 function greeted(entry: TabEntry, owner: TabOwner, reply: unknown): unknown {

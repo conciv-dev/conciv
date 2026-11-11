@@ -4055,6 +4055,21 @@ describe('outside sessions', () => {
       await inFlight
     })
 
+    it.skipIf(process.getuid?.() === 0)(
+      'an unreadable package.json leaves the project name out and keeps every tab listed',
+      async () => {
+        const sessionId = await kit().session()
+        await joinPage(true)
+        chmodSync(join(app, 'package.json'), 0o000)
+        try {
+          const listing = await listTabs()
+          expect([listing.project.name, listing.tabs.map((tab) => tab.sessionId)]).toEqual([null, [sessionId]])
+        } finally {
+          chmodSync(join(app, 'package.json'), 0o644)
+        }
+      },
+    )
+
     it('branch is re-read per request from the repository above the project, through a worktree gitdir file too', async () => {
       writeFileSync(join(repo, '.git', 'HEAD'), 'ref: refs/heads/other\n')
       expect((await listTabs()).project.branch).toBe('other')
@@ -4078,7 +4093,7 @@ describe('outside agent consent', () => {
   const pages = new AbortController()
   afterAll(async () => {
     pages.abort()
-    const stops = await Promise.allSettled(engines.map((engine) => engine.stop()))
+    const stops = await Promise.allSettled([...engines].map((engine) => engine.stop()))
     const failures = stops.flatMap((stop) => (stop.status === 'rejected' ? [stop.reason] : []))
     if (failures.length > 0) throw new AggregateError(failures, 'stopping the consent engines failed')
   })
@@ -4093,8 +4108,12 @@ describe('outside agent consent', () => {
       stop: async () => {
         engines.splice(engines.indexOf(booted), 1)
         stopped.abort()
-        await Promise.all(booted.answering)
-        await engine.stop()
+        const answered = await Promise.allSettled(booted.answering)
+        const [engineStopped] = await Promise.allSettled([engine.stop()])
+        const failures = [...answered, engineStopped].flatMap((result) =>
+          result.status === 'rejected' ? [result.reason] : [],
+        )
+        if (failures.length > 0) throw new AggregateError(failures, 'stopping the consent engine failed')
       },
     }
     engines.push(booted)
