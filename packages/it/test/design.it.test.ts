@@ -15,6 +15,7 @@ import {createStorage} from 'unstorage'
 import memoryDriver from 'unstorage/drivers/memory'
 import {afterAll, afterEach, beforeAll, describe, expect, it} from 'vitest'
 import {z} from 'zod'
+import {makeRpcClient} from '@conciv/contract'
 import {catalogSources, closeHomeDb, componentScans, openDb, openHomeDb, sourceCatalog} from '@conciv/db'
 import {makeExtRpcClient} from '@conciv/extension'
 import {extensionDb} from '@conciv/extension/db'
@@ -30,6 +31,7 @@ import {
   type Round,
 } from '@conciv/extension-design/defs'
 import {DESIGN_TOOLS} from '@conciv/extension-design/design-tools'
+import {TabsSchema} from '@conciv/protocol/chat-types'
 import {designConfig} from '../../extensions/design/src/shared/tolerances.js'
 import {walk} from '../../extensions/design/src/shared/tree.js'
 import {createStore} from '../../extensions/design/src/server/store.js'
@@ -48,6 +50,7 @@ import {createCssTokenSource} from '../../extensions/design/src/server/catalog/t
 import {createTokenMap} from '../../extensions/design/src/server/catalog/token-map.js'
 import type {Component, Scan} from '../../extensions/design/src/shared/catalog-defs.js'
 import {bootDesignHost} from './fixtures/design/boot.js'
+import {serveDesignHost} from './fixtures/design/host-server.js'
 import {cardsDesign} from './fixtures/design/cards.js'
 import {figmaFrame} from './fixtures/design/figma-frame.js'
 import {bareButton} from './fixtures/design/bare-button.js'
@@ -1958,6 +1961,41 @@ describe('design_check after the tab went away', () => {
       await expect(engine.call('design_check', {})).rejects.toThrow(
         `the tab of session "${engine.session}" crashed; reload it`,
       )
+    } finally {
+      await engine.dispose()
+    }
+  })
+})
+
+describe('a live tab and a second dev server on the same project', () => {
+  it('keeps the tab listed and its page tools answering after a full reload and after a second dev server starts on the project', async () => {
+    const engine = await bootDesignHost()
+    const listed = async (): Promise<string[]> => {
+      const response = await fetch(`${engine.apiBase}/api/tabs`)
+      return TabsSchema.parse(await response.json()).tabs.map((tab) => tab.sessionId)
+    }
+    try {
+      await engine.goto('target')
+      await engine.call('design_get', await cardsDesign(engine.targetsDir))
+      roundOf(await engine.call('design_check', {}))
+      await engine.page.reload({waitUntil: 'domcontentloaded'})
+      await engine.page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window)
+      await expect.poll(listed).toEqual([engine.session])
+      const endpointDir = await tempDir('conciv-design-second-endpoint-')
+      const second = await serveDesignHost({
+        stateRoot: engine.stateRoot,
+        homeDir: engine.home,
+        devEndpointDir: endpointDir,
+        print: () => {},
+      })
+      try {
+        await expect.poll(() => readdir(endpointDir)).toContain('dev-endpoint.json')
+        expect(await listed()).toEqual([engine.session])
+        expect((await makeRpcClient(engine.apiBase).sessions.resolve({})).sessionId).toBe(engine.session)
+        roundOf(await engine.call('design_check', {}))
+      } finally {
+        await second.server.close()
+      }
     } finally {
       await engine.dispose()
     }

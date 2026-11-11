@@ -25,6 +25,7 @@ import {
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness, listHarnesses, transcriptPathWithin} from '@conciv/harness'
+import {pidAlive} from '@conciv/harness-init/pid-alive'
 import {withSavedModels} from './lib/saved-models.js'
 import {createSessionSearch} from './sessions/session-search.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
@@ -60,7 +61,17 @@ import {
 import {eq} from 'drizzle-orm'
 import {pushRoutes, type PushDeps} from './api/push.js'
 import {makeHubAdmission, type ChatContext, type RpcDeps} from './api/rpc/mount.js'
-import {concivHome, drafts, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
+import {
+  concivHome,
+  drafts,
+  listEngines,
+  modelOf,
+  openDb,
+  readHomeDb,
+  sessions,
+  writeToolCapture,
+  type ConcivDb,
+} from '@conciv/db'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
 import {os} from '@orpc/server'
@@ -647,7 +658,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   void holders
     .sweep()
     .catch((error: unknown) => logError(`[core] the dead session holder sweep failed: ${String(error)}`))
-    .then(() => sweepEmptyRows(db))
+    .then(() => (servedElsewhere({home, root: opts.cwd}) ? undefined : sweepEmptyRows(db)))
     .catch((error: unknown) => logError(`[core] the empty session row sweep failed: ${String(error)}`))
 
   const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness})
@@ -790,6 +801,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     extensionContexts,
     runtime,
   }
+}
+
+function servedElsewhere(input: {home: string; root: string}): boolean {
+  const live = readHomeDb(input.home, listEngines) ?? []
+  return live.some((engine) => engine.root === input.root && pidAlive(engine.pid))
 }
 
 function outsideTitle(client: string | null): string {
