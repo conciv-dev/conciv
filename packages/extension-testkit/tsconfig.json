@@ -10,6 +10,7 @@
     "test/**/*.tsx",
     "e2e/**/*.ts",
     "fixtures/**/*.ts",
-    "fixtures/**/*.tsx"
+    "fixtures/**/*.tsx",
+    "*.ts"
   ]
 }

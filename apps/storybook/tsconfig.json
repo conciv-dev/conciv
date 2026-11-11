@@ -1,7 +1,7 @@
 {
   "extends": "@conciv/tsconfig/tsconfig.solid.json",
   "compilerOptions": {
-    "types": ["node"]
+    "types": ["node", "vite/client"]
   },
-  "include": ["uno.config.ts", "src/**/*.ts", "src/**/*.tsx"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "*.ts", ".storybook/**/*.ts", ".storybook/**/*.tsx"]
 }

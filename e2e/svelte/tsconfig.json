@@ -12,6 +12,6 @@
     "strict": true,
     "moduleResolution": "bundler"
   },
-  "include": ["src", "test", "*"],
+  "include": ["src", "tests", "*"],
   "exclude": ["src/service-worker"]
 }

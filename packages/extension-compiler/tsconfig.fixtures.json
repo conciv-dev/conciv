@@ -1,0 +1,7 @@
+{
+  "extends": "@conciv/tsconfig/tsconfig.solid.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true
+  },
+  "include": ["test/fixtures/**/*.tsx"]
+}

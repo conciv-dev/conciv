@@ -3,6 +3,14 @@
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx"],
-  "exclude": ["test/host/main.tsx", "test/host/virtual-extension.d.ts", "test/fixtures/**", "dist", "node_modules"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx", "*.ts"],
+  "exclude": [
+    "test/host/main.tsx",
+    "test/host/virtual-extension.d.ts",
+    "test/fixtures/build-errors-app/broken.ts",
+    "test/fixtures/double-quoted-manifest-app",
+    "test/fixtures/route-manifest-app",
+    "dist",
+    "node_modules"
+  ]
 }

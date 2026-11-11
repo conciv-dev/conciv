@@ -4,6 +4,6 @@
     "types": ["node"],
     "allowImportingTsExtensions": true
   },
-  "include": ["test/**/*.ts"],
-  "exclude": ["test/fixtures/**"]
+  "include": ["test/**/*.ts", "*.ts"],
+  "exclude": ["test/fixtures", "fixtures"]
 }

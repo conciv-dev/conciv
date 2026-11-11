@@ -3,5 +3,10 @@
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts", "*.ts"],
+  "exclude": [
+    "test/fixtures/design/provenance/Classes.tsx",
+    "test/fixtures/design/provenance/Inline.tsx",
+    "test/fixtures/design/provenance/Sx.tsx"
+  ]
 }

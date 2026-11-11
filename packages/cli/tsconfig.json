@@ -5,6 +5,6 @@
     "declarationMap": false,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"],
-  "exclude": ["test/fixtures/**"]
+  "include": ["src/**/*.ts", "test/**/*.ts", "*.ts"],
+  "exclude": ["test/fixtures"]
 }
