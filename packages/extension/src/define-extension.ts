@@ -77,7 +77,7 @@ export type ExtensionBuilder<
   views?: readonly ExtensionView[]
   parseConfig: (raw: unknown) => ConfigOf<Schema>
   parseSettings: (raw: unknown) => SettingsOf<Settings>
-  readSettings: (store: SettingsStore) => SettingsReader<SettingsOf<Settings>>
+  readSettings: (stores: Record<SettingsScope, SettingsStore>) => SettingsReader<SettingsOf<Settings>>
   useSettings: () => Accessor<SettingsOf<Settings>>
   __client?(): ClientFactoryResult<ClientValue>
   __server?(
@@ -170,10 +170,8 @@ export function defineExtension<
   meta: ExtensionMeta<Name, Schema, Tools, Attachments, Settings>,
 ): ExtensionBuilder<Name, Schema, Tools, Attachments, Record<never, never>, Settings> {
   const parseSettings = lenientSettings(meta.settings)
-  const readSettings = (store: SettingsStore): SettingsReader<Record<string, unknown>> => ({
-    all: async () => parseSettings(await store.all()),
-    onChange: (fn) => store.onChange((value) => fn(parseSettings(value))),
-  })
+  const readSettings = (stores: Record<SettingsScope, SettingsStore>): SettingsReader<Record<string, unknown>> =>
+    mergedReader(stores, meta.name, parseSettings)
   function useSettings(): Accessor<Record<string, unknown>> {
     const scope = useScope<string>(meta.name)
     const project = followStore(scope.settings.project, settingsFailure(meta.name, 'project'))
@@ -226,6 +224,47 @@ function followStore(store: SettingsStore, failure: string): Accessor<Readonly<R
     store.all().then((value) => set(value), report)
     return () => void stop.then((unsubscribe) => unsubscribe())
   })
+}
+
+type StoredSettings = Readonly<Record<string, unknown>>
+
+function mergedReader(
+  stores: Record<SettingsScope, SettingsStore>,
+  name: string,
+  parse: (raw: unknown) => Record<string, unknown>,
+): SettingsReader<Record<string, unknown>> {
+  const report = {
+    project: once((error: unknown) => console.error(settingsFailure(name, 'project'), error)),
+    global: once((error: unknown) => console.error(settingsFailure(name, 'global'), error)),
+  }
+  const load = (scope: SettingsScope): Promise<StoredSettings> =>
+    stores[scope].all().catch((error: unknown) => {
+      report[scope](error)
+      return {}
+    })
+  const loadBoth = async (): Promise<Record<SettingsScope, StoredSettings>> => {
+    const [project, global] = await Promise.all([load('project'), load('global')])
+    return {project, global}
+  }
+  const merged = (latest: Record<SettingsScope, StoredSettings>) => parse(mergeSettings(latest.project, latest.global))
+  return {
+    all: async () => merged(await loadBoth()),
+    onChange: async (fn) => {
+      const latest = await loadBoth()
+      const follow = (scope: SettingsScope): Promise<() => void> =>
+        stores[scope]
+          .onChange((value) => {
+            latest[scope] = value
+            fn(merged(latest))
+          })
+          .catch((error: unknown) => {
+            report[scope](error)
+            return () => undefined
+          })
+      const stops = await Promise.all([follow('project'), follow('global')])
+      return () => stops.forEach((stop) => stop())
+    },
+  }
 }
 
 function settingsFailure(name: string, scope: SettingsScope): string {

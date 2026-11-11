@@ -288,36 +288,54 @@ describe('define extension', () => {
     expect(mergeSettings({}, global)).toEqual(global)
   })
 
-  test('readSettings serves the stored values parsed, now and on every change', async () => {
-    const ext = defineExtension({name: 'terminal', settings: terminalSettings})
+  const memoryStore = (value: Record<string, unknown>) => {
     const saved: {snapshot: SettingsSnapshot; listeners: ((snapshot: SettingsSnapshot) => void)[]} = {
-      snapshot: {generation: 'extension-test', version: 1, value: {fontSize: 16, shell: 7}},
+      snapshot: {generation: 'extension-test', version: 1, value},
       listeners: [],
     }
-    const commit = (value: Record<string, unknown>): SettingsSnapshot => {
-      saved.snapshot = {...saved.snapshot, version: saved.snapshot.version + 1, value}
+    const commit = (next: Record<string, unknown>): SettingsSnapshot => {
+      saved.snapshot = {...saved.snapshot, version: saved.snapshot.version + 1, value: next}
       saved.listeners.forEach((listener) => listener(saved.snapshot))
       return saved.snapshot
     }
     const state: SettingsState = {
       read: async () => saved.snapshot,
-      set: async (key, value) => commit({...saved.snapshot.value, [key]: value}),
-      delete: async () => saved.snapshot,
+      set: async (key, next) => commit({...saved.snapshot.value, [key]: next}),
+      delete: async (key) =>
+        commit(Object.fromEntries(Object.entries(saved.snapshot.value).filter(([name]) => name !== key))),
       subscribe: async (listener) => {
         saved.listeners.push(listener)
         return () => undefined
       },
     }
-    const reader = ext.readSettings(createSettingsStore(async () => state))
+    return createSettingsStore<Record<string, unknown>>(async () => state)
+  }
+
+  test('readSettings applies project over global over defaults, now and on every change of either file', async () => {
+    const ext = defineExtension({name: 'terminal', settings: terminalSettings})
+    const stores = {project: memoryStore({shell: 7}), global: memoryStore({fontSize: 16})}
+    const reader = ext.readSettings(stores)
     expect(await reader.all()).toEqual({fontSize: 16, cursor: 'block', copyOnSelect: false, shell: ''})
     const changes: unknown[] = []
     await reader.onChange((value) => changes.push(value))
-    await state.set('cursor', 'nope')
-    await state.set('copyOnSelect', true)
+    await stores.project.set('fontSize', 18)
+    await stores.global.set('cursor', 'bar')
+    await stores.project.delete('fontSize')
     expect(changes).toEqual([
-      {fontSize: 16, cursor: 'block', copyOnSelect: false, shell: ''},
-      {fontSize: 16, cursor: 'block', copyOnSelect: true, shell: ''},
+      {fontSize: 18, cursor: 'block', copyOnSelect: false, shell: ''},
+      {fontSize: 18, cursor: 'bar', copyOnSelect: false, shell: ''},
+      {fontSize: 16, cursor: 'bar', copyOnSelect: false, shell: ''},
     ])
+    expect(await reader.all()).toEqual({fontSize: 16, cursor: 'bar', copyOnSelect: false, shell: ''})
+  })
+
+  test('readSettings leaves out a settings file it cannot read and applies the other one', async () => {
+    const ext = defineExtension({name: 'terminal', settings: terminalSettings})
+    const unreadable = createSettingsStore<Record<string, unknown>>(() =>
+      Promise.reject(new Error('the project settings file is unreadable')),
+    )
+    const reader = ext.readSettings({project: unreadable, global: memoryStore({fontSize: 16})})
+    expect(await reader.all()).toEqual({fontSize: 16, cursor: 'block', copyOnSelect: false, shell: ''})
   })
 })
 

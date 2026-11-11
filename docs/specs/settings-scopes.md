@@ -23,8 +23,8 @@ debounced write) and `settings-extensions.md` (generated extension pages).
   global one; it never yields both.) VS Code merges settings layers the same way.
 - Defaults come from the zod schema parse after the merge (`PreferencesSchema.parse`, `extension.parseSettings`),
   as today. Defaults are never written to a file.
-- One merge function, `mergeSettings` in `@conciv/extension`, used by `defineExtension().useSettings()` (so a
-  running extension applies project over global over defaults), `create-preferences.ts` and the extension
+- One merge function, `mergeSettings` in `@conciv/extension`, used by `defineExtension().useSettings()` and `readSettings()` (so a
+  running extension, client and server, applies project over global over defaults), `create-preferences.ts` and the extension
   settings form. No merge in the engine; the engine keeps one store per file (Devframe's shape).
 
 ## What each view shows
