@@ -446,7 +446,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     return harnesses.find((adapter) => adapter.id === kind) ?? harness
   }
   const scopedToolCall: ScopedToolCall = (name, input, request) =>
-    runtime.forSession(request.sessionId).tools.call(name, input, {toolCallId: request.toolCallId})
+    runtime
+      .forSession(request.sessionId)
+      .tools.call(name, input, {toolCallId: request.toolCallId, signal: request.signal})
 
   const serverSessions: ServerSessions = {
     resumeToken: (sessionId) => nativeIdFor(db, sessionId),

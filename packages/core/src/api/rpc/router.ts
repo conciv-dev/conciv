@@ -146,7 +146,9 @@ export function makeRpcRouter(deps: RpcDeps) {
         if (assist === undefined && !context.session.tools.has(input.name)) throw errors.UNKNOWN_TOOL()
         await refuseUnapproved(deps, input.name, input.input, {context, errors, signal})
         const run = (): Promise<unknown> =>
-          assist === undefined ? context.session.tools.call(input.name, input.input) : assist.execute(input.input)
+          assist === undefined
+            ? context.session.tools.call(input.name, input.input, {signal})
+            : assist.execute(input.input)
         return hubTraced(context, input.name, input.input, () =>
           run().catch((error: unknown) => {
             throw registryCallError(error, errors)
