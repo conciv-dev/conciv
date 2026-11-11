@@ -1,8 +1,10 @@
 import {z} from 'zod'
 import {PageCaptureBundleSchema} from './element-capture-types.js'
+import {CODE_MODE_TIMEOUT_MS} from './chat-types.js'
 
 export const PAGE_QUEUE_TOOL = 'page_queue'
-export const PAGE_QUEUE_WAIT_TOOL = 'page_queue_wait'
+export const PAGE_QUEUE_ASYNC_TOOL = 'page_queue_async'
+export const PAGE_QUEUE_SYNC_MS = CODE_MODE_TIMEOUT_MS - 30_000
 export const PAGE_QUEUE_MAX_ACTIONS = 50
 export const PAGE_QUEUE_STOPPED = 'QUEUE_STOPPED'
 export const PAGE_QUEUE_STOPPED_MESSAGE = 'stopped by the user before this action'

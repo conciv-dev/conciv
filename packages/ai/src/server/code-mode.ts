@@ -10,9 +10,8 @@ import {
 import {createCodeMode, type CodeModeTool, type IsolateDriver} from '@tanstack/ai-code-mode'
 import {codeModeCallEvent, codeModeErrorEvent, codeModeResultEvent} from '@conciv/protocol/chat-event-types'
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
+import {CODE_MODE_TIMEOUT_MS} from '@conciv/protocol/chat-types'
 import {quickJSThreadDriver, type CodeDriver} from './quickjs-thread.js'
-
-const CODE_MODE_TIMEOUT_MS = 150_000
 
 const QUICKJS_MEMORY_LIMIT_MB = 256
 

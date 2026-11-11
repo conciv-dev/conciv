@@ -505,7 +505,7 @@ const queueTool = queueDef
     acceptQueue(queued.id)
     startTask(ctx.agentId)
     touchTask()
-    return {queueId: queued.id, actions: input.actions.length}
+    return {queueId: queued.id, status: 'playing', done: 0, of: input.actions.length}
   })
   .render(actCard)
 

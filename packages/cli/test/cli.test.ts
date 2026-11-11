@@ -1794,7 +1794,8 @@ describe('cli', () => {
         {tool: 'page_fill', selector: '#first', value: 'Ada'},
         {tool: 'page_check', selector: '#agree'},
       ]
-      const QUEUE = `return await external_page_queue({actions: ${JSON.stringify(ACTIONS)}})`
+      const QUEUE = `return await external_page_queue_async({actions: ${JSON.stringify(ACTIONS)}})`
+      const SYNC_QUEUE = `return await external_page_queue({actions: ${JSON.stringify(ACTIONS)}})`
       const SNAPSHOT = 'return await external_page_snapshot({})'
       const ENVELOPE = {
         'io.modelcontextprotocol/protocolVersion': '2026-07-28',
@@ -1860,16 +1861,38 @@ describe('cli', () => {
         const client = rawHub(home)
         const tab = engine.sessionId
         try {
-          await client.request('tools/call', {name: 'discover_tools', arguments: {toolNames: ['page_queue'], tab}})
+          await client.request('tools/call', {
+            name: 'discover_tools',
+            arguments: {toolNames: ['page_queue_async'], tab},
+          })
           await client.execute(SNAPSHOT, tab)
           const discoverFirst = TaskSchema.safeParse(await client.execute(QUEUE, tab))
           await client.execute(SNAPSHOT, tab)
-          const refused = await client.execute('return await external_page_queue({actions: []})', tab)
+          const refused = await client.execute('return await external_page_queue_async({actions: []})', tab)
           expect(refused).toMatchObject({isError: true})
-          const handedBack = `const handle = await external_page_queue({actions: ${JSON.stringify(ACTIONS)}}); return {handle}`
+          const handedBack = `const handle = await external_page_queue_async({actions: ${JSON.stringify(ACTIONS)}}); return {handle}`
           const afterRefusal = TaskSchema.safeParse(await client.execute(handedBack, tab))
           expect([discoverFirst.success, afterRefusal.success]).toEqual([true, true])
           expect(discoverFirst.data?.taskId).not.toBe(afterRefusal.data?.taskId)
+        } finally {
+          await client.close()
+          await engine.engine.stop()
+        }
+      })
+
+      it('a tasks-capable client gets a plain reply, never a task, for a sync page_queue that finished in-call', async () => {
+        const {home, engine, play} = await queueTab()
+        const client = rawHub(home)
+        try {
+          await client.execute('return 0', engine.sessionId)
+          const replied = client.execute(SYNC_QUEUE, engine.sessionId)
+          await play(0)
+          const reply = await replied
+          expect(TaskSchema.safeParse(reply).success).toBe(false)
+          const text = JSON.stringify(reply)
+          expect(text).toContain('\\"status\\":\\"finished\\"')
+          expect(text).toContain('\\"played\\":2')
+          expect(JSON.stringify(await client.execute('return 1', engine.sessionId))).not.toContain('queue q_')
         } finally {
           await client.close()
           await engine.engine.stop()

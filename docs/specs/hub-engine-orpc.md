@@ -54,14 +54,15 @@ All inputs and outputs zod. Session routing and hub admission come from the head
 - `code.execute({sessionId, typescriptCode})` → `CodeExecuteResultSchema`:
   `{ok: true, result: unknown, logs: string[], queued: QueueHandle[], finished: PageQueueResult[]}` or
   `{ok: false, error: {message, code?}, logs: string[], queued: QueueHandle[], finished: PageQueueResult[]}`.
-  - `queued`: every `external_page_queue` call the script made, from the engine's own queue store, never from the
-    script's return value.
+  - `queued`: every queue the script started that is still playing when the script returns (an
+    `external_page_queue_async` call, or an `external_page_queue` call that outlasted its bound), from the engine's
+    own queue store, never from the script's return value. A sync queue that finished in-call is not listed.
   - `finished`: the finished, undelivered queues for this caller (today's next-reply path, `mcp.ts`
     `withFinishedQueues`), marked delivered by this call.
   - Same transcript mirroring, call trace and result cap as `/api/mcp` `runExecute`.
 - `code.discover({sessionId, toolNames})` → the typed signatures `runDiscover` returns today.
 - `page.queue.wait({sessionId, queueId, waitMs})` → `PageQueueResultSchema | PageQueueProgressSchema`
-  (discriminated on `status`). Same store call as the sandbox's `page_queue_wait`; a returned result is marked delivered.
+  (discriminated on `status`). The queue store's internal `wait` (no agent tool calls it); a returned result is marked delivered.
 
 `/api/mcp` stays for direct MCP clients (the Claude connect bridge, `packages/harness-init/src/claude`). It and
 `code.execute` call one shared engine function for running code, discovering, delivering finished queues and mirroring,

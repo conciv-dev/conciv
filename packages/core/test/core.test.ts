@@ -710,10 +710,10 @@ describe('page bus and the session scope', () => {
     return queued
   }
 
-  function pageQueues(bus: ReturnType<typeof makePageBus>): PageQueues {
+  function pageQueues(bus: ReturnType<typeof makePageBus>, syncMs?: number): PageQueues {
     const db = openDb(tempDir())
     onTestFinished(() => db.$client.close())
-    return makePageQueues({bus, journal: makeJournal(db)})
+    return makePageQueues({bus, journal: makeJournal(db), syncMs})
   }
 
   function finishedOf(queues: PageQueues): (queueId: string) => Promise<void> {
@@ -785,6 +785,42 @@ describe('page bus and the session scope', () => {
       failed: 0,
       played: 1,
     })
+  })
+
+  it('a sync queue returns its result in-call, and it is never announced or owed afterwards', async () => {
+    const bus = makePageBus(2000)
+    const queued = queueingTab(bus)
+    const queues = pageQueues(bus)
+    const announced: string[] = []
+    queues.finished((record) => announced.push(record.queueId))
+    const played = queues.play(SESSION_A, queueStart([{tool: 'page_check', selector: '#agree'}]))
+    await vi.waitFor(() => expect(queued).toHaveLength(1))
+    bus.resolve(SESSION_A, queued[0]?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
+    const result = await played
+    expect(result).toMatchObject({status: 'finished', played: 1, failed: 0})
+    await setImmediate()
+    expect(announced).toEqual([])
+    expect(queues.undelivered(SESSION_A, true)).toEqual([])
+    expect(queues.startedBy(SESSION_A, new Set())).toEqual([])
+  })
+
+  it('a sync queue that outlasts its bound returns the progress and its queueId, and the result is owed later', async () => {
+    const bus = makePageBus(2000)
+    const queued = queueingTab(bus)
+    const queues = pageQueues(bus, 20)
+    const finished = finishedOf(queues)
+    const checks = ['#first', '#second'].map((selector) => ({tool: 'page_check', selector}))
+    const progress = await queues.play(SESSION_A, {...queueStart(checks), toolCallId: 'call-1'})
+    const queueId = queued[0]?.queue.id ?? ''
+    expect(progress).toEqual({queueId, status: 'playing', done: 0, of: 2})
+    expect(queues.startedBy(SESSION_A, new Set(['call-1']))).toEqual([{queueId, actions: 2}])
+    for (const reply of queued[0]?.queue.replies ?? []) bus.resolve(SESSION_A, reply, {ok: true, result: {}})
+    await finished(queueId)
+    expect(queues.startedBy(SESSION_A, new Set(['call-1']))).toEqual([])
+    expect(queues.undelivered(SESSION_A, true)).toEqual([
+      expect.objectContaining({queueId, status: 'finished', played: 2}),
+    ])
+    expect(queues.undelivered(SESSION_A, true)).toEqual([])
   })
 
   it('a finished queue whose result was never delivered outlives the queues kept after it', async () => {

@@ -25,6 +25,8 @@ export type HubAccess = 'open' | 'session' | 'project'
 
 export const CODE_MODE_SYNTHETIC_PART_MARKER = 'codeModeSynthetic'
 
+export const CODE_MODE_TIMEOUT_MS = 150_000
+
 const MEBIBYTE = 1024 * 1024
 export const MAX_ATTACHMENT_RAW_BYTES = Math.floor((WS_RPC_PAYLOAD_BUDGET_BYTES * 3) / 4 / MEBIBYTE) * MEBIBYTE
 const MAX_ATTACHMENT_BASE64_LENGTH = Math.ceil(MAX_ATTACHMENT_RAW_BYTES / 3) * 4

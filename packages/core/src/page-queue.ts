@@ -1,10 +1,12 @@
 import {randomUUID} from 'node:crypto'
+import {setImmediate} from 'node:timers/promises'
 import pTimeout from 'p-timeout'
 import {
   isPageFailure,
+  PAGE_QUEUE_ASYNC_TOOL,
   PAGE_QUEUE_STOPPED,
+  PAGE_QUEUE_SYNC_MS,
   PAGE_QUEUE_TOOL,
-  PAGE_QUEUE_WAIT_TOOL,
   PageQueueActionsSchema,
   type PageOutcome,
   type PageQueueOutcome,
@@ -43,6 +45,7 @@ export type QueueStart = {
 
 export type PageQueues = {
   start: (sessionId: SessionId, start: QueueStart) => Promise<{queueId: string; actions: number}>
+  play: (sessionId: SessionId, start: QueueStart) => Promise<PageQueueResult | PageQueueProgress>
   wait: (sessionId: SessionId, queueId: string, waitMs: number) => Promise<PageQueueResult | PageQueueProgress>
   undelivered: (sessionId: SessionId, outside: boolean) => PageQueueResult[]
   startedBy: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => PageQueueHandle[]
@@ -105,7 +108,7 @@ function stringField(record: Record<string, unknown>, key: 'ref' | 'selector'): 
   return typeof value === 'string' ? value : undefined
 }
 
-export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueues {
+export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: number}): PageQueues {
   const records = new Map<string, QueueRecord>()
   const listeners: Array<(record: QueueRecord) => void> = []
 
@@ -122,9 +125,8 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
       )
   }
 
-  const finish = (record: QueueRecord): PageQueueResult => {
-    const result = resultOf(record)
-    record.result = result
+  const announce = (record: QueueRecord): void => {
+    if (record.delivered) return
     for (const listener of listeners) {
       try {
         listener(record)
@@ -132,7 +134,6 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
         logError(`[core] delivering queue ${record.queueId} failed: ${String(error)}`)
       }
     }
-    return result
   }
 
   const evictBeyond = (kept: QueueRecord[], limit: number): QueueRecord[] => {
@@ -160,7 +161,7 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
   async function start(sessionId: SessionId, given: QueueStart): Promise<{queueId: string; actions: number}> {
     const {actions} = PageQueueActionsSchema.parse(given.input)
     const queueId = `q_${randomUUID()}`
-    const play = deps.bus.playQueue(
+    const playing = deps.bus.playQueue(
       sessionId,
       {agentId: given.agentId, name: PAGE_QUEUE_TOOL, input: given.input, mutating: true},
       queueId,
@@ -178,7 +179,7 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
       delivered: false,
       done: settledAll.promise,
     }
-    const landed = play.played.map((reply, index) => {
+    const landed = playing.played.map((reply, index) => {
       const tool = actions[index]?.tool ?? ''
       return reply.then(
         async (outcome) => {
@@ -191,9 +192,14 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
         },
       )
     })
-    await play.accepted
+    await playing.accepted
     keep(record)
-    void Promise.all(landed).then(() => settledAll.resolve(finish(record)))
+    void Promise.all(landed).then(async () => {
+      record.result = resultOf(record)
+      settledAll.resolve(record.result)
+      await setImmediate()
+      announce(record)
+    })
     return {queueId, actions: actions.length}
   }
 
@@ -204,7 +210,7 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
   ): Promise<PageQueueResult | PageQueueProgress> {
     const record = records.get(queueId)
     if (record === undefined || record.sessionId !== sessionId) {
-      throw new Error(`no queue ${queueId} on this tab; page_queue returns the queueId to wait for`)
+      throw new Error(`no queue ${queueId} on this tab`)
     }
     if (record.result === null && waitMs > 0) await pTimeout(record.done, {milliseconds: waitMs, fallback: () => null})
     if (record.result !== null) {
@@ -219,6 +225,11 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
     }
   }
 
+  async function play(sessionId: SessionId, given: QueueStart): Promise<PageQueueResult | PageQueueProgress> {
+    const {queueId} = await start(sessionId, given)
+    return wait(sessionId, queueId, deps.syncMs ?? PAGE_QUEUE_SYNC_MS)
+  }
+
   function undelivered(sessionId: SessionId, outside: boolean): PageQueueResult[] {
     return [...records.values()].flatMap((record) => {
       if (record.sessionId !== sessionId || record.outside !== outside || record.result === null) return []
@@ -228,7 +239,10 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
 
   function startedBy(sessionId: SessionId, toolCallIds: ReadonlySet<string>): PageQueueHandle[] {
     return [...records.values()].flatMap((record) =>
-      record.sessionId === sessionId && record.toolCallId !== undefined && toolCallIds.has(record.toolCallId)
+      record.sessionId === sessionId &&
+      record.result === null &&
+      record.toolCallId !== undefined &&
+      toolCallIds.has(record.toolCallId)
         ? [{queueId: record.queueId, actions: record.tools.length}]
         : [],
     )
@@ -248,6 +262,7 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
 
   return {
     start,
+    play,
     wait,
     undelivered,
     startedBy,
@@ -279,7 +294,7 @@ export function pageQueueChunks(options: {result: PageQueueResult; record: Queue
   const runId = `mirror-${toolCallId}`
   const card: ChatEvent[] = [
     pageQueueEvent.create({...result, ...(record.toolCallId === undefined ? {} : {toolCallId: record.toolCallId})}),
-    {type: ChatEventType.TOOL_CALL_START, toolCallId, toolCallName: PAGE_QUEUE_WAIT_TOOL},
+    {type: ChatEventType.TOOL_CALL_START, toolCallId, toolCallName: PAGE_QUEUE_ASYNC_TOOL},
     {type: ChatEventType.TOOL_CALL_ARGS, toolCallId, delta: JSON.stringify({queueId: result.queueId})},
     {type: ChatEventType.TOOL_CALL_END, toolCallId},
     {

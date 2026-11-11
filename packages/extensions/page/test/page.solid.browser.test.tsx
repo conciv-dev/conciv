@@ -873,7 +873,7 @@ describe('page action queue', () => {
       {tool: 'page_check', selector: '[name=agree]'},
       {tool: 'page_press', selector: 'button', key: 'Enter'},
     ])
-    expect(await played.accepted).toEqual({ok: true, result: {queueId: 'q-order', actions: 4}})
+    expect(await played.accepted).toEqual({ok: true, result: {queueId: 'q-order', status: 'playing', done: 0, of: 4}})
     expect(heard).toEqual([])
     const outcomes = await played.played
     expect(heard).toEqual(['first', 'last', 'agree', 'key Enter'])
