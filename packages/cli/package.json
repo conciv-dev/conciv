@@ -55,7 +55,6 @@
   "devDependencies": {
     "@conciv/core": "workspace:^",
     "@conciv/extension": "workspace:^",
-    "@conciv/extension-design": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",

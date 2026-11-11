@@ -43,11 +43,11 @@ import {glyphCoreColor} from '@conciv/extension-design/colors'
 import {destroyPaddle, paddleReader, trimToInk} from '@conciv/extension-design/paddle'
 import {groupText} from '@conciv/extension-design/text-groups'
 import type {Box, ColorMetric, LiveComponent, Provenance, Raster, TextRun, Winner} from '@conciv/extension-design/types'
-import {unplugin} from '../src/plugin-instance.js'
-import {renderTargets} from './fixtures/design/render-targets.js'
+import conciv from '@conciv/it/plugin/vite'
+import {renderTargets} from './fixtures/render-targets.js'
 
-const HOST_ROOT = fileURLToPath(new URL('fixtures/design/host/', import.meta.url))
-const PROVENANCE_DIR = fileURLToPath(new URL('fixtures/design/provenance/', import.meta.url))
+const HOST_ROOT = fileURLToPath(new URL('fixtures/host/', import.meta.url))
+const PROVENANCE_DIR = fileURLToPath(new URL('fixtures/provenance/', import.meta.url))
 const ENDPOINT_FILE = 'dev-endpoint.json'
 const PAGE_DRIVER_TIMEOUT_MS = 30_000
 const COLOR_DELTA_E = 3
@@ -137,7 +137,7 @@ async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
     server: {host: '127.0.0.1', port: 0},
     plugins: [
       react(),
-      unplugin.vite({
+      conciv({
         stateRoot,
         harnessBin: 'true',
         systemPrompt: false,
