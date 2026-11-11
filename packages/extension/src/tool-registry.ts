@@ -16,7 +16,6 @@ import {
   FORBIDDEN_TOOL_SEGMENTS,
   isToolError,
   type ProjectedToolBinding,
-  type RegistryToolMeta,
   type ToolBinding,
   type ToolErrors,
   type ToolMeta,
@@ -25,11 +24,18 @@ import {
 } from './define-tool.js'
 import {isPageVerbError} from './page-errors.js'
 import {isRegistryBranch, walkRegistryProcedures, type RegistryWalkEntry} from './registry-walk.js'
-import type {CtxOf, ServerToolRegistryAccess, ServerToolPageAccess, ToolRequest, UnionToIntersection} from './types.js'
+import type {
+  CtxOf,
+  ServerToolRegistryAccess,
+  ServerToolPageAccess,
+  ToolMiddleware,
+  ToolRequest,
+  UnionToIntersection,
+} from './types.js'
 
 export type {ServerToolRegistryAccess, ServerToolPageAccess} from './types.js'
 
-export type {RegistryToolMeta} from './define-tool.js'
+export type RegistryToolMeta = ToolMeta & {name: string; binding: ToolBinding; approval?: 'ask'}
 
 export type RegistryCallGate = <Output>(run: () => Promise<Output>) => Promise<Output>
 
@@ -146,8 +152,8 @@ export type ToolSignature = ToolCatalogEntry & {
 }
 
 export type ToolRegistration<Ctx> = unknown extends Ctx
-  ? [registration: {owner: string; context?: Ctx}]
-  : [registration: {owner: string; context: Ctx}]
+  ? [registration: {owner: string; context?: Ctx; middleware?: ToolMiddleware}]
+  : [registration: {owner: string; context: Ctx; middleware?: ToolMiddleware}]
 
 export type SandboxTool = ToolSignature & {
   schema: z.ZodObject<z.ZodRawShape>
@@ -193,7 +199,7 @@ export function createToolRegistry(
   const engineView = viewFor(anyPageConnected)
   return {
     router,
-    register: (tool: AnyToolBuilder, registration: {owner: string; context?: unknown}) =>
+    register: (tool: AnyToolBuilder, registration: ToolRegistrationOf) =>
       registerTool(router, tool, pageCaller, self, registration, owners),
     has,
     call,
@@ -281,7 +287,7 @@ function registerTool(
   tool: AnyToolBuilder,
   pageCaller: RegistryPageCaller | undefined,
   self: RegistrySelf,
-  registration: {owner: string; context?: unknown},
+  registration: ToolRegistrationOf,
   owners: Map<string, string>,
 ): void {
   assertToolName(tool.name)
@@ -294,7 +300,7 @@ function registerTool(
   if (holder !== undefined) {
     throw new Error(`tool "${tool.name}" is declared by both ${holder} and ${registration.owner}`)
   }
-  insertProcedure(router, tool.name.split('.'), compileTool(tool, pageCaller, self, registration.context))
+  insertProcedure(router, tool.name.split('.'), compileTool(tool, pageCaller, self, registration))
   owners.set(tool.name, registration.owner)
 }
 
@@ -335,12 +341,17 @@ const registryBase = os
 
 type ToolErrorConstructors = ORPCErrorConstructorMap<ToolErrors>
 
+type ToolRegistrationOf = {owner: string; context?: unknown; middleware?: ToolMiddleware}
+
+const passThrough: ToolMiddleware = ({next}) => next()
+
 function compileTool(
   tool: RegistryTool,
   pageCaller: RegistryPageCaller | undefined,
   self: RegistrySelf,
-  context: unknown,
+  registration: ToolRegistrationOf,
 ): AnyRouter {
+  const context = registration.context
   const meta: RegistryToolMeta = {
     ...tool.meta,
     name: tool.name,
@@ -349,11 +360,8 @@ function compileTool(
   }
   const declaredErrors: ToolErrors =
     tool.binding === 'client' ? {...tool.errors, ...TOOL_TRANSPORT_ERRORS} : (tool.errors ?? {})
-  const procedure = tool.middlewares
-    .reduce(
-      (built, middleware) => built.use(middleware),
-      registryBase.use(({next}) => next({context: {ctx: context}})),
-    )
+  const procedure = registryBase
+    .use(registration.middleware ?? passThrough)
     .use(async ({context: call, next}, _input, output) =>
       call.gate === undefined ? next() : output(await call.gate(async () => (await next()).output)),
     )

@@ -31,6 +31,7 @@ import {
   defineTool,
   makeExtRpcClient,
   type ServerApi,
+  type ToolMiddleware,
   imageResult,
   toolError,
   defineAttachment,
@@ -3524,8 +3525,19 @@ return seen`
       name: 'fixture',
       tools: [echoTool(), readTool(), quietTool(), holdTool(), askTool(), failTool(), hugeTool(), imageTool()],
       attachments: fixtureAttachments(),
-    }).server(() => ({context: {}, turnEnd: noteTurnEnd}))
+    }).server(() => ({context: {}, turnEnd: noteTurnEnd, middleware: noteRefusal}))
   }
+
+  const noteRefusal: ToolMiddleware = onError((error, {path, context}, input) => {
+    if (!(error instanceof ORPCError)) return
+    refusedCalls.push({
+      code: error.code,
+      message: error.message,
+      sessionId: context.request.sessionId,
+      tool: path.join('.'),
+      input,
+    })
+  })
 
   function echoTool() {
     return defineTool({
@@ -3583,23 +3595,10 @@ return seen`
       outputSchema: z.object({done: z.string()}),
       meta: {summary: 'a risky fixture action', category: 'fixture', mutating: false},
       approval: 'ask',
+    }).server((input) => {
+      toolRuns.ask += 1
+      return {done: input.target}
     })
-      .server((input) => {
-        toolRuns.ask += 1
-        return {done: input.target}
-      })
-      .use(
-        onError((error, {path, context}, input) => {
-          if (!(error instanceof ORPCError)) return
-          refusedCalls.push({
-            code: error.code,
-            message: error.message,
-            sessionId: context.request.sessionId,
-            tool: path.join('.'),
-            input,
-          })
-        }),
-      )
   }
 
   function failTool() {

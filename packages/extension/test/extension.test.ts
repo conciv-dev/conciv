@@ -14,6 +14,7 @@ import {
   type SettingsState,
   type ServerToolPageAccess,
   type ServerToolRegistryAccess,
+  type ToolMiddleware,
   type ToolRequest,
 } from '../src/types.js'
 import {Hono} from 'hono'
@@ -625,7 +626,7 @@ describe('tool registry', () => {
     expect(() => registry.register(tool, {owner: 'a test registrant'})).toThrow(/server\(\)|client\(\)/)
   })
 
-  test("a tool's middleware sees a call the gate refuses, with the extension context, and the handler never runs", async () => {
+  test("an extension's middleware sees a call the gate refuses, and the handler never runs", async () => {
     type Refusals = {seen: string[]; ran: number}
     const refusals: Refusals = {seen: [], ran: 0}
     const tool = defineTool({
@@ -634,20 +635,15 @@ describe('tool registry', () => {
       inputSchema: z.object({target: z.string()}),
       outputSchema: z.object({done: z.string()}),
       meta: {summary: 'a tool behind a gate'},
+    }).server<Refusals>((input, state) => {
+      state.ran += 1
+      return {done: input.target}
     })
-      .server<Refusals>((input, state) => {
-        state.ran += 1
-        return {done: input.target}
-      })
-      .use(
-        onError((error, {path, context}, input) => {
-          context.ctx.seen.push(
-            `${context.request.sessionId} ${path.join('.')} ${JSON.stringify(input)} ${error.message}`,
-          )
-        }),
-      )
+    const middleware: ToolMiddleware = onError((error, {path, context}, input) => {
+      refusals.seen.push(`${context.request.sessionId} ${path.join('.')} ${JSON.stringify(input)} ${error.message}`)
+    })
     const registry = createToolRegistry()
-    registry.register(tool, {owner: 'a test registrant', context: refusals})
+    registry.register(tool, {owner: 'a test registrant', context: refusals, middleware})
     const refused = registry.call(
       'gated_tool',
       {target: 'x'},

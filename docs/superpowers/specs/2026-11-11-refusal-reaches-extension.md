@@ -29,17 +29,21 @@ An outside `registry.call` never enters `chat()`, so it cannot carry this refusa
 
 Two moves, both inside oRPC:
 
-1. **The extension declares oRPC middleware on its tool.** `ToolBuilder` gains `use(middleware)`, the same
-   verb as an oRPC builder. The middleware is a plain oRPC `Middleware` over
-   `ToolCallContext<Ctx> = {request: ToolRequest; ctx: Ctx}`, where `ctx` is the context the extension's
-   `.server()` factory returned (what the handler already gets as its second argument), so the middleware
-   can record into the extension's own state. `compileTool` installs the tool's middlewares around the
-   handler, after input validation.
+1. **The extension returns one oRPC middleware from its server factory.** `ServerResult` gains
+   `middleware?: ToolMiddleware`, next to `context`. It is a plain oRPC `Middleware` over
+   `ToolCallContext = {request: ToolRequest}`. Because the factory creates it, it closes over the extension's
+   own state, so no extension context has to travel through oRPC and nothing is cast. Core registers it with
+   every tool the extension owns (`registry.register(tool, {owner, context, middleware})`), and
+   `compileTool` installs it around the handler; `path` names the tool.
 
    ```ts
-   defineTool({...})
-     .server<Store>((input, store) => ...)
-     .use(onError((error, {path, context}, input) => context.ctx.refused(path.join('.'), context.request, input, error)))
+   .server((server) => {
+     const store = createStore()
+     return {
+       context: store,
+       middleware: onError((error, {path, context}, input) => store.refused(path.join('.'), context.request, input, error)),
+     }
+   })
    ```
 
 2. **Core refuses inside the tool's procedure, not before it.** For `registry.call`, core no longer runs the
@@ -58,21 +62,20 @@ current gates; they have no owning extension.
 
 ## Public surface added to `@conciv/extension`
 
-- `ToolBuilder.use(middleware: ToolMiddleware<Ctx>)`
-- `type ToolCallContext<Ctx>` and `type ToolMiddleware<Ctx>`
+- `ServerResult.middleware?: ToolMiddleware`
+- `type ToolCallContext` and `type ToolMiddleware`
 
-Nothing else changes for authors. `ExtensionServerTool`, `ServerResult` and the handler signature stay as
-they are.
+Tools, `defineTool`, `ExtensionServerTool` and the handler signature stay as they are.
 
 ## Not in this change
 
 - In-chat calls (a turn's `approval: 'ask'` hold in `chat`'s code runner) still refuse before the registry.
-  Moving that gate onto the same `gate` is the follow-up once the design extension adopts `use()`.
-- The design extension adopting `use()`.
+  Moving that gate onto the same `gate` is the follow-up.
+- The design extension adopting `ServerResult.middleware`.
 
 ## Test
 
-`packages/core/test/core-api.it.test.ts`: the fixture `fixture_ask` tool declares an `onError` middleware.
+`packages/core/test/core-api.it.test.ts`: the fixture extension returns an `onError` middleware.
 A hub call denied at the outside-session admission and a non-widget call refused at the `approval: 'ask'`
 gate both reach it with `APPROVAL_DENIED`, the refusal message, the session id, the tool name and the input.
-`packages/extension/test/extension.test.ts`: a tool's `use()` middleware sees the call and a `gate` refusal.
+`packages/extension/test/extension.test.ts`: a registration's middleware sees a `gate` refusal and the handler never runs.

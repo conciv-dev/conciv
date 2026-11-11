@@ -1,5 +1,4 @@
 import {z} from 'zod'
-import type {Middleware, ORPCErrorConstructorMap} from '@orpc/server'
 import type {ToolIconKey, ToolLabel} from '@conciv/protocol/tool-icon-types'
 import type {ToolCaptureMode} from '@conciv/protocol/element-capture-types'
 import type {
@@ -27,19 +26,6 @@ export type ToolErrorSpec = {message: string; data?: z.ZodType}
 export type ToolErrors = Record<string, ToolErrorSpec>
 
 export type ToolBinding = 'server' | 'client'
-
-export type RegistryToolMeta = ToolMeta & {name: string; binding: ToolBinding; approval?: 'ask'}
-
-export type ToolCallContext<Ctx = unknown> = {request: ToolRequest; ctx: Ctx}
-
-export type ToolMiddleware<Ctx = unknown> = Middleware<
-  ToolCallContext<Ctx>,
-  Record<never, never>,
-  unknown,
-  unknown,
-  ORPCErrorConstructorMap<ToolErrors>,
-  RegistryToolMeta
->
 
 export type ToolError = Error & {readonly isToolError: true; code: string; data?: unknown}
 
@@ -110,8 +96,6 @@ export type ToolBuilder<
   binding?: Binding
   __ctx?: Ctx
   __clientExecute?: (input: unknown, ctx: ClientToolCtx) => Promise<unknown>
-  middlewares: readonly ToolMiddleware[]
-  use: (middleware: ToolMiddleware<Ctx>) => ToolBuilder<Name, Schema, Output, Errors, Binding, Ctx>
   server: <HandlerCtx>(
     execute: (
       input: z.infer<Schema>,
@@ -248,7 +232,6 @@ type ToolState<Binding extends ToolBinding | undefined> = {
   ) => Promise<unknown>
   clientExecute?: (input: unknown, ctx: ClientToolCtx) => Promise<unknown>
   render?: ToolCard
-  middlewares: readonly ToolMiddleware[]
 }
 
 function assertToolMeta(name: string, meta: ToolMeta | undefined): void {
@@ -292,15 +275,6 @@ function toolBuilder<
     __serverRun: state.serverRun,
     __clientExecute: state.clientExecute,
     __render: state.render,
-    middlewares: state.middlewares,
-    use(middleware) {
-      const erased: ToolMiddleware = (options, input, output) =>
-        middleware({...options, context: {...options.context, ctx: options.context.ctx as Ctx}}, input, output)
-      return toolBuilder<Name, Schema, Output, Errors, Binding, Ctx>(definition, {
-        ...state,
-        middlewares: [...state.middlewares, erased],
-      })
-    },
     server<HandlerCtx>(
       execute: (
         input: z.infer<Schema>,
@@ -344,5 +318,5 @@ export function defineTool<
   definition: ToolDefinition<Name, Schema, Output, Errors>,
 ): ToolBuilder<Name, Schema, Output, Errors, undefined, unknown> {
   assertToolMeta(definition.name, definition.meta)
-  return toolBuilder<Name, Schema, Output, Errors, undefined, unknown>(definition, {middlewares: []})
+  return toolBuilder<Name, Schema, Output, Errors, undefined, unknown>(definition, {})
 }
