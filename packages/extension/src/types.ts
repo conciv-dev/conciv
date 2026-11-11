@@ -23,7 +23,13 @@ export type ExtensionView = {
   actions?: Component
 }
 
-export type ToolRequest = {sessionId: SessionId; agentId: string; model: string | null; toolCallId?: string}
+export type ToolRequest = {
+  sessionId: SessionId
+  agentId: string
+  model: string | null
+  toolCallId?: string
+  outside?: boolean
+}
 
 export type ExtensionServerTool = {
   name: string

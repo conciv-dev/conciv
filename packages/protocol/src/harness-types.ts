@@ -102,7 +102,7 @@ export type HarnessChatDeps = {
   model?: string
   effort?: ReasoningEffort
   env: Record<string, string | undefined>
-  kind: 'chat' | 'compact'
+  kind: 'chat' | 'compact' | 'page-queue'
   hasTools?: boolean
 }
 

@@ -96,7 +96,9 @@ export type ChatPlane = {
     sessionId: SessionId,
     publish: (chunk: ChatEvent) => void,
     capabilities?: readonly CodeCapability[],
+    outside?: boolean,
   ) => Promise<CodeRunner | null>
+  followUp: (sessionId: SessionId, input: string) => Promise<boolean>
   admitCall: (sessionId: SessionId, call: AdmittedCall) => Promise<CallRefusal | null>
   catchUp: (sessionId: SessionId) => Promise<ChatEvent[]>
   outsideDenied: (sessionId: SessionId) => Promise<boolean>
@@ -251,10 +253,18 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     },
     outsideDenied: (sessionId) => approvals.outsideDenied(sessionId),
     allowOutside: (sessionId) => approvals.allowOutside(sessionId),
-    codeRunner: async (sessionId, publish, given) => {
+    followUp: async (sessionId, input) => {
+      if (server.driving(sessionId) || (await stores.runs.findActiveRun(sessionId)) !== null) return false
+      const runId = randomUUID()
+      void server
+        .drive({threadId: sessionId, runId, kind: 'page-queue', input}, [])
+        .catch((error: unknown) => deps.log(`[chat] the page queue follow-up run ${runId} failed: ${String(error)}`))
+      return true
+    },
+    codeRunner: async (sessionId, publish, given, outside) => {
       const model = deps.sessions.row(sessionId)?.model ?? null
       const capabilities = given ?? deps.capabilities(sessionId)
-      const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model})
+      const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model, ...(outside ? {outside} : {})})
       const runner = server.codeRunner(toolSet.codeMode)
       if (runner === null) return null
       const emitter = (parentToolCallId: string | null) => (name: string, value: Record<string, unknown>) => {
