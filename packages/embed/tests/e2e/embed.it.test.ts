@@ -296,6 +296,7 @@ test.describe('composer rich input', () => {
         suite.kit().harness.script.release()
       }
 
+      await expect(page.getByRole('button', {name: 'Send message'})).toBeVisible({timeout: 30_000})
       await page.keyboard.press('Escape')
       await expect(panel(page)).toBeHidden({timeout: 30_000})
     })
