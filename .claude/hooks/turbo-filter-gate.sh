@@ -38,6 +38,14 @@ set -euo pipefail
 # cache). `vitest run <file>` and `vitest run --project <name> <file>` stay
 # allowed.
 #
+# Rule 5 (separate cache store): turbo already shares the main checkout's
+# `.turbo/cache` with every git worktree, so a second store only makes runs
+# miss each other's results. Any command that runs turbo (directly or through
+# `pnpm test`/`pnpm typecheck`) is blocked when it assigns `TURBO_CACHE_DIR=`
+# (inline, via `env`, or `export`ed anywhere in the compound command), passes
+# `--cache-dir`/`--cache-dir=`, or when the hook process itself sees a
+# non-empty `TURBO_CACHE_DIR` in its environment.
+#
 # A compound command (`&&`, `;`, `||`, `|`) is split and each relevant
 # invocation is checked independently, with its own task list/args.
 # Anything unparseable fails OPEN: a gate that blocks on ambiguity is worse
@@ -108,13 +116,20 @@ CMD="$(jq -r '.tool_input.command // empty' <<<"$INPUT" 2>/dev/null || true)"
 [ -n "$CMD" ] || exit 0
 
 STRIPPED_CMD="$(printf '%s\n' "$CMD" | strip_quoted)"
-EARLY_RE='(^|[[:space:];|&()])(turbo[[:space:]]+run([[:space:]]|$)|pnpm[[:space:]]+(run[[:space:]]+)?(test|typecheck)(:affected)?([[:space:]]|$)|(pnpm[[:space:]]+(exec|dlx)[[:space:]]+|npx[[:space:]]+)?vitest([[:space:]]|$))'
+TURBO_RE='(^|[[:space:];|&()])turbo([[:space:]]|$)'
+CACHE_ENV_RE='(^|[[:space:];|&()])TURBO_CACHE_DIR='
+EARLY_RE='(^|[[:space:];|&()])(turbo([[:space:]]|$)|pnpm[[:space:]]+(run[[:space:]]+)?(test|typecheck)(:affected)?([[:space:]]|$)|(pnpm[[:space:]]+(exec|dlx)[[:space:]]+|npx[[:space:]]+)?vitest([[:space:]]|$))'
 printf '%s\n' "$STRIPPED_CMD" | grep -Eq "$EARLY_RE" || exit 0
 
 TRAILING_DOTS_OFFENDERS=""
 NO_FILTER_OFFENDERS=""
 FORCE_OFFENDERS=""
 BARE_VITEST_OFFENDERS=""
+CACHE_DIR_OFFENDERS=""
+CACHE_ENV_SET=0
+if [ -n "${TURBO_CACHE_DIR:-}" ] || printf '%s\n' "$STRIPPED_CMD" | grep -Eq "$CACHE_ENV_RE"; then
+  CACHE_ENV_SET=1
+fi
 
 INVOCATIONS="$(printf '%s\n' "$CMD" | sed -E 's/&&|\|\||[;|&]/\n/g')"
 
@@ -127,6 +142,12 @@ while IFS= read -r RAW_INVOCATION; do
     VITEST_ARGS="$(printf '%s\n' "$INVOCATION" | sed -E 's/.*vitest//')"
     if is_bare_vitest_args "$VITEST_ARGS"; then
       BARE_VITEST_OFFENDERS="${BARE_VITEST_OFFENDERS}${INVOCATION}"$'\n'
+    fi
+  fi
+
+  if printf '%s\n' "$STRIPPED_INVOCATION" | grep -Eq "$TURBO_RE"; then
+    if [ "$CACHE_ENV_SET" = "1" ] || printf '%s\n' "$STRIPPED_INVOCATION" | grep -Eq -- '(^|[[:space:]])--cache-dir([=[:space:]]|$)'; then
+      CACHE_DIR_OFFENDERS="${CACHE_DIR_OFFENDERS}${INVOCATION}"$'\n'
     fi
   fi
 
@@ -158,7 +179,7 @@ while IFS= read -r RAW_INVOCATION; do
   done <<<"$SELECTORS"
 done <<<"$INVOCATIONS"
 
-if [ -z "$TRAILING_DOTS_OFFENDERS" ] && [ -z "$NO_FILTER_OFFENDERS" ] && [ -z "$FORCE_OFFENDERS" ] && [ -z "$BARE_VITEST_OFFENDERS" ]; then
+if [ -z "$TRAILING_DOTS_OFFENDERS" ] && [ -z "$NO_FILTER_OFFENDERS" ] && [ -z "$FORCE_OFFENDERS" ] && [ -z "$BARE_VITEST_OFFENDERS" ] && [ -z "$CACHE_DIR_OFFENDERS" ]; then
   exit 0
 fi
 
@@ -213,6 +234,17 @@ if [ -n "$BARE_VITEST_OFFENDERS" ]; then
     echo "you touched."
     echo
     printf 'Rejected invocation(s):\n%s' "$BARE_VITEST_OFFENDERS"
+  } >&2
+fi
+
+if [ -n "$CACHE_DIR_OFFENDERS" ]; then
+  {
+    echo "turbo-filter-gate: BLOCKED: a separate turbo cache store is banned. Turbo"
+    echo "already shares the main checkout's .turbo/cache with every git worktree; a"
+    echo "second store (TURBO_CACHE_DIR or --cache-dir) makes runs miss each other's"
+    echo "results. Drop it (unset TURBO_CACHE_DIR if your shell exports it) and rerun."
+    echo
+    printf 'Rejected invocation(s):\n%s' "$CACHE_DIR_OFFENDERS"
   } >&2
 fi
 
