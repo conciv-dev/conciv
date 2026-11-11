@@ -84,6 +84,13 @@ export async function readWorkspacePackages(cwd: string): Promise<WorkspacePacka
   return resolveWorkspacePackages(cwd, globs)
 }
 
+export function findOwner(packages: WorkspacePackage[], path: string): WorkspacePackage | undefined {
+  return packages
+    .filter((pkg) => path === pkg.relativeDir || path.startsWith(`${pkg.relativeDir}/`))
+    .toSorted((a, b) => b.relativeDir.length - a.relativeDir.length)
+    .at(0)
+}
+
 function workspaceDependencyNames(manifest: Manifest): string[] {
   const deps = {...manifest.dependencies, ...manifest.devDependencies}
   return Object.entries(deps)

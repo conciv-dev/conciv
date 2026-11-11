@@ -29,6 +29,7 @@ import {
   treesMatch,
 } from '../src/swift-mirror.ts'
 import {buildDependencyGraph, readWorkspacePackages, transitiveDependents} from '../src/workspace.ts'
+import {assertTypecheckCoversTrackedFiles} from '../src/typecheck-coverage.ts'
 
 describe('catalog', () => {
   test('assertSharedDependenciesCatalogued accepts shared deps taken from the catalog and single-manifest deps kept explicit', async () => {
@@ -100,6 +101,38 @@ describe('catalog', () => {
     const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
     await expect(assertSharedDependenciesCatalogued(repoRoot)).resolves.toBeUndefined()
   })
+})
+
+describe('typecheck coverage', () => {
+  const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
+
+  test('assertTypecheckCoversTrackedFiles names a tracked file no typecheck tsconfig includes, and passes once it is included', async () => {
+    const root = await scaffoldWorkspaceRoot('typecheck-coverage-')
+    const pkg = join(root, 'packages', 'a')
+    await writeManifest(pkg, {name: '@conciv/a', scripts: {typecheck: 'tsc -p tsconfig.json --noEmit'}})
+    await mkdir(join(pkg, 'src'), {recursive: true})
+    await mkdir(join(pkg, 'test', 'fixtures'), {recursive: true})
+    await symlink(join(repoRoot, 'node_modules'), join(root, 'node_modules'))
+    const writeTsconfig = (config: Record<string, unknown>) =>
+      writeFile(join(pkg, 'tsconfig.json'), JSON.stringify(config))
+    await Promise.all([
+      writeFile(join(pkg, 'src', 'index.ts'), 'export const a = 1\n'),
+      writeFile(join(pkg, 'test', 'a.test.ts'), 'export const b = 2\n'),
+      writeFile(join(pkg, 'test', 'fixtures', 'broken.ts'), 'export const c = = 3\n'),
+      writeTsconfig({include: ['src'], exclude: ['test/**']}),
+    ])
+    await execa('git', ['init', '-q'], {cwd: root})
+    await execa('git', ['add', 'packages'], {cwd: root})
+    const rejection = assertTypecheckCoversTrackedFiles(root)
+    await expect(rejection).rejects.toThrow('packages/a/test/a.test.ts')
+    await expect(rejection).rejects.toThrow('packages/a/test/fixtures/broken.ts')
+    await writeTsconfig({include: ['src', 'test'], exclude: ['test/fixtures/broken.ts']})
+    await expect(assertTypecheckCoversTrackedFiles(root)).resolves.toBeUndefined()
+  }, 10_000)
+
+  test('assertTypecheckCoversTrackedFiles passes on this repository', async () => {
+    await expect(assertTypecheckCoversTrackedFiles(repoRoot)).resolves.toBeUndefined()
+  }, 60_000)
 })
 
 describe('cli', () => {
