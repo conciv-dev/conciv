@@ -5,6 +5,7 @@ import {claudeChatConfig} from './chat.js'
 import {claudeHistory} from './history.js'
 import {claudeSdkCommands, claudeSdkModels} from './sdk.js'
 import {claudeTtyCommand} from './tty.js'
+import {transcriptUsage} from './transcript-usage.js'
 
 export {CHAT_SYSTEM_PROMPT} from './system-prompt.js'
 
@@ -28,7 +29,7 @@ export const claude = defineHarness({
   init: claudeInit,
   chatConfig: claudeChatConfig,
   commands: claudeSdkCommands,
-  history: claudeHistory,
+  history: {...claudeHistory, transcriptUsage},
   tty: {command: claudeTtyCommand},
   resume: {command: ({nativeId}) => ({bin: 'claude', args: claudeSessionArgs(nativeId, true)})},
 })

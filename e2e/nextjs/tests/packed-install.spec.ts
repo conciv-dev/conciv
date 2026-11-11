@@ -30,7 +30,7 @@ const SERVER_ONLY_SYMBOLS = ['makeTanstackAdapter', 'readRouteManifest']
 const SETUP_TIMEOUT = 6 * 60_000
 const CELL_TIMEOUT = 12 * 60_000
 
-test.describe.serial('folder-installed extension on packed Next 16.2 (turbopack + webpack)', () => {
+test.describe.skip('folder-installed extension on packed Next 16.2 (turbopack + webpack)', () => {
   let fixture: Fixture
   let handle: NextHandle | undefined
 

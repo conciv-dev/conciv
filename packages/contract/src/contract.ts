@@ -357,7 +357,7 @@ export const contract = {
     commands: oc.errors(approvalDenied).input(SessionIdInput).output(ChatCommandsSchema),
     tools: oc.output(ChatToolsSchema),
     engine: oc.output(EngineStalenessSchema),
-    hubAgents: oc.output(HubAgentsSchema),
+    hubAgents: oc.output(eventIterator(HubAgentsSchema)),
     connectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),
     disconnectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),
   },

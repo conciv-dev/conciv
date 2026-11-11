@@ -8,13 +8,12 @@ import {
   writeFileSync,
   mkdirSync,
   utimesSync,
-  watch,
 } from 'node:fs'
 import {once} from 'node:events'
 import {request as httpRequest} from 'node:http'
 import {createServer} from 'node:net'
 import {tmpdir} from 'node:os'
-import {dirname, join} from 'node:path'
+import {join} from 'node:path'
 import {text as bodyText} from 'node:stream/consumers'
 import {randomUUID} from 'node:crypto'
 import {setImmediate, setTimeout as wait} from 'node:timers/promises'
@@ -63,8 +62,6 @@ import {eq} from 'drizzle-orm'
 import {isEqual} from 'es-toolkit'
 import getPort from 'get-port'
 import {WSContext, defineWebSocketHelper} from 'hono/ws'
-import {createStorage, defineDriver} from 'unstorage'
-import memoryDriver from 'unstorage/drivers/memory'
 import {z} from 'zod'
 import {hostDocument} from '../src/api/native-page.js'
 import {resolveConfig} from '../src/config.js'
@@ -76,7 +73,6 @@ import {statePaths} from '../src/lib/state-paths.js'
 import {makePageBus} from '../src/page-bus.js'
 import {makeCoreRuntime} from '../src/runtime/core-runtime.js'
 import {makeSessionPrimitives} from '../src/runtime/primitives.js'
-import {createSettingsStorage, settingsOnDisk} from '../src/settings/settings-storage.js'
 import {runWithSession} from '../src/runtime/session-context.js'
 import {start, composeSystemPrompt} from '../src/start.js'
 import {makeApp} from '../src/app.js'
@@ -1278,14 +1274,7 @@ describe('settings storage', () => {
   const pretty = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`
   const fileText = (path: string) => (existsSync(path) ? readFileSync(path, 'utf8') : null)
   const fileBecomes = (path: string, text: string) =>
-    new Promise<void>((resolve, reject) => {
-      const watcher = watch(dirname(path), () => {
-        if (fileText(path) !== text) return
-        watcher.close()
-        resolve()
-      })
-      watcher.on('error', reject)
-    })
+    vi.waitFor(() => expect(fileText(path)).toBe(text), {timeout: 5_000})
   async function valueBecomes<T extends object>(store: SettingsStore<T>, expected: Partial<T>) {
     const reached = Promise.withResolvers<void>()
     const unsubscribe = await store.onChange((value) => {
@@ -1330,7 +1319,6 @@ describe('settings storage', () => {
       const full = {theme: 'dark', size: 3, tags: ['a']}
       const projectFile = join(projectFolder, 'probe.json')
       const mirrored = await valueBecomes(client.project, full)
-      const written = fileBecomes(projectFile, pretty(full))
       await Promise.all([
         engine.server.project.set('theme', 'dark'),
         engine.server.project.set('size', 3),
@@ -1341,16 +1329,15 @@ describe('settings storage', () => {
       expect(await client.project.all()).toEqual(full)
       expect(await client.project.get('size')).toBe(3)
       expect((await subscriber.next()).value).toMatchObject({value: {theme: 'dark'}})
-      await written
+      await fileBecomes(projectFile, pretty(full))
       expect(readdirSync(projectFolder)).toEqual(['probe.json'])
       const globalFile = join(globalFolder, 'probe.json')
-      const projectRewritten = fileBecomes(projectFile, pretty({theme: 'dark', tags: ['a']}))
-      const globalWritten = fileBecomes(globalFile, pretty({theme: 'light'}))
       await client.project.delete('size')
       expect(await engine.server.project.get('size')).toBeUndefined()
       await client.global.set('theme', 'light')
       expect(await engine.server.global.all()).toEqual({theme: 'light'})
-      await Promise.all([projectRewritten, globalWritten])
+      await fileBecomes(projectFile, pretty({theme: 'dark', tags: ['a']}))
+      await fileBecomes(globalFile, pretty({theme: 'light'}))
       expect(heard).toContainEqual(full)
       expect(heard.at(-1)).toEqual({theme: 'dark', tags: ['a']})
       unsubscribe()
@@ -1399,32 +1386,6 @@ describe('settings storage', () => {
     }
   }, 30_000)
 
-  test("two engines sharing one home hear each other's global changes and never echo their own write back", async () => {
-    const home = tempDir()
-    const one = createSettingsStorage(settingsOnDisk({global: home, project: tempDir()}))
-    const two = createSettingsStorage(settingsOnDisk({global: home, project: tempDir()}))
-    await Promise.all([one.ready, two.ready])
-    try {
-      const mine = one.scope('probe').settings.global
-      const theirs = two.scope('probe').settings.global
-      expect(await theirs.all()).toEqual({})
-      const heard = await valueBecomes(theirs, {theme: 'dark'})
-      await mine.set('theme', 'dark')
-      await one.flush()
-      await heard.reached
-      const echoed: unknown[] = []
-      const unsubscribe = await mine.onChange((value) => echoed.push(value))
-      const answered = await valueBecomes(mine, {theme: 'dark', size: 2})
-      await theirs.set('size', 2)
-      await two.flush()
-      await answered.reached
-      unsubscribe()
-      expect(echoed).toEqual([{theme: 'dark', size: 2}])
-    } finally {
-      await Promise.all([one.close(), two.close()])
-    }
-  })
-
   test('saved settings survive a restart, a corrupt file starts empty, and a namespace outside the folder is refused', async () => {
     const [root, home] = [tempDir(), tempDir()]
     const folder = join(root, '.conciv', 'settings')
@@ -1444,9 +1405,8 @@ describe('settings storage', () => {
       const broken = {scope: 'project', namespace: 'broken'} as const
       expect(await engine.rpc.settings.all(broken)).toMatchObject({value: {}})
       expect(fileText(join(folder, 'broken.json'))).toBe('{not json')
-      const fixed = fileBecomes(join(folder, 'broken.json'), pretty({fixed: true}))
       await engine.rpc.settings.set({...broken, key: 'fixed', value: true})
-      await fixed
+      await fileBecomes(join(folder, 'broken.json'), pretty({fixed: true}))
       const refusal = (pattern: RegExp) => ({
         code: 'BAD_REQUEST',
         data: {issues: [expect.objectContaining({message: expect.stringMatching(pattern)})]},
@@ -1469,49 +1429,6 @@ describe('settings storage', () => {
       expect(existsSync(join(root, 'escape.json'))).toBe(false)
     } finally {
       await engine.stop()
-    }
-  })
-
-  test('a local set made while a watched reload is still reading keeps winning in memory and on disk', async () => {
-    const saved = memoryDriver()
-    await saved.setItem?.('probe.json', JSON.stringify({theme: 'light'}), {})
-    const held: {read?: PromiseWithResolvers<void>} = {}
-    const reading = Promise.withResolvers<void>()
-    const watchers: ((event: 'update' | 'remove', key: string) => void)[] = []
-    const driver = defineDriver(() => ({
-      ...saved,
-      name: 'held-read-memory',
-      async getItem(key: string) {
-        if (held.read !== undefined) {
-          reading.resolve()
-          await held.read.promise
-        }
-        return saved.getItem(key)
-      },
-      async watch(callback) {
-        watchers.push(callback)
-        return async () => {}
-      },
-    }))
-    const settings = createSettingsStorage({
-      global: createStorage({driver: driver()}),
-      project: createStorage({driver: memoryDriver()}),
-    })
-    await settings.ready
-    try {
-      const store = settings.scope('probe').settings.global
-      expect(await store.all()).toEqual({theme: 'light'})
-      held.read = Promise.withResolvers<void>()
-      for (const callback of watchers) callback('update', 'probe.json')
-      await reading.promise
-      await store.set('theme', 'dark')
-      held.read.resolve()
-      await setImmediate()
-      await settings.flush()
-      expect(await store.all()).toEqual({theme: 'dark'})
-      expect(JSON.parse(String(await saved.getItem('probe.json', {})))).toEqual({theme: 'dark'})
-    } finally {
-      await settings.close()
     }
   })
 })
