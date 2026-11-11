@@ -4978,6 +4978,14 @@ describe('settings page', () => {
   const scope = () => page.getByRole('radiogroup', {name: 'Settings scope'})
   const scopeOption = (name: string) => scope().getByRole('radio', {name, exact: true})
   const PROBE_WRAPPED = 'wrap=true density=cozy theme=plain fontSize=13 greeting='
+  const recordGlobalToggle = async (key: string) => {
+    await scope().getByText('All projects', {exact: true}).click()
+    await command('Open or close conciv').click()
+    await userEvent.keyboard(`{Control>}{Shift>}${key}{/Shift}{/Control}`)
+    await expect.element(command('Open or close conciv')).toHaveFocus()
+    await scope().getByText('This project', {exact: true}).click()
+    await expect.element(scopeOption('This project')).toBeChecked()
+  }
   const wrapLines = () => page.getByRole('switch', {name: 'Wrap lines'})
   const fontSize = () => page.getByRole('spinbutton', {name: 'Font size'})
   const greeting = () => page.getByRole('textbox', {name: 'Greeting'})
@@ -5143,6 +5151,7 @@ describe('settings page', () => {
     expect(harness.pathname()).toBe(settingsPath('general'))
 
     await tab('Shortcuts').click()
+    await recordGlobalToggle('o')
     await command('Quick terminal').click()
     await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
     await expect.element(command('Quick terminal')).toHaveFocus()
@@ -5158,6 +5167,8 @@ describe('settings page', () => {
     await command('New quick terminal pane').click()
     await userEvent.keyboard('{Control>}{Shift>}j{/Shift}{/Control}')
     await expect.element(command('New quick terminal pane')).toHaveFocus()
+    await recordGlobalToggle('u')
+    await expect.element(page.getByText(formatForDisplay('Control+Shift+U', {useSymbols: false}))).toBeInTheDocument()
 
     await userEvent.keyboard('{Escape}')
     await expect.element(composer(), {timeout: 8000}).toBeVisible()

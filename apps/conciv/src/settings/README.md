@@ -25,7 +25,7 @@ The conciv preferences a user changes on the settings page, and one generated pa
 
 ## Invariants
 
-- `create-preferences.ts:write`: a value equal to what applies without the key in the edited file (project: global over defaults; global: the default) deletes the key instead of storing it
+- `create-preferences.ts:write`: a value equal to what applies without the key in the edited file (project: global over defaults; global: the default) deletes the key instead of storing it; `commandShortcuts` is written per entry: only entries that differ from the lower layer (or the default) are kept, so editing one command never freezes the others
 - `preferences-schema.ts:PreferencesSchema`: every field has a default and a catch, so a malformed stored value reads as the default
 - `preferences-form.tsx:createPreferencesForm`: the form follows the stored snapshot until a field is touched
 - `extension-settings-form.tsx:createExtensionForm`: a value that fails its schema field is not saved and shows on the field; a value equal to what applies without the key in the edited file deletes the key

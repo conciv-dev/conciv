@@ -1,6 +1,6 @@
 import type {QueryClient} from '@conciv/client'
 import {createMemo} from 'solid-js'
-import {isEqual} from 'es-toolkit'
+import {isEqual, pickBy} from 'es-toolkit'
 import type {Settings} from '@conciv/extension'
 import type {SettingsScope} from '@conciv/contract'
 import type {AppData} from '../data/app-data.js'
@@ -10,6 +10,7 @@ import {
   PreferencesSchema,
   SHORTCUT_DEFAULTS,
   type LauncherChoice,
+  type Preferences,
   type PreferencesApi,
   type ShortcutCommand,
 } from './preferences-schema.js'
@@ -62,8 +63,12 @@ export function createPreferences(options: PreferencesOptions): PreferencesApi {
       command === 'togglePanel' ? undefined : shortcutLockReason(options.host, hostHotkeys(command)),
     write: (scope, key, value) => {
       const store = options.settings[scope]
-      const fallback = PreferencesSchema.parse(layers.fallthrough(scope))[key]
-      return isEqual(value, fallback) ? store.delete(key) : store.set(key, value)
+      const below = PreferencesSchema.parse(layers.fallthrough(scope))
+      if (key === 'commandShortcuts') {
+        const own = ownShortcuts(value, below.commandShortcuts)
+        return isEqual(own, {}) ? store.delete(key) : store.set(key, own)
+      }
+      return isEqual(value, below[key]) ? store.delete(key) : store.set(key, value)
     },
     reset: async (scope, keys) => {
       await Promise.all(keys.map((key) => options.settings[scope].delete(key)))
@@ -73,6 +78,13 @@ export function createPreferences(options: PreferencesOptions): PreferencesApi {
       await Promise.all(Object.keys(all).map((key) => options.settings[scope].delete(key)))
     },
   }
+}
+
+function ownShortcuts(value: unknown, below: Preferences['commandShortcuts']): Preferences['commandShortcuts'] {
+  return pickBy(
+    PreferencesSchema.shape.commandShortcuts.parse(value),
+    (keys, command) => !isEqual(keys, below[command] ?? SHORTCUT_DEFAULTS[command]),
+  )
 }
 
 function shortcutLockReason(host: ConcivSettings, hotkeys: string[] | null): string | undefined {

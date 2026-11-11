@@ -36,6 +36,9 @@ debounced write) and `settings-extensions.md` (generated extension pages).
 - Writing a value equal to what applies without that key in the edited file deletes the key: in `This project`
   that is the global value over the default, in `All projects` the default. A file only holds keys that change
   something.
+- Record-valued settings are written per entry: editing one shortcut writes only that command's entry to the
+  edited file (an entry equal to what applies without it is deleted), so other commands keep following the
+  lower layer.
 - Advanced "Reset all" clears the file of the selected scope only, and its confirmation text names that scope.
 
 ## Reads
