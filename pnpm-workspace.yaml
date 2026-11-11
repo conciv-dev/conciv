@@ -56,6 +56,7 @@ catalog:
   '@solid-primitives/date': '^2.1.8'
   '@solid-primitives/event-listener': '^2.4.6'
   '@solid-primitives/keyed': '^1.5.3'
+  '@solid-primitives/map': '^0.7.4'
   '@solid-primitives/resize-observer': '^2.2.0'
   '@solid-primitives/timer': '^1.4.4'
   '@solidjs/testing-library': '^0.8.10'

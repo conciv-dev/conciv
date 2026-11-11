@@ -69,6 +69,9 @@ catalogs:
     '@solid-primitives/keyed':
       specifier: ^1.5.3
       version: 1.5.3
+    '@solid-primitives/map':
+      specifier: ^0.7.4
+      version: 0.7.4
     '@solid-primitives/resize-observer':
       specifier: ^2.2.0
       version: 2.2.0
@@ -583,6 +586,9 @@ importers:
       '@orpc/client':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)
+      '@solid-primitives/active-element':
+        specifier: ^2.1.6
+        version: 2.1.6(solid-js@1.9.17)
       '@solid-primitives/date':
         specifier: 'catalog:'
         version: 2.1.8(solid-js@1.9.17)
@@ -4930,6 +4936,9 @@ importers:
       '@solid-primitives/keyed':
         specifier: 'catalog:'
         version: 1.5.3(solid-js@1.9.17)
+      '@solid-primitives/map':
+        specifier: 'catalog:'
+        version: 0.7.4(solid-js@1.9.17)
       '@solid-primitives/media':
         specifier: ^2.3.6
         version: 2.3.6(solid-js@1.9.17)
@@ -5127,6 +5136,9 @@ importers:
       '@solid-primitives/keyed':
         specifier: 'catalog:'
         version: 1.5.3(solid-js@1.9.17)
+      '@solid-primitives/map':
+        specifier: 'catalog:'
+        version: 0.7.4(solid-js@1.9.17)
       '@solid-primitives/resize-observer':
         specifier: 'catalog:'
         version: 2.2.0(solid-js@1.9.17)
@@ -10612,6 +10624,11 @@ packages:
   '@sindresorhus/merge-streams@4.0.0':
     resolution: {integrity: sha512-tlqY9xq5ukxTUZBmoOp+m61cqwQD5pHJtFY3Mn8CA8ps6yghLH/Hw8UPdqg4OLmFW3IFlcXnQNmo/dh8HzXYIQ==}
     engines: {node: '>=18'}
+
+  '@solid-primitives/active-element@2.1.6':
+    resolution: {integrity: sha512-kChC9c21g+/n0bfy2b5pkcGAgfiA4G/wcCSxVbrCXlnHfROw9PJi8x4ilYxOYSAnWvpI5pZXvK2McPXYE0y0oA==}
+    peerDependencies:
+      solid-js: ^1.6.12
 
   '@solid-primitives/clipboard@1.6.6':
     resolution: {integrity: sha512-dw7ela8hidoiSFiZiDsJeVfwR15Z/vuePrIj9UJclR9PS6DNYuRd06PV5ppo5blvLXvvdDF6GJj9Eo7cwJBa8w==}
@@ -23373,6 +23390,12 @@ snapshots:
   '@sindresorhus/is@7.2.0': {}
 
   '@sindresorhus/merge-streams@4.0.0': {}
+
+  '@solid-primitives/active-element@2.1.6(solid-js@1.9.17)':
+    dependencies:
+      '@solid-primitives/event-listener': 2.4.6(solid-js@1.9.17)
+      '@solid-primitives/utils': 6.4.1(solid-js@1.9.17)
+      solid-js: 1.9.17
 
   '@solid-primitives/clipboard@1.6.6(solid-js@1.9.17)':
     dependencies:
