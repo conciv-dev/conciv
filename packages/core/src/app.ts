@@ -65,6 +65,7 @@ import {outsideRefusal} from './api/outside-refusal.js'
 import {outsideRunCapabilities} from './api/outside-run.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
+import {pageQueueChunks, startQueueFollowUp} from './page-queue.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
 import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
@@ -446,7 +447,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     return harnesses.find((adapter) => adapter.id === kind) ?? harness
   }
   const scopedToolCall: ScopedToolCall = (name, input, request) =>
-    runtime.forSession(request.sessionId).tools.call(name, input, {toolCallId: request.toolCallId})
+    runtime
+      .forSession(request.sessionId)
+      .tools.call(name, input, {toolCallId: request.toolCallId, outside: request.outside})
 
   const serverSessions: ServerSessions = {
     resumeToken: (sessionId) => nativeIdFor(db, sessionId),
@@ -517,6 +520,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     settled.forEach((outcome) => {
       if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
     })
+    followUpOwedQueues(sessionId)
   }
   const sessionModel = (sessionId: SessionId): string | null => modelOf(db, sessionId)
   const makeToolCtx = (sessionId: SessionId): ConcivToolContext => ({
@@ -600,6 +604,24 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness})
 
+  function followUpOwedQueues(sessionId: SessionId): void {
+    void startQueueFollowUp(primitives.page.queues, plane, sessionId).catch((error: unknown) =>
+      logError(`[core] the page queue follow-up turn for ${sessionId} could not start: ${String(error)}`),
+    )
+  }
+
+  primitives.page.queues.finished((record) => {
+    const result = record.result
+    if (result === null) return
+    const scope = runtime.forSession(record.sessionId)
+    const chunks = pageQueueChunks({result, record, live: plane.driving(record.sessionId)})
+    chunks.forEach((chunk) => scope.stream.publish(chunk))
+    void scope.run
+      .record(chunks)
+      .catch((error: unknown) => logError(`[core] recording queue ${result.queueId} failed: ${String(error)}`))
+    if (!record.outside) followUpOwedQueues(record.sessionId)
+  })
+
   const admitOutside = async (
     scope: SessionScope,
     client: string | null,
@@ -661,7 +683,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       cors: {allowedOrigins: opts.allowedOrigins ?? []},
       harnessId: harness.id,
       mcp: {
-        codeRunner: (sessionId, publish, capabilities) => plane.codeRunner(sessionId, publish, capabilities),
+        codeRunner: (sessionId, publish, capabilities, outside) =>
+          plane.codeRunner(sessionId, publish, capabilities, outside),
+        finishedQueues: (sessionId, outside) => primitives.page.queues.undelivered(sessionId, outside),
         outsideCapabilities: (sessionId) =>
           outsideRunCapabilities([
             ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall),
