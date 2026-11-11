@@ -15,7 +15,7 @@ import type {SessionId} from '@conciv/protocol/chat-types'
 import {ChatEventType, pageQueueEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {generateMessageId} from '@conciv/protocol/chat-message-types'
 import type {Journal, PageBus} from './page-bus.js'
-import {logError} from './lib/debug.js'
+import {logError} from '../lib/debug.js'
 
 type Landed = 'played' | 'stopped' | 'lost'
 

@@ -42,7 +42,7 @@
       },
       {
         "name": "core-primitives",
-        "patterns": ["packages/core/src/page-bus.ts", "packages/core/src/tool-registry.ts"]
+        "patterns": ["packages/core/src/page/page-bus.ts", "packages/core/src/tool-registry.ts"]
       },
       {
         "name": "core-shared-leaf",

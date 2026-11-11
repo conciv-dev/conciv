@@ -13,13 +13,13 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `resolveConfig(options, root)` / `ResolvedConcivConfig` / `defineConfig` (`config.ts`)
 - `CoreRuntime`, `EngineScope`, `SessionScope`, `ScopedToolCall`, `session` (`runtime.ts`)
 - `CodeRunCard`, `codeRunTool`, `EXECUTE_TOOL_NAME`, `coreToolCards` (`cards.tsx`)
-- `makePageBus(timeoutMs=5000)` / `pageQueryStream` / `makeJournal` / `PageEnv` (`page-bus.ts`); each subscriber is one browser tab with an engine-assigned id (`b1`, `b2`, ...) and a focus getter (`{focusedAt, visible}`, fed by the push socket's `page-serving` frames); `PageBus.ask(sessionId, query, route?, signal?)` sends the query to exactly one browser tab, the one `{browserTab}` names or else the one focused last (then visible, then subscribed last), under a random request id only that tab sees; a browser tab that unsubscribes fails its in-flight queries with `no-widget` ('browser tab <id> closed before it replied') and a late reply settles nothing, except for a page tool call (`route` `{mutating}`, passed by `runClientTool` from the tool's mark): a reading call waits for a browser tab of the session to serve again (a new subscriber, or one already there) and is sent once more to the one focused last, failing as before when none serves within 5 seconds or the call's own timeout, which the resend never extends; a changing call is never sent again and fails at once with `no-widget` 'the page reloaded or closed during <tool>; it may already have run. Take a new snapshot before continuing'; and a named browser tab that is not open fails `no-widget` naming the open ids; an aborted `signal` (the caller's tool request signal, carried on `ToolRequest.signal`) fails the call at once with the signal's reason, drops its waiter, and never resends; `PageBus.openSessions()` lists `{sessionId, browserTabs}` (ids, the default target first) for every session with at least one subscriber
 - `makeBuiltinRegistry(deps)` / `toolFailureFromPage` (`tool-registry.ts`)
 - Subdirectories:
   - api: [./api/README.md](./api/README.md) - MCP, tabs, push and native-page routes
   - cards: [./cards/README.md](./cards/README.md) - execute_typescript tool card
   - editor: [./editor/README.md](./editor/README.md) - open source locations
   - lib: [./lib/README.md](./lib/README.md) - CORS, dev endpoint, staleness, state paths
+  - page: [./page/README.md](./page/README.md) - page bus, change journal and page action queues
   - runtime: [./runtime/README.md](./runtime/README.md) - session and engine scopes
   - sessions: [./sessions/README.md](./sessions/README.md) - session rows and event bus
 
@@ -40,7 +40,6 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `onError` (`app.ts`): HTTPException keeps its status; anything else is 500 'internal error'
 - `/api/shutdown` (`app.ts`): 404 without `onShutdown`
 - `resolveConfig` (`config.ts`): session ids must pass `isSessionId` / `isHarnessSessionId`; harness defaults to 'claude'
-- `ask` (`page-bus.ts`): 'no-widget' without a subscriber for the session (with the message `the page is showing another session; switch back to this session to use page tools` when another session has one), 'timeout' on expiry
 - `runClientTool` (`tool-registry.ts`): mutating page tools append a journal entry after success
 
 ## Side Effects
@@ -52,7 +51,7 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `harnessEnv` (`start.ts`): reads process.env and adds CONCIV_SESSION_ID for child harness processes
 - `makeApp` (`app.ts`): opens the SQLite DB, sweeps empty rows, records usage, titles and native ids; runs extension `__server` factories; the chat plane spawns harness processes
 - `resolveConfig` (`config.ts`): reads CONCIV_WIDGET_URL, CONCIV_STATE_ROOT, CONCIV_HARNESS, CONCIV_HARNESS_BIN, CONCIV_CLAUDE_PATH, CONCIV_SESSION_ID, CONCIV_CLAUDE_SESSION_ID
-- `makeJournal` (`page-bus.ts`), `storeCapture` (`tool-registry.ts`): write page changes and captures to the DB
+- `storeCapture` (`tool-registry.ts`): writes captures to the DB
 
 ## Verification
 

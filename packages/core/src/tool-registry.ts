@@ -5,7 +5,7 @@ import {pageVerbError, toolError, type ToolRequest} from '@conciv/extension'
 import {createToolRegistry, type ForwardedPageTool, type ToolRegistry} from '@conciv/extension/registry'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS, BUILTIN_TABS_TOOL} from '@conciv/tools/builtins'
 import type {TabsListing} from '@conciv/protocol/chat-types'
-import type {PageAnswer, PageEnv} from './page-bus.js'
+import type {PageAnswer, PageEnv} from './page/page-bus.js'
 import {session} from './runtime/session-context.js'
 import {logError} from './lib/debug.js'
 

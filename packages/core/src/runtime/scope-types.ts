@@ -9,7 +9,7 @@ import type {RawFrame} from '../editor/symbolicate.js'
 import type {ChatHistoryWindow, ChatHydration, EngineStaleness, ToolCommandSignature} from '@conciv/contract'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ToolRequest} from '@conciv/extension'
-import type {BrowserTabFocus, ChangeEntry} from '../page-bus.js'
+import type {BrowserTabFocus, ChangeEntry} from '../page/page-bus.js'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
 
 export type ToolCatalog = ToolRegistry['catalog']
