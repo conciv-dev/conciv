@@ -17,6 +17,7 @@ import {figmaFacts} from './figma-facts.js'
 import {figmaAssets} from './figma-assets.js'
 import {linkComponents} from './figma-components.js'
 import {namedTokens} from './figma-tokens.js'
+import {figmaRefused} from './figma-refused.js'
 
 export function createFigmaAdapter(input: {
   token: string | null
@@ -208,7 +209,7 @@ async function figmaFetch(input: {url: string; headers: Record<string, string>; 
   const response = await fetch(url, {headers}).catch((cause: unknown) => {
     throw toolError('figma-request', {message: `Figma did not answer for ${link.nodeId}`, data: String(cause)})
   })
-  if (!response.ok) throw toolError('figma-request', {message: `Figma answered ${response.status} for ${link.nodeId}`})
+  if (!response.ok) throw await figmaRefused({response, link})
   return response
 }
 

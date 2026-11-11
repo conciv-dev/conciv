@@ -36,7 +36,9 @@ const LinkSchema = z.object({code: z.string().optional(), message: z.string().op
 
 const RemoteSchema = z.object({status: z.number(), code: z.string()})
 
-const APPROVAL_DENIED = 'APPROVAL_DENIED'
+const INTERNAL_SERVER_ERROR = 'INTERNAL_SERVER_ERROR'
+
+const HintSchema = z.object({hint: z.string()})
 
 function declaredSessionId(): SessionId | null {
   const raw = process.env.CONCIV_SESSION_ID?.trim()
@@ -132,12 +134,12 @@ function callingAgent(env: NodeJS.ProcessEnv): string {
 
 function rejectedByServer(error: unknown): boolean {
   const remote = RemoteSchema.safeParse(error)
-  if (!remote.success) return false
-  return remote.data.code === APPROVAL_DENIED || (remote.data.status >= 400 && remote.data.status < 500)
+  return remote.success && remote.data.code !== INTERNAL_SERVER_ERROR
 }
 
 function rpcFailure(error: ORPCError<string, unknown>): Error {
-  return userFailure(error.message, {code: error.code})
+  const hint = HintSchema.safeParse(error.data).data?.hint
+  return userFailure(error.message, {code: error.code, ...(hint === undefined ? {} : {hint})})
 }
 
 function offlineFailure(origin: string): Error {

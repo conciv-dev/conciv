@@ -42,6 +42,7 @@ import {storeTables} from '../../extensions/design/src/server/runs/store-tables.
 import {storeArtifacts} from '../../extensions/design/src/server/runs/artifacts.js'
 import {createRaster} from '../../extensions/design/src/server/raster.js'
 import {createImageAdapter} from '../../extensions/design/src/server/sources/image.js'
+import {figmaRefused} from '../../extensions/design/src/server/sources/figma-refused.js'
 import {createVotePairer} from '../../extensions/design/src/server/pairers/vote.js'
 import {createViteOxcSource} from '../../extensions/design/src/server/catalog/vite-oxc-source.js'
 import {createCatalog} from '../../extensions/design/src/server/catalog/catalog.js'
@@ -81,6 +82,11 @@ const NO_IDS = {
   children: [],
 }
 const FIGMA_LINK = 'https://www.figma.com/design/ItFixtureKey/x?node-id=1-2'
+
+const CliFailureSchema = z.object({
+  ok: z.literal(false),
+  error: z.object({kind: z.string(), message: z.string(), code: z.string().optional()}),
+})
 
 const CliEnvelopeSchema = z.object({ok: z.literal(true), data: z.object({text: z.string()})})
 
@@ -2079,6 +2085,51 @@ describe('design_check through the CLI', () => {
     } finally {
       await engine.dispose()
     }
+  })
+})
+
+describe('design_get with a Figma token that expired or is invalid', () => {
+  const link = {fileKey: 'ItFixtureKey', nodeId: '50:533'}
+  const answer = (input: {status: number; err: string}) =>
+    figmaRefused({response: new Response(JSON.stringify(input), {status: input.status}), link})
+
+  it('names the cause from Figma and the key to refresh, and keeps a file refusal as its own', async () => {
+    const refusals = await Promise.all([
+      answer({status: 401, err: 'Token has expired'}),
+      answer({status: 403, err: 'Token expired'}),
+      answer({status: 403, err: 'Invalid token'}),
+      answer({status: 403, err: 'Forbidden'}),
+    ])
+    expect(refusals.map((refusal) => [refusal.code, refusal.message])).toEqual([
+      ['figma-token', 'Figma refused the token: Token has expired'],
+      ['figma-token', 'Figma refused the token: Token expired'],
+      ['figma-token', 'Figma refused the token: Invalid token'],
+      ['figma-request', 'Figma refused access to file ItFixtureKey'],
+    ])
+    expect(refusals[0]?.data).toEqual({hint: expect.stringContaining('FIGMA_API_KEY')})
+  })
+
+  it('reaches the CLI as a user error with its own message, not a bug report', async () => {
+    const printed = await promisify(execFile)(
+      process.execPath,
+      [
+        fileURLToPath(import.meta.resolve('@conciv/cli/bin')),
+        'tools',
+        'design',
+        'get',
+        '--figma',
+        'https://www.figma.com/design/ItFixtureKey/x',
+      ],
+      {
+        cwd: kit.stateRoot,
+        env: {...process.env, CONCIV_PORT: new URL(kit.apiBase).port, CONCIV_TOKEN: kit.token, CONCIV_SESSION_ID: ''},
+      },
+    ).catch((failed: unknown) => PrintedSchema.parse(failed))
+    expect(CliFailureSchema.parse(JSON.parse(printed.stdout)).error).toEqual({
+      kind: 'user',
+      message: getDef.errors?.['figma-link'].message,
+      code: 'figma-link',
+    })
   })
 })
 
