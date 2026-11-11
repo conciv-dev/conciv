@@ -13,14 +13,15 @@ import {isExtension} from '../src/extension-guard.js'
 import {dirname, join} from 'node:path'
 import {splitExtension} from '../src/split-extension.js'
 import {compileExtensionSolid} from '../src/compile-extension.js'
-import {mkdtempSync, writeFileSync, mkdirSync, rmSync} from 'node:fs'
+import {mkdtempSync, writeFileSync, mkdirSync, readFileSync, rmSync, statSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {defineExtension} from '@conciv/extension'
 import {addSourceToJsx} from '../src/inject-source.js'
+import {parseSync, Visitor, type JSXAttributeItem, type JSXElementName} from 'oxc-parser'
 import {scaffold} from '@conciv/extension/catalog'
 
 describe('client entry inject', () => {
-  const CTX = {root: '/app'}
+  const CTX = {root: '/app', keys: null}
 
   describe('client-entry module-graph injection', () => {
     it('matches framework client-entry ids, not ordinary modules', () => {
@@ -216,10 +217,12 @@ describe('inject source', () => {
   const sourceValues = (code: string): string[] =>
     [...code.matchAll(/data-conciv-source="([^"]+)"/g)].map((m) => m[1] ?? '')
 
+  const keyValues = (code: string): string[] => [...code.matchAll(/data-conciv-key="([^"]+)"/g)].map((m) => m[1] ?? '')
+
   describe('addSourceToJsx', () => {
     it('stamps a host element with data-conciv-source="<relpath>:<line>:<col>"', () => {
       const code = `export const A = () => <div className="x">hi</div>\n`
-      const out = addSourceToJsx(code, `${ROOT}/src/App.tsx`, ROOT)
+      const out = addSourceToJsx({code, id: `${ROOT}/src/App.tsx`, root: ROOT, keys: new Map()})
       expect(out).not.toBeNull()
       expect(out!.code).toContain('data-conciv-source="src/App.tsx:1:24"')
       expect(out!.code).toContain('className="x"')
@@ -227,35 +230,41 @@ describe('inject source', () => {
 
     it('handles self-closing elements', () => {
       const code = `export const B = () => <img src="a.png" />\n`
-      const out = addSourceToJsx(code, `${ROOT}/src/B.tsx`, ROOT)
-      expect(out!.code).toMatch(/<img src="a\.png"\s+data-conciv-source="src\/B\.tsx:1:\d+"\s*\/>/)
+      const out = addSourceToJsx({code, id: `${ROOT}/src/B.tsx`, root: ROOT, keys: new Map()})
+      expect(out!.code).toMatch(
+        /<img src="a\.png"\s+data-conciv-source="src\/B\.tsx:1:\d+"\s+data-conciv-key="[\w-]{6}" \/>/,
+      )
     })
 
     it('skips Fragments', () => {
       const code = `export const C = () => <><span>x</span></>\n`
-      const out = addSourceToJsx(code, `${ROOT}/src/C.tsx`, ROOT)
+      const out = addSourceToJsx({code, id: `${ROOT}/src/C.tsx`, root: ROOT, keys: new Map()})
 
       expect(out!.code).toContain('<span data-conciv-source=')
       expect(out!.code).not.toContain('<> data-conciv-source')
     })
 
     it('returns null for non-JSX files', () => {
-      expect(addSourceToJsx('export const x = 1', `${ROOT}/src/util.ts`, ROOT)).toBeNull()
+      expect(
+        addSourceToJsx({code: 'export const x = 1', id: `${ROOT}/src/util.ts`, root: ROOT, keys: new Map()}),
+      ).toBeNull()
     })
 
     it('returns null when there is no JSX', () => {
-      expect(addSourceToJsx('export const x = 1', `${ROOT}/src/util.tsx`, ROOT)).toBeNull()
+      expect(
+        addSourceToJsx({code: 'export const x = 1', id: `${ROOT}/src/util.tsx`, root: ROOT, keys: new Map()}),
+      ).toBeNull()
     })
 
     it('does not double-stamp an element that already has the attribute', () => {
       const code = `export const D = () => <div data-conciv-source="x">y</div>\n`
-      const out = addSourceToJsx(code, `${ROOT}/src/D.tsx`, ROOT)
+      const out = addSourceToJsx({code, id: `${ROOT}/src/D.tsx`, root: ROOT, keys: new Map()})
       expect(out).toBeNull()
     })
 
     it('JSON-escapes the path so a quote cannot break out of the attribute', () => {
       const code = `export const E = () => <div>q</div>\n`
-      const out = addSourceToJsx(code, `${ROOT}/src/we"ird.tsx`, ROOT)
+      const out = addSourceToJsx({code, id: `${ROOT}/src/we"ird.tsx`, root: ROOT, keys: new Map()})
 
       expect(out!.code).toContain('\\"')
       expect(out!.code).not.toContain('data-conciv-source="src/we"ird')
@@ -277,8 +286,13 @@ describe('inject source', () => {
       const file = join(dir, 'App.tsx')
       writeFileSync(file, raw)
 
-      const client = addSourceToJsx(raw, file, dir)
-      const server = addSourceToJsx('// injected by SSR transform\n'.repeat(12) + raw, file, dir)
+      const client = addSourceToJsx({code: raw, id: file, root: dir, keys: new Map()})
+      const server = addSourceToJsx({
+        code: '// injected by SSR transform\n'.repeat(12) + raw,
+        id: file,
+        root: dir,
+        keys: new Map(),
+      })
 
       expect(client).not.toBeNull()
       expect(server).not.toBeNull()
@@ -286,8 +300,138 @@ describe('inject source', () => {
       expect(sourceValues(server!.code)).toEqual(sourceValues(client!.code))
       expect(sourceValues(client!.code)).toContain('App.tsx:5:7')
     })
+
+    it('serves a fresh data-conciv-key without writing the source file, and the same file serves the same key again', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'conciv-key-'))
+      const file = join(dir, 'Card.tsx')
+      const raw = 'export const Card = () => <section className="card"><h3>Pricing</h3></section>\n'
+      writeFileSync(file, raw)
+      const writtenAt = statSync(file).mtimeMs
+
+      const first = keyValues(addSourceToJsx({code: raw, id: file, root: dir, keys: new Map()})?.code ?? '')
+      const second = keyValues(addSourceToJsx({code: raw, id: file, root: dir, keys: new Map()})?.code ?? '')
+
+      expect(first).toHaveLength(2)
+      expect(first.filter((key) => key.length !== 6)).toEqual([])
+      expect(new Set(first).size).toBe(2)
+      expect(second).toEqual(first)
+      expect(readFileSync(file, 'utf8')).toBe(raw)
+      expect(statSync(file).mtimeMs).toBe(writtenAt)
+    })
+
+    it('keeps a data-conciv-key the source already carries', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'conciv-key-'))
+      const file = join(dir, 'Kept.tsx')
+      const raw = 'export const Kept = () => <div data-conciv-key="kept01" className="a">x</div>\n'
+      writeFileSync(file, raw)
+
+      const out = addSourceToJsx({code: raw, id: file, root: dir, keys: new Map()})
+
+      expect(keyValues(out?.code ?? '')).toEqual(['kept01'])
+      expect(sourceValues(out?.code ?? '')).toEqual(['Kept.tsx:1:27'])
+      expect(readFileSync(file, 'utf8')).toBe(raw)
+    })
+
+    it('serves keys and leaves the file alone when the file on disk changed since the code was read', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'conciv-key-'))
+      const file = join(dir, 'Moved.tsx')
+      const code = 'export const Moved = () => <main><p>a</p></main>\n'
+      const edited = 'export const Moved = () => <main><p>a</p><p>b</p></main>\n'
+      writeFileSync(file, edited)
+
+      const keys = keyValues(addSourceToJsx({code, id: file, root: dir, keys: new Map()})?.code ?? '')
+
+      expect(readFileSync(file, 'utf8')).toBe(edited)
+      expect(keys).toHaveLength(2)
+      expect(keys.filter((key) => key.length !== 6)).toEqual([])
+    })
+
+    it('stamps a component imported from outside the framework with its call site, a framework or local component with nothing, a host element with key and source', () => {
+      const code = [
+        "import {Show} from 'solid-js'",
+        "import {Chip} from '@conciv/ui-kit-chat'",
+        "import {Tabs} from './tabs'",
+        '',
+        'export function Panel(props: {open: boolean}) {',
+        '  const label = props.open ? "open" : "closed"',
+        '  return (',
+        '    <section>',
+        '      <Show when={props.open}>',
+        '        <Tabs.List>',
+        '          <h3>{label}</h3>',
+        '          <Chip tone="x" />',
+        '          <Local />',
+        '        </Tabs.List>',
+        '      </Show>',
+        '    </section>',
+        '  )',
+        '}',
+        '',
+        'function Local() {',
+        '  return null',
+        '}',
+        '',
+      ].join('\n')
+      const out = addSourceToJsx({code, id: `${ROOT}/src/Panel.tsx`, root: ROOT, keys: null})
+      expect(stampsOf(out?.code ?? '')).toEqual([
+        {tag: 'section', site: null, source: 'src/Panel.tsx:8:5', keyed: true},
+        {tag: 'Show', site: null, source: null, keyed: false},
+        {tag: 'Tabs.List', site: 'src/Panel.tsx:10', source: null, keyed: false},
+        {tag: 'h3', site: null, source: 'src/Panel.tsx:11:11', keyed: true},
+        {tag: 'Chip', site: 'src/Panel.tsx:12', source: null, keyed: false},
+        {tag: 'Local', site: null, source: null, keyed: false},
+      ])
+    })
+
+    it('serves keys and leaves the file alone with no key memory', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'conciv-key-'))
+      const file = join(dir, 'Built.tsx')
+      const raw = 'export const Built = () => <main><p>a</p></main>\n'
+      writeFileSync(file, raw)
+
+      const keys = keyValues(addSourceToJsx({code: raw, id: file, root: dir, keys: null})?.code ?? '')
+
+      expect(readFileSync(file, 'utf8')).toBe(raw)
+      expect(keys).toHaveLength(2)
+      expect(keys.filter((key) => key.length !== 6)).toEqual([])
+    })
   })
 })
+
+function stampsOf(code: string): {tag: string; site: string | null; source: string | null; keyed: boolean}[] {
+  const found: {tag: string; site: string | null; source: string | null; keyed: boolean}[] = []
+  const program = parseSync('out.tsx', code, {sourceType: 'module', lang: 'tsx'}).program
+  new Visitor({
+    JSXOpeningElement(opening) {
+      const value = (name: string): string | null => attributeValue({attributes: opening.attributes, name})
+      found.push({
+        tag: tagName(opening.name),
+        site: value('data-conciv-site'),
+        source: value('data-conciv-source'),
+        keyed: value('data-conciv-key') !== null,
+      })
+    },
+  }).visit(program)
+  return found
+}
+
+function tagName(name: JSXElementName): string {
+  if (name.type === 'JSXIdentifier') return name.name
+  if (name.type === 'JSXMemberExpression') return `${tagName(name.object)}.${name.property.name}`
+  if (name.type === 'JSXNamespacedName') return `${name.namespace.name}:${name.name.name}`
+  return 'this'
+}
+
+function attributeValue(input: {attributes: JSXAttributeItem[]; name: string}): string | null {
+  const found = input.attributes.find(
+    (attribute) =>
+      attribute.type === 'JSXAttribute' &&
+      attribute.name.type === 'JSXIdentifier' &&
+      attribute.name.name === input.name,
+  )
+  if (found?.type !== 'JSXAttribute' || found.value?.type !== 'Literal') return null
+  return typeof found.value.value === 'string' ? found.value.value : null
+}
 
 describe('load extension packages', () => {
   const here = dirname(fileURLToPath(import.meta.url))

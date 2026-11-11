@@ -4,7 +4,7 @@ import type {Plugin} from 'vite'
 export function annotateSiteFile(code: string, id: string, root: string): ReturnType<typeof addSourceToJsx> {
   const file = id.split('?')[0] ?? id
   if (!file.startsWith(`${root}/src/`)) return null
-  return addSourceToJsx(code, file, root)
+  return addSourceToJsx({code, id: file, root, keys: null})
 }
 
 export function sourceAnnotations(root: string): Plugin {

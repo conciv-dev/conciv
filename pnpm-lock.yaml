@@ -2746,6 +2746,9 @@ importers:
       babel-preset-solid:
         specifier: ^1.9.16
         version: 1.9.16(@babel/core@7.29.7)(solid-js@1.9.17)
+      diff:
+        specifier: ^9.0.0
+        version: 9.0.0
       jiti:
         specifier: ^2.7.0
         version: 2.7.0

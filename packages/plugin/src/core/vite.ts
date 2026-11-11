@@ -17,6 +17,7 @@ import {
   dropIncludedFromExcludes,
   resolveExtensionsModule,
   transformConcivModule,
+  type TransformContext,
 } from '@conciv/extension-compiler/vite-plumbing'
 
 function mountWidget(
@@ -161,6 +162,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
   let managedExcludes: string[] = []
   let docked = false
   let devServer: ViteDevServer | undefined
+  const keys: TransformContext['keys'] = new Map()
   return {
     name: 'conciv',
     apply: 'serve',
@@ -230,7 +232,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
     },
     transform(code, id, opts) {
       if (options.enabled === false) return null
-      return transformConcivModule(code, id, opts?.ssr ?? false, {root})
+      return transformConcivModule(code, id, opts?.ssr ?? false, {root, keys})
     },
     transformIndexHtml: {
       order: 'pre',

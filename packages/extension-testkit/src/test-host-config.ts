@@ -28,7 +28,7 @@ function concivBuildPlugin(builtins: Builtins): Plugin {
     load: (id) =>
       loadExtensionsModule(id, builtins.clientEntries, undefined, builtins.embedEntry, builtins.dedupeEntry),
     transform(code, id, opts) {
-      return transformConcivModule(code, id, opts?.ssr ?? false, {root})
+      return transformConcivModule(code, id, opts?.ssr ?? false, {root, keys: null})
     },
   }
 }

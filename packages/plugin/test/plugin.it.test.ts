@@ -491,10 +491,13 @@ describe('inject source hook', () => {
       expect(out?.code).toContain('data-conciv-source=')
     })
 
-    it('stamps its own data-conciv-source over the code @tanstack/devtools inject-source already stamped', async () => {
+    async function throughDevtools(raw: string): Promise<{
+      file: string
+      tsdCode: string
+      conciv: (code: string, ssr: boolean) => Promise<{code: string} | null>
+    }> {
       const root = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-tsd-')))
       const file = join(root, 'src', 'App.tsx')
-      const raw = 'export const App = () => <main className="app"><p>hi</p></main>\n'
       mkdirSync(dirname(file), {recursive: true})
       writeFileSync(file, raw)
       const plugins = devtools()
@@ -504,8 +507,6 @@ describe('inject source hook', () => {
       if (!inject) throw new Error('@tanstack/devtools has no inject-source transform')
       const injected = await inject.call({} as never, raw, file, undefined as never)
       const tsdCode = typeof injected === 'object' && injected !== null && 'code' in injected ? injected.code : ''
-      expect(tsdCode).toContain('data-tsd-source=')
-
       const hook = makeViteHook({enabled: true})
       const configResolved = hook.configResolved
       if (typeof configResolved === 'function')
@@ -513,11 +514,59 @@ describe('inject source hook', () => {
       const transform = hook.transform
       const run = typeof transform === 'function' ? transform : transform?.handler
       if (!run) throw new Error('conciv plugin has no transform')
-      const out = (await run.call({} as never, String(tsdCode), file, undefined as never)) as {code: string} | null
+      const conciv = async (code: string, ssr: boolean): Promise<{code: string} | null> =>
+        (await run.call({} as never, code, file, {ssr} as never)) as {code: string} | null
+      return {file, tsdCode: String(tsdCode), conciv}
+    }
+
+    const keysOf = (code: string | undefined): string[] =>
+      (code ?? '')
+        .split('data-conciv-key="')
+        .slice(1)
+        .map((rest) => rest.split('"')[0] ?? '')
+
+    it('stamps its own data-conciv-source and data-conciv-key over the code @tanstack/devtools inject-source already stamped', async () => {
+      const {tsdCode, conciv} = await throughDevtools(
+        'export const App = () => <main className="app"><p>hi</p></main>\n',
+      )
+      expect(tsdCode).toContain('data-tsd-source=')
+
+      const out = await conciv(tsdCode, false)
 
       expect(out?.code).toContain('data-tsd-source=')
       expect(out?.code).toContain('data-conciv-source="src/App.tsx:1:26"')
       expect(out?.code).toContain('data-conciv-source="src/App.tsx:1:48"')
+      expect(keysOf(out?.code)).toHaveLength(2)
+    })
+
+    it('serves the server render and the client render of one file the same keys, and leaves the file as it was', async () => {
+      const raw = 'export const App = () => <main className="app"><p>hi</p></main>\n'
+      const {file, tsdCode, conciv} = await throughDevtools(raw)
+
+      const server = keysOf((await conciv(tsdCode, true))?.code)
+      const client = keysOf((await conciv(tsdCode, false))?.code)
+
+      expect(server).toHaveLength(2)
+      expect(client).toEqual(server)
+      expect(readFileSync(file, 'utf8')).toBe(raw)
+    })
+
+    it('keeps the key of an element whose own tag or other lines of its file were edited, and never writes the file', async () => {
+      const raw = 'export const App = () => (\n  <main className="app">\n    <p className="a">hi</p>\n  </main>\n)\n'
+      const edited =
+        'export const App = () => (\n  <main className="app">\n    <h2>new</h2>\n    <p className="b">hi</p>\n  </main>\n)\n'
+      const {file, conciv} = await throughDevtools(raw)
+      const [main, p] = keysOf((await conciv(raw, false))?.code)
+      expect(readFileSync(file, 'utf8')).toBe(raw)
+
+      writeFileSync(file, edited)
+      const after = keysOf((await conciv(edited, false))?.code)
+
+      expect(readFileSync(file, 'utf8')).toBe(edited)
+      expect(after).toHaveLength(3)
+      expect([after[0], after[2]]).toEqual([main, p])
+      expect(after[1]).not.toBe(main)
+      expect(after[1]).not.toBe(p)
     })
   })
 })
