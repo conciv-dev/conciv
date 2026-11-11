@@ -1242,6 +1242,10 @@ describe('context tracker', () => {
 describe('engine staleness', () => {
   const core = bootedCore('engine-staleness')
   const keep = keptPane()
+  const harness = createShellHarness(core)
+  const faults = trackedFaults()
+
+  afterEach(harness.dispose)
 
   const TRACKED = ['@conciv/core', '@conciv/tools']
 
@@ -1283,6 +1287,20 @@ describe('engine staleness', () => {
 
     await expect.element(page.getByRole('alert')).toBeVisible()
   })
+
+  test('the stale notice clears when the engine reconnects running fresh code', async () => {
+    await page.viewport(1000, 900)
+    const staleNotice = () => page.getByText(/Engine is running outdated code/)
+    await coreControl.setStaleness(staleness(true, 'stamp-before-restart'))
+    const sessionId = await createSession(coreRpc(core()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(staleNotice(), {timeout: 8000}).toBeVisible()
+
+    await coreControl.setStaleness(staleness(false, 'stamp-after-restart'))
+    await coreControl.releaseFault(await faults.install({kind: 'offline'}))
+
+    await expect.element(staleNotice(), {timeout: 8000}).not.toBeInTheDocument()
+  }, 30_000)
 })
 
 describe('engine version', () => {
@@ -2007,6 +2025,8 @@ describe('connect agents', () => {
   const agents = () => page.getByRole('group', {name: 'Connected agents'})
   const disconnect = () => page.getByRole('button', {name: 'Disconnect Claude'})
   const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const HUB_AGENTS_PATH = ['meta', 'hubAgents']
+  const hubAgentsAsked = async () => coreControl.rpcStartedOnceServed(HUB_AGENTS_PATH, 0, [HUB_AGENTS_PATH])
 
   test('a harness connects from the menu with a pending chip, shows in the connected row, and disconnects from it', async () => {
     await page.viewport(1000, 900)
@@ -2016,11 +2036,16 @@ describe('connect agents', () => {
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
     await expect.element(page.getByText('env: staging')).toBeVisible()
     await expect.element(agents()).not.toBeInTheDocument()
+    await more().click()
+    await expect.element(item()).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    const listed = await hubAgentsAsked()
 
     await coreControl.setHubConnection('codex', true)
     await expect.element(agents().getByText('Codex', {exact: true}), {timeout: 8000}).toBeVisible()
     await coreControl.setHubConnection('codex', false)
     await expect.element(agents(), {timeout: 8000}).not.toBeInTheDocument()
+    expect(await hubAgentsAsked()).toEqual(listed)
 
     await more().click()
     await item().click()

@@ -10,7 +10,7 @@ import {EXTENSIONS_DOCK_ROUTE, EXTENSIONS_ROUTE, htmlTags, makeWidgetInject} fro
 import {makeOpenInEditor} from './open-editor.js'
 import type {AnyExtension} from '@conciv/extension'
 import {makeViteBridge} from '@conciv/extension/vite'
-import {type Builtins, NO_BUILTINS, loadServerExtensions} from '@conciv/extension-compiler/extensions'
+import {type Builtins, loadExtensionPackages, loadServerExtensions} from '@conciv/extension-compiler/extensions'
 import {
   loadExtensionsModule,
   concivSolidConfig,
@@ -47,6 +47,7 @@ async function bootEngine(
   options: ConcivConfig,
   agentPath: string,
   extensions: AnyExtension[],
+  extensionConfig: Record<string, unknown>,
   nativePageDir: string | undefined,
 ): Promise<Engine> {
   const {start} = await import('@conciv/core/start')
@@ -58,6 +59,7 @@ async function bootEngine(
     launchEditor: makeOpenInEditor(server.config.root),
     allowedOrigins: devOrigins(server),
     extensions,
+    extensionConfig,
     nativePageDir,
     devEndpointDir: options.devEndpointDir,
     homeDir: options.homeDir,
@@ -113,10 +115,6 @@ const EMBED_LATE_DISCOVERED_DEPENDENCIES = [
 
 const EMBED_SOLID_RUNTIME = ['solid-js', 'solid-js/web', 'solid-js/store']
 
-const RECORDER_LATE_DISCOVERED_DEPENDENCIES = ['rrweb', 'rrweb-player', '@rrweb/rrweb-plugin-console-record'].map(
-  (dependency) => `@conciv/it > @conciv/extension-recorder > ${dependency}`,
-)
-
 function embedChunks(embedEntry: string): string[] {
   const dir = dirname(embedEntry)
   try {
@@ -153,7 +151,8 @@ function widgetSettings(widget: ConcivConfig['widget'], docked: boolean): Conciv
   return {...widget, launcher: false, defaultOpen: true, surface: 'dock'}
 }
 
-export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO_BUILTINS): DevToolsPlugin {
+export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}): DevToolsPlugin {
+  const clientEntries = (options.extensions ?? []).map((extension) => extension.client)
   let engine: Engine | null = null
   let apiBase: string | undefined
   let root = process.cwd()
@@ -194,7 +193,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
         builtins.embedEntry === undefined ? [] : [builtins.embedEntry, ...embedChunks(builtins.embedEntry)]
       const base = concivSolidConfig({
         root: userConfig.root ?? process.cwd(),
-        warmupFiles: [...embedFiles, ...builtins.clientEntries],
+        warmupFiles: [...embedFiles, ...clientEntries],
       })
       base.optimizeDeps.exclude.push('@conciv/embed')
       managedExcludes = [...base.optimizeDeps.exclude]
@@ -208,7 +207,6 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
               (id) => `@conciv/it > @conciv/embed > ${id}`,
             ),
             ...EMBED_LATE_DISCOVERED_DEPENDENCIES,
-            ...RECORDER_LATE_DISCOVERED_DEPENDENCIES,
           ],
         },
       }
@@ -228,7 +226,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       return resolveExtensionsModule(id)
     },
     load(id) {
-      return loadExtensionsModule(id, builtins.clientEntries, apiBase, builtins.embedEntry, builtins.dedupeEntry)
+      return loadExtensionsModule(id, clientEntries, apiBase, builtins.embedEntry, builtins.dedupeEntry)
     },
     transform(code, id, opts) {
       if (options.enabled === false) return null
@@ -248,12 +246,13 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
     async configureServer(server: ViteDevServer) {
       const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return
-      const extensions = await loadServerExtensions(server.config.root, builtins.serverExtensions)
+      const installed = await loadExtensionPackages(options.extensions)
       engine = await bootEngine(
         server,
         options,
         installConcivBinShim(concivStateDir(cfg.stateRoot)),
-        extensions,
+        await loadServerExtensions(server.config.root, installed.extensions),
+        installed.config,
         builtins.nativePageDir,
       )
       const booted = engine

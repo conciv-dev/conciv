@@ -1,10 +1,11 @@
 import {join} from 'node:path'
-import {eventIterator, os, type Procedure, type Schema} from '@orpc/server'
+import {eventIterator, os, withEventMeta, type Procedure, type Schema} from '@orpc/server'
 import {z} from 'zod'
 import {defineExtension, subscriptionIterator} from '@conciv/extension'
 import {
   MAX_FLUSH_BYTES,
   RECORDER_NAME,
+  REPLAY_MIN_EVENTS,
   RecorderControlSchema,
   RrwebEventSchema,
   jsonByteLength,
@@ -14,7 +15,7 @@ import {
   type RecorderControl,
   type RrwebEvent,
 } from './shared/protocol.js'
-import {createClientRings, type ClientSummary} from './server/rings.js'
+import {createClientRings, type ClientRings, type ClientSummary} from './server/rings.js'
 import {createRecordingStore} from './server/recordings.js'
 import {createCaptureControl} from './server/capture-control.js'
 import {createChromiumRenderer} from './server/render.js'
@@ -31,6 +32,8 @@ const ClientId = z.string().min(1).max(128)
 const RangeInput = z.object({fromTs: z.number().optional(), toTs: z.number().optional(), clientId: ClientId})
 
 const MAX_FLUSH_EVENTS = 5000
+
+const ResumeCursor = z.coerce.number().int().nonnegative()
 
 const FlushInput = z
   .object({clientId: ClientId, events: z.array(RrwebEventSchema).max(MAX_FLUSH_EVENTS)})
@@ -56,7 +59,9 @@ type RecorderProcedure<Input extends Schema<unknown, unknown>, Output extends Sc
 >
 type NoInput = Schema<unknown, unknown>
 type Returns<Output> = Schema<Output, Output>
-type EventWindow = Returns<{events: RrwebEvent[]; cursor: number}>
+type WindowChunk = {events: RrwebEvent[]; cursor: number}
+type EventWindow = Returns<WindowChunk>
+type EventWindowStream = Returns<AsyncGenerator<WindowChunk, void, unknown>>
 type Recording = Returns<{events: RrwebEvent[]; expired?: undefined} | {events?: undefined; expired: true}>
 type ControlStream = ReturnType<typeof eventIterator<z.input<typeof RecorderControlSchema>, RecorderControl>>
 export type RecorderRouter = {
@@ -64,7 +69,8 @@ export type RecorderRouter = {
   clients: RecorderProcedure<NoInput, Returns<{clients: ClientSummary[]}>>
   flush: RecorderProcedure<typeof FlushInput, typeof OkOutput>
   window: RecorderProcedure<typeof RangeInput, EventWindow>
-  events: RecorderProcedure<typeof EventsInput, EventWindow>
+  replay: RecorderProcedure<typeof RangeInput, EventWindowStream>
+  events: RecorderProcedure<typeof EventsInput, EventWindowStream>
   presence: RecorderProcedure<typeof PresenceInput, typeof OkOutput>
   reset: RecorderProcedure<NoInput, typeof OkOutput>
   log: RecorderProcedure<typeof RangeInput, Returns<{entries: ActionLogEntry[]}>>
@@ -91,10 +97,23 @@ export function makeRecorderRouter(runtime: RecorderRuntime): RecorderRouter {
       events: runtime.rings.window(input, input.clientId),
       cursor: runtime.rings.head(input.clientId),
     })),
-    events: recorderOs.input(EventsInput).handler(({input}) => ({
-      events: runtime.rings.since(input.cursor, input.clientId),
-      cursor: runtime.rings.head(input.clientId),
-    })),
+    replay: recorderOs.input(RangeInput).handler(async function* ({input, signal}) {
+      for await (const cursor of clientHeads(runtime.rings, input.clientId, signal)) {
+        const events = runtime.rings.window(input, input.clientId)
+        yield {events, cursor}
+        if (events.length >= REPLAY_MIN_EVENTS) return
+      }
+    }),
+    events: recorderOs.input(EventsInput).handler(async function* ({input, signal, lastEventId}) {
+      const resumed = ResumeCursor.safeParse(lastEventId)
+      let cursor = resumed.success ? resumed.data : input.cursor
+      for await (const head of clientHeads(runtime.rings, input.clientId, signal)) {
+        if (head <= cursor) continue
+        const events = runtime.rings.since(cursor, input.clientId)
+        cursor = head
+        yield withEventMeta({events, cursor}, {id: String(cursor)})
+      }
+    }),
     presence: recorderOs
       .input(PresenceInput)
       .output(OkOutput)
@@ -144,6 +163,23 @@ export function makeRecorderRouter(runtime: RecorderRuntime): RecorderRouter {
       }, signal)
     }),
   })
+}
+
+async function* clientHeads(
+  rings: ClientRings,
+  clientId: string,
+  signal: AbortSignal | undefined,
+): AsyncGenerator<number, void, void> {
+  let last = -1
+  const heads = subscriptionIterator<number>((emit) => {
+    emit(rings.head(clientId))
+    return rings.onAppend(() => emit(rings.head(clientId)))
+  }, signal)
+  for await (const head of heads) {
+    if (head === last) continue
+    last = head
+    yield head
+  }
 }
 
 export default defineExtension({

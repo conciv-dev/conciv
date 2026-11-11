@@ -35,7 +35,7 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 ## Side Effects
 
 - `pip.ts:openPipWindow`: `window.open('', 'conciv-pip', 'width=480,height=620,popup')`, writes the popup document, attaches a shadow root and delegates events to it
-- `engine-notice.tsx:EngineStaleNotice`: polls `meta.engine` with a refetch interval while connected
+- `engine-notice.tsx:EngineStaleNotice`: reads `meta.engine` while connected and again on window refocus and on every reconnect of the engine socket (`refetchOnReconnect: 'always'`), never on a timer; reachability itself comes from the socket's open and close
 - `engine-notice.tsx:EngineUnreachableNotice`: Retry re-runs the login check and resets the browser rpc connection
 - `effects-surface.tsx:EffectsSurface`: portals a shadow host into `document.body`
 

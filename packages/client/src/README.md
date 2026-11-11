@@ -12,8 +12,8 @@ Source for @conciv/client: oRPC TanStack Query utils, a chat connection that pic
 - `chatSocketUrl` / `chatEventsUrl` / `socketOpens` (`chat-connection.ts`)
 - `useChatSession(options)` (`use-chat-session.ts`): `createChatSession` with chatConnection, `rpc.chat.stop` and `rpc.chat.permissionDecision`
 - `openPushChannel` / `acquirePushChannel` / `PushChannel` / `pushSocketUrl` / `livePushChannelCount` (`push-channel.ts`)
-- `setupEngineReachability` / `engineOnline` / `sustainedEngineOffline` / `isReachabilityError` / `engineProbeRefetchInterval` / `subscribeEngineOnline` / `voteEngineProbeSettled` (`reachability.ts`)
-- `ENGINE_OFFLINE_GRACE_MS` = 1000, `ENGINE_PROBE_INTERVAL_MS` = 2000, `ENGINE_HEARTBEAT_INTERVAL_MS` = 30000 (`reachability.ts`)
+- `setupEngineReachability` / `engineOnline` / `sustainedEngineOffline` / `isReachabilityError` / `subscribeEngineOnline` (`reachability.ts`)
+- `ENGINE_OFFLINE_GRACE_MS` = 1000 (`reachability.ts`)
 - `index.ts`: re-exports the modules above; `stream-relay.ts` helpers are internal
 
 ## Invariants
