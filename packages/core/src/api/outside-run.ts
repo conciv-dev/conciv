@@ -1,6 +1,7 @@
 import {z} from 'zod'
 import {createMCPClient} from '@conciv/ai/server'
 import type {CodeCapability} from '@conciv/chat'
+import {makeRpcClient} from '@conciv/contract'
 import {toolError} from '@conciv/extension'
 import type {ContentPart} from '@conciv/protocol/chat-message-types'
 import {
@@ -41,6 +42,7 @@ const FailureSchema = z.object({error: z.object({message: z.string(), code: z.st
 export function outsideRunCapabilities(deps: {
   tabs: OutsideTabs
   client: string | null
+  pid: number | null
   capabilities: readonly CodeCapability[]
   signal: AbortSignal
 }): CodeCapability[] {
@@ -53,6 +55,7 @@ export function outsideRunCapabilities(deps: {
     execute: async (input) => {
       const {id} = UseTabInputSchema.parse(input)
       const found = await deps.tabs.find(id)
+      if (deps.pid !== null) await makeRpcClient(found.apiBase).sessions.take({sessionId: id, pid: deps.pid})
       picked.tab = {...found, id}
       return {
         instructions: found.instructions,

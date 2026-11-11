@@ -1,0 +1,1 @@
+ALTER TABLE `sessions` ADD `attached_host` text;

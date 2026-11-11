@@ -19,7 +19,7 @@ import {open, writeFile} from 'node:fs/promises'
 import {execFileSync} from 'node:child_process'
 import {request as httpRequest} from 'node:http'
 import {DatabaseSync} from 'node:sqlite'
-import {tmpdir} from 'node:os'
+import {hostname, tmpdir} from 'node:os'
 import {join, dirname} from 'node:path'
 import {afterAll, beforeAll, describe, expect, it, afterEach, test, vi, beforeEach} from 'vitest'
 import {imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
@@ -43,6 +43,7 @@ import {
   chatMetadata,
   chatRuns,
   concivHome,
+  existingDb,
   listEngines,
   recordHubConnection,
   registerEngine,
@@ -86,6 +87,7 @@ import {
   CHAT_WS_PATH,
   CONCIV_CLAUDE_SESSION_HEADER,
   CONCIV_CLIENT_HEADER,
+  CONCIV_HUB_PID_HEADER,
   CONCIV_ORIGIN_HEADER,
   type HubAccess,
   TabOpenSchema,
@@ -4172,6 +4174,33 @@ describe('outside agent consent', () => {
     expect(await outside(runner, `${pick} return await external_page_route({})`)).toContain(ROUTE.href)
     expect(await outside(runner, 'return await external_page_route({})')).toContain('NO_TAB')
     expect(await outside(runner, 'return await external_use_tab({id: "conciv_gone"})')).toContain('TAB_NOT_OPEN')
+  })
+
+  it('a hub that picks a tab attaches its pid and host to that session, and detaching its pid clears them', async () => {
+    const [home, root] = [connectedHome(), tempDir('conciv-consent-')]
+    const runner = await boot('open', home)
+    const engine = await bootAt(home, root, 'open')
+    engines.push(engine)
+    const owner = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const theirs = await openTab(owner)
+    const hub = {...HUB, [CONCIV_HUB_PID_HEADER]: String(process.pid)}
+    const before = Date.now()
+    await executeOverMcp(runner, hub, `await external_use_tab({id: "${theirs}"}); return 1`)
+    const db = existingDb({stateRoot: root})
+    const attachment = () =>
+      db
+        .select({pid: sessions.attachedPid, at: sessions.attachedAt, host: sessions.attachedHost})
+        .from(sessions)
+        .where(eq(sessions.id, SessionId.parse(theirs)))
+        .get()
+    try {
+      expect(attachment()).toEqual({pid: process.pid, at: expect.any(Number), host: hostname()})
+      expect(attachment()?.at).toBeGreaterThanOrEqual(before)
+      await makeRpcClient(owner).sessions.detach({pid: process.pid})
+      expect(attachment()).toEqual({pid: null, at: null, host: null})
+    } finally {
+      db.$client.close()
+    }
   })
 
   it('a forwarded call larger than the reply cap hands the block its typed result, not a truncated string', async () => {

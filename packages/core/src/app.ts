@@ -70,6 +70,7 @@ import tabsApp, {type TabsVars} from './api/tabs.js'
 import {createOutsideTabs} from './api/outside-tabs.js'
 import {outsideRefusal} from './api/outside-refusal.js'
 import {outsideRunCapabilities} from './api/outside-run.js'
+import {createSessionHolders} from './sessions/session-holders.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
@@ -668,6 +669,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     sources: sourcesApi,
     admitOutside,
     hub,
+    holders: createSessionHolders(db),
     auth: makeAuthRouter({
       codes: makeCodeStore({now: Date.now, print: opts.print ?? ((text) => console.log(text))}),
       trust,
@@ -699,10 +701,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       harnessId: harness.id,
       mcp: {
         codeRunner: (sessionId, publish, capabilities) => plane.codeRunner(sessionId, publish, capabilities),
-        outsideCapabilities: (sessionId, client, signal) =>
+        outsideCapabilities: ({sessionId, client, pid, signal}) =>
           outsideRunCapabilities({
             tabs: outsideTabs,
             client,
+            pid,
             signal,
             capabilities: [
               ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall),

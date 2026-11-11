@@ -17,6 +17,7 @@ import type {makeRpcRouter} from './router.js'
 import type {AuthRouter} from '../../engine-login.js'
 import type {createSessionSearch} from '../../sessions/session-search.js'
 import type {createHubInstaller} from './hub.js'
+import type {createSessionHolders} from '../../sessions/session-holders.js'
 
 export type ChatContext = {
   defaultHarness: HarnessAdapter
@@ -50,6 +51,7 @@ export type RpcDeps = {
   admitOutside: (scope: SessionScope, client: string | null, signal: AbortSignal) => Promise<string | null>
   search: ReturnType<typeof createSessionSearch>
   hub: ReturnType<typeof createHubInstaller>
+  holders: ReturnType<typeof createSessionHolders>
 }
 
 export const os = implement(contract).$context<RpcContext>()

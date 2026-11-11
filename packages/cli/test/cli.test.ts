@@ -5,7 +5,7 @@ import {execFile, execFileSync, spawn, spawnSync} from 'node:child_process'
 import {once} from 'node:events'
 import {createServer} from 'node:net'
 import {chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
-import {tmpdir} from 'node:os'
+import {hostname, tmpdir} from 'node:os'
 import {delimiter, dirname, join, relative, resolve as resolvePath} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {z} from 'zod'
@@ -28,7 +28,7 @@ import {type Detected, detectFramework, detectProject, type Framework} from '../
 import {execFileOutcome} from '../src/init/exec.js'
 import {detectHarnesses} from '@conciv/harness-init/detect'
 import {createHubConnections} from '@conciv/harness-init/hub'
-import {recordHubConnection, takeHubOperation, withHomeDb} from '@conciv/db'
+import {existingDb, recordHubConnection, sessions, takeHubOperation, withHomeDb} from '@conciv/db'
 import type {HarnessId} from '../src/init/harness-detect.js'
 import {type ConfirmedSelections, type InitOutput, interactiveTerminal, type PlanPrompts} from '../src/init/wizard.js'
 import {captureFile, guardBackups, onInterrupt} from '../src/init/interrupt.js'
@@ -1308,6 +1308,33 @@ describe('cli', () => {
 
     const run = async (client: Awaited<ReturnType<typeof hub>>, typescriptCode: string) =>
       JSON.stringify(await client.callTool('execute_typescript', {typescriptCode}))
+
+    it('a hub attaches its pid and host to the tab it picks and detaches once its agent closes stdin', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      withHomeDb(home, (db) => recordHubConnection(db, 'claude', Date.now()))
+      const engine = await engineWithTab(home)
+      const db = existingDb({stateRoot: engine.root})
+      const attachment = () =>
+        db
+          .select({id: sessions.id, pid: sessions.attachedPid, host: sessions.attachedHost})
+          .from(sessions)
+          .all()
+          .find((row) => row.id === engine.sessionId)
+      const client = await hub(home)
+      try {
+        expect(await run(client, `await external_use_tab({id: "${engine.sessionId}"}); return 1`)).toContain(
+          '\\"result\\":1',
+        )
+        expect(attachment()).toEqual({id: engine.sessionId, pid: expect.any(Number), host: hostname()})
+        await client.close()
+        await vi.waitFor(() => expect(attachment()).toEqual({id: engine.sessionId, pid: null, host: null}), {
+          timeout: 5000,
+        })
+      } finally {
+        db.$client.close()
+        await engine.engine.stop()
+      }
+    })
 
     it('a connect still waiting on the agent CLI never reconnects an agent disconnected meanwhile', async () => {
       const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))

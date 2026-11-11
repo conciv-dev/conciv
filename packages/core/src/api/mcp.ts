@@ -278,7 +278,12 @@ type McpDeps = {
     publish: (chunk: ChatEvent) => void,
     capabilities?: readonly CodeCapability[],
   ) => Promise<CodeRunner | null>
-  outsideCapabilities: (sessionId: SessionId, client: string | null, signal: AbortSignal) => CodeCapability[]
+  outsideCapabilities: (caller: {
+    sessionId: SessionId
+    client: string | null
+    pid: number | null
+    signal: AbortSignal
+  }) => CodeCapability[]
   sessionPrompt: (sessionId: SessionId) => Promise<string>
   resolveSession: (header: SessionId | null, nativeId: HarnessSessionId | null) => Promise<SessionScope>
   admitOutside: (scope: SessionScope, client: string | null, signal: AbortSignal) => Promise<string | null>
@@ -311,7 +316,9 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCalle
   const runner = await deps.codeRunner(
     scope.id,
     (chunk) => mirror.publish([caller.trace.mark(chunk)]),
-    origin !== null && caller.outside ? deps.outsideCapabilities(scope.id, origin.client, caller.signal) : undefined,
+    origin !== null && caller.outside
+      ? deps.outsideCapabilities({sessionId: scope.id, client: origin.client, pid: origin.pid, signal: caller.signal})
+      : undefined,
   )
   const sessionLines = await deps.sessionPrompt(scope.id)
   if (runner === null) {

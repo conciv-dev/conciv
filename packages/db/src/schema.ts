@@ -18,6 +18,7 @@ export const sessions = sqliteTable(
     transcriptCwd: text('transcript_cwd'),
     attachedPid: integer('attached_pid'),
     attachedAt: integer('attached_at'),
+    attachedHost: text('attached_host'),
     deletedAt: integer('deleted_at'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),

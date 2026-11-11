@@ -316,5 +316,13 @@ export function sessionsRouter(deps: RpcDeps) {
       await deps.runtime.forSession(input.sessionId).run.compact()
       return {ok: true as const}
     }),
+    take: os.sessions.take.handler(async ({input}) => {
+      await deps.holders.take(input)
+      return {ok: true as const}
+    }),
+    detach: os.sessions.detach.handler(async ({input}) => {
+      await deps.holders.detach(input.pid)
+      return {ok: true as const}
+    }),
   }
 }

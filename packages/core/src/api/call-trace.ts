@@ -1,16 +1,22 @@
 import {z} from 'zod'
 import {generateMessageId} from '@conciv/protocol/chat-message-types'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
-import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER, HUB_FORWARD_ORIGIN} from '@conciv/protocol/chat-types'
+import {
+  CONCIV_CLIENT_HEADER,
+  CONCIV_HUB_PID_HEADER,
+  CONCIV_ORIGIN_HEADER,
+  HUB_FORWARD_ORIGIN,
+} from '@conciv/protocol/chat-types'
 import {safeStringify} from '@conciv/chat'
 import {logError} from '../lib/debug.js'
 
 const HubOriginSchema = z.object({
   origin: z.enum(['hub', HUB_FORWARD_ORIGIN]).optional().catch(undefined),
   client: z.string().max(64).optional().catch(undefined),
+  pid: z.coerce.number().int().positive().optional().catch(undefined),
 })
 
-type HubOrigin = {client: string | null; forwarded: boolean}
+type HubOrigin = {client: string | null; pid: number | null; forwarded: boolean}
 
 type CallMarker = {conciv: {origin: 'hub'; client: string | null}} | null
 
@@ -64,9 +70,10 @@ function hubOrigin(header: (name: string) => string | null): HubOrigin | null {
   const parsed = HubOriginSchema.parse({
     origin: header(CONCIV_ORIGIN_HEADER) ?? undefined,
     client: header(CONCIV_CLIENT_HEADER) ?? undefined,
+    pid: header(CONCIV_HUB_PID_HEADER) ?? undefined,
   })
   if (parsed.origin === undefined) return null
-  return {client: parsed.client ?? null, forwarded: parsed.origin === HUB_FORWARD_ORIGIN}
+  return {client: parsed.client ?? null, pid: parsed.pid ?? null, forwarded: parsed.origin === HUB_FORWARD_ORIGIN}
 }
 
 function marked(chunk: ChatEvent, marker: CallMarker): ChatEvent {

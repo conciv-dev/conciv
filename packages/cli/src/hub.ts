@@ -4,9 +4,10 @@ import {command, description, name, option, schema} from '@bomb.sh/router'
 import {createMCPClient, type MCPClient} from '@tanstack/ai-mcp'
 import {createMCPServer} from '@tanstack/ai-mcp/server'
 import {serveMCPStdio} from '@tanstack/ai-mcp/server/stdio'
+import {makeRpcClient} from '@conciv/contract'
 import {checkEngines, concivHome, type EngineRow} from '@conciv/db'
 import {defineTool} from '@conciv/protocol/chat-tool-types'
-import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER} from '@conciv/protocol/chat-types'
+import {CONCIV_CLIENT_HEADER, CONCIV_HUB_PID_HEADER, CONCIV_ORIGIN_HEADER} from '@conciv/protocol/chat-types'
 import type {InitHarnessId} from '@conciv/protocol/harness-types'
 import {HubAgentSchema} from './hub-agent.js'
 import cliManifest from '../package.json' with {type: 'json'}
@@ -44,7 +45,11 @@ type Reply = {content: {type: 'text'; text: string}[]; isError: true}
 async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<CliOutcome> {
   const home = concivHome({env})
   const held: {runner: Runner | null} = {runner: null}
-  const headers = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: agent}
+  const headers = {
+    [CONCIV_ORIGIN_HEADER]: 'hub',
+    [CONCIV_CLIENT_HEADER]: agent,
+    [CONCIV_HUB_PID_HEADER]: String(process.pid),
+  }
 
   async function runnerClient(row: EngineRow): Promise<MCPClient> {
     if (held.runner?.apiBase === row.apiBase) return held.runner.client
@@ -99,6 +104,7 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
   await once(process.stdin, 'end')
   await served.close()
   await dropRunner()
+  await detachAll(home).catch((error: unknown) => logHub('detaching from the conciv engines failed', error))
   return {report: 'none', code: 0}
 }
 
@@ -135,6 +141,17 @@ async function startupDescriptions(home: string): Promise<Record<ToolName, strin
     logHub('reading the runner tool descriptions failed; using the built-in text', error)
     return FALLBACK_DESCRIPTIONS
   }
+}
+
+async function detachAll(home: string): Promise<void> {
+  const {live} = await checkEngines(home, {timeoutMs: PROBE_MS})
+  const settled = await Promise.allSettled(
+    live.map((row) => makeRpcClient(row.apiBase).sessions.detach({pid: process.pid})),
+  )
+  settled.forEach((outcome, index) => {
+    if (outcome.status === 'rejected')
+      logHub(`detaching from the conciv engine at ${live[index]?.root}`, outcome.reason)
+  })
 }
 
 function failed(text: string): Reply {
