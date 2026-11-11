@@ -105,15 +105,15 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     sessions: sessionsRouter(deps),
     chat: chatRouter(deps, sessionOs),
     settings: {
-      all: os.settings.all.handler(({input}) => deps.settings.file(input.scope, input.namespace).read()),
-      set: os.settings.set.handler(({input}) =>
-        deps.settings.file(input.scope, input.namespace).set(input.key, input.value),
+      all: os.settings.all.handler(async ({input}) => (await deps.settings.file(input.scope, input.namespace)).read()),
+      set: os.settings.set.handler(async ({input}) =>
+        (await deps.settings.file(input.scope, input.namespace)).set(input.key, input.value),
       ),
-      delete: os.settings.delete.handler(({input}) =>
-        deps.settings.file(input.scope, input.namespace).delete(input.key),
+      delete: os.settings.delete.handler(async ({input}) =>
+        (await deps.settings.file(input.scope, input.namespace)).delete(input.key),
       ),
-      changes: os.settings.changes.handler(({input, signal}) =>
-        deps.settings.file(input.scope, input.namespace).changes(signal),
+      changes: os.settings.changes.handler(async ({input, signal}) =>
+        (await deps.settings.file(input.scope, input.namespace)).changes(signal),
       ),
     },
     drafts: {
