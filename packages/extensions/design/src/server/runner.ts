@@ -21,175 +21,294 @@ import {pageHeightRows} from './page-height.js'
 import {ROUTE_HINT} from '../shared/route-hint.js'
 
 export function createRunner(input: {runtime: DesignRuntime; folder: Storage}): Runner {
-  const {runtime, folder} = input
+  return (call) => run({...input, call})
+}
+
+async function run(input: {runtime: DesignRuntime; folder: Storage; call: Call}): Promise<RoundReply> {
+  const {runtime, call} = input
   const {store, measurer} = runtime
-  return async ({record, page, since, variants}) => {
-    const [design, stored, rounds, image, ids, streak] = await Promise.all([
-      store.design(record.id),
-      store.mapping(record.id),
-      store.rounds(record.id),
-      store.image({id: record.id}),
-      store.ids({id: record.id}),
-      store.unsettledCount(record.id),
-    ])
-    if (image === null) throw toolError('no-target', {message: 'the design image is missing; call design_get again'})
-    const {widget} = record
-    const oneWidth = widget === 'shown'
-    const measured = await measurer.measure({
-      page,
-      ...(oneWidth ? {} : {width: record.width}),
-      height: record.height,
-      widget,
-    })
-    const thrown = await thrownError({measured, since, runtime})
-    if (thrown !== null) return {thrown}
-    const count = streak + 1
-    const facts = {route: measured.route, ...(measured.pageError === undefined ? {} : {error: measured.pageError})}
-    const blank = measured.pageError !== undefined || measured.live.children.length === 0
-    if (blank && count < TOLERANCES.stallRounds) {
-      await store.writeUnsettledCount({id: record.id, count})
-      return {unsettled: true, rendered: 0, ...facts}
-    }
-    const last = rounds.at(-1)
-    const measuredRounds = rounds.filter((round) => round.broken === null)
-    const previous = measuredRounds.at(-1)
-    const settled = measuredRounds.findLast((round) => round.unsettled === null)
-    const built = idTreeOf({live: measured.live, sheets: measured.sheets, mapping: stored, previous: ids})
-    if (previous !== undefined && previous === last && previous.tree === built.hash) {
-      await store.writeUnsettledCount({id: record.id, count: previous.unsettled === null ? 0 : count})
-      return {...shown(previous), unchanged: true}
-    }
-    const round = (last?.round ?? 0) + 1
-    const decoded = createRaster(image)
-    const target = design.scale === 1 ? decoded : decoded.scaled(design.scale)
-    const voted = {design, measured, stored, round, pairer: runtime.pairer, target}
-    const first = await gatedOf({...voted, built})
-    const collapsed =
-      measured.pageError === undefined &&
-      settled !== undefined &&
-      first.coverage.rendered < settled.coverage.rendered / 2
-    const {mapped, gate, coverage} = collapsed ? await revotedOf({...voted, previous: ids}) : first
-    const {mapping} = mapped
-    const unsettled = unsettledReason({measured, rendered: coverage.rendered, settled})
-    await store.writeUnsettledCount({id: record.id, count: unsettled === null ? 0 : count})
-    const {rendered} = coverage
-    if (unsettled !== null && count < TOLERANCES.stallRounds) return {unsettled: true, rendered, ...facts}
-    await store.writeVotes({id: record.id, round, votes: mapped.votes})
-    const tree = {root: mapped.root, revoted: mapped.revoted, gone: mapped.gone}
-    const relation =
-      unsettled === null ? await store.writeRelation({id: record.id, round, tree}) : new Map<string, Component>()
-    const widths = oneWidth
-      ? [{width: measured.width, from: [WIDGET_SHOWN]}]
-      : widthsOf({design, styles: measured.queries, ...(variants === undefined ? {} : {variants})})
-    const results = []
-    const failures = []
-    const waits = measured.fontsLoading === undefined ? [] : [measured.fontsLoading]
-    const shots = []
-    for (const {width} of widths) {
-      const narrow =
-        width === measured.width ? measured : await measurer.measure({page, width, height: REFLOW_HEIGHT, widget})
-      shots.push({width, png: narrow.raster.png()})
-      if (narrow !== measured && narrow.fontsLoading !== undefined) waits.push(narrow.fontsLoading)
-      const at = idTreeOf({live: narrow.live, sheets: narrow.sheets, mapping, previous: null})
-      const measuredAt = reflowAt({
-        root: design.root,
-        reads: readIds({root: at.root, live: narrow.live}),
-        live: narrow.live,
-        width,
-        overflowX: narrow.overflowX,
-      })
-      results.push(measuredAt.reflow)
-      failures.push(...measuredAt.rows)
-    }
-    const reflow = {widths, results}
-    const reads = readIds({root: mapped.root, live: measured.live})
-    const tall = pageHeightRows({
-      root: design.root,
-      live: measured.live,
-      reads,
-      width: measured.width,
-      scrollHeight: measured.scrollHeight,
-    })
-    const images = await imageRowsOf({
-      design,
-      reads,
-      page,
-      mirror: measured.sources.includes('mirror') ? {width: record.width, height: record.height} : null,
-      folder,
-    })
-    const listed = [...tall, ...gate.rows, ...images.rows, ...failures]
-    const classified = await drifted({runtime, rows: listed, relation, scheme: measured.scheme})
-    const drift = classified.filter((row) => row.magnitude === 'token-drift').length
-    const replaced = listed.length - classified.length + drift
-    const named =
-      unsettled === null
-        ? await runtime.components.rows({
-            design,
-            reads,
-            relation,
-            earlier: await Promise.all(
-              measuredRounds.map((earlier) => store.relation({id: record.id, round: earlier.round})),
-            ),
-          })
-        : []
-    const rows = [...classified, ...named]
-    const counts = {
-      ...gate.counts,
-      reflow: gate.counts.reflow + tall.length + failures.length,
-      paint: (gate.counts.paint ?? 0) + images.rows.length - replaced,
-      rows: gate.counts.rows + tall.length + images.rows.length + failures.length - replaced + named.length,
-      drift,
-    }
-    const pixels = compared({live: measured.raster, target, comparator: runtime.comparator})
-    const earlier =
-      previous === undefined ? null : await store.image({id: record.id, round: previous.round, kind: 'live'})
-    const progress = progressOf({
-      rounds: measuredRounds,
-      now: {rows, coverage, pixels: {share: pixels.share}},
-      live: {now: measured.raster, before: earlier === null ? null : createRaster(earlier), width: measured.width},
-      root: mapped.root,
-      design,
-      comparator: runtime.comparator,
-    })
-    const names = new Map([...walk(design.root)].map(({node}) => [node.id, node.figma?.name ?? '']))
-    const gone = coverage.missing.map((id) => ({id, name: names.get(id) ?? ''}))
-    const judged = unsettled === null ? coverage : {...coverage, gone}
-    const measuredRound: Round = {
-      round,
-      rows,
-      reflow,
-      coverage: judged,
-      counts,
-      pixels: {share: pixels.share},
-      progress,
-      at: Date.now(),
-      tree: built.hash,
-      verdict: 'unsettled',
-      unsettled,
-      broken: null,
-      brokenBy: null,
-    }
-    const written =
-      unsettled === null
-        ? {...measuredRound, verdict: verdictOf({design, rounds: [...measuredRounds, measuredRound]}).verdict}
-        : measuredRound
-    await store.writeRound({
-      id: record.id,
-      round: written,
-      live: measured.raster.png(),
-      diff: pixels.diff,
-      artifacts: {design: image, shots},
-      ...(unsettled === null ? {ids: {tree, revoted: mapped.reasons}} : {}),
-      notes: [
-        `capture ${measured.path}`,
-        ...(oneWidth ? [WIDGET_SHOWN] : []),
-        ...images.ratios.map(({node, ratio}) => `image ${node} mismatch ${ratio.toFixed(RATIO_DIGITS)}`),
-      ],
-    })
-    const late = waits.length === 0 ? {} : {fontsLoading: Math.max(...waits)}
-    const reply = {round, rows, reflow, coverage: judged, counts, progress, ...late}
-    return unsettled === null ? reply : {...reply, unsettled: true, rendered, ...facts}
+  const {record, page} = call
+  const held = await heldOf({store, id: record.id})
+  const {widget} = record
+  const oneWidth = widget === 'shown'
+  const measured = await measurer.measure({
+    page,
+    ...(oneWidth ? {} : {width: record.width}),
+    height: record.height,
+    widget,
+  })
+  const thrown = await thrownError({measured, since: call.since, runtime})
+  if (thrown !== null) return {thrown}
+  const count = held.streak + 1
+  const facts = factsOf(measured)
+  const blank = measured.pageError !== undefined || measured.live.children.length === 0
+  if (blank && count < TOLERANCES.stallRounds) {
+    await store.writeUnsettledCount({id: record.id, count})
+    return {unsettled: true, rendered: 0, ...facts}
   }
+  const history = historyOf(held.rounds)
+  const {previous} = history
+  const built = idTreeOf({live: measured.live, sheets: measured.sheets, mapping: held.stored, previous: held.ids})
+  if (previous !== undefined && previous === history.last && previous.tree === built.hash) {
+    await store.writeUnsettledCount({id: record.id, count: previous.unsettled === null ? 0 : count})
+    return {...shown(previous), unchanged: true}
+  }
+  const round = (history.last?.round ?? 0) + 1
+  const paired = await pairedOf({runtime, held, measured, round, built, settled: history.settled})
+  const unsettled = unsettledReason({measured, rendered: paired.coverage.rendered, settled: history.settled})
+  await store.writeUnsettledCount({id: record.id, count: unsettled === null ? 0 : count})
+  if (unsettled !== null && count < TOLERANCES.stallRounds)
+    return {unsettled: true, rendered: paired.coverage.rendered, ...facts}
+  const reply = await measuredRound({...input, held, measured, history, built, round, paired, unsettled, oneWidth})
+  return unsettled === null ? reply : {...reply, unsettled: true, rendered: paired.coverage.rendered, ...facts}
+}
+
+type Call = Parameters<Runner>[0]
+
+type Held = Awaited<ReturnType<typeof heldOf>>
+
+type History = ReturnType<typeof historyOf>
+
+type Paired = Awaited<ReturnType<typeof pairedOf>>
+
+async function heldOf(input: {store: DesignRuntime['store']; id: string}) {
+  const {store, id} = input
+  const [design, stored, rounds, image, ids, streak] = await Promise.all([
+    store.design(id),
+    store.mapping(id),
+    store.rounds(id),
+    store.image({id}),
+    store.ids({id}),
+    store.unsettledCount(id),
+  ])
+  if (image === null) throw toolError('no-target', {message: 'the design image is missing; call design_get again'})
+  return {design, stored, rounds, image, ids, streak}
+}
+
+function factsOf(measured: Measured): {route: string; error?: string} {
+  if (measured.pageError === undefined) return {route: measured.route}
+  return {route: measured.route, error: measured.pageError}
+}
+
+function historyOf(rounds: Round[]) {
+  const measuredRounds = rounds.filter((round) => round.broken === null)
+  return {
+    last: rounds.at(-1),
+    measuredRounds,
+    previous: measuredRounds.at(-1),
+    settled: measuredRounds.findLast((round) => round.unsettled === null),
+  }
+}
+
+async function pairedOf(input: {
+  runtime: DesignRuntime
+  held: Held
+  measured: Measured
+  round: number
+  built: ReturnType<typeof idTreeOf>
+  settled: Round | undefined
+}) {
+  const {held, measured, settled} = input
+  const {design} = held
+  const decoded = createRaster(held.image)
+  const target = design.scale === 1 ? decoded : decoded.scaled(design.scale)
+  const voted = {design, measured, stored: held.stored, round: input.round, pairer: input.runtime.pairer, target}
+  const first = await gatedOf({...voted, built: input.built})
+  const collapsed =
+    measured.pageError === undefined && settled !== undefined && first.coverage.rendered < settled.coverage.rendered / 2
+  const chosen = collapsed ? await revotedOf({...voted, previous: held.ids}) : first
+  return {...chosen, target}
+}
+
+async function measuredRound(input: {
+  runtime: DesignRuntime
+  folder: Storage
+  call: Call
+  held: Held
+  measured: Measured
+  history: History
+  built: ReturnType<typeof idTreeOf>
+  round: number
+  paired: Paired
+  unsettled: string | null
+  oneWidth: boolean
+}) {
+  const {runtime, call, held, measured, round, paired, unsettled} = input
+  const {store} = runtime
+  const {record} = call
+  const {design} = held
+  const {mapped, coverage} = paired
+  await store.writeVotes({id: record.id, round, votes: mapped.votes})
+  const tree = {root: mapped.root, revoted: mapped.revoted, gone: mapped.gone}
+  const relation =
+    unsettled === null ? await store.writeRelation({id: record.id, round, tree}) : new Map<string, Component>()
+  const reflowed = await reflowOf({...input, mapping: mapped.mapping})
+  const listed = await listedRows({...input, relation, failures: reflowed.failures})
+  const {rows, counts} = listed
+  const pixels = compared({live: measured.raster, target: paired.target, comparator: runtime.comparator})
+  const progress = await progressAt({...input, rows, pixels})
+  const judged = unsettled === null ? coverage : {...coverage, gone: goneOf({design, missing: coverage.missing})}
+  const drawn: Round = {
+    round,
+    rows,
+    reflow: reflowed.reflow,
+    coverage: judged,
+    counts,
+    pixels: {share: pixels.share},
+    progress,
+    at: Date.now(),
+    tree: input.built.hash,
+    verdict: 'unsettled',
+    unsettled,
+    broken: null,
+    brokenBy: null,
+  }
+  const written =
+    unsettled === null
+      ? {...drawn, verdict: verdictOf({design, rounds: [...input.history.measuredRounds, drawn]}).verdict}
+      : drawn
+  await store.writeRound({
+    id: record.id,
+    round: written,
+    live: measured.raster.png(),
+    diff: pixels.diff,
+    artifacts: {design: held.image, shots: reflowed.shots},
+    ...(unsettled === null ? {ids: {tree, revoted: mapped.reasons}} : {}),
+    notes: [
+      `capture ${measured.path}`,
+      ...(input.oneWidth ? [WIDGET_SHOWN] : []),
+      ...listed.ratios.map(({node, ratio}) => `image ${node} mismatch ${ratio.toFixed(RATIO_DIGITS)}`),
+    ],
+  })
+  const late = reflowed.waits.length === 0 ? {} : {fontsLoading: Math.max(...reflowed.waits)}
+  return {round, rows, reflow: reflowed.reflow, coverage: judged, counts, progress, ...late}
+}
+
+async function reflowOf(input: {
+  runtime: DesignRuntime
+  call: Call
+  held: Held
+  measured: Measured
+  mapping: Paired['mapped']['mapping']
+  oneWidth: boolean
+}) {
+  const {runtime, call, measured, mapping} = input
+  const {design} = input.held
+  const widths = input.oneWidth
+    ? [{width: measured.width, from: [WIDGET_SHOWN]}]
+    : widthsOf({design, styles: measured.queries, ...(call.variants === undefined ? {} : {variants: call.variants})})
+  const results = []
+  const failures = []
+  const waits = measured.fontsLoading === undefined ? [] : [measured.fontsLoading]
+  const shots = []
+  for (const {width} of widths) {
+    const narrow =
+      width === measured.width
+        ? measured
+        : await runtime.measurer.measure({page: call.page, width, height: REFLOW_HEIGHT, widget: call.record.widget})
+    shots.push({width, png: narrow.raster.png()})
+    if (narrow !== measured && narrow.fontsLoading !== undefined) waits.push(narrow.fontsLoading)
+    const at = idTreeOf({live: narrow.live, sheets: narrow.sheets, mapping, previous: null})
+    const measuredAt = reflowAt({
+      root: design.root,
+      reads: readIds({root: at.root, live: narrow.live}),
+      live: narrow.live,
+      width,
+      overflowX: narrow.overflowX,
+    })
+    results.push(measuredAt.reflow)
+    failures.push(...measuredAt.rows)
+  }
+  return {reflow: {widths, results}, failures, waits, shots}
+}
+
+async function listedRows(input: {
+  runtime: DesignRuntime
+  folder: Storage
+  call: Call
+  held: Held
+  measured: Measured
+  history: History
+  paired: Paired
+  unsettled: string | null
+  relation: Map<string, Component>
+  failures: Round['rows']
+}) {
+  const {runtime, call, measured, paired, relation, failures} = input
+  const {design} = input.held
+  const {gate} = paired
+  const {record} = call
+  const reads = readIds({root: paired.mapped.root, live: measured.live})
+  const tall = pageHeightRows({
+    root: design.root,
+    live: measured.live,
+    reads,
+    width: measured.width,
+    scrollHeight: measured.scrollHeight,
+  })
+  const images = await imageRowsOf({
+    design,
+    reads,
+    page: call.page,
+    mirror: measured.sources.includes('mirror') ? {width: record.width, height: record.height} : null,
+    folder: input.folder,
+  })
+  const listed = [...tall, ...gate.rows, ...images.rows, ...failures]
+  const classified = await drifted({runtime, rows: listed, relation, scheme: measured.scheme})
+  const drift = classified.filter((row) => row.magnitude === 'token-drift').length
+  const replaced = listed.length - classified.length + drift
+  const named =
+    input.unsettled === null
+      ? await runtime.components.rows({
+          design,
+          reads,
+          relation,
+          earlier: await Promise.all(
+            input.history.measuredRounds.map((earlier) =>
+              runtime.store.relation({id: record.id, round: earlier.round}),
+            ),
+          ),
+        })
+      : []
+  const counts = {
+    ...gate.counts,
+    reflow: gate.counts.reflow + tall.length + failures.length,
+    paint: (gate.counts.paint ?? 0) + images.rows.length - replaced,
+    rows: gate.counts.rows + tall.length + images.rows.length + failures.length - replaced + named.length,
+    drift,
+  }
+  return {rows: [...classified, ...named], counts, ratios: images.ratios}
+}
+
+async function progressAt(input: {
+  runtime: DesignRuntime
+  call: Call
+  held: Held
+  measured: Measured
+  history: History
+  paired: Paired
+  rows: Round['rows']
+  pixels: {share: number}
+}) {
+  const {runtime, measured, history, paired} = input
+  const {previous} = history
+  const earlier =
+    previous === undefined
+      ? null
+      : await runtime.store.image({id: input.call.record.id, round: previous.round, kind: 'live'})
+  return progressOf({
+    rounds: history.measuredRounds,
+    now: {rows: input.rows, coverage: paired.coverage, pixels: {share: input.pixels.share}},
+    live: {now: measured.raster, before: earlier === null ? null : createRaster(earlier), width: measured.width},
+    root: paired.mapped.root,
+    design: input.held.design,
+    comparator: runtime.comparator,
+  })
+}
+
+function goneOf(input: {design: Held['design']; missing: string[]}): {id: string; name: string}[] {
+  const names = new Map([...walk(input.design.root)].map(({node}) => [node.id, node.figma?.name ?? '']))
+  return input.missing.map((id) => ({id, name: names.get(id) ?? ''}))
 }
 
 const REFLOW_HEIGHT = 900

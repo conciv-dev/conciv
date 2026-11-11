@@ -285,9 +285,6 @@ catalogs:
     mermaid:
       specifier: ^12.2.0
       version: 12.2.0
-    modern-tar:
-      specifier: 0.8.6
-      version: 0.8.6
     motion:
       specifier: ^14.7.1
       version: 14.7.1
@@ -390,9 +387,6 @@ catalogs:
     solid-js:
       specifier: ^1.9.17
       version: 1.9.17
-    ssim.js:
-      specifier: ^3.5.0
-      version: 3.5.0
     storybook:
       specifier: ^10.6.5
       version: 10.6.5
@@ -2840,9 +2834,6 @@ importers:
       lucide-solid:
         specifier: 'catalog:'
         version: 1.66.0(solid-js@1.9.17)
-      modern-tar:
-        specifier: 'catalog:'
-        version: 0.8.6
       onnxruntime-web:
         specifier: 'catalog:'
         version: 1.31.1
@@ -2879,9 +2870,6 @@ importers:
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
-      ssim.js:
-        specifier: 'catalog:'
-        version: 3.5.0
       takumi-paint:
         specifier: 'catalog:'
         version: 0.5.0(preact@11.1.0)(react@19.3.1)
@@ -3946,9 +3934,6 @@ importers:
       culori:
         specifier: 'catalog:'
         version: 4.0.2
-      pixelmatch:
-        specifier: 'catalog:'
-        version: 8.0.0
       playwright:
         specifier: 'catalog:'
         version: 1.64.1
@@ -17404,9 +17389,6 @@ packages:
     resolution: {integrity: sha512-ngFS/J6St4PJfHRHGjr78xkPPtbyXtdMOLNE4x/XZunEK3OhV7aGUWMHf9WTUEy6wm1U0W4okkd82ZFFWRVQTw==}
     engines: {node: '>=20.16.0'}
     hasBin: true
-
-  ssim.js@3.5.0:
-    resolution: {integrity: sha512-Aj6Jl2z6oDmgYFFbQqK7fght19bXdOxY7Tj03nF+03M9gCBAjeIiO8/PlEGMfKDwYpw4q6iBqVq2YuREorGg/g==}
 
   stable-hash@0.0.5:
     resolution: {integrity: sha512-+L3ccpzibovGXFK+Ap/f8LOS0ahMrHTf3xu7mMLSpEGU0EO9ucaysSylKo9eRDFNhWve/y275iPmIZ4z39a9iA==}
@@ -31798,8 +31780,6 @@ snapshots:
   srvx@0.12.8: {}
 
   srvx@1.0.8: {}
-
-  ssim.js@3.5.0: {}
 
   stable-hash@0.0.5: {}
 

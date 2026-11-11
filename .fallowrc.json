@@ -9,7 +9,9 @@
     "packages/aidx/**",
     "packages/contract/test/helpers/fake-native-socket.ts",
     "packages/extensions/tanstack/test/fixtures/**",
-    "packages/it/test/fixtures/design/**",
+    "packages/it/test/fixtures/design/host/**",
+    "packages/it/test/fixtures/design/provenance/**",
+    "packages/it/test/fixtures/design/plugin-only/**",
     "packages/it/test/fixtures/lib/**",
     "packages/oxlint-plugin/test/fixtures/**",
     "packages/oxlint-plugin/fixtures/**",
@@ -205,6 +207,8 @@
     "packages/extensions/try-it/test/fixture/connect-pane-fixture.tsx",
     "e2e/harnesses/vite.*.config.ts",
     "packages/db/drizzle-home.config.ts",
+    "packages/extensions/design/drizzle-runs.config.ts",
+    "packages/extensions/design/drizzle.runs.schema.ts",
     "apps/conciv/test/commands/core-control.ts",
     "apps/conciv/test/commands/core-testkit.ts"
   ]

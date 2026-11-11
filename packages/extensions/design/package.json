@@ -85,7 +85,6 @@
     "get-tsconfig": "catalog:",
     "hono": "catalog:",
     "lucide-solid": "catalog:",
-    "modern-tar": "catalog:",
     "onnxruntime-web": "catalog:",
     "oxc-parser": "catalog:",
     "oxc-resolver": "catalog:",
@@ -98,7 +97,6 @@
     "rrweb-snapshot": "catalog:",
     "sharp": "catalog:",
     "solid-js": "catalog:",
-    "ssim.js": "catalog:",
     "takumi-paint": "catalog:",
     "unstorage": "catalog:",
     "zod": "catalog:"

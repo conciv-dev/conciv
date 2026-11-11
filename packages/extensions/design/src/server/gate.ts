@@ -187,16 +187,22 @@ function rowsOf(input: {
   const {record: r, element: d, parent, parentElement: pd, kidsOf} = input
   const label = labelOf({record: r, element: d})
   const container = !r.leaf || r.kind === 'wrapper' || r.kind === 'layered'
+  const box = rounded(d.bounds)
+  return [
+    ...pinRows({label, r, d, container}),
+    ...boxRows({...input, label, box, container}),
+    ...directionRows({label, r, d}),
+    ...(parent === undefined || pd === undefined
+      ? []
+      : (displacedRow({label, r, box, parent, pd}) ??
+        positionRows({label, r, d, box, parent, pd, siblings: kidsOf(parent.id)}))),
+  ]
+}
+
+function pinRows(input: {label: string; r: Record; d: LiveComponent; container: boolean}): Row[] {
+  const {label, r, d, container} = input
   const pinsWidth = d.styles.sizing.width === 'fixed'
   const pinsHeight = d.styles.sizing.height === 'fixed'
-  const box = rounded(d.bounds)
-  const tol = r.leaf ? LEAF_TOLERANCE : CONTAINER_TOLERANCE
-  const farW = container && Math.abs(box.w - r.box.w) > FAR_PX
-  const ww = widthWord({rendered: box.w, design: r.box.w, tol, far: farW})
-  const side = heightSide({record: r, element: d})
-  const flat = FLAT_KINDS.has(r.kind)
-  const want = r.direction === 'row' ? 'row' : 'column'
-  const dir = d.styles.flexDirection
   return [
     ...(container && pinsWidth ? [{head: `${label}: pins width; the design box fills or hugs`}] : []),
     ...(container && pinsHeight
@@ -205,7 +211,25 @@ function rowsOf(input: {
     ...(r.kind === 'text' && (pinsWidth || pinsHeight)
       ? [{head: `${label}: text has a pixel size; it should fit its text`}]
       : []),
-    ...(ww !== null && !flat
+  ]
+}
+
+function boxRows(input: {
+  record: Record
+  element: LiveComponent
+  kidsOf: (id: string) => Placed[]
+  causes: (id: string) => string
+  label: string
+  box: Box
+  container: boolean
+}): Row[] {
+  const {record: r, element: d, kidsOf, label, box} = input
+  const tol = r.leaf ? LEAF_TOLERANCE : CONTAINER_TOLERANCE
+  const farW = input.container && Math.abs(box.w - r.box.w) > FAR_PX
+  const ww = widthWord({rendered: box.w, design: r.box.w, tol, far: farW})
+  const side = heightSide({record: r, element: d})
+  return [
+    ...(ww !== null && !FLAT_KINDS.has(r.kind)
       ? [
           {
             head: `${label}: ${contentWord({r, d, kids: kidsOf(r.id), axis: 'w'}) ?? ww}`,
@@ -221,14 +245,15 @@ function rowsOf(input: {
           },
         ]
       : []),
-    ...(r.direction !== undefined && d.styles.display.includes('flex') && !dir.startsWith(want)
-      ? [{head: `${label}: flex-direction ${dir}; the design is a ${want}`}]
-      : []),
-    ...(parent === undefined || pd === undefined
-      ? []
-      : (displacedRow({label, r, box, parent, pd}) ??
-        positionRows({label, r, d, box, parent, pd, siblings: kidsOf(parent.id)}))),
   ]
+}
+
+function directionRows(input: {label: string; r: Record; d: LiveComponent}): Row[] {
+  const {label, r, d} = input
+  const want = r.direction === 'row' ? 'row' : 'column'
+  const dir = d.styles.flexDirection
+  if (r.direction === undefined || !d.styles.display.includes('flex') || dir.startsWith(want)) return []
+  return [{head: `${label}: flex-direction ${dir}; the design is a ${want}`}]
 }
 
 function displacedRow(input: {label: string; r: Record; box: Box; parent: Record; pd: LiveComponent}): Row[] | null {
@@ -458,21 +483,26 @@ function compared(seen: Seen): Compared[] {
 
 function fillRows(seen: Seen): Compared[] {
   const {look, element, under} = seen
-  const token = look.token_fill
   const ends = look.gradient === null ? null : endsOf({gradient: look.gradient, under})
-  if (look.fill_kind === 'gradient' && ends !== null && !near({a: ends.from, b: ends.to})) {
-    const found = element.styles.gradient
-    const {from, to} = ends
-    const shownFrom = found === null ? '' : blended({color: found.from, over: under, alpha: 1})
-    const shownTo = found === null ? '' : blended({color: found.to, over: under, alpha: 1})
-    if (found !== null && near({a: shownFrom, b: from}) && near({a: shownTo, b: to})) return []
-    const shown = found === null ? shownColor({element, under}) : `${found.from} to ${found.to}`
-    return [{kind: 'fill', expected: `${from} to ${to}`, found: shown, token}]
-  }
+  if (look.fill_kind === 'gradient' && ends !== null && !near({a: ends.from, b: ends.to}))
+    return gradientRows({seen, ends})
   if (look.fill_kind === 'none' || look.fill === null) return []
   const expected = ends?.from ?? blended({color: look.fill, over: under, alpha: look.fill_opacity ?? 1})
   const found = shownColor({element, under})
-  return near({a: found, b: expected}) ? [] : [{kind: 'fill', expected, found, token}]
+  return near({a: found, b: expected}) ? [] : [{kind: 'fill', expected, found, token: look.token_fill}]
+}
+
+function gradientRows(input: {seen: Seen; ends: {from: string; to: string}}): Compared[] {
+  const {look, element, under} = input.seen
+  const {from, to} = input.ends
+  const token = look.token_fill
+  const expected = `${from} to ${to}`
+  const found = element.styles.gradient
+  if (found === null) return [{kind: 'fill', expected, found: shownColor({element, under}), token}]
+  const shownFrom = blended({color: found.from, over: under, alpha: 1})
+  const shownTo = blended({color: found.to, over: under, alpha: 1})
+  if (near({a: shownFrom, b: from}) && near({a: shownTo, b: to})) return []
+  return [{kind: 'fill', expected, found: `${found.from} to ${found.to}`, token}]
 }
 
 function textRows(seen: Seen): Compared[] {

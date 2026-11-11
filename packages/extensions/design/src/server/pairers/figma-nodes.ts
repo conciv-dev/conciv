@@ -336,27 +336,26 @@ function scoreOf(input: {vote: Vote; entry: Node; element: Element; anywhere?: b
   const shift = shiftOf({node: entry.parent, vote})
   const placed = {...element.box, x: element.box.x + shift.x, y: element.box.y + shift.y}
   const flowed = {...placed, y: placed.y - grownAbove({vote, entry})}
-  const geo = iou({a: box, b: flowed})
   if (input.anywhere !== true && shapes.outsideWindow({a: box, b: flowed})) return []
   if (node.implied === true && !holdsChildren({node, box: placed})) return []
   if (element.kids === 0 && holdsText(node)) return []
   const anchor = anchorOf({node, vote})
   if (anchor !== null && !underAnchor({vote, element, anchor})) return []
-  const typed = node.figma?.type ?? ''
-  const text = node.kind === 'text' ? normalized(node.text) : ''
-  const shown = normalized(element.text)
-  const textual =
-    node.kind === 'text'
-      ? PAIR.textWeight * dice({a: text, b: shown}) - (shown === '' ? PAIR.textlessPenalty : 0)
-      : LEAF_SHAPES.has(typed) && element.kids === 0
-        ? PAIR.leafShapeBonus
-        : 0
   const image = pictured(node) && element.img ? PAIR.imageBonus : 0
   const parent = anchor === null ? 0 : PAIR.parentBonus
-  const dom = PAIR.overlapWeight * geo + textual + image + parent
+  const dom = PAIR.overlapWeight * iou({a: box, b: flowed}) + textualOf({node, element}) + image + parent
   const src = kindOf({node, element}) + PAIR.nameWeight * namedAs({node, element})
   const cssom = layoutVote({node, element})
   return [{path: element.path, score: dom + src + cssom, layers: {dom, src, cssom}}]
+}
+
+function textualOf(input: {node: Node['node']; element: Element}): number {
+  const {node, element} = input
+  if (node.kind === 'text') {
+    const shown = normalized(element.text)
+    return PAIR.textWeight * dice({a: normalized(node.text), b: shown}) - (shown === '' ? PAIR.textlessPenalty : 0)
+  }
+  return LEAF_SHAPES.has(node.figma?.type ?? '') && element.kids === 0 ? PAIR.leafShapeBonus : 0
 }
 
 function grownAbove(input: {vote: Vote; entry: Node}): number {

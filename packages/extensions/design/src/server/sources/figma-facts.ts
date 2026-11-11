@@ -11,25 +11,13 @@ export function figmaFacts(input: {
   const {node, origin, marks} = input
   const bounds = node.absoluteBoundingBox ?? {x: origin.x, y: origin.y, width: 0, height: 0}
   const mode = FLOWS.has(node.layoutMode ?? '') ? (node.layoutMode ?? null) : null
-  const visible = (node.fills ?? []).filter((paint) => paint.visible !== false)
-  const bottom = marks.stack === true ? visible.findIndex((paint) => paint.type === 'IMAGE') : -1
-  const fills = paints(bottom < 0 ? visible : visible.slice(0, bottom))
-  const stack = bottom < 0 ? [] : visible.slice(bottom).flatMap(layerOf)
-  const strokes = paints(node.strokes ?? [])
-  const radius = node.rectangleCornerRadii ?? node.cornerRadius
+  const {fills, stack} = splitFills({node, stack: marks.stack === true})
   const fields = {
-    ...(fills.length === 0 ? {} : {fills}),
-    ...(strokes.length === 0 ? {} : {strokes, strokeWeight: node.strokeWeight ?? 1}),
-    ...(radius === undefined || radius === 0 ? {} : {radius}),
+    ...paintFields({node, fills}),
     ...(node.type === 'TEXT' ? {text: node.characters ?? '', font: fontOf(node)} : {}),
     ...(mode === null ? {} : {layout: layoutOf(node)}),
     ...sizingOf(node),
-    ...(node.layoutAlign === undefined || node.layoutAlign === 'INHERIT' ? {} : {layoutAlign: node.layoutAlign}),
-    ...(node.constraints === undefined ? {} : {constraints: node.constraints}),
-    ...(node.clipsContent === true ? {clips: true} : {}),
-    ...(node.layoutGrow === undefined || node.layoutGrow === 0 ? {} : {grow: node.layoutGrow}),
-    ...(node.rotation === undefined || node.rotation === 0 ? {} : {rotation: node.rotation}),
-    ...(node.opacity === undefined || node.opacity === 1 ? {} : {opacity: node.opacity}),
+    ...placementFields(node),
     ...(marks.image ? {image: true} : {}),
     ...(marks.crop ? {crop: true} : {}),
     ...(stack.length === 0 ? {} : {stack}),
@@ -47,6 +35,35 @@ export function figmaFacts(input: {
       h: bounds.height * origin.scale,
     },
     fields,
+  }
+}
+
+function splitFills(input: {node: FigmaNode; stack: boolean}): {fills: Record<string, unknown>[]; stack: Layer[]} {
+  const visible = (input.node.fills ?? []).filter((paint) => paint.visible !== false)
+  const bottom = input.stack ? visible.findIndex((paint) => paint.type === 'IMAGE') : -1
+  if (bottom < 0) return {fills: paints(visible), stack: []}
+  return {fills: paints(visible.slice(0, bottom)), stack: visible.slice(bottom).flatMap(layerOf)}
+}
+
+function paintFields(input: {node: FigmaNode; fills: Record<string, unknown>[]}) {
+  const {node, fills} = input
+  const strokes = paints(node.strokes ?? [])
+  const radius = node.rectangleCornerRadii ?? node.cornerRadius
+  return {
+    ...(fills.length === 0 ? {} : {fills}),
+    ...(strokes.length === 0 ? {} : {strokes, strokeWeight: node.strokeWeight ?? 1}),
+    ...(radius === undefined || radius === 0 ? {} : {radius}),
+  }
+}
+
+function placementFields(node: FigmaNode) {
+  return {
+    ...(node.layoutAlign === undefined || node.layoutAlign === 'INHERIT' ? {} : {layoutAlign: node.layoutAlign}),
+    ...(node.constraints === undefined ? {} : {constraints: node.constraints}),
+    ...(node.clipsContent === true ? {clips: true} : {}),
+    ...(node.layoutGrow === undefined || node.layoutGrow === 0 ? {} : {grow: node.layoutGrow}),
+    ...(node.rotation === undefined || node.rotation === 0 ? {} : {rotation: node.rotation}),
+    ...(node.opacity === undefined || node.opacity === 1 ? {} : {opacity: node.opacity}),
   }
 }
 

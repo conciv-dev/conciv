@@ -9,38 +9,13 @@ export function Card(props: {
   card: NonNullable<ReturnType<ReturnType<typeof createXrayData>['card']>>
   data: ReturnType<typeof createXrayData>
 }): JSX.Element {
-  const dom = () => props.card.layer.dom[0]
-  const css = () => props.card.layer.cssom[0]
-  const look = () => props.card.look
-  const compare = () => [
-    {
-      label: 'Corners',
-      design: withToken(plain(look()?.radius), look()?.token_radius),
-      page: plain(css()?.radius),
-      same: whole(look()?.radius) === whole(css()?.radius),
-    },
-    {
-      label: 'Fill',
-      design: withToken(look()?.fill?.toUpperCase() ?? '', look()?.token_fill),
-      page: css()?.background ?? '',
-      same: (look()?.fill ?? '').toLowerCase() === hexOf(css()?.background),
-    },
-    {
-      label: 'Size',
-      design: `${plain(look()?.w)} × ${plain(look()?.h)}`,
-      page: `${plain(dom()?.box.w)} × ${plain(dom()?.box.h)}`,
-      same: whole(look()?.w) === whole(dom()?.box.w) && whole(look()?.h) === whole(dom()?.box.h),
-    },
-    {
-      label: 'Position',
-      design: `${plain(look()?.x)}, ${plain(look()?.y)}`,
-      page: `${plain(dom()?.box.x)}, ${plain(dom()?.box.y)}`,
-      same: whole(look()?.x) === whole(dom()?.box.x) && whole(look()?.y) === whole(dom()?.box.y),
-    },
-    ...(props.card.drift === null
-      ? []
-      : [{label: 'Token', design: props.card.drift.design, page: props.card.drift.kit, same: false}]),
-  ]
+  const compare = () =>
+    compareRows({
+      look: props.card.look,
+      css: props.card.layer.cssom[0],
+      dom: props.card.layer.dom[0],
+      drift: props.card.drift,
+    })
   const wrong = () => {
     const target = props.data.design.latest?.target.id
     const round = props.data.shownRound()?.round
@@ -209,6 +184,65 @@ export function Card(props: {
       </div>
     </div>
   )
+}
+
+type ShownCard = NonNullable<ReturnType<ReturnType<typeof createXrayData>['card']>>
+
+type Compared = {
+  look: ShownCard['look']
+  css: ShownCard['layer']['cssom'][number] | undefined
+  dom: ShownCard['layer']['dom'][number] | undefined
+}
+
+function compareRows(input: Compared & {drift: ShownCard['drift']}) {
+  const {drift} = input
+  return [
+    cornersRow(input),
+    fillRow(input),
+    sizeRow(input),
+    positionRow(input),
+    ...(drift === null ? [] : [{label: 'Token', design: drift.design, page: drift.kit, same: false}]),
+  ]
+}
+
+function cornersRow(input: Compared) {
+  const {look, css} = input
+  return {
+    label: 'Corners',
+    design: withToken(plain(look?.radius), look?.token_radius),
+    page: plain(css?.radius),
+    same: whole(look?.radius) === whole(css?.radius),
+  }
+}
+
+function fillRow(input: Compared) {
+  const {look, css} = input
+  return {
+    label: 'Fill',
+    design: withToken(look?.fill?.toUpperCase() ?? '', look?.token_fill),
+    page: css?.background ?? '',
+    same: (look?.fill ?? '').toLowerCase() === hexOf(css?.background),
+  }
+}
+
+function sizeRow(input: Compared) {
+  const {look, dom} = input
+  return {
+    label: 'Size',
+    design: `${plain(look?.w)} × ${plain(look?.h)}`,
+    page: `${plain(dom?.box.w)} × ${plain(dom?.box.h)}`,
+    same: whole(look?.w) === whole(dom?.box.w) && whole(look?.h) === whole(dom?.box.h),
+  }
+}
+
+function positionRow(input: Compared) {
+  const {look, dom} = input
+  return {
+    label: 'Position',
+    design: `${plain(look?.x)}, ${plain(look?.y)}`,
+    page: `${plain(dom?.box.x)}, ${plain(dom?.box.y)}`,
+    same: whole(look?.x) === whole(dom?.box.x) && whole(look?.y) === whole(dom?.box.y),
+  }
 }
 
 function whole(value: number | null | undefined): number | null {

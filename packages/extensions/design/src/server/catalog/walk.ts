@@ -266,43 +266,71 @@ async function component(input: {
 }): Promise<Component> {
   const {visit, definition, visited, packages, disk, cwd, framework} = input
   const parsed = visit.parsed
-  const facts = visit.packageJson === null ? null : await packageFacts({file: visit.packageJson, packages, disk})
-  const packageDir = visit.packageJson === null ? visit.root : dirname(visit.packageJson)
-  const dependency = visit.file.includes(NODE_MODULES)
-  const pkg = visit.via === null ? null : (facts?.name ?? null)
-  const version = dependency ? (facts?.version ?? null) : null
+  const origin = await originOf({visit, packages, disk})
   const [name = definition.local] = definition.names
   const file = projectPath({cwd, file: visit.file})
-  const story = await storyOf({file: visit.file, disk})
-  const storyParsed = story === null ? null : parseModule(story)
-  const sentence =
-    parsed?.docs.get(definition.local) ??
-    (await readmeLine({dirs: [dirname(visit.file), packageDir], names: definition.names, disk})) ??
-    storyParsed?.title ??
-    null
-  const storyUses = (storyParsed?.elements ?? []).filter((element) => definition.names.includes(element.tag))
+  const told = await storyTold({visit, definition, disk, packageDir: origin.packageDir})
   const sites = callSites({file: visit.file, local: definition.local, visited})
-  const uses = storyUses.length > 0 ? storyUses : sites
+  const uses = told.uses.length > 0 ? told.uses : sites
   return {
-    id: createHash('sha256')
-      .update(dependency && pkg !== null ? `${pkg}@${version ?? ''}:${name}` : `${file}:${name}`)
-      .digest('hex'),
+    id: componentId({...origin, file, name}),
     names: definition.names,
     file,
-    pkg,
-    version,
-    specifier: visit.via ?? `./${relative(packageDir, visit.file)}`,
+    pkg: origin.pkg,
+    version: origin.version,
+    specifier: visit.via ?? `./${relative(origin.packageDir, visit.file)}`,
     renders: true,
     framework,
-    sentence,
+    sentence: told.sentence,
     props: await propsOf({visit, local: definition.local, visited}),
     usage: minBy(outermost(uses), (use) => use.text.length)?.text ?? null,
-    story: story === null ? null : projectPath({cwd, file: story.file}),
+    story: told.story === null ? null : projectPath({cwd, file: told.story}),
     lines: parsed?.lines.get(definition.local) ?? {start: 0, end: 0},
     sites: uniqBy(
       sites.map((site) => ({file: projectPath({cwd, file: site.file}), line: site.line})),
       (site) => `${site.file}:${site.line}`,
     ),
+  }
+}
+
+async function originOf(input: {visit: Visit; packages: Map<string, Promise<PackageFacts>>; disk: Storage}) {
+  const {visit, packages, disk} = input
+  const facts = visit.packageJson === null ? null : await packageFacts({file: visit.packageJson, packages, disk})
+  const dependency = visit.file.includes(NODE_MODULES)
+  return {
+    packageDir: visit.packageJson === null ? visit.root : dirname(visit.packageJson),
+    dependency,
+    pkg: visit.via === null ? null : (facts?.name ?? null),
+    version: dependency ? (facts?.version ?? null) : null,
+  }
+}
+
+function componentId(input: {
+  dependency: boolean
+  pkg: string | null
+  version: string | null
+  file: string
+  name: string
+}) {
+  const {dependency, pkg, version, file, name} = input
+  return createHash('sha256')
+    .update(dependency && pkg !== null ? `${pkg}@${version ?? ''}:${name}` : `${file}:${name}`)
+    .digest('hex')
+}
+
+async function storyTold(input: {visit: Visit; definition: Definition; disk: Storage; packageDir: string}) {
+  const {visit, definition, disk} = input
+  const story = await storyOf({file: visit.file, disk})
+  const storyParsed = story === null ? null : parseModule(story)
+  const sentence =
+    visit.parsed?.docs.get(definition.local) ??
+    (await readmeLine({dirs: [dirname(visit.file), input.packageDir], names: definition.names, disk})) ??
+    storyParsed?.title ??
+    null
+  return {
+    sentence,
+    story: story === null ? null : story.file,
+    uses: (storyParsed?.elements ?? []).filter((element) => definition.names.includes(element.tag)),
   }
 }
 
