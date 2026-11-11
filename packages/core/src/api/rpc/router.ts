@@ -1,8 +1,9 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
+import {ORPCError} from '@orpc/server'
 import {asc, eq, sql} from 'drizzle-orm'
 import {isPageFailure, type PageErrorCode} from '@conciv/protocol/page-types'
-import {isPageVerbError} from '@conciv/extension'
+import {isPageVerbError, isToolError} from '@conciv/extension'
 import {resolveHarnessModels} from '@conciv/harness'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers} from '@conciv/db'
@@ -35,7 +36,9 @@ type GatedCall = {context: SessionContext; errors: ApprovalErrors; signal?: Abor
 function registryCallError(error: unknown, errors: RegistryErrors): Error {
   if (isPageVerbError(error)) return errors[PAGE_ERROR_NAME[error.code]]({message: error.message})
   if (isPageFailure(error)) return errors[PAGE_ERROR_NAME[error.error.code]]({message: error.error.message})
-  return error instanceof Error ? error : new Error(String(error))
+  if (isToolError(error)) return new ORPCError(error.code, {message: error.message, data: error.data})
+  if (error instanceof ORPCError) return error
+  return errors.HANDLER_ERROR({message: error instanceof Error ? error.message : String(error)})
 }
 
 function hasErrorCode(error: unknown, code: string): boolean {
@@ -139,10 +142,13 @@ export function makeRpcRouter(deps: RpcDeps) {
     registry: {
       catalog: os.registry.catalog.handler(() => engine.catalog()),
       call: sessionOs.registry.call.handler(async ({input, context, errors, signal}) => {
-        if (!context.session.tools.has(input.name)) throw errors.UNKNOWN_TOOL()
+        const assist = deps.assist(context.session.id).find((capability) => capability.name === input.name)
+        if (assist === undefined && !context.session.tools.has(input.name)) throw errors.UNKNOWN_TOOL()
         await refuseUnapproved(deps, input.name, input.input, {context, errors, signal})
+        const run = (): Promise<unknown> =>
+          assist === undefined ? context.session.tools.call(input.name, input.input) : assist.execute(input.input)
         return hubTraced(context, input.name, input.input, () =>
-          context.session.tools.call(input.name, input.input).catch((error: unknown) => {
+          run().catch((error: unknown) => {
             throw registryCallError(error, errors)
           }),
         )

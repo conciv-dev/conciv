@@ -1,6 +1,6 @@
 import {chmodSync, lstatSync, mkdirSync} from 'node:fs'
 import {join} from 'node:path'
-import {and, eq, isNull, max} from 'drizzle-orm'
+import {and, eq, isNull, max, sql} from 'drizzle-orm'
 import type {drizzle} from 'drizzle-orm/node-sqlite'
 import {migrateSync} from 'drizzle-orm/sqlite-core/async/session'
 import envPaths from 'env-paths'
@@ -61,6 +61,7 @@ export function listEngines(db: HomeDb): EngineRow[] {
     .select({id: engines.id, pid: engines.pid, root: engines.root, apiBase: engines.apiBase})
     .from(engines)
     .where(isNull(engines.deletedAt))
+    .orderBy(sql`rowid`)
     .all()
 }
 

@@ -675,9 +675,11 @@ describe('the agent acts on the page like a person', () => {
 
     expect(await act('click', {selector: '#actions'})).toMatchObject({ok: true})
     await expect.element(page.getByRole('menuitem', {name: 'Archive'})).toBeVisible()
+    await expect.element(page.getByRole('menu')).toHaveFocus()
 
     expect(await act('fill', {selector: '#name', value: 'Ada'})).toMatchObject({ok: true})
     await expect.element(page.getByRole('textbox', {name: 'Name'})).toHaveFocus()
+    await expect.element(page.getByRole('menu')).not.toBeInTheDocument()
     await expect.element(page.getByText('Hello, Ada')).toBeVisible()
 
     await userEvent.click(page.getByRole('button', {name: 'Count'}), {force: true})

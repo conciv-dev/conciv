@@ -5,7 +5,6 @@ export {
   BUILTIN_SERVER_TOOL,
   BUILTIN_SERVER_TOOLS,
   BUILTIN_TABS_TOOL,
-  TABS_GUIDANCE,
   type OpenToolContext,
   type ServerToolContext,
   type TabsToolContext,

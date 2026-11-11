@@ -8,6 +8,7 @@ import type {EngineStaleness} from '@conciv/contract'
 import type {CompositeRpcRouter as CompositeRouterOf} from '@conciv/extension/rpc-mount'
 import type {ChatPlane} from '@conciv/chat'
 import type {ConcivDb} from '@conciv/db'
+import type {ConcivServerTool} from '@conciv/tools'
 import type {HarnessAdapter} from '@conciv/harness'
 import type {OpenSourceFrames, OpenSourceStatus} from '../../editor/open-source.js'
 import type {CoreRuntime, SessionScope} from '../../runtime/scope-types.js'
@@ -41,6 +42,7 @@ export type RpcDeps = {
   search: ReturnType<typeof createSessionSearch>
   settings: ReturnType<typeof createSettingsStorage>
   hub: ReturnType<typeof createHubInstaller>
+  assist: (sessionId: SessionId) => readonly ConcivServerTool[]
 }
 
 export const os = implement(contract).$context<RpcContext>()

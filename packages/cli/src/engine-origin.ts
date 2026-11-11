@@ -8,7 +8,7 @@ import {userFailure} from './failure.js'
 
 const DEFAULT_ENGINE_PORT = '5173'
 
-const PROBE_MS = 2000
+const PROBE_MS = 300
 
 const ServerStateSchema = z.object({
   port: z.number().int().min(1).max(65535),

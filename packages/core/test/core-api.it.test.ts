@@ -14,17 +14,17 @@ import {
   chmodSync,
 } from 'node:fs'
 import {createHash, randomUUID} from 'node:crypto'
-import {EventEmitter, on} from 'node:events'
+import {on, once} from 'node:events'
 import {open, writeFile} from 'node:fs/promises'
 import {execFileSync} from 'node:child_process'
-import {request as httpRequest} from 'node:http'
+import {createServer, request as httpRequest} from 'node:http'
 import {DatabaseSync} from 'node:sqlite'
 import {tmpdir} from 'node:os'
 import {join, dirname} from 'node:path'
-import {afterAll, beforeAll, describe, expect, it, afterEach, test, vi, beforeEach} from 'vitest'
+import {afterAll, beforeAll, describe, expect, it, afterEach, onTestFinished, test, vi, beforeEach} from 'vitest'
 import {imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
 import {foldChatEvents} from '@conciv/ai/testkit'
-import {cappedValue, RESULT_CAP_CHARS} from '@conciv/chat'
+import {cappedValue} from '@conciv/chat'
 import {abortableFetch, type EngineStaleness} from '@conciv/contract'
 import {
   defineExtension,
@@ -95,6 +95,7 @@ import {
 import {type ElementCapture, type ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 import {type HarnessChatDeps, type HarnessListCursor, type HarnessModel} from '@conciv/protocol/harness-types'
 import {type PageOutcome, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
+import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
@@ -3868,9 +3869,14 @@ describe('token charset', () => {
 
 const tempDir = (prefix: string): string => mkdtempSync(join(tmpdir(), prefix))
 
-function bootAt(homeDir: string, root = tempDir('conciv-outside-'), hubAccess?: HubAccess): Promise<Engine> {
-  const options = hubAccess === undefined ? {stateRoot: root} : {stateRoot: root, hubAccess}
-  return start({options, root, launchEditor: () => {}, harness: createFakeHarness(), homeDir})
+function bootAt(homeDir: string, root = tempDir('conciv-outside-'), hubAccess: HubAccess = 'session'): Promise<Engine> {
+  return start({
+    options: {stateRoot: root, hubAccess},
+    root,
+    launchEditor: () => {},
+    harness: createFakeHarness(),
+    homeDir,
+  })
 }
 
 describe('outside sessions', () => {
@@ -3959,18 +3965,88 @@ describe('outside sessions', () => {
       expect(statuses).toEqual([401, 401, 401, 401, 401])
     })
 
-    it('/api/tabs lists a joined page, and ?session= answers open and not open with the engine prompt and tools', async () => {
+    it('/api/tabs lists a joined page, and ?session= answers open and not open with the engine prompt', async () => {
       const path = `/api/tabs?session=${await kit().session()}`
-      const tools = expect.arrayContaining([expect.objectContaining({name: 'external_page_route'})])
-      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: false, instructions, tools: []})
+      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: false, instructions})
       await joinPage(true)
-      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: true, instructions, tools})
+      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: true, instructions})
       const session = {title: expect.any(String), updatedAt: expect.any(Number), running: false}
       const page = {href: route.href, title: route.title, state: route.state}
       expect(await listTabs()).toEqual({
         project: {name: 'tabs-fixture', root: app, branch: 'feature-x'},
-        tabs: [{sessionId: await kit().session(), harness: 'fake-tabs', browserTabs: 1, session, page}],
+        tabs: [
+          {
+            sessionId: await kit().session(),
+            harness: 'fake-tabs',
+            browserTabs: [{id: expect.stringMatching(/^b\d+$/), page}],
+            session,
+            page,
+          },
+        ],
       })
+    })
+
+    it('a page query goes to the one browser tab focused last, and the listing names every browser tab', async () => {
+      const sessionId = await kit().session()
+      const asSession = makeRpcClient(kit().base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+      async function browserTab(pathname: string) {
+        const heard: string[] = []
+        const answers = {silent: false}
+        const socket = new WebSocket(`${kit().wsBase}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`)
+        const frames = on(socket, 'message', {signal: AbortSignal.timeout(10_000)})
+        await once(socket, 'open')
+        const report = (focused: boolean) =>
+          socket.send(JSON.stringify({channel: 'page-serving', serving: true, focus: {focused, visible: true}}))
+        report(false)
+        const Frame = z.object({channel: z.string(), requestId: z.string().optional()})
+        const ready = Promise.withResolvers<void>()
+        const answering = async () => {
+          for await (const [data] of frames) {
+            const frame = Frame.parse(JSON.parse(String(data)))
+            if (frame.channel === 'ready') ready.resolve()
+            if (frame.channel !== 'page' || frame.requestId === undefined) continue
+            heard.push(pathname)
+            if (answers.silent) continue
+            const result = {...route, href: `http://localhost:5173${pathname}`, pathname, search: ''}
+            await asSession.page.reply({requestId: frame.requestId, outcome: {ok: true, result}})
+          }
+        }
+        answering().catch(() => {})
+        await ready.promise
+        pages.push(() => socket.close())
+        const silence = () => {
+          answers.silent = true
+        }
+        return {heard, report, silence, close: () => socket.close()}
+      }
+      const first = await browserTab('/first')
+      const second = await browserTab('/second')
+      const listedFirst = async () => (await listTabs()).tabs[0]?.browserTabs[0]?.page?.href
+      const routeCall = {name: 'page_route', input: {}}
+      const routed = async () => z.object({href: z.string()}).parse(await asSession.registry.call(routeCall)).href
+      second.report(true)
+      await vi.waitFor(async () => expect(await listedFirst()).toBe('http://localhost:5173/second'), {timeout: 3000})
+      const listing = await listTabs()
+      expect(listing.tabs[0]?.browserTabs.map((entry) => entry.page?.href)).toEqual([
+        'http://localhost:5173/second',
+        'http://localhost:5173/first',
+      ])
+      expect(listing.tabs[0]?.page?.href).toBe('http://localhost:5173/second')
+      const [firstHeard, secondHeard] = [first.heard.length, second.heard.length]
+      expect(await routed()).toBe('http://localhost:5173/second')
+      expect([first.heard.length - firstHeard, second.heard.length - secondHeard]).toEqual([0, 1])
+      first.report(true)
+      await vi.waitFor(async () => expect(await listedFirst()).toBe('http://localhost:5173/first'), {timeout: 3000})
+      expect(await routed()).toBe('http://localhost:5173/first')
+      first.close()
+      await vi.waitFor(async () => expect((await listTabs()).tabs[0]?.browserTabs).toHaveLength(1), {timeout: 3000})
+      expect(await routed()).toBe('http://localhost:5173/second')
+      second.silence()
+      const waited = second.heard.length
+      const inFlight = routed().then(String, String)
+      await vi.waitFor(() => expect(second.heard.length).toBe(waited + 1), {timeout: 3000})
+      second.close()
+      expect(await inFlight).toMatch(/browser tab b\d+ closed before it replied/)
     })
 
     it('branch is re-read per request from the repository above the project, through a worktree gitdir file too', async () => {
@@ -4003,7 +4079,7 @@ describe('outside agent consent', () => {
     return home
   }
 
-  async function boot(hubAccess?: HubAccess, home = tempDir('conciv-home-')): Promise<string> {
+  async function boot(hubAccess: HubAccess = 'session', home = tempDir('conciv-home-')): Promise<string> {
     connectedHome(home)
     const engine = await bootAt(home, tempDir('conciv-consent-'), hubAccess)
     engines.push(engine)
@@ -4021,8 +4097,8 @@ describe('outside agent consent', () => {
       }
     }
     replies().catch(() => {})
-    const open = async () => TabOpenSchema.parse(await (await fetch(`${base}/api/tabs?session=${sessionId}`)).json())
-    await vi.waitFor(async () => expect((await open()).open).toBe(true), {timeout: 3000})
+    const tabOpen = async () => TabOpenSchema.parse(await (await fetch(`${base}/api/tabs?session=${sessionId}`)).json())
+    await vi.waitFor(async () => expect((await tabOpen()).open).toBe(true), {timeout: 3000})
     return sessionId
   }
 
@@ -4124,10 +4200,23 @@ describe('outside agent consent', () => {
     expect(await waiting).toMatch(RAN)
   })
 
-  it('an outside run lists every tab, picks one per block and forwards to its owner after allow', async () => {
+  it("an outside run lists every engine's tabs and refuses other capabilities with NO_TAB; a hub call naming the tab runs it after allow, marked in its chat", async () => {
     const home = tempDir('conciv-home-')
     const [runner, owner] = [await boot('open', home), await boot('session', home)]
     const [mine, theirs] = [await openTab(runner), await openTab(owner)]
+    const hung = createServer(() => {})
+    hung.listen(0, '127.0.0.1')
+    await once(hung, 'listening')
+    onTestFinished(() => {
+      hung.closeAllConnections()
+      hung.close()
+    })
+    const hungAddress = z.object({port: z.number()}).parse(hung.address())
+    const hungRoot = tempDir('conciv-hung-')
+    const hungBase = `http://127.0.0.1:${hungAddress.port}/t/${randomUUID()}`
+    withHomeDb(home, (db) =>
+      registerEngine(db, {id: randomUUID(), pid: process.pid, root: hungRoot, apiBase: hungBase}),
+    )
     const inPage = 'return [typeof external_tabs, typeof external_use_tab]'
     expect(String(await executeOverMcp(runner, {[CONCIV_SESSION_HEADER]: mine}, inPage))).toContain(
       '["function","undefined"]',
@@ -4135,42 +4224,44 @@ describe('outside agent consent', () => {
     const listed = await outside(runner, 'return await external_tabs({})')
     expect(listed).toContain(`"tab":"${mine}"`)
     expect(listed).toContain(`"tab":"${theirs}"`)
+    expect(listed).toContain(`"unreachable":[{"root":"${hungRoot}"`)
     expect(listed).not.toMatch(new RegExp(`${new URL(runner).pathname}|${new URL(owner).pathname}`))
-    expect(await outside(runner, 'return await external_page_route({})')).toContain('NO_TAB')
-    const pick = `const picked = await external_use_tab({id: "${theirs}"});`
-    const answer = TabOpenSchema.parse(await (await fetch(`${owner}/api/tabs?session=${theirs}`)).json())
-    const summaries = answer.tools.map((tool) => ({name: tool.name, summary: tool.description.split('\n')[0]}))
-    const picked = await outside(runner, `${pick} return picked`)
-    expect(picked.length).toBeLessThan(RESULT_CAP_CHARS)
-    expect(picked).toContain(JSON.stringify({instructions: answer.instructions, tools: summaries}))
-    const forwarded = outside(runner, `${pick} return await external_page_route({})`)
-    await decideOutside(owner, theirs, true)
-    expect(await forwarded).toContain(ROUTE.href)
-    const screenshot = JSON.stringify(
-      await executeOverMcp(runner, HUB, `${pick} return await external_page_screenshot({})`),
+    expect(await outside(runner, 'return await external_page_route({})')).toContain(
+      'NO_TAB: pass tab to execute_typescript; external_tabs({}) lists the open tabs',
     )
-    expect(screenshot).toContain(
+    const onTab = (code: string) => executeOverMcp(owner, {[CONCIV_SESSION_HEADER]: theirs, ...HUB}, code)
+    const routed = onTab('return await external_page_route({})').then(String, String)
+    await decideOutside(owner, theirs, true)
+    expect(await routed).toContain(ROUTE.href)
+    const ownerCalls = await rpcOf(owner, theirs).chat.hydrate({sessionId: theirs})
+    expect(
+      ownerCalls.messages.flatMap((message) =>
+        message.parts.flatMap((part) =>
+          part.type === 'tool-call' ? [{name: part.name, metadata: part.metadata}] : [],
+        ),
+      ),
+    ).toContainEqual({
+      name: 'page_route',
+      metadata: expect.objectContaining({conciv: {origin: 'hub', client: 'codex'}}),
+    })
+    expect(JSON.stringify(await onTab('return await external_page_screenshot({})'))).toContain(
       JSON.stringify({type: 'image', source: {type: 'data', value: SCREENSHOT.image, mimeType: 'image/webp'}}),
     )
-    expect(await outside(runner, `${pick} return await external_page_route({})`)).toContain(ROUTE.href)
-    expect(await outside(runner, 'return await external_page_route({})')).toContain('NO_TAB')
-    expect(await outside(runner, 'return await external_use_tab({id: "conciv_gone"})')).toContain('TAB_NOT_OPEN')
   })
 
-  it('cancelling an outside block while its forwarded call waits for the allow leaves nothing to run after a later allow', async () => {
-    const home = tempDir('conciv-home-')
-    const [runner, owner] = [await boot('open', home), await boot('session', home)]
+  it('cancelling a hub block while it waits for the allow leaves nothing to run after a later allow', async () => {
+    const base = await boot()
     const heard: string[] = []
-    const theirs = await openTab(owner, undefined, heard)
-    const pick = `await external_use_tab({id: "${theirs}"});`
-    const leaving = await connectMcpClient(`${runner}/api/mcp`, HUB)
+    const tab = await openTab(base, undefined, heard)
+    const headers = {[CONCIV_SESSION_HEADER]: tab, ...HUB}
+    const leaving = await connectMcpClient(`${base}/api/mcp`, headers)
     const execute = (await leaving.tools()).find((entry) => entry.name === 'execute_typescript')
-    const cancelled = execute?.execute({typescriptCode: `${pick} return await external_page_screenshot({})`})
-    expect(await askRaised(owner, theirs)).toMatchObject(OUTSIDE_ASK)
+    const cancelled = execute?.execute({typescriptCode: 'return await external_page_screenshot({})'})
+    expect(await askRaised(base, tab)).toMatchObject(OUTSIDE_ASK)
     await leaving.close()
     await expect(cancelled).rejects.toThrow()
-    await decideOutside(owner, theirs, true)
-    expect(await outside(runner, `${pick} return await external_page_route({})`)).toContain(ROUTE.href)
+    await decideOutside(base, tab, true)
+    expect(String(await executeOverMcp(base, headers, 'return await external_page_route({})'))).toContain(ROUTE.href)
     expect(heard.filter((name) => name === 'page_screenshot')).toEqual([])
   })
 
@@ -4201,7 +4292,7 @@ describe('outside agent consent', () => {
     const probe = defineExtension({name: 'Consent Probe'}).server(() => ({context: {}, router}))
     const root = tempDir('conciv-consent-')
     const engine = await start({
-      options: {stateRoot: root},
+      options: {stateRoot: root, hubAccess: 'session'},
       root,
       launchEditor: () => {},
       harness: createFakeHarness(),
@@ -4262,7 +4353,7 @@ describe('outside agent consent', () => {
 
   it('an Allow clicked after the agent disconnected still refuses the call that waited for it, at both doors', async () => {
     const home = connectedHome()
-    const base = await boot(undefined, home)
+    const base = await boot('session', home)
     const forget = () => withHomeDb(home, (db) => removeHubConnection(db, 'codex'))
     const sessionId = await newSession(base)
     const overMcp = hubCall(base, sessionId)
@@ -4285,7 +4376,7 @@ describe('outside agent consent', () => {
     'an Allow clicked while the home db is unreadable never admits a later call, even across a disconnect',
     async () => {
       const home = connectedHome()
-      const base = await boot(undefined, home)
+      const base = await boot('session', home)
       const sessionId = await newSession(base)
       const waiting = hubCall(base, sessionId)
       await vi.waitFor(async () => expect(await pendingOf(base, sessionId)).toHaveLength(1), {timeout: 3000})
@@ -4309,7 +4400,7 @@ describe('outside agent consent', () => {
     process.env.PATH = tempDir('conciv-no-agents-')
     try {
       const home = connectedHome()
-      const base = await boot(undefined, home)
+      const base = await boot('session', home)
       const sessionId = await newSession(base)
       const allowed = hubCall(base, sessionId)
       await decideOutside(base, sessionId, true)
@@ -4345,19 +4436,13 @@ describe('outside agent consent', () => {
     await waiting
   })
 
-  it('an owner that stops mid call fails clearly and leaves the listing, and a corrupt home db names the folder', async () => {
+  it('a stopped engine leaves the listing, a page that never answers lists no href, and a corrupt home db names the folder', async () => {
     const home = tempDir('conciv-home-')
     const [runner, owner] = [await boot('open', home), await boot('open', home)]
-    const page = new EventEmitter()
-    const asked = on(page, 'query', {signal: pages.signal})
-    const silent = await openTab(owner, () => page.emit('query'))
+    const silent = await openTab(owner, () => {})
     const listing = await outside(runner, 'return await external_tabs({})')
     expect([listing.includes(`"tab":"${silent}"`), listing.includes('href')]).toEqual([true, false])
-    expect((await asked.next()).done).toBe(false)
-    const pending = outside(runner, `await external_use_tab({id: "${silent}"}); return await external_page_route({})`)
-    expect((await asked.next()).done).toBe(false)
     await engines.at(-1)?.stop()
-    expect(await pending).toContain('stopped answering')
     expect(await outside(runner, 'return await external_tabs({})')).toContain('{"tabs":[],"unreachable":[]}')
     writeFileSync(join(home, 'home.db'), 'garbage '.repeat(512))
     expect(await outside(runner, 'return await external_tabs({})')).toContain(home)
