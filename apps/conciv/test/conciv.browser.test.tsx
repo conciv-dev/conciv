@@ -1,6 +1,6 @@
 import '../src/styles.css'
 import 'virtual:uno.css'
-import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe} from 'vitest'
+import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe, onTestFinished} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
 import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {makeBrowserRpcClient, makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
@@ -30,6 +30,7 @@ import {
   type ShellMountOptions,
 } from './helpers.browser.js'
 import {render} from '@solidjs/testing-library'
+import {useQuery} from '@tanstack/solid-query'
 import {type JSX, createSignal, onMount, type Component, createMemo, createRoot, For, Show, Suspense} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {
@@ -851,10 +852,11 @@ describe('model menu', () => {
   const checkedEffort = (name: string) => effortGroup().getByRole('radio', {name, exact: true, checked: true})
   const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 
-  async function mountModelMenu(): Promise<void> {
+  async function mountModelMenu(): Promise<PaneMount> {
     const sessionId = await createSession(coreRpc(core()))
-    keep(mountPane({base: core(), sessionId, width: 460}, () => <ChatPane sessionId={sessionId} />))
+    const mounted = keep(mountPane({base: core(), sessionId, width: 460}, () => <ChatPane sessionId={sessionId} />))
     await expect.element(input()).toBeVisible()
+    return mounted
   }
 
   test('the composer takes typing while the model list still loads, and keeps text and focus once it arrives', async () => {
@@ -1098,7 +1100,15 @@ describe('model menu', () => {
   })
 
   test('a picked effort stays checked while the session list is still catching up', async () => {
-    await mountModelMenu()
+    const mounted = await mountModelMenu()
+    const sessionList = createRoot((dispose) => {
+      useQuery(
+        () => mounted.data.utils.sessions.list.queryOptions({input: {}}),
+        () => mounted.queryClient,
+      )
+      return dispose
+    })
+    onTestFinished(sessionList)
 
     await userEvent.click(prompt('Opus 5.5'))
     await expect.element(checkedEffort('Default')).toBeInTheDocument()
@@ -2456,6 +2466,63 @@ describe('panel escape', () => {
 
     await expect.element(launcher()).toBeVisible()
   }, 30_000)
+})
+
+describe('a reloaded tab and an outside agent session', () => {
+  const OUTSIDE_ID = HarnessSessionId.parse('outside-agent-transcript')
+  const outsideHistory = [
+    {id: OUTSIDE_ID, derivedTitle: 'the outside agent at work', updatedAt: Number.MAX_SAFE_INTEGER},
+  ]
+
+  async function outsideSessionId(rpc: RpcClient): Promise<string> {
+    const {sessions} = await rpc.sessions.list({limit: 100})
+    const native = sessions.find((meta) => meta.native?.nativeId === OUTSIDE_ID)?.native
+    if (!native) throw new Error('the outside agent transcript never reached the session list')
+    const {sessionId} = await rpc.sessions.open(native)
+    return sessionId
+  }
+
+  describe('with a browser session open', () => {
+    const coreBase = bootedCore('warm-session-kept', {history: outsideHistory})
+    const harness = createShellHarness(coreBase)
+
+    afterEach(harness.dispose)
+
+    test('a reload keeps the tab on its session after an outside agent opens a newer one', async () => {
+      const rpc = coreRpc(coreBase())
+      const mine = await createSession(rpc)
+      harness.mountShell('/')
+      await expect.poll(() => harness.activeSession()).toBe(mine)
+
+      const outside = await outsideSessionId(rpc)
+      harness.dispose()
+      harness.mountShell('/')
+
+      await expect.poll(() => harness.activeSession()).toBe(mine)
+      expect(harness.activeSession()).not.toBe(outside)
+    })
+  })
+
+  describe('with only an outside agent session', () => {
+    const coreBase = bootedCore('warm-session-outside', {history: outsideHistory})
+    const harness = createShellHarness(coreBase)
+
+    afterEach(harness.dispose)
+
+    test('a tab with no saved session never takes the session an outside agent created', async () => {
+      const rpc = coreRpc(coreBase())
+      const outside = await outsideSessionId(rpc)
+      harness.mountShell('/')
+
+      await expect.poll(() => harness.activeSession()).not.toBeNull()
+      expect(harness.activeSession()).not.toBe(outside)
+      const {sessions} = await rpc.sessions.list({limit: 100})
+      expect(sessions.find((meta) => meta.id === harness.activeSession())).toMatchObject({
+        origin: 'conciv',
+        native: null,
+      })
+    })
+  })
 })
 
 describe('panel header', () => {

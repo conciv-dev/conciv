@@ -14,7 +14,7 @@ Solid contexts and hooks for app-wide and per-pane state: app context accessors,
 - `PanelChromeContext`, `usePanelChrome` (`panel-chrome.ts`): panel close handle and the `frame` ref the panel hands to the root, which measures it for the launcher robot
 - `makePanelComposerFocus`, `usePanelComposerFocus` (`panel-focus.ts`): tracks the active composer input
 - `EngineReachabilityContext`, `makeEngineReachability`, `useEngineReachability` (`reachability.ts`): `online` and `sustainedOffline` accessors
-- `createWarmSession`, `WarmSession` (`warm-session.ts`): resolves the most recently updated session
+- `createWarmSession`, `WarmSession` (`warm-session.ts`): the session a tab with no session in its route takes: the latest session the browser opened in this project, never one an outside agent (hub, CLI, harness transcript) created
 
 ## Invariants
 
@@ -32,7 +32,7 @@ Solid contexts and hooks for app-wide and per-pane state: app context accessors,
 
 - `pane-provider.tsx:openNewSession`: `rpc.sessions.create`, invalidates the sessions cache, navigates to `/panel/$sessionId`
 - `pane-provider.tsx:PaneProvider`: grab staging calls `rpc.page.symbolicate`
-- `warm-session.ts:createWarmSession`: queries the first `sessions.list` page with `limit: 1` (the newest session) and `sessions.resolve`
+- `warm-session.ts:createWarmSession`: one `sessions.resolve` with no id, which answers the newest `chat`-origin row in the cwd and mints one when there is none
 - `live-sessions.ts:makeLiveSessions`: opens chat sessions through `useChatSession` (`@conciv/client`) against `apiBase`; a terminal run lifecycle (streamed, or hydrated for the watched run) invalidates `sessions.list`, `sessions.get`, `markers.list` and `captures.list` and, for `completed`, announces the reply, whichever tab or session is showing
 
 ## Verification

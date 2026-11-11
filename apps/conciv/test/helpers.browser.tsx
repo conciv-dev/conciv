@@ -358,6 +358,7 @@ type ShellHarness = {
   dispose: () => void
   pathname: () => string | undefined
   back: () => void
+  activeSession: () => string | null
 }
 
 export function createShellHarness(base: () => string): ShellHarness {
@@ -366,11 +367,13 @@ export function createShellHarness(base: () => string): ShellHarness {
     disposeLogin: () => void
     unmount: () => void
     apiBase: string
+    activeSession: () => string | null
   } = {
     router: null,
     disposeLogin: () => {},
     unmount: () => {},
     apiBase: '',
+    activeSession: () => null,
   }
 
   const mountShell = (
@@ -389,6 +392,7 @@ export function createShellHarness(base: () => string): ShellHarness {
       })
     if (login) void startEngineLogin(login)
     const activeSession: {read: () => string | null} = {read: () => null}
+    mounted.activeSession = () => activeSession.read()
     const router = createConcivRouter({
       rpc: makeBrowserRpcClient(apiBase, {session: () => activeSession.read()}).rpc,
       history: createMemoryHistory({initialEntries: [entry].flat()}),
@@ -423,6 +427,7 @@ export function createShellHarness(base: () => string): ShellHarness {
     dispose,
     pathname: () => mounted.router?.state.location.pathname,
     back: () => mounted.router?.history.back(),
+    activeSession: () => mounted.activeSession(),
   }
 }
 
