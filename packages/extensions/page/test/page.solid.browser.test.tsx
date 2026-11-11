@@ -734,7 +734,8 @@ describe('the agent cursor always arrives', () => {
     host.setAttribute('data-conciv-root', '')
     document.body.append(host)
     onTestFinished(() => host.remove())
-    onTestFinished(mountSimulator({root: host.attachShadow({mode: 'open'}), session: () => AGENT, onStop: endTask}))
+    const unmount = mountSimulator({root: host.attachShadow({mode: 'open'}), session: () => AGENT, onStop: endTask})
+    onTestFinished(unmount)
     startTask(AGENT)
     onTestFinished(endTask)
   }
@@ -820,7 +821,8 @@ describe('page action queue', () => {
     host.setAttribute('data-conciv-root', '')
     document.body.append(host)
     onTestFinished(() => host.remove())
-    onTestFinished(mountSimulator({root: host.attachShadow({mode: 'open'}), session: () => AGENT, onStop: endTask}))
+    const unmount = mountSimulator({root: host.attachShadow({mode: 'open'}), session: () => AGENT, onStop: endTask})
+    onTestFinished(unmount)
     onTestFinished(endTask)
     const frames: Frame[] = []
     const wake = {now: () => {}}
@@ -854,7 +856,11 @@ describe('page action queue', () => {
         played: Promise.all(ids.map((requestId) => replyTo(requestId).promise)),
       }
     }
-    return {heard, send, queue}
+    const leave = () => {
+      plane.dispose()
+      unmount()
+    }
+    return {heard, send, queue, leave}
   }
 
   const fill = (name: string, value: string) => ({tool: 'page_fill', selector: `[name=${name}]`, value})
@@ -902,6 +908,16 @@ describe('page action queue', () => {
     await played.accepted
     await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).toBeInTheDocument()
     await played.played
+    await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).not.toBeInTheDocument()
+  })
+
+  it("a queue cut off by an unmount does not keep a later mount's mask up", async () => {
+    const before = queuePage()
+    const cut = before.queue('q-cut', [fill('first', 'Ada'), fill('last', 'Lovelace'), fill('email', 'a@b.c')])
+    await cut.accepted
+    before.leave()
+    const after = queuePage()
+    await after.queue('q-next', [fill('city', 'Paris')]).played
     await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).not.toBeInTheDocument()
   })
 

@@ -178,7 +178,10 @@ function unmountSimulator(): void {
   clearTimeout(sim.timeout)
   disarm()
   if (sim.run) unmountRun(sim.run)
+  sim.queues.clear()
+  sim.stoppedQueues.clear()
   Object.assign(sim, {
+    endWhenPlayed: false,
     root: null,
     run: null,
     shown: false,
@@ -324,7 +327,7 @@ export async function landQueued<Result>(options: {beat: Beat; act: () => Promis
 }
 
 export function finishQueue(queueId: string): void {
-  sim.queues.delete(queueId)
+  if (!sim.queues.delete(queueId)) return
   sim.stoppedQueues.delete(queueId)
   if (sim.queues.size > 0) return
   const runLive = sim.taskSession !== null && sim.running(sim.taskSession)
