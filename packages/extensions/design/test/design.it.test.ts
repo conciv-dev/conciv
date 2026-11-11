@@ -19,8 +19,8 @@ import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
 import {magicLink} from '@conciv/harness-testkit/login'
-import type {} from '@conciv/extension-design/client'
-import design from '@conciv/extension-design'
+import type {} from '../src/client.js'
+import design from '../src/index.js'
 import {
   CaptureInputSchema,
   ClearInputSchema,
@@ -37,12 +37,12 @@ import {
   type StatusReport,
   type TargetResult,
   type WinnerResult,
-} from '@conciv/extension-design/defs'
-import {mapDeclaration} from '@conciv/extension-design/provenance'
-import {glyphCoreColor} from '@conciv/extension-design/colors'
-import {destroyPaddle, paddleReader, trimToInk} from '@conciv/extension-design/paddle'
-import {groupText} from '@conciv/extension-design/text-groups'
-import type {Box, ColorMetric, LiveComponent, Provenance, Raster, TextRun, Winner} from '@conciv/extension-design/types'
+} from '../src/shared/defs.js'
+import {mapDeclaration} from '../src/server/provenance/mappers.js'
+import {glyphCoreColor} from '../src/server/deltas/colors.js'
+import {destroyPaddle, paddleReader, trimToInk} from '../src/server/comparators/paddle.js'
+import {groupText} from '../src/server/text-groups.js'
+import type {Box, ColorMetric, LiveComponent, Provenance, Raster, TextRun, Winner} from '../src/shared/types.js'
 import conciv from '@conciv/it/plugin/vite'
 import {renderTargets} from './fixtures/render-targets.js'
 
@@ -390,13 +390,10 @@ it('a page without source attributes returns a hint and no components', async ()
 })
 
 it('names the route and width when no target exists', async () => {
-  const message = await rpc.registry.call({name: 'design_diff', input: {width: 1024}}).then(
-    () => '',
-    (error: unknown) => String(error),
-  )
-  expect(message).toContain('design_target')
-  expect(message).toContain('/plain.html')
-  expect(message).toContain('1024')
+  await expect(rpc.registry.call({name: 'design_diff', input: {width: 1024}})).rejects.toMatchObject({
+    code: 'no-target',
+    message: 'no design target for /plain.html at 1024px; register one with design_target',
+  })
 })
 
 it('refuses to diff a target while the tab shows another route', async () => {

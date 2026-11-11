@@ -35,29 +35,6 @@
       "types": "./dist/server.d.ts",
       "import": "./dist/server.js"
     },
-    "./defs": {
-      "types": "./dist/shared/defs.d.ts",
-      "import": "./dist/shared/defs.js"
-    },
-    "./provenance": {
-      "types": "./dist/server/provenance/mappers.d.ts",
-      "import": "./dist/server/provenance/mappers.js"
-    },
-    "./text-groups": {
-      "types": "./dist/server/text-groups.d.ts",
-      "import": "./dist/server/text-groups.js"
-    },
-    "./paddle": {
-      "types": "./dist/server/comparators/paddle.d.ts",
-      "import": "./dist/server/comparators/paddle.js"
-    },
-    "./colors": {
-      "types": "./dist/server/deltas/colors.d.ts",
-      "import": "./dist/server/deltas/colors.js"
-    },
-    "./types": {
-      "types": "./dist/shared/types.d.ts"
-    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
