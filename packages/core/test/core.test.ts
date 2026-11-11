@@ -55,10 +55,10 @@ import {
 } from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {type HarnessAdapter, defineHarness, resolveHarnessModels} from '@conciv/harness'
-import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
-import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
+import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
 import {eq} from 'drizzle-orm'
 import {isEqual} from 'es-toolkit'
 import getPort from 'get-port'
@@ -300,6 +300,37 @@ describe('chat plane', () => {
     expect.soft(runs).toEqual([{status: 'aborted'}])
     expect.soft(logged).not.toMatch(/DrizzleQueryError|database is not open/)
   })
+
+  it('a push socket that opens while a run is going is told about that run', async () => {
+    const cli = fakeCli('streaming')
+    const engine = await bootEngine(tempDir(), {harness: cliHarness(cli)})
+    onTestFinished(async () => {
+      cli.release()
+      await engine.stop()
+    })
+    const id = sessionId('late-push')
+    const turn = await fetch(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}${CHAT_SSE_PATH}`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: turnBody(id, 'late-push-run', 'keep talking'),
+    })
+    await readUntil(turn, ChatEventType.TEXT_MESSAGE_CONTENT)
+    const socket = new WebSocket(`ws://127.0.0.1:${engine.port}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${id}`)
+    onTestFinished(() => socket.close())
+    const announced = new Promise<string | null>((resolve) => {
+      socket.addEventListener('message', (event) => {
+        const frame = PushFrameSchema.safeParse(JSON.parse(String(event.data)))
+        if (!frame.success || frame.data.channel !== 'chat') return
+        const run = sessionRunEvent.parse(frame.data.chunk)
+        if (run !== null) resolve(run.runId)
+      })
+      socket.addEventListener('close', () => resolve(null))
+    })
+    socket.addEventListener('open', () =>
+      socket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: engine.agentToken})),
+    )
+    expect(await announced).toBe('late-push-run')
+  }, 10_000)
 
   type CliStep = 'reply' | 'partial' | 'streaming' | 'tooling'
 
@@ -662,18 +693,90 @@ describe('page bus and the session scope', () => {
     return typeof frame.requestId === 'string' ? frame.requestId : null
   }
 
-  it('a reply still settles the in-flight ask after the asking widget unsubscribes and a fresh one attaches', async () => {
+  it('an ask in flight fails at once when its browser tab unsubscribes, and its late reply settles nothing', async () => {
     const bus = makePageBus(2000)
     const frames: unknown[] = []
     const unsubscribe = bus.subscribe(SESSION_A, (frame) => frames.push(frame))
     const answered = bus.ask(SESSION_A, {name: 'fixture_click', input: {}, agentId: SESSION_A})
-    await Promise.resolve()
-    unsubscribe()
     bus.subscribe(SESSION_A, () => {})
+    unsubscribe()
+    await expect(answered).rejects.toMatchObject({
+      error: {code: 'no-widget', message: 'browser tab b1 closed before it replied'},
+    })
     const requestId = frames.map(requestIdOf).find((found) => found !== null)
-    expect(bus.resolve(SESSION_A, requestId ?? '', {ok: true, result: {clicked: 'yes'}})).toBe(true)
-    await expect(answered).resolves.toEqual({result: {clicked: 'yes'}})
-  }, 10_000)
+    expect(bus.resolve(SESSION_A, requestId ?? '', {ok: true, result: {clicked: 'yes'}})).toBe(false)
+  })
+
+  function replyingTab(bus: ReturnType<typeof makePageBus>, result: Record<string, unknown>): unknown[] {
+    const frames: unknown[] = []
+    bus.subscribe(SESSION_A, (frame) => {
+      frames.push(frame)
+      const requestId = requestIdOf(frame)
+      if (requestId !== null) queueMicrotask(() => bus.resolve(SESSION_A, requestId, {ok: true, result}))
+    })
+    return frames
+  }
+
+  it('a reading call that loses its browser tab is sent once more to the next tab that serves the session', async () => {
+    const bus = makePageBus(2000)
+    const lost = bus.subscribe(SESSION_A, () => {})
+    const answered = bus.ask(SESSION_A, {name: 'page_route', input: {}, agentId: SESSION_A}, {mutating: false})
+    lost()
+    await setImmediate()
+    const reloaded = replyingTab(bus, {href: '/after-reload'})
+    expect(await answered).toEqual({result: {href: '/after-reload'}})
+    expect(reloaded).toHaveLength(1)
+  })
+
+  it('a reading call that loses its browser tab goes at once to the other tab of the session, focused last', async () => {
+    const bus = makePageBus(2000)
+    const other = replyingTab(bus, {href: '/other'})
+    const lost = bus.subscribe(
+      SESSION_A,
+      () => {},
+      () => ({focusedAt: 1, visible: true}),
+    )
+    const answered = bus.ask(SESSION_A, {name: 'page_snapshot', input: {}, agentId: SESSION_A}, {mutating: false})
+    lost()
+    expect(await answered).toEqual({result: {href: '/other'}})
+    expect(other).toHaveLength(1)
+  })
+
+  it('a reading call whose browser tab never comes back fails as before once its own timeout runs out', async () => {
+    const bus = makePageBus(100)
+    const lost = bus.subscribe(SESSION_A, () => {})
+    const answered = bus.ask(SESSION_A, {name: 'page_route', input: {}, agentId: SESSION_A}, {mutating: false})
+    lost()
+    await expect(answered).rejects.toMatchObject({
+      error: {code: 'no-widget', message: 'browser tab b1 closed before it replied'},
+    })
+  })
+
+  it('a call whose browser tab stays open and never replies times out once, never as a lost tab', async () => {
+    const bus = makePageBus(100)
+    const frames: unknown[] = []
+    bus.subscribe(SESSION_A, (frame) => frames.push(frame))
+    const reading = bus.ask(SESSION_A, {name: 'page_route', input: {}, agentId: SESSION_A}, {mutating: false})
+    await expect(reading).rejects.toMatchObject({error: {code: 'timeout'}})
+    expect(frames.map(requestIdOf).filter((found) => found !== null)).toHaveLength(1)
+    const changing = bus.ask(SESSION_A, {name: 'page_click', input: {}, agentId: SESSION_A}, {mutating: true})
+    await expect(changing).rejects.toMatchObject({error: {code: 'timeout'}})
+  })
+
+  it('a changing call that loses its browser tab is never sent again and says it may already have run', async () => {
+    const bus = makePageBus(2000)
+    const lost = bus.subscribe(SESSION_A, () => {})
+    const answered = bus.ask(SESSION_A, {name: 'page_click', input: {}, agentId: SESSION_A}, {mutating: true})
+    lost()
+    await expect(answered).rejects.toMatchObject({
+      error: {
+        code: 'no-widget',
+        message:
+          'the page reloaded or closed during page_click; it may already have run. Take a new snapshot before continuing',
+      },
+    })
+    expect(replyingTab(bus, {})).toHaveLength(0)
+  })
 
   it('a page tool asks, journals and is reachable under the established session, never the one the request names', async () => {
     const fixture = await makeChatFixture()

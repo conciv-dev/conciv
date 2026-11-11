@@ -27,7 +27,7 @@ Source for @conciv/client: oRPC TanStack Query utils, a chat connection that pic
 - `decoded` (`push-channel.ts`): drops frames failing `PushFrameSchema.safeParse`
 - `acquirePushChannel` (`push-channel.ts`): ref-counted per apiBase and session; the socket closes when the last holder releases
 - `openPushChannel` (`push-channel.ts`): a second socket beside the browser oRPC socket (`@conciv/contract`'s `/rpc-ws`); it is per session and carries server-pushed frames plus the `page-serving` announcement, which have no oRPC procedure, so it stays its own `/push-ws` socket
-- `openPushChannel` (`push-channel.ts`): the socket tells the server it serves page queries (`page-serving` frame) while at least one `queries()` consumer is live, and says so again on every reconnect; a `queries()` consumer stops it when aborted, returned or broken out of; a socket held only for `events()` never receives page queries, so a session the page is not showing has its page tools refused at once
+- `openPushChannel` (`push-channel.ts`): the socket tells the server it serves page queries (`page-serving` frame) while at least one `queries()` consumer is live, and says so again on every reconnect and on every browser-tab focus, blur or visibility change, carrying `focus: {focused, visible}` (`document.hasFocus()`, `visibilityState`) so the engine sends each page query to the browser tab focused last; a `queries()` consumer stops it when aborted, returned or broken out of; a socket held only for `events()` never receives page queries, so a session the page is not showing has its page tools refused at once
 - `registerReachabilitySource` (`reachability.ts`): restores the default onlineManager listener on the last release
 
 ## Side Effects

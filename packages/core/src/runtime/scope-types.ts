@@ -9,7 +9,7 @@ import type {RawFrame} from '../editor/symbolicate.js'
 import type {ChatHistoryWindow, ChatHydration, EngineStaleness, ToolCommandSignature} from '@conciv/contract'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ToolRequest} from '@conciv/extension'
-import type {ChangeEntry} from '../page-bus.js'
+import type {BrowserTabFocus, ChangeEntry} from '../page-bus.js'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
 
 export type ToolCatalog = ToolRegistry['catalog']
@@ -24,7 +24,7 @@ export type SessionTools = {
 
 export type SessionPage = {
   ask: (name: string, input: Record<string, unknown>) => Promise<Record<string, unknown>>
-  queries: (signal: AbortSignal) => AsyncGenerator<{requestId: string; query: unknown}>
+  queries: (signal: AbortSignal, focus?: () => BrowserTabFocus) => AsyncGenerator<{requestId: string; query: unknown}>
   reply: (requestId: string, outcome: PageOutcome) => boolean
   connected: () => boolean
   changes: () => Promise<ChangeEntry[]>

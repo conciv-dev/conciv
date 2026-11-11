@@ -60,8 +60,8 @@
     "@tanstack/ai-persistence": "catalog:",
     "@tanstack/store": "catalog:",
     "drizzle-orm": "catalog:",
+    "piscina": "catalog:",
     "solid-js": "catalog:",
-    "tinypool": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

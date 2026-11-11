@@ -123,7 +123,7 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
           )}
         />
       </div>
-      <div class="flex items-center gap-[10px] min-h-9 pe-2 ps-5">
+      <div class="flex flex-wrap items-center gap-[10px] min-h-9 pe-2 ps-5">
         <Show
           when={props.prompt}
           fallback={

@@ -444,9 +444,7 @@ describe.skipIf(inFirefox)('page tools', () => {
       document.body.append(spacer, landmark)
       expect(window.scrollY).toBe(0)
       expect(await resultOf('scroll', {selector: '#far-down'})).toEqual({ok: true})
-      await vi.waitFor(() => {
-        if (window.scrollY === 0) throw new Error('the page has not scrolled yet')
-      })
+      await expect.element(page.getByText('down here')).toBeInViewport()
       window.scrollTo(0, 0)
       spacer.remove()
       landmark.remove()
@@ -455,6 +453,110 @@ describe.skipIf(inFirefox)('page tools', () => {
     it('replaces inner HTML with sethtml', async () => {
       expect(await resultOf('sethtml', {selector: '#htmlhost', html: '<em id="fresh">new</em>'})).toEqual({ok: true})
       expect(document.querySelector('#htmlhost')?.innerHTML).toBe('<em id="fresh">new</em>')
+    })
+  })
+
+  describe('actions read the page back after its next turn', () => {
+    it('reports a change the app undoes in a microtask or a queued task as refused, and a kept change as made', async () => {
+      const host = document.createElement('div')
+      host.innerHTML = `
+        <label>Microtask name <input id="microtask-name" type="text" /></label>
+        <label>Task name <input id="task-name" type="text" /></label>
+        <label><input id="microtask-box" type="checkbox" /> Microtask box</label>
+        <select id="microtask-plan" aria-label="Microtask plan"><option value="free">Free</option><option value="pro">Pro</option></select>
+        <label>Plain name <input id="plain-name" type="text" /></label>
+        <label><input id="plain-box" type="checkbox" /> Plain box</label>
+      `
+      document.body.append(host)
+      onTestFinished(() => host.remove())
+      const microtaskName = host.querySelector('#microtask-name')
+      const taskName = host.querySelector('#task-name')
+      const microtaskBox = host.querySelector('#microtask-box')
+      const microtaskPlan = host.querySelector('#microtask-plan')
+      if (!(microtaskName instanceof HTMLInputElement)) throw new Error('microtask name input missing')
+      if (!(taskName instanceof HTMLInputElement)) throw new Error('task name input missing')
+      if (!(microtaskBox instanceof HTMLInputElement)) throw new Error('microtask box missing')
+      if (!(microtaskPlan instanceof HTMLSelectElement)) throw new Error('microtask plan missing')
+      microtaskName.addEventListener('input', () => queueMicrotask(() => (microtaskName.value = '')))
+      taskName.addEventListener('input', () => {
+        const channel = new MessageChannel()
+        channel.port1.addEventListener(
+          'message',
+          () => {
+            taskName.value = ''
+            channel.port1.close()
+          },
+          {once: true},
+        )
+        channel.port1.start()
+        channel.port2.postMessage(null)
+        channel.port2.close()
+      })
+      microtaskBox.addEventListener('change', () => queueMicrotask(() => (microtaskBox.checked = false)))
+      microtaskPlan.addEventListener('change', () => queueMicrotask(() => (microtaskPlan.value = 'free')))
+
+      expect(await failureOf('fill', {selector: '#microtask-name', value: 'Ada'})).toEqual({
+        code: 'invalid-args',
+        message: 'The field rejected "Ada" and stayed empty.',
+      })
+      await expect.element(page.getByRole('textbox', {name: 'Microtask name'})).toHaveValue('')
+
+      expect(await failureOf('fill', {selector: '#task-name', value: 'Ada'})).toEqual({
+        code: 'invalid-args',
+        message: 'The field rejected "Ada" and stayed empty.',
+      })
+      await expect.element(page.getByRole('textbox', {name: 'Task name'})).toHaveValue('')
+
+      expect(await failureOf('check', {selector: '#microtask-box'})).toEqual({
+        code: 'invalid-args',
+        message: 'The box is still unchecked; the page prevented the change.',
+      })
+      await expect.element(page.getByRole('checkbox', {name: 'Microtask box'})).not.toBeChecked()
+
+      expect(await resultOf('select', {selector: '#microtask-plan', value: 'pro'})).toEqual({ok: true, value: 'free'})
+      await expect.element(page.getByRole('combobox', {name: 'Microtask plan'})).toHaveValue('free')
+
+      expect(await resultOf('fill', {selector: '#plain-name', value: 'Ada'})).toEqual({ok: true, value: 'Ada'})
+      await expect.element(page.getByRole('textbox', {name: 'Plain name'})).toHaveValue('Ada')
+
+      expect(await resultOf('check', {selector: '#plain-box'})).toEqual({ok: true, checked: true})
+      await expect.element(page.getByRole('checkbox', {name: 'Plain box'})).toBeChecked()
+    })
+  })
+
+  describe('far-away targets', () => {
+    it('fills, checks and clicks far-away controls, scrolling each into view', async () => {
+      const far = document.createElement('div')
+      far.innerHTML = `
+        <div style="height: 3000px"></div>
+        <label>Far name <input id="far-name" type="text" /></label>
+        <div style="height: 3000px"></div>
+        <label><input id="far-box" type="checkbox" /> Far box</label>
+        <div style="height: 3000px"></div>
+        <button id="far-button" type="button">Far button</button>
+        <p id="far-clicks">0 far clicks</p>
+      `
+      document.body.append(far)
+      onTestFinished(() => {
+        window.scrollTo(0, 0)
+        far.remove()
+      })
+      far.querySelector('#far-button')?.addEventListener('click', () => {
+        const clicks = far.querySelector('#far-clicks')
+        if (clicks) clicks.textContent = `${Number.parseInt(clicks.textContent ?? '0', 10) + 1} far clicks`
+      })
+
+      expect(await resultOf('fill', {selector: '#far-name', value: 'Ada'})).toEqual({ok: true, value: 'Ada'})
+      await expect.element(page.getByRole('textbox', {name: 'Far name'})).toHaveValue('Ada')
+      await expect.element(page.getByRole('textbox', {name: 'Far name'})).toBeInViewport()
+
+      expect(await resultOf('check', {selector: '#far-box'})).toEqual({ok: true, checked: true})
+      await expect.element(page.getByRole('checkbox', {name: 'Far box'})).toBeChecked()
+      await expect.element(page.getByRole('checkbox', {name: 'Far box'})).toBeInViewport()
+
+      expect(await resultOf('click', {selector: '#far-button'})).toEqual({ok: true})
+      await expect.element(page.getByText('1 far clicks')).toBeVisible()
+      await expect.element(page.getByRole('button', {name: 'Far button'})).toBeInViewport()
     })
   })
 

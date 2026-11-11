@@ -9,11 +9,13 @@ import {
   createChatServer,
   drizzleChatStores,
   makeTextAdapter,
+  quickJSThreadDriver,
   toolApprovalId,
   type TurnHooks,
 } from '../src/server.js'
+import type {ToolBinding} from '@tanstack/ai-code-mode'
 import {defineTool} from '@conciv/protocol/chat-tool-types'
-import {describe, expect, it} from 'vitest'
+import {describe, expect, it, onTestFinished} from 'vitest'
 import {z} from 'zod'
 import {
   approvalAskOf,
@@ -33,6 +35,9 @@ import {tmpdir} from 'node:os'
 import {fileURLToPath} from 'node:url'
 import {join} from 'node:path'
 import {parseSync} from 'oxc-parser'
+import {subscribe, unsubscribe} from 'node:diagnostics_channel'
+import {Worker} from 'node:worker_threads'
+import {closePool, openPool} from '../src/server/quickjs-thread.js'
 
 describe('chat stores', () => {
   const CHAT_TABLES = `CREATE TABLE \`chat_runs\` (
@@ -525,7 +530,7 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
 
   async function chatServer(hooks: TurnHooks, log: (message: string) => void, db = chatDb()) {
     const dir = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
-    return createChatServer({
+    const server = await createChatServer({
       stores: drizzleChatStores(db, {harnessOf: () => 'test-harness'}),
       sandbox: {dir, journalDir: join(dir, 'runs')},
       hooks,
@@ -533,7 +538,274 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       firstOutputTimeoutMs: 30_000,
       log,
     })
+    onTestFinished(() => server.endAllRuns())
+    return server
   }
+
+  describe('quickjs code mode runs on a warm worker and shares no state between runs', () => {
+    const isWorkerCreated = (message: unknown): message is {worker: Worker} =>
+      typeof message === 'object' && message !== null && 'worker' in message && message.worker instanceof Worker
+    const trackedWorkers = () => {
+      const live = new Set<Worker>()
+      const track = (message: unknown) => {
+        if (!isWorkerCreated(message)) return
+        live.add(message.worker)
+        message.worker.once('exit', () => live.delete(message.worker))
+      }
+      subscribe('worker_threads', track)
+      onTestFinished(() => {
+        unsubscribe('worker_threads', track)
+      })
+      return live
+    }
+    const workersFromHere = () => {
+      const live = trackedWorkers()
+      return () => [...live].map((worker) => worker.threadId)
+    }
+    const LIMITS = {timeout: 10_000, memoryLimit: 64}
+
+    function binding(name: string, execute: (args: unknown) => Promise<unknown>): ToolBinding {
+      return {name, description: name, inputSchema: {}, execute}
+    }
+
+    function sandbox(limits: {timeout: number; memoryLimit: number}, bindings: Record<string, ToolBinding> = {}) {
+      const driver = quickJSThreadDriver({...limits, maxStackSize: 1024 * 1024}, () => undefined)
+      onTestFinished(() => driver.dispose())
+      const run = async (code: string) => {
+        const context = await driver.createContext({bindings})
+        const result = await context.execute(code)
+        await context.dispose()
+        return result
+      }
+      return {driver, run}
+    }
+
+    it('the first run uses the worker booted with the driver, later runs and guest throws keep it', async () => {
+      const ours = workersFromHere()
+      const {run} = sandbox(LIMITS)
+      const booted = ours()
+      expect(booted).toHaveLength(1)
+      for (const value of [1, 2, 3]) {
+        expect(await run(`return ${value}`)).toMatchObject({success: true, value})
+        expect(ours()).toEqual(booted)
+      }
+      expect(await run("throw new Error('boom')")).toMatchObject({success: false, error: {message: 'boom'}})
+      expect(await run('return 4')).toMatchObject({success: true, value: 4})
+      expect(ours()).toEqual(booted)
+    })
+
+    it('globals, pending promises and pending tool calls of one run never reach the next', async () => {
+      const gate = Promise.withResolvers<unknown>()
+      const {run} = sandbox(LIMITS, {
+        gate: binding('gate', () => gate.promise),
+        now: binding('now', async () => 'now'),
+      })
+      const first = await run(
+        'globalThis.leak = 1; gate({}).then(() => { globalThis.late = 1 }); new Promise(() => {}); Promise.resolve().then(() => { globalThis.micro = 1 }); return typeof setTimeout',
+      )
+      expect(first).toMatchObject({success: true, value: 'undefined'})
+      gate.resolve('open')
+      const second = await run('await now({}); return [typeof leak, typeof late, typeof micro]')
+      expect(second).toMatchObject({success: true, value: ['undefined', 'undefined', 'undefined']})
+    })
+
+    it('a timed out run and a run over its memory limit retire their worker and the next run works', async () => {
+      const ours = workersFromHere()
+      const {driver, run} = sandbox({timeout: 10_000, memoryLimit: 16})
+      const gone = (before: number[]) => before.filter((id) => !ours().includes(id))
+      const beforeTimeout = ours()
+      const looping = await driver.createContext({bindings: {}, timeout: 1_000})
+      expect(await looping.execute('globalThis.leak = 1; while (true) {}')).toMatchObject({
+        error: {name: 'TimeoutError'},
+      })
+      expect(gone(beforeTimeout)).toHaveLength(1)
+      expect(await run('return typeof leak')).toMatchObject({success: true, value: 'undefined'})
+      const beforeOverMemory = ours()
+      const overMemory = await run("globalThis.leak = 1; let text = 'x'; while (true) text += text")
+      expect(overMemory).toMatchObject({success: false, error: {name: 'MemoryLimitError'}})
+      expect(gone(beforeOverMemory)).toHaveLength(1)
+      expect(await run('return typeof leak')).toMatchObject({success: true, value: 'undefined'})
+    })
+
+    it('a run stopped mid-flight ends its worker and the next run works on a replacement', async () => {
+      const ours = workersFromHere()
+      const entered = Promise.withResolvers<void>()
+      const hold = binding('hold', () => {
+        entered.resolve()
+        return new Promise<never>(() => {})
+      })
+      const {driver, run} = sandbox(LIMITS, {hold})
+      const [stoppedOn] = ours()
+      const context = await driver.createContext({bindings: {hold}})
+      const running = context.execute('globalThis.leak = 1; await hold({})')
+      await entered.promise
+      await context.dispose()
+      expect(await running).toMatchObject({success: false, error: {name: 'AbortError'}})
+      expect(ours()).not.toContain(stoppedOn)
+      expect(await run('return typeof leak')).toMatchObject({success: true, value: 'undefined'})
+    })
+
+    it('a run that times out retires only its own worker, and a concurrent run keeps its worker', async () => {
+      const ours = workersFromHere()
+      const entered = Promise.withResolvers<void>()
+      const release = Promise.withResolvers<string>()
+      const wait = binding('wait', () => {
+        entered.resolve()
+        return release.promise
+      })
+      const {driver} = sandbox(LIMITS, {wait})
+      const [survivor] = ours()
+      const steady = await driver.createContext({bindings: {wait}})
+      const waiting = steady.execute('return await wait({})')
+      await entered.promise
+      const looping = await driver.createContext({bindings: {}, timeout: 1_000})
+      expect(await looping.execute("console.log('spinning'); while (true) {}")).toMatchObject({
+        success: false,
+        error: {name: 'TimeoutError'},
+        logs: ['spinning'],
+      })
+      expect(ours()).toEqual([survivor])
+      release.resolve('kept')
+      expect(await waiting).toMatchObject({success: true, value: 'kept'})
+      expect(ours()).toEqual([survivor])
+    })
+
+    it('a worker that errors while its pool shuts down never throws on the server thread, and the worker piscina respawns is shut down too', async () => {
+      const ours = workersFromHere()
+      const logged: string[] = []
+      const log = (message: string) => logged.push(message)
+      const open = openPool(log)
+      const [thread] = open.pool.threads
+      if (thread === undefined) throw new Error('the pool booted no worker')
+      const respawned: Worker[] = []
+      const track = (message: unknown) => {
+        if (isWorkerCreated(message)) respawned.push(message.worker)
+      }
+      subscribe('worker_threads', track)
+      onTestFinished(() => {
+        unsubscribe('worker_threads', track)
+      })
+      const closing = closePool(open, log)
+      expect(() => thread.emit('error', new Error('the worker failed'))).not.toThrow()
+      await closing
+      expect(respawned).toHaveLength(1)
+      expect(logged).toEqual(['[ai] the QuickJS worker failed: Error: the worker failed'])
+      expect(ours()).toEqual([])
+    })
+
+    async function heldRun() {
+      const live = trackedWorkers()
+      const logged: string[] = []
+      const entered = Promise.withResolvers<void>()
+      const hold = binding('hold', () => {
+        entered.resolve()
+        return new Promise<never>(() => {})
+      })
+      const driver = quickJSThreadDriver({...LIMITS, maxStackSize: 1024 * 1024}, (message) => logged.push(message))
+      onTestFinished(() => driver.dispose())
+      const context = await driver.createContext({bindings: {hold}})
+      const running = context.execute('globalThis.leak = 1; await hold({})')
+      await entered.promise
+      const [worker] = live
+      if (worker === undefined) throw new Error('the run has no worker')
+      const next = async () => {
+        const fresh = await driver.createContext({bindings: {}})
+        return fresh.execute('return typeof leak')
+      }
+      return {driver, worker, running, logged, next}
+    }
+
+    it('a worker that dies with a tool call in flight fails that run, logs it, and the next run works', async () => {
+      const {worker, running, logged, next} = await heldRun()
+      await worker.terminate()
+      expect(await running).toMatchObject({success: false})
+      expect(logged.filter((message) => message.startsWith('[ai] the QuickJS worker failed'))).toHaveLength(1)
+      expect(await next()).toMatchObject({success: true, value: 'undefined'})
+    })
+
+    it('a worker that throws with a tool call in flight fails that run, logs it, and the next run works', async () => {
+      const {worker, running, logged, next} = await heldRun()
+      worker.emit('error', new Error('the worker threw'))
+      expect(await running).toMatchObject({success: false, error: {message: 'the worker threw'}})
+      expect(logged).toContain('[ai] the QuickJS worker failed: Error: the worker threw')
+      expect(await next()).toMatchObject({success: true, value: 'undefined'})
+    })
+
+    it('disposing the driver during a run stops that run', async () => {
+      const {driver, running} = await heldRun()
+      await driver.dispose()
+      expect(await running).toMatchObject({success: false, error: {name: 'AbortError'}})
+    })
+
+    it('concurrent runs run side by side and each sees only its own globals', async () => {
+      const met = {count: 0}
+      const both = Promise.withResolvers<void>()
+      const meet = binding('meet', async () => {
+        met.count += 1
+        if (met.count === 2) both.resolve()
+        await both.promise
+        return null
+      })
+      const {run} = sandbox(LIMITS, {meet})
+      const results = await Promise.all(
+        ['one', 'two'].map((name) => run(`globalThis.${name} = 1; await meet({}); return [typeof one, typeof two]`)),
+      )
+      expect(results).toMatchObject([
+        {success: true, value: ['number', 'undefined']},
+        {success: true, value: ['undefined', 'number']},
+      ])
+    })
+
+    it('dispose leaves no worker and a later run boots the pool again', async () => {
+      const ours = workersFromHere()
+      const {driver, run} = sandbox(LIMITS)
+      await Promise.all([run('return 1'), run('return 2')])
+      await driver.dispose()
+      expect(ours()).toEqual([])
+      expect(await run('return 3')).toMatchObject({success: true, value: 3})
+      expect(ours()).toHaveLength(1)
+      await driver.dispose()
+      expect(ours()).toEqual([])
+    })
+
+    it('the chat server runs every return 1 on the worker its driver booted, and endAllRuns frees it until the next run', async () => {
+      const ours = workersFromHere()
+      const logged: string[] = []
+      const server = await chatServer(
+        {
+          plan: () => {
+            throw new Error('no turn runs here')
+          },
+          usage: async () => undefined,
+          end: async () => undefined,
+          started: () => undefined,
+        },
+        (message) => logged.push(message),
+      )
+      const onQuickJS = logged.some((message) => message.includes('@tanstack/ai-isolate-node'))
+      const echo = defineTool({
+        name: 'echo',
+        description: 'Echoes its input.',
+        inputSchema: z.object({}),
+        outputSchema: z.unknown(),
+      }).server(async (args) => args)
+      const runner = server.codeRunner([echo])
+      if (runner === null) throw new Error('code mode found no driver')
+      const booted = ours()
+      expect(booted).toHaveLength(onQuickJS ? 1 : 0)
+      for (const _ of Array.from({length: 20})) {
+        expect(await runner.run('return 1', () => undefined)).toMatchObject({success: true, result: 1})
+        expect(ours()).toEqual(booted)
+      }
+      await server.endAllRuns()
+      expect(ours()).toEqual([])
+      expect(await runner.run('return 2', () => undefined)).toMatchObject({success: true, result: 2})
+      expect(ours()).toHaveLength(booted.length)
+      await server.endAllRuns()
+      expect(ours()).toEqual([])
+      expect(logged.filter((message) => message.includes('QuickJS worker failed'))).toEqual([])
+    })
+  })
 
   runPersistenceConformance(
     'conciv drizzle chat stores',

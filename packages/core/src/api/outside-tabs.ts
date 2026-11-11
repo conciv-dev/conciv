@@ -1,15 +1,7 @@
 import {checkEngines, concivHome, type EngineRow} from '@conciv/db'
-import {toolError} from '@conciv/extension'
-import {
-  TabOpenSchema,
-  TabsSchema,
-  type SessionId,
-  type TabOpen,
-  type Tabs,
-  type TabsListing,
-} from '@conciv/protocol/chat-types'
+import {TabsSchema, type Tabs, type TabsListing} from '@conciv/protocol/chat-types'
 
-const PROBE_MS = 2000
+const PROBE_MS = 300
 
 const TOO_OLD = 'engine too old; upgrade its @conciv packages'
 
@@ -17,7 +9,7 @@ type Unreachable = TabsListing['unreachable'][number]
 
 type TabRow = TabsListing['tabs'][number]
 
-type OwnedTab = {apiBase: string; root: string; instructions: string | null; tools: TabOpen['tools']}
+type EngineListing = {tabs: Tabs} | {unreachable: Unreachable}
 
 export function createOutsideTabs(given: string | undefined) {
   const home = given ?? concivHome({env: process.env})
@@ -41,25 +33,10 @@ export function createOutsideTabs(given: string | undefined) {
     }
   }
 
-  async function find(tab: SessionId): Promise<OwnedTab> {
-    const checked = await liveEngines()
-    const answers = await Promise.all(checked.live.map((row) => openOn(row, tab)))
-    const [only, second] = answers.flatMap((answer) => (answer === null ? [] : [answer]))
-    if (only === undefined) {
-      throw toolError('TAB_NOT_OPEN', {message: `tab ${tab} is not open; call external_tabs({})`})
-    }
-    if (second !== undefined) {
-      throw toolError('TAB_NOT_OPEN', {
-        message: `tab ${tab} is open on two engines (${only.root} and ${second.root}); ask the user to close one of the browser tabs`,
-      })
-    }
-    return only
-  }
-
-  return {list, find}
+  return {list}
 }
 
-async function engineTabs(row: EngineRow): Promise<{tabs: Tabs} | {unreachable: Unreachable}> {
+async function engineTabs(row: EngineRow): Promise<EngineListing> {
   try {
     const response = await fetch(`${row.apiBase}/api/tabs`, {signal: AbortSignal.timeout(PROBE_MS)})
     if (response.status === 404) return {unreachable: {root: row.root, error: TOO_OLD}}
@@ -69,19 +46,6 @@ async function engineTabs(row: EngineRow): Promise<{tabs: Tabs} | {unreachable: 
     return {tabs: tabs.data}
   } catch (error) {
     return {unreachable: {root: row.root, error: errorText(error)}}
-  }
-}
-
-async function openOn(row: EngineRow, tab: SessionId): Promise<OwnedTab | null> {
-  try {
-    const url = `${row.apiBase}/api/tabs?session=${encodeURIComponent(tab)}`
-    const response = await fetch(url, {signal: AbortSignal.timeout(PROBE_MS)})
-    if (!response.ok) return null
-    const answer = TabOpenSchema.safeParse(await response.json())
-    if (!answer.success || !answer.data.open) return null
-    return {apiBase: row.apiBase, root: row.root, instructions: answer.data.instructions, tools: answer.data.tools}
-  } catch {
-    return null
   }
 }
 
@@ -96,7 +60,12 @@ function tabRow(listing: Tabs) {
     lastActive: new Date(tab.session.updatedAt).toISOString(),
     running: tab.session.running,
     harness: tab.harness,
-    browserTabs: tab.browserTabs,
+    browserTabs: tab.browserTabs.map((browserTab) => ({
+      id: browserTab.id,
+      ...(browserTab.page === null
+        ? {}
+        : {href: browserTab.page.href, pageTitle: browserTab.page.title, state: browserTab.page.state}),
+    })),
   })
 }
 
