@@ -7,7 +7,7 @@ import {z} from 'zod'
 import {toolError, type ServerApi} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import type {BundlerBridge, BundlerDiagnostic} from '@conciv/protocol/bundler-types'
-import {consoleDef, reloadDef} from '@conciv/extension-page/defs'
+import {consoleDef, reloadDef, routeDef as pageRouteDef} from '@conciv/extension-page/defs'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {
   BROKEN_BY,
@@ -72,7 +72,7 @@ export function createDiffer(input: {
   }) => {
     const {record, nodes} = asked
     const opened = tab(asked.session)
-    await routed({runtime, page: opened, route: record.route})
+    await routed({page: opened, route: record.route})
     const measured = await runner({
       record,
       page: opened,
@@ -189,6 +189,8 @@ const NOTHING_MEASURED = {
 
 const ConsoleSchema = consoleDef.outputSchema ?? z.never()
 
+const PageRouteSchema = pageRouteDef.outputSchema ?? z.never()
+
 const LocSchema = z.object({line: z.number(), column: z.number()})
 
 const ThrownSchema = z.object({
@@ -269,17 +271,13 @@ async function reput(input: {
   })
 }
 
-async function routed(input: {
-  runtime: DesignRuntime
-  page: ServerToolPageAccess
-  route: string | undefined
-}): Promise<void> {
-  const {runtime, page, route} = input
+async function routed(input: {page: ServerToolPageAccess; route: string | undefined}): Promise<void> {
+  const {page, route} = input
   if (route === undefined) return
-  const facts = await runtime.measurer.probe(page).catch(() => null)
-  if (facts === null || sameRoute({route, at: facts.route})) return
+  const current = await tabRoute(page).catch(() => null)
+  if (current === null || sameRoute({route, at: current})) return
   await page.call(routeDef.name, {route})
-  const retryer = new AsyncRetryer(() => arrived({runtime, page, route}), {
+  const retryer = new AsyncRetryer(() => arrived({page, route}), {
     backoff: 'fixed',
     baseWait: TOLERANCES.widgetPoll,
     maxAttempts: Math.ceil(TOLERANCES.widgetWait / TOLERANCES.widgetPoll) + 1,
@@ -288,9 +286,14 @@ async function routed(input: {
   await retryer.execute()
 }
 
-async function arrived(input: {runtime: DesignRuntime; page: ServerToolPageAccess; route: string}): Promise<void> {
-  const facts = await input.runtime.measurer.probe(input.page)
-  if (!sameRoute({route: input.route, at: facts.route})) throw new Error(`the tab is not at ${input.route} yet`)
+async function arrived(input: {page: ServerToolPageAccess; route: string}): Promise<void> {
+  if (!sameRoute({route: input.route, at: await tabRoute(input.page)}))
+    throw new Error(`the tab is not at ${input.route} yet`)
+}
+
+async function tabRoute(page: ServerToolPageAccess): Promise<string> {
+  const {pathname, search} = PageRouteSchema.parse(await page.call(pageRouteDef.name, {}))
+  return `${pathname}${search}`
 }
 
 function sameRoute(input: {route: string; at: string}): boolean {
