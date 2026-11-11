@@ -5,6 +5,7 @@ export {imageBlocks, imageToolProvisioner, imagesIn, withoutImages} from './serv
 export {drizzleChatStores} from './server/chat-stores.js'
 export {chatMessages, chatMetadata, chatRuns} from '@conciv/db'
 export type {Approvals, ChatStores, TurnHooks} from './server/chat-server.js'
+export type {Turn} from './server/delivery.js'
 export {acp, claudeCode, codex, codexModels, makeTextAdapter, opencode} from './adapters/adapters.js'
 export type {TextAdapter} from './adapters/adapters.js'
 export {createMCPServer} from '@tanstack/ai-mcp/server'
