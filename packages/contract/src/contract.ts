@@ -295,12 +295,13 @@ export const contract = {
           extension: z.string().min(1).optional(),
           from: z.string().min(1),
           where: z.string().min(1).optional(),
-          select: z.array(z.string().min(1)).optional(),
+          select: z.string().min(1).optional(),
           order: z.array(z.object({field: z.string().min(1), dir: z.enum(['asc', 'desc'])})).optional(),
           limit: z.number().int().positive().optional(),
+          cursor: z.string().min(1).optional(),
         }),
       )
-      .output(z.array(z.record(z.string(), z.unknown()))),
+      .output(z.object({results: z.array(z.unknown()), total: z.number().int(), next: z.string().nullable()})),
     write: oc
       .errors(queryFailed)
       .input(

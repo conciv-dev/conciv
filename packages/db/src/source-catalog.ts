@@ -22,7 +22,7 @@ export function sourceCatalog(input: {
     table: isView(entry.table) ? getViewName(entry.table) : getTableName(entry.table),
     database: databaseOf({name: entry.database, home: input.home}),
     fields: Object.entries(entry.fields).map(([name, field]) =>
-      corrected({field: catalogField({name, field}), correction: entry.correctable}),
+      corrected({field: catalogField({name, field, root: input.home}), correction: entry.correctable}),
     ),
     order,
     writable: entry.writable === true || entry.correctable !== undefined,
@@ -35,9 +35,17 @@ function databaseOf(input: {name: string | undefined; home: string}): CatalogDat
   return {name: input.name, file: join(input.home, `${input.name}.db`)}
 }
 
-function catalogField(input: {name: string; field: SourceField}): CatalogField {
-  const {name, field} = input
+function catalogField(input: {name: string; field: SourceField; root: string}): CatalogField {
+  const {name, field, root} = input
   if ('path' in field) return {name, column: field.column.name, path: field.path, type: 'unknown'}
+  if ('file' in field)
+    return {
+      name,
+      column: field.file.name,
+      path: null,
+      type: 'unknown',
+      file: {contentType: field.contentType.name, root},
+    }
   return {name, column: field.name, path: null, type: field.dataType}
 }
 

@@ -1,5 +1,7 @@
 import {z} from 'zod'
-import {command, description, name, option, schema} from '@bomb.sh/router'
+import {command, description, name, option, schema, toggle} from '@bomb.sh/router'
+import type {SourcePage, SourceRead} from '@conciv/db'
+import {uniq} from 'es-toolkit'
 import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {userFailure} from './failure.js'
 import {localCatalog, type LocalCatalog} from './local-catalog.js'
@@ -11,6 +13,9 @@ const QueryModelSchema = z.object({
   select: z.string().optional(),
   order: z.string().optional(),
   limit: z.int().optional(),
+  cursor: z.string().optional(),
+  single: z.boolean().optional(),
+  json: z.boolean().optional(),
 })
 
 const WriteModelSchema = z.object({into: z.string(), values: z.string()})
@@ -29,14 +34,24 @@ export function sourceCommands(scope: {extension?: string; label: string; prefix
         description('a CEL predicate over the source fields, e.g. round == 3 && kind in ["text"]'),
         schema(z.string().optional()),
       ),
-      option(name('select'), description('comma-separated field names'), schema(z.string().optional())),
+      option(
+        name('select'),
+        description('a CEL expression per row: a map prints a table, e.g. {"round": round, "kind": kind}'),
+        schema(z.string().optional()),
+      ),
       option(
         name('order'),
         description('comma-separated fields to sort by, -field for descending'),
         schema(z.string().optional()),
       ),
       option(name('limit'), description('the most rows to return'), schema(z.int().optional())),
-      envelopeFlag,
+      option(
+        name('cursor'),
+        description('the next of a page read with the same --order'),
+        schema(z.string().optional()),
+      ),
+      toggle(name('single'), description('return exactly one row, bare; anything else is an error')),
+      toggle(name('json'), description('print {results, total, next} as one JSON envelope')),
       handler((model) => query({...QueryModelSchema.parse(model), scoped, extension})),
     ),
     command(
@@ -48,38 +63,100 @@ export function sourceCommands(scope: {extension?: string; label: string; prefix
       handler((model) => {
         const {into, values} = WriteModelSchema.parse(model)
         const row = valuesOf(values)
-        return catalogOutcome({code: 'QUERY_FAILED', work: (sources) => sources.write({...scoped, into, values: row})})
+        return catalogOutcome({
+          code: 'QUERY_FAILED',
+          work: async (sources) => jsonOutcome(await sources.write({...scoped, into, values: row})),
+        })
       }),
     ),
   ]
 }
 
-function query(
-  input: z.infer<typeof QueryModelSchema> & {scoped: {extension?: string}; extension: string | undefined},
-): Promise<CliOutcome> {
+function query(input: QueryModel & {scoped: {extension?: string}; extension: string | undefined}): Promise<CliOutcome> {
   const {from, scoped, extension} = input
-  if (from === undefined) return catalogOutcome({code: 'QUERY_FAILED', work: (sources) => sources.list(extension)})
+  if (from === undefined)
+    return catalogOutcome({code: 'QUERY_FAILED', work: (sources) => jsonOutcome(sources.list(extension))})
   return catalogOutcome({
     code: 'QUERY_FAILED',
-    work: (sources) =>
-      sources.read({
-        ...scoped,
-        from,
-        ...(input.where === undefined ? {} : {where: input.where}),
-        ...(input.select === undefined ? {} : {select: input.select.split(',').map((field) => field.trim())}),
-        ...(input.order === undefined ? {} : {order: orderOf(input.order)}),
-        ...(input.limit === undefined ? {} : {limit: input.limit}),
-      }),
+    work: async (sources) => reported({input, page: await sources.read({...scoped, ...readOf({...input, from})})}),
   })
+}
+
+type QueryModel = z.infer<typeof QueryModelSchema>
+
+function readOf(input: QueryModel & {from: string}): SourceRead {
+  if (input.single === true && (input.limit !== undefined || input.cursor !== undefined))
+    throw new Error('--single returns one row and takes neither --limit nor --cursor')
+  if (input.cursor !== undefined && input.order === undefined)
+    throw new Error('--cursor takes --order: pass the --order the cursor was read with')
+  return {
+    from: input.from,
+    ...(input.where === undefined ? {} : {where: input.where}),
+    ...(input.select === undefined ? {} : {select: input.select}),
+    ...(input.order === undefined ? {} : {order: orderOf(input.order)}),
+    ...(input.limit === undefined ? {} : {limit: input.limit}),
+    ...(input.cursor === undefined ? {} : {cursor: input.cursor}),
+  }
+}
+
+function reported(input: {input: QueryModel; page: SourcePage}): CliOutcome {
+  const {page} = input
+  const json = input.input.json === true
+  if (input.input.single !== true) return json ? jsonOutcome(page) : textOutcome(page.results, page.next)
+  if (page.total !== 1) throw new Error(`--single expects exactly one row; the query matched ${page.total} rows`)
+  return json ? jsonOutcome(page.results[0]) : textOutcome(page.results)
+}
+
+function jsonOutcome(data: unknown): CliOutcome {
+  return {report: 'json', data}
+}
+
+function textOutcome(results: SourcePage['results'], next: string | null = null): CliOutcome {
+  const lines = [...linesOf(results), ...(next === null ? [] : [`next: ${next}`])]
+  return {report: 'text', text: lines.map((line) => `${line}\n`).join('')}
+}
+
+function linesOf(results: SourcePage['results']): string[] {
+  const present = results.filter((value) => value !== null && value !== undefined)
+  if (present.length > 0 && present.every(isRecord)) return tableOf(results, uniq(present.flatMap(Object.keys)))
+  if (present.length > 0 && present.every(Array.isArray))
+    return tableOf(
+      results,
+      Array.from({length: Math.max(...present.map((entry) => entry.length))}, (_, at) => `${at}`),
+    )
+  return results.map((value) => (value === null || value === undefined ? 'null' : cellOf(value)))
+}
+
+function tableOf(results: SourcePage['results'], headers: string[]): string[] {
+  const rows = results.map((value) =>
+    headers.map((header) => cellOf(isRecord(value) || Array.isArray(value) ? Reflect.get(value, header) : null)),
+  )
+  const widths = headers.map((header, at) => Math.max(header.length, ...rows.map((row) => row[at]?.length ?? 0)))
+  return [headers, ...rows].map((row) =>
+    row
+      .map((cell, at) => cell.padEnd(widths[at] ?? 0))
+      .join('  ')
+      .trimEnd(),
+  )
+}
+
+function cellOf(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'string') return value
+  return JSON.stringify(value)
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 async function catalogOutcome(input: {
   code: string
-  work: (sources: LocalCatalog['sources']) => unknown
+  work: (sources: LocalCatalog['sources']) => CliOutcome | Promise<CliOutcome>
 }): Promise<CliOutcome> {
   const {sources} = localCatalog()
   try {
-    return {report: 'json', data: await input.work(sources)}
+    return await input.work(sources)
   } catch (error) {
     throw userFailure(error instanceof Error ? error.message : String(error), {code: input.code})
   }

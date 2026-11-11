@@ -1,7 +1,10 @@
 import {description, name, toggle} from '@bomb.sh/router'
 import {failureOf, type EnvelopeError} from './failure.js'
 
-export type CliOutcome = {report: 'json'; data: unknown} | {report: 'none'; code: number}
+export type CliOutcome =
+  | {report: 'json'; data: unknown}
+  | {report: 'text'; text: string}
+  | {report: 'none'; code: number}
 
 export const envelopeFlag = toggle(name('json'), description('print one JSON envelope (always on for this command)'))
 
@@ -14,6 +17,10 @@ export async function writeOutcome(pending: Promise<CliOutcome>): Promise<number
   try {
     const outcome = await pending
     if (outcome.report === 'none') return outcome.code
+    if (outcome.report === 'text') {
+      process.stdout.write(outcome.text)
+      return 0
+    }
     process.stdout.write(`${JSON.stringify({ok: true, data: outcome.data})}\n`)
     return 0
   } catch (error) {
