@@ -8,7 +8,7 @@ Hono sub-apps for the core server: an MCP endpoint that exposes the sandboxed Ty
 
 - HTTP `POST /` (`mcp.ts`, default export `app`): stateless MCP endpoint served by `createMCPServer` from `@tanstack/ai-mcp`, built per request with the session's tools; spec 2025 replies stream as SSE
 - MCP tool `execute_typescript` (`mcp.ts`, `EXECUTE_TOOL_NAME` in `execute-schemas.ts`): runs `typescriptCode` through `CodeRunner.run`; its description carries the stale-engine warning, the sandbox rules and then the capability list (`executeDescription`), since MCP server instructions are not sent; it stays within 4096 characters (the Claude Code cap) by listing capabilities past the budget by name only
-- MCP tool `discover_tools` (`mcp.ts`, `DISCOVER_TOOL_NAME`): typed signatures for `{toolNames}`; registered only when `runner.discover` is not null
+- MCP tool `discover_tools` (`mcp.ts`, `DISCOVER_TOOL_NAME`): typed signatures for `{toolNames}`, whole: the catalogue is never cut at `RESULT_CAP_CHARS`, which bounds only what a tool returns; registered only when `runner.discover` is not null
 - MCP tools for each `runner.asking` entry (`mcp.ts`): run through `runDirect`
 - WS `GET /push-ws?sessionId=` (`push.ts`, `pushRoutes`; path `PUSH_WS_PATH`): frames on channels `ready`, `page` and `chat`; the client sends `PageServingFrameSchema` frames (`{channel: 'page-serving', serving}`) to start or stop page queries on that socket
 - HTTP `GET /` and `GET /:file` (`native-page.ts`, `makeNativePageApp`): host HTML and `conciv-widget-native.global.js` (or its .map)

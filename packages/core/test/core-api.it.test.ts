@@ -3066,6 +3066,13 @@ return seen`
         expect(discover.description).not.toContain('external_fixture_fail')
       })
 
+      it('discover_tools returns the whole catalogue past the result cap, which bounds only what a tool returns', async () => {
+        const found = String(await (await mcpTool('discover_tools')).execute({toolNames: ['fixture_wordy']}))
+        expect(found.length).toBeGreaterThan(RESULT_CAP_CHARS)
+        expect(found).toContain(WORDY_DESCRIPTION)
+        expect(found).not.toContain('the cap is')
+      })
+
       it('errors keep their declared code, other failures stay plain errors, and huge results are capped', async () => {
         expect(await executeResult(catchMessage('external_fixture_fail({spaced: true})'))).toBe(DECLARED_MESSAGE)
         expect(await executeResult(catchMessage('external_fixture_fail({spaced: false})'))).toBe(DECLARED_MESSAGE)
@@ -3222,6 +3229,7 @@ return seen`
   const FIXTURE_TOOLS = ['fixture_echo', 'fixture_read', 'fixture_ask']
   const CHILD_CARDS = ['fixture_echo', 'fixture_echo', 'fixture_fail', 'fixture_huge']
   const ECHO_DESCRIPTION = 'Echo the text back.\n\nUse it to echo.\n\nNever echo secrets.\n\nKeep it short.'
+  const WORDY_DESCRIPTION = `Carry a long description: ${'w'.repeat(RESULT_CAP_CHARS)}`
   const EXPANSION_PART = {type: 'text', content: 'fixture-expanded', metadata: {modelOnly: true}}
   const ONE_PIXEL_PNG =
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
@@ -3306,7 +3314,7 @@ return seen`
   function fixtureExtension() {
     return defineExtension({
       name: 'fixture',
-      tools: [echoTool(), readTool(), quietTool(), askTool(), failTool(), hugeTool(), imageTool()],
+      tools: [echoTool(), readTool(), quietTool(), askTool(), failTool(), hugeTool(), imageTool(), wordyTool()],
       attachments: fixtureAttachments(),
     }).server(() => ({context: {}, turnEnd: noteTurnEnd}))
   }
@@ -3371,6 +3379,16 @@ return seen`
     }).server((input) => {
       throw toolError('PROBE_BROKE', {message: input.spaced ? 'the probe broke' : 'PROBE_BROKE:the probe broke'})
     })
+  }
+
+  function wordyTool() {
+    return defineTool({
+      name: 'fixture_wordy',
+      description: 'Return a value whose shape carries a long description.',
+      inputSchema: z.object({}),
+      outputSchema: z.object({said: z.string().describe(WORDY_DESCRIPTION)}),
+      meta: {summary: 'return a wordy shape', category: 'fixture', mutating: false},
+    }).server(() => ({said: 'x'}))
   }
 
   function hugeTool() {

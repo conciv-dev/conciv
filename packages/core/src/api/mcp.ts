@@ -19,7 +19,6 @@ import {logError} from '../lib/debug.js'
 import corePackage from '../../package.json' with {type: 'json'}
 import {
   cappedText,
-  cappedValue,
   RESULT_CAP_CHARS,
   safeStringify,
   truncationEnvelope,
@@ -269,7 +268,7 @@ async function runDirect(tool: CodeTool, input: unknown, calls: CallPublisher): 
 async function runDiscover(runner: CodeRunner, toolNames: string[]): Promise<ExecuteReply> {
   if (runner.discover === null) return {content: [{type: 'text', text: 'no tools to discover'}], isError: true}
   const found = await runner.discover.run(toolNames)
-  return {content: [{type: 'text', text: cappedText(safeStringify(cappedValue(found)))}]}
+  return {content: [{type: 'text', text: safeStringify(found)}]}
 }
 
 type McpDeps = {
