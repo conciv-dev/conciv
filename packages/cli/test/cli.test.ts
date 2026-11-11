@@ -1667,6 +1667,62 @@ describe('cli', () => {
       }
     }
 
+    async function staleEngine(home: string, given: {id: string; pid: number; root: string}) {
+      const server = createHttpServer((request, response) => {
+        if (request.url === '/health') {
+          response.writeHead(200, {'content-type': 'application/json'}).end(JSON.stringify({ok: true, id: given.id}))
+          return
+        }
+        response.writeHead(500).end()
+      })
+      server.listen(0, '127.0.0.1')
+      await once(server, 'listening')
+      const port = z.object({port: z.number()}).parse(server.address()).port
+      withHomeDb(home, (db) =>
+        registerEngine(db, {id: given.id, pid: given.pid, root: given.root, apiBase: `http://127.0.0.1:${port}`}),
+      )
+      return async () => {
+        server.closeAllConnections()
+        server.close()
+        await once(server, 'close')
+      }
+    }
+
+    async function deadPid(): Promise<number> {
+      const child = spawn(process.execPath, ['-e', ''])
+      const pid = z.number().parse(child.pid)
+      await once(child, 'exit')
+      return pid
+    }
+
+    it('skips and removes engine rows whose process or root folder is gone, so calls without a tab and external_tabs land on the live engine', async () => {
+      const {home, mcp} = fakeClaude()
+      expect(mcp('connect', 'claude')).toMatchObject({status: 0})
+      const removedRoot = mkdtempSync(join(tmpdir(), 'conciv-removed-'))
+      rmSync(removedRoot, {recursive: true})
+      const closers = [
+        await staleEngine(home, {id: 'root-gone', pid: process.pid, root: removedRoot}),
+        await staleEngine(home, {
+          id: 'pid-gone',
+          pid: await deadPid(),
+          root: mkdtempSync(join(tmpdir(), 'conciv-dead-')),
+        }),
+      ]
+      const live = await engineWithTab(home, {hubAccess: 'open'})
+      const client = await hub(home)
+      try {
+        expect(await run(client, 'return 1 + 1')).toContain('\\"result\\":2')
+        const tabs = await run(client, 'return await external_tabs({})')
+        expect(tabs).toContain(live.sessionId)
+        expect(tabs).not.toContain(removedRoot)
+        expect(withHomeDb(home, listEngines).map((row) => row.root)).toEqual([live.root])
+      } finally {
+        await client.close()
+        await Promise.all(closers.map((close) => close()))
+        await live.engine.stop()
+      }
+    })
+
     it('a tab probe that fails on an engine is named instead of TAB_NOT_OPEN, and never hides a tab another engine holds', async () => {
       const {home, mcp} = fakeClaude()
       expect(mcp('connect', 'claude')).toMatchObject({status: 0})

@@ -3,6 +3,8 @@ import {TabsSchema, type Tabs, type TabsListing} from '@conciv/protocol/chat-typ
 
 const PROBE_MS = 300
 
+const LISTING_MS = 1500
+
 const TOO_OLD = 'engine too old; upgrade its @conciv packages'
 
 type Unreachable = TabsListing['unreachable'][number]
@@ -38,7 +40,7 @@ export function createOutsideTabs(given: string | undefined) {
 
 async function engineTabs(row: EngineRow): Promise<EngineListing> {
   try {
-    const response = await fetch(`${row.apiBase}/api/tabs`, {signal: AbortSignal.timeout(PROBE_MS)})
+    const response = await fetch(`${row.apiBase}/api/tabs`, {signal: AbortSignal.timeout(LISTING_MS)})
     if (response.status === 404) return {unreachable: {root: row.root, error: TOO_OLD}}
     if (!response.ok) return {unreachable: {root: row.root, error: `/api/tabs answered HTTP ${response.status}`}}
     const tabs = TabsSchema.safeParse(await response.json())

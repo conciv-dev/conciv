@@ -1,8 +1,11 @@
+import {existsSync} from 'node:fs'
 import {z} from 'zod'
 import {listEngines, retireEngine, withHomeDb, type EngineRow} from './home-db.js'
 
 const HealthSchema = z.object({ok: z.literal(true), id: z.string()})
 const RefusedSchema = z.object({cause: z.object({code: z.literal('ECONNREFUSED')})})
+const SignalErrorSchema = z.object({code: z.enum(['ESRCH', 'EPERM'])})
+const CWD_GONE = /uv_cwd|ENOENT[^\n]*cwd/
 
 type Verdict = {row: EngineRow; kind: 'live' | 'retire'} | {row: EngineRow; kind: 'unreachable'; error: string}
 
@@ -25,13 +28,37 @@ export async function checkEngines(
   }
 }
 
+function processAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    const signalled = SignalErrorSchema.safeParse(error)
+    if (!signalled.success) throw error
+    return signalled.data.code === 'EPERM'
+  }
+}
+
+function parsedJson(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch (error) {
+    if (error instanceof SyntaxError) return null
+    throw error
+  }
+}
+
 async function probe(row: EngineRow, timeoutMs: number): Promise<Verdict> {
   const origin = URL.parse(row.apiBase)?.origin
-  if (origin === undefined) return {row, kind: 'retire'}
+  if (origin === undefined || !processAlive(row.pid) || !existsSync(row.root)) return {row, kind: 'retire'}
   try {
     const response = await fetch(`${origin}/health`, {signal: AbortSignal.timeout(timeoutMs)})
-    const health = HealthSchema.safeParse(await response.json().catch(() => null))
-    return {row, kind: health.success && health.data.id === row.id ? 'live' : 'retire'}
+    const text = await response.text()
+    if (CWD_GONE.test(text)) return {row, kind: 'retire'}
+    const health = HealthSchema.safeParse(parsedJson(text))
+    if (!health.success)
+      return {row, kind: 'unreachable', error: `/health answered HTTP ${response.status} without an engine id`}
+    return {row, kind: health.data.id === row.id ? 'live' : 'retire'}
   } catch (error) {
     if (RefusedSchema.safeParse(error).success) return {row, kind: 'retire'}
     return {row, kind: 'unreachable', error: error instanceof Error ? error.message : String(error)}
