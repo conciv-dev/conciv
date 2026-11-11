@@ -1,4 +1,4 @@
-import {CONCIV_UI_SELECTOR} from '@conciv/extension'
+import {pageShadowRoot} from './page-shadow-root.js'
 
 export type Refs = {map: Map<string, WeakRef<Element>>; n: number}
 export type RefAdder = (el: Element) => string
@@ -119,10 +119,6 @@ export function buildSnapshot(root: Element, addRef: RefAdder): SnapNode[] {
   }
   walk(root)
   return out
-}
-
-function pageShadowRoot(element: Element): ShadowRoot | null {
-  return element.closest(CONCIV_UI_SELECTOR) === null ? element.shadowRoot : null
 }
 
 export function addRef(el: Element, refs: Refs): string {

@@ -1,10 +1,4 @@
-import {
-  CONCIV_UI_SELECTOR,
-  type ClientEffect,
-  type ClientToolCtx,
-  type ClientToolEntry,
-  type ClientToolLocator,
-} from '@conciv/extension'
+import {type ClientEffect, type ClientToolCtx, type ClientToolEntry, type ClientToolLocator} from '@conciv/extension'
 import type {PageQuery, PageResult} from '@conciv/protocol/page-types'
 import type {
   CssBundle,
@@ -16,6 +10,7 @@ import {addRef, type Refs} from './page-snapshot.js'
 import type {ConsoleEntry} from './console-buffer.js'
 import {elementByName} from './react-bridge.js'
 import {selectDeep} from './select-deep.js'
+import {isOurs} from './is-ours.js'
 import {badArgs, fail, unknownVerb} from './page-failure.js'
 import {isJsonSerializable, rethrow} from './page-tool-outcome.js'
 import {toCssBundle, type PendingCssText} from './css-bundle.js'
@@ -24,12 +19,6 @@ import {loadSnapshotLibrary, loadedSnapshotLibrary, takeElementCapture} from './
 export type PageToolAnswer = {result: PageResult; capture?: PageCaptureBundle}
 
 export type PageToolDispatch = (query: PageQuery) => Promise<PageToolAnswer>
-
-function isOurs(el: Element): boolean {
-  if (el.closest(CONCIV_UI_SELECTOR) !== null) return true
-  const root = el.getRootNode()
-  return root instanceof ShadowRoot && isOurs(root.host)
-}
 
 function notOurs(el: Element | null | undefined): Element | null {
   return el && !isOurs(el) ? el : null

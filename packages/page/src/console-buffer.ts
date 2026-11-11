@@ -21,10 +21,10 @@ export function startConsoleBuffer(): {buf: ConsoleEntry[]; dispose: () => void}
     return {level, original}
   })
   const onError = (e: ErrorEvent): void => {
-    push('uncaught', [e.error instanceof Error ? (e.error.stack ?? e.message) : e.message])
+    push('uncaught', [thrownText(e.error, e.message)])
   }
   const onRejection = (e: PromiseRejectionEvent): void => {
-    push('unhandled', [e.reason instanceof Error ? (e.reason.stack ?? String(e.reason)) : String(e.reason)])
+    push('unhandled', [thrownText(e.reason, String(e.reason))])
   }
   window.addEventListener('error', onError)
   window.addEventListener('unhandledrejection', onRejection)
@@ -36,4 +36,10 @@ export function startConsoleBuffer(): {buf: ConsoleEntry[]; dispose: () => void}
       window.removeEventListener('unhandledrejection', onRejection)
     },
   }
+}
+
+function thrownText(thrown: unknown, fallback: string): string {
+  if (!(thrown instanceof Error) || thrown.stack === undefined || thrown.stack === '') return fallback
+  const message = String(thrown)
+  return thrown.stack.startsWith(message) ? thrown.stack : `${message}\n${thrown.stack}`
 }

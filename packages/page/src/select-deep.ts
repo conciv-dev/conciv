@@ -1,4 +1,4 @@
-import {CONCIV_UI_SELECTOR} from '@conciv/extension'
+import {pageShadowRoot} from './page-shadow-root.js'
 
 export function selectDeep(selector: string): Element[] {
   const light = Array.from(document.querySelectorAll(selector))
@@ -8,7 +8,7 @@ export function selectDeep(selector: string): Element[] {
 
 function openShadowRoots(root: Document | ShadowRoot): ShadowRoot[] {
   return Array.from(root.querySelectorAll('*')).flatMap((element) => {
-    const shadow = element.closest(CONCIV_UI_SELECTOR) === null ? element.shadowRoot : null
+    const shadow = pageShadowRoot(element)
     return shadow === null ? [] : [shadow, ...openShadowRoots(shadow)]
   })
 }

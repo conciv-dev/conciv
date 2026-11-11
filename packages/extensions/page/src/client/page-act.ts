@@ -205,11 +205,11 @@ const LETTERS: ReadonlySet<string> = LETTER_KEYS
 const DIGITS: ReadonlySet<string> = NUMBER_KEYS
 
 function keyInit(binding: string): KeyboardEventInit {
-  const parsed = parseHotkey(binding)
-  const key = parsed.key ?? parsed.code
+  const parsed = parseHotkey(binding.trim() === '' ? 'Space' : binding)
+  const name = parsed.key ?? parsed.code
   return {
-    key,
-    code: parsed.code ?? codeOf(key),
+    key: typedKey({name, shift: parsed.shift}),
+    code: parsed.code ?? codeOf(name),
     ctrlKey: parsed.ctrl,
     shiftKey: parsed.shift,
     altKey: parsed.alt,
@@ -218,6 +218,13 @@ function keyInit(binding: string): KeyboardEventInit {
     cancelable: true,
     composed: true,
   }
+}
+
+function typedKey(options: {name: string; shift: boolean}): string {
+  const {name, shift} = options
+  if (name === 'Space') return ' '
+  if (!LETTERS.has(name) || shift) return name
+  return name.toLowerCase()
 }
 
 function codeOf(key: string): string {
