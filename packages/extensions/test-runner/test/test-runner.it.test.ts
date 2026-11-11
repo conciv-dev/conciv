@@ -8,7 +8,6 @@ import {z} from 'zod'
 import {makeCallTool, makeDiscoverTools, makeRunTypescript} from '@conciv/harness-testkit'
 import {serveExtensionRpc} from '@conciv/harness-testkit/rpc-mounts'
 import {start, type Engine} from '@conciv/core'
-import type {ConcivConfig} from '@conciv/core/config'
 import {makeExtRpcClient, type AnyExtension, type RegisterExtension} from '@conciv/extension'
 import testRunnerExtension, {makeTestRunnerRouter, type TestRunnerRouter} from '../src/server.js'
 import type {TestRunnerManager} from '../src/runner/contract.js'
@@ -38,19 +37,19 @@ describe('extension', () => {
 
   const extensions: AnyExtension[] = [testRunnerExtension]
 
-  async function boot(opts: {root?: string; extensions?: ConcivConfig['extensions']} = {}): Promise<{
+  async function boot(opts: {root?: string; extensionConfig?: Record<string, unknown>} = {}): Promise<{
     base: string
     engine: Engine
   }> {
     const engine = await start({
       options: {
         systemPrompt: false,
-        extensions: opts.extensions,
         stateRoot: mkdtempSync(join(tmpdir(), 'conciv-test-runner-it-')),
       },
       root: opts.root ?? fixture,
       launchEditor: () => {},
       extensions,
+      extensionConfig: opts.extensionConfig,
     })
     return {base: `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`, engine}
   }
@@ -105,7 +104,7 @@ describe('extension', () => {
     }, 30_000)
 
     it('skips a misconfigured runner (runner=jest stub) without aborting boot', async () => {
-      const {base, engine} = await boot({extensions: {'test-runner': {runner: 'jest'}}})
+      const {base, engine} = await boot({extensionConfig: {'test-runner': {runner: 'jest'}}})
       try {
         await expect(runnerClient(base).status(undefined)).rejects.toMatchObject({status: 404})
       } finally {

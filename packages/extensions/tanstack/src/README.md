@@ -2,7 +2,7 @@
 
 ## Overview
 
-client.tsx defines the browser extension. It registers `tanstackClientTools`, shows an inspector chip in the `status` slot, and installs runtime-error listeners for the extension's lifetime. server.ts defines the server extension. It subscribes to the bundler bridge to fill a build-error ring and a server-function trace ring, and returns a `makeAdapter` context that wraps those rings and the tool registry into a `FrameworkAdapter`. client-sentinel.ts holds the label strings for the status chip.
+client.tsx defines the browser extension. It registers `tanstackClientTools`, shows an inspector chip in the `status` slot, and installs runtime-error listeners for the extension's lifetime. server.ts defines the server extension. It subscribes to the bundler bridge to fill a build-error ring and a server-function trace ring, and returns a `makeAdapter` context that wraps those rings and the tool registry into a `FrameworkAdapter`. client-sentinel.ts holds the label strings for the status chip. index.ts is the package root: a factory that returns the absolute paths of the server and client entries.
 
 ## Interface
 

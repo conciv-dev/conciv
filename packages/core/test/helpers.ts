@@ -110,7 +110,6 @@ export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): 
     sessionId: undefined,
     harnessSessionId: undefined,
     systemPrompt: '',
-    extensions: undefined,
     hubAccess: 'session',
   }
   const made = await makeApp({

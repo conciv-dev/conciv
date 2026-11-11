@@ -1,15 +1,11 @@
 ---
 title: Install an extension
-description: Add a published extension with one dependency and a one-line re-export.
+description: Add a published extension with one dependency and one entry in the conciv options.
 ---
 
-Some extensions ship as their own package: the [TanStack inspector](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/tanstack),
-the terminal, and the recorder. Installing one is two steps that work the same on every framework.
-
-<Callout>
-  The whiteboard and test runner are [built-ins](/docs/extending/built-ins): on by default, no install. This page is for
-  the extensions you opt into.
-</Callout>
+Extensions ship as their own packages: the [TanStack inspector](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/tanstack),
+the terminal, the whiteboard, the test runner, the recorder and design. None is on by default. Installing one is two
+steps that work the same on every framework.
 
 <Steps>
 
@@ -25,55 +21,52 @@ pnpm add @conciv/extension-tanstack
 
 <Step>
 
-### Re-export it from `conciv/extensions/`
+### List it in the conciv options
 
-Create one file whose basename is the extension's name and re-export the package default:
+Each package's default export is a factory. Call it in the `extensions` array:
 
-```tsx title="conciv/extensions/tanstack.tsx"
-export {default} from '@conciv/extension-tanstack'
+```ts title="vite.config.ts"
+import conciv from '@conciv/it/plugin/vite'
+import tanstack from '@conciv/extension-tanstack'
+
+export default {plugins: [conciv({extensions: [tanstack()]})]}
 ```
 
-That is the whole install. Restart your dev server and the extension is live.
+```ts title="next.config.ts"
+import {withConciv} from '@conciv/it/plugin/nextjs'
+import tanstack from '@conciv/extension-tanstack'
+
+export default withConciv({}, {extensions: [tanstack()]})
+```
+
+Extensions with options take them as the factory argument, for example `design({comparator: 'pixelmatch'})`. The
+factory validates them, so a wrong option fails when your config loads. Restart your dev server and the extension is
+live.
 
 </Step>
 
 </Steps>
 
-## Why one file is enough
+## Why one entry is enough
 
 Every published extension has a server half (tool execution) and a browser half (result cards,
-widget UI). The package exposes both through conditional exports, and conciv loads each half from
-the right place:
+widget UI). The factory returns the absolute path of each half, and conciv loads each one from the
+right place:
 
-- **Server half** — conciv scans `conciv/extensions/`, resolves the `import` condition, and loads
-  it in node. This is filesystem discovery, so it needs no bundler and works on every framework.
-- **Browser half** — the widget bundle picks up the `browser` condition of the same file. On
-  Vite-based frameworks (Vite, Astro, Solid Start, Svelte, TanStack Start) the conciv plugin
-  collects `conciv/extensions/` through `import.meta.glob`. On Next.js, `withConciv` writes a
-  generated entry at `.conciv/extensions-client.gen.tsx` and aliases the client bundle to it.
-
-You never wire the halves together; the single re-export file feeds both.
+- **Server half**: conciv imports it in node when the engine boots. On Next.js the list travels to
+  `register()` in `instrumentation.ts` with the rest of the conciv options.
+- **Browser half**: on Vite-based frameworks the conciv plugin adds it to the widget's extension
+  entry. On Next.js, `withConciv` writes it into a generated entry at
+  `.conciv/extensions-client.gen.tsx` and aliases the client bundle to it.
 
 ## Next.js specifics
 
 The generated `.conciv/` entry is created automatically when `withConciv` loads your config. It is
 already covered by conciv's gitignore and carries a do-not-edit header, so leave it alone. A dev
-watcher regenerates it whenever you add or remove files in `conciv/extensions/` during `next dev`,
-so new extensions appear without a restart.
+watcher regenerates it whenever you add or remove files in `conciv/extensions/` during `next dev`.
 
 This works on both bundlers: the default **Turbopack** and `next dev --webpack`. Supported Next.js
 is the current GA line (tested on 16.2.x; peer range `^15.3.0 || ^16.0.0`).
-
-## Stub file rules
-
-The re-export file must be a real module conciv can import and, on Next.js, generate an entry for:
-
-- Use `.ts`, `.tsx`, `.js`, or `.jsx`. A `.d.ts` is types only and is skipped; directories are not
-  scanned.
-- Basenames must be unique. `foo.ts` next to `foo.tsx` is a duplicate and fails Next.js generation.
-- The basename is cosmetic for discovery — the registered name comes from the extension's own
-  `name`. Built-ins win collisions, then first registration wins; dropped entries are logged with
-  their source and reason.
 
 ## Local extensions alongside installed ones
 
@@ -83,7 +76,7 @@ On Vite frameworks the conciv plugin compiles them as Solid JSX, so they behave 
 `conciv/extensions/*.tsx` as React JSX, so a local file must be JSX-free — return strings or use
 `h`-style calls from `Component` rather than Solid JSX — and the app needs `@conciv/extension`
 (plus `solid-js` if you use it) as dependencies. Installed packages have no such limit; their
-browser half is prebuilt, so the re-export stub carries no JSX.
+browser half is prebuilt.
 
 ## Graceful degradation
 
@@ -94,21 +87,29 @@ app using TanStack Query.
 
 ## Publishing your own installable extension
 
-To ship an extension as a package, split it into a client build and a server build, then expose
-both through conditional exports. Copy the `.` entry conciv's own extensions use:
+To ship an extension as a package, build a client half and a server half, and export a factory from
+the package root that names both:
+
+```ts title="src/index.ts"
+import {fileURLToPath} from 'node:url'
+import type {ExtensionPackage} from '@conciv/protocol/config-types'
+
+export default function deploy(): ExtensionPackage {
+  return {
+    server: fileURLToPath(import.meta.resolve('my-deploy-extension/server')),
+    client: fileURLToPath(import.meta.resolve('my-deploy-extension/client')),
+    config: undefined,
+  }
+}
+```
 
 ```json title="package.json"
 {
   "exports": {
     ".": {
-      "browser": {
-        "types": "./dist/client.d.ts",
-        "default": "./dist/client.js"
-      },
-      "import": {
-        "types": "./dist/server.d.ts",
-        "default": "./dist/server.js"
-      }
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./client": {
       "types": "./dist/client.d.ts",
@@ -123,12 +124,7 @@ both through conditional exports. Copy the `.` entry conciv's own extensions use
 }
 ```
 
-The `browser` condition is the client half the widget bundles; `import` is the server half conciv
-loads in node. Keep `./client` and `./server` subpaths by convention so tooling and tests can reach
-each half directly.
-
-<Callout type="warn">
-  Editors resolve the `import` (server) types by default, so a browser-context file may see the wrong side of the export
-  map. When you author the client half, set `customConditions: ["browser"]` in that project's `tsconfig.json` so the
-  editor resolves the browser types.
-</Callout>
+The `default` condition on `.` lets Next.js load the factory from a CommonJS-compiled config. If your
+extension takes options, accept them as the factory argument, parse them with a zod schema, and
+return the parsed value as `config`. Pass the same schema as `configSchema` to `defineExtension`, and
+the server half reads the value as `server.config`.

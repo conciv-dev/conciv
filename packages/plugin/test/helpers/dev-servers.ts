@@ -5,11 +5,12 @@ import {dirname, join} from 'node:path'
 import {pathToFileURL} from 'node:url'
 import {createLogger, createServer, type ViteDevServer} from 'vite'
 import {magicLink, recordedEngineBase} from '@conciv/harness-testkit/login'
-import type {ConcivConfig} from '@conciv/protocol/config-types'
-import {NO_BUILTINS, type Builtins} from '@conciv/extension-compiler/extensions'
+import type {ConcivConfig, ExtensionPackage} from '@conciv/protocol/config-types'
+import type {Builtins} from '@conciv/extension-compiler/extensions'
 import {makeViteHook} from '../../src/core/vite.js'
 
 const PORT_RELEASE_MS = 300
+const FIXTURE_EXTENSION_DIR = join(import.meta.dirname, '..', 'fixtures', 'extension')
 
 export type StartedDevServer = {server: ViteDevServer; root: string}
 
@@ -31,7 +32,7 @@ export function devServers(): DevServers {
 
   const start = async (
     options: Omit<ConcivConfig, 'stateRoot'> = {},
-    builtins = NO_BUILTINS,
+    builtins: Builtins = {},
     root = tempDir('conciv-vite-root-'),
   ) => {
     const server = await createServer({
@@ -53,6 +54,16 @@ export function devServers(): DevServers {
   }
 
   return {start, tempDir, stopAll}
+}
+
+export function fixtureExtension(dir = FIXTURE_EXTENSION_DIR): ExtensionPackage {
+  return {server: join(dir, 'server.mjs'), client: join(dir, 'client.mjs'), config: undefined}
+}
+
+export function installFixtureExtension(nodeModules: string): ExtensionPackage {
+  const dir = join(nodeModules, '@conciv', 'extension-fixture')
+  cpSync(FIXTURE_EXTENSION_DIR, dir, {recursive: true})
+  return fixtureExtension(dir)
 }
 
 export async function magicLinkUrl(started: StartedDevServer, url: string): Promise<string> {
