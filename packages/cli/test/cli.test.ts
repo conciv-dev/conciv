@@ -1174,16 +1174,19 @@ describe('cli', () => {
       const {engine, sessionId, page} = await engineWithTab(home)
       try {
         const waiting = conciv(elsewhere, home, ['--tab', sessionId, 'tools', 'tabs', '--tab', 'conciv_other'])
+        const NO_ASK = 'no ask yet'
         const allowIfAsked = vi
           .waitFor(
             async () => {
               const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
-              if (!ask) throw new Error('no ask yet')
+              if (!ask) throw new Error(NO_ASK)
               await page.chat.permissionDecision({approvalId: ask.approvalId, approved: true})
             },
             {timeout: 3000},
           )
-          .catch(() => {})
+          .catch((error: unknown) => {
+            if (!(error instanceof Error && error.message === NO_ASK)) throw error
+          })
         expect(await waiting).toMatchObject({
           ok: false,
           error: {kind: 'user', message: '--tab was given more than once with different tab ids.'},

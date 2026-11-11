@@ -46,6 +46,7 @@ const TRANSPARENT_BLACK = 'rgba(0, 0, 0, 0)'
 const LUMA = {r: 0.299, g: 0.587, b: 0.114}
 const APP_ROOT_MIN_SHARE = 0.5
 const DECIMAL = 10
+const GLOW_CANCELED = 'canceled'
 
 type Rgb = {r: number; g: number; b: number}
 
@@ -84,6 +85,10 @@ const sim: Simulator = {
 }
 
 function ignore(): void {}
+
+function ignoreCanceled(reason: unknown): void {
+  if (reason !== GLOW_CANCELED) throw reason
+}
 
 function isHtml(element: Element): element is HTMLElement {
   return element.namespaceURI === XHTML
@@ -208,7 +213,7 @@ function show(agent: string): void {
   sim.shown = true
   sim.run ??= mountRun(sim.root)
   sim.run.glow?.start()
-  sim.run.glow?.fadeIn().catch(ignore)
+  sim.run.glow?.fadeIn().catch(ignoreCanceled)
   sim.run.layer.classList.add(VISIBLE_CLASS)
   aimAtCenter({run: sim.run, agent})
 }
@@ -218,7 +223,7 @@ function hide(): void {
   if (!sim.shown || !run) return
   sim.shown = false
   disarm()
-  run.glow?.fadeOut().catch(ignore)
+  run.glow?.fadeOut().catch(ignoreCanceled)
   run.glow?.pause()
   setTimeout(() => {
     if (sim.shown || sim.run !== run) return
@@ -440,16 +445,12 @@ function isTextLight(): boolean {
 }
 
 function isPageDark(): boolean {
-  try {
-    return (
-      hasDarkClass() ||
-      hasDarkAttribute() ||
-      isColorSchemeDark() ||
-      isBackgroundDark() ||
-      isAppRootDark() ||
-      isTextLight()
-    )
-  } catch {
-    return false
-  }
+  return (
+    hasDarkClass() ||
+    hasDarkAttribute() ||
+    isColorSchemeDark() ||
+    isBackgroundDark() ||
+    isAppRootDark() ||
+    isTextLight()
+  )
 }

@@ -37,8 +37,9 @@ function parsedJson(payload: unknown): unknown {
   if (typeof payload !== 'string') return null
   try {
     return JSON.parse(payload)
-  } catch {
-    return null
+  } catch (error) {
+    if (error instanceof SyntaxError) return null
+    throw error
   }
 }
 

@@ -1522,8 +1522,11 @@ describe('rpc wire', () => {
           code: 'PAGE_TIMEOUT',
         })
         abort.abort()
-        await consumed.catch(() => {})
-        await iterator.return(undefined).catch(() => {})
+        const aborted = (error: unknown) => {
+          if (!abort.signal.aborted) throw error
+        }
+        await consumed.catch(aborted)
+        await iterator.return(undefined).catch(aborted)
       })
 
       it('page.reply on an unknown request id reports UNKNOWN_REQUEST', async () => {
@@ -4070,12 +4073,33 @@ describe('outside agent consent', () => {
   const DENIED = 'The user denied codex access to the conciv tab'
   const OUTSIDE_ASK = {toolName: 'Allow codex to use this tab', input: {client: 'codex'}}
   const ROUTE = {href: 'http://localhost:5173/a', title: 'A', state: 'visible', pathname: '/a', search: ''}
-  const engines: Engine[] = []
+  type Booted = {base: string; stopped: AbortSignal; answering: Array<Promise<void>>; stop: () => Promise<void>}
+  const engines: Booted[] = []
   const pages = new AbortController()
   afterAll(async () => {
     pages.abort()
-    await Promise.allSettled(engines.map((engine) => engine.stop()))
+    const stops = await Promise.allSettled(engines.map((engine) => engine.stop()))
+    const failures = stops.flatMap((stop) => (stop.status === 'rejected' ? [stop.reason] : []))
+    if (failures.length > 0) throw new AggregateError(failures, 'stopping the consent engines failed')
   })
+
+  function track(engine: Engine): string {
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const stopped = new AbortController()
+    const booted: Booted = {
+      base,
+      stopped: stopped.signal,
+      answering: [],
+      stop: async () => {
+        engines.splice(engines.indexOf(booted), 1)
+        stopped.abort()
+        await Promise.all(booted.answering)
+        await engine.stop()
+      },
+    }
+    engines.push(booted)
+    return base
+  }
 
   function connectedHome(home = tempDir('conciv-home-')): string {
     withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
@@ -4084,14 +4108,15 @@ describe('outside agent consent', () => {
 
   async function boot(hubAccess: HubAccess = 'session', home = tempDir('conciv-home-')): Promise<string> {
     connectedHome(home)
-    const engine = await bootAt(home, tempDir('conciv-consent-'), hubAccess)
-    engines.push(engine)
-    return `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    return track(await bootAt(home, tempDir('conciv-consent-'), hubAccess))
   }
 
   async function openTab(base: string, silent?: () => void, heard: string[] = []): Promise<string> {
+    const engine = engines.find((booted) => booted.base === base)
+    if (engine === undefined) throw new Error(`no engine was booted at ${base}`)
     const sessionId = await newSession(base)
-    const queries = await rpcOf(base, sessionId).page.queries(undefined, {signal: pages.signal})
+    const listening = AbortSignal.any([pages.signal, engine.stopped])
+    const queries = await rpcOf(base, sessionId).page.queries(undefined, {signal: listening})
     const replies = async () => {
       for await (const {requestId, query} of queries) {
         heard.push(queryName(query))
@@ -4099,7 +4124,11 @@ describe('outside agent consent', () => {
         else await rpcOf(base, sessionId).page.reply({requestId, outcome: {ok: true, result: pageAnswer(query)}})
       }
     }
-    replies().catch(() => {})
+    engine.answering.push(
+      replies().catch((error: unknown) => {
+        if (!listening.aborted) throw error
+      }),
+    )
     const tabOpen = async () => TabOpenSchema.parse(await (await fetch(`${base}/api/tabs?session=${sessionId}`)).json())
     await vi.waitFor(async () => expect((await tabOpen()).open).toBe(true), {timeout: 3000})
     return sessionId
@@ -4302,8 +4331,7 @@ describe('outside agent consent', () => {
       homeDir: connectedHome(),
       extensions: [probe],
     })
-    engines.push(engine)
-    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const base = track(engine)
     const sessionId = await newSession(base)
     const extOf = (headers: Record<string, string>): RouterClient<typeof router> =>
       createORPCClient(new RPCLink({url: `${base}/rpc/ext/consent-probe`, fetch: abortableFetch, headers}))
@@ -4468,7 +4496,7 @@ describe('outside agent consent', () => {
     const waiting = hubRpc.registry.call(route)
     await decideOutside(base, sessionId, true)
     expect(await waiting).toMatchObject({href: ROUTE.href})
-    await hubRpc.server.urls().catch(() => null)
+    await expect(hubRpc.server.urls()).rejects.toMatchObject({code: 'NO_BUNDLER'})
     expect(await starts()).toEqual([
       expect.objectContaining({toolCallName: 'page_route', metadata: {conciv: {origin: 'hub', client: 'codex'}}}),
       expect.objectContaining({toolCallName: 'server_urls'}),

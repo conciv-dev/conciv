@@ -27,6 +27,8 @@ type TabPage = Tabs['tabs'][number]['page']
 
 const PackageNameSchema = z.object({name: z.string()})
 
+const AbsentFileSchema = z.object({code: z.enum(['ENOENT', 'ENOTDIR', 'EISDIR'])})
+
 const HEAD_REF = 'ref: refs/heads/'
 
 const BranchSchema = z
@@ -98,7 +100,10 @@ function probePage(bus: PageBus, sessionId: SessionId, browserTab: string): Prom
 }
 
 function readText(path: string): Promise<string | null> {
-  return readFile(path, 'utf8').catch(() => null)
+  return readFile(path, 'utf8').catch((error: unknown) => {
+    if (AbsentFileSchema.safeParse(error).success) return null
+    throw error
+  })
 }
 
 async function projectName(root: string): Promise<string | null> {
@@ -107,8 +112,9 @@ async function projectName(root: string): Promise<string | null> {
   try {
     const parsed = PackageNameSchema.safeParse(JSON.parse(text))
     return parsed.success ? parsed.data.name : null
-  } catch {
-    return null
+  } catch (error) {
+    if (error instanceof SyntaxError) return null
+    throw error
   }
 }
 
