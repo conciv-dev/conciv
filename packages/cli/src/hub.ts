@@ -251,7 +251,7 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
     server.registerTool(
       DISCOVER_TOOL_NAME,
       {description: descriptions[DISCOVER_TOOL_NAME], inputSchema: DiscoverInputSchema},
-      routed(DISCOVER_TOOL_NAME),
+      async (input, ctx) => routed(DISCOVER_TOOL_NAME)(input, {abortSignal: ctx.mcpReq.signal}),
     )
     server.server.setRequestHandler('tasks/get', {params: TaskIdParamsSchema}, queueTask)
   }
