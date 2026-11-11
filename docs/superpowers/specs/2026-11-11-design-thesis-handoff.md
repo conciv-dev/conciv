@@ -157,6 +157,26 @@ starter home at `/` again (no `--route`, 73/105/78 rows); then the live tab drop
 the agent fell back to its own browser (run 181, two refused checks) and stopped. Fix agent dispatched 08:36: the tab after a full
 reload, and the product leading the agent to `--route` (init guide, tool description, low-coverage reply).
 
+**After run 6** fixes: the empty-session sweep runs only in the engine that owns the project, so a second dev server on the same
+project no longer deletes the live tab's session (a509a9944; run 6's tab loss was that, not the reload); the init guide, the
+`design_get` description and the sparse-check reply lead the agent to `--route` (46c7bf4ac). Fable's docs commit c5f55bb09 had
+swept in the page agent's staged route renames; restored in 0b539c854 and b245dc322 (the example tree equals 8a3ec0762 again).
+
+**Run 7** = store run 182 (09:10, 17.2 min, $3.01, 56 turns, **sonnet alone**, CLI only, no second server, no refused call, no
+tool error): **`done` at all three widths** (1920 at round 9, 1440 at 10, 390 at 11; rows 167/43/38 at round 1, 10 at round 8,
+0 at done; 177 of 186 nodes rendered at 1920 and 1440, 149 of 161 at 390). The agent passed `--route /design` on its first get.
+Screenshots `w39/design-1440.png`, `design-390.png`. Left: the run closed `aborted` at SIGINT though its verdict is `done`;
+`tool_calls.round` is null; the user clicked Approve on `page_eval` eleven times (the house permission model, one click per call).
+Fix agent dispatched 09:33 for the first two.
+
+**Control arm, Fable's call (09:35):** the spec says "same prompt, extension tools off" but nothing opens or measures a run when
+the agent never calls a design tool. The product path for a control run: the example is labeled `arm: 'control'`; before the agent
+starts, the operator registers the three frames once with `design get --figma … --route /design` (that opens the run); the agent
+gets the same prompt minus the sentence about the conciv tools and must not be given the conciv MCP servers or `.conciv/bin`
+(`--disallowedTools` for the two MCP servers; the agent reads the Figma frames through the Figma MCP it has as a user plugin, or
+however it can); when the agent ends, the operator runs `design check` once, which writes the only round, the artifacts and the
+verdict. `design_wave_summary` then compares arms on the same store columns. Omri can overrule.
+
 ## Known defects of the tools, from the store
 
 - A page that rendered as a 569k px blank strip at 390 passed `design_check` with 3 rows (run 169). Task 11 addresses it.
