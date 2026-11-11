@@ -1,6 +1,6 @@
 import {spawn} from 'node:child_process'
 import {mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync, cpSync} from 'node:fs'
-import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
+import {createServer, type IncomingHttpHeaders, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
 import {tmpdir} from 'node:os'
 import {dirname, join, relative} from 'node:path'
 import {createInterface} from 'node:readline'
@@ -29,7 +29,7 @@ describe('bridge', () => {
 
   const ErrorFrameSchema = z.object({error: z.object({message: z.string()})})
 
-  type Recorded = {body: string; session: string | null}
+  type Recorded = {body: string; session: string | null; headers: IncomingHttpHeaders}
 
   type Served = {server: Server; url: string; recorded: Recorded[]}
 
@@ -71,7 +71,7 @@ describe('bridge', () => {
     const recorded: Recorded[] = []
     const server = createServer((incoming, response) => {
       void bodyOf(incoming).then((body) => {
-        const entry = {body, session: sessionOf(incoming)}
+        const entry = {body, session: sessionOf(incoming), headers: incoming.headers}
         recorded.push(entry)
         respond(entry, response)
       })
@@ -225,6 +225,25 @@ describe('bridge', () => {
 
       expect(onlyFrame(lines)).toEqual({jsonrpc: '2.0', id: 1, result: {ok: true}})
       expect(served.recorded[0]?.session).toBe(CLAUDE_SESSION)
+    })
+
+    it('sends the standard headers of a request that names its protocol version in its envelope', async () => {
+      const served = await serveEcho()
+      const cwd = projectServedBy('one', served.url)
+      const meta = {'io.modelcontextprotocol/protocolVersion': '2026-07-28'}
+      const call = JSON.stringify({
+        jsonrpc: '2.0',
+        id: 15,
+        method: 'tools/call',
+        params: {name: 'canvas_draw', _meta: meta},
+      })
+      await bridgeLines({cwd, input: [call], expected: 1})
+
+      expect(served.recorded[0]?.headers).toMatchObject({
+        'mcp-protocol-version': '2026-07-28',
+        'mcp-method': 'tools/call',
+        'mcp-name': 'canvas_draw',
+      })
     })
 
     it('answers a 500 with an error frame carrying the request id', async () => {

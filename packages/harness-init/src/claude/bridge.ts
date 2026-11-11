@@ -115,6 +115,43 @@ function parsed(text) {
   }
 }
 
+const protocolVersionKey = 'io.modelcontextprotocol/protocolVersion'
+
+const nameFields = {
+  'tools/call': 'name',
+  'prompts/get': 'name',
+  'resources/read': 'uri',
+  'tasks/get': 'taskId',
+  'tasks/update': 'taskId',
+  'tasks/cancel': 'taskId',
+}
+
+const base64Prefix = '=?base64?'
+
+const base64Suffix = '?='
+
+function plainHeaderValue(value) {
+  if (value.length === 0 || value !== value.trim()) return false
+  if (value.startsWith(base64Prefix) && value.endsWith(base64Suffix)) return false
+  return [...value].every((char) => char === '\t' || (char >= ' ' && char <= '~'))
+}
+
+function headerValue(value) {
+  if (plainHeaderValue(value)) return value
+  return \`\${base64Prefix}\${Buffer.from(value, 'utf8').toString('base64')}\${base64Suffix}\`
+}
+
+function standardHeaders(line) {
+  const message = parsed(line).value
+  const params = message?.params
+  const version = params?._meta?.[protocolVersionKey]
+  if (message?.id === undefined || typeof message.method !== 'string' || typeof version !== 'string') return {}
+  const field = Object.hasOwn(nameFields, message.method) ? nameFields[message.method] : null
+  const name = field === null ? undefined : params[field]
+  const named = typeof name === 'string' ? {'mcp-name': headerValue(name)} : {}
+  return {'mcp-protocol-version': version, 'mcp-method': message.method, ...named}
+}
+
 async function send(line) {
   const resolved = endpoint()
   if (resolved.url === null) return failed(line, resolved.reason)
@@ -124,6 +161,7 @@ async function send(line) {
       'content-type': 'application/json',
       accept: 'application/json, text/event-stream',
       '${CONCIV_CLAUDE_SESSION_HEADER}': claudeSessionId,
+      ...standardHeaders(line),
     },
     body: line,
     signal: AbortSignal.timeout(timeoutMs()),
