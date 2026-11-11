@@ -44,6 +44,8 @@ import {
   chatRuns,
   concivHome,
   listEngines,
+  migrations,
+  openDb,
   recordHubConnection,
   registerEngine,
   removeHubConnection,
@@ -52,6 +54,8 @@ import {
   withHomeDb,
 } from '@conciv/db'
 import {asc, eq} from 'drizzle-orm'
+import {drizzle} from 'drizzle-orm/node-sqlite'
+import {migrateSync} from 'drizzle-orm/sqlite-core/async/session'
 import {isEqual} from 'es-toolkit'
 import {
   createFakeHarness,
@@ -105,6 +109,7 @@ import {os, type RouterClient} from '@orpc/server'
 import WebSocket from 'ws'
 import {z} from 'zod'
 import {makeApp, type MadeApp} from '../src/app.js'
+import {callTrace} from '../src/api/call-trace.js'
 import {resolveConfig} from '../src/config.js'
 import {openSourceFromFrames} from '../src/editor/open-source.js'
 import {originAllowed} from '../src/lib/cors.js'
@@ -125,6 +130,15 @@ import {
   userTexts,
   type FakeWidget,
 } from './helpers.js'
+
+function groupAlive(group: number): boolean {
+  try {
+    process.kill(-group, 0)
+    return true
+  } catch {
+    return false
+  }
+}
 
 function sharedKit(boot: () => Promise<Kit>): () => Kit {
   const held: {kit: Kit | undefined} = {kit: undefined}
@@ -624,8 +638,10 @@ describe('api codex turns', () => {
   const bin = join(root, 'bin')
   const fakeCodex = [
     '#!/bin/sh',
-    'cat > /dev/null',
+    'prompt=$(cat)',
     'echo "$@" > "$(dirname "$0")/args"',
+    `case "$prompt" in *stubborn*) trap '' TERM ;; esac`,
+    'case "$prompt" in *"stop me"*) ps -o pgid= -p $$ | tr -d " " > "$(dirname "$0")/group"; sleep 600 ;; esac',
     'count_file="$(dirname "$0")/count"',
     'count=$(( $(cat "$count_file" 2>/dev/null || echo 0) + 1 ))',
     'echo "$count" > "$count_file"',
@@ -696,6 +712,95 @@ describe('api codex turns', () => {
     await kit().rpc.sessions.effort({sessionId, effort: null})
     await runTurn(kit(), 'think normally', sessionId)
     expect(readFileSync(join(bin, 'args'), 'utf8')).not.toContain('model_reasoning_effort')
+  }, 30_000)
+
+  it("stop kills the agent's whole process group, also an agent that ignores SIGTERM after its wrapper died", async () => {
+    for (const prompt of ['stop me', 'stop me, stubborn']) {
+      const sessionId = (await kit().rpc.sessions.create()).sessionId
+      const runId = randomUUID()
+      rmSync(join(bin, 'group'), {force: true})
+      void (await kit().turn(prompt, {session: sessionId, runId})).done().catch(() => undefined)
+      await until(() => existsSync(join(bin, 'group')) && readFileSync(join(bin, 'group'), 'utf8').endsWith('\n'))
+      const group = Number(readFileSync(join(bin, 'group'), 'utf8'))
+      expect(groupAlive(group)).toBe(true)
+      await kit().rpc.chat.stop({sessionId, runIds: [runId]})
+      await until(() => !groupAlive(group), {hangGuardMs: 12_000, intervalMs: 50})
+    }
+  }, 40_000)
+})
+
+describe('api claude turns', () => {
+  const saved = {
+    PATH: process.env.PATH,
+    HOME: process.env.HOME,
+    CLAUDE_CODE_EFFORT_LEVEL: process.env.CLAUDE_CODE_EFFORT_LEVEL,
+    MAX_THINKING_TOKENS: process.env.MAX_THINKING_TOKENS,
+  }
+  const root = mkdtempSync(join(tmpdir(), 'conciv-claude-turns-'))
+  const bin = join(root, 'bin')
+  const fakeClaude = [
+    '#!/bin/sh',
+    'cat > /dev/null',
+    'printf "%s\\n" "$@" > "$(dirname "$0")/args"',
+    'printf "effort=%s thinking=%s" "$CLAUDE_CODE_EFFORT_LEVEL" "$MAX_THINKING_TOKENS" > "$(dirname "$0")/env"',
+    `echo '{"type":"system","subtype":"init","session_id":"claude-native-1","model":"fake","tools":[]}'`,
+    `echo '{"type":"result","subtype":"success","result":"ok"}'`,
+  ].join('\n')
+  beforeAll(() => {
+    mkdirSync(bin)
+    mkdirSync(join(root, 'home'))
+    writeFileSync(join(bin, 'claude'), fakeClaude, {mode: 0o755})
+    process.env.PATH = `${bin}:${saved.PATH ?? ''}`
+    process.env.HOME = join(root, 'home')
+    delete process.env.CLAUDE_CODE_EFFORT_LEVEL
+    delete process.env.MAX_THINKING_TOKENS
+  })
+  const made: {app: MadeApp | null} = {app: null}
+  const kit = sharedKit(() =>
+    createTestkit(claude, async (env) => {
+      const app = await bootMadeApp(env)
+      made.app = app
+      return {fetch: app.fetch, dispose: app.dispose, agentToken: app.agentToken}
+    }).setup(),
+  )
+
+  afterAll(() => {
+    Object.assign(process.env, saved)
+    if (saved.CLAUDE_CODE_EFFORT_LEVEL === undefined) delete process.env.CLAUDE_CODE_EFFORT_LEVEL
+    if (saved.MAX_THINKING_TOKENS === undefined) delete process.env.MAX_THINKING_TOKENS
+    rmSync(root, {recursive: true, force: true})
+  })
+
+  async function cliRun(sessionId: string, model: string, effort: 'high' | null) {
+    if (made.app === null) throw new Error('the app did not boot')
+    made.app.chat.db.update(sessions).set({model, effort}).where(eq(sessions.id, sessionId)).run()
+    await runTurn(kit(), `run ${model}`, sessionId)
+    const args = readFileSync(join(bin, 'args'), 'utf8').split('\n')
+    return {
+      model: args[args.indexOf('--model') + 1],
+      effortFlags: args.filter((arg) => arg === '--effort').length,
+      env: readFileSync(join(bin, 'env'), 'utf8'),
+    }
+  }
+
+  it('runs claude at the effort picked for the session through one setting, a Claude 5 model and a 4.x model alike', async () => {
+    const sessionId = (await kit().rpc.sessions.create()).sessionId
+    await runTurn(kit(), 'first', sessionId)
+    expect(await cliRun(sessionId, 'claude-opus-5', 'high')).toEqual({
+      model: 'claude-opus-5',
+      effortFlags: 0,
+      env: 'effort=high thinking=',
+    })
+    expect(await cliRun(sessionId, 'claude-opus-4-7', 'high')).toEqual({
+      model: 'claude-opus-4-7',
+      effortFlags: 0,
+      env: 'effort=high thinking=',
+    })
+    expect(await cliRun(sessionId, 'claude-opus-5', null)).toEqual({
+      model: 'claude-opus-5',
+      effortFlags: 0,
+      env: 'effort= thinking=',
+    })
   }, 30_000)
 })
 
@@ -1532,8 +1637,11 @@ describe('rpc wire', () => {
           code: 'PAGE_TIMEOUT',
         })
         abort.abort()
-        await consumed.catch(() => {})
-        await iterator.return(undefined).catch(() => {})
+        const aborted = (error: unknown) => {
+          if (!abort.signal.aborted) throw error
+        }
+        await consumed.catch(aborted)
+        await iterator.return(undefined).catch(aborted)
       })
 
       it('page.reply on an unknown request id reports UNKNOWN_REQUEST', async () => {
@@ -1765,7 +1873,7 @@ describe('rpc wire', () => {
         expect(new Set(after.map((message) => message.id)).size).toBe(after.length)
       })
 
-      it('the chosen effort reaches the turn as reasoning, and a model without effort clears it', async () => {
+      it('the chosen effort reaches the harness, and a model without effort clears it', async () => {
         const sessionId = await newSession()
         const {models} = await chatKit().rpc.meta.models({sessionId})
         const plain = models.find((model) => model.efforts === undefined)
@@ -1774,12 +1882,12 @@ describe('rpc wire', () => {
         expect(await sessionMeta(sessionId)).toMatchObject({effort: 'high'})
         script().scriptTurn({toolCalls: [], text: 'thought hard'})
         await finished(sessionId, 'think about it')
-        expect(lastRunOf(sessionId)).toMatchObject({model: undefined, reasoning: 'high'})
+        expect(lastRunOf(sessionId)).toMatchObject({model: undefined, effort: 'high'})
 
         await chatKit().rpc.sessions.effort({sessionId, effort: null})
         script().scriptTurn({toolCalls: [], text: 'default effort'})
         await finished(sessionId, 'again')
-        expect(lastRunOf(sessionId).reasoning).toBeUndefined()
+        expect(lastRunOf(sessionId).effort).toBeUndefined()
 
         await chatKit().rpc.sessions.effort({sessionId, effort: 'max'})
         await chatKit().rpc.sessions.model({sessionId, model: plain.id})
@@ -3069,7 +3177,7 @@ return seen`
     })
 
     describe('code mode child cards', () => {
-      it('each call in a script shows as its own card under the script, with results, errors and caps, after reload too', async () => {
+      it('each call in a script shows as its own card under the script, with results, errors (bad arguments too) and caps, after reload too', async () => {
         const sessionId = await newSession()
         const ran = toolRuns.echo
         const parent = codeTurn(CHILD_CARD_SCRIPT)
@@ -3080,8 +3188,9 @@ return seen`
         expect(children.map((part) => [part.name, cardMetadata(part)])).toEqual(
           CHILD_CARDS.map((name) => [name, {parentToolCallId: parent}]),
         )
-        expect(children.find((part) => part.name === 'fixture_fail')?.state).toBe('error')
+        expect(children.map((part) => part.state === 'error')).toEqual([false, false, true, true, false])
         const results = resultsOf(await thread(sessionId))
+        expect(results).toContain('Input validation failed for tool fixture_echo')
         expect(results).toContain('the probe broke')
         expect(results).toContain('conciv:truncated')
         expect(results).toContain('120000')
@@ -3205,7 +3314,7 @@ return seen`
   const NEVER_MADE = 'conciv_never-made'
   const DECLARED_MESSAGE = 'PROBE_BROKE: the probe broke'
   const FIXTURE_TOOLS = ['fixture_echo', 'fixture_read', 'fixture_ask']
-  const CHILD_CARDS = ['fixture_echo', 'fixture_echo', 'fixture_fail', 'fixture_huge']
+  const CHILD_CARDS = ['fixture_echo', 'fixture_echo', 'fixture_echo', 'fixture_fail', 'fixture_huge']
   const ECHO_DESCRIPTION = 'Echo the text back.\n\nUse it to echo.\n\nNever echo secrets.\n\nKeep it short.'
   const EXPANSION_PART = {type: 'text', content: 'fixture-expanded', metadata: {modelOnly: true}}
   const ONE_PIXEL_PNG =
@@ -3231,6 +3340,7 @@ return seen`
   const CHILD_CARD_SCRIPT = `
   await external_fixture_echo({text: "a"})
   await external_fixture_echo({text: "b"})
+  try { await external_fixture_echo({text: 5}) } catch {}
   try { await external_fixture_fail({spaced: true}) } catch {}
   const huge = await external_fixture_huge({})
   return huge.blob.length
@@ -3242,7 +3352,7 @@ return seen`
     sessionId: string
     kind: 'chat' | 'compact'
     model: string | undefined
-    reasoning: string | undefined
+    effort: string | undefined
     resumeSessionId: string | null
     messages: string
     tools: string[]
@@ -3441,7 +3551,7 @@ return seen`
               sessionId: deps.sessionId,
               kind: deps.kind,
               model: deps.model,
-              reasoning: options.reasoning?.level,
+              effort: deps.effort,
               resumeSessionId: deps.resumeSessionId,
               messages: JSON.stringify(options.messages),
               tools: (options.tools ?? []).map((tool) => tool.name),
@@ -4005,7 +4115,8 @@ describe('outside sessions', () => {
         const heard: string[] = []
         const answers = {silent: false}
         const socket = new WebSocket(`${kit().wsBase}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`)
-        const frames = on(socket, 'message', {signal: AbortSignal.timeout(10_000)})
+        const listening = AbortSignal.timeout(10_000)
+        const frames = on(socket, 'message', {signal: listening})
         await once(socket, 'open')
         const report = (focused: boolean) =>
           socket.send(JSON.stringify({channel: 'page-serving', serving: true, focus: {focused, visible: true}}))
@@ -4023,7 +4134,9 @@ describe('outside sessions', () => {
             await asSession.page.reply({requestId: frame.requestId, outcome: {ok: true, result}})
           }
         }
-        answering().catch(() => {})
+        answering().catch((error: unknown) => {
+          if (!listening.aborted) throw error
+        })
         await ready.promise
         pages.push(() => socket.close())
         const silence = () => {
@@ -4055,11 +4168,26 @@ describe('outside sessions', () => {
       expect(await routed()).toBe('http://localhost:5173/second')
       second.silence()
       const waited = second.heard.length
-      const inFlight = routed().then(String, String)
+      const inFlight = expect(routed()).rejects.toThrow(/browser tab b\d+ closed before it replied/)
       await vi.waitFor(() => expect(second.heard.length).toBe(waited + 1), {timeout: 3000})
       second.close()
-      expect(await inFlight).toMatch(/browser tab b\d+ closed before it replied/)
+      await inFlight
     })
+
+    it.skipIf(process.getuid?.() === 0)(
+      'an unreadable package.json leaves the project name out and keeps every tab listed',
+      async () => {
+        const sessionId = await kit().session()
+        await joinPage(true)
+        chmodSync(join(app, 'package.json'), 0o000)
+        try {
+          const listing = await listTabs()
+          expect([listing.project.name, listing.tabs.map((tab) => tab.sessionId)]).toEqual([null, [sessionId]])
+        } finally {
+          chmodSync(join(app, 'package.json'), 0o644)
+        }
+      },
+    )
 
     it('branch is re-read per request from the repository above the project, through a worktree gitdir file too', async () => {
       writeFileSync(join(repo, '.git', 'HEAD'), 'ref: refs/heads/other\n')
@@ -4079,12 +4207,37 @@ describe('outside agent consent', () => {
   const DENIED = 'The user denied codex access to the conciv tab'
   const OUTSIDE_ASK = {toolName: 'Allow codex to use this tab', input: {client: 'codex'}}
   const ROUTE = {href: 'http://localhost:5173/a', title: 'A', state: 'visible', pathname: '/a', search: ''}
-  const engines: Engine[] = []
+  type Booted = {base: string; stopped: AbortSignal; answering: Array<Promise<void>>; stop: () => Promise<void>}
+  const engines: Booted[] = []
   const pages = new AbortController()
   afterAll(async () => {
     pages.abort()
-    await Promise.allSettled(engines.map((engine) => engine.stop()))
+    const stops = await Promise.allSettled([...engines].map((engine) => engine.stop()))
+    const failures = stops.flatMap((stop) => (stop.status === 'rejected' ? [stop.reason] : []))
+    if (failures.length > 0) throw new AggregateError(failures, 'stopping the consent engines failed')
   })
+
+  function track(engine: Engine): string {
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const stopped = new AbortController()
+    const booted: Booted = {
+      base,
+      stopped: stopped.signal,
+      answering: [],
+      stop: async () => {
+        engines.splice(engines.indexOf(booted), 1)
+        stopped.abort()
+        const answered = await Promise.allSettled(booted.answering)
+        const [engineStopped] = await Promise.allSettled([engine.stop()])
+        const failures = [...answered, engineStopped].flatMap((result) =>
+          result.status === 'rejected' ? [result.reason] : [],
+        )
+        if (failures.length > 0) throw new AggregateError(failures, 'stopping the consent engine failed')
+      },
+    }
+    engines.push(booted)
+    return base
+  }
 
   function connectedHome(home = tempDir('conciv-home-')): string {
     withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
@@ -4093,14 +4246,15 @@ describe('outside agent consent', () => {
 
   async function boot(hubAccess: HubAccess = 'session', home = tempDir('conciv-home-')): Promise<string> {
     connectedHome(home)
-    const engine = await bootAt(home, tempDir('conciv-consent-'), hubAccess)
-    engines.push(engine)
-    return `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    return track(await bootAt(home, tempDir('conciv-consent-'), hubAccess))
   }
 
   async function openTab(base: string, silent?: () => void, heard: string[] = []): Promise<string> {
+    const engine = engines.find((booted) => booted.base === base)
+    if (engine === undefined) throw new Error(`no engine was booted at ${base}`)
     const sessionId = await newSession(base)
-    const queries = await rpcOf(base, sessionId).page.queries(undefined, {signal: pages.signal})
+    const listening = AbortSignal.any([pages.signal, engine.stopped])
+    const queries = await rpcOf(base, sessionId).page.queries(undefined, {signal: listening})
     const replies = async () => {
       for await (const {requestId, query} of queries) {
         heard.push(queryName(query))
@@ -4108,7 +4262,11 @@ describe('outside agent consent', () => {
         else await rpcOf(base, sessionId).page.reply({requestId, outcome: {ok: true, result: pageAnswer(query)}})
       }
     }
-    replies().catch(() => {})
+    engine.answering.push(
+      replies().catch((error: unknown) => {
+        if (!listening.aborted) throw error
+      }),
+    )
     const tabOpen = async () => TabOpenSchema.parse(await (await fetch(`${base}/api/tabs?session=${sessionId}`)).json())
     await vi.waitFor(async () => expect((await tabOpen()).open).toBe(true), {timeout: 3000})
     return sessionId
@@ -4242,7 +4400,7 @@ describe('outside agent consent', () => {
       'NO_TAB: pass tab to execute_typescript; external_tabs({}) lists the open tabs',
     )
     const onTab = (code: string) => executeOverMcp(owner, {[CONCIV_SESSION_HEADER]: theirs, ...HUB}, code)
-    const routed = onTab('return await external_page_route({})').then(String, String)
+    const routed = onTab('return await external_page_route({})').then(String)
     await decideOutside(owner, theirs, true)
     expect(await routed).toContain(ROUTE.href)
     const ownerCalls = await rpcOf(owner, theirs).chat.hydrate({sessionId: theirs})
@@ -4315,8 +4473,7 @@ describe('outside agent consent', () => {
       homeDir: connectedHome(),
       extensions: [probe],
     })
-    engines.push(engine)
-    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const base = track(engine)
     const sessionId = await newSession(base)
     const extOf = (headers: Record<string, string>): RouterClient<typeof router> =>
       createORPCClient(new RPCLink({url: `${base}/rpc/ext/consent-probe`, fetch: abortableFetch, headers}))
@@ -4481,7 +4638,7 @@ describe('outside agent consent', () => {
     const waiting = hubRpc.registry.call(route)
     await decideOutside(base, sessionId, true)
     expect(await waiting).toMatchObject({href: ROUTE.href})
-    await hubRpc.server.urls().catch(() => null)
+    await expect(hubRpc.server.urls()).rejects.toMatchObject({code: 'NO_BUNDLER'})
     expect(await starts()).toEqual([
       expect.objectContaining({
         toolCallName: 'page_route',
@@ -4537,3 +4694,162 @@ function codexHome(): string {
   if (home === undefined) throw new Error('the core test process sets CODEX_HOME')
   return home
 }
+
+describe('session activity recorded with its chat messages', () => {
+  const ROW_AT = Date.parse('2026-08-17T00:00:00.000Z')
+  const WRITTEN_AT = Date.parse('2026-11-10T09:39:00.000Z')
+  const IMPORTED_NATIVE = HarnessSessionId.parse(randomUUID())
+  const importedFixture: FixtureSession = {
+    id: IMPORTED_NATIVE,
+    derivedTitle: 'a transcript written earlier',
+    updatedAt: WRITTEN_AT,
+    sizeBytes: 1024,
+    messages: [
+      {
+        id: 'imported-user',
+        role: 'user',
+        parts: [{type: 'text', content: 'a transcript written earlier'}],
+        createdAt: new Date('2026-10-30T08:00:00.000Z'),
+      },
+      {
+        id: 'imported-reply',
+        role: 'assistant',
+        parts: [{type: 'text', content: 'done'}],
+        createdAt: new Date(WRITTEN_AT),
+      },
+    ],
+  }
+  const saved = process.env.CONCIV_HOME
+  const held: {made: MadeApp | undefined} = {made: undefined}
+  beforeAll(() => {
+    process.env.CONCIV_HOME = tempDir('conciv-activity-home-')
+  })
+  afterAll(() => {
+    if (saved === undefined) delete process.env.CONCIV_HOME
+    else process.env.CONCIV_HOME = saved
+  })
+  const kit = sharedKit(() =>
+    createTestkit(createFakeHarness({id: 'fake-activity', history: [importedFixture]}), async (env) => {
+      const booted = await bootMadeApp(env, {home: tempDir('conciv-activity-home-')})
+      held.made = booted
+      return {fetch: booted.fetch, dispose: booted.dispose, agentToken: booted.agentToken}
+    }).setup(),
+  )
+
+  function made(): MadeApp {
+    if (held.made === undefined) throw new Error('the activity app did not boot')
+    return held.made
+  }
+
+  async function staleSession(): Promise<SessionId> {
+    const sessionId = SessionId.parse((await kit().rpc.sessions.create()).sessionId)
+    made().chat.db.update(sessions).set({updatedAt: ROW_AT}).where(eq(sessions.id, sessionId)).run()
+    return sessionId
+  }
+
+  it('a hub tool call recorded through the call trace alone bumps lastActive', async () => {
+    const sessionId = await staleSession()
+    const hub: Record<string, string> = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
+    const trace = callTrace((name) => hub[name] ?? null)
+    const run = {threadId: sessionId, live: false}
+    const before = Date.now()
+    const mirror = trace.mirror(run, {publish: () => {}, record: (chunks) => made().plane.record(sessionId, chunks)})
+    mirror.publish([...trace.start(run, 'page_route', {}), ...trace.result(run, '{}', false)])
+    await mirror.settle()
+    const meta = await kit().rpc.sessions.get({sessionId})
+    expect(meta.title).toBe('New session')
+    expect(meta.updatedAt).toBeGreaterThanOrEqual(before)
+  })
+
+  it('a chat message bumps lastActive and its first user message titles the session', async () => {
+    const sessionId = await staleSession()
+    const before = Date.now()
+    await runTurn(kit(), '  fill the form in the form page ', sessionId)
+    await runTurn(kit(), 'and submit it', sessionId)
+    const meta = await kit().rpc.sessions.get({sessionId})
+    expect(meta.title).toBe('fill the form in the form page')
+    expect(meta.updatedAt).toBeGreaterThanOrEqual(before)
+  })
+
+  it('a chat message never overwrites a title the session already has, nor titles a native-backed session', async () => {
+    const sessionId = await staleSession()
+    await kit().rpc.sessions.rename({sessionId, title: 'kept'})
+    await runTurn(kit(), 'a different first message', sessionId)
+    expect((await kit().rpc.sessions.get({sessionId})).title).toBe('kept')
+    const native = await staleSession()
+    const nativeId = HarnessSessionId.parse(randomUUID())
+    made().chat.db.update(sessions).set({harnessSessionId: nativeId}).where(eq(sessions.id, native)).run()
+    const before = Date.now()
+    await runTurn(kit(), 'a message to a native session', native)
+    const row = made().chat.db.select().from(sessions).where(eq(sessions.id, native)).get()
+    expect(row?.title).toBeNull()
+    expect(row?.updatedAt).toBeGreaterThanOrEqual(before)
+  })
+
+  it('importing a transcript stamps lastActive with its newest message time, not the time it was opened', async () => {
+    const sessionId = await staleSession()
+    made().chat.db.update(sessions).set({harnessSessionId: IMPORTED_NATIVE}).where(eq(sessions.id, sessionId)).run()
+    await kit().hydrate(sessionId)
+    const reopened = await kit().hydrate(sessionId)
+    const row = made().chat.db.select().from(sessions).where(eq(sessions.id, sessionId)).get()
+    expect(reopened.messages.map((message) => message.id)).toEqual(['imported-user', 'imported-reply'])
+    expect(row).toMatchObject({title: null, updatedAt: WRITTEN_AT})
+  })
+
+  it('a session with no messages keeps its row time and the New session title', async () => {
+    const sessionId = await staleSession()
+    expect(await kit().rpc.sessions.get({sessionId})).toMatchObject({title: 'New session', updatedAt: ROW_AT})
+  })
+
+  it('the fix-up migration repairs a stale row from its newest message and first user message, and leaves a native-backed row untitled', () => {
+    const stateRoot = tempDir('conciv-activity-fixup-')
+    const stateDir = join(stateRoot, '.conciv')
+    mkdirSync(stateDir, {recursive: true})
+    const client = new DatabaseSync(join(stateDir, 'conciv.db'))
+    const fixup = migrations.findIndex((migration) => migration.name.endsWith('_session_activity_fixup'))
+    migrateSync(migrations.slice(0, fixup), drizzle({client})._.session)
+    const row = {harnessKind: 'claude', origin: 'chat', cwd: stateRoot, createdAt: ROW_AT, updatedAt: ROW_AT} as const
+    const stale = drizzle({client})
+    stale
+      .insert(sessions)
+      .values([
+        {...row, id: SessionId.parse('conciv_stale'), title: null},
+        {...row, id: SessionId.parse('conciv_titled'), title: 'kept'},
+        {...row, id: SessionId.parse('conciv_quiet'), title: null},
+        {
+          ...row,
+          id: SessionId.parse('conciv_native'),
+          title: null,
+          harnessSessionId: HarnessSessionId.parse(randomUUID()),
+        },
+      ])
+      .run()
+    const thread = (threadId: string) => [
+      {role: 'user', content: [{type: 'text', content: '  fill the form '}], createdAt: '2026-10-30T08:00:00.000Z'},
+      {role: 'assistant', content: 'done', createdAt: '2026-11-10T09:39:00.000Z'},
+      {role: 'tool', content: '{}', toolCallId: `t-${threadId}`},
+    ]
+    const insert = client.prepare(
+      'INSERT INTO chat_messages (thread_id, position, role, message_json) VALUES (?, ?, ?, ?)',
+    )
+    for (const threadId of ['conciv_stale', 'conciv_titled', 'conciv_native']) {
+      thread(threadId).forEach((message, position) =>
+        insert.run(threadId, position, message.role, JSON.stringify(message)),
+      )
+    }
+    client.close()
+    const db = openDb(stateRoot)
+    const repaired = db
+      .select({id: sessions.id, title: sessions.title, updatedAt: sessions.updatedAt})
+      .from(sessions)
+      .orderBy(asc(sessions.id))
+      .all()
+    db.$client.close()
+    expect(repaired).toEqual([
+      {id: 'conciv_native', title: null, updatedAt: Date.parse('2026-11-10T09:39:00.000Z')},
+      {id: 'conciv_quiet', title: null, updatedAt: ROW_AT},
+      {id: 'conciv_stale', title: 'fill the form', updatedAt: Date.parse('2026-11-10T09:39:00.000Z')},
+      {id: 'conciv_titled', title: 'kept', updatedAt: Date.parse('2026-11-10T09:39:00.000Z')},
+    ])
+  })
+})

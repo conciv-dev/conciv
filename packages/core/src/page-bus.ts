@@ -38,14 +38,14 @@ type Pending<T> = {
 
 type Waiter<T> = {owner: string; settle: (value: T) => void; fail: (reason: Error) => void}
 
-function makePending<T>(): Pending<T> {
+function makePending<T>(timedOut: () => Error): Pending<T> {
   const waiters = new Map<string, Waiter<T>>()
 
   function awaitReply(id: string, owner: string, timeoutMs: number): Promise<T> {
     return new Promise<T>((settle, reject) => {
       const timer = setTimeout(() => {
         waiters.delete(id)
-        reject(new Error('pending request timed out'))
+        reject(timedOut())
       }, timeoutMs)
       const done = (): void => {
         clearTimeout(timer)
@@ -121,7 +121,7 @@ export function makePageBus(timeoutMs = 5000): PageBus {
   const pageOf = (sessionId: SessionId): SessionPage => {
     const existing = bySession.get(sessionId)
     if (existing) return existing
-    const created: SessionPage = {pending: makePending<PageOutcome>(), browserTabs: new Map()}
+    const created: SessionPage = {pending: makePending<PageOutcome>(unanswered), browserTabs: new Map()}
     bySession.set(sessionId, created)
     return created
   }
@@ -183,12 +183,7 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     const requestId = randomUUID()
     const settled = pageOf(sessionId)
     tab.emit({requestId, ...query})
-    return settled.pending
-      .await(requestId, tab.id, ms)
-      .catch((error: unknown) => {
-        throw isPageFailure(error) ? error : pageFailure('timeout', 'page did not reply (no widget connected?)')
-      })
-      .finally(() => dropIfIdle(sessionId, settled))
+    return settled.pending.await(requestId, tab.id, ms).finally(() => dropIfIdle(sessionId, settled))
   }
 
   function servingAgain(sessionId: SessionId, ms: number): Promise<unknown> {
@@ -215,8 +210,8 @@ export function makePageBus(timeoutMs = 5000): PageBus {
           `the page reloaded or closed during ${query.name}; it may already have run. Take a new snapshot before continuing`,
         )
       }
-      await servingAgain(sessionId, Math.min(BROWSER_TAB_RETURN_MS, deadline - Date.now())).catch(() => {
-        throw error
+      await servingAgain(sessionId, Math.min(BROWSER_TAB_RETURN_MS, deadline - Date.now())).catch((waited: unknown) => {
+        throw isAbort(waited) ? error : waited
       })
       return send(
         sessionId,
@@ -242,6 +237,14 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     resolve: (sessionId, requestId, outcome) => bySession.get(sessionId)?.pending.resolve(requestId, outcome) ?? false,
     subscribe,
   }
+}
+
+function unanswered(): Error {
+  return pageFailure('timeout', 'page did not reply (no widget connected?)')
+}
+
+function isAbort(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
 }
 
 function focusOrder(page: SessionPage): BrowserTab[] {

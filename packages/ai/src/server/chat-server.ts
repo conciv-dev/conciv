@@ -10,7 +10,6 @@ import {
   withTanstackMetadata,
   type DebugConfig,
   type MetadataStore,
-  type ReasoningLevel,
   type RunRecord,
   type RunStore,
   type StreamDurability,
@@ -27,7 +26,6 @@ import {
   ToolBridgeProvisionerCapability,
   withSandbox,
 } from '@tanstack/ai-sandbox'
-import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
 import {makeTextAdapter, type TextAdapter} from '../adapters/adapters.js'
 import {
   isRunPhaseTerminal,
@@ -44,6 +42,8 @@ import {compactionStamp} from './compaction-stamp.js'
 import {codeModeTools, loadIsolateDriver, secretRefusalOf, stoppedWith} from './code-mode.js'
 import {createDelivery, endsTheRun, terminalPhaseOf, type ChatDelivery, type Turn} from './delivery.js'
 import {guardedAdapter} from './run-guard.js'
+import {localSandbox} from './local-sandbox.js'
+import {toolHistory} from './tool-history.js'
 
 export type ChatStores = {
   messages: MessageStore
@@ -60,7 +60,6 @@ export type Approvals = ReadonlyMap<string, boolean>
 export type TurnPlan = {
   adapter: TextAdapter
   modelOptions?: Record<string, unknown>
-  reasoning?: ReasoningLevel
   systemPrompts: readonly string[]
   codeMode: readonly ChatTool[]
   asking: readonly ChatTool[]
@@ -345,7 +344,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   })
   const sandbox = defineSandbox({
     id: 'conciv',
-    provider: localProcessSandbox({dir: config.sandbox.dir}),
+    provider: localSandbox({dir: config.sandbox.dir}),
     policy: defineSandboxPolicy({default: 'ask'}),
     fileEvents: false,
     lifecycle: {reuse: 'thread', destroyOnComplete: false},
@@ -526,7 +525,6 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       lazyToolsConfig: {includeDescription: 'first-sentence'},
       retry: {maxRetries: 2},
       modelOptions: plan.modelOptions,
-      reasoning: plan.reasoning,
       abortController: controller,
       debug,
       middleware: [
@@ -559,6 +557,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
             attachWaitMs: config.firstOutputTimeoutMs,
           },
         }),
+        toolHistory(),
         concivTurn(turn, plan, granted, view, entry),
       ],
     })

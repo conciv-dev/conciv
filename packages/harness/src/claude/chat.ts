@@ -79,7 +79,12 @@ export const claudeChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
     emitDiff: false,
     allowedTools: BRIDGED_CONCIV_TOOLS,
     disallowedTools: ['AskUserQuestion'],
-    env: definedEntries({MCP_TOOL_TIMEOUT: String(MCP_TOOL_TIMEOUT_MS), ENABLE_TOOL_SEARCH: 'false', ...deps.env}),
+    env: definedEntries({
+      MCP_TOOL_TIMEOUT: String(MCP_TOOL_TIMEOUT_MS),
+      ENABLE_TOOL_SEARCH: 'false',
+      ...deps.env,
+      ...(deps.effort ? {CLAUDE_CODE_EFFORT_LEVEL: deps.effort} : {}),
+    }),
   }),
   modelOptions: {permissionMode: 'auto', ...(deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {})},
   prepareMessages: (messages) =>

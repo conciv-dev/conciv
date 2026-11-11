@@ -65,7 +65,7 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
         deps.notices.notify('Compaction failed. The session may be busy. Try again in a moment.'),
       ),
     onSettled: () => {
-      deps.appData.invalidateSessions()
+      void deps.appData.invalidateSession(deps.sessionId)
       void deps.refetchMarkers()
     },
   }))

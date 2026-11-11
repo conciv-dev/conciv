@@ -9,10 +9,7 @@ export type SessionCapturesView = {
 
 export function useSessionCaptures(sessionId: string): SessionCapturesView {
   const appData = useAppData()
-  const captures = useQuery(() => ({
-    ...appData.utils.captures.list.queryOptions({input: {sessionId}}),
-    staleTime: Infinity,
-  }))
+  const captures = useQuery(() => appData.utils.captures.list.queryOptions({input: {sessionId}}))
   const views = createMemo<Record<string, ToolCaptureView>>(() => {
     if (captures.isPending) return {}
     const data = captures.data

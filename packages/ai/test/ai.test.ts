@@ -29,6 +29,7 @@ import {
 } from '@conciv/protocol/chat-event-types'
 import {UsageSnapshotSchema, contextUsedTokens, tokenUsageToSnapshot} from '@conciv/protocol/usage-types'
 import {createTextChunks, fakeText, storyConnection} from '../src/testkit.js'
+import {localSandbox} from '../src/server/local-sandbox.js'
 import type {FakeResponse, FakeResponseStep} from '@tanstack/ai/testing'
 import {chmodSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
@@ -301,7 +302,7 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
   )
 
   it(
-    'a CLI silent past the journal default but inside the first-output budget still reports its exit',
+    "a fresh run's CLI silent past the journal's first-byte default fails as a stalled journal",
     {timeout: 25_000},
     async () => {
       const bin = join(mkdtempSync(join(tmpdir(), 'conciv-slow-cli-')), 'claude')
@@ -328,7 +329,7 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
         {id: 'user-hi', role: 'user', content: 'hi'},
       ])
       const run = await ended.promise
-      expect(run.error).toBe('Agent process exited with code 1')
+      expect(run.error).toMatch(/^cannot attach to run slow: its journal \(.+\) delivered no bytes within 10000ms/)
     },
   )
 
@@ -817,6 +818,35 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
   )
 })
 
+describe('local sandbox', () => {
+  function groupAlive(group: number): boolean {
+    try {
+      process.kill(-group, 0)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  it(
+    'forgets a finished run, so a destroy that names no cancelled run stops the live one',
+    {timeout: 15_000},
+    async () => {
+      const provider = localSandbox({dir: mkdtempSync(join(tmpdir(), 'conciv-local-sandbox-'))})
+      const finished = await provider.create({})
+      await (await finished.process.spawn('true')).wait()
+      const live = await provider.create({})
+      const agent = await live.process.spawn('sleep 600')
+      try {
+        await provider.destroy({id: live.id})
+        expect(groupAlive(agent.pid)).toBe(false)
+      } finally {
+        await agent.kill('SIGKILL')
+      }
+    },
+  )
+})
+
 describe('events', () => {
   const lifecycle = {
     runId: 'r1',
@@ -1002,19 +1032,13 @@ describe('dist externals', () => {
       }
     })
 
-    it('bundles the patched @tanstack/ai-sandbox-local-process so no peer edge on ai-sandbox reaches consumers', () => {
+    it('bundles @tanstack/ai-sandbox-local-process so no peer edge on ai-sandbox reaches consumers', () => {
       expect(importsPackage('@tanstack/ai-sandbox-local-process')).toBe(false)
     })
 
-    it('bundles the patched @tanstack/ai-sandbox and @tanstack/ai-code-mode, patches included', () => {
+    it('bundles @tanstack/ai-sandbox and @tanstack/ai-code-mode', () => {
       expect(importsPackage('@tanstack/ai-sandbox')).toBe(false)
       expect(importsPackage('@tanstack/ai-code-mode')).toBe(false)
-      const code = chunks.map((chunk) => chunk.code).join('\n')
-      expect(code).toContain('toolCallId: callId')
-      expect(code).toContain('chunk.metadata?.tanstack?.state === "output-error"')
-      expect(code).toMatch(
-        /const root = workspace\.root \?\? "\/workspace";\s+const workspaceHash = computeWorkspaceHash\(workspace\)/,
-      )
     })
 
     it('externalizes @tanstack/ai', () => {

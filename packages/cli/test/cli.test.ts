@@ -20,6 +20,7 @@ import {loginThroughTerminal} from '@conciv/harness-testkit'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {stdioTransport} from '@tanstack/ai-mcp/stdio'
 import {CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER, TabOpenSchema} from '@conciv/protocol/chat-types'
+import {approvalAskOf} from '@conciv/protocol/chat-event-types'
 import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PageServingFrame} from '@conciv/protocol/push-types'
 import {grantBrowser, isTrustedBrowser, readTrustedBrowsers} from '@conciv/protocol/engine-trust'
@@ -1036,7 +1037,7 @@ describe('cli', () => {
             .code
         const closed = Promise.all([closedCode(browser), closedCode(framed)])
         runRevoke({all: true, cwd: project.nested})
-        await expect.poll(call, {timeout: 2_000, interval: 20}).toBe(401)
+        expect(await call()).toBe(401)
         expect([...(await closed), agent.readyState]).toEqual([1008, 1008, WebSocket.OPEN])
         agent.close()
       } finally {
@@ -1072,13 +1073,40 @@ describe('cli', () => {
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const sessionId = given.shared?.sessionId ?? (await makeRpcClient(base).sessions.create(undefined)).sessionId
     const page = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
-    const queries = await page.page.queries(undefined, {signal: pages.signal})
+    const stopped = new AbortController()
+    const listening = AbortSignal.any([pages.signal, stopped.signal])
+    const queries = await page.page.queries(undefined, {signal: listening})
     const route = {href: `http://localhost${root}`, title: root, state: 'visible', pathname: root, search: ''}
     const answer = async () => {
       for await (const {requestId} of queries) await page.page.reply({requestId, outcome: {ok: true, result: route}})
     }
-    answer().catch(() => {})
-    return {engine, sessionId, base, page, root}
+    const answering = answer().catch((error: unknown) => {
+      if (error !== listening.reason) throw error
+    })
+    const stop = async () => {
+      stopped.abort()
+      const [answered] = await Promise.allSettled([answering])
+      const [engineStopped] = await Promise.allSettled([engine.stop()])
+      const failures = [answered, engineStopped].flatMap((result) =>
+        result.status === 'rejected' ? [result.reason] : [],
+      )
+      if (failures.length > 0) throw new AggregateError(failures, 'stopping the engine with a tab failed')
+    }
+    return {engine: {...engine, stop}, sessionId, base, page, root}
+  }
+
+  async function askRaised(page: ReturnType<typeof makeRpcClient>, sessionId: string, signal: AbortSignal) {
+    try {
+      const events = await page.chat.events({sessionId}, {signal})
+      for await (const chunk of events) {
+        const ask = approvalAskOf(chunk)
+        if (ask !== null) throw new Error(`the CLI asked "${ask.toolName}" instead of refusing the call`)
+      }
+      return null
+    } catch (error) {
+      if (error !== signal.reason) throw error
+      return null
+    }
   }
 
   describe('conciv tools on any tab', () => {
@@ -1164,22 +1192,16 @@ describe('cli', () => {
       const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
       const {engine, sessionId, page} = await engineWithTab(home)
       try {
+        const watched = new AbortController()
+        const asked = askRaised(page, sessionId, AbortSignal.any([watched.signal, pages.signal]))
         const waiting = conciv(elsewhere, home, ['--tab', sessionId, 'tools', 'tabs', '--tab', 'conciv_other'])
-        const allowIfAsked = vi
-          .waitFor(
-            async () => {
-              const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
-              if (!ask) throw new Error('no ask yet')
-              await page.chat.permissionDecision({approvalId: ask.approvalId, approved: true})
-            },
-            {timeout: 3000},
-          )
-          .catch(() => {})
-        expect(await waiting).toMatchObject({
+        const outcome = await Promise.race([waiting, asked]).finally(() => watched.abort())
+        expect(outcome).toMatchObject({
           ok: false,
           error: {kind: 'user', message: '--tab was given more than once with different tab ids.'},
         })
-        await allowIfAsked
+        expect(await asked).toBeNull()
+        expect((await page.chat.hydrate({sessionId})).pendingApprovals).toEqual([])
       } finally {
         await engine.stop()
       }
@@ -1494,7 +1516,12 @@ describe('cli', () => {
       const newer = await engineWithTab(home, {hubAccess: 'open'})
       const client = await hub(home)
       const survivor = await engineWithTab(home).catch(async (error: unknown) => {
-        await client.close()
+        await client.close().catch((closing: unknown) => {
+          throw new AggregateError(
+            [error, closing],
+            'the survivor engine did not start and the hub client did not close',
+          )
+        })
         throw error
       })
       try {
@@ -1563,6 +1590,63 @@ describe('cli', () => {
       }
     })
 
+    async function failingEngine(home: string, status: number) {
+      const id = `failing-engine-${status}`
+      const server = createHttpServer((request, response) => {
+        if (request.url === '/health') {
+          response.writeHead(200, {'content-type': 'application/json'}).end(JSON.stringify({ok: true, id}))
+          return
+        }
+        response.writeHead(status).end()
+      })
+      server.listen(0, '127.0.0.1')
+      await once(server, 'listening')
+      const port = z.object({port: z.number()}).parse(server.address()).port
+      const root = mkdtempSync(join(tmpdir(), 'conciv-failing-'))
+      withHomeDb(home, (db) => registerEngine(db, {id, pid: process.pid, root, apiBase: `http://127.0.0.1:${port}`}))
+      return {
+        root,
+        close: async () => {
+          server.closeAllConnections()
+          server.close()
+          await once(server, 'close')
+        },
+      }
+    }
+
+    it('a tab probe that fails on an engine is named instead of TAB_NOT_OPEN, and never hides a tab another engine holds', async () => {
+      const {home, mcp} = fakeClaude()
+      expect(mcp('connect', 'claude')).toMatchObject({status: 0})
+      const holder = await engineWithTab(home, {hubAccess: 'open'})
+      const crashing = await failingEngine(home, 500)
+      const old = await failingEngine(home, 404)
+      const client = await hub(home)
+      try {
+        const onTab = async (tab: string) =>
+          JSON.stringify(
+            ReplySchema.parse(
+              await client.callTool('execute_typescript', {
+                typescriptCode: 'return await external_page_route({})',
+                tab,
+              }),
+            ).content,
+          )
+        expect(await onTab(holder.sessionId)).toContain(`"pathname\\":\\"${holder.root}`)
+        expect(await onTab('conciv_gone')).toBe(
+          JSON.stringify([
+            {
+              type: 'text',
+              text: `cannot tell whether tab conciv_gone is open: no engine that answered has it, and the tab probe failed on ${crashing.root} (/api/tabs answered HTTP 500); ${old.root} (engine too old; upgrade its @conciv packages); nothing ran`,
+            },
+          ]),
+        )
+      } finally {
+        await client.close()
+        await Promise.all([crashing.close(), old.close()])
+        await holder.engine.stop()
+      }
+    })
+
     it('with no engine running a call names the home folder, and the tools still say how to pick a tab', async () => {
       const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
       const client = await hub(home)
@@ -1576,6 +1660,27 @@ describe('cli', () => {
         await client.close()
       }
     })
+
+    it.skipIf(process.getuid?.() === 0)(
+      'an unreadable home folder is named as such, never reported as no dev server running',
+      async () => {
+        const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+        withHomeDb(home, listEngines)
+        chmodSync(join(home, 'home.db'), 0o000)
+        try {
+          const client = await hub(home)
+          try {
+            const reply = await run(client, 'return 1')
+            expect(reply).toContain(`cannot read the conciv home folder ${home}`)
+            expect(reply).not.toContain('no conciv dev server is running')
+          } finally {
+            await client.close()
+          }
+        } finally {
+          chmodSync(join(home, 'home.db'), 0o600)
+        }
+      },
+    )
   })
 
   describe('prod closure', () => {

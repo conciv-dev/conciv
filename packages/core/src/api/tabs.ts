@@ -5,6 +5,7 @@ import {Hono} from 'hono'
 import {z} from 'zod'
 import type {SessionMeta} from '@conciv/contract'
 import {SessionId, TabsSchema, type TabOpen, type Tabs} from '@conciv/protocol/chat-types'
+import {isPageFailure} from '@conciv/protocol/page-types'
 import type {PageBus} from '../page-bus.js'
 
 const PAGE_PROBE_MS = 200
@@ -25,6 +26,8 @@ const PageSchema = TabsSchema.shape.tabs.element.shape.page
 type TabPage = Tabs['tabs'][number]['page']
 
 const PackageNameSchema = z.object({name: z.string()})
+
+const AbsentFileSchema = z.object({code: z.enum(['ENOENT', 'ENOTDIR', 'EISDIR'])})
 
 const HEAD_REF = 'ref: refs/heads/'
 
@@ -88,13 +91,26 @@ function browserTabPages(
 function probePage(bus: PageBus, sessionId: SessionId, browserTab: string): Promise<TabPage> {
   const answered = bus.ask(sessionId, {name: 'page_route', input: {}, agentId: sessionId}, {browserTab}).then(
     (answer) => PageSchema.catch(null).parse(answer.result),
-    () => null,
+    (error: unknown) => {
+      if (!isPageFailure(error)) {
+        console.warn(
+          `conciv: reading the page of browser tab ${browserTab} failed; the tab is listed without it`,
+          error,
+        )
+      }
+      return null
+    },
   )
   return Promise.race([answered, delay(PAGE_PROBE_MS, null)])
 }
 
 function readText(path: string): Promise<string | null> {
-  return readFile(path, 'utf8').catch(() => null)
+  return readFile(path, 'utf8').catch((error: unknown) => {
+    if (!AbsentFileSchema.safeParse(error).success) {
+      console.warn(`conciv: reading ${path} failed; the tab listing leaves it out`, error)
+    }
+    return null
+  })
 }
 
 async function projectName(root: string): Promise<string | null> {
@@ -103,8 +119,9 @@ async function projectName(root: string): Promise<string | null> {
   try {
     const parsed = PackageNameSchema.safeParse(JSON.parse(text))
     return parsed.success ? parsed.data.name : null
-  } catch {
-    return null
+  } catch (error) {
+    if (error instanceof SyntaxError) return null
+    throw error
   }
 }
 

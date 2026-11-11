@@ -27,8 +27,6 @@ type PreviewTarget = {
 }
 
 const PAGE_LIMIT = 40
-const STALE_MS = 60_000
-const GC_MS = 300_000
 const READ_ONLY = 'the session preview is read-only'
 const FOCUS_THREAD = 'Alt+ArrowRight'
 const BACK_TO_SEARCH = 'Alt+ArrowLeft'
@@ -90,8 +88,6 @@ function PreviewBody(props: {target: PreviewTarget; input: () => HTMLElement | n
       initialPageParam: null,
       getNextPageParam: (page: {earlier: string | null}) => page.earlier,
     }),
-    staleTime: STALE_MS,
-    gcTime: GC_MS,
     retry: false,
   }))
   useHotkeys({
@@ -237,7 +233,7 @@ function EarlierMessages(props: {
     queryKey: ['session-preview-earlier', props.sessionKey, props.oldest],
     queryFn: props.load,
     enabled: wanted(),
-    staleTime: Infinity,
+    refetchOnWindowFocus: false,
     gcTime: 0,
     retry: false,
   }))

@@ -52,7 +52,18 @@ type ThreadWindow = {limit?: number; before?: string}
 const metadataAt = (namespace: string, key: string) =>
   and(eq(chatMetadata.namespace, namespace), eq(chatMetadata.key, key))
 
-export function drizzleChatStores(db: NodeSQLiteDatabase, opts: {harnessOf: (threadId: string) => string}): ChatStores {
+type StoreOptions = {
+  harnessOf: (threadId: string) => string
+  saved?: (threadId: string, messages: readonly ModelMessage[], at: number) => void
+}
+
+function newestAt(createdAts: readonly {createdAt: unknown}[]): number {
+  const times = createdAts.flatMap(({createdAt}) => (typeof createdAt === 'string' ? [Date.parse(createdAt)] : []))
+  const known = times.filter(Number.isFinite)
+  return known.length === 0 ? Date.now() : Math.max(...known)
+}
+
+export function drizzleChatStores(db: NodeSQLiteDatabase, opts: StoreOptions): ChatStores {
   const get = async (runId: string): Promise<RunRecord | null> => {
     const rows = await db.select().from(chatRuns).where(eq(chatRuns.runId, runId)).limit(1)
     const row = rows[0]
@@ -126,14 +137,17 @@ export function drizzleChatStores(db: NodeSQLiteDatabase, opts: {harnessOf: (thr
     messages: {
       loadThread,
       saveThread: async (threadId, messages) => {
-        db.transaction((tx) => {
-          tx.delete(chatMessages)
+        const changed = db.transaction((tx) => {
+          const dropped = tx
+            .delete(chatMessages)
             .where(and(eq(chatMessages.threadId, threadId), gte(chatMessages.position, messages.length)))
             .run()
-          tx.run(
-            sql`INSERT INTO ${chatMessages} (thread_id, position, message_id, role, message_json) SELECT ${threadId}, CAST(key AS INTEGER), json_extract(value, '$.id'), json_extract(value, '$.role'), value FROM json_each(${JSON.stringify(messages)}) WHERE true ON CONFLICT (thread_id, position) DO UPDATE SET message_id = excluded.message_id, role = excluded.role, message_json = excluded.message_json WHERE message_json IS NOT excluded.message_json`,
+          const written = tx.all<{createdAt: unknown}>(
+            sql`INSERT INTO ${chatMessages} (thread_id, position, message_id, role, message_json) SELECT ${threadId}, CAST(key AS INTEGER), json_extract(value, '$.id'), json_extract(value, '$.role'), value FROM json_each(${JSON.stringify(messages)}) WHERE true ON CONFLICT (thread_id, position) DO UPDATE SET message_id = excluded.message_id, role = excluded.role, message_json = excluded.message_json WHERE message_json IS NOT excluded.message_json RETURNING json_extract(message_json, '$.createdAt') AS createdAt`,
           )
+          return Number(dropped.changes) > 0 || written.length > 0 ? written : null
         })
+        if (changed !== null) opts.saved?.(threadId, messages, newestAt(changed))
       },
     },
     runs: {

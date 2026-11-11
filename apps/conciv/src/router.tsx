@@ -106,7 +106,9 @@ function wireEngine(apiBase: () => string, rerunRefused: () => void): {dispose: 
 }
 
 export function createConcivRouter(config: ConcivRouterConfig) {
-  const queryClient = new QueryClient()
+  const queryClient = new QueryClient({
+    defaultOptions: {queries: {staleTime: Infinity, refetchOnWindowFocus: 'always'}},
+  })
   const data = makeAppData(config.rpc, queryClient)
   const extensions = [highlight, ...(config.extensions ?? [])]
   const instances = createInstances(extensions)

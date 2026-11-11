@@ -25,22 +25,22 @@ async function* runScopedStream(stream: AsyncIterable<ChatEvent>, runId: string)
   for await (const chunk of stream) yield runScopedChunk(chunk, runId)
 }
 
-function effortConfig(level: string | undefined): Record<string, string> {
-  return level === undefined || level === 'off' ? {} : {model_reasoning_effort: `"${level}"`}
+function effortConfig(effort: string | undefined): Record<string, string> {
+  return effort === undefined ? {} : {model_reasoning_effort: `"${effort}"`}
 }
 
-function codexRunAdapter(deps: HarnessChatDeps, level?: string): TextAdapter {
+function codexRunAdapter(deps: HarnessChatDeps): TextAdapter {
   return codexAdapter(deps.model ?? codexDefaultModel(codexHome(deps.env)), {
     sandboxMode: 'workspace-write',
     approvalPolicy: 'never',
-    config: {...(deps.hasTools ? bridgeApproveConfig : {}), ...effortConfig(level)},
+    config: {...(deps.hasTools ? bridgeApproveConfig : {}), ...effortConfig(deps.effort)},
     env: definedEntries(deps.env),
   })
 }
 
 function codexTurnAdapter(deps: HarnessChatDeps): TextAdapter {
   const chatStream: TextAdapter['chatStream'] = (options) =>
-    runScopedStream(codexRunAdapter(deps, options.reasoning?.level).chatStream(options), options.runId ?? randomUUID())
+    runScopedStream(codexRunAdapter(deps).chatStream(options), options.runId ?? randomUUID())
   return new Proxy(codexRunAdapter(deps), {
     get: (target, key, receiver) => (key === 'chatStream' ? chatStream : Reflect.get(target, key, receiver)),
   })
