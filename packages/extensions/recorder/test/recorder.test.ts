@@ -916,11 +916,8 @@ describe('panel stream', () => {
   async function recordPastLiveEdge(page: Page): Promise<string> {
     const marker = await addMarker(page)
     await expectLocator(replayed(page, marker)).toBeAttached({timeout: 30_000})
-    const timeline = page.getByRole('slider', {name: 'Timeline'})
-    await timeline.focus()
-    await page.keyboard.press('ArrowRight')
-    const recorded = Number(await timeline.getAttribute('aria-valuemax'))
-    return recorded > LIVE_EDGE_MS ? marker : recordPastLiveEdge(page)
+    const recorded = Number(await page.getByRole('slider', {name: 'Timeline'}).getAttribute('aria-valuemax'))
+    return recorded > 3 * LIVE_EDGE_MS ? marker : recordPastLiveEdge(page)
   }
 
   async function openPanelStreaming(page: Page): Promise<string> {

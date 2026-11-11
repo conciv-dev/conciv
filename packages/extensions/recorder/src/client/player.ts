@@ -118,6 +118,7 @@ function enhanceControllerAccess(container: HTMLDivElement, player: Player): voi
     progress.setAttribute('aria-valuenow', String(Math.round(current)))
   }
   announcePosition()
+  player.getReplayer().on('event-cast', announcePosition)
   player.addEventListener('ui-update-current-time', (payload) => {
     const parsed = controllerTime.safeParse(payload)
     if (parsed.success) current = parsed.data.payload
@@ -191,6 +192,7 @@ export function mountStreamPlayer(
     player.goto(tailOffset() + 1, true)
     player.addEventListener('ui-update-player-state', announceLive)
     player.addEventListener('ui-update-current-time', announceLive)
+    player.getReplayer().on('event-cast', announceLive)
     hooks.onLive(true)
   }
 
