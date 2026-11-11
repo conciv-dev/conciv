@@ -3,6 +3,7 @@ import {accessSync, constants, existsSync} from 'node:fs'
 import {delimiter, join} from 'node:path'
 import {Hono} from 'hono'
 import {z} from 'zod'
+import {uniqBy} from 'es-toolkit'
 import {EngineStalenessSchema, type EngineStaleness} from '@conciv/contract'
 import {upgradeWebSocket} from '@conciv/serve'
 import {HTTPException} from 'hono/http-exception'
@@ -546,9 +547,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const mountResults = await Promise.all(extensions.map((extension) => mountExtension(extension)))
   const mounted = mountResults.flatMap((entry) => (entry ? [entry] : []))
-  const attachmentExpanders: AttachmentExpanders = {}
-  for (const entry of mounted)
-    for (const [mime, expand] of entry.attachmentExpanders) attachmentExpanders[mime] ??= expand
+  const attachmentExpanders: AttachmentExpanders = Object.fromEntries(
+    uniqBy(
+      mounted.flatMap((entry) => entry.attachmentExpanders),
+      ([mime]) => mime,
+    ),
+  )
   const extensionContexts: Record<string, unknown> = Object.fromEntries(
     mounted.map((entry) => [entry.extensionName, entry.context]),
   )
@@ -596,8 +600,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   ])
 
   registerExtensionTools(registry, mounted)
-  for (const entry of mounted)
-    for (const [name, verb] of Object.entries(entry.verbs)) primitives.page.bus.serve(name, verb)
+  mounted
+    .flatMap((entry) => Object.entries(entry.verbs))
+    .forEach(([name, verb]) => primitives.page.bus.serve(name, verb))
 
   const withheld = withheldCapabilities({
     withhold: opts.withhold ?? [],

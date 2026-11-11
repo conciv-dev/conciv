@@ -1,11 +1,16 @@
 import {Hono} from 'hono'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {PageServingFrameSchema, PUSH_SESSION_PARAM, PUSH_WS_PATH, type PushFrame} from '@conciv/protocol/push-types'
+import {
+  PageServingFrameSchema,
+  PUSH_SESSION_PARAM,
+  PUSH_WS_PATH,
+  TAB_CRASHED,
+  type PushFrame,
+} from '@conciv/protocol/push-types'
 import type {WSContext} from 'hono/ws'
 import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
 import {logError} from '../lib/debug.js'
-import {TAB_CRASHED} from '../page-bus.js'
 
 export type PageQuery = {requestId: string; query: unknown}
 

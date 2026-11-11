@@ -7,6 +7,7 @@ import {
 } from '@conciv/protocol/page-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {PageCaptureBundle} from '@conciv/protocol/element-capture-types'
+import {TAB_CRASHED} from '@conciv/protocol/push-types'
 import type {ServerVerb} from '@conciv/extension'
 import {appendPageChange, clearPageChanges, pageChangesFor, type ConcivDb} from '@conciv/db'
 
@@ -97,8 +98,6 @@ type PingAnswer = 'live' | 'hidden' | 'silent'
 const PING_ABOVE_MS = 5000
 const PING_BUDGET_MS = 1000
 const SILENT_LIMIT = 3
-
-export const TAB_CRASHED = 'the tab crashed'
 
 export function makePageBus(timeoutMs = 5000): PageBus {
   const bySession = new Map<SessionId, SessionPage>()

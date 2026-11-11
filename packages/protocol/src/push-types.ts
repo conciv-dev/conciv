@@ -3,6 +3,7 @@ import type {ChatEvent} from './chat-event-types.js'
 
 export const PUSH_WS_PATH = '/push-ws'
 export const PUSH_SESSION_PARAM = 'sessionId'
+export const TAB_CRASHED = 'the tab crashed'
 
 const StreamChunkSchema = z.custom<ChatEvent>((value) => typeof value === 'object' && value !== null)
 
