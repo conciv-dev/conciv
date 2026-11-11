@@ -357,6 +357,7 @@ describe('voter', () => {
       raster,
       route: '/',
       width: 400,
+      scrollHeight: 200,
       path: 'region',
       sources: ['dom'],
       overflowX: false,
