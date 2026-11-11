@@ -1,6 +1,7 @@
 import {Outlet, createFileRoute, useLocation} from '@tanstack/solid-router'
 import {FocusTrap, createResizable} from '@conciv/ui-kit-system'
-import {Show, createEffect, createSignal, type JSX} from 'solid-js'
+import {Show, createEffect, createMemo, createSignal, type JSX} from 'solid-js'
+import {createActiveElement} from '@solid-primitives/active-element'
 import {panelPlacement} from '../lib/draggable-position.js'
 import {useEnvironment, useFabAnchor, useLayers, useSettings, useSuppressed} from '../app/context.js'
 import {makePanelComposerFocus, PanelComposerFocusContext} from '../app/panel-focus.js'
@@ -65,6 +66,8 @@ function PanelLayout(): JSX.Element {
 
   const composerFocus = makePanelComposerFocus()
   const keepTrapFromFocusing = (): false => false
+  const activeElement = createActiveElement()
+  const hostHoldsFocus = createMemo(() => activeElement() !== null && hostPageHasFocus(environment.rootNode))
   const restoringFocus = useLocation({select: (location) => location.state.restoreFocus !== undefined})
   createEffect(() => {
     if (!open()) return
@@ -94,7 +97,7 @@ function PanelLayout(): JSX.Element {
       <NoticeContextProvider>
         <PanelComposerFocusContext.Provider value={composerFocus}>
           <FocusTrap
-            disabled={docked || !open() || layers.anyOpen()}
+            disabled={docked || !open() || layers.anyOpen() || hostHoldsFocus()}
             initialFocus={keepTrapFromFocusing}
             returnFocusOnDeactivate={false}
           >

@@ -52,6 +52,7 @@
     "@solid-primitives/clipboard": "^1.6.6",
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/keyed": "catalog:",
+    "@solid-primitives/map": "^0.7.4",
     "@solid-primitives/resize-observer": "catalog:",
     "@solid-primitives/timer": "catalog:",
     "@tanstack/solid-hotkeys": "catalog:",
