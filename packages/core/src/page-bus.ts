@@ -32,8 +32,12 @@ export function makeJournal(db: ConcivDb): Journal {
   }
 }
 
+type Held<T> = {value: T} | {reason: unknown}
+
 type Pending<T> = {
   await(id: string, owner: string, timeoutMs: number, signal?: AbortSignal): Promise<T>
+  hold(id: string, owner: string): Promise<Held<T>>
+  drop(id: string): void
   resolve(id: string, value: T): boolean
   abandon(owner: string, reason: Error): void
   idle(): boolean
@@ -49,6 +53,15 @@ function makePending<T>(timedOut: () => Error): Pending<T> {
     return pTimeout(reply, {milliseconds: timeoutMs, message: timedOut(), signal}).finally(() => waiters.delete(id))
   }
 
+  function hold(id: string, owner: string): Promise<Held<T>> {
+    return new Promise<T>((settle, fail) => waiters.set(id, {owner, settle, fail}))
+      .then(
+        (value): Held<T> => ({value}),
+        (reason: unknown): Held<T> => ({reason}),
+      )
+      .finally(() => waiters.delete(id))
+  }
+
   function resolve(id: string, value: T): boolean {
     const waiter = waiters.get(id)
     if (!waiter) return false
@@ -61,7 +74,14 @@ function makePending<T>(timedOut: () => Error): Pending<T> {
     owned.forEach((waiter) => waiter.fail(reason))
   }
 
-  return {await: awaitReply, resolve, abandon, idle: () => waiters.size === 0}
+  return {
+    await: awaitReply,
+    hold,
+    drop: (id) => void waiters.delete(id),
+    resolve,
+    abandon,
+    idle: () => waiters.size === 0,
+  }
 }
 
 export type PageAnswer = {result: Record<string, unknown>; capture?: PageCaptureBundle}
@@ -266,20 +286,25 @@ export function makePageBus(timeoutMs = 5000, queuedActionMs = QUEUED_ACTION_MS)
     })
     const refusal = accepted.then(
       () => null,
-      (error: unknown): PageOutcome => ({
-        ok: false,
-        error: {code: 'handler-error', message: `the page refused the queue: ${String(error)}`},
-      }),
+      (error: unknown): PageOutcome => {
+        replies.forEach((id) => page.pending.drop(id))
+        return {ok: false, error: {code: 'handler-error', message: `the page refused the queue: ${String(error)}`}}
+      },
     )
     const lane = laneOf(sessionId)
-    const playedNext = async (id: string): Promise<PageOutcome> => {
+    const playedNext = async (id: string, reply: Promise<Held<PageOutcome>>): Promise<PageOutcome> => {
       const refused = await refusal
       if (refused !== null) return refused
-      if (!page.browserTabs.has(tab.id))
-        throw pageFailure('no-widget', `browser tab ${tab.id} closed before it replied`)
-      return page.pending.await(id, tab.id, queuedActionMs)
+      const answered = await pTimeout(reply, {milliseconds: queuedActionMs, message: unanswered()}).finally(() =>
+        page.pending.drop(id),
+      )
+      if ('reason' in answered) throw answered.reason
+      return answered.value
     }
-    const played = replies.map((id) => lane.add(() => playedNext(id)))
+    const played = replies.map((id) => {
+      const reply = page.pending.hold(id, tab.id)
+      return lane.add(() => playedNext(id, reply))
+    })
     void Promise.allSettled([accepted, ...played]).then(() => dropIfIdle(sessionId, page))
     tab.emit({requestId, ...query, queue: {id: queueId, replies}})
     return {accepted, played}

@@ -736,6 +736,31 @@ describe('page bus and the session scope', () => {
     toolCallId: undefined,
   })
 
+  it('queued replies that arrive out of order are each kept for their own action', async () => {
+    const bus = makePageBus(2000)
+    const queued = queueingTab(bus)
+    const queues = pageQueues(bus)
+    const checks = ['#first', '#second', '#third'].map((selector) => ({tool: 'page_check', selector}))
+    const {queueId} = await queues.start(SESSION_A, queueStart(checks))
+    const [first, second, third] = queued[0]?.queue.replies ?? []
+    const checked = (selector: string) => ({ok: true as const, result: {checked: selector}})
+    expect(bus.resolve(SESSION_A, second ?? '', checked('#second'))).toBe(true)
+    expect(bus.resolve(SESSION_A, third ?? '', checked('#third'))).toBe(true)
+    expect(bus.resolve(SESSION_A, first ?? '', checked('#first'))).toBe(true)
+    expect(await queues.wait(SESSION_A, queueId, 2000)).toEqual({
+      queueId,
+      status: 'finished',
+      outcomes: ['#first', '#second', '#third'].map((selector, index) => ({
+        index,
+        tool: 'page_check',
+        ok: true,
+        result: {checked: selector},
+      })),
+      failed: 0,
+      played: 3,
+    })
+  })
+
   it('a queued action the page never confirms is unconfirmed: it may already have run and does not count as played', async () => {
     const bus = makePageBus(2000, 50)
     const queued = queueingTab(bus)
