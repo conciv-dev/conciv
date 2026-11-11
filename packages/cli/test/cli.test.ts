@@ -10,7 +10,6 @@ import {delimiter, dirname, join, relative, resolve as resolvePath} from 'node:p
 import {fileURLToPath} from 'node:url'
 import {z} from 'zod'
 import {defineExtension, defineTool} from '@conciv/extension'
-import {design} from '@conciv/extension-design/server'
 import {createServer as createHttpServer, type Server} from 'node:http'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {engineOrigin} from '../src/engine-origin.js'
@@ -251,7 +250,7 @@ describe('cli', () => {
       it('offline, group help and group verbs fail with the start-a-server envelope', () => {
         for (const argv of [
           ['tools', 'page', '--help'],
-          ['tools', 'design', '--help'],
+          ['tools', 'acme', '--help'],
           ['tools', 'page', 'snapshot'],
         ]) {
           const run = conciv(argv)
@@ -316,6 +315,8 @@ describe('cli', () => {
         strokes: z.array(z.object({x: z.number()}).loose()),
         parts: z.array(z.unknown()).optional(),
         label: z.string().nullable().optional(),
+        colors: z.array(z.string()).optional(),
+        image: z.string().meta({format: 'path'}).optional(),
       }),
       outputSchema: z.object({painted: z.boolean()}),
       meta: {summary: 'paint strokes and patch the acme canvas', mutating: true},
@@ -327,56 +328,52 @@ describe('cli', () => {
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 
     describe('the CLI reads its commands from the tool declarations', () => {
-      it('derives design verbs from the design tool declarations online', async () => {
-        await bootCli(cleanups, {extensions: [design]})
-        expect(await helpText(['tools', 'design', '--help'])).toContain('compare the live page with its design target')
-      })
-
-      it('sends design diff flags to the server as the tool input', async () => {
-        const kit = await bootCli(cleanups, {extensions: [design]})
-        const answer = await answerNextQuery(kit, {ok: true, result: {pathname: '/cards', search: ''}})
-        expect(await runCli(cliMain, ['tools', 'design', 'diff', '--width', '390', '--limit', '5'])).toBe(1)
-        expect(answer.seen()).toMatchObject({name: 'page_route'})
-        expect(onlyDocument(written)).toMatchObject({
-          ok: false,
-          error: {message: 'no design target for /cards at 390px; register one with design_target'},
-        })
-      })
-
       it('sends every repeat of an array flag to the server as one array', async () => {
-        const kit = await bootCli(cleanups, {extensions: [design]})
-        const answer = await answerNextQuery(kit, {ok: true, result: {padding: null, gap: null}})
+        const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
+        const answer = await answerNextQuery(kit, {ok: true, result: {painted: true}})
         expect(
           await runCli(cliMain, [
             'tools',
-            'design',
-            'winner',
-            '--selector',
-            '#a',
-            '--properties',
-            'padding',
-            '--properties',
-            'gap',
+            'acme',
+            'paint',
+            '--patch',
+            '{}',
+            '--strokes',
+            '{"x":1}',
+            '--colors',
+            'red',
+            '--colors',
+            'blue',
           ]),
         ).toBe(0)
-        expect(answer.seen()).toMatchObject({
-          name: 'design_winner',
-          input: {selector: '#a', properties: ['padding', 'gap']},
-        })
+        expect(answer.seen()).toMatchObject({name: 'acme_paint', input: {colors: ['red', 'blue']}})
       })
 
-      it('resolves a relative image path against the CLI working directory', async () => {
-        await bootCli(cleanups, {extensions: [design]})
+      it('resolves a relative path flag against the CLI working directory', async () => {
+        const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
+        const answer = await answerNextQuery(kit, {ok: true, result: {painted: true}})
         const home = process.cwd()
-        const dir = mkdtempSync(join(tmpdir(), 'conciv-design-image-'))
+        const dir = mkdtempSync(join(tmpdir(), 'conciv-path-flag-'))
         writeFileSync(join(dir, 'u1.png'), Buffer.from(ONE_PIXEL_PNG, 'base64'))
         process.chdir(dir)
         cleanups.push(async () => {
           process.chdir(home)
           rmSync(dir, {recursive: true, force: true})
         })
-        expect(await runCli(cliMain, ['tools', 'design', 'target', './u1.png', '--route', '/', '--width', '1'])).toBe(0)
-        expect(onlyDocument(written)).toMatchObject({ok: true, data: {route: '/', width: 1}})
+        expect(
+          await runCli(cliMain, [
+            'tools',
+            'acme',
+            'paint',
+            '--patch',
+            '{}',
+            '--strokes',
+            '{"x":1}',
+            '--image',
+            './u1.png',
+          ]),
+        ).toBe(0)
+        expect(answer.seen()).toMatchObject({name: 'acme_paint', input: {image: join(process.cwd(), 'u1.png')}})
       })
 
       it('serves a group from an extension the CLI has never heard of', async () => {

@@ -1,7 +1,7 @@
 import {expect, test} from '@playwright/test'
 import {collectFailures, expectWidgetBoots, loginWidget, openLoginFromLockedLauncher} from '@conciv/e2e-utils/widget'
 
-test('folder-installed tanstack extension boots the widget and shows its composer chip', async ({page}) => {
+test('installed tanstack extension boots the widget and shows its composer chip', async ({page}) => {
   const failures = collectFailures(page)
   await loginWidget(page)
   await expectWidgetBoots(page, failures)

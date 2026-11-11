@@ -15,7 +15,6 @@ import {
   type ToolNameProblem,
 } from '../src/index.js'
 import type {ToolRegistry, ToolRouterFor} from '../src/tool-registry.js'
-import type {ConcivConfig} from '@conciv/protocol/config-types'
 
 const cfgSchema = z.object({runner: z.enum(['vitest', 'jest']).default('vitest')})
 
@@ -178,12 +177,6 @@ type LocatorError = FailureOf<typeof client.demo_locator>
 type GuardError = FailureOf<typeof client.demo_guard>
 
 type TransportErrorCode = 'NO_PAGE_CLIENT' | 'PAGE_TIMEOUT' | 'UNKNOWN_TOOL' | 'INVALID_ARGS' | 'HANDLER_ERROR'
-
-test('config key + value type are derived from the registry (z.input, defaults optional)', () => {
-  expectTypeOf<NonNullable<ConcivConfig['extensions']>['demo']>().toMatchTypeOf<
-    {runner?: 'vitest' | 'jest'} | undefined
-  >()
-})
 
 test('the extension context is derived from the builder, never restated by the registration', () => {
   expectTypeOf(getExtensionApi<'demo'>).returns.toMatchTypeOf<ExtensionApi<{ratio: number}>>()
