@@ -103,8 +103,7 @@ A design run is the design work of one session. `runs` gains `session_id` and `s
   (`started` to `ended`, or the one the session row already claims as `harnessSessionId`) is the run's; `model` is the model of its
   assistant records (the most used one when several), `usage` is their usage summed as a `TokenUsage`, `cost` is
   `tokenUsageToSnapshot(usage).totalCostUsd` when the harness reports it, else the house price table if one exists, else null with
-  `usage` kept so a view can derive it. Rows closed before this landed are filled once by the store's next migration, from the transcripts still on
-  disk; no command. Never null by design: a run without a transcript records why in
+  `usage` kept so a view can derive it. Never null by design: a run without a transcript records why in
   `error` (`no-transcript`).
 - **Transcript**: the chat server's `withPersistence` already stores every message in `chat_messages`, and the journal holds the
   raw agent events for the run's life. The design store keeps no transcript artifact; a view joining a design run to its session's
