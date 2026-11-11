@@ -2,4 +2,4 @@
 '@conciv/embed': patch
 ---
 
-Settings tabs sit in a left rail when the panel is at the large container size or wider, or when there are more than four tabs (extension settings pages); a narrower panel with at most four tabs keeps them in a top row.
+Settings tabs sit in a top row while there are at most four of them, which fit in one row at the panel's minimum width; with more tabs (extension settings pages) they sit in a left rail.
