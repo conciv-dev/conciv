@@ -115,9 +115,29 @@ describe('typecheck coverage', () => {
     await expect(assertTypecheckCoversTrackedFiles(root)).resolves.toBeUndefined()
   }, 10_000)
 
-  test('assertTypecheckCoversTrackedFiles passes on this repository', async () => {
-    await expect(assertTypecheckCoversTrackedFiles(repoRoot)).resolves.toBeUndefined()
-  }, 60_000)
+  test('assertTypecheckCoversTrackedFiles follows the references of a solution tsconfig run with tsc -b', async () => {
+    const root = await scaffoldWorkspaceRoot('typecheck-coverage-build-')
+    const pkg = join(root, 'packages', 'a')
+    await writeManifest(pkg, {name: '@conciv/a', scripts: {typecheck: 'tsc -b'}})
+    await mkdir(join(pkg, 'src'), {recursive: true})
+    await mkdir(join(pkg, 'test'), {recursive: true})
+    await symlink(join(repoRoot, 'node_modules'), join(root, 'node_modules'))
+    const writeConfig = (name: string, config: Record<string, unknown>) =>
+      writeFile(join(pkg, name), JSON.stringify(config))
+    const solution = (paths: string[]) => ({files: [], references: paths.map((path) => ({path}))})
+    await Promise.all([
+      writeFile(join(pkg, 'src', 'index.ts'), 'export const a = 1\n'),
+      writeFile(join(pkg, 'test', 'a.test.ts'), 'export const b = 2\n'),
+      writeConfig('tsconfig.src.json', {compilerOptions: {composite: true}, include: ['src']}),
+      writeConfig('tsconfig.test.json', {compilerOptions: {composite: true}, include: ['test']}),
+      writeConfig('tsconfig.json', solution(['./tsconfig.src.json'])),
+    ])
+    await execa('git', ['init', '-q'], {cwd: root})
+    await execa('git', ['add', 'packages'], {cwd: root})
+    await expect(assertTypecheckCoversTrackedFiles(root)).rejects.toThrow('packages/a/test/a.test.ts')
+    await writeConfig('tsconfig.json', solution(['./tsconfig.src.json', './tsconfig.test.json']))
+    await expect(assertTypecheckCoversTrackedFiles(root)).resolves.toBeUndefined()
+  }, 10_000)
 })
 
 describe('cli', () => {
