@@ -2525,6 +2525,26 @@ describe('panel header', () => {
     await expect(coreRpc(coreBase()).sessions.get({sessionId: gone})).resolves.toMatchObject({id: gone})
   })
 
+  test('the session picker opened from the session menu lists its sessions inside the viewport while the session itself fails to load', async () => {
+    const TITLE = 'the session the picker lists'
+    await page.viewport(1200, 900)
+    const rpc = coreRpc(coreBase())
+    const sessionId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId, title: TITLE})
+    await faults.install({kind: 'fail', path: ['sessions', 'get'], status: 404})
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await page.getByRole('button', {name: /session options$/}).click()
+    await page
+      .getByRole('dialog', {name: 'Session options'})
+      .getByRole('button', {name: /^Session: /})
+      .click()
+    const option = page.getByRole('option', {name: new RegExp(`^${TITLE},`)})
+    await expect.element(option, {timeout: 8000}).toBeVisible()
+    const box = option.element().getBoundingClientRect()
+    expect([box.left >= 0, box.right <= window.innerWidth]).toEqual([true, true])
+  })
+
   test('a user opens the session menu by clicking the title, renames in place and switches sessions', async () => {
     const TITLE = 'the titled session'
     const RENAMED = 'renamed from the header'

@@ -208,7 +208,7 @@ export function SessionSelector(props: {
     if (row >= 0) scrollToRow?.(row)
   }
 
-  const activeRow = () => active.data ?? null
+  const activeRow = () => (active.isSuccess ? active.data : null)
   const triggerLabel = () => activeRow()?.title || 'New session'
   const canRename = () => activeRow() !== null
 
