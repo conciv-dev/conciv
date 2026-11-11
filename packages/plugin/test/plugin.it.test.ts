@@ -22,6 +22,7 @@ import getPort from 'get-port'
 import {chromium, type Browser, type Page} from 'playwright'
 import {expect as expectLocator} from 'playwright/test'
 import {DevTools} from '@vitejs/devtools'
+import {devtools} from '@tanstack/devtools-vite'
 import {createServer, type Plugin, type PluginOption, type ViteDevServer} from 'vite'
 import type {Engine} from '@conciv/core/start'
 import {EXTENSIONS_RESOLVED_ID, NO_BUILTINS, type Builtins} from '@conciv/extension-compiler/extensions'
@@ -474,7 +475,6 @@ describe('inject source hook', () => {
   }
 
   const reactPlugin: Plugin = {name: 'vite:react'}
-  const tsdInjectSource: Plugin = {name: '@tanstack/devtools:inject-source'}
 
   describe('makeViteHook source injection', () => {
     it('resolves the injected extensions script URL into the module graph', async () => {
@@ -491,9 +491,33 @@ describe('inject source hook', () => {
       expect(out?.code).toContain('data-conciv-source=')
     })
 
-    it('defers to @tanstack/devtools (no data-conciv-source) when its inject-source plugin is present', () => {
-      const out = transformViaHook([reactPlugin, tsdInjectSource])
-      expect(out).toBeNull()
+    it('stamps its own data-conciv-source over the code @tanstack/devtools inject-source already stamped', async () => {
+      const root = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-tsd-')))
+      const file = join(root, 'src', 'App.tsx')
+      const raw = 'export const App = () => <main className="app"><p>hi</p></main>\n'
+      mkdirSync(dirname(file), {recursive: true})
+      writeFileSync(file, raw)
+      const plugins = devtools()
+      const injector = plugins.find((plugin) => plugin.name === '@tanstack/devtools:inject-source')
+      const injectTransform = injector?.transform
+      const inject = typeof injectTransform === 'function' ? injectTransform : injectTransform?.handler
+      if (!inject) throw new Error('@tanstack/devtools has no inject-source transform')
+      const injected = await inject.call({} as never, raw, file, undefined as never)
+      const tsdCode = typeof injected === 'object' && injected !== null && 'code' in injected ? injected.code : ''
+      expect(tsdCode).toContain('data-tsd-source=')
+
+      const hook = makeViteHook({enabled: true})
+      const configResolved = hook.configResolved
+      if (typeof configResolved === 'function')
+        configResolved.call({} as never, {root, plugins: [reactPlugin, ...plugins]} as never)
+      const transform = hook.transform
+      const run = typeof transform === 'function' ? transform : transform?.handler
+      if (!run) throw new Error('conciv plugin has no transform')
+      const out = (await run.call({} as never, String(tsdCode), file, undefined as never)) as {code: string} | null
+
+      expect(out?.code).toContain('data-tsd-source=')
+      expect(out?.code).toContain('data-conciv-source="src/App.tsx:1:26"')
+      expect(out?.code).toContain('data-conciv-source="src/App.tsx:1:48"')
     })
   })
 })

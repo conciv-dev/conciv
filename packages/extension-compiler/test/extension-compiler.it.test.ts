@@ -20,7 +20,7 @@ import {addSourceToJsx} from '../src/inject-source.js'
 import {scaffold} from '@conciv/extension/catalog'
 
 describe('client entry inject', () => {
-  const CTX = {root: '/app', deferToTsd: false}
+  const CTX = {root: '/app'}
 
   describe('client-entry module-graph injection', () => {
     it('matches framework client-entry ids, not ordinary modules', () => {

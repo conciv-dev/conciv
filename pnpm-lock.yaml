@@ -4317,6 +4317,9 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
+      '@tanstack/devtools-vite':
+        specifier: 'catalog:'
+        version: 0.8.5(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(vite@8.3.5)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6

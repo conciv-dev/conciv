@@ -17,20 +17,18 @@ const RESOLVED_VIRTUAL_ID = `\0${VIRTUAL_ID}`
 
 function concivBuildPlugin(builtins: Builtins): Plugin {
   let root = process.cwd()
-  let deferToTsd = false
   return {
     name: 'conciv:build',
     enforce: 'pre',
     config: () => concivSolidConfig(),
     configResolved(config) {
       root = config.root
-      deferToTsd = config.plugins.some((plugin) => plugin.name === '@tanstack/devtools:inject-source')
     },
     resolveId: (id) => resolveExtensionsModule(id),
     load: (id) =>
       loadExtensionsModule(id, builtins.clientEntries, undefined, builtins.embedEntry, builtins.dedupeEntry),
     transform(code, id, opts) {
-      return transformConcivModule(code, id, opts?.ssr ?? false, {root, deferToTsd})
+      return transformConcivModule(code, id, opts?.ssr ?? false, {root})
     },
   }
 }

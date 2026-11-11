@@ -86,7 +86,7 @@ export function addSourceToJsx(
   const file = id.split('?')[0] ?? id
   if (!/\.[jt]sx$/.test(file)) return null
 
-  if (code.includes('data-tsd-source') || code.includes('data-conciv-source')) return null
+  if (code.includes('data-conciv-source')) return null
   const rel = file.startsWith(root) ? file.slice(root.length).replace(/^\//, '') : file
   const openings = parseOpenings(file, code)
   if (!openings || openings.length === 0) return null
