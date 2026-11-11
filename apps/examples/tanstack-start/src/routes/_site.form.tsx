@@ -3,7 +3,7 @@ import {useState} from 'react'
 import {createFileRoute} from '@tanstack/react-router'
 import {useForm} from '@tanstack/react-form'
 
-export const Route = createFileRoute('/form')({component: FormDemo})
+export const Route = createFileRoute('/_site/form')({component: FormDemo})
 
 type Submission = {
   fullName: string

@@ -1,6 +1,6 @@
 import {createFileRoute} from '@tanstack/react-router'
 
-export const Route = createFileRoute('/')({component: App})
+export const Route = createFileRoute('/_site/')({component: App})
 
 const FEATURES = [
   ['Type-Safe Routing', 'Routes and links stay in sync across every page.'],
