@@ -8,13 +8,12 @@ import {
   writeFileSync,
   mkdirSync,
   utimesSync,
-  watch,
 } from 'node:fs'
 import {once} from 'node:events'
 import {request as httpRequest} from 'node:http'
 import {createServer} from 'node:net'
 import {tmpdir} from 'node:os'
-import {dirname, join} from 'node:path'
+import {join} from 'node:path'
 import {text as bodyText} from 'node:stream/consumers'
 import {randomUUID} from 'node:crypto'
 import {setImmediate, setTimeout as wait} from 'node:timers/promises'
@@ -1230,14 +1229,7 @@ describe('settings storage', () => {
   const pretty = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`
   const fileText = (path: string) => (existsSync(path) ? readFileSync(path, 'utf8') : null)
   const fileBecomes = (path: string, text: string) =>
-    new Promise<void>((resolve, reject) => {
-      const watcher = watch(dirname(path), () => {
-        if (fileText(path) !== text) return
-        watcher.close()
-        resolve()
-      })
-      watcher.on('error', reject)
-    })
+    vi.waitFor(() => expect(fileText(path)).toBe(text), {timeout: 5_000})
   async function valueBecomes<T extends object>(store: SettingsStore<T>, expected: Partial<T>) {
     const reached = Promise.withResolvers<void>()
     const unsubscribe = await store.onChange((value) => {
@@ -1282,7 +1274,6 @@ describe('settings storage', () => {
       const full = {theme: 'dark', size: 3, tags: ['a']}
       const projectFile = join(projectFolder, 'probe.json')
       const mirrored = await valueBecomes(client.project, full)
-      const written = fileBecomes(projectFile, pretty(full))
       await Promise.all([
         engine.server.project.set('theme', 'dark'),
         engine.server.project.set('size', 3),
@@ -1293,16 +1284,15 @@ describe('settings storage', () => {
       expect(await client.project.all()).toEqual(full)
       expect(await client.project.get('size')).toBe(3)
       expect((await subscriber.next()).value).toMatchObject({value: {theme: 'dark'}})
-      await written
+      await fileBecomes(projectFile, pretty(full))
       expect(readdirSync(projectFolder)).toEqual(['probe.json'])
       const globalFile = join(globalFolder, 'probe.json')
-      const projectRewritten = fileBecomes(projectFile, pretty({theme: 'dark', tags: ['a']}))
-      const globalWritten = fileBecomes(globalFile, pretty({theme: 'light'}))
       await client.project.delete('size')
       expect(await engine.server.project.get('size')).toBeUndefined()
       await client.global.set('theme', 'light')
       expect(await engine.server.global.all()).toEqual({theme: 'light'})
-      await Promise.all([projectRewritten, globalWritten])
+      await fileBecomes(projectFile, pretty({theme: 'dark', tags: ['a']}))
+      await fileBecomes(globalFile, pretty({theme: 'light'}))
       expect(heard).toContainEqual(full)
       expect(heard.at(-1)).toEqual({theme: 'dark', tags: ['a']})
       unsubscribe()
@@ -1360,16 +1350,18 @@ describe('settings storage', () => {
       const mine = one.scope('probe').settings.global
       const theirs = two.scope('probe').settings.global
       expect(await theirs.all()).toEqual({})
-      const heard = await valueBecomes(theirs, {theme: 'dark'})
+      const heard: unknown[] = []
+      const stopHearing = await theirs.onChange((value) => heard.push(value))
       await mine.set('theme', 'dark')
       await one.flush()
-      await heard.reached
+      expect(await theirs.all()).toEqual({theme: 'dark'})
+      expect(heard).toEqual([{theme: 'dark'}])
+      stopHearing()
       const echoed: unknown[] = []
       const unsubscribe = await mine.onChange((value) => echoed.push(value))
-      const answered = await valueBecomes(mine, {theme: 'dark', size: 2})
       await theirs.set('size', 2)
       await two.flush()
-      await answered.reached
+      expect(await mine.get('size')).toBe(2)
       unsubscribe()
       expect(echoed).toEqual([{theme: 'dark', size: 2}])
     } finally {
@@ -1396,9 +1388,8 @@ describe('settings storage', () => {
       const broken = {scope: 'project', namespace: 'broken'} as const
       expect(await engine.rpc.settings.all(broken)).toMatchObject({value: {}})
       expect(fileText(join(folder, 'broken.json'))).toBe('{not json')
-      const fixed = fileBecomes(join(folder, 'broken.json'), pretty({fixed: true}))
       await engine.rpc.settings.set({...broken, key: 'fixed', value: true})
-      await fixed
+      await fileBecomes(join(folder, 'broken.json'), pretty({fixed: true}))
       const refusal = (pattern: RegExp) => ({
         code: 'BAD_REQUEST',
         data: {issues: [expect.objectContaining({message: expect.stringMatching(pattern)})]},

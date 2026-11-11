@@ -103,9 +103,14 @@ function settingsKey(namespace: string): string {
 
 function createSettingsFile(storage: Storage, key: string, generation: string) {
   const current: {snapshot: SettingsSnapshot} = {snapshot: {generation, version: 0, value: {}}}
-  const loaded = readSaved(storage, key).then((value) => {
-    current.snapshot = {...current.snapshot, value}
-  })
+  const loaded = readSaved(storage, key).then(
+    (value) => {
+      current.snapshot = {...current.snapshot, value}
+    },
+    (error: unknown) => {
+      console.warn(`conciv: the settings file ${key} is unreadable, starting empty until the next change`, error)
+    },
+  )
   const publisher = new EventPublisher<{changed: SettingsSnapshot}>()
   const writes: {pending: Promise<void>} = {pending: Promise.resolve()}
   const writer = new Debouncer(
@@ -125,9 +130,22 @@ function createSettingsFile(storage: Storage, key: string, generation: string) {
     writer.maybeExecute()
     return current.snapshot
   }
+  const reload = async (): Promise<void> => {
+    await loaded
+    if (writer.store.state.isPending) return
+    await writes.pending
+    const version = current.snapshot.version
+    const value = await readSaved(storage, key).catch((error: unknown) => {
+      console.warn(`conciv: the settings file ${key} is unreadable, keeping the settings in memory`, error)
+      return current.snapshot.value
+    })
+    if (writer.store.state.isPending || current.snapshot.version !== version) return
+    if (isEqual(value, current.snapshot.value)) return
+    advance(value)
+  }
   const state: SettingsState = {
     read: async () => {
-      await loaded
+      await reload()
       return current.snapshot
     },
     set: async (name, value) => {
@@ -151,16 +169,7 @@ function createSettingsFile(storage: Storage, key: string, generation: string) {
       yield current.snapshot
       yield* later
     },
-    reload: async (): Promise<void> => {
-      await loaded
-      if (writer.store.state.isPending) return
-      await writes.pending
-      const version = current.snapshot.version
-      const value = await readSaved(storage, key)
-      if (writer.store.state.isPending || current.snapshot.version !== version) return
-      if (isEqual(value, current.snapshot.value)) return
-      advance(value)
-    },
+    reload,
     flush: async (): Promise<void> => {
       writer.flush()
       await writes.pending
@@ -169,14 +178,7 @@ function createSettingsFile(storage: Storage, key: string, generation: string) {
 }
 
 async function readSaved(storage: Storage, key: string): Promise<Record<string, unknown>> {
-  try {
-    const saved = SavedSettingsSchema.safeParse((await storage.getItem(key)) ?? {})
-    if (saved.success) return saved.data
-    console.warn(`conciv: the settings file ${key} is unreadable, starting empty until the next change`, saved.error)
-  } catch (error) {
-    console.warn(`conciv: the settings file ${key} is unreadable, starting empty until the next change`, error)
-  }
-  return {}
+  return SavedSettingsSchema.parse((await storage.getItem(key)) ?? {})
 }
 
 async function writeSaved(storage: Storage, key: string, value: Record<string, unknown>): Promise<void> {
