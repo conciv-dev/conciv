@@ -94,7 +94,7 @@ function SettingsLayout(): JSX.Element {
   )
   const builtin = (tab: BuiltinTab): SettingsTab => ({
     ...tab,
-    selected: matchRoute({from: Route.fullPath, to: `./${tab.id}`, fuzzy: true}),
+    selected: matchRoute({from: Route.fullPath, to: `./${tab.id}`, fuzzy: true, includeSearch: false}),
     open: () => void navigate({to: `./${tab.id}`}),
   })
   const mainTabs = MAIN_TABS.map(builtin)
@@ -109,6 +109,7 @@ function SettingsLayout(): JSX.Element {
         to: '/panel/$sessionId/settings/extensions/$name',
         params: {name: extension.name},
         fuzzy: true,
+        includeSearch: false,
       }),
       open: () =>
         void navigate({

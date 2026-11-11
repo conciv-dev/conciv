@@ -20,7 +20,8 @@ const ROW = 'flex items-center gap-3 min-h-11.5 py-2.5 px-3'
 const STACK = 'flex flex-col gap-2.5 p-3'
 const TEXT = 'flex flex-1 min-w-0 flex-col gap-0.5'
 const LOCK = 'inline-flex items-center gap-1.25 [font-family:var(--chat-mono)] text-[0.65625rem] text-chat-dim'
-const HEADLINE = 'flex flex-wrap items-baseline gap-x-2'
+const HEADLINE = 'flex min-w-0 items-baseline gap-x-2'
+const NOTE = 'flex-1 min-w-0 truncate [font-family:var(--chat-mono)] text-[0.65625rem] text-chat-dim'
 const ERROR = 'text-[0.75rem] leading-[1.35] text-chat-danger'
 const SECTION = `${CARD} overflow-hidden`
 const SECTION_DANGER = '[border-color:color-mix(in_oklch,var(--chat-danger)_35%,transparent)]'
@@ -52,7 +53,7 @@ export function Group(props: GroupProps): JSX.Element {
               {props.title}
             </h3>
             <Show when={note()}>
-              <span class={LOCK}>{note()}</span>
+              <span class={NOTE}>{note()}</span>
             </Show>
           </span>
           <Show when={props.description}>
@@ -74,7 +75,7 @@ function RowText(props: RowTextProps): JSX.Element {
       <span class={HEADLINE}>
         <Field.Label class={LABEL}>{props.label}</Field.Label>
         <Show when={props.note}>
-          <span class={LOCK}>{props.note}</span>
+          <span class={NOTE}>{props.note}</span>
         </Show>
       </span>
       <Show when={props.hint}>
