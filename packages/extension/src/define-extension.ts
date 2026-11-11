@@ -106,12 +106,10 @@ export type AnyExtension = ExtensionBuilder<
   ExtensionSettingsSchema
 >
 
-type RegisteredConfig<Schema extends z.ZodType> = [Schema] extends [z.ZodNever] ? never : z.input<Schema>
-
 export type RegisterExtension<Extension> =
   Extension extends ExtensionBuilder<
     infer Name,
-    infer Schema,
+    infer _Schema,
     infer Tools,
     infer _Attachments,
     infer ClientValue,
@@ -119,7 +117,6 @@ export type RegisterExtension<Extension> =
   >
     ? {
         [Key in Name]: {
-          config: RegisteredConfig<Schema>
           context: ClientValue
           tools: RegisteredTools<Tools>
         }

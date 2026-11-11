@@ -341,12 +341,14 @@ features: [rpc-and-testing](references/rpc-and-testing.md).
 
 ## Installing a published extension (someone else's, or your own)
 
-A published extension is one dependency plus a one-line re-export stub whose basename becomes the
-discovery key — `conciv/extensions/tanstack.tsx` containing only `export {default} from
-'@conciv/extension-tanstack'`. Publishing your own follows the same conditional-exports shape:
-`browser` condition → client build, `import` condition → server build (see
-`apps/site/content/docs/extending/install-first-party.mdx` for the exact `package.json` `exports`
-block and the Next.js-specific JSX constraint on local, non-installed extensions).
+A published extension is one dependency plus one entry in the conciv options. Its default export is
+a factory: `conciv({extensions: [tanstack()]})` on Vite, `withConciv(nextConfig, {extensions:
+[tanstack()]})` on Next.js. The factory validates its options with zod and returns `{server, client,
+config}`: absolute paths to the package's own `./server` and `./client` entries, plus the parsed
+options. Publishing your own follows the same shape: a `src/index.ts` factory as the `.` export, and
+`./server` and `./client` subpaths (see `apps/site/content/docs/extending/install-first-party.mdx`
+for the exact `package.json` `exports` block and the Next.js-specific JSX constraint on local,
+non-installed extensions).
 
 ## Red flags — stop and fix
 
