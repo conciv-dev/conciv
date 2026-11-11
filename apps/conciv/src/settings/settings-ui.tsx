@@ -53,7 +53,9 @@ export function Group(props: GroupProps): JSX.Element {
               {props.title}
             </h3>
             <Show when={note()}>
-              <span class={NOTE}>{note()}</span>
+              <span class={NOTE} title={note()}>
+                {note()}
+              </span>
             </Show>
           </span>
           <Show when={props.description}>
@@ -75,7 +77,9 @@ function RowText(props: RowTextProps): JSX.Element {
       <span class={HEADLINE}>
         <Field.Label class={LABEL}>{props.label}</Field.Label>
         <Show when={props.note}>
-          <span class={NOTE}>{props.note}</span>
+          <span class={NOTE} title={props.note}>
+            {props.note}
+          </span>
         </Show>
       </span>
       <Show when={props.hint}>
