@@ -55,17 +55,9 @@ type SettingsForNamespace<NS extends string> = NS extends keyof SettingsRegistry
 - One Devframe shared state per (scope, namespace) on the engine, opened lazily (the file is read once), shared by every caller. The
   state holds the wire snapshot `{generation, version, value}`; `set`/`delete` are `mutate` calls that bump `version`, and every
   `updated` event schedules the debounced write of that snapshot's `value`, the way Devframe's `createStorage` does.
-- Two engines can share one home (two projects open at once), so the global scope is watched: the engine calls
-  unstorage's `watch()` on the global storage once (chokidar under the `fs` driver; `memory` and `null` drivers
-  do not watch) and, for a changed key with an open file, reads the saved value. If it equals the state's value
-  (the engine's own write echoing back) nothing happens; otherwise the state takes it as its next version, tagged
-  with a disk sync id so it is not written back. An unreadable file on a later read logs a warning and keeps the
-  state. Engine dispose stops the watch and flushes the pending write. Project files have one owning engine and
-  are not watched.
-- Remaining race, accepted (no locks, by decision): two engines saving the same global file at nearly the same
-  moment each write their whole value, and the last write wins; the other engine then takes that value. The same holds for
-  one engine's own edit made between its previous write and that write's watch echo: the echo briefly shows the
-  previous value, and the pending write of the newer edit lands next and its echo restores it.
+- Each engine reads a settings file once, when it opens it; a change made by another engine or by hand shows up
+  after this engine restarts (Devframe's behaviour). Two engines saving the same global file each write their whole
+  value, and the last write wins. Engine dispose flushes the pending write.
 
 ## Wire (conciv oRPC)
 
