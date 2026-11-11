@@ -1,7 +1,7 @@
 import {Show, createEffect, onCleanup, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
-import {useQuery, engineProbeRefetchInterval, voteEngineProbeSettled} from '@conciv/client'
-import {useRouteContext, useRouter, useSearch} from '@tanstack/solid-router'
+import {useQuery} from '@conciv/client'
+import {useRouteContext, useRouter} from '@tanstack/solid-router'
 import {resetBrowserRpcConnection} from '@conciv/contract'
 import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
 import lt from 'semver/functions/lt'
@@ -28,33 +28,18 @@ const ENGINE_UNREACHABLE_MESSAGE = 'conciv lost connection to the engine.'
 export function EngineStaleNotice(): JSX.Element {
   const appData = useAppData()
   const connected = useConnected()
-  const reachability = useEngineReachability()
   const notices = useNotices()
-  const router = useRouter({warn: false})
-  const search = router ? useSearch({strict: false}) : undefined
-  const engine = useQuery(() => {
-    const online = reachability.online()
-    const panelOpen = search?.()?.open === true
-    return {
-      ...appData.utils.meta.engine.queryOptions(),
-      enabled: connected(),
-      networkMode: 'always',
-      refetchInterval: () => engineProbeRefetchInterval(online, panelOpen),
-    }
-  })
+  const engine = useQuery(() => ({
+    ...appData.utils.meta.engine.queryOptions(),
+    enabled: connected(),
+    refetchOnReconnect: 'always',
+  }))
   const standing = {fingerprint: null as string | null}
   const clear = (): void => {
     if (standing.fingerprint === null) return
     notices.remove(standing.fingerprint)
     standing.fingerprint = null
   }
-  const lastSettle = {at: 0}
-  createEffect(() => {
-    const settledAt = engine.dataUpdatedAt
-    if (settledAt === lastSettle.at) return
-    lastSettle.at = settledAt
-    voteEngineProbeSettled(engine.isSuccess, engine.error)
-  })
   createEffect(() => {
     const reading = engine.data
     if (reading === undefined) return
