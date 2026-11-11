@@ -15,7 +15,7 @@ import {
 } from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {Key} from '@solid-primitives/keyed'
-import {isEqual} from 'es-toolkit'
+import {isEqual, takeRightWhile} from 'es-toolkit'
 import ArrowDown from 'lucide-solid/icons/arrow-down'
 import {TruncatedTextGroup} from '@conciv/ui-kit-system'
 import type {ChatPart, ToolCallPart} from '@conciv/protocol/chat-message-types'
@@ -140,6 +140,16 @@ function planBody(part: () => Extract<ChatPart, {type: 'thinking'}>): (() => JSX
   return () => <TraceBodyFrame>{text}</TraceBodyFrame>
 }
 
+function outsideCallsMarkdown(turns: readonly Turn[]): string {
+  return turns
+    .flatMap((turn) =>
+      turn.parts.flatMap((part) =>
+        part.type === 'tool-call' ? [`\`\`\`\n${part.name}(${part.arguments})\n\`\`\``] : [],
+      ),
+    )
+    .join('\n\n')
+}
+
 function useOutsideAt(): (offset: number) => boolean {
   const message = useMessage()
   const thread = useThread()
@@ -191,6 +201,12 @@ function AssistantTurn(props: {
   const outsideAt = useOutsideAt()
   const outside = createMemo(() => outsideAt(0))
   const joinsBelow = createMemo(() => outside() && outsideAt(1))
+  const outsideRunText = () =>
+    outsideCallsMarkdown(
+      takeRightWhile(thread.turns.slice(0, message.index() + 1), (item) => isOutsideTurn(item.turn())).map((item) =>
+        item.turn(),
+      ),
+    )
   const folded = () => !message.isLast() && !outside()
   const ChainGroup = (groupProps: GroupRenderProps): JSX.Element => {
     const segmentItems = createMemo(() =>
@@ -341,9 +357,12 @@ function AssistantTurn(props: {
     <Message.Root data-conciv-msg class={ASSISTANT_ROOT_CLASS}>
       <NodeListView nodes={nodes()} />
       <Message.Error />
-      <Show when={!runActive() && !outside()}>
+      <Show when={!runActive() && !joinsBelow()}>
         <div class={ANSWER_ACTION_ROW_CLASS}>
-          <AssistantActionBar readOnly={config.readOnly()} />
+          <AssistantActionBar
+            readOnly={config.readOnly() || outside()}
+            copyText={outside() ? outsideRunText() : undefined}
+          />
         </div>
       </Show>
     </Message.Root>
