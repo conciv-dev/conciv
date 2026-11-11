@@ -1,4 +1,4 @@
-import {and, desc, eq, inArray, isNull, type SQL} from 'drizzle-orm'
+import {and, desc, eq, inArray, type SQL} from 'drizzle-orm'
 import {z} from 'zod'
 import type {RunStatus} from '@conciv/protocol/chat-event-types'
 import type {TranscriptUsage} from '@conciv/protocol/harness-types'
@@ -20,23 +20,6 @@ export function createSessionRuns(input: {
   const {runs, rounds} = storeTables
   const held = new Map<string, {harnessSessionId: string | null; run: Promise<number>}>()
   const opened: {last: {sessionId: string; run: Promise<number>} | null} = {last: null}
-
-  async function resumed(request: RunRequest): Promise<number> {
-    const harnessSessionId = request.harnessSessionId ?? null
-    const [running] = await orm
-      .select({run: runs.run_id})
-      .from(runs)
-      .where(
-        and(
-          eq(runs.session, request.sessionId),
-          eq(runs.status, RUNNING),
-          harnessSessionId === null ? isNull(runs.harness_session_id) : eq(runs.harness_session_id, harnessSessionId),
-        ),
-      )
-      .orderBy(desc(runs.run_id))
-      .limit(1)
-    return running?.run ?? inserted(request)
-  }
 
   async function inserted(request: RunRequest): Promise<number> {
     const external = request.harnessSessionId !== undefined
@@ -96,7 +79,7 @@ export function createSessionRuns(input: {
       const harnessSessionId = request.harnessSessionId ?? null
       const known = held.get(request.sessionId)
       if (known !== undefined && known.harnessSessionId === harnessSessionId) return known.run
-      const opening = resumed(request)
+      const opening = inserted(request)
       held.set(request.sessionId, {harnessSessionId, run: opening})
       opened.last = {sessionId: request.sessionId, run: opening}
       opening.catch(() => held.delete(request.sessionId))

@@ -2175,7 +2175,7 @@ describe('a run closes with its session', () => {
 })
 
 describe('a run is one agent conversation', () => {
-  it('opens one run per claude session the CLI names on one tab, and fills each from its own transcript at close', async () => {
+  it('opens a run per claude conversation the CLI names on one tab, a new one when another conversation took the tab, and fills each from its own transcript at close', async () => {
     const homeDir = await tempDir('conciv-design-agents-home-')
     const engine = await bootDesignHost({homeDir})
     const {session} = engine
@@ -2186,7 +2186,7 @@ describe('a run is one agent conversation', () => {
     const check = (agent: HarnessSessionId) =>
       promisify(execFile)(
         process.execPath,
-        [fileURLToPath(import.meta.resolve('@conciv/cli/bin')), 'tools', 'design', 'check', '--tab', session],
+        [fileURLToPath(import.meta.resolve('@conciv/cli/bin')), 'tools', 'design', 'check'],
         {
           cwd: engine.stateRoot,
           env: {
@@ -2194,6 +2194,7 @@ describe('a run is one agent conversation', () => {
             CONCIV_PORT: new URL(engine.apiBase).port,
             CONCIV_TOKEN: engine.token,
             CONCIV_SESSION_ID: '',
+            CONCIV_HOME: homeDir,
             CLAUDECODE: '1',
             CLAUDE_CODE_SESSION_ID: agent,
           },
@@ -2202,9 +2203,10 @@ describe('a run is one agent conversation', () => {
     try {
       await engine.goto('target')
       await engine.call('design_get', await cardsDesign(engine.targetsDir))
-      await check(first)
-      await check(second)
-      await check(first)
+      const printed = [await check(first), await check(second), await check(first)]
+      expect(printed.map((each) => JSON.parse(each.stdout))).toEqual(
+        Array.from({length: 3}, () => expect.objectContaining({ok: true})),
+      )
       await mkdir(join(transcript, '..'), {recursive: true})
       await writeFile(transcript, syntheticTranscript(new Date().toISOString()))
       await engine.rpc.sessions.take({sessionId: session, pid: process.pid})
@@ -2223,29 +2225,31 @@ describe('a run is one agent conversation', () => {
         ],
       })
       const closed = {status: 'aborted', model: null, usage: null, cost: null, error_code: 'no-transcript'}
+      const read = {
+        harness_session_id: first,
+        status: 'aborted',
+        model: 'claude-sonnet-4-5',
+        usage: {
+          promptTokens: 134,
+          completionTokens: 12,
+          totalTokens: 146,
+          promptTokensDetails: {cachedTokens: 100, cacheWriteTokens: 20},
+          cost: 0.75,
+        },
+        cost: 0.75,
+        error_code: null,
+      }
       expect(stored).toEqual([
         {...closed, harness_session_id: null},
-        {
-          harness_session_id: first,
-          status: 'aborted',
-          model: 'claude-sonnet-4-5',
-          usage: {
-            promptTokens: 134,
-            completionTokens: 12,
-            totalTokens: 146,
-            promptTokensDetails: {cachedTokens: 100, cacheWriteTokens: 20},
-            cost: 0.75,
-          },
-          cost: 0.75,
-          error_code: null,
-        },
+        read,
         {...closed, harness_session_id: second},
+        read,
       ])
       const checks = await homeQuery({
         home: homeDir,
         args: ['--from', 'design_stored_rounds', '--where', `session == "${session}"`, '--select', fields('run')],
       })
-      expect(new Set(checks.map((row) => row.run)).size).toBe(2)
+      expect(new Set(checks.map((row) => row.run)).size).toBe(3)
     } finally {
       await engine.dispose()
       await rm(transcript, {force: true})

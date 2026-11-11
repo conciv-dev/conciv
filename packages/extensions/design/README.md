@@ -135,8 +135,8 @@ Every design session is recorded in one store, `<conciv home>/runs.db`, migrated
   chat) is keyed on its tab session. The first `design_get` or `design_check` of a conversation on a tab opens a
   `running` run with `harness_session_id` and its provenance: `session` (the tab), `model` (the tab's model for a
   widget chat run, null for an agent run until its close), `harness`, `agent_id`, `project_key`, `branch`, `head`, and
-  the tools head, version and fingerprint. Another conversation on the same tab opens its own run; a conversation that
-  comes back to the tab finds its running run again. Its targets, rounds, rows and tool calls are written there as
+  the tools head, version and fingerprint. Another conversation on the same tab opens its own run, and so does a
+  conversation that comes back after another one took the tab (the tab's current run is always its newest). Its targets, rounds, rows and tool calls are written there as
   they happen.
 - Every per-run table carries `run` and `session`; per-check tables also `target`, `round` and, where it applies,
   `width`, so `--where 'session == "..."'` works on every source.
