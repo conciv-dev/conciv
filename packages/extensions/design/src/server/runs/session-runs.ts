@@ -1,6 +1,7 @@
 import {and, desc, eq} from 'drizzle-orm'
 import {z} from 'zod'
 import type {RunStatus} from '@conciv/protocol/chat-event-types'
+import type {TranscriptUsage} from '@conciv/protocol/harness-types'
 import {tokenUsageToSnapshot, type TokenUsage} from '@conciv/protocol/usage-types'
 import type {ToolRequest} from '@conciv/extension'
 import {RUN_VERDICTS} from '../../shared/run-verdicts.js'
@@ -15,6 +16,7 @@ export function createSessionRuns(input: {
   extensionDir: string
   labels: {wave: string | null; lane: string | null; arm: Arm}
   harness: (sessionId: string) => string
+  transcript: (sessionId: string, window: {from: number; to: number}) => Promise<TranscriptUsage | null>
 }) {
   const {orm, cwd, extensionDir, labels} = input
   const {runs, rounds} = storeTables
@@ -42,11 +44,11 @@ export function createSessionRuns(input: {
   async function close(sessionId: string, state: Closed): Promise<void> {
     held.delete(sessionId)
     const open = await orm
-      .select({run: runs.run_id})
+      .select({run: runs.run_id, started: runs.started, model: runs.model})
       .from(runs)
       .where(and(eq(runs.session_id, sessionId), eq(runs.status, RUNNING)))
     await Promise.all(
-      open.map(async ({run}) => {
+      open.map(async ({run, started, model}) => {
         const [last] = await orm
           .select({verdict: rounds.verdict})
           .from(rounds)
@@ -54,15 +56,22 @@ export function createSessionRuns(input: {
           .orderBy(desc(rounds.seq))
           .limit(1)
         const verdict = VerdictSchema.parse(last?.verdict?.replaceAll(' ', '-') ?? null)
+        const read =
+          state.usage === undefined
+            ? await input.transcript(sessionId, {from: started, to: state.ended}).catch(() => null)
+            : null
+        const usage = state.usage ?? read?.usage
         await orm
           .update(runs)
           .set({
             status: typeof state.status === 'function' ? state.status(verdict) : state.status,
             ended: state.ended,
-            usage: state.usage ?? null,
-            cost: state.usage === undefined ? null : (tokenUsageToSnapshot(state.usage).totalCostUsd ?? null),
+            model: model ?? read?.model ?? null,
+            usage: usage ?? null,
+            cost: usage === undefined ? null : (tokenUsageToSnapshot(usage).totalCostUsd ?? read?.cost ?? null),
+            harness_session_id: read?.nativeId ?? null,
             error: state.error?.message ?? null,
-            error_code: state.error?.code ?? null,
+            error_code: state.error?.code ?? (state.error === undefined && usage === undefined ? NO_TRANSCRIPT : null),
             verdict,
           })
           .where(and(eq(runs.run_id, run), eq(runs.status, RUNNING)))
@@ -107,5 +116,7 @@ type Closed = {
 }
 
 const RUNNING = 'running'
+
+const NO_TRANSCRIPT = 'no-transcript'
 
 const VerdictSchema = z.enum(RUN_VERDICTS).nullable().catch(null)

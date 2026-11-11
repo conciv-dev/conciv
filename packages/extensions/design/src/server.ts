@@ -70,6 +70,7 @@ const design = defineExtension({
     extensionDir,
     labels: config.runs,
     harness: (sessionId) => server.harness(SessionId.parse(sessionId)).id,
+    transcript: (sessionId, window) => server.sessions.transcript(SessionId.parse(sessionId), window),
   })
   const componentSources = {'vite-oxc': createViteOxcSource()}
   const catalog = createCatalog({

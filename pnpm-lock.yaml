@@ -3907,6 +3907,9 @@ importers:
       '@conciv/extension-testkit':
         specifier: workspace:^
         version: link:../extension-testkit
+      '@conciv/harness':
+        specifier: workspace:^
+        version: link:../harness
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit

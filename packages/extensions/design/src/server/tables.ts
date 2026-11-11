@@ -68,6 +68,7 @@ export function designTables(table: SQLiteTableFn) {
       usage: text({mode: 'json'}).$type<TokenUsage>(),
       error: text(),
       error_code: text(),
+      harness_session_id: text(),
     },
     (self) => [
       uniqueIndex('runs_source').on(self.source_path, self.source_run_id),

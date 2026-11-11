@@ -15,6 +15,7 @@ export const runSummaryView = sqliteView('run_summary', {
   usage: text({mode: 'json'}),
   error: text(),
   error_code: text(),
+  harness_session_id: text(),
   minutes: real(),
   duration_ms: integer(),
   run_verdict: text(),
@@ -32,7 +33,7 @@ export const runSummaryView = sqliteView('run_summary', {
   checks: integer().notNull(),
 })
   .as(sql`SELECT r.run_id, r.wave, r.lane, r.model, r.harness, r.agent_id, r.arm, r.status, r.ended, r.cost, r.usage, r.error, r.error_code,
-  (r.ended - r.started) / 60000.0 AS minutes, r.ended - r.started AS duration_ms, r.verdict AS run_verdict,
+  r.harness_session_id, (r.ended - r.started) / 60000.0 AS minutes, r.ended - r.started AS duration_ms, r.verdict AS run_verdict,
   t.target_id, t.width, last.round, last.verdict, last.rows_count AS rows, last.much, last.noticeably, last.slightly,
   last.reflow, last.paint, last.pixel_share AS pixels,
   (SELECT count(*) FROM design_tool_calls c

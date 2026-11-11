@@ -1,3 +1,6 @@
+import {mkdtempSync, realpathSync} from 'node:fs'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
 import {defineConfig} from 'vitest/config'
 import {ciTest} from '@conciv/vitest-config'
 
@@ -29,6 +32,7 @@ export default defineConfig({
           testTimeout: 120_000,
           hookTimeout: 120_000,
           fileParallelism: false,
+          env: {CLAUDE_CONFIG_DIR: join(realpathSync(mkdtempSync(join(tmpdir(), 'conciv-design-claude-'))), 'claude')},
         },
       },
     ],

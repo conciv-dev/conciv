@@ -31,7 +31,8 @@ import {
   type Round,
 } from '@conciv/extension-design/defs'
 import {DESIGN_TOOLS} from '@conciv/extension-design/design-tools'
-import {TabsSchema} from '@conciv/protocol/chat-types'
+import {HarnessSessionId, TabsSchema} from '@conciv/protocol/chat-types'
+import {claude} from '@conciv/harness/claude'
 import {designConfig} from '../../extensions/design/src/shared/tolerances.js'
 import {walk} from '../../extensions/design/src/shared/tree.js'
 import {createStore} from '../../extensions/design/src/server/store.js'
@@ -2060,6 +2061,111 @@ describe('a run closes with its session', () => {
     }
   })
 })
+
+describe('a run closes from its harness transcript', () => {
+  it('fills the model, usage and cost of an external session run from its claude transcript and names the transcript', async () => {
+    const homeDir = await tempDir('conciv-design-transcript-home-')
+    const engine = await bootDesignHost({homeDir})
+    const {session} = engine
+    const nativeId = HarnessSessionId.parse(`design-transcript-${process.pid}`)
+    const transcript = claude.history?.transcriptPath?.(HOST_ROOT, nativeId)
+    if (transcript === undefined) throw new Error('the claude harness names no transcript path')
+    try {
+      await engine.goto('target')
+      await engine.rpc.sessions.take({sessionId: session, pid: process.pid})
+      await engine.call('design_get', await cardsDesign(engine.targetsDir))
+      await mkdir(join(transcript, '..'), {recursive: true})
+      await writeFile(transcript, syntheticTranscript(new Date().toISOString()))
+      await engine.rpc.sessions.detach({pid: process.pid})
+      const [stored] = await homeQuery({
+        home: homeDir,
+        args: [
+          '--from',
+          'design_stored_runs',
+          '--where',
+          `session_id == "${session}"`,
+          '--select',
+          'run,model,usage,cost,harness_session_id,error_code',
+        ],
+      })
+      expect(stored).toEqual({
+        run: expect.any(Number),
+        model: 'claude-sonnet-4-5',
+        usage: {
+          promptTokens: 134,
+          completionTokens: 12,
+          totalTokens: 146,
+          promptTokensDetails: {cachedTokens: 100, cacheWriteTokens: 20},
+          cost: 0.75,
+        },
+        cost: 0.75,
+        harness_session_id: nativeId,
+        error_code: null,
+      })
+      const summary = await homeQuery({
+        home: homeDir,
+        args: [
+          '--from',
+          'design_run_summary',
+          '--where',
+          `run == ${String(stored?.run)}`,
+          '--select',
+          'harness_session_id',
+        ],
+      })
+      expect(summary).toEqual([{harness_session_id: nativeId}])
+    } finally {
+      await engine.dispose()
+      await rm(transcript, {force: true})
+    }
+  })
+
+  it('records no-transcript on an external session run that has no transcript, with model, usage and cost null', async () => {
+    const homeDir = await tempDir('conciv-design-no-transcript-home-')
+    const engine = await bootDesignHost({homeDir})
+    const {session} = engine
+    try {
+      await engine.goto('target')
+      await engine.rpc.sessions.take({sessionId: session, pid: process.pid})
+      await engine.call('design_get', await cardsDesign(engine.targetsDir))
+      await engine.rpc.sessions.detach({pid: process.pid})
+      const stored = await homeQuery({
+        home: homeDir,
+        args: [
+          '--from',
+          'design_stored_runs',
+          '--where',
+          `session_id == "${session}"`,
+          '--select',
+          'model,usage,cost,harness_session_id,error,error_code',
+        ],
+      })
+      expect(stored).toEqual([
+        {model: null, usage: null, cost: null, harness_session_id: null, error: null, error_code: 'no-transcript'},
+      ])
+    } finally {
+      await engine.dispose()
+    }
+  })
+})
+
+function syntheticTranscript(timestamp: string): string {
+  const assistant = (id: string, model: string, usage: Record<string, number>) =>
+    JSON.stringify({type: 'assistant', timestamp, message: {id, model, role: 'assistant', content: [], usage}})
+  return [
+    JSON.stringify({type: 'user', timestamp, message: {role: 'user', content: 'build the page'}}),
+    assistant('m1', 'claude-sonnet-4-5', {
+      input_tokens: 10,
+      output_tokens: 5,
+      cache_read_input_tokens: 100,
+      cache_creation_input_tokens: 20,
+    }),
+    assistant('m2', 'claude-sonnet-4-5', {input_tokens: 3, output_tokens: 6}),
+    assistant('m3', 'claude-haiku-4-5', {input_tokens: 1, output_tokens: 1}),
+    JSON.stringify({type: 'result', total_cost_usd: 0.5}),
+    JSON.stringify({type: 'result', total_cost_usd: 0.25}),
+  ].join('\n')
+}
 
 describe('design_check through the CLI', () => {
   it('measures the one open tab when the session the engine resolves last is not the one the tab shows', async () => {

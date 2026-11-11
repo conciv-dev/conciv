@@ -144,8 +144,15 @@ Every design session is recorded in one store, `<conciv home>/runs.db`, migrated
 - An external session (an agent connected through the hub) has no chat run, so no turn end closes its run. The hub
   holds the session from its first `use_tab`, and the run closes when the engine ends that session (`sessionEnd`):
   the hub detaches when its agent exits, a boot finds the hub's pid dead, or the engine is disposed. It closes
-  `completed` when its last round's verdict is `done`, else `aborted`, with `ended`. Its `usage` and `cost` stay
-  null: the engine records no usage for an external agent.
+  `completed` when its last round's verdict is `done`, else `aborted`, with `ended`.
+- A run that closes without usage from the chat server (an external session, or a turn end that carried none) takes
+  `model`, `usage` and `cost` from its harness transcript (`server.sessions.transcript`, for Claude
+  `history.transcriptUsage` in `@conciv/harness`): the transcript the session row names as its harness session id,
+  else the newest whose first record falls between the run's `started` and `ended`. `model` is kept when the run opened
+  with one, else the model of most assistant messages; `usage` is their summed usage; `cost` is the summed
+  `total_cost_usd` of the transcript's result records, null when it has none. The transcript's id is stored as
+  `harness_session_id`, in `design_stored_runs` and `design_run_summary`. A run with no transcript keeps the three null
+  and gets `error_code` `no-transcript` when it has no other error. Harnesses other than Claude read no transcript usage.
 
 Commands, all home scope:
 
