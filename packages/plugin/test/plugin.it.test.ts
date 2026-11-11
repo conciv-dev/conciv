@@ -457,21 +457,28 @@ describe('extensions watch', () => {
 describe('inject source hook', () => {
   const ROOT = '/proj'
 
-  function transformViaHook(peerPlugins: {name: string}[]): {code: string} | null {
+  function callHook(hook: unknown, args: unknown[]): unknown {
+    const handler = typeof hook === 'object' && hook !== null && 'handler' in hook ? hook.handler : hook
+    if (typeof handler !== 'function') throw new Error('plugin has no such hook')
+    return Reflect.apply(handler, undefined, args)
+  }
+
+  function codeOf(result: unknown): string | undefined {
+    if (typeof result !== 'object' || result === null || !('code' in result)) return undefined
+    return typeof result.code === 'string' ? result.code : undefined
+  }
+
+  function concivHook(
+    root: string,
+    plugins: {name: string}[],
+  ): (code: string, file: string, ssr: boolean) => string | undefined {
     const hook = makeViteHook({enabled: true})
-    const configResolved = hook.configResolved
-    if (typeof configResolved === 'function')
-      configResolved.call({} as never, {root: ROOT, plugins: peerPlugins} as never)
-    const transform = hook.transform
-    const run = typeof transform === 'function' ? transform : transform?.handler
-    if (!run) throw new Error('conciv plugin has no transform')
-    const result = run.call(
-      {} as never,
-      'export const A = () => <div>hi</div>\n',
-      `${ROOT}/src/App.tsx`,
-      undefined as never,
-    )
-    return result as {code: string} | null
+    callHook(hook.configResolved, [{root, plugins}])
+    return (code, file, ssr) => codeOf(callHook(hook.transform, [code, file, {ssr}]))
+  }
+
+  function transformViaHook(peerPlugins: {name: string}[]): string | undefined {
+    return concivHook(ROOT, peerPlugins)('export const A = () => <div>hi</div>\n', `${ROOT}/src/App.tsx`, false)
   }
 
   const reactPlugin: Plugin = {name: 'vite:react'}
@@ -479,44 +486,35 @@ describe('inject source hook', () => {
   describe('makeViteHook source injection', () => {
     it('resolves the injected extensions script URL into the module graph', async () => {
       const hook = makeViteHook({enabled: true})
-      const resolveId = hook.resolveId
-      const run = typeof resolveId === 'function' ? resolveId : resolveId?.handler
-      if (!run) throw new Error('conciv plugin has no resolveId')
-      const out = await run.call({} as never, `${EXTENSIONS_ROUTE}?v=1`, undefined as never, {} as never)
+      const out = await callHook(hook.resolveId, [`${EXTENSIONS_ROUTE}?v=1`, undefined, {}])
       expect(out).toBe(EXTENSIONS_RESOLVED_ID)
     })
 
     it('stamps data-conciv-source when no @tanstack/devtools source injector is present', () => {
-      const out = transformViaHook([reactPlugin])
-      expect(out?.code).toContain('data-conciv-source=')
+      expect(transformViaHook([reactPlugin])).toContain('data-conciv-source=')
     })
 
-    async function throughDevtools(raw: string): Promise<{
-      file: string
-      tsdCode: string
-      conciv: (code: string, ssr: boolean) => Promise<{code: string} | null>
-    }> {
+    async function devtoolsStamped(
+      raw: string,
+    ): Promise<{root: string; file: string; tsdCode: string; plugins: Plugin[]}> {
       const root = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-tsd-')))
       const file = join(root, 'src', 'App.tsx')
       mkdirSync(dirname(file), {recursive: true})
       writeFileSync(file, raw)
       const plugins = devtools()
       const injector = plugins.find((plugin) => plugin.name === '@tanstack/devtools:inject-source')
-      const injectTransform = injector?.transform
-      const inject = typeof injectTransform === 'function' ? injectTransform : injectTransform?.handler
-      if (!inject) throw new Error('@tanstack/devtools has no inject-source transform')
-      const injected = await inject.call({} as never, raw, file, undefined as never)
-      const tsdCode = typeof injected === 'object' && injected !== null && 'code' in injected ? injected.code : ''
-      const hook = makeViteHook({enabled: true})
-      const configResolved = hook.configResolved
-      if (typeof configResolved === 'function')
-        configResolved.call({} as never, {root, plugins: [reactPlugin, ...plugins]} as never)
-      const transform = hook.transform
-      const run = typeof transform === 'function' ? transform : transform?.handler
-      if (!run) throw new Error('conciv plugin has no transform')
-      const conciv = async (code: string, ssr: boolean): Promise<{code: string} | null> =>
-        (await run.call({} as never, code, file, {ssr} as never)) as {code: string} | null
-      return {file, tsdCode: String(tsdCode), conciv}
+      const tsdCode = codeOf(await callHook(injector?.transform, [raw, file, undefined])) ?? ''
+      return {root, file, tsdCode, plugins}
+    }
+
+    async function throughDevtools(raw: string): Promise<{
+      file: string
+      tsdCode: string
+      conciv: (code: string, ssr: boolean) => string | undefined
+    }> {
+      const {root, file, tsdCode, plugins} = await devtoolsStamped(raw)
+      const transform = concivHook(root, [reactPlugin, ...plugins])
+      return {file, tsdCode, conciv: (code, ssr) => transform(code, file, ssr)}
     }
 
     const keysOf = (code: string | undefined): string[] =>
@@ -531,20 +529,20 @@ describe('inject source hook', () => {
       )
       expect(tsdCode).toContain('data-tsd-source=')
 
-      const out = await conciv(tsdCode, false)
+      const out = conciv(tsdCode, false)
 
-      expect(out?.code).toContain('data-tsd-source=')
-      expect(out?.code).toContain('data-conciv-source="src/App.tsx:1:26"')
-      expect(out?.code).toContain('data-conciv-source="src/App.tsx:1:48"')
-      expect(keysOf(out?.code)).toHaveLength(2)
+      expect(out).toContain('data-tsd-source=')
+      expect(out).toContain('data-conciv-source="src/App.tsx:1:26"')
+      expect(out).toContain('data-conciv-source="src/App.tsx:1:48"')
+      expect(keysOf(out)).toHaveLength(2)
     })
 
     it('serves the server render and the client render of one file the same keys, and leaves the file as it was', async () => {
       const raw = 'export const App = () => <main className="app"><p>hi</p></main>\n'
       const {file, tsdCode, conciv} = await throughDevtools(raw)
 
-      const server = keysOf((await conciv(tsdCode, true))?.code)
-      const client = keysOf((await conciv(tsdCode, false))?.code)
+      const server = keysOf(conciv(tsdCode, true))
+      const client = keysOf(conciv(tsdCode, false))
 
       expect(server).toHaveLength(2)
       expect(client).toEqual(server)
@@ -556,11 +554,11 @@ describe('inject source hook', () => {
       const edited =
         'export const App = () => (\n  <main className="app">\n    <h2>new</h2>\n    <p className="b">hi</p>\n  </main>\n)\n'
       const {file, conciv} = await throughDevtools(raw)
-      const [main, p] = keysOf((await conciv(raw, false))?.code)
+      const [main, p] = keysOf(conciv(raw, false))
       expect(readFileSync(file, 'utf8')).toBe(raw)
 
       writeFileSync(file, edited)
-      const after = keysOf((await conciv(edited, false))?.code)
+      const after = keysOf(conciv(edited, false))
 
       expect(readFileSync(file, 'utf8')).toBe(edited)
       expect(after).toHaveLength(3)
