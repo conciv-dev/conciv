@@ -20,7 +20,8 @@ import {collectClientTools} from '@conciv/extension'
 import {makeDomPageDriver} from '@conciv/page'
 import {Menu} from '@conciv/ui-kit-system'
 import pageExtension from '../src/client.js'
-import {endTask, mountSimulator} from '../src/client/simulator.js'
+import {endTask, mountSimulator, startTask} from '../src/client/simulator.js'
+import {aimCursor, CursorLook, dropCursor, windowAt} from '../src/client/agent-cursor.js'
 
 describe('act card body nonempty', () => {
   function errorResult(toolCallId: string, message: string): ToolResultPart {
@@ -721,5 +722,40 @@ describe('the agent acts on the page like a person', () => {
     )
     expect(await act('fill', {selector: '#name', value: 'Grace'})).toMatchObject({ok: true})
     await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).toBeVisible()
+  })
+})
+
+describe('the agent cursor always arrives', () => {
+  const AGENT = 'cursor-session'
+
+  function mountedAgent(): void {
+    const host = document.createElement('div')
+    host.setAttribute('data-conciv-root', '')
+    document.body.append(host)
+    onTestFinished(() => host.remove())
+    onTestFinished(mountSimulator({root: host.attachShadow({mode: 'open'}), session: () => AGENT, onStop: endTask}))
+    startTask(AGENT)
+    onTestFinished(endTask)
+  }
+
+  it('an aim replaced by a newer one settles instead of hanging', async () => {
+    mountedAgent()
+    const first = aimCursor({id: AGENT, at: windowAt({x: 10, y: 10}), look: CursorLook.AGENT})
+    const second = aimCursor({id: AGENT, at: windowAt({x: 200, y: 200}), look: CursorLook.AGENT})
+    await expect(Promise.all([first, second])).resolves.toEqual([undefined, undefined])
+  })
+
+  it('an aim whose cursor is dropped settles', async () => {
+    mountedAgent()
+    const aimed = aimCursor({id: AGENT, at: windowAt({x: 300, y: 40}), look: CursorLook.AGENT})
+    dropCursor(AGENT)
+    await expect(aimed).resolves.toBeUndefined()
+  })
+
+  it('an aim at a point off the screen settles at once', async () => {
+    mountedAgent()
+    await expect(
+      aimCursor({id: AGENT, at: windowAt({x: -500, y: -500}), look: CursorLook.AGENT}),
+    ).resolves.toBeUndefined()
   })
 })
