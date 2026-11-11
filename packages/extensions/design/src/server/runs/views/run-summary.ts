@@ -3,6 +3,8 @@ import {integer, real, text, sqliteView} from 'drizzle-orm/sqlite-core'
 
 export const runSummaryView = sqliteView('run_summary', {
   run_id: integer().notNull(),
+  wave: text(),
+  lane: text(),
   model: text(),
   harness: text(),
   agent_id: text(),
@@ -27,7 +29,8 @@ export const runSummaryView = sqliteView('run_summary', {
   paint: integer().notNull(),
   pixels: real(),
   checks: integer().notNull(),
-}).as(sql`SELECT r.run_id, r.model, r.harness, r.agent_id, r.arm, r.status, r.cost, r.usage, r.error, r.error_code,
+})
+  .as(sql`SELECT r.run_id, r.wave, r.lane, r.model, r.harness, r.agent_id, r.arm, r.status, r.cost, r.usage, r.error, r.error_code,
   (r.ended - r.started) / 60000.0 AS minutes, r.ended - r.started AS duration_ms, r.verdict AS run_verdict,
   t.target_id, t.width, last.round, last.verdict, last.rows_count AS rows, last.much, last.noticeably, last.slightly,
   last.reflow, last.paint, last.pixel_share AS pixels,

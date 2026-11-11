@@ -1691,6 +1691,19 @@ describe('the runs store', () => {
     })
   })
 
+  it('filters run_summary by wave and lane', async () => {
+    await withStore(async ({store, sources}) => {
+      const [, run] = seededRuns(store)
+      expect(
+        await sources.read({
+          from: 'design_run_summary',
+          where: 'wave == "thirty" && lane == "figma7-1"',
+          select: ['run', 'wave', 'lane', 'arm'],
+        }),
+      ).toEqual([{run, wave: 'thirty', lane: 'figma7-1', arm: null}])
+    })
+  })
+
   it('takes a judgement through the house write, refuses a score of six, and joins it in judged', async () => {
     await withStore(async ({store, sources}) => {
       const [run] = seededRuns(store)
