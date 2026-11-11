@@ -151,9 +151,10 @@ Commands, all home scope:
 - `conciv design:report <wave>`: renders `wave_summary` and `judged` to `<home>/artifacts/reports/<wave>.md`.
 - `conciv design:runs-gc`: deletes the expired artifacts and prints each file removed; runs are kept.
 
-Queries: `conciv db query --from design_run_summary` (one row per run and target, with `wave`, `lane` and `arm` to
-filter by, as in `--where 'wave == "thirtyone"'`), `design_judged` and `design_wave_summary` (per wave, arm and
-width); every stored table is `design_stored_<table>`.
+Queries: `conciv db query --from design_run_summary` (one row per run and target, with `status`, `ended`, `wave`,
+`lane` and `arm` to filter by, as in `--where 'wave == "thirtyone"'`; a run with no target or no round still has a row,
+its `round`, `verdict` and `rows` null), `design_judged` and `design_wave_summary` (per wave, arm and measured width,
+so a run never checked is not in them); every stored table is `design_stored_<table>`.
 
 ## Sources
 

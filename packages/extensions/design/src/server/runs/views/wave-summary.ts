@@ -16,6 +16,7 @@ export const waveSummaryView = sqliteView('wave_summary', {
   FROM run_summary s
   JOIN design_runs r ON r.run_id = s.run_id
   LEFT JOIN lowest_rendered l ON l.run_id = s.run_id AND l.target_id = s.target_id
+  WHERE s.round IS NOT NULL
 )
 SELECT g.wave, g.arm, g.width, count(DISTINCT g.run_id) AS runs,
   count(DISTINCT CASE WHEN g.run_verdict = 'done' THEN g.run_id END) AS done,

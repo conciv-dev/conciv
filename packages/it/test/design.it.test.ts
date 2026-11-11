@@ -1979,6 +1979,36 @@ describe('a run closes with its engine', () => {
   })
 })
 
+describe('run_summary of a run that never checked', () => {
+  it('lists the run with its status and end, and no round, verdict or rows', async () => {
+    const homeDir = await tempDir('conciv-design-unchecked-home-')
+    const engine = await bootDesignHost({homeDir})
+    const {session} = engine
+    try {
+      await engine.goto('target')
+      await engine.call('design_get', await cardsDesign(engine.targetsDir))
+    } finally {
+      await engine.dispose()
+    }
+    const [run] = await homeQuery({
+      home: homeDir,
+      args: ['--from', 'design_stored_runs', '--where', `session_id == "${session}"`, '--select', 'run'],
+    })
+    const summary = await homeQuery({
+      home: homeDir,
+      args: [
+        '--from',
+        'design_run_summary',
+        '--where',
+        `run == ${String(run?.run)}`,
+        '--select',
+        'status,ended,round,verdict,rows',
+      ],
+    })
+    expect(summary).toEqual([{status: 'aborted', ended: expect.any(Number), round: null, verdict: null, rows: null}])
+  })
+})
+
 describe('a run closes when its dev server is interrupted', () => {
   it('closes the open run as aborted with its end time when the dev server process gets SIGINT, as Ctrl-C sends it', async () => {
     const homeDir = await tempDir('conciv-design-sigint-home-')
