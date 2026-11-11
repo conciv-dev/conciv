@@ -1020,34 +1020,24 @@ describe('dist externals', () => {
 
   const importsPackage = (name: string) => sources.some((source) => source === name || source.startsWith(`${name}/`))
 
-  describe('@conciv/ai dist keeps @tanstack/ai-sandbox free of peer edges (#107)', () => {
-    it('bundles the @tanstack/ai-* adapters instead of importing them', () => {
-      for (const adapter of [
+  describe('@conciv/ai server dist imports the TanStack AI adapters it depends on', () => {
+    it('imports each adapter, the sandbox and code mode instead of inlining them', () => {
+      for (const name of [
         '@tanstack/ai-acp',
         '@tanstack/ai-claude-code',
         '@tanstack/ai-codex',
         '@tanstack/ai-opencode',
+        '@tanstack/ai-sandbox',
+        '@tanstack/ai-sandbox-local-process',
+        '@tanstack/ai-code-mode',
       ]) {
-        expect(importsPackage(adapter), `dist imports ${adapter}`).toBe(false)
+        expect(importsPackage(name), `dist imports ${name}`).toBe(true)
       }
     })
 
-    it('bundles @tanstack/ai-sandbox-local-process so no peer edge on ai-sandbox reaches consumers', () => {
-      expect(importsPackage('@tanstack/ai-sandbox-local-process')).toBe(false)
-    })
-
-    it('bundles @tanstack/ai-sandbox and @tanstack/ai-code-mode', () => {
-      expect(importsPackage('@tanstack/ai-sandbox')).toBe(false)
-      expect(importsPackage('@tanstack/ai-code-mode')).toBe(false)
-    })
-
-    it('externalizes @tanstack/ai', () => {
-      expect(importsPackage('@tanstack/ai')).toBe(true)
-    })
-
-    it('bundles one sandbox capability handle (a second copy breaks chat() validate)', () => {
-      const handles = chunks.flatMap((chunk) => chunk.code.match(/var SandboxCapability = createCapability\(\)/g) ?? [])
-      expect(handles).toHaveLength(1)
+    it('carries no inlined sandbox capability handle, so the installed @tanstack/ai-sandbox owns the only one (#107)', () => {
+      const handles = chunks.flatMap((chunk) => chunk.code.match(/SandboxCapability = createCapability\(\)/g) ?? [])
+      expect(handles).toHaveLength(0)
     })
   })
 })
