@@ -1,7 +1,6 @@
 import {existsSync} from 'node:fs'
 import {join} from 'node:path'
-import type {ConcivConfig} from '@conciv/protocol/config-types'
-import type {Builtins} from '@conciv/extension-compiler/extensions'
+import {ConcivConfigSchema, type ConcivConfig} from '@conciv/protocol/config-types'
 import {writeExtensionsEntry} from './extensions-entry.js'
 
 export const CONCIV_DEFAULT_PORT = 41700
@@ -65,7 +64,7 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
   for (const [key, value] of Object.entries(concivEnv)) {
     if (process.env[key] === undefined) process.env[key] = value
   }
-  const generated = writeExtensionsEntry(process.cwd())
+  const generated = writeExtensionsEntry(process.cwd(), clientEntriesOf(options))
   const baseTurbopack = base.turbopack ?? {}
   const turbopack: TurbopackConfig = {
     ...baseTurbopack,
@@ -90,26 +89,36 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
   }
 }
 
-export async function registerWith(loadBuiltins: () => Promise<Builtins>): Promise<void> {
+export async function register(): Promise<void> {
   if (process.env.NODE_ENV === 'production') return
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
-  const options = JSON.parse(process.env.CONCIV_OPTIONS ?? '{}') as ConcivConfig
+  const options = readConcivOptions(process.env.CONCIV_OPTIONS ?? '{}')
   if (options.enabled === false) return
   const root = process.cwd()
   try {
     const {watchExtensionsDir} = await import('./extensions-watch.js')
-    watchExtensionsDir(root)
+    watchExtensionsDir(root, clientEntriesOf(options))
   } catch (error) {
     console.error('conciv: failed to start extensions watcher', error)
   }
   const {makeEngineBooter} = await import('./boot.js')
-  const builtins = await loadBuiltins()
-  await makeEngineBooter(options, root, builtins, 'exact')()
+  await makeEngineBooter(options, root, {}, 'exact')()
 }
 
-export async function register(): Promise<void> {
-  await registerWith(async () => {
-    const {NO_BUILTINS} = await import('@conciv/extension-compiler/extensions')
-    return NO_BUILTINS
-  })
+function readConcivOptions(text: string): ConcivConfig {
+  const parsed = ConcivConfigSchema.safeParse(parseJson(text))
+  if (parsed.success) return parsed.data
+  throw new Error(`conciv: CONCIV_OPTIONS is not a valid conciv config: ${parsed.error.message}`)
+}
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch (error) {
+    throw new Error('conciv: CONCIV_OPTIONS is not JSON', {cause: error})
+  }
+}
+
+function clientEntriesOf(options: ConcivConfig): string[] {
+  return (options.extensions ?? []).map((extension) => extension.client)
 }

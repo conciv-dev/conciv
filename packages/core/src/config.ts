@@ -20,7 +20,6 @@ export interface ResolvedConcivConfig {
   sessionId: SessionId | undefined
   harnessSessionId: HarnessSessionId | undefined
   systemPrompt: string
-  extensions: ConcivConfig['extensions']
   hubAccess: HubAccess
 }
 
@@ -66,7 +65,6 @@ export function resolveConfig(options: ConcivConfig, root: string): ResolvedConc
     sessionId: resolveSessionId([options.sessionId, env.CONCIV_SESSION_ID]),
     harnessSessionId: resolveHarnessSessionId([options.claudeSessionId, env.CONCIV_CLAUDE_SESSION_ID]),
     systemPrompt: resolveSystemPrompt(options.systemPrompt),
-    extensions: options.extensions,
     hubAccess: options.hubAccess ?? 'open',
   }
 }

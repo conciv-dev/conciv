@@ -6,15 +6,15 @@ source location that sets each value.
 
 ## Overview
 
-The package.json describes this as the design built-in extension, internal to @conciv/it. It holds a target image per route and width, reads the target's text once with OCR, captures the live page at that width and returns ranked component deltas with style provenance. The root exports pick a browser condition (dist/client.js) or an import condition (dist/server.js), with subpaths ./client, ./server, ./defs, ./provenance, ./text-groups, ./paddle, ./colors and ./types. The `build` script runs four steps in order: tsdown, vite build (client), vite build with vite.xray.config.ts (xray page into dist/xray), then tsc declaration emit (which excludes src/xray).
+The package.json describes this as the design built-in extension, internal to @conciv/it. It holds a target image per route and width, reads the target's text once with OCR, captures the live page at that width and returns ranked component deltas with style provenance. The root export (dist/index.js) is the factory users pass to the conciv `extensions` option; it returns the absolute paths of the ./server and ./client subpaths and the parsed options. The `build` script runs four steps in order: tsdown, vite build (client), vite build with vite.xray.config.ts (xray page into dist/xray), then tsc declaration emit (which excludes src/xray).
 
 ## Interface
 
-- default `defineConfig` (`tsdown.config.ts`): bundles `src/server.ts`, `src/shared/defs.ts`, `src/server/provenance/mappers.ts`, `src/server/text-groups.ts`, `src/server/comparators/paddle.ts` and `src/server/deltas/colors.ts` as ESM with `dts: false`
+- default `defineConfig` (`tsdown.config.ts`): bundles `src/index.ts` and `src/server.ts` as ESM with `dts: false`
 - default `defineConfig` (`vite.config.ts`): library build of `src/client.ts` to `client.js` (ES format), with `emptyOutDir: false` and sourcemaps
 - default `defineConfig` (`vite.xray.config.ts`): builds `src/xray/` into `dist/xray/` with UnoCSS and the Solid plugin; in serve mode it loads `../../it/dist/vite.js` instead of plain Solid
 - default `defineConfig` (`uno.config.ts`): UnoCSS with `presetConciv`, scanning `src/xray/**` and `../../ui-kit-system/src/**`
-- package.json `exports`: `.` (browser maps to client, import maps to server), `./client`, `./server`, `./defs`, `./provenance` (`dist/server/provenance/mappers`), `./text-groups`, `./paddle` (`dist/server/comparators/paddle`), `./colors` (`dist/server/deltas/colors`), `./types` (types only)
+- package.json `exports`: `.` (the factory), `./client`, `./server`
 - package.json script `dev:xray`: runs `vite --config vite.xray.config.ts`
 - Subdirectories:
   - [src](./src/README.md): Holds the two entry points of the design extension: `client.ts` registers the browser-side tools and the capture-frame responder, and `server.ts` wires up the target store, a lazy CSS source map, the xray router/app and the design runtime context.
@@ -28,7 +28,7 @@ The package.json describes this as the design built-in extension, internal to @c
 
 ## Side Effects
 
-- `build` script (package.json): writes dist/ (server.js, shared/defs.js, server/provenance/mappers.js, server/text-groups.js, server/comparators/paddle.js, server/deltas/colors.js, client.js, xray/, .d.ts files); the xray build empties `dist/xray/` (`emptyOutDir: true` in `vite.xray.config.ts`)
+- `build` script (package.json): writes dist/ (index.js, server.js, client.js, xray/, .d.ts files); the xray build empties `dist/xray/` (`emptyOutDir: true` in `vite.xray.config.ts`)
 - `compiler` (`vite.xray.config.ts`): in serve mode it dynamically imports the sibling package build at `../../it/dist/vite.js`
 - `design_target` runs OCR in-process on `onnxruntime-web`; the service is created on first read and disposed with the extension
 
