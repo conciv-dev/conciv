@@ -102,12 +102,12 @@ const SCRUB_STEP_MS = 5000
 const scrubStep = z.union([z.literal('ArrowLeft'), z.literal('ArrowRight')])
 const SCRUB_DELTA_MS = {ArrowLeft: -SCRUB_STEP_MS, ArrowRight: SCRUB_STEP_MS}
 
-function enhanceControllerAccess(container: HTMLDivElement, player: Player): void {
+function enhanceControllerAccess(container: HTMLDivElement, player: Player): () => void {
   const buttons = container.querySelectorAll('.rr-controller__btns > button')
   buttons[0]?.setAttribute('aria-label', 'Toggle playback')
   if (buttons.length > 1) buttons[buttons.length - 1]?.setAttribute('aria-label', 'Toggle fullscreen')
   const progress = container.querySelector('.rr-progress')
-  if (!(progress instanceof HTMLElement)) return
+  if (!(progress instanceof HTMLElement)) return () => undefined
   progress.setAttribute('role', 'slider')
   progress.setAttribute('aria-label', 'Timeline')
   progress.setAttribute('aria-valuemin', '0')
@@ -137,6 +137,7 @@ function enhanceControllerAccess(container: HTMLDivElement, player: Player): voi
     },
     true,
   )
+  return announcePosition
 }
 
 const LIVE_EDGE_MS = 2500
@@ -159,14 +160,14 @@ export function mountStreamPlayer(
   let cursor = initial.cursor
   let lastTs = buffer.at(-1)?.timestamp ?? 0
   let aspect = recordedAspect(buffer)
-  let player: Player | undefined
+  let mounted: {player: Player; announcePosition: () => void} | undefined
   const following = new AbortController()
 
   const tailOffset = (): number => lastTs - (buffer[0]?.timestamp ?? 0)
 
   const isLive = (): boolean => {
-    if (!player) return true
-    const replayer = player.getReplayer()
+    if (!mounted) return true
+    const replayer = mounted.player.getReplayer()
     if (!replayer.service.state.matches('playing')) return false
     return replayer.getCurrentTime() + LIVE_EDGE_MS >= tailOffset()
   }
@@ -176,7 +177,7 @@ export function mountStreamPlayer(
   const build = (): void => {
     const {scope, known} = injectPlayerStyles(kit, container)
     aspect = recordedAspect(buffer)
-    player = new kit.Player({
+    const player = new kit.Player({
       target: container,
       props: {
         ...playerSize(container, aspect),
@@ -188,7 +189,7 @@ export function mountStreamPlayer(
       },
     })
     demoteInjectedStyles(scope, known)
-    enhanceControllerAccess(container, player)
+    mounted = {player, announcePosition: enhanceControllerAccess(container, player)}
     player.goto(tailOffset() + 1, true)
     player.addEventListener('ui-update-player-state', announceLive)
     player.addEventListener('ui-update-current-time', announceLive)
@@ -201,19 +202,20 @@ export function mountStreamPlayer(
   const feed = (event: RrwebEvent, atEdge: boolean): void => {
     buffer.push(event)
     lastTs = Math.max(lastTs, event.timestamp)
-    if (!player) return
+    if (!mounted) return
     const parsed = playerEvent.parse(event)
     if (atEdge) {
-      player.getReplayer().addEvent(parsed)
+      mounted.player.getReplayer().addEvent(parsed)
       return
     }
-    player.addEvent(parsed)
+    mounted.player.addEvent(parsed)
   }
 
   const take = (fresh: {events: RrwebEvent[]; cursor: number}): void => {
     const atEdge = isLive()
     for (const event of fresh.events) feed(event, atEdge)
     cursor = Math.max(cursor, fresh.cursor)
+    mounted?.announcePosition()
     announceLive()
   }
 
@@ -229,22 +231,22 @@ export function mountStreamPlayer(
   const stopResize = observeContainerSize(
     container,
     (size) => {
-      player?.$set({width: size.width, height: size.height})
-      player?.triggerResize()
+      mounted?.player.$set({width: size.width, height: size.height})
+      mounted?.player.triggerResize()
     },
     () => aspect,
   )
 
   return {
     goLive: () => {
-      player?.goto(tailOffset() + 1, true)
+      mounted?.player.goto(tailOffset() + 1, true)
       hooks.onLive(true)
     },
     dispose: () => {
       following.abort()
       cancelBuild()
       stopResize()
-      player?.$destroy()
+      mounted?.player.$destroy()
     },
   }
 }

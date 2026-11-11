@@ -871,16 +871,20 @@ describe('panel store isolation', () => {
       page.on('console', (message) => {
         if (message.text().includes('Cannot mutate a Store')) warnings.push(message.text())
       })
+      const replayMarker = async (): Promise<void> => {
+        const label = await addMarker(page)
+        await expectLocator(page.frameLocator('iframe').getByText(label, {exact: true}).first()).toBeAttached({
+          timeout: 30_000,
+        })
+      }
       const label = await addMarker(page)
       await page.getByRole('tab', {name: 'Recorder'}).click()
       await page.getByRole('button', {name: 'Send to agent'}).waitFor({state: 'visible', timeout: 20_000})
       await expectLocator(page.frameLocator('iframe').getByText(label, {exact: true}).first()).toBeAttached({
         timeout: 30_000,
       })
-      await page.waitForTimeout(1_500)
-      await addMarker(page)
-      await page.waitForTimeout(1_500)
-      await addMarker(page)
+      await replayMarker()
+      await replayMarker()
       const timeline = page.getByRole('slider', {name: 'Timeline'})
       await timeline.focus()
       await page.keyboard.press('ArrowLeft')
@@ -889,7 +893,7 @@ describe('panel store isolation', () => {
       await page.getByRole('button', {name: 'Go live'}).waitFor({state: 'visible', timeout: 10_000})
       await page.getByRole('button', {name: 'Go live'}).click()
       await page.getByText('LIVE', {exact: true}).waitFor({state: 'visible', timeout: 10_000})
-      await page.waitForTimeout(1_000)
+      await replayMarker()
       expect(warnings).toEqual([])
     }, 120_000)
   })
@@ -964,8 +968,11 @@ describe('panel stream', () => {
       await page.getByRole('button', {name: 'Toggle playback'}).click()
       await page.getByRole('button', {name: 'Go live'}).waitFor({state: 'visible', timeout: 10_000})
 
+      const timeline = page.getByRole('slider', {name: 'Timeline'})
+      const lengthBefore = await timeline.getAttribute('aria-valuemax')
+      if (lengthBefore === null) throw new Error('the Timeline slider has no length')
       const missed = await addMarker(page)
-      await page.waitForTimeout(2_500)
+      await expectLocator(timeline).not.toHaveAttribute('aria-valuemax', lengthBefore, {timeout: 30_000})
       expect(await replayShows(page, missed)).toBe(false)
 
       await page.getByRole('button', {name: 'Toggle playback'}).click()
