@@ -1,6 +1,5 @@
 import {randomInt, timingSafeEqual} from 'node:crypto'
-import {mkdirSync, watch} from 'node:fs'
-import {readFile} from 'node:fs/promises'
+import {mkdirSync, unwatchFile, watchFile} from 'node:fs'
 import {join} from 'node:path'
 import {Hono} from 'hono'
 import type {WSContext, WSEvents, WSMessageReceive} from 'hono/ws'
@@ -10,8 +9,6 @@ import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {
   TRUSTED_BROWSERS_FILE,
   grantBrowser,
-  isMissingFile,
-  parseTrustedBrowsers,
   readTrustedBrowsers,
   tokenHash,
   type BrowserRequester,
@@ -150,7 +147,9 @@ export type TrustedBrowsers = {
   close: () => void
 }
 
-function loadHashes(stateDir: string): Set<string> {
+const TRUST_FILE_POLL_MS = 250
+
+function trustedHashes(stateDir: string): Set<string> {
   try {
     return new Set(readTrustedBrowsers(stateDir).map((entry) => entry.hash))
   } catch (error) {
@@ -159,51 +158,29 @@ function loadHashes(stateDir: string): Set<string> {
   }
 }
 
-async function readHashes(stateDir: string): Promise<Set<string>> {
-  const raw = await readFile(join(stateDir, TRUSTED_BROWSERS_FILE), 'utf8').catch((error: unknown) => {
-    if (isMissingFile(error)) return null
-    throw error
-  })
-  return new Set(raw === null ? [] : parseTrustedBrowsers(raw).map((entry) => entry.hash))
-}
-
 export function watchTrustedBrowsers(stateDir: string): TrustedBrowsers {
   mkdirSync(stateDir, {recursive: true})
-  const state = {hashes: loadHashes(stateDir), reloads: Promise.resolve()}
   const sockets = new Map<EngineSocket, string>()
-  const reload = (): void => {
-    state.reloads = state.reloads
-      .then(() => readHashes(stateDir))
-      .then(
-        (hashes) => {
-          state.hashes = hashes
-          for (const [socket, hash] of sockets) {
-            if (!hashes.has(hash)) socket.close(REVOKED_SOCKET_CLOSE_CODE, 'this browser is no longer trusted')
-          }
-        },
-        (error: unknown) => logError(`[core] the trusted browsers file could not be reloaded: ${String(error)}`),
-      )
+  const closeRevoked = (): void => {
+    const hashes = trustedHashes(stateDir)
+    for (const [socket, hash] of sockets) {
+      if (!hashes.has(hash)) socket.close(REVOKED_SOCKET_CLOSE_CODE, 'this browser is no longer trusted')
+    }
   }
-  const watcher = watch(stateDir, (_event, file) => {
-    if (file === TRUSTED_BROWSERS_FILE) reload()
-  })
-  watcher.on('error', (error) => logError(`[core] watching the trusted browsers file failed: ${String(error)}`))
+  const file = join(stateDir, TRUSTED_BROWSERS_FILE)
+  watchFile(file, {interval: TRUST_FILE_POLL_MS, persistent: false}, closeRevoked)
   return {
-    has: (token) => state.hashes.has(tokenHash(token)),
-    grant: (requester, grantedAt) => {
-      const token = grantBrowser(stateDir, requester, grantedAt)
-      state.hashes.add(tokenHash(token))
-      return token
-    },
+    has: (token) => trustedHashes(stateDir).has(tokenHash(token)),
+    grant: (requester, grantedAt) => grantBrowser(stateDir, requester, grantedAt),
     hold: (socket, token) => {
       const hash = tokenHash(token)
-      if (!state.hashes.has(hash)) return () => {}
+      if (!trustedHashes(stateDir).has(hash)) return () => {}
       sockets.set(socket, hash)
       return () => {
         sockets.delete(socket)
       }
     },
-    close: () => watcher.close(),
+    close: () => unwatchFile(file, closeRevoked),
   }
 }
 
