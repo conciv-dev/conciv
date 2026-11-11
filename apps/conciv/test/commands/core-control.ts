@@ -71,6 +71,7 @@ type FileState = {
   faults: Map<string, Fault>
   handles: {count: number}
   hubCli: {current: HubCliState}
+  home: {dir: string; saved: string | undefined} | null
   push: PushWireWatch | null
   rpcCalls: RpcCallCursor | null
 }
@@ -102,6 +103,7 @@ function stateOf(ctx: BrowserCommandContext): FileState {
     faults: new Map(),
     handles: {count: 0},
     hubCli: {current: null},
+    home: null,
     push: null,
     rpcCalls: null,
   }
@@ -134,6 +136,8 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
   const {bootCoreKit, watchPushWire, rpcSocketFor, rpcCallCursor} = await testkitOf(ctx)
   await rpcSocketFor(ctx.page).installed
   state.rpcCalls = rpcCallCursor(ctx.page)
+  state.home = {dir: mkdtempSync(join(tmpdir(), 'conciv-home-')), saved: process.env.CONCIV_HOME}
+  process.env.CONCIV_HOME = state.home.dir
   const kit = await bootCoreKit({
     id: input.id,
     text: input.text,
@@ -167,10 +171,24 @@ const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
   state.rpcCalls = null
   const kit = state.kit
   state.kit = null
-  if (!kit) return
-  kit.harness.script.release()
-  kit.harness.transcripts.release()
-  await kit.cleanup()
+  if (kit) {
+    kit.harness.script.release()
+    kit.harness.transcripts.release()
+    await kit.cleanup()
+  }
+  restoreHome(state)
+}
+
+function restoreHome(state: FileState): void {
+  const home = state.home
+  if (home === null) return
+  state.home = null
+  rmSync(home.dir, {recursive: true, force: true})
+  if (home.saved === undefined) {
+    Reflect.deleteProperty(process.env, 'CONCIV_HOME')
+    return
+  }
+  process.env.CONCIV_HOME = home.saved
 }
 
 const pushSocketsOpened: BrowserCommand<[]> = (ctx): number => pushOf(ctx).opened()

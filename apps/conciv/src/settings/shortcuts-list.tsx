@@ -5,6 +5,7 @@ import {createHotkeyRecorder, formatForDisplay, normalizeHotkey} from '@tanstack
 import Lock from 'lucide-solid/icons/lock'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
 import X from 'lucide-solid/icons/x'
+import type {SettingsScope} from '@conciv/contract'
 import {usePreferences} from '../app/context.js'
 import type {Preferences, ShortcutCommand} from './preferences-schema.js'
 
@@ -46,6 +47,7 @@ type ShortcutRowProps = {
   entry: ShortcutEntry
   entries: readonly ShortcutEntry[]
   field: AnyFieldApi
+  scope: SettingsScope
 }
 
 function overridesOf(field: AnyFieldApi): Preferences['commandShortcuts'] {
@@ -59,13 +61,13 @@ function ShortcutRow(props: ShortcutRowProps): JSX.Element {
   const [state, setState] = createStore<{draft: string | null}>({draft: null})
   let name: HTMLButtonElement | undefined
   const lock = () => preferences.shortcutLock(props.entry.command)
-  const hotkey = () => preferences.shortcut(props.entry.command).at(0)
+  const hotkey = () => preferences.shortcut(props.entry.command, props.scope).at(0)
   const clashWith = (candidate: string) => {
     const wanted = normalizeHotkey(candidate)
     return props.entries.find(
       (other) =>
         other.command !== props.entry.command &&
-        preferences.shortcut(other.command).some((binding) => normalizeHotkey(binding) === wanted),
+        preferences.shortcut(other.command, props.scope).some((binding) => normalizeHotkey(binding) === wanted),
     )
   }
   const save = (value: string | null, moveFrom?: ShortcutEntry) => {
@@ -169,10 +171,17 @@ function ShortcutRow(props: ShortcutRowProps): JSX.Element {
   )
 }
 
-type ShortcutsListProps = {entries: readonly ShortcutEntry[]; all: readonly ShortcutEntry[]; field: AnyFieldApi}
+type ShortcutsListProps = {
+  entries: readonly ShortcutEntry[]
+  all: readonly ShortcutEntry[]
+  field: AnyFieldApi
+  scope: SettingsScope
+}
 
 export function ShortcutsList(props: ShortcutsListProps): JSX.Element {
   return (
-    <For each={props.entries}>{(entry) => <ShortcutRow entry={entry} entries={props.all} field={props.field} />}</For>
+    <For each={props.entries}>
+      {(entry) => <ShortcutRow entry={entry} entries={props.all} field={props.field} scope={props.scope} />}
+    </For>
   )
 }

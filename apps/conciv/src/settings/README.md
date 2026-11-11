@@ -2,17 +2,21 @@
 
 ## Overview
 
-The conciv preferences a user changes on the settings page, and one generated page per extension that declares `settings`: their schema, the store they live in (namespace `conciv`, `project` scope of the Devframe-contract settings store), and the TanStack Form wiring that edits them through the `@conciv/ui-kit-system` controls.
+The conciv preferences a user changes on the settings page, and one generated page per extension that declares `settings`: their schema, the two stores they live in (namespace `conciv`, the `project` and `global` scopes of the Devframe-contract settings store, applied project over global over defaults), and the TanStack Form wiring that edits them through the `@conciv/ui-kit-system` controls.
 
 ## Interface
 
-- `PreferencesSchema`, `Preferences`, `PreferenceKeySchema`, `PREFERENCE_DEFAULTS`, `ShortcutCommand`, `SHORTCUT_DEFAULTS`, `PreferencesApi` (`preferences-schema.ts`): `colorScheme` (`page` | `light` | `dark`), `skin`, `launcher` (`mascot` | `native` | `hidden`), `openOnLoad`, `closeOnOutsideClick`, `docksHidden`, `docksPinned`, `docksCustomOrder`, `commandShortcuts` (Devframe's hub user settings shapes; a command missing from `commandShortcuts` keeps its default, an empty list turns it off)
-- `createPreferences(options)` (`create-preferences.ts`): reads the stored snapshot through the live `settings.changes` query, writes through the store from `getHostApi().useScope('conciv').settings.project`; `shortcut(command)` resolves host value, then stored value, then default; `shortcutLock(command)` names why a shortcut is read-only; `launcher()` and `openOnLoad()` prefer the value the host passed to `conciv()`, and `lock(key)` names that lock; `reset(keys)` deletes some keys, `clear()` deletes every key the store holds (read from the store, not the snapshot); the Advanced tab's per-part resets call `reset(keys)`, and the `/settings/advanced/reset` confirmation route calls `clear()`
+- `PreferencesSchema`, `Preferences`, `PreferenceKeySchema`, `ShortcutCommand`, `SHORTCUT_DEFAULTS`, `PreferencesApi` (`preferences-schema.ts`): `colorScheme` (`page` | `light` | `dark`), `skin`, `launcher` (`mascot` | `native` | `hidden`), `openOnLoad`, `closeOnOutsideClick`, `docksHidden`, `docksPinned`, `docksCustomOrder`, `commandShortcuts` (Devframe's hub user settings shapes; a command missing from `commandShortcuts` keeps its default, an empty list turns it off)
+- `mergeSettings(project, global)` (`merge-settings.ts`): `defu` built with `createDefu`: the project value wins, nested records merge per key, `undefined`/`null`/missing keys fall through to the global value, and an array in the project replaces the global one (never concatenated)
+- `createSettingsLayers(options)` (`create-settings-layers.ts`): the live `settings.changes` queries of one namespace in both scopes; `status()`/`retry()` cover both, `applied()` is `mergeSettings(project, global)`, `shown(scope)` is what a scope's page shows (project: the applied values; global: the global file), `fallthrough(scope)` is what applies when the edited file lacks a key (project: the global file; global: nothing), `note(scope, key)` is "From all projects" for a project-view key only the global file holds and "This project overrides it" for a global-view key the project file holds (key presence, never value comparison)
+- `createPreferences(options)` (`create-preferences.ts`): the `conciv` namespace over `createSettingsLayers`, writing through `getHostApi().useScope('conciv').settings[scope]`; `stored()` is the applied preferences, `shown(scope)` and `note(scope, key)` feed the settings page; `shortcut(command, scope)` resolves host value, then the scope's value, then default; `shortcutLock(command)` names why a shortcut is read-only; `launcher()` and `openOnLoad()` prefer the value the host passed to `conciv()`, and `lock(key)` names that lock; `reset(scope, keys)` deletes some keys, `clear(scope)` deletes every key that scope's store holds (read from the store, not the snapshot); the Advanced tab's per-part resets call `reset`, and the `/settings/advanced/reset` confirmation route calls `clear`, both on the scope the page shows
+- `settingsSearchSchema` (`settings-search-schemas.ts`): the settings layout's `scope` search param, `project` (default, stripped from the URL) or `global`
+- `SettingNote` (`setting-note.ts`): context the forms provide with the note of a key; `SettingRow` shows its field's note and `Group` the first note of its `keys`
 - `arrangeViews(views, arrangement)` (`arrange-views.ts`): orders views pinned first (`docksPinned`), then by `docksCustomOrder` (unlisted views keep their place), and drops `docksHidden`
-- `PreferencesForm` (`preferences-form.tsx`): loading, error with Retry, then one form over the stored values; every change saves through a mutation, and a failed save shows on the field
+- `PreferencesForm` (`preferences-form.tsx`): loading, error with Retry, then one form over the values of the scope in the settings layout's `scope` search param (remounted when the scope changes); every change saves to that scope through a mutation, and a failed save shows on the field
 - `useAppForm` (`app-form.ts`): the one `createFormHook` form hook, with every field component below
 - `extensionSettingsPage(extension)` (`extension-fields.ts`): the extension's page title (its name, humanised) and one field per `settings` key: `z.boolean()` a switch, `z.enum` a segment (up to 3 options) or a select, `z.number()` a number input (min, max, whole-number step from the schema), `z.string()` a text input; label is `meta.title` (else the key, humanised), hint is `meta.description`
-- `ExtensionSettingsForm` (`extension-settings-form.tsx`): the page of the extension the `/settings/extensions/$name` route resolved: live snapshot of its `project` settings, one `Group` titled with the extension, fields saved on change through `getHostApi().useScope(name).settings.project`
+- `ExtensionSettingsForm` (`extension-settings-form.tsx`): the page of the extension the `/settings/extensions/$name` route resolved: its settings in both scopes through `createSettingsLayers`, one `Group` titled with the extension over the scope the layout's `scope` param selects, fields saved on change through `getHostApi().useScope(name).settings[scope]`
 - `fieldContext`, `formContext`, `useFieldContext` (`form-context.ts`): the form hook contexts
 - `Group`, `SettingRow`, `ActionRow`, `SettingsLoad` and the shared class names (`settings-ui.tsx`): a section card with title and description, one labelled row (kit `FieldPrimitive`, hint, lock reason, error), a row with a trailing action, loading / error with Retry / content for a settings query
 - `SegmentField`, `SkinField`, `SelectField`, `SwitchField`, `NumberField`, `TextField` (`setting-fields.tsx`): the form's field components over kit `SegmentGroup`, `RadioGroupPrimitive` cards with a live skin preview (`shown` displays the page's `--conciv-skin` while it locks the field, without touching the stored choice), `Select`, `Switch`, `NumberInput` and `TextField`
@@ -22,16 +26,16 @@ The conciv preferences a user changes on the settings page, and one generated pa
 
 ## Invariants
 
-- `create-preferences.ts:write`: a value equal to its default deletes the key instead of storing it
+- `create-preferences.ts:write`: a value equal to what applies without the key in the edited file (project: global over defaults; global: the default) deletes the key instead of storing it
 - `preferences-schema.ts:PreferencesSchema`: every field has a default and a catch, so a malformed stored value reads as the default
 - `preferences-form.tsx:createPreferencesForm`: the form follows the stored snapshot until a field is touched
-- `extension-settings-form.tsx:createExtensionForm`: a value that fails its schema field is not saved and shows on the field; a value equal to the field default deletes the key
+- `extension-settings-form.tsx:createExtensionForm`: a value that fails its schema field is not saved and shows on the field; a value equal to what applies without the key in the edited file deletes the key
 - `extension-fields.ts:extensionSettingsPage`: computed once per extension; fields with no control are skipped and named in one `console.warn`
 - `last-tab.ts:readLastTab`: an unreadable value reads as `general`; an extension that is gone redirects to General from its route
 
 ## Side Effects
 
-- `create-preferences.ts:createPreferences`: subscribes to `settings.changes` for `{scope: 'project', namespace: 'conciv'}`; writes call `settings.set` / `settings.delete`
+- `create-settings-layers.ts:createSettingsLayers`: subscribes to `settings.changes` for `{scope: 'project', namespace}` and `{scope: 'global', namespace}`; writes call `settings.set` / `settings.delete` on the selected scope
 
 ## Verification
 

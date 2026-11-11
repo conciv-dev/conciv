@@ -1,8 +1,15 @@
-import {Outlet, createFileRoute, useMatchRoute} from '@tanstack/solid-router'
+import {
+  Outlet,
+  createFileRoute,
+  retainSearchParams,
+  stripSearchParams,
+  useMatchRoute,
+  useRouter,
+} from '@tanstack/solid-router'
 import {For, Show, createMemo, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {createElementSize} from '@solid-primitives/resize-observer'
-import {TabsPrimitive as Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
+import {SegmentGroup, TabsPrimitive as Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
 import SlidersHorizontal from 'lucide-solid/icons/sliders-horizontal'
 import LayoutPanelTop from 'lucide-solid/icons/layout-panel-top'
 import Keyboard from 'lucide-solid/icons/keyboard'
@@ -12,6 +19,8 @@ import Puzzle from 'lucide-solid/icons/puzzle'
 import {MICRO} from '../settings/settings-ui.js'
 import {extensionSettingsPage} from '../settings/extension-fields.js'
 import type {SettingsTabId} from '../settings/last-tab.js'
+import type {SettingsScope} from '@conciv/contract'
+import {settingsSearchSchema} from '../settings/settings-search-schemas.js'
 
 const PAGE = 'flex flex-1 flex-col min-h-0'
 const HEADER = 'flex h-13 shrink-0 items-center gap-1.5 px-2 [border-block-end:1px_solid_var(--chat-line-soft)]'
@@ -52,7 +61,16 @@ const ADVANCED_TAB: BuiltinTab = {id: 'advanced', label: 'Advanced', icon: Shiel
 
 const MAX_TOP_ROW_TABS = 4
 
-export const Route = createFileRoute('/panel/$sessionId_/settings')({component: SettingsLayout})
+const SCOPES: {value: SettingsScope; label: string}[] = [
+  {value: 'project', label: 'This project'},
+  {value: 'global', label: 'All projects'},
+]
+
+export const Route = createFileRoute('/panel/$sessionId_/settings')({
+  validateSearch: settingsSearchSchema,
+  search: {middlewares: [stripSearchParams({scope: 'project'}), retainSearchParams(['scope'])]},
+  component: SettingsLayout,
+})
 
 function TabTrigger(props: {tab: SettingsTab}): JSX.Element {
   return (
@@ -68,6 +86,8 @@ function SettingsLayout(): JSX.Element {
   const navigate = Route.useNavigate()
   const context = Route.useRouteContext()
   const matchRoute = useMatchRoute()
+  const router = useRouter()
+  const search = Route.useSearch()
   let split: HTMLDivElement | undefined
   const splitSize = createElementSize(() => split)
   const wide = createMemo(
@@ -104,6 +124,10 @@ function SettingsLayout(): JSX.Element {
   const orientation = () => (wide() || tabs.length > MAX_TOP_ROW_TABS ? 'vertical' : 'horizontal')
   const current = () => tabs.find((tab) => tab.selected())?.id ?? 'general'
   const select = (id: string) => tabs.find((tab) => tab.id === id)?.open()
+  const changeScope = (value: string | null) => {
+    const scope = SCOPES.find((entry) => entry.value === value)?.value
+    if (scope) void router.navigate({to: '.', search: (previous) => ({...previous, scope})})
+  }
   const close = () =>
     void navigate({
       to: '/panel/$sessionId',
@@ -118,6 +142,22 @@ function SettingsLayout(): JSX.Element {
           <ChevronLeft class="size-4" strokeWidth={1.5} aria-hidden="true" />
         </TooltipIconButton>
         <h2 class={TITLE}>Settings</h2>
+        <SegmentGroup.Root
+          aria-label="Settings scope"
+          value={search().scope}
+          onValueChange={(details) => changeScope(details.value)}
+        >
+          <SegmentGroup.Indicator />
+          <For each={SCOPES}>
+            {(option) => (
+              <SegmentGroup.Item value={option.value}>
+                <SegmentGroup.ItemText>{option.label}</SegmentGroup.ItemText>
+                <SegmentGroup.ItemControl />
+                <SegmentGroup.ItemHiddenInput />
+              </SegmentGroup.Item>
+            )}
+          </For>
+        </SegmentGroup.Root>
       </header>
       <Tabs.Root
         ref={(element: HTMLDivElement) => {

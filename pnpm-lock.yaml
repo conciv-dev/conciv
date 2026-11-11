@@ -264,6 +264,9 @@ catalogs:
     culori:
       specifier: ^4.0.2
       version: 4.0.2
+    defu:
+      specifier: 6.1.7
+      version: 6.1.7
     drizzle-kit:
       specifier: 1.0.0-rc.5
       version: 1.0.0-rc.5
@@ -619,6 +622,9 @@ importers:
       '@tanstack/solid-router':
         specifier: 'catalog:'
         version: 1.170.43(solid-js@1.9.17)
+      defu:
+        specifier: 'catalog:'
+        version: 6.1.7
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0

@@ -20,6 +20,8 @@ const RESETS: {label: string; hint: string; action: string; keys: PreferenceKey[
   {label: 'Shortcuts', hint: 'Back to the default keys.', action: 'Reset shortcuts', keys: ['commandShortcuts']},
 ]
 
+const SCOPE_NAMES: Record<SettingsScope, string> = {project: 'for this project', global: 'for all projects'}
+
 export const Route = createFileRoute('/panel/$sessionId_/settings/advanced')({
   onEnter: () => writeLastTab('advanced'),
   component: AdvancedSettings,
@@ -29,10 +31,13 @@ function AdvancedSettings(): JSX.Element {
   const preferences = usePreferences()
   const announce = useAnnounce()
   const rpc = useRpc()
+  const search = Route.useSearch()
   const configurable = Route.useRouteContext()().extensions.filter((extension) => extension.settings)
   const reset = useMutation(() => ({
     mutationFn: (target: PreferenceKey[] | 'extensions') =>
-      target === 'extensions' ? clearExtensionSettings(rpc, configurable) : preferences.reset(target),
+      target === 'extensions'
+        ? clearExtensionSettings(rpc, search().scope, configurable)
+        : preferences.reset(search().scope, target),
     onSuccess: () => announce('Settings reset'),
     onError: () => announce('Could not reset the settings', true),
   }))
@@ -78,7 +83,10 @@ function AdvancedSettings(): JSX.Element {
         }
         description="Cannot be undone"
       >
-        <ActionRow label="Reset all settings" hint="Every setting for this project. Chats and history are kept.">
+        <ActionRow
+          label="Reset all settings"
+          hint={`Every setting ${SCOPE_NAMES[search().scope]}. Chats and history are kept.`}
+        >
           <Link from={Route.fullPath} to="./reset" class={BUTTON_DANGER_FILL}>
             Reset all
           </Link>
@@ -89,10 +97,14 @@ function AdvancedSettings(): JSX.Element {
   )
 }
 
-async function clearExtensionSettings(rpc: RpcClient, extensions: readonly AnyExtension[]): Promise<void> {
+async function clearExtensionSettings(
+  rpc: RpcClient,
+  scope: SettingsScope,
+  extensions: readonly AnyExtension[],
+): Promise<void> {
   await Promise.all(
     extensions.map(async (extension) => {
-      const target: {scope: SettingsScope; namespace: string} = {scope: 'project', namespace: extension.name}
+      const target = {scope, namespace: extension.name}
       const stored = await rpc.settings.all(target)
       await Promise.all(Object.keys(stored.value).map((key) => rpc.settings.delete({...target, key})))
     }),

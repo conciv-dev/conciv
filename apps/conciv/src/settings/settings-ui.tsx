@@ -1,7 +1,8 @@
-import {Match, Show, Switch, createUniqueId, splitProps, type JSX} from 'solid-js'
+import {Match, Show, Switch, createUniqueId, splitProps, useContext, type JSX} from 'solid-js'
 import {Button, FieldPrimitive as Field, Loader} from '@conciv/ui-kit-system'
 import Lock from 'lucide-solid/icons/lock'
 import {useFieldContext} from './form-context.js'
+import {SettingNote} from './setting-note.js'
 
 export const MICRO =
   'm-0 [font-family:var(--chat-mono)] text-[0.59375rem] leading-[1.2] font-normal uppercase tracking-[0.14em] text-chat-dim whitespace-nowrap'
@@ -33,11 +34,14 @@ type GroupProps = {
   description?: string
   action?: JSX.Element
   danger?: boolean
+  keys?: readonly string[]
   children: JSX.Element
 }
 
 export function Group(props: GroupProps): JSX.Element {
   const titleId = createUniqueId()
+  const noteOf = useContext(SettingNote)
+  const note = () => props.keys?.map(noteOf).find((text) => text !== undefined)
   return (
     <section class={`${SECTION} ${props.danger ? SECTION_DANGER : ''}`} aria-labelledby={titleId}>
       <div class={SECTION_HEAD}>
@@ -48,6 +52,9 @@ export function Group(props: GroupProps): JSX.Element {
           <Show when={props.description}>
             <p class={SECTION_DESCRIPTION}>{props.description}</p>
           </Show>
+          <Show when={note()}>
+            <span class={LOCK}>{note()}</span>
+          </Show>
         </div>
         {props.action}
       </div>
@@ -56,7 +63,7 @@ export function Group(props: GroupProps): JSX.Element {
   )
 }
 
-type RowTextProps = {label: JSX.Element; hint?: JSX.Element; lock?: string; error?: string}
+type RowTextProps = {label: JSX.Element; hint?: JSX.Element; lock?: string; note?: string; error?: string}
 
 function RowText(props: RowTextProps): JSX.Element {
   return (
@@ -72,6 +79,9 @@ function RowText(props: RowTextProps): JSX.Element {
             {reason()}
           </span>
         )}
+      </Show>
+      <Show when={props.note}>
+        <span class={LOCK}>{props.note}</span>
       </Show>
       <Field.ErrorText class={ERROR}>{props.error}</Field.ErrorText>
     </span>
@@ -89,6 +99,7 @@ type SettingRowProps = {
 export function SettingRow(props: SettingRowProps): JSX.Element {
   const [local] = splitProps(props, ['label', 'hint', 'lock', 'layout', 'children'])
   const field = useFieldContext<unknown>()
+  const noteOf = useContext(SettingNote)
   const error = () => {
     const first = field().state.meta.errors.at(0)
     return first === undefined || first === null ? undefined : String(first)
@@ -99,7 +110,7 @@ export function SettingRow(props: SettingRowProps): JSX.Element {
       invalid={error() !== undefined}
       readOnly={Boolean(local.lock)}
     >
-      <RowText label={local.label} hint={local.hint} lock={local.lock} error={error()} />
+      <RowText label={local.label} hint={local.hint} lock={local.lock} note={noteOf(field().name)} error={error()} />
       {local.children}
     </Field.Root>
   )

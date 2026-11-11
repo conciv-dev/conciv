@@ -150,7 +150,7 @@ function AppRoot() {
     )
   }
   const preferences = createPreferences({
-    store: getHostApi().useScope('conciv').settings.project,
+    settings: getHostApi().useScope('conciv').settings,
     data: app.data,
     queryClient: app.queryClient,
     connected: app.connected,

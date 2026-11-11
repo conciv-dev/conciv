@@ -107,6 +107,7 @@ catalog:
   citty: '^0.2.2'
   class-variance-authority: '^0.7.1'
   culori: ^4.0.2
+  defu: 6.1.7
   drizzle-kit: '1.0.0-rc.5'
   drizzle-orm: '1.0.0-rc.5'
   env-paths: '^3.0.0'

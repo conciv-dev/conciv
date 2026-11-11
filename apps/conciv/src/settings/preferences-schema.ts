@@ -1,4 +1,5 @@
 import {z} from 'zod'
+import type {SettingsScope} from '@conciv/contract'
 import {DEFAULT_SKIN_NAME, isSkinName, type SkinName} from '@conciv/ui-kit-system'
 
 const SkinSchema = z.custom<SkinName>((value) => typeof value === 'string' && isSkinName(value))
@@ -27,8 +28,6 @@ export type ShortcutCommand = z.infer<typeof ShortcutCommandSchema>
 
 export type LauncherChoice = z.infer<typeof LauncherChoiceSchema>
 
-export const PREFERENCE_DEFAULTS: Preferences = PreferencesSchema.parse({})
-
 export const SHORTCUT_DEFAULTS: Record<ShortcutCommand, string[]> = {
   togglePanel: ['Mod+.'],
   quickTerminal: ['Mod+`'],
@@ -37,16 +36,18 @@ export const SHORTCUT_DEFAULTS: Record<ShortcutCommand, string[]> = {
 
 export type PreferencesApi = {
   stored: () => Preferences
+  shown: (scope: SettingsScope) => Preferences
+  note: (scope: SettingsScope, key: string) => string | undefined
   status: () => 'pending' | 'error' | 'success'
   retry: () => void
   launcher: () => LauncherChoice
   openOnLoad: () => boolean
   lock: (key: 'launcher' | 'openOnLoad') => string | undefined
-  shortcut: (command: ShortcutCommand) => string[]
+  shortcut: (command: ShortcutCommand, scope?: SettingsScope) => string[]
   shortcutLock: (command: ShortcutCommand) => string | undefined
-  write: (key: PreferenceKey, value: unknown) => Promise<void>
-  reset: (keys: readonly PreferenceKey[]) => Promise<void>
-  clear: () => Promise<void>
+  write: (scope: SettingsScope, key: PreferenceKey, value: unknown) => Promise<void>
+  reset: (scope: SettingsScope, keys: readonly PreferenceKey[]) => Promise<void>
+  clear: (scope: SettingsScope) => Promise<void>
 }
 
 export const PreferenceKeySchema = PreferencesSchema.keyof()
