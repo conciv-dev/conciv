@@ -141,6 +141,8 @@ const design = defineExtension({
             ...(run.usage === undefined ? {} : {usage: run.usage}),
             ...(run.error === undefined ? {} : {error: run.error}),
           }),
+    sessionEnd: (sessionId) =>
+      runs.close(sessionId, {status: (verdict) => (verdict === 'done' ? 'completed' : 'aborted'), ended: Date.now()}),
     dispose: async () => {
       await backfilled
       await runs.closeAll({status: 'aborted', ended: Date.now()})

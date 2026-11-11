@@ -1872,6 +1872,57 @@ function crashed(input: {home: string; session: string}): void {
   store.close()
 }
 
+function reachedDone(input: {home: string; session: string}): void {
+  const store = new DatabaseSync(join(input.home, 'runs.db'))
+  store
+    .prepare(
+      "UPDATE design_rounds SET verdict = 'done' WHERE run_id IN (SELECT run_id FROM design_runs WHERE session_id = ? AND status = 'running')",
+    )
+    .run(input.session)
+  store.close()
+}
+
+describe('a run closes with its session', () => {
+  it('closes the run of an external session when its hub detaches, completed at done and aborted short of it, with no cost or usage', async () => {
+    const homeDir = await tempDir('conciv-design-detach-home-')
+    const engine = await bootDesignHost({homeDir})
+    const {session} = engine
+    const runs = () =>
+      homeQuery({
+        home: homeDir,
+        args: [
+          '--from',
+          'design_stored_runs',
+          '--where',
+          `session_id == "${session}"`,
+          '--select',
+          'status,ended,cost,usage,verdict',
+          '--order',
+          'run',
+        ],
+      })
+    const closed = {ended: expect.any(Number), cost: null, usage: null}
+    try {
+      await engine.goto('target')
+      await engine.rpc.sessions.take({sessionId: session, pid: process.pid})
+      await engine.call('design_get', await cardsDesign(engine.targetsDir))
+      roundOf(await engine.call('design_check', {}))
+      reachedDone({home: homeDir, session})
+      await engine.rpc.sessions.detach({pid: process.pid})
+      expect(await runs()).toEqual([{...closed, status: 'completed', verdict: 'done'}])
+      await engine.rpc.sessions.take({sessionId: session, pid: process.pid})
+      await engine.call('design_check', {})
+      await engine.rpc.sessions.detach({pid: process.pid})
+      expect(await runs()).toEqual([
+        {...closed, status: 'completed', verdict: 'done'},
+        {...closed, status: 'aborted', verdict: null},
+      ])
+    } finally {
+      await engine.dispose()
+    }
+  })
+})
+
 describe('a run closes with its engine', () => {
   it('closes every open run of an engine as aborted when the engine is disposed, with its verdict and no cost', async () => {
     const homeDir = await tempDir('conciv-design-dispose-home-')

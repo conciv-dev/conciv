@@ -53,16 +53,17 @@ export function createSessionRuns(input: {
           .where(eq(rounds.run_id, run))
           .orderBy(desc(rounds.seq))
           .limit(1)
+        const verdict = VerdictSchema.parse(last?.verdict?.replaceAll(' ', '-') ?? null)
         await orm
           .update(runs)
           .set({
-            status: state.status,
+            status: typeof state.status === 'function' ? state.status(verdict) : state.status,
             ended: state.ended,
             usage: state.usage ?? null,
             cost: state.usage === undefined ? null : (tokenUsageToSnapshot(state.usage).totalCostUsd ?? null),
             error: state.error?.message ?? null,
             error_code: state.error?.code ?? null,
-            verdict: VerdictSchema.parse(last?.verdict?.replaceAll(' ', '-') ?? null),
+            verdict,
           })
           .where(and(eq(runs.run_id, run), eq(runs.status, RUNNING)))
       }),
@@ -93,7 +94,7 @@ export function createSessionRuns(input: {
 }
 
 type Closed = {
-  status: RunStatus
+  status: RunStatus | ((verdict: z.output<typeof VerdictSchema>) => RunStatus)
   ended: number
   usage?: TokenUsage
   error?: {message: string; code?: string}
