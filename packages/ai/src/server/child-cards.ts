@@ -1,47 +1,31 @@
-import {z} from 'zod'
 import {defineChatMiddleware, generateMessageId} from '@tanstack/ai'
-import {ChatEventType, defineChatEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {
+  ChatEventType,
+  codeModeCallEvent,
+  codeModeErrorEvent,
+  codeModeResultEvent,
+  type ChatEvent,
+} from '@conciv/protocol/chat-event-types'
 
 type ShapeResult = (value: unknown) => unknown
 
-const EXTERNAL_PREFIX = /^external_/
+const LIBRARY_CHILD_EVENT = /^code_mode:external_(call|result|error)$/
 
 const EXECUTE_TOOL_SUFFIX = 'execute_typescript'
-
-const childCallEvent = defineChatEvent(
-  'code_mode:external_call',
-  z.looseObject({
-    callId: z.string().min(1),
-    function: z.string(),
-    args: z.unknown(),
-    toolCallId: z.string().optional(),
-  }),
-)
-
-const childResultEvent = defineChatEvent(
-  'code_mode:external_result',
-  z.looseObject({callId: z.string().min(1), result: z.unknown()}),
-)
-
-const childErrorEvent = defineChatEvent(
-  'code_mode:external_error',
-  z.looseObject({callId: z.string().min(1), error: z.string()}),
-)
 
 function serialized(value: unknown): string {
   return JSON.stringify(value) ?? 'null'
 }
 
 function childCallChunks(event: ChatEvent, parentToolCallId: string | null): ChatEvent[] | null {
-  const call = childCallEvent.parse(event)
+  const call = codeModeCallEvent.parse(event)
   if (call === null) return null
-  const parent = call.toolCallId ?? parentToolCallId
   return [
     {
       type: ChatEventType.TOOL_CALL_START,
       toolCallId: call.callId,
-      toolCallName: call.function.replace(EXTERNAL_PREFIX, ''),
-      ...(parent === null ? {} : {metadata: {parentToolCallId: parent}}),
+      toolCallName: call.function,
+      ...(parentToolCallId === null ? {} : {metadata: {parentToolCallId}}),
     },
     {type: ChatEventType.TOOL_CALL_ARGS, toolCallId: call.callId, delta: serialized(call.args ?? {})},
     {type: ChatEventType.TOOL_CALL_END, toolCallId: call.callId},
@@ -49,7 +33,7 @@ function childCallChunks(event: ChatEvent, parentToolCallId: string | null): Cha
 }
 
 function childResultChunks(event: ChatEvent, shapeResult: ShapeResult): ChatEvent[] | null {
-  const settled = childResultEvent.parse(event)
+  const settled = codeModeResultEvent.parse(event)
   if (settled === null) return null
   return [
     {
@@ -62,7 +46,7 @@ function childResultChunks(event: ChatEvent, shapeResult: ShapeResult): ChatEven
 }
 
 function childErrorChunks(event: ChatEvent): ChatEvent[] | null {
-  const failed = childErrorEvent.parse(event)
+  const failed = codeModeErrorEvent.parse(event)
   if (failed === null) return null
   return [
     {
@@ -80,6 +64,7 @@ export function childCardChunks(
   parentToolCallId: string | null,
   shapeResult: ShapeResult,
 ): ChatEvent[] | null {
+  if (event.type === ChatEventType.CUSTOM && LIBRARY_CHILD_EVENT.test(event.name)) return []
   return childCallChunks(event, parentToolCallId) ?? childResultChunks(event, shapeResult) ?? childErrorChunks(event)
 }
 

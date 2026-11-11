@@ -131,6 +131,15 @@ import {
   type FakeWidget,
 } from './helpers.js'
 
+function groupAlive(group: number): boolean {
+  try {
+    process.kill(-group, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
 function sharedKit(boot: () => Promise<Kit>): () => Kit {
   const held: {kit: Kit | undefined} = {kit: undefined}
   beforeAll(async () => {
@@ -629,8 +638,10 @@ describe('api codex turns', () => {
   const bin = join(root, 'bin')
   const fakeCodex = [
     '#!/bin/sh',
-    'cat > /dev/null',
+    'prompt=$(cat)',
     'echo "$@" > "$(dirname "$0")/args"',
+    `case "$prompt" in *stubborn*) trap '' TERM ;; esac`,
+    'case "$prompt" in *"stop me"*) ps -o pgid= -p $$ | tr -d " " > "$(dirname "$0")/group"; sleep 600 ;; esac',
     'count_file="$(dirname "$0")/count"',
     'count=$(( $(cat "$count_file" 2>/dev/null || echo 0) + 1 ))',
     'echo "$count" > "$count_file"',
@@ -701,6 +712,95 @@ describe('api codex turns', () => {
     await kit().rpc.sessions.effort({sessionId, effort: null})
     await runTurn(kit(), 'think normally', sessionId)
     expect(readFileSync(join(bin, 'args'), 'utf8')).not.toContain('model_reasoning_effort')
+  }, 30_000)
+
+  it("stop kills the agent's whole process group, also an agent that ignores SIGTERM after its wrapper died", async () => {
+    for (const prompt of ['stop me', 'stop me, stubborn']) {
+      const sessionId = (await kit().rpc.sessions.create()).sessionId
+      const runId = randomUUID()
+      rmSync(join(bin, 'group'), {force: true})
+      void (await kit().turn(prompt, {session: sessionId, runId})).done().catch(() => undefined)
+      await until(() => existsSync(join(bin, 'group')) && readFileSync(join(bin, 'group'), 'utf8').endsWith('\n'))
+      const group = Number(readFileSync(join(bin, 'group'), 'utf8'))
+      expect(groupAlive(group)).toBe(true)
+      await kit().rpc.chat.stop({sessionId, runIds: [runId]})
+      await until(() => !groupAlive(group), {hangGuardMs: 12_000, intervalMs: 50})
+    }
+  }, 40_000)
+})
+
+describe('api claude turns', () => {
+  const saved = {
+    PATH: process.env.PATH,
+    HOME: process.env.HOME,
+    CLAUDE_CODE_EFFORT_LEVEL: process.env.CLAUDE_CODE_EFFORT_LEVEL,
+    MAX_THINKING_TOKENS: process.env.MAX_THINKING_TOKENS,
+  }
+  const root = mkdtempSync(join(tmpdir(), 'conciv-claude-turns-'))
+  const bin = join(root, 'bin')
+  const fakeClaude = [
+    '#!/bin/sh',
+    'cat > /dev/null',
+    'printf "%s\\n" "$@" > "$(dirname "$0")/args"',
+    'printf "effort=%s thinking=%s" "$CLAUDE_CODE_EFFORT_LEVEL" "$MAX_THINKING_TOKENS" > "$(dirname "$0")/env"',
+    `echo '{"type":"system","subtype":"init","session_id":"claude-native-1","model":"fake","tools":[]}'`,
+    `echo '{"type":"result","subtype":"success","result":"ok"}'`,
+  ].join('\n')
+  beforeAll(() => {
+    mkdirSync(bin)
+    mkdirSync(join(root, 'home'))
+    writeFileSync(join(bin, 'claude'), fakeClaude, {mode: 0o755})
+    process.env.PATH = `${bin}:${saved.PATH ?? ''}`
+    process.env.HOME = join(root, 'home')
+    delete process.env.CLAUDE_CODE_EFFORT_LEVEL
+    delete process.env.MAX_THINKING_TOKENS
+  })
+  const made: {app: MadeApp | null} = {app: null}
+  const kit = sharedKit(() =>
+    createTestkit(claude, async (env) => {
+      const app = await bootMadeApp(env)
+      made.app = app
+      return {fetch: app.fetch, dispose: app.dispose, agentToken: app.agentToken}
+    }).setup(),
+  )
+
+  afterAll(() => {
+    Object.assign(process.env, saved)
+    if (saved.CLAUDE_CODE_EFFORT_LEVEL === undefined) delete process.env.CLAUDE_CODE_EFFORT_LEVEL
+    if (saved.MAX_THINKING_TOKENS === undefined) delete process.env.MAX_THINKING_TOKENS
+    rmSync(root, {recursive: true, force: true})
+  })
+
+  async function cliRun(sessionId: string, model: string, effort: 'high' | null) {
+    if (made.app === null) throw new Error('the app did not boot')
+    made.app.chat.db.update(sessions).set({model, effort}).where(eq(sessions.id, sessionId)).run()
+    await runTurn(kit(), `run ${model}`, sessionId)
+    const args = readFileSync(join(bin, 'args'), 'utf8').split('\n')
+    return {
+      model: args[args.indexOf('--model') + 1],
+      effortFlags: args.filter((arg) => arg === '--effort').length,
+      env: readFileSync(join(bin, 'env'), 'utf8'),
+    }
+  }
+
+  it('runs claude at the effort picked for the session through one setting, a Claude 5 model and a 4.x model alike', async () => {
+    const sessionId = (await kit().rpc.sessions.create()).sessionId
+    await runTurn(kit(), 'first', sessionId)
+    expect(await cliRun(sessionId, 'claude-opus-5', 'high')).toEqual({
+      model: 'claude-opus-5',
+      effortFlags: 0,
+      env: 'effort=high thinking=',
+    })
+    expect(await cliRun(sessionId, 'claude-opus-4-7', 'high')).toEqual({
+      model: 'claude-opus-4-7',
+      effortFlags: 0,
+      env: 'effort=high thinking=',
+    })
+    expect(await cliRun(sessionId, 'claude-opus-5', null)).toEqual({
+      model: 'claude-opus-5',
+      effortFlags: 0,
+      env: 'effort= thinking=',
+    })
   }, 30_000)
 })
 
@@ -1773,7 +1873,7 @@ describe('rpc wire', () => {
         expect(new Set(after.map((message) => message.id)).size).toBe(after.length)
       })
 
-      it('the chosen effort reaches the turn as reasoning, and a model without effort clears it', async () => {
+      it('the chosen effort reaches the harness, and a model without effort clears it', async () => {
         const sessionId = await newSession()
         const {models} = await chatKit().rpc.meta.models({sessionId})
         const plain = models.find((model) => model.efforts === undefined)
@@ -1782,12 +1882,12 @@ describe('rpc wire', () => {
         expect(await sessionMeta(sessionId)).toMatchObject({effort: 'high'})
         script().scriptTurn({toolCalls: [], text: 'thought hard'})
         await finished(sessionId, 'think about it')
-        expect(lastRunOf(sessionId)).toMatchObject({model: undefined, reasoning: 'high'})
+        expect(lastRunOf(sessionId)).toMatchObject({model: undefined, effort: 'high'})
 
         await chatKit().rpc.sessions.effort({sessionId, effort: null})
         script().scriptTurn({toolCalls: [], text: 'default effort'})
         await finished(sessionId, 'again')
-        expect(lastRunOf(sessionId).reasoning).toBeUndefined()
+        expect(lastRunOf(sessionId).effort).toBeUndefined()
 
         await chatKit().rpc.sessions.effort({sessionId, effort: 'max'})
         await chatKit().rpc.sessions.model({sessionId, model: plain.id})
@@ -3077,7 +3177,7 @@ return seen`
     })
 
     describe('code mode child cards', () => {
-      it('each call in a script shows as its own card under the script, with results, errors and caps, after reload too', async () => {
+      it('each call in a script shows as its own card under the script, with results, errors (bad arguments too) and caps, after reload too', async () => {
         const sessionId = await newSession()
         const ran = toolRuns.echo
         const parent = codeTurn(CHILD_CARD_SCRIPT)
@@ -3088,8 +3188,9 @@ return seen`
         expect(children.map((part) => [part.name, cardMetadata(part)])).toEqual(
           CHILD_CARDS.map((name) => [name, {parentToolCallId: parent}]),
         )
-        expect(children.find((part) => part.name === 'fixture_fail')?.state).toBe('error')
+        expect(children.map((part) => part.state === 'error')).toEqual([false, false, true, true, false])
         const results = resultsOf(await thread(sessionId))
+        expect(results).toContain('Input validation failed for tool fixture_echo')
         expect(results).toContain('the probe broke')
         expect(results).toContain('conciv:truncated')
         expect(results).toContain('120000')
@@ -3213,7 +3314,7 @@ return seen`
   const NEVER_MADE = 'conciv_never-made'
   const DECLARED_MESSAGE = 'PROBE_BROKE: the probe broke'
   const FIXTURE_TOOLS = ['fixture_echo', 'fixture_read', 'fixture_ask']
-  const CHILD_CARDS = ['fixture_echo', 'fixture_echo', 'fixture_fail', 'fixture_huge']
+  const CHILD_CARDS = ['fixture_echo', 'fixture_echo', 'fixture_echo', 'fixture_fail', 'fixture_huge']
   const ECHO_DESCRIPTION = 'Echo the text back.\n\nUse it to echo.\n\nNever echo secrets.\n\nKeep it short.'
   const EXPANSION_PART = {type: 'text', content: 'fixture-expanded', metadata: {modelOnly: true}}
   const ONE_PIXEL_PNG =
@@ -3239,6 +3340,7 @@ return seen`
   const CHILD_CARD_SCRIPT = `
   await external_fixture_echo({text: "a"})
   await external_fixture_echo({text: "b"})
+  try { await external_fixture_echo({text: 5}) } catch {}
   try { await external_fixture_fail({spaced: true}) } catch {}
   const huge = await external_fixture_huge({})
   return huge.blob.length
@@ -3250,7 +3352,7 @@ return seen`
     sessionId: string
     kind: 'chat' | 'compact'
     model: string | undefined
-    reasoning: string | undefined
+    effort: string | undefined
     resumeSessionId: string | null
     messages: string
     tools: string[]
@@ -3449,7 +3551,7 @@ return seen`
               sessionId: deps.sessionId,
               kind: deps.kind,
               model: deps.model,
-              reasoning: options.reasoning?.level,
+              effort: deps.effort,
               resumeSessionId: deps.resumeSessionId,
               messages: JSON.stringify(options.messages),
               tools: (options.tools ?? []).map((tool) => tool.name),
