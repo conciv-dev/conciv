@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto'
 import {join} from 'node:path'
 import type {HarnessConnectFile} from '@conciv/protocol/harness-types'
 import {CONCIV_COMMAND_GUIDE, CONCIV_RANKING_SENTENCE, DESIGN_BULLET} from '../agent-guide.js'
@@ -6,8 +7,6 @@ import {CLAUDE_CONNECT_MARKETPLACE, CLAUDE_CONNECT_MCP_SERVER, CLAUDE_CONNECT_PL
 import harnessInitManifest from '../../package.json' with {type: 'json'}
 
 export const CLAUDE_CONNECT_ROOT = 'claude-connect'
-
-export const CLAUDE_CONNECT_PLUGIN_VERSION = harnessInitManifest.version
 
 export const CLAUDE_CONNECT_INSTALL_TARGET = `${CLAUDE_CONNECT_PLUGIN}@${CLAUDE_CONNECT_MARKETPLACE}`
 
@@ -126,3 +125,7 @@ export function claudeConnectPluginFiles(opts: {stateDir: string}): HarnessConne
     {path: join(plugin, 'skills', 'conciv', 'SKILL.md'), contents: skillFile()},
   ]
 }
+
+export const CLAUDE_CONNECT_PLUGIN_VERSION = `${harnessInitManifest.version}-${createHash('sha256')
+  .update([marketplaceManifest(), claudeConnectBridgeSource(), mcpManifest(), skillFile()].join('\n'))
+  .digest('hex')}`

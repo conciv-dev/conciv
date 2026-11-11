@@ -605,11 +605,12 @@ describe('plugin files', () => {
       expect(treeOf('/first/.conciv')).toEqual(treeOf('/second/.conciv'))
     })
 
-    it('stamps the plugin and its cache directory with the harness-init release version', () => {
+    it('stamps the plugin and its cache directory with the harness-init release version and a digest of its files', () => {
       const plugin = JSON.parse(contentsAt('/first/.conciv', join('conciv-connect', '.claude-plugin', 'plugin.json')))
 
-      expect(plugin.version).toBe(harnessInitManifest.version)
-      expect(claudePluginCacheDir('/claude').endsWith(harnessInitManifest.version)).toBe(true)
+      expect(plugin.version.startsWith(`${harnessInitManifest.version}-`)).toBe(true)
+      expect(plugin.version).not.toBe(`${harnessInitManifest.version}-`)
+      expect(claudePluginCacheDir('/claude').endsWith(plugin.version)).toBe(true)
     })
 
     it('keeps the plugin state and the endpoint it reads in the project state dir, which no release version names', () => {

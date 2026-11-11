@@ -42,6 +42,7 @@ import {
   claudeConnectDir,
   claudeConnectPluginFiles,
 } from '@conciv/harness-init/claude/files'
+import {CLAUDE_CONNECT_BRIDGE_FILE} from '@conciv/harness-init/claude/bridge'
 import {writeConsent} from '../src/init/steps/harness/consent.js'
 import {dlxCommand} from 'nypm'
 import {docsPackStep} from '../src/init/steps/docs-pack.js'
@@ -4105,7 +4106,6 @@ export default defineConfig({plugins: [conciv()]})`)
           'printf \'%s\\n\' "$*" >> "$CONCIV_CLAUDE_RECORD"',
           '[ "$CONCIV_CLAUDE_EXIT" = "0" ] || exit "$CONCIV_CLAUDE_EXIT"',
           'PLUGINS="$HOME/.claude/plugins"',
-          `CACHE="$PLUGINS/cache/conciv/conciv-connect/${CLAUDE_CONNECT_PLUGIN_VERSION}"`,
           'if [ "$1" = "plugin" ] && [ "$2" = "marketplace" ] && [ "$3" = "add" ]; then',
           '  mkdir -p "$PLUGINS"',
           '  printf \'%s\' "$4" > "$PLUGINS/conciv-source"',
@@ -4116,9 +4116,12 @@ export default defineConfig({plugins: [conciv()]})`)
           'fi',
           'if [ "$1" = "plugin" ] && { [ "$2" = "install" ] || [ "$2" = "update" ]; }; then',
           '  ROOT=$(cat "$PLUGINS/conciv-source")',
+          '  VERSION=$(node -p "require(process.argv[1]).version" "$ROOT/conciv-connect/.claude-plugin/plugin.json")',
+          '  [ "$2" = "update" ] && grep -qsF "\\"version\\":\\"$VERSION\\"" "$PLUGINS/installed_plugins.json" && exit 0',
+          '  CACHE="$PLUGINS/cache/conciv/conciv-connect/$VERSION"',
           '  mkdir -p "$CACHE"',
           '  cp -R "$ROOT/conciv-connect/." "$CACHE/"',
-          `  printf '{"version":2,"plugins":{"conciv-connect@conciv":[{"scope":"local","version":"${CLAUDE_CONNECT_PLUGIN_VERSION}","installPath":"%s","projectPath":"%s"}]}}' "$CACHE" "$PWD" > "$PLUGINS/installed_plugins.json"`,
+          `  printf '{"version":2,"plugins":{"conciv-connect@conciv":[{"scope":"local","version":"%s","installPath":"%s","projectPath":"%s"}]}}' "$VERSION" "$CACHE" "$PWD" > "$PLUGINS/installed_plugins.json"`,
           'fi',
           'exit 0',
           '',
@@ -4301,6 +4304,22 @@ export default defineConfig({plugins: [conciv()]})`)
           )
           expect(records.plugins['conciv-connect@conciv'][0].installPath).toBe(pluginCacheDir(project.home))
           expect(existsSync(pluginCacheDir(project.home, previous))).toBe(true)
+        })
+
+        it('replaces a cached copy that holds other files under the same release number', async () => {
+          const project = fixture({exitCode: 0})
+          const release = CLAUDE_CONNECT_PLUGIN_VERSION.split('-')[0] ?? CLAUDE_CONNECT_PLUGIN_VERSION
+          seedInstalled({home: project.home, cwd: project.cwd, version: release})
+          writeFileSync(
+            join(pluginCacheDir(project.home, release), 'bin', CLAUDE_CONNECT_BRIDGE_FILE),
+            'a stale bridge',
+          )
+          const ledger = await runSteps(
+            [harnessInitStep(claudeInit, () => claudeConsent, project.io)],
+            project.harness.settings,
+            project.harness.output,
+          )
+          expect(ledger.map((entry) => [entry.status, entry.detail])).toEqual([['done', undefined]])
         })
 
         it('stays already after a second project registers the marketplace from its own copy', async () => {
