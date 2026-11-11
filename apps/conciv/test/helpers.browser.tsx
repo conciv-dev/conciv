@@ -12,7 +12,7 @@ import type {BootCoreInput, BootCoreResult, FaultSpec, PointerDrag, PointerHover
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {fetchServerSentEvents} from '@conciv/ai/client'
 import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
-import {QueryClient, QueryClientProvider, type ChatTransportPreference, voteEngineProbeSettled} from '@conciv/client'
+import {QueryClient, QueryClientProvider, type ChatTransportPreference} from '@conciv/client'
 import {type AppContextValue, AppContext} from '../src/app/context.js'
 import {makeLiveSessions} from '../src/app/live-sessions.js'
 import {createWarmSession} from '../src/app/warm-session.js'
@@ -427,7 +427,7 @@ export function createShellHarness(base: () => string): ShellHarness {
     mounted.disposeLogin = () => {}
     mounted.closeRpc()
     mounted.closeRpc = () => {}
-    voteEngineProbeSettled(true)
+    window.dispatchEvent(new Event('online'))
   }
 
   return {

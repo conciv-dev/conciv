@@ -22,6 +22,7 @@ catalog:
   '@orpc/standard-server-peer': 1.16.1
   '@orpc/tanstack-query': 1.16.1
   unstorage: 1.17.5
+  devframe: 1.2.6
 
   # The @tanstack/ai family is single-sourced here so every manifest resolves "catalog:" to the
   # same release and pnpm never installs two copies of @tanstack/ai.
