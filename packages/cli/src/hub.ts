@@ -5,7 +5,6 @@ import {createMCPClient, type MCPClient} from '@tanstack/ai-mcp'
 import {createMCPServer, type McpServer} from '@tanstack/ai-mcp/server'
 import {serveMCPStdio} from '@tanstack/ai-mcp/server/stdio'
 import {checkEngines, concivHome, type EngineRow} from '@conciv/db'
-import {defineTool} from '@conciv/protocol/chat-tool-types'
 import {
   CONCIV_CLIENT_HEADER,
   CONCIV_ORIGIN_HEADER,
@@ -249,31 +248,32 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
       {description: descriptions[EXECUTE_TOOL_NAME], inputSchema: ExecuteInputSchema},
       async (input, ctx) => executeCall(input, ctx.mcpReq.envelope, ctx.mcpReq.signal),
     )
+    server.registerTool(
+      DISCOVER_TOOL_NAME,
+      {description: descriptions[DISCOVER_TOOL_NAME], inputSchema: DiscoverInputSchema},
+      routed(DISCOVER_TOOL_NAME),
+    )
     server.server.setRequestHandler('tasks/get', {params: TaskIdParamsSchema}, queueTask)
   }
 
+  const descriptions: Record<ToolName, string> = {...FALLBACK_DESCRIPTIONS}
   const startup = currentRunner()
-  const descriptions = await startup.then(
-    (runner) =>
-      startupDescriptions(runner).catch(async (error: unknown) => {
-        logHub('reading the runner tool descriptions failed; using the built-in text', error)
-        await dropRunner(startup, runner)
-        return FALLBACK_DESCRIPTIONS
-      }),
-    () => FALLBACK_DESCRIPTIONS,
-  )
+  void startup
+    .then(
+      (runner) =>
+        startupDescriptions(runner).catch(async (error: unknown) => {
+          logHub('reading the runner tool descriptions failed; using the built-in text', error)
+          await dropRunner(startup, runner)
+          return FALLBACK_DESCRIPTIONS
+        }),
+      () => FALLBACK_DESCRIPTIONS,
+    )
+    .then((described) => Object.assign(descriptions, described))
   const server = createMCPServer({
     name: 'conciv-hub',
     version: cliManifest.version,
     sessions: 'memory',
     setup: serveQueueTasks,
-    tools: [
-      defineTool({
-        name: DISCOVER_TOOL_NAME,
-        description: descriptions[DISCOVER_TOOL_NAME],
-        inputSchema: DiscoverInputSchema,
-      }).server(routed(DISCOVER_TOOL_NAME)),
-    ],
   })
   const served = serveMCPStdio({...server, fetch: async (request) => server.fetch(await withTaskName(request))})
   await once(process.stdin, 'end')
