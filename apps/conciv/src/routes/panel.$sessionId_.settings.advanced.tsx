@@ -1,6 +1,6 @@
 import {Link, Outlet, createFileRoute} from '@tanstack/solid-router'
 import {For, Show, type JSX} from 'solid-js'
-import {useMutation} from '@tanstack/solid-query'
+import {useMutation} from '@conciv/client'
 import RotateCcw from 'lucide-solid/icons/rotate-ccw'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
 import type {AnyExtension} from '@conciv/extension'

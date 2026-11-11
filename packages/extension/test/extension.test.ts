@@ -22,7 +22,8 @@ import {readFile} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
 import {pageVerbError, isPageVerbError} from '../src/page-errors.js'
 import {os, createRouterClient, type AnyRouter} from '@orpc/server'
-import {rpcWebsocketRoute, RPC_WS_PATH, type UpgradeWebSocket} from '../src/rpc-mount.js'
+import {rpcWebsocketRoute, type UpgradeWebSocket} from '../src/rpc-mount.js'
+import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {isDefinedError, ORPCError} from '@orpc/client'
 import {
   createToolRegistry,

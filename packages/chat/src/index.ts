@@ -3,12 +3,12 @@ import {eq} from 'drizzle-orm'
 import {join} from 'node:path'
 import {Hono} from 'hono'
 import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
-import {approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {approvalRequestedEvent, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {approvalNeeded, childCardChunks, createChatServer, drizzleChatStores, toolApprovalId} from '@conciv/ai/server'
 import type {ChatHistoryWindow, ChatHydration} from '@conciv/contract'
 import {chatRuns, markers, type ConcivDb} from '@conciv/db'
-import {CHAT_SSE_PATH, CHAT_WS_PATH, SessionId, type HubAccess} from '@conciv/protocol/chat-types'
+import {CHAT_SSE_PATH, CHAT_WS_PATH, isSessionId, SessionId, type HubAccess} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
 import {
@@ -21,7 +21,7 @@ import {
 import {cappedValue, chatToolSet, type CodeCapability} from './code-mode.js'
 import {clearThread, metadataKeysEndingWith, runningThreadIds} from './stores.js'
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
-import {turnHooks, type TurnDeps} from './turn.js'
+import {firstUserTitle, turnHooks, type TurnDeps} from './turn.js'
 
 export {
   assistCapabilities,
@@ -98,13 +98,23 @@ export type ChatPlane = {
     capabilities?: readonly CodeCapability[],
   ) => Promise<CodeRunner | null>
   admitCall: (sessionId: SessionId, call: AdmittedCall) => Promise<CallRefusal | null>
-  pendingAsks: (sessionId: SessionId) => Promise<ChatEvent[]>
+  catchUp: (sessionId: SessionId) => Promise<ChatEvent[]>
   outsideDenied: (sessionId: SessionId) => Promise<boolean>
   allowOutside: (sessionId: SessionId) => Promise<void>
 }
 
 export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
-  const stores = drizzleChatStores(deps.db, {harnessOf: (threadId) => deps.harnessFor(SessionId.parse(threadId)).id})
+  const stores = drizzleChatStores(deps.db, {
+    harnessOf: (threadId) => deps.harnessFor(SessionId.parse(threadId)).id,
+    saved: (threadId, messages, at) => {
+      if (!isSessionId(threadId)) return
+      try {
+        deps.sessions.recordActivity(threadId, firstUserTitle(messages), at)
+      } catch (error) {
+        deps.log(`[conciv] recording the activity of session ${threadId} failed: ${String(error)}`)
+      }
+    },
+  })
   const approvals = createApprovalStore(
     {...stores.metadata, keysEndingWith: (namespace, suffix) => metadataKeysEndingWith(deps.db, namespace, suffix)},
     deps.hubAccess,
@@ -223,8 +233,8 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     answerUi: (sessionId, toolCallId, value) => ui.answer(sessionId, toolCallId, value),
     askUi: (sessionId) => ui.ask(sessionId),
     admitCall,
-    pendingAsks: async (sessionId) =>
-      (await approvals.pending(sessionId)).map((ask) => ({
+    catchUp: async (sessionId) => {
+      const asks: ChatEvent[] = (await approvals.pending(sessionId)).map((ask) => ({
         ...approvalRequestedEvent.create({
           approvalId: ask.approvalId,
           toolCallId: ask.toolCallId,
@@ -232,7 +242,13 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
           input: ask.input,
         }),
         timestamp: Date.now(),
-      })),
+      }))
+      const active = await stores.runs.findActiveRun(sessionId).catch((error: unknown) => {
+        deps.log(`[chat] reading the active run for a new subscriber failed: ${String(error)}`)
+        return null
+      })
+      return active === null ? asks : [...asks, sessionRunEvent.create({runId: active.runId})]
+    },
     outsideDenied: (sessionId) => approvals.outsideDenied(sessionId),
     allowOutside: (sessionId) => approvals.allowOutside(sessionId),
     codeRunner: async (sessionId, publish, given) => {

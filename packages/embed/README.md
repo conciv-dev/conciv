@@ -41,8 +41,7 @@ conciv({widget: {transport: 'websocket'}}) // never probe, always /rpc-ws
 
 - `package.json:exports["."]` - `dist/mount.js` with types in `dist/mount.d.ts`.
 - `vite.config.ts` - library build of `src/mount.ts` to `mount.js` (ES format, shared packages external).
-- `vite.global.config.ts` - IIFE `ConcivWidget` bundle `conciv-widget.global.js` from `tests/fixtures/global-entry.ts`.
-- `vite.native.config.ts` - IIFE `ConcivWidgetNative` bundle `conciv-widget-native.global.js` from `src/native-entry.ts`.
+- `vite.widget.config.ts` - one code-split ES build of `tests/fixtures/global-entry.ts` and `src/native-entry.ts` into shared chunks under `dist/widget/`, plus the classic-script loaders `conciv-widget.global.js` and `conciv-widget-native.global.js` that `import()` their entry chunk relative to `document.currentScript.src`. Rolldown cannot code-split IIFE output, so the loader is what keeps a plain `<script src>` working. No source maps. Serving a loader means serving `dist/widget/` beside it, same origin (module chunks need CORS cross-origin).
 - `vite.handle.config.ts` - IIFE `ConcivHandle` test bundle `conciv-handle.global.js` into `tests/dist`.
 - `playwright.config.ts:testDir` - `./tests/e2e`.
 - Source: [src](./src/README.md).

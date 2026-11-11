@@ -8,7 +8,7 @@ import {
   useMatchRoute,
   useRouter,
 } from '@tanstack/solid-router'
-import {useMutation, useQuery} from '@tanstack/solid-query'
+import {useMutation, useQuery} from '@conciv/client'
 import {Button, Editable, Popover, TooltipIconButton, TooltipIconButtonSlot, TruncatedText} from '@conciv/ui-kit-system'
 import {
   coalesceTurns,
@@ -114,7 +114,7 @@ function SessionTitle(props: {
     mutationFn: (input: {sessionId: string; title: string}) => rpc.sessions.rename(input),
     onSuccess: (result: {title: string}) => announce(`Renamed to ${result.title}`),
     onError: () => announce('Rename failed', true),
-    onSettled: () => appData.invalidateSessions(),
+    onSettled: (_result, _error, input) => appData.invalidateSession(input.sessionId),
   }))
   const title = () => {
     if (rename.isPending && rename.variables?.sessionId === props.sessionId) return rename.variables.title
@@ -323,7 +323,7 @@ function PanelSession(): JSX.Element {
   const activate = sessionMenu.activate
   const newSession = async () => {
     const {sessionId} = await rpc.sessions.create(undefined)
-    appData.invalidateSessions()
+    void appData.invalidateSession(sessionId)
     activate(sessionId)
     announce('Started a new session')
   }

@@ -1,4 +1,4 @@
-import {useMutation, useMutationState, useQuery, useQueryClient} from '@tanstack/solid-query'
+import {useMutation, useMutationState, useQuery, useQueryClient} from '@conciv/client'
 import {z} from 'zod'
 import type {HubAgents} from '@conciv/protocol/chat-types'
 import {useAppData, useRpc} from '../app/context.js'
@@ -18,9 +18,7 @@ export function useHubConnections() {
   const appData = useAppData()
   const queryClient = useQueryClient()
   const notices = useNotices()
-  const agents = useQuery(() =>
-    appData.utils.meta.hubAgents.queryOptions({refetchInterval: HUB_AGENTS_REFRESH_MS, refetchOnWindowFocus: true}),
-  )
+  const agents = useQuery(() => appData.utils.meta.hubAgents.queryOptions({refetchInterval: HUB_AGENTS_REFRESH_MS}))
   const installs = (): HubInstall[] => (agents.isSuccess ? agents.data.installs : [])
   const connections = (): HubConnection[] => (agents.isSuccess ? agents.data.connections : [])
   const connectKey = appData.utils.meta.connectHub.mutationKey()

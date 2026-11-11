@@ -4,7 +4,7 @@ import type {Turn} from '../../store/grouping.js'
 export type TurnEstimate = {height: number; exact: boolean}
 
 export type TurnEstimator = {
-  estimateTurn: (turn: Turn) => TurnEstimate | undefined
+  estimateTurn: (turn: Turn, index: number) => TurnEstimate | undefined
   reset: () => void
 }
 

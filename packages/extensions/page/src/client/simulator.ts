@@ -19,7 +19,6 @@ import {
   dropCursor,
   pageAt,
   pressCursor,
-  reducedMotion,
   windowAt,
   type Point,
 } from './agent-cursor.js'
@@ -27,11 +26,6 @@ import {
 const TASK_TIMEOUT_MS = 60_000
 const STOP_CONFIRM_MS = 3000
 const HIDE_MS = 800
-const MOVE_MS = 300
-const AFTER_RIPPLE_MS = 100
-const AFTER_CLICK_MS = 200
-const AFTER_INPUT_MS = 100
-const SCROLL_SETTLE_MS = 1500
 const BLOCKED_EVENTS = ['click', 'mousedown', 'mouseup', 'mousemove', 'wheel', 'keydown', 'keyup']
 const XHTML = 'http://www.w3.org/1999/xhtml'
 const MOUSE_POINTER = {pointerId: 1, pointerType: 'mouse', isPrimary: true}
@@ -52,6 +46,7 @@ const TRANSPARENT_BLACK = 'rgba(0, 0, 0, 0)'
 const LUMA = {r: 0.299, g: 0.587, b: 0.114}
 const APP_ROOT_MIN_SHARE = 0.5
 const DECIMAL = 10
+const GLOW_CANCELED = 'canceled'
 
 type Rgb = {r: number; g: number; b: number}
 
@@ -91,8 +86,9 @@ const sim: Simulator = {
 
 function ignore(): void {}
 
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+function warnUnlessCanceled(reason: unknown): void {
+  if (reason === GLOW_CANCELED) return
+  console.warn('[conciv] agent glow fade failed', reason)
 }
 
 function isHtml(element: Element): element is HTMLElement {
@@ -218,7 +214,7 @@ function show(agent: string): void {
   sim.shown = true
   sim.run ??= mountRun(sim.root)
   sim.run.glow?.start()
-  sim.run.glow?.fadeIn().catch(ignore)
+  sim.run.glow?.fadeIn().catch(warnUnlessCanceled)
   sim.run.layer.classList.add(VISIBLE_CLASS)
   aimAtCenter({run: sim.run, agent})
 }
@@ -228,7 +224,7 @@ function hide(): void {
   if (!sim.shown || !run) return
   sim.shown = false
   disarm()
-  run.glow?.fadeOut().catch(ignore)
+  run.glow?.fadeOut().catch(warnUnlessCanceled)
   run.glow?.pause()
   setTimeout(() => {
     if (sim.shown || sim.run !== run) return
@@ -283,35 +279,17 @@ function isReachable(element: Element): boolean {
   return hit !== null && element.contains(hit)
 }
 
-function scrollEnded(doc: Document): Promise<void> {
-  return new Promise((resolve) => {
-    const done = (): void => {
-      clearTimeout(timer)
-      doc.removeEventListener('scrollend', done, true)
-      resolve()
-    }
-    const timer = setTimeout(done, SCROLL_SETTLE_MS)
-    doc.addEventListener('scrollend', done, true)
-  })
+function scrollIntoViewIfNeeded(element: Element): void {
+  if (!isReachable(element)) element.scrollIntoView({behavior: 'instant', block: 'center', inline: 'nearest'})
 }
 
-async function scrollIntoViewIfNeeded(element: Element): Promise<void> {
-  if (isReachable(element)) return
-  if (reducedMotion()) return element.scrollIntoView({behavior: 'instant', block: 'center', inline: 'nearest'})
-  const ended = scrollEnded(element.ownerDocument)
-  element.scrollIntoView({behavior: 'smooth', block: 'center', inline: 'nearest'})
-  await ended
-}
-
-async function moveTo(options: {element: Element; agent: string}): Promise<Point> {
+function moveTo(options: {element: Element; agent: string}): {point: Point; arrived: Promise<void>} {
   const {element, agent} = options
-  await scrollIntoViewIfNeeded(element)
+  scrollIntoViewIfNeeded(element)
   const frame = element.ownerDocument.defaultView?.frameElement
-  if (frame) await scrollIntoViewIfNeeded(frame)
+  if (frame) scrollIntoViewIfNeeded(frame)
   const point = centerOf(element)
-  void aimCursor({id: agent, at: pageAt({target: element, point}), look: CursorLook.AGENT})
-  await wait(MOVE_MS)
-  return point
+  return {point, arrived: aimCursor({id: agent, at: pageAt({target: element, point}), look: CursorLook.AGENT})}
 }
 
 function hitTarget(options: {element: Element; point: Point}): Element {
@@ -357,19 +335,17 @@ function dispatchPress(options: {target: Element; element: Element; point: Point
   target.dispatchEvent(new MouseEvent('click', mouse))
 }
 
-export async function pointAt(options: {element: Element; agent: string}): Promise<void> {
-  await moveTo(options)
+export function pointAt(options: {element: Element; agent: string}): void {
+  moveTo(options)
 }
 
-export async function simulateClick(options: {element: Element; agent: string}): Promise<void> {
+export function simulateClick(options: {element: Element; agent: string}): void {
   const {element, agent} = options
   blurLastClicked()
   sim.lastClicked = element
-  const point = await moveTo({element, agent})
-  ripple(agent)
-  await wait(AFTER_RIPPLE_MS)
+  const {point, arrived} = moveTo({element, agent})
+  void arrived.then(() => ripple(agent))
   dispatchPress({target: hitTarget({element, point}), element, point})
-  await wait(AFTER_CLICK_MS)
 }
 
 export function setNativeValue(options: {
@@ -382,17 +358,40 @@ export function setNativeValue(options: {
   element.value = value
 }
 
-export async function simulateFill(options: {
+export function simulateFill(options: {
   element: HTMLInputElement | HTMLTextAreaElement
   value: string
   agent: string
-}): Promise<void> {
+}): void {
   const {element, value, agent} = options
-  await simulateClick({element, agent})
+  simulateClick({element, agent})
   setNativeValue({element, value})
   element.dispatchEvent(new Event('input', {bubbles: true, composed: true}))
   element.dispatchEvent(new Event('change', {bubbles: true}))
-  await wait(AFTER_INPUT_MS)
+}
+
+function proposeEdit(options: {host: HTMLElement; inputType: string; data: string | null}): boolean {
+  const {host, inputType, data} = options
+  const init = {bubbles: true, composed: true, inputType, data}
+  if (!host.dispatchEvent(new InputEvent('beforeinput', {...init, cancelable: true}))) return false
+  host.textContent = data ?? ''
+  host.dispatchEvent(new InputEvent('input', init))
+  return true
+}
+
+export function typeByEvents(options: {host: HTMLElement; value: string}): void {
+  const {host, value} = options
+  if (!proposeEdit({host, inputType: 'deleteContent', data: null}) || value === '') return
+  proposeEdit({host, inputType: 'insertText', data: value})
+}
+
+export function typeByCommands(options: {host: HTMLElement; value: string}): void {
+  const {host, value} = options
+  const doc = host.ownerDocument
+  host.focus({preventScroll: true})
+  doc.getSelection()?.selectAllChildren(host)
+  doc.execCommand('delete')
+  if (value !== '') doc.execCommand('insertText', false, value)
 }
 
 function pageBody(): HTMLElement {
@@ -471,16 +470,12 @@ function isTextLight(): boolean {
 }
 
 function isPageDark(): boolean {
-  try {
-    return (
-      hasDarkClass() ||
-      hasDarkAttribute() ||
-      isColorSchemeDark() ||
-      isBackgroundDark() ||
-      isAppRootDark() ||
-      isTextLight()
-    )
-  } catch {
-    return false
-  }
+  return (
+    hasDarkClass() ||
+    hasDarkAttribute() ||
+    isColorSchemeDark() ||
+    isBackgroundDark() ||
+    isAppRootDark() ||
+    isTextLight()
+  )
 }

@@ -8,7 +8,11 @@ export type PackageSize = {name: string; raw: number; gzip: number; files: numbe
 
 const PACKAGE_GROUPS = ['packages', 'packages/extensions']
 const BUNDLED_EXTENSIONS = ['.js', '.mjs', '.cjs', '.css']
-const WIDGET_BUNDLE = 'packages/embed/dist/conciv-widget.global.js'
+const WIDGET_LOADER = 'packages/embed/dist/conciv-widget.global.js'
+const WIDGET_CHUNKS = 'packages/embed/dist/widget'
+const WIDGET_ENTRY = /["'`]widget\/([\w.-]+\.js)["'`]/
+const WIDGET_MOUNT_CHUNK = /^mount-impl-[\w.-]*\.js$/
+const STATIC_IMPORT = /(?:import|export)\s*(?:[\w${}\s,*]*?from\s*)?["'`]\.\/([\w.-]+\.js)["'`]/g
 
 const SITE_WORKER_CONFIG = 'dist/server/wrangler.json'
 const SITE_WORKER_CONFIG_FROM_ROOT = `apps/site/${SITE_WORKER_CONFIG}`
@@ -57,11 +61,39 @@ export function measureSizes(root: string): PackageSize[] {
   const packages = publishedPackages(root)
     .map(({name, dir}) => sizeOfFiles(name, distFiles(join(dir, 'dist'))))
     .filter((size) => size.files > 0)
-  const widgetPath = join(root, WIDGET_BUNDLE)
-  const widget = existsSync(widgetPath)
-    ? [sizeOfFiles(`widget bundle (${relative(root, widgetPath)})`, [widgetPath])]
-    : []
-  return [...widget, ...packages.toSorted((a, b) => a.name.localeCompare(b.name))]
+  return [...widgetSizes(root), ...packages.toSorted((a, b) => a.name.localeCompare(b.name))]
+}
+
+function widgetSizes(root: string): PackageSize[] {
+  const loaderPath = join(root, WIDGET_LOADER)
+  const chunkDir = join(root, WIDGET_CHUNKS)
+  if (!existsSync(loaderPath) || !existsSync(chunkDir)) return []
+  const chunks = readdirSync(chunkDir).filter((name) => name.endsWith('.js'))
+  const entry = WIDGET_ENTRY.exec(readFileSync(loaderPath, 'utf8'))?.[1]
+  const roots = [...(entry === undefined ? [] : [entry]), ...chunks.filter((name) => WIDGET_MOUNT_CHUNK.test(name))]
+  const firstLoad = staticClosure(chunkDir, new Set(chunks), roots)
+  const eager = chunks.filter((name) => firstLoad.has(name))
+  const lazy = chunks.filter((name) => !firstLoad.has(name))
+  return [
+    sizeOfFiles(`widget first load (${WIDGET_LOADER})`, [loaderPath, ...eager.map((name) => join(chunkDir, name))]),
+    sizeOfFiles(
+      `widget lazy chunks (${WIDGET_CHUNKS})`,
+      lazy.map((name) => join(chunkDir, name)),
+    ),
+  ]
+}
+
+function staticClosure(chunkDir: string, emitted: Set<string>, roots: string[]): Set<string> {
+  return roots.reduce((seen, name) => visitChunk(chunkDir, emitted, seen, name), new Set<string>())
+}
+
+function visitChunk(chunkDir: string, emitted: Set<string>, seen: Set<string>, name: string): Set<string> {
+  if (seen.has(name) || !emitted.has(name)) return seen
+  seen.add(name)
+  const imported = [...readFileSync(join(chunkDir, name), 'utf8').matchAll(STATIC_IMPORT)].flatMap((match) =>
+    match[1] === undefined ? [] : [match[1]],
+  )
+  return imported.reduce((visited, next) => visitChunk(chunkDir, emitted, visited, next), seen)
 }
 
 function parseJson(raw: string): unknown {

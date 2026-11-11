@@ -30,7 +30,19 @@ import {
   type CodeCapability,
   type SessionPort,
 } from '@conciv/chat'
-import {makeBrowserRpcClient, makeRpcClient, SOCKET_TRUST_FRAME, type EngineStaleness} from '@conciv/contract'
+import {
+  browserRpcConnection,
+  heldBrowserRpcLink,
+  makeBrowserRpcClient,
+  makeRpcClient,
+  subscribeRpcReachability,
+  SOCKET_TRUST_FRAME,
+  type EngineStaleness,
+  type HeldBrowserRpcLink,
+  type TrustStatus,
+} from '@conciv/contract'
+import {revokeBrowsers} from '@conciv/protocol/engine-trust'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import {chatRuns, openDb, type ConcivDb} from '@conciv/db'
 import {
   createClientSettings,
@@ -43,14 +55,14 @@ import {
 } from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {type HarnessAdapter, defineHarness, resolveHarnessModels} from '@conciv/harness'
-import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
-import {CHAT_SSE_PATH, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
-import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
+import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
+import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
 import {eq} from 'drizzle-orm'
 import {isEqual} from 'es-toolkit'
 import getPort from 'get-port'
-import {defineWebSocketHelper} from 'hono/ws'
+import {WSContext, defineWebSocketHelper} from 'hono/ws'
 import {createStorage, defineDriver} from 'unstorage'
 import memoryDriver from 'unstorage/drivers/memory'
 import {z} from 'zod'
@@ -68,7 +80,15 @@ import {createSettingsStorage, settingsOnDisk} from '../src/settings/settings-st
 import {runWithSession} from '../src/runtime/session-context.js'
 import {start, composeSystemPrompt} from '../src/start.js'
 import {makeApp} from '../src/app.js'
-import {CODE_LIFETIME_MS, OPEN_PATHS, isOpenPath, makeCodeStore} from '../src/engine-login.js'
+import {
+  CODE_LIFETIME_MS,
+  OPEN_PATHS,
+  isOpenPath,
+  makeCodeStore,
+  makeConnectionTrust,
+  rpcSocketGate,
+  watchTrustedBrowsers,
+} from '../src/engine-login.js'
 import {serveHono} from '@conciv/serve'
 import {Hono} from 'hono'
 import {exchangePrintedCode, loginThroughTerminal, requestPrintedCode} from '@conciv/harness-testkit'
@@ -76,7 +96,7 @@ import {os} from '@orpc/server'
 import {createORPCClient} from '@orpc/client'
 import {RPCLink as FetchRpcLink} from '@orpc/client/fetch'
 import {RPCLink as WebsocketRpcLink} from '@orpc/client/websocket'
-import {CONCIV_VERSION_HEADER, type RpcContext} from '@conciv/protocol/rpc-types'
+import {CONCIV_VERSION_HEADER, RPC_WS_PATH, rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
 import coreManifest from '../package.json' with {type: 'json'}
 import {chunkWithInlineMap, cleanupChunks, makeChatFixture} from './helpers.js'
@@ -281,6 +301,37 @@ describe('chat plane', () => {
     expect.soft(logged).not.toMatch(/DrizzleQueryError|database is not open/)
   })
 
+  it('a push socket that opens while a run is going is told about that run', async () => {
+    const cli = fakeCli('streaming')
+    const engine = await bootEngine(tempDir(), {harness: cliHarness(cli)})
+    onTestFinished(async () => {
+      cli.release()
+      await engine.stop()
+    })
+    const id = sessionId('late-push')
+    const turn = await fetch(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}${CHAT_SSE_PATH}`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: turnBody(id, 'late-push-run', 'keep talking'),
+    })
+    await readUntil(turn, ChatEventType.TEXT_MESSAGE_CONTENT)
+    const socket = new WebSocket(`ws://127.0.0.1:${engine.port}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${id}`)
+    onTestFinished(() => socket.close())
+    const announced = new Promise<string | null>((resolve) => {
+      socket.addEventListener('message', (event) => {
+        const frame = PushFrameSchema.safeParse(JSON.parse(String(event.data)))
+        if (!frame.success || frame.data.channel !== 'chat') return
+        const run = sessionRunEvent.parse(frame.data.chunk)
+        if (run !== null) resolve(run.runId)
+      })
+      socket.addEventListener('close', () => resolve(null))
+    })
+    socket.addEventListener('open', () =>
+      socket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: engine.agentToken})),
+    )
+    expect(await announced).toBe('late-push-run')
+  }, 10_000)
+
   type CliStep = 'reply' | 'partial' | 'streaming' | 'tooling'
 
   type FakeCli = {steps: CliStep[]; systemPrompts: string[][]; gate: Promise<void>; release: () => void}
@@ -357,7 +408,7 @@ describe('chat plane', () => {
       recordNativeId: async () => undefined,
       recordUsage: async () => undefined,
       recordContextTokens: async () => undefined,
-      recordTitle: async () => undefined,
+      recordActivity: () => {},
       onRunStart: async () => undefined,
       publish: () => undefined,
       onRunEnd: async () => undefined,
@@ -642,18 +693,90 @@ describe('page bus and the session scope', () => {
     return typeof frame.requestId === 'string' ? frame.requestId : null
   }
 
-  it('a reply still settles the in-flight ask after the asking widget unsubscribes and a fresh one attaches', async () => {
+  it('an ask in flight fails at once when its browser tab unsubscribes, and its late reply settles nothing', async () => {
     const bus = makePageBus(2000)
     const frames: unknown[] = []
     const unsubscribe = bus.subscribe(SESSION_A, (frame) => frames.push(frame))
     const answered = bus.ask(SESSION_A, {name: 'fixture_click', input: {}, agentId: SESSION_A})
-    await Promise.resolve()
-    unsubscribe()
     bus.subscribe(SESSION_A, () => {})
+    unsubscribe()
+    await expect(answered).rejects.toMatchObject({
+      error: {code: 'no-widget', message: 'browser tab b1 closed before it replied'},
+    })
     const requestId = frames.map(requestIdOf).find((found) => found !== null)
-    expect(bus.resolve(SESSION_A, requestId ?? '', {ok: true, result: {clicked: 'yes'}})).toBe(true)
-    await expect(answered).resolves.toEqual({result: {clicked: 'yes'}})
-  }, 10_000)
+    expect(bus.resolve(SESSION_A, requestId ?? '', {ok: true, result: {clicked: 'yes'}})).toBe(false)
+  })
+
+  function replyingTab(bus: ReturnType<typeof makePageBus>, result: Record<string, unknown>): unknown[] {
+    const frames: unknown[] = []
+    bus.subscribe(SESSION_A, (frame) => {
+      frames.push(frame)
+      const requestId = requestIdOf(frame)
+      if (requestId !== null) queueMicrotask(() => bus.resolve(SESSION_A, requestId, {ok: true, result}))
+    })
+    return frames
+  }
+
+  it('a reading call that loses its browser tab is sent once more to the next tab that serves the session', async () => {
+    const bus = makePageBus(2000)
+    const lost = bus.subscribe(SESSION_A, () => {})
+    const answered = bus.ask(SESSION_A, {name: 'page_route', input: {}, agentId: SESSION_A}, {mutating: false})
+    lost()
+    await setImmediate()
+    const reloaded = replyingTab(bus, {href: '/after-reload'})
+    expect(await answered).toEqual({result: {href: '/after-reload'}})
+    expect(reloaded).toHaveLength(1)
+  })
+
+  it('a reading call that loses its browser tab goes at once to the other tab of the session, focused last', async () => {
+    const bus = makePageBus(2000)
+    const other = replyingTab(bus, {href: '/other'})
+    const lost = bus.subscribe(
+      SESSION_A,
+      () => {},
+      () => ({focusedAt: 1, visible: true}),
+    )
+    const answered = bus.ask(SESSION_A, {name: 'page_snapshot', input: {}, agentId: SESSION_A}, {mutating: false})
+    lost()
+    expect(await answered).toEqual({result: {href: '/other'}})
+    expect(other).toHaveLength(1)
+  })
+
+  it('a reading call whose browser tab never comes back fails as before once its own timeout runs out', async () => {
+    const bus = makePageBus(100)
+    const lost = bus.subscribe(SESSION_A, () => {})
+    const answered = bus.ask(SESSION_A, {name: 'page_route', input: {}, agentId: SESSION_A}, {mutating: false})
+    lost()
+    await expect(answered).rejects.toMatchObject({
+      error: {code: 'no-widget', message: 'browser tab b1 closed before it replied'},
+    })
+  })
+
+  it('a call whose browser tab stays open and never replies times out once, never as a lost tab', async () => {
+    const bus = makePageBus(100)
+    const frames: unknown[] = []
+    bus.subscribe(SESSION_A, (frame) => frames.push(frame))
+    const reading = bus.ask(SESSION_A, {name: 'page_route', input: {}, agentId: SESSION_A}, {mutating: false})
+    await expect(reading).rejects.toMatchObject({error: {code: 'timeout'}})
+    expect(frames.map(requestIdOf).filter((found) => found !== null)).toHaveLength(1)
+    const changing = bus.ask(SESSION_A, {name: 'page_click', input: {}, agentId: SESSION_A}, {mutating: true})
+    await expect(changing).rejects.toMatchObject({error: {code: 'timeout'}})
+  })
+
+  it('a changing call that loses its browser tab is never sent again and says it may already have run', async () => {
+    const bus = makePageBus(2000)
+    const lost = bus.subscribe(SESSION_A, () => {})
+    const answered = bus.ask(SESSION_A, {name: 'page_click', input: {}, agentId: SESSION_A}, {mutating: true})
+    lost()
+    await expect(answered).rejects.toMatchObject({
+      error: {
+        code: 'no-widget',
+        message:
+          'the page reloaded or closed during page_click; it may already have run. Take a new snapshot before continuing',
+      },
+    })
+    expect(replyingTab(bus, {})).toHaveLength(0)
+  })
 
   it('a page tool asks, journals and is reachable under the established session, never the one the request names', async () => {
     const fixture = await makeChatFixture()
@@ -904,6 +1027,203 @@ describe('engine login', () => {
       await served.close()
     }
   })
+})
+
+describe('browser rpc over one websocket', () => {
+  const requester = {browser: 'Chrome 156 | macOS', origin: 'http://localhost:5173'}
+  const sessionOs = os.$context<RpcContext>()
+  const sessionProbe = defineExtension({name: 'session probe'}).server(() => ({
+    context: {},
+    router: sessionOs.router({session: sessionOs.handler(({context}) => rpcHeader(context, CONCIV_SESSION_HEADER))}),
+  }))
+
+  type Wire = {httpRpc: number; sockets: number}
+
+  async function engine(root: string, port = 0, agentToken?: string) {
+    const made = await makeApp({
+      cfg: resolveConfig({}, root),
+      cwd: root,
+      openInEditor: () => {},
+      extensions: [sessionProbe],
+      ...(agentToken ? {agentToken} : {}),
+    })
+    const wire: Wire = {httpRpc: 0, sockets: 0}
+    const served = await serveHono({
+      port,
+      fetch: (request, env) => {
+        const {pathname} = new URL(request.url)
+        if (pathname === RPC_WS_PATH && request.headers.get('upgrade') === 'websocket') wire.sockets += 1
+        if (pathname.startsWith('/rpc/')) wire.httpRpc += 1
+        return made.fetch(request, env)
+      },
+    })
+    const stop = async () => {
+      await served.close()
+      await made.dispose()
+    }
+    return {made, wire, port: served.port, origin: `http://127.0.0.1:${served.port}`, stop}
+  }
+
+  test('an untrusted socket is refused until an auth call on that same socket trusts it, and nothing rides http', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const served = await engine(root)
+    const client = makeBrowserRpcClient(served.origin)
+    const connection = browserRpcConnection(served.origin)
+    try {
+      const {trust} = connection
+      const {rpc} = client
+      await expect(rpc.sessions.list(undefined)).rejects.toMatchObject({status: 401})
+      expect(await trust.requestTrust()).toBe(false)
+      expect(trust.status()).toBe('untrusted')
+      expect(await trust.requestTrustWithToken(served.made.agentToken)).toBe(true)
+      expect(await rpc.sessions.list(undefined)).toMatchObject({sessions: []})
+      const probes = [() => 'conciv_first', () => 'conciv_second', undefined].map((session) =>
+        heldBrowserRpcLink(() => served.origin, session),
+      )
+      const probe = (held: HeldBrowserRpcLink) =>
+        createORPCClient<{ext: {'session-probe': {session: () => Promise<string | null>}}}>(held.link).ext[
+          'session-probe'
+        ].session()
+      expect(await Promise.all(probes.map(probe))).toEqual(['conciv_first', 'conciv_second', null])
+      expect(served.wire).toEqual({httpRpc: 0, sockets: 1})
+      for (const held of probes) held.release()
+    } finally {
+      connection.release()
+      client.close()
+      await served.stop()
+      rmSync(root, {recursive: true, force: true})
+    }
+  })
+
+  test('an open changes stream keeps delivering after the engine restarts on the same port', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const first = await engine(root)
+    const token = first.made.trustBrowser(requester, Date.now())
+    const votes: boolean[] = []
+    const unsubscribe = subscribeRpcReachability(first.origin, (reachable) => votes.push(reachable))
+    const restarted: {current: Awaited<ReturnType<typeof engine>> | null} = {current: null}
+    const client = makeBrowserRpcClient(first.origin)
+    const connection = browserRpcConnection(first.origin)
+    try {
+      expect(await connection.trust.requestTrustWithToken(token)).toBe(true)
+      const changes = await client.rpc.sessions.changes()
+      expect((await changes.next()).done).toBe(false)
+      await first.stop()
+      await vi.waitFor(() => expect(votes.at(-1)).toBe(false), {timeout: 5_000})
+      restarted.current = await engine(root, first.port)
+      expect((await changes.next()).done).toBe(false)
+      expect(votes.at(-1)).toBe(true)
+      await changes.return(undefined)
+      expect(first.wire).toEqual({httpRpc: 0, sockets: 1})
+      expect(restarted.current.wire.httpRpc).toBe(0)
+    } finally {
+      unsubscribe()
+      connection.release()
+      client.close()
+      await restarted.current?.stop()
+      rmSync(root, {recursive: true, force: true})
+    }
+  }, 20_000)
+
+  test('a socket that closed before its auth call finished is never trusted afterwards', () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const browsers = watchTrustedBrowsers(concivStateDir(root))
+    const agentToken = 'conciv-agent-token'
+    try {
+      const gate = rpcSocketGate(makeConnectionTrust(agentToken, browsers), undefined)
+      gate.open(new WSContext({send: () => {}, close: () => {}, readyState: 1}))
+      expect(gate.trust.admit(agentToken)).toBe(true)
+      expect(gate.trust.allows(['sessions', 'list'])).toBe(true)
+      gate.close()
+      expect(gate.trust.admit(agentToken)).toBe(false)
+      expect(gate.trust.allows(['sessions', 'list'])).toBe(false)
+      expect(gate.trust.allows(['auth', 'trust'])).toBe(false)
+    } finally {
+      browsers.close()
+      rmSync(root, {recursive: true, force: true})
+    }
+  })
+
+  test('each api base keeps its own socket, and one closing client leaves the base open for the others', async () => {
+    const [firstRoot, secondRoot] = [
+      mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-')),
+      mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-')),
+    ]
+    const first = await engine(firstRoot)
+    const second = await engine(secondRoot)
+    const firstClient = makeBrowserRpcClient(first.origin)
+    const sharingClient = makeBrowserRpcClient(first.origin)
+    const secondClient = makeBrowserRpcClient(second.origin)
+    const firstLogin = browserRpcConnection(first.origin)
+    const secondLogin = browserRpcConnection(second.origin)
+    try {
+      expect(await firstLogin.trust.requestTrustWithToken(first.made.agentToken)).toBe(true)
+      expect(await secondLogin.trust.requestTrustWithToken(second.made.agentToken)).toBe(true)
+      expect(await firstClient.rpc.sessions.list(undefined)).toMatchObject({sessions: []})
+      expect(await secondClient.rpc.sessions.list(undefined)).toMatchObject({sessions: []})
+      expect(await sharingClient.rpc.sessions.list(undefined)).toMatchObject({sessions: []})
+      sharingClient.close()
+      expect(await firstClient.rpc.sessions.list(undefined)).toMatchObject({sessions: []})
+      expect(await secondClient.rpc.sessions.list(undefined)).toMatchObject({sessions: []})
+      expect([first.wire, second.wire]).toEqual([
+        {httpRpc: 0, sockets: 1},
+        {httpRpc: 0, sockets: 1},
+      ])
+    } finally {
+      firstLogin.release()
+      secondLogin.release()
+      firstClient.close()
+      secondClient.close()
+      await first.stop()
+      await second.stop()
+      rmSync(firstRoot, {recursive: true, force: true})
+      rmSync(secondRoot, {recursive: true, force: true})
+    }
+  }, 20_000)
+
+  test('a trust observer keeps hearing its base after the last client released it and a new client opened', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const served = await engine(root)
+    const observer = browserRpcConnection(served.origin)
+    const heard: TrustStatus[] = []
+    const stopObserving = observer.trust.subscribe((status) => heard.push(status))
+    const first = makeBrowserRpcClient(served.origin)
+    const second = makeBrowserRpcClient(served.origin)
+    try {
+      await expect(first.rpc.sessions.list(undefined)).rejects.toMatchObject({status: 401})
+      first.close()
+      await expect(second.rpc.sessions.list(undefined)).rejects.toMatchObject({status: 401})
+      const login = browserRpcConnection(served.origin)
+      expect(await login.trust.requestTrustWithToken(served.made.agentToken)).toBe(true)
+      login.release()
+      expect(heard).toEqual(['trusted'])
+      expect(await second.rpc.sessions.list(undefined)).toMatchObject({sessions: []})
+    } finally {
+      stopObserving()
+      observer.release()
+      second.close()
+      await served.stop()
+      rmSync(root, {recursive: true, force: true})
+    }
+  })
+
+  test('a revoked token closes the socket and the next call opens a fresh untrusted one', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const served = await engine(root)
+    const {trust, release} = browserRpcConnection(served.origin)
+    try {
+      expect(await trust.requestTrustWithToken(served.made.trustBrowser(requester, Date.now()))).toBe(true)
+      revokeBrowsers(concivStateDir(root), 'all')
+      await vi.waitFor(() => expect(trust.status()).toBe('revoked'), {timeout: 5_000})
+      expect(await trust.requestTrust()).toBe(false)
+      expect(trust.status()).toBe('untrusted')
+      expect(served.wire).toEqual({httpRpc: 0, sockets: 2})
+    } finally {
+      release()
+      await served.stop()
+      rmSync(root, {recursive: true, force: true})
+    }
+  }, 20_000)
 })
 
 describe('settings storage', () => {

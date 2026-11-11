@@ -1,8 +1,7 @@
 import {createMemo, createRoot, on, onCleanup, untrack, type Accessor} from 'solid-js'
 import {difference, partition, uniq} from 'es-toolkit'
-import type {QueryClient} from '@tanstack/solid-query'
+import {type QueryClient, useChatSession, type ChatSession, type ChatTransportPreference} from '@conciv/client'
 import {createStore} from 'solid-js/store'
-import {useChatSession, type ChatSession, type ChatTransportPreference} from '@conciv/client'
 import {browserRpcConnection, type RpcClient} from '@conciv/contract'
 import {isRunPhaseTerminal, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import type {AppData} from '../data/app-data.js'
@@ -74,7 +73,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
     if (lifecycle.runId === run.settled || !(lifecycle.runId === run.live || sentHere)) return
     setState('runs', sessionId, {live: null, settled: lifecycle.runId})
     deps.onRunEnd?.(sessionId)
-    deps.appData.invalidateSessions()
+    void deps.appData.invalidateSession(sessionId)
     void deps.queryClient.invalidateQueries({queryKey: deps.appData.utils.markers.list.key({input: {sessionId}})})
     void deps.queryClient.invalidateQueries({queryKey: deps.appData.utils.captures.list.key({input: {sessionId}})})
     if (lifecycle.phase === 'completed') deps.announce('conciv replied.')
@@ -122,13 +121,15 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
             : start(sessionId, lifecycle),
       },
     })
-    const stopTrust = browserRpcConnection(apiBase).trust.subscribe((status, previous) => {
+    const connection = browserRpcConnection(apiBase)
+    const stopTrust = connection.trust.subscribe((status, previous) => {
       if (status === 'trusted' && engineLocked(previous))
         session.refresh().catch((error: unknown) => console.error('[conciv] re-hydrating the chat failed', error))
     })
     onCleanup(() => {
       stopTrust()
-      if (untrack(session.runInProgress)) deps.appData.invalidateSessions()
+      connection.release()
+      if (untrack(session.runInProgress)) void deps.appData.invalidateSession(sessionId)
     })
     return session
   }

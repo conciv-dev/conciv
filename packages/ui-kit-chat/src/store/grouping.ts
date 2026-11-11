@@ -2,6 +2,7 @@ import {isEqual, keyBy, range} from 'es-toolkit'
 import type {JSX} from 'solid-js'
 import {
   CompactionMetadataSchema,
+  OutsideCallMetadataSchema,
   type ChatPart,
   type ToolCallPart,
   type ToolResultPart,
@@ -45,7 +46,12 @@ function turnBounds(messages: ReadonlyArray<ChatMessage>): TurnBounds[] {
   const bounds: TurnBounds[] = []
   messages.forEach((message, index) => {
     const last = bounds.at(-1)
-    if (last && message.role === 'assistant' && last.first.role === 'assistant' && !opensTurn(message)) {
+    if (
+      last &&
+      message.role === 'assistant' &&
+      last.first.role === 'assistant' &&
+      !opensTurn(message, messages[index - 1])
+    ) {
       last.end = index
       return
     }
@@ -54,8 +60,17 @@ function turnBounds(messages: ReadonlyArray<ChatMessage>): TurnBounds[] {
   return bounds
 }
 
-function opensTurn(message: ChatMessage): boolean {
-  return CompactionMetadataSchema.safeParse(message.metadata).success
+function opensTurn(message: ChatMessage, previous: ChatMessage | undefined): boolean {
+  return CompactionMetadataSchema.safeParse(message.metadata).success || outsideRun(message) !== outsideRun(previous)
+}
+
+export function isOutsideTurn(turn: Turn | undefined): boolean {
+  return outsideRun(turn?.messages[0]) !== undefined
+}
+
+function outsideRun(message: ChatMessage | undefined): string | undefined {
+  const call = message?.parts.find((part) => part.type === 'tool-call')
+  return OutsideCallMetadataSchema.safeParse(call?.metadata).data?.conciv.run
 }
 
 function sameMessage(previous: ChatMessage | undefined, message: ChatMessage | undefined): boolean {

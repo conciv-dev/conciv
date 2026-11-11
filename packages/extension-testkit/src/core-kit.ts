@@ -11,12 +11,10 @@ import type {CoreRuntime, SessionScope} from '@conciv/core/runtime'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 import type {EngineStaleness} from '@conciv/contract'
-import {procedurePathOf, samePath} from './rpc-payload.js'
 
 export type CoreKit = Kit & {
   harness: FakeHarness
   forSession: (id: SessionId) => SessionScope
-  rpcServed: (path: readonly string[]) => number
 }
 
 export type AlternateHarness = {
@@ -53,7 +51,6 @@ export async function bootCoreKit(opts: {
     resumeBin: opts.resumeBin,
   })
   const captured: {runtime?: CoreRuntime} = {}
-  const served: (readonly string[])[] = []
   const kit = await createTestkit(harness, async (env) => {
     const {fetch, dispose, runtime, agentToken} = await makeApp({
       print: env.print,
@@ -79,13 +76,7 @@ export async function bootCoreKit(opts: {
     })
     captured.runtime = runtime
     return {
-      fetch: async (...fetchArguments: Parameters<typeof fetch>) => {
-        const [request] = fetchArguments
-        const response = await fetch(...fetchArguments)
-        const procedurePath = procedurePathOf(request.url)
-        if (procedurePath && request.method !== 'OPTIONS' && response.status !== 401) served.push(procedurePath)
-        return response
-      },
+      fetch,
       dispose,
       agentToken,
     }
@@ -96,6 +87,5 @@ export async function bootCoreKit(opts: {
     ...kit,
     harness,
     forSession: runtime.forSession,
-    rpcServed: (path) => served.filter((servedPath) => samePath(servedPath, path)).length,
   }
 }

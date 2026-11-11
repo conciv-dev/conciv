@@ -31,6 +31,7 @@ import {
 import {PageQuerySchema} from '../src/page-types.js'
 import {TtyClientControlSchema, TtyServerControlSchema} from '../src/terminal-types.js'
 import {aguiSnapshotFor, UiAnswerSchema, UiAnswerValueSchema, UiInputSchema} from '../src/ui-types.js'
+import {tokenUsageToSnapshot, type TokenUsage} from '../src/usage-types.js'
 
 describe('chat busy', () => {
   describe('chatBusy', () => {
@@ -725,6 +726,54 @@ describe('ui types', () => {
       expect(UiAnswerSchema.parse({answered: false, note: 'timed out'})).toEqual({answered: false, note: 'timed out'})
       expect(UiAnswerSchema.safeParse({answered: true}).success).toBe(false)
       expect(UiAnswerSchema.safeParse({answered: false, value: 'yes'}).success).toBe(false)
+    })
+  })
+})
+
+describe('usage types', () => {
+  describe('tokenUsageToSnapshot reads the context window from the claude-code modelUsage map', () => {
+    function claudeCodeUsage(): TokenUsage {
+      return {
+        promptTokens: 52_000,
+        completionTokens: 900,
+        totalTokens: 52_900,
+        promptTokensDetails: {cachedTokens: 40_000, cacheWriteTokens: 2_000},
+        cost: 0.31,
+        providerUsageDetails: {
+          totalCostUsd: 0.31,
+          modelUsage: {
+            'claude-haiku-4-5': {
+              inputTokens: 1_200,
+              outputTokens: 80,
+              cacheReadInputTokens: 0,
+              cacheCreationInputTokens: 0,
+              webSearchRequests: 0,
+              costUSD: 0.002,
+              contextWindow: 200_000,
+              maxOutputTokens: 32_000,
+            },
+            'claude-haiku-5-5': {
+              inputTokens: 10_000,
+              outputTokens: 820,
+              cacheReadInputTokens: 40_000,
+              cacheCreationInputTokens: 2_000,
+              webSearchRequests: 0,
+              costUSD: 0.308,
+              contextWindow: 1_000_000,
+              maxOutputTokens: 64_000,
+            },
+          },
+        },
+      }
+    }
+
+    it('takes the window of the entry with the most input and cache tokens when the session model is unknown', () => {
+      expect(tokenUsageToSnapshot(claudeCodeUsage())).toMatchObject({contextWindow: 1_000_000, totalCostUsd: 0.31})
+    })
+
+    it("takes the session model's own entry when it has one", () => {
+      expect(tokenUsageToSnapshot(claudeCodeUsage(), 'claude-haiku-4-5').contextWindow).toBe(200_000)
+      expect(tokenUsageToSnapshot(claudeCodeUsage(), 'haiku').contextWindow).toBe(1_000_000)
     })
   })
 })

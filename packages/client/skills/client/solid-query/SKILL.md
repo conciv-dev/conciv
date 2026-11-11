@@ -9,6 +9,10 @@ description: Use when fetching, caching, polling, or invalidating server data in
 
 Server reads are queries, server writes are mutations, and every query key comes from the oRPC utils. The one documented production failure this skill exists to prevent: the connect picker fetched its candidate list with `useMutation` plus a hand-rolled `['attach-readiness', …]` key — result: no cache, a full skeleton on every open, a frozen list rendered as live, and two competing sources for one read.
 
+## Imports
+
+Import every TanStack Query hook, `QueryClient`, `QueryClientProvider` and `createTanstackQueryUtils` from `@conciv/client`, never from `@tanstack/solid-query`, `@tanstack/query-core` or `@orpc/tanstack-query` (lint error). `@conciv/client` bundles the single patched copy (TanStack/query#11230) that the widget and every extension share.
+
 ## The two rules that are never negotiated
 
 1. **Reads = `useQuery`. Writes = `useMutation`.** "I only need it once when the dialog opens" is a read. "It returns data I then display" is a read. A mutation that calls a list/get procedure is wrong in review, no exceptions.
@@ -27,7 +31,7 @@ await queryClient.ensureQueryData(data.utils.sessions.list.queryOptions()) // __
 
 - `useQuery` takes a FUNCTION returning options; it is wrapped in `createMemo` (`useQuery.ts`). Reactivity comes from reading signals INSIDE that function (`enabled: open()`, input from a signal). A plain object argument is a type error; reading signals outside the function loses reactivity.
 - The result is a Solid store updated via `reconcile` (`useBaseQuery.ts`). Access fields in JSX (`list.data`, `list.isPending`) for fine-grained updates. NEVER destructure the result — destructuring snapshots it dead.
-- This app's `QueryClient` has NO default options (`apps/conciv/src/router.ts`). `staleTime`, `gcTime`, `retry`, `refetchInterval` are all explicit per call site — omitting them is a decision (staleTime 0, gcTime 5min defaults from query-core), not a neutral act.
+- This app's `QueryClient` defaults every query to `staleTime: Infinity` and `refetchOnWindowFocus: 'always'` (`apps/conciv/src/router.tsx`). Data changes only three ways: a server push (`experimental_liveOptions`), an invalidation at the action of ours that changed it, or a window refocus. Never add a per-query `staleTime` to make data refresh; invalidate it where we change it, or poll with `refetchInterval` where the server changes it with no push. An explicit `refetchOnWindowFocus: true` turns the refocus refetch OFF under an infinite staleTime; use `'always'` or leave the default.
 
 ## State vocabulary (drives the UI async matrix)
 
@@ -45,7 +49,7 @@ Polling: `refetchInterval` accepts a function or `false` — gate it on visibili
 
 ## Invalidation
 
-Use the app helper (`appData.invalidateSessions()`) or `queryClient.invalidateQueries(appData.utils.<x>.<y>.key())` in mutation `onSuccess`. If you wrote a mutation and invalidated nothing, say why in the diff or it is a review finding.
+Use the app helper (`appData.invalidateSession(sessionId)` when one session changed, `appData.invalidateSessions()` only to refresh them all) or `queryClient.invalidateQueries(appData.utils.<x>.<y>.key())` in mutation `onSuccess`. If you wrote a mutation and invalidated nothing, say why in the diff or it is a review finding.
 
 ## Red flags — stop and fix
 

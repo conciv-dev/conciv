@@ -24,9 +24,10 @@ export function defaultErrorComponent(props: ErrorComponentProps): JSX.Element {
     if (status === 'trusted' && engineLocked(previous)) void retry()
   }
   onMount(() => {
-    const trust = browserRpcConnection(apiBase()?.() ?? '').trust
+    const {trust, release} = browserRpcConnection(apiBase()?.() ?? '')
     if (trust.isTrusted() && rpcErrorCode(props.error) === 'UNAUTHORIZED') void retry()
     onCleanup(trust.subscribe(onTrustChange))
+    onCleanup(release)
   })
   return <ErrorScreen message={classification().message} onRetry={() => void retry()} />
 }

@@ -1,8 +1,7 @@
 import {Show, createEffect, onCleanup, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
-import {useQuery} from '@tanstack/solid-query'
+import {useQuery, engineProbeRefetchInterval, voteEngineProbeSettled} from '@conciv/client'
 import {useRouteContext, useRouter, useSearch} from '@tanstack/solid-router'
-import {engineProbeRefetchInterval, voteEngineProbeSettled} from '@conciv/client'
 import {resetBrowserRpcConnection} from '@conciv/contract'
 import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
 import lt from 'semver/functions/lt'
@@ -76,7 +75,6 @@ export function EngineOutdatedNotice(): JSX.Element {
   const engineVersion = useQuery(() => ({
     queryKey: ['conciv', 'engine-version', apiBase()],
     queryFn: async () => (await fetch(`${apiBase()}/health`)).headers.get(CONCIV_VERSION_HEADER),
-    staleTime: Number.POSITIVE_INFINITY,
   }))
   const outdated = (): boolean => engineVersion.isSuccess && engineOlderThanWidget(engineVersion.data)
   return (

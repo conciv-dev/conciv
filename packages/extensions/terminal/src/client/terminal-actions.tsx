@@ -1,4 +1,4 @@
-import {createMemo, createResource, For, Match, Show, Switch, type JSX} from 'solid-js'
+import {createMemo, For, Match, Show, Switch, type JSX} from 'solid-js'
 import Crosshair from 'lucide-solid/icons/crosshair'
 import Plus from 'lucide-solid/icons/plus'
 import RotateCw from 'lucide-solid/icons/rotate-cw'
@@ -9,22 +9,7 @@ import type {HarnessModelInfo} from '@conciv/protocol/chat-types'
 import {getExtensionApi} from '@conciv/extension'
 import {TERMINAL_NAME} from '../shared/protocol.js'
 import {useTerminalContext} from './terminal-context.js'
-
-const MODEL_KEY = 'conciv-model'
-
-function readStoredModel(): string | null {
-  try {
-    return localStorage.getItem(MODEL_KEY)
-  } catch {
-    return null
-  }
-}
-
-function writeStoredModel(id: string): void {
-  try {
-    localStorage.setItem(MODEL_KEY, id)
-  } catch {}
-}
+import {useTerminalModels} from './terminal-models.js'
 
 function toOption(model: HarnessModelInfo): ModelOption {
   return {id: model.id, name: model.name, description: model.description, disabled: model.disabled}
@@ -45,22 +30,15 @@ function ModelList(): JSX.Element {
 export function TerminalActions(): JSX.Element {
   const host = getExtensionApi(TERMINAL_NAME)
   const store = useTerminalContext((context) => context.store)
-  const rpc = host.useRpc()
-  const sessionId = host.useSessionId()
   const grab = host.useGrab()
   const newSession = host.useNewSession()
   const busy = () => store.busy()
-  const [models, {refetch}] = createResource(sessionId, async (id) => {
-    const {models: list} = await rpc.meta.models({sessionId: id})
-    const stored = store.spawnModel() ?? readStoredModel()
-    store.setSpawnModel(stored && list.some((model) => model.id === stored) ? stored : null)
-    return list
-  })
-  const options = createMemo(() => (models() ?? []).map(toOption))
+  const terminalModels = useTerminalModels()
+  const models = terminalModels.models
+  const options = createMemo(() => terminalModels.list().map(toOption))
   const pickModel = (id: string) => {
-    if (busy() || id === store.spawnModel()) return
-    store.setSpawnModel(id)
-    writeStoredModel(id)
+    if (busy() || id === terminalModels.spawnModel()) return
+    terminalModels.choose(id)
     store.bumpRespawn()
   }
   const pickElement = async () => {
@@ -82,17 +60,17 @@ export function TerminalActions(): JSX.Element {
       </TooltipIconButton>
       <span class="mx-0.5 bg-chat-line-2 shrink-0 h-4 w-px" aria-hidden="true" />
       <Switch>
-        <Match when={models.loading}>
+        <Match when={models.isLoading}>
           <Button variant="outline" size="sm" class="shrink-0 h-7" disabled aria-label="Loading models">
             Models…
           </Button>
         </Match>
-        <Match when={models.error}>
+        <Match when={models.isError}>
           <Button
             variant="outline"
             size="sm"
             class="text-chat-danger shrink-0 gap-1.5 h-7"
-            onClick={() => void refetch()}
+            onClick={() => void models.refetch()}
           >
             <RotateCw class="size-3.5 block" aria-hidden="true" />
             Retry
@@ -104,7 +82,11 @@ export function TerminalActions(): JSX.Element {
           </Button>
         </Match>
         <Match when={options().length > 0}>
-          <ModelSelector.Root models={options()} value={store.spawnModel() ?? undefined} onValueChange={pickModel}>
+          <ModelSelector.Root
+            models={options()}
+            value={terminalModels.spawnModel() ?? undefined}
+            onValueChange={pickModel}
+          >
             <ModelSelector.Trigger disabled={busy()} classList={{'anim-switching': store.respawning()}} />
             <ModelSelector.Content>
               <ModelSelector.Search placeholder="Search models…" />

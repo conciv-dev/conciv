@@ -1,26 +1,26 @@
-import {makeQueryUtils, type QueryUtils} from '@conciv/client'
-import type {QueryClient} from '@tanstack/solid-query'
+import {makeQueryUtils, type QueryUtils, type QueryClient, type QueryKey} from '@conciv/client'
 import type {RpcClient} from '@conciv/contract'
-
-const SESSIONS_STALE_MS = 30_000
 
 export type AppData = {
   utils: QueryUtils
   invalidateSessions: () => Promise<void>
+  invalidateSession: (sessionId: string) => Promise<void>
   invalidateOutsideAccess: () => Promise<void>
 }
 
 export function makeAppData(rpc: RpcClient, queryClient: QueryClient): AppData {
   const utils = makeQueryUtils(rpc)
-  const sessionKeys = [utils.sessions.list.key(), utils.sessions.search.key(), utils.sessions.get.key()]
-  for (const queryKey of sessionKeys) {
-    queryClient.setQueryDefaults(queryKey, {staleTime: SESSIONS_STALE_MS, refetchOnWindowFocus: false})
+  const listKeys = [utils.sessions.list.key(), utils.sessions.search.key()]
+  for (const queryKey of [...listKeys, utils.sessions.get.key()]) {
+    queryClient.setQueryDefaults(queryKey, {refetchOnWindowFocus: false})
+  }
+  const invalidate = async (queryKeys: QueryKey[]) => {
+    await Promise.all(queryKeys.map((queryKey) => queryClient.invalidateQueries({queryKey})))
   }
   return {
     utils,
-    invalidateSessions: async () => {
-      await Promise.all(sessionKeys.map((queryKey) => queryClient.invalidateQueries({queryKey})))
-    },
+    invalidateSessions: () => invalidate([...listKeys, utils.sessions.get.key()]),
+    invalidateSession: (sessionId) => invalidate([...listKeys, utils.sessions.get.key({input: {sessionId}})]),
     invalidateOutsideAccess: () => queryClient.invalidateQueries({queryKey: utils.chat.outsideAccess.key()}),
   }
 }

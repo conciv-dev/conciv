@@ -79,6 +79,21 @@ export const runLifecycleEvent = defineChatEvent('conciv.run-lifecycle', RunLife
 
 export const sessionRunEvent = defineChatEvent('conciv.session-run', z.object({runId: z.string().min(1)}))
 
+export const codeModeCallEvent = defineChatEvent(
+  'conciv.code-mode-call',
+  z.looseObject({callId: z.string().min(1), function: z.string(), args: z.unknown()}),
+)
+
+export const codeModeResultEvent = defineChatEvent(
+  'conciv.code-mode-result',
+  z.looseObject({callId: z.string().min(1), result: z.unknown()}),
+)
+
+export const codeModeErrorEvent = defineChatEvent(
+  'conciv.code-mode-error',
+  z.looseObject({callId: z.string().min(1), error: z.string()}),
+)
+
 export function isRunPhaseTerminal(phase: RunPhase): boolean {
   return phase === 'completed' || phase === 'failed' || phase === 'aborted'
 }

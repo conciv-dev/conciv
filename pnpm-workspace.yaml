@@ -27,6 +27,7 @@ catalog:
   # same release and pnpm never installs two copies of @tanstack/ai.
   '@tanstack/ai': 1.2.0
   '@tanstack/ai-client': 1.1.0
+  '@tanstack/ai-event-client': 1.0.1
   '@tanstack/ai-persistence': 1.0.1
   '@tanstack/ai-code-mode': 1.1.0
   '@tanstack/ai-isolate-node': 1.1.0
@@ -62,9 +63,9 @@ catalog:
   '@tailwindcss/vite': '^4.3.3'
   '@tanstack/devtools-vite': '^0.8.5'
   '@tanstack/pacer': '^0.23.1'
-  '@tanstack/query-core': '^5.105.0'
+  '@tanstack/query-core': '^5.107.1'
   '@tanstack/react-devtools': '^0.10.13'
-  '@tanstack/react-query': '^5.105.0'
+  '@tanstack/react-query': '^5.107.1'
   '@tanstack/react-router': 1.170.46
   '@tanstack/react-router-devtools': 1.167.2
   '@tanstack/react-start': 1.169.4
@@ -72,9 +73,10 @@ catalog:
   '@tanstack/router-plugin': 1.168.48
   '@tanstack/solid-hotkeys': ^0.17.0
   '@tanstack/solid-pacer': 0.24.0
-  '@tanstack/solid-query': '^5.105.0'
+  '@tanstack/solid-query': '^5.107.1'
   '@tanstack/solid-router': 1.170.43
   '@tanstack/solid-virtual': '^3.13.51'
+  '@tanstack/store': 0.11.2
   '@tiptap/core': '^3.32.1'
   '@tiptap/extension-document': '^3.32.1'
   '@tiptap/extension-hard-break': '^3.32.1'
@@ -93,8 +95,8 @@ catalog:
   '@unocss/reset': '^66.12.0'
   '@vitejs/devtools': '^0.8.0'
   '@vitejs/plugin-react': '^6.1.2'
-  '@vitest/browser-playwright': 5.0.5
-  '@vitest/coverage-v8': '^5.0.5'
+  '@vitest/browser-playwright': 5.1.0
+  '@vitest/coverage-v8': '^5.1.0'
   '@zag-js/highlight-word': '^1.47.0'
   '@zumer/snapdom': 3.3.3
   ai-motion: 0.4.8
@@ -124,6 +126,8 @@ catalog:
   oxfmt: 0.75.0
   oxlint: 1.90.0
   p-timeout: '^8.0.0'
+  partysocket: '^1.3.0'
+  piscina: '^5.3.2'
   pixelmatch: ^8.0.0
   playwright: '^1.64.1'
   pngjs: ^7.0.0
@@ -156,7 +160,7 @@ catalog:
   unocss: '^66.12.0'
   vite: '^8.3.5'
   vite-plugin-solid: '^2.11.14'
-  vitest: '^5.0.5'
+  vitest: '^5.1.0'
   ws: '^8.22.0'
   zod: '^4.6.7'
 
@@ -236,43 +240,8 @@ minimumReleaseAgeExclude:
   - 'lucide-solid'
   - 'tsdown'
 patchedDependencies:
-  # buildUsage (dist/esm/stream/translate.js:34-56 in 1.0.1) forwards total_cost_usd and the raw modelUsage
-  # map but never picks the session model's context window, so the context meter had to guess the window
-  # (200k where Haiku 5.5 reports 1M). The patch adds the session model's contextWindow (the modelUsage
-  # entry for the init message's model; the entry with the most input tokens when that one is missing) to
-  # providerUsageDetails.
-  # It also fixes effort on Claude 5 models: CLAUDE_CODE_MODEL_REASONING (dist/esm/model-meta.js) lists
-  # only 4.x ids, so fable, claude-fable-5, claude-opus-5, claude-sonnet-5 and [1m] ids sent no effort,
-  # and the sonnet and haiku aliases (now 5.5, effort low..max) used the old thinking budget. Ids the
-  # EFFORT_MODELS regex matches now fall back to the low..max effort levels.
-  # Drop it once upstream forwards the context window and lists the 5.x models.
-  '@tanstack/ai-claude-code@1.0.1': patches/@tanstack__ai-claude-code@1.0.1.patch
-  # createEventAwareBindings (dist/esm/bindings/tool-to-binding.js:73-115 in 1.1.0) emits
-  # code_mode:external_call / external_result / external_error with no call id, so parallel child calls
-  # cannot be paired into cards and aroundCalls cannot add one. The patch mints one callId per call and
-  # stamps it on the call and on its result or error, and hands it to the binding as toolCallId so a
-  # tool knows which call it is answering. Drop it once upstream carries a call id there.
-  '@tanstack/ai-code-mode@1.1.0': patches/@tanstack__ai-code-mode@1.1.0.patch
-  # LocalProcessProvider.destroy(id) only retries the dir (src/provider.ts:129-133 in 1.0.0); it never
-  # reaches the handle that spawned the CLI, so a stopped turn leaves the agent running. The patch tracks
-  # minted handles and destroys one through its own destroy (SIGTERM, then SIGKILL after 5s): the handle
-  # whose run signal was aborted with RUN_CANCEL_REASON, so a stop never kills another session's CLI on the
-  # shared dir. Its teardown also waits for the whole process group, not just the sh wrapper, before
-  # deciding to escalate: a journaled agent outlives a wrapper that SIGTERM killed. Drop it once upstream
-  # kills the tree there.
-  '@tanstack/ai-sandbox-local-process@1.0.0': patches/@tanstack__ai-sandbox-local-process@1.0.0.patch
-  # withSandbox builds the workspace projection root through resolveHarnessCwd (src/middleware.ts:906 in
-  # 1.2.0), a host path where the sandbox expects a virtual one; the patch keeps the virtual root.
-  # Its durability options (dist/esm/durability.js:133-145 in 1.2.0) forward attachWaitMs only on an attach;
-  # the patch forwards it on every run.
-  # Its tool-history recorder (src/tool-history.ts) also drops each call's TOOL_CALL_START metadata and the
-  # result's output-error state, so a reload loses code-mode nesting (parentToolCallId) and shows failed
-  # calls as successes; the patch keeps both. It also records the assistant message with no id, so
-  # conversion mints a fresh one on every read; the patch stores one from generateMessageId. Drop the patch
-  # once upstream fixes all of these.
-  '@tanstack/ai-sandbox@1.2.0': patches/@tanstack__ai-sandbox@1.2.0.patch
   # TanStack/query#11230: cached data resolves the query resource synchronously so background refetches stop
-  # re-suspending (focus loss in the composer and model search); drop once a solid-query release includes it
-  '@tanstack/solid-query@5.105.0': patches/@tanstack__solid-query@5.105.0.patch
-  # vitest-dev/vitest#11709: read cached server modules as utf-8 (fixes #11682 code.charCodeAt crash); drop once a vitest release includes it
-  vitest@5.0.5: patches/vitest@5.0.5.patch
+  # re-suspending (focus loss in the composer and model search). The patch only reaches users because
+  # @conciv/client bundles the one solid-query + query-core copy the widget and every extension import; a
+  # host-resolved copy would be unpatched. Drop it once a solid-query release includes #11230.
+  '@tanstack/solid-query@5.107.1': patches/@tanstack__solid-query@5.107.1.patch

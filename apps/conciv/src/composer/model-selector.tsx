@@ -1,6 +1,6 @@
 import {createEffect, createMemo, For, Match, on, Show, splitProps, Suspense, Switch, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
-import {useMutation, useQuery} from '@tanstack/solid-query'
+import {useMutation, useQuery} from '@conciv/client'
 import {groupBy, partition} from 'es-toolkit'
 import {useFilter} from '@ark-ui/solid/locale'
 import {
@@ -33,6 +33,7 @@ import {useNotices} from '../shell/notice-context.js'
 import {rpcErrorCode} from '../shell/rpc-error-message.js'
 
 const MODELS_UNAVAILABLE = 'Couldn’t load models'
+const MODELS_LOADING = 'Loading models'
 const RETRY_LABEL = 'Retry loading models'
 const SWITCH_FAILED = 'Could not switch model'
 const MENU_LABEL = 'Model'
@@ -457,14 +458,14 @@ function useSessionChoices(sessionId: () => string) {
   const pane = usePane()
   const refetchSessionHarness = useRefetchSessionHarness()
   const setModel = useMutation(() => ({
-    mutationFn: (model: string) => rpc.sessions.model({sessionId: sessionId(), model}),
+    mutationFn: (input: {sessionId: string; model: string}) => rpc.sessions.model(input),
     onError: () => announce(SWITCH_FAILED, true),
-    onSettled: () => appData.invalidateSessions(),
+    onSettled: (_result, _error, input) => appData.invalidateSession(input.sessionId),
   }))
   const setEffort = useMutation(() => ({
-    mutationFn: (effort: ReasoningEffort | null) => rpc.sessions.effort({sessionId: sessionId(), effort}),
+    mutationFn: (input: {sessionId: string; effort: ReasoningEffort | null}) => rpc.sessions.effort(input),
     onError: () => announce(EFFORT_SWITCH_FAILED, true),
-    onSettled: () => appData.invalidateSessions(),
+    onSettled: (_result, _error, input) => appData.invalidateSession(input.sessionId),
   }))
   const switchHarness = useMutation(() => ({
     mutationFn: (target: SwitchTarget) =>
@@ -492,23 +493,29 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
   const session = useQuery(() => appData.utils.sessions.get.queryOptions({input: {sessionId: props.sessionId}}))
   const {setModel, setEffort, switchHarness} = useSessionChoices(() => props.sessionId)
 
-  const ownEntry = createMemo((): HarnessMenuEntry | undefined =>
-    own.data === undefined
+  const ownModels = () => (own.isPending ? undefined : own.data)
+  const ownEntry = createMemo((): HarnessMenuEntry | undefined => {
+    const loaded = ownModels()
+    return loaded === undefined
       ? undefined
-      : {...own.data.harness, models: own.data.models, defaultModel: own.data.defaultModel, modelsFailed: false},
+      : {...loaded.harness, models: loaded.models, defaultModel: loaded.defaultModel, modelsFailed: false}
+  })
+  const loading = () => own.isPending
+  const entries = createMemo(() =>
+    loading() ? [] : withOwnEntry(catalog.isSuccess ? catalog.data.harnesses : [], ownEntry()),
   )
-  const entries = createMemo(() => withOwnEntry(catalog.isSuccess ? catalog.data.harnesses : [], ownEntry()))
   const named = () => entries().length > 1
-  const row = () => session.data
+  const row = () => (session.isPending ? undefined : session.data)
   const harness = () => entries().find((entry) => entry.id === ownEntry()?.id)
   const models = () => harness()?.models ?? []
   const value = () =>
-    (setModel.isPending ? setModel.variables : undefined) ?? row()?.model ?? harness()?.defaultModel ?? null
+    (setModel.isPending ? setModel.variables?.model : undefined) ?? row()?.model ?? harness()?.defaultModel ?? null
   const current = createMemo(() => models().find((model) => model.id === value()))
   const effort = createMemo(() =>
-    listedEffort(setEffort.isPending ? (setEffort.variables ?? null) : (row()?.effort ?? null), current()),
+    listedEffort(setEffort.isPending ? (setEffort.variables?.effort ?? null) : (row()?.effort ?? null), current()),
   )
-  const shownName = () => promptName(harness(), current()?.name ?? value() ?? '', named())
+  const shownName = () =>
+    loading() ? MODELS_LOADING : promptName(harness(), current()?.name ?? value() ?? '', named())
   const failed = () => own.isError && models().length === 0
   const sections = createMemo(() => {
     const [mine, others] = partition(
@@ -572,11 +579,11 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
       return
     }
     close()
-    if (picked.model.id !== value()) setModel.mutate(picked.model.id)
+    if (picked.model.id !== value()) setModel.mutate({sessionId: props.sessionId, model: picked.model.id})
   }
   const selectEffort = (next: ReasoningEffort | null) => {
     if (next === effort()) return
-    setEffort.mutate(next)
+    setEffort.mutate({sessionId: props.sessionId, effort: next})
   }
   createEffect(
     on(
@@ -589,104 +596,97 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
 
   return (
     <>
-      <Show when={failed() || harness() !== undefined}>
-        <Popover.RootProvider value={props.menu.popover} lazyMount unmountOnExit onExitComplete={props.menu.ask}>
-          <Popover.Trigger
-            asChild={(triggerProps) => (
-              <Button
-                {...triggerProps()}
-                variant="plain"
-                size="none"
-                class={PROMPT}
-                aria-label={failed() ? MODELS_UNAVAILABLE : promptAriaLabel(shownName(), effort())}
-              >
-                <Show
-                  when={!failed()}
-                  fallback={<RotateCw class="size-3.5 block text-chat-text-3" aria-hidden="true" />}
-                >
-                  <Show when={shownName().toLowerCase()} keyed>
-                    {(label) => <span class={PROMPT_MODEL}>{label}</span>}
-                  </Show>
-                  <Show when={effort()}>
-                    {(level) => <EffortBars levels={effortLevels(current()?.efforts ?? [])} value={level()} />}
-                  </Show>
+      <Popover.RootProvider value={props.menu.popover} lazyMount unmountOnExit onExitComplete={props.menu.ask}>
+        <Popover.Trigger
+          asChild={(triggerProps) => (
+            <Button
+              {...triggerProps()}
+              variant="plain"
+              size="none"
+              class={PROMPT}
+              aria-label={failed() ? MODELS_UNAVAILABLE : promptAriaLabel(shownName(), effort())}
+            >
+              <Show when={!failed()} fallback={<RotateCw class="size-3.5 block text-chat-text-3" aria-hidden="true" />}>
+                <Show when={shownName().toLowerCase()} keyed>
+                  {(label) => <span class={PROMPT_MODEL}>{label}</span>}
                 </Show>
-              </Button>
-            )}
-          />
-          <Popover.Positioner>
-            <Popover.Content class={CONTENT} aria-label={MENU_LABEL}>
-              <Switch>
-                <Match when={failed()}>
-                  <Button variant="plain" size="none" class={RETRY} onClick={() => void own.refetch()}>
-                    <RotateCw class="size-4 block" aria-hidden="true" />
-                    {`${MODELS_UNAVAILABLE}: ${RETRY_LABEL}`}
-                  </Button>
-                </Match>
-                <Match when={!failed()}>
-                  <Listbox.Root
-                    collection={collection()}
-                    value={selected()}
-                    defaultHighlightedValue={selected()[0] ?? null}
-                    onSelect={(details) => select(collection().find(details.value))}
-                    loopFocus
-                  >
-                    <Listbox.Label class="sr-only">{MENU_LABEL}</Listbox.Label>
-                    <div class={SEARCH_ROW}>
-                      <Search class="size-4 block shrink-0" aria-hidden="true" />
-                      <Listbox.Input
-                        autoHighlight
-                        class={SEARCH_INPUT}
-                        aria-label={SEARCH_LABEL}
-                        placeholder={SEARCH_LABEL}
-                        value={props.menu.state.query}
-                        onInput={(event) => props.menu.search(event.currentTarget.value)}
-                      />
-                    </div>
-                    <Listbox.Content class={LIST}>
-                      <For each={visibleSections()}>
-                        {(section) => (
-                          <HarnessGroup
-                            section={section}
-                            named={named()}
-                            isOpen={isOpen}
-                            onExpand={props.menu.expand}
-                          />
-                        )}
-                      </For>
-                    </Listbox.Content>
-                  </Listbox.Root>
-                  <Show when={query() !== '' && collection().size === 0}>
-                    <p class={MESSAGE} role="status">{`No models match “${query()}”`}</p>
-                  </Show>
-                  <For each={unavailable()}>
-                    {(entry) => (
-                      <Button variant="plain" size="none" class={RETRY} onClick={() => void catalog.refetch()}>
-                        <RotateCw class="size-4 block" aria-hidden="true" />
-                        {`Couldn’t load ${entry.name} models: ${RETRY_LABEL}`}
-                      </Button>
-                    )}
-                  </For>
-                  <Show when={catalog.isError}>
+                <Show when={effort()}>
+                  {(level) => <EffortBars levels={effortLevels(current()?.efforts ?? [])} value={level()} />}
+                </Show>
+              </Show>
+            </Button>
+          )}
+        />
+        <Popover.Positioner>
+          <Popover.Content class={CONTENT} aria-label={MENU_LABEL}>
+            <Switch>
+              <Match when={failed()}>
+                <Button variant="plain" size="none" class={RETRY} onClick={() => void own.refetch()}>
+                  <RotateCw class="size-4 block" aria-hidden="true" />
+                  {`${MODELS_UNAVAILABLE}: ${RETRY_LABEL}`}
+                </Button>
+              </Match>
+              <Match when={!failed()}>
+                <Listbox.Root
+                  collection={collection()}
+                  value={selected()}
+                  defaultHighlightedValue={selected()[0] ?? null}
+                  onSelect={(details) => select(collection().find(details.value))}
+                  loopFocus
+                >
+                  <Listbox.Label class="sr-only">{MENU_LABEL}</Listbox.Label>
+                  <div class={SEARCH_ROW}>
+                    <Search class="size-4 block shrink-0" aria-hidden="true" />
+                    <Listbox.Input
+                      autoHighlight
+                      class={SEARCH_INPUT}
+                      aria-label={SEARCH_LABEL}
+                      placeholder={SEARCH_LABEL}
+                      value={props.menu.state.query}
+                      onInput={(event) => props.menu.search(event.currentTarget.value)}
+                    />
+                  </div>
+                  <Listbox.Content class={LIST}>
+                    <For each={visibleSections()}>
+                      {(section) => (
+                        <HarnessGroup section={section} named={named()} isOpen={isOpen} onExpand={props.menu.expand} />
+                      )}
+                    </For>
+                  </Listbox.Content>
+                </Listbox.Root>
+                <Show when={loading()}>
+                  <p class={MESSAGE} role="status">{`${MODELS_LOADING}…`}</p>
+                </Show>
+                <Show when={query() !== '' && collection().size === 0}>
+                  <p class={MESSAGE} role="status">{`No models match “${query()}”`}</p>
+                </Show>
+                <For each={unavailable()}>
+                  {(entry) => (
                     <Button variant="plain" size="none" class={RETRY} onClick={() => void catalog.refetch()}>
                       <RotateCw class="size-4 block" aria-hidden="true" />
-                      {`Couldn’t load the other harnesses: ${RETRY_LABEL}`}
+                      {`Couldn’t load ${entry.name} models: ${RETRY_LABEL}`}
                     </Button>
-                  </Show>
-                  <Show when={current()?.efforts}>
-                    {(efforts) => (
-                      <>
-                        <div class={SEPARATOR} />
-                        <EffortSection efforts={efforts()} value={effort()} onSelect={selectEffort} />
-                      </>
-                    )}
-                  </Show>
-                </Match>
-              </Switch>
-            </Popover.Content>
-          </Popover.Positioner>
-        </Popover.RootProvider>
-      </Show>
+                  )}
+                </For>
+                <Show when={catalog.isError}>
+                  <Button variant="plain" size="none" class={RETRY} onClick={() => void catalog.refetch()}>
+                    <RotateCw class="size-4 block" aria-hidden="true" />
+                    {`Couldn’t load the other harnesses: ${RETRY_LABEL}`}
+                  </Button>
+                </Show>
+                <Show when={current()?.efforts}>
+                  {(efforts) => (
+                    <>
+                      <div class={SEPARATOR} />
+                      <EffortSection efforts={efforts()} value={effort()} onSelect={selectEffort} />
+                    </>
+                  )}
+                </Show>
+              </Match>
+            </Switch>
+          </Popover.Content>
+        </Popover.Positioner>
+      </Popover.RootProvider>
       <Show when={props.menu.state.asking && props.menu.state.confirming}>
         {(target) => (
           <SwitchConfirm

@@ -26,7 +26,7 @@ export type SessionPort = {
   recordNativeId: (sessionId: SessionId, harnessId: string, nativeId: HarnessSessionId) => Promise<void>
   recordUsage: (sessionId: SessionId, usage: UsageSnapshot) => Promise<void>
   recordContextTokens: (sessionId: SessionId, contextTokens: number) => Promise<void>
-  recordTitle: (sessionId: SessionId, title: string) => Promise<void>
+  recordActivity: (sessionId: SessionId, title: string, at: number) => void
   onRunStart: (sessionId: SessionId) => Promise<void>
   onRunEnd: (sessionId: SessionId) => Promise<void>
   publish: (sessionId: SessionId, chunk: ChatEvent) => void
@@ -152,7 +152,7 @@ function isBlank(message: ModelMessage): boolean {
   return !hasParts && textOf(message).trim() === ''
 }
 
-function titleOf(messages: ModelMessage[]): string {
+export function firstUserTitle(messages: readonly ModelMessage[]): string {
   return textOf(messages.find((message) => message.role === 'user'))
     .trim()
     .slice(0, TITLE_MAX_CHARS)
@@ -194,6 +194,7 @@ export function turnHooks(
         sessionId,
         resumeSessionId,
         model: model ?? undefined,
+        effort: own?.effort ?? undefined,
         env: deps.harnessEnv?.(sessionId) ?? process.env,
         kind: turn.kind,
         hasTools: toolSet.codeMode.length + toolSet.asking.length > 0,
@@ -201,7 +202,6 @@ export function turnHooks(
       return {
         adapter: config.adapter,
         modelOptions: config.modelOptions,
-        reasoning: own?.effort ?? undefined,
         systemPrompts: systemText === '' ? [] : [systemText],
         codeMode: toolSet.codeMode,
         asking: toolSet.asking,
@@ -216,8 +216,6 @@ export function turnHooks(
           if (turn.kind === 'chat' && lastUser !== undefined && isBlank(lastUser)) {
             throw new Error('the message is empty')
           }
-          const title = titleOf(messages)
-          if (title !== '') await deps.sessions.recordTitle(sessionId, title)
           return turn.kind === 'compact' ? messages : expandedLastUser(messages, deps)
         },
         providerMessages: async (messages) => {
@@ -255,7 +253,7 @@ export function turnHooks(
       if (usage === undefined) return
       const modelId = deps.sessions.row(sessionId)?.model ?? deps.harnessFor(sessionId).defaultModel ?? null
       await deps.sessions.recordUsage(sessionId, {
-        ...tokenUsageToSnapshot(usage),
+        ...tokenUsageToSnapshot(usage, modelId ?? undefined),
         ...(modelId === null ? {} : {modelId}),
       })
     },

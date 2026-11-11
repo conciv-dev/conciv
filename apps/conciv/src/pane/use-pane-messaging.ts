@@ -1,5 +1,4 @@
-import {useMutation, type CreateMutationResult} from '@tanstack/solid-query'
-import type {ChatSession} from '@conciv/client'
+import {useMutation, type CreateMutationResult, type ChatSession} from '@conciv/client'
 import type {RpcClient} from '@conciv/contract'
 import type {SendContent} from '@conciv/protocol/chat-message-types'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
@@ -66,7 +65,7 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
         deps.notices.notify('Compaction failed. The session may be busy. Try again in a moment.'),
       ),
     onSettled: () => {
-      deps.appData.invalidateSessions()
+      void deps.appData.invalidateSession(deps.sessionId)
       void deps.refetchMarkers()
     },
   }))

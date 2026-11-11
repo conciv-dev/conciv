@@ -115,6 +115,18 @@
             "name": "@hono/node-server",
             "importNames": ["serve", "createAdaptorServer", "getRequestListener"],
             "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve \u2014 the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
+          },
+          {
+            "name": "@tanstack/solid-query",
+            "message": "Import TanStack Query from @conciv/client, never @tanstack/solid-query directly. @conciv/client bundles the one solid-query + query-core copy the widget and every extension share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
+          },
+          {
+            "name": "@tanstack/query-core",
+            "message": "Import TanStack Query from @conciv/client, never @tanstack/query-core directly. @conciv/client bundles the one solid-query + query-core copy the widget and every extension share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
+          },
+          {
+            "name": "@orpc/tanstack-query",
+            "message": "Import TanStack Query from @conciv/client, never @orpc/tanstack-query directly. @conciv/client bundles the one solid-query + query-core copy the widget and every extension share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
           }
         ],
         "patterns": [
@@ -160,9 +172,49 @@
                 "name": "@hono/node-server",
                 "importNames": ["serve", "createAdaptorServer", "getRequestListener"],
                 "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve \u2014 the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
+              },
+              {
+                "name": "@tanstack/solid-query",
+                "message": "Import TanStack Query from @conciv/client, never @tanstack/solid-query directly. @conciv/client bundles the one solid-query + query-core copy the widget and every extension share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
+              },
+              {
+                "name": "@tanstack/query-core",
+                "message": "Import TanStack Query from @conciv/client, never @tanstack/query-core directly. @conciv/client bundles the one solid-query + query-core copy the widget and every extension share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
+              },
+              {
+                "name": "@orpc/tanstack-query",
+                "message": "Import TanStack Query from @conciv/client, never @orpc/tanstack-query directly. @conciv/client bundles the one solid-query + query-core copy the widget and every extension share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
               }
             ],
             "patterns": [
+              {
+                "group": ["@ark-ui", "@ark-ui/**"],
+                "allowImportNames": ["useListCollection", "useFilter"],
+                "message": "Import Ark UI components from @conciv/ui-kit-system, never @ark-ui directly \u2014 only ui-kit-system may wrap Ark UI. The headless hooks useListCollection / useFilter are the ONLY @ark-ui imports allowed elsewhere."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/client/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@hono/node-server",
+                "importNames": ["serve", "createAdaptorServer", "getRequestListener"],
+                "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve \u2014 the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
+              }
+            ],
+            "patterns": [
+              {
+                "group": ["@tanstack/ai", "@tanstack/ai-*", "@tanstack/ai/**", "@tanstack/ai-*/**"],
+                "message": "Only packages/ai and packages/protocol may import @tanstack/ai*; use @conciv/protocol and the @conciv/ai entries."
+              },
               {
                 "group": ["@ark-ui", "@ark-ui/**"],
                 "allowImportNames": ["useListCollection", "useFilter"],

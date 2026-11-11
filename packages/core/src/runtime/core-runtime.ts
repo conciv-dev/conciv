@@ -88,7 +88,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
     },
     page: {
       ask: async (name, input) => (await page.bus.ask(id, {name, input, agentId})).result,
-      queries: (signal) => pageQueryStream(page.bus, id, signal),
+      queries: (signal, focus) => pageQueryStream(page.bus, id, signal, focus),
       reply: (requestId, outcome) => page.bus.resolve(id, requestId, outcome),
       connected: () => page.bus.connected(id),
       changes: () => page.journal.list(id),
@@ -97,7 +97,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
     stream: {
       publish: (chunk) => stream.publish(id, chunk),
       listen: (onChunk) => stream.listen(id, onChunk),
-      events: (signal) => pendingThenLive(stream.events(id, signal), () => deps.plane.pendingAsks(id)),
+      events: (signal) => caughtUpThenLive(stream.events(id, signal), () => deps.plane.catchUp(id)),
     },
     asks: {ui: () => deps.plane.askUi(id)},
     captures: {
@@ -117,13 +117,13 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
   }
 }
 
-async function* pendingThenLive(
+async function* caughtUpThenLive(
   live: AsyncGenerator<ChatEvent>,
-  pending: () => Promise<ChatEvent[]>,
+  missed: () => Promise<ChatEvent[]>,
 ): AsyncGenerator<ChatEvent> {
   const first = live.next()
-  yield* await pending().catch((error: unknown) => {
-    logError(`[core] reading the pending asks for a new subscriber failed: ${String(error)}`)
+  yield* await missed().catch((error: unknown) => {
+    logError(`[core] reading what a new subscriber missed failed: ${String(error)}`)
     return []
   })
   const opened = await first

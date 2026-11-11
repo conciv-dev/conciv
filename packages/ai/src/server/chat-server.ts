@@ -10,14 +10,12 @@ import {
   withTanstackMetadata,
   type DebugConfig,
   type MetadataStore,
-  type ReasoningLevel,
   type RunRecord,
   type RunStore,
   type StreamDurability,
   type TokenUsage,
 } from '@tanstack/ai'
 import {defineLock, InMemoryLockStore, withLocks} from '@tanstack/ai/locks'
-import type {IsolateDriver} from '@tanstack/ai-code-mode'
 import {defineAIPersistence, reconstructChat, withPersistence, type MessageStore} from '@tanstack/ai-persistence'
 import {
   APPROVAL_REQUESTED_EVENT,
@@ -28,7 +26,6 @@ import {
   ToolBridgeProvisionerCapability,
   withSandbox,
 } from '@tanstack/ai-sandbox'
-import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
 import {makeTextAdapter, type TextAdapter} from '../adapters/adapters.js'
 import {
   isRunPhaseTerminal,
@@ -45,6 +42,8 @@ import {compactionStamp} from './compaction-stamp.js'
 import {codeModeTools, loadIsolateDriver, secretRefusalOf, stoppedWith} from './code-mode.js'
 import {createDelivery, endsTheRun, terminalPhaseOf, type ChatDelivery, type Turn} from './delivery.js'
 import {guardedAdapter} from './run-guard.js'
+import {localSandbox} from './local-sandbox.js'
+import {toolHistory} from './tool-history.js'
 
 export type ChatStores = {
   messages: MessageStore
@@ -61,7 +60,6 @@ export type Approvals = ReadonlyMap<string, boolean>
 export type TurnPlan = {
   adapter: TextAdapter
   modelOptions?: Record<string, unknown>
-  reasoning?: ReasoningLevel
   systemPrompts: readonly string[]
   codeMode: readonly ChatTool[]
   asking: readonly ChatTool[]
@@ -346,12 +344,12 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   })
   const sandbox = defineSandbox({
     id: 'conciv',
-    provider: localProcessSandbox({dir: config.sandbox.dir}),
+    provider: localSandbox({dir: config.sandbox.dir}),
     policy: defineSandboxPolicy({default: 'ask'}),
     fileEvents: false,
     lifecycle: {reuse: 'thread', destroyOnComplete: false},
   })
-  const driver: IsolateDriver | null = await loadIsolateDriver(config.log)
+  const driver = await loadIsolateDriver(config.log)
   await sweepAbandonedRuns(stores.runs, hooks)
 
   const lifecycleChunk = (lifecycle: RunLifecycle): ChatEvent => runLifecycleEvent.create(lifecycle)
@@ -527,7 +525,6 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       lazyToolsConfig: {includeDescription: 'first-sentence'},
       retry: {maxRetries: 2},
       modelOptions: plan.modelOptions,
-      reasoning: plan.reasoning,
       abortController: controller,
       debug,
       middleware: [
@@ -560,6 +557,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
             attachWaitMs: config.firstOutputTimeoutMs,
           },
         }),
+        toolHistory(),
         concivTurn(turn, plan, granted, view, entry),
       ],
     })
@@ -584,7 +582,8 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     endAllRuns: async () => {
       const threadIds = new Set([...live.values()].map((entry) => entry.threadId))
       const ended = await Promise.allSettled([...threadIds].map(endThreadRuns))
-      throwRejected(ended, 'conciv: ending the live runs failed')
+      const disposed = await Promise.allSettled([driver?.dispose()])
+      throwRejected([...ended, ...disposed], 'conciv: ending the live runs failed')
     },
     driving: (threadId) => liveRunsOf(threadId).length > 0,
     settled: async (threadId) => {

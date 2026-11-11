@@ -4,7 +4,7 @@ import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {connectMcpClient} from './mcp-client.js'
 import {approvalIds} from './run-events.js'
-import {makeRpcClient} from './session.js'
+import {makeBrowserRpcClient, makeRpcClient} from '@conciv/contract'
 import type {RunStream} from './run-stream.js'
 
 export type CallTool = (name: string, input: unknown) => Promise<unknown>
@@ -129,15 +129,19 @@ async function pumpApprovals(
 }
 
 export function autoApprove(apiBase: string, session: string, stream: RunStream): () => void {
-  const sessionRpc = makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: session}})
+  const browser = makeBrowserRpcClient(apiBase, {session: () => session})
   const decided = new Set<string>()
-  return stream.tap((chunk) => {
+  const untap = stream.tap((chunk) => {
     for (const approvalId of approvalIds(chunk)) {
       if (decided.has(approvalId)) continue
       decided.add(approvalId)
-      void sessionRpc.chat.permissionDecision({approvalId, approved: true}).catch(() => {})
+      void browser.rpc.chat.permissionDecision({approvalId, approved: true}).catch(() => {})
     }
   })
+  return () => {
+    untap()
+    browser.close()
+  }
 }
 
 export async function withAutoApproval<Result>(
@@ -146,15 +150,14 @@ export async function withAutoApproval<Result>(
   run: () => Promise<Result>,
   onApproved?: (approvalId: string) => void,
 ): Promise<Result> {
-  const rpc = makeRpcClient(apiBase)
-  const sessionRpc = makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: session}})
+  const browser = makeBrowserRpcClient(apiBase, {session: () => session})
   const abort = new AbortController()
-  const stream = await rpc.chat.events({sessionId: session}, {signal: abort.signal})
+  const stream = await browser.rpc.chat.events({sessionId: session}, {signal: abort.signal})
   const decided = new Set<string>()
   const decide = async (approvalId: string): Promise<void> => {
     if (decided.has(approvalId)) return
     decided.add(approvalId)
-    await sessionRpc.chat.permissionDecision({approvalId, approved: true}, {signal: abort.signal})
+    await browser.rpc.chat.permissionDecision({approvalId, approved: true}, {signal: abort.signal})
     onApproved?.(approvalId)
   }
   const pump = pumpApprovals(stream, abort.signal, decide)
@@ -163,7 +166,7 @@ export async function withAutoApproval<Result>(
     return await run()
   } finally {
     abort.abort()
-    await pump
+    await pump.finally(() => browser.close())
   }
 }
 
@@ -175,11 +178,15 @@ export function makeApprovingCallTool(apiBase: string, session: string, options:
 const RegistryInputSchema = z.record(z.string(), z.unknown())
 
 export async function approvePending(apiBase: string, session: string): Promise<string[]> {
-  const sessionRpc = makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: session}})
-  const {pendingApprovals} = await sessionRpc.chat.hydrate({sessionId: session})
-  const pending = pendingApprovals.map((ask) => ask.approvalId)
-  for (const approvalId of pending) await sessionRpc.chat.permissionDecision({approvalId, approved: true})
-  return pending
+  const browser = makeBrowserRpcClient(apiBase, {session: () => session})
+  try {
+    const {pendingApprovals} = await browser.rpc.chat.hydrate({sessionId: session})
+    const pending = pendingApprovals.map((ask) => ask.approvalId)
+    for (const approvalId of pending) await browser.rpc.chat.permissionDecision({approvalId, approved: true})
+    return pending
+  } finally {
+    browser.close()
+  }
 }
 
 export function makeApprovingRegistryCall(apiBase: string, session: string): CallTool {

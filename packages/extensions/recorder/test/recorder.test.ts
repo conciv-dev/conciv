@@ -14,6 +14,8 @@ import {fetchServerSentEvents} from '@conciv/ai/client'
 import {start, type Engine} from '@conciv/core'
 import {makeExtRpcClient, type AnyExtension} from '@conciv/extension'
 import {rpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
+import {failRpcCalls, gateRpcCalls} from '@conciv/extension-testkit/rpc-fault'
+import {rpcObserverFor} from '@conciv/extension-testkit/rpc-observer'
 import {connectMcpClient, createFakeHarness, makeDiscoverTools} from '@conciv/harness-testkit'
 import {until} from '@conciv/harness-testkit/until'
 import {CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
@@ -733,8 +735,8 @@ describe('slow capture library', () => {
 describe('recorder controls', () => {
   const api = useRecorderTestApi()
 
-  const CONFIG_REQUEST = /\/ext\/recorder\/config/
-  const FLUSH_REQUEST = /\/ext\/recorder\/flush/
+  const CONFIG_PATH = ['ext', 'recorder', 'config']
+  const FLUSH_PATH = ['ext', 'recorder', 'flush']
 
   function recorderRpc(): RouterClient<RecorderRouter> {
     return makeExtRpcClient<RecorderRouter>(api().apiBase, RECORDER_NAME)
@@ -745,14 +747,15 @@ describe('recorder controls', () => {
     await page.getByRole('tab', {name: 'Recorder'}).waitFor({state: 'visible', timeout: 30_000})
   }
 
+  function flushCarrying(page: Page, label: RegExp, status: number) {
+    const observer = rpcObserverFor(page)
+    return observer.completed({path: FLUSH_PATH, input: label, status, since: observer.mark(), timeout: 10_000})
+  }
+
   async function expectMarkerRecorded(page: Page): Promise<void> {
-    const markerFlush = page.waitForRequest(
-      (request) => FLUSH_REQUEST.test(request.url()) && /Marker \d+/.test(request.postData() ?? ''),
-      {timeout: 10_000},
-    )
+    const markerFlush = flushCarrying(page, /Marker \d+/, 200)
     const label = await addMarker(page)
-    const flushed = await (await markerFlush).response()
-    await flushed?.finished()
+    await markerFlush
     const {clients} = await recorderRpc().clients()
     const clientId = clients.at(-1)?.id
     if (!clientId) throw new Error('no recorder client connected')
@@ -761,29 +764,28 @@ describe('recorder controls', () => {
   }
 
   describe('queued controls (real browser)', () => {
-    afterEach(() => api().page.unrouteAll())
+    const faults: {dispose: () => Promise<void>}[] = []
+    afterEach(async () => {
+      for (const fault of faults.splice(0)) await fault.dispose()
+    })
 
     it('finishes the session of a queued stop that a newer start overtook', async () => {
       const page = api().page
       const rpc = recorderRpc()
       const viewer = {viewerId: 'queued-stop'}
-      const configRelease = Promise.withResolvers<void>()
-      await page.route(CONFIG_REQUEST, async (route) => {
-        await configRelease.promise
-        await route.continue()
-      })
+      const heldConfig = await gateRpcCalls(page, {path: CONFIG_PATH})
+      faults.push(heldConfig)
       await reloadWidget(page)
       const calls = rpcCallCursor(page)
-      const heldConfig = page.waitForRequest(CONFIG_REQUEST, {timeout: 10_000})
 
       await rpc.presence({...viewer, live: true})
-      await heldConfig
+      await heldConfig.awaitCaptured(1)
       await rpc.presence({...viewer, live: false})
       await rpc.presence({...viewer, live: true})
-      configRelease.resolve()
+      await heldConfig.release()
 
       await expectMarkerRecorded(page)
-      expect(calls.startedSince(['ext', 'recorder', 'config'])).toBe(2)
+      expect(calls.startedSince(CONFIG_PATH)).toBe(2)
       await rpc.presence({...viewer, live: false})
     }, 120_000)
 
@@ -791,31 +793,28 @@ describe('recorder controls', () => {
       const page = api().page
       const rpc = recorderRpc()
       const viewer = {viewerId: 'failed-flush-across-stop'}
-      const flushCarrying = (label: string) =>
-        page.waitForRequest(
-          (request) => FLUSH_REQUEST.test(request.url()) && (request.postData() ?? '').includes(label),
-          {timeout: 10_000},
-        )
+      const observer = rpcObserverFor(page)
       await reloadWidget(page)
-      const firstFlush = page.waitForRequest(FLUSH_REQUEST, {timeout: 10_000})
+      const firstFlush = observer.completed({path: FLUSH_PATH, since: observer.mark(), timeout: 10_000})
       await rpc.presence({...viewer, live: true})
-      await (await (await firstFlush).response())?.finished()
+      await firstFlush
 
       const firstLabel = 'Marker 1'
       const secondLabel = 'Marker 2'
-      await page.route(FLUSH_REQUEST, (route) => route.abort())
-      const firstFailed = flushCarrying(firstLabel)
+      const failingFlush = await failRpcCalls(page, {path: FLUSH_PATH, status: 500})
+      faults.push(failingFlush)
+      const firstFailed = flushCarrying(page, new RegExp(firstLabel), 500)
       expect(await addMarker(page)).toBe(firstLabel)
       await firstFailed
-      const restartConfig = page.waitForRequest(CONFIG_REQUEST, {timeout: 10_000})
+      const restartConfig = observer.completed({path: CONFIG_PATH, since: observer.mark(), timeout: 10_000})
       await rpc.presence({...viewer, live: false})
       await rpc.presence({...viewer, live: true})
       await restartConfig
-      await page.unroute(FLUSH_REQUEST)
+      await failingFlush.dispose()
 
-      const secondSent = flushCarrying(secondLabel)
+      const secondSent = flushCarrying(page, new RegExp(secondLabel), 200)
       expect(await addMarker(page)).toBe(secondLabel)
-      await (await (await secondSent).response())?.finished()
+      await secondSent
 
       const {clients} = await rpc.clients()
       const clientId = clients.at(-1)?.id

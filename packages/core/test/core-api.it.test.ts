@@ -14,17 +14,17 @@ import {
   chmodSync,
 } from 'node:fs'
 import {createHash, randomUUID} from 'node:crypto'
-import {EventEmitter, on} from 'node:events'
+import {on, once} from 'node:events'
 import {open, writeFile} from 'node:fs/promises'
 import {execFileSync} from 'node:child_process'
-import {request as httpRequest} from 'node:http'
+import {createServer, request as httpRequest} from 'node:http'
 import {DatabaseSync} from 'node:sqlite'
 import {tmpdir} from 'node:os'
 import {join, dirname} from 'node:path'
-import {afterAll, beforeAll, describe, expect, it, afterEach, test, vi, beforeEach} from 'vitest'
+import {afterAll, beforeAll, describe, expect, it, afterEach, onTestFinished, test, vi, beforeEach} from 'vitest'
 import {imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
 import {foldChatEvents} from '@conciv/ai/testkit'
-import {cappedValue, RESULT_CAP_CHARS} from '@conciv/chat'
+import {cappedValue} from '@conciv/chat'
 import {abortableFetch, type EngineStaleness} from '@conciv/contract'
 import {
   defineExtension,
@@ -44,6 +44,8 @@ import {
   chatRuns,
   concivHome,
   listEngines,
+  migrations,
+  openDb,
   recordHubConnection,
   registerEngine,
   removeHubConnection,
@@ -52,6 +54,8 @@ import {
   withHomeDb,
 } from '@conciv/db'
 import {asc, eq} from 'drizzle-orm'
+import {drizzle} from 'drizzle-orm/node-sqlite'
+import {migrateSync} from 'drizzle-orm/sqlite-core/async/session'
 import {isEqual} from 'es-toolkit'
 import {
   createFakeHarness,
@@ -95,6 +99,7 @@ import {
 import {type ElementCapture, type ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 import {type HarnessChatDeps, type HarnessListCursor, type HarnessModel} from '@conciv/protocol/harness-types'
 import {type PageOutcome, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
+import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
@@ -104,6 +109,7 @@ import {os, type RouterClient} from '@orpc/server'
 import WebSocket from 'ws'
 import {z} from 'zod'
 import {makeApp, type MadeApp} from '../src/app.js'
+import {callTrace} from '../src/api/call-trace.js'
 import {resolveConfig} from '../src/config.js'
 import {openSourceFromFrames} from '../src/editor/open-source.js'
 import {originAllowed} from '../src/lib/cors.js'
@@ -124,6 +130,15 @@ import {
   userTexts,
   type FakeWidget,
 } from './helpers.js'
+
+function groupAlive(group: number): boolean {
+  try {
+    process.kill(-group, 0)
+    return true
+  } catch {
+    return false
+  }
+}
 
 function sharedKit(boot: () => Promise<Kit>): () => Kit {
   const held: {kit: Kit | undefined} = {kit: undefined}
@@ -623,8 +638,10 @@ describe('api codex turns', () => {
   const bin = join(root, 'bin')
   const fakeCodex = [
     '#!/bin/sh',
-    'cat > /dev/null',
+    'prompt=$(cat)',
     'echo "$@" > "$(dirname "$0")/args"',
+    `case "$prompt" in *stubborn*) trap '' TERM ;; esac`,
+    'case "$prompt" in *"stop me"*) ps -o pgid= -p $$ | tr -d " " > "$(dirname "$0")/group"; sleep 600 ;; esac',
     'count_file="$(dirname "$0")/count"',
     'count=$(( $(cat "$count_file" 2>/dev/null || echo 0) + 1 ))',
     'echo "$count" > "$count_file"',
@@ -695,6 +712,95 @@ describe('api codex turns', () => {
     await kit().rpc.sessions.effort({sessionId, effort: null})
     await runTurn(kit(), 'think normally', sessionId)
     expect(readFileSync(join(bin, 'args'), 'utf8')).not.toContain('model_reasoning_effort')
+  }, 30_000)
+
+  it("stop kills the agent's whole process group, also an agent that ignores SIGTERM after its wrapper died", async () => {
+    for (const prompt of ['stop me', 'stop me, stubborn']) {
+      const sessionId = (await kit().rpc.sessions.create()).sessionId
+      const runId = randomUUID()
+      rmSync(join(bin, 'group'), {force: true})
+      void (await kit().turn(prompt, {session: sessionId, runId})).done().catch(() => undefined)
+      await until(() => existsSync(join(bin, 'group')) && readFileSync(join(bin, 'group'), 'utf8').endsWith('\n'))
+      const group = Number(readFileSync(join(bin, 'group'), 'utf8'))
+      expect(groupAlive(group)).toBe(true)
+      await kit().rpc.chat.stop({sessionId, runIds: [runId]})
+      await until(() => !groupAlive(group), {hangGuardMs: 12_000, intervalMs: 50})
+    }
+  }, 40_000)
+})
+
+describe('api claude turns', () => {
+  const saved = {
+    PATH: process.env.PATH,
+    HOME: process.env.HOME,
+    CLAUDE_CODE_EFFORT_LEVEL: process.env.CLAUDE_CODE_EFFORT_LEVEL,
+    MAX_THINKING_TOKENS: process.env.MAX_THINKING_TOKENS,
+  }
+  const root = mkdtempSync(join(tmpdir(), 'conciv-claude-turns-'))
+  const bin = join(root, 'bin')
+  const fakeClaude = [
+    '#!/bin/sh',
+    'cat > /dev/null',
+    'printf "%s\\n" "$@" > "$(dirname "$0")/args"',
+    'printf "effort=%s thinking=%s" "$CLAUDE_CODE_EFFORT_LEVEL" "$MAX_THINKING_TOKENS" > "$(dirname "$0")/env"',
+    `echo '{"type":"system","subtype":"init","session_id":"claude-native-1","model":"fake","tools":[]}'`,
+    `echo '{"type":"result","subtype":"success","result":"ok"}'`,
+  ].join('\n')
+  beforeAll(() => {
+    mkdirSync(bin)
+    mkdirSync(join(root, 'home'))
+    writeFileSync(join(bin, 'claude'), fakeClaude, {mode: 0o755})
+    process.env.PATH = `${bin}:${saved.PATH ?? ''}`
+    process.env.HOME = join(root, 'home')
+    delete process.env.CLAUDE_CODE_EFFORT_LEVEL
+    delete process.env.MAX_THINKING_TOKENS
+  })
+  const made: {app: MadeApp | null} = {app: null}
+  const kit = sharedKit(() =>
+    createTestkit(claude, async (env) => {
+      const app = await bootMadeApp(env)
+      made.app = app
+      return {fetch: app.fetch, dispose: app.dispose, agentToken: app.agentToken}
+    }).setup(),
+  )
+
+  afterAll(() => {
+    Object.assign(process.env, saved)
+    if (saved.CLAUDE_CODE_EFFORT_LEVEL === undefined) delete process.env.CLAUDE_CODE_EFFORT_LEVEL
+    if (saved.MAX_THINKING_TOKENS === undefined) delete process.env.MAX_THINKING_TOKENS
+    rmSync(root, {recursive: true, force: true})
+  })
+
+  async function cliRun(sessionId: string, model: string, effort: 'high' | null) {
+    if (made.app === null) throw new Error('the app did not boot')
+    made.app.chat.db.update(sessions).set({model, effort}).where(eq(sessions.id, sessionId)).run()
+    await runTurn(kit(), `run ${model}`, sessionId)
+    const args = readFileSync(join(bin, 'args'), 'utf8').split('\n')
+    return {
+      model: args[args.indexOf('--model') + 1],
+      effortFlags: args.filter((arg) => arg === '--effort').length,
+      env: readFileSync(join(bin, 'env'), 'utf8'),
+    }
+  }
+
+  it('runs claude at the effort picked for the session through one setting, a Claude 5 model and a 4.x model alike', async () => {
+    const sessionId = (await kit().rpc.sessions.create()).sessionId
+    await runTurn(kit(), 'first', sessionId)
+    expect(await cliRun(sessionId, 'claude-opus-5', 'high')).toEqual({
+      model: 'claude-opus-5',
+      effortFlags: 0,
+      env: 'effort=high thinking=',
+    })
+    expect(await cliRun(sessionId, 'claude-opus-4-7', 'high')).toEqual({
+      model: 'claude-opus-4-7',
+      effortFlags: 0,
+      env: 'effort=high thinking=',
+    })
+    expect(await cliRun(sessionId, 'claude-opus-5', null)).toEqual({
+      model: 'claude-opus-5',
+      effortFlags: 0,
+      env: 'effort= thinking=',
+    })
   }, 30_000)
 })
 
@@ -1189,11 +1295,14 @@ describe('api native page', () => {
   const BUNDLE = 'conciv-widget-native.global.js'
 
   describe('token-scoped native page', () => {
-    it('serves the native page under /t/<token> with a prefix-relative bundle, and unprefixed as an open page', async () => {
+    it('serves the native page under /t/<token> with a prefix-relative bundle and its widget chunks, and unprefixed as an open page', async () => {
       const root = mkdtempSync(join(tmpdir(), 'conciv-native-token-'))
       const nativeDir = mkdtempSync(join(tmpdir(), 'conciv-native-dist-'))
       const endpointDir = mkdtempSync(join(tmpdir(), 'conciv-native-ep-'))
       writeFileSync(join(nativeDir, BUNDLE), 'globalThis.__conciv_native_loaded = true')
+      mkdirSync(join(nativeDir, 'widget'))
+      writeFileSync(join(nativeDir, 'widget', 'mount-impl-Ab_9.js'), 'export const chunk = 1')
+      writeFileSync(join(nativeDir, 'secret.txt'), 'outside the chunk dir')
       const token = '9bfa1f66-6060-4c6e-8a2e-4a0e0c3d5b1a'
       const engine = await start({
         options: {harnessBin: 'true', stateRoot: root, systemPrompt: false},
@@ -1220,6 +1329,13 @@ describe('api native page', () => {
         const script = await fetch(resolved)
         expect(script.status).toBe(200)
         expect(script.headers.get('content-type')).toContain('javascript')
+
+        const chunk = await fetch(new URL('widget/mount-impl-Ab_9.js', resolved))
+        expect(chunk.status).toBe(200)
+        expect(chunk.headers.get('content-type')).toContain('javascript')
+        expect(await chunk.text()).toBe('export const chunk = 1')
+        expect((await fetch(new URL('widget/..%2Fsecret.txt', resolved))).status).toBe(404)
+        expect((await fetch(new URL('widget/missing-chunk.js', resolved))).status).toBe(404)
 
         const unprefixed = await fetch(`${origin}/native`)
         expect(unprefixed.status).toBe(200)
@@ -1521,8 +1637,11 @@ describe('rpc wire', () => {
           code: 'PAGE_TIMEOUT',
         })
         abort.abort()
-        await consumed.catch(() => {})
-        await iterator.return(undefined).catch(() => {})
+        const aborted = (error: unknown) => {
+          if (!abort.signal.aborted) throw error
+        }
+        await consumed.catch(aborted)
+        await iterator.return(undefined).catch(aborted)
       })
 
       it('page.reply on an unknown request id reports UNKNOWN_REQUEST', async () => {
@@ -1754,7 +1873,7 @@ describe('rpc wire', () => {
         expect(new Set(after.map((message) => message.id)).size).toBe(after.length)
       })
 
-      it('the chosen effort reaches the turn as reasoning, and a model without effort clears it', async () => {
+      it('the chosen effort reaches the harness, and a model without effort clears it', async () => {
         const sessionId = await newSession()
         const {models} = await chatKit().rpc.meta.models({sessionId})
         const plain = models.find((model) => model.efforts === undefined)
@@ -1763,12 +1882,12 @@ describe('rpc wire', () => {
         expect(await sessionMeta(sessionId)).toMatchObject({effort: 'high'})
         script().scriptTurn({toolCalls: [], text: 'thought hard'})
         await finished(sessionId, 'think about it')
-        expect(lastRunOf(sessionId)).toMatchObject({model: undefined, reasoning: 'high'})
+        expect(lastRunOf(sessionId)).toMatchObject({model: undefined, effort: 'high'})
 
         await chatKit().rpc.sessions.effort({sessionId, effort: null})
         script().scriptTurn({toolCalls: [], text: 'default effort'})
         await finished(sessionId, 'again')
-        expect(lastRunOf(sessionId).reasoning).toBeUndefined()
+        expect(lastRunOf(sessionId).effort).toBeUndefined()
 
         await chatKit().rpc.sessions.effort({sessionId, effort: 'max'})
         await chatKit().rpc.sessions.model({sessionId, model: plain.id})
@@ -2019,7 +2138,9 @@ describe('rpc wire', () => {
         script().release()
         await turn.done()
         const cards = toolCallParts((await chatKit().rpc.chat.hydrate({sessionId})).messages)
-        expect(cards.map(cardMetadata)).toContainEqual({conciv: {origin: 'hub', client: 'codex'}})
+        expect(cards.map(cardMetadata)).toContainEqual({
+          conciv: {origin: 'hub', client: 'codex', run: expect.any(String)},
+        })
       })
 
       it('the CLI resumes its own session while its transcript exists, and starts fresh when it does not', async () => {
@@ -3015,6 +3136,16 @@ return seen`
         await ended()
       })
 
+      it('a program waiting on a tool that never answers ends when its turn stops', async () => {
+        const sessionId = await newSession()
+        codeTurn('await external_fixture_hold({})')
+        await send(sessionId, 'hold', {runId: 'hold-run'})
+        await holdEntered.promise
+        const ended = nextTurnEnd(sessionId)
+        await chatKit().rpc.chat.stop({sessionId, runIds: ['hold-run']})
+        await ended()
+      })
+
       it('discover_tools shows a tool output shape and declared error codes; the catalog lives on execute_typescript', async () => {
         const discover = await mcpTool('discover_tools')
         const found = JSON.stringify(await discover.execute({toolNames: ['fixture_fail']}))
@@ -3046,7 +3177,7 @@ return seen`
     })
 
     describe('code mode child cards', () => {
-      it('each call in a script shows as its own card under the script, with results, errors and caps, after reload too', async () => {
+      it('each call in a script shows as its own card under the script, with results, errors (bad arguments too) and caps, after reload too', async () => {
         const sessionId = await newSession()
         const ran = toolRuns.echo
         const parent = codeTurn(CHILD_CARD_SCRIPT)
@@ -3057,8 +3188,9 @@ return seen`
         expect(children.map((part) => [part.name, cardMetadata(part)])).toEqual(
           CHILD_CARDS.map((name) => [name, {parentToolCallId: parent}]),
         )
-        expect(children.find((part) => part.name === 'fixture_fail')?.state).toBe('error')
+        expect(children.map((part) => part.state === 'error')).toEqual([false, false, true, true, false])
         const results = resultsOf(await thread(sessionId))
+        expect(results).toContain('Input validation failed for tool fixture_echo')
         expect(results).toContain('the probe broke')
         expect(results).toContain('conciv:truncated')
         expect(results).toContain('120000')
@@ -3182,7 +3314,7 @@ return seen`
   const NEVER_MADE = 'conciv_never-made'
   const DECLARED_MESSAGE = 'PROBE_BROKE: the probe broke'
   const FIXTURE_TOOLS = ['fixture_echo', 'fixture_read', 'fixture_ask']
-  const CHILD_CARDS = ['fixture_echo', 'fixture_echo', 'fixture_fail', 'fixture_huge']
+  const CHILD_CARDS = ['fixture_echo', 'fixture_echo', 'fixture_echo', 'fixture_fail', 'fixture_huge']
   const ECHO_DESCRIPTION = 'Echo the text back.\n\nUse it to echo.\n\nNever echo secrets.\n\nKeep it short.'
   const EXPANSION_PART = {type: 'text', content: 'fixture-expanded', metadata: {modelOnly: true}}
   const ONE_PIXEL_PNG =
@@ -3208,6 +3340,7 @@ return seen`
   const CHILD_CARD_SCRIPT = `
   await external_fixture_echo({text: "a"})
   await external_fixture_echo({text: "b"})
+  try { await external_fixture_echo({text: 5}) } catch {}
   try { await external_fixture_fail({spaced: true}) } catch {}
   const huge = await external_fixture_huge({})
   return huge.blob.length
@@ -3219,7 +3352,7 @@ return seen`
     sessionId: string
     kind: 'chat' | 'compact'
     model: string | undefined
-    reasoning: string | undefined
+    effort: string | undefined
     resumeSessionId: string | null
     messages: string
     tools: string[]
@@ -3262,13 +3395,14 @@ return seen`
   const seenRuns: SeenRun[] = []
   const cli: {usage: TokenUsage[]; launchFailures: string[]} = {usage: [], launchFailures: []}
   const toolRuns = {ask: 0, echo: 0}
+  const holdEntered = Promise.withResolvers<void>()
   const turnEnds: string[] = []
   const turnEndWaiters: {sessionId: string; settle: () => void}[] = []
 
   function fixtureExtension() {
     return defineExtension({
       name: 'fixture',
-      tools: [echoTool(), readTool(), quietTool(), askTool(), failTool(), hugeTool(), imageTool()],
+      tools: [echoTool(), readTool(), quietTool(), holdTool(), askTool(), failTool(), hugeTool(), imageTool()],
       attachments: fixtureAttachments(),
     }).server(() => ({context: {}, turnEnd: noteTurnEnd}))
   }
@@ -3306,6 +3440,19 @@ return seen`
       outputSchema: z.unknown(),
       meta: {summary: 'return nothing', category: 'fixture', mutating: false},
     }).server(() => undefined)
+  }
+
+  function holdTool() {
+    return defineTool({
+      name: 'fixture_hold',
+      description: 'Never answer.',
+      inputSchema: z.object({}),
+      outputSchema: z.unknown(),
+      meta: {summary: 'never answer', category: 'fixture', mutating: false},
+    }).server(() => {
+      holdEntered.resolve()
+      return new Promise<never>(() => {})
+    })
   }
 
   function askTool() {
@@ -3404,7 +3551,7 @@ return seen`
               sessionId: deps.sessionId,
               kind: deps.kind,
               model: deps.model,
-              reasoning: options.reasoning?.level,
+              effort: deps.effort,
               resumeSessionId: deps.resumeSessionId,
               messages: JSON.stringify(options.messages),
               tools: (options.tools ?? []).map((tool) => tool.name),
@@ -3844,9 +3991,14 @@ describe('token charset', () => {
 
 const tempDir = (prefix: string): string => mkdtempSync(join(tmpdir(), prefix))
 
-function bootAt(homeDir: string, root = tempDir('conciv-outside-'), hubAccess?: HubAccess): Promise<Engine> {
-  const options = hubAccess === undefined ? {stateRoot: root} : {stateRoot: root, hubAccess}
-  return start({options, root, launchEditor: () => {}, harness: createFakeHarness(), homeDir})
+function bootAt(homeDir: string, root = tempDir('conciv-outside-'), hubAccess: HubAccess = 'session'): Promise<Engine> {
+  return start({
+    options: {stateRoot: root, hubAccess},
+    root,
+    launchEditor: () => {},
+    harness: createFakeHarness(),
+    homeDir,
+  })
 }
 
 describe('outside sessions', () => {
@@ -3935,19 +4087,107 @@ describe('outside sessions', () => {
       expect(statuses).toEqual([401, 401, 401, 401, 401])
     })
 
-    it('/api/tabs lists a joined page, and ?session= answers open and not open with the engine prompt and tools', async () => {
+    it('/api/tabs lists a joined page, and ?session= answers open and not open with the engine prompt', async () => {
       const path = `/api/tabs?session=${await kit().session()}`
-      const tools = expect.arrayContaining([expect.objectContaining({name: 'external_page_route'})])
-      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: false, instructions, tools: []})
+      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: false, instructions})
       await joinPage(true)
-      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: true, instructions, tools})
+      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: true, instructions})
       const session = {title: expect.any(String), updatedAt: expect.any(Number), running: false}
       const page = {href: route.href, title: route.title, state: route.state}
       expect(await listTabs()).toEqual({
         project: {name: 'tabs-fixture', root: app, branch: 'feature-x'},
-        tabs: [{sessionId: await kit().session(), harness: 'fake-tabs', browserTabs: 1, session, page}],
+        tabs: [
+          {
+            sessionId: await kit().session(),
+            harness: 'fake-tabs',
+            browserTabs: [{id: expect.stringMatching(/^b\d+$/), page}],
+            session,
+            page,
+          },
+        ],
       })
     })
+
+    it('a page query goes to the one browser tab focused last, and the listing names every browser tab', async () => {
+      const sessionId = await kit().session()
+      const asSession = makeRpcClient(kit().base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+      async function browserTab(pathname: string) {
+        const heard: string[] = []
+        const answers = {silent: false}
+        const socket = new WebSocket(`${kit().wsBase}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`)
+        const listening = AbortSignal.timeout(10_000)
+        const frames = on(socket, 'message', {signal: listening})
+        await once(socket, 'open')
+        const report = (focused: boolean) =>
+          socket.send(JSON.stringify({channel: 'page-serving', serving: true, focus: {focused, visible: true}}))
+        report(false)
+        const Frame = z.object({channel: z.string(), requestId: z.string().optional()})
+        const ready = Promise.withResolvers<void>()
+        const answering = async () => {
+          for await (const [data] of frames) {
+            const frame = Frame.parse(JSON.parse(String(data)))
+            if (frame.channel === 'ready') ready.resolve()
+            if (frame.channel !== 'page' || frame.requestId === undefined) continue
+            heard.push(pathname)
+            if (answers.silent) continue
+            const result = {...route, href: `http://localhost:5173${pathname}`, pathname, search: ''}
+            await asSession.page.reply({requestId: frame.requestId, outcome: {ok: true, result}})
+          }
+        }
+        answering().catch((error: unknown) => {
+          if (!listening.aborted) throw error
+        })
+        await ready.promise
+        pages.push(() => socket.close())
+        const silence = () => {
+          answers.silent = true
+        }
+        return {heard, report, silence, close: () => socket.close()}
+      }
+      const first = await browserTab('/first')
+      const second = await browserTab('/second')
+      const listedFirst = async () => (await listTabs()).tabs[0]?.browserTabs[0]?.page?.href
+      const routeCall = {name: 'page_route', input: {}}
+      const routed = async () => z.object({href: z.string()}).parse(await asSession.registry.call(routeCall)).href
+      second.report(true)
+      await vi.waitFor(async () => expect(await listedFirst()).toBe('http://localhost:5173/second'), {timeout: 3000})
+      const listing = await listTabs()
+      expect(listing.tabs[0]?.browserTabs.map((entry) => entry.page?.href)).toEqual([
+        'http://localhost:5173/second',
+        'http://localhost:5173/first',
+      ])
+      expect(listing.tabs[0]?.page?.href).toBe('http://localhost:5173/second')
+      const [firstHeard, secondHeard] = [first.heard.length, second.heard.length]
+      expect(await routed()).toBe('http://localhost:5173/second')
+      expect([first.heard.length - firstHeard, second.heard.length - secondHeard]).toEqual([0, 1])
+      first.report(true)
+      await vi.waitFor(async () => expect(await listedFirst()).toBe('http://localhost:5173/first'), {timeout: 3000})
+      expect(await routed()).toBe('http://localhost:5173/first')
+      first.close()
+      await vi.waitFor(async () => expect((await listTabs()).tabs[0]?.browserTabs).toHaveLength(1), {timeout: 3000})
+      expect(await routed()).toBe('http://localhost:5173/second')
+      second.silence()
+      const waited = second.heard.length
+      const inFlight = expect(routed()).rejects.toThrow(/browser tab b\d+ closed before it replied/)
+      await vi.waitFor(() => expect(second.heard.length).toBe(waited + 1), {timeout: 3000})
+      second.close()
+      await inFlight
+    })
+
+    it.skipIf(process.getuid?.() === 0)(
+      'an unreadable package.json leaves the project name out and keeps every tab listed',
+      async () => {
+        const sessionId = await kit().session()
+        await joinPage(true)
+        chmodSync(join(app, 'package.json'), 0o000)
+        try {
+          const listing = await listTabs()
+          expect([listing.project.name, listing.tabs.map((tab) => tab.sessionId)]).toEqual([null, [sessionId]])
+        } finally {
+          chmodSync(join(app, 'package.json'), 0o644)
+        }
+      },
+    )
 
     it('branch is re-read per request from the repository above the project, through a worktree gitdir file too', async () => {
       writeFileSync(join(repo, '.git', 'HEAD'), 'ref: refs/heads/other\n')
@@ -3967,28 +4207,54 @@ describe('outside agent consent', () => {
   const DENIED = 'The user denied codex access to the conciv tab'
   const OUTSIDE_ASK = {toolName: 'Allow codex to use this tab', input: {client: 'codex'}}
   const ROUTE = {href: 'http://localhost:5173/a', title: 'A', state: 'visible', pathname: '/a', search: ''}
-  const engines: Engine[] = []
+  type Booted = {base: string; stopped: AbortSignal; answering: Array<Promise<void>>; stop: () => Promise<void>}
+  const engines: Booted[] = []
   const pages = new AbortController()
   afterAll(async () => {
     pages.abort()
-    await Promise.allSettled(engines.map((engine) => engine.stop()))
+    const stops = await Promise.allSettled([...engines].map((engine) => engine.stop()))
+    const failures = stops.flatMap((stop) => (stop.status === 'rejected' ? [stop.reason] : []))
+    if (failures.length > 0) throw new AggregateError(failures, 'stopping the consent engines failed')
   })
+
+  function track(engine: Engine): string {
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const stopped = new AbortController()
+    const booted: Booted = {
+      base,
+      stopped: stopped.signal,
+      answering: [],
+      stop: async () => {
+        engines.splice(engines.indexOf(booted), 1)
+        stopped.abort()
+        const answered = await Promise.allSettled(booted.answering)
+        const [engineStopped] = await Promise.allSettled([engine.stop()])
+        const failures = [...answered, engineStopped].flatMap((result) =>
+          result.status === 'rejected' ? [result.reason] : [],
+        )
+        if (failures.length > 0) throw new AggregateError(failures, 'stopping the consent engine failed')
+      },
+    }
+    engines.push(booted)
+    return base
+  }
 
   function connectedHome(home = tempDir('conciv-home-')): string {
     withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
     return home
   }
 
-  async function boot(hubAccess?: HubAccess, home = tempDir('conciv-home-')): Promise<string> {
+  async function boot(hubAccess: HubAccess = 'session', home = tempDir('conciv-home-')): Promise<string> {
     connectedHome(home)
-    const engine = await bootAt(home, tempDir('conciv-consent-'), hubAccess)
-    engines.push(engine)
-    return `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    return track(await bootAt(home, tempDir('conciv-consent-'), hubAccess))
   }
 
   async function openTab(base: string, silent?: () => void, heard: string[] = []): Promise<string> {
+    const engine = engines.find((booted) => booted.base === base)
+    if (engine === undefined) throw new Error(`no engine was booted at ${base}`)
     const sessionId = await newSession(base)
-    const queries = await rpcOf(base, sessionId).page.queries(undefined, {signal: pages.signal})
+    const listening = AbortSignal.any([pages.signal, engine.stopped])
+    const queries = await rpcOf(base, sessionId).page.queries(undefined, {signal: listening})
     const replies = async () => {
       for await (const {requestId, query} of queries) {
         heard.push(queryName(query))
@@ -3996,9 +4262,13 @@ describe('outside agent consent', () => {
         else await rpcOf(base, sessionId).page.reply({requestId, outcome: {ok: true, result: pageAnswer(query)}})
       }
     }
-    replies().catch(() => {})
-    const open = async () => TabOpenSchema.parse(await (await fetch(`${base}/api/tabs?session=${sessionId}`)).json())
-    await vi.waitFor(async () => expect((await open()).open).toBe(true), {timeout: 3000})
+    engine.answering.push(
+      replies().catch((error: unknown) => {
+        if (!listening.aborted) throw error
+      }),
+    )
+    const tabOpen = async () => TabOpenSchema.parse(await (await fetch(`${base}/api/tabs?session=${sessionId}`)).json())
+    await vi.waitFor(async () => expect((await tabOpen()).open).toBe(true), {timeout: 3000})
     return sessionId
   }
 
@@ -4100,10 +4370,23 @@ describe('outside agent consent', () => {
     expect(await waiting).toMatch(RAN)
   })
 
-  it('an outside run lists every tab, picks one per block and forwards to its owner after allow', async () => {
+  it("an outside run lists every engine's tabs and refuses other capabilities with NO_TAB; a hub call naming the tab runs it after allow, marked in its chat", async () => {
     const home = tempDir('conciv-home-')
     const [runner, owner] = [await boot('open', home), await boot('session', home)]
     const [mine, theirs] = [await openTab(runner), await openTab(owner)]
+    const hung = createServer(() => {})
+    hung.listen(0, '127.0.0.1')
+    await once(hung, 'listening')
+    onTestFinished(() => {
+      hung.closeAllConnections()
+      hung.close()
+    })
+    const hungAddress = z.object({port: z.number()}).parse(hung.address())
+    const hungRoot = tempDir('conciv-hung-')
+    const hungBase = `http://127.0.0.1:${hungAddress.port}/t/${randomUUID()}`
+    withHomeDb(home, (db) =>
+      registerEngine(db, {id: randomUUID(), pid: process.pid, root: hungRoot, apiBase: hungBase}),
+    )
     const inPage = 'return [typeof external_tabs, typeof external_use_tab]'
     expect(String(await executeOverMcp(runner, {[CONCIV_SESSION_HEADER]: mine}, inPage))).toContain(
       '["function","undefined"]',
@@ -4111,42 +4394,48 @@ describe('outside agent consent', () => {
     const listed = await outside(runner, 'return await external_tabs({})')
     expect(listed).toContain(`"tab":"${mine}"`)
     expect(listed).toContain(`"tab":"${theirs}"`)
+    expect(listed).toContain(`"unreachable":[{"root":"${hungRoot}"`)
     expect(listed).not.toMatch(new RegExp(`${new URL(runner).pathname}|${new URL(owner).pathname}`))
-    expect(await outside(runner, 'return await external_page_route({})')).toContain('NO_TAB')
-    const pick = `const picked = await external_use_tab({id: "${theirs}"});`
-    const answer = TabOpenSchema.parse(await (await fetch(`${owner}/api/tabs?session=${theirs}`)).json())
-    const summaries = answer.tools.map((tool) => ({name: tool.name, summary: tool.description.split('\n')[0]}))
-    const picked = await outside(runner, `${pick} return picked`)
-    expect(picked.length).toBeLessThan(RESULT_CAP_CHARS)
-    expect(picked).toContain(JSON.stringify({instructions: answer.instructions, tools: summaries}))
-    const forwarded = outside(runner, `${pick} return await external_page_route({})`)
-    await decideOutside(owner, theirs, true)
-    expect(await forwarded).toContain(ROUTE.href)
-    const screenshot = JSON.stringify(
-      await executeOverMcp(runner, HUB, `${pick} return await external_page_screenshot({})`),
+    expect(await outside(runner, 'return await external_page_route({})')).toContain(
+      'NO_TAB: pass tab to execute_typescript; external_tabs({}) lists the open tabs',
     )
-    expect(screenshot).toContain(
+    const onTab = (code: string) => executeOverMcp(owner, {[CONCIV_SESSION_HEADER]: theirs, ...HUB}, code)
+    const routed = onTab('return await external_page_route({})').then(String)
+    await decideOutside(owner, theirs, true)
+    expect(await routed).toContain(ROUTE.href)
+    const ownerCalls = await rpcOf(owner, theirs).chat.hydrate({sessionId: theirs})
+    const ownerParts = ownerCalls.messages.flatMap((message) =>
+      message.parts.flatMap((part) =>
+        part.type === 'tool-call' ? [{name: part.name, id: part.id, metadata: part.metadata}] : [],
+      ),
+    )
+    const top = ownerParts.findLast((part) => part.name === 'execute_typescript')
+    expect(top?.id).toEqual(expect.any(String))
+    const marker = {conciv: {origin: 'hub', client: 'codex', run: top?.id}}
+    expect(ownerParts).toContainEqual({...top, metadata: expect.objectContaining(marker)})
+    expect(ownerParts).toContainEqual({
+      name: 'page_route',
+      id: expect.any(String),
+      metadata: expect.objectContaining({...marker, parentToolCallId: top?.id}),
+    })
+    expect(JSON.stringify(await onTab('return await external_page_screenshot({})'))).toContain(
       JSON.stringify({type: 'image', source: {type: 'data', value: SCREENSHOT.image, mimeType: 'image/webp'}}),
     )
-    expect(await outside(runner, `${pick} return await external_page_route({})`)).toContain(ROUTE.href)
-    expect(await outside(runner, 'return await external_page_route({})')).toContain('NO_TAB')
-    expect(await outside(runner, 'return await external_use_tab({id: "conciv_gone"})')).toContain('TAB_NOT_OPEN')
   })
 
-  it('cancelling an outside block while its forwarded call waits for the allow leaves nothing to run after a later allow', async () => {
-    const home = tempDir('conciv-home-')
-    const [runner, owner] = [await boot('open', home), await boot('session', home)]
+  it('cancelling a hub block while it waits for the allow leaves nothing to run after a later allow', async () => {
+    const base = await boot()
     const heard: string[] = []
-    const theirs = await openTab(owner, undefined, heard)
-    const pick = `await external_use_tab({id: "${theirs}"});`
-    const leaving = await connectMcpClient(`${runner}/api/mcp`, HUB)
+    const tab = await openTab(base, undefined, heard)
+    const headers = {[CONCIV_SESSION_HEADER]: tab, ...HUB}
+    const leaving = await connectMcpClient(`${base}/api/mcp`, headers)
     const execute = (await leaving.tools()).find((entry) => entry.name === 'execute_typescript')
-    const cancelled = execute?.execute({typescriptCode: `${pick} return await external_page_screenshot({})`})
-    expect(await askRaised(owner, theirs)).toMatchObject(OUTSIDE_ASK)
+    const cancelled = execute?.execute({typescriptCode: 'return await external_page_screenshot({})'})
+    expect(await askRaised(base, tab)).toMatchObject(OUTSIDE_ASK)
     await leaving.close()
     await expect(cancelled).rejects.toThrow()
-    await decideOutside(owner, theirs, true)
-    expect(await outside(runner, `${pick} return await external_page_route({})`)).toContain(ROUTE.href)
+    await decideOutside(base, tab, true)
+    expect(String(await executeOverMcp(base, headers, 'return await external_page_route({})'))).toContain(ROUTE.href)
     expect(heard.filter((name) => name === 'page_screenshot')).toEqual([])
   })
 
@@ -4177,15 +4466,14 @@ describe('outside agent consent', () => {
     const probe = defineExtension({name: 'Consent Probe'}).server(() => ({context: {}, router}))
     const root = tempDir('conciv-consent-')
     const engine = await start({
-      options: {stateRoot: root},
+      options: {stateRoot: root, hubAccess: 'session'},
       root,
       launchEditor: () => {},
       harness: createFakeHarness(),
       homeDir: connectedHome(),
       extensions: [probe],
     })
-    engines.push(engine)
-    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const base = track(engine)
     const sessionId = await newSession(base)
     const extOf = (headers: Record<string, string>): RouterClient<typeof router> =>
       createORPCClient(new RPCLink({url: `${base}/rpc/ext/consent-probe`, fetch: abortableFetch, headers}))
@@ -4238,7 +4526,7 @@ describe('outside agent consent', () => {
 
   it('an Allow clicked after the agent disconnected still refuses the call that waited for it, at both doors', async () => {
     const home = connectedHome()
-    const base = await boot(undefined, home)
+    const base = await boot('session', home)
     const forget = () => withHomeDb(home, (db) => removeHubConnection(db, 'codex'))
     const sessionId = await newSession(base)
     const overMcp = hubCall(base, sessionId)
@@ -4261,7 +4549,7 @@ describe('outside agent consent', () => {
     'an Allow clicked while the home db is unreadable never admits a later call, even across a disconnect',
     async () => {
       const home = connectedHome()
-      const base = await boot(undefined, home)
+      const base = await boot('session', home)
       const sessionId = await newSession(base)
       const waiting = hubCall(base, sessionId)
       await vi.waitFor(async () => expect(await pendingOf(base, sessionId)).toHaveLength(1), {timeout: 3000})
@@ -4285,7 +4573,7 @@ describe('outside agent consent', () => {
     process.env.PATH = tempDir('conciv-no-agents-')
     try {
       const home = connectedHome()
-      const base = await boot(undefined, home)
+      const base = await boot('session', home)
       const sessionId = await newSession(base)
       const allowed = hubCall(base, sessionId)
       await decideOutside(base, sessionId, true)
@@ -4321,19 +4609,13 @@ describe('outside agent consent', () => {
     await waiting
   })
 
-  it('an owner that stops mid call fails clearly and leaves the listing, and a corrupt home db names the folder', async () => {
+  it('a stopped engine leaves the listing, a page that never answers lists no href, and a corrupt home db names the folder', async () => {
     const home = tempDir('conciv-home-')
     const [runner, owner] = [await boot('open', home), await boot('open', home)]
-    const page = new EventEmitter()
-    const asked = on(page, 'query', {signal: pages.signal})
-    const silent = await openTab(owner, () => page.emit('query'))
+    const silent = await openTab(owner, () => {})
     const listing = await outside(runner, 'return await external_tabs({})')
     expect([listing.includes(`"tab":"${silent}"`), listing.includes('href')]).toEqual([true, false])
-    expect((await asked.next()).done).toBe(false)
-    const pending = outside(runner, `await external_use_tab({id: "${silent}"}); return await external_page_route({})`)
-    expect((await asked.next()).done).toBe(false)
     await engines.at(-1)?.stop()
-    expect(await pending).toContain('stopped answering')
     expect(await outside(runner, 'return await external_tabs({})')).toContain('{"tabs":[],"unreachable":[]}')
     writeFileSync(join(home, 'home.db'), 'garbage '.repeat(512))
     expect(await outside(runner, 'return await external_tabs({})')).toContain(home)
@@ -4356,9 +4638,12 @@ describe('outside agent consent', () => {
     const waiting = hubRpc.registry.call(route)
     await decideOutside(base, sessionId, true)
     expect(await waiting).toMatchObject({href: ROUTE.href})
-    await hubRpc.server.urls().catch(() => null)
+    await expect(hubRpc.server.urls()).rejects.toMatchObject({code: 'NO_BUNDLER'})
     expect(await starts()).toEqual([
-      expect.objectContaining({toolCallName: 'page_route', metadata: {conciv: {origin: 'hub', client: 'codex'}}}),
+      expect.objectContaining({
+        toolCallName: 'page_route',
+        metadata: {conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}},
+      }),
       expect.objectContaining({toolCallName: 'server_urls'}),
     ])
     expect(await hubCall(base, await newSession(base))).toMatch(RAN)
@@ -4409,3 +4694,162 @@ function codexHome(): string {
   if (home === undefined) throw new Error('the core test process sets CODEX_HOME')
   return home
 }
+
+describe('session activity recorded with its chat messages', () => {
+  const ROW_AT = Date.parse('2026-08-17T00:00:00.000Z')
+  const WRITTEN_AT = Date.parse('2026-11-10T09:39:00.000Z')
+  const IMPORTED_NATIVE = HarnessSessionId.parse(randomUUID())
+  const importedFixture: FixtureSession = {
+    id: IMPORTED_NATIVE,
+    derivedTitle: 'a transcript written earlier',
+    updatedAt: WRITTEN_AT,
+    sizeBytes: 1024,
+    messages: [
+      {
+        id: 'imported-user',
+        role: 'user',
+        parts: [{type: 'text', content: 'a transcript written earlier'}],
+        createdAt: new Date('2026-10-30T08:00:00.000Z'),
+      },
+      {
+        id: 'imported-reply',
+        role: 'assistant',
+        parts: [{type: 'text', content: 'done'}],
+        createdAt: new Date(WRITTEN_AT),
+      },
+    ],
+  }
+  const saved = process.env.CONCIV_HOME
+  const held: {made: MadeApp | undefined} = {made: undefined}
+  beforeAll(() => {
+    process.env.CONCIV_HOME = tempDir('conciv-activity-home-')
+  })
+  afterAll(() => {
+    if (saved === undefined) delete process.env.CONCIV_HOME
+    else process.env.CONCIV_HOME = saved
+  })
+  const kit = sharedKit(() =>
+    createTestkit(createFakeHarness({id: 'fake-activity', history: [importedFixture]}), async (env) => {
+      const booted = await bootMadeApp(env, {home: tempDir('conciv-activity-home-')})
+      held.made = booted
+      return {fetch: booted.fetch, dispose: booted.dispose, agentToken: booted.agentToken}
+    }).setup(),
+  )
+
+  function made(): MadeApp {
+    if (held.made === undefined) throw new Error('the activity app did not boot')
+    return held.made
+  }
+
+  async function staleSession(): Promise<SessionId> {
+    const sessionId = SessionId.parse((await kit().rpc.sessions.create()).sessionId)
+    made().chat.db.update(sessions).set({updatedAt: ROW_AT}).where(eq(sessions.id, sessionId)).run()
+    return sessionId
+  }
+
+  it('a hub tool call recorded through the call trace alone bumps lastActive', async () => {
+    const sessionId = await staleSession()
+    const hub: Record<string, string> = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
+    const trace = callTrace((name) => hub[name] ?? null)
+    const run = {threadId: sessionId, live: false}
+    const before = Date.now()
+    const mirror = trace.mirror(run, {publish: () => {}, record: (chunks) => made().plane.record(sessionId, chunks)})
+    mirror.publish([...trace.start(run, 'page_route', {}), ...trace.result(run, '{}', false)])
+    await mirror.settle()
+    const meta = await kit().rpc.sessions.get({sessionId})
+    expect(meta.title).toBe('New session')
+    expect(meta.updatedAt).toBeGreaterThanOrEqual(before)
+  })
+
+  it('a chat message bumps lastActive and its first user message titles the session', async () => {
+    const sessionId = await staleSession()
+    const before = Date.now()
+    await runTurn(kit(), '  fill the form in the form page ', sessionId)
+    await runTurn(kit(), 'and submit it', sessionId)
+    const meta = await kit().rpc.sessions.get({sessionId})
+    expect(meta.title).toBe('fill the form in the form page')
+    expect(meta.updatedAt).toBeGreaterThanOrEqual(before)
+  })
+
+  it('a chat message never overwrites a title the session already has, nor titles a native-backed session', async () => {
+    const sessionId = await staleSession()
+    await kit().rpc.sessions.rename({sessionId, title: 'kept'})
+    await runTurn(kit(), 'a different first message', sessionId)
+    expect((await kit().rpc.sessions.get({sessionId})).title).toBe('kept')
+    const native = await staleSession()
+    const nativeId = HarnessSessionId.parse(randomUUID())
+    made().chat.db.update(sessions).set({harnessSessionId: nativeId}).where(eq(sessions.id, native)).run()
+    const before = Date.now()
+    await runTurn(kit(), 'a message to a native session', native)
+    const row = made().chat.db.select().from(sessions).where(eq(sessions.id, native)).get()
+    expect(row?.title).toBeNull()
+    expect(row?.updatedAt).toBeGreaterThanOrEqual(before)
+  })
+
+  it('importing a transcript stamps lastActive with its newest message time, not the time it was opened', async () => {
+    const sessionId = await staleSession()
+    made().chat.db.update(sessions).set({harnessSessionId: IMPORTED_NATIVE}).where(eq(sessions.id, sessionId)).run()
+    await kit().hydrate(sessionId)
+    const reopened = await kit().hydrate(sessionId)
+    const row = made().chat.db.select().from(sessions).where(eq(sessions.id, sessionId)).get()
+    expect(reopened.messages.map((message) => message.id)).toEqual(['imported-user', 'imported-reply'])
+    expect(row).toMatchObject({title: null, updatedAt: WRITTEN_AT})
+  })
+
+  it('a session with no messages keeps its row time and the New session title', async () => {
+    const sessionId = await staleSession()
+    expect(await kit().rpc.sessions.get({sessionId})).toMatchObject({title: 'New session', updatedAt: ROW_AT})
+  })
+
+  it('the fix-up migration repairs a stale row from its newest message and first user message, and leaves a native-backed row untitled', () => {
+    const stateRoot = tempDir('conciv-activity-fixup-')
+    const stateDir = join(stateRoot, '.conciv')
+    mkdirSync(stateDir, {recursive: true})
+    const client = new DatabaseSync(join(stateDir, 'conciv.db'))
+    const fixup = migrations.findIndex((migration) => migration.name.endsWith('_session_activity_fixup'))
+    migrateSync(migrations.slice(0, fixup), drizzle({client})._.session)
+    const row = {harnessKind: 'claude', origin: 'chat', cwd: stateRoot, createdAt: ROW_AT, updatedAt: ROW_AT} as const
+    const stale = drizzle({client})
+    stale
+      .insert(sessions)
+      .values([
+        {...row, id: SessionId.parse('conciv_stale'), title: null},
+        {...row, id: SessionId.parse('conciv_titled'), title: 'kept'},
+        {...row, id: SessionId.parse('conciv_quiet'), title: null},
+        {
+          ...row,
+          id: SessionId.parse('conciv_native'),
+          title: null,
+          harnessSessionId: HarnessSessionId.parse(randomUUID()),
+        },
+      ])
+      .run()
+    const thread = (threadId: string) => [
+      {role: 'user', content: [{type: 'text', content: '  fill the form '}], createdAt: '2026-10-30T08:00:00.000Z'},
+      {role: 'assistant', content: 'done', createdAt: '2026-11-10T09:39:00.000Z'},
+      {role: 'tool', content: '{}', toolCallId: `t-${threadId}`},
+    ]
+    const insert = client.prepare(
+      'INSERT INTO chat_messages (thread_id, position, role, message_json) VALUES (?, ?, ?, ?)',
+    )
+    for (const threadId of ['conciv_stale', 'conciv_titled', 'conciv_native']) {
+      thread(threadId).forEach((message, position) =>
+        insert.run(threadId, position, message.role, JSON.stringify(message)),
+      )
+    }
+    client.close()
+    const db = openDb(stateRoot)
+    const repaired = db
+      .select({id: sessions.id, title: sessions.title, updatedAt: sessions.updatedAt})
+      .from(sessions)
+      .orderBy(asc(sessions.id))
+      .all()
+    db.$client.close()
+    expect(repaired).toEqual([
+      {id: 'conciv_native', title: null, updatedAt: Date.parse('2026-11-10T09:39:00.000Z')},
+      {id: 'conciv_quiet', title: null, updatedAt: ROW_AT},
+      {id: 'conciv_stale', title: 'fill the form', updatedAt: Date.parse('2026-11-10T09:39:00.000Z')},
+      {id: 'conciv_titled', title: 'kept', updatedAt: Date.parse('2026-11-10T09:39:00.000Z')},
+    ])
+  })
+})

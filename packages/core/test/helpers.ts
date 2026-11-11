@@ -2,7 +2,7 @@ import {mkdtempSync} from 'node:fs'
 import {writeFile, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {expect} from 'vitest'
+import {afterAll, expect} from 'vitest'
 import {type ChatPlane} from '@conciv/chat'
 import {type ConcivDb} from '@conciv/db'
 import {type AnyExtension} from '@conciv/extension'
@@ -94,7 +94,13 @@ export function bootKit(overrides: BootOverrides = {}, harness: HarnessAdapter =
 
 export type BootEnv = {stateRoot: string; cwd: string; harness: HarnessAdapter; print: (text: string) => void}
 
-export function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): Promise<MadeApp> {
+const running = new Set<MadeApp>()
+
+afterAll(async () => {
+  await Promise.all([...running].map((app) => app.dispose()))
+})
+
+export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): Promise<MadeApp> {
   const cfg: ResolvedConcivConfig = {
     enabled: true,
     widgetUrl: undefined,
@@ -106,7 +112,7 @@ export function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): Promis
     systemPrompt: '',
     hubAccess: 'session',
   }
-  return makeApp({
+  const made = await makeApp({
     print: env.print,
     cfg,
     cwd: overrides.cwd ?? env.cwd,
@@ -120,6 +126,15 @@ export function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): Promis
     systemPromptText: overrides.systemPromptText,
     home: overrides.home,
   })
+  const tracked: MadeApp = {
+    ...made,
+    dispose: async () => {
+      running.delete(tracked)
+      await made.dispose()
+    },
+  }
+  running.add(tracked)
+  return tracked
 }
 
 export function bootCoreApp(overrides: BootOverrides = {}): BootApp {

@@ -89,12 +89,14 @@ export async function expectWidgetBoots(page: Page, failures: PageFailures): Pro
   ).toEqual([])
 }
 
-const TRUST_CHECK_PATH = '/rpc/auth/trust'
+const RPC_SOCKET_PATH = '/rpc-ws'
 
 async function engineOrigin(page: Page, path: string): Promise<string> {
-  const trustCheck = page.waitForRequest((request) => new URL(request.url()).pathname === TRUST_CHECK_PATH)
+  const rpcSocket = page.waitForEvent('websocket', (socket) => new URL(socket.url()).pathname === RPC_SOCKET_PATH)
   await page.goto(path, {waitUntil: 'domcontentloaded', timeout: 60_000})
-  return new URL((await trustCheck).url()).origin
+  const url = new URL((await rpcSocket).url())
+  url.protocol = url.protocol === 'wss:' ? 'https:' : 'http:'
+  return url.origin
 }
 
 export async function loginWidget(page: Page, path = '/', serverLog?: string): Promise<void> {

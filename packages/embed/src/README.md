@@ -15,10 +15,11 @@ Mounts the conciv widget into a shadow root on the host page and starts the page
 
 ## Invariants
 
+- `mount-impl.tsx` unmount - closes the rpc socket before the app and its query cache are torn down, so the calls that teardown aborts are already settled by the socket close and never try to send an abort frame on a closed socket.
 - `mount.ts:createConciv.mount` - does nothing without a `document` or when the state is not `unmounted`; a failed mount resets to `unmounted` and rethrows.
 - `mount.ts:createConciv.rebind` - does nothing unless the state is `mounted`.
 - `mount.ts:mountConciv` - does nothing inside a `data-conciv-capture` frame or when a `[data-conciv-script-root]` already exists; removes its element if the mount fails.
-- `navigation-storage.ts:makeNavigationStorage` - the server value is not restored after a local write or after `dispose`; the server value is read only once the engine trusts the page, and a write while untrusted is dropped; writes are debounced by 300 ms (`WRITE_DELAY_MS`) and stamped with a strictly increasing `updatedAt`; the mount flushes the pending write when the document turns hidden, and that flush goes out as a keepalive fetch when its body fits 60 KiB (`KEEPALIVE_BODY_BUDGET_BYTES`, under the browser's 64 KiB keepalive budget; a larger body falls back to a regular fetch), so a reload or tab close right after a navigation still persists it; debounced foreground writes use a regular fetch; a failed write is reported with `console.warn`.
+- `navigation-storage.ts:makeNavigationStorage` - the server value is not restored after a local write or after `dispose`; the server value is read only once the engine trusts the page, and a write while untrusted is dropped; writes are debounced by 300 ms (`WRITE_DELAY_MS`) and stamped with a strictly increasing `updatedAt`; the mount flushes the pending write (`Debouncer.flush`) when the document turns hidden, so the frame is handed to the open rpc socket before the page unloads and a reload or tab close right after a navigation still persists it; a failed write is reported with `console.warn`.
 - `native-entry.ts:readLauncher` - the launcher is `mascot` only when the `launcher` query parameter says so, otherwise `native`.
 
 ## Side Effects

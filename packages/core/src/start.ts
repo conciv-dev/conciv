@@ -142,7 +142,7 @@ function registerForOutsideAgents(home: string, row: EngineRow): () => void {
     console.error('conciv: engine not registered for outside agents', error)
     return () => {}
   }
-  checkEngines(home, {timeoutMs: 2000}).catch((error: unknown) =>
+  checkEngines(home, {timeoutMs: 300}).catch((error: unknown) =>
     console.error('conciv: checking registered engines failed', error),
   )
   return () => {

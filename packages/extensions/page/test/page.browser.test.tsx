@@ -10,6 +10,10 @@ import {CHAT_FONTS} from '@conciv/ui-kit-chat/theme/fonts'
 import {createRoot, type Root} from 'react-dom/client'
 import {watchHotUpdates, type HotSurface} from '../src/client/hmr.js'
 import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
+import {Editor} from '@tiptap/core'
+import {Document} from '@tiptap/extension-document'
+import {Paragraph} from '@tiptap/extension-paragraph'
+import {Text} from '@tiptap/extension-text'
 
 const inFirefox = server.browser === 'firefox'
 
@@ -342,7 +346,7 @@ describe.skipIf(inFirefox)('page tools', () => {
       })
       const set = await resultOf('override', {name: 'Counter', target: 'state', path: 'value', json: '77'})
       expect(set.ok).toBe(true)
-      await expect.element(counter()).toHaveTextContent('77')
+      await expect.element(counter()).toMatchTextContent('77')
     })
 
     it('tracks renders between start and stop', async () => {
@@ -444,9 +448,7 @@ describe.skipIf(inFirefox)('page tools', () => {
       document.body.append(spacer, landmark)
       expect(window.scrollY).toBe(0)
       expect(await resultOf('scroll', {selector: '#far-down'})).toEqual({ok: true})
-      await vi.waitFor(() => {
-        if (window.scrollY === 0) throw new Error('the page has not scrolled yet')
-      })
+      await expect.element(page.getByText('down here')).toBeInViewport()
       window.scrollTo(0, 0)
       spacer.remove()
       landmark.remove()
@@ -455,6 +457,213 @@ describe.skipIf(inFirefox)('page tools', () => {
     it('replaces inner HTML with sethtml', async () => {
       expect(await resultOf('sethtml', {selector: '#htmlhost', html: '<em id="fresh">new</em>'})).toEqual({ok: true})
       expect(document.querySelector('#htmlhost')?.innerHTML).toBe('<em id="fresh">new</em>')
+    })
+  })
+
+  describe('actions read the page back after its next turn', () => {
+    it('reports a change the app undoes in a microtask or a queued task as refused, and a kept change as made', async () => {
+      const host = document.createElement('div')
+      host.innerHTML = `
+        <label>Microtask name <input id="microtask-name" type="text" /></label>
+        <label>Task name <input id="task-name" type="text" /></label>
+        <label><input id="microtask-box" type="checkbox" /> Microtask box</label>
+        <select id="microtask-plan" aria-label="Microtask plan"><option value="free">Free</option><option value="pro">Pro</option></select>
+        <label>Plain name <input id="plain-name" type="text" /></label>
+        <label><input id="plain-box" type="checkbox" /> Plain box</label>
+      `
+      document.body.append(host)
+      onTestFinished(() => host.remove())
+      const microtaskName = host.querySelector('#microtask-name')
+      const taskName = host.querySelector('#task-name')
+      const microtaskBox = host.querySelector('#microtask-box')
+      const microtaskPlan = host.querySelector('#microtask-plan')
+      if (!(microtaskName instanceof HTMLInputElement)) throw new Error('microtask name input missing')
+      if (!(taskName instanceof HTMLInputElement)) throw new Error('task name input missing')
+      if (!(microtaskBox instanceof HTMLInputElement)) throw new Error('microtask box missing')
+      if (!(microtaskPlan instanceof HTMLSelectElement)) throw new Error('microtask plan missing')
+      microtaskName.addEventListener('input', () => queueMicrotask(() => (microtaskName.value = '')))
+      taskName.addEventListener('input', () => {
+        const channel = new MessageChannel()
+        channel.port1.addEventListener(
+          'message',
+          () => {
+            taskName.value = ''
+            channel.port1.close()
+          },
+          {once: true},
+        )
+        channel.port1.start()
+        channel.port2.postMessage(null)
+        channel.port2.close()
+      })
+      microtaskBox.addEventListener('change', () => queueMicrotask(() => (microtaskBox.checked = false)))
+      microtaskPlan.addEventListener('change', () => queueMicrotask(() => (microtaskPlan.value = 'free')))
+
+      expect(await failureOf('fill', {selector: '#microtask-name', value: 'Ada'})).toEqual({
+        code: 'invalid-args',
+        message: 'The field rejected "Ada" and stayed empty.',
+      })
+      await expect.element(page.getByRole('textbox', {name: 'Microtask name'})).toHaveValue('')
+
+      expect(await failureOf('fill', {selector: '#task-name', value: 'Ada'})).toEqual({
+        code: 'invalid-args',
+        message: 'The field rejected "Ada" and stayed empty.',
+      })
+      await expect.element(page.getByRole('textbox', {name: 'Task name'})).toHaveValue('')
+
+      expect(await failureOf('check', {selector: '#microtask-box'})).toEqual({
+        code: 'invalid-args',
+        message: 'The box is still unchecked; the page prevented the change.',
+      })
+      await expect.element(page.getByRole('checkbox', {name: 'Microtask box'})).not.toBeChecked()
+
+      expect(await resultOf('select', {selector: '#microtask-plan', value: 'pro'})).toEqual({ok: true, value: 'free'})
+      await expect.element(page.getByRole('combobox', {name: 'Microtask plan'})).toHaveValue('free')
+
+      expect(await resultOf('fill', {selector: '#plain-name', value: 'Ada'})).toEqual({ok: true, value: 'Ada'})
+      await expect.element(page.getByRole('textbox', {name: 'Plain name'})).toHaveValue('Ada')
+
+      expect(await resultOf('check', {selector: '#plain-box'})).toEqual({ok: true, checked: true})
+      await expect.element(page.getByRole('checkbox', {name: 'Plain box'})).toBeChecked()
+    })
+  })
+
+  describe('rich-text editors', () => {
+    const mountEditors = (html: string): HTMLElement => {
+      const host = document.createElement('div')
+      host.innerHTML = html
+      document.body.append(host)
+      onTestFinished(() => host.remove())
+      return host
+    }
+
+    it('fills a plain contenteditable through a target nested inside it, and a plaintext-only editor', async () => {
+      mountEditors(`
+        <div id="notes" contenteditable="true" role="textbox" aria-label="Notes"><p id="notes-line">old note</p></div>
+        <div id="plain" contenteditable="plaintext-only" role="textbox" aria-label="Plain notes">old</div>
+      `)
+      expect(await resultOf('fill', {selector: '#notes-line', value: 'Hello editor'})).toEqual({
+        ok: true,
+        value: 'Hello editor',
+      })
+      await expect.element(page.getByRole('textbox', {name: 'Notes'})).toMatchTextContent(/^Hello editor$/)
+      expect(await resultOf('fill', {selector: '#plain', value: 'Plain text'})).toEqual({ok: true, value: 'Plain text'})
+      await expect.element(page.getByRole('textbox', {name: 'Plain notes'})).toMatchTextContent(/^Plain text$/)
+    })
+
+    it('falls back to editing commands when the editor cancels synthetic beforeinput', async () => {
+      const host = mountEditors(
+        `<div id="guarded" contenteditable="true" role="textbox" aria-label="Guarded">draft</div>`,
+      )
+      host.querySelector('#guarded')?.addEventListener('beforeinput', (event) => {
+        if (!event.isTrusted) event.preventDefault()
+      })
+      expect(await resultOf('fill', {selector: '#guarded', value: 'Typed anyway'})).toEqual({
+        ok: true,
+        value: 'Typed anyway',
+      })
+      await expect.element(page.getByRole('textbox', {name: 'Guarded'})).toMatchTextContent(/^Typed anyway$/)
+    })
+
+    it('refuses read-only editors', async () => {
+      mountEditors(`
+        <div id="frozen" contenteditable="false" role="textbox" aria-label="Frozen">fixed</div>
+        <div id="aria-frozen" contenteditable="true" aria-readonly="true" role="textbox" aria-label="Aria frozen">fixed</div>
+      `)
+      const readOnly = {code: 'invalid-args', message: 'That field is read-only.'}
+      expect(await failureOf('fill', {selector: '#frozen', value: 'x'})).toEqual(readOnly)
+      expect(await failureOf('fill', {selector: '#aria-frozen', value: 'x'})).toEqual(readOnly)
+      await expect.element(page.getByRole('textbox', {name: 'Frozen'})).toMatchTextContent(/^fixed$/)
+      await expect.element(page.getByRole('textbox', {name: 'Aria frozen'})).toMatchTextContent(/^fixed$/)
+    })
+
+    it('reports an editor that ignores every way of typing, masking sensitive values', async () => {
+      const host = mountEditors(`
+        <div id="stubborn" contenteditable="true" role="textbox" aria-label="Stubborn">locked</div>
+        <div id="stubborn-card" contenteditable="true" autocomplete="cc-number" role="textbox" aria-label="Card">0000</div>
+      `)
+      for (const editor of host.querySelectorAll('[contenteditable]')) {
+        const original = editor.textContent
+        editor.addEventListener('beforeinput', (event) => event.preventDefault())
+        editor.addEventListener('input', () => {
+          if (editor.textContent !== original) editor.textContent = original
+        })
+      }
+      expect(await failureOf('fill', {selector: '#stubborn', value: 'Ada'})).toEqual({
+        code: 'invalid-args',
+        message: 'The editor rejected "Ada"; its text does not match it.',
+      })
+      await expect.element(page.getByRole('textbox', {name: 'Stubborn'})).toMatchTextContent(/^locked$/)
+      const refused = await failureOf('fill', {selector: '#stubborn-card', value: '4242424242424242'})
+      expect(refused).toEqual({code: 'invalid-args', message: 'The editor rejected ***; its text does not match it.'})
+      expect(JSON.stringify(refused)).not.toContain('4242')
+    })
+
+    it('refuses code editors it cannot type into instead of claiming success', async () => {
+      mountEditors(`
+        <div class="cm-editor"><div id="cm" class="cm-content" contenteditable="true" role="textbox" aria-label="Code">let a = 1</div></div>
+        <div class="monaco-editor"><textarea id="monaco" aria-label="Monaco input"></textarea></div>
+      `)
+      const codeEditor = {
+        code: 'invalid-args',
+        message: 'That is a code editor (CodeMirror or Monaco); fill cannot type into it.',
+      }
+      expect(await failureOf('fill', {selector: '#cm', value: 'x'})).toEqual(codeEditor)
+      expect(await failureOf('fill', {selector: '#monaco', value: 'x'})).toEqual(codeEditor)
+      await expect.element(page.getByRole('textbox', {name: 'Code'})).toMatchTextContent(/^let a = 1$/)
+    })
+
+    it('types into a real Tiptap editor so its document model follows', async () => {
+      const host = mountEditors('')
+      const editor = new Editor({
+        element: host,
+        extensions: [Document, Paragraph, Text],
+        content: '<p>old draft</p>',
+        editorProps: {attributes: {id: 'tiptap', role: 'textbox', 'aria-label': 'Composer'}},
+      })
+      onTestFinished(() => editor.destroy())
+      expect(await resultOf('fill', {selector: '#tiptap', value: 'Hello Tiptap'})).toEqual({
+        ok: true,
+        value: 'Hello Tiptap',
+      })
+      expect(editor.getText()).toBe('Hello Tiptap')
+      await expect.element(page.getByRole('textbox', {name: 'Composer'})).toMatchTextContent(/^Hello Tiptap$/)
+    })
+  })
+
+  describe('far-away targets', () => {
+    it('fills, checks and clicks far-away controls, scrolling each into view', async () => {
+      const far = document.createElement('div')
+      far.innerHTML = `
+        <div style="height: 3000px"></div>
+        <label>Far name <input id="far-name" type="text" /></label>
+        <div style="height: 3000px"></div>
+        <label><input id="far-box" type="checkbox" /> Far box</label>
+        <div style="height: 3000px"></div>
+        <button id="far-button" type="button">Far button</button>
+        <p id="far-clicks">0 far clicks</p>
+      `
+      document.body.append(far)
+      onTestFinished(() => {
+        window.scrollTo(0, 0)
+        far.remove()
+      })
+      far.querySelector('#far-button')?.addEventListener('click', () => {
+        const clicks = far.querySelector('#far-clicks')
+        if (clicks) clicks.textContent = `${Number.parseInt(clicks.textContent ?? '0', 10) + 1} far clicks`
+      })
+
+      expect(await resultOf('fill', {selector: '#far-name', value: 'Ada'})).toEqual({ok: true, value: 'Ada'})
+      await expect.element(page.getByRole('textbox', {name: 'Far name'})).toHaveValue('Ada')
+      await expect.element(page.getByRole('textbox', {name: 'Far name'})).toBeInViewport()
+
+      expect(await resultOf('check', {selector: '#far-box'})).toEqual({ok: true, checked: true})
+      await expect.element(page.getByRole('checkbox', {name: 'Far box'})).toBeChecked()
+      await expect.element(page.getByRole('checkbox', {name: 'Far box'})).toBeInViewport()
+
+      expect(await resultOf('click', {selector: '#far-button'})).toEqual({ok: true})
+      await expect.element(page.getByText('1 far clicks')).toBeVisible()
+      await expect.element(page.getByRole('button', {name: 'Far button'})).toBeInViewport()
     })
   })
 

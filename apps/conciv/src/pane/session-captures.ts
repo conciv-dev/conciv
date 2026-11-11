@@ -1,5 +1,5 @@
 import {createMemo} from 'solid-js'
-import {useQuery} from '@tanstack/solid-query'
+import {useQuery} from '@conciv/client'
 import {toolCaptureViews, type ToolCaptureView} from '@conciv/protocol/element-capture-types'
 import {useAppData} from '../app/context.js'
 
@@ -9,10 +9,7 @@ export type SessionCapturesView = {
 
 export function useSessionCaptures(sessionId: string): SessionCapturesView {
   const appData = useAppData()
-  const captures = useQuery(() => ({
-    ...appData.utils.captures.list.queryOptions({input: {sessionId}}),
-    staleTime: Infinity,
-  }))
+  const captures = useQuery(() => appData.utils.captures.list.queryOptions({input: {sessionId}}))
   const views = createMemo<Record<string, ToolCaptureView>>(() => {
     if (captures.isPending) return {}
     const data = captures.data

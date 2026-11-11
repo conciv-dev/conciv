@@ -1,8 +1,16 @@
+import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
-import type {DebugConfig} from '@tanstack/ai'
+import {
+  convertSchemaToJsonSchema,
+  isStandardSchema,
+  parseWithStandardSchema,
+  type DebugConfig,
+  type SchemaInput,
+} from '@tanstack/ai'
 import {createCodeMode, type CodeModeTool, type IsolateDriver} from '@tanstack/ai-code-mode'
+import {codeModeCallEvent, codeModeErrorEvent, codeModeResultEvent} from '@conciv/protocol/chat-event-types'
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
-import {quickJSThreadDriver} from './quickjs-thread.js'
+import {quickJSThreadDriver, type CodeDriver} from './quickjs-thread.js'
 
 const CODE_MODE_TIMEOUT_MS = 150_000
 
@@ -12,7 +20,7 @@ const QUICKJS_MAX_STACK_BYTES = 2 * 1024 * 1024
 
 type Log = (message: string) => void
 
-type DriverCandidate = {name: string; create: (log: Log) => Promise<IsolateDriver | null>}
+type DriverCandidate = {name: string; create: (log: Log) => Promise<CodeDriver | null>}
 
 const DRIVER_CANDIDATES: readonly DriverCandidate[] = [
   {
@@ -20,7 +28,8 @@ const DRIVER_CANDIDATES: readonly DriverCandidate[] = [
     create: async () => {
       const loaded = await import('@tanstack/ai-isolate-node')
       if (!loaded.probeIsolatedVm().compatible) return null
-      return loaded.createNodeIsolateDriver({timeout: CODE_MODE_TIMEOUT_MS})
+      const driver = loaded.createNodeIsolateDriver({timeout: CODE_MODE_TIMEOUT_MS})
+      return {createContext: (config) => driver.createContext(config), dispose: async () => undefined}
     },
   },
   {
@@ -33,7 +42,7 @@ const DRIVER_CANDIDATES: readonly DriverCandidate[] = [
   },
 ]
 
-async function attempt(candidate: DriverCandidate, log: Log): Promise<IsolateDriver | null> {
+async function attempt(candidate: DriverCandidate, log: Log): Promise<CodeDriver | null> {
   try {
     const driver = await candidate.create(log)
     if (driver === null) log(`[ai] the code mode driver ${candidate.name} is incompatible with this platform`)
@@ -44,7 +53,7 @@ async function attempt(candidate: DriverCandidate, log: Log): Promise<IsolateDri
   }
 }
 
-export async function loadIsolateDriver(log: Log): Promise<IsolateDriver | null> {
+export async function loadIsolateDriver(log: Log): Promise<CodeDriver | null> {
   for (const candidate of DRIVER_CANDIDATES) {
     const driver = await attempt(candidate, log)
     if (driver !== null) return driver
@@ -97,18 +106,46 @@ export function secretRefusalOf(result: unknown): string | null {
   return failed.success && failed.data.error.message.includes(SECRET_REFUSAL) ? failed.data.error.message : null
 }
 
-function refusingSecrets(tool: CodeModeTool, secrets: ReadonlyMap<string, string>): CodeModeTool {
+function childCall(tool: CodeModeTool, secrets: ReadonlyMap<string, string>): CodeModeTool {
   const execute = tool.execute
   if (!execute) return tool
   return {
     ...tool,
-    execute: (args, context) => {
-      const parameter = secrets.get(`external_${tool.name}`)
-      if (parameter !== undefined) {
-        throw new Error(`"${tool.name}" takes "${parameter}", which ${SECRET_REFUSAL}`)
+    inputSchema: convertSchemaToJsonSchema(tool.inputSchema),
+    outputSchema: convertSchemaToJsonSchema(tool.outputSchema),
+    execute: async (args, context) => {
+      const callId = randomUUID()
+      context?.emitCustomEvent(codeModeCallEvent.name, {callId, function: tool.name, args})
+      try {
+        const parameter = secrets.get(`external_${tool.name}`)
+        if (parameter !== undefined) {
+          throw new Error(`"${tool.name}" takes "${parameter}", which ${SECRET_REFUSAL}`)
+        }
+        const input = validated(tool.inputSchema, args, `Input validation failed for tool ${tool.name}`)
+        const output: unknown = await execute(
+          input,
+          context === undefined ? undefined : {...context, toolCallId: callId},
+        )
+        const result = validated(tool.outputSchema, output, `Output validation failed for tool ${tool.name}`)
+        context?.emitCustomEvent(codeModeResultEvent.name, {callId, result})
+        return result
+      } catch (error) {
+        context?.emitCustomEvent(codeModeErrorEvent.name, {
+          callId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        throw error
       }
-      return execute(args, context)
     },
+  }
+}
+
+function validated(schema: SchemaInput | undefined, value: unknown, failure: string): unknown {
+  if (schema === undefined || !isStandardSchema(schema)) return value
+  try {
+    return parseWithStandardSchema(schema, value)
+  } catch (error) {
+    throw new Error(`${failure}: ${error instanceof Error ? error.message : 'Validation failed'}`, {cause: error})
   }
 }
 
@@ -126,7 +163,7 @@ export function codeModeTools(
   const secrets = new Map<string, string>()
   const codeMode = createCodeMode({
     driver,
-    tools: serverTools.map((tool) => refusingSecrets(tool, secrets)),
+    tools: serverTools.map((tool) => childCall(tool, secrets)),
     timeout: CODE_MODE_TIMEOUT_MS,
     debug,
     onSecretParameter: (found) => secrets.set(found.toolName, found.paramPath.join('.')),

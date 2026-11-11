@@ -1,8 +1,9 @@
 import {isSensitiveField, MASKED_VALUE} from '@conciv/page'
 import {frameDocument} from './agent-cursor.js'
-import {setNativeValue, simulateClick, simulateFill} from './simulator.js'
+import {setNativeValue, simulateClick, simulateFill, typeByCommands, typeByEvents} from './simulator.js'
 
 const XHTML = 'http://www.w3.org/1999/xhtml'
+const CODE_EDITORS = '.cm-editor, .CodeMirror, .monaco-editor'
 const MOUSE_POINTER = {pointerId: 1, pointerType: 'mouse', isPrimary: true}
 const HOVER_EVENTS = ['pointerover', 'pointerenter', 'mouseover', 'mouseenter', 'pointermove', 'mousemove']
 
@@ -65,16 +66,78 @@ function changed(element: Element): void {
   element.dispatchEvent(new Event('change', {bubbles: true}))
 }
 
-export async function fill(options: {element: Element; value: string; agent: string}): Promise<string | null> {
-  const {element, value, agent} = options
-  if (!isInput(element) && !isTextArea(element)) return 'That element is not a text field.'
-  if (element.readOnly) return 'That field is read-only.'
-  await simulateFill({element, value, agent})
-  if (value !== '' && element.value === '') return `The field rejected ${shown({element, value})} and stayed empty.`
-  return null
+function pageTurn(): Promise<void> {
+  const channel = new MessageChannel()
+  return new Promise((resolve) => {
+    channel.port1.addEventListener(
+      'message',
+      () => {
+        channel.port1.close()
+        resolve()
+      },
+      {once: true},
+    )
+    channel.port1.start()
+    channel.port2.postMessage(null)
+    channel.port2.close()
+  })
 }
 
-export function select(options: {element: Element; value: string}): {value: string} | string {
+function editableHost(element: Element): HTMLElement | null {
+  const host = element.closest('[contenteditable]')
+  return host && isHtml(host) ? host : null
+}
+
+function squashed(text: string): string {
+  return text.replace(/[\s\u200B\uFEFF]+/g, ' ').trim()
+}
+
+function holds(options: {host: HTMLElement; value: string}): boolean {
+  return squashed(options.host.innerText) === squashed(options.value)
+}
+
+function reported(options: {element: Element; value: string}): {value: string} {
+  return {value: isSensitiveField(options.element) ? MASKED_VALUE : options.value}
+}
+
+async function fillEditor(options: {
+  host: HTMLElement
+  value: string
+  agent: string
+}): Promise<{value: string} | string> {
+  const {host, value, agent} = options
+  simulateClick({element: host, agent})
+  typeByEvents({host, value})
+  await pageTurn()
+  if (!holds({host, value})) typeByCommands({host, value})
+  host.dispatchEvent(new Event('change', {bubbles: true}))
+  await pageTurn()
+  if (!holds({host, value})) return `The editor rejected ${shown({element: host, value})}; its text does not match it.`
+  return reported({element: host, value: host.innerText.trim()})
+}
+
+export async function fill(options: {
+  element: Element
+  value: string
+  agent: string
+}): Promise<{value: string} | string> {
+  const {element, value, agent} = options
+  if (element.closest(CODE_EDITORS)) return 'That is a code editor (CodeMirror or Monaco); fill cannot type into it.'
+  const readOnly = element.closest('[aria-readonly]')?.getAttribute('aria-readonly') === 'true'
+  if (!isInput(element) && !isTextArea(element)) {
+    const host = editableHost(element)
+    if (!host) return 'That element is not a text field.'
+    if (readOnly || !host.isContentEditable) return 'That field is read-only.'
+    return fillEditor({host, value, agent})
+  }
+  if (readOnly || element.readOnly) return 'That field is read-only.'
+  simulateFill({element, value, agent})
+  await pageTurn()
+  if (value !== '' && element.value === '') return `The field rejected ${shown({element, value})} and stayed empty.`
+  return reported({element, value: element.value})
+}
+
+export async function select(options: {element: Element; value: string}): Promise<{value: string} | string> {
   const {element, value} = options
   if (!isSelect(element)) return 'That element is not a select.'
   const choices = Array.from(element.options)
@@ -82,6 +145,7 @@ export function select(options: {element: Element; value: string}): {value: stri
   if (!option) return `No option ${shown({element, value})}; options: ${choices.map(described).join(', ')}.`
   setNativeValue({element, value: option.value})
   changed(element)
+  await pageTurn()
   return {value: element.value}
 }
 
@@ -94,12 +158,15 @@ export async function setChecked(options: {
   if (isInput(element) && (element.type === 'checkbox' || element.type === 'radio')) {
     if (element.checked === checked) return {checked}
     if (element.type === 'radio' && !checked) return 'A radio is unchecked by checking another one.'
-    await simulateClick({element, agent})
+    simulateClick({element, agent})
+    await pageTurn()
     return reached({now: element.checked, checked})
   }
   const aria = element.getAttribute('aria-checked')
   if (aria === null) return 'That element is not a checkbox.'
-  if ((aria === 'true') !== checked) await simulateClick({element, agent})
+  if ((aria === 'true') === checked) return {checked}
+  simulateClick({element, agent})
+  await pageTurn()
   return reached({now: element.getAttribute('aria-checked') === 'true', checked})
 }
 

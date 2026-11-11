@@ -5,8 +5,7 @@ import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
 import {contract} from './contract.js'
 import contractManifest from '../package.json' with {type: 'json'}
 import {
-  closeBrowserRpcConnection,
-  dynamicBrowserRpcLink,
+  heldBrowserRpcLink,
   RPC_UNBOUND_MESSAGE,
   type RpcClientContext,
   type SessionAccessor,
@@ -49,7 +48,7 @@ export function makeBrowserRpcClient(
 ): BrowserRpcClient {
   const state: {accessor: () => string | null} = {accessor: typeof base === 'function' ? base : () => base}
   const currentBase = (): string | null => state.accessor()
-  const link = dynamicBrowserRpcLink(currentBase, options.session)
+  const {link, release} = heldBrowserRpcLink(currentBase, options.session)
   return {
     rpc: createORPCClient(link),
     bound: () => currentBase() !== null,
@@ -59,14 +58,11 @@ export function makeBrowserRpcClient(
       state.accessor = () => apiBase
     },
     rebind: (nextApiBase) => {
-      const previous = currentBase()
-      if (previous !== null) closeBrowserRpcConnection(previous)
+      release()
       state.accessor = () => nextApiBase
     },
     close: () => {
-      const previous = currentBase()
-      if (previous === null) return
-      closeBrowserRpcConnection(previous)
+      release()
       state.accessor = () => null
     },
   }

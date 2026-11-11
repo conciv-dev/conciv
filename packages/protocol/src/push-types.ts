@@ -22,7 +22,11 @@ export const PushFrameSchema = z.discriminatedUnion('channel', [
   ChatEventFrameSchema,
 ])
 
-export const PageServingFrameSchema = z.object({channel: z.literal('page-serving'), serving: z.boolean()})
+export const PageServingFrameSchema = z.object({
+  channel: z.literal('page-serving'),
+  serving: z.boolean(),
+  focus: z.object({focused: z.boolean(), visible: z.boolean()}).optional(),
+})
 
 export type ReadyFrame = z.infer<typeof ReadyFrameSchema>
 export type PageQueryFrame = z.infer<typeof PageQueryFrameSchema>

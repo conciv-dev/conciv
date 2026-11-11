@@ -83,6 +83,7 @@
     "unplugin": "^3.6.0"
   },
   "devDependencies": {
+    "@conciv/extension-testkit": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",

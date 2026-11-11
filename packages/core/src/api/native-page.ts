@@ -5,7 +5,9 @@ import {z} from 'zod'
 
 export const NATIVE_PAGE_PATH = '/native'
 const NATIVE_BUNDLE = 'conciv-widget-native.global.js'
-const NativeFileSchema = z.enum([NATIVE_BUNDLE, `${NATIVE_BUNDLE}.map`])
+const WIDGET_CHUNKS = 'widget'
+const NativeFileSchema = z.literal(NATIVE_BUNDLE)
+const ChunkFileSchema = z.string().regex(/^[\w-]+(?:\.[\w-]+)*\.js$/)
 
 export function hostDocument(): string {
   return [
@@ -32,12 +34,20 @@ export function hostDocument(): string {
 export function makeNativePageApp(dir: string): Hono {
   return new Hono()
     .get('/', (c) => c.html(hostDocument()))
+    .get(`/${WIDGET_CHUNKS}/:file`, async (c) => {
+      const parsed = ChunkFileSchema.safeParse(c.req.param('file'))
+      if (!parsed.success) return c.text('not found', 404)
+      return serveFile(join(dir, WIDGET_CHUNKS, parsed.data))
+    })
     .get('/:file', async (c) => {
       const parsed = NativeFileSchema.safeParse(c.req.param('file'))
       if (!parsed.success) return c.text('not found', 404)
-      const body = await readFile(join(dir, parsed.data)).catch(() => null)
-      if (!body) return c.text('not found', 404)
-      const type = parsed.data.endsWith('.map') ? 'application/json' : 'text/javascript; charset=utf-8'
-      return new Response(new Uint8Array(body), {headers: {'content-type': type}})
+      return serveFile(join(dir, parsed.data))
     })
+}
+
+async function serveFile(path: string): Promise<Response> {
+  const body = await readFile(path).catch(() => null)
+  if (!body) return new Response('not found', {status: 404})
+  return new Response(new Uint8Array(body), {headers: {'content-type': 'text/javascript; charset=utf-8'}})
 }

@@ -14,6 +14,7 @@ Headless `Thread` compound: viewport with virtualized turns, messages, scroll-to
 ## Invariants
 
 - Below `VIRTUALIZE_THRESHOLD` turns the overscan equals the turn count, so nothing is evicted; above it overscan is `EVICTING_OVERSCAN` (8) with a `ROW_ESTIMATE_PX` (72) estimate (`thread.tsx`).
+- The virtualized turns sit in one `data-thread-list` element; the gap between turns is that element's `row-gap` (inherited from the viewport unless a styled layer overrides it), and `TurnEstimator.estimateTurn(turn, index)` gets the turn's index.
 - `useThreadViewport` throws `Thread.ScrollToBottom must be used within a Thread.Root`.
 
 ## Side Effects

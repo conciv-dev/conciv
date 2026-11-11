@@ -569,9 +569,10 @@ describe('push channel', () => {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
-  async function nextQuery(source: AsyncIterable<PageQueryFrame>): Promise<PageQueryFrame> {
-    for await (const frame of source) return frame
-    throw new Error('the push channel closed before a page query arrived')
+  async function nextQuery(source: AsyncIterator<PageQueryFrame>): Promise<PageQueryFrame> {
+    const next = await source.next()
+    if (next.done) throw new Error('the push channel closed before a page query arrived')
+    return next.value
   }
 
   describe('the per-tab push socket', () => {

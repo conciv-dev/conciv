@@ -5,23 +5,35 @@ import {PageServingFrameSchema, PUSH_SESSION_PARAM, PUSH_WS_PATH, type PushFrame
 import type {WSContext} from 'hono/ws'
 import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
 import {logError} from '../lib/debug.js'
+import type {BrowserTabFocus} from '../page-bus.js'
 
 export type PageQuery = {requestId: string; query: unknown}
 
 export type PushDeps = {
-  queries: (sessionId: SessionId, signal: AbortSignal) => AsyncIterable<PageQuery>
+  queries: (sessionId: SessionId, signal: AbortSignal, focus: () => BrowserTabFocus) => AsyncIterable<PageQuery>
   events: (sessionId: SessionId, signal: AbortSignal) => AsyncIterable<ChatEvent>
 }
 
 const NO_SESSION_CLOSE_CODE = 4400
 
-async function forward<T>(source: AsyncIterable<T>, emit: (item: T) => void): Promise<void> {
-  for await (const item of source) emit(item)
+const STREAM_FAILED_CLOSE_CODE = 1011
+
+async function forward<T>(
+  source: (signal: AbortSignal) => AsyncIterable<T>,
+  signal: AbortSignal,
+  emit: (item: T) => void,
+): Promise<void> {
+  for await (const item of source(signal)) emit(item)
 }
 
-function pump<T>(source: AsyncIterable<T>, emit: (item: T) => void, label: string): void {
-  void forward(source, emit).catch((error: unknown) => {
-    logError(`[core] the ${label} push stream ended: ${String(error)}`)
+function pump<T>(
+  source: (signal: AbortSignal) => AsyncIterable<T>,
+  signal: AbortSignal,
+  emit: (item: T) => void,
+  failed: (error: unknown) => void,
+): void {
+  forward(source, signal, emit).catch((error: unknown) => {
+    if (!signal.aborted) failed(error)
   })
 }
 
@@ -29,8 +41,9 @@ function parsedJson(payload: unknown): unknown {
   if (typeof payload !== 'string') return null
   try {
     return JSON.parse(payload)
-  } catch {
-    return null
+  } catch (error) {
+    if (error instanceof SyntaxError) return null
+    throw error
   }
 }
 
@@ -40,8 +53,18 @@ export function pushRoutes(deps: PushDeps, upgrade: UpgradeWebSocket) {
     upgrade((c) => {
       const requested = SessionId.safeParse(new URL(c.req.raw.url).searchParams.get(PUSH_SESSION_PARAM))
       const abort = new AbortController()
-      const held: {sink: WSContext | null; page: AbortController | null} = {sink: null, page: null}
+      const held: {sink: WSContext | null; page: AbortController | null; focus: BrowserTabFocus} = {
+        sink: null,
+        page: null,
+        focus: {focusedAt: 0, visible: false},
+      }
       const send = (frame: PushFrame): void => held.sink?.send(JSON.stringify(frame))
+      const streamFailed =
+        (label: string) =>
+        (error: unknown): void => {
+          logError(`[core] the ${label} push stream failed, closing the socket: ${String(error)}`)
+          held.sink?.close(STREAM_FAILED_CLOSE_CODE, `the ${label} push stream failed`)
+        }
       const servePage = (sessionId: SessionId, serving: boolean): void => {
         if (serving === (held.page !== null)) return
         held.page?.abort()
@@ -50,9 +73,10 @@ export function pushRoutes(deps: PushDeps, upgrade: UpgradeWebSocket) {
         const page = new AbortController()
         held.page = page
         pump(
-          deps.queries(sessionId, AbortSignal.any([abort.signal, page.signal])),
+          (signal) => deps.queries(sessionId, signal, () => held.focus),
+          AbortSignal.any([abort.signal, page.signal]),
           ({requestId, query}) => send({channel: 'page', requestId, query}),
-          'page query',
+          streamFailed('page query'),
         )
         send({channel: 'ready'})
       }
@@ -63,12 +87,22 @@ export function pushRoutes(deps: PushDeps, upgrade: UpgradeWebSocket) {
             ws.close(NO_SESSION_CLOSE_CODE, 'a push socket needs a session id')
             return
           }
-          pump(deps.events(requested.data, abort.signal), (chunk) => send({channel: 'chat', chunk}), 'session event')
+          pump(
+            (signal) => deps.events(requested.data, signal),
+            abort.signal,
+            (chunk) => send({channel: 'chat', chunk}),
+            streamFailed('session event'),
+          )
         },
         onMessage: (event, ws) => {
           held.sink = ws
           const frame = PageServingFrameSchema.safeParse(parsedJson(event.data))
           if (!requested.success || !frame.success) return
+          const reported = frame.data.focus
+          if (reported !== undefined) {
+            const focusedAt = reported.focused ? performance.now() : held.focus.focusedAt
+            held.focus = {focusedAt, visible: reported.visible}
+          }
           servePage(requested.data, frame.data.serving)
         },
         onClose: () => abort.abort(),

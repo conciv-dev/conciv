@@ -131,11 +131,6 @@ function outcomeOf<Result extends Record<string, unknown>>(result: Result | stri
   return ok(result)
 }
 
-function fieldValue(el: Element): string {
-  if (!isField(el)) return ''
-  return isSensitiveField(el) ? MASKED_VALUE : el.value
-}
-
 async function setCheckedOn(input: ClientToolLocator, ctx: ClientToolCtx, checked: boolean): Promise<PageResult> {
   const element = ctx.target(input)
   if (isDisabled(element)) badArgs('That element is disabled.')
@@ -368,8 +363,8 @@ const attrTool = attrDef
 
 const clickTool = clickDef
   .client(
-    acting(async (input, ctx) => {
-      await simulateClick({element: actionableTarget(ctx, input), agent: ctx.agentId})
+    acting((input, ctx) => {
+      simulateClick({element: actionableTarget(ctx, input), agent: ctx.agentId})
       return ok()
     }),
   )
@@ -377,9 +372,9 @@ const clickTool = clickDef
 
 const hoverTool = hoverDef
   .client(
-    acting(async (input, ctx) => {
+    acting((input, ctx) => {
       const element = actionableTarget(ctx, input)
-      await pointAt({element, agent: ctx.agentId})
+      pointAt({element, agent: ctx.agentId})
       hover(element)
       return ok()
     }),
@@ -388,8 +383,8 @@ const hoverTool = hoverDef
 
 const scrollTool = scrollDef
   .client(
-    acting(async (input, ctx) => {
-      await pointAt({element: ctx.target(input), agent: ctx.agentId})
+    acting((input, ctx) => {
+      pointAt({element: ctx.target(input), agent: ctx.agentId})
       return ok()
     }),
   )
@@ -411,9 +406,7 @@ const fillTool = fillDef
   .client(
     acting(async (input, ctx) => {
       const element = actionableTarget(ctx, input)
-      const problem = await fill({element, value: input.value, agent: ctx.agentId})
-      if (problem) badArgs(problem)
-      return ok({value: fieldValue(element)})
+      return outcomeOf(await fill({element, value: input.value, agent: ctx.agentId}))
     }),
   )
   .render(actCard)
@@ -423,8 +416,8 @@ const selectTool = selectDef
     acting(async (input, ctx) => {
       const element = ctx.target(input)
       if (isDisabled(element)) badArgs('That element is disabled.')
-      await pointAt({element, agent: ctx.agentId})
-      return outcomeOf(select({element, value: input.value}))
+      pointAt({element, agent: ctx.agentId})
+      return outcomeOf(await select({element, value: input.value}))
     }),
   )
   .render(actCard)
@@ -435,13 +428,13 @@ const uncheckTool = uncheckDef.client(acting((input, ctx) => setCheckedOn(input,
 
 const pressTool = pressDef
   .client(
-    acting(async (input, ctx) => {
+    acting((input, ctx) => {
       if (!hasLocator(input)) {
         press({element: focusedElement(), key: input.key})
         return ok()
       }
       const element = actionableTarget(ctx, input)
-      await pointAt({element, agent: ctx.agentId})
+      pointAt({element, agent: ctx.agentId})
       if (isHtml(element)) element.focus({preventScroll: true})
       press({element, key: input.key})
       return ok()

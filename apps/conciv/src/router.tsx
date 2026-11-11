@@ -1,11 +1,10 @@
 import {createRouter} from '@tanstack/solid-router'
 import type {RouterHistory} from '@tanstack/solid-router'
-import {QueryClient} from '@tanstack/solid-query'
+import {QueryClient, setupEngineReachability} from '@conciv/client'
 import {createEffect, createRoot, onCleanup, type JSX} from 'solid-js'
 import {browserRpcConnection, type RpcClient} from '@conciv/contract'
 import type {GrabProvider} from '@conciv/grab'
 import type {AnyExtension} from '@conciv/extension'
-import {setupEngineReachability} from '@conciv/client'
 import {routeTree} from './routeTree.gen'
 import {makeAppData, type AppData} from './data/app-data.js'
 import type {ConcivSettings} from './data/settings.js'
@@ -79,12 +78,14 @@ function makeGuardedDisposer(instances: ExtensionInstance[], extra: () => void):
 
 function watchEngine(apiBase: string, rerunRefused: () => void): () => void {
   const stopReachability = setupEngineReachability(apiBase)
-  const stopTrust = browserRpcConnection(apiBase).trust.subscribe((status, previous) => {
+  const connection = browserRpcConnection(apiBase)
+  const stopTrust = connection.trust.subscribe((status, previous) => {
     if (status === 'trusted' && engineLocked(previous)) rerunRefused()
   })
   return () => {
     stopReachability()
     stopTrust()
+    connection.release()
   }
 }
 
@@ -105,7 +106,9 @@ function wireEngine(apiBase: () => string, rerunRefused: () => void): {dispose: 
 }
 
 export function createConcivRouter(config: ConcivRouterConfig) {
-  const queryClient = new QueryClient()
+  const queryClient = new QueryClient({
+    defaultOptions: {queries: {staleTime: Infinity, refetchOnWindowFocus: 'always'}},
+  })
   const data = makeAppData(config.rpc, queryClient)
   const extensions = [highlight, ...(config.extensions ?? [])]
   const instances = createInstances(extensions)

@@ -8,7 +8,7 @@ Widget settings parsing, the query-utils wrapper over the rpc client, and the pe
 
 - `parseConcivSettings(raw)` (`settings.ts`): parses a JSON string into `ConcivSettings`; exported as `@conciv/app/settings`
 - `ConcivSettings`, `Launcher` types (`settings.ts`): `modal`, `quickTerminal`, `defaultOpen`, `launcher`, `surface`, `transport`
-- `makeAppData(rpc, queryClient)` (`app-data.ts`): returns `{utils, invalidateSessions}` built on `makeQueryUtils` from `@conciv/client`
+- `makeAppData(rpc, queryClient)` (`app-data.ts`): returns `{utils, invalidateSessions, invalidateSession, invalidateOutsideAccess}` built on `makeQueryUtils` from `@conciv/client`
 - `AppData` type (`app-data.ts`)
 - `useSessionModels`, `useSessionHarness` (`harness-meta.ts`): `meta.models` for a session and its harness metadata (`ChatModels['harness']`)
 - `useHarnesses` (`harness-meta.ts`): `meta.harnesses` (each harness with its models) as `list`, `switchable` (more than one) and `nameOf(id)`
@@ -25,8 +25,9 @@ Widget settings parsing, the query-utils wrapper over the rpc client, and the pe
 
 ## Side Effects
 
-- `app-data.ts:invalidateSessions`: invalidates the `sessions.list`, `sessions.search` and `sessions.get` queries in the TanStack QueryClient; a fetch already running is cancelled and replaced, so each ends on data read after the invalidation
-- `app-data.ts:makeAppData`: sets `sessions.list` and `sessions.get` query defaults once for every observer: 30 s `staleTime`, no refetch on window focus; freshness comes from `invalidateSessions`
+- `app-data.ts:invalidateSessions`: invalidates the `sessions.list`, `sessions.search` and every `sessions.get` query in the TanStack QueryClient; a fetch already running is cancelled and replaced, so each ends on data read after the invalidation
+- `app-data.ts:invalidateSession`: the same for one session: `sessions.list`, `sessions.search` and that session's `sessions.get`; every action that changes one session (rename, model, effort, compact, create, delete, a run that ends) calls it
+- `app-data.ts:makeAppData`: `sessions.list`, `sessions.search` and `sessions.get` never refetch on window focus (#720); freshness comes from `invalidateSessions` and `invalidateSession`
 
 ## Verification
 

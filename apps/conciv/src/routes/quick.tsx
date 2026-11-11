@@ -1,5 +1,5 @@
 import {createFileRoute, redirect, useRouter} from '@tanstack/solid-router'
-import {useQuery, useMutation} from '@tanstack/solid-query'
+import {useQuery, useMutation} from '@conciv/client'
 import {createHotkeys, formatForDisplay} from '@tanstack/solid-hotkeys'
 import {For, Show, Suspense, createEffect, on, onCleanup, onMount, type JSX} from 'solid-js'
 import {Button, TooltipIconButton, createResizable} from '@conciv/ui-kit-system'
@@ -129,7 +129,7 @@ function QuickLayer(): JSX.Element {
   const openPane = (sessionId: string): void => {
     const ids = [...paneIds(), sessionId]
     setSearch(ids, ids.length - 1)
-    appData.invalidateSessions()
+    void appData.invalidateSession(sessionId)
     resetPaneFlex(rowEl)
   }
 
@@ -170,9 +170,12 @@ function QuickLayer(): JSX.Element {
   const closePane = (index: number) => {
     const ids = paneIds()
     const closed = ids[index]
-    if (closed) void rpc.sessions.delete({sessionId: closed}).catch(() => {})
+    if (closed)
+      void rpc.sessions
+        .delete({sessionId: closed})
+        .catch(() => {})
+        .then(() => appData.invalidateSession(closed))
     const remaining = ids.filter((_, i) => i !== index)
-    appData.invalidateSessions()
     if (remaining.length === 0) {
       router.history.back()
       return
