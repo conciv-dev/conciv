@@ -134,6 +134,19 @@ Product defects: the CLI's `design_check` answered `NO_PAGE_CLIENT` "the page is
 was open on the targets' own session; `design_run_summary` has no row for a run without rounds (178 invisible); the key write-back
 stamped `data-conciv-key` into five source files and changed design.tsx under the agent's edit. Fix agent dispatched 06:34.
 
+**After run 4** fixes: CLI design calls resolve the open tab's session (b1feb00d8), `run_summary` lists runs without rounds
+(c586761cf), keys carried over in memory, no source rewrite (e34c82f44), a reloaded tab keeps its session and never takes an
+outside agent's (ca6d9b3f6), path flags (d4363fe17).
+
+**Run 5** = store run 179 (07:21, 6.6 min, $1.27, 36 turns, sonnet, CLI only, hub still `pending`): all five fixes held
+(round 1 rendered nodes with devtools on, no NO_PAGE_CLIENT while the tab lived, session id stable across reloads, no source file
+rewritten, SIGINT closed the run `aborted` 9.39 min). No `done`: the first `design_get` had no `--route` so the targets pinned to
+`/` and rounds 1 and 2 measured the starter home (73/105/78 rows); the agent re-registered with `--route /design`, the three-link
+call moved only the first target, and during those re-registering calls (9.9 s and 5.2 s each) the headed Chromium tab crashed
+("Page crashed and was reset to about:blank"), after which every check answered `no widget connected to session`. The page agent
+also closed the machine's `default` playwright session (not product). Fix agent dispatched 07:45 (route applies to every target of
+the call and the run; the crash's cause and a clear after-crash error).
+
 ## Known defects of the tools, from the store
 
 - A page that rendered as a 569k px blank strip at 390 passed `design_check` with 3 rows (run 169). Task 11 addresses it.
