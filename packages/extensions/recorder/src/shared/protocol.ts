@@ -14,6 +14,8 @@ export type RrwebEvent = {type: number; data: unknown; timestamp: number}
 
 export const RrwebEventSchema = z.object({type: z.number(), data: z.unknown(), timestamp: z.number()})
 
+export const REPLAY_MIN_EVENTS = 2
+
 export const MAX_FLUSH_BYTES = 8 * 1024 * 1024
 
 const encoder = new TextEncoder()

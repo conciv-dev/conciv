@@ -3108,3 +3108,75 @@ describe('resume.command', () => {
     expect([command.bin, ...command.args]).toEqual(argv)
   })
 })
+
+describe('claude transcript usage', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'conciv-usage-'))
+  const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-usage-elsewhere-'))
+  const usageOf = (nativeId: string) =>
+    claude.history?.transcriptUsage?.({cwd, nativeId: HarnessSessionId.parse(nativeId)})
+
+  const user = (timestamp: string) =>
+    JSON.stringify({type: 'user', timestamp, message: {role: 'user', content: 'build the page'}})
+  const assistant = (id: string, model: string, usage: Record<string, number>) =>
+    JSON.stringify({
+      type: 'assistant',
+      message: {id, model, role: 'assistant', content: [{type: 'text', text: 'ok'}], usage},
+    })
+  const result = (cost: number) => JSON.stringify({type: 'result', total_cost_usd: cost})
+  const write = (project: string, id: string, lines: string[]) => {
+    mkdirSync(transcriptRoot(project), {recursive: true})
+    writeFileSync(transcriptPath(project, id), lines.join('\n'))
+  }
+  const firstTurn = {input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 100, cache_creation_input_tokens: 20}
+
+  beforeAll(() => {
+    write(cwd, 'other-run', [user('2026-11-10T10:45:00.000Z'), assistant('o1', 'claude-opus-4-5', {input_tokens: 9})])
+    write(elsewhere, 'agent-elsewhere', [
+      user('2026-11-10T09:00:00.000Z'),
+      assistant('e1', 'claude-opus-4-5', {input_tokens: 9}),
+    ])
+    write(cwd, 'only-synthetic', [assistant('s1', '<synthetic>', {input_tokens: 0})])
+    write(cwd, 'the-run', [
+      user('2026-11-10T10:30:00.000Z'),
+      assistant('a1', 'claude-sonnet-4-5', firstTurn),
+      assistant('a1', 'claude-sonnet-4-5', firstTurn),
+      assistant('a2', 'claude-sonnet-4-5', {input_tokens: 3, output_tokens: 7, cache_read_input_tokens: 200}),
+      assistant('a3', 'claude-haiku-4-5', {input_tokens: 1, output_tokens: 1}),
+      result(0.5),
+      result(0.25),
+    ])
+  })
+
+  afterAll(() => {
+    rmSync(transcriptRoot(cwd), {recursive: true, force: true})
+    rmSync(transcriptRoot(elsewhere), {recursive: true, force: true})
+  })
+
+  it('sums the usage of the transcript the native id names, by the model of most messages', async () => {
+    expect(await usageOf('the-run')).toEqual({
+      nativeId: 'the-run',
+      model: 'claude-sonnet-4-5',
+      usage: {
+        promptTokens: 334,
+        completionTokens: 13,
+        totalTokens: 347,
+        promptTokensDetails: {cachedTokens: 300, cacheWriteTokens: 20},
+        cost: 0.75,
+      },
+      cost: 0.75,
+    })
+  })
+
+  it('finds the transcript of an agent that ran in another project folder by its id', async () => {
+    expect(await usageOf('agent-elsewhere')).toEqual({
+      nativeId: 'agent-elsewhere',
+      model: 'claude-opus-4-5',
+      usage: {promptTokens: 9, completionTokens: 0, totalTokens: 9},
+    })
+  })
+
+  it('answers null when no transcript has the id or it holds no real assistant message', async () => {
+    expect(await usageOf('never-ran')).toBeNull()
+    expect(await usageOf('only-synthetic')).toBeNull()
+  })
+})
