@@ -32,7 +32,6 @@ import {
 } from './helpers.browser.js'
 import {z} from 'zod'
 import {render} from '@solidjs/testing-library'
-import {focusManager} from '@tanstack/solid-query'
 import {type JSX, createSignal, onMount, type Component, createMemo, createRoot, For, Show, Suspense} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {
@@ -5052,9 +5051,10 @@ describe('settings page', () => {
     await renameTo('renamed after settings')
     const returned = await coreControl.rpcStartedOnceServed(RENAME_PATH, 2, MOUNT_READS)
     expect(returned).toEqual(firstVisit)
-    focusManager.setFocused(false)
-    focusManager.setFocused(true)
-    focusManager.setFocused(undefined)
+    Object.defineProperty(document, 'visibilityState', {configurable: true, value: 'hidden'})
+    document.dispatchEvent(new Event('visibilitychange', {bubbles: true}))
+    Reflect.deleteProperty(document, 'visibilityState')
+    document.dispatchEvent(new Event('visibilitychange', {bubbles: true}))
     await coreControl.rpcStartedOnceServed(HARNESSES_PATH, (returned[0] ?? 0) + 1, [])
     await coreControl.rpcStartedOnceServed(MODELS_PATH, (returned[1] ?? 0) + 1, [])
     await expect.element(titled('renamed after settings')).toBeVisible()
