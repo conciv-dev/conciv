@@ -3,7 +3,7 @@ import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {promisify} from 'node:util'
-import {buildAndPack, firewalledPnpm, releaseAgeYaml} from '@conciv/e2e-utils/packed'
+import {assertTrustedResolutions, buildAndPack, firewalledPnpm, releaseAgeYaml} from '@conciv/vitest-config/pack'
 import {CLOSURE_ROOTS} from './harness.js'
 
 const execFileAsync = promisify(execFile)
@@ -45,13 +45,17 @@ export async function runTrustPolicyInstall(): Promise<TrustPolicyInstallResult>
       env: {...process.env, CI: 'true'},
       maxBuffer: 64 * 1024 * 1024,
     })
+    assertTrustedResolutions(root)
     return {stdout, stderr}
   } catch (error) {
     const stdout = typeof error === 'object' && error !== null ? String(Reflect.get(error, 'stdout') ?? '') : ''
     const stderr = typeof error === 'object' && error !== null ? String(Reflect.get(error, 'stderr') ?? '') : ''
-    throw new Error(`fresh @conciv/it install under trustPolicy: no-downgrade failed\n${stdout}\n${stderr}`, {
-      cause: error,
-    })
+    throw new Error(
+      `fresh @conciv/it install under trustPolicy: no-downgrade failed: ${String(error)}\n${stdout}\n${stderr}`,
+      {
+        cause: error,
+      },
+    )
   } finally {
     rmSync(root, {recursive: true, force: true})
   }

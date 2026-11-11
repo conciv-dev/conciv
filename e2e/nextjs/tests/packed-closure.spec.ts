@@ -2,7 +2,7 @@ import {mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {expect, test} from '@playwright/test'
-import {assertLockNotDrifted, closureOf, workspacePackages, type PackageInfo} from '@conciv/e2e-utils/packed'
+import {assertLockNotDrifted, closureOf, workspacePackages, type PackageInfo} from '@conciv/vitest-config/pack'
 
 test('the pack closure follows a workspace dependency whose name carries no scope', () => {
   const packages = new Map<string, PackageInfo>([

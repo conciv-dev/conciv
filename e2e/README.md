@@ -49,7 +49,8 @@ touches none of this is fine.
 | `vite-react-packed`     | copy of `vite-react`       | published-tarball pnpm install, catches dist/packaging bugs     |
 
 `vite-react-packed` installs conciv the way an npm user does, using the packing helpers in
-`e2e-utils/src/packed.ts` (shared with `nextjs/packed`). Its `test:packed` runs `install-packed.ts` first:
+`packages/vitest-config/src/pack.ts` (`@conciv/vitest-config/pack`, shared with `nextjs/packed` and the
+packages' packed describes). Its `test:packed` runs `install-packed.ts` first:
 it builds and `pnpm pack`s `@conciv/it`'s workspace dependency closure, copies `index.html`, `src/` and
 `public/` from `vite-react` into a temp dir outside the workspace, generates the `package.json` and
 `vite.config.ts`, overrides each `@conciv/*` to its tarball and runs `pnpm install` there, seeded from
@@ -69,14 +70,16 @@ CI planner, or on a laptop. Each suite is a `test:packed` script:
   `vitest run --mode packed --project <node project> --tags-filter=packed`. Any other vitest run skips
   them (hooks too).
 
-Every pack helper in `e2e-utils/src/packed.ts` (`packTarball`, `buildAndPack`, the firewalled install)
+Every pack helper in `@conciv/vitest-config/pack` (`packTarball`, `buildAndPack`, the firewalled install)
 calls `assertPackAllowed()`, which throws outside GitHub Actions, so even a `vitest run <file>:<line>`
 that targets a packed test (a line filter overrides the tag skip) fails before anything is packed.
-Every fixture install goes through Socket Firewall (`sfw`) with the root `minimumReleaseAge`.
+Every fixture install goes through Socket Firewall (`sfw`) with the root `minimumReleaseAge`, and every
+produced lockfile is rejected if it resolves a remote tarball or git dependency outside the packed
+`@conciv/*@file:` entries.
 
-The workflow runs on pull requests touching published package sources and manifests, `pnpm-lock.yaml`,
-`patches/`, `e2e-utils` or the packed fixtures, on pushes to main, on demand, and from `release.yml`,
-whose npm publish waits on it.
+The workflow runs on pull requests touching anything under `packages/` or `apps/conciv/`, the root
+manifests and lockfile, `patches/`, `turbo.json`, `e2e-utils` or the packed fixtures, and on demand. On
+main it runs only from `release.yml`, on every push, and npm publish waits on it.
 
 When a registry dependency changes, the drift guard fails the run: it compares every registry package's
 `name@version` and integrity against the committed `fixture-lock.yaml`, and rejects any remote tarball or

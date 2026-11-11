@@ -209,6 +209,7 @@ export async function installPacked(options: PackedInstallOptions): Promise<void
   const [command, args] = firewalledPnpm(['install', '--no-frozen-lockfile', '--config.confirmModulesPurge=false'])
   await run(command, args, options.root)
   assertClosed(options.root)
+  assertTrustedResolutions(options.root)
   if (lockPath !== undefined) assertLockNotDrifted(options.root, lockPath)
 }
 
@@ -274,17 +275,20 @@ function lockDrift(committed: LockResolutions, produced: LockResolutions): strin
   return [...added, ...removed, ...changed].toSorted((left, right) => left.slice(2).localeCompare(right.slice(2)))
 }
 
+export function assertTrustedResolutions(root: string): void {
+  const untrusted = untrustedResolutions(packageResolutions(readFileSync(join(root, 'pnpm-lock.yaml'), 'utf8')))
+  if (untrusted.length === 0) return
+  throw new Error(
+    ['packed fixture install resolved packages outside the npm registry (remote tarball or git):', ...untrusted].join(
+      '\n',
+    ),
+  )
+}
+
 export function assertLockNotDrifted(root: string, lockPath: string): void {
   if (!existsSync(lockPath)) return
+  assertTrustedResolutions(root)
   const produced = packageResolutions(readFileSync(join(root, 'pnpm-lock.yaml'), 'utf8'))
-  const untrusted = untrustedResolutions(produced)
-  if (untrusted.length > 0) {
-    throw new Error(
-      ['packed fixture install resolved packages outside the npm registry (remote tarball or git):', ...untrusted].join(
-        '\n',
-      ),
-    )
-  }
   const diff = lockDrift(packageResolutions(readFileSync(lockPath, 'utf8')), produced)
   if (diff.length === 0) return
   if (process.env.GITHUB_ACTIONS === 'true') copyFileSync(join(root, 'pnpm-lock.yaml'), lockPath)

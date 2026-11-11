@@ -1,7 +1,7 @@
 import {cpSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {E2E_DEV_ENDPOINT_DIR} from '@conciv/e2e-utils/dev-endpoint'
-import {WORKSPACE_ROOT, buildAndPack, installPacked, readManifest} from '@conciv/e2e-utils/packed'
+import {WORKSPACE_ROOT, buildAndPack, installPacked, readManifest} from '@conciv/vitest-config/pack'
 import {PACKED_APP_DIR, PACKED_ROOT} from './packed-app-dir.ts'
 
 const SOURCE_APP = join(WORKSPACE_ROOT, 'e2e/vite-react')

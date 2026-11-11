@@ -4,7 +4,7 @@ import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
 import {dirname, join, resolve} from 'node:path'
 import {afterAll, describe, expect, test} from 'vitest'
-import {packTarball} from '@conciv/e2e-utils/packed'
+import {packTarball} from '@conciv/vitest-config/pack'
 
 const packageRoot = resolve(import.meta.dirname, '../..')
 const mascotRoot = realpathSync(join(packageRoot, 'node_modules/@conciv/mascot'))

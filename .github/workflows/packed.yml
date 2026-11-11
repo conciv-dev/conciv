@@ -3,13 +3,14 @@ name: Packed
 # The packed install suites build the @conciv closure, `pnpm pack` it and install the
 # tarballs into throwaway consumer fixtures, the way an npm user gets conciv. They are
 # the only place pack runs: `pnpm test`, `test:e2e` and the CI planner never select
-# them, and every pack helper (e2e-utils packed.ts) throws outside GitHub Actions.
+# them, and every pack helper (@conciv/vitest-config/pack) throws outside GitHub Actions.
 # Each suite is a `test:packed` script:
 #   - vitest packages tag the describes `packed` (skipped outside `vitest --mode packed`)
 #   - e2e/nextjs keeps its packed specs as tests/packed-*.spec.ts, run by
 #     playwright.packed.config.ts (the default config ignores them)
 #   - e2e/vite-react-packed is packed end to end
-# release.yml calls this workflow too, so a broken tarball blocks npm publish.
+# It runs on pull requests and on demand; on main, release.yml calls it on every push,
+# so a broken tarball blocks npm publish (no standalone push trigger, that would run it twice).
 #
 # Refreshing the fixture lockfiles (never locally): when the drift guard fails, the run
 # writes the lockfile it produced over the committed one, shows the diff in the run summary
@@ -21,40 +22,27 @@ name: Packed
 #      resolution other than the @conciv/*@file: entries, then commit.
 on:
   pull_request:
+    # Anything under packages/ can ship in a tarball or change a build (plugins, skills,
+    # fixtures, build scripts), so the whole tree triggers this, not a list of build inputs.
     paths:
       - .github/workflows/packed.yml
+      - package.json
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
       - turbo.json
       - patches/**
       - apps/conciv/**
-      - packages/**/package.json
-      - packages/**/src/**
-      - packages/**/tsdown*.config.ts
-      - packages/**/vite*.config.ts
-      - packages/**/tsconfig*.json
-      - packages/**/uno.config.ts
-      - packages/vitest-config/**
-      - packages/mascot/tests/**
-      - packages/mascot/vitest.config.ts
-      - packages/mascot-react/tests/unit/**
-      - packages/mascot-react/vitest.config.ts
-      - packages/extensions/tanstack/test/tanstack.test.ts
-      - packages/extensions/tanstack/vitest.config.ts
+      - packages/**
       - e2e/e2e-utils/**
-      - e2e/vite-react-packed/**
       - e2e/vite-react/**
-      - e2e/nextjs/packed/**
-      - e2e/nextjs/tests/packed-*.spec.ts
-      - e2e/nextjs/playwright.packed.config.ts
-  push:
-    branches: [main]
+      - e2e/vite-react-packed/**
+      - e2e/nextjs/**
   workflow_call: {}
   workflow_dispatch: {}
 
 # Inside a called workflow the github context is the caller's (github.workflow reads
-# "Release"), so the workflow name and event keep a release call, a standalone main push
-# and a dispatch on the same ref from cancelling each other.
+# "Release"), so the workflow name and event keep a release call and a dispatch on the
+# same ref from cancelling each other.
 concurrency:
   group: packed-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -121,7 +109,7 @@ jobs:
         run: pnpm --filter conciv-e2e-vite-react-packed run test:packed
 
       # A drifted fixture install writes the lockfile it produced over the committed one
-      # (e2e-utils assertLockNotDrifted), so a failed run carries the refresh.
+      # (@conciv/vitest-config/pack assertLockNotDrifted), so a failed run carries the refresh.
       - name: Summarize fixture lockfile changes
         if: failure()
         run: |

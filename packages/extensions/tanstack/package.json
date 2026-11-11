@@ -61,7 +61,6 @@
   },
   "devDependencies": {
     "@conciv/core": "workspace:^",
-    "@conciv/e2e-utils": "workspace:*",
     "@conciv/extension-compiler": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",

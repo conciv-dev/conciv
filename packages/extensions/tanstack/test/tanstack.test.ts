@@ -14,7 +14,7 @@ import tanstack from '../src/index.js'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
 import {makeCallTool, resolveSession, type CallTool} from '@conciv/harness-testkit'
 import {makeViteBridge} from '@conciv/extension/vite'
-import {buildAndPack, installPacked, packTarball} from '@conciv/e2e-utils/packed'
+import {buildAndPack, installPacked, packTarball} from '@conciv/vitest-config/pack'
 import type {BundlerBridge, BundlerDiagnostic} from '@conciv/protocol/bundler-types'
 import tanstackExtension from '../src/server.js'
 import {

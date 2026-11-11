@@ -42,7 +42,6 @@
     "@conciv/mascot": "workspace:^"
   },
   "devDependencies": {
-    "@conciv/e2e-utils": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",

@@ -4,7 +4,7 @@ import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
 import {dirname, join, resolve, matchesGlob, relative, sep} from 'node:path'
 import {afterAll, describe, expect, test} from 'vitest'
-import {packTarball} from '@conciv/e2e-utils/packed'
+import {packTarball} from '@conciv/vitest-config/pack'
 import {EFFECT_MOUNTS} from '../effect-catalog.js'
 
 describe('packed install', {tags: ['packed']}, () => {

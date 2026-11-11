@@ -17,7 +17,7 @@ import {promisify} from 'node:util'
 import {z} from 'zod'
 
 import {concivStateDir} from '@conciv/protocol/state-types'
-import {NON_INTERACTIVE_ENV, WORKSPACE_ROOT, buildAndPack, installPacked, run} from '@conciv/e2e-utils/packed'
+import {NON_INTERACTIVE_ENV, WORKSPACE_ROOT, buildAndPack, installPacked, run} from '@conciv/vitest-config/pack'
 
 const execFileAsync = promisify(execFile)
 
