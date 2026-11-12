@@ -113,7 +113,6 @@ const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z
 describe('approval replay', () => {
   const core = bootedCore('approval-replay')
   const keep = keptPane()
-  afterAll(() => coreControl.setHubConnection('codex', false))
 
   const permissionRequest = () => page.getByRole('group', {name: 'Permission request'})
   const approveButton = () => page.getByRole('button', {name: 'Approve'})
@@ -2853,7 +2852,6 @@ describe('session options outside agents', () => {
   const coreBase = bootedCore('outside-agents')
   const harness = createShellHarness(coreBase)
   afterEach(harness.dispose)
-  afterAll(() => coreControl.setHubConnection('codex', false))
   const strip = () => page.getByRole('group', {name: 'Permission request'})
   const allowRow = () => page.getByRole('button', {name: 'Allow outside agents'})
   const approve = () =>

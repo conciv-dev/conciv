@@ -10,7 +10,7 @@ import {
   CONCIV_SESSION_HEADER,
 } from '@conciv/protocol/chat-types'
 import {CONCIV_VERSION_HEADER, RPC_WS_PATH} from '@conciv/protocol/rpc-types'
-import {concivHome, recordHubConnection, removeHubConnection, withHomeDb} from '@conciv/db'
+import {recordHubConnection, removeHubConnection, withHomeDb} from '@conciv/db'
 import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 import {revokeBrowsers as revokeTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -63,7 +63,7 @@ type Fault = {
 
 type CoreTestkit = typeof import('./core-testkit.js')
 
-type HubCliState = {root: string; saved: {PATH: string; HOME: string; CONCIV_HOME: string}} | null
+type HubCliState = {root: string; saved: {PATH: string; HOME: string}} | null
 
 type FileState = {
   kit: CoreKit | null
@@ -71,7 +71,6 @@ type FileState = {
   faults: Map<string, Fault>
   handles: {count: number}
   hubCli: {current: HubCliState}
-  home: {dir: string; saved: string | undefined} | null
   push: PushWireWatch | null
   rpcCalls: RpcCallCursor | null
 }
@@ -103,7 +102,6 @@ function stateOf(ctx: BrowserCommandContext): FileState {
     faults: new Map(),
     handles: {count: 0},
     hubCli: {current: null},
-    home: null,
     push: null,
     rpcCalls: null,
   }
@@ -136,8 +134,6 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
   const {bootCoreKit, watchPushWire, rpcSocketFor, rpcCallCursor} = await testkitOf(ctx)
   await rpcSocketFor(ctx.page).installed
   state.rpcCalls = rpcCallCursor(ctx.page)
-  state.home = {dir: mkdtempSync(join(tmpdir(), 'conciv-home-')), saved: process.env.CONCIV_HOME}
-  process.env.CONCIV_HOME = state.home.dir
   const kit = await bootCoreKit({
     id: input.id,
     text: input.text,
@@ -176,19 +172,6 @@ const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
     kit.harness.transcripts.release()
     await kit.cleanup()
   }
-  restoreHome(state)
-}
-
-function restoreHome(state: FileState): void {
-  const home = state.home
-  if (home === null) return
-  state.home = null
-  rmSync(home.dir, {recursive: true, force: true})
-  if (home.saved === undefined) {
-    Reflect.deleteProperty(process.env, 'CONCIV_HOME')
-    return
-  }
-  process.env.CONCIV_HOME = home.saved
 }
 
 const pushSocketsOpened: BrowserCommand<[]> = (ctx): number => pushOf(ctx).opened()
@@ -214,8 +197,8 @@ const requestCode: BrowserCommand<[]> = async (ctx): Promise<string> => {
 const revokeBrowsers: BrowserCommand<[]> = (ctx): number =>
   revokeTrustedBrowsers(concivStateDir(kitOf(ctx).stateRoot), 'all').length
 
-const setHubConnection: BrowserCommand<[string, boolean]> = (_ctx, harness, connected): void => {
-  withHomeDb(concivHome({env: process.env}), (db) =>
+const setHubConnection: BrowserCommand<[string, boolean]> = (ctx, harness, connected): void => {
+  withHomeDb(kitOf(ctx).home, (db) =>
     connected ? recordHubConnection(db, harness, Date.now()) : removeHubConnection(db, harness),
   )
 }
@@ -227,7 +210,7 @@ const hubExecute: BrowserCommand<[string, string, string?]> = async (
   origin = 'hub',
 ): Promise<string> => {
   const headers = {[CONCIV_SESSION_HEADER]: sessionId, [CONCIV_ORIGIN_HEADER]: origin, [CONCIV_CLIENT_HEADER]: 'codex'}
-  withHomeDb(concivHome({env: process.env}), (db) => recordHubConnection(db, 'codex', Date.now()))
+  withHomeDb(kitOf(ctx).home, (db) => recordHubConnection(db, 'codex', Date.now()))
   const {connectMcpClient} = await testkitOf(ctx)
   const client = await connectMcpClient(`${kitOf(ctx).base}/api/mcp`, headers)
   try {
@@ -295,7 +278,7 @@ const fakeHubCli: BrowserCommand<['ok' | HubCliHold | null]> = (ctx, outcome): v
   const root = hubCliRoot(state)
   for (const marker of Object.values(HUB_CLI_MARKERS)) rmSync(join(root, marker), {force: true})
   if (outcome !== 'ok') writeFileSync(join(root, HUB_CLI_MARKERS[outcome]), '')
-  Object.assign(process.env, {PATH: join(root, 'bin'), HOME: join(root, 'home'), CONCIV_HOME: join(root, 'conciv')})
+  Object.assign(process.env, {PATH: join(root, 'bin'), HOME: join(root, 'home')})
 }
 
 function hubCliRoot(state: FileState): string {
@@ -320,7 +303,7 @@ function hubCliRoot(state: FileState): string {
 function freshHubCli(): NonNullable<HubCliState> {
   return {
     root: mkdtempSync(join(tmpdir(), 'conciv-hub-cli-')),
-    saved: {PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', CONCIV_HOME: process.env.CONCIV_HOME ?? ''},
+    saved: {PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? ''},
   }
 }
 
