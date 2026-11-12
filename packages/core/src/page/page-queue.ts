@@ -181,7 +181,6 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
         },
       )
     })
-    await playing.accepted
     keep(record)
     void Promise.all(landed).then(async () => {
       record.result = resultOf(record)

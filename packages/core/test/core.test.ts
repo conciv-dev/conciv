@@ -863,6 +863,46 @@ describe('page bus and the session scope', () => {
     expect(queues.undelivered(SESSION_A, true).map((result) => result.queueId)).toEqual(started.slice(1))
   })
 
+  it('an async queue started while another plays answers its queueId at once, and its actions reach the tab only after the first finishes', async () => {
+    const bus = makePageBus(2000)
+    const queued = queueingTab(bus)
+    const queues = pageQueues(bus)
+    const finished = finishedOf(queues)
+    const check = [{tool: 'page_check', selector: '#agree'}]
+    const earlier = await queues.start(SESSION_A, queueStart(check))
+    const later = await Promise.race([queues.start(SESSION_A, queueStart(check)), setImmediate(null)])
+    expect(later).toEqual({queueId: expect.stringMatching(/^q_/), actions: 1})
+    expect(queued.map((frame) => frame.queue.id)).toEqual([earlier.queueId])
+    expect(await queues.wait(SESSION_A, later?.queueId ?? '', 0)).toEqual({
+      queueId: later?.queueId,
+      status: 'playing',
+      done: 0,
+      of: 1,
+    })
+    bus.resolve(SESSION_A, queued[0]?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
+    await finished(earlier.queueId)
+    await vi.waitFor(() => expect(queued.map((frame) => frame.queue.id)).toEqual([earlier.queueId, later?.queueId]))
+    bus.resolve(SESSION_A, queued[1]?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
+    await finished(later?.queueId ?? '')
+  })
+
+  it('a sync queue started while another plays waits for its turn and returns its own result', async () => {
+    const bus = makePageBus(2000)
+    const queued = queueingTab(bus)
+    const queues = pageQueues(bus)
+    const finished = finishedOf(queues)
+    const check = [{tool: 'page_check', selector: '#agree'}]
+    const earlier = await queues.start(SESSION_A, queueStart(check))
+    const played = queues.play(SESSION_A, queueStart(check))
+    await setImmediate()
+    expect(queued).toHaveLength(1)
+    bus.resolve(SESSION_A, queued[0]?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
+    await finished(earlier.queueId)
+    await vi.waitFor(() => expect(queued).toHaveLength(2))
+    bus.resolve(SESSION_A, queued[1]?.queue.replies[0] ?? '', {ok: true, result: {checked: false}})
+    expect(await played).toMatchObject({queueId: queued[1]?.queue.id, status: 'finished', played: 1, failed: 0})
+  })
+
   it('a queue for a session whose earlier queue still plays reaches the newly focused tab only once that queue is done', async () => {
     const bus = makePageBus(2000)
     const focusedAt = {first: 2, second: 1}
