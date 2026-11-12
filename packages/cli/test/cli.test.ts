@@ -1819,12 +1819,21 @@ describe('cli', () => {
             arrivals.emit('queued')
           },
         })
-        const events = await engine.page.chat.events({sessionId: engine.sessionId}, {signal: pages.signal})
+        const listening = new AbortController()
+        const signal = AbortSignal.any([pages.signal, listening.signal])
+        const events = await engine.page.chat.events({sessionId: engine.sessionId}, {signal})
         const finishedIds = new Set<string>()
-        void collectFinished(events, (queueId) => {
+        const collecting = collectFinished(events, (queueId) => {
           finishedIds.add(queueId)
           arrivals.emit('finished')
+        }).catch((error: unknown) => {
+          if (!signal.aborted) throw error
         })
+        const stop = async () => {
+          listening.abort()
+          await collecting
+          await engine.engine.stop()
+        }
         const queueAt = async (index: number): Promise<{id: string; replies: string[]}> => {
           const queue = accepted[index]
           if (queue !== undefined) return queue
@@ -1844,7 +1853,7 @@ describe('cli', () => {
           return queue.id
         }
         const play = async (index: number) => finishedOf(await playInCall(index))
-        return {home, engine, play, playInCall, accepted}
+        return {home, engine: {...engine, engine: {...engine.engine, stop}}, play, playInCall, accepted}
       }
 
       async function collectFinished(
