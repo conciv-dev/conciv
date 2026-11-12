@@ -37,7 +37,7 @@ import {currentHref} from '@conciv/extension-testkit/navigation-state'
 import {until} from '@conciv/harness-testkit/until'
 import {GRAB_MIME, parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-attachment'
 import {watchChatWire} from '@conciv/extension-testkit/chat-wire'
-import recorderServer, {type RecorderRouter} from '@conciv/extension-recorder'
+import recorderServer, {type RecorderRouter} from '@conciv/extension-recorder/server'
 import type {SessionCaptures} from '@conciv/protocol/element-capture-types'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {holdRpcCalls, failRpcCalls, gateRpcCalls} from '@conciv/extension-testkit/rpc-fault'
@@ -296,6 +296,7 @@ test.describe('composer rich input', () => {
         suite.kit().harness.script.release()
       }
 
+      await expect(page.getByRole('button', {name: 'Send message'})).toBeVisible({timeout: 30_000})
       await page.keyboard.press('Escape')
       await expect(panel(page)).toBeHidden({timeout: 30_000})
     })

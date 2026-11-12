@@ -4,13 +4,14 @@ import {collectFailures, expectWidgetBoots, loginWidget, trustedEngineBase} from
 
 const CreatedSchema = z.object({json: z.object({sessionId: z.string()})})
 
-test('widget boots from dist in a nextjs app', async ({page}) => {
+test('widget boots from dist in a nextjs app with the terminal extension tab its config installs', async ({page}) => {
   const failures = collectFailures(page)
   await loginWidget(page)
   await expectWidgetBoots(page, failures)
+  await expect(page.getByRole('dialog', {name: 'conciv chat agent'}).getByRole('tab', {name: 'Terminal'})).toBeVisible()
 })
 
-test('the terminal builtin server extension loaded and answers for a session', async ({page}) => {
+test('the terminal server extension installed in next.config loaded and answers for a session', async ({page}) => {
   const base = await trustedEngineBase(page)
   const post = async (path: string, json: unknown): Promise<unknown> =>
     (

@@ -30,7 +30,7 @@ const SERVER_ONLY_SYMBOLS = ['makeTanstackAdapter', 'readRouteManifest']
 const SETUP_TIMEOUT = 6 * 60_000
 const CELL_TIMEOUT = 12 * 60_000
 
-test.describe.skip('folder-installed extension on packed Next 16.2 (turbopack + webpack)', () => {
+test.describe.skip('installed extension on packed Next 16.2 (turbopack + webpack)', () => {
   let fixture: Fixture
   let handle: NextHandle | undefined
 
@@ -58,7 +58,7 @@ test.describe.skip('folder-installed extension on packed Next 16.2 (turbopack + 
 
   async function gotoAndOpen(page: Page): Promise<void> {
     if (handle === undefined) throw new Error('next dev is not running')
-    await loginWidget(page, `http://localhost:${DEV_PORT}/`, handle.logPath)
+    await loginWidget(page, `http://localhost:${DEV_PORT}/`, handle.appDir)
     await page.getByRole('button', {name: 'Open conciv chat'}).click()
     await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 60_000})
   }

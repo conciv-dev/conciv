@@ -80,7 +80,7 @@ export function widgetComponentSuite(opts: {id: string; distDir: string}): void 
   async function openPage(browser: Browser, host: ServedDir, kit: CoreKit): Promise<Page> {
     const page = await browser.newPage()
     const pageUrl = `${host.base}/?core=${encodeURIComponent(kit.origin)}`
-    await page.goto(await magicLink(kit.origin, kit.terminal, pageUrl), {waitUntil: 'domcontentloaded'})
+    await page.goto(await magicLink(kit.base, pageUrl), {waitUntil: 'domcontentloaded'})
     return page
   }
 

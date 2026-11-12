@@ -2,11 +2,10 @@
 
 ## Overview
 
-Conciv extensions loaded by the TanStack Start example: the TanStack extension and a sample deploy tool and button.
+Conciv extension folder for the TanStack Start example: a sample deploy tool and button. Installed extensions are listed in `vite.config.ts`.
 
 ## Interface
 
-- `default` (`tanstack.tsx`): re-export of `@conciv/extension-tanstack`
 - `deploy` (`deploy-button.tsx`): default export, `defineExtension({name: 'deploy', Component: DeploySurface, tools: [deployRun]})`
 - `deployRun` (`deploy-button.tsx`): `defineTool` named `deploy_run`, input `{env: 'staging' | 'prod'}`, output `{url}`, `meta.mutating: true`
 - `DeploySurface` (`deploy-button.tsx`): renders a `ComposerActions.ActionButton` in the `composer` slot and `env: staging` in the `status` slot
