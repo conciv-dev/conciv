@@ -1,6 +1,6 @@
 import type {ElementSource, Grab, GrabApi} from '@conciv/grab'
 
-const SOURCE_ATTR = 'data-conciv-source'
+const SOURCE_ATTR = 'data-tsd-source'
 
 type SourceParts = {filePath: string; lineNumber: number | null; column: number | null}
 

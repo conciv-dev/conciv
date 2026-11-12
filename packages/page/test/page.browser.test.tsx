@@ -906,7 +906,7 @@ describe('grab text', () => {
     })
 
     it('keeps role and aria-label and drops every other attribute', () => {
-      const el = mount('<div role="dialog" aria-label="Connect" data-conciv-source="src/a.tsx:1:2" title="x">Hi</div>')
+      const el = mount('<div role="dialog" aria-label="Connect" data-tsd-source="src/a.tsx:1:2" title="x">Hi</div>')
       expect(elementSnippet(el)).toBe('<div role="dialog" aria-label="Connect">Hi</div>')
     })
 
@@ -923,9 +923,9 @@ describe('grab text', () => {
   })
 
   describe('groundGrabText', () => {
-    it('composes snippet plus the full data-conciv-source path', () => {
+    it('composes snippet plus the full data-tsd-source path', () => {
       const button = mount(
-        '<button id="try-cta" data-conciv-source="src/components/landing/hero.tsx:42:5">Try it live: connect your agent</button>',
+        '<button id="try-cta" data-tsd-source="src/components/landing/hero.tsx:42:5">Try it live: connect your agent</button>',
       )
       const grounded = groundGrabText(button, 'minified-fallback')
       expect(grounded.source).toEqual({file: 'src/components/landing/hero.tsx', line: 42, column: 5})
@@ -935,7 +935,7 @@ describe('grab text', () => {
     })
 
     it('reads the attribute off the nearest annotated ancestor', () => {
-      const wrapper = mount('<section data-conciv-source="src/page.tsx:7:1"><span>Deep</span></section>')
+      const wrapper = mount('<section data-tsd-source="src/page.tsx:7:1"><span>Deep</span></section>')
       const span = wrapper.querySelector('span')
       if (!span) throw new Error('fixture span missing')
       expect(groundGrabText(span, 'fallback').text).toBe('<span>Deep</span> at src/page.tsx:7:1')
@@ -1372,11 +1372,11 @@ describe('react bridge', () => {
       expect(result?.owners.every((owner) => owner.ref.startsWith('v') || owner.ref === '')).toBe(true)
     })
 
-    it('reads a data-conciv-source attribute into a source location', async () => {
-      leaf().setAttribute('data-conciv-source', 'src/app/leaf.tsx:12:7')
+    it('reads a data-tsd-source attribute into a source location', async () => {
+      leaf().setAttribute('data-tsd-source', 'src/app/leaf.tsx:12:7')
       const result = await locate(leaf(), makeRefs().addRef)
       expect(result?.source).toEqual({file: 'src/app/leaf.tsx', line: 12, column: 7})
-      leaf().removeAttribute('data-conciv-source')
+      leaf().removeAttribute('data-tsd-source')
     })
   })
 

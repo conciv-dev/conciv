@@ -1,18 +1,16 @@
-import {copyFileSync, cpSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {spawnSync} from 'node:child_process'
+import {cpSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {E2E_DEV_ENDPOINT_DIR} from '@conciv/e2e-utils/dev-endpoint'
-import {WORKSPACE_ROOT, buildAndPack, installPacked, readManifest} from '@conciv/e2e-utils/packed'
+import {WORKSPACE_ROOT, buildAndPack, installPacked, readManifest} from '@conciv/vitest-config/pack'
 import {PACKED_APP_DIR, PACKED_ROOT} from './packed-app-dir.ts'
 
 const SOURCE_APP = join(WORKSPACE_ROOT, 'e2e/vite-react')
 const SCAFFOLD_ENTRIES = ['index.html', 'src', 'public']
 const VITE_TOOLING = ['vite', '@vitejs/plugin-react']
 const TARBALL_DIR = join(PACKED_ROOT, 'tarballs')
+const LOCK_PATH = join(import.meta.dirname, 'fixture-lock.yaml')
 const DEV_ENDPOINT_IMPORT = `import {E2E_DEV_ENDPOINT_DIR} from '@conciv/e2e-utils/dev-endpoint'`
-const LOCK = {
-  path: join(import.meta.dirname, 'fixture-lock.yaml'),
-  updateCommand: 'pnpm --filter conciv-e2e-vite-react-packed run update-packed-lockfile',
-}
 
 async function timed<T>(label: string, step: () => Promise<T>): Promise<T> {
   const started = performance.now()
@@ -52,7 +50,6 @@ function writeConsumer(): void {
   writeFileSync(join(PACKED_APP_DIR, 'vite.config.ts'), viteConfigSource())
 }
 
-const updateLockfile = process.argv.includes('--update-lockfile')
 rmSync(PACKED_ROOT, {recursive: true, force: true})
 mkdirSync(TARBALL_DIR, {recursive: true})
 mkdirSync(PACKED_APP_DIR, {recursive: true})
@@ -64,8 +61,13 @@ await timed('install', () =>
     packages: ['.'],
     allowBuilds: {'isolated-vm': false, protobufjs: false},
     overrides,
-    lock: LOCK,
-    fresh: updateLockfile,
+    lockPath: LOCK_PATH,
   }),
 )
-if (updateLockfile) copyFileSync(join(PACKED_APP_DIR, 'pnpm-lock.yaml'), LOCK.path)
+const playwright = spawnSync(
+  join(import.meta.dirname, 'node_modules/.bin/playwright'),
+  ['test', '--config', join(import.meta.dirname, 'playwright.config.ts'), ...process.argv.slice(2)],
+  {cwd: PACKED_APP_DIR, stdio: 'inherit'},
+)
+if (playwright.error !== undefined) throw playwright.error
+process.exitCode = playwright.status ?? 1

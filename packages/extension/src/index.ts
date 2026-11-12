@@ -60,6 +60,8 @@ export type {
   ServerHarness,
   ServerSessions,
   ServerResult,
+  ToolCallContext,
+  ToolMiddleware,
   Settings,
   SettingsForNamespace,
   SettingsOf,
@@ -78,6 +80,7 @@ export type {MountedExtensionProps, MountedSurfaceProps, MountedViewProps} from 
 export {ensureEffectsSurface, openSource, EFFECTS_SURFACE_ATTR, CONCIV_UI_SELECTOR} from './client-host.js'
 export {makeExtRpcClient} from './ext-rpc.js'
 export {createSettingsStore} from './settings-store.js'
+export {mergeSettings} from './merge-settings.js'
 export {createClientSettings} from './settings-client.js'
 export type {ExtRpcContext} from './ext-rpc.js'
 export {subscriptionIterator} from './server-stream.js'

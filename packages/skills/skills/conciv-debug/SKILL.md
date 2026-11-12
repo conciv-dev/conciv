@@ -64,7 +64,7 @@ by two different paths.
 
 - **Tools declared `approval: 'ask'`** go through `gatedTools`
   (`packages/ai/src/server/chat-server.ts:162-176`), whether the agent calls them directly or from
-  code mode (`chatToolSet` splits them out, `packages/chat/src/code-mode.ts:147-149`). Without a grant
+  code mode (`chatToolSet` splits them out, `packages/chat/src/code-mode.ts:89-91`). Without a grant
   the wrapper emits an `approval-requested` custom event and throws at once:
   `Tool "<name>" needs the user's approval. The request is shown to the user; retry once they approve
   it.` (`approvalNeeded`, `packages/ai/src/server/chat-server.ts:156-160`). A tool result carrying that
@@ -114,7 +114,7 @@ by two different paths.
 The chat runtime deliberately has no single "settled" moment, and it is split across three surfaces
 rather than one subscribe call:
 
-- **The one-shot snapshot is `chat.hydrate`** (`packages/contract/src/contract.ts:244`), served by
+- **The one-shot snapshot is `chat.hydrate`** (`packages/contract/src/contract.ts:314`), served by
   the plane's `hydrate` (`packages/chat/src/index.ts:114-127`). It resolves once with messages, the
   active run, the last run lifecycle, and any pending approvals; it never streams.
 - **The turn itself streams over the delivery routes**, WebSocket at `CHAT_WS_PATH` and Server-Sent

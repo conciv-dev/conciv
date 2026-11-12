@@ -9,7 +9,7 @@
     "build": "next build",
     "start": "next start",
     "test:e2e": "playwright test",
-    "update-packed-lockfile": "tsx packed/update-lockfile.ts"
+    "test:packed": "playwright test -c playwright.packed.config.ts"
   },
   "dependencies": {
     "@conciv/extension-terminal": "workspace:*",
@@ -24,11 +24,11 @@
     "@conciv/contract": "workspace:*",
     "@conciv/e2e-utils": "workspace:*",
     "@conciv/protocol": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "tsx": "catalog:",
     "typescript": "catalog:"
   },
   "dependenciesMeta": {

@@ -45,7 +45,7 @@
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/mutation-observer": "^1.2.4",
     "@solid-primitives/resize-observer": "catalog:",
-    "@tanstack/hotkeys": "^0.18.0",
+    "@tanstack/hotkeys": "catalog:",
     "@tanstack/pacer": "catalog:",
     "@tanstack/solid-form": "^1.33.5",
     "@tanstack/solid-hotkeys": "catalog:",

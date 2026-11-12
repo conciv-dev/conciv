@@ -108,6 +108,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run --passWithNoTests && playwright test",
+    "test:packed": "vitest run --mode packed --project mascot --tags-filter=packed",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
   },

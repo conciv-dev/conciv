@@ -225,7 +225,7 @@ function makeAppContextValue(options: AppContextValueOptions, client: BrowserRpc
     notifyInteractive: () => {},
     theme: () => ({scheme: 'dark', skin: 'conciv', skinFromPage: false}),
     preferences: createPreferences({
-      store: createClientSettings(rpc, 'conciv').project,
+      settings: createClientSettings(rpc, 'conciv'),
       data,
       queryClient,
       connected,
@@ -364,6 +364,7 @@ type ShellHarness = {
   mountShell: (entry: string | string[], extensions?: AnyExtension[], options?: ShellMountOptions) => void
   dispose: () => void
   pathname: () => string | undefined
+  href: () => string
   back: () => void
 }
 
@@ -433,6 +434,7 @@ export function createShellHarness(base: () => string): ShellHarness {
     mountShell,
     dispose,
     pathname: () => mounted.router?.state.location.pathname,
+    href: () => mounted.router?.state.location.href ?? '',
     back: () => mounted.router?.history.back(),
   }
 }

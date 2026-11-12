@@ -1,4 +1,10 @@
-import {pageFailure, ok, type PageResult} from '@conciv/protocol/page-types'
+import {
+  pageFailure,
+  ok,
+  PAGE_QUEUE_STOPPED,
+  PAGE_QUEUE_STOPPED_MESSAGE,
+  type PageResult,
+} from '@conciv/protocol/page-types'
 import {toolError, type ClientEffect, type ClientToolCtx, type ClientToolLocator} from '@conciv/extension'
 import {
   buildSnapshot,
@@ -9,6 +15,7 @@ import {
   MASKED_VALUE,
   navigatePath,
   reactBridge,
+  selectDeep,
   startTracking,
   stopTracking,
   trackReport,
@@ -34,6 +41,7 @@ import {
   overrideDef,
   pressDef,
   queryDef,
+  queueDef,
   reloadDef,
   removeattrDef,
   removeclassDef,
@@ -66,7 +74,18 @@ import {readValueCard} from './cards/read-value-card.js'
 import {screenshot} from './screenshot.js'
 import {watchHotUpdates} from './hmr.js'
 import {actionable, fill, focusedElement, hover, isDisabled, isHtml, press, select, setChecked} from './page-act.js'
-import {pointAt, simulateClick, startTask, touchTask} from './simulator.js'
+import {
+  acceptQueue,
+  arriveAt,
+  finishQueue,
+  landQueued,
+  pointAt,
+  queueStopped,
+  simulateClick,
+  startTask,
+  touchTask,
+  type Beat,
+} from './simulator.js'
 
 function fail(message: string): never {
   throw pageFailure('handler-error', message)
@@ -85,7 +104,7 @@ function waitFor(selector: string, state: 'visible' | 'hidden', timeout: number)
   const deadline = Date.now() + timeout
   return new Promise((resolve, reject) => {
     const tick = (): void => {
-      const el = document.querySelector(selector)
+      const el = selectDeep(selector)[0]
       const visible = el instanceof HTMLElement && el.offsetParent !== null
       if (state === 'visible' ? visible : !visible) return resolve(ok({state}))
       if (Date.now() > deadline) {
@@ -110,14 +129,56 @@ function touching<Input>(
   }
 }
 
-function acting<Input>(
+type Queued = NonNullable<ClientToolCtx['queued']>
+
+function acting<Input extends ClientToolLocator>(
   body: (input: Input, ctx: ClientToolCtx) => unknown,
+  beat: Beat = 'click',
 ): (input: Input, ctx: ClientToolCtx) => unknown {
-  return (input, ctx) => {
-    startTask(ctx.agentId)
-    touchTask()
-    return body(input, ctx)
+  return async (input, ctx) => {
+    const queued = ctx.queued
+    if (queued === undefined) {
+      startTask(ctx.agentId)
+      touchTask()
+      return body(input, ctx)
+    }
+    try {
+      return await playQueued({input, ctx, queued, beat, body})
+    } finally {
+      if (queued.index === queued.of - 1) finishQueue(queued.id)
+    }
   }
+}
+
+function stoppedBefore(queued: Queued): void {
+  if (queueStopped(queued.id)) throw toolError(PAGE_QUEUE_STOPPED, {message: PAGE_QUEUE_STOPPED_MESSAGE})
+}
+
+function stillQueued(ctx: ClientToolCtx): void {
+  if (ctx.queued !== undefined) stoppedBefore(ctx.queued)
+}
+
+function paceTarget(input: ClientToolLocator, ctx: ClientToolCtx): Element | null {
+  const element = hasLocator(input) ? ctx.resolve(input) : focusedElement()
+  if (element === null || element === ctx.document.body) return null
+  return typeof actionable(element) === 'string' ? null : element
+}
+
+async function playQueued<Input extends ClientToolLocator>(options: {
+  input: Input
+  ctx: ClientToolCtx
+  queued: Queued
+  beat: Beat
+  body: (input: Input, ctx: ClientToolCtx) => unknown
+}): Promise<unknown> {
+  const {input, ctx, queued, beat, body} = options
+  stoppedBefore(queued)
+  startTask(ctx.agentId)
+  touchTask()
+  const element = paceTarget(input, ctx)
+  if (element !== null) await arriveAt({element, agent: ctx.agentId, beat})
+  stoppedBefore(queued)
+  return landQueued({beat, act: async () => body(input, ctx)})
 }
 
 function actionableTarget(ctx: ClientToolCtx, input: ClientToolLocator): Element {
@@ -145,7 +206,7 @@ const INSERT_POS: Record<string, InsertPosition> = {
 }
 
 function rootOf(ctx: ClientToolCtx, selector: string | undefined): Element | null {
-  return selector ? ctx.document.querySelector(selector) : ctx.document.body
+  return selector ? (selectDeep(selector)[0] ?? null) : ctx.document.body
 }
 
 function hasLocator(input: ClientToolLocator): boolean {
@@ -179,8 +240,8 @@ const domTool = domDef
 
 const queryTool = queryDef
   .client(
-    touching((input, ctx) => {
-      const matches = input.selector ? Array.from(ctx.document.querySelectorAll(input.selector)) : []
+    touching((input) => {
+      const matches = input.selector ? selectDeep(input.selector) : []
       return {count: matches.length, elements: matches.slice(0, 20).map(describeElement)}
     }),
   )
@@ -188,8 +249,8 @@ const queryTool = queryDef
 
 const existsTool = existsDef
   .client(
-    touching((input, ctx) => {
-      const matches = input.selector ? ctx.document.querySelectorAll(input.selector) : []
+    touching((input) => {
+      const matches = input.selector ? selectDeep(input.selector) : []
       return {exists: matches.length > 0, count: matches.length}
     }),
   )
@@ -377,7 +438,7 @@ const hoverTool = hoverDef
       pointAt({element, agent: ctx.agentId})
       hover(element)
       return ok()
-    }),
+    }, 'point'),
   )
   .render(actCard)
 
@@ -386,7 +447,7 @@ const scrollTool = scrollDef
     acting((input, ctx) => {
       pointAt({element: ctx.target(input), agent: ctx.agentId})
       return ok()
-    }),
+    }, 'point'),
   )
   .render(actCard)
 
@@ -406,8 +467,8 @@ const fillTool = fillDef
   .client(
     acting(async (input, ctx) => {
       const element = actionableTarget(ctx, input)
-      return outcomeOf(await fill({element, value: input.value, agent: ctx.agentId}))
-    }),
+      return outcomeOf(await fill({element, value: input.value, agent: ctx.agentId, halt: () => stillQueued(ctx)}))
+    }, 'input'),
   )
   .render(actCard)
 
@@ -438,8 +499,19 @@ const pressTool = pressDef
       if (isHtml(element)) element.focus({preventScroll: true})
       press({element, key: input.key})
       return ok()
-    }),
+    }, 'input'),
   )
+  .render(actCard)
+
+const queueTool = queueDef
+  .client((input, ctx) => {
+    const queued = ctx.queued
+    if (queued === undefined) badArgs('page_queue plays through the engine queue only')
+    startTask(ctx.agentId)
+    touchTask()
+    acceptQueue(queued.id, ctx.signal)
+    return {queueId: queued.id, status: 'playing', done: 0, of: input.actions.length}
+  })
   .render(actCard)
 
 const setattrTool = setattrDef
@@ -585,6 +657,7 @@ export const PAGE_CLIENT_TOOLS: readonly AnyToolBuilder[] = [
   hoverTool,
   scrollTool,
   submitTool,
+  queueTool,
   setattrTool,
   removeattrTool,
   addclassTool,

@@ -557,16 +557,17 @@ describe('home db', () => {
     const closed = await listen(healthAnswering('closed'))
     closed.server.close()
     await once(closed.server, 'close')
+    const root = mkdtempSync(join(tmpdir(), 'conciv-root-'))
     withHomeDb(home, (db) => {
-      registerEngine(db, {id: 'live', pid: 1, root: '/live', apiBase: `${live.origin}/t/token`})
-      registerEngine(db, {id: 'imposter', pid: 1, root: '/imposter', apiBase: `${imposter.origin}/t/token`})
-      registerEngine(db, {id: 'silent', pid: 1, root: '/silent', apiBase: `${silent.origin}/t/token`})
-      registerEngine(db, {id: 'closed', pid: 1, root: '/closed', apiBase: `${closed.origin}/t/token`})
+      registerEngine(db, {id: 'live', pid: process.pid, root, apiBase: `${live.origin}/t/token`})
+      registerEngine(db, {id: 'imposter', pid: process.pid, root, apiBase: `${imposter.origin}/t/token`})
+      registerEngine(db, {id: 'silent', pid: process.pid, root, apiBase: `${silent.origin}/t/token`})
+      registerEngine(db, {id: 'closed', pid: process.pid, root, apiBase: `${closed.origin}/t/token`})
     })
     try {
       const result = await checkEngines(home, {timeoutMs: 300})
       expect(result.live.map((row) => row.id)).toEqual(['live'])
-      expect(result.unreachable.map((row) => row.root)).toEqual(['/silent'])
+      expect(result.unreachable.map((row) => row.root)).toEqual([root])
       expect(
         withHomeDb(home, (db) =>
           listEngines(db)

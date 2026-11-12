@@ -65,7 +65,7 @@ function SettingsProbe() {
 }
 
 async function ServerSettingsProbe() {
-  const reader = typedSettings.readSettings(getHostApi().useScope('typed-settings').settings.project)
+  const reader = typedSettings.readSettings(getHostApi().useScope('typed-settings').settings)
   const fontSize: number = (await reader.all()).fontSize
   return fontSize
 }

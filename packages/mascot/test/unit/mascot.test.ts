@@ -1,21 +1,13 @@
 import {execFileSync} from 'node:child_process'
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-  readdirSync,
-  readFileSync,
-} from 'node:fs'
+import {mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync, readdirSync, readFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
 import {dirname, join, resolve, matchesGlob, relative, sep} from 'node:path'
 import {afterAll, describe, expect, test} from 'vitest'
+import {packTarball} from '@conciv/vitest-config/pack'
 import {EFFECT_MOUNTS} from '../effect-catalog.js'
 
-describe.skip('packed install', () => {
+describe('packed install', {tags: ['packed']}, () => {
   const packageRoot = resolve(import.meta.dirname, '../..')
   const consumerRoots: string[] = []
 
@@ -104,16 +96,6 @@ process.stdout.write(
     )
   }
 
-  function packTarball(destination: string): string {
-    const output = execFileSync('pnpm', ['pack', '--pack-destination', destination], {
-      cwd: packageRoot,
-      encoding: 'utf8',
-    })
-    const tarball = output.trim().split('\n').at(-1)
-    if (tarball === undefined || !existsSync(tarball)) throw new Error(`pnpm pack produced no tarball:\n${output}`)
-    return tarball
-  }
-
   function linkDependency(consumerRoot: string, name: string): void {
     const source = dirname(createRequire(join(packageRoot, 'package.json')).resolve(`${name}/package.json`))
     const target = join(consumerRoot, 'node_modules', name)
@@ -124,7 +106,7 @@ process.stdout.write(
   function installPackedMascot(consumerRoot: string, frameworks: string[]): void {
     const target = join(consumerRoot, 'node_modules/@conciv/mascot')
     mkdirSync(target, {recursive: true})
-    execFileSync('tar', ['-xzf', packTarball(consumerRoot), '-C', target, '--strip-components=1'])
+    execFileSync('tar', ['-xzf', packTarball(packageRoot, consumerRoot), '-C', target, '--strip-components=1'])
     linkDependency(consumerRoot, 'gsap')
     for (const framework of frameworks) linkDependency(consumerRoot, framework)
   }

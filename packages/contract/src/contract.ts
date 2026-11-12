@@ -16,12 +16,17 @@ import {
   PermissionDecisionSchema,
   ReasoningEffortSchema,
   SessionId,
+  TabOpenSchema,
+  TabsSchema,
 } from '@conciv/protocol/chat-types'
 import {UiAnswerValueSchema} from '@conciv/protocol/ui-types'
 import {
   OpenSourceResultSchema,
   OpenSourceSchema,
   PageChangeEntrySchema,
+  PageQueueHandleSchema,
+  PageQueueProgressSchema,
+  PageQueueResultSchema,
   PageReplySchema,
   SourceLocSchema,
   SymbolicateSchema,
@@ -205,6 +210,37 @@ export const SocketTrustFrameSchema = z.object({
 
 export type SocketTrustFrame = z.infer<typeof SocketTrustFrameSchema>
 
+const CodeSessionInput = z.object({sessionId: SessionId.optional()})
+
+const CodeDelivery = {
+  logs: z.array(z.string()),
+  queued: z.array(PageQueueHandleSchema),
+  finished: z.array(PageQueueResultSchema),
+}
+
+export const CodeExecuteResultSchema = z.discriminatedUnion('ok', [
+  z.object({ok: z.literal(true), result: z.unknown(), ...CodeDelivery}),
+  z.object({
+    ok: z.literal(false),
+    error: z.object({message: z.string(), name: z.string().optional(), code: z.string().optional()}),
+    ...CodeDelivery,
+  }),
+])
+
+export type CodeExecuteResult = z.infer<typeof CodeExecuteResultSchema>
+
+export const CodeDiscoverResultSchema = z.object({tools: z.unknown(), finished: z.array(PageQueueResultSchema)})
+
+export type CodeDiscoverResult = z.infer<typeof CodeDiscoverResultSchema>
+
+export const CodeDescriptionsSchema = z.object({execute: z.string(), discover: z.string().nullable()})
+
+export type CodeDescriptions = z.infer<typeof CodeDescriptionsSchema>
+
+const noCodeMode = {NO_CODE_MODE: {message: 'code mode is unavailable on this engine'}}
+
+const noQueue = {NO_QUEUE: {message: 'no such queue on this tab'}}
+
 export const contract = {
   auth: {
     trust: oc
@@ -314,7 +350,28 @@ export const contract = {
   captures: {
     list: oc.errors(approvalDenied).input(SessionIdInput).output(SessionCapturesSchema),
   },
+  tabs: {
+    list: oc.output(TabsSchema),
+    get: oc.input(SessionIdInput).output(TabOpenSchema),
+  },
+  code: {
+    describe: oc.errors({...noCodeMode, ...approvalDenied}).output(CodeDescriptionsSchema),
+    execute: oc
+      .errors({...noCodeMode, ...approvalDenied})
+      .input(CodeSessionInput.extend({typescriptCode: z.string()}))
+      .output(CodeExecuteResultSchema),
+    discover: oc
+      .errors({...noCodeMode, ...approvalDenied})
+      .input(CodeSessionInput.extend({toolNames: z.array(z.string())}))
+      .output(CodeDiscoverResultSchema),
+  },
   page: {
+    queue: {
+      wait: oc
+        .errors({...noQueue, ...approvalDenied})
+        .input(SessionIdInput.extend({queueId: z.string().min(1), waitMs: z.number().int().min(0)}))
+        .output(z.discriminatedUnion('status', [PageQueueResultSchema, PageQueueProgressSchema])),
+    },
     symbolicate: oc.input(SymbolicateSchema).output(SourceLocSchema.nullable()),
     changes: oc.errors(approvalDenied).output(z.array(PageChangeEntrySchema)),
     clearChanges: oc.errors(approvalDenied).output(Ok),

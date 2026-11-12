@@ -49,15 +49,54 @@ touches none of this is fine.
 | `vite-react-packed`     | copy of `vite-react`       | published-tarball pnpm install, catches dist/packaging bugs     |
 
 `vite-react-packed` installs conciv the way an npm user does, using the packing helpers in
-`e2e-utils/src/packed.ts` (shared with `nextjs/packed`). Its `test:e2e:packed` runs `install-packed.ts` first:
+`packages/vitest-config/src/pack.ts` (`@conciv/vitest-config/pack`, shared with `nextjs/packed` and the
+packages' packed describes). Its `test:packed` runs `test-packed.ts`:
 it builds and `pnpm pack`s `@conciv/it`'s workspace dependency closure, copies `index.html`, `src/` and
 `public/` from `vite-react` into a temp dir outside the workspace, generates the `package.json` and
 `vite.config.ts`, overrides each `@conciv/*` to its tarball and runs `pnpm install` there, seeded from
-the committed `fixture-lock.yaml` and checked for drift. When a registry dependency changes, refresh it
-with `pnpm --filter conciv-e2e-vite-react-packed run update-packed-lockfile`. Playwright runs from
-`e2e/vite-react-packed`; only the vite dev server runs in the temp copy.
+the committed `fixture-lock.yaml` and checked for drift. Then it runs Playwright with
+`e2e/vite-react-packed/playwright.config.ts` from inside the temp copy, where the vite dev server and its
+engine run, so the shared `vite-react` specs log in against that engine's `.conciv/server.json` (the
+same project directory `loginWidget` reads for every other app).
 
-The packed suites (this app, `nextjs` `packed-*`/`trust-policy-install` specs, and the `packed install`/`resolution` describes in `mascot`, `mascot-react` and `extension-tanstack`) are skipped for now, until pack/install moves into a dedicated CI workflow.
+### Packed suites run only in CI
+
+Everything that packs runs only in `.github/workflows/packed.yml`, never in `pnpm test`, `test:e2e`, the
+CI planner, or on a laptop. Each suite is a `test:packed` script:
+
+- `vite-react-packed`: the whole app (it has no `test:e2e`).
+- `nextjs`: specs named `tests/packed-*.spec.ts`, run by `playwright.packed.config.ts`; the shared
+  `e2eConfig` ignores that pattern, so `test:e2e` never picks them up.
+- `mascot`, `mascot-react`, `extension-tanstack`: describes tagged `packed`; their vitest configs define the
+  `packed` tag as skipped unless vitest runs in `packed` mode, and `test:packed` runs
+  `vitest run --mode packed --project <node project> --tags-filter=packed`. Any other vitest run skips
+  them (hooks too).
+
+Every pack helper in `@conciv/vitest-config/pack` (`packTarball`, `buildAndPack`, the firewalled install)
+calls `assertPackAllowed()`, which throws outside GitHub Actions, so even a `vitest run <file>:<line>`
+that targets a packed test (a line filter overrides the tag skip) fails before anything is packed.
+Every fixture install goes through Socket Firewall (`sfw`) with the root `minimumReleaseAge`, and every
+produced lockfile is rejected if it resolves a remote tarball or git dependency outside the packed
+`@conciv/*@file:` entries.
+
+The workflow runs on pull requests touching anything under `packages/` or `apps/conciv/`, the root
+manifests and lockfile, `patches/`, `turbo.json`, `e2e-utils` or the packed fixtures, and on demand. On
+main it runs only from `release.yml`, on every push, and npm publish waits on it.
+
+Every fixture install (the two locked fixtures, the tanstack resolution matrix and the nextjs trust-policy
+install) rejects any remote tarball or git resolution outside the packed `@conciv/*@file:` entries. Only the
+two locked fixtures, `e2e/vite-react-packed` and the nextjs packed install (`e2e/nextjs/packed`), also run
+the drift guard: when a registry dependency changes, it compares every registry package's `name@version`
+and integrity against that fixture's committed `fixture-lock.yaml` and fails the run. The tanstack matrix
+and the trust-policy install resolve fresh on every run and have no committed lock to drift from. On drift the CI run writes the lockfile it
+produced over the committed one, shows the diff in the run summary and uploads both fixture locks as the
+`packed-fixture-locks` artifact. Refresh from that run, never locally:
+
+1. Take the id of the failed Packed run on YOUR PR: `gh run list --workflow packed.yml --branch <branch>`.
+2. `gh run download <run-id> -n packed-fixture-locks -D e2e`. Always download by the run id: a fork PR can
+   upload an artifact with the same name.
+3. Before committing, check the diff holds only the expected `name@version` changes, and no tarball or git
+   resolution other than the `@conciv/*@file:` entries.
 
 `e2e-utils` holds the shared Playwright config factory, the widget boot assertions, and the fixed
 port registry (`src/ports.ts`) so suites can run side by side.

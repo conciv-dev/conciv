@@ -5,7 +5,7 @@ import {PageServingFrameSchema, PUSH_SESSION_PARAM, PUSH_WS_PATH, type PushFrame
 import type {WSContext} from 'hono/ws'
 import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
 import {logError} from '../lib/debug.js'
-import type {BrowserTabFocus} from '../page-bus.js'
+import type {BrowserTabFocus} from '../page/page-bus.js'
 
 export type PageQuery = {requestId: string; query: unknown}
 

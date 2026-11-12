@@ -1,11 +1,11 @@
 import {z} from 'zod'
-import {isPageFailure} from '@conciv/protocol/page-types'
+import {isPageFailure, PAGE_QUEUE_ASYNC_TOOL, PAGE_QUEUE_TOOL} from '@conciv/protocol/page-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {pageVerbError, toolError, type ToolRequest} from '@conciv/extension'
 import {createToolRegistry, type ForwardedPageTool, type ToolRegistry} from '@conciv/extension/registry'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS, BUILTIN_TABS_TOOL} from '@conciv/tools/builtins'
 import type {TabsListing} from '@conciv/protocol/chat-types'
-import type {PageAnswer, PageEnv} from './page-bus.js'
+import type {PageAnswer, PageEnv} from './page/page-bus.js'
 import {session} from './runtime/session-context.js'
 import {logError} from './lib/debug.js'
 
@@ -47,6 +47,17 @@ async function storeCapture(env: PageEnv, request: ToolRequest, answer: PageAnsw
   }
 }
 
+function runQueueTool(env: PageEnv, tool: ForwardedPageTool, record: Record<string, unknown>, request: ToolRequest) {
+  const given = {
+    agentId: request.agentId,
+    input: record,
+    outside: request.outside === true,
+    toolCallId: request.toolCallId,
+  }
+  if (tool.name === PAGE_QUEUE_TOOL) return env.queues.play(session().id, given, request.signal)
+  return env.queues.start(session().id, given)
+}
+
 async function runClientTool(
   env: PageEnv,
   tool: ForwardedPageTool,
@@ -54,11 +65,16 @@ async function runClientTool(
   request: ToolRequest,
 ): Promise<unknown> {
   const record = PageToolInputSchema.parse(input ?? {})
+  if (tool.name === PAGE_QUEUE_TOOL || tool.name === PAGE_QUEUE_ASYNC_TOOL) {
+    return runQueueTool(env, tool, record, request).catch((error: unknown) => {
+      throw attributedTo(tool.name, toolFailureFromPage(tool.name, tool.name, error))
+    })
+  }
   const sessionId = session().id
   try {
     const answer = await env.bus.ask(
       sessionId,
-      {name: tool.name, input: record, agentId: request.agentId},
+      {name: tool.name, input: record, agentId: request.agentId, mutating: tool.mutating},
       {mutating: tool.mutating},
       request.signal,
     )

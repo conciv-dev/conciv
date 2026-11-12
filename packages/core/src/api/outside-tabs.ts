@@ -1,7 +1,10 @@
+import {engineTooOld, makeRpcClient} from '@conciv/contract'
 import {checkEngines, concivHome, type EngineRow} from '@conciv/db'
-import {TabsSchema, type Tabs, type TabsListing} from '@conciv/protocol/chat-types'
+import type {Tabs, TabsListing} from '@conciv/protocol/chat-types'
 
 const PROBE_MS = 300
+
+const LISTING_MS = 1500
 
 const TOO_OLD = 'engine too old; upgrade its @conciv packages'
 
@@ -38,14 +41,13 @@ export function createOutsideTabs(given: string | undefined) {
 
 async function engineTabs(row: EngineRow): Promise<EngineListing> {
   try {
-    const response = await fetch(`${row.apiBase}/api/tabs`, {signal: AbortSignal.timeout(PROBE_MS)})
-    if (response.status === 404) return {unreachable: {root: row.root, error: TOO_OLD}}
-    if (!response.ok) return {unreachable: {root: row.root, error: `/api/tabs answered HTTP ${response.status}`}}
-    const tabs = TabsSchema.safeParse(await response.json())
-    if (!tabs.success) return {unreachable: {root: row.root, error: TOO_OLD}}
-    return {tabs: tabs.data}
+    return {
+      tabs: await makeRpcClient(row.apiBase).tabs.list(undefined, {
+        signal: AbortSignal.timeout(LISTING_MS),
+      }),
+    }
   } catch (error) {
-    return {unreachable: {root: row.root, error: errorText(error)}}
+    return {unreachable: {root: row.root, error: engineTooOld(error) ? TOO_OLD : errorText(error)}}
   }
 }
 
