@@ -352,7 +352,7 @@ export async function startQueueFollowUp(
 
 function deliveryAfter(outcome: FollowUpOutcome): Exclude<Delivery, 'claimed'> {
   if (outcome.kind === 'delivered') return 'delivered'
-  if (outcome.kind === 'failed') return 'nextReply'
+  if (outcome.kind === 'failed' || outcome.kind === 'stopped') return 'nextReply'
   return 'owed'
 }
 

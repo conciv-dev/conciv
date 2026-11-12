@@ -63,7 +63,7 @@ type AdmittedCall = {
 
 type CallRefusal = {reason: 'asked' | 'denied' | 'missing'; message: string}
 
-export type FollowUpOutcome = {kind: 'delivered'} | {kind: 'busy'} | {kind: 'failed'; error: string}
+export type FollowUpOutcome = {kind: 'delivered'} | {kind: 'busy'} | {kind: 'stopped'} | {kind: 'failed'; error: string}
 
 export type ChatPlane = {
   routes: (upgrade: UpgradeWebSocket) => Hono
@@ -256,6 +256,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
         return await server.drive({threadId: sessionId, runId, kind: 'page-queue', input}, []).then(
           async (): Promise<FollowUpOutcome> => {
             const ended = await stores.runs.get(runId)
+            if (ended?.status === 'aborted' || ended?.cancelRequested === true) return {kind: 'stopped'}
             if (ended?.status === 'completed' || ended?.status === 'interrupted') return {kind: 'delivered'}
             return {kind: 'failed', error: ended?.error?.message ?? `the run ended ${ended?.status ?? 'unrecorded'}`}
           },

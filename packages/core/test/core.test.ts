@@ -1053,6 +1053,24 @@ describe('page bus and the session scope', () => {
     expect(queues.undelivered(fixture.sessionId, false)).toEqual([])
   })
 
+  it('a follow-up run the user stops is not retried, and its result waits for the next reply', async () => {
+    const {fixture, queues, played, runStatuses} = await followUpFixture()
+    const owed = await played()
+    fixture.harness.script.hold()
+    const started = Promise.withResolvers<void>()
+    const unlisten = fixture.runtime.forSession(fixture.sessionId).stream.listen((chunk) => {
+      if (sessionRunEvent.parse(chunk) !== null) started.resolve()
+    })
+    onTestFinished(unlisten)
+    const following = startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
+    await started.promise
+    await fixture.plane.stop(fixture.sessionId)
+    fixture.harness.script.release()
+    await following
+    expect(runStatuses()).toEqual(['aborted'])
+    expect(queues.undelivered(fixture.sessionId, false).map((result) => result.queueId)).toEqual([owed])
+  })
+
   it('a follow-up the plane declines because a run is driving is not retried', async () => {
     const {fixture, queues, played, owedIds, runStatuses} = await followUpFixture()
     const owed = await played()
