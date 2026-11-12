@@ -1,6 +1,5 @@
 import {z} from 'zod'
 import type {PluginInfo} from '../plugin.js'
-import type {BuiltinStoreDeclaration} from './builtin.js'
 import type {Cleanup} from './core.js'
 import type {Declarations, Stores} from './declarations.js'
 
@@ -11,8 +10,6 @@ export {Scope} from './scope.js'
  * entry is its app part module; a plugin's `./plugin-experimental` bundle becomes a window entry that runs its `setup`.
  */
 export interface Entry extends Declarations {
-  /** Window state, as `Declarations.stores`; a built-in's stores may name older homes in `builtinFrom`. */
-  readonly stores?: Readonly<Record<string, BuiltinStoreDeclaration>>
   /**
    * The plugin's id: a built-in's key in `compose`, or the engine plugin's id for a bundle. It prefixes every id the
    * plugin creates: commands (`<id>.<command>`), panel keys (`<id>:<tab>`), stored keys (`plugin.<id>.<key>`), and

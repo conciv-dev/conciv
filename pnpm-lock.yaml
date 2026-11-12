@@ -4300,6 +4300,9 @@ importers:
 
   packages/plugin:
     dependencies:
+      '@conciv/contract':
+        specifier: workspace:^
+        version: link:../contract
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol

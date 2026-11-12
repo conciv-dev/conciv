@@ -744,7 +744,7 @@ export interface Dialogs {
    *
    * @example
    * ```ts
-   * const dialog = ctx.dialogs?.open((dialog) => <Confirm onDone={dialog.close} />)
+   * const dialog = ctx.dialogs.open((dialog) => <Confirm onDone={dialog.close} />)
    * ```
    */
   open(
@@ -757,6 +757,8 @@ export interface Dialogs {
   /** Some dialog is open. Reactive. */
   active(): boolean
   /**
+   * Not implemented yet. Always undefined in this version.
+   *
    * Asks the user to confirm an action, in the app's own confirmation dialog. Opens as `open` does, with the same
    * lifetime: it waits for the app interface, and closes with the owner that asked, else with the plugin.
    *
@@ -765,30 +767,36 @@ export interface Dialogs {
    *   outside, when another dialog replaced it, and when it closed or never opened because its owner or plugin went
    *   away.
    */
-  confirm(options: ConfirmOptions): Promise<boolean>
+  readonly confirm: ((options: ConfirmOptions) => Promise<boolean>) | undefined
   /**
+   * Not implemented yet. Always undefined in this version.
+   *
    * Tells the user something they must acknowledge, in a dialog with one button. Opens and closes as `confirm` does.
    *
    * @param options - What the dialog says.
    * @returns Resolves once the dialog closes, however it closes.
    */
-  alert(options: AlertOptions): Promise<void>
+  readonly alert: ((options: AlertOptions) => Promise<void>) | undefined
   /**
+   * Not implemented yet. Always undefined in this version.
+   *
    * Asks the user for a line of text, in the app's own dialog. Enter submits. Opens and closes as `confirm` does.
    *
    * @param options - The question, the field and its button.
    * @returns The text the user submits, which is never empty: the submit button and Enter do nothing while the field
    *   is empty. Undefined when the user cancels, dismisses the dialog, or it closes with its owner.
    */
-  prompt(options: PromptOptions): Promise<string | undefined>
+  readonly prompt: ((options: PromptOptions) => Promise<string | undefined>) | undefined
   /**
+   * Not implemented yet. Always undefined in this version.
+   *
    * Asks the user to pick one option from a searchable list, in the app's own dialog. Opens and closes as `confirm`
    * does.
    *
    * @param options - The title, the search field and the options.
    * @returns The picked option's `value`; undefined when the user dismisses the dialog or it closes with its owner.
    */
-  select<T>(options: SelectOptions<T>): Promise<T | undefined>
+  readonly select: (<T>(options: SelectOptions<T>) => Promise<T | undefined>) | undefined
 }
 
 /** What `Dialogs.confirm` asks. */

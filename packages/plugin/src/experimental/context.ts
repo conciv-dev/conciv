@@ -128,16 +128,14 @@ export interface Context extends BaseContext {
    */
   readonly desktop: Desktop | undefined
   /**
-   * Not implemented yet. Always undefined in this version.
-   *
    * Dialogs that close with the owner that opened them, else when the plugin goes away.
    *
    * @example
    * ```ts
-   * ctx.dialogs?.open((dialog) => <ConfirmDialog onDone={dialog.close} />)
+   * ctx.dialogs.open((dialog) => <ConfirmDialog onDone={dialog.close} />)
    * ```
    */
-  readonly dialogs: Dialogs | undefined
+  readonly dialogs: Dialogs
   /**
    * Short messages in a corner of the window. A plugin's toasts close when it goes away.
    *

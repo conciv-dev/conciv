@@ -4,6 +4,7 @@ import path from 'node:path'
 import {pathToFileURL} from 'node:url'
 import {afterEach, beforeEach, describe, expect, expectTypeOf, it, vi} from 'vitest'
 import {z} from 'zod'
+import {makeRpcClient} from '@conciv/contract'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {Scope} from '../src/experimental/scope.js'
@@ -26,7 +27,12 @@ function recordingContext(calls: string[]): Plugin.Context {
     id: 'sidecar',
     name: 'engine',
     url: 'http://127.0.0.1:5173/t/token',
-    client: {rpc: unreachable},
+    client: Object.assign(
+      new Proxy(makeRpcClient('http://127.0.0.1:5173/t/token'), {
+        get: (target, key) => (key === 'rpc' ? unreachable : Reflect.get(target, key)),
+      }),
+      {rpc: unreachable},
+    ),
     local: true,
     builtin: true,
     compatible: true,
@@ -507,7 +513,13 @@ describe('experimental', () => {
   })
 
   it('declares the members conciv does not implement yet as undefined', () => {
-    expectTypeOf<undefined>().toExtend<Experimental.Context['dialogs']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.Context['dialogs']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.Dialogs['open']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.Dialogs['active']>()
+    expectTypeOf<undefined>().toExtend<Experimental.Dialogs['confirm']>()
+    expectTypeOf<undefined>().toExtend<Experimental.Dialogs['alert']>()
+    expectTypeOf<undefined>().toExtend<Experimental.Dialogs['prompt']>()
+    expectTypeOf<undefined>().toExtend<Experimental.Dialogs['select']>()
     expectTypeOf<undefined>().toExtend<Experimental.Context['commands']>()
     expectTypeOf<undefined>().toExtend<Experimental.Context['system']>()
     expectTypeOf<undefined>().toExtend<Experimental.Context['attention']>()

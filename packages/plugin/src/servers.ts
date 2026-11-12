@@ -1,6 +1,11 @@
+import type {RpcClient} from '@conciv/contract'
 import type {RpcApi} from './rpc.js'
 
-export interface ConcivClient {
+/**
+ * An engine's API client: the typed client of conciv's core contract, plus `rpc` for calling a plugin's RPC
+ * contract on that engine (`client.rpc(Definition)`).
+ */
+export type ConcivClient = RpcClient & {
   readonly rpc: RpcApi
 }
 

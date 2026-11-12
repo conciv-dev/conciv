@@ -57,6 +57,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/contract": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "zod": "catalog:"
   },

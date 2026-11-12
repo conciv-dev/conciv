@@ -145,7 +145,7 @@ export interface PanelProps {
 export type ClosedPanelTab = {
   /** The row's title; the tab's title by default. */
   readonly title?: string
-  /** The row's icon. A tab with a `file` shows its file icon. */
+  /** The row's icon; the panel's mobile icon by default. A tab with a `file` shows its file icon. */
   readonly icon?: IconName
   /** A muted detail after the title, e.g. a page's host. A tab with a `file` shows its folder. */
   readonly detail?: string
@@ -153,9 +153,31 @@ export type ClosedPanelTab = {
   readonly data?: string
 }
 
+/** A panel's narrow-screen view. */
+export interface MobileView {
+  /** The view's label in the switcher or the overflow menu. */
+  readonly title: string
+  /** Views list in ascending order. */
+  readonly order: number
+  /**
+   * Where the view is offered.
+   * - `tab`: a tab of the view switcher; it replaces the conversation.
+   * - `menu`: an entry of the switcher's More drawer; it replaces the conversation.
+   * - `drawer`: an entry of the switcher's More drawer; it opens in that drawer over the conversation (`useDrawer`).
+   */
+  readonly kind: 'tab' | 'menu' | 'drawer'
+  /** The view's icon in the More drawer. */
+  readonly icon?: IconName
+  /**
+   * Once shown, the view stays mounted while another view is shown, e.g. a terminal that keeps its shell's screen.
+   * Defaults to false: the view mounts each time it is shown.
+   */
+  readonly cached?: boolean
+}
+
 /** A panel: the tabs a plugin shows in the pane's status bar; selecting one replaces the chat. */
 export interface Panel {
-  /** The panel's id, unique within the plugin. */
+  /** The panel's id, unique within the plugin. Its mobile view's key is `${plugin}:${id}`. */
   readonly id: string
   /**
    * Where the panel renders.
@@ -178,6 +200,11 @@ export interface Panel {
     /** The session screen; always present. */
     readonly screen: SessionScreen
   }): string
+  /**
+   * A narrow-screen view of this panel. The render sees `usePanel().placement() === "mobile"` and receives a tab with
+   * the panel's `id` and the view's `title`.
+   */
+  readonly mobile?: MobileView
   /**
    * Reactive, and runs again when another session is routed. `open` holds this plugin's tab ids stored in the
    * strip. List those that still apply, plus any `pinned` tab. The host renders triggers, restore, and selection from

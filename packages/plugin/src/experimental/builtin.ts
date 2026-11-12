@@ -1,100 +1,31 @@
 import type {JSX} from 'solid-js'
 import type {Json} from '../storage.js'
-import {Registry, type StoreDeclaration, type StoreFrom, type StoreType} from './core.js'
+import {Registry} from './core.js'
 import type {MountedSession} from './host-apis.js'
 
 /**
- * An older home of a built-in's window value, imported once into a store that has no value yet: a `StoreFrom` key, or
- * a part of a shared app key, chosen by `pick`. The older home keeps its copy until the store is removed; a key it
- * picks a part of stays for its other owners, while the store keeps a marker that blocks the import.
+ * Runs fn when the main thread is idle (a short timeout where requestIdleCallback is missing, e.g. Safari). Load lazy
+ * chunks this way from setup, so they are compiled before a session first opens.
+ *
+ * @param fn - The work to run.
+ * @returns Cancels it if it has not run.
  *
  * @example
  * ```ts
- * BuiltinStore.global(Prefs, { projectExpanded: true }, {
- *   key: "settings.v3",
- *   pick: (value: { sessionSummary?: unknown } | null) => value?.sessionSummary,
- * })
+ * const Page = lazy(() => import("./page"))
+ * onCleanup(onIdle(() => void Page.preload()))
  * ```
  */
-export type BuiltinStoreFrom =
-  | StoreFrom
-  | {
-      /** The raw stored key that holds the older value. */
-      readonly key: string
-      /**
-       * For session scope: `key` is a global key (e.g. "layout") whose field `sessions` holds every session's
-       * state by the host's session key. pick receives only this session's entry, or undefined.
-       */
-      readonly sessions?: string
-      /**
-       * Returns the part of the older JSON this store keeps, or undefined for none. The store decodes it as it decodes
-       * a stored value (see `StoreDeclaration.schema`). With `pick`, the older key stays for its other owners.
-       *
-       * @param value - The older key's parsed JSON, or null when it is missing; with `sessions`, this session's entry
-       *   or undefined.
-       */
-      pick(value: unknown): unknown
-    }
+export function onIdle(fn: () => void) {
+  if (typeof requestIdleCallback !== 'undefined') {
+    const id = requestIdleCallback(fn)
 
-/** A `StoreDeclaration` whose older homes may be parts of shared app keys. Build one with `BuiltinStore`. */
-export interface BuiltinStoreDeclaration<
-  S extends StoreDeclaration['schema'] = StoreDeclaration['schema'],
-  Scope extends 'global' | 'project' | 'session' = 'global' | 'project' | 'session',
-> extends StoreDeclaration<S, Scope> {
-  /** Older homes the value is imported from once, in place of `from`. See `BuiltinStoreFrom`. */
-  readonly builtinFrom?: BuiltinStoreFrom | readonly BuiltinStoreFrom[]
-}
+    return () => cancelIdleCallback(id)
+  }
 
-/**
- * Declares a built-in's window state, as `Store` does, with older homes that may be parts of shared app keys.
- *
- * @example
- * ```ts
- * stores: { seen: BuiltinStore.global(Seen, {}, "highlights.v1") }
- * ```
- */
-export const BuiltinStore: {
-  /**
-   * One value for every project, as `Store.global`.
-   *
-   * @param schema - Decodes the stored JSON; a zod object schema.
-   * @param initial - The value before anything is stored.
-   * @param from - Older homes to import the value from once.
-   */
-  global<S extends StoreDeclaration['schema']>(
-    schema: S,
-    initial: NoInfer<StoreType<S>>,
-    from?: BuiltinStoreFrom | readonly BuiltinStoreFrom[],
-  ): BuiltinStoreDeclaration<S, 'global'>
-  /**
-   * One value for this project, as `Store.project`.
-   *
-   * @param schema - Decodes the stored JSON; a zod object schema.
-   * @param initial - The value before anything is stored.
-   * @param from - Older homes to import the value from once.
-   */
-  project<S extends StoreDeclaration['schema']>(
-    schema: S,
-    initial: NoInfer<StoreType<S>>,
-    from?: BuiltinStoreFrom | readonly BuiltinStoreFrom[],
-  ): BuiltinStoreDeclaration<S, 'project'>
-  /**
-   * One value per session, as `Store.session`.
-   *
-   * @param schema - Decodes the stored JSON; a zod object schema.
-   * @param initial - The value before anything is stored.
-   * @param from - Older homes to import the value from once; `{ key, sessions, pick }` reads one session's entry of a
-   *   global key.
-   */
-  session<S extends StoreDeclaration['schema']>(
-    schema: S,
-    initial: NoInfer<StoreType<S>>,
-    from?: BuiltinStoreFrom | readonly BuiltinStoreFrom[],
-  ): BuiltinStoreDeclaration<S, 'session'>
-} = {
-  global: (schema, initial, from) => ({scope: 'global', schema, initial, builtinFrom: from}),
-  project: (schema, initial, from) => ({scope: 'project', schema, initial, builtinFrom: from}),
-  session: (schema, initial, from) => ({scope: 'session', schema, initial, builtinFrom: from}),
+  const id = setTimeout(fn, 200)
+
+  return () => clearTimeout(id)
 }
 
 /**
