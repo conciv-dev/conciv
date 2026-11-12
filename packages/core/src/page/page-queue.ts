@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {setImmediate} from 'node:timers/promises'
-import pRetry from 'p-retry'
 import pTimeout from 'p-timeout'
+import {asyncRetry} from '@tanstack/pacer'
 import {
   isPageFailure,
   PAGE_QUEUE_ASYNC_TOOL,
@@ -70,7 +70,7 @@ const KEPT_QUEUES = 200
 
 const OWED_QUEUES = 1000
 
-const FOLLOW_UP_RETRIES = 2
+const FOLLOW_UP_ATTEMPTS = 3
 
 const FOLLOW_UP_BACKOFF_MS = 100
 
@@ -329,18 +329,24 @@ export async function startQueueFollowUp(
   const results = owed.flatMap((record) => (record.result === null ? [] : [record.result]))
   if (results.length === 0) return
   const notices = results.map(queueNotice).join('\n\n')
-  const outcome = await pRetry(
+  const followUp = asyncRetry(
     async (): Promise<FollowUpOutcome> => {
       const attempt = await plane.followUp(sessionId, notices)
       if (attempt.kind === 'failed') throw new Error(attempt.error)
       return attempt
     },
-    {retries: FOLLOW_UP_RETRIES, minTimeout: FOLLOW_UP_BACKOFF_MS},
-  ).catch((error: unknown): FollowUpOutcome => {
-    const queueIds = owed.map((record) => record.queueId).join(', ')
-    logError(`[core] the follow-up turns for queues ${queueIds} failed; they wait for the next reply: ${String(error)}`)
-    return {kind: 'failed', error: String(error)}
-  })
+    {maxAttempts: FOLLOW_UP_ATTEMPTS, backoff: 'exponential', baseWait: FOLLOW_UP_BACKOFF_MS, throwOnError: 'last'},
+  )
+  const outcome = await followUp().then(
+    (attempt): FollowUpOutcome => attempt ?? {kind: 'failed', error: 'the follow-up retryer did not run'},
+    (error: unknown): FollowUpOutcome => {
+      const queueIds = owed.map((record) => record.queueId).join(', ')
+      logError(
+        `[core] the follow-up turns for queues ${queueIds} failed; they wait for the next reply: ${String(error)}`,
+      )
+      return {kind: 'failed', error: String(error)}
+    },
+  )
   for (const record of owed) queues.confirm(record, deliveryAfter(outcome))
 }
 
