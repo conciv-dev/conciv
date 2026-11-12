@@ -1,4 +1,4 @@
-import {pageShadowRoot} from './page-shadow-root.js'
+import {pageShadowRoot} from './select-deep.js'
 
 export type Refs = {map: Map<string, WeakRef<Element>>; n: number}
 export type RefAdder = (el: Element) => string
