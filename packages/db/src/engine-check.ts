@@ -5,7 +5,6 @@ import {listEngines, retireEngine, withHomeDb, type EngineRow} from './home-db.j
 const HealthSchema = z.object({ok: z.literal(true), id: z.string()})
 const RefusedSchema = z.object({cause: z.object({code: z.literal('ECONNREFUSED')})})
 const SignalErrorSchema = z.object({code: z.enum(['ESRCH', 'EPERM'])})
-const CWD_GONE = /uv_cwd|ENOENT[^\n]*cwd/
 
 type Verdict = {row: EngineRow; kind: 'live' | 'retire'} | {row: EngineRow; kind: 'unreachable'; error: string}
 
@@ -49,7 +48,6 @@ function parsedJson(text: string): unknown {
 }
 
 function healthVerdict(row: EngineRow, status: number, text: string): Verdict {
-  if (CWD_GONE.test(text)) return {row, kind: 'retire'}
   const health = HealthSchema.safeParse(parsedJson(text))
   if (!health.success) return {row, kind: 'unreachable', error: `/health answered HTTP ${status} without an engine id`}
   return {row, kind: health.data.id === row.id ? 'live' : 'retire'}
