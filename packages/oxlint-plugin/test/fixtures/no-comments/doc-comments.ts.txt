@@ -1,0 +1,15 @@
+/** Kept: documents the interface. */
+export interface Shape {
+  /** Kept: documents a member. */
+  readonly name: string
+  // deleted: a line comment
+  readonly size: number
+}
+
+/** Kept: documents the function. */
+export function area(shape: Shape): number {
+  /** Deleted: floats inside a function body. */
+  const doubled = shape.size * 2
+  /* deleted: a plain block comment */
+  return doubled
+}

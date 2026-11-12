@@ -150,6 +150,12 @@
   },
   "overrides": [
     {
+      "files": ["packages/plugin/src/**"],
+      "rules": {
+        "conciv/no-comments": ["error", {"keepDocComments": true}]
+      }
+    },
+    {
       "files": ["apps/site/**", "apps/conciv/**"],
       "rules": {
         "conciv/router-idioms": "error"
