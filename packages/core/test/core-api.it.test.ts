@@ -5110,7 +5110,7 @@ describe('page action queue delivery', () => {
     const queries = await tab.page.queries(undefined, {signal: AbortSignal.any([pages.signal, closed.signal])})
     const accepted: QueuedOnTab[] = []
     const arrivals = new EventTarget()
-    const answering = (async () => {
+    const answer = async (): Promise<void> => {
       for await (const {requestId, query} of queries) {
         const parsed = PageQuerySchema.parse(query)
         if (parsed.queue === undefined) {
@@ -5122,7 +5122,8 @@ describe('page action queue delivery', () => {
         accepted.push({id, replies})
         arrivals.dispatchEvent(new Event('queue'))
       }
-    })().catch((error: unknown) => {
+    }
+    const answering = answer().catch((error: unknown) => {
       if (!closed.signal.aborted && !pages.signal.aborted) throw error
     })
     const nextQueue = async (): Promise<QueuedOnTab> => {
@@ -5135,12 +5136,13 @@ describe('page action queue delivery', () => {
       tab.page.reply({requestId: queued.replies[index] ?? '', outcome})
     const events = await tab.chat.events({sessionId}, {signal: pages.signal})
     const seen: ChatEvent[] = []
-    const watching = (async () => {
+    const watch = async (): Promise<void> => {
       for await (const chunk of events) {
         seen.push(chunk)
         arrivals.dispatchEvent(new Event('chunk'))
       }
-    })().catch((error: unknown) => {
+    }
+    const watching = watch().catch((error: unknown) => {
       if (!pages.signal.aborted) throw error
     })
     const queueEvents = () => seen.flatMap((chunk) => pageQueueEvent.parse(chunk) ?? [])
