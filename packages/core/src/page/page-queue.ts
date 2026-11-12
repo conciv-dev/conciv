@@ -16,6 +16,7 @@ import {
   type PageQueueResult,
 } from '@conciv/protocol/page-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
+import type {ChatPlane, FollowUpOutcome} from '@conciv/chat'
 import {ChatEventType, pageQueueEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {generateMessageId} from '@conciv/protocol/chat-message-types'
 import {queueNotice, RESULT_CAP_CHARS} from '@conciv/contract'
@@ -37,6 +38,7 @@ export type QueueRecord = {
   settled: (Settled | undefined)[]
   result: PageQueueResult | null
   delivery: Delivery
+  failedFollowUps: number
   done: Promise<PageQueueResult>
 }
 
@@ -59,7 +61,7 @@ export type PageQueues = {
   undelivered: (sessionId: SessionId, outside: boolean) => PageQueueResult[]
   startedBy: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => PageQueueHandle[]
   claim: (record: QueueRecord) => boolean
-  confirm: (record: QueueRecord, delivered: boolean) => void
+  confirm: (record: QueueRecord, outcome: FollowUpOutcome) => void
   owedTurn: (sessionId: SessionId) => QueueRecord[]
   finished: (listener: (record: QueueRecord) => void) => void
 }
@@ -67,6 +69,8 @@ export type PageQueues = {
 const KEPT_QUEUES = 200
 
 const OWED_QUEUES = 1000
+
+const FOLLOW_UP_ATTEMPTS = 3
 
 const QUEUE_RESULT_CHARS = RESULT_CAP_CHARS - 5000
 
@@ -198,6 +202,7 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
       settled: actions.map(() => undefined),
       result: null,
       delivery: 'owed',
+      failedFollowUps: 0,
       done: settledAll.promise,
     }
     const landed = playing.played.map((reply, index) => {
@@ -288,15 +293,25 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
     return true
   }
 
-  function confirm(record: QueueRecord, delivered: boolean): void {
+  function confirm(record: QueueRecord, outcome: FollowUpOutcome): void {
     if (record.delivery !== 'claimed') return
-    record.delivery = delivered ? 'delivered' : 'owed'
+    record.delivery = outcome.kind === 'delivered' ? 'delivered' : 'owed'
+    if (outcome.kind !== 'failed') return
+    record.failedFollowUps += 1
+    if (record.failedFollowUps < FOLLOW_UP_ATTEMPTS) return
+    logError(
+      `[core] ${FOLLOW_UP_ATTEMPTS} follow-up turns for queue ${record.queueId} failed; its result waits for the next reply. Last error: ${outcome.error}`,
+    )
   }
 
   function owedTurn(sessionId: SessionId): QueueRecord[] {
     return [...records.values()].filter(
       (record) =>
-        record.sessionId === sessionId && !record.outside && record.delivery === 'owed' && record.result !== null,
+        record.sessionId === sessionId &&
+        !record.outside &&
+        record.delivery === 'owed' &&
+        record.result !== null &&
+        record.failedFollowUps < FOLLOW_UP_ATTEMPTS,
     )
   }
 
@@ -315,21 +330,20 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
 
 export async function startQueueFollowUp(
   queues: PageQueues,
-  plane: {
-    live: (sessionId: SessionId) => Promise<boolean>
-    followUp: (sessionId: SessionId, input: string) => Promise<boolean>
-  },
+  plane: Pick<ChatPlane, 'live' | 'followUp'>,
   sessionId: SessionId,
 ): Promise<void> {
   if (queues.owedTurn(sessionId).length === 0 || (await plane.live(sessionId))) return
   const owed = queues.owedTurn(sessionId).filter((record) => queues.claim(record))
   const results = owed.flatMap((record) => (record.result === null ? [] : [record.result]))
   if (results.length === 0) return
-  const started = await plane.followUp(sessionId, results.map(queueNotice).join('\n\n')).catch((error: unknown) => {
-    logError(`[core] the page queue follow-up turn for ${sessionId} failed to start: ${String(error)}`)
-    return false
-  })
-  for (const record of owed) queues.confirm(record, started)
+  const outcome = await plane
+    .followUp(sessionId, results.map(queueNotice).join('\n\n'))
+    .catch((error: unknown): FollowUpOutcome => {
+      logError(`[core] the page queue follow-up turn for ${sessionId} failed to start: ${String(error)}`)
+      return {kind: 'failed', error: String(error)}
+    })
+  for (const record of owed) queues.confirm(record, outcome)
 }
 
 export function pageQueueChunks(options: {result: PageQueueResult; record: QueueRecord; live: boolean}): ChatEvent[] {
