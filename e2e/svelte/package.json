@@ -8,7 +8,6 @@
     "#lib/*": "./src/lib/*"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.check.json --noEmit",
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",

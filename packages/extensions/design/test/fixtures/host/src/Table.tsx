@@ -1,4 +1,4 @@
-export function Table() {
+/* @jsxImportSource react */ export function Table() {
   return (
     <table className="table">
       <thead>

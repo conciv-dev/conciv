@@ -2,11 +2,5 @@
   "extends": "@conciv/tsconfig/tsconfig.solid.json",
   "compilerOptions": {
     "types": ["node", "vite/client"]
-  },
-  "exclude": [
-    "${configDir}/test/fixtures/host",
-    "${configDir}/test/fixtures/provenance/Classes.tsx",
-    "${configDir}/test/fixtures/provenance/Inline.tsx",
-    "${configDir}/test/fixtures/provenance/Sx.tsx"
-  ]
+  }
 }

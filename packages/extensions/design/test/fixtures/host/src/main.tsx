@@ -1,4 +1,4 @@
-import {createRoot} from 'react-dom/client'
+/* @jsxImportSource react */ import {createRoot} from 'react-dom/client'
 import {App} from './App'
 import '../../lib/lib.css'
 import './styles.css'

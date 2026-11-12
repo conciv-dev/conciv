@@ -2,11 +2,5 @@
   "extends": "@conciv/tsconfig/tsconfig.solid.json",
   "compilerOptions": {
     "types": ["node"]
-  },
-  "exclude": [
-    "${configDir}/test/host",
-    "${configDir}/test/fixtures/build-errors-app/broken.ts",
-    "${configDir}/test/fixtures/double-quoted-manifest-app",
-    "${configDir}/test/fixtures/route-manifest-app"
-  ]
+  }
 }

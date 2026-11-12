@@ -3512,7 +3512,7 @@ describe('init', () => {
         )
         writeFileSync(
           join(run.cwd, 'astro.config.mjs'),
-          readFileSync(join(import.meta.dirname, 'fixtures', 'astro.config.mjs'), 'utf8'),
+          readFileSync(join(import.meta.dirname, 'fixtures', 'astro.config.mjs.txt'), 'utf8'),
         )
         commitAll(run.cwd)
         const result = await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
@@ -3920,7 +3920,7 @@ export default defineConfig({
       const fixturesDir = join(import.meta.dirname, 'fixtures')
 
       function fixture(name: string): string {
-        return readFileSync(join(fixturesDir, name), 'utf8')
+        return readFileSync(join(fixturesDir, `${name}.txt`), 'utf8')
       }
 
       const vitePluginImport = "import conciv from '@conciv/it/plugin/vite'"
@@ -4214,7 +4214,7 @@ export default defineConfig({
         writeFileSync(join(cwd, 'package.json'), JSON.stringify({name: 'app', dependencies: {next: '^15.0.0'}}))
         const configFile = fixtureName === null ? null : 'next.config.ts'
         if (fixtureName !== null) {
-          writeFileSync(join(cwd, 'next.config.ts'), readFileSync(join(fixturesDir, fixtureName), 'utf8'))
+          writeFileSync(join(cwd, 'next.config.ts'), readFileSync(join(fixturesDir, `${fixtureName}.txt`), 'utf8'))
         }
         const detected: Detected = {framework: 'nextjs', configFile, packageManager: 'pnpm'}
         return {cwd, detected, ...stepContext(cwd)}
@@ -4351,7 +4351,7 @@ export default defineConfig({plugins: [conciv()]})`
         writeFileSync(join(cwd, 'package.json'), JSON.stringify({name: 'app', devDependencies: {vite: '^7.0.0'}}))
         const configFile = fixtureName === null ? null : 'vite.config.ts'
         if (fixtureName !== null) {
-          writeFileSync(join(cwd, 'vite.config.ts'), readFileSync(join(fixturesDir, fixtureName), 'utf8'))
+          writeFileSync(join(cwd, 'vite.config.ts'), readFileSync(join(fixturesDir, `${fixtureName}.txt`), 'utf8'))
         }
         const detected: Detected = {framework: 'vite', configFile, packageManager: 'pnpm'}
         return {cwd, detected, ...stepContext(cwd)}
@@ -4372,7 +4372,7 @@ export default defineConfig({plugins: [conciv()]})`
           expect(backups).toEqual([
             {
               path: join(cwd, 'vite.config.ts'),
-              content: readFileSync(join(fixturesDir, 'vite.config.react.ts'), 'utf8'),
+              content: readFileSync(join(fixturesDir, 'vite.config.react.ts.txt'), 'utf8'),
             },
           ])
           expect(notes.map((note) => note.title)).toEqual(['vite.config.ts'])
@@ -4488,7 +4488,7 @@ export default defineConfig({plugins: [conciv()]})`
           JSON.stringify({name: 'app', devDependencies: {[framework]: '^1.0.0'}}),
         )
         if (configFile !== null && fixtureName !== null) {
-          writeFileSync(join(cwd, configFile), readFileSync(join(fixturesDir, fixtureName), 'utf8'))
+          writeFileSync(join(cwd, configFile), readFileSync(join(fixturesDir, `${fixtureName}.txt`), 'utf8'))
         }
         const detected: Detected = {framework, configFile, packageManager: 'pnpm'}
         return {cwd, detected, ...stepContext(cwd)}

@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",

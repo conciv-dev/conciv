@@ -11,7 +11,6 @@
     "packages/extensions/tanstack/test/fixtures/**",
     "packages/extensions/design/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",
-    "packages/oxlint-plugin/fixtures/**",
     "packages/cli/test/fixtures/**",
     "packages/plugin/test/fixtures/extension/**",
     "apps/examples/**",
@@ -211,5 +210,24 @@
     "packages/db/drizzle-home.config.ts",
     "apps/conciv/test/commands/core-control.ts",
     "apps/conciv/test/commands/core-testkit.ts"
+  ],
+  "framework": [
+    {
+      "name": "storybook-config-dir",
+      "detection": {
+        "type": "fileExists",
+        "pattern": "apps/storybook/src/storybook/main.ts"
+      },
+      "entryPoints": ["apps/storybook/src/storybook/main.ts", "apps/storybook/src/storybook/preview.tsx"],
+      "toolingDependencies": [
+        "storybook",
+        "storybook-solidjs-vite",
+        "@chromatic-com/storybook",
+        "@storybook/addon-a11y",
+        "@storybook/addon-docs",
+        "@storybook/addon-themes",
+        "@storybook/addon-vitest"
+      ]
+    }
   ]
 }

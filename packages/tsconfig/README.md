@@ -10,7 +10,7 @@ Private workspace package (`private: true`) holding the shared TypeScript preset
 - `tsconfig.web.json`: base plus the DOM libs, for browser code without JSX.
 - `tsconfig.solid.json`: web plus Solid JSX (`jsx: preserve`, `jsxImportSource: solid-js`).
 - `tsconfig.react.json`: web plus React JSX (`jsx: react-jsx`).
-- `tsconfig.build.json`: declaration emit from `src` into `dist`, without stories, tests and fixtures. A package's `tsconfig.build.json` is `{"extends": ["./tsconfig.json", "@conciv/tsconfig/tsconfig.build.json"]}`.
+- `tsconfig.build.json`: declaration emit from `src` into `dist`, without stories, tests, fixtures and the dev-only `src/scripts`. A package's `tsconfig.build.json` is `{"extends": ["./tsconfig.json", "@conciv/tsconfig/tsconfig.build.json"]}`.
 
 ## Invariants
 

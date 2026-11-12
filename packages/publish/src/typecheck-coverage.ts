@@ -1,18 +1,18 @@
-import {dirname, join, relative, resolve} from 'node:path'
+import {existsSync} from 'node:fs'
+import {readFile} from 'node:fs/promises'
+import {join, relative, resolve} from 'node:path'
 import {execa} from 'execa'
 import {z} from 'zod'
 import {findOwner, readWorkspacePackages, type WorkspacePackage} from './workspace.ts'
 
 const TYPESCRIPT_PATHSPECS = ['*.ts', '*.tsx', '*.mts', '*.cts']
+const PRESET_PREFIX = '@conciv/tsconfig/'
+const PACKAGE_TSCONFIGS = ['tsconfig.json', 'tsconfig.build.json']
+const PRESET_OWNED_KEYS = ['include', 'exclude', 'files']
 
-const shownConfigSchema = z.object({
-  exclude: z.array(z.string()).default([]),
-  references: z.array(z.object({path: z.string()})).default([]),
-})
+const tsconfigSchema = z.looseObject({extends: z.union([z.string(), z.array(z.string())]).optional()})
 
-type Coverage = {included: Set<string>; excluded: string[]}
-
-type TypecheckRun = {config: string; followReferences: boolean}
+type Tsconfig = z.infer<typeof tsconfigSchema>
 
 export async function assertTypecheckCoversTrackedFiles(cwd: string): Promise<void> {
   const [packages, tracked] = await Promise.all([readWorkspacePackages(cwd), trackedTypescriptFiles(cwd)])
@@ -34,7 +34,7 @@ export async function assertTypecheckCoversTrackedFiles(cwd: string): Promise<vo
   const messages = violations.flat().toSorted()
   if (messages.length === 0) return
   throw new Error(
-    `every tracked TypeScript file must be checked by its package's "typecheck" script: add it to the include of a tsconfig that script runs with "tsc -p" or "tsc -b", or exclude it there by its path or its directory (glob excludes do not count):\n${messages.join('\n')}`,
+    `every package on the @conciv/tsconfig preset takes its include from the preset, and its "typecheck" script checks every tracked TypeScript file:\n${messages.join('\n')}`,
   )
 }
 
@@ -44,79 +44,65 @@ async function trackedTypescriptFiles(cwd: string): Promise<string[]> {
 }
 
 async function packageViolations(pkg: WorkspacePackage, files: string[]): Promise<string[]> {
-  const script = pkg.manifest.scripts?.typecheck
-  if (script === undefined) return [`${pkg.relativeDir}: has TypeScript files but no "typecheck" script`]
-  const runs = typecheckRuns(script)
-  if (runs.length === 0) return [`${pkg.relativeDir}: "typecheck" script runs neither "tsc -p <tsconfig>" nor "tsc -b"`]
-  const seen = new Set<string>()
-  const coverages = await Promise.all(
-    runs.map((run) => readCoverages(pkg.dir, resolve(pkg.dir, run.config), run.followReferences, seen)),
+  const configs = await readPackageTsconfigs(pkg.dir)
+  const main = configs.get('tsconfig.json')
+  if (main === undefined || !extendsPreset(main)) return []
+  const ownedKeys = [...configs].flatMap(([name, config]) =>
+    PRESET_OWNED_KEYS.filter((key) => key in config).map(
+      (key) => `${pkg.relativeDir}/${name}: sets "${key}", which the @conciv/tsconfig preset owns`,
+    ),
   )
-  return files
-    .filter((file) => !coverages.flat().some((coverage) => isCovered(coverage, file)))
-    .map((file) => `${pkg.relativeDir}/${file}`)
+  const script = pkg.manifest.scripts?.typecheck
+  if (script === undefined) return [...ownedKeys, `${pkg.relativeDir}: has TypeScript files but no "typecheck" script`]
+  const projects = typecheckProjects(script)
+  if (projects.length === 0) return [...ownedKeys, `${pkg.relativeDir}: "typecheck" script runs no "tsc -p <tsconfig>"`]
+  const checked = await Promise.all(projects.map((project) => listCheckedFiles(pkg.dir, resolve(pkg.dir, project))))
+  const covered = new Set(checked.flat())
+  const unchecked = files.filter((file) => !covered.has(file)).map((file) => `${pkg.relativeDir}/${file}: not checked`)
+  return [...ownedKeys, ...unchecked]
 }
 
-function typecheckRuns(script: string): TypecheckRun[] {
+async function readPackageTsconfigs(packageDir: string): Promise<Map<string, Tsconfig>> {
+  const present = PACKAGE_TSCONFIGS.filter((name) => existsSync(join(packageDir, name)))
+  const texts = await Promise.all(present.map((name) => readFile(join(packageDir, name), 'utf8')))
+  if (present[0] !== 'tsconfig.json' || !texts[0]?.includes(PRESET_PREFIX)) return new Map()
+  return new Map(
+    present.map((name, index): [string, Tsconfig] => [name, parseTsconfig(join(packageDir, name), texts[index])]),
+  )
+}
+
+function parseTsconfig(path: string, text: string | undefined): Tsconfig {
+  const result = tsconfigSchema.safeParse(JSON.parse(text ?? '{}'))
+  if (!result.success) throw new Error(`${path}: invalid tsconfig\n${result.error.message}`)
+  return result.data
+}
+
+function extendsPreset(config: Tsconfig): boolean {
+  const parents = typeof config.extends === 'string' ? [config.extends] : (config.extends ?? [])
+  return parents.some((parent) => parent.startsWith(PRESET_PREFIX))
+}
+
+function typecheckProjects(script: string): string[] {
   return script
     .split(/&&|\|\||;/)
     .map((command) => command.trim().split(/\s+/))
     .filter((words) => words[0] === 'tsc')
-    .flatMap((words): TypecheckRun[] => {
-      const flags = words.slice(1)
-      if (flags.includes('-b') || flags.includes('--build')) {
-        const projects = flags.filter((word) => !word.startsWith('-'))
-        return (projects.length === 0 ? ['.'] : projects).map((project) => ({
-          config: configFile(project),
-          followReferences: true,
-        }))
-      }
-      const flagIndex = flags.findIndex((word) => word === '-p' || word === '--project')
-      const project = flagIndex === -1 ? '.' : (flags[flagIndex + 1] ?? '.')
-      return [{config: configFile(project), followReferences: false}]
+    .map((words) => {
+      const flagIndex = words.findIndex((word) => word === '-p' || word === '--project')
+      const project = flagIndex === -1 ? '.' : (words[flagIndex + 1] ?? '.')
+      return project.endsWith('.json') ? project : join(project, 'tsconfig.json')
     })
 }
 
-function configFile(project: string): string {
-  return project.endsWith('.json') ? project : join(project, 'tsconfig.json')
-}
-
-async function readCoverages(
-  packageDir: string,
-  config: string,
-  followReferences: boolean,
-  seen: Set<string>,
-): Promise<Coverage[]> {
-  if (seen.has(config)) return []
-  seen.add(config)
-  const configDir = dirname(config)
-  const [shown, files] = await Promise.all([
-    runTsc(packageDir, config, '--showConfig').then((stdout) => shownConfigSchema.parse(JSON.parse(stdout))),
-    runTsc(packageDir, config, '--listFilesOnly').then((stdout) =>
-      stdout.split('\n').filter((line) => line.length > 0),
-    ),
-  ])
-  const toPackagePath = (path: string) => relative(packageDir, resolve(configDir, path))
-  const coverage = {
-    included: new Set(files.map(toPackagePath)),
-    excluded: shown.exclude.filter((pattern) => !/[*?[{]/.test(pattern)).map(toPackagePath),
-  }
-  if (!followReferences) return [coverage]
-  const referenced = await Promise.all(
-    shown.references.map((reference) =>
-      readCoverages(packageDir, configFile(resolve(configDir, reference.path)), true, seen),
-    ),
-  )
-  return [coverage, ...referenced.flat()]
-}
-
-async function runTsc(packageDir: string, config: string, flag: string): Promise<string> {
-  const result = await execa('tsc', ['-p', config, flag], {cwd: packageDir, preferLocal: true, reject: false})
-  if (result.exitCode !== 0) throw new Error(`${config}: tsc ${flag} failed\n${result.stdout}${result.stderr}`)
+async function listCheckedFiles(packageDir: string, config: string): Promise<string[]> {
+  const result = await execa('tsc', ['-p', config, '--listFilesOnly'], {
+    cwd: packageDir,
+    preferLocal: true,
+    reject: false,
+  })
+  if (result.exitCode !== 0) throw new Error(`${config}: tsc --listFilesOnly failed\n${result.stdout}${result.stderr}`)
   return result.stdout
-}
-
-function isCovered(coverage: Coverage, file: string): boolean {
-  if (coverage.included.has(file)) return true
-  return coverage.excluded.some((path) => file === path || file.startsWith(`${path}/`))
+    .split('\n')
+    .filter((line) => line.length > 0)
+    .map((line) => relative(packageDir, line))
 }
