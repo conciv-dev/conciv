@@ -783,20 +783,27 @@ describe('page bus and the session scope', () => {
     })
   })
 
-  it('a finished queue whose result was never delivered outlives the queues kept after it', async () => {
+  it('undelivered results are never evicted: at 1000 owed a new queue is refused before it plays, and delivering one frees a place', async () => {
     const bus = makePageBus(2000)
     const queued = queueingTab(bus)
     const queues = pageQueues(bus)
     const finished = finishedOf(queues)
+    const check = [{tool: 'page_check', selector: '#agree'}]
     const started: string[] = []
-    for (const index of Array.from({length: 201}, (_, at) => at)) {
-      const {queueId} = await queues.start(SESSION_A, queueStart([{tool: 'page_check', selector: '#agree'}]))
-      await setImmediate()
+    for (const index of Array.from({length: 1000}, (_, at) => at)) {
+      const {queueId} = await queues.start(SESSION_A, queueStart(check))
       bus.resolve(SESSION_A, queued[index]?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
       await finished(queueId)
       started.push(queueId)
     }
-    expect(queues.undelivered(SESSION_A, true).map((result) => result.queueId)).toEqual(started)
+    await expect(queues.start(SESSION_A, queueStart(check))).rejects.toThrow(
+      '1000 queue results are still undelivered; collect them before queueing more',
+    )
+    expect(queued).toHaveLength(1000)
+    expect(await queues.wait(SESSION_A, started[0] ?? '', 0)).toMatchObject({queueId: started[0], status: 'finished'})
+    const {queueId: freed} = await queues.start(SESSION_A, queueStart(check))
+    expect(queued.at(-1)?.queue.id).toBe(freed)
+    expect(queues.undelivered(SESSION_A, true).map((result) => result.queueId)).toEqual(started.slice(1))
   })
 
   it('an ask in flight fails at once when its browser tab unsubscribes, and its late reply settles nothing', async () => {

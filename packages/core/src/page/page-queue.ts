@@ -133,30 +133,17 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
     return result
   }
 
-  const evictBeyond = (kept: QueueRecord[], limit: number): QueueRecord[] => {
-    const evicted = kept.slice(0, Math.max(0, kept.length - limit))
-    for (const old of evicted) records.delete(old.queueId)
-    return evicted
-  }
-
   const keep = (record: QueueRecord): void => {
     records.set(record.queueId, record)
-    const finished = [...records.values()].filter((each) => each.result !== null)
-    evictBeyond(
-      finished.filter((each) => each.delivered),
-      KEPT_QUEUES,
-    )
-    const dropped = evictBeyond(
-      finished.filter((each) => !each.delivered),
-      OWED_QUEUES,
-    )
-    for (const old of dropped) {
-      logError(`[core] queue ${old.queueId} was dropped with its result never delivered; ${OWED_QUEUES} are kept`)
-    }
+    const delivered = [...records.values()].filter((each) => each.result !== null && each.delivered)
+    for (const old of delivered.slice(0, Math.max(0, delivered.length - KEPT_QUEUES))) records.delete(old.queueId)
   }
 
   async function start(sessionId: SessionId, given: QueueStart): Promise<{queueId: string; actions: number}> {
     const {actions} = PageQueueActionsSchema.parse(given.input)
+    if ([...records.values()].filter((each) => !each.delivered).length >= OWED_QUEUES) {
+      throw new Error(`${OWED_QUEUES} queue results are still undelivered; collect them before queueing more`)
+    }
     const queueId = `q_${randomUUID()}`
     const play = deps.bus.playQueue(
       sessionId,
