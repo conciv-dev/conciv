@@ -28,7 +28,7 @@ type Landed = 'played' | 'stopped' | 'lost'
 
 type Settled = {outcome: PageQueueOutcome; landed: Landed}
 
-type Delivery = 'owed' | 'claimed' | 'delivered'
+type Delivery = 'owed' | 'claimed' | 'nextReply' | 'delivered'
 
 export type QueueRecord = {
   queueId: string
@@ -61,7 +61,7 @@ export type PageQueues = {
   undelivered: (sessionId: SessionId, outside: boolean) => PageQueueResult[]
   startedBy: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => PageQueueHandle[]
   claim: (record: QueueRecord) => boolean
-  confirm: (record: QueueRecord, delivered: boolean) => void
+  confirm: (record: QueueRecord, delivery: Exclude<Delivery, 'claimed'>) => void
   owedTurn: (sessionId: SessionId) => QueueRecord[]
   finished: (listener: (record: QueueRecord) => void) => void
 }
@@ -283,7 +283,7 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
   }
 
   function deliver(record: QueueRecord): boolean {
-    if (record.delivery !== 'owed' || record.result === null) return false
+    if ((record.delivery !== 'owed' && record.delivery !== 'nextReply') || record.result === null) return false
     record.delivery = 'delivered'
     return true
   }
@@ -294,9 +294,9 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
     return true
   }
 
-  function confirm(record: QueueRecord, delivered: boolean): void {
+  function confirm(record: QueueRecord, delivery: Exclude<Delivery, 'claimed'>): void {
     if (record.delivery !== 'claimed') return
-    record.delivery = delivered ? 'delivered' : 'owed'
+    record.delivery = delivery
   }
 
   function owedTurn(sessionId: SessionId): QueueRecord[] {
@@ -341,7 +341,13 @@ export async function startQueueFollowUp(
     logError(`[core] the follow-up turns for queues ${queueIds} failed; they wait for the next reply: ${String(error)}`)
     return {kind: 'failed', error: String(error)}
   })
-  for (const record of owed) queues.confirm(record, outcome.kind === 'delivered')
+  for (const record of owed) queues.confirm(record, deliveryAfter(outcome))
+}
+
+function deliveryAfter(outcome: FollowUpOutcome): Exclude<Delivery, 'claimed'> {
+  if (outcome.kind === 'delivered') return 'delivered'
+  if (outcome.kind === 'failed') return 'nextReply'
+  return 'owed'
 }
 
 export function pageQueueChunks(options: {result: PageQueueResult; record: QueueRecord; live: boolean}): ChatEvent[] {

@@ -1040,15 +1040,17 @@ describe('page bus and the session scope', () => {
     expect(queues.undelivered(fixture.sessionId, false)).toEqual([])
   })
 
-  it('three failed follow-up runs leave the result owed, and the next reply delivers it', async () => {
+  it('three failed follow-up runs end follow-ups for the result, and the next reply delivers it', async () => {
     const {fixture, queues, played, owedIds, runStatuses} = await followUpFixture()
     const owed = await played()
     for (const attempt of [1, 2, 3]) fixture.harness.script.scriptError(`launch failure ${attempt}`)
     await startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
     expect(runStatuses()).toEqual(['failed', 'failed', 'failed'])
-    expect(owedIds()).toEqual([owed])
-    expect(queues.undelivered(fixture.sessionId, false).map((result) => result.queueId)).toEqual([owed])
     expect(owedIds()).toEqual([])
+    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
+    expect(runStatuses()).toEqual(['failed', 'failed', 'failed'])
+    expect(queues.undelivered(fixture.sessionId, false).map((result) => result.queueId)).toEqual([owed])
+    expect(queues.undelivered(fixture.sessionId, false)).toEqual([])
   })
 
   it('a follow-up the plane declines because a run is driving is not retried', async () => {
