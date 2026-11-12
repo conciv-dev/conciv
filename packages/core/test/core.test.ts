@@ -1006,7 +1006,7 @@ describe('page bus and the session scope', () => {
     const second = queueingTab(bus)
     const {queueId} = await later
     expect(onFirst.map((frame) => frame.queue.id)).toEqual([earlier.queueId])
-    expect(second.map((frame) => frame.queue.id)).toEqual([queueId])
+    await vi.waitFor(() => expect(second.map((frame) => frame.queue.id)).toEqual([queueId]))
     expect(bus.resolve(SESSION_A, second[0]?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})).toBe(true)
     await finished(queueId)
     expect(await queues.wait(SESSION_A, queueId, 0)).toMatchObject({queueId, status: 'finished', played: 1})
