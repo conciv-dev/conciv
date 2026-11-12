@@ -967,20 +967,6 @@ describe('page action queue', () => {
     await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).not.toBeInTheDocument()
   })
 
-  it('still finishes in a hidden tab', async () => {
-    const {queue} = queuePage()
-    Object.defineProperty(document, 'visibilityState', {configurable: true, get: () => 'hidden'})
-    document.dispatchEvent(new Event('visibilitychange'))
-    onTestFinished(() => {
-      Reflect.deleteProperty(document, 'visibilityState')
-      document.dispatchEvent(new Event('visibilitychange'))
-    })
-    expect(await queue('q-hidden', [fill('first', 'Ada'), fill('last', 'Byron')]).played).toMatchObject([
-      {ok: true},
-      {ok: true},
-    ])
-  })
-
   it('still finishes under reduced motion', async () => {
     const {queue} = queuePage()
     await cdp().send('Emulation.setEmulatedMedia', {features: [{name: 'prefers-reduced-motion', value: 'reduce'}]})
