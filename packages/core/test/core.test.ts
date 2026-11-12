@@ -868,15 +868,17 @@ describe('page bus and the session scope', () => {
     const owed = await played(false)
     const turns: string[] = []
     const starting = Promise.withResolvers<boolean>()
+    const entered = Promise.withResolvers<void>()
     const plane = {
       live: async () => false,
       followUp: async (_sessionId: SessionId, input: string) => {
         turns.push(input)
+        entered.resolve()
         return turns.length === 1 ? starting.promise : true
       },
     }
     const following = startQueueFollowUp(queues, plane, SESSION_A)
-    await expect.poll(() => turns).toHaveLength(1)
+    await entered.promise
     for (const _ of Array.from({length: 205})) {
       const queueId = await played(true)
       await queues.wait(SESSION_A, queueId, 0)
