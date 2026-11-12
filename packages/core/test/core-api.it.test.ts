@@ -5298,7 +5298,7 @@ describe('page action queue delivery', () => {
       signal: viewer.signal,
     })
     await page.seenChunk(() => page.runIds().includes('queueing-run'))
-    const handle = page.tab.registry.call({name: 'page_queue', input: {actions: ACTIONS}})
+    const handle = page.tab.registry.call({name: 'page_queue_async', input: {actions: ACTIONS}})
     const onTab = await page.nextQueue()
     const {queueId} = z.object({queueId: z.string()}).parse(await handle)
     await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
