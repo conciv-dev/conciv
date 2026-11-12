@@ -403,7 +403,7 @@ function Input(props: InputProps): JSX.Element {
   const onKeyDown = (event: ComposerKeyboardEvent) => {
     forwardKeyDown(event, local.onKeyDown)
     if (event.isComposing) return
-    if (shouldCancelOnEscape(event, local.cancelOnEscape ?? true, composer.canCancel())) {
+    if (shouldCancelOnEscape(event, local.cancelOnEscape ?? true, composer.canCancel() && !composer.isStopping())) {
       event.preventDefault()
       cancelViaHandlers()
       return
