@@ -3,11 +3,14 @@ import {playwright} from '@vitest/browser-playwright'
 import solidPlugin from 'vite-plugin-solid'
 import {ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
 
-export default defineConfig({
+const PACKED_TAG = 'packs and installs tarballs; runs only in .github/workflows/packed.yml'
+
+export default defineConfig(({mode}) => ({
   resolve: {conditions: ['browser', 'development']},
   ssr: {resolve: {conditions: ['browser', 'development'], externalConditions: ['browser', 'development']}},
   test: {
     ...ciTest(),
+    tags: [{name: 'packed', description: PACKED_TAG, skip: mode !== 'packed'}],
     projects: [
       {
         extends: true,
@@ -37,4 +40,4 @@ export default defineConfig({
       },
     ],
   },
-})
+}))
