@@ -69,12 +69,17 @@ function playQueue(played: Played, requestId: string, query: PageQuery): void {
   const {source, driver, signal} = played
   const of = queue.replies.length
   const listed = PageQueueActionsSchema.safeParse(query.input)
+  const refused = new AbortController()
   const accepted = driver
     .execute(
       {agentId: query.agentId, name: query.name, input: query.input, queued: {id: queue.id, index: -1, of}},
-      signal,
+      AbortSignal.any([signal, refused.signal]),
     )
     .then((outcome) => acceptance(source, requestId, outcome))
+    .then((outcome) => {
+      if (!outcome.ok) refused.abort()
+      return outcome
+    })
   queue.replies.forEach((replyId, index) => {
     const action = listed.success ? listed.data.actions[index] : undefined
     if (action === undefined) {

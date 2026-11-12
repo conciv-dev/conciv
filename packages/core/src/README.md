@@ -9,7 +9,7 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `start(opts: StartOpts): Promise<Engine>` (`start.ts`): `Engine` = {port, stop, cfg, extensionContexts}
 - `StartOpts`, `PortRequest` = {exact}|{preferred}, `composeSystemPrompt` (`start.ts`)
 - `makeApp(opts): Promise<MadeApp>` / `withBuiltinExtensions` / `slug` / `HealthSchema` / `AppType` (`app.ts`)
-- Routes (`app.ts`): `GET /health` (`{ok, harness, engine: {stale}, id}`, `id` = the per-start `engineId`), `POST /api/shutdown`, chat-plane routes and WS, push routes and WS, `GET RPC_WS_PATH` (`/rpc-ws`, the browser's one oRPC socket, gated per connection by `rpcSocketGate`), `${RPC_PREFIX}/*` (the HTTP oRPC handler for node callers: CLI, tests, `makeRpcClient`), `/api/mcp`, `/api/tabs`, optional `NATIVE_PAGE_PATH`, `/api/ext/<slug>` per extension
+- Routes (`app.ts`): `GET /health` (`{ok, harness, engine: {stale}, id}`, `id` = the per-start `engineId`), `POST /api/shutdown`, chat-plane routes and WS, push routes and WS, `GET RPC_WS_PATH` (`/rpc-ws`, the browser's one oRPC socket, gated per connection by `rpcSocketGate`), `${RPC_PREFIX}/*` (the HTTP oRPC handler for node callers: CLI, tests, `makeRpcClient`), `/api/mcp`, optional `NATIVE_PAGE_PATH`, `/api/ext/<slug>` per extension
 - `resolveConfig(options, root)` / `ResolvedConcivConfig` / `defineConfig` (`config.ts`)
 - `CoreRuntime`, `EngineScope`, `SessionScope`, `ScopedToolCall`, `session` (`runtime.ts`)
 - `CodeRunCard`, `codeRunTool`, `EXECUTE_TOOL_NAME`, `coreToolCards` (`cards.tsx`)

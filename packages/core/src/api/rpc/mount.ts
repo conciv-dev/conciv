@@ -19,6 +19,9 @@ import type {AuthRouter} from '../../engine-login.js'
 import type {createSessionSearch} from '../../sessions/session-search.js'
 import type {createHubInstaller} from './hub.js'
 import type {createSettingsStorage} from '../../settings/settings-storage.js'
+import type {McpVars} from '../mcp.js'
+import type {createTabs} from '../tabs.js'
+import type {PageQueues} from '../../page/page-queue.js'
 
 export type ChatContext = {
   defaultHarness: HarnessAdapter
@@ -43,6 +46,9 @@ export type RpcDeps = {
   settings: ReturnType<typeof createSettingsStorage>
   hub: ReturnType<typeof createHubInstaller>
   assist: (sessionId: SessionId) => readonly ConcivServerTool[]
+  code: McpVars['mcp']
+  tabs: ReturnType<typeof createTabs>
+  queues: Pick<PageQueues, 'wait'>
 }
 
 export const os: Implementer<typeof contract, RpcContext, RpcContext> = implement(contract).$context<RpcContext>()

@@ -1,21 +1,25 @@
 import {randomUUID} from 'node:crypto'
+import {setImmediate} from 'node:timers/promises'
 import pTimeout from 'p-timeout'
 import {
   isPageFailure,
+  PAGE_QUEUE_ASYNC_TOOL,
+  PAGE_QUEUE_REFUSED,
   PAGE_QUEUE_STOPPED,
+  PAGE_QUEUE_SYNC_MS,
   PAGE_QUEUE_TOOL,
-  PAGE_QUEUE_WAIT_TOOL,
   PageQueueActionsSchema,
   type PageOutcome,
   type PageQueueOutcome,
+  type PageQueueHandle,
   type PageQueueProgress,
   type PageQueueResult,
 } from '@conciv/protocol/page-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {ChatEventType, pageQueueEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {generateMessageId} from '@conciv/protocol/chat-message-types'
+import {queueNotice, RESULT_CAP_CHARS} from '@conciv/contract'
 import type {Journal, PageBus} from './page-bus.js'
-import {RESULT_CAP_CHARS} from '@conciv/chat'
 import {logError} from '../lib/debug.js'
 
 type Landed = 'played' | 'stopped' | 'lost'
@@ -45,6 +49,7 @@ export type QueueStart = {
 
 export type PageQueues = {
   start: (sessionId: SessionId, start: QueueStart) => Promise<{queueId: string; actions: number}>
+  play: (sessionId: SessionId, start: QueueStart, signal?: AbortSignal) => Promise<PageQueueResult | PageQueueProgress>
   wait: (
     sessionId: SessionId,
     queueId: string,
@@ -52,6 +57,7 @@ export type PageQueues = {
     signal?: AbortSignal,
   ) => Promise<PageQueueResult | PageQueueProgress>
   undelivered: (sessionId: SessionId, outside: boolean) => PageQueueResult[]
+  startedBy: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => PageQueueHandle[]
   claim: (record: QueueRecord) => boolean
   confirm: (record: QueueRecord, delivered: boolean) => void
   owedTurn: (sessionId: SessionId) => QueueRecord[]
@@ -64,15 +70,17 @@ const OWED_QUEUES = 1000
 
 const QUEUE_RESULT_CHARS = RESULT_CAP_CHARS - 5000
 
-export function queueNotice(result: PageQueueResult): string {
-  return `queue ${result.queueId} ${result.status}: ${result.played} played, ${result.failed} failed\n${JSON.stringify(result)}`
-}
-
 function playedOutcome(index: number, tool: string, outcome: PageOutcome): Settled {
   if (outcome.ok) return {outcome: {index, tool, ok: true, result: outcome.result}, landed: 'played'}
   const raised = outcome.error.raised
   const error = raised?.message ?? outcome.error.message
-  return {outcome: {index, tool, ok: false, error}, landed: raised?.code === PAGE_QUEUE_STOPPED ? 'stopped' : 'played'}
+  return {outcome: {index, tool, ok: false, error}, landed: unplayedAs(raised?.code)}
+}
+
+function unplayedAs(code: string | undefined): Landed {
+  if (code === PAGE_QUEUE_STOPPED) return 'stopped'
+  if (code === PAGE_QUEUE_REFUSED) return 'lost'
+  return 'played'
 }
 
 function unconfirmedOutcome(index: number, tool: string, error: unknown): Settled {
@@ -134,7 +142,7 @@ function stringField(record: Record<string, unknown>, key: 'ref' | 'selector'): 
   return typeof value === 'string' ? value : undefined
 }
 
-export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueues {
+export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: number}): PageQueues {
   const records = new Map<string, QueueRecord>()
   const listeners: Array<(record: QueueRecord) => void> = []
 
@@ -151,9 +159,8 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
       )
   }
 
-  const finish = (record: QueueRecord): PageQueueResult => {
-    const result = resultOf(record)
-    record.result = result
+  const announce = (record: QueueRecord): void => {
+    if (record.delivery !== 'owed') return
     for (const listener of listeners) {
       try {
         listener(record)
@@ -161,7 +168,6 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
         logError(`[core] delivering queue ${record.queueId} failed: ${String(error)}`)
       }
     }
-    return result
   }
 
   const keep = (record: QueueRecord): void => {
@@ -176,7 +182,7 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
       throw new Error(`${OWED_QUEUES} queue results are still undelivered; collect them before queueing more`)
     }
     const queueId = `q_${randomUUID()}`
-    const play = deps.bus.playQueue(
+    const playing = deps.bus.playQueue(
       sessionId,
       {agentId: given.agentId, name: PAGE_QUEUE_TOOL, input: given.input, mutating: true},
       queueId,
@@ -194,7 +200,7 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
       delivery: 'owed',
       done: settledAll.promise,
     }
-    const landed = play.played.map((reply, index) => {
+    const landed = playing.played.map((reply, index) => {
       const tool = actions[index]?.tool ?? ''
       return reply.then(
         async (outcome) => {
@@ -208,11 +214,12 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
       )
     })
     keep(record)
-    await play.accepted.catch((error: unknown) => {
-      records.delete(queueId)
-      throw error
+    void Promise.all(landed).then(async () => {
+      record.result = resultOf(record)
+      settledAll.resolve(record.result)
+      await setImmediate()
+      announce(record)
     })
-    void Promise.all(landed).then(() => settledAll.resolve(finish(record)))
     return {queueId, actions: actions.length}
   }
 
@@ -224,7 +231,7 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
   ): Promise<PageQueueResult | PageQueueProgress> {
     const record = records.get(queueId)
     if (record === undefined || record.sessionId !== sessionId) {
-      throw new Error(`no queue ${queueId} on this tab; page_queue returns the queueId to wait for`)
+      throw new Error(`no queue ${queueId} on this tab`)
     }
     if (record.result === null && waitMs > 0) {
       await pTimeout(record.done, {milliseconds: waitMs, fallback: () => null, signal})
@@ -242,11 +249,31 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
     }
   }
 
+  async function play(
+    sessionId: SessionId,
+    given: QueueStart,
+    signal?: AbortSignal,
+  ): Promise<PageQueueResult | PageQueueProgress> {
+    const {queueId} = await start(sessionId, given)
+    return wait(sessionId, queueId, deps.syncMs ?? PAGE_QUEUE_SYNC_MS, signal)
+  }
+
   function undelivered(sessionId: SessionId, outside: boolean): PageQueueResult[] {
     return [...records.values()].flatMap((record) => {
       if (record.sessionId !== sessionId || record.outside !== outside || record.result === null) return []
       return deliver(record) ? [record.result] : []
     })
+  }
+
+  function startedBy(sessionId: SessionId, toolCallIds: ReadonlySet<string>): PageQueueHandle[] {
+    return [...records.values()].flatMap((record) =>
+      record.sessionId === sessionId &&
+      record.result === null &&
+      record.toolCallId !== undefined &&
+      toolCallIds.has(record.toolCallId)
+        ? [{queueId: record.queueId, actions: record.tools.length}]
+        : [],
+    )
   }
 
   function deliver(record: QueueRecord): boolean {
@@ -275,8 +302,10 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
 
   return {
     start,
+    play,
     wait,
     undelivered,
+    startedBy,
     claim,
     confirm,
     owedTurn,
@@ -309,7 +338,7 @@ export function pageQueueChunks(options: {result: PageQueueResult; record: Queue
   const runId = `mirror-${toolCallId}`
   const card: ChatEvent[] = [
     pageQueueEvent.create({...result, ...(record.toolCallId === undefined ? {} : {toolCallId: record.toolCallId})}),
-    {type: ChatEventType.TOOL_CALL_START, toolCallId, toolCallName: PAGE_QUEUE_WAIT_TOOL},
+    {type: ChatEventType.TOOL_CALL_START, toolCallId, toolCallName: PAGE_QUEUE_ASYNC_TOOL},
     {type: ChatEventType.TOOL_CALL_ARGS, toolCallId, delta: JSON.stringify({queueId: result.queueId})},
     {type: ChatEventType.TOOL_CALL_END, toolCallId},
     {

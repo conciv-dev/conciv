@@ -6,7 +6,7 @@ import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
 import {approvalRequestedEvent, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {approvalNeeded, childCardChunks, createChatServer, drizzleChatStores, toolApprovalId} from '@conciv/ai/server'
-import type {ChatHistoryWindow, ChatHydration} from '@conciv/contract'
+import {cappedValue, type ChatHistoryWindow, type ChatHydration} from '@conciv/contract'
 import {chatRuns, markers, type ConcivDb} from '@conciv/db'
 import {CHAT_SSE_PATH, CHAT_WS_PATH, isSessionId, SessionId, type HubAccess} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -18,21 +18,12 @@ import {
   type ApprovalDecision,
   type ApprovalScope,
 } from './approvals.js'
-import {cappedValue, chatToolSet, type CodeCapability} from './code-mode.js'
+import {chatToolSet, type CodeCapability} from './code-mode.js'
 import {clearThread, metadataKeysEndingWith, runningThreadIds} from './stores.js'
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
 import {firstUserTitle, turnHooks, type TurnDeps} from './turn.js'
 
-export {
-  assistCapabilities,
-  cappedText,
-  cappedValue,
-  RESULT_CAP_CHARS,
-  registryCapabilities,
-  safeStringify,
-  truncationEnvelope,
-  type CodeCapability,
-} from './code-mode.js'
+export {assistCapabilities, registryCapabilities, type CodeCapability} from './code-mode.js'
 export type {AttachmentExpanders, SessionPort} from './turn.js'
 
 const FIRST_OUTPUT_TIMEOUT_MS = 30_000
@@ -106,6 +97,7 @@ export type ChatPlane = {
 }
 
 export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
+  const startingFollowUps = new Set<SessionId>()
   const stores = drizzleChatStores(deps.db, {
     harnessOf: (threadId) => deps.harnessFor(SessionId.parse(threadId)).id,
     saved: (threadId, messages, at) => {
@@ -254,15 +246,21 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     outsideDenied: (sessionId) => approvals.outsideDenied(sessionId),
     allowOutside: (sessionId) => approvals.allowOutside(sessionId),
     followUp: async (sessionId, input) => {
-      if (server.driving(sessionId) || (await stores.runs.findActiveRun(sessionId)) !== null) return false
-      const runId = randomUUID()
-      return server.drive({threadId: sessionId, runId, kind: 'page-queue', input}, []).then(
-        () => true,
-        (error: unknown) => {
-          deps.log(`[chat] the page queue follow-up run ${runId} failed: ${String(error)}`)
-          return false
-        },
-      )
+      if (startingFollowUps.has(sessionId) || server.driving(sessionId)) return false
+      startingFollowUps.add(sessionId)
+      try {
+        if ((await stores.runs.findActiveRun(sessionId)) !== null) return false
+        const runId = randomUUID()
+        return await server.drive({threadId: sessionId, runId, kind: 'page-queue', input}, []).then(
+          () => true,
+          (error: unknown) => {
+            deps.log(`[chat] the page queue follow-up run ${runId} failed: ${String(error)}`)
+            return false
+          },
+        )
+      } finally {
+        startingFollowUps.delete(sessionId)
+      }
     },
     codeRunner: async (sessionId, publish, given, outside) => {
       const model = deps.sessions.row(sessionId)?.model ?? null

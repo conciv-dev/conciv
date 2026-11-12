@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {isPageFailure, PAGE_QUEUE_TOOL, PAGE_QUEUE_WAIT_TOOL} from '@conciv/protocol/page-types'
+import {isPageFailure, PAGE_QUEUE_ASYNC_TOOL, PAGE_QUEUE_TOOL} from '@conciv/protocol/page-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {pageVerbError, toolError, type ToolRequest} from '@conciv/extension'
 import {createToolRegistry, type ForwardedPageTool, type ToolRegistry} from '@conciv/extension/registry'
@@ -47,22 +47,15 @@ async function storeCapture(env: PageEnv, request: ToolRequest, answer: PageAnsw
   }
 }
 
-const QueueWaitInputSchema = z.object({queueId: z.string().min(1), waitMs: z.number().int().min(0).optional()})
-
-const QUEUE_WAIT_DEFAULT_MS = 30_000
-
 function runQueueTool(env: PageEnv, tool: ForwardedPageTool, record: Record<string, unknown>, request: ToolRequest) {
-  const sessionId = session().id
-  if (tool.name === PAGE_QUEUE_TOOL) {
-    return env.queues.start(sessionId, {
-      agentId: request.agentId,
-      input: record,
-      outside: request.outside === true,
-      toolCallId: request.toolCallId,
-    })
+  const given = {
+    agentId: request.agentId,
+    input: record,
+    outside: request.outside === true,
+    toolCallId: request.toolCallId,
   }
-  const {queueId, waitMs} = QueueWaitInputSchema.parse(record)
-  return env.queues.wait(sessionId, queueId, waitMs ?? QUEUE_WAIT_DEFAULT_MS, request.signal)
+  if (tool.name === PAGE_QUEUE_TOOL) return env.queues.play(session().id, given, request.signal)
+  return env.queues.start(session().id, given)
 }
 
 async function runClientTool(
@@ -72,7 +65,7 @@ async function runClientTool(
   request: ToolRequest,
 ): Promise<unknown> {
   const record = PageToolInputSchema.parse(input ?? {})
-  if (tool.name === PAGE_QUEUE_TOOL || tool.name === PAGE_QUEUE_WAIT_TOOL) {
+  if (tool.name === PAGE_QUEUE_TOOL || tool.name === PAGE_QUEUE_ASYNC_TOOL) {
     return runQueueTool(env, tool, record, request).catch((error: unknown) => {
       throw attributedTo(tool.name, toolFailureFromPage(tool.name, tool.name, error))
     })
