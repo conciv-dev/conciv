@@ -50,12 +50,14 @@ touches none of this is fine.
 
 `vite-react-packed` installs conciv the way an npm user does, using the packing helpers in
 `packages/vitest-config/src/pack.ts` (`@conciv/vitest-config/pack`, shared with `nextjs/packed` and the
-packages' packed describes). Its `test:packed` runs `install-packed.ts` first:
+packages' packed describes). Its `test:packed` runs `test-packed.ts`:
 it builds and `pnpm pack`s `@conciv/it`'s workspace dependency closure, copies `index.html`, `src/` and
 `public/` from `vite-react` into a temp dir outside the workspace, generates the `package.json` and
 `vite.config.ts`, overrides each `@conciv/*` to its tarball and runs `pnpm install` there, seeded from
-the committed `fixture-lock.yaml` and checked for drift. Playwright runs from `e2e/vite-react-packed`;
-only the vite dev server runs in the temp copy.
+the committed `fixture-lock.yaml` and checked for drift. Then it runs Playwright with
+`e2e/vite-react-packed/playwright.config.ts` from inside the temp copy, where the vite dev server and its
+engine run, so the shared `vite-react` specs log in against that engine's `.conciv/server.json` (the
+same project directory `loginWidget` reads for every other app).
 
 ### Packed suites run only in CI
 

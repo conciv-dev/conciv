@@ -1,3 +1,4 @@
+import {spawnSync} from 'node:child_process'
 import {cpSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {E2E_DEV_ENDPOINT_DIR} from '@conciv/e2e-utils/dev-endpoint'
@@ -63,3 +64,10 @@ await timed('install', () =>
     lockPath: LOCK_PATH,
   }),
 )
+const playwright = spawnSync(
+  join(import.meta.dirname, 'node_modules/.bin/playwright'),
+  ['test', '--config', join(import.meta.dirname, 'playwright.config.ts'), ...process.argv.slice(2)],
+  {cwd: PACKED_APP_DIR, stdio: 'inherit'},
+)
+if (playwright.error !== undefined) throw playwright.error
+process.exitCode = playwright.status ?? 1
