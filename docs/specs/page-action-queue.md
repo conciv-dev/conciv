@@ -191,8 +191,8 @@ per launch, and they break on protocol revision 2026-07-28, which path 1 needs.
 - In the tanstack-start example, Claude Code CLI through the hub: queue six fills and a submit-free press on the form
   page. The call returns at once; the pointer visits each field in order; Claude gets the result unprompted when it
   ends.
-- The same from a client without tasks (desktop or Codex): the result arrives on the next call and through the wait
-  tool.
+- The same from a client without tasks (desktop or Codex): a sync `page_queue` returns the result in-call, and a
+  `page_queue_async` result arrives on the next call.
 - The in-page agent queues the same list from the widget chat and gets the result in the conversation.
 - A queue with two bad targets reports exactly those two and plays the rest.
 
