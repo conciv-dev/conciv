@@ -337,7 +337,7 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCalle
             name: DISCOVER_TOOL_NAME,
             description: discover.description,
             inputSchema: DiscoverInputSchema,
-          }).server(gated(admit, (args) => runDiscover(runner, args.toolNames))),
+          }).server(gated(admit, async (args) => delivered(await runDiscover(runner, args.toolNames)))),
         ]
   const askingTools = runner.asking.map((tool) =>
     defineTool({name: tool.name, description: tool.description, inputSchema: tool.inputSchema}).server(
