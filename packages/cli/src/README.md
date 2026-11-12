@@ -46,7 +46,7 @@ The `conciv` CLI, routed with `@bomb.sh/router`. Four top-level commands: `init`
 
 ## Side Effects
 
-- `hub.ts`: reads the conciv home db and probes each engine's `/health` per call; keeps one MCP client per runner `apiBase`, dropped on a transport error or when the runner changes; with no live engine a call answers an MCP error naming the home folder; serves until stdin ends
+- `hub.ts`: reads the conciv home db and checks each engine (`checkEngines`, process alive, root present, `/health` id); talks to an engine only through its typed oRPC client (`makeRpcClient(apiBase)`), keeping the picked runner and one client per open tab, dropped when a call is refused or unauthorized (nothing ran) or when the runner changes; with no live engine a call answers an MCP error naming the home folder; serves until stdin ends
 
 - `bin.ts`: sets NO_COLOR=1 when stdout is not a TTY and FORCE_COLOR is unset; runs only when invoked directly; sets process.exitCode
 - `writeOutcome` / `writeFailure` (`envelope.ts`): write JSON to stdout
