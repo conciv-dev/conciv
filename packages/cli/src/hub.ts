@@ -382,20 +382,21 @@ async function pickRunner(home: string, headers: Record<string, string>): Promis
   return firstUsable(checked.live, headers, [])
 }
 
-async function firstUsable(rows: EngineRow[], headers: Record<string, string>, tooOld: string[]): Promise<Runner> {
+async function firstUsable(rows: EngineRow[], headers: Record<string, string>, unusable: string[]): Promise<Runner> {
   const [row, ...rest] = rows
-  if (row === undefined) throw new Error(`no conciv dev server this hub can use is running: ${tooOld.join('; ')}`)
+  if (row === undefined) throw new Error(`no conciv dev server this hub can use is running: ${unusable.join('; ')}`)
   const runner = await runnerAt(row, headers)
-  if (runner !== null) return runner
-  return firstUsable(rest, headers, [...tooOld, `${row.root} (${TOO_OLD})`])
+  if (!('unusable' in runner)) return runner
+  return firstUsable(rest, headers, [...unusable, `${row.root} (${runner.unusable})`])
 }
 
-async function runnerAt(row: EngineRow, headers: Record<string, string>): Promise<Runner | null> {
+async function runnerAt(row: EngineRow, headers: Record<string, string>): Promise<Runner | {unusable: string}> {
   const rpc = makeRpcClient(row.apiBase, {headers})
   return rpc.code.describe(undefined, {signal: AbortSignal.timeout(DESCRIBE_MS)}).then(
     (described) => ({root: row.root, rpc, described}),
     (error: unknown) => {
-      if (engineTooOld(error)) return null
+      if (engineTooOld(error)) return {unusable: TOO_OLD}
+      if (error instanceof ORPCError && error.code === 'NO_CODE_MODE') return {unusable: errorText(error)}
       logHub(`reading the tool descriptions of the conciv engine at ${row.root} failed; using the built-in text`, error)
       return {root: row.root, rpc, described: null}
     },

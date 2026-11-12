@@ -2147,6 +2147,30 @@ describe('cli', () => {
         }
       })
 
+      async function engineWithoutCodeMode(home: string) {
+        const id = 'engine-without-code-mode'
+        const root = mkdtempSync(join(tmpdir(), 'conciv-codeless-'))
+        const server = createHttpServer((request, response) => {
+          const url = new URL(request.url ?? '/', 'http://127.0.0.1')
+          if (url.pathname === '/health') {
+            return response.writeHead(200, {'content-type': 'application/json'}).end(JSON.stringify({ok: true, id}))
+          }
+          const refusal = {defined: true, code: 'NO_CODE_MODE', status: 500, message: 'code mode is unavailable'}
+          response.writeHead(500, {'content-type': 'application/json'}).end(JSON.stringify({json: refusal}))
+        })
+        server.listen(0, '127.0.0.1')
+        await once(server, 'listening')
+        const port = z.object({port: z.number()}).parse(server.address()).port
+        withHomeDb(home, (db) => registerEngine(db, {id, pid: process.pid, root, apiBase: `http://127.0.0.1:${port}`}))
+        return {
+          close: async () => {
+            server.closeAllConnections()
+            server.close()
+            await once(server, 'close')
+          },
+        }
+      }
+
       async function engineBeforeOrpcTabs(home: string) {
         const id = 'engine-before-orpc-tabs'
         const root = mkdtempSync(join(tmpdir(), 'conciv-before-orpc-'))
@@ -2174,6 +2198,21 @@ describe('cli', () => {
           },
         }
       }
+
+      it('an engine that answers it has no code mode is skipped, and the next engine runs the block', async () => {
+        const {home, mcp} = fakeClaude()
+        expect(mcp('connect', 'claude')).toMatchObject({status: 0})
+        const codeless = await engineWithoutCodeMode(home)
+        const healthy = await engineWithTab(home, {hubAccess: 'open'})
+        const client = await hub(home)
+        try {
+          expect(await run(client, 'return 40 + 2')).toContain('{\\"result\\":42')
+        } finally {
+          await client.close()
+          await codeless.close()
+          await healthy.engine.stop()
+        }
+      })
 
       it('an engine without the new procedures is listed as too old and skipped, and a healthy engine still answers', async () => {
         const {home, mcp} = fakeClaude()
