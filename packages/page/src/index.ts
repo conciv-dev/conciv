@@ -36,6 +36,17 @@ function replyTo(source: PageQuerySource, requestId: string, outcome: PageOutcom
   )
 }
 
+async function acceptance(source: PageQuerySource, requestId: string, outcome: PageOutcome): Promise<PageOutcome> {
+  try {
+    await source.reply({requestId, outcome})
+    return outcome
+  } catch (error) {
+    console.error(`[conciv] the page reply to ${requestId} could not be sent`, error)
+    const message = `the page could not confirm the queue to the engine, so its actions did not run: ${String(error)}`
+    return {ok: false, error: {code: 'handler-error', message}}
+  }
+}
+
 function unplayed(name: string, error: unknown): PageOutcome {
   if (error instanceof DOMException && error.name === 'AbortError') {
     const message = `the page closed before ${name} ran; it did not run`
@@ -57,13 +68,9 @@ function playQueue(played: Played, requestId: string, query: PageQuery): void {
   const {source, driver} = played
   const of = queue.replies.length
   const listed = PageQueueActionsSchema.safeParse(query.input)
-  const accepted = driver.execute({
-    agentId: query.agentId,
-    name: query.name,
-    input: query.input,
-    queued: {id: queue.id, index: -1, of},
-  })
-  void accepted.then((outcome) => replyTo(source, requestId, outcome))
+  const accepted = driver
+    .execute({agentId: query.agentId, name: query.name, input: query.input, queued: {id: queue.id, index: -1, of}})
+    .then((outcome) => acceptance(source, requestId, outcome))
   queue.replies.forEach((replyId, index) => {
     const action = listed.success ? listed.data.actions[index] : undefined
     if (action === undefined) {
