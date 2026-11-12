@@ -42,7 +42,12 @@ export type QueueStart = {
 
 export type PageQueues = {
   start: (sessionId: SessionId, start: QueueStart) => Promise<{queueId: string; actions: number}>
-  wait: (sessionId: SessionId, queueId: string, waitMs: number) => Promise<PageQueueResult | PageQueueProgress>
+  wait: (
+    sessionId: SessionId,
+    queueId: string,
+    waitMs: number,
+    signal?: AbortSignal,
+  ) => Promise<PageQueueResult | PageQueueProgress>
   undelivered: (sessionId: SessionId, outside: boolean) => PageQueueResult[]
   deliver: (record: QueueRecord) => boolean
   owedTurn: (sessionId: SessionId) => QueueRecord[]
@@ -186,12 +191,16 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
     sessionId: SessionId,
     queueId: string,
     waitMs: number,
+    signal?: AbortSignal,
   ): Promise<PageQueueResult | PageQueueProgress> {
     const record = records.get(queueId)
     if (record === undefined || record.sessionId !== sessionId) {
       throw new Error(`no queue ${queueId} on this tab; page_queue returns the queueId to wait for`)
     }
-    if (record.result === null && waitMs > 0) await pTimeout(record.done, {milliseconds: waitMs, fallback: () => null})
+    if (record.result === null && waitMs > 0) {
+      await pTimeout(record.done, {milliseconds: waitMs, fallback: () => null, signal})
+    }
+    signal?.throwIfAborted()
     if (record.result !== null) {
       record.delivered = true
       return record.result

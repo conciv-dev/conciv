@@ -831,6 +831,21 @@ describe('page bus and the session scope', () => {
     expect(first).toHaveLength(1)
   })
 
+  it('a queue wait its caller aborts rejects at once and leaves the result owed to the next reply', async () => {
+    const bus = makePageBus(2000)
+    const queued = queueingTab(bus)
+    const queues = pageQueues(bus)
+    const finished = finishedOf(queues)
+    const {queueId} = await queues.start(SESSION_A, queueStart([{tool: 'page_check', selector: '#agree'}]))
+    const caller = new AbortController()
+    const waiting = queues.wait(SESSION_A, queueId, 60_000, caller.signal)
+    caller.abort()
+    await expect(waiting).rejects.toMatchObject({name: 'AbortError'})
+    bus.resolve(SESSION_A, queued[0]?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
+    await finished(queueId)
+    expect(queues.undelivered(SESSION_A, true)).toEqual([expect.objectContaining({queueId, status: 'finished'})])
+  })
+
   it('an ask in flight fails at once when its browser tab unsubscribes, and its late reply settles nothing', async () => {
     const bus = makePageBus(2000)
     const frames: unknown[] = []

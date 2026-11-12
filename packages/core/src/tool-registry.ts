@@ -62,7 +62,7 @@ function runQueueTool(env: PageEnv, tool: ForwardedPageTool, record: Record<stri
     })
   }
   const {queueId, waitMs} = QueueWaitInputSchema.parse(record)
-  return env.queues.wait(sessionId, queueId, waitMs ?? QUEUE_WAIT_DEFAULT_MS)
+  return env.queues.wait(sessionId, queueId, waitMs ?? QUEUE_WAIT_DEFAULT_MS, request.signal)
 }
 
 async function runClientTool(
