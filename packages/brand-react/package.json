@@ -1,6 +1,6 @@
 {
   "name": "@conciv/brand-react",
-  "version": "0.0.22",
+  "version": "0.0.23",
   "private": true,
   "description": "The conciv logo as React components: the crimson chat-bubble robot mark and the full lockup with its hover animation.",
   "keywords": [

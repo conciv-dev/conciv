@@ -1,6 +1,6 @@
 {
   "name": "@conciv/brand",
-  "version": "0.0.22",
+  "version": "0.0.23",
   "private": true,
   "description": "Official conciv brand assets: the crimson chat-bubble robot mark, Geist SemiBold outlined wordmark, favicons, social tiles, and the Solid logo component (React lives in @conciv/brand-react).",
   "keywords": [

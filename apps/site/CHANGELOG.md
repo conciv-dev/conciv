@@ -1,5 +1,20 @@
 # site
 
+## 0.0.23
+
+### Patch Changes
+
+- Updated dependencies [[`1feae4a`](https://github.com/conciv-dev/conciv/commit/1feae4aefa390212f63d656a9ad718d4b23a1be9), [`7a92fc9`](https://github.com/conciv-dev/conciv/commit/7a92fc9b661f9eacf75c14a8cb65d5d303906f24), [`15cc7ed`](https://github.com/conciv-dev/conciv/commit/15cc7ed773ab889319370b8070426756d6cf98bb), [`564dd14`](https://github.com/conciv-dev/conciv/commit/564dd148e0dd2f8b7b7b252211f00b5349bab101), [`23d0787`](https://github.com/conciv-dev/conciv/commit/23d078759618f08b80223d26187abb7b2fc5843f), [`33345d3`](https://github.com/conciv-dev/conciv/commit/33345d3bbc25419086a899a36f96991ae37a59ae), [`0f6f1f4`](https://github.com/conciv-dev/conciv/commit/0f6f1f42530bb65adde3e01884885e65522cf839), [`90f01d8`](https://github.com/conciv-dev/conciv/commit/90f01d88e6e00e60eff4caf5c430414965fdd219), [`1e9abca`](https://github.com/conciv-dev/conciv/commit/1e9abca9874b798e8ba59df5e1e02392b90a6865), [`4a710d4`](https://github.com/conciv-dev/conciv/commit/4a710d475e8975be8162a2740884c69d1e03231d), [`94bd182`](https://github.com/conciv-dev/conciv/commit/94bd182a63c447973b30e832fe5a844bfe8683b8), [`eaa4b2a`](https://github.com/conciv-dev/conciv/commit/eaa4b2a94f44bbfeb14b6a85b343cd16a9c2d743), [`e76257e`](https://github.com/conciv-dev/conciv/commit/e76257ee22420792b3614a76abb5645dd765e77d), [`042f5f1`](https://github.com/conciv-dev/conciv/commit/042f5f1dc38120382a7f2f9e780733439b1cfd5b), [`0a7b4d1`](https://github.com/conciv-dev/conciv/commit/0a7b4d1d164d7f0fdfcfd45cbd99f0a0810a5293)]:
+  - @conciv/protocol@0.0.23
+  - @conciv/embed@0.0.23
+  - @conciv/extension-terminal@0.0.23
+  - @conciv/it@0.0.23
+  - @conciv/mascot-react@0.0.23
+  - @conciv/extension-try-it@0.0.23
+  - site-snippets@0.0.22
+  - @conciv/brand@0.0.23
+  - @conciv/brand-react@0.0.23
+
 ## 0.0.22
 
 ### Patch Changes

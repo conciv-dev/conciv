@@ -1,5 +1,21 @@
 # @conciv/it
 
+## 0.0.23
+
+### Patch Changes
+
+- [#828](https://github.com/conciv-dev/conciv/pull/828) [`23d0787`](https://github.com/conciv-dev/conciv/commit/23d078759618f08b80223d26187abb7b2fc5843f) Thanks [@omridevk](https://github.com/omridevk)! - Extensions are opt-in. `@conciv/it` no longer installs any extension: add the ones you want by importing them and
+  passing them to the plugin, for example `conciv({extensions: [whiteboard(), design({comparator: 'pixelmatch'})]})`,
+  or `withConciv(nextConfig, {extensions: [terminal()]})` on Next.js. Each extension package's default export is now a
+  function that takes that extension's options, and the name-keyed `extensions: {design: {...}}` option is gone. The
+  server extension object moved to each package's `/server` subpath. The TanStack inspector follows the same shape:
+  replace the `conciv/extensions/tanstack.tsx` re-export with `extensions: [tanstack()]`. `register()` on Next.js now
+  validates `CONCIV_OPTIONS` and fails with a clear error when it is not a valid conciv config.
+- Updated dependencies [[`7a92fc9`](https://github.com/conciv-dev/conciv/commit/7a92fc9b661f9eacf75c14a8cb65d5d303906f24), [`564dd14`](https://github.com/conciv-dev/conciv/commit/564dd148e0dd2f8b7b7b252211f00b5349bab101), [`23d0787`](https://github.com/conciv-dev/conciv/commit/23d078759618f08b80223d26187abb7b2fc5843f), [`90f01d8`](https://github.com/conciv-dev/conciv/commit/90f01d88e6e00e60eff4caf5c430414965fdd219), [`94bd182`](https://github.com/conciv-dev/conciv/commit/94bd182a63c447973b30e832fe5a844bfe8683b8), [`e76257e`](https://github.com/conciv-dev/conciv/commit/e76257ee22420792b3614a76abb5645dd765e77d), [`042f5f1`](https://github.com/conciv-dev/conciv/commit/042f5f1dc38120382a7f2f9e780733439b1cfd5b), [`0a7b4d1`](https://github.com/conciv-dev/conciv/commit/0a7b4d1d164d7f0fdfcfd45cbd99f0a0810a5293), [`c0686d5`](https://github.com/conciv-dev/conciv/commit/c0686d5a73cd6982f749209d7acd743df9e30ca3)]:
+  - @conciv/embed@0.0.23
+  - @conciv/plugin@0.0.23
+  - @conciv/extension-compiler@0.0.23
+
 ## 0.0.22
 
 ### Patch Changes

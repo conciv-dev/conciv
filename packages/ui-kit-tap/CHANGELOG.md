@@ -1,5 +1,12 @@
 # @conciv/ui-kit-tap
 
+## 0.0.23
+
+### Patch Changes
+
+- Updated dependencies [[`f2d65ca`](https://github.com/conciv-dev/conciv/commit/f2d65ca836ddf7ff5cdd79bcd56a4f7aab86bb00)]:
+  - @conciv/ui-kit-system@0.0.23
+
 ## 0.0.22
 
 ### Patch Changes

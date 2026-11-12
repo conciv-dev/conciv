@@ -1,5 +1,12 @@
 # @conciv/solid
 
+## 0.0.23
+
+### Patch Changes
+
+- Updated dependencies [[`7a92fc9`](https://github.com/conciv-dev/conciv/commit/7a92fc9b661f9eacf75c14a8cb65d5d303906f24), [`564dd14`](https://github.com/conciv-dev/conciv/commit/564dd148e0dd2f8b7b7b252211f00b5349bab101), [`90f01d8`](https://github.com/conciv-dev/conciv/commit/90f01d88e6e00e60eff4caf5c430414965fdd219), [`94bd182`](https://github.com/conciv-dev/conciv/commit/94bd182a63c447973b30e832fe5a844bfe8683b8), [`e76257e`](https://github.com/conciv-dev/conciv/commit/e76257ee22420792b3614a76abb5645dd765e77d), [`042f5f1`](https://github.com/conciv-dev/conciv/commit/042f5f1dc38120382a7f2f9e780733439b1cfd5b), [`0a7b4d1`](https://github.com/conciv-dev/conciv/commit/0a7b4d1d164d7f0fdfcfd45cbd99f0a0810a5293)]:
+  - @conciv/embed@0.0.23
+
 ## 0.0.22
 
 ### Patch Changes

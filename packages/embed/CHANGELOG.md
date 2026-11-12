@@ -1,5 +1,40 @@
 # @conciv/embed
 
+## 0.0.23
+
+### Patch Changes
+
+- [#809](https://github.com/conciv-dev/conciv/pull/809) [`7a92fc9`](https://github.com/conciv-dev/conciv/commit/7a92fc9b661f9eacf75c14a8cb65d5d303906f24) Thanks [@omridevk](https://github.com/omridevk)! - The composer keeps its message input visible when an extension puts long content in the action row: the actions wrap onto their own line instead of squeezing the input to zero width.
+
+- [#816](https://github.com/conciv-dev/conciv/pull/816) [`564dd14`](https://github.com/conciv-dev/conciv/commit/564dd148e0dd2f8b7b7b252211f00b5349bab101) Thanks [@omridevk](https://github.com/omridevk)! - The widget bundles are now small classic-script loaders over shared, code-split ES chunks in `dist/widget/`, so mermaid, katex, shiki grammars, xterm and the chat highlight worker load only when used, and the IIFE source maps are gone (the embed `dist` drops from 152 MB to about 30 MB). Serve `dist/widget/` next to `conciv-widget.global.js`; the native page serves it automatically.
+
+- [#818](https://github.com/conciv-dev/conciv/pull/818) [`90f01d8`](https://github.com/conciv-dev/conciv/commit/90f01d88e6e00e60eff4caf5c430414965fdd219) Thanks [@omridevk](https://github.com/omridevk)! - The widget and every extension now share one TanStack Query copy, bundled inside `@conciv/client` and patched for TanStack/query#11230, so a background refetch no longer steals focus from the model search or the composer in host apps. The terminal's model picker reads the same cached model list as the composer.
+
+- [#817](https://github.com/conciv-dev/conciv/pull/817) [`94bd182`](https://github.com/conciv-dev/conciv/commit/94bd182a63c447973b30e832fe5a844bfe8683b8) Thanks [@omridevk](https://github.com/omridevk)! - Widget data no longer refetches just because it got old: every query stays fresh until the server pushes a change, an action in the widget invalidates it, or the window regains focus. Returning to the chat from settings sends no new request for the harnesses, models or tool catalog, and a change to one session refreshes that session instead of every open one.
+
+- [#825](https://github.com/conciv-dev/conciv/pull/825) [`e76257e`](https://github.com/conciv-dev/conciv/commit/e76257ee22420792b3614a76abb5645dd765e77d) Thanks [@omridevk](https://github.com/omridevk)! - Settings tabs use the left rail when the settings panel is at the @lg size (32rem) or wider, or when there are more than four tabs; the panel size always wins.
+
+- [#842](https://github.com/conciv-dev/conciv/pull/842) [`042f5f1`](https://github.com/conciv-dev/conciv/commit/042f5f1dc38120382a7f2f9e780733439b1cfd5b) Thanks [@omridevk](https://github.com/omridevk)! - The settings page has a `This project | All projects` switch. All projects edits the settings every project shares; a value set for this project wins over it, and each field notes where its value comes from.
+
+- [#802](https://github.com/conciv-dev/conciv/pull/802) [`0a7b4d1`](https://github.com/conciv-dev/conciv/commit/0a7b4d1d164d7f0fdfcfd45cbd99f0a0810a5293) Thanks [@omridevk](https://github.com/omridevk)! - Settings tabs sit in a top row while there are at most four of them, which fit in one row at the panel's minimum width; with more tabs (extension settings pages) they sit in a left rail.
+- Updated dependencies [[`1feae4a`](https://github.com/conciv-dev/conciv/commit/1feae4aefa390212f63d656a9ad718d4b23a1be9), [`f2d65ca`](https://github.com/conciv-dev/conciv/commit/f2d65ca836ddf7ff5cdd79bcd56a4f7aab86bb00), [`15cc7ed`](https://github.com/conciv-dev/conciv/commit/15cc7ed773ab889319370b8070426756d6cf98bb), [`564dd14`](https://github.com/conciv-dev/conciv/commit/564dd148e0dd2f8b7b7b252211f00b5349bab101), [`8d57382`](https://github.com/conciv-dev/conciv/commit/8d57382a4365e2031bc484478b5b8950bd45cca9), [`042f5f1`](https://github.com/conciv-dev/conciv/commit/042f5f1dc38120382a7f2f9e780733439b1cfd5b), [`23d0787`](https://github.com/conciv-dev/conciv/commit/23d078759618f08b80223d26187abb7b2fc5843f), [`65fd8fe`](https://github.com/conciv-dev/conciv/commit/65fd8fe0b0f4d7431a82ccd51da0b6f3d5662eae), [`33345d3`](https://github.com/conciv-dev/conciv/commit/33345d3bbc25419086a899a36f96991ae37a59ae), [`f2d65ca`](https://github.com/conciv-dev/conciv/commit/f2d65ca836ddf7ff5cdd79bcd56a4f7aab86bb00), [`0f6f1f4`](https://github.com/conciv-dev/conciv/commit/0f6f1f42530bb65adde3e01884885e65522cf839), [`90f01d8`](https://github.com/conciv-dev/conciv/commit/90f01d88e6e00e60eff4caf5c430414965fdd219), [`5fd874f`](https://github.com/conciv-dev/conciv/commit/5fd874fb09d5bfda28ce4954506e0abcf7a6f796), [`1e9abca`](https://github.com/conciv-dev/conciv/commit/1e9abca9874b798e8ba59df5e1e02392b90a6865), [`4a710d4`](https://github.com/conciv-dev/conciv/commit/4a710d475e8975be8162a2740884c69d1e03231d), [`ba22a7d`](https://github.com/conciv-dev/conciv/commit/ba22a7dd30703632d5af0ac6ca854cc257cda70f), [`cba0682`](https://github.com/conciv-dev/conciv/commit/cba0682d62058e28428ebbfc64a3a1422ba6bf77), [`ebcb3ac`](https://github.com/conciv-dev/conciv/commit/ebcb3ac7177c5854a31a9480e31aaaf769b18f24), [`eaa4b2a`](https://github.com/conciv-dev/conciv/commit/eaa4b2a94f44bbfeb14b6a85b343cd16a9c2d743), [`7925199`](https://github.com/conciv-dev/conciv/commit/79251997f75892d7b445f3dbebb1dbb5109aac53), [`c0686d5`](https://github.com/conciv-dev/conciv/commit/c0686d5a73cd6982f749209d7acd743df9e30ca3)]:
+  - @conciv/protocol@0.0.23
+  - @conciv/ui-kit-chat@0.0.23
+  - @conciv/extension@0.0.23
+  - @conciv/extension-ios@0.0.23
+  - @conciv/extension-page@0.0.23
+  - @conciv/contract@0.0.23
+  - @conciv/ui-kit-system@0.0.23
+  - @conciv/mascot@0.0.23
+  - @conciv/client@0.0.23
+  - @conciv/page@0.0.23
+  - @conciv/ui-kit-chat-tools@0.0.23
+  - @conciv/ui-kit-tap@0.0.23
+  - @conciv/grab@0.0.23
+  - @conciv/solid-diffs@0.0.23
+  - @conciv/solid-streamdown@0.0.23
+  - @conciv/storage-history@0.0.23
+
 ## 0.0.22
 
 ### Patch Changes
