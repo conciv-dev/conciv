@@ -28,10 +28,6 @@
       "types": "./dist/extensions.d.ts",
       "import": "./dist/extensions.js"
     },
-    "./inject-source": {
-      "types": "./dist/inject-source.d.ts",
-      "import": "./dist/inject-source.js"
-    },
     "./compile-extension": {
       "types": "./dist/compile-extension.d.ts",
       "import": "./dist/compile-extension.js"
@@ -61,11 +57,10 @@
     "@babel/preset-typescript": "^7.29.7",
     "@conciv/extension": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@tanstack/devtools-bundler-core": "catalog:",
     "babel-dead-code-elimination": "^2.0.0",
     "babel-preset-solid": "^1.9.16",
-    "jiti": "^2.7.0",
-    "magic-string": "^1.4.5",
-    "oxc-parser": "catalog:"
+    "jiti": "^2.7.0"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
