@@ -456,7 +456,7 @@ function Cancel(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>): JSX.Element
   const handlers = useComposerHandlers()
   const cancel = () => (handlers.onCancel ? handlers.onCancel() : composer.cancel())
   return (
-    <Show when={composer.canCancel()}>
+    <Show when={composer.isRunning()}>
       <button type="button" aria-label="Stop" onClick={cancel} {...props} disabled={composer.isStopping()} />
     </Show>
   )
