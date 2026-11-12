@@ -1205,6 +1205,19 @@ describe('page bus and the session scope', () => {
     expect(frames.map(requestIdOf).filter((found) => found !== null)).toHaveLength(2)
   })
 
+  it('two page queue follow-ups asked for at once start one run', async () => {
+    const fixture = await makeChatFixture()
+    try {
+      const started = await Promise.all([
+        fixture.plane.followUp(fixture.sessionId, 'queue q_a finished'),
+        fixture.plane.followUp(fixture.sessionId, 'queue q_b finished'),
+      ])
+      expect(started).toEqual([true, false])
+    } finally {
+      await fixture.dispose()
+    }
+  })
+
   it('a page tool asks, journals and is reachable under the established session, never the one the request names', async () => {
     const fixture = await makeChatFixture()
     try {

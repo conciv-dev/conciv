@@ -97,6 +97,7 @@ export type ChatPlane = {
 }
 
 export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
+  const startingFollowUps = new Set<SessionId>()
   const stores = drizzleChatStores(deps.db, {
     harnessOf: (threadId) => deps.harnessFor(SessionId.parse(threadId)).id,
     saved: (threadId, messages, at) => {
@@ -245,15 +246,21 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     outsideDenied: (sessionId) => approvals.outsideDenied(sessionId),
     allowOutside: (sessionId) => approvals.allowOutside(sessionId),
     followUp: async (sessionId, input) => {
-      if (server.driving(sessionId) || (await stores.runs.findActiveRun(sessionId)) !== null) return false
-      const runId = randomUUID()
-      return server.drive({threadId: sessionId, runId, kind: 'page-queue', input}, []).then(
-        () => true,
-        (error: unknown) => {
-          deps.log(`[chat] the page queue follow-up run ${runId} failed: ${String(error)}`)
-          return false
-        },
-      )
+      if (startingFollowUps.has(sessionId) || server.driving(sessionId)) return false
+      startingFollowUps.add(sessionId)
+      try {
+        if ((await stores.runs.findActiveRun(sessionId)) !== null) return false
+        const runId = randomUUID()
+        return await server.drive({threadId: sessionId, runId, kind: 'page-queue', input}, []).then(
+          () => true,
+          (error: unknown) => {
+            deps.log(`[chat] the page queue follow-up run ${runId} failed: ${String(error)}`)
+            return false
+          },
+        )
+      } finally {
+        startingFollowUps.delete(sessionId)
+      }
     },
     codeRunner: async (sessionId, publish, given, outside) => {
       const model = deps.sessions.row(sessionId)?.model ?? null
