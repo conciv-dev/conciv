@@ -1,4 +1,4 @@
-import {Show, splitProps, type Component, type JSX} from 'solid-js'
+import {Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import X from 'lucide-solid/icons/x'
 import {Attachment, useAttachment} from '../primitives/attachment/attachment.js'
@@ -34,13 +34,12 @@ function RemoveChipButton(): JSX.Element {
 }
 
 export function AttachmentByMime(props: {cards: readonly AttachmentCardSlot[]; removable?: boolean}): JSX.Element {
-  const [, rest] = splitProps(props, ['cards', 'removable'])
   const attachment = useAttachment()
   const card = () => props.cards.find((entry) => entry.mime === attachmentMime(attachment))
   return (
-    <Show when={card()} fallback={<AttachmentUI {...rest} removable={props.removable} />}>
+    <Show when={card()} fallback={<AttachmentUI removable={props.removable} />}>
       {(entry) => (
-        <Attachment.Root {...rest}>
+        <Attachment.Root>
           <Dynamic component={entry().render} remove={props.removable ? <RemoveChipButton /> : undefined} />
         </Attachment.Root>
       )}

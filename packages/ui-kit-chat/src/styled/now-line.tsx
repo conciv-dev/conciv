@@ -17,7 +17,7 @@ const LABEL = 'text-[12px] leading-[1.5] [font-family:var(--chat-mono)] text-cha
 const STOP = `flex-none self-stretch inline-flex items-center px-1.5 rounded-[var(--chat-radius-sm)] cursor-pointer [background:transparent] [border:none] [font-family:var(--chat-mono)] text-[9.5px] font-bold uppercase tracking-[0.12em] leading-none text-chat-text-3 hover:text-chat-danger trans-color-bg ${FOCUS}`
 
 export function NowLine(props: {title: string; onStop?: () => void}): JSX.Element {
-  const [local, rest] = splitProps(props, ['title', 'onStop'])
+  const [local] = splitProps(props, ['title', 'onStop'])
   const reducedMotion = createMediaQuery(REDUCED_MOTION)
   const [frameIndex, setFrameIndex] = createSignal(0)
   createTimer(
@@ -27,7 +27,7 @@ export function NowLine(props: {title: string; onStop?: () => void}): JSX.Elemen
   )
   const glyph = createMemo(() => (reducedMotion() ? FROZEN_FRAME : (FRAMES[frameIndex()] ?? FROZEN_FRAME)))
   return (
-    <div {...rest} class={ROOT} role="status">
+    <div class={ROOT} role="status">
       <span class={GLYPH} aria-hidden="true">
         {glyph()}
       </span>

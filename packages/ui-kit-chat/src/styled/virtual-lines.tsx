@@ -1,4 +1,4 @@
-import {createSignal, For, splitProps, type JSX} from 'solid-js'
+import {createSignal, For, type JSX} from 'solid-js'
 import {ScrollArea} from '@conciv/ui-kit-system'
 import {createVirtualizer} from '@tanstack/solid-virtual'
 
@@ -14,7 +14,6 @@ export type VirtualLinesProps = {
 const OVERSCAN = 8
 
 export function VirtualLines(props: VirtualLinesProps): JSX.Element {
-  const [, rest] = splitProps(props, ['lines', 'rowHeight', 'maxHeight', 'class'])
   const [viewport, setViewport] = createSignal<HTMLElement | null>(null)
   const rowHeight = () => props.rowHeight ?? 18
   const maxHeight = () => props.maxHeight ?? 360
@@ -31,7 +30,7 @@ export function VirtualLines(props: VirtualLinesProps): JSX.Element {
   const height = () => Math.min(virtualizer.getTotalSize(), maxHeight())
 
   return (
-    <ScrollArea.Root {...rest} class={props.class} style={{height: `${height()}px`}}>
+    <ScrollArea.Root class={props.class} style={{height: `${height()}px`}}>
       <ScrollArea.Viewport
         ref={setViewport}
         class="h-full w-full [scrollbar-width:none] overflow-auto [&::-webkit-scrollbar]:hidden"

@@ -5,7 +5,6 @@ import {
   Match,
   onMount,
   Show,
-  splitProps,
   Switch,
   untrack,
   useContext,
@@ -474,11 +473,9 @@ function warmHighlightBackends(): void {
 }
 
 function ThreadRoot(props: ThreadRootProps): JSX.Element {
-  const [, rest] = splitProps(props, ['class', 'children'])
   onMount(warmHighlightBackends)
   return (
     <ThreadPrimitive.Root
-      {...rest}
       class={`flex flex-col h-full min-h-0 [color:var(--chat-text)] [font-family:var(--chat-font)] ${props.class ?? ''}`}
     >
       {props.children}
@@ -508,9 +505,8 @@ function LatestStrip(): JSX.Element {
 }
 
 function ThreadViewport(props: ParentProps<{ref?: (element: HTMLElement) => void}>): JSX.Element {
-  const [, rest] = splitProps(props, ['ref', 'children'])
   return (
-    <div {...rest} class="flex flex-1 flex-col min-h-0 relative">
+    <div class="flex flex-1 flex-col min-h-0 relative">
       <ThreadPrimitive.Viewport
         ref={props.ref}
         class="px-5 pb-4 pt-3 flex flex-1 flex-col gap-1.5 min-h-0 relative overflow-y-auto [&>[data-thread-list]]:gap-0"
@@ -561,12 +557,7 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
 }
 
 function ThreadComposer(props: ParentProps): JSX.Element {
-  const [local, rest] = splitProps(props, ['children'])
-  return (
-    <div {...rest} class="flex flex-col min-h-0">
-      {local.children}
-    </div>
-  )
+  return <div class="flex flex-col min-h-0">{props.children}</div>
 }
 
 export const Thread = Object.assign(ThreadRoot, {

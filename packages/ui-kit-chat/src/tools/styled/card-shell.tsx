@@ -1,5 +1,5 @@
 import {difference} from 'es-toolkit'
-import {For, Show, splitProps, type JSX} from 'solid-js'
+import {For, Show, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {z} from 'zod'
 import type {ToolCardProps, ToolViewMeta} from '@conciv/protocol/tool-view-types'
@@ -102,29 +102,9 @@ export function CardShell(props: {
   class?: string
   children?: JSX.Element
 }): JSX.Element {
-  const [, rest] = splitProps(props, [
-    'meta',
-    'title',
-    'subtitle',
-    'metaBadge',
-    'part',
-    'result',
-    'durationMs',
-    'iconClass',
-    'status',
-    'defaultOpen',
-    'autoOpen',
-    'header',
-    'flushHeader',
-    'chipSkip',
-    'leadChip',
-    'class',
-    'children',
-  ])
   const embedded = useEmbeddedCard()
   return (
     <ToolCard
-      {...rest}
       Icon={() => cardIcon(props.meta?.icon, props.iconClass)}
       title={props.title}
       subtitle={props.subtitle}

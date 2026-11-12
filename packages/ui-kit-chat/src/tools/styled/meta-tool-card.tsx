@@ -1,4 +1,4 @@
-import {Match, Show, Switch, splitProps, type JSX} from 'solid-js'
+import {Match, Show, Switch, type JSX} from 'solid-js'
 import ShieldAlert from 'lucide-solid/icons/shield-alert'
 import {z} from 'zod'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
@@ -126,7 +126,6 @@ export function metaToolHasEmbeddedBody(
 }
 
 export function MetaToolCard(props: ToolCardProps): JSX.Element {
-  const [, rest] = splitProps(props, ['part', 'result', 'ctx', 'addResult', 'durationMs', 'capture'])
   const {meta, title} = cardHeader(props)
   const input = (): Record<string, unknown> => parseInput(InputRecord, props.part) ?? {}
   const positionalValue = (): string | undefined => {
@@ -155,7 +154,6 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
   const bodySummary = () => summaryLine(props.part, meta())
   return (
     <CardShell
-      {...rest}
       meta={meta()}
       title={headline()}
       metaBadge={meta()?.mutating === true ? MUTATING_BADGE : undefined}

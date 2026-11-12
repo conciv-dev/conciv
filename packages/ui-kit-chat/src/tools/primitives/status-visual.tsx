@@ -1,4 +1,4 @@
-import {Match, Switch, splitProps, type JSX} from 'solid-js'
+import {Match, Switch, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {cva} from 'class-variance-authority'
 import Check from 'lucide-solid/icons/check'
@@ -52,19 +52,16 @@ const icon = cva('shrink-0', {
 })
 
 function DotVisual(props: {status: ToolStatus}): JSX.Element {
-  const [, rest] = splitProps(props, ['status'])
   return (
-    <span {...rest} class="inline-flex shrink-0" role="img" aria-label={STATUS_LABEL[props.status]}>
+    <span class="inline-flex shrink-0" role="img" aria-label={STATUS_LABEL[props.status]}>
       <StatusDot tone={DOT_TONE[props.status]} pulse={props.status === 'running'} />
     </span>
   )
 }
 
 function IconVisual(props: {status: ToolStatus}): JSX.Element {
-  const [, rest] = splitProps(props, ['status'])
   return (
     <Dynamic
-      {...rest}
       component={ICON[props.status]}
       size={16}
       role="img"
@@ -75,14 +72,13 @@ function IconVisual(props: {status: ToolStatus}): JSX.Element {
 }
 
 export function StatusVisual(props: {status: ToolStatus; form: 'dot' | 'icon'}): JSX.Element {
-  const [local, rest] = splitProps(props, ['status', 'form'])
   return (
     <Switch>
-      <Match when={local.form === 'dot'}>
-        <DotVisual {...rest} status={local.status} />
+      <Match when={props.form === 'dot'}>
+        <DotVisual status={props.status} />
       </Match>
-      <Match when={local.form === 'icon'}>
-        <IconVisual {...rest} status={local.status} />
+      <Match when={props.form === 'icon'}>
+        <IconVisual status={props.status} />
       </Match>
     </Switch>
   )

@@ -1,4 +1,4 @@
-import {Show, createEffect, createUniqueId, on, onCleanup, onMount, splitProps, type JSX} from 'solid-js'
+import {Show, createEffect, createUniqueId, on, onCleanup, onMount, type JSX} from 'solid-js'
 import {Listbox, useListbox, useListboxContext, type CollectionItem, type ListCollection} from '@ark-ui/solid/listbox'
 import {
   LIST_PANEL_GROUP_LABEL,
@@ -38,7 +38,6 @@ function Root(props: {
   onDismiss: () => void
   onReady?: (handle: AnchoredListboxHandle | null) => void
 }): JSX.Element {
-  const [, rest] = splitProps(props, ['anchor', 'collection', 'children', 'onSelect', 'onDismiss', 'onReady'])
   let inputElement: HTMLInputElement | undefined
   const listboxId = createUniqueId()
   const listbox = useListbox(() => ({
@@ -105,7 +104,7 @@ function Root(props: {
           )
           return (
             <Popover.Positioner>
-              <Popover.ListContent {...rest}>
+              <Popover.ListContent>
                 <Listbox.RootProvider value={listbox}>
                   <Listbox.Input
                     ref={(element) => (inputElement = element)}
@@ -125,39 +124,31 @@ function Root(props: {
 }
 
 function Label(props: {children: JSX.Element}): JSX.Element {
-  const [local, rest] = splitProps(props, ['children'])
-  return (
-    <Listbox.Label {...rest} class="sr-only">
-      {local.children}
-    </Listbox.Label>
-  )
+  return <Listbox.Label class="sr-only">{props.children}</Listbox.Label>
 }
 
 function Content(props: {busy?: boolean; children: JSX.Element}): JSX.Element {
-  const [local, rest] = splitProps(props, ['busy', 'children'])
   return (
-    <Listbox.Content {...rest} class={CONTENT} attr:tabindex={null} aria-busy={local.busy ? 'true' : undefined}>
-      {local.children}
+    <Listbox.Content class={CONTENT} attr:tabindex={null} aria-busy={props.busy ? 'true' : undefined}>
+      {props.children}
     </Listbox.Content>
   )
 }
 
 function ItemGroup(props: {id: string; children: JSX.Element}): JSX.Element {
-  return <Listbox.ItemGroup {...props} />
+  return <Listbox.ItemGroup id={props.id}>{props.children}</Listbox.ItemGroup>
 }
 
 function ItemGroupLabel(props: {children: JSX.Element}): JSX.Element {
-  return <Listbox.ItemGroupLabel {...props} class={LIST_PANEL_GROUP_LABEL} />
+  return <Listbox.ItemGroupLabel class={LIST_PANEL_GROUP_LABEL}>{props.children}</Listbox.ItemGroupLabel>
 }
 
 function Item(props: {item: CollectionItem; name: string; description?: string; children: JSX.Element}): JSX.Element {
-  const [, rest] = splitProps(props, ['item', 'name', 'description', 'children'])
   const listbox = useListboxContext()
   const descriptionId = createUniqueId()
   const active = () => listbox().highlightedValue === listbox().getItemState({item: props.item}).value
   return (
     <Listbox.Item
-      {...rest}
       item={props.item}
       highlightOnHover
       class={ITEM}
@@ -178,11 +169,15 @@ function Item(props: {item: CollectionItem; name: string; description?: string; 
 }
 
 function ItemText(props: {children: JSX.Element}): JSX.Element {
-  return <Listbox.ItemText {...props} class={LIST_PANEL_ITEM_LABEL} />
+  return <Listbox.ItemText class={LIST_PANEL_ITEM_LABEL}>{props.children}</Listbox.ItemText>
 }
 
 function Message(props: {children: JSX.Element}): JSX.Element {
-  return <div {...props} role="status" class={LIST_PANEL_MESSAGE} />
+  return (
+    <div role="status" class={LIST_PANEL_MESSAGE}>
+      {props.children}
+    </div>
+  )
 }
 
 export const AnchoredListbox = {Root, Label, Content, ItemGroup, ItemGroupLabel, Item, ItemText, Message}

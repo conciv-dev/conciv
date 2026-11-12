@@ -1,4 +1,4 @@
-import {Show, splitProps, type JSX} from 'solid-js'
+import {Show, type JSX} from 'solid-js'
 import Check from 'lucide-solid/icons/check'
 import Copy from 'lucide-solid/icons/copy'
 import Download from 'lucide-solid/icons/download'
@@ -72,10 +72,8 @@ const AUTOHIDE_VISIBILITY =
 const ASSISTANT_BAR_CLASS = `flex gap-0.5 pointer-events-auto ${AUTOHIDE_VISIBILITY}`
 
 export function AssistantActionBar(props: {readOnly?: boolean; copyText?: string}): JSX.Element {
-  const [, rest] = splitProps(props, ['readOnly', 'copyText'])
   return (
     <ActionBar.Root
-      {...rest}
       hideWhenRunning
       autohide="not-last"
       autohideFloat="always"
@@ -115,10 +113,9 @@ export function AssistantActionBar(props: {readOnly?: boolean; copyText?: string
   )
 }
 
-export function UserActionBar(props: JSX.HTMLAttributes<HTMLDivElement>): JSX.Element {
+export function UserActionBar(): JSX.Element {
   return (
     <ActionBar.Root
-      {...props}
       hideWhenRunning
       autohide="not-last"
       autohideFloat="always"
@@ -127,8 +124,8 @@ export function UserActionBar(props: JSX.HTMLAttributes<HTMLDivElement>): JSX.El
       class={`flex flex-col pointer-events-auto items-end data-[floating=true]:bottom-0 data-[floating=true]:right-0 data-[floating=true]:absolute ${AUTOHIDE_VISIBILITY}`}
     >
       <ActionBar.Edit
-        render={(editProps) => (
-          <TooltipIconButton {...editProps} tooltip="Edit" class="size-6">
+        render={(props) => (
+          <TooltipIconButton {...props} tooltip="Edit" class="size-6">
             <Pencil size={ICON} />
           </TooltipIconButton>
         )}

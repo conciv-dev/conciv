@@ -1,4 +1,4 @@
-import {createSignal, Show, splitProps, type JSX} from 'solid-js'
+import {createSignal, Show, type JSX} from 'solid-js'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import {Collapsible} from '@conciv/ui-kit-system'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
@@ -16,33 +16,26 @@ import {ShapedText} from './shaped-content.js'
 import {useEmbeddedCard} from './card-chrome.js'
 
 function FallbackRoot(props: {children: JSX.Element}): JSX.Element {
-  const [local, rest] = splitProps(props, ['children'])
   const tool = useToolFallback()
   const embedded = useEmbeddedCard()
   const [userOpen, setUserOpen] = createSignal<boolean>()
   const open = () => userOpen() ?? tool.status() === 'approval'
   return (
-    <Show when={!embedded()} fallback={local.children}>
-      <Collapsible.Root
-        {...rest}
-        open={open()}
-        onOpenChange={(details) => setUserOpen(details.open)}
-        class="min-w-0 w-full"
-      >
-        {local.children}
+    <Show when={!embedded()} fallback={props.children}>
+      <Collapsible.Root open={open()} onOpenChange={(details) => setUserOpen(details.open)} class="min-w-0 w-full">
+        {props.children}
       </Collapsible.Root>
     </Show>
   )
 }
 
-function Trigger(props: JSX.HTMLAttributes<HTMLButtonElement>): JSX.Element {
+function Trigger(): JSX.Element {
   const tool = useToolFallback()
   const embedded = useEmbeddedCard()
   const running = () => tool.status() === 'running'
   return (
     <Show when={!embedded()}>
       <Collapsible.Trigger
-        {...props}
         class={`group text-[length:var(--chat-text-md)] text-chat-text-2 py-1.5 flex gap-2 w-fit cursor-pointer [transition:color_120ms_var(--chat-ease)] items-center hover:text-chat-text ${FOCUS}`}
       >
         <StatusVisual status={tool.status()} form="icon" />
@@ -77,20 +70,12 @@ const SECTION_LABEL = `${TRACE_MICROLABEL} text-chat-microlabel m-0`
 const RESULT_BODY =
   'min-w-0 rounded-e-[var(--chat-radius-sm)] ps-2 py-1 [border-inline-start:2px_solid_color-mix(in_oklab,var(--chat-success)_45%,transparent)] [background:color-mix(in_oklab,var(--chat-success)_4%,transparent)]'
 
-function Content(props: JSX.HTMLAttributes<HTMLDivElement> & {children: JSX.Element}): JSX.Element {
-  const [local, rest] = splitProps(props, ['children'])
+function Content(props: {children: JSX.Element}): JSX.Element {
   const embedded = useEmbeddedCard()
   return (
-    <Show
-      when={!embedded()}
-      fallback={
-        <div {...rest} class={FALLBACK_BODY}>
-          {local.children}
-        </div>
-      }
-    >
-      <Collapsible.Content {...rest}>
-        <div class={`${FALLBACK_BODY} pb-2 pl-6 pt-1`}>{local.children}</div>
+    <Show when={!embedded()} fallback={<div class={FALLBACK_BODY}>{props.children}</div>}>
+      <Collapsible.Content>
+        <div class={`${FALLBACK_BODY} pb-2 pl-6 pt-1`}>{props.children}</div>
       </Collapsible.Content>
     </Show>
   )
@@ -114,29 +99,27 @@ export function toolFallbackHasEmbeddedBody(
   return resultText(result).length > 0
 }
 
-function Args(props: JSX.HTMLAttributes<HTMLParagraphElement>): JSX.Element {
+function Args(): JSX.Element {
   const tool = useToolFallback()
   const embedded = useEmbeddedCard()
   const hasInput = () => filledArguments(tool.part()).length > 0
   const placeholder = (): JSX.Element => (
     <Show when={!embedded()}>
-      <p {...props} class={QUIET_TEXT_CLASS}>
-        no input
-      </p>
+      <p class={QUIET_TEXT_CLASS}>no input</p>
     </Show>
   )
   return (
     <Show when={hasInput()} fallback={placeholder()}>
-      <ShapedText {...props} name="args" text={tool.argsText()} />
+      <ShapedText name="args" text={tool.argsText()} />
     </Show>
   )
 }
 
-function Result(props: JSX.HTMLAttributes<HTMLDivElement>): JSX.Element {
+function Result(): JSX.Element {
   const tool = useToolFallback()
   return (
     <Show when={tool.resultText()}>
-      <div {...props} class={SECTION}>
+      <div class={SECTION}>
         <p class={SECTION_LABEL}>Result</p>
         <div class={RESULT_BODY}>
           <ShapedText name="result" text={tool.resultText()} />
@@ -146,12 +129,12 @@ function Result(props: JSX.HTMLAttributes<HTMLDivElement>): JSX.Element {
   )
 }
 
-function ToolError(props: JSX.HTMLAttributes<HTMLDivElement>): JSX.Element {
+function ToolError(): JSX.Element {
   const tool = useToolFallback()
   return (
     <Show when={tool.error()}>
       {(message) => (
-        <div {...props} class={SECTION}>
+        <div class={SECTION}>
           <p class={`${SECTION_LABEL}  ${OUTCOME_TONE[tool.result()?.outcome ?? 'error'].text}`}>
             {OUTCOME_LABEL[tool.result()?.outcome ?? 'error']}
           </p>
@@ -162,11 +145,11 @@ function ToolError(props: JSX.HTMLAttributes<HTMLDivElement>): JSX.Element {
   )
 }
 
-function ApprovalButtons(props: JSX.HTMLAttributes<HTMLDivElement>): JSX.Element {
+function ApprovalButtons(): JSX.Element {
   const permission = usePermission()
   return (
     <Show when={permission.pending()}>
-      <div {...props} class="pt-1" role="group" aria-label="Approve this action?">
+      <div class="pt-1" role="group" aria-label="Approve this action?">
         <ActionRow>
           <ActionButton intent="allow" onClick={() => permission.approve()}>
             Allow
@@ -180,20 +163,19 @@ function ApprovalButtons(props: JSX.HTMLAttributes<HTMLDivElement>): JSX.Element
   )
 }
 
-function Approval(props: JSX.HTMLAttributes<HTMLDivElement>): JSX.Element {
+function Approval(): JSX.Element {
   const tool = useToolFallback()
   return (
     <Permission.Root part={tool.part()} ctx={tool.ctx()}>
-      <ApprovalButtons {...props} />
+      <ApprovalButtons />
     </Permission.Root>
   )
 }
 
 function ToolFallbackImpl(props: ToolCardProps): JSX.Element {
-  const [, rest] = splitProps(props, ['part', 'result', 'ctx', 'addResult', 'durationMs', 'capture'])
   return (
     <ToolFallbackPrimitive.Root part={props.part} result={props.result} ctx={props.ctx} durationMs={props.durationMs}>
-      <FallbackRoot {...rest}>
+      <FallbackRoot>
         <Trigger />
         <Content>
           <ToolError />

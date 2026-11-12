@@ -5,7 +5,7 @@ import X from 'lucide-solid/icons/x'
 import {INPUT_FRAME} from './input-frame.js'
 import {TooltipIconButton} from './tooltip-icon-button.js'
 
-const CONTROL = `${INPUT_FRAME} flex-wrap items-center gap-1 py-1.5 px-1.5 data-[readonly]:!opacity-100 data-[readonly]:bg-chat-fill-soft data-[readonly]:text-chat-text-2`
+const CONTROL = `${INPUT_FRAME.filled} flex-wrap items-center gap-1 py-1.5 px-1.5 data-[readonly]:!opacity-100 data-[readonly]:bg-chat-fill-soft data-[readonly]:text-chat-text-2`
 const ITEM_PREVIEW =
   'inline-flex items-center gap-0.5 h-6 ps-2 pe-2 has-[button]:pe-0.5 rounded-chat-chip bg-chat-fill-strong [border:1px_solid_var(--chat-line-2)] font-chat-mono text-[0.6875rem] text-chat-text-hi data-[highlighted]:border-chat-accent data-[highlighted]:bg-chat-accent-20'
 const INPUT =
@@ -24,7 +24,7 @@ type TagsInputProps = {
 }
 
 export function TagsInput(props: TagsInputProps): JSX.Element {
-  const [local, rest] = splitProps(props, [
+  const [local] = splitProps(props, [
     'value',
     'onValueChange',
     'placeholder',
@@ -40,7 +40,6 @@ export function TagsInput(props: TagsInputProps): JSX.Element {
   const readOnly = () => local.readOnly ?? field?.().readOnly
   return (
     <Ark.Root
-      {...rest}
       class={`min-w-0 ${local.class ?? ''}`}
       value={local.value}
       onValueChange={(details) => local.onValueChange?.(details.value)}

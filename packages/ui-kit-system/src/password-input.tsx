@@ -27,7 +27,7 @@ type PasswordInputProps = {
 }
 
 export function PasswordInput(props: PasswordInputProps): JSX.Element {
-  const [local, rest] = splitProps(props, [
+  const [local] = splitProps(props, [
     'value',
     'onValueChange',
     'onBlur',
@@ -43,7 +43,6 @@ export function PasswordInput(props: PasswordInputProps): JSX.Element {
   const disabled = () => local.disabled ?? field?.().disabled
   return (
     <Ark.Root
-      {...rest}
       class={`min-w-0 ${local.class ?? ''}`}
       disabled={disabled()}
       readOnly={local.readOnly ?? field?.().readOnly}
@@ -51,7 +50,7 @@ export function PasswordInput(props: PasswordInputProps): JSX.Element {
       autoComplete="new-password"
       ignorePasswordManagers
     >
-      <Ark.Control class={INPUT_FRAME}>
+      <Ark.Control class={INPUT_FRAME.filled}>
         <Ark.Input
           class={INPUT}
           value={local.value}

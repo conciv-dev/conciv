@@ -1,4 +1,4 @@
-import {Show, splitProps, type Component, type JSX} from 'solid-js'
+import {Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import Paperclip from 'lucide-solid/icons/paperclip'
 import {Tooltip, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
@@ -85,18 +85,8 @@ function TrailingControls(): JSX.Element {
 }
 
 export function Composer(props: ComposerProps): JSX.Element {
-  const [, rest] = splitProps(props, [
-    'placeholder',
-    'inputLabel',
-    'children',
-    'busy',
-    'inputRef',
-    'attachmentAdapter',
-    'AttachmentComponent',
-  ])
   return (
     <ComposerPrimitive.Root
-      {...rest}
       attachmentAdapter={props.attachmentAdapter}
       class="flex flex-col [background:var(--chat-rail-bg)] [border-block-start:1px_solid_var(--chat-line)] relative"
     >

@@ -37,7 +37,7 @@ export function TraceClamp(props: {
   size?: TraceClampSize
   overflowLabel?: (hiddenLines: number) => string
 }): JSX.Element {
-  const [local, rest] = splitProps(props, ['children', 'lines', 'live', 'size', 'overflowLabel'])
+  const [local] = splitProps(props, ['children', 'lines', 'live', 'size', 'overflowLabel'])
   const [expanded, setExpanded] = createSignal(false)
   const [measured, setMeasured] = createStore<ClampMeasure>({
     viewportHeight: 0,
@@ -64,7 +64,7 @@ export function TraceClamp(props: {
   const viewportClass = () =>
     expanded() ? VIEWPORT : `${VIEWPORT} ${MAX_HEIGHT[size()]} ${local.live === true ? VIEWPORT_LIVE : ''}`
   return (
-    <div {...rest} class="flex flex-col gap-1 min-w-0">
+    <div class="flex flex-col gap-1 min-w-0">
       <div ref={mountViewport} class={viewportClass()}>
         <div ref={observe} class="min-w-0">
           {local.children}

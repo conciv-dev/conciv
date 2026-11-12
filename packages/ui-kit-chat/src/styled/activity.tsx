@@ -5,7 +5,6 @@ import {
   Index,
   Match,
   Show,
-  splitProps,
   Switch,
   useContext,
   type JSX,
@@ -81,19 +80,6 @@ export type ActivityProps = ParentProps<{
 }>
 
 function Root(props: ActivityProps): JSX.Element {
-  const [, rest] = splitProps(props, [
-    'messages',
-    'live',
-    'label',
-    'tools',
-    'ctx',
-    'fallback',
-    'pageSession',
-    'grouping',
-    'groupEntries',
-    'class',
-    'children',
-  ])
   const parent = useContext(ActivityConfigContext)
   return (
     <ActivityPrimitive.Root messages={props.messages} live={props.live} label={props.label}>
@@ -108,7 +94,6 @@ function Root(props: ActivityProps): JSX.Element {
         }}
       >
         <div
-          {...rest}
           class={`flex flex-col min-h-0 min-w-0 [color:var(--chat-text)] [font-family:var(--chat-font)] ${props.class ?? ''}`}
         >
           {props.children}
@@ -412,11 +397,9 @@ function UserTurnView(props: {turn: Turn}): JSX.Element {
 }
 
 function Timeline(props: {id?: string; 'aria-label'?: string; class?: string; children?: JSX.Element}): JSX.Element {
-  const [, rest] = splitProps(props, ['id', 'aria-label', 'class', 'children'])
   const activity = useActivity()
   return (
     <div
-      {...rest}
       id={props.id}
       aria-label={props['aria-label']}
       class={`px-2.5 py-2.5 flex flex-1 flex-col-reverse min-h-0 min-w-0 overflow-y-auto ${props.class ?? ''}`}

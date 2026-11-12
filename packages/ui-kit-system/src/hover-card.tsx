@@ -1,4 +1,4 @@
-import {splitProps, type JSX} from 'solid-js'
+import type {JSX} from 'solid-js'
 import {HoverCard as Ark} from '@ark-ui/solid/hover-card'
 
 const CONTENT =
@@ -14,23 +14,13 @@ export function HoverCard(props: {
   class?: string
   label?: string
 }): JSX.Element {
-  const [, rest] = splitProps(props, [
-    'trigger',
-    'triggerClass',
-    'children',
-    'openDelay',
-    'closeDelay',
-    'sideOffset',
-    'class',
-    'label',
-  ])
   return (
     <Ark.Root
       openDelay={props.openDelay ?? 0}
       closeDelay={props.closeDelay ?? 120}
       positioning={{strategy: 'fixed', placement: 'bottom-start', gutter: props.sideOffset ?? 6}}
     >
-      <Ark.Trigger {...rest} class={props.triggerClass} aria-label={props.label}>
+      <Ark.Trigger class={props.triggerClass} aria-label={props.label}>
         {props.trigger}
       </Ark.Trigger>
       <Ark.Positioner>

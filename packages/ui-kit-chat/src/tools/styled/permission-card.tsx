@@ -1,4 +1,4 @@
-import {Show, splitProps, type JSX} from 'solid-js'
+import {Show, type JSX} from 'solid-js'
 import Check from 'lucide-solid/icons/check'
 import ShieldAlert from 'lucide-solid/icons/shield-alert'
 import ShieldCheck from 'lucide-solid/icons/shield-check'
@@ -8,12 +8,10 @@ import {Permission, usePermission} from '../primitives/permission.js'
 import {ActionRow, ActionButton} from './action-row.js'
 
 function Prompt(props: {label?: string}): JSX.Element {
-  const [, rest] = splitProps(props, ['label'])
   const permission = usePermission()
   return (
     <Show when={permission.pending()}>
       <div
-        {...rest}
         class="text-[length:var(--chat-text-md)] text-chat-text mb-1.5 mt-1 px-2.5 py-2 rounded-[var(--chat-radius-md)] flex flex-wrap gap-2 [background:var(--chat-fill)] [border:1px_solid_var(--chat-accent)] items-center"
         role="group"
         aria-label="Approve this action?"
@@ -48,10 +46,9 @@ function Prompt(props: {label?: string}): JSX.Element {
 }
 
 export function PermissionCard(props: Pick<ToolCardProps, 'part' | 'ctx'> & {label?: string}): JSX.Element {
-  const [, rest] = splitProps(props, ['part', 'ctx', 'label'])
   return (
     <Permission.Root part={props.part} ctx={props.ctx}>
-      <Prompt {...rest} label={props.label} />
+      <Prompt label={props.label} />
     </Permission.Root>
   )
 }

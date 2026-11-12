@@ -60,7 +60,7 @@ export type ComposerActionsHostProps = {
 }
 
 export function ComposerActionsHost(props: ComposerActionsHostProps): JSX.Element {
-  const [local, rest] = splitProps(props, ['maxInlineAuto', 'onOverflowDismissed', 'children'])
+  const [local] = splitProps(props, ['maxInlineAuto', 'onOverflowDismissed', 'children'])
   const [widths, setWidths] = createStore<RegionWidths>({row: 0, leading: 0, trailing: 0})
   let rowElement: Element | undefined
   let leadingElement: Element | undefined
@@ -77,7 +77,6 @@ export function ComposerActionsHost(props: ComposerActionsHostProps): JSX.Elemen
     <CoordinatorContext.Provider value={coordinator}>
       <Tooltip.Group>
         <div
-          {...rest}
           ref={(element) => {
             rowElement = element
             observe(element)

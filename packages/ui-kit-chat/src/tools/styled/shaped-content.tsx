@@ -1,4 +1,4 @@
-import {Match, Switch, splitProps, type JSX} from 'solid-js'
+import {Match, Switch, type JSX} from 'solid-js'
 import {CodeBlock} from './code-block.js'
 import {JsonTree} from './json-tree.js'
 
@@ -19,18 +19,12 @@ function textShape(text: string): ContentShape {
 }
 
 function ShapedContent(props: {name: string; shape: ContentShape}): JSX.Element {
-  const [local, rest] = splitProps(props, ['name', 'shape'])
   return (
     <Switch>
-      <Match when={local.shape.kind === 'tree' && local.shape}>
-        {(shape) => <JsonTree {...rest} data={shape().data} />}
-      </Match>
-      <Match when={local.shape.kind === 'code' && local.shape}>
+      <Match when={props.shape.kind === 'tree' && props.shape}>{(shape) => <JsonTree data={shape().data} />}</Match>
+      <Match when={props.shape.kind === 'code' && props.shape}>
         {(shape) => (
-          <CodeBlock
-            {...rest}
-            file={{name: `${local.name}.${shape().lang}`, lang: shape().lang, contents: shape().contents}}
-          />
+          <CodeBlock file={{name: `${props.name}.${shape().lang}`, lang: shape().lang, contents: shape().contents}} />
         )}
       </Match>
     </Switch>
@@ -38,11 +32,9 @@ function ShapedContent(props: {name: string; shape: ContentShape}): JSX.Element 
 }
 
 export function ShapedValue(props: {name: string; value: unknown}): JSX.Element {
-  const [local, rest] = splitProps(props, ['name', 'value'])
-  return <ShapedContent {...rest} name={local.name} shape={valueShape(local.value)} />
+  return <ShapedContent name={props.name} shape={valueShape(props.value)} />
 }
 
 export function ShapedText(props: {name: string; text: string}): JSX.Element {
-  const [local, rest] = splitProps(props, ['name', 'text'])
-  return <ShapedContent {...rest} name={local.name} shape={textShape(local.text)} />
+  return <ShapedContent name={props.name} shape={textShape(props.text)} />
 }

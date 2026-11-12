@@ -6,7 +6,7 @@ import ChevronUp from 'lucide-solid/icons/chevron-up'
 import {INPUT_FRAME} from './input-frame.js'
 
 const ROOT = 'inline-flex min-w-0'
-const CONTROL = `${INPUT_FRAME} w-full data-[invalid]:border-chat-danger`
+const CONTROL = `${INPUT_FRAME.filled} w-full data-[invalid]:border-chat-danger`
 const INPUT =
   'flex-1 w-full min-w-0 bg-transparent [border:none] px-2.5 py-2 text-inherit font-chat-mono text-[0.75rem] tabular-nums focus-visible:outline-none read-only:cursor-default'
 const UNIT = 'flex items-center pe-1.5 text-chat-text-3 text-[0.6875rem] font-chat-mono whitespace-nowrap'
@@ -37,7 +37,7 @@ const clampStep = (options: {value: number; min: number | undefined; max: number
 const toNumber = (value: number): number | undefined => (Number.isNaN(value) ? undefined : value)
 
 export function NumberInput(props: NumberInputProps): JSX.Element {
-  const [local, rest] = splitProps(props, [
+  const [local] = splitProps(props, [
     'value',
     'onValueChange',
     'onValueCommit',
@@ -58,7 +58,6 @@ export function NumberInput(props: NumberInputProps): JSX.Element {
   const largeStep = () => (local.step ?? 1) * 10
   return (
     <Ark.Root
-      {...rest}
       class={`${ROOT}  ${local.class ?? 'w-36'}`}
       value={local.value === undefined ? '' : String(local.value)}
       onValueChange={(details) => local.onValueChange?.(toNumber(details.valueAsNumber))}

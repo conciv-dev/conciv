@@ -15,18 +15,9 @@ type CheckboxGroupProps = {
 }
 
 export function CheckboxGroup(props: CheckboxGroupProps): JSX.Element {
-  const [local, rest] = splitProps(props, [
-    'options',
-    'value',
-    'onValueChange',
-    'disabled',
-    'readOnly',
-    'invalid',
-    'class',
-  ])
+  const [local] = splitProps(props, ['options', 'value', 'onValueChange', 'disabled', 'readOnly', 'invalid', 'class'])
   return (
     <Ark.Group
-      {...rest}
       class={`${ROOT}  ${local.class ?? ''}`}
       value={() => local.value}
       onValueChange={(value) => local.onValueChange?.(value)}

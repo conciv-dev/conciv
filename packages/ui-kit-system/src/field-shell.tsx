@@ -30,7 +30,7 @@ type FieldShellProps = {
 } & ({group?: false; readOnly?: boolean; required?: boolean} | {group: true; readOnly?: never; required?: never})
 
 export function FieldShell(props: FieldShellProps): JSX.Element {
-  const [local, rest] = splitProps(props, [
+  const [local] = splitProps(props, [
     'label',
     'description',
     'error',
@@ -66,7 +66,6 @@ export function FieldShell(props: FieldShellProps): JSX.Element {
       when={local.group}
       fallback={
         <Field.Root
-          {...rest}
           class={rootClass()}
           invalid={Boolean(local.error)}
           disabled={local.disabled}
@@ -85,7 +84,7 @@ export function FieldShell(props: FieldShellProps): JSX.Element {
         </Field.Root>
       }
     >
-      <Fieldset.Root {...rest} class={rootClass()} invalid={Boolean(local.error)} disabled={local.disabled}>
+      <Fieldset.Root class={rootClass()} invalid={Boolean(local.error)} disabled={local.disabled}>
         {body({
           label: <Fieldset.Legend class={LABEL}>{local.label}</Fieldset.Legend>,
           helper: (

@@ -17,10 +17,9 @@ export function CollapsibleSection(props: {
   children: JSX.Element
   class?: string
 }): JSX.Element {
-  const [local, rest] = splitProps(props, ['header', 'defaultOpen', 'open', 'onOpenChange', 'children', 'class'])
+  const [local] = splitProps(props, ['header', 'defaultOpen', 'open', 'onOpenChange', 'children', 'class'])
   return (
     <Collapsible.Root
-      {...rest}
       defaultOpen={local.defaultOpen}
       open={local.open}
       onOpenChange={(details) => local.onOpenChange?.(details.open)}

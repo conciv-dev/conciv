@@ -160,7 +160,7 @@ function SharedReveal(props: {
 }
 
 function ScopedTruncatedText(props: TruncatedTextProps & {scope: SharedTooltip}): JSX.Element {
-  const [local, rest] = splitProps(props, ['text', 'class', 'side', 'children', 'scope'])
+  const [local] = splitProps(props, ['text', 'class', 'children', 'scope'])
   const value = createUniqueId()
   const node: {element?: HTMLElement} = {}
   onMount(() => {
@@ -173,7 +173,6 @@ function ScopedTruncatedText(props: TruncatedTextProps & {scope: SharedTooltip})
       value={value}
       asChild={(triggerProps) => (
         <span
-          {...rest}
           {...local.scope.describe(value, triggerProps())}
           ref={(element) => {
             node.element = element
@@ -196,7 +195,7 @@ export function TruncatedText(props: TruncatedTextProps): JSX.Element {
 }
 
 function OwnTruncatedText(props: TruncatedTextProps): JSX.Element {
-  const [local, rest] = splitProps(props, ['text', 'class', 'side', 'children'])
+  const [local] = splitProps(props, ['text', 'class', 'side', 'children'])
   const reveal = createClipReveal()
   return (
     <Tooltip.Root
@@ -208,7 +207,6 @@ function OwnTruncatedText(props: TruncatedTextProps): JSX.Element {
       <Tooltip.Trigger
         asChild={(triggerProps) => (
           <span
-            {...rest}
             {...revealTriggerProps(reveal, triggerProps())}
             ref={reveal.ref}
             class={`truncate ${local.class ?? ''}`}

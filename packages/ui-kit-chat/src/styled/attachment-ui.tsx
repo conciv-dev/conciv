@@ -1,4 +1,4 @@
-import {onCleanup, Show, splitProps, type JSX} from 'solid-js'
+import {onCleanup, Show, type JSX} from 'solid-js'
 import FileText from 'lucide-solid/icons/file-text'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
 import X from 'lucide-solid/icons/x'
@@ -53,7 +53,6 @@ function revokeOnCleanup(source: string | undefined): void {
 }
 
 export function AttachmentUI(props: {removable?: boolean; failure?: string}): JSX.Element {
-  const [, rest] = splitProps(props, ['removable', 'failure'])
   const draft = useAttachment()
   const localSrc = localImageSrc(draft)
   const previewSrc = imageSrc(draft) ?? localSrc
@@ -61,7 +60,7 @@ export function AttachmentUI(props: {removable?: boolean; failure?: string}): JS
   const label = () => props.failure ?? draft.name
   return (
     <Tooltip.Root positioning={{strategy: 'fixed', placement: 'top', gutter: 6}}>
-      <Attachment.Root {...rest} class={TILE}>
+      <Attachment.Root class={TILE}>
         <Show
           when={props.failure ? undefined : previewSrc}
           fallback={

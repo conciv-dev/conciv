@@ -5,7 +5,6 @@ import {
   createSignal,
   onCleanup,
   Show,
-  splitProps,
   untrack,
   useContext,
   type Accessor,
@@ -192,7 +191,6 @@ function rebuildIntoSandbox(
 }
 
 function Frame(props: {class?: string}): JSX.Element {
-  const [, rest] = splitProps(props, ['class'])
   const ctx = useElementPreviewContext('ElementPreview.Frame')
   const [frameElement, setFrameElement] = createSignal<HTMLDivElement>()
   const [snapshot] = createResource(() => isSerializedNode(ctx.capture()?.node), loadSnapshotLibrary)
@@ -264,7 +262,6 @@ function Frame(props: {class?: string}): JSX.Element {
         </p>
       </Show>
       <div
-        {...rest}
         ref={setFrameElement}
         role={hidden() ? undefined : 'img'}
         aria-label={hidden() ? undefined : label()}
@@ -283,14 +280,13 @@ function Frame(props: {class?: string}): JSX.Element {
 }
 
 function Descriptor(props: {class?: string}): JSX.Element {
-  const [, rest] = splitProps(props, ['class'])
   const ctx = useElementPreviewContext('ElementPreview.Descriptor')
   const descriptor = () =>
     ctx.status() === 'failed' || ctx.status() === 'blocked' ? ctx.capture()?.descriptor : undefined
   return (
     <Show when={descriptor()}>
       {(value) => (
-        <ChipRow {...rest} class={props.class}>
+        <ChipRow class={props.class}>
           <Show when={value().role}>{(role) => <Chip name="role" value={role()} />}</Show>
           <Show when={value().accessibleName}>{(name) => <Chip name="name" value={name()} />}</Show>
           <Show when={value().value}>{(fieldValue) => <Chip name="value" value={fieldValue()} />}</Show>

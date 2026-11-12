@@ -8,7 +8,6 @@ import {
   Match,
   on,
   onMount,
-  splitProps,
   Switch,
 } from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
@@ -325,21 +324,6 @@ function hideCaret(lastBlock: string | undefined): boolean {
 }
 
 export function Streamdown(props: StreamdownProps): JSX.Element {
-  const [, rest] = splitProps(props, [
-    'children',
-    'animated',
-    'isAnimating',
-    'caret',
-    'parseIncompleteMarkdown',
-    'remendOptions',
-    'allowRawHtml',
-    'allowedLinkPrefixes',
-    'allowedImagePrefixes',
-    'linkBlockPolicy',
-    'highlightCode',
-    'highlight',
-    'class',
-  ])
   const blocks = createMemo(() => {
     const source = props.children ?? ''
     const healed = props.parseIncompleteMarkdown === false ? source : remend(source, props.remendOptions)
@@ -370,7 +354,7 @@ export function Streamdown(props: StreamdownProps): JSX.Element {
   }
 
   return (
-    <div {...rest} class={`sd-root${props.class ? ` ${props.class}` : ''}`} style={caretStyle()}>
+    <div class={`sd-root${props.class ? ` ${props.class}` : ''}`} style={caretStyle()}>
       <Index each={blocks()}>
         {(block) => (
           <Block

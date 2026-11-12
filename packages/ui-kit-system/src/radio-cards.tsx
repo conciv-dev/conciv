@@ -25,7 +25,7 @@ type RadioCardsProps = {
 }
 
 export function RadioCards(props: RadioCardsProps): JSX.Element {
-  const [local, rest] = splitProps(props, [
+  const [local] = splitProps(props, [
     'options',
     'value',
     'onValueChange',
@@ -38,7 +38,6 @@ export function RadioCards(props: RadioCardsProps): JSX.Element {
   ])
   return (
     <RadioGroup.Root
-      {...rest}
       class={`${ROOT}  ${local.class ?? ''}`}
       value={local.value ?? null}
       onValueChange={(details) => {

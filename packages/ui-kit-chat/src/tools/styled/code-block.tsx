@@ -55,7 +55,7 @@ export function CodeBlock(props: {
   chrome?: 'plain' | 'file' | 'line'
   class?: string
 }): JSX.Element {
-  const [local, rest] = splitProps(props, ['file', 'size', 'maxHeight', 'chrome', 'class'])
+  const [local] = splitProps(props, ['file', 'size', 'maxHeight', 'chrome', 'class'])
   const embedded = useEmbeddedCard()
   const chrome = (): 'plain' | 'file' | 'line' => local.chrome ?? 'plain'
   const cap = (): 'result' | 'log' | 'none' => (embedded() ? 'none' : (local.maxHeight ?? 'result'))
@@ -65,7 +65,7 @@ export function CodeBlock(props: {
     if (chrome() === 'file') return codeBlockFileChromeOptions()
     return chrome() === 'line' ? codeLineOptions() : codeBlockOptions()
   })
-  return <SolidCodeBlock {...rest} class={blockClass()} options={options()} file={local.file} />
+  return <SolidCodeBlock class={blockClass()} options={options()} file={local.file} />
 }
 
 export function diffBlockClass(size: 'xs' | 'sm' = 'xs', class_?: string): string {
@@ -77,7 +77,7 @@ export function DiffBlock(props: {
   size?: 'xs' | 'sm'
   class?: string
 }): JSX.Element {
-  const [local, rest] = splitProps(props, ['file', 'size', 'class'])
+  const [local] = splitProps(props, ['file', 'size', 'class'])
   const diffOptions = createMemo(blessedDiffOptions)
   const blockClass = (): string => `${diffBlock({size: local.size ?? 'xs'})} ${local.class ?? ''}`
   const oldFile = (): {name: string; contents: string; lang?: string} => ({
@@ -90,7 +90,5 @@ export function DiffBlock(props: {
     contents: local.file.after,
     lang: local.file.lang,
   })
-  return (
-    <SolidFileDiff {...rest} class={blockClass()} options={diffOptions()} oldFile={oldFile()} newFile={newFile()} />
-  )
+  return <SolidFileDiff class={blockClass()} options={diffOptions()} oldFile={oldFile()} newFile={newFile()} />
 }

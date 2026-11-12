@@ -57,7 +57,7 @@ const DECISION_CHIP = {approved: 'Approved', denied: 'Denied'} as const
 const DECIDED = `${BUTTON_SHAPE} [background:transparent] [border:1px_solid_transparent] text-chat-text-2`
 
 function Block(props: {target: string; explanation?: string; expiresAt?: number}): JSX.Element {
-  const [local, rest] = splitProps(props, ['target', 'explanation', 'expiresAt'])
+  const [local] = splitProps(props, ['target', 'explanation', 'expiresAt'])
   const permission = usePermission()
   const decision = () => permission.decision()
   const bindKeys = (element: HTMLDivElement) => {
@@ -75,7 +75,7 @@ function Block(props: {target: string; explanation?: string; expiresAt?: number}
   }
   return (
     <Show when={permission.pending() || decision() !== undefined}>
-      <li {...rest} class={REQUEST_ITEM}>
+      <li class={REQUEST_ITEM}>
         <div class={`flex min-w-0 items-start ${TRACE_INDENT}`}>
           <div
             ref={bindKeys}
@@ -144,10 +144,10 @@ export function TracePermissionBlock(props: {
   explanation?: string
   expiresAt?: number
 }): JSX.Element {
-  const [local, rest] = splitProps(props, ['part', 'ctx', 'target', 'explanation', 'expiresAt'])
+  const [local] = splitProps(props, ['part', 'ctx', 'target', 'explanation', 'expiresAt'])
   return (
     <Permission.Root part={local.part} ctx={local.ctx}>
-      <Block {...rest} target={local.target} explanation={local.explanation} expiresAt={local.expiresAt} />
+      <Block target={local.target} explanation={local.explanation} expiresAt={local.expiresAt} />
     </Permission.Root>
   )
 }

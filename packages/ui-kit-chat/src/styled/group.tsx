@@ -1,4 +1,4 @@
-import {createContext, Show, splitProps, useContext, type Accessor, type JSX, type ParentProps} from 'solid-js'
+import {createContext, Show, useContext, type Accessor, type JSX, type ParentProps} from 'solid-js'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import Loader from 'lucide-solid/icons/loader'
 import {Collapsible} from '@conciv/ui-kit-system'
@@ -45,16 +45,6 @@ export type GroupTriggerProps = {
 export type GroupContentProps = ParentProps<{class?: string}>
 
 function Root(props: GroupRootProps): JSX.Element {
-  const [, rest] = splitProps(props, [
-    'streaming',
-    'autoOpen',
-    'folded',
-    'defaultOpen',
-    'open',
-    'onOpenChange',
-    'class',
-    'children',
-  ])
   const fold = createSettleFold({
     revealed: () => props.autoOpen === true,
     folded: () => props.folded ?? false,
@@ -71,7 +61,7 @@ function Root(props: GroupRootProps): JSX.Element {
   return (
     <GroupContext.Provider value={{streaming: () => props.streaming === true}}>
       <Collapsible.Root open={open()} onOpenChange={(details) => handleOpenChange(details.open)}>
-        <div {...rest} ref={(element) => (rootElement = element)} class={props.class ?? ROOT}>
+        <div ref={(element) => (rootElement = element)} class={props.class ?? ROOT}>
           {props.children}
         </div>
       </Collapsible.Root>
@@ -80,12 +70,11 @@ function Root(props: GroupRootProps): JSX.Element {
 }
 
 function Trigger(props: GroupTriggerProps): JSX.Element {
-  const [, rest] = splitProps(props, ['label', 'icon', 'count', 'iconSize', 'class'])
   const group = useContext(GroupContext)
   const size = () => props.iconSize ?? 14
   const text = () => (props.count === undefined ? props.label : countLabel(props.label, props.count))
   return (
-    <Collapsible.Trigger {...rest} class={props.class ?? TRIGGER}>
+    <Collapsible.Trigger class={props.class ?? TRIGGER}>
       <Show when={group.streaming()} fallback={props.icon}>
         <Loader size={size()} class={SPIN} aria-hidden="true" />
       </Show>
@@ -96,12 +85,9 @@ function Trigger(props: GroupTriggerProps): JSX.Element {
 }
 
 function Content(props: GroupContentProps): JSX.Element {
-  const [local, rest] = splitProps(props, ['class', 'children'])
   return (
     <Collapsible.Content>
-      <div {...rest} class={local.class}>
-        {local.children}
-      </div>
+      <div class={props.class}>{props.children}</div>
     </Collapsible.Content>
   )
 }

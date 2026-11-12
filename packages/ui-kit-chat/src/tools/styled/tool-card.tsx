@@ -1,4 +1,4 @@
-import {Show, splitProps, type Component, type JSX} from 'solid-js'
+import {Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {TruncatedText} from '@conciv/ui-kit-system'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
@@ -106,26 +106,6 @@ export function ToolCard(props: {
   class?: string
   children?: JSX.Element
 }): JSX.Element {
-  const [, rest] = splitProps(props, [
-    'Icon',
-    'title',
-    'subtitle',
-    'titleTooltip',
-    'part',
-    'result',
-    'meta',
-    'durationMs',
-    'defaultOpen',
-    'autoOpen',
-    'folded',
-    'status',
-    'header',
-    'flushHeader',
-    'variant',
-    'microlabel',
-    'class',
-    'children',
-  ])
   const status = () => props.status ?? toolStatus(props.part, props.result)
   const ambientDuration = useToolCallDuration()
   const duration = () => formatDuration(props.durationMs ?? ambientDuration())
@@ -181,7 +161,6 @@ export function ToolCard(props: {
         embeddedBody()
       ) : (
         <CollapsibleCard
-          {...rest}
           open={collapse.open()}
           onOpenChange={collapse.setOpen}
           tooltip={props.titleTooltip}

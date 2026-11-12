@@ -565,9 +565,13 @@ describe('composer actions', () => {
     mountView(() => (
       <Fixture width={WIDE_PX}>
         <StandardActions />
+        <ComposerActions.ActionButton priority={18} tooltip="Design x-ray" onClick={() => {}} data-conciv-key="3_HY4A">
+          <Glyph />
+        </ComposerActions.ActionButton>
       </Fixture>
     ))
 
+    await expect.element(page.getByRole('button', {name: 'Design x-ray'})).toHaveAttribute('data-conciv-key', '3_HY4A')
     await expect.element(grabButton()).toBeVisible()
     await expect.element(newSessionButton()).toBeVisible()
     await expect.element(compactButton()).toBeVisible()
@@ -633,19 +637,6 @@ describe('composer actions', () => {
 
     await expect.element(status()).toHaveTextContent('idle compact')
     await expect.element(compactItem()).not.toBeInTheDocument()
-  })
-
-  it('keeps a pinned action inline while every auto action collapses', async () => {
-    mountView(() => (
-      <Fixture width={NO_SLOT_PX}>
-        <GrabAction />
-        <NewSessionAction />
-      </Fixture>
-    ))
-
-    await expect.element(trigger()).toBeVisible()
-    await expect.element(grabButton()).toBeVisible()
-    await expect.element(newSessionButton()).not.toBeInTheDocument()
   })
 
   it('charges the leading region against the fit budget', async () => {

@@ -9,7 +9,7 @@ const CONTROL = 'flex items-center gap-2'
 const TRIGGER =
   'grid size-9.5 shrink-0 p-0 overflow-hidden rounded-chat-surface-md bg-transparent [border:1px_solid_var(--chat-line-2)] cursor-pointer focus-ring data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed data-[readonly]:cursor-default'
 const VALUE_SWATCH = 'size-full'
-const HEX_FRAME = `${INPUT_FRAME} w-28`
+const HEX_FRAME = `${INPUT_FRAME.filled} w-28`
 const HEX_INPUT =
   'flex-1 w-full min-w-0 bg-transparent [border:none] px-2.5 py-2 text-inherit font-chat-mono text-[0.75rem] uppercase focus-visible:outline-none read-only:cursor-default'
 const PRESETS = 'flex flex-wrap items-center gap-1.5'
@@ -42,7 +42,7 @@ type ColorPickerProps = {
 const toHex = (details: {value: {toString: (format: 'hex') => string}}): string => details.value.toString('hex')
 
 export function ColorPicker(props: ColorPickerProps): JSX.Element {
-  const [local, rest] = splitProps(props, [
+  const [local] = splitProps(props, [
     'value',
     'onValueChange',
     'onValueCommit',
@@ -73,7 +73,7 @@ export function ColorPicker(props: ColorPickerProps): JSX.Element {
     },
   }))
   return (
-    <Ark.RootProvider {...rest} value={picker} class={`${ROOT}  ${local.class ?? ''}`}>
+    <Ark.RootProvider value={picker} class={`${ROOT}  ${local.class ?? ''}`}>
       <Ark.Control class={CONTROL}>
         <Ark.Trigger class={TRIGGER}>
           <Ark.ValueSwatch class={VALUE_SWATCH} />

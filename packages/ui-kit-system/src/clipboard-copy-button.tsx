@@ -27,7 +27,7 @@ export type ClipboardCopyButtonProps = {
 } & ({text: string; clipboard?: undefined} | {clipboard: ClipboardCopy; text?: undefined})
 
 export function ClipboardCopyButton(props: ClipboardCopyButtonProps): JSX.Element {
-  const [local, rest] = splitProps(props, [
+  const [local] = splitProps(props, [
     'text',
     'clipboard',
     'tooltips',
@@ -63,7 +63,6 @@ export function ClipboardCopyButton(props: ClipboardCopyButtonProps): JSX.Elemen
   return (
     <>
       <TooltipIconButton
-        {...rest}
         tooltip={tooltip()}
         side={local.side}
         variant={local.variant}

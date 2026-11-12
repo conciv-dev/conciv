@@ -101,19 +101,6 @@ export type ModelSelectorRootProps = ParentProps<{
 }>
 
 function Root(props: ModelSelectorRootProps): JSX.Element {
-  const [, rest] = splitProps(props, [
-    'models',
-    'value',
-    'defaultValue',
-    'onValueChange',
-    'effort',
-    'defaultEffort',
-    'onEffortChange',
-    'open',
-    'defaultOpen',
-    'onOpenChange',
-    'children',
-  ])
   const {collection, filter, set} = useListCollection<ModelOption>({
     initialItems: [],
     filter: (_text, query, item) => matches(item, query),
@@ -161,7 +148,6 @@ function Root(props: ModelSelectorRootProps): JSX.Element {
       }}
     >
       <Combobox.Root
-        {...rest}
         class="shrink min-w-0"
         collection={collection()}
         value={selection()}
@@ -210,7 +196,6 @@ function Trigger(props: ModelSelectorTriggerProps): JSX.Element {
 export type ModelSelectorValueProps = {placeholder?: JSX.Element; showEffort?: boolean; class?: string}
 
 function Value(props: ModelSelectorValueProps): JSX.Element {
-  const [, rest] = splitProps(props, ['placeholder', 'showEffort', 'class'])
   const context = useModelSelectorContext()
   const effortName = () => {
     if (props.showEffort === false) return undefined
@@ -220,14 +205,10 @@ function Value(props: ModelSelectorValueProps): JSX.Element {
   return (
     <Show
       when={context.selectedModel()}
-      fallback={
-        <span {...rest} class={props.class}>
-          {props.placeholder ?? 'Select model'}
-        </span>
-      }
+      fallback={<span class={props.class}>{props.placeholder ?? 'Select model'}</span>}
     >
       {(model) => (
-        <span {...rest} class={props.class}>
+        <span class={props.class}>
           {model().icon}
           <span data-model-name>{model().name}</span>
           <Show when={effortName()}>{(name) => <span data-model-effort>{name()}</span>}</Show>

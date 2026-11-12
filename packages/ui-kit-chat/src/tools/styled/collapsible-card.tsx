@@ -54,9 +54,8 @@ function CardFrame(props: {
   ref?: Ref<HTMLDivElement>
   children: JSX.Element
 }): JSX.Element {
-  const [, rest] = splitProps(props, ['variant', 'class', 'ref', 'children'])
   return (
-    <div {...rest} ref={props.ref} class={`${CARD_BY_VARIANT[props.variant]}  ${props.class ?? ''}`}>
+    <div ref={props.ref} class={`${CARD_BY_VARIANT[props.variant]}  ${props.class ?? ''}`}>
       {props.children}
     </div>
   )
@@ -104,7 +103,7 @@ function CardTrigger(props: {
 export function CollapsibleCard(
   props: CollapsibleCardProps & {header: JSX.Element; children?: JSX.Element},
 ): JSX.Element {
-  const [local, rest] = splitProps(props, [
+  const [local] = splitProps(props, [
     'open',
     'onOpenChange',
     'defaultOpen',
@@ -129,7 +128,7 @@ export function CollapsibleCard(
       defaultOpen={local.defaultOpen}
       onOpenChange={(details) => handleOpenChange(details.open)}
     >
-      <CardFrame {...rest} variant={variant()} class={local.class} ref={(el) => (cardEl = el)}>
+      <CardFrame variant={variant()} class={local.class} ref={(el) => (cardEl = el)}>
         <CardTrigger tooltip={local.tooltip} flush={flush()} variant={variant()} header={local.header} />
         <Collapsible.Content>
           <div class={BODY_BY_VARIANT[variant()]}>{local.children}</div>

@@ -51,7 +51,7 @@ type HotkeyRecorderProps = {
 }
 
 export function HotkeyRecorder(props: HotkeyRecorderProps): JSX.Element {
-  const [local, rest] = splitProps(props, ['value', 'onValueChange', 'conflict', 'disabled', 'readOnly'])
+  const [local] = splitProps(props, ['value', 'onValueChange', 'conflict', 'disabled', 'readOnly'])
   const field = useFieldContext()
   const platform = detectPlatform()
   const recordTextId = createUniqueId()
@@ -104,7 +104,6 @@ export function HotkeyRecorder(props: HotkeyRecorderProps): JSX.Element {
   }
   return (
     <div
-      {...rest}
       class="flex flex-col gap-2 min-w-0"
       onKeyDown={(event) => {
         if (event.key === 'Escape' && editing()) finish(undefined)
