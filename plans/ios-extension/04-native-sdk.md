@@ -257,7 +257,7 @@ accessibility-tree traversal anywhere**:
 - **Capture** = render the **hosting view** (the SwiftUI `UIHostingController`/host view) and **crop to the
   anchor frame** — the anchor gives a real rect even though the SwiftUI element has no backing `UIView`.
 - **Unanchored SwiftUI content is NOT pickable in v1** (documented honestly, AC3). Authors tag the views
-  they want grabbable with `.concivGrab(id:)`; this is the SwiftUI analog of `data-conciv-source`.
+  they want grabbable with `.concivGrab(id:)`; this is the SwiftUI analog of `data-tsd-source`.
 
 **Common:**
 

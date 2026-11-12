@@ -17,7 +17,7 @@ const isEditing = (): boolean => {
   return el.isContentEditable || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'
 }
 
-const SRC_SELECTOR = '[data-conciv-source],[data-tsd-source]'
+const SRC_SELECTOR = '[data-tsd-source]'
 const GLIDE = 'transition-transform duration-[80ms] ease-chat'
 const BOX =
   'fixed left-0 top-0 pointer-events-none rounded-chat-surface-sm bg-chat-accent-08 [outline:2px_solid_var(--chat-accent)] shadow-[0_0_0_1px_var(--chat-accent-line),0_0_16px_var(--chat-accent-20)]'

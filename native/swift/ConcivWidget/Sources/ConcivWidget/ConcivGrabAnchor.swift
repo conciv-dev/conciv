@@ -4,7 +4,7 @@ import UIKit
 
 // SwiftUI content has no enumerable backing UIView tree the pick walk can traverse
 // (04 D5/B-A3), so authors opt views into native grab with `.concivGrab(id:)`, the
-// SwiftUI analog of `data-conciv-source`. The modifier records the view's global
+// SwiftUI analog of `data-tsd-source`. The modifier records the view's global
 // geometry, id, and optional label into a process-wide registry the pick overlay
 // hit-tests instead of walking an accessibility tree.
 

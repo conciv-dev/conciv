@@ -303,7 +303,7 @@ export const locateDef = pageTool({
   category: 'react',
   icon: 'react',
   label: {running: 'Locating the source', done: 'Located the source'},
-  hint: 'exact when the element carries a data-conciv-source attribute',
+  hint: 'exact when the element carries a data-tsd-source attribute',
   keywords: ['source', 'file'],
   input: target,
   output: z.looseObject({
