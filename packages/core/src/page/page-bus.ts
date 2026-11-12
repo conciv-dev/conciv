@@ -280,7 +280,13 @@ export function makePageBus(timeoutMs = 5000, queuedActionMs = QUEUED_ACTION_MS)
     const page = pageOf(sessionId)
     const requestId = randomUUID()
     const replies = Array.from({length: count}, () => randomUUID())
-    const accepted = page.pending.await(requestId, tab.id, timeoutMs).then((outcome): PageAnswer => {
+    const sent = (): Promise<PageOutcome> => {
+      const answer = page.pending.await(requestId, tab.id, timeoutMs)
+      tab.emit({requestId, ...query, queue: {id: queueId, replies}})
+      return answer
+    }
+    const turn = busy(sessionId) ? laneOf(sessionId).add(() => undefined) : Promise.resolve()
+    const accepted = turn.then(sent).then((outcome): PageAnswer => {
       if (!outcome.ok) throw pageFailure(outcome.error.code, outcome.error.message, outcome.error.raised)
       return {result: outcome.result}
     })
@@ -306,7 +312,6 @@ export function makePageBus(timeoutMs = 5000, queuedActionMs = QUEUED_ACTION_MS)
       return lane.add(() => playedNext(id, reply))
     })
     void Promise.allSettled([accepted, ...played]).then(() => dropIfIdle(sessionId, page))
-    tab.emit({requestId, ...query, queue: {id: queueId, replies}})
     return {accepted, played}
   }
 

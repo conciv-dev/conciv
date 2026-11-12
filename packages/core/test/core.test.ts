@@ -695,14 +695,21 @@ describe('page bus and the session scope', () => {
     queue: z.object({id: z.string(), replies: z.array(z.string())}),
   })
 
-  function queueingTab(bus: ReturnType<typeof makePageBus>): z.infer<typeof QueueFrameSchema>[] {
+  function queueingTab(
+    bus: ReturnType<typeof makePageBus>,
+    focus?: () => {focusedAt: number; visible: boolean},
+  ): z.infer<typeof QueueFrameSchema>[] {
     const queued: z.infer<typeof QueueFrameSchema>[] = []
-    bus.subscribe(SESSION_A, (frame) => {
-      const parsed = QueueFrameSchema.safeParse(frame)
-      if (!parsed.success) return
-      queued.push(parsed.data)
-      queueMicrotask(() => bus.resolve(SESSION_A, parsed.data.requestId, {ok: true, result: {}}))
-    })
+    bus.subscribe(
+      SESSION_A,
+      (frame) => {
+        const parsed = QueueFrameSchema.safeParse(frame)
+        if (!parsed.success) return
+        queued.push(parsed.data)
+        queueMicrotask(() => bus.resolve(SESSION_A, parsed.data.requestId, {ok: true, result: {}}))
+      },
+      focus,
+    )
     return queued
   }
 
@@ -804,6 +811,24 @@ describe('page bus and the session scope', () => {
     const {queueId: freed} = await queues.start(SESSION_A, queueStart(check))
     expect(queued.at(-1)?.queue.id).toBe(freed)
     expect(queues.undelivered(SESSION_A, true).map((result) => result.queueId)).toEqual(started.slice(1))
+  })
+
+  it('a queue for a session whose earlier queue still plays reaches the newly focused tab only once that queue is done', async () => {
+    const bus = makePageBus(2000)
+    const focusedAt = {first: 2, second: 1}
+    const first = queueingTab(bus, () => ({focusedAt: focusedAt.first, visible: true}))
+    const second = queueingTab(bus, () => ({focusedAt: focusedAt.second, visible: true}))
+    const queues = pageQueues(bus)
+    const finished = finishedOf(queues)
+    const check = [{tool: 'page_check', selector: '#agree'}]
+    const earlier = await queues.start(SESSION_A, queueStart(check))
+    focusedAt.second = 3
+    const later = queues.start(SESSION_A, queueStart(check))
+    expect(second).toHaveLength(0)
+    expect(bus.resolve(SESSION_A, first[0]?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})).toBe(true)
+    await finished(earlier.queueId)
+    expect((await later).queueId).toBe(second[0]?.queue.id)
+    expect(first).toHaveLength(1)
   })
 
   it('an ask in flight fails at once when its browser tab unsubscribes, and its late reply settles nothing', async () => {
