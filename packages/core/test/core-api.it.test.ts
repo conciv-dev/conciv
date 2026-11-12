@@ -107,7 +107,12 @@ import {
 } from '@conciv/protocol/chat-types'
 import {type ElementCapture, type ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 import {type HarnessChatDeps, type HarnessListCursor, type HarnessModel} from '@conciv/protocol/harness-types'
-import {type PageOutcome, PageQuerySchema, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
+import {
+  type PageOutcome,
+  PageQuerySchema,
+  PageQueueResultSchema,
+  PAGE_TRANSPORT_ERROR_CODES,
+} from '@conciv/protocol/page-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
@@ -5236,6 +5241,43 @@ describe('page action queue delivery', () => {
     const after = await page.hub('return 8')
     expect(after).toContain('"result":8')
     expect(after).not.toContain(queueId)
+  })
+
+  it('a queue result far over the text cap still carries every outcome, in the next reply and in the wait reply', async () => {
+    const page = await engineWithTab()
+    const actions = Array.from({length: 50}, (_, index) => ({
+      tool: 'page_fill',
+      selector: `#field-${index}`,
+      value: 'x',
+    }))
+    const {queueId} = handleOf(await page.hub(queued(actions)))
+    const onTab = await page.nextQueue()
+    for (const index of actions.keys()) {
+      await page.play(
+        onTab,
+        index,
+        index % 2 === 0
+          ? {ok: true, result: {ok: true, value: 'v'.repeat(3000)}}
+          : {ok: false, error: {code: 'invalid-args', message: 'e'.repeat(3000)}},
+      )
+    }
+    await page.finishedEvent(queueId)
+    const expected = actions.map((_, index) =>
+      index % 2 === 0
+        ? {index, tool: 'page_fill', ok: true, result: expect.any(Object)}
+        : {index, tool: 'page_fill', ok: false, error: expect.stringMatching(/^e+/)},
+    )
+    const [notice] = z.array(z.object({type: z.literal('text'), content: z.string()})).parse(await page.hub('return 7'))
+    expect(notice?.content.split('\n')[0]).toBe(`queue ${queueId} finished: 50 played, 25 failed`)
+    expect(PageQueueResultSchema.parse(JSON.parse(notice?.content.split('\n').slice(1).join('\n') ?? ''))).toEqual({
+      queueId,
+      status: 'finished',
+      outcomes: expected,
+      failed: 25,
+      played: 50,
+    })
+    const waited = await page.hub(`return await external_page_queue_wait({queueId: ${JSON.stringify(queueId)}})`)
+    expect(PageQueueResultSchema.parse(JSON.parse(String(waited)).result).outcomes).toEqual(expected)
   })
 
   it('a discover_tools reply carries a finished result the session was not handed yet', async () => {
