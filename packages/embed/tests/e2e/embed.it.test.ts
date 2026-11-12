@@ -292,6 +292,9 @@ test.describe('composer rich input', () => {
         await expect(panel(page)).toBeVisible()
 
         await page.keyboard.press('Escape')
+        await expect(stop).toBeHidden({timeout: 10_000})
+        await expect(panel(page)).toBeVisible()
+
         await page.keyboard.press('Escape')
         await expect(panel(page)).toBeHidden({timeout: 10_000})
       } finally {
