@@ -2,13 +2,7 @@ import {mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {expect, test} from '@playwright/test'
-import {
-  assertLockNotDrifted,
-  closureOf,
-  packageCatalogKeys,
-  workspacePackages,
-  type PackageInfo,
-} from '@conciv/e2e-utils/packed'
+import {assertLockNotDrifted, closureOf, workspacePackages, type PackageInfo} from '@conciv/vitest-config/pack'
 
 test('the pack closure follows a workspace dependency whose name carries no scope', () => {
   const packages = new Map<string, PackageInfo>([
@@ -26,7 +20,9 @@ test('workspace packages come from pnpm workspace state, not from a scanned dire
   expect(names).toContain('conciv-e2e-nextjs')
 })
 
-function fakeLock(entries: string[]): string {
+type LockEntry = [key: string, resolution: string]
+
+function fakeLock(entries: LockEntry[]): string {
   return [
     'lockfileVersion: 9.0',
     '',
@@ -34,52 +30,71 @@ function fakeLock(entries: string[]): string {
     '  .: {}',
     '',
     'packages:',
-    ...entries.map((entry) => `  '${entry}':`),
-    '',
+    ...entries.flatMap(([key, resolution]) => [
+      `  '${key}':`,
+      `    resolution: {${resolution}}`,
+      '    peerDependenciesMeta:',
+      '      ajv:',
+      '        optional: true',
+      '',
+    ]),
     'snapshots:',
-    ...entries.map((entry) => `  '${entry}': {}`),
+    ...entries.map(([key]) => `  '${key}': {}`),
     '',
   ].join('\n')
 }
 
-test('the pack catalog reader collects top-level registry entries and drops file: conciv ones', () => {
-  const lock = fakeLock(['@orpc/tanstack-query@1.14.7', '@conciv/it@file:/tmp/x/conciv-it-0.0.18.tgz', 'is-odd@3.0.1'])
-  expect(packageCatalogKeys(lock)).toEqual(new Set(['@orpc/tanstack-query@1.14.7', 'is-odd@3.0.1']))
-})
-
-test('the pack catalog reader ignores keys nested inside a package entry', () => {
-  const lock = fakeLock(['is-odd@3.0.1']).replace(
-    "  'is-odd@3.0.1':",
-    "  'is-odd@3.0.1':\n    peerDependenciesMeta:\n      ajv:\n        optional: true",
-  )
-  expect(packageCatalogKeys(lock)).toEqual(new Set(['is-odd@3.0.1']))
-})
-
-test('the drift guard passes when the produced lockfile matches the committed one on registry packages', () => {
-  const root = mkdtempSync(join(tmpdir(), 'conciv-drift-guard-match-'))
+function driftError(committed: LockEntry[], produced: LockEntry[]): string {
+  const root = mkdtempSync(join(tmpdir(), 'conciv-drift-guard-'))
   const committedPath = join(root, 'committed-lock.yaml')
-  writeFileSync(committedPath, fakeLock(['@orpc/tanstack-query@1.14.7', '@conciv/it@file:/tmp/a/conciv-it.tgz']))
-  writeFileSync(
-    join(root, 'pnpm-lock.yaml'),
-    fakeLock(['@orpc/tanstack-query@1.14.7', '@conciv/it@file:/tmp/b/conciv-it.tgz']),
-  )
+  writeFileSync(committedPath, fakeLock(committed))
+  writeFileSync(join(root, 'pnpm-lock.yaml'), fakeLock(produced))
   try {
-    expect(() => assertLockNotDrifted(root, {path: committedPath, updateCommand: 'update'})).not.toThrow()
+    assertLockNotDrifted(root, committedPath)
+    return ''
+  } catch (error) {
+    return String(error)
   } finally {
     rmSync(root, {recursive: true, force: true})
   }
+}
+
+const ORPC: LockEntry = ['@orpc/tanstack-query@1.14.7', 'integrity: sha512-orpc']
+const IS_ODD: LockEntry = ['is-odd@3.0.1', 'integrity: sha512-odd']
+
+function packedConciv(dir: string): LockEntry {
+  return [`@conciv/it@file:${dir}/conciv-it.tgz`, `integrity: sha512-${dir}, tarball: file:${dir}/conciv-it.tgz`]
+}
+
+test('the drift guard passes when only the packed @conciv file: tarballs differ', () => {
+  expect(driftError([ORPC, IS_ODD, packedConciv('/tmp/a')], [ORPC, IS_ODD, packedConciv('/tmp/b')])).toBe('')
 })
 
-test('the drift guard throws naming the drifted registry package when a plain install re-resolves it', () => {
-  const root = mkdtempSync(join(tmpdir(), 'conciv-drift-guard-mismatch-'))
-  const committedPath = join(root, 'committed-lock.yaml')
-  writeFileSync(committedPath, fakeLock(['@orpc/tanstack-query@1.14.7']))
-  writeFileSync(join(root, 'pnpm-lock.yaml'), fakeLock(['@orpc/tanstack-query@1.15.0']))
-  try {
-    expect(() => assertLockNotDrifted(root, {path: committedPath, updateCommand: 'update'})).toThrow(
-      /@orpc\/tanstack-query@1\.15\.0[\s\S]*@orpc\/tanstack-query@1\.14\.7|@orpc\/tanstack-query@1\.14\.7[\s\S]*@orpc\/tanstack-query@1\.15\.0/,
-    )
-  } finally {
-    rmSync(root, {recursive: true, force: true})
-  }
+test('the drift guard ignores packed @conciv file: entries the committed lockfile does not have', () => {
+  expect(driftError([ORPC, IS_ODD], [ORPC, IS_ODD, packedConciv('/tmp/b')])).toBe('')
+})
+
+test('the drift guard names an added, a removed and a re-integrity registry package', () => {
+  const error = driftError(
+    [ORPC, IS_ODD],
+    [
+      ['@orpc/tanstack-query@1.15.0', 'integrity: sha512-orpc-next'],
+      ['is-odd@3.0.1', 'integrity: sha512-tampered'],
+    ],
+  )
+  expect(error).toContain('+ @orpc/tanstack-query@1.15.0')
+  expect(error).toContain('- @orpc/tanstack-query@1.14.7')
+  expect(error).toContain('~ is-odd@3.0.1 (integrity changed)')
+  expect(error).toContain('gh run download <run-id> -n packed-fixture-locks -D e2e')
+})
+
+test('the drift guard rejects a remote tarball or git resolution outside the packed @conciv entries', () => {
+  const remote: LockEntry = ['evil@1.0.0', 'integrity: sha512-evil, tarball: https://example.com/evil.tgz']
+  const git: LockEntry = ['forked@1.0.0', 'commit: abc123, repo: https://github.com/x/forked, type: git']
+  const unscopedFile: LockEntry = ['conciv@file:/tmp/a/conciv.tgz', 'integrity: sha512-c, tarball: https://x/c.tgz']
+  const error = driftError([ORPC], [ORPC, remote, git, unscopedFile])
+  expect(error).toContain('outside the npm registry')
+  expect(error).toContain('evil@1.0.0')
+  expect(error).toContain('forked@1.0.0')
+  expect(error).toContain('conciv@file:/tmp/a/conciv.tgz')
 })

@@ -19,6 +19,7 @@ import {
   type ServerHarness,
   type ServerResult,
   type ServerSessions,
+  type ToolMiddleware,
   type ToolRequest,
 } from '@conciv/extension'
 import type {ToolRegistry} from '@conciv/extension/registry'
@@ -59,12 +60,13 @@ import type {RpcContext} from '@conciv/protocol/rpc-types'
 import {os} from '@orpc/server'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {createHubInstaller} from './api/rpc/hub.js'
-import tabsApp, {type TabsVars} from './api/tabs.js'
+import {createTabs} from './api/tabs.js'
 import {createOutsideTabs} from './api/outside-tabs.js'
 import {outsideRefusal} from './api/outside-refusal.js'
 import {outsideRunCapabilities} from './api/outside-run.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
+import {pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
 import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
@@ -224,12 +226,21 @@ function declaredToolErrors(tool: AnyToolBuilder): {code: string; message: strin
   return Object.entries(tool.errors ?? {}).map(([code, spec]) => ({code, message: spec.message}))
 }
 
-type RegistryToolSource = {extensionName: string; registryTools: readonly AnyToolBuilder[]; context: unknown}
+type RegistryToolSource = {
+  extensionName: string
+  registryTools: readonly AnyToolBuilder[]
+  context: unknown
+  middleware: ToolMiddleware | undefined
+}
 
 function registerExtensionTools(registry: ToolRegistry, sources: RegistryToolSource[]): void {
   for (const source of sources) {
     for (const tool of source.registryTools) {
-      registry.register(tool, {owner: `extension "${source.extensionName}"`, context: source.context})
+      registry.register(tool, {
+        owner: `extension "${source.extensionName}"`,
+        context: source.context,
+        ...(source.middleware === undefined ? {} : {middleware: source.middleware}),
+      })
     }
   }
 }
@@ -309,7 +320,7 @@ const HealthSchema = z.object({
   id: z.string(),
 })
 
-export type CoreVars = CorsVars & {harnessId: string} & McpVars & TabsVars
+export type CoreVars = CorsVars & {harnessId: string} & McpVars
 
 function composeRoutes(
   vars: CoreVars,
@@ -334,7 +345,6 @@ function composeRoutes(
       c.set('cors', vars.cors)
       c.set('harnessId', vars.harnessId)
       c.set('mcp', vars.mcp)
-      c.set('tabs', vars.tabs)
       await next()
     })
     .use(corsMiddleware())
@@ -358,7 +368,6 @@ function composeRoutes(
     )
     .use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(rpc))
     .route('/api/mcp', mcpApp)
-    .route('/api/tabs', tabsApp)
 }
 
 export type AppType = ReturnType<typeof composeRoutes>
@@ -430,7 +439,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const settings = createSettingsStorage(
     settingsOnDisk({global: concivHome({homeDir: opts.home, env: process.env}), project: stateDir}),
   )
-  await settings.ready
   const primitives = makeSessionPrimitives({
     db,
     root: opts.cwd,
@@ -448,7 +456,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const scopedToolCall: ScopedToolCall = (name, input, request) =>
     runtime
       .forSession(request.sessionId)
-      .tools.call(name, input, {toolCallId: request.toolCallId, signal: request.signal})
+      .tools.call(name, input, {toolCallId: request.toolCallId, signal: request.signal, outside: request.outside})
 
   const serverSessions: ServerSessions = {
     resumeToken: (sessionId) => nativeIdFor(db, sessionId),
@@ -476,6 +484,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         .map((tool) => registryBackedTool(tool, scopedToolCall)),
       attachmentExpanders: buildAttachmentExpanders(extension, context),
       context,
+      middleware: result?.middleware,
       dispose: result?.dispose,
       turnEnd: result?.turnEnd,
     }
@@ -487,7 +496,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         stateDir,
         scope: settings.scope,
         config: extension.parseConfig(opts.extensionConfig?.[extension.name]),
-        settings: extension.readSettings(settings.scope<string>(extension.name).settings.project),
+        settings: extension.readSettings(settings.scope<string>(extension.name).settings),
         cwd: opts.cwd,
         basePath,
         sessions: serverSessions,
@@ -519,6 +528,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     settled.forEach((outcome) => {
       if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
     })
+    followUpOwedQueues(sessionId)
   }
   const sessionModel = (sessionId: SessionId): string | null => modelOf(db, sessionId)
   const makeToolCtx = (sessionId: SessionId): ConcivToolContext => ({
@@ -586,21 +596,25 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     plane,
   }
 
-  if (opts.cfg.harnessSessionId !== undefined) {
-    void ensureAgentRow(rows, opts.cfg.harnessSessionId).catch((error: unknown) =>
-      logError(`[core] the configured harness session row could not be ensured: ${String(error)}`),
-    )
-  }
-  if (opts.cfg.sessionId !== undefined) {
-    void ensureRow(db, opts.cfg.sessionId, harness.id, opts.cwd).catch((error: unknown) =>
-      logError(`[core] the configured session row could not be ensured: ${String(error)}`),
-    )
-  }
-  void sweepEmptyRows(db).catch((error: unknown) =>
-    logError(`[core] the empty session row sweep failed: ${String(error)}`),
-  )
-
   const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness})
+
+  function followUpOwedQueues(sessionId: SessionId): void {
+    void startQueueFollowUp(primitives.page.queues, plane, sessionId).catch((error: unknown) =>
+      logError(`[core] the page queue follow-up turn for ${sessionId} could not start: ${String(error)}`),
+    )
+  }
+
+  primitives.page.queues.finished((record) => {
+    const result = record.result
+    if (result === null) return
+    const scope = runtime.forSession(record.sessionId)
+    const chunks = pageQueueChunks({result, record, live: plane.driving(record.sessionId)})
+    chunks.forEach((chunk) => scope.stream.publish(chunk))
+    void scope.run
+      .record(chunks)
+      .catch((error: unknown) => logError(`[core] recording queue ${result.queueId} failed: ${String(error)}`))
+    if (!record.outside) followUpOwedQueues(record.sessionId)
+  })
 
   const admitOutside = async (
     scope: SessionScope,
@@ -620,7 +634,31 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
 
   const search = createSessionSearch({db, cwd: chatDeps.cwd, harnesses: chatDeps.harnesses})
+  const mcp: McpVars['mcp'] = {
+    codeRunner: (sessionId, publish, capabilities, outside) =>
+      plane.codeRunner(sessionId, publish, capabilities, outside),
+    finishedQueues: (sessionId, outside) => primitives.page.queues.undelivered(sessionId, outside),
+    startedQueues: (sessionId, toolCallIds) => primitives.page.queues.startedBy(sessionId, toolCallIds),
+    admitCall: (sessionId, call) => plane.admitCall(sessionId, call),
+    outsideCapabilities: (sessionId) =>
+      outsideRunCapabilities([
+        ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall),
+        ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
+      ]),
+    resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),
+    admitOutside,
+    hubRefusal: hub.refusal,
+    staleness,
+  }
   const rpcDeps: RpcDeps = {
+    code: mcp,
+    tabs: createTabs({
+      bus: primitives.page.bus,
+      session: (sessionId) => rpcSessionMeta(chatDeps, sessionId),
+      root: opts.cwd,
+      instructions: systemPromptText,
+    }),
+    queues: primitives.page.queues,
     chat: chatDeps,
     search,
     settings,
@@ -662,24 +700,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     {
       cors: {allowedOrigins: opts.allowedOrigins ?? []},
       harnessId: harness.id,
-      mcp: {
-        codeRunner: (sessionId, publish, capabilities) => plane.codeRunner(sessionId, publish, capabilities),
-        outsideCapabilities: (sessionId) =>
-          outsideRunCapabilities([
-            ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall),
-            ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
-          ]),
-        resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),
-        admitOutside,
-        hubRefusal: hub.refusal,
-        staleness,
-      },
-      tabs: {
-        bus: primitives.page.bus,
-        session: (sessionId) => rpcSessionMeta(chatDeps, sessionId),
-        root: opts.cwd,
-        instructions: systemPromptText,
-      },
+      mcp,
     },
     compositeRpc,
     {
@@ -722,6 +743,13 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     onTrusted: opts.onTrusted,
   })
 
+  await ensureConfiguredRows(rows, opts.cfg).catch(async (error: unknown) => {
+    await dispose().catch((failure: unknown) =>
+      logError(`[core] disposing after a failed start also failed: ${String(failure)}`),
+    )
+    throw error
+  })
+
   return {
     app,
     fetch,
@@ -732,6 +760,25 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     dispose,
     extensionContexts,
     runtime,
+  }
+}
+
+async function ensureConfiguredRows(rows: RowScope, cfg: ResolvedConcivConfig): Promise<void> {
+  await sweepEmptyRows(rows.db).catch((error: unknown) =>
+    logError(`[core] the empty session row sweep failed: ${String(error)}`),
+  )
+  const {sessionId, harnessSessionId} = cfg
+  if (harnessSessionId !== undefined) {
+    await ensureAgentRow(rows, harnessSessionId).catch((error: unknown) => {
+      throw new Error(`conciv: the configured harness session "${harnessSessionId}" could not be ensured`, {
+        cause: error,
+      })
+    })
+  }
+  if (sessionId !== undefined) {
+    await ensureRow(rows.db, sessionId, rows.harnessKind, rows.cwd).catch((error: unknown) => {
+      throw new Error(`conciv: the configured conciv session "${sessionId}" could not be ensured`, {cause: error})
+    })
   }
 }
 

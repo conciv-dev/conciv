@@ -97,7 +97,6 @@ function observeContainerSize(
   }
 }
 
-const LIVE_POLL_MS = 1000
 const SCRUB_STEP_MS = 5000
 
 const scrubStep = z.union([z.literal('ArrowLeft'), z.literal('ArrowRight')])
@@ -118,7 +117,7 @@ function enhanceControllerAccess(container: HTMLDivElement, player: Player): voi
     progress.setAttribute('aria-valuemax', String(Math.round(player.getMetaData().totalTime)))
     progress.setAttribute('aria-valuenow', String(Math.round(current)))
   }
-  announcePosition()
+  player.getReplayer().service.subscribe(announcePosition)
   player.addEventListener('ui-update-current-time', (payload) => {
     const parsed = controllerTime.safeParse(payload)
     if (parsed.success) current = parsed.data.payload
@@ -151,7 +150,7 @@ export function mountStreamPlayer(
   container: HTMLDivElement,
   initial: {events: RrwebEvent[]; cursor: number},
   hooks: {
-    pull: (cursor: number) => Promise<{events: RrwebEvent[]; cursor: number}>
+    follow: (cursor: number, signal: AbortSignal) => Promise<AsyncIterable<{events: RrwebEvent[]; cursor: number}>>
     onLive: (live: boolean) => void
   },
 ): StreamPlayerHandle {
@@ -159,15 +158,14 @@ export function mountStreamPlayer(
   let cursor = initial.cursor
   let lastTs = buffer.at(-1)?.timestamp ?? 0
   let aspect = recordedAspect(buffer)
-  let player: Player | undefined
-  let stopped = false
-  let poll: ReturnType<typeof setTimeout> | undefined
+  let mounted: {player: Player} | undefined
+  const following = new AbortController()
 
   const tailOffset = (): number => lastTs - (buffer[0]?.timestamp ?? 0)
 
   const isLive = (): boolean => {
-    if (!player) return true
-    const replayer = player.getReplayer()
+    if (!mounted) return true
+    const replayer = mounted.player.getReplayer()
     if (!replayer.service.state.matches('playing')) return false
     return replayer.getCurrentTime() + LIVE_EDGE_MS >= tailOffset()
   }
@@ -177,7 +175,7 @@ export function mountStreamPlayer(
   const build = (): void => {
     const {scope, known} = injectPlayerStyles(kit, container)
     aspect = recordedAspect(buffer)
-    player = new kit.Player({
+    const player = new kit.Player({
       target: container,
       props: {
         ...playerSize(container, aspect),
@@ -190,9 +188,11 @@ export function mountStreamPlayer(
     })
     demoteInjectedStyles(scope, known)
     enhanceControllerAccess(container, player)
+    mounted = {player}
     player.goto(tailOffset() + 1, true)
     player.addEventListener('ui-update-player-state', announceLive)
     player.addEventListener('ui-update-current-time', announceLive)
+    player.getReplayer().on('event-cast', announceLive)
     hooks.onLive(true)
   }
 
@@ -201,46 +201,50 @@ export function mountStreamPlayer(
   const feed = (event: RrwebEvent, atEdge: boolean): void => {
     buffer.push(event)
     lastTs = Math.max(lastTs, event.timestamp)
-    if (!player) return
+    if (!mounted) return
     const parsed = playerEvent.parse(event)
     if (atEdge) {
-      player.getReplayer().addEvent(parsed)
+      mounted.player.getReplayer().addEvent(parsed)
       return
     }
-    player.addEvent(parsed)
+    mounted.player.addEvent(parsed)
   }
 
-  const tick = async (): Promise<void> => {
-    const fresh = await hooks.pull(cursor).catch((): {events: RrwebEvent[]; cursor: number} => ({events: [], cursor}))
-    if (stopped) return
+  const take = (fresh: {events: RrwebEvent[]; cursor: number}): void => {
     const atEdge = isLive()
     for (const event of fresh.events) feed(event, atEdge)
     cursor = Math.max(cursor, fresh.cursor)
     announceLive()
-    poll = setTimeout(() => void tick(), LIVE_POLL_MS)
   }
-  poll = setTimeout(() => void tick(), LIVE_POLL_MS)
+
+  const follow = async (): Promise<void> => {
+    try {
+      for await (const fresh of await hooks.follow(cursor, following.signal)) take(fresh)
+    } catch (error) {
+      if (!following.signal.aborted) console.error('[conciv] the recorder replay stopped following new events', error)
+    }
+  }
+  void follow()
 
   const stopResize = observeContainerSize(
     container,
     (size) => {
-      player?.$set({width: size.width, height: size.height})
-      player?.triggerResize()
+      mounted?.player.$set({width: size.width, height: size.height})
+      mounted?.player.triggerResize()
     },
     () => aspect,
   )
 
   return {
     goLive: () => {
-      player?.goto(tailOffset() + 1, true)
+      mounted?.player.goto(tailOffset() + 1, true)
       hooks.onLive(true)
     },
     dispose: () => {
-      stopped = true
+      following.abort()
       cancelBuild()
-      if (poll) clearTimeout(poll)
       stopResize()
-      player?.$destroy()
+      mounted?.player.$destroy()
     },
   }
 }

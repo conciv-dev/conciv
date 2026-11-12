@@ -22,6 +22,7 @@ catalog:
   '@orpc/standard-server-peer': 1.16.1
   '@orpc/tanstack-query': 1.16.1
   unstorage: 1.17.5
+  devframe: 1.2.6
 
   # The @tanstack/ai family is single-sourced here so every manifest resolves "catalog:" to the
   # same release and pnpm never installs two copies of @tanstack/ai.
@@ -63,6 +64,7 @@ catalog:
   '@storybook/addon-docs': '^10.6.5'
   '@tailwindcss/typography': '^0.5.20'
   '@tailwindcss/vite': '^4.3.3'
+  '@tanstack/devtools-bundler-core': '0.1.3'
   '@tanstack/devtools-vite': '^0.8.5'
   '@tanstack/pacer': '^0.23.1'
   '@tanstack/query-core': '^5.107.1'
@@ -73,6 +75,7 @@ catalog:
   '@tanstack/react-start': 1.169.4
   '@tanstack/router-cli': 1.167.46
   '@tanstack/router-plugin': 1.168.48
+  '@tanstack/hotkeys': ^0.18.0
   '@tanstack/solid-hotkeys': ^0.17.0
   '@tanstack/solid-pacer': 0.24.0
   '@tanstack/solid-query': '^5.107.1'
@@ -107,6 +110,7 @@ catalog:
   citty: '^0.2.2'
   class-variance-authority: '^0.7.1'
   culori: ^4.0.2
+  defu: 6.1.7
   drizzle-kit: '1.0.0-rc.5'
   drizzle-orm: '1.0.0-rc.5'
   env-paths: '^3.0.0'
@@ -127,6 +131,7 @@ catalog:
   oxc-parser: '^0.156.0'
   oxfmt: 0.75.0
   oxlint: 1.90.0
+  p-queue: '^10.0.0'
   p-timeout: '^8.0.0'
   partysocket: '^1.3.0'
   piscina: '^5.3.2'

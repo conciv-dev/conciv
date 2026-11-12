@@ -6,10 +6,9 @@ The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run tu
 
 ## Interface
 
-- `index.ts:createChatPlane` - async factory returning a `ChatPlane` with `routes`, `hydrate`, `history`, `stop`, `compact`, `clear`, `endAllRuns`, `live`, `record`, `running`, `decide`, `answerUi`, `askUi`, `codeRunner`, `admitCall`, `catchUp`, `allowOutside`; `deps.hubGeneration()` is the conciv home's hub generation (bumped by every disconnect), handed to the approval store; `codeRunner(sessionId, publish, capabilities?)` runs the given capability set instead of the session's own when one is passed; `record(sessionId, chunks)` appends the assistant messages those chunks build to the session's thread (an outside call's mirror run, so it outlives a reload).
+- `index.ts:createChatPlane` - async factory returning a `ChatPlane` with `routes`, `hydrate`, `history`, `stop`, `compact`, `clear`, `endAllRuns`, `live`, `record`, `running`, `decide`, `answerUi`, `askUi`, `codeRunner`, `admitCall`, `catchUp`, `allowOutside`; `deps.hubGeneration()` is the conciv home's hub generation (bumped by every disconnect), handed to the approval store; `codeRunner(sessionId, publish, capabilities?)` runs the given capability set instead of the session's own when one is passed, and its `asking` tools run without asking (the caller decides whether `admitCall` comes first); `record(sessionId, chunks)` appends the assistant messages those chunks build to the session's thread (an outside call's mirror run, so it outlives a reload).
 - `index.ts:ChatPlane.routes` - a Hono app with `GET CHAT_WS_PATH` (WebSocket upgrade), `POST CHAT_SSE_PATH` (start events) and `GET CHAT_SSE_PATH` (resume; 400 `no resume offset` when there is none).
 - `index.ts:CodeTool` / `CodeRunner` (carries `capabilities`, the name and description of every sandboxed capability) / `ChatPlane` - exported types; also re-exports `AttachmentExpanders` and `SessionPort` from `turn.ts`.
-- `code-mode.ts:RESULT_CAP_CHARS` (50000), `cappedText`, `cappedValue`, `safeStringify`, `truncationEnvelope` - cap and serialize tool results.
 - `code-mode.ts:registryCapabilities` / `assistCapabilities` / `chatToolSet` - build `CodeCapability` lists and the code-mode and asking tool sets.
 - `approvals.ts:createApprovalStore` - pending approvals and grants per thread over the `metadata` chat store; `ApprovalScope` is `'once' | 'session'`.
 - `approvals.ts:createUiChannel` - per-thread waiters for UI answers.
@@ -31,7 +30,7 @@ The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run tu
 - `index.ts:hydrate` - takes an optional `{limit, before}` window and returns that page plus `page`; `messageHarness` maps each assistant message id of the page to the harness that produced it: the `chat_runs.harness_id` of its run, else its import stamp. `pendingApprovals` and `lastRun` are never paged.
 - `turn.ts:turnHooks` - throws `the message is empty` for an empty user message.
 - `turn.ts:turnHooks` - hands the harness the session row's `effort` as `HarnessChatDeps.effort`, or none when it is null (the CLI's default); `chat()` gets no `reasoning`, so the harness is the one place the effort reaches the CLI.
-- `code-mode.ts:cappedValue` - a result whose serialization exceeds `RESULT_CAP_CHARS` is replaced by a truncation payload keeping the first 4000 characters.
+- `code-mode.ts:chatToolSet` - a non-lazy tool result goes through `cappedValue` from `@conciv/contract`.
 
 ## Side Effects
 

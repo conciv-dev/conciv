@@ -8,7 +8,7 @@ server.ts builds the extension's oRPC router over a RecorderRuntime. The routes 
 
 - `recorder` / default export (`client.tsx`): client extension 'recorder' with tools startToolClient, stopToolClient and pullToolClient, attachment recordingAttachment, view {id:'recorder', label:'Recorder'} using RecorderPanelView, and a Surface that renders CaptureDriver; its context value is {store: createRecorderStore()}
 - module augmentation `ExtensionRegistry` (`client.tsx`): adds the recorder to @conciv/protocol/config-types
-- `makeRecorderRouter(runtime)` (`server.ts`): oRPC router with procedures config, clients, flush, window, events, presence, reset, log, recordings.save, recordings.get, recordings.exportVideo and control (an event-iterator subscription)
+- `makeRecorderRouter(runtime)` (`server.ts`): oRPC router with procedures config, clients, flush, window, replay (an event iterator: the window now, again after each append while it holds fewer than REPLAY_MIN_EVENTS (2) events, then it ends), events (an event iterator: each append after the cursor as `{events, cursor}`, every batch carrying its cursor as the event id so a retried stream resumes after the last one sent), presence, reset, log, recordings.save, recordings.get, recordings.exportVideo and control (an event-iterator subscription)
 - `RecorderRouter` (`server.ts`): type of the router; the client RPC calls use it
 - default export (`server.ts`): server extension with tools startTool, stopTool and pullTool, attachment recordingAttachment, context {recorder: runtime}, router, and a dispose function
 - module '*.css?inline' (`css-inline.d.ts`): default export typed as string

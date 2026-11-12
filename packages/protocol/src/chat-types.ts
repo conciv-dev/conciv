@@ -19,11 +19,17 @@ export const CONCIV_ORIGIN_HEADER = 'conciv-origin'
 
 export const CONCIV_CLIENT_HEADER = 'conciv-client'
 
+export const CONCIV_NAMED_TAB_HEADER = 'conciv-named-tab'
+
 export const OUTSIDE_SESSION_TARGET = 'outside-session'
 
-export type HubAccess = 'open' | 'session' | 'project'
+export const HubAccessSchema = z.enum(['open', 'session', 'project'])
+
+export type HubAccess = z.infer<typeof HubAccessSchema>
 
 export const CODE_MODE_SYNTHETIC_PART_MARKER = 'codeModeSynthetic'
+
+export const CODE_MODE_TIMEOUT_MS = 150_000
 
 const MEBIBYTE = 1024 * 1024
 export const MAX_ATTACHMENT_RAW_BYTES = Math.floor((WS_RPC_PAYLOAD_BUDGET_BYTES * 3) / 4 / MEBIBYTE) * MEBIBYTE

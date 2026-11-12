@@ -1,19 +1,20 @@
-import {execFileSync, spawnSync} from 'node:child_process'
-import {cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
+import {execFileSync} from 'node:child_process'
+import {cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {mkdtemp, realpath} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
-import {createRequire} from 'node:module'
-import {dirname, join} from 'node:path'
+import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {afterAll, afterEach, beforeAll, describe, expect, it, test} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
-import {createServer, type ViteDevServer} from 'vite'
+import type {ViteDevServer} from 'vite'
 import {z} from 'zod'
 import {start, type Engine, type StartOpts} from '@conciv/core/start'
-import {loadServerExtensions} from '@conciv/extension-compiler/extensions'
+import {loadExtensionPackages} from '@conciv/extension-compiler/extensions'
+import tanstack from '../src/index.js'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
 import {makeCallTool, resolveSession, type CallTool} from '@conciv/harness-testkit'
 import {makeViteBridge} from '@conciv/extension/vite'
+import {buildAndPack, installPacked, packTarball} from '@conciv/vitest-config/pack'
 import type {BundlerBridge, BundlerDiagnostic} from '@conciv/protocol/bundler-types'
 import tanstackExtension from '../src/server.js'
 import {
@@ -48,19 +49,13 @@ describe('boot', () => {
   })
 })
 
-describe('folder install', () => {
-  const packageRoot = fileURLToPath(new URL('../', import.meta.url))
-
-  test('a dropped re-export is discovered by loadServerExtensions and its server tool runs on the real engine', async () => {
+describe('package install', () => {
+  test('the factory loads as an installed extension package and its server tool runs on the real engine', async () => {
     const root = await realpath(await mkdtemp(join(await realpath(tmpdir()), 'conciv-fi-')))
     cpSync(fileURLToPath(new URL('./fixtures/route-manifest-app', import.meta.url)), root, {recursive: true})
-    mkdirSync(join(root, 'node_modules/@conciv'), {recursive: true})
-    symlinkSync(packageRoot, join(root, 'node_modules/@conciv/extension-tanstack'))
-    mkdirSync(join(root, 'conciv/extensions'), {recursive: true})
-    writeFileSync(join(root, 'conciv/extensions/tanstack.tsx'), "export {default} from '@conciv/extension-tanstack'\n")
 
-    const extensions = await loadServerExtensions(root, [])
-    expect(extensions.map((extension) => extension.name)).toContain('tanstack')
+    const {extensions} = await loadExtensionPackages([tanstack()])
+    expect(extensions.map((extension) => extension.name)).toEqual(['tanstack'])
 
     const {engine, apiBase} = await startTrusted({
       options: {stateRoot: root, systemPrompt: false},
@@ -152,97 +147,54 @@ describe('framework adapter', () => {
   })
 })
 
-describe('packed resolution', () => {
-  test('packed tarball has no workspace protocol and ships the conditional export map', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'conciv-packed-'))
-    execFileSync('pnpm', ['pack', '--pack-destination', dir], {cwd: process.cwd()})
-    const tgz = execFileSync('sh', ['-c', `ls ${dir}/*.tgz`])
-      .toString()
-      .trim()
+describe('packed resolution', {tags: ['packed']}, () => {
+  test('packed tarball has no workspace protocol and its root export is the factory', () => {
+    const tgz = packTarball(process.cwd(), mkdtempSync(join(tmpdir(), 'conciv-packed-')))
     const manifestText = execFileSync('tar', ['-xzOf', tgz, 'package/package.json']).toString()
     expect(manifestText).not.toContain('workspace:')
     const manifest: unknown = JSON.parse(manifestText)
     if (typeof manifest !== 'object' || manifest === null || !('exports' in manifest)) throw new Error('no exports')
     expect(manifest.exports).toMatchObject({
-      '.': {
-        browser: {types: './dist/client.d.ts', default: './dist/client.js'},
-        import: {types: './dist/server.d.ts', default: './dist/server.js'},
-      },
+      '.': {types: './dist/index.d.ts', import: './dist/index.js', default: './dist/index.js'},
     })
     const files = execFileSync('tar', ['-tzf', tgz]).toString()
+    expect(files).toContain('package/dist/index.js')
     expect(files).toContain('package/dist/client.js')
     expect(files).toContain('package/dist/server.js')
   })
 })
 
-describe('resolution matrix', () => {
+describe('resolution matrix', {tags: ['packed']}, () => {
   const workspaceRoot = fileURLToPath(new URL('../../../../', import.meta.url))
 
   const rootPackage = '@conciv/extension-tanstack'
 
-  type PackedPackage = {name: string; version: string; tarball: string}
+  type PackedPackage = {name: string; tarball: string}
 
   type Fixture = {dir: string; packDir: string; packed: PackedPackage[]}
 
   const ctx: {fixture?: Fixture} = {}
 
-  function readManifest(dir: string): {name: string; version: string} {
-    const raw: unknown = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
-    if (typeof raw !== 'object' || raw === null || !('name' in raw) || !('version' in raw)) {
-      throw new Error(`invalid manifest at ${dir}`)
-    }
-    const {name, version} = raw
-    if (typeof name !== 'string' || typeof version !== 'string') throw new Error(`invalid name/version at ${dir}`)
-    return {name, version}
-  }
-
-  function closureEntryDir(entry: unknown): string {
-    if (typeof entry !== 'object' || entry === null || !('path' in entry)) {
-      throw new Error('pnpm listed a closure entry without a path')
-    }
-    const {path} = entry
-    if (typeof path !== 'string') throw new Error('pnpm listed a closure entry whose path is not a string')
-    return path
-  }
-
-  function prodClosureDirs(): string[] {
-    const output = execFileSync('pnpm', ['--filter-prod', `${rootPackage}...`, 'ls', '--depth', '-1', '--json'], {
-      cwd: workspaceRoot,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    }).toString()
-    if (output.trim().length === 0) throw new Error(`pnpm reported no production closure for ${rootPackage}`)
-    const parsed: unknown = JSON.parse(output)
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      throw new Error(`pnpm reported an empty production closure for ${rootPackage}`)
-    }
-    return parsed.map(closureEntryDir)
-  }
-
-  function tarballSlug(name: string, version: string): string {
-    return `${name.replace('@', '').replace('/', '-')}-${version}.tgz`
-  }
-
   function escapeRegExp(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   }
 
-  function packWorkspaceClosure(packDir: string): PackedPackage[] {
-    const packed: PackedPackage[] = []
-    for (const packageDir of prodClosureDirs()) {
-      const {name, version} = readManifest(packageDir)
-      execFileSync('pnpm', ['pack', '--pack-destination', packDir], {cwd: packageDir, stdio: 'pipe'})
-      const slug = tarballSlug(name, version)
-      const tarball = join(packDir, slug)
+  async function packWorkspaceClosure(
+    packDir: string,
+  ): Promise<{packed: PackedPackage[]; overrides: Record<string, string>}> {
+    const {overrides} = await buildAndPack(packDir, [rootPackage])
+    const packed = Object.entries(overrides).map(([name, override]) => {
+      const tarball = override.replace(/^file:/, '')
       const manifestText = execFileSync('tar', ['-xzOf', tarball, 'package/package.json']).toString()
       expect(manifestText, `${name} tarball must not carry workspace protocol`).not.toContain('workspace:')
-      packed.push({name, version, tarball})
-    }
-    return packed
+      return {name, tarball}
+    })
+    return {packed, overrides}
   }
 
-  function writeFixtureManifest(dir: string, packed: PackedPackage[]): void {
-    const root = packed.find((entry) => entry.name === rootPackage)
-    if (!root) throw new Error('root package missing from closure')
+  function writeFixtureManifest(dir: string, overrides: Record<string, string>): void {
+    const root = overrides[rootPackage]
+    if (root === undefined) throw new Error('root package missing from closure')
     const {packageManager} = z
       .object({packageManager: z.string()})
       .parse(JSON.parse(readFileSync(join(workspaceRoot, 'package.json'), 'utf8')))
@@ -253,22 +205,25 @@ describe('resolution matrix', () => {
       type: 'module',
       packageManager,
       dependencies: {
-        [rootPackage]: `file:${root.tarball}`,
+        [rootPackage]: root,
         '@tanstack/react-router': '^1.170.0',
         'solid-js': '^1.9.13',
       },
     }
     writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest, null, 2))
-    const overrideLines = packed.map((entry) => `  '${entry.name}': 'file:${entry.tarball}'`)
-    writeFileSync(join(dir, 'pnpm-workspace.yaml'), ['overrides:', ...overrideLines, ''].join('\n'))
   }
 
-  function buildFixture(): Fixture {
+  async function buildFixture(): Promise<Fixture> {
     const dir = mkdtempSync(join(tmpdir(), 'conciv-resolution-matrix-'))
     const packDir = mkdtempSync(join(tmpdir(), 'conciv-resolution-packs-'))
-    const packed = packWorkspaceClosure(packDir)
-    writeFixtureManifest(dir, packed)
-    execFileSync('pnpm', ['install', '--no-frozen-lockfile'], {cwd: dir, stdio: 'pipe'})
+    const {packed, overrides} = await packWorkspaceClosure(packDir)
+    writeFixtureManifest(dir, overrides)
+    await installPacked({
+      root: dir,
+      packages: ['.'],
+      allowBuilds: {'isolated-vm': false, protobufjs: false},
+      overrides,
+    })
     return {dir, packDir, packed}
   }
 
@@ -277,8 +232,8 @@ describe('resolution matrix', () => {
     return ctx.fixture
   }
 
-  beforeAll(() => {
-    ctx.fixture = buildFixture()
+  beforeAll(async () => {
+    ctx.fixture = await buildFixture()
   }, 420_000)
 
   afterAll(() => {
@@ -299,86 +254,23 @@ describe('resolution matrix', () => {
       expect(lock).not.toContain('registry.npmjs.org/@conciv')
     })
 
-    test('node default conditions resolve and execute the server entry', () => {
+    test('the installed factory names the packed server and client entries and the server entry runs', () => {
       const {dir} = fixture()
       const probe = join(dir, 'node-probe.mjs')
       writeFileSync(
         probe,
         [
-          `import m from '${rootPackage}'`,
-          `const resolved = import.meta.resolve('${rootPackage}')`,
-          `process.stdout.write(JSON.stringify({resolved, name: m.name}))`,
+          `import tanstack from '${rootPackage}'`,
+          `const installed = tanstack()`,
+          `const server = await import(installed.server)`,
+          `process.stdout.write(JSON.stringify({server: installed.server, client: installed.client, name: server.default.name}))`,
         ].join('\n'),
       )
       const output = execFileSync('node', [probe], {cwd: dir}).toString()
-      const parsed: unknown = JSON.parse(output)
-      if (typeof parsed !== 'object' || parsed === null || !('resolved' in parsed) || !('name' in parsed)) {
-        throw new Error('probe produced no result')
-      }
-      const {resolved, name} = parsed
-      if (typeof resolved !== 'string') throw new Error('resolved path missing')
-      expect(fileURLToPath(resolved).endsWith(join('dist', 'server.js'))).toBe(true)
-      expect(name).toBe('tanstack')
-    })
-
-    test('vite client and ssr resolves split browser and node conditions', async () => {
-      const {dir} = fixture()
-      const importer = join(dir, 'importer.tsx')
-      const server = await createServer({
-        root: dir,
-        configFile: false,
-        logLevel: 'silent',
-        server: {middlewareMode: true, ws: false},
-        optimizeDeps: {noDiscovery: true, include: []},
-      })
-      try {
-        const client = await server.pluginContainer.resolveId(rootPackage, importer, {ssr: false})
-        const ssr = await server.pluginContainer.resolveId(rootPackage, importer, {ssr: true})
-        if (!client || !ssr) throw new Error('vite failed to resolve the extension')
-        expect(client.id.endsWith(join('dist', 'client.js'))).toBe(true)
-        expect(ssr.id.endsWith(join('dist', 'server.js'))).toBe(true)
-      } finally {
-        await server.close()
-      }
-    })
-
-    test('typescript resolves types by customConditions', () => {
-      const {dir} = fixture()
-      const probeDir = join(dir, 'conditions-probe')
-      mkdirSync(probeDir, {recursive: true})
-      writeFileSync(
-        join(probeDir, 'probe.ts'),
-        `import type * as extension from '${rootPackage}'\nexport type {extension}\n`,
-      )
-      const tsc = join(dirname(createRequire(import.meta.url).resolve('typescript/package.json')), 'bin', 'tsc')
-      const resolvedTypes = (conditions: string[]) => {
-        const trace = spawnSync(
-          process.execPath,
-          [
-            tsc,
-            '--noEmit',
-            '--traceResolution',
-            '--module',
-            'esnext',
-            '--moduleResolution',
-            'bundler',
-            '--target',
-            'esnext',
-            '--types',
-            '',
-            ...conditions,
-            'probe.ts',
-          ],
-          {cwd: probeDir, encoding: 'utf8'},
-        ).stdout
-        const resolved = new RegExp(
-          `Module name '${escapeRegExp(rootPackage)}' was successfully resolved to '([^']+)'`,
-        ).exec(trace)?.[1]
-        if (resolved === undefined) throw new Error(`tsc did not resolve ${rootPackage}:\n${trace}`)
-        return resolved
-      }
-      expect(resolvedTypes([]).endsWith(join('dist', 'server.d.ts'))).toBe(true)
-      expect(resolvedTypes(['--customConditions', 'browser']).endsWith(join('dist', 'client.d.ts'))).toBe(true)
+      const probed = z.object({server: z.string(), client: z.string(), name: z.string()}).parse(JSON.parse(output))
+      expect(probed.server).toContain(join('node_modules', '@conciv', 'extension-tanstack', 'dist', 'server.js'))
+      expect(probed.client).toContain(join('node_modules', '@conciv', 'extension-tanstack', 'dist', 'client.js'))
+      expect(probed.name).toBe('tanstack')
     })
   })
 })

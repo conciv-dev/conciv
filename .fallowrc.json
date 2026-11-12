@@ -9,11 +9,11 @@
     "packages/aidx/**",
     "packages/contract/test/helpers/fake-native-socket.ts",
     "packages/extensions/tanstack/test/fixtures/**",
-    "packages/it/test/fixtures/design/**",
-    "packages/it/test/fixtures/lib/**",
+    "packages/extensions/design/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",
     "packages/oxlint-plugin/fixtures/**",
     "packages/cli/test/fixtures/**",
+    "packages/plugin/test/fixtures/extension/**",
     "apps/examples/**",
     "native/swift/**",
     "docs/assets/page-session-card-spike/**",
@@ -42,7 +42,7 @@
       },
       {
         "name": "core-primitives",
-        "patterns": ["packages/core/src/page-bus.ts", "packages/core/src/tool-registry.ts"]
+        "patterns": ["packages/core/src/page/page-bus.ts", "packages/core/src/tool-registry.ts"]
       },
       {
         "name": "core-shared-leaf",

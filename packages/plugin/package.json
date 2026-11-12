@@ -83,15 +83,11 @@
     "unplugin": "^3.6.0"
   },
   "devDependencies": {
-    "@conciv/extension-ios": "workspace:^",
-    "@conciv/extension-recorder": "workspace:^",
-    "@conciv/extension-terminal": "workspace:^",
-    "@conciv/extension-test-runner": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
-    "@conciv/extension-whiteboard": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
+    "@tanstack/devtools-vite": "catalog:",
     "@types/node": "catalog:",
     "@vitejs/devtools": "catalog:",
     "@vitest/coverage-v8": "catalog:",

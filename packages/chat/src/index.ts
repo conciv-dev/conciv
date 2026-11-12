@@ -6,7 +6,7 @@ import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
 import {approvalRequestedEvent, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {approvalNeeded, childCardChunks, createChatServer, drizzleChatStores, toolApprovalId} from '@conciv/ai/server'
-import type {ChatHistoryWindow, ChatHydration} from '@conciv/contract'
+import {cappedValue, type ChatHistoryWindow, type ChatHydration} from '@conciv/contract'
 import {chatRuns, markers, type ConcivDb} from '@conciv/db'
 import {CHAT_SSE_PATH, CHAT_WS_PATH, isSessionId, SessionId, type HubAccess} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -18,21 +18,12 @@ import {
   type ApprovalDecision,
   type ApprovalScope,
 } from './approvals.js'
-import {cappedValue, chatToolSet, type CodeCapability} from './code-mode.js'
+import {chatToolSet, type CodeCapability} from './code-mode.js'
 import {clearThread, metadataKeysEndingWith, runningThreadIds} from './stores.js'
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
 import {firstUserTitle, turnHooks, type TurnDeps} from './turn.js'
 
-export {
-  assistCapabilities,
-  cappedText,
-  cappedValue,
-  RESULT_CAP_CHARS,
-  registryCapabilities,
-  safeStringify,
-  truncationEnvelope,
-  type CodeCapability,
-} from './code-mode.js'
+export {assistCapabilities, registryCapabilities, type CodeCapability} from './code-mode.js'
 export type {AttachmentExpanders, SessionPort} from './turn.js'
 
 const FIRST_OUTPUT_TIMEOUT_MS = 30_000
@@ -96,7 +87,9 @@ export type ChatPlane = {
     sessionId: SessionId,
     publish: (chunk: ChatEvent) => void,
     capabilities?: readonly CodeCapability[],
+    outside?: boolean,
   ) => Promise<CodeRunner | null>
+  followUp: (sessionId: SessionId, input: string) => Promise<boolean>
   admitCall: (sessionId: SessionId, call: AdmittedCall) => Promise<CallRefusal | null>
   catchUp: (sessionId: SessionId) => Promise<ChatEvent[]>
   outsideDenied: (sessionId: SessionId) => Promise<boolean>
@@ -104,6 +97,7 @@ export type ChatPlane = {
 }
 
 export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
+  const startingFollowUps = new Set<SessionId>()
   const stores = drizzleChatStores(deps.db, {
     harnessOf: (threadId) => deps.harnessFor(SessionId.parse(threadId)).id,
     saved: (threadId, messages, at) => {
@@ -251,10 +245,27 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     },
     outsideDenied: (sessionId) => approvals.outsideDenied(sessionId),
     allowOutside: (sessionId) => approvals.allowOutside(sessionId),
-    codeRunner: async (sessionId, publish, given) => {
+    followUp: async (sessionId, input) => {
+      if (startingFollowUps.has(sessionId) || server.driving(sessionId)) return false
+      startingFollowUps.add(sessionId)
+      try {
+        if ((await stores.runs.findActiveRun(sessionId)) !== null) return false
+        const runId = randomUUID()
+        return await server.drive({threadId: sessionId, runId, kind: 'page-queue', input}, []).then(
+          () => true,
+          (error: unknown) => {
+            deps.log(`[chat] the page queue follow-up run ${runId} failed: ${String(error)}`)
+            return false
+          },
+        )
+      } finally {
+        startingFollowUps.delete(sessionId)
+      }
+    },
+    codeRunner: async (sessionId, publish, given, outside) => {
       const model = deps.sessions.row(sessionId)?.model ?? null
       const capabilities = given ?? deps.capabilities(sessionId)
-      const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model})
+      const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model, ...(outside ? {outside} : {})})
       const runner = server.codeRunner(toolSet.codeMode)
       if (runner === null) return null
       const emitter = (parentToolCallId: string | null) => (name: string, value: Record<string, unknown>) => {
@@ -275,11 +286,8 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
             name: tool.name,
             description: tool.description,
             inputSchema: capability.inputSchema,
-            run: async (input, parentToolCallId, signal) => {
-              const refusal = await admitCall(sessionId, {toolName: tool.name, input, publish})
-              if (refusal !== null) throw new Error(refusal.message)
-              return execute(input, {emitCustomEvent: emitter(parentToolCallId), abortSignal: signal})
-            },
+            run: async (input, parentToolCallId, signal) =>
+              execute(input, {emitCustomEvent: emitter(parentToolCallId), abortSignal: signal}),
           },
         ]
       })

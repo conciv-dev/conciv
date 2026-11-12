@@ -47,7 +47,10 @@ export function agentPath(token: string): string {
 
 export type ExchangeOutcome = 'trusted' | ExchangeRefusal
 
+type IssuedCode = {code: string; expiresAt: number}
+
 export type CodeStore = {
+  issue: () => IssuedCode
   request: (requester: BrowserRequester, reissue: boolean) => {expiresAt: number}
   exchange: (code: string) => ExchangeOutcome
 }
@@ -89,15 +92,20 @@ export function makeCodeStore(deps: {now: () => number; print: (text: string) =>
     state.code = null
     state.failures = 0
   }
+  const issue = (): IssuedCode => {
+    const code = freshCode()
+    state.code = code
+    state.expiresAt = deps.now() + CODE_LIFETIME_MS
+    state.failures = 0
+    return {code, expiresAt: state.expiresAt}
+  }
   return {
+    issue,
     request: (requester, reissue) => {
       if (!reissue && live() !== null) return {expiresAt: state.expiresAt}
-      const code = freshCode()
-      state.code = code
-      state.expiresAt = deps.now() + CODE_LIFETIME_MS
-      state.failures = 0
-      deps.print(loginBanner(code, state.expiresAt, requester))
-      return {expiresAt: state.expiresAt}
+      const issued = issue()
+      deps.print(loginBanner(issued.code, issued.expiresAt, requester))
+      return {expiresAt: issued.expiresAt}
     },
     exchange: (code) => {
       const current = live()
@@ -186,14 +194,17 @@ export function watchTrustedBrowsers(stateDir: string): TrustedBrowsers {
 
 export type ConnectionTrust = {
   trusts: (token: string) => boolean
+  isEngine: (token: string) => boolean
   trustConnection: (socket: EngineSocket, token: string) => (() => void) | null
   refuseUntrusted: (socket: EngineSocket) => void
 }
 
 export function makeConnectionTrust(agentToken: string, browsers: TrustedBrowsers): ConnectionTrust {
-  const trusts = (token: string): boolean => token !== '' && (sameCode(token, agentToken) || browsers.has(token))
+  const isEngine = (token: string): boolean => token !== '' && sameCode(token, agentToken)
+  const trusts = (token: string): boolean => isEngine(token) || (token !== '' && browsers.has(token))
   return {
     trusts,
+    isEngine,
     trustConnection: (socket, token) => (trusts(token) ? browsers.hold(socket, token) : null),
     refuseUntrusted: (socket) => socket.close(REVOKED_SOCKET_CLOSE_CODE, 'this browser is not trusted'),
   }
@@ -324,6 +335,11 @@ export function makeAuthRouter(deps: {
     requestCode: os.auth.requestCode.handler(({input, context}) =>
       deps.codes.request(requesterOf(context), input.reissue ?? false),
     ),
+    issueCode: os.auth.issueCode.handler(({context, errors}) => {
+      const presented = BEARER.exec(rpcHeader(context, 'authorization') ?? '')?.[1]
+      if (presented === undefined || !deps.trust.isEngine(presented)) throw errors.FORBIDDEN()
+      return deps.codes.issue()
+    }),
   }
 }
 

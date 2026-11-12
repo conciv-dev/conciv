@@ -1,5 +1,5 @@
 import {mkdirSync, readFileSync, writeFileSync} from 'node:fs'
-import {join} from 'node:path'
+import {join, relative, sep} from 'node:path'
 import {listExtensionFiles} from '@conciv/extension-compiler/extensions'
 import {genImport} from 'knitwork'
 
@@ -30,15 +30,20 @@ function assertUniqueStems(files: readonly string[]): void {
   }
 }
 
-export function generateExtensionsEntrySource(files: readonly string[]): string {
+export function generateExtensionsEntrySource(files: readonly string[], packageClients: readonly string[]): string {
   const sorted = files.toSorted()
   assertUniqueStems(sorted)
-  const imports = sorted.map((file, index) =>
-    stripTrailingSemicolon(
-      genImport(`../conciv/extensions/${stemOf(file)}`, `extension${index}`, {singleQuotes: true}),
-    ),
+  const sources = [
+    ...packageClients.map((specifier) => ({specifier, source: specifier})),
+    ...sorted.map((file) => ({
+      specifier: `../conciv/extensions/${stemOf(file)}`,
+      source: `/conciv/extensions/${file}`,
+    })),
+  ]
+  const imports = sources.map(({specifier}, index) =>
+    stripTrailingSemicolon(genImport(specifier, `extension${index}`, {singleQuotes: true})),
   )
-  const elements = sorted.map((file, index) => `{extension: extension${index}, source: '/conciv/extensions/${file}'}`)
+  const elements = sources.map(({source}, index) => `{extension: extension${index}, source: '${source}'}`)
   return [HEADER, ...imports, `export const entries = [${elements.join(', ')}]`, ''].join('\n')
 }
 
@@ -55,12 +60,20 @@ function readExisting(path: string): string | undefined {
   }
 }
 
-export function writeExtensionsEntry(root: string): {path: string; changed: boolean} {
-  const source = generateExtensionsEntrySource(listExtensionFiles(root))
+export function writeExtensionsEntry(root: string, clientEntries: readonly string[]): {path: string; changed: boolean} {
   const dir = join(root, ENTRY_DIR)
+  const source = generateExtensionsEntrySource(
+    listExtensionFiles(root),
+    clientEntries.map((entry) => relativeSpecifier(dir, entry)),
+  )
   mkdirSync(dir, {recursive: true})
   const path = join(dir, ENTRY_FILE)
   if (readExisting(path) === source) return {path, changed: false}
   writeFileSync(path, source, 'utf8')
   return {path, changed: true}
+}
+
+function relativeSpecifier(from: string, to: string): string {
+  const path = relative(from, to).split(sep).join('/')
+  return path.startsWith('.') ? path : `./${path}`
 }

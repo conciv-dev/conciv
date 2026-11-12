@@ -3,21 +3,23 @@ import {ORPCError} from '@orpc/server'
 import {asc, eq, sql} from 'drizzle-orm'
 import {isPageFailure, type PageErrorCode} from '@conciv/protocol/page-types'
 import {isPageVerbError, isToolError} from '@conciv/extension'
+import type {RegistryCallGate} from '@conciv/extension/registry'
 import {resolveHarnessModels} from '@conciv/harness'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers} from '@conciv/db'
 import type {Router} from '@orpc/server'
-import type {contract, RegistryCallErrorName} from '@conciv/contract'
+import {cappedText, safeStringify, type contract, type RegistryCallErrorName} from '@conciv/contract'
 import {widgetCaller} from '../../lib/cors.js'
 import {listCommands} from '../../sessions/commands.js'
 import {session} from '../../runtime/session-context.js'
 import {chatRouter} from './chat.js'
 import {harnessMenuEntryOf, harnessMetaOf, sessionsRouter} from './sessions.js'
-import {makeHubAdmission, makeSessionOs, os, type RpcDeps} from './mount.js'
+import {admitOutsideCall, makeHubAdmission, makeSessionOs, makeToolCallOs, os, type RpcDeps} from './mount.js'
 import type {SessionScope} from '../../runtime/scope-types.js'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
-import {cappedText, safeStringify} from '@conciv/chat'
 import {callTrace} from '../call-trace.js'
+import {openCodeSession, type CodeSession} from '../mcp.js'
+import type {SessionId} from '@conciv/protocol/chat-types'
 
 export const PAGE_ERROR_NAME = {
   'no-widget': 'NO_PAGE_CLIENT',
@@ -64,6 +66,7 @@ async function callTool<Output extends z.ZodType>(
 
 async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, call: GatedCall): Promise<void> {
   if (widgetCaller(call.context.callerOrigin, deps.allowedOrigins)) return
+  if (callTrace((header) => rpcHeader(call.context, header)).hub?.namedTab === true) return
   const asks = deps.runtime.engine.catalog().find((tool) => tool.name === name)?.approval === 'ask'
   if (!asks) return
   const scope = call.context.session
@@ -95,25 +98,48 @@ async function hubTraced<Result>(
   }
 }
 
+type CodeErrors = {NO_CODE_MODE: (options?: {message: string}) => Error}
+
+type CodeCall = {context: RpcContext; errors: CodeErrors; signal?: AbortSignal}
+
+function hubOrigin(context: RpcContext): boolean {
+  return callTrace((header) => rpcHeader(context, header)).hub !== null
+}
+
+async function codeSessionOf(deps: RpcDeps, sessionId: SessionId | undefined, call: CodeCall): Promise<CodeSession> {
+  const trace = callTrace((header) => rpcHeader(call.context, header))
+  const scope =
+    sessionId === undefined ? await deps.code.resolveSession(null, null) : deps.runtime.forSession(sessionId)
+  const code = await openCodeSession(deps.code, scope, {
+    trace,
+    outside: trace.hub !== null && sessionId === undefined,
+    askBeforeCalls: trace.hub === null,
+    signal: call.signal ?? new AbortController().signal,
+  })
+  if (code === null) throw call.errors.NO_CODE_MODE()
+  return code
+}
+
 export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext> {
   const chat = deps.chat
   const db = chat.db
   const engine = deps.runtime.engine
   const sessionOs = makeSessionOs(deps)
+  const toolCallOs = makeToolCallOs(deps)
   return os.use(makeHubAdmission(deps)).router({
     auth: deps.auth,
     sessions: sessionsRouter(deps),
     chat: chatRouter(deps, sessionOs),
     settings: {
-      all: os.settings.all.handler(({input}) => deps.settings.file(input.scope, input.namespace).read()),
-      set: os.settings.set.handler(({input}) =>
-        deps.settings.file(input.scope, input.namespace).set(input.key, input.value),
+      all: os.settings.all.handler(async ({input}) => (await deps.settings.file(input.scope, input.namespace)).read()),
+      set: os.settings.set.handler(async ({input}) =>
+        (await deps.settings.file(input.scope, input.namespace)).set(input.key, input.value),
       ),
-      delete: os.settings.delete.handler(({input}) =>
-        deps.settings.file(input.scope, input.namespace).delete(input.key),
+      delete: os.settings.delete.handler(async ({input}) =>
+        (await deps.settings.file(input.scope, input.namespace)).delete(input.key),
       ),
-      changes: os.settings.changes.handler(({input, signal}) =>
-        deps.settings.file(input.scope, input.namespace).changes(signal),
+      changes: os.settings.changes.handler(async ({input, signal}) =>
+        (await deps.settings.file(input.scope, input.namespace)).changes(signal),
       ),
     },
     drafts: {
@@ -142,25 +168,51 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     },
     registry: {
       catalog: os.registry.catalog.handler(() => engine.catalog()),
-      call: sessionOs.registry.call.handler(async ({input, context, errors, signal}) => {
+      call: toolCallOs.registry.call.handler(async ({input, context, errors, signal, path}) => {
         const assist = deps.assist(context.session.id).find((capability) => capability.name === input.name)
         if (assist === undefined && !context.session.tools.has(input.name)) throw errors.UNKNOWN_TOOL()
-        await refuseUnapproved(deps, input.name, input.input, {context, errors, signal})
-        const run = (): Promise<unknown> =>
+        const gate: RegistryCallGate = async (run) => {
+          await admitOutsideCall(deps, context, context.session, signal, path.join('.'))
+          await refuseUnapproved(deps, input.name, input.input, {context, errors, signal})
+          return hubTraced(context, input.name, input.input, run)
+        }
+        const call = (): Promise<unknown> =>
           assist === undefined
-            ? context.session.tools.call(input.name, input.input, {signal})
-            : assist.execute(input.input)
-        return hubTraced(context, input.name, input.input, () =>
-          run().catch((error: unknown) => {
-            throw registryCallError(error, errors)
-          }),
-        )
+            ? context.session.tools.call(input.name, input.input, {signal, gate, outside: hubOrigin(context)})
+            : gate(() => assist.execute(input.input))
+        return call().catch((error: unknown) => {
+          throw registryCallError(error, errors)
+        })
       }),
     },
     captures: {
       list: os.captures.list.handler(({input}) => deps.runtime.forSession(input.sessionId).captures.list()),
     },
+    tabs: {
+      list: os.tabs.list.handler(() => deps.tabs.list()),
+      get: os.tabs.get.handler(({input}) => deps.tabs.get(input.sessionId)),
+    },
+    code: {
+      describe: os.code.describe.handler(async (call) => (await codeSessionOf(deps, undefined, call)).describe()),
+      execute: os.code.execute.handler(async ({input, ...call}) => {
+        const code = await codeSessionOf(deps, input.sessionId, call)
+        return (await code.execute(input.typescriptCode)).result
+      }),
+      discover: os.code.discover.handler(async ({input, ...call}) => {
+        const code = await codeSessionOf(deps, input.sessionId, call)
+        if (code.runner.discover === null) throw call.errors.NO_CODE_MODE({message: 'no tools to discover'})
+        return code.discover(input.toolNames)
+      }),
+    },
     page: {
+      queue: {
+        wait: os.page.queue.wait.handler(({input, errors, signal}) =>
+          deps.queues.wait(input.sessionId, input.queueId, input.waitMs, signal).catch((error: unknown) => {
+            if (signal?.aborted === true) throw error
+            throw errors.NO_QUEUE({message: error instanceof Error ? error.message : String(error)})
+          }),
+        ),
+      },
       symbolicate: os.page.symbolicate.handler(({input}) => engine.symbolicate(input.frames)),
       changes: sessionOs.page.changes.handler(({context}) =>
         hubTraced(context, 'page_changes', {}, () => context.session.page.changes()),
@@ -243,10 +295,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       ),
       tools: os.meta.tools.handler(() => ({tools: deps.tools})),
       engine: os.meta.engine.handler(() => engine.staleness()),
-      hubAgents: os.meta.hubAgents.handler(() => ({
-        installs: deps.hub.installs(),
-        connections: deps.hub.connections(),
-      })),
+      hubAgents: os.meta.hubAgents.handler(({signal}) => deps.hub.agents(signal)),
       connectHub: os.meta.connectHub.handler(({input}) => deps.hub.connect(input.harness)),
       disconnectHub: os.meta.disconnectHub.handler(({input}) => deps.hub.disconnect(input.harness)),
     },

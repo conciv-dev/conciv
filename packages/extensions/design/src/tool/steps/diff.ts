@@ -33,7 +33,7 @@ import {groupText, textDiffers} from '../../server/text-groups.js'
 import {unmatchedRegions} from '../../server/unmatched.js'
 import {liveRoute, targetWidth} from './target.js'
 
-const HINT = 'no element carries data-conciv-source; the page is not a dev build compiled by the conciv plugin'
+const HINT = 'no element carries data-tsd-source; the page is not a dev build compiled by the conciv plugin'
 const ORIGIN_HINT = 'the conciv engine origin is unknown, so xray is a path on the engine and not a full url'
 const MISMATCH_PRECISION = 10_000
 

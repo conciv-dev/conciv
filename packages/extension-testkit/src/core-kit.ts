@@ -1,3 +1,4 @@
+import {join} from 'node:path'
 import {
   createFakeHarness,
   createTestkit,
@@ -11,10 +12,12 @@ import type {CoreRuntime, SessionScope} from '@conciv/core/runtime'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 import type {EngineStaleness} from '@conciv/contract'
+import {concivStateDir} from '@conciv/protocol/state-types'
 
 export type CoreKit = Kit & {
   harness: FakeHarness
   forSession: (id: SessionId) => SessionScope
+  home: string
 }
 
 export type AlternateHarness = {
@@ -63,7 +66,6 @@ export async function bootCoreKit(opts: {
         sessionId: undefined,
         harnessSessionId: undefined,
         systemPrompt: '',
-        extensions: undefined,
         hubAccess: 'session',
       },
       cwd: env.cwd,
@@ -74,6 +76,7 @@ export async function bootCoreKit(opts: {
       allowedOrigins: opts.allowedOrigins,
       staleness: opts.staleness,
       nativePageDir: opts.nativePageDir,
+      home: kitHome(env.stateRoot),
     })
     captured.runtime = runtime
     return {
@@ -88,5 +91,10 @@ export async function bootCoreKit(opts: {
     ...kit,
     harness,
     forSession: runtime.forSession,
+    home: kitHome(kit.stateRoot),
   }
+}
+
+function kitHome(stateRoot: string): string {
+  return join(concivStateDir(stateRoot), 'home')
 }

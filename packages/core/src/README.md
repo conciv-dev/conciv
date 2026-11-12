@@ -9,17 +9,17 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `start(opts: StartOpts): Promise<Engine>` (`start.ts`): `Engine` = {port, stop, cfg, extensionContexts}
 - `StartOpts`, `PortRequest` = {exact}|{preferred}, `composeSystemPrompt` (`start.ts`)
 - `makeApp(opts): Promise<MadeApp>` / `withBuiltinExtensions` / `slug` / `HealthSchema` / `AppType` (`app.ts`)
-- Routes (`app.ts`): `GET /health` (`{ok, harness, engine: {stale}, id}`, `id` = the per-start `engineId`), `POST /api/shutdown`, chat-plane routes and WS, push routes and WS, `GET RPC_WS_PATH` (`/rpc-ws`, the browser's one oRPC socket, gated per connection by `rpcSocketGate`), `${RPC_PREFIX}/*` (the HTTP oRPC handler for node callers: CLI, tests, `makeRpcClient`), `/api/mcp`, `/api/tabs`, optional `NATIVE_PAGE_PATH`, `/api/ext/<slug>` per extension
+- Routes (`app.ts`): `GET /health` (`{ok, harness, engine: {stale}, id}`, `id` = the per-start `engineId`), `POST /api/shutdown`, chat-plane routes and WS, push routes and WS, `GET RPC_WS_PATH` (`/rpc-ws`, the browser's one oRPC socket, gated per connection by `rpcSocketGate`), `${RPC_PREFIX}/*` (the HTTP oRPC handler for node callers: CLI, tests, `makeRpcClient`), `/api/mcp`, optional `NATIVE_PAGE_PATH`, `/api/ext/<slug>` per extension
 - `resolveConfig(options, root)` / `ResolvedConcivConfig` / `defineConfig` (`config.ts`)
 - `CoreRuntime`, `EngineScope`, `SessionScope`, `ScopedToolCall`, `session` (`runtime.ts`)
 - `CodeRunCard`, `codeRunTool`, `EXECUTE_TOOL_NAME`, `coreToolCards` (`cards.tsx`)
-- `makePageBus(timeoutMs=5000)` / `pageQueryStream` / `makeJournal` / `PageEnv` (`page-bus.ts`); each subscriber is one browser tab with an engine-assigned id (`b1`, `b2`, ...) and a focus getter (`{focusedAt, visible}`, fed by the push socket's `page-serving` frames); `PageBus.ask(sessionId, query, route?, signal?)` sends the query to exactly one browser tab, the one `{browserTab}` names or else the one focused last (then visible, then subscribed last), under a random request id only that tab sees; a browser tab that unsubscribes fails its in-flight queries with `no-widget` ('browser tab <id> closed before it replied') and a late reply settles nothing, except for a page tool call (`route` `{mutating}`, passed by `runClientTool` from the tool's mark): a reading call waits for a browser tab of the session to serve again (a new subscriber, or one already there) and is sent once more to the one focused last, failing as before when none serves within 5 seconds or the call's own timeout, which the resend never extends; a changing call is never sent again and fails at once with `no-widget` 'the page reloaded or closed during <tool>; it may already have run. Take a new snapshot before continuing'; and a named browser tab that is not open fails `no-widget` naming the open ids; an aborted `signal` (the caller's tool request signal, carried on `ToolRequest.signal`) fails the call at once with the signal's reason, drops its waiter, and never resends; `PageBus.openSessions()` lists `{sessionId, browserTabs}` (ids, the default target first) for every session with at least one subscriber
 - `makeBuiltinRegistry(deps)` / `toolFailureFromPage` (`tool-registry.ts`)
 - Subdirectories:
   - api: [./api/README.md](./api/README.md) - MCP, tabs, push and native-page routes
   - cards: [./cards/README.md](./cards/README.md) - execute_typescript tool card
   - editor: [./editor/README.md](./editor/README.md) - open source locations
   - lib: [./lib/README.md](./lib/README.md) - CORS, dev endpoint, staleness, state paths
+  - page: [./page/README.md](./page/README.md) - page bus, change journal and page action queues
   - runtime: [./runtime/README.md](./runtime/README.md) - session and engine scopes
   - sessions: [./sessions/README.md](./sessions/README.md) - session rows and event bus
 
@@ -32,6 +32,7 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `trustingUpgrade` (`engine-login.ts`): every engine socket (chat, push, extension sockets through `ServerApi.upgradeWebSocket`) is admitted by a bearer header or by a first `{type: 'conciv:trust', token}` frame; anything else is closed with 1008, and a revoke closes every socket held by that token with 1008
 - `rpcSocketGate` (`engine-login.ts`): the rpc socket opens untrusted and serves only the three `auth.*` procedures (anything else answers `UNAUTHORIZED`) until a bearer header, a `{type: 'conciv:trust', token}` frame, or a successful `auth.trust` / `auth.exchange` on that socket trusts it; a revoke closes it with 1008 like every other engine socket
 - `makeAuthRouter` (`engine-login.ts`): `auth.exchange` answers `{refused: 'mismatch' | 'expired'}`; five wrong codes retire the printed code
+- `auth.issueCode` (`engine-login.ts`): answers `{code, expiresAt}` only when the request's bearer token is the engine token (`ConnectionTrust.isEngine`), else `FORBIDDEN`, so a logged-in browser cannot invite another; it is not an `OPEN_PATHS` procedure, so the engine gate refuses it without a trusted token. `makeCodeStore.issue()` makes the code without printing it and `request()` prints the banner on top of the same path; one live code at a time, so issuing a link retires a code a human was about to type
 - `assertUniqueExtensionSlugs` / `assertUniqueCapabilityNames` (`app.ts`): throw on slug or tool-name collisions
 - `requireHarness` (`app.ts`): defaults to 'claude' and throws if none is registered
 - `detectedHarnesses` (`app.ts`): only harnesses whose binary is on `PATH` join the boot harness as switch targets; a config directory alone does not count
@@ -40,7 +41,6 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `onError` (`app.ts`): HTTPException keeps its status; anything else is 500 'internal error'
 - `/api/shutdown` (`app.ts`): 404 without `onShutdown`
 - `resolveConfig` (`config.ts`): session ids must pass `isSessionId` / `isHarnessSessionId`; harness defaults to 'claude'
-- `ask` (`page-bus.ts`): 'no-widget' without a subscriber for the session (with the message `the page is showing another session; switch back to this session to use page tools` when another session has one), 'timeout' on expiry
 - `runClientTool` (`tool-registry.ts`): mutating page tools append a journal entry after success
 
 ## Side Effects
@@ -52,7 +52,7 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `harnessEnv` (`start.ts`): reads process.env and adds CONCIV_SESSION_ID for child harness processes
 - `makeApp` (`app.ts`): opens the SQLite DB, sweeps empty rows, records usage, titles and native ids; runs extension `__server` factories; the chat plane spawns harness processes
 - `resolveConfig` (`config.ts`): reads CONCIV_WIDGET_URL, CONCIV_STATE_ROOT, CONCIV_HARNESS, CONCIV_HARNESS_BIN, CONCIV_CLAUDE_PATH, CONCIV_SESSION_ID, CONCIV_CLAUDE_SESSION_ID
-- `makeJournal` (`page-bus.ts`), `storeCapture` (`tool-registry.ts`): write page changes and captures to the DB
+- `storeCapture` (`tool-registry.ts`): writes captures to the DB
 
 ## Verification
 

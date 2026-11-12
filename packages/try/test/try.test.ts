@@ -5,7 +5,7 @@ import {realpathSync, existsSync, mkdtempSync, readFileSync} from 'node:fs'
 import {randomUUID} from 'node:crypto'
 import {createFakeHarness, harnessAvailable} from '@conciv/harness-testkit'
 import {makeExtRpcClient} from '@conciv/extension'
-import {type TerminalRouter} from '@conciv/extension-terminal'
+import {type TerminalRouter} from '@conciv/extension-terminal/server'
 import {type HarnessConnectContext} from '@conciv/protocol/harness-types'
 import {CONNECT_FIRST_PORT, CONNECT_LAST_PORT} from '@conciv/protocol/connect-ports'
 import {claude} from '@conciv/harness/claude'
@@ -245,7 +245,7 @@ describe('seed workspace', () => {
       const seeded = await seedWorkspace(origin, root)
       expect(seeded).toBe(true)
       expect(readFileSync(join(root, 'src/components/landing/hero.tsx'), 'utf8')).toContain('Hero')
-      expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('data-conciv-source')
+      expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('data-tsd-source')
     })
 
     it('only writes src/** and package.json, dropping escaping and out-of-tree paths', async () => {

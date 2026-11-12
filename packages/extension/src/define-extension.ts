@@ -1,6 +1,6 @@
 import {createMemo, from, type Accessor, type Component} from 'solid-js'
 import {z} from 'zod'
-import {mapValues} from 'es-toolkit'
+import {mapValues, once} from 'es-toolkit'
 import type {RegisteredTools, ToolBinding, ToolBuilder, ToolErrors} from './define-tool.js'
 import type {AnyAttachmentBuilder} from './define-attachment.js'
 import type {
@@ -22,6 +22,8 @@ import type {
 } from './types.js'
 import {useExtensionValue} from './host-context.js'
 import {useScope} from './use-scope.js'
+import {mergeSettings} from './merge-settings.js'
+import type {SettingsScope} from '@conciv/contract'
 
 export type AnyToolBuilder = ToolBuilder<
   string,
@@ -75,7 +77,7 @@ export type ExtensionBuilder<
   views?: readonly ExtensionView[]
   parseConfig: (raw: unknown) => ConfigOf<Schema>
   parseSettings: (raw: unknown) => SettingsOf<Settings>
-  readSettings: (store: SettingsStore) => SettingsReader<SettingsOf<Settings>>
+  readSettings: (stores: Record<SettingsScope, SettingsStore>) => SettingsReader<SettingsOf<Settings>>
   useSettings: () => Accessor<SettingsOf<Settings>>
   __client?(): ClientFactoryResult<ClientValue>
   __server?(
@@ -104,12 +106,10 @@ export type AnyExtension = ExtensionBuilder<
   ExtensionSettingsSchema
 >
 
-type RegisteredConfig<Schema extends z.ZodType> = [Schema] extends [z.ZodNever] ? never : z.input<Schema>
-
 export type RegisterExtension<Extension> =
   Extension extends ExtensionBuilder<
     infer Name,
-    infer Schema,
+    infer _Schema,
     infer Tools,
     infer _Attachments,
     infer ClientValue,
@@ -117,7 +117,6 @@ export type RegisterExtension<Extension> =
   >
     ? {
         [Key in Name]: {
-          config: RegisteredConfig<Schema>
           context: ClientValue
           tools: RegisteredTools<Tools>
         }
@@ -168,21 +167,13 @@ export function defineExtension<
   meta: ExtensionMeta<Name, Schema, Tools, Attachments, Settings>,
 ): ExtensionBuilder<Name, Schema, Tools, Attachments, Record<never, never>, Settings> {
   const parseSettings = lenientSettings(meta.settings)
-  const readSettings = (store: SettingsStore): SettingsReader<Record<string, unknown>> => ({
-    all: async () => parseSettings(await store.all()),
-    onChange: (fn) => store.onChange((value) => fn(parseSettings(value))),
-  })
+  const readSettings = (stores: Record<SettingsScope, SettingsStore>): SettingsReader<Record<string, unknown>> =>
+    mergedReader(stores, meta.name, parseSettings)
   function useSettings(): Accessor<Record<string, unknown>> {
-    const reader = readSettings(useScope<string>(meta.name).settings.project)
-    const stored = from<Record<string, unknown>>((set) => {
-      const stop = reader.onChange((value) => set(value)).catch(() => () => undefined)
-      reader.all().then(
-        (value) => set(value),
-        () => undefined,
-      )
-      return () => void stop.then((unsubscribe) => unsubscribe())
-    })
-    return createMemo(() => stored() ?? parseSettings({}))
+    const scope = useScope<string>(meta.name)
+    const project = followStore(scope.settings.project, settingsFailure(meta.name, 'project'))
+    const global = followStore(scope.settings.global, settingsFailure(meta.name, 'global'))
+    return createMemo(() => parseSettings(mergeSettings(project() ?? {}, global() ?? {})))
   }
   function useContext<Selected>(select?: (context: object) => Selected): object | Selected {
     const value = useExtensionValue(`${meta.name}.useContext`)
@@ -216,6 +207,71 @@ export function defineExtension<
     },
   } as unknown as ExtensionBuilder<Name, Schema, Tools, Attachments, Record<never, never>, Settings>
   return builder
+}
+
+function followStore(store: SettingsStore, failure: string): Accessor<Readonly<Record<string, unknown>> | undefined> {
+  return from<Readonly<Record<string, unknown>>>((set) => {
+    const report = once((error: unknown) => console.error(failure, error))
+    const stop = store
+      .onChange((value) => set(value))
+      .catch((error: unknown) => {
+        report(error)
+        return () => undefined
+      })
+    store.all().then((value) => set(value), report)
+    return () => void stop.then((unsubscribe) => unsubscribe())
+  })
+}
+
+type StoredSettings = Readonly<Record<string, unknown>>
+
+function mergedReader(
+  stores: Record<SettingsScope, SettingsStore>,
+  name: string,
+  parse: (raw: unknown) => Record<string, unknown>,
+): SettingsReader<Record<string, unknown>> {
+  const report = {
+    project: once((error: unknown) => console.error(settingsFailure(name, 'project'), error)),
+    global: once((error: unknown) => console.error(settingsFailure(name, 'global'), error)),
+  }
+  const load = (scope: SettingsScope): Promise<StoredSettings> =>
+    stores[scope].all().catch((error: unknown) => {
+      report[scope](error)
+      return {}
+    })
+  const loadBoth = async (): Promise<Record<SettingsScope, StoredSettings>> => {
+    const [project, global] = await Promise.all([load('project'), load('global')])
+    return {project, global}
+  }
+  const merged = (latest: Partial<Record<SettingsScope, StoredSettings>>) =>
+    parse(mergeSettings(latest.project ?? {}, latest.global ?? {}))
+  return {
+    all: async () => merged(await loadBoth()),
+    onChange: async (fn) => {
+      const latest: Partial<Record<SettingsScope, StoredSettings>> = {}
+      const loaded = Promise.withResolvers<void>()
+      const follow = (scope: SettingsScope): Promise<() => void> =>
+        stores[scope]
+          .onChange((value) => {
+            latest[scope] = value
+            void loaded.promise.then(() => fn(merged(latest)))
+          })
+          .catch((error: unknown) => {
+            report[scope](error)
+            return () => undefined
+          })
+      const stops = await Promise.all([follow('project'), follow('global')])
+      const stored = await loadBoth()
+      latest.project ??= stored.project
+      latest.global ??= stored.global
+      loaded.resolve()
+      return () => stops.forEach((stop) => stop())
+    },
+  }
+}
+
+function settingsFailure(name: string, scope: SettingsScope): string {
+  return `conciv: the ${scope} settings of extension "${name}" could not be read or followed; the values that apply leave them out`
 }
 
 function lenientSettings(schema: ExtensionSettingsSchema | undefined): (raw: unknown) => Record<string, unknown> {

@@ -16,7 +16,9 @@ describe('client', () => {
       const originalFetch = globalThis.fetch
       globalThis.fetch = async (input, init) => {
         requests.push(new Request(input, init).url)
-        return new Response(JSON.stringify({json: []}), {headers: {'content-type': 'application/json'}})
+        return new Response(JSON.stringify({json: {sessions: [], next: null}}), {
+          headers: {'content-type': 'application/json'},
+        })
       }
       try {
         const client = makeRpcClient('http://conciv.test')
@@ -152,7 +154,7 @@ describe('node rpc client', () => {
       request.resume()
       request.on('end', () => {
         response.writeHead(200, {'content-type': 'application/json'})
-        response.end(JSON.stringify({json: {ok: true}, meta: []}))
+        response.end(JSON.stringify({json: {sessions: [], next: null}, meta: []}))
       })
     })
     const port = await new Promise<number>((resolve) => {

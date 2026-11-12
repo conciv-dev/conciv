@@ -1,4 +1,4 @@
-import {useMutation, useMutationState, useQuery, useQueryClient} from '@conciv/client'
+import {useMutation, useMutationState, useQuery} from '@conciv/client'
 import {z} from 'zod'
 import type {HubAgents} from '@conciv/protocol/chat-types'
 import {useAppData, useRpc} from '../app/context.js'
@@ -7,8 +7,6 @@ import {useNotices} from '../shell/notice-context.js'
 type HubInstall = HubAgents['installs'][number]
 type HubConnection = HubAgents['connections'][number]
 
-const HUB_AGENTS_REFRESH_MS = 3000
-
 const PendingAgentSchema = z.object({harnessId: z.string(), name: z.string()})
 
 type PendingAgent = z.infer<typeof PendingAgentSchema>
@@ -16,9 +14,8 @@ type PendingAgent = z.infer<typeof PendingAgentSchema>
 export function useHubConnections() {
   const rpc = useRpc()
   const appData = useAppData()
-  const queryClient = useQueryClient()
   const notices = useNotices()
-  const agents = useQuery(() => appData.utils.meta.hubAgents.queryOptions({refetchInterval: HUB_AGENTS_REFRESH_MS}))
+  const agents = useQuery(() => appData.utils.meta.hubAgents.experimental_liveOptions())
   const installs = (): HubInstall[] => (agents.isSuccess ? agents.data.installs : [])
   const connections = (): HubConnection[] => (agents.isSuccess ? agents.data.connections : [])
   const connectKey = appData.utils.meta.connectHub.mutationKey()
@@ -31,31 +28,28 @@ export function useHubConnections() {
     filters: {mutationKey: disconnectKey, status: 'pending'},
     select: (mutation) => mutation.state.variables,
   }))
-  const refresh = () => queryClient.invalidateQueries({queryKey: appData.utils.meta.hubAgents.key()})
   const connect = useMutation(() => ({
     mutationKey: connectKey,
     mutationFn: (agent: HubInstall) => rpc.meta.connectHub({harness: agent.harnessId}),
-    onSuccess: async (outcome, agent) => {
+    onSuccess: (outcome, agent) => {
       if (!outcome.ok) {
         notices.notify(outcome.message, {tone: 'warn'})
         return
       }
       notices.notify(`${agent.name} connected. Ask any ${agent.name} session for your conciv tab.`)
-      await refresh()
     },
     onError: (_error: unknown, agent) => notices.notify(`Couldn’t connect ${agent.name}. Try again.`, {tone: 'warn'}),
   }))
   const disconnect = useMutation(() => ({
     mutationKey: disconnectKey,
     mutationFn: (agent: HubConnection) => rpc.meta.disconnectHub({harness: agent.harnessId}),
-    onSuccess: async (outcome, agent) => {
+    onSuccess: (outcome, agent) => {
       if (!outcome.ok) {
         notices.notify(outcome.message, {tone: 'warn'})
         return
       }
       const disconnected = `${agent.name} disconnected.`
       notices.notify(outcome.note === undefined ? disconnected : `${disconnected} ${outcome.note}`)
-      await refresh()
     },
     onError: (_error: unknown, agent) =>
       notices.notify(`Couldn’t disconnect ${agent.name}. Try again.`, {tone: 'warn'}),

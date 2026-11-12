@@ -52,3 +52,34 @@ export function toChatMessages(messages: ModelMessage[]): ChatMessage[] {
 export function isContentParts(value: unknown): value is ContentPart[] {
   return isContentPartArray(value)
 }
+
+const ImagePartSchema = z.looseObject({
+  type: z.literal('image'),
+  source: z.looseObject({type: z.literal('data'), value: z.string(), mimeType: z.string()}),
+})
+
+type ImagePart = z.infer<typeof ImagePartSchema>
+
+const IMAGE_STUB = {type: 'image', sent: 'as an image block beside this text'}
+
+export function imagesIn(value: unknown): ImagePart[] {
+  const image = ImagePartSchema.safeParse(value)
+  if (image.success) return [image.data]
+  if (Array.isArray(value)) return value.flatMap(imagesIn)
+  return isRecord(value) ? Object.values(value).flatMap(imagesIn) : []
+}
+
+export function withoutImages(value: unknown): unknown {
+  if (ImagePartSchema.safeParse(value).success) return IMAGE_STUB
+  if (Array.isArray(value)) return value.map(withoutImages)
+  if (!isRecord(value)) return value
+  return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, withoutImages(entry)]))
+}
+
+export function imageBlocks(images: readonly ImagePart[]): {type: 'image'; data: string; mimeType: string}[] {
+  return images.map(({source}) => ({type: 'image', data: source.value, mimeType: source.mimeType}))
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}

@@ -113,7 +113,6 @@ const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z
 describe('approval replay', () => {
   const core = bootedCore('approval-replay')
   const keep = keptPane()
-  afterAll(() => coreControl.setHubConnection('codex', false))
 
   const permissionRequest = () => page.getByRole('group', {name: 'Permission request'})
   const approveButton = () => page.getByRole('button', {name: 'Approve'})
@@ -1242,6 +1241,10 @@ describe('context tracker', () => {
 describe('engine staleness', () => {
   const core = bootedCore('engine-staleness')
   const keep = keptPane()
+  const harness = createShellHarness(core)
+  const faults = trackedFaults()
+
+  afterEach(harness.dispose)
 
   const TRACKED = ['@conciv/core', '@conciv/tools']
 
@@ -1283,6 +1286,20 @@ describe('engine staleness', () => {
 
     await expect.element(page.getByRole('alert')).toBeVisible()
   })
+
+  test('the stale notice clears when the engine reconnects running fresh code', async () => {
+    await page.viewport(1000, 900)
+    const staleNotice = () => page.getByText(/Engine is running outdated code/)
+    await coreControl.setStaleness(staleness(true, 'stamp-before-restart'))
+    const sessionId = await createSession(coreRpc(core()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(staleNotice(), {timeout: 8000}).toBeVisible()
+
+    await coreControl.setStaleness(staleness(false, 'stamp-after-restart'))
+    await coreControl.releaseFault(await faults.install({kind: 'offline'}))
+
+    await expect.element(staleNotice(), {timeout: 8000}).not.toBeInTheDocument()
+  }, 30_000)
 })
 
 describe('engine version', () => {
@@ -2007,6 +2024,8 @@ describe('connect agents', () => {
   const agents = () => page.getByRole('group', {name: 'Connected agents'})
   const disconnect = () => page.getByRole('button', {name: 'Disconnect Claude'})
   const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const HUB_AGENTS_PATH = ['meta', 'hubAgents']
+  const hubAgentsAsked = async () => coreControl.rpcStartedOnceServed(HUB_AGENTS_PATH, 0, [HUB_AGENTS_PATH])
 
   test('a harness connects from the menu with a pending chip, shows in the connected row, and disconnects from it', async () => {
     await page.viewport(1000, 900)
@@ -2016,11 +2035,16 @@ describe('connect agents', () => {
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
     await expect.element(page.getByText('env: staging')).toBeVisible()
     await expect.element(agents()).not.toBeInTheDocument()
+    await more().click()
+    await expect.element(item()).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    const listed = await hubAgentsAsked()
 
     await coreControl.setHubConnection('codex', true)
     await expect.element(agents().getByText('Codex', {exact: true}), {timeout: 8000}).toBeVisible()
     await coreControl.setHubConnection('codex', false)
     await expect.element(agents(), {timeout: 8000}).not.toBeInTheDocument()
+    expect(await hubAgentsAsked()).toEqual(listed)
 
     await more().click()
     await item().click()
@@ -2828,7 +2852,6 @@ describe('session options outside agents', () => {
   const coreBase = bootedCore('outside-agents')
   const harness = createShellHarness(coreBase)
   afterEach(harness.dispose)
-  afterAll(() => coreControl.setHubConnection('codex', false))
   const strip = () => page.getByRole('group', {name: 'Permission request'})
   const allowRow = () => page.getByRole('button', {name: 'Allow outside agents'})
   const approve = () =>
@@ -4975,6 +4998,17 @@ describe('settings page', () => {
   const probeValues = (values: string) => page.getByText(`Probe settings: ${values}`, {exact: true})
   const PROBE_DEFAULTS = 'wrap=false density=cozy theme=plain fontSize=13 greeting='
   const PROBE_CHANGED = 'wrap=true density=compact theme=ocean fontSize=16 greeting=hi'
+  const allProjects = () => page.getByRole('switch', {name: 'All projects'})
+  const scopeLabel = () => page.getByText('All projects', {exact: true})
+  const PROBE_WRAPPED = 'wrap=true density=cozy theme=plain fontSize=13 greeting='
+  const recordGlobalToggle = async (key: string) => {
+    await scopeLabel().click()
+    await command('Open or close conciv').click()
+    await userEvent.keyboard(`{Control>}{Shift>}${key}{/Shift}{/Control}`)
+    await expect.element(command('Open or close conciv')).toHaveFocus()
+    await scopeLabel().click()
+    await expect.element(allProjects()).not.toBeChecked()
+  }
   const wrapLines = () => page.getByRole('switch', {name: 'Wrap lines'})
   const fontSize = () => page.getByRole('spinbutton', {name: 'Font size'})
   const greeting = () => page.getByRole('textbox', {name: 'Greeting'})
@@ -5007,6 +5041,8 @@ describe('settings page', () => {
     await tab('General').click()
     await userEvent.keyboard('{ArrowRight}')
     await expect.element(tab('Views')).toHaveAttribute('aria-selected', 'true')
+    await userEvent.keyboard('{Shift>}{Tab}{/Shift}')
+    await expect.element(allProjects()).toHaveFocus()
     await userEvent.keyboard('{Shift>}{Tab}{Tab}{/Shift}')
     await expect.element(widthHandle()).toHaveFocus()
     await userEvent.keyboard('{ArrowLeft}{ArrowLeft}')
@@ -5017,6 +5053,8 @@ describe('settings page', () => {
     await expect.element(tab('Shortcuts')).toHaveAttribute('aria-selected', 'true')
     await tab('General').click()
     await expect.element(tab('General')).toHaveAttribute('aria-selected', 'true')
+    await userEvent.keyboard('{Shift>}{Tab}{/Shift}')
+    await expect.element(allProjects()).toHaveFocus()
     await userEvent.keyboard('{Shift>}{Tab}{Tab}{/Shift}')
     await expect.element(widthHandle()).toHaveFocus()
     await userEvent.keyboard('{ArrowRight}{ArrowRight}')
@@ -5110,12 +5148,23 @@ describe('settings page', () => {
     await expect.element(wrapLines()).toBeChecked()
     await page.getByRole('radiogroup', {name: 'Density'}).getByText('Compact', {exact: true}).click()
     await page.getByRole('combobox', {name: 'Theme'}).click()
+    await expect.element(page.getByRole('option', {name: 'Ocean'})).toBeVisible()
+    await coreRpc(coreBase()).settings.set({scope: 'project', namespace: 'settings-probe', key: 'fontSize', value: 15})
+    await expect.element(probeValues('wrap=true density=compact theme=plain fontSize=15 greeting=')).toBeInTheDocument()
+    await expect.element(page.getByRole('option', {name: 'Ocean'})).toBeVisible()
     await page.getByRole('option', {name: 'Ocean'}).click()
     await fontSize().click()
     await userEvent.keyboard('{End}{Backspace}{Backspace}16{Enter}')
     await greeting().click()
-    await userEvent.keyboard('hi')
+    await userEvent.keyboard('h')
+    await expect
+      .element(probeValues('wrap=true density=compact theme=ocean fontSize=16 greeting=h'))
+      .toBeInTheDocument()
+    await expect.element(greeting()).toHaveFocus()
+    await userEvent.keyboard('i')
     await expect.element(probeValues(PROBE_CHANGED)).toBeInTheDocument()
+    await expect.element(greeting()).toHaveFocus()
+    await expect.element(greeting()).toHaveValue('hi')
 
     harness.dispose()
     harness.mountShell(`/panel/${sessionId}/settings?open=true`, [settingsProbe])
@@ -5136,6 +5185,7 @@ describe('settings page', () => {
     expect(harness.pathname()).toBe(settingsPath('general'))
 
     await tab('Shortcuts').click()
+    await recordGlobalToggle('o')
     await command('Quick terminal').click()
     await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
     await expect.element(command('Quick terminal')).toHaveFocus()
@@ -5151,6 +5201,15 @@ describe('settings page', () => {
     await command('New quick terminal pane').click()
     await userEvent.keyboard('{Control>}{Shift>}j{/Shift}{/Control}')
     await expect.element(command('New quick terminal pane')).toHaveFocus()
+    await recordGlobalToggle('u')
+    await expect.element(page.getByText(formatForDisplay('Control+Shift+U', {useSymbols: false}))).toBeInTheDocument()
+    await expect.element(page.getByText('From all projects', {exact: true})).toBeVisible()
+    await scopeLabel().click()
+    await expect.element(allProjects()).toBeChecked()
+    await expect.element(page.getByText('This project overrides it', {exact: true}).nth(1)).toBeVisible()
+    await expect.element(page.getByText('This project overrides it', {exact: true}).nth(2)).not.toBeInTheDocument()
+    await scopeLabel().click()
+    await expect.element(allProjects()).not.toBeChecked()
 
     await userEvent.keyboard('{Escape}')
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
@@ -5168,6 +5227,36 @@ describe('settings page', () => {
     await page.getByRole('button', {name: 'Reset extension settings', exact: true}).click()
     await expect.element(probeValues(PROBE_DEFAULTS)).toBeInTheDocument()
 
+    await tab('General').click()
+    await colorMode().getByText('Light', {exact: true}).click()
+    await expect.element(probe('light')).toBeInTheDocument()
+    await scopeLabel().click()
+    await expect.element(allProjects()).toBeChecked()
+    await expect.element(colorMode().getByRole('radio', {name: 'Auto'})).toBeChecked()
+    await expect.element(page.getByText('This project overrides it', {exact: true})).toBeVisible()
+    await colorMode().getByText('Dark', {exact: true}).click()
+    await expect.element(colorMode().getByRole('radio', {name: 'Dark'})).toBeChecked()
+    await tab('Advanced').click()
+    await expect.element(allProjects()).toBeChecked()
+    const reloadAt = harness.href()
+    harness.dispose()
+    harness.mountShell(reloadAt, [settingsProbe])
+    await expect.element(allProjects(), {timeout: 8000}).toBeChecked()
+    await expect.element(probe('light')).toBeInTheDocument()
+    await tab('Settings probe').click()
+    await page.getByText('Wrap lines', {exact: true}).click()
+    await expect.element(wrapLines()).toBeChecked()
+    await expect.element(probeValues(PROBE_WRAPPED)).toBeInTheDocument()
+    await scopeLabel().click()
+    await expect.element(allProjects()).not.toBeChecked()
+    await expect.element(page.getByText('From all projects', {exact: true})).toBeVisible()
+    await page.getByText('Wrap lines', {exact: true}).click()
+    await expect.element(wrapLines()).not.toBeChecked()
+    await expect.element(probeValues(PROBE_DEFAULTS)).toBeInTheDocument()
+    await tab('Advanced').click()
+    await page.getByRole('button', {name: 'Reset extension settings', exact: true}).click()
+    await expect.element(probeValues(PROBE_WRAPPED)).toBeInTheDocument()
+
     await resetAll().click()
     await expect.element(resetDialog()).toBeVisible()
     await expect.element(resetDialog().getByRole('button', {name: 'Cancel'})).toHaveFocus()
@@ -5175,14 +5264,17 @@ describe('settings page', () => {
     await userEvent.keyboard('{Escape}')
     await expect.element(resetDialog()).not.toBeInTheDocument()
     expect(harness.pathname()).toBe(settingsPath('advanced'))
-    await expect.element(probe('dark')).toBeInTheDocument()
+    await expect.element(probe('light')).toBeInTheDocument()
 
     await resetAll().click()
     await resetDialog().getByRole('button', {name: 'Reset everything'}).click()
     await expect.element(page.getByRole('status').getByText('Settings reset')).toBeInTheDocument()
     await expect.element(resetDialog()).not.toBeInTheDocument()
     expect(harness.pathname()).toBe(settingsPath('advanced'))
-    await expect.element(probe('light')).toBeInTheDocument()
+    await expect.element(probe('dark')).toBeInTheDocument()
+    await tab('General').click()
+    await expect.element(colorMode().getByRole('radio', {name: 'Dark'})).toBeChecked()
+    await expect.element(page.getByText('From all projects', {exact: true})).toBeVisible()
 
     await tab('Advanced').click()
     await userEvent.keyboard('{Escape}')

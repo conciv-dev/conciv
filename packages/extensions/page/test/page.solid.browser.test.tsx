@@ -1,11 +1,12 @@
 import {expect, it, onTestFinished, test, describe} from 'vitest'
-import {page, userEvent} from 'vitest/browser'
+import {cdp, page, userEvent} from 'vitest/browser'
 import {render} from '@solidjs/testing-library'
 import type {ChatPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {ActCard} from '../src/client/cards/act-card.js'
 import {storyAddResult, storyCtx, storyPart, storyResult} from '../src/client/cards/story.fixtures.js'
 import {ReactCard} from '../src/client/cards/react-card.js'
+import {consoleCard} from '../src/client/cards/console-card.js'
 import {ReadBulkCard} from '../src/client/cards/read-bulk-card.js'
 import {ReadValueCard} from '../src/client/cards/read-value-card.js'
 import {GRAB_FILE_NAME, GRAB_MIME} from '@conciv/grab/grab-attachment'
@@ -17,10 +18,12 @@ import {createStore} from 'solid-js/store'
 import {PAGE_SESSION_GROUP_KEY, type GroupNodeGroup, type PageSessionThinkingPart} from '@conciv/ui-kit-chat'
 import {SessionCard} from '../src/client/cards/session-card.js'
 import {collectClientTools} from '@conciv/extension'
-import {makeDomPageDriver} from '@conciv/page'
+import {makeDomPageDriver, MASKED_VALUE, startPagePlane} from '@conciv/page'
+import type {PageOutcome} from '@conciv/protocol/page-types'
 import {Menu} from '@conciv/ui-kit-system'
 import pageExtension from '../src/client.js'
-import {endTask, mountSimulator} from '../src/client/simulator.js'
+import {endTask, mountSimulator, startTask} from '../src/client/simulator.js'
+import {aimCursor, CursorLook, dropCursor, windowAt} from '../src/client/agent-cursor.js'
 
 describe('act card body nonempty', () => {
   function errorResult(toolCallId: string, message: string): ToolResultPart {
@@ -90,6 +93,26 @@ describe('act card body nonempty', () => {
     await expandFirstCard()
     await expect.element(page.getByText('ada@example.com')).toBeVisible()
     await expect.element(page.getByText('element not found')).toBeVisible()
+  })
+})
+
+describe('console card', () => {
+  it('marks the card as an error when the page threw, uncaught or unhandled', async () => {
+    const ConsoleCard = consoleCard.render
+    render(() => (
+      <ConsoleCard
+        part={storyPart('page_console', {})}
+        result={storyResult({
+          entries: [
+            {level: 'log', ts: 1, text: 'booted'},
+            {level: 'uncaught', ts: 2, text: 'Error: boom\n    at app.js:3:7'},
+          ],
+        })}
+        ctx={storyCtx({})}
+        addResult={storyAddResult}
+      />
+    ))
+    await expect.element(page.getByRole('img', {name: 'error'})).toBeInTheDocument()
   })
 })
 
@@ -721,5 +744,336 @@ describe('the agent acts on the page like a person', () => {
     )
     expect(await act('fill', {selector: '#name', value: 'Grace'})).toMatchObject({ok: true})
     await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).toBeVisible()
+  })
+})
+
+describe('the agent cursor always arrives', () => {
+  const AGENT = 'cursor-session'
+
+  function mountedAgent(): void {
+    const host = document.createElement('div')
+    host.setAttribute('data-conciv-root', '')
+    document.body.append(host)
+    onTestFinished(() => host.remove())
+    const unmount = mountSimulator({root: host.attachShadow({mode: 'open'}), session: () => AGENT, onStop: endTask})
+    onTestFinished(unmount)
+    startTask(AGENT)
+    onTestFinished(endTask)
+  }
+
+  it('an aim replaced by a newer one settles instead of hanging', async () => {
+    mountedAgent()
+    const first = aimCursor({id: AGENT, at: windowAt({x: 10, y: 10}), look: CursorLook.AGENT})
+    const second = aimCursor({id: AGENT, at: windowAt({x: 200, y: 200}), look: CursorLook.AGENT})
+    await expect(Promise.all([first, second])).resolves.toEqual([undefined, undefined])
+  })
+
+  it('an aim whose cursor is dropped settles', async () => {
+    mountedAgent()
+    const aimed = aimCursor({id: AGENT, at: windowAt({x: 300, y: 40}), look: CursorLook.AGENT})
+    dropCursor(AGENT)
+    await expect(aimed).resolves.toBeUndefined()
+  })
+
+  it('an aim at a point off the screen settles at once', async () => {
+    mountedAgent()
+    await expect(
+      aimCursor({id: AGENT, at: windowAt({x: -500, y: -500}), look: CursorLook.AGENT}),
+    ).resolves.toBeUndefined()
+  })
+})
+
+describe('page action queue', () => {
+  const AGENT = 'queue-session'
+  const FIELDS = ['first', 'last', 'email', 'phone', 'city', 'zip']
+
+  type Frame = {requestId: string; query: unknown}
+
+  async function* streamed(frames: Frame[], wake: {now: () => void}, signal: AbortSignal): AsyncGenerator<Frame> {
+    while (!signal.aborted) {
+      const frame = frames.shift()
+      if (frame !== undefined) {
+        yield frame
+        continue
+      }
+      await new Promise<void>((resolve) => {
+        wake.now = resolve
+        signal.addEventListener('abort', () => resolve(), {once: true})
+      })
+    }
+  }
+
+  function QueueForm(props: {heard: (event: string) => void; drafting: () => void}) {
+    const field = (name: string) => (
+      <label>
+        {name}
+        <input name={name} onInput={() => props.heard(name)} />
+      </label>
+    )
+    return (
+      <form onSubmit={(event) => event.preventDefault()}>
+        {FIELDS.map(field)}
+        <label>
+          card
+          <input name="card" autocomplete="cc-number" onInput={() => props.heard('card')} />
+        </label>
+        <label>
+          locked
+          <input name="locked" readOnly value="fixed" />
+        </label>
+        <label>
+          <input type="checkbox" name="agree" onChange={() => props.heard('agree')} />
+          agree
+        </label>
+        <button type="button" onKeyDown={(event) => props.heard(`key ${event.key}`)}>
+          Send
+        </button>
+        <div id="notes" contenteditable="true" role="textbox" aria-label="Notes">
+          <p id="notes-line">old note</p>
+        </div>
+        <div
+          contenteditable="true"
+          role="textbox"
+          aria-label="Draft"
+          onBeforeInput={(event) => {
+            if (event.isTrusted) return
+            event.preventDefault()
+            props.drafting()
+          }}
+        >
+          <p id="draft-line">old draft</p>
+        </div>
+      </form>
+    )
+  }
+
+  function queuePage(
+    delivered: (requestId: string) => Promise<void> = () => Promise.resolve(),
+    drafting: () => void = () => {},
+  ) {
+    const heard: string[] = []
+    render(() => <QueueForm heard={(event) => heard.push(event)} drafting={drafting} />)
+    const host = document.createElement('div')
+    host.setAttribute('data-conciv-root', '')
+    document.body.append(host)
+    onTestFinished(() => host.remove())
+    const unmount = mountSimulator({root: host.attachShadow({mode: 'open'}), session: () => AGENT, onStop: endTask})
+    onTestFinished(unmount)
+    onTestFinished(endTask)
+    const replied: string[] = []
+    const replies = new Map<string, PromiseWithResolvers<PageOutcome>>()
+    const replyTo = (requestId: string): PromiseWithResolvers<PageOutcome> => {
+      const known = replies.get(requestId)
+      if (known !== undefined) return known
+      const made = Promise.withResolvers<PageOutcome>()
+      replies.set(requestId, made)
+      return made
+    }
+    const served = () => {
+      const frames: Frame[] = []
+      const wake = {now: () => {}}
+      const plane = startPagePlane({
+        source: {
+          queries: (signal) => streamed(frames, wake, signal ?? new AbortController().signal),
+          reply: async ({requestId, outcome}) => {
+            await delivered(requestId)
+            replied.push(requestId)
+            replyTo(requestId).resolve(outcome)
+          },
+        },
+        tools: collectClientTools([pageExtension]),
+      })
+      onTestFinished(plane.dispose)
+      const send = (requestId: string, query: Record<string, unknown>): Promise<PageOutcome> => {
+        frames.push({requestId, query: {agentId: AGENT, ...query}})
+        wake.now()
+        return replyTo(requestId).promise
+      }
+      const queue = (id: string, actions: Record<string, unknown>[]) => {
+        const ids = actions.map((_, index) => `${id}-${index}`)
+        const accepted = send(`${id}-accept`, {name: 'page_queue', input: {actions}, queue: {id, replies: ids}})
+        return {
+          accepted,
+          each: ids.map((requestId) => replyTo(requestId).promise),
+          played: Promise.all(ids.map((requestId) => replyTo(requestId).promise)),
+        }
+      }
+      return {send, queue, dispose: plane.dispose}
+    }
+    const first = served()
+    const leave = () => {
+      first.dispose()
+      unmount()
+    }
+    const switchSession = () => {
+      first.dispose()
+      return served()
+    }
+    return {heard, replied, send: first.send, queue: first.queue, leave, switchSession}
+  }
+
+  const fill = (name: string, value: string) => ({tool: 'page_fill', selector: `[name=${name}]`, value})
+
+  it('answers at once, then plays fill, check and press in order, each landing after the one before', async () => {
+    const {heard, queue} = queuePage()
+    const played = queue('q-order', [
+      fill('first', 'Ada'),
+      fill('last', 'Lovelace'),
+      {tool: 'page_check', selector: '[name=agree]'},
+      {tool: 'page_press', selector: 'button', key: 'Enter'},
+    ])
+    expect(await played.accepted).toEqual({ok: true, result: {queueId: 'q-order', status: 'playing', done: 0, of: 4}})
+    expect(heard).toEqual([])
+    const outcomes = await played.played
+    expect(heard).toEqual(['first', 'last', 'agree', 'key Enter'])
+    expect(outcomes).toEqual([
+      {ok: true, result: {ok: true, value: 'Ada'}},
+      {ok: true, result: {ok: true, value: 'Lovelace'}},
+      {ok: true, result: {ok: true, checked: true}},
+      {ok: true, result: {ok: true}},
+    ])
+  })
+
+  it('a missing target and a read-only field fail on their own and the rest still play', async () => {
+    const {heard, queue} = queuePage()
+    const outcomes = await queue('q-skip', [
+      fill('first', 'Ada'),
+      fill('nope', 'x'),
+      fill('locked', 'y'),
+      fill('email', 'ada@example.com'),
+    ]).played
+    expect(outcomes).toMatchObject([
+      {ok: true},
+      {ok: false, error: {code: 'invalid-args', message: 'no element for selector [name=nope]'}},
+      {ok: false, error: {code: 'invalid-args', message: 'That field is read-only.'}},
+      {ok: true, result: {value: 'ada@example.com'}},
+    ])
+    expect(heard).toEqual(['first', 'email'])
+  })
+
+  it('an outside queue with no in-page run takes the mask down once it finishes', async () => {
+    const {queue} = queuePage()
+    const played = queue('q-outside', [fill('first', 'Ada'), fill('last', 'Byron')])
+    await played.accepted
+    await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).toBeInTheDocument()
+    await played.played
+    await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).not.toBeInTheDocument()
+  })
+
+  it("a queue cut off by an unmount does not keep a later mount's mask up", async () => {
+    const before = queuePage()
+    const cut = before.queue('q-cut', [fill('first', 'Ada'), fill('last', 'Lovelace'), fill('email', 'a@b.c')])
+    await cut.accepted
+    before.leave()
+    const after = queuePage()
+    await after.queue('q-next', [fill('city', 'Paris')]).played
+    await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).not.toBeInTheDocument()
+    expect(before.heard).toEqual(['city'])
+  })
+
+  it('a session switch mid-queue lands nothing more of the old queue, reports none of it, and takes the mask down', async () => {
+    const before = queuePage()
+    const cut = before.queue('q-switched', [fill('first', 'Ada'), fill('last', 'Lovelace')])
+    await cut.accepted
+    const after = before.switchSession()
+    expect(await after.queue('q-other', [fill('city', 'Paris')]).played).toEqual([
+      {ok: true, result: {ok: true, value: 'Paris'}},
+    ])
+    expect(before.heard).toEqual(['city'])
+    expect(before.replied).toEqual(['q-switched-accept', 'q-other-accept', 'q-other-0'])
+    await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).not.toBeInTheDocument()
+  })
+
+  it('a queue whose acceptance never reached the engine plays nothing and takes the mask down', async () => {
+    const {heard, queue} = queuePage(async (requestId) => {
+      if (requestId === 'q-unsent-accept') throw new Error(`the socket closed before ${requestId} was sent`)
+    })
+    const outcomes = await queue('q-unsent', [fill('first', 'Ada'), fill('last', 'Byron')]).played
+    expect(outcomes).toMatchObject([
+      {ok: false, error: {message: expect.stringContaining('did not run')}},
+      {ok: false, error: {message: expect.stringContaining('did not run')}},
+    ])
+    expect(heard).toEqual([])
+    await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).not.toBeInTheDocument()
+  })
+
+  it('a queued fill types into a contenteditable editor', async () => {
+    const {queue} = queuePage()
+    expect(
+      await queue('q-editor', [
+        fill('first', 'Ada'),
+        {tool: 'page_fill', selector: '#notes-line', value: 'Hello editor'},
+      ]).played,
+    ).toEqual([
+      {ok: true, result: {ok: true, value: 'Ada'}},
+      {ok: true, result: {ok: true, value: 'Hello editor'}},
+    ])
+    await expect.element(page.getByRole('textbox', {name: 'Notes'})).toMatchTextContent(/^\s*Hello editor\s*$/)
+  })
+
+  it('a session switch while a queued fill waits on the editor does not fall back to typing into it', async () => {
+    const switched = Promise.withResolvers<ReturnType<typeof before.switchSession>>()
+    const before = queuePage(undefined, () => switched.resolve(before.switchSession()))
+    const cut = before.queue('q-draft', [{tool: 'page_fill', selector: '#draft-line', value: 'Hello draft'}])
+    await cut.accepted
+    const after = await switched.promise
+    await after.queue('q-after', [fill('city', 'Paris')]).played
+    await expect.element(page.getByRole('textbox', {name: 'Draft'})).toMatchTextContent(/^\s*old draft\s*$/)
+    expect(before.replied).toEqual(['q-draft-accept', 'q-after-accept', 'q-after-0'])
+  })
+
+  it('masks a card number in the result', async () => {
+    const {queue} = queuePage()
+    expect(await queue('q-mask', [fill('card', '4242424242424242')]).played).toEqual([
+      {ok: true, result: {ok: true, value: MASKED_VALUE}},
+    ])
+  })
+
+  it('two clicks on the mask stop the queue: no action after the stop runs and the mask comes down', async () => {
+    const sent = Promise.withResolvers<void>()
+    const {heard, queue} = queuePage((requestId) => (requestId === 'q-stop-accept' ? sent.promise : Promise.resolve()))
+    const played = queue(
+      'q-stop',
+      FIELDS.map((name) => fill(name, `${name} value`)),
+    )
+    await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).toBeInTheDocument()
+    await userEvent.click(page.getByRole('button', {name: 'Send'}), {force: true})
+    await userEvent.click(page.getByRole('button', {name: 'Send'}), {force: true})
+    sent.resolve()
+    const outcomes = await played.played
+    expect(outcomes).toEqual(
+      FIELDS.map(() =>
+        expect.objectContaining({
+          ok: false,
+          error: expect.objectContaining({
+            message: 'stopped by the user before this action',
+            raised: expect.objectContaining({code: 'QUEUE_STOPPED'}),
+          }),
+        }),
+      ),
+    )
+    expect(heard).toEqual([])
+    await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).not.toBeInTheDocument()
+  })
+
+  it('still finishes under reduced motion', async () => {
+    const {queue} = queuePage()
+    await cdp().send('Emulation.setEmulatedMedia', {features: [{name: 'prefers-reduced-motion', value: 'reduce'}]})
+    onTestFinished(async () => {
+      await cdp().send('Emulation.setEmulatedMedia', {features: []})
+    })
+    expect(await queue('q-reduced', [fill('first', 'Ada'), fill('last', 'Byron')]).played).toMatchObject([
+      {ok: true},
+      {ok: true},
+    ])
+  })
+
+  it('a single act call sent while a queue plays lands after the last queued action', async () => {
+    const {heard, queue, send} = queuePage()
+    const played = queue('q-before', [fill('first', 'Ada'), fill('last', 'Byron'), fill('email', 'ada@example.com')])
+    const single = send('single', {name: 'page_fill', input: {selector: '[name=phone]', value: '555'}, mutating: true})
+    expect(await single).toMatchObject({ok: true})
+    await played.played
+    expect(heard).toEqual(['first', 'last', 'email', 'phone'])
   })
 })

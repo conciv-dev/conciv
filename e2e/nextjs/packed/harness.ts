@@ -17,7 +17,7 @@ import {promisify} from 'node:util'
 import {z} from 'zod'
 
 import {concivStateDir} from '@conciv/protocol/state-types'
-import {NON_INTERACTIVE_ENV, WORKSPACE_ROOT, buildAndPack, installPacked, run} from '@conciv/e2e-utils/packed'
+import {NON_INTERACTIVE_ENV, WORKSPACE_ROOT, buildAndPack, installPacked, run} from '@conciv/vitest-config/pack'
 
 const execFileAsync = promisify(execFile)
 
@@ -25,11 +25,7 @@ export const ENGINE_PORT = 41750
 const CONCIV_FALLBACK_PORT = 41700
 export const DEV_PORT = 41751
 export const CLOSURE_ROOTS = ['@conciv/it', '@conciv/extension-tanstack', '@conciv/extension-compiler']
-export const FIXTURE_LOCK_PATH = join(WORKSPACE_ROOT, 'e2e/nextjs/packed/fixture-lock.yaml')
-const FIXTURE_LOCK = {
-  path: FIXTURE_LOCK_PATH,
-  updateCommand: 'pnpm --filter conciv-e2e-nextjs run update-packed-lockfile',
-}
+const FIXTURE_LOCK_PATH = join(WORKSPACE_ROOT, 'e2e/nextjs/packed/fixture-lock.yaml')
 
 export const SECOND_SENTINEL = 'CONCIV_FIXTURE_SECOND_SENTINEL'
 
@@ -74,7 +70,8 @@ function writeFixtureFiles(appDir: string, overrides: Record<string, string>): v
     join(appDir, 'next.config.ts'),
     [
       `import {withConciv} from '@conciv/it/plugin/nextjs'`,
-      `export default withConciv({typescript: {ignoreBuildErrors: true}}, {port: ${ENGINE_PORT}, devEndpointDir: ${JSON.stringify(DEV_ENDPOINT_DIR)}})`,
+      `import tanstack from '@conciv/extension-tanstack'`,
+      `export default withConciv({typescript: {ignoreBuildErrors: true}}, {port: ${ENGINE_PORT}, devEndpointDir: ${JSON.stringify(DEV_ENDPOINT_DIR)}, extensions: [tanstack()]})`,
       ``,
     ].join('\n'),
   )
@@ -137,7 +134,6 @@ function writeFixtureFiles(appDir: string, overrides: Record<string, string>): v
     join(appDir, 'app/page.tsx'),
     `export default function Home() { return <h1 id="ready">fixture-ready</h1> }\n`,
   )
-  writeFileSync(join(appDir, 'conciv/extensions/tanstack.tsx'), `export {default} from '@conciv/extension-tanstack'\n`)
 }
 
 export function secondExtensionSource(): string {
@@ -158,14 +154,7 @@ export function secondExtensionSource(): string {
 
 export type Fixture = {root: string; appDir: string; tgzDir: string; closure: string[]}
 
-export type SetupFixtureOptions = {fresh?: boolean}
-
-function resolveFresh(options: SetupFixtureOptions): boolean {
-  return options.fresh ?? process.env.CONCIV_PACKED_FRESH === '1'
-}
-
-export async function setupFixture(options: SetupFixtureOptions = {}): Promise<Fixture> {
-  const fresh = resolveFresh(options)
+export async function setupFixture(): Promise<Fixture> {
   const root = mkdtempSync(join(tmpdir(), 'conciv-packed-fixture-'))
   const tgzDir = join(root, 'tgz')
   mkdirSync(tgzDir, {recursive: true})
@@ -181,8 +170,7 @@ export async function setupFixture(options: SetupFixtureOptions = {}): Promise<F
     packages: ['packages/*'],
     allowBuilds: {'isolated-vm': false, sharp: false, protobufjs: false},
     overrides,
-    lock: FIXTURE_LOCK,
-    fresh,
+    lockPath: FIXTURE_LOCK_PATH,
   })
   return {root, appDir, tgzDir, closure}
 }

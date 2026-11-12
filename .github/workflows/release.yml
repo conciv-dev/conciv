@@ -36,11 +36,19 @@ jobs:
   test:
     permissions:
       contents: read
-      actions: read
+      actions: read # ci.yml's planners and bundle-size read their baseline artifacts
     uses: $/.github/workflows/ci.yml
 
+  # The packed install suites (pack the @conciv closure, install the tarballs like an npm
+  # user) run only in packed.yml, not in ci.yml, so publish waits on them here too.
+  packed:
+    permissions:
+      contents: read
+    uses: $/.github/workflows/packed.yml
+
   release:
-    needs: test
+    name: release
+    needs: [test, packed]
     runs-on: ubuntu-latest
     environment: npm-publish
     permissions:
@@ -107,6 +115,7 @@ jobs:
   # already exists, so a re-run or an unrelated push is a no-op. The whole job is dormant
   # until GH_MIRROR_TOKEN is provisioned (detect reads run=false without it).
   swift-mirror:
+    name: swift-mirror
     needs: [test, release]
     runs-on: ubuntu-latest
     permissions:

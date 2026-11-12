@@ -1,10 +1,11 @@
-import {Match, Show, Switch, createUniqueId, splitProps, type JSX} from 'solid-js'
+import {Match, Show, Switch, createUniqueId, splitProps, useContext, type JSX} from 'solid-js'
 import {Button, FieldPrimitive as Field, Loader} from '@conciv/ui-kit-system'
 import Lock from 'lucide-solid/icons/lock'
 import {useFieldContext} from './form-context.js'
+import {SettingNote} from './setting-note.js'
 
 export const MICRO =
-  'm-0 [font-family:var(--chat-mono)] text-[0.59375rem] leading-[1.2] font-normal uppercase tracking-[0.14em] text-chat-dim whitespace-nowrap'
+  'm-0 font-chat-mono text-[0.59375rem] leading-[1.2] font-normal uppercase tracking-[0.14em] text-chat-dim whitespace-nowrap'
 const CARD =
   'flex flex-col rounded-chat-surface-md [border:1px_solid_var(--chat-line)] bg-chat-fill-soft [&>*+*]:[border-block-start:1px_solid_var(--chat-line-soft)]'
 const LABEL = 'flex items-center gap-2 text-[0.8125rem] font-medium text-chat-text-hi'
@@ -18,14 +19,17 @@ export const BUTTON_DANGER_FILL = `${BUTTON} !bg-chat-danger [border-color:var(-
 const ROW = 'flex items-center gap-3 min-h-11.5 py-2.5 px-3'
 const STACK = 'flex flex-col gap-2.5 p-3'
 const TEXT = 'flex flex-1 min-w-0 flex-col gap-0.5'
-const LOCK = 'inline-flex items-center gap-1.25 [font-family:var(--chat-mono)] text-[0.65625rem] text-chat-dim'
+export const NOTE_TEXT = 'font-chat-mono text-[0.65625rem] text-chat-dim'
+export const LOCK = `inline-flex items-center gap-1.25 ${NOTE_TEXT}`
+const HEADLINE = 'flex min-w-0 items-baseline gap-x-2'
+const NOTE = `flex-1 min-w-0 truncate ${NOTE_TEXT}`
 const ERROR = 'text-[0.75rem] leading-[1.35] text-chat-danger'
-const SECTION = `${CARD} overflow-hidden anim-rise`
+const SECTION = `${CARD} overflow-hidden`
 const SECTION_DANGER = '[border-color:color-mix(in_oklch,var(--chat-danger)_35%,transparent)]'
 const SECTION_HEAD = 'flex items-start gap-2.5 pt-3 px-3 pb-2.5'
 const SECTION_TEXT = 'flex flex-1 min-w-0 flex-col gap-0.5'
 const SECTION_TITLE =
-  'flex items-center gap-1.75 m-0 [font-family:var(--chat-font-display)] text-[0.84375rem] font-semibold text-chat-text-hi'
+  'flex items-center gap-1.75 m-0 font-chat-display text-[0.84375rem] font-semibold text-chat-text-hi'
 const SECTION_DESCRIPTION = 'm-0 text-[0.71875rem] leading-[1.35] text-chat-text-2'
 
 type GroupProps = {
@@ -33,18 +37,28 @@ type GroupProps = {
   description?: string
   action?: JSX.Element
   danger?: boolean
+  keys?: readonly string[]
   children: JSX.Element
 }
 
 export function Group(props: GroupProps): JSX.Element {
   const titleId = createUniqueId()
+  const noteOf = useContext(SettingNote)
+  const note = () => props.keys?.map((key) => noteOf(key)).find((text) => text !== undefined)
   return (
     <section class={`${SECTION} ${props.danger ? SECTION_DANGER : ''}`} aria-labelledby={titleId}>
       <div class={SECTION_HEAD}>
         <div class={SECTION_TEXT}>
-          <h3 id={titleId} class={`${SECTION_TITLE} ${props.danger ? '!text-chat-danger' : ''}`}>
-            {props.title}
-          </h3>
+          <span class={HEADLINE}>
+            <h3 id={titleId} class={`${SECTION_TITLE} ${props.danger ? '!text-chat-danger' : ''}`}>
+              {props.title}
+            </h3>
+            <Show when={note()}>
+              <span class={NOTE} title={note()}>
+                {note()}
+              </span>
+            </Show>
+          </span>
           <Show when={props.description}>
             <p class={SECTION_DESCRIPTION}>{props.description}</p>
           </Show>
@@ -56,12 +70,19 @@ export function Group(props: GroupProps): JSX.Element {
   )
 }
 
-type RowTextProps = {label: JSX.Element; hint?: JSX.Element; lock?: string; error?: string}
+type RowTextProps = {label: JSX.Element; hint?: JSX.Element; lock?: string; note?: string; error?: string}
 
 function RowText(props: RowTextProps): JSX.Element {
   return (
     <span class={TEXT}>
-      <Field.Label class={LABEL}>{props.label}</Field.Label>
+      <span class={HEADLINE}>
+        <Field.Label class={LABEL}>{props.label}</Field.Label>
+        <Show when={props.note}>
+          <span class={NOTE} title={props.note}>
+            {props.note}
+          </span>
+        </Show>
+      </span>
       <Show when={props.hint}>
         <Field.HelperText class={HINT}>{props.hint}</Field.HelperText>
       </Show>
@@ -89,6 +110,7 @@ type SettingRowProps = {
 export function SettingRow(props: SettingRowProps): JSX.Element {
   const [local] = splitProps(props, ['label', 'hint', 'lock', 'layout', 'children'])
   const field = useFieldContext<unknown>()
+  const noteOf = useContext(SettingNote)
   const error = () => {
     const first = field().state.meta.errors.at(0)
     return first === undefined || first === null ? undefined : String(first)
@@ -99,7 +121,7 @@ export function SettingRow(props: SettingRowProps): JSX.Element {
       invalid={error() !== undefined}
       readOnly={Boolean(local.lock)}
     >
-      <RowText label={local.label} hint={local.hint} lock={local.lock} error={error()} />
+      <RowText label={local.label} hint={local.hint} lock={local.lock} note={noteOf(field().name)} error={error()} />
       {local.children}
     </Field.Root>
   )

@@ -2,7 +2,8 @@ import {readFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {z} from 'zod'
 import {checkEngines, concivHome, type EngineRow} from '@conciv/db'
-import {TabOpenSchema, type SessionId} from '@conciv/protocol/chat-types'
+import {makeRpcClient} from '@conciv/contract'
+import type {SessionId} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {userFailure} from './failure.js'
 
@@ -48,7 +49,7 @@ export async function engineOrigin(cwd: string, env: NodeJS.ProcessEnv, tab: Ses
   return {origin: latest.apiBase, outside: true}
 }
 
-function scopedOrigin(port: string | number, token: string | undefined): string {
+export function scopedOrigin(port: string | number, token: string | undefined): string {
   const origin = `http://127.0.0.1:${port}`
   return token === undefined ? origin : `${origin}/t/${token}`
 }
@@ -79,7 +80,5 @@ async function tabOwner(live: EngineRow[], tab: SessionId): Promise<string> {
 }
 
 async function holdsTab(row: EngineRow, tab: SessionId): Promise<boolean> {
-  const response = await fetch(`${row.apiBase}/api/tabs?session=${tab}`, {signal: AbortSignal.timeout(PROBE_MS)})
-  if (!response.ok) throw new Error(`${row.root} answered ${response.status}`)
-  return TabOpenSchema.parse(await response.json()).open
+  return (await makeRpcClient(row.apiBase).tabs.get({sessionId: tab}, {signal: AbortSignal.timeout(PROBE_MS)})).open
 }
