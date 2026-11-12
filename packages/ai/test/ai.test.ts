@@ -1,5 +1,7 @@
 import {DatabaseSync} from 'node:sqlite'
 import {drizzle} from 'drizzle-orm/node-sqlite'
+import {migrateSync} from 'drizzle-orm/sqlite-core/async/session'
+import {migrations} from '@conciv/db'
 import {sql} from 'drizzle-orm'
 import {defineAIPersistence} from '@tanstack/ai-persistence'
 import {runPersistenceConformance} from '@tanstack/ai-persistence/testkit'
@@ -11,6 +13,7 @@ import {
   makeTextAdapter,
   quickJSThreadDriver,
   toolApprovalId,
+  type Turn,
   type TurnHooks,
 } from '../src/server.js'
 import type {ToolBinding} from '@tanstack/ai-code-mode'
@@ -31,7 +34,7 @@ import {UsageSnapshotSchema, contextUsedTokens, tokenUsageToSnapshot} from '@con
 import {createTextChunks, fakeText, storyConnection} from '../src/testkit.js'
 import {localSandbox} from '../src/server/local-sandbox.js'
 import type {FakeResponse, FakeResponseStep} from '@tanstack/ai/testing'
-import {chmodSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
+import {chmodSync, mkdtempSync, readdirSync, readFileSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {fileURLToPath} from 'node:url'
 import {join} from 'node:path'
@@ -40,44 +43,13 @@ import {subscribe, unsubscribe} from 'node:diagnostics_channel'
 import {Worker} from 'node:worker_threads'
 import {closePool, openPool} from '../src/server/quickjs-thread.js'
 
-describe('chat stores', () => {
-  const CHAT_TABLES = `CREATE TABLE \`chat_runs\` (
-	\`run_id\` text PRIMARY KEY,
-	\`thread_id\` text NOT NULL,
-	\`harness_id\` text NOT NULL,
-	\`status\` text NOT NULL,
-	\`started_at\` integer NOT NULL,
-	\`finished_at\` integer,
-	\`error\` text,
-	\`error_code\` text,
-	\`usage_json\` text,
-	\`sandbox_key\` text,
-	\`detached_since\` integer,
-	\`cancel_requested\` integer,
-	\`driver_epoch\` integer
-);
-CREATE INDEX \`chat_runs_status_detached\` ON \`chat_runs\` (\`status\`,\`detached_since\`);
-CREATE INDEX \`chat_runs_thread_started\` ON \`chat_runs\` (\`thread_id\`,\`started_at\`);
-CREATE TABLE \`chat_metadata\` (
-	\`namespace\` text NOT NULL,
-	\`key\` text NOT NULL,
-	\`value_json\` text NOT NULL,
-	CONSTRAINT \`chat_metadata_pk\` PRIMARY KEY(\`namespace\`, \`key\`)
-);
-CREATE TABLE \`chat_messages\` (
-	\`thread_id\` text NOT NULL,
-	\`position\` integer NOT NULL,
-	\`message_id\` text,
-	\`role\` text NOT NULL,
-	\`message_json\` text NOT NULL,
-	CONSTRAINT \`chat_messages_pk\` PRIMARY KEY(\`thread_id\`, \`position\`)
-);
-CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\`,\`message_id\`);`
+type TurnPlan = ReturnType<TurnHooks['plan']>
 
+describe('chat stores', () => {
   function chatDb() {
-    const client = new DatabaseSync(':memory:')
-    client.exec(CHAT_TABLES)
-    return drizzle({client})
+    const db = drizzle({client: new DatabaseSync(':memory:')})
+    migrateSync(migrations, db._.session)
+    return db
   }
 
   it('a run row records the harness of its thread when it is created', async () => {
@@ -107,76 +79,49 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
     ]
 
     async function savedThread() {
-      const stores = drizzleChatStores(chatDb(), {harnessOf: () => 'test-harness'})
+      const db = chatDb()
+      const stores = drizzleChatStores(db, {harnessOf: () => 'test-harness'})
       await stores.messages.saveThread('paged', THREAD)
-      return stores
+      return {db, messages: stores.messages}
     }
 
-    it('returns the newest window as a page that starts on a user message, so no turn is split', async () => {
-      const stores = await savedThread()
-      expect(await stores.messages.loadThread('paged', {limit: 4})).toEqual({
+    it('pages back from the newest window without splitting a turn, and a shorter save drops the tail', async () => {
+      const {messages} = await savedThread()
+      expect(await messages.loadThread('paged')).toEqual(THREAD)
+      expect(await messages.loadThread('paged', {limit: 4})).toEqual({
         messages: THREAD.slice(2),
         truncated: true,
         cursor: 'u1',
       })
-    })
-
-    it('walks to the window before a cursor and marks the first window complete', async () => {
-      const stores = await savedThread()
-      expect(await stores.messages.loadThread('paged', {limit: 4, before: 'u1'})).toEqual({
+      expect(await messages.loadThread('paged', {limit: 4, before: 'u1'})).toEqual({
         messages: THREAD.slice(0, 2),
         truncated: false,
       })
-    })
-
-    it('a cursor the thread does not hold yields an empty, complete page', async () => {
-      const stores = await savedThread()
-      expect(await stores.messages.loadThread('paged', {limit: 4, before: 'gone'})).toEqual({
-        messages: [],
-        truncated: false,
-      })
+      expect(await messages.loadThread('paged', {limit: 4, before: 'gone'})).toEqual({messages: [], truncated: false})
+      await messages.saveThread('paged', THREAD.slice(0, 2))
+      expect(await messages.loadThread('paged')).toEqual(THREAD.slice(0, 2))
+      expect(await messages.loadThread('paged', {limit: 4})).toEqual({messages: THREAD.slice(0, 2), truncated: false})
     })
 
     it('a page read leaves the messages outside its window unread', async () => {
-      const db = chatDb()
-      const stores = drizzleChatStores(db, {harnessOf: () => 'test-harness'})
-      await stores.messages.saveThread('paged', THREAD)
+      const {db, messages} = await savedThread()
       db.run(sql`UPDATE chat_messages SET message_json = 'not json' WHERE thread_id = 'paged' AND position < 2`)
-
-      expect(await stores.messages.loadThread('paged', {limit: 4})).toEqual({
+      expect(await messages.loadThread('paged', {limit: 4})).toEqual({
         messages: THREAD.slice(2),
         truncated: true,
         cursor: 'u1',
       })
-      await expect(stores.messages.loadThread('paged')).rejects.toThrow()
+      await expect(messages.loadThread('paged')).rejects.toThrow()
     })
 
     it('the newest page ends on the last stored message even when a position in between is missing', async () => {
-      const db = chatDb()
-      const stores = drizzleChatStores(db, {harnessOf: () => 'test-harness'})
-      await stores.messages.saveThread('paged', THREAD)
+      const {db, messages} = await savedThread()
       db.run(sql`DELETE FROM chat_messages WHERE thread_id = 'paged' AND position = 1`)
-
-      expect(await stores.messages.loadThread('paged', {limit: 2})).toEqual({
+      expect(await messages.loadThread('paged', {limit: 2})).toEqual({
         messages: THREAD.slice(6),
         truncated: true,
         cursor: 'u2',
       })
-    })
-
-    it('saving a shorter thread drops the messages past its end', async () => {
-      const stores = await savedThread()
-      await stores.messages.saveThread('paged', THREAD.slice(0, 2))
-      expect(await stores.messages.loadThread('paged')).toEqual(THREAD.slice(0, 2))
-      expect(await stores.messages.loadThread('paged', {limit: 4})).toEqual({
-        messages: THREAD.slice(0, 2),
-        truncated: false,
-      })
-    })
-
-    it('a read without a window still returns the whole transcript', async () => {
-      const stores = await savedThread()
-      expect(await stores.messages.loadThread('paged')).toEqual(THREAD)
     })
   })
 
@@ -184,27 +129,13 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
     const logged: string[] = []
     const started = Promise.withResolvers<void>()
     const stalled = stalledModel(() => started.resolve())
-    const hooks: TurnHooks = {
-      plan: () => ({
-        adapter: stalled,
-        systemPrompts: [],
-        codeMode: [],
-        asking: [],
-        setup: async () => new Map(),
-        expand: async (messages) => messages,
-        providerMessages: async (messages) => messages,
-        chunk: async (chunk) => [chunk],
-      }),
-      usage: async () => undefined,
-      started: () => undefined,
+    const hooks = turnHooks(() => ({adapter: stalled}), {
       end: async () => {
         throw new Error('end hook failed')
       },
-    }
+    })
     const server = await chatServer(hooks, (message) => logged.push(message))
-    const driven = server.drive({threadId: 'thread', runId: 'run', kind: 'chat'}, [
-      {id: 'user-hi', role: 'user', content: 'hi'},
-    ])
+    const driven = say(server, 'thread', 'run')
     await started.promise
     await server.endRuns('thread')
     await driven
@@ -216,38 +147,23 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
     const firstInSetup = Promise.withResolvers<void>()
     const firstSetup = Promise.withResolvers<void>()
     const secondLaunched = Promise.withResolvers<void>()
-    const hooks: TurnHooks = {
-      plan: (turn) => ({
-        adapter: stalledModel(() => {
-          launched.push(turn.runId)
-          secondLaunched.resolve()
-        }),
-        systemPrompts: [],
-        codeMode: [],
-        asking: [],
-        setup: async () => {
-          if (turn.runId === 'first') {
-            firstInSetup.resolve()
-            await firstSetup.promise
-          }
-          return new Map()
-        },
-        expand: async (messages) => messages,
-        providerMessages: async (messages) => messages,
-        chunk: async (chunk) => [chunk],
+    const hooks = turnHooks((turn) => ({
+      adapter: stalledModel(() => {
+        launched.push(turn.runId)
+        secondLaunched.resolve()
       }),
-      usage: async () => undefined,
-      started: () => undefined,
-      end: async () => undefined,
-    }
+      setup: async () => {
+        if (turn.runId === 'first') {
+          firstInSetup.resolve()
+          await firstSetup.promise
+        }
+        return new Map()
+      },
+    }))
     const server = await chatServer(hooks, () => undefined)
-    const first = server.drive({threadId: 'thread', runId: 'first', kind: 'chat'}, [
-      {id: 'user-one', role: 'user', content: 'one'},
-    ])
+    const first = say(server, 'thread', 'first', 'one')
     await firstInSetup.promise
-    const second = server.drive({threadId: 'thread', runId: 'second', kind: 'chat'}, [
-      {id: 'user-two', role: 'user', content: 'two'},
-    ])
+    const second = say(server, 'thread', 'second', 'two')
     await secondLaunched.promise
     firstSetup.resolve()
     await first
@@ -265,27 +181,9 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       WHEN NEW.cancel_requested = 1 AND OLD.cancel_requested IS NOT 1
       BEGIN SELECT RAISE(ABORT, 'cancel write failed'); END`)
       const started = new Map(['one', 'two'].map((threadId) => [threadId, Promise.withResolvers<void>()]))
-      const hooks: TurnHooks = {
-        plan: (turn) => ({
-          adapter: stalledModel(() => started.get(turn.threadId)?.resolve()),
-          systemPrompts: [],
-          codeMode: [],
-          asking: [],
-          setup: async () => new Map(),
-          expand: async (messages) => messages,
-          providerMessages: async (messages) => messages,
-          chunk: async (chunk) => [chunk],
-        }),
-        usage: async () => undefined,
-        started: () => undefined,
-        end: async () => undefined,
-      }
+      const hooks = turnHooks((turn) => ({adapter: stalledModel(() => started.get(turn.threadId)?.resolve())}))
       const server = await chatServer(hooks, () => undefined, db)
-      const driven = [...started.keys()].map((threadId) =>
-        server.drive({threadId, runId: `${threadId}-run`, kind: 'chat'}, [
-          {id: 'user-hi', role: 'user', content: 'hi'},
-        ]),
-      )
+      const driven = [...started.keys()].map((threadId) => say(server, threadId, `${threadId}-run`))
       await Promise.all([...started.values()].map((gate) => gate.promise))
       const outcome = await server.endAllRuns().then(
         () => 'resolved',
@@ -349,84 +247,59 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       }
     }
 
-    function processAlive(pid: number): boolean {
-      try {
-        process.kill(pid, 0)
-        return true
-      } catch {
-        return false
-      }
-    }
-
-    function cliTurn(bin: string) {
+    async function cliAgent(behaviour: Parameters<typeof fakeClaude>[0], firstOutputTimeoutMs?: number) {
+      const agent = fakeClaude(behaviour)
+      const db = chatDb()
       const ended = Promise.withResolvers<RunLifecycle>()
       const answered = Promise.withResolvers<void>()
-      const hooks: TurnHooks = {
-        plan: () => ({
-          adapter: claudeCode('opus', {claudeExecutable: bin}),
-          systemPrompts: [],
-          codeMode: [],
-          asking: [],
-          setup: async () => new Map(),
-          expand: async (messages) => messages,
-          providerMessages: async (messages) => messages,
+      const hooks = turnHooks(
+        () => ({
+          adapter: claudeCode('opus', {claudeExecutable: agent.bin}),
           chunk: async (chunk) => {
             if (chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT) answered.resolve()
             return [chunk]
           },
         }),
-        usage: async () => undefined,
-        started: () => undefined,
-        end: async (_turn, run) => ended.resolve(run),
-      }
-      return {hooks, ended: ended.promise, answered: answered.promise}
+        {end: async (_turn, run) => ended.resolve(run)},
+      )
+      const server = await chatServer(hooks, () => undefined, db, firstOutputTimeoutMs)
+      return {...agent, db, server, ended: ended.promise, answered: answered.promise}
     }
 
-    async function answers(server: Awaited<ReturnType<typeof chatServer>>, threadId: string) {
+    async function answers(server: ChatServer, threadId: string) {
       return (await server.hydrate(threadId)).messages
         .filter((message) => message.role === 'assistant')
         .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])))
     }
 
     it('an agent silent for 12s before it answers completes its turn once', {timeout: 30_000}, async () => {
-      const agent = fakeClaude({silentMs: 12_000, afterSilence: 'answer'})
-      const turn = cliTurn(agent.bin)
-      const server = await chatServer(turn.hooks, () => undefined)
-      await server.drive({threadId: 'slow-start', runId: 'slow-start', kind: 'chat'}, [
-        {id: 'user-hi', role: 'user', content: 'hi'},
-      ])
-      const run = await turn.ended
+      const agent = await cliAgent({silentMs: 12_000, afterSilence: 'answer'})
+      await say(agent.server, 'slow-start', 'slow-start')
+      const run = await agent.ended
       expect({
         run: {phase: run.phase, error: run.error},
         launches: agent.pids().length,
-        answers: await answers(server, 'slow-start'),
+        answers: await answers(agent.server, 'slow-start'),
       }).toEqual({run: {phase: 'completed', error: null}, launches: 1, answers: [ANSWER]})
     })
 
-    it('an agent silent past the first-output timeout fails with it and is gone', {timeout: 45_000}, async () => {
-      const agent = fakeClaude({silentMs: 600_000, afterSilence: 'answer'})
-      const turn = cliTurn(agent.bin)
-      const server = await chatServer(turn.hooks, () => undefined)
-      const startedAt = Date.now()
-      await server.drive({threadId: 'silent', runId: 'silent', kind: 'chat'}, [
-        {id: 'user-hi', role: 'user', content: 'hi'},
-      ])
-      const run = await turn.ended
-      expect({
-        error: run.error,
-        waitedTheTimeout: Date.now() - startedAt >= 29_000,
-        alive: agent.alive(),
-      }).toEqual({error: 'the agent produced no output within 30s', waitedTheTimeout: true, alive: []})
+    it('an agent silent past the first-output timeout fails with it and is gone', {timeout: 10_000}, async () => {
+      const agent = await cliAgent({silentMs: 600_000, afterSilence: 'answer'}, 5_000)
+      await say(agent.server, 'silent', 'silent')
+      const run = await agent.ended
+      expect({error: run.error, launches: agent.pids().length, alive: agent.alive()}).toEqual({
+        error: 'the agent produced no output within 5s',
+        launches: 1,
+        alive: [],
+      })
     })
 
     it(
       'a client that leaves mid-turn and returns gets the whole turn once from the agent it left running',
       {timeout: 10_000},
       async () => {
-        const agent = fakeClaude({silentMs: 0, afterSilence: 'gate'})
-        const turn = cliTurn(agent.bin)
-        const server = await chatServer(turn.hooks, () => undefined)
-        const response = await server.events(
+        const agent = await cliAgent({silentMs: 0, afterSilence: 'gate'})
+        const response = await agent.server.events(
           new Request('http://conciv.local/chat', {
             method: 'POST',
             headers: {'content-type': 'application/json'},
@@ -439,25 +312,21 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
             }),
           }),
         )
-        const reader = response.body?.getReader()
-        const decoder = new TextDecoder()
         const live = {text: ''}
-        while (!live.text.includes(SESSION)) {
-          const read = await reader?.read()
-          if (read === undefined || read.done) break
-          live.text += decoder.decode(read.value, {stream: true})
+        for await (const text of response.body?.pipeThrough(new TextDecoderStream()) ?? []) {
+          live.text += text
+          if (live.text.includes(SESSION)) break
         }
-        await reader?.cancel()
         agent.open()
-        const run = await turn.ended
-        const replay = await replayed(server, 'left')
+        const run = await agent.ended
+        const replay = await replayed(agent.server, 'left')
         expect({
           agentStartedLive: live.text.includes(SESSION),
           phase: run.phase,
           launches: agent.pids().length,
           replayedText: replay.flatMap((chunk) => (chunk.delta === undefined ? [] : [chunk.delta])).join(''),
           replayedFinishes: replay.filter((chunk) => chunk.type === ChatEventType.RUN_FINISHED).length,
-          answers: await answers(server, 'left'),
+          answers: await answers(agent.server, 'left'),
         }).toEqual({
           agentStartedLive: true,
           phase: 'completed',
@@ -470,20 +339,15 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
     )
 
     it('a stop during an agent run ends it aborted and the agent is gone', {timeout: 10_000}, async () => {
-      const db = chatDb()
-      const agent = fakeClaude({silentMs: 0, afterSilence: 'hang'})
-      const turn = cliTurn(agent.bin)
-      const server = await chatServer(turn.hooks, () => undefined, db)
-      const driven = server.drive({threadId: 'stopped', runId: 'stopped', kind: 'chat'}, [
-        {id: 'user-hi', role: 'user', content: 'hi'},
-      ])
-      await turn.answered
-      await server.stop('stopped', ['stopped'])
+      const agent = await cliAgent({silentMs: 0, afterSilence: 'hang'})
+      const driven = say(agent.server, 'stopped', 'stopped')
+      await agent.answered
+      await agent.server.stop('stopped', ['stopped'])
       await driven
-      const run = await turn.ended
+      const run = await agent.ended
       expect({
         phase: run.phase,
-        status: db.$client.prepare('SELECT status FROM chat_runs').all(),
+        status: agent.db.$client.prepare('SELECT status FROM chat_runs').all(),
         alive: agent.alive(),
       }).toEqual({phase: 'aborted', status: [{status: 'aborted'}], alive: []})
     })
@@ -503,25 +367,13 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       await new Promise((resolve) => signal?.addEventListener('abort', resolve, {once: true}))
       return 'stopped'
     })
-    const hooks: TurnHooks = {
-      plan: () => ({
-        adapter: scriptedModel([{toolCalls: [{name: 'blocking', input: {}}]}]),
-        systemPrompts: [],
-        codeMode: [],
-        asking: [blocking],
-        setup: async () => new Map([[toolApprovalId('blocking'), true]]),
-        expand: async (messages) => messages,
-        providerMessages: async (messages) => messages,
-        chunk: async (chunk) => [chunk],
-      }),
-      usage: async () => undefined,
-      started: () => undefined,
-      end: async () => undefined,
-    }
+    const hooks = turnHooks(() => ({
+      adapter: scriptedModel([{toolCalls: [{name: 'blocking', input: {}}]}]),
+      asking: [blocking],
+      setup: async () => new Map([[toolApprovalId('blocking'), true]]),
+    }))
     const server = await chatServer(hooks, () => undefined, db)
-    const driven = server.drive({threadId: 'thread', runId: 'run', kind: 'chat'}, [
-      {id: 'user-hi', role: 'user', content: 'hi'},
-    ])
+    const driven = say(server, 'thread', 'run')
     await toolRunning.promise
     const outcome = await Promise.race([
       server.endAllRuns().then(() => 'ended'),
@@ -540,8 +392,8 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
     const setupHeld = Promise.withResolvers<void>()
     const streamed = Promise.withResolvers<void>()
     const stopped = Promise.withResolvers<void>()
-    const hooks: TurnHooks = {
-      plan: (turn) => ({
+    const hooks = turnHooks(
+      (turn) => ({
         adapter: makeTextAdapter('abortable', async function* (options) {
           launched.push(turn.runId)
           yield {type: ChatEventType.RUN_STARTED, runId: turn.runId, threadId: turn.threadId, timestamp: Date.now()}
@@ -550,9 +402,6 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
           await stopped.promise
           await new Promise((resolve) => options.request?.signal?.addEventListener('abort', resolve, {once: true}))
         }),
-        systemPrompts: [],
-        codeMode: [],
-        asking: [],
         setup: async () => {
           if (turn.runId === 'in-setup') {
             inSetup.resolve()
@@ -560,25 +409,16 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
           }
           return new Map()
         },
-        expand: async (messages) => messages,
-        providerMessages: async (messages) => messages,
-        chunk: async (chunk) => [chunk],
       }),
-      usage: async () => undefined,
-      started: (turn) => announced.push(turn.runId),
-      end: async () => undefined,
-    }
+      {started: (turn) => announced.push(turn.runId)},
+    )
     const server = await chatServer(hooks, () => undefined, db)
-    const inSetupRun = server.drive({threadId: 'thread', runId: 'in-setup', kind: 'chat'}, [
-      {id: 'user-a', role: 'user', content: 'a'},
-    ])
+    const inSetupRun = say(server, 'thread', 'in-setup', 'a')
     await inSetup.promise
     await server.stop('thread', ['in-setup'])
     setupHeld.resolve()
     await inSetupRun
-    const streaming = server.drive({threadId: 'thread', runId: 'streaming', kind: 'chat'}, [
-      {id: 'user-b', role: 'user', content: 'b'},
-    ])
+    const streaming = say(server, 'thread', 'streaming', 'b')
     await streamed.promise
     await server.stop('thread', ['streaming'])
     stopped.resolve()
@@ -616,14 +456,14 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
     value: z.looseObject({phase: z.string().optional()}).optional(),
   })
 
-  async function replayed(server: Awaited<ReturnType<typeof chatServer>>, runId: string) {
+  async function replayed(server: ChatServer, runId: string) {
     const replay = server.resume(new Request(`http://conciv.local/chat?runId=${runId}&offset=-1`))
     return ((await replay?.text()) ?? '')
       .split('\n')
       .flatMap((line) => (line.startsWith('data: ') ? [ReplayedChunkSchema.parse(JSON.parse(line.slice(6)))] : []))
   }
 
-  async function replayEnd(server: Awaited<ReturnType<typeof chatServer>>, runId: string) {
+  async function replayEnd(server: ChatServer, runId: string) {
     const phases = (await replayed(server, runId)).flatMap((chunk) =>
       chunk.name === runLifecycleEvent.name && chunk.value?.phase !== undefined ? [chunk.value.phase] : [],
     )
@@ -633,8 +473,8 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
   it('a provider wait before any output is retried and the run completes', {timeout: 15_000}, async () => {
     const seen = {calls: 0}
     const ended = Promise.withResolvers<RunLifecycle>()
-    const hooks: TurnHooks = {
-      plan: (turn) => ({
+    const hooks = turnHooks(
+      (turn) => ({
         adapter: makeTextAdapter('rate-limited-once', async function* () {
           seen.calls += 1
           yield {type: ChatEventType.RUN_STARTED, runId: turn.runId, threadId: turn.threadId, timestamp: Date.now()}
@@ -651,25 +491,14 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
             timestamp: Date.now(),
           }
         }),
-        systemPrompts: [],
-        codeMode: [],
-        asking: [],
-        setup: async () => new Map(),
-        expand: async (messages) => messages,
-        providerMessages: async (messages) => messages,
-        chunk: async (chunk) => [chunk],
       }),
-      usage: async () => undefined,
-      started: () => undefined,
-      end: async (_turn, run) => ended.resolve(run),
-    }
+      {end: async (_turn, run) => ended.resolve(run)},
+    )
     const server = await chatServer(hooks, () => undefined)
     await expect(
       server.drive({threadId: 'thread', runId: 'anonymous', kind: 'chat'}, [{role: 'user', content: 'no id'}]),
     ).rejects.toThrow(/id/)
-    await server.drive({threadId: 'thread', runId: 'waited', kind: 'chat'}, [
-      {id: 'user-hi', role: 'user', content: 'hi'},
-    ])
+    await say(server, 'thread', 'waited')
     const run = await ended.promise
     expect({calls: seen.calls, phase: run.phase}).toEqual({calls: 2, phase: 'completed'})
   })
@@ -689,14 +518,46 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
     ])
   }
 
-  async function chatServer(hooks: TurnHooks, log: (message: string) => void, db = chatDb()) {
-    const dir = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
+  function turnHooks(
+    plan: (turn: Turn) => Pick<TurnPlan, 'adapter'> & Partial<TurnPlan>,
+    hooks: Partial<Omit<TurnHooks, 'plan'>> = {},
+  ): TurnHooks {
+    return {
+      plan: (turn) => ({
+        systemPrompts: [],
+        codeMode: [],
+        asking: [],
+        setup: async () => new Map(),
+        expand: async (messages) => messages,
+        providerMessages: async (messages) => messages,
+        chunk: async (chunk) => [chunk],
+        ...plan(turn),
+      }),
+      usage: async () => undefined,
+      started: () => undefined,
+      end: async () => undefined,
+      ...hooks,
+    }
+  }
+
+  type ChatServer = Awaited<ReturnType<typeof chatServer>>
+
+  function say(server: ChatServer, threadId: string, runId: string, text = 'hi') {
+    return server.drive({threadId, runId, kind: 'chat'}, [{id: `user-${text}`, role: 'user', content: text}])
+  }
+
+  async function chatServer(
+    hooks: TurnHooks,
+    log: (message: string) => void,
+    db = chatDb(),
+    firstOutputTimeoutMs = 30_000,
+  ) {
     const server = await createChatServer({
       stores: drizzleChatStores(db, {harnessOf: () => 'test-harness'}),
-      sandbox: {dir},
+      sandbox: {dir: mkdtempSync(join(tmpdir(), 'conciv-ai-'))},
       hooks,
       codeModeResult: (value) => value,
-      firstOutputTimeoutMs: 30_000,
+      firstOutputTimeoutMs,
       log,
     })
     onTestFinished(() => server.endAllRuns())
@@ -730,7 +591,8 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
     }
 
     function sandbox(limits: {timeout: number; memoryLimit: number}, bindings: Record<string, ToolBinding> = {}) {
-      const driver = quickJSThreadDriver({...limits, maxStackSize: 1024 * 1024}, () => undefined)
+      const logged: string[] = []
+      const driver = quickJSThreadDriver({...limits, maxStackSize: 1024 * 1024}, (message) => logged.push(message))
       onTestFinished(() => driver.dispose())
       const run = async (code: string) => {
         const context = await driver.createContext({bindings})
@@ -738,7 +600,7 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
         await context.dispose()
         return result
       }
-      return {driver, run}
+      return {driver, run, logged}
     }
 
     it('the first run uses the worker booted with the driver, later runs and guest throws keep it', async () => {
@@ -785,24 +647,6 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       const overMemory = await run("globalThis.leak = 1; let text = 'x'; while (true) text += text")
       expect(overMemory).toMatchObject({success: false, error: {name: 'MemoryLimitError'}})
       expect(gone(beforeOverMemory)).toHaveLength(1)
-      expect(await run('return typeof leak')).toMatchObject({success: true, value: 'undefined'})
-    })
-
-    it('a run stopped mid-flight ends its worker and the next run works on a replacement', async () => {
-      const ours = workersFromHere()
-      const entered = Promise.withResolvers<void>()
-      const hold = binding('hold', () => {
-        entered.resolve()
-        return new Promise<never>(() => {})
-      })
-      const {driver, run} = sandbox(LIMITS, {hold})
-      const [stoppedOn] = ours()
-      const context = await driver.createContext({bindings: {hold}})
-      const running = context.execute('globalThis.leak = 1; await hold({})')
-      await entered.promise
-      await context.dispose()
-      expect(await running).toMatchObject({success: false, error: {name: 'AbortError'}})
-      expect(ours()).not.toContain(stoppedOn)
       expect(await run('return typeof leak')).toMatchObject({success: true, value: 'undefined'})
     })
 
@@ -856,25 +700,27 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
 
     async function heldRun() {
       const live = trackedWorkers()
-      const logged: string[] = []
       const entered = Promise.withResolvers<void>()
       const hold = binding('hold', () => {
         entered.resolve()
         return new Promise<never>(() => {})
       })
-      const driver = quickJSThreadDriver({...LIMITS, maxStackSize: 1024 * 1024}, (message) => logged.push(message))
-      onTestFinished(() => driver.dispose())
+      const {driver, run, logged} = sandbox(LIMITS, {hold})
       const context = await driver.createContext({bindings: {hold}})
       const running = context.execute('globalThis.leak = 1; await hold({})')
       await entered.promise
       const [worker] = live
       if (worker === undefined) throw new Error('the run has no worker')
-      const next = async () => {
-        const fresh = await driver.createContext({bindings: {}})
-        return fresh.execute('return typeof leak')
-      }
-      return {driver, worker, running, logged, next}
+      return {driver, context, live, worker, running, logged, next: () => run('return typeof leak')}
     }
+
+    it('a run stopped mid-flight ends its worker and the next run works on a replacement', async () => {
+      const {context, live, worker, running, next} = await heldRun()
+      await context.dispose()
+      expect(await running).toMatchObject({success: false, error: {name: 'AbortError'}})
+      expect(live.has(worker)).toBe(false)
+      expect(await next()).toMatchObject({success: true, value: 'undefined'})
+    })
 
     it('a worker that dies with a tool call in flight fails that run, logs it, and the next run works', async () => {
       const {worker, running, logged, next} = await heldRun()
@@ -890,12 +736,6 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       expect(await running).toMatchObject({success: false, error: {message: 'the worker threw'}})
       expect(logged).toContain('[ai] the QuickJS worker failed: Error: the worker threw')
       expect(await next()).toMatchObject({success: true, value: 'undefined'})
-    })
-
-    it('disposing the driver during a run stops that run', async () => {
-      const {driver, running} = await heldRun()
-      await driver.dispose()
-      expect(await running).toMatchObject({success: false, error: {name: 'AbortError'}})
     })
 
     it('concurrent runs run side by side and each sees only its own globals', async () => {
@@ -917,13 +757,13 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       ])
     })
 
-    it('dispose leaves no worker and a later run boots the pool again', async () => {
+    it('dispose stops the run in flight, leaves no worker, and a later run boots the pool again', async () => {
       const ours = workersFromHere()
-      const {driver, run} = sandbox(LIMITS)
-      await Promise.all([run('return 1'), run('return 2')])
+      const {driver, running, next} = await heldRun()
       await driver.dispose()
+      expect(await running).toMatchObject({success: false, error: {name: 'AbortError'}})
       expect(ours()).toEqual([])
-      expect(await run('return 3')).toMatchObject({success: true, value: 3})
+      expect(await next()).toMatchObject({success: true, value: 'undefined'})
       expect(ours()).toHaveLength(1)
       await driver.dispose()
       expect(ours()).toEqual([])
@@ -933,14 +773,9 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       const ours = workersFromHere()
       const logged: string[] = []
       const server = await chatServer(
-        {
-          plan: () => {
-            throw new Error('no turn runs here')
-          },
-          usage: async () => undefined,
-          end: async () => undefined,
-          started: () => undefined,
-        },
+        turnHooks(() => {
+          throw new Error('no turn runs here')
+        }),
         (message) => logged.push(message),
       )
       const onQuickJS = logged.some((message) => message.includes('@tanstack/ai-isolate-node'))
@@ -978,16 +813,16 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
   )
 })
 
-describe('local sandbox', () => {
-  function groupAlive(group: number): boolean {
-    try {
-      process.kill(-group, 0)
-      return true
-    } catch {
-      return false
-    }
+function processAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
   }
+}
 
+describe('local sandbox', () => {
   it(
     'forgets a finished run, so a destroy that names no cancelled run stops the live one',
     {timeout: 15_000},
@@ -999,7 +834,7 @@ describe('local sandbox', () => {
       const agent = await live.process.spawn('sleep 600')
       try {
         await provider.destroy({id: live.id})
-        expect(groupAlive(agent.pid)).toBe(false)
+        expect(processAlive(-agent.pid)).toBe(false)
       } finally {
         await agent.kill('SIGKILL')
       }
@@ -1017,23 +852,14 @@ describe('events', () => {
     error: null,
   }
 
-  describe('defineChatEvent', () => {
+  it('defineChatEvent creates only valid CUSTOM events and parses only its own name with a valid value', () => {
     const pinged = defineChatEvent('test.pinged', z.object({count: z.number()}))
-
-    it('creates a CUSTOM event carrying the validated value', () => {
-      expect(pinged.create({count: 1})).toEqual({type: ChatEventType.CUSTOM, name: 'test.pinged', value: {count: 1}})
-    })
-
-    it('rejects an invalid value on create', () => {
-      expect(() => pinged.create({count: Number.NaN})).toThrow()
-    })
-
-    it('parses only its own name with a valid value', () => {
-      expect(pinged.parse({type: ChatEventType.CUSTOM, name: 'test.pinged', value: {count: 2}})).toEqual({count: 2})
-      expect(pinged.parse({type: ChatEventType.CUSTOM, name: 'test.other', value: {count: 2}})).toBeNull()
-      expect(pinged.parse({type: ChatEventType.CUSTOM, name: 'test.pinged', value: {count: 'x'}})).toBeNull()
-      expect(pinged.parse({type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: 'm', delta: 'hi'})).toBeNull()
-    })
+    expect(pinged.create({count: 1})).toEqual({type: ChatEventType.CUSTOM, name: 'test.pinged', value: {count: 1}})
+    expect(() => pinged.create({count: Number.NaN})).toThrow()
+    expect(pinged.parse({type: ChatEventType.CUSTOM, name: 'test.pinged', value: {count: 2}})).toEqual({count: 2})
+    expect(pinged.parse({type: ChatEventType.CUSTOM, name: 'test.other', value: {count: 2}})).toBeNull()
+    expect(pinged.parse({type: ChatEventType.CUSTOM, name: 'test.pinged', value: {count: 'x'}})).toBeNull()
+    expect(pinged.parse({type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: 'm', delta: 'hi'})).toBeNull()
   })
 
   describe('conciv events keep their wire shape', () => {
@@ -1077,11 +903,12 @@ describe('testkit', () => {
     return seen
   }
 
-  describe('storyConnection abort at the last chunk yield', () => {
-    it('emits no RUN_FINISHED when aborted while suspended at the final chunk', async () => {
+  it.each([false, true])(
+    'a story aborted at its final chunk ends with no RUN_FINISHED or RUN_ERROR (erroring: %s)',
+    async (shouldError) => {
       const chunks = createTextChunks('hi')
       const controller = new AbortController()
-      const stream = storyConnection({chunks}).connect([], undefined, controller.signal, {
+      const stream = storyConnection({chunks, shouldError}).connect([], undefined, controller.signal, {
         threadId: 'story-thread',
         runId: 'story-run',
       })
@@ -1089,52 +916,28 @@ describe('testkit', () => {
       const seen = await drainUntilLastChunk(iterator, chunks.length + 1)
       expect(seen.at(-1)?.type).toBe(ChatEventType.TEXT_MESSAGE_END)
       controller.abort()
-      const resumed = await iterator.next()
-      expect(resumed.done).toBe(true)
-    })
-
-    it('emits no RUN_ERROR when an erroring stream is aborted at the final chunk', async () => {
-      const chunks = createTextChunks('hi')
-      const controller = new AbortController()
-      const stream = storyConnection({chunks, shouldError: true}).connect([], undefined, controller.signal, {
-        threadId: 'story-thread',
-        runId: 'story-run',
-      })
-      const iterator = stream[Symbol.asyncIterator]()
-      await drainUntilLastChunk(iterator, chunks.length + 1)
-      controller.abort()
-      const resumed = await iterator.next()
-      expect(resumed.done).toBe(true)
-    })
-  })
+      expect((await iterator.next()).done).toBe(true)
+    },
+  )
 })
 
 describe('usage', () => {
-  describe('usage-types', () => {
-    it('parses a partial snapshot (all fields optional)', () => {
-      expect(UsageSnapshotSchema.safeParse({}).success).toBe(true)
-      const r = UsageSnapshotSchema.safeParse({inputTokens: 10, contextWindow: 200000})
-      expect(r.success && r.data.inputTokens).toBe(10)
-    })
+  it('a snapshot has only optional, non-negative fields', () => {
+    expect(UsageSnapshotSchema.safeParse({}).success).toBe(true)
+    expect(UsageSnapshotSchema.safeParse({inputTokens: 10, contextWindow: 200000}).data?.inputTokens).toBe(10)
+    expect(UsageSnapshotSchema.safeParse({inputTokens: -1}).success).toBe(false)
+  })
 
-    it('rejects negative tokens', () => {
-      expect(UsageSnapshotSchema.safeParse({inputTokens: -1}).success).toBe(false)
-    })
+  it('context occupancy comes from contextTokens only, never the billing totals', () => {
+    expect(contextUsedTokens({contextTokens: 92000, inputTokens: 100, cacheReadTokens: 50, cacheWriteTokens: 10})).toBe(
+      92000,
+    )
+    expect(contextUsedTokens({inputTokens: 773000, cacheReadTokens: 700000, totalCostUsd: 1})).toBeUndefined()
+  })
 
-    it('reports occupancy from contextTokens, never the billing sum', () => {
-      expect(
-        contextUsedTokens({contextTokens: 92000, inputTokens: 100, cacheReadTokens: 50, cacheWriteTokens: 10}),
-      ).toBe(92000)
-    })
-
-    it('returns undefined when no occupancy is present (billing totals are not occupancy)', () => {
-      expect(contextUsedTokens({inputTokens: 773000, cacheReadTokens: 700000, totalCostUsd: 1})).toBeUndefined()
-    })
-
-    it('takes the cost from usage.cost when providerUsageDetails carries none', () => {
-      expect(tokenUsageToSnapshot({promptTokens: 10, completionTokens: 2, totalTokens: 12, cost: 0.25})).toMatchObject({
-        totalCostUsd: 0.25,
-      })
+  it('takes the cost from usage.cost when providerUsageDetails carries none', () => {
+    expect(tokenUsageToSnapshot({promptTokens: 10, completionTokens: 2, totalTokens: 12, cost: 0.25})).toMatchObject({
+      totalCostUsd: 0.25,
     })
   })
 })
@@ -1145,16 +948,9 @@ describe('dist externals', () => {
   type Chunk = {file: string; code: string}
 
   function collectChunks(dir: string): Chunk[] {
-    const chunks: Chunk[] = []
-    for (const name of readdirSync(dir)) {
-      const full = join(dir, name)
-      if (statSync(full).isDirectory()) {
-        chunks.push(...collectChunks(full))
-      } else if (name.endsWith('.js')) {
-        chunks.push({file: full, code: readFileSync(full, 'utf8')})
-      }
-    }
-    return chunks
+    return readdirSync(dir, {recursive: true, encoding: 'utf8'})
+      .filter((name) => name.endsWith('.js'))
+      .map((name) => ({file: join(dir, name), code: readFileSync(join(dir, name), 'utf8')}))
   }
 
   function stripQuotes(text: string): string {
