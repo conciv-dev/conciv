@@ -3,7 +3,7 @@ import {cva} from 'class-variance-authority'
 import {CLIP_REVEAL, createClipReveal, revealTriggerProps, Tooltip} from '@conciv/ui-kit-system'
 
 const chip = cva(
-  'inline-flex min-w-0 items-center gap-1.25 overflow-hidden text-ellipsis whitespace-nowrap leading-none text-[length:var(--chat-text-xs)]',
+  'inline-flex min-w-0 items-center gap-1.25 overflow-hidden text-ellipsis whitespace-nowrap leading-none rounded-[var(--chat-radius-pill)] [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)]',
   {
     variants: {
       maxWidth: {
@@ -12,11 +12,7 @@ const chip = cva(
       },
       kind: {
         field: 'px-2.25 pt-1.25 pb-1',
-        pill: '',
-      },
-      size: {
-        regular: 'rounded-[var(--chat-radius-pill)] [font-family:var(--chat-mono)]',
-        compact: 'rounded-chat-chip [font-family:var(--chat-font)] font-semibold',
+        pill: 'px-2 pt-1.25 pb-1',
       },
       tone: {
         neutral: '',
@@ -26,8 +22,6 @@ const chip = cva(
       },
     },
     compoundVariants: [
-      {kind: 'pill', size: 'regular', class: 'px-2 pt-1.25 pb-1'},
-      {kind: 'pill', size: 'compact', class: 'px-2 py-0.5'},
       {
         kind: 'field',
         tone: 'neutral',
@@ -54,60 +48,32 @@ const chip = cva(
       },
       {
         kind: 'pill',
-        size: 'regular',
         tone: 'neutral',
         class: '[background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)] [color:var(--chat-text-2)]',
       },
       {
         kind: 'pill',
-        size: 'regular',
         tone: 'accent',
         class:
           '[background:var(--chat-sunken)] [border:1px_solid_color-mix(in_srgb,var(--chat-accent)_45%,transparent)] [color:var(--chat-accent)]',
       },
       {
         kind: 'pill',
-        size: 'regular',
         tone: 'success',
         class:
           '[background:var(--chat-sunken)] [border:1px_solid_color-mix(in_srgb,var(--chat-success)_45%,transparent)] [color:var(--chat-success)]',
       },
       {
         kind: 'pill',
-        size: 'regular',
         tone: 'danger',
         class: '[background:var(--chat-sunken)] [border:1px_solid_var(--chat-danger-line)] [color:var(--chat-danger)]',
       },
-      {
-        kind: 'pill',
-        size: 'compact',
-        tone: 'neutral',
-        class: '[background:var(--chat-fill)] [color:var(--chat-text-2)]',
-      },
-      {
-        kind: 'pill',
-        size: 'compact',
-        tone: 'accent',
-        class: '[background:color-mix(in_oklch,var(--chat-accent)_10%,transparent)] [color:var(--chat-accent)]',
-      },
-      {
-        kind: 'pill',
-        size: 'compact',
-        tone: 'success',
-        class: '[background:color-mix(in_oklch,var(--chat-success)_10%,transparent)] [color:var(--chat-success)]',
-      },
-      {
-        kind: 'pill',
-        size: 'compact',
-        tone: 'danger',
-        class: '[background:color-mix(in_oklch,var(--chat-danger)_10%,transparent)] [color:var(--chat-danger)]',
-      },
     ],
-    defaultVariants: {kind: 'field', tone: 'neutral', maxWidth: 'full', size: 'regular'},
+    defaultVariants: {kind: 'field', tone: 'neutral', maxWidth: 'full'},
   },
 )
 
-export const CHIP = chip({kind: 'field', tone: 'neutral', maxWidth: 'full', size: 'regular'})
+export const CHIP = chip({kind: 'field', tone: 'neutral', maxWidth: 'full'})
 
 const FIELD_KEY = 'text-chat-text-3 m-0'
 const FIELD_VALUE = 'whitespace-nowrap text-ellipsis overflow-hidden [color:var(--chat-text)] m-0'
@@ -168,14 +134,13 @@ export function Chip(props: {
   kind?: 'field' | 'pill'
   tone?: 'neutral' | 'accent' | 'success' | 'danger'
   maxWidth?: 'full' | 'compact'
-  size?: 'regular' | 'compact'
   tooltip?: string
   class?: string
 }): JSX.Element {
-  const [local] = splitProps(props, ['name', 'value', 'kind', 'tone', 'maxWidth', 'size', 'tooltip', 'class'])
+  const [local] = splitProps(props, ['name', 'value', 'kind', 'tone', 'maxWidth', 'tooltip', 'class'])
   const kind = (): 'field' | 'pill' => local.kind ?? 'field'
   const chipClass = (): string =>
-    `${chip({kind: kind(), tone: local.tone ?? 'neutral', maxWidth: local.maxWidth ?? 'full', size: local.size ?? 'regular'})} ${local.class ?? ''}`
+    `${chip({kind: kind(), tone: local.tone ?? 'neutral', maxWidth: local.maxWidth ?? 'full'})} ${local.class ?? ''}`
 
   return (
     <Show
