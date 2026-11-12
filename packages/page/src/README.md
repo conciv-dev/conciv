@@ -8,7 +8,7 @@ The DOM side of the page plane. `startPagePlane` reads page queries from the eng
 
 - `index.ts:startPagePlane({source, driver?, tools?})` - serves page queries until `dispose()`.
 - `index.ts:servePageQueries` - for each query that parses with `PageQuerySchema`, runs `driver.execute` and replies with `{requestId, outcome}`; `PageQuerySource` type.
-- `page-driver.ts:makeDomPageDriver({tools?, effects?, refs?})` - `PageDriver` with `execute(query)`, `refs`, `dispose()`.
+- `page-driver.ts:makeDomPageDriver({tools?, effects?, refs?})` - `PageDriver` with `execute(query, signal?)` (a queued action stops once `signal` aborts), `refs`, `dispose()`.
 - `page-tool-dispatcher.ts:makePageToolDispatcher` - dispatches a query to the client tool with the same `name`; `PageToolAnswer`, `PageToolDispatch`.
 - `page-snapshot.ts:buildSnapshot` / `addRef` / `describeElement` / `roleOf` / `accessibleNameOf` / `DOM_CAP` (20000) - accessibility-style snapshots and refs.
 - `element-descriptor.ts:isSensitiveField` / `MASKED_VALUE` (`***`) / `elementDescriptor`.

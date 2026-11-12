@@ -27,7 +27,7 @@ export type PageQuerySource = {
   reply: (input: {requestId: string; outcome: PageOutcome}) => Promise<unknown>
 }
 
-type Played = {source: PageQuerySource; driver: PageDriver; lane: PQueue}
+type Played = {source: PageQuerySource; driver: PageDriver; lane: PQueue; signal: AbortSignal}
 
 function replyTo(source: PageQuerySource, requestId: string, outcome: PageOutcome): Promise<void> {
   return source.reply({requestId, outcome}).then(
@@ -57,19 +57,22 @@ function unplayed(name: string, error: unknown): PageOutcome {
 
 function inLane(played: Played, requestId: string, name: string, play: () => Promise<PageOutcome>): void {
   void played.lane.add(play).then(
-    (outcome) => replyTo(played.source, requestId, outcome),
-    (error: unknown) => replyTo(played.source, requestId, unplayed(name, error)),
+    (outcome) => (played.signal.aborted ? undefined : replyTo(played.source, requestId, outcome)),
+    (error: unknown) => (played.signal.aborted ? undefined : replyTo(played.source, requestId, unplayed(name, error))),
   )
 }
 
 function playQueue(played: Played, requestId: string, query: PageQuery): void {
   const queue = query.queue
   if (queue === undefined) return
-  const {source, driver} = played
+  const {source, driver, signal} = played
   const of = queue.replies.length
   const listed = PageQueueActionsSchema.safeParse(query.input)
   const accepted = driver
-    .execute({agentId: query.agentId, name: query.name, input: query.input, queued: {id: queue.id, index: -1, of}})
+    .execute(
+      {agentId: query.agentId, name: query.name, input: query.input, queued: {id: queue.id, index: -1, of}},
+      signal,
+    )
     .then((outcome) => acceptance(source, requestId, outcome))
   queue.replies.forEach((replyId, index) => {
     const action = listed.success ? listed.data.actions[index] : undefined
@@ -82,13 +85,10 @@ function playQueue(played: Played, requestId: string, query: PageQuery): void {
     inLane(played, replyId, tool, async () => {
       const ready = await accepted
       if (!ready.ok) return ready
-      return driver.execute({
-        agentId: query.agentId,
-        name: tool,
-        input,
-        mutating: true,
-        queued: {id: queue.id, index, of},
-      })
+      return driver.execute(
+        {agentId: query.agentId, name: tool, input, mutating: true, queued: {id: queue.id, index, of}},
+        signal,
+      )
     })
   })
 }
@@ -98,7 +98,7 @@ export async function servePageQueries(
   driver: PageDriver,
   signal: AbortSignal,
 ): Promise<void> {
-  const played: Played = {source, driver, lane: new PQueue({concurrency: 1})}
+  const played: Played = {source, driver, lane: new PQueue({concurrency: 1}), signal}
   signal.addEventListener('abort', () => played.lane.clear(), {once: true})
   for await (const item of source.queries(signal)) {
     const parsed = PageQuerySchema.safeParse(item.query)

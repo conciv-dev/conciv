@@ -505,6 +505,8 @@ const queueTool = queueDef
     acceptQueue(queued.id)
     startTask(ctx.agentId)
     touchTask()
+    ctx.signal?.addEventListener('abort', () => finishQueue(queued.id), {once: true})
+    if (ctx.signal?.aborted === true) finishQueue(queued.id)
     return {queueId: queued.id, status: 'playing', done: 0, of: input.actions.length}
   })
   .render(actCard)

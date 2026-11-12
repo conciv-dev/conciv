@@ -824,8 +824,7 @@ describe('page action queue', () => {
     const unmount = mountSimulator({root: host.attachShadow({mode: 'open'}), session: () => AGENT, onStop: endTask})
     onTestFinished(unmount)
     onTestFinished(endTask)
-    const frames: Frame[] = []
-    const wake = {now: () => {}}
+    const replied: string[] = []
     const replies = new Map<string, PromiseWithResolvers<PageOutcome>>()
     const replyTo = (requestId: string): PromiseWithResolvers<PageOutcome> => {
       const known = replies.get(requestId)
@@ -834,36 +833,47 @@ describe('page action queue', () => {
       replies.set(requestId, made)
       return made
     }
-    const plane = startPagePlane({
-      source: {
-        queries: (signal) => streamed(frames, wake, signal ?? new AbortController().signal),
-        reply: async ({requestId, outcome}) => {
-          await delivered(requestId)
-          replyTo(requestId).resolve(outcome)
+    const served = () => {
+      const frames: Frame[] = []
+      const wake = {now: () => {}}
+      const plane = startPagePlane({
+        source: {
+          queries: (signal) => streamed(frames, wake, signal ?? new AbortController().signal),
+          reply: async ({requestId, outcome}) => {
+            await delivered(requestId)
+            replied.push(requestId)
+            replyTo(requestId).resolve(outcome)
+          },
         },
-      },
-      tools: collectClientTools([pageExtension]),
-    })
-    onTestFinished(plane.dispose)
-    const send = (requestId: string, query: Record<string, unknown>): Promise<PageOutcome> => {
-      frames.push({requestId, query: {agentId: AGENT, ...query}})
-      wake.now()
-      return replyTo(requestId).promise
-    }
-    const queue = (id: string, actions: Record<string, unknown>[]) => {
-      const ids = actions.map((_, index) => `${id}-${index}`)
-      const accepted = send(`${id}-accept`, {name: 'page_queue', input: {actions}, queue: {id, replies: ids}})
-      return {
-        accepted,
-        each: ids.map((requestId) => replyTo(requestId).promise),
-        played: Promise.all(ids.map((requestId) => replyTo(requestId).promise)),
+        tools: collectClientTools([pageExtension]),
+      })
+      onTestFinished(plane.dispose)
+      const send = (requestId: string, query: Record<string, unknown>): Promise<PageOutcome> => {
+        frames.push({requestId, query: {agentId: AGENT, ...query}})
+        wake.now()
+        return replyTo(requestId).promise
       }
+      const queue = (id: string, actions: Record<string, unknown>[]) => {
+        const ids = actions.map((_, index) => `${id}-${index}`)
+        const accepted = send(`${id}-accept`, {name: 'page_queue', input: {actions}, queue: {id, replies: ids}})
+        return {
+          accepted,
+          each: ids.map((requestId) => replyTo(requestId).promise),
+          played: Promise.all(ids.map((requestId) => replyTo(requestId).promise)),
+        }
+      }
+      return {send, queue, dispose: plane.dispose}
     }
+    const first = served()
     const leave = () => {
-      plane.dispose()
+      first.dispose()
       unmount()
     }
-    return {heard, send, queue, leave}
+    const switchSession = () => {
+      first.dispose()
+      return served()
+    }
+    return {heard, replied, send: first.send, queue: first.queue, leave, switchSession}
   }
 
   const fill = (name: string, value: string) => ({tool: 'page_fill', selector: `[name=${name}]`, value})
@@ -923,6 +933,19 @@ describe('page action queue', () => {
     await after.queue('q-next', [fill('city', 'Paris')]).played
     await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).not.toBeInTheDocument()
     expect(before.heard).not.toContain('first')
+  })
+
+  it('a session switch mid-queue lands nothing more of the old queue, reports none of it, and takes the mask down', async () => {
+    const before = queuePage()
+    const cut = before.queue('q-switched', [fill('first', 'Ada'), fill('last', 'Lovelace')])
+    await cut.accepted
+    const after = before.switchSession()
+    expect(await after.queue('q-other', [fill('city', 'Paris')]).played).toEqual([
+      {ok: true, result: {ok: true, value: 'Paris'}},
+    ])
+    expect(before.heard).toEqual(['city'])
+    expect(before.replied).toEqual(['q-switched-accept', 'q-other-accept', 'q-other-0'])
+    await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).not.toBeInTheDocument()
   })
 
   it('a queue whose acceptance never reached the engine plays nothing', async () => {
