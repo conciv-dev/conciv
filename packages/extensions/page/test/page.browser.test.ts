@@ -395,6 +395,7 @@ describe.skipIf(inFirefox)('page tools', () => {
         host.setAttribute(hostAttribute, '')
         const button = Object.assign(document.createElement('button'), {
           id: text.replaceAll(' ', '-'),
+          name: 'save',
           textContent: text,
         })
         host.attachShadow({mode: 'open'}).appendChild(button)
@@ -414,6 +415,10 @@ describe.skipIf(inFirefox)('page tools', () => {
       expect(names).toContain('clicked in the shadow')
       expect(names).not.toContain('widget button')
       expect(await resultOf('exists', {selector: '#widget-button'})).toEqual({exists: false, count: 0})
+      const inPage = Object.assign(document.createElement('button'), {name: 'save', textContent: 'save in the page'})
+      container.appendChild(inPage)
+      onTestFinished(() => inPage.remove())
+      expect(await resultOf('query', {selector: 'button[name="save"]'})).toMatchObject({count: 2})
     })
 
     it('hovers with bubbling mouseover and mouseenter', async () => {
