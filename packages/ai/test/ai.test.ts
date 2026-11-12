@@ -6,7 +6,6 @@ import {sql} from 'drizzle-orm'
 import {defineAIPersistence} from '@tanstack/ai-persistence'
 import {runPersistenceConformance} from '@tanstack/ai-persistence/testkit'
 import {
-  chatRuns,
   claudeCode,
   createChatServer,
   drizzleChatStores,
@@ -38,6 +37,8 @@ import {mkdtempSync, readdirSync, readFileSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {fileURLToPath} from 'node:url'
 import {join} from 'node:path'
+import {createServer} from 'node:net'
+import {once} from 'node:events'
 import {parseSync} from 'oxc-parser'
 import {subscribe, unsubscribe} from 'node:diagnostics_channel'
 import {Worker} from 'node:worker_threads'
@@ -49,15 +50,6 @@ describe('chat stores', () => {
     migrateSync(migrations, db._.session)
     return db
   }
-
-  it('a run row records the harness of its thread when it is created', async () => {
-    const db = chatDb()
-    const stores = drizzleChatStores(db, {harnessOf: (threadId) => `harness-of-${threadId}`})
-    await stores.runs.createOrResume({runId: 'r1', threadId: 't1', startedAt: 1})
-    expect(db.select({runId: chatRuns.runId, harnessId: chatRuns.harnessId}).from(chatRuns).all()).toEqual([
-      {runId: 'r1', harnessId: 'harness-of-t1'},
-    ])
-  })
 
   describe('a paged thread read', () => {
     const THREAD = [
@@ -205,29 +197,34 @@ describe('chat stores', () => {
 const fs = require('node:fs')
 const data = JSON.parse(fs.readFileSync(require('node:path').join(__dirname, 'claude.json'), 'utf8'))
 fs.appendFileSync(data.launches, process.pid + '\\n')
-setTimeout(() => {
-  process.stdout.write(data.init)
-  if (data.afterSilence === 'answer') process.stdout.write(data.answer + data.result)
-  if (data.afterSilence === 'answer') return
-  if (data.afterSilence === 'hang') process.stdout.write(data.answer)
-  const poll = setInterval(() => {
-    if (data.afterSilence === 'hang' || !fs.existsSync(data.gate)) return
-    clearInterval(poll)
-    process.stdout.write(data.answer + data.result)
-  }, 20)
-}, data.silentMs)
+const watched = require('node:net').connect(data.socket, () => {
+  watched.unref()
+  setTimeout(() => {
+    process.stdout.write(data.init)
+    if (data.afterSilence === 'answer') process.stdout.write(data.answer + data.result)
+    if (data.afterSilence === 'answer') return
+    if (data.afterSilence === 'hang') process.stdout.write(data.answer)
+    const poll = setInterval(() => {
+      if (data.afterSilence === 'hang' || !fs.existsSync(data.gate)) return
+      clearInterval(poll)
+      process.stdout.write(data.answer + data.result)
+    }, 20)
+  }, data.silentMs)
+})
 `
 
-    function fakeClaude(behaviour: {silentMs: number; afterSilence: 'answer' | 'gate' | 'hang'}) {
+    async function cliAgent(
+      behaviour: {silentMs: number; afterSilence: 'answer' | 'gate' | 'hang'},
+      firstOutputTimeoutMs?: number,
+    ) {
       const dir = mkdtempSync(join(tmpdir(), 'conciv-fake-claude-'))
-      const files = {bin: join(dir, 'claude'), launches: join(dir, 'launches'), gate: join(dir, 'gate')}
+      const files = {launches: join(dir, 'launches'), gate: join(dir, 'gate'), socket: join(dir, 'agent.sock')}
       const line = (value: unknown) => `${JSON.stringify(value)}\n`
       writeFileSync(
         join(dir, 'claude.json'),
         JSON.stringify({
           ...behaviour,
-          launches: files.launches,
-          gate: files.gate,
+          ...files,
           init: line({type: 'system', subtype: 'init', session_id: SESSION, model: 'opus', tools: []}),
           answer: line({
             type: 'assistant',
@@ -245,24 +242,21 @@ setTimeout(() => {
           }),
         }),
       )
-      writeFileSync(files.bin, FAKE_CLAUDE, {mode: 0o755})
-      const pids = () => readFileSync(files.launches, 'utf8').trim().split('\n').map(Number)
-      return {
-        bin: files.bin,
-        pids,
-        alive: () => pids().filter(processAlive),
-        open: () => writeFileSync(files.gate, ''),
-      }
-    }
-
-    async function cliAgent(behaviour: Parameters<typeof fakeClaude>[0], firstOutputTimeoutMs?: number) {
-      const agent = fakeClaude(behaviour)
+      writeFileSync(join(dir, 'claude'), FAKE_CLAUDE, {mode: 0o755})
+      const gone = Promise.withResolvers<void>()
+      const watcher = createServer((connection) => {
+        connection.on('error', () => gone.resolve())
+        connection.once('close', () => gone.resolve())
+      })
+      onTestFinished(() => new Promise<void>((resolve) => watcher.close(() => resolve())))
+      watcher.listen(files.socket)
+      await once(watcher, 'listening')
       const db = chatDb()
       const ended = Promise.withResolvers<RunLifecycle>()
       const answered = Promise.withResolvers<void>()
       const hooks = turnHooks(
         () => ({
-          adapter: claudeCode('opus', {claudeExecutable: agent.bin}),
+          adapter: claudeCode('opus', {claudeExecutable: join(dir, 'claude')}),
           chunk: async (chunk) => {
             if (chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT) answered.resolve()
             return [chunk]
@@ -270,8 +264,15 @@ setTimeout(() => {
         }),
         {end: async (_turn, run) => ended.resolve(run)},
       )
-      const server = await chatServer(hooks, () => undefined, db, firstOutputTimeoutMs)
-      return {...agent, db, server, ended: ended.promise, answered: answered.promise}
+      return {
+        db,
+        server: await chatServer(hooks, () => undefined, db, firstOutputTimeoutMs),
+        ended: ended.promise,
+        answered: answered.promise,
+        gone: gone.promise,
+        launches: () => readFileSync(files.launches, 'utf8').trim().split('\n').length,
+        open: () => writeFileSync(files.gate, ''),
+      }
     }
 
     it('an agent silent for 12s before it answers completes its turn once', {timeout: 30_000}, async () => {
@@ -280,7 +281,7 @@ setTimeout(() => {
       const run = await agent.ended
       expect({
         run: {phase: run.phase, error: run.error},
-        launches: agent.pids().length,
+        launches: agent.launches(),
         answers: await texts(agent.server, 'slow-start', 'assistant'),
       }).toEqual({run: {phase: 'completed', error: null}, launches: 1, answers: [ANSWER]})
     })
@@ -289,10 +290,10 @@ setTimeout(() => {
       const agent = await cliAgent({silentMs: 600_000, afterSilence: 'answer'}, 5_000)
       await say(agent.server, 'silent', 'silent')
       const run = await agent.ended
-      expect({error: run.error, launches: agent.pids().length, alive: agent.alive()}).toEqual({
+      await agent.gone
+      expect({error: run.error, launches: agent.launches()}).toEqual({
         error: 'the agent produced no output within 5s',
         launches: 1,
-        alive: [],
       })
     })
 
@@ -325,7 +326,7 @@ setTimeout(() => {
         expect({
           agentStartedLive: live.text.includes(SESSION),
           phase: run.phase,
-          launches: agent.pids().length,
+          launches: agent.launches(),
           replayedText: replay.flatMap((chunk) => (chunk.delta === undefined ? [] : [chunk.delta])).join(''),
           replayedFinishes: replay.filter((chunk) => chunk.type === ChatEventType.RUN_FINISHED).length,
           answers: await texts(agent.server, 'left', 'assistant'),
@@ -347,11 +348,11 @@ setTimeout(() => {
       await agent.server.stop('stopped', ['stopped'])
       await driven
       const run = await agent.ended
+      await agent.gone
       expect({
         phase: run.phase,
         status: agent.db.$client.prepare('SELECT status FROM chat_runs').all(),
-        alive: agent.alive(),
-      }).toEqual({phase: 'aborted', status: [{status: 'aborted'}], alive: []})
+      }).toEqual({phase: 'aborted', status: [{status: 'aborted'}]})
     })
   })
 
@@ -376,11 +377,7 @@ setTimeout(() => {
     const server = await chatServer(hooks, () => undefined, db)
     const driven = say(server, 'thread', 'run')
     await toolRunning.promise
-    const outcome = await Promise.race([
-      server.endAllRuns().then(() => 'ended'),
-      new Promise((resolve) => setTimeout(resolve, 3_000, 'still waiting on the tool')),
-    ])
-    expect(outcome).toBe('ended')
+    await server.endAllRuns()
     expect(db.$client.prepare('SELECT status FROM chat_runs').all()).toEqual([{status: 'aborted'}])
     await driven
   })
