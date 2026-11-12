@@ -42,8 +42,6 @@ export const ARTIFACT_KINDS = [
   'source_diff',
 ] as const
 
-export const RECORDED_FIELDS = ['property', 'expected', 'actual', 'delta'] as const
-
 const MeasureSourceSchema = z.enum(['dom', 'mirror', 'takumi'])
 const CapturePathSchema = z.enum(['region', 'snapdom-live', 'snapdom-mirror', 'cdp'])
 const MirrorLimitsSchema = z.object({canvases: z.number(), fonts: z.array(z.string()), inlineWidths: z.number()})
@@ -309,10 +307,10 @@ const GateRowSchema = z.object({
   specifier: z.string().optional().describe('on a component row, the import path of the component the design names'),
   kitToken: z.string().optional().describe('on a token-drift row, the kit token the page value is'),
   designToken: z.string().optional().describe('on a token-drift row, the design variable the field is bound to'),
-  property: z.string().optional().describe('the property the row compares; recorded, never sent'),
-  expected: z.string().optional().describe('the value the design wants, with its unit; recorded, never sent'),
-  actual: z.string().optional().describe('the value the page shows, with its unit; recorded, never sent'),
-  delta: z.number().nullable().optional().describe('actual less expected when both are numbers; recorded, never sent'),
+  property: z.string().optional().describe('the property the row compares'),
+  expected: z.string().optional().describe('the value the design wants, with its unit'),
+  actual: z.string().optional().describe('the value the page shows, with its unit'),
+  delta: z.number().nullable().optional().describe('actual less expected when both are numbers'),
 })
 
 const ReflowSchema = z.object({

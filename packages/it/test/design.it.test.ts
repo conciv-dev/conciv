@@ -1471,7 +1471,6 @@ describe('design_check on a button whose label is bare text', () => {
     const checked = roundOf(await call('design_check', {}))
     const label = checked.rows.filter((row) => row.node === bareButton.label).map((row) => row.kind)
     expect([checked.coverage.missing.includes(bareButton.label), label.includes('font family')]).toEqual([false, true])
-    expect(checked.rows.filter((row) => 'expected' in row || 'actual' in row || 'property' in row)).toEqual([])
     const recorded = RecordedRowsSchema.parse(
       await kit.rpc.db
         .read({
@@ -1491,6 +1490,14 @@ describe('design_check on a button whose label is bare text', () => {
     expect(recorded.filter((row) => row.magnitude === 'slightly')).toHaveLength(checked.counts.slightly)
     const sized = recorded.filter((row) => row.property === 'width' || row.property === 'height')
     expect(sized.every((row) => row.delta !== null && row.expected?.endsWith('px') === true)).toBe(true)
+    const told = (rows: {node: string; kind: string; expected?: string | null; actual?: string | null}[]) =>
+      rows
+        .map((row) => `${row.node} ${row.kind}: ${row.expected ?? '-'} expected, ${row.actual ?? '-'} found`)
+        .toSorted()
+    const shown = told(recorded.filter((row) => row.magnitude !== 'slightly'))
+    expect([told(checked.rows), told((await call('design_status', {})).rows)]).toEqual([shown, shown])
+    const measured = checked.rows.filter((row) => ['much', 'noticeably', 'paint'].includes(row.magnitude))
+    expect(measured.filter((row) => row.expected === undefined || row.actual === undefined)).toEqual([])
   })
 })
 

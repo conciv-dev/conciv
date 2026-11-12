@@ -11,14 +11,12 @@ import {consoleDef, reloadDef, routeDef as pageRouteDef} from '@conciv/extension
 import {SessionId} from '@conciv/protocol/chat-types'
 import {
   BROKEN_BY,
-  RECORDED_FIELDS,
   type Checked,
   type CompileError,
   type DesignRuntime,
   type Differ,
   type GateRow,
   type Got,
-  type Round,
   type RoundReply,
   type Runner,
   type Status,
@@ -40,8 +38,8 @@ export function createDiffer(input: {
   show: readonly string[]
 }): Differ {
   const {runtime, runner, page} = input
-  const shown = <Reply extends {progress?: unknown; rows: GateRow[]; reflow?: RoundReplyReflow}>(reply: Reply) => {
-    const grouped = {...reply, rows: tokenGroups(reply.rows).map(sent), ...toldReflow(reply.reflow)}
+  const shown = <Reply extends {progress?: unknown; rows: GateRow[]}>(reply: Reply) => {
+    const grouped = {...reply, rows: tokenGroups(reply.rows)}
     return input.show.includes('progress') ? grouped : omit(grouped, ['progress'])
   }
   const {store} = runtime
@@ -542,17 +540,6 @@ function compileLine(compile: CompileError): string {
   const place = [compile.file, compile.line, compile.column].filter((part) => part !== null).join(':')
   return place === '' ? compile.message : `${place}: ${compile.message}`
 }
-
-function sent(row: GateRow): GateRow {
-  return omit(row, RECORDED_FIELDS)
-}
-
-function toldReflow(reflow: RoundReplyReflow | undefined): {reflow?: RoundReplyReflow} {
-  if (reflow === undefined) return {}
-  return {reflow: {...reflow, results: reflow.results.map((result) => ({...result, rows: result.rows.map(sent)}))}}
-}
-
-type RoundReplyReflow = Round['reflow']
 
 function tokenGroups(rows: GateRow[]): GateRow[] {
   const keyOf = (row: GateRow): string | null =>

@@ -83,7 +83,7 @@ src/
   design node says which route it measured and that `design_get` with `route` points the target at another page; so does
   a check that is not done while more design nodes are missing than rendered, in its first reason after the page rows.
 - `design_check({nodes?})` waits for the last save to settle, measures the page at the design width, updates the
-  mapping, and returns `{round, rows, reflow, coverage, counts, verdict, reasons}`. A row is `{node, key, kind, name, text, magnitude}`;
+  mapping, and returns `{round, rows, reflow, coverage, counts, verdict, reasons}`. A row is `{node, key, kind, name, text, magnitude, property, expected, actual, delta}`;
   rows at `slightly` are counted, not listed. `reflow` holds one entry per width (1024, 768): `rootHeight,
   sticksOut, overflowX, overlaps, tags` with `ok` and `why`. A page error, or a page that renders under half the nodes
   of the last settled round, answers `{unsettled: true, rendered, route, verdict: 'unsettled', reasons}`; its round is recorded with state
@@ -147,8 +147,8 @@ Every design session is recorded in one store, `<conciv home>/runs.db`, migrated
   counts every check of a target; `round` is the number the replies show, set on measured and broken rounds only and
   null on unsettled and unchanged checks. Image mismatch shares are the round's `image_mismatch`, by node.
 - Rows keep `property`, `expected` and `actual` (design and page value, with unit) and `delta` (null when not numeric);
-  rows graded `slightly` are stored too, `coverage.gone` names are `missing` rows of kind `gone`. The replies leave all
-  of that out, as before.
+  rows graded `slightly` are stored too, `coverage.gone` names are `missing` rows of kind `gone`. The replies of
+  `design_check` and `design_status` carry `property`, `expected`, `actual` and `delta` on every row they list.
 - `design_get` writes the hints it tells as `hints` rows at round 0; `hint_vs_drawn` reads them.
 - A tool call row carries its round: for `design_check` the round it wrote (the highest across widths, null when it
   wrote none) and the `check` it recorded, for the other tools the run's latest round when the call ended.
