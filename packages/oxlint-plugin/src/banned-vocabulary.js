@@ -19,8 +19,6 @@ const REWRITE_BANNED_TERMS = [
 
 const PREEXISTING_DEV_BUNDLER_NAMES = ['BundlerBridge']
 
-const LIBRARY_OPTION_NAMES = ['attachWaitMs']
-
 const PREEXISTING_MODULES = ['packages/harness-init/src/claude/bridge.ts', 'packages/oxlint-plugin/src/']
 
 const DEV_BUNDLER_BRIDGE_PATHS = [
@@ -114,7 +112,7 @@ const PREEXISTING_TERM_SITES = [
 
 export default makeVocabularyRule({
   terms: REWRITE_BANNED_TERMS,
-  allowedNames: [...PREEXISTING_DEV_BUNDLER_NAMES, ...LIBRARY_OPTION_NAMES],
+  allowedNames: PREEXISTING_DEV_BUNDLER_NAMES,
   exemptFiles: PREEXISTING_MODULES,
   allowedTermPaths: PREEXISTING_TERM_SITES,
   message:

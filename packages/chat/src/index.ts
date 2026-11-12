@@ -1,6 +1,5 @@
 import {randomUUID} from 'node:crypto'
 import {eq} from 'drizzle-orm'
-import {join} from 'node:path'
 import {Hono} from 'hono'
 import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
 import {approvalRequestedEvent, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
@@ -9,7 +8,6 @@ import {approvalNeeded, childCardChunks, createChatServer, drizzleChatStores, to
 import {cappedValue, type ChatHistoryWindow, type ChatHydration} from '@conciv/contract'
 import {chatRuns, markers, type ConcivDb} from '@conciv/db'
 import {CHAT_SSE_PATH, CHAT_WS_PATH, isSessionId, SessionId, type HubAccess} from '@conciv/protocol/chat-types'
-import {concivStateDir} from '@conciv/protocol/state-types'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
 import {
   createApprovalStore,
@@ -32,7 +30,6 @@ const OUTSIDE_DENIED = 'the user denied outside agents for this session'
 
 type ChatPlaneDeps = TurnDeps & {
   db: ConcivDb
-  stateRoot: string
   hubAccess: HubAccess
   hubGeneration: () => number | null
   firstOutputTimeoutMs?: number
@@ -63,6 +60,8 @@ type AdmittedCall = {
 
 type CallRefusal = {reason: 'asked' | 'denied' | 'missing'; message: string}
 
+export type FollowUpOutcome = {kind: 'delivered'} | {kind: 'busy'} | {kind: 'stopped'} | {kind: 'failed'; error: string}
+
 export type ChatPlane = {
   routes: (upgrade: UpgradeWebSocket) => Hono
   hydrate: (sessionId: SessionId, window?: ChatHistoryWindow) => Promise<ChatHydration>
@@ -89,7 +88,7 @@ export type ChatPlane = {
     capabilities?: readonly CodeCapability[],
     outside?: boolean,
   ) => Promise<CodeRunner | null>
-  followUp: (sessionId: SessionId, input: string) => Promise<boolean>
+  followUp: (sessionId: SessionId, input: string) => Promise<FollowUpOutcome>
   admitCall: (sessionId: SessionId, call: AdmittedCall) => Promise<CallRefusal | null>
   catchUp: (sessionId: SessionId) => Promise<ChatEvent[]>
   outsideDenied: (sessionId: SessionId) => Promise<boolean>
@@ -129,7 +128,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   })
   const server = await createChatServer({
     stores,
-    sandbox: {dir: deps.cwd, journalDir: join(concivStateDir(deps.stateRoot), 'runs')},
+    sandbox: {dir: deps.cwd},
     hooks: turnHooks(deps, {approvals, ui, transcripts}),
     codeModeResult: cappedValue,
     firstOutputTimeoutMs: deps.firstOutputTimeoutMs ?? FIRST_OUTPUT_TIMEOUT_MS,
@@ -246,16 +245,16 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     outsideDenied: (sessionId) => approvals.outsideDenied(sessionId),
     allowOutside: (sessionId) => approvals.allowOutside(sessionId),
     followUp: async (sessionId, input) => {
-      if (startingFollowUps.has(sessionId) || server.driving(sessionId)) return false
+      if (startingFollowUps.has(sessionId) || server.driving(sessionId)) return {kind: 'busy'}
       startingFollowUps.add(sessionId)
       try {
-        if ((await stores.runs.findActiveRun(sessionId)) !== null) return false
+        if ((await stores.runs.findActiveRun(sessionId)) !== null) return {kind: 'busy'}
         const runId = randomUUID()
         return await server.drive({threadId: sessionId, runId, kind: 'page-queue', input}, []).then(
-          () => true,
-          (error: unknown) => {
+          async () => followUpOutcomeOf(await stores.runs.get(runId)),
+          (error: unknown): FollowUpOutcome => {
             deps.log(`[chat] the page queue follow-up run ${runId} failed: ${String(error)}`)
-            return false
+            return {kind: 'failed', error: String(error)}
           },
         )
       } finally {
@@ -300,6 +299,15 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       }
     },
   }
+}
+
+type EndedRun = Awaited<ReturnType<ReturnType<typeof drizzleChatStores>['runs']['get']>>
+
+function followUpOutcomeOf(ended: EndedRun): FollowUpOutcome {
+  if (ended === null) return {kind: 'failed', error: 'the follow-up run left no record'}
+  if (ended.status === 'aborted' || ended.cancelRequested === true) return {kind: 'stopped'}
+  if (ended.status === 'completed' || ended.status === 'interrupted') return {kind: 'delivered'}
+  return {kind: 'failed', error: ended.error?.message ?? `the run ended ${ended.status}`}
 }
 
 function refusalOf(admission: Admission, toolName: string): CallRefusal | null {

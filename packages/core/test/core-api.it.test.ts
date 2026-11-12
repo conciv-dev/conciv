@@ -5167,6 +5167,7 @@ describe('page action queue delivery', () => {
       const runId = runIds().find((known) => !earlier.includes(known)) ?? ''
       const joined = webSocket(`ws://127.0.0.1:${engine.port}/t/${engine.agentToken}${CHAT_WS_PATH}`)
       for await (const chunk of joined.joinRun(runId, pages.signal)) {
+        if (chunk.type === ChatEventType.RUN_ERROR) return
         if (chunk.type === ChatEventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') return
       }
     }
@@ -5478,6 +5479,31 @@ describe('page action queue delivery', () => {
     expect(parts).toContainEqual({type: 'text', content: 'ok'})
     expect(hydrated.activeRun).toBeNull()
     expect(page.queueEvents()).toHaveLength(1)
+  })
+
+  it('three failed follow-up runs start no fourth when their run ends, and a later queue starts exactly one more', async () => {
+    const harness = createFakeHarness()
+    const page = await engineWithTab(harness)
+    for (const attempt of [1, 2, 3]) harness.script.scriptError(`launch failure ${attempt}`)
+    const playedInPage = async (): Promise<void> => {
+      const handle = page.tab.registry.call({name: 'page_queue_async', input: {actions: ACTIONS}})
+      const onTab = await page.nextQueue()
+      const {queueId} = z.object({queueId: z.string()}).parse(await handle)
+      await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+      await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+      await page.finishedEvent(queueId)
+    }
+    const followUpsEnded = async (from: number, count: number): Promise<void> => {
+      for (const index of Array.from({length: count}, (_, offset) => offset)) {
+        await page.followUpFinished(page.runIds().slice(0, from + index))
+      }
+    }
+    await playedInPage()
+    await followUpsEnded(0, 3)
+    expect(page.runIds()).toHaveLength(3)
+    await playedInPage()
+    await followUpsEnded(3, 1)
+    expect(page.runIds()).toHaveLength(4)
   })
 
   it('an in-page queue that finishes while its run is live starts the follow-up turn once that run ends', async () => {

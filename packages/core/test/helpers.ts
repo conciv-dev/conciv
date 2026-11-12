@@ -150,6 +150,7 @@ export type ChatFixture = {
   harness: TestHarness
   sessionId: SessionId
   stateRoot: string
+  runtime: MadeApp['runtime']
   dispose: () => Promise<void>
 }
 
@@ -159,7 +160,15 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
   const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
   const sessionId = SessionId.parse('conciv_fixture')
   if (opts.seedSession !== false) await ensureRow(made.chat.db, sessionId, harness.id, stateRoot)
-  return {plane: made.plane, db: made.chat.db, harness, sessionId, stateRoot, dispose: made.dispose}
+  return {
+    plane: made.plane,
+    db: made.chat.db,
+    harness,
+    sessionId,
+    stateRoot,
+    runtime: made.runtime,
+    dispose: made.dispose,
+  }
 }
 
 export async function hydratedSnapshot(kit: Kit, sessionId: string): Promise<SnapshotView> {

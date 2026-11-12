@@ -25,6 +25,7 @@ import {
   registryCapabilities,
   type ChatPlane,
   type CodeCapability,
+  type FollowUpOutcome,
   type SessionPort,
 } from '@conciv/chat'
 import {
@@ -420,7 +421,6 @@ describe('chat plane', () => {
     const db = openDatabase(root)
     return createChatPlane({
       db,
-      stateRoot: root,
       hubAccess: 'session',
       hubGeneration: () => 0,
       cwd: root,
@@ -966,14 +966,14 @@ describe('page bus and the session scope', () => {
     }
     const owed = await played(false)
     const turns: string[] = []
-    const starting = Promise.withResolvers<boolean>()
+    const starting = Promise.withResolvers<FollowUpOutcome>()
     const entered = Promise.withResolvers<void>()
     const plane = {
       live: async () => false,
-      followUp: async (_sessionId: SessionId, input: string) => {
+      followUp: async (_sessionId: SessionId, input: string): Promise<FollowUpOutcome> => {
         turns.push(input)
         entered.resolve()
-        return turns.length === 1 ? starting.promise : true
+        return turns.length === 1 ? starting.promise : {kind: 'delivered'}
       },
     }
     const following = startQueueFollowUp(queues, plane, SESSION_A)
@@ -982,13 +982,152 @@ describe('page bus and the session scope', () => {
       const queueId = await played(true)
       await queues.wait(SESSION_A, queueId, 0)
     }
-    starting.resolve(false)
+    starting.resolve({kind: 'busy'})
     await following
     expect(queues.owedTurn(SESSION_A).map((record) => record.queueId)).toEqual([owed])
     await startQueueFollowUp(queues, plane, SESSION_A)
     expect(turns).toHaveLength(2)
     expect(turns[1]).toContain(`queue ${owed} finished`)
     expect(queues.owedTurn(SESSION_A)).toEqual([])
+  })
+
+  async function followUpFixture() {
+    const fixture = await makeChatFixture()
+    onTestFinished(() => fixture.dispose())
+    const bus = makePageBus(2000)
+    bus.subscribe(fixture.sessionId, (frame) => {
+      const parsed = QueueFrameSchema.safeParse(frame)
+      if (!parsed.success) return
+      queueMicrotask(() => {
+        bus.resolve(fixture.sessionId, parsed.data.requestId, {ok: true, result: {}})
+        for (const reply of parsed.data.queue.replies) {
+          bus.resolve(fixture.sessionId, reply, {ok: true, result: {checked: true}})
+        }
+      })
+    })
+    const queues = pageQueues(bus)
+    const finished = finishedOf(queues)
+    const played = async (): Promise<string> => {
+      const {queueId} = await queues.start(fixture.sessionId, {
+        agentId: fixture.sessionId,
+        input: {actions: [{tool: 'page_check', selector: '#agree'}]},
+        outside: false,
+        toolCallId: undefined,
+      })
+      await finished(queueId)
+      return queueId
+    }
+    const owedIds = () => queues.owedTurn(fixture.sessionId).map((record) => record.queueId)
+    const runStatuses = () =>
+      fixture.db
+        .select({status: chatRuns.status})
+        .from(chatRuns)
+        .where(eq(chatRuns.threadId, fixture.sessionId))
+        .orderBy(chatRuns.startedAt)
+        .all()
+        .map((run) => run.status)
+    return {fixture, queues, played, owedIds, runStatuses}
+  }
+
+  it('a follow-up run that ends in RUN_ERROR is retried, and the retry that finishes delivers the result', async () => {
+    const {fixture, queues, played, owedIds, runStatuses} = await followUpFixture()
+    await played()
+    fixture.harness.script.scriptError('the harness could not launch')
+    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
+    expect(runStatuses()).toEqual(['failed', 'completed'])
+    expect(owedIds()).toEqual([])
+    expect(queues.undelivered(fixture.sessionId, false)).toEqual([])
+  })
+
+  it('three failed follow-up runs end follow-ups for the result, and the next reply delivers it', async () => {
+    const {fixture, queues, played, runStatuses} = await followUpFixture()
+    const owed = await played()
+    for (const attempt of [1, 2, 3]) fixture.harness.script.scriptError(`launch failure ${attempt}`)
+    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
+    expect(runStatuses()).toEqual(['failed', 'failed', 'failed'])
+    expect(queues.owedTurn(fixture.sessionId).map((record) => record.delivery)).toEqual(['nextReply'])
+    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
+    expect(runStatuses()).toEqual(['failed', 'failed', 'failed'])
+    expect(queues.undelivered(fixture.sessionId, false).map((result) => result.queueId)).toEqual([owed])
+    expect(queues.undelivered(fixture.sessionId, false)).toEqual([])
+  })
+
+  it('a result whose follow-ups failed rides the next follow-up another queue starts, and nothing else starts one', async () => {
+    const {fixture, queues, played, runStatuses} = await followUpFixture()
+    const stranded = await played()
+    const [record] = queues.owedTurn(fixture.sessionId)
+    for (const attempt of [1, 2, 3]) fixture.harness.script.scriptError(`launch failure ${attempt}`)
+    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
+    expect(record?.delivery).toBe('nextReply')
+    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
+    expect(runStatuses()).toEqual(['failed', 'failed', 'failed'])
+    const later = await played()
+    const inputs: string[] = []
+    const plane = {
+      live: fixture.plane.live,
+      followUp: (sessionId: SessionId, input: string): Promise<FollowUpOutcome> => {
+        inputs.push(input)
+        return fixture.plane.followUp(sessionId, input)
+      },
+    }
+    await startQueueFollowUp(queues, plane, fixture.sessionId)
+    expect(runStatuses()).toEqual(['failed', 'failed', 'failed', 'completed'])
+    expect(inputs).toHaveLength(1)
+    expect(inputs[0]).toContain(`queue ${stranded} finished`)
+    expect(inputs[0]).toContain(`queue ${later} finished`)
+    expect(record?.delivery).toBe('delivered')
+    expect(queues.undelivered(fixture.sessionId, false)).toEqual([])
+  })
+
+  it('a follow-up run the user stops is not retried, and its result waits for the next reply', async () => {
+    const {fixture, queues, played, runStatuses} = await followUpFixture()
+    const owed = await played()
+    fixture.harness.script.hold()
+    const started = Promise.withResolvers<void>()
+    const unlisten = fixture.runtime.forSession(fixture.sessionId).stream.listen((chunk) => {
+      if (sessionRunEvent.parse(chunk) !== null) started.resolve()
+    })
+    onTestFinished(unlisten)
+    const following = startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
+    await started.promise
+    await fixture.plane.stop(fixture.sessionId)
+    fixture.harness.script.release()
+    await following
+    expect(runStatuses()).toEqual(['aborted'])
+    expect(queues.undelivered(fixture.sessionId, false).map((result) => result.queueId)).toEqual([owed])
+  })
+
+  it('a follow-up the plane declines because a run is driving is not retried', async () => {
+    const {fixture, queues, played, owedIds, runStatuses} = await followUpFixture()
+    const owed = await played()
+    fixture.harness.script.hold()
+    const driving = fixture.plane.followUp(fixture.sessionId, 'an earlier follow-up')
+    const plane = {
+      live: async () => false,
+      followUp: async (sessionId: SessionId, input: string): Promise<FollowUpOutcome> => {
+        const declined = await fixture.plane.followUp(sessionId, input)
+        fixture.harness.script.release()
+        await driving
+        return declined
+      },
+    }
+    await startQueueFollowUp(queues, plane, fixture.sessionId)
+    expect(runStatuses()).toEqual(['completed'])
+    expect(owedIds()).toEqual([owed])
+  })
+
+  it('a follow-up run that finishes confirms its result delivered', async () => {
+    const {fixture, queues, played, owedIds} = await followUpFixture()
+    await played()
+    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
+    expect(owedIds()).toEqual([])
+    expect(queues.undelivered(fixture.sessionId, false)).toEqual([])
+    expect(await fixture.plane.followUp(fixture.sessionId, 'queue q_a finished')).toEqual({kind: 'delivered'})
+    fixture.harness.script.scriptError('the harness could not launch')
+    expect(await fixture.plane.followUp(fixture.sessionId, 'queue q_b finished')).toEqual({
+      kind: 'failed',
+      error: expect.stringContaining('the harness could not launch'),
+    })
   })
 
   it('a queue the page refuses plays nothing: it ends lost with no action counted as played', async () => {
@@ -1212,7 +1351,7 @@ describe('page bus and the session scope', () => {
         fixture.plane.followUp(fixture.sessionId, 'queue q_a finished'),
         fixture.plane.followUp(fixture.sessionId, 'queue q_b finished'),
       ])
-      expect(started).toEqual([true, false])
+      expect(started).toEqual([{kind: 'delivered'}, {kind: 'busy'}])
     } finally {
       await fixture.dispose()
     }

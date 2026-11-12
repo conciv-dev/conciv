@@ -170,11 +170,8 @@ return chat({
     withLocks(locks),
     threadView,
     childCards(config.codeModeResult),
-    withSandbox(sandbox, {
-      runs: stores.runs,
-      locks,
-      durability: {adapter: durability, journal: config.sandbox.journalDir, detachOnDisconnect: true},
-    }),
+    runRecord,
+    withSandbox(sandbox, {locks}),
     concivTurn(turn, plan, granted, view, entry),
   ],
 })
@@ -183,11 +180,16 @@ return chat({
 The middleware is generic `@tanstack/ai` middleware that applies to every adapter equally; none of it
 has a per-harness variant. `withSandbox` is the published one from `@tanstack/ai-sandbox`, and conciv
 hands it a sandbox built once at engine start — `localProcessSandbox({dir})` behind a `default: 'ask'`
-policy, reused per thread (`packages/ai/src/server/chat-server.ts:234-247`) — together with the
-durability options that make a run recoverable: the same event-log adapter the transport replays from,
-a journal directory under the conciv state dir, and `detachOnDisconnect: true`, which leaves the agent
-running when a client disconnects instead of destroying its sandbox. Tools that need approval are
-wrapped by `gatedTools` (`packages/ai/src/server/chat-server.ts:162-176`). An adapter neither sees nor
+policy, reused per thread (the `defineSandbox` call in `createChatServer`) — and no durability
+options: the agent CLI's stdout is read straight from its pipe, so the chat server's first-output
+timeout is the only limit on a silent CLI. A run outlives a client that disconnects because the
+transport's own stream durability keeps driving it and replays it on resume, not because of
+`withSandbox`. `withSandbox` emits `sandbox.starting` from its `setup`, which makes `chat()` send
+`RUN_STARTED` before `withPersistence` stores anything, so the `runRecord` step (`conciv-run-record`)
+runs right before it: it writes the run's `running` row with `stores.runs.createOrResume`, then saves
+the incoming messages through `getPendingTurn(ctx, {optional: true})?.snapshot()`. A client that sees
+the run start therefore finds it active and finds the user's message in the thread. Tools that need
+approval are wrapped by `gatedTools` in `chat-server.ts`. An adapter neither sees nor
 makes those decisions, and `chatConfig` receives no approval callback: a CLI's own commands are governed
 by that CLI's native permission mode (`permissionMode: 'auto'` for Claude Code), set in `chatConfig`. Conciv
 keeps no command rules, so never add an "is this command risky" check to core or the widget.

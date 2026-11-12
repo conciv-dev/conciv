@@ -61,7 +61,7 @@ function ComposerSendControl(): JSX.Element {
   const reachability = useEngineReachability()
   return (
     <Show
-      when={composer.canCancel()}
+      when={composer.isRunning()}
       fallback={
         <ComposerPrimitive.Send
           class={`${TRAILING_BTN} ${composer.isEmpty() ? TRAILING_SEND_IDLE : TRAILING_SEND_ACTIVE}`}
@@ -105,7 +105,7 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
   const composer = useComposer()
   const chat = useChatContext()
   const placeholder = createMemo(() =>
-    composerPlaceholder(composer.canCancel(), chat.queue().length > 0, props.placeholder),
+    composerPlaceholder(composer.isRunning(), chat.queue().length > 0, props.placeholder),
   )
   return (
     <ComposerPrimitive.Root

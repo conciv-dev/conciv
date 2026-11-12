@@ -118,6 +118,7 @@ export function useComposer(): {
   isEmpty: Accessor<boolean>
   canSend: Accessor<boolean>
   canCancel: Accessor<boolean>
+  isRunning: Accessor<boolean>
   isStopping: Accessor<boolean>
   send: () => void
   cancel: () => void
@@ -128,7 +129,7 @@ export function useComposer(): {
   const isEmpty = () => chat.view.draft.trim().length === 0
   const isStopping = createMemo(() => chat.stopping())
   const canSend = () => !isEmpty() && !isStopping()
-  const canCancel = () => isRunning()
+  const canCancel = () => isRunning() && !isStopping()
   const send = () => {
     if (!canSend()) return
     const content = chat.view.draft.trim()
@@ -136,5 +137,15 @@ export function useComposer(): {
     void chat.sendMessage(content)
   }
   const cancel = () => chat.stop()
-  return {text, setText: (value) => chat.setView('draft', value), isEmpty, canSend, canCancel, isStopping, send, cancel}
+  return {
+    text,
+    setText: (value) => chat.setView('draft', value),
+    isEmpty,
+    canSend,
+    canCancel,
+    isRunning,
+    isStopping,
+    send,
+    cancel,
+  }
 }

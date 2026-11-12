@@ -36,7 +36,6 @@ The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run tu
 
 - `stores.ts:clearThread` - one SQLite transaction deletes the thread's rows from the `@conciv/db` tables `runs`, `chatRuns`, `chatMessages`, `runMessages`, `sessionHistory`, and its `chatMetadata` keys prefixed `<threadId>:`.
 - `index.ts:ChatPlane.compact` - inserts a row with `kind: 'compact'` into the `@conciv/db` `markers` table.
-- `index.ts:createChatPlane` - the chat server writes run journals under `concivStateDir(stateRoot)/runs`.
 - `approvals.ts:createUiChannel` - sets a `setTimeout` per wait that resolves with a fallback value.
 - `turn.ts:turnHooks` - passes `deps.harnessEnv?.(sessionId) ?? process.env` to the harness process.
 

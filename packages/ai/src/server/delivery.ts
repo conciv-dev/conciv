@@ -8,7 +8,6 @@ import {
   toServerSentEventsResponse,
   toWebSocketStream,
   type DebugConfig,
-  type StreamDurability,
   type WebSocketLike,
 } from '@tanstack/ai'
 import {isRunPhaseTerminal, runLifecycleEvent, type ChatEvent, type RunPhase} from '@conciv/protocol/chat-event-types'
@@ -34,7 +33,6 @@ type DeliveryDeps = {
   run: (
     turn: Turn,
     messages: Array<ChatMessage | ModelMessage>,
-    durability: StreamDurability,
     controller: AbortController,
   ) => AsyncIterable<ChatEvent>
   seenRun: (runId: string) => boolean
@@ -90,7 +88,7 @@ export function createDelivery({run, seenRun, debug, log}: DeliveryDeps): ChatDe
   const drive = async (turn: Turn, messages: Array<ChatMessage | ModelMessage>): Promise<void> => {
     IdentifiedMessagesSchema.parse(messages)
     const durability = memoryStream({runId: turn.runId})
-    const stream = run(turn, messages, durability, new AbortController())
+    const stream = run(turn, messages, new AbortController())
     const response = toServerSentEventsResponse(finishLast(stream), {
       durability: {adapter: durability, batch: LIVE_BATCH},
       debug,
@@ -150,12 +148,7 @@ export function createDelivery({run, seenRun, debug, log}: DeliveryDeps): ChatDe
       }
       const durability = memoryStream({runId: params.runId})
       const controller = new AbortController()
-      const stream = run(
-        {threadId: params.threadId, runId: params.runId, kind: 'chat'},
-        params.messages,
-        durability,
-        controller,
-      )
+      const stream = run({threadId: params.threadId, runId: params.runId, kind: 'chat'}, params.messages, controller)
       return toServerSentEventsResponse(stream, {
         abortController: controller,
         durability: {adapter: durability, batch: LIVE_BATCH},
