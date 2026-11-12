@@ -140,9 +140,12 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
       const value = await call(runner.rpc, signal)
       return {reply: format(value), value}
     } catch (error) {
+      if (!resent && unrun(error)) {
+        dropRunner(picked)
+        return forward(call, format, signal, true)
+      }
       if (answered(error)) return {reply: failed(answerText(runner.root, error)), value: null}
       dropRunner(picked)
-      if (!resent && RefusedSchema.safeParse(error).success) return forward(call, format, signal, true)
       const after = await currentRunner().then(
         (next) => `the next call runs on ${next.root}`,
         () => 'no other conciv dev server is running',
@@ -183,12 +186,15 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
       const value = await call(owner.rpc, signal)
       return {reply: greeted(entry, owner, format(value)), value}
     } catch (error) {
+      if (!resent && unrun(error)) {
+        forget(entry, kept)
+        return onTab(tab, call, format, signal, true)
+      }
       if (answered(error)) {
         if (!(await holdsTab(owner, tab))) forget(entry, kept)
         return {reply: greeted(entry, owner, failed(answerText(owner.root, error))), value: null}
       }
       forget(entry, kept)
-      if (!resent && RefusedSchema.safeParse(error).success) return onTab(tab, call, format, signal, true)
       throw new Error(
         `the call on tab ${tab} failed on the conciv engine at ${owner.root} (${errorText(error)}); it was not retried, since the block may already have acted on a page; the next call looks up the engine holding the tab again`,
         {cause: error},
@@ -463,6 +469,10 @@ function goneNotice(gone: GoneQueue): {type: 'text'; text: string} {
     type: 'text',
     text: `queue ${gone.queueId} was lost: the engine holding the tab no longer has it (it restarted), so its actions may have partly run`,
   }
+}
+
+function unrun(error: unknown): boolean {
+  return RefusedSchema.safeParse(error).success || (error instanceof ORPCError && error.code === 'UNAUTHORIZED')
 }
 
 function answered(error: unknown): boolean {

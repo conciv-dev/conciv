@@ -1836,14 +1836,15 @@ describe('cli', () => {
           await once(arrivals, 'finished')
           return finishedOf(queueId)
         }
-        const play = async (index: number) => {
+        const playInCall = async (index: number) => {
           const queue = await queueAt(index)
           for (const requestId of queue.replies) {
             await engine.page.page.reply({requestId, outcome: {ok: true, result: {ok: true}}})
           }
-          await finishedOf(queue.id)
+          return queue.id
         }
-        return {home, engine, play, accepted}
+        const play = async (index: number) => finishedOf(await playInCall(index))
+        return {home, engine, play, playInCall, accepted}
       }
 
       async function collectFinished(
@@ -1914,12 +1915,12 @@ describe('cli', () => {
       })
 
       it('a tasks-capable client gets a plain reply, never a task, for a sync page_queue that finished in-call', async () => {
-        const {home, engine, play} = await queueTab()
+        const {home, engine, playInCall} = await queueTab()
         const client = rawHub(home)
         try {
           await client.execute('return 0', engine.sessionId)
           const replied = client.execute(SYNC_QUEUE, engine.sessionId)
-          await play(0)
+          await playInCall(0)
           const reply = await replied
           expect(TaskSchema.safeParse(reply).success).toBe(false)
           const text = JSON.stringify(reply)
@@ -1933,14 +1934,14 @@ describe('cli', () => {
       })
 
       it('a queue that finished before execute_typescript returned leads the plain reply once and never becomes a task', async () => {
-        const {home, engine, play} = await queueTab()
+        const {home, engine, play, playInCall} = await queueTab()
         const client = rawHub(home)
         try {
           await client.execute('return 0', engine.sessionId)
           const both = `await external_page_queue_async({actions: ${JSON.stringify(ACTIONS)}}); ${SYNC_QUEUE}`
           const replied = client.execute(both, engine.sessionId)
           await play(0)
-          await play(1)
+          await playInCall(1)
           const reply = await replied
           expect(TaskSchema.safeParse(reply).success).toBe(false)
           const text = JSON.stringify(reply)
