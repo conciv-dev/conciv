@@ -991,6 +991,25 @@ describe('page bus and the session scope', () => {
     expect(queues.owedTurn(SESSION_A)).toEqual([])
   })
 
+  it('a queue the page refuses plays nothing: it ends lost with no action counted as played', async () => {
+    const bus = makePageBus(2000)
+    bus.subscribe(SESSION_A, (frame) => {
+      const parsed = QueueFrameSchema.safeParse(frame)
+      if (!parsed.success) return
+      queueMicrotask(() =>
+        bus.resolve(SESSION_A, parsed.data.requestId, {ok: false, error: {code: 'invalid-args', message: 'no list'}}),
+      )
+    })
+    const queues = pageQueues(bus)
+    const result = await queues.play(SESSION_A, queueStart([{tool: 'page_check', selector: '#agree'}]))
+    expect(result).toMatchObject({
+      status: 'lost',
+      played: 0,
+      failed: 0,
+      outcomes: [{index: 0, tool: 'page_check', ok: false, error: expect.stringContaining('refused the queue')}],
+    })
+  })
+
   it('a queue started while a mutating call is in flight reaches the tab only after that call answers', async () => {
     const bus = makePageBus(2000)
     const frames: unknown[] = []

@@ -3,7 +3,13 @@ import {once} from 'node:events'
 import {orderBy} from 'es-toolkit'
 import PQueue from 'p-queue'
 import pTimeout from 'p-timeout'
-import {isPageFailure, pageFailure, type PageOutcome, type PageQuery} from '@conciv/protocol/page-types'
+import {
+  isPageFailure,
+  pageFailure,
+  PAGE_QUEUE_REFUSED,
+  type PageOutcome,
+  type PageQuery,
+} from '@conciv/protocol/page-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {PageCaptureBundle} from '@conciv/protocol/element-capture-types'
 import {appendPageChange, clearPageChanges, pageChangesFor, type ConcivDb} from '@conciv/db'
@@ -302,7 +308,8 @@ export function makePageBus(timeoutMs = 5000, queuedActionMs = QUEUED_ACTION_MS)
       async (error: unknown): Promise<PageOutcome> => {
         const sent = await dispatched.catch(() => null)
         replies.forEach((id) => sent?.page.pending.drop(id))
-        return {ok: false, error: {code: 'handler-error', message: `the page refused the queue: ${String(error)}`}}
+        const message = `the page refused the queue, so this action did not run: ${String(error)}`
+        return {ok: false, error: {code: 'handler-error', message, raised: {code: PAGE_QUEUE_REFUSED, message}}}
       },
     )
     const lane = laneOf(sessionId)

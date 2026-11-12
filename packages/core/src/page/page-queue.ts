@@ -4,6 +4,7 @@ import pTimeout from 'p-timeout'
 import {
   isPageFailure,
   PAGE_QUEUE_ASYNC_TOOL,
+  PAGE_QUEUE_REFUSED,
   PAGE_QUEUE_STOPPED,
   PAGE_QUEUE_SYNC_MS,
   PAGE_QUEUE_TOOL,
@@ -73,7 +74,13 @@ function playedOutcome(index: number, tool: string, outcome: PageOutcome): Settl
   if (outcome.ok) return {outcome: {index, tool, ok: true, result: outcome.result}, landed: 'played'}
   const raised = outcome.error.raised
   const error = raised?.message ?? outcome.error.message
-  return {outcome: {index, tool, ok: false, error}, landed: raised?.code === PAGE_QUEUE_STOPPED ? 'stopped' : 'played'}
+  return {outcome: {index, tool, ok: false, error}, landed: unplayedAs(raised?.code)}
+}
+
+function unplayedAs(code: string | undefined): Landed {
+  if (code === PAGE_QUEUE_STOPPED) return 'stopped'
+  if (code === PAGE_QUEUE_REFUSED) return 'lost'
+  return 'played'
 }
 
 function unconfirmedOutcome(index: number, tool: string, error: unknown): Settled {
