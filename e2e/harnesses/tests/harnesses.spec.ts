@@ -36,7 +36,7 @@ test('full app boots with the configured harness and exposes its real model cata
   const harness = expected[projectName]
 
   const failures = collectFailures(page)
-  await loginWidget(page)
+  await loginWidget(page, '/', `.conciv-${projectName}`)
   await expectWidgetBoots(page, failures)
 
   const composerTextbox = page.getByRole('textbox', {name: 'Message the conciv agent'})
@@ -97,7 +97,7 @@ const hubCheck: Record<HarnessApp, string[]> = {
 test('connect hub registers conciv-hub in the harness CLI config', async ({page}, testInfo) => {
   const projectName = testInfo.project.name
   if (!isHarnessName(projectName)) throw new Error(`unexpected harness project ${projectName}`)
-  const base = await trustedEngineBase(page)
+  const base = await trustedEngineBase(page, '/', `.conciv-${projectName}`)
   const connected = await fetch(`${base}/rpc/meta/connectHub`, {
     method: 'POST',
     headers: {'content-type': 'application/json'},
