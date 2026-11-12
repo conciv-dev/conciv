@@ -62,6 +62,13 @@ The SDK is a port of opencode's plugin package (`/Users/omrikatz/Public/web/_ref
 
 - `Skill.DirectorySource`, `Skill.UrlSource`, `Skill.EmbeddedSource`, `Skill.Source` and `Skill.Event` are not ported: conciv loads no skill folders or URLs, and the event domain is not available yet.
 
+### Scope
+
+- `experimental/scope.ts` ports `plugin/src/gui/scope.ts`; `experimental/core.ts` holds only `Cleanup` from `gui/core.ts` so far.
+- `Scope.make` carries its JSDoc on an explicit type of the `Scope` constant: `conciv/no-comments` keeps doc blocks above declarations and type members only, not above an object literal's property.
+- The source's three `//` comments are gone (zero comments in code): the one above `Finalizer` is its JSDoc, the two inside `create` are dropped.
+- `fork` returns early after closing a fork made on a closed scope instead of `if ... else` (repo law: no `else` where a guard works).
+
 ## Declared, not implemented
 
 Each is typed `| undefined` (or optional) and always undefined in this version.
