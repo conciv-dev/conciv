@@ -770,7 +770,6 @@ describe('page bus and the session scope', () => {
     const queues = pageQueues(bus)
     const fill = {tool: 'page_fill', selector: '#name', value: 'Ada'}
     const {queueId} = await queues.start(SESSION_A, queueStart([fill, {tool: 'page_check', selector: '#agree'}]))
-    await setImmediate()
     const [onTab] = queued
     expect(bus.resolve(SESSION_A, onTab?.queue.replies[0] ?? '', {ok: true, result: {value: 'Ada'}})).toBe(true)
     expect(await queues.wait(SESSION_A, queueId, 2000)).toEqual({
