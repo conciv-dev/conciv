@@ -47,7 +47,7 @@ independent of binding and can be chained before or after `.server`/`.client`.
 
 Derivations never leak into siblings: calling `.server(...)` on a base builder returns a _new_
 builder; the base stays unbound and can still be `.client(...)`'d separately
-(`packages/extension/test/extension.test.ts:296-313`) — this is how the split
+(`packages/extension/test/extension.test.ts:390-407`) — this is how the split
 `def.ts`/`server.ts`/`client.ts` pattern below works: one `toolDefinition(...)` feeds an independent
 `defineTool(def)` call per build target.
 
