@@ -5194,4 +5194,36 @@ describe('page action queue delivery', () => {
     expect(hydrated.activeRun).toBeNull()
     expect(page.queueEvents()).toHaveLength(1)
   })
+
+  it('an in-page queue that finishes while its run is live starts the follow-up turn once that run ends', async () => {
+    const harness = createFakeHarness()
+    const page = await engineWithTab(harness)
+    harness.script.hold()
+    const viewer = new AbortController()
+    onTestFinished(() => viewer.abort())
+    const turn = fetch(`${page.base}${CHAT_SSE_PATH}`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({
+        threadId: page.sessionId,
+        runId: 'queueing-run',
+        messages: [{id: 'queueing-run-user', role: 'user', content: 'fill the form'}],
+        tools: [],
+        context: [],
+      }),
+      signal: viewer.signal,
+    })
+    await page.seenChunk(() => page.runIds().includes('queueing-run'))
+    const handle = page.tab.registry.call({name: 'page_queue', input: {actions: ACTIONS}})
+    const onTab = await page.nextQueue()
+    const {queueId} = z.object({queueId: z.string()}).parse(await handle)
+    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    await page.finishedEvent(queueId)
+    harness.script.release()
+    await (await turn).text()
+    await page.followUpFinished(['queueing-run'])
+    expect(page.runIds().filter((runId) => runId !== 'queueing-run')).toHaveLength(1)
+    expect((await page.tab.chat.hydrate({sessionId: page.sessionId})).activeRun).toBeNull()
+  })
 })
