@@ -137,7 +137,7 @@ New rule in the CLI (`withSession`, `packages/cli/src/request.ts`), core's gate 
 | `--tab <id>`, any folder                                    | yes       | yes              | no           |
 | in the project folder, no `CONCIV_SESSION_ID`               | yes (new) | yes (new)        | no (new)     |
 | in the project folder, `CONCIV_SESSION_ID` set (the widget) | no        | no               | yes          |
-| any other folder, engine taken from the home db             | yes       | no               | yes          |
+| any other folder, engine from the home db or default port   | yes       | no               | yes          |
 
 The header that carried "named its tab" now also covers "ran in the project folder", so it is renamed to say what it means: `conciv-named-tab` becomes `conciv-chosen-engine` (`CONCIV_CHOSEN_ENGINE_HEADER`), and the hub origin field `namedTab` becomes `choseEngine`. Every call site moves; no alias is kept.
 

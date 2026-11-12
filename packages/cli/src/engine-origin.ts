@@ -45,7 +45,7 @@ export async function engineOrigin(cwd: string, env: NodeJS.ProcessEnv, tab: Ses
   const token = env.CONCIV_TOKEN ?? discovered?.token
   if (port !== undefined) return {origin: scopedOrigin(port, token), chosen: true}
   const latest = (await liveEngines(env)).at(-1)
-  if (latest === undefined) return {origin: scopedOrigin(DEFAULT_ENGINE_PORT, token), chosen: true}
+  if (latest === undefined) return {origin: scopedOrigin(DEFAULT_ENGINE_PORT, token), chosen: false}
   return {origin: latest.apiBase, chosen: false}
 }
 
