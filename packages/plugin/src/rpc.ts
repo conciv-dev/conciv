@@ -3,8 +3,6 @@ import type {RequestOptions} from './domains.js'
 import type {PublicRef, Ref} from './location.js'
 import type {Registration} from './registration.js'
 
-export * as Rpc from './rpc.js'
-
 export type ErrorMap = Readonly<Record<string, z.ZodType>> & {
   readonly [Name in `rpc.${string}`]?: never
 }

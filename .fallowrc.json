@@ -190,7 +190,7 @@
     },
     {
       "file": "packages/plugin/src/**",
-      "exports": ["Info", "Ref"]
+      "exports": ["Info", "Ref", "define"]
     },
     {
       "file": "packages/ui-kit-chat/src/tools/primitives/tool-fallback.tsx",

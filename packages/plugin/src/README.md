@@ -9,6 +9,7 @@ The SDK is a port of opencode's plugin package (`/Users/omrikatz/Public/web/_ref
 
 - `index.ts` mirrors `plugin/src/promise/index.ts`: `PluginOptions`, the storage types and the `Plugin` namespace; of the schema namespaces it re-exports only those conciv declares (`Location`, `Model`, `Rpc`, `Skill`), plus `Tool`, which opencode authors import from `@opencode/schema/tool` (conciv has no schema package).
 - A namespace module joins opencode's schema file and promise file of the same name: `tool.ts` (`schema/src/tool.ts` + `promise/tool.ts`), `skill.ts` (`schema/src/skill.ts` + `promise/skill.ts`), `model.ts` (`schema/src/model.ts` + `promise/model.ts`), `permission.ts` (`src/permission.ts` + `promise/permission.ts`), `storage.ts` (`src/storage.ts` + `promise/storage.ts`), `rpc.ts` (`schema/src/rpc.ts` + `promise/rpc.ts` + the types of `client/src/promise/rpc.ts`), so the `Rpc` namespace also carries `RpcDomain`, `RpcClient`, `RpcApi` and the other caller and handler types.
+- `rpc.ts` does not re-export itself as `Rpc` (source `schema/src/rpc.ts` does, and fallow reports that as a cycle): `index.ts` and `rpc-entry.ts`, the `./rpc` entry mirroring `plugin/src/rpc.ts`, export the namespace.
 - Request and response types of the client API (`client/src/promise/generated/types.ts`) sit in the domain file that uses them; `generate.ts` holds `ExperimentalGenerateApi`.
 - `domains.ts` holds `RequestOptions` and the conciv-only `HarnessDomain` (`ServerHarness` copied from the old extension package) and `BundlerDomain`.
 - Effect Schema values become TypeScript types; the one runtime schema, `AssertInput`, is zod and is not exported until the engine host reads it.
@@ -16,6 +17,7 @@ The SDK is a port of opencode's plugin package (`/Users/omrikatz/Public/web/_ref
 - `makeRpc` (`client/src/promise/rpc.ts`) is not ported: it builds the client over opencode's generated HTTP client; conciv's hosts build it over oRPC.
 - `.fallowrc.json` `ignoreExports` exempts the namespace member names repeated across `packages/plugin/src` modules (opencode's names) from fallow's duplicate-export check.
 - `conciv/banned-vocabulary` is off for `packages/plugin/src/**`: opencode's names use words the rule rejects.
+- `no-shadow` is off for `packages/plugin/src/**`: opencode's type parameter names (`Input` in `RpcArguments<Input, Options>`) repeat names the same module declares.
 
 ### Names and types
 
