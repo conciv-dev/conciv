@@ -77,7 +77,6 @@ type Simulator = {
   running: (sessionId: string) => boolean
   queues: Set<string>
   stoppedQueues: Set<string>
-  endWhenPlayed: boolean
   pacing: boolean
 }
 
@@ -95,7 +94,6 @@ const sim: Simulator = {
   running: idle,
   queues: new Set(),
   stoppedQueues: new Set(),
-  endWhenPlayed: false,
   pacing: false,
 }
 
@@ -182,7 +180,6 @@ function unmountSimulator(): void {
   sim.queues.clear()
   sim.stoppedQueues.clear()
   Object.assign(sim, {
-    endWhenPlayed: false,
     root: null,
     run: null,
     shown: false,
@@ -287,10 +284,7 @@ export function endTask(): void {
 
 export function endRun(sessionId: string): void {
   if (sim.taskSession !== sessionId) return
-  if (sim.queues.size > 0) {
-    sim.endWhenPlayed = true
-    return
-  }
+  if (sim.queues.size > 0) return
   endTask()
 }
 
@@ -332,9 +326,7 @@ export function finishQueue(queueId: string): void {
   if (!sim.queues.delete(queueId)) return
   sim.stoppedQueues.delete(queueId)
   if (sim.queues.size > 0) return
-  const runLive = sim.taskSession !== null && sim.running(sim.taskSession)
-  if (runLive && !sim.endWhenPlayed) return
-  sim.endWhenPlayed = false
+  if (sim.taskSession !== null && sim.running(sim.taskSession)) return
   endTask()
 }
 
