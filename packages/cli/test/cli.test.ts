@@ -19,7 +19,7 @@ import {loginThroughTerminal} from '@conciv/harness-testkit'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {stdioTransport} from '@tanstack/ai-mcp/stdio'
 import {CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER, TabOpenSchema} from '@conciv/protocol/chat-types'
-import {approvalAskOf, ChatEventType} from '@conciv/protocol/chat-event-types'
+import {approvalAskOf, type ChatEvent, ChatEventType, pageQueueEvent} from '@conciv/protocol/chat-event-types'
 import {PageQuerySchema} from '@conciv/protocol/page-types'
 import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PageServingFrame} from '@conciv/protocol/push-types'
@@ -1807,16 +1807,24 @@ describe('cli', () => {
       async function queueTab() {
         const {home, mcp} = fakeClaude()
         expect(mcp('connect', 'claude')).toMatchObject({status: 0})
-        const accepted: Array<{id: string; replies: string[]}> = []
-        const engine = await engineWithTab(home, {hubAccess: 'open', queued: (queue) => accepted.push(queue)})
+        const accepted = Promise.withResolvers<{id: string; replies: string[]}>()
+        const engine = await engineWithTab(home, {hubAccess: 'open', queued: accepted.resolve})
+        const events = await engine.page.chat.events({sessionId: engine.sessionId}, {signal: pages.signal})
+        const finished = queueFinished(events)
         const play = async () => {
-          await vi.waitFor(() => expect(accepted).toHaveLength(1))
-          const [queue] = accepted
-          for (const requestId of queue?.replies ?? []) {
+          const queue = await accepted.promise
+          for (const requestId of queue.replies) {
             await engine.page.page.reply({requestId, outcome: {ok: true, result: {ok: true}}})
           }
+          await finished
         }
         return {home, engine, play}
+      }
+
+      async function queueFinished(events: AsyncIterable<ChatEvent>): Promise<void> {
+        for await (const chunk of events) {
+          if (pageQueueEvent.parse(chunk) !== null) return
+        }
       }
 
       function rawHub(home: string) {
@@ -1864,11 +1872,8 @@ describe('cli', () => {
           const get = async () => (await client.request('tasks/get', {taskId: task.taskId})).result
           expect(await get()).toMatchObject({taskId: task.taskId, status: 'working'})
           await play()
-          const done = await vi.waitFor(async () => {
-            const polled = await get()
-            expect(polled).toMatchObject({status: 'completed'})
-            return polled
-          })
+          const done = await get()
+          expect(done).toMatchObject({status: 'completed'})
           const text = JSON.stringify(done?.['result'])
           expect(text).toContain(`\\"queueId\\":\\"${task.taskId}\\",\\"status\\":\\"finished\\"`)
           expect(text).toContain('\\"played\\":2')
@@ -1892,11 +1897,8 @@ describe('cli', () => {
           const queueId = /"queueId\\":\\"(q_[^\\]+)/.exec(queued)?.[1]
           expect(queueId).toMatch(/^q_/)
           await play()
-          const next = await vi.waitFor(async () => {
-            const reply = await onTab('return 1')
-            expect(reply).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
-            return reply
-          })
+          const next = await onTab('return 1')
+          expect(next).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
           expect(next).toContain('\\"result\\":1')
           expect(await onTab('return 2')).not.toContain(`queue ${queueId}`)
         } finally {
