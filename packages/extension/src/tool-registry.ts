@@ -348,6 +348,8 @@ const passThrough: ToolMiddleware = ({next}) => next()
 
 type Admission = {admitted: boolean; refusal: unknown}
 
+const admitAll: RegistryCallGate = (run) => run()
+
 function unadmitted(name: string): ORPCError<'FORBIDDEN', unknown> {
   return new ORPCError('FORBIDDEN', {
     message: `tool "${name}": its extension middleware answered the call before conciv admitted it`,
@@ -370,10 +372,10 @@ function compileTool(
   const declaredErrors: ToolErrors =
     tool.binding === 'client' ? {...tool.errors, ...TOOL_TRANSPORT_ERRORS} : (tool.errors ?? {})
   const procedure = registryBase
-    .use(async ({context: call, next}) => {
+    .use(async ({next}) => {
       const admission: Admission = {admitted: false, refusal: null}
       const result = await next({context: {admission}})
-      if (call.gate === undefined || admission.admitted) return result
+      if (admission.admitted) return result
       throw admission.refusal ?? unadmitted(tool.name)
     })
     .use(registration.middleware ?? passThrough)
@@ -382,9 +384,9 @@ function compileTool(
         call.admission.admitted = true
         return (await next()).output
       }
-      if (call.gate === undefined) return output(await admitted())
+      const gate = call.gate ?? admitAll
       try {
-        return output(await call.gate(admitted))
+        return output(await gate(admitted))
       } catch (error) {
         if (!call.admission.admitted) call.admission.refusal = error
         throw error

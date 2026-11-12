@@ -2295,25 +2295,41 @@ describe('rpc wire', () => {
         expect((await mcpPost({[CONCIV_SESSION_HEADER]: 'nope'})).status).toBe(400)
       })
 
-      it('a call refused at the outside admission or at the ask reaches the middleware of the tool it named', async () => {
+      it('a call refused for a disconnected client, at the outside admission or at the ask reaches the extension middleware', async () => {
         const sessionId = await newSession()
         const [ran, seen] = [toolRuns.ask, refusedCalls.length]
-        const hub = makeRpcClient(chatKit().base, {
-          headers: {
-            [CONCIV_SESSION_HEADER]: sessionId,
-            [CONCIV_ORIGIN_HEADER]: 'hub',
-            [CONCIV_CLIENT_HEADER]: 'terminal',
-          },
+        const hubAs = (client: string) =>
+          makeRpcClient(chatKit().base, {
+            headers: {
+              [CONCIV_SESSION_HEADER]: sessionId,
+              [CONCIV_ORIGIN_HEADER]: 'hub',
+              [CONCIV_CLIENT_HEADER]: client,
+            },
+          })
+        await expect(
+          hubAs('gemini-cli').registry.call({name: 'fixture_ask', input: {target: 'disconnected'}}),
+        ).rejects.toMatchObject({code: 'APPROVAL_DENIED', message: expect.stringMatching(/disconnected from conciv/)})
+        await expect(hubAs('gemini-cli').registry.call({name: 'fixture_nope', input: {}})).rejects.toMatchObject({
+          code: 'UNKNOWN_TOOL',
         })
-        const admitted = hub.registry.call({name: 'fixture_ask', input: {target: 'outside'}})
+        const listening = new AbortController()
+        const events = await chatKit().rpc.chat.events({sessionId}, {signal: listening.signal})
+        const admitted = hubAs('terminal').registry.call({name: 'fixture_ask', input: {target: 'outside'}})
         const refusal = expect(admitted).rejects.toMatchObject({
           code: 'APPROVAL_DENIED',
           message: expect.stringMatching(/denied terminal/),
         })
-        const pending = async () => (await chatKit().hydrate(sessionId)).pendingApprovals
-        await vi.waitFor(async () => expect(await pending()).toHaveLength(1), {timeout: 3000})
-        const [outsideAsk] = await pending()
-        await decide(sessionId, outsideAsk?.approvalId ?? '', false)
+        const asks = async () => {
+          for await (const chunk of events) {
+            const ask = approvalAskOf(chunk)
+            if (ask !== null) return ask
+          }
+          throw new Error('the event stream ended before the outside ask was raised')
+        }
+        const outsideAsk = await asks()
+        listening.abort()
+        expect(outsideAsk).toMatchObject({input: {client: 'terminal'}})
+        await decide(sessionId, outsideAsk.approvalId, false)
         await refusal
         const asked = callerWith(sessionId).registry.call({name: 'fixture_ask', input: {target: 'asked'}})
         await expect(asked).rejects.toMatchObject({
@@ -2321,6 +2337,13 @@ describe('rpc wire', () => {
           message: expect.stringMatching(/needs the user/),
         })
         expect(refusedCalls.slice(seen)).toEqual([
+          {
+            code: 'APPROVAL_DENIED',
+            message: expect.stringMatching(/disconnected from conciv/),
+            sessionId,
+            tool: 'fixture_ask',
+            input: {target: 'disconnected'},
+          },
           {
             code: 'APPROVAL_DENIED',
             message: expect.stringMatching(/denied terminal/),

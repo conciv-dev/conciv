@@ -688,6 +688,9 @@ describe('tool registry', () => {
     await expect(callWith(skipping, refuse)).rejects.toMatchObject({code: 'FORBIDDEN'})
     await expect(callWith(skipping, (run) => run())).rejects.toMatchObject({code: 'FORBIDDEN'})
     await expect(callWith(swallowing, (run) => run())).resolves.toEqual({done: 'handler'})
+    const ungated = createToolRegistry()
+    ungated.register(tool, {owner: 'a test registrant', middleware: skipping})
+    await expect(ungated.call('guarded_tool', {}, {request: TEST_REQUEST})).rejects.toMatchObject({code: 'FORBIDDEN'})
   })
 
   test('registering the same tool name twice fails loudly', () => {
