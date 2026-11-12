@@ -502,6 +502,15 @@ describe('experimental', () => {
     expectTypeOf<Parameters<NonNullable<Experimental.Panel['close']>>[0]>().toEqualTypeOf<Experimental.PanelProps>()
     expectTypeOf<Experimental.SlotMap['session.header']['screen']>().toEqualTypeOf<Experimental.SessionScreen>()
     expectTypeOf<Experimental.SlotMap['window.bottom']['screen']>().toEqualTypeOf<never>()
+    const overlay: Experimental.Slot = {at: 'page.overlay', hides: true, render: () => null}
+    const plainOverlay: Experimental.Slot = {at: 'page.overlay', render: () => null}
+    // @ts-expect-error only a page.overlay item says whether the widget hides
+    const statusHides: Experimental.Slot = {at: 'session.status', hides: true, render: () => null}
+    expect([overlay, plainOverlay, statusHides].map((slot) => slot.at)).toEqual([
+      'page.overlay',
+      'page.overlay',
+      'session.status',
+    ])
     expectTypeOf<Experimental.PanelTab['fallback']>().toEqualTypeOf<boolean | undefined>()
     const ineligible: Experimental.PanelTab = {id: 'details', title: 'Details', fallback: false}
     expectTypeOf<Extract<Experimental.Live<never>, {status: 'inactive'}>['reason']>().toEqualTypeOf<

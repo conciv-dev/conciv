@@ -582,8 +582,23 @@ export type Slot = {
      * @param input - The slot's input.
      */
     render(input: SlotMap[At]): JSX.Element
-  }
+  } & SlotExtras[At]
 }[keyof SlotMap]
+
+/** Fields a `Slot` item carries only at some places, beyond the ones every place shares. */
+interface SlotExtras {
+  readonly 'window.bottom': unknown
+  readonly 'session.header': unknown
+  readonly 'session.status': unknown
+  readonly 'window.connect': unknown
+  readonly 'page.overlay': {
+    /**
+     * The conciv widget hides while this overlay is on screen. Defaults to false. Whether or not it hides, the host
+     * steps back from the keyboard on its own whenever an overlay is up.
+     */
+    readonly hides?: boolean
+  }
+}
 
 /**
  * The registry of commands, each with an optional keybind and slash command.
