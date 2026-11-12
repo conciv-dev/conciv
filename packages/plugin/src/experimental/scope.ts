@@ -147,7 +147,7 @@ function create(name: string, options: Options, detach?: () => void): Scope {
       detach?.()
       controller.abort()
       const first = deadline()
-      const ordered = [...finalizers].reverse()
+      const ordered = [...finalizers].toReversed()
       finalizers.clear()
       closing.closed = true
       closing.chain = ordered.reduce(

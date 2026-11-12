@@ -68,6 +68,7 @@ export const PUBLIC_PACKAGES = [
   '@conciv/tools',
   '@conciv/extension',
   '@conciv/extension-compiler',
+  '@conciv/plugin',
   '@conciv/solid-diffs',
   '@conciv/solid-streamdown',
   '@conciv/ui-kit-system',

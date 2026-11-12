@@ -1,7 +1,114 @@
 # @conciv/plugin source
 
-The SDK is a port of opencode's plugin package (`/Users/omrikatz/Public/web/_ref/opencode/packages`, commit
-`a1aa513`). Names, shapes and JSDoc are opencode's except for the lines below.
+The SDK is a port of opencode's plugin package (opencode at commit `a1aa513`; every opencode path below is relative
+to its `packages/` folder). Names, shapes and JSDoc are opencode's except for the lines under "Differences from
+opencode".
+
+## Entries
+
+A plugin has up to three parts: an engine part (runs inside the conciv engine, adds tools, skills and RPC handlers),
+an RPC contract shared by both sides, and a browser part (runs in the conciv widget, adds panels, slots, commands
+and stores).
+
+### `@conciv/plugin` (`index.ts`)
+
+The engine part. `Plugin.define({id, setup})` returns its argument typed; `setup(ctx)` may be async and may return
+a cleanup. `ctx` is `Plugin.Context`: the `tool`, `skill`, `session`, `rpc`, `storage`, `permission`, `model`,
+`plugin`, `location`, `options`, `servers`, `harness` and `bundler` domains. The entry also exports the `Tool`,
+`Skill`, `Model`, `Location` and `Rpc` namespaces, `PluginOptions` and the storage types.
+
+```ts
+import {z} from 'zod'
+import {Plugin} from '@conciv/plugin'
+import {Tanstack} from './rpc.js'
+
+export default Plugin.define({
+  id: 'tanstack',
+  async setup(ctx) {
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'tanstack_routes',
+        description: 'Count the app routes',
+        input: z.object({}),
+        output: z.object({count: z.number()}),
+        execute: async () => ({output: {count: 1}}),
+      })
+    })
+    const registration = await ctx.rpc.register(Tanstack, {routes: async () => ({routes: ['/']})})
+    return () => registration.dispose()
+  },
+})
+```
+
+### `@conciv/plugin/rpc` (`rpc-entry.ts`)
+
+The `Rpc` namespace alone, for the contract module both parts import. `Rpc.define({id, methods, events})` returns
+its argument typed and throws when an error name starts with `rpc.` (reserved). Method and event schemas are zod.
+
+```ts
+import {z} from 'zod'
+import {Rpc} from '@conciv/plugin/rpc'
+
+export const Tanstack = Rpc.define({
+  id: 'tanstack',
+  methods: {routes: {input: z.object({}), output: z.object({routes: z.array(z.string())})}},
+  events: {buildError: {schema: z.object({message: z.string()})}},
+})
+```
+
+### `@conciv/plugin/experimental` (`experimental/index.ts`)
+
+The browser part. `Plugin.define({stores, setup})` has no id (the host gives it the engine part's id as `ctx.id`);
+`setup` is synchronous and runs under the plugin's Solid owner. `ctx.add(Registry, item)` adds to a registry
+(`Panel`, `Slot`, `Command`, `ComposerPill`, `LinkHandler`, `SettingsPage`, `CodeBlock`, `CodeBlockAction`), and
+everything added is withdrawn when the plugin reloads or stops. Also exported: `Store` (`global`, `project`,
+`session`), `Registry`, `Contract`, the host API types, `createKeyed`, `createLatest`, `createVisitState`,
+`usePlugin`, `bindPlugin`, `usePanel` and `useDrawer`. `ctx.client.rpc(Definition)` calls the plugin's own engine
+part; `ctx.servers.get(id)?.client.rpc(Definition)` calls another engine.
+
+```tsx
+import {z} from 'zod'
+import {createLatest, Panel, Plugin, Slot, Store} from '@conciv/plugin/experimental'
+import {Tanstack} from './rpc.js'
+
+export default Plugin.define({
+  stores: {prefs: Store.global(z.object({open: z.boolean()}), {open: false})},
+  setup(ctx) {
+    const routes = createLatest(
+      () => ctx.id,
+      (_id, signal) => ctx.client.rpc(Tanstack).routes({}, {signal}),
+    )
+    ctx.add(Slot, {at: 'session.status', render: () => <span>{routes.latest?.routes.length ?? 0} routes</span>})
+    ctx.add(Panel, {id: 'routes', region: 'pane', list: () => [{id: 'routes', title: 'Routes'}], render: () => <p />})
+  },
+})
+```
+
+### `@conciv/plugin/experimental/vite` (`experimental/vite.ts`)
+
+`experimental(options?)` returns the Vite plugins that build a browser part into one CommonJS bundle,
+`dist/plugin-experimental.cjs` from `src/plugin-experimental.tsx` by default. The build fails on an import of a
+`@conciv/*` or `solid-js/*` module the conciv app does not provide to plugins.
+
+### `@conciv/plugin/experimental/builtin` (`experimental/builtin.ts`)
+
+The first-party tier, for conciv's own plugins only: `onIdle` and the `ToolCall` registry, which fills the body of a
+finished tool call's card (`ToolCallProps`).
+
+### `@conciv/plugin/host` (`host.ts`)
+
+For the engine-side host only: `resolve(target)` finds a plugin's `server`, `rpc` and `experimental` entry files,
+`load(entrypoint)` imports one, `packageId(target)` names it. Import it as a namespace:
+`import * as Host from '@conciv/plugin/host'`.
+
+### `@conciv/plugin/experimental/host` (`experimental/host.ts`)
+
+For the browser-side host only: `compose` merges built-in and installed entries, `pluginEnabled` and
+`pluginIdAvailable` decide which run, `evaluatePluginBundle` runs a prebuilt bundle with the host's `require`,
+`pluginSharedModules` and `pluginWindowModules` list what that `require` provides, `inertModule` and
+`mainOnlyModule` stand in for Node built-ins, `Installed` and `shipsPluginExperimental` describe installed plugins,
+and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelContext`, `DrawerContext`,
+`liveAccessor`) are what the host mounts a plugin with.
 
 ## Differences from opencode
 
@@ -12,7 +119,7 @@ The SDK is a port of opencode's plugin package (`/Users/omrikatz/Public/web/_ref
 - `rpc.ts` does not re-export itself as `Rpc` (source `schema/src/rpc.ts` does, and fallow reports that as a cycle): `index.ts` and `rpc-entry.ts`, the `./rpc` entry mirroring `plugin/src/rpc.ts`, export the namespace.
 - Request and response types of the client API (`client/src/promise/generated/types.ts`) sit in the domain file that uses them; `generate.ts` holds `ExperimentalGenerateApi`.
 - `domains.ts` holds `RequestOptions` and the conciv-only `HarnessDomain` (`ServerHarness` copied from the old extension package) and `BundlerDomain`.
-- Effect Schema values become TypeScript types; the one runtime schema, `AssertInput`, is zod and is not exported until the engine host reads it.
+- Effect Schema values become TypeScript types. The runtime schemas are zod: `AssertInput` (only its input type is exported until the engine host reads it) and the `Tool.Error` check behind `isToolError`.
 - `Location.response` (an Effect Schema builder for HTTP response bodies) is not ported: conciv's transport is oRPC.
 - `makeRpc` (`client/src/promise/rpc.ts`) is not ported: it builds the client over opencode's generated HTTP client; conciv's hosts build it over oRPC.
 - `.fallowrc.json` `ignoreExports` exempts the namespace member names repeated across `packages/plugin/src` modules (opencode's names) from fallow's duplicate-export check.
@@ -28,7 +135,7 @@ The SDK is a port of opencode's plugin package (`/Users/omrikatz/Public/web/_ref
 - An absolute specifier (a local directory's conventional file) resolves by a file lookup with the same extension list instead of Node's resolver: Node refuses every file under a `package.json` that does not parse, so source's Node runtime fails source's own "package.json that does not parse" case (its tests run on Bun, whose resolver finds the file).
 - The manifest is read with zod (`name`, `exports`, both unknown); a `package.json` that is not a JSON object counts as missing. Error codes are read with zod instead of `"code" in error`.
 - The source's `//` comments are dropped; `packageID` is `packageId`.
-- `experimental/host.ts` ports `Entry` (`windowEntry` only; no `mainEntry`; `stores` is `Declarations.stores`, no `BuiltinStoreDeclaration`), `compose`, `EnableState`, `pluginEnabled`, `pluginIdAvailable` (reserved namespace `conciv`), `Installed` (no `tui`, no `unsupported`) and `shipsPluginGui` as `shipsPluginExperimental`, reading `features.experimental`. It re-exports `Scope` and, as source does, `DrawerContext`, `LifetimeContext`, `liveAccessor`, `PanelContext` and `PluginContext` from `internal.ts`. `runsOn` is absent (no `os`); `Bridge`, `BridgeLayout`, `BridgeMessage`, `BridgeMenubarItem`, `BridgePluginGui`, `BridgePluginGuis` are absent (Electron bridge, no desktop main process). The file's header comment is dropped.
+- `experimental/host.ts` ports `Entry` (`windowEntry` only; no `mainEntry`; `stores` is `Declarations.stores`, no `BuiltinStoreDeclaration`), `compose`, `EnableState`, `pluginEnabled`, `pluginIdAvailable` (reserved namespace `conciv`), `Installed` (no `tui`, no `unsupported`) and `shipsPluginGui` as `shipsPluginExperimental`, reading `features.experimental`. It re-exports `Scope`, `pluginSharedModules`, `pluginWindowModules` and `PluginModule` from `modules.ts` and, as source does, `DrawerContext`, `LifetimeContext`, `liveAccessor`, `PanelContext` and `PluginContext` from `internal.ts`. `runsOn` is absent (no `os`); `Bridge`, `BridgeLayout`, `BridgeMessage`, `BridgeMenubarItem`, `BridgePluginGui`, `BridgePluginGuis` are absent (Electron bridge, no desktop main process). The file's header comment is dropped.
 
 ### Evaluating a bundle (`experimental/host.ts`, `experimental/modules.ts`)
 
@@ -44,6 +151,7 @@ The SDK is a port of opencode's plugin package (`/Users/omrikatz/Public/web/_ref
 - `experimental/vite.ts` ports `plugin/src/gui/vite.ts`: `gui()` is `experimental()`, `GuiOptions` is `ExperimentalOptions`, the Vite plugin is `conciv-experimental`, and the defaults are `src/plugin-experimental.tsx` and `dist/plugin-experimental.cjs`. The package export is `./experimental/vite`.
 - `electron` is not kept external: conciv has no desktop app.
 - The build fails on `@conciv/*` and `solid-js/*` modules outside the provided list; source's `effect/` prefix has no conciv counterpart (no Effect). So `@conciv/ui-kit*` fails here: `experimental()` is the outside-plugin build.
+- An installable plugin never imports the UI kit; it uses `ctx.ui`. `experimental()` has no first-party mode: any `@conciv/*` import outside the provided list fails the build, as in opencode. Only the built-in plugins compiled into the app import `@conciv/ui-kit*` directly.
 - The error reads "<module> is not a module the conciv app provides to plugins: <list>" (source: "<module> is not a module the OpenCode app provides to plugin GUIs: <list>").
 - The `//` comment above `provided` is its JSDoc.
 
@@ -78,8 +186,7 @@ The SDK is a port of opencode's plugin package (`/Users/omrikatz/Public/web/_ref
 
 ### Context members
 
-- Absent, not ours: `agent`, `aisdk`, `credential`, `integration`, `mcp`, `provider`, `reference`, `shell`, `vcs`, `websearch`, `worktree`, `experimental.terminal`, `experimental.artifact`.
-- Absent: top-level `generate` (deprecated in source; `experimental.generate` replaces it).
+- Absent, not ours: `agent`, `aisdk`, `credential`, `integration`, `mcp`, `provider`, `reference`, `shell`, `vcs`, `websearch`, `worktree`, `experimental.terminal`, `experimental.artifact`. Also absent: top-level `generate` (deprecated in source; `experimental.generate` replaces it).
 - Added by ruling: `servers`, `harness`, `bundler`, `storage.directory`.
 - `app` is `App | undefined`: the engine has no app version or channel to give.
 - `plugin.list`, `skill.list`, `model.list`, `model.default`: no `location` input (one project per engine); every domain method's request options are `{signal}` only (no `headers`, no `onActivity`).
@@ -107,6 +214,7 @@ The SDK is a port of opencode's plugin package (`/Users/omrikatz/Public/web/_ref
 - `Scope.make` carries its JSDoc on an explicit type of the `Scope` constant: `conciv/no-comments` keeps doc blocks above declarations and type members only, not above an object literal's property.
 - The source's three `//` comments are gone (zero comments in code): the one above `Finalizer` is its JSDoc, the two inside `create` are dropped.
 - `fork` returns early after closing a fork made on a closed scope instead of `if ... else` (repo law: no `else` where a guard works).
+- `close` orders the finalizers with `[...finalizers].toReversed()` where source calls `.reverse()` on the same fresh copy (lint `unicorn/no-array-reverse`); same order.
 
 ### App part (`experimental/`)
 
@@ -157,7 +265,7 @@ Each is typed `| undefined` (or optional) and always undefined in this version.
 - session list input: `order`, `parentId`, `archived`
 - session create input: every field
 - session update input: `metadata`, `permissions`, `archived`
-- session compact: input `id`, `delivery`; result `id`, `delivery`
+- session compact: input `id`, `delivery`; result (`SessionInboxCompaction`) `id`, `delivery`
 - session interrupt input: `resume`
 - `SessionIdle.background`
 - permission request: `resources`, `save`, `metadata`, `message`; permission reply input: `message`

@@ -1,7 +1,7 @@
 {
   "name": "@conciv/plugin",
   "version": "0.0.22",
-  "description": "The conciv plugin SDK: Plugin.define and the context a plugin's engine part receives.",
+  "description": "The conciv plugin SDK: Plugin.define for a plugin's engine and browser parts, RPC contracts, registries and stores.",
   "keywords": [
     "conciv",
     "plugin",

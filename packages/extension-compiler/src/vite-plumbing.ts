@@ -33,7 +33,7 @@ function resolvableFrom(id: string, root: string): boolean {
 
 export function concivSolidConfig(opts: {root?: string; warmupFiles?: readonly string[]} = {}) {
   const root = opts.root
-  const singletons = [...SOLID_SINGLETONS, '@conciv/extension']
+  const singletons = [...SOLID_SINGLETONS, '@conciv/extension', '@conciv/plugin']
   const rootResolvable = root === undefined ? singletons : singletons.filter((id) => resolvableFrom(id, root))
   return {
     resolve: {dedupe: rootResolvable},
