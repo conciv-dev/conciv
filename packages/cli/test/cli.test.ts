@@ -13,9 +13,9 @@ import {defineExtension, defineTool} from '@conciv/extension'
 import {createServer as createHttpServer, type Server} from 'node:http'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {engineOrigin} from '../src/engine-origin.js'
-import {runRevoke} from '../src/auth.js'
+import {runLink, runRevoke} from '../src/auth.js'
 import {start as startEngine} from '@conciv/core'
-import {loginThroughTerminal} from '@conciv/harness-testkit'
+import {exchangePrintedCode, loginThroughTerminal} from '@conciv/harness-testkit'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {stdioTransport} from '@tanstack/ai-mcp/stdio'
 import {CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER, TabOpenSchema} from '@conciv/protocol/chat-types'
@@ -1000,7 +1000,7 @@ describe('cli', () => {
       expect(isTrustedBrowser(stateDir, kept)).toBe(false)
     })
 
-    test('auth revoke locks a browser out of the running engine without a restart', async () => {
+    test('auth link logs a browser in without printing a code, and auth revoke locks it out without a restart', async () => {
       const project = projectWith(null)
       const printed: string[] = []
       const engine = await startEngine({
@@ -1011,8 +1011,28 @@ describe('cli', () => {
       })
       try {
         const origin = `http://127.0.0.1:${engine.port}`
+        const linked = z
+          .object({data: z.object({link: z.string(), expiresAt: z.number()})})
+          .parse(await runLink({url: 'http://localhost:3001/app?x=1#tab=chat', cwd: project.nested}))
+        const link = new URL(linked.data.link)
+        const fragment = new URLSearchParams(link.hash.slice(1))
+        const code = fragment.get('conciv_otp') ?? ''
+        expect([`${link.origin}${link.pathname}${link.search}`, fragment.get('tab'), code]).toEqual([
+          'http://localhost:3001/app?x=1',
+          'chat',
+          expect.stringMatching(/^\d{6}$/),
+        ])
+        expect(printed.join('\n')).not.toContain(code)
+        const linkedToken = await exchangePrintedCode(origin, code)
+        const statusOf = async (scope: string) =>
+          (await fetch(`${origin}${scope}/rpc/meta/engine`, {method: 'POST'})).status
+        expect(await statusOf(`/t/${linkedToken}`)).not.toBe(401)
+        await expect(makeRpcClient(`${origin}/t/${linkedToken}`).auth.issueCode()).rejects.toMatchObject({
+          code: 'FORBIDDEN',
+        })
+        expect((await fetch(`${origin}/rpc/auth/issueCode`, {method: 'POST'})).status).toBe(401)
         const token = await loginThroughTerminal(origin, () => printed.join('\n'))
-        const call = async () => (await fetch(`${origin}/t/${token}/rpc/meta/engine`, {method: 'POST'})).status
+        const call = async () => statusOf(`/t/${token}`)
         expect(await call()).not.toBe(401)
         const {sessionId} = await makeRpcClient(`${origin}/t/${token}`).sessions.create(undefined)
         const serving: PageServingFrame = {channel: 'page-serving', serving: true}
@@ -1036,7 +1056,7 @@ describe('cli', () => {
             .code
         const closed = Promise.all([closedCode(browser), closedCode(framed)])
         runRevoke({all: true, cwd: project.nested})
-        expect(await call()).toBe(401)
+        expect([await call(), await statusOf(`/t/${linkedToken}`)]).toEqual([401, 401])
         expect([...(await closed), agent.readyState]).toEqual([1008, 1008, WebSocket.OPEN])
         agent.close()
       } finally {
@@ -1154,6 +1174,14 @@ describe('cli', () => {
         expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
         await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: true})
         expect(await waiting).toMatchObject(listed)
+        const restart = ['tools', 'server', 'restart']
+        expect([
+          await conciv(elsewhere, home, [...restart, '--tab', sessionId]),
+          await conciv(elsewhere, home, restart),
+        ]).toMatchObject([
+          {ok: false, error: {code: 'NO_BUNDLER'}},
+          {ok: false, error: {code: 'APPROVAL_DENIED', message: expect.stringMatching(/needs the user/)}},
+        ])
         expect(await conciv(elsewhere, home, ['tools', 'tabs'])).toMatchObject(listed)
         const missing = ['tools', 'tabs', '--tab', 'conciv_gone']
         expect(await conciv(elsewhere, home, missing)).toMatchObject({

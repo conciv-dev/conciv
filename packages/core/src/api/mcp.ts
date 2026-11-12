@@ -26,7 +26,7 @@ import {
 import type {SessionScope} from '../runtime/scope-types.js'
 import {logError} from '../lib/debug.js'
 import corePackage from '../../package.json' with {type: 'json'}
-import type {CodeCapability, CodeRunner, CodeTool} from '@conciv/chat'
+import type {ChatPlane, CodeCapability, CodeRunner, CodeTool} from '@conciv/chat'
 import {createMCPServer} from '@conciv/ai/server'
 import {loopbackHostAllowlist} from '../lib/cors.js'
 import {callTrace} from './call-trace.js'
@@ -218,6 +218,7 @@ type McpDeps = {
   finishedQueues: (sessionId: SessionId, outside: boolean) => PageQueueResult[]
   startedQueues: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => PageQueueHandle[]
   outsideCapabilities: (sessionId: SessionId) => CodeCapability[]
+  admitCall: ChatPlane['admitCall']
   resolveSession: (header: SessionId | null, nativeId: HarnessSessionId | null) => Promise<SessionScope>
   admitOutside: (scope: SessionScope, client: string | null, signal: AbortSignal) => Promise<string | null>
   hubRefusal: (client: string | null) => string | null
@@ -234,7 +235,23 @@ function gated<Args>(admit: () => Promise<string | null>, run: (args: Args) => P
   }
 }
 
-type CodeCaller = {trace: CallTrace; outside: boolean; signal: AbortSignal}
+type CodeCaller = {trace: CallTrace; outside: boolean; askBeforeCalls: boolean; signal: AbortSignal}
+
+function approvedFirst(
+  deps: McpDeps,
+  sessionId: SessionId,
+  tool: CodeTool,
+  publish: (chunk: ChatEvent) => void,
+): CodeTool {
+  return {
+    ...tool,
+    run: async (input, parentToolCallId, signal) => {
+      const refusal = await deps.admitCall(sessionId, {toolName: tool.name, input, publish})
+      if (refusal !== null) throw new Error(refusal.message)
+      return tool.run(input, parentToolCallId, signal)
+    },
+  }
+}
 
 function withFinishedQueues(reply: CodeReply, finished: readonly PageQueueResult[]): CodeReply {
   if (finished.length === 0) return reply
@@ -261,12 +278,13 @@ export async function openCodeSession(
   const run = {threadId: scope.id, live: await scope.run.live()}
   const mirror = caller.trace.mirror(run, {publish: scope.stream.publish, record: scope.run.record})
   const childCalls = new Set<string>()
+  const publish = (chunk: ChatEvent): void => {
+    if (chunk.type === ChatEventType.TOOL_CALL_START) childCalls.add(chunk.toolCallId)
+    mirror.publish([caller.trace.mark(chunk)])
+  }
   const runner = await deps.codeRunner(
     scope.id,
-    (chunk) => {
-      if (chunk.type === ChatEventType.TOOL_CALL_START) childCalls.add(chunk.toolCallId)
-      mirror.publish([caller.trace.mark(chunk)])
-    },
+    publish,
     hub && caller.outside ? deps.outsideCapabilities(scope.id) : undefined,
     hub,
   )
@@ -301,7 +319,10 @@ export async function openCodeSession(
       if (runner.discover === null) throw new Error('no tools to discover')
       return cappedValue(await runner.discover.run(toolNames))
     },
-    direct: async (tool, input) => withFinishedQueues(await runDirect(tool, input, calls), finished()),
+    direct: async (tool, input) => {
+      const asking = caller.askBeforeCalls ? approvedFirst(deps, scope.id, tool, publish) : tool
+      return withFinishedQueues(await runDirect(asking, input, calls), finished())
+    },
   }
 }
 
@@ -376,7 +397,12 @@ const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
   const nativeId = nativeIdFromHeaders(c.req.raw.headers)
   const trace = callTrace((name) => c.req.raw.headers.get(name))
   const scope = await c.var.mcp.resolveSession(header, nativeId)
-  const caller = {trace, outside: trace.hub !== null && header === null && nativeId === null, signal: c.req.raw.signal}
+  const caller = {
+    trace,
+    outside: trace.hub !== null && header === null && nativeId === null,
+    askBeforeCalls: trace.hub === null && (header !== null || nativeId === null),
+    signal: c.req.raw.signal,
+  }
   const server = createMCPServer({
     name: 'conciv',
     version: corePackage.version,

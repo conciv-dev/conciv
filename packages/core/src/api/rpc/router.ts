@@ -65,6 +65,7 @@ async function callTool<Output extends z.ZodType>(
 
 async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, call: GatedCall): Promise<void> {
   if (widgetCaller(call.context.callerOrigin, deps.allowedOrigins)) return
+  if (callTrace((header) => rpcHeader(call.context, header)).hub?.namedTab === true) return
   const asks = deps.runtime.engine.catalog().find((tool) => tool.name === name)?.approval === 'ask'
   if (!asks) return
   const scope = call.context.session
@@ -107,6 +108,7 @@ async function codeSessionOf(deps: RpcDeps, sessionId: SessionId | undefined, ca
   const code = await openCodeSession(deps.code, scope, {
     trace,
     outside: trace.hub !== null && sessionId === undefined,
+    askBeforeCalls: trace.hub === null,
     signal: call.signal ?? new AbortController().signal,
   })
   if (code === null) throw call.errors.NO_CODE_MODE()
