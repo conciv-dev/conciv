@@ -81,9 +81,12 @@ The workflow runs on pull requests touching anything under `packages/` or `apps/
 manifests and lockfile, `patches/`, `turbo.json`, `e2e-utils` or the packed fixtures, and on demand. On
 main it runs only from `release.yml`, on every push, and npm publish waits on it.
 
-When a registry dependency changes, the drift guard fails the run: it compares every registry package's
-`name@version` and integrity against the committed `fixture-lock.yaml`, and rejects any remote tarball or
-git resolution outside the packed `@conciv/*@file:` entries. On drift the CI run writes the lockfile it
+Every fixture install (the two locked fixtures, the tanstack resolution matrix and the nextjs trust-policy
+install) rejects any remote tarball or git resolution outside the packed `@conciv/*@file:` entries. Only the
+two locked fixtures, `e2e/vite-react-packed` and the nextjs packed install (`e2e/nextjs/packed`), also run
+the drift guard: when a registry dependency changes, it compares every registry package's `name@version`
+and integrity against that fixture's committed `fixture-lock.yaml` and fails the run. The tanstack matrix
+and the trust-policy install resolve fresh on every run and have no committed lock to drift from. On drift the CI run writes the lockfile it
 produced over the committed one, shows the diff in the run summary and uploads both fixture locks as the
 `packed-fixture-locks` artifact. Refresh from that run, never locally:
 
