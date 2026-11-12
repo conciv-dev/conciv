@@ -3,8 +3,8 @@ import {findPackageJSON} from 'node:module'
 import {tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
 import {pathToFileURL} from 'node:url'
-import {createLogger, createServer, type Logger, type ViteDevServer} from 'vite'
-import {magicLink} from '@conciv/harness-testkit/login'
+import {createLogger, createServer, type ViteDevServer} from 'vite'
+import {magicLink, recordedEngineBase} from '@conciv/harness-testkit/login'
 import type {ConcivConfig, ExtensionPackage} from '@conciv/protocol/config-types'
 import type {Builtins} from '@conciv/extension-compiler/extensions'
 import {makeViteHook} from '../../src/core/vite.js'
@@ -12,7 +12,7 @@ import {makeViteHook} from '../../src/core/vite.js'
 const PORT_RELEASE_MS = 300
 const FIXTURE_EXTENSION_DIR = join(import.meta.dirname, '..', 'fixtures', 'extension')
 
-export type StartedDevServer = {server: ViteDevServer; root: string; terminal: () => string}
+export type StartedDevServer = {server: ViteDevServer; root: string}
 
 export type DevServers = {
   start: (options?: Omit<ConcivConfig, 'stateRoot'>, builtins?: Builtins, root?: string) => Promise<StartedDevServer>
@@ -35,17 +35,16 @@ export function devServers(): DevServers {
     builtins: Builtins = {},
     root = tempDir('conciv-vite-root-'),
   ) => {
-    const printed = capturedLogger()
     const server = await createServer({
       root,
       configFile: false,
-      customLogger: printed.logger,
+      customLogger: createLogger('silent'),
       server: {host: '127.0.0.1', port: 0},
       plugins: [makeViteHook({enabled: true, stateRoot: root, ...options}, builtins)],
     })
     running.push(server)
     await server.listen()
-    return {server, root, terminal: printed.text}
+    return {server, root}
   }
 
   const stopAll = async (): Promise<void> => {
@@ -67,19 +66,8 @@ export function installFixtureExtension(nodeModules: string): ExtensionPackage {
   return fixtureExtension(dir)
 }
 
-export function capturedLogger(): {logger: Logger; text: () => string} {
-  const lines: string[] = []
-  const logger: Logger = {
-    ...createLogger('silent'),
-    info: (message) => {
-      lines.push(message)
-    },
-  }
-  return {logger, text: () => lines.join('\n')}
-}
-
 export async function magicLinkUrl(started: StartedDevServer, url: string): Promise<string> {
-  return magicLink(await pageApiBase(started.server), started.terminal, url)
+  return magicLink(recordedEngineBase(started.root), url)
 }
 
 export async function pageApiBase(server: ViteDevServer, url = '/'): Promise<string> {

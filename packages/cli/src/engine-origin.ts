@@ -48,7 +48,7 @@ export async function engineOrigin(cwd: string, env: NodeJS.ProcessEnv, tab: Ses
   return {origin: latest.apiBase, outside: true}
 }
 
-function scopedOrigin(port: string | number, token: string | undefined): string {
+export function scopedOrigin(port: string | number, token: string | undefined): string {
   const origin = `http://127.0.0.1:${port}`
   return token === undefined ? origin : `${origin}/t/${token}`
 }
