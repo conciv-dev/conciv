@@ -1,6 +1,6 @@
 import {dirname} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {createConcivUnplugin} from '@conciv/plugin'
+import {createConcivUnplugin} from '@conciv/unplugin'
 
 const embedEntry = fileURLToPath(import.meta.resolve('@conciv/embed'))
 

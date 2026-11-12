@@ -764,11 +764,11 @@ describe('nextjs config', () => {
       const cfg = withConciv({})
       const edge = cfg.webpack?.({resolve: {alias: {}}}, {nextRuntime: 'edge'})
       expect(edge?.resolve?.alias?.['@conciv/it/plugin/nextjs']).toBe(false)
-      expect(edge?.resolve?.alias?.['@conciv/plugin/nextjs']).toBe(false)
+      expect(edge?.resolve?.alias?.['@conciv/unplugin/nextjs']).toBe(false)
       expect(edge?.resolve?.alias?.[SPECIFIER]).toBe(generatedPath())
       const node = cfg.webpack?.({resolve: {alias: {}}}, {nextRuntime: 'nodejs'})
       expect(node?.resolve?.alias?.['@conciv/it/plugin/nextjs']).toBeUndefined()
-      expect(node?.resolve?.alias?.['@conciv/plugin/nextjs']).toBeUndefined()
+      expect(node?.resolve?.alias?.['@conciv/unplugin/nextjs']).toBeUndefined()
     })
 
     it('generates the client entry file when enabled', () => {
@@ -816,7 +816,7 @@ registerHooks({resolve: (specifier, context, next) => {
   resolved.push(specifier)
   return next(specifier, context)
 }})
-const entry = await import('@conciv/plugin/nextjs')
+const entry = await import('@conciv/unplugin/nextjs')
 await entry.register()
 console.log(JSON.stringify({resolved, exports: Object.keys(entry)}))
 `

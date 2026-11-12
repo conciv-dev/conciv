@@ -1,1 +1,1 @@
-export * from '@conciv/plugin/nextjs'
+export * from '@conciv/unplugin/nextjs'

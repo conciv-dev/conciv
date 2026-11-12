@@ -70,8 +70,12 @@ test('the drift guard passes when only the packed @conciv file: tarballs differ'
   expect(driftError([ORPC, IS_ODD, packedConciv('/tmp/a')], [ORPC, IS_ODD, packedConciv('/tmp/b')])).toBe('')
 })
 
-test('the drift guard ignores packed @conciv file: entries the committed lockfile does not have', () => {
-  expect(driftError([ORPC, IS_ODD], [ORPC, IS_ODD, packedConciv('/tmp/b')])).toBe('')
+test('the drift guard names a packed @conciv package the committed lockfile does not have', () => {
+  const error = driftError([ORPC, IS_ODD], [ORPC, IS_ODD, packedConciv('/tmp/b')])
+  expect(error).toContain('packed fixture install resolved different packages than the committed lockfile')
+  expect(error).toContain('\n+ @conciv/it (packed)\n')
+  expect(error).not.toContain('@orpc/tanstack-query')
+  expect(error).not.toContain('is-odd')
 })
 
 test('the drift guard names an added, a removed and a re-integrity registry package', () => {

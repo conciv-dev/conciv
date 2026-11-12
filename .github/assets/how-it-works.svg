@@ -74,5 +74,5 @@
 
   <!-- ============ footer ============ -->
   <line x1="60" y1="452" x2="1020" y2="452" stroke="#2b1f18"/>
-  <text x="540" y="488" fill="#8f8379" font-size="15" text-anchor="middle">one plugin wires it all: <tspan fill="#f6f0e6" font-weight="600" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace">@conciv/plugin</tspan>  —  vite · webpack · rspack · rollup · esbuild</text>
+  <text x="540" y="488" fill="#8f8379" font-size="15" text-anchor="middle">one plugin wires it all: <tspan fill="#f6f0e6" font-weight="600" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace">@conciv/unplugin</tspan>  —  vite · webpack · rspack · rollup · esbuild</text>
 </svg>

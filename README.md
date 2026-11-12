@@ -67,7 +67,7 @@ capable as the tool you already trust.
   <img src="./.github/assets/how-it-works.png" alt="Architecture: the browser widget talks to @conciv/core over /api/* (SSE + JSON); core spawns the harness (claude/codex); the plugin injects the widget" width="840">
 </div>
 
-`@conciv/plugin` boots a framework-free **hono** engine (`@conciv/core`) behind a set of `/api/*`
+`@conciv/unplugin` boots a framework-free **hono** engine (`@conciv/core`) behind a set of `/api/*`
 routes on its own dev port, spawns a headless harness (default `claude -p`), and injects a Solid
 widget into your previewed page. The widget probes `/api/chat/session` on load and only shows the
 conciv button when the dev routes are live, so it stays inert on a plain preview.
@@ -159,7 +159,7 @@ Under the hood (installed automatically by `@conciv/it`):
 | [`@conciv/protocol`](./packages/protocol)                            | Shared wire types + `define*` factories (chat, generative UI, test, page, harness). Zero-runtime.                        |
 | [`@conciv/core`](./packages/core)                                    | The framework-free hono engine: every `/api/*` route, session, uiBus, harness + test registries.                         |
 | [`@conciv/harness`](./packages/harness)                              | Harness adapters behind a capability interface: Claude + Codex, plus Gemini/opencode/Pi stubs.                           |
-| [`@conciv/plugin`](./packages/plugin)                                | The dev agent as an unplugin: `vite` (full) + webpack/rspack/rollup/esbuild. Boots core + injects the widget.            |
+| [`@conciv/unplugin`](./packages/unplugin)                            | The dev agent as an unplugin: `vite` (full) + webpack/rspack/rollup/esbuild. Boots core + injects the widget.            |
 | [`@conciv/embed`](./packages/embed)                                  | The browser half: mounts the conciv Solid app into an open Shadow DOM, with the chat UI, cards, and page-control driver. |
 | [`@conciv/cli`](./packages/cli)                                      | The `conciv` CLI the agent calls from Bash: `tools server / page / test / open` + `ui`.                                  |
 | [`@conciv/extension-whiteboard`](./packages/extensions/whiteboard)   | Built-in: the shared Excalidraw canvas with AI drawing and source-anchored comments.                                     |

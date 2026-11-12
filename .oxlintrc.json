@@ -414,7 +414,7 @@
     "**/*.gen.ts",
     "**/*.gen.tsx",
     "**/test-results",
-    "packages/plugin/test/fixtures/**",
+    "packages/unplugin/test/fixtures/**",
     "packages/extensions/tanstack/test/fixtures/**",
     "packages/extensions/design/test/fixtures/host/**",
     "packages/extensions/design/test/fixtures/provenance/**",
