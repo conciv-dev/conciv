@@ -229,6 +229,10 @@ export const CodeExecuteResultSchema = z.discriminatedUnion('ok', [
 
 export type CodeExecuteResult = z.infer<typeof CodeExecuteResultSchema>
 
+export const CodeDiscoverResultSchema = z.object({tools: z.unknown(), finished: z.array(PageQueueResultSchema)})
+
+export type CodeDiscoverResult = z.infer<typeof CodeDiscoverResultSchema>
+
 export const CodeDescriptionsSchema = z.object({execute: z.string(), discover: z.string().nullable()})
 
 export type CodeDescriptions = z.infer<typeof CodeDescriptionsSchema>
@@ -359,7 +363,7 @@ export const contract = {
     discover: oc
       .errors({...noCodeMode, ...approvalDenied})
       .input(CodeSessionInput.extend({toolNames: z.array(z.string())}))
-      .output(z.unknown()),
+      .output(CodeDiscoverResultSchema),
   },
   page: {
     queue: {

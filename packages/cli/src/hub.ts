@@ -8,6 +8,7 @@ import {serveMCPStdio} from '@tanstack/ai-mcp/server/stdio'
 import {checkEngines, concivHome, type EngineRow} from '@conciv/db'
 import {
   cappedText,
+  codeDiscoverReply,
   codeExecuteReply,
   engineTooOld,
   makeRpcClient,
@@ -298,9 +299,10 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
     const discovered = await routed(
       tab,
       (rpc, aborted) => rpc.code.discover({...sessionOf(tab), toolNames}, {signal: aborted}),
-      (value) => ({content: [{type: 'text', text: JSON.stringify(value) ?? 'null'}]}),
+      codeDiscoverReply,
       signal,
     )
+    settleDelivered(discovered.value?.finished ?? [])
     return discovered.reply
   }
 

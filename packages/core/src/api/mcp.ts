@@ -5,10 +5,12 @@ import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {
   cappedText,
   cappedValue,
+  codeDiscoverReply,
   codeExecuteReply,
   queueNotice,
   safeStringify,
   type CodeDescriptions,
+  type CodeDiscoverResult,
   type CodeExecuteResult,
   type CodeReply,
   type CodeReplyContent,
@@ -265,7 +267,7 @@ export type CodeSession = {
   runner: CodeRunner
   describe: () => CodeDescriptions
   execute: (typescriptCode: string) => Promise<CodeRun>
-  discover: (toolNames: string[]) => Promise<unknown>
+  discover: (toolNames: string[]) => Promise<CodeDiscoverResult>
   direct: (tool: CodeTool, input: unknown) => Promise<CodeReply>
 }
 
@@ -317,7 +319,8 @@ export async function openCodeSession(
     },
     discover: async (toolNames) => {
       if (runner.discover === null) throw new Error('no tools to discover')
-      return cappedValue(await runner.discover.run(toolNames))
+      const tools = cappedValue(await runner.discover.run(toolNames))
+      return {tools, finished: finished()}
     },
     direct: async (tool, input) => {
       const asking = caller.askBeforeCalls ? approvedFirst(deps, scope.id, tool, publish) : tool
@@ -363,11 +366,7 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: CodeCall
             name: DISCOVER_TOOL_NAME,
             description: discover.description,
             inputSchema: DiscoverInputSchema,
-          }).server(
-            gated(admit, async (args) => ({
-              content: [{type: 'text', text: cappedText(safeStringify(await code.discover(args.toolNames)))}],
-            })),
-          ),
+          }).server(gated(admit, async (args) => codeDiscoverReply(await code.discover(args.toolNames)))),
         ]
   const askingTools = code.runner.asking.map((tool) =>
     defineTool({name: tool.name, description: tool.description, inputSchema: tool.inputSchema}).server(

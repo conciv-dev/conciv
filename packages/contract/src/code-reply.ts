@@ -6,7 +6,7 @@ import {
   type ContentPart,
 } from '@conciv/protocol/chat-message-types'
 import type {PageQueueResult} from '@conciv/protocol/page-types'
-import type {CodeExecuteResult} from './contract.js'
+import type {CodeDiscoverResult, CodeExecuteResult} from './contract.js'
 
 const RESULT_CAP_CHARS = 50_000
 
@@ -32,6 +32,11 @@ export function codeExecuteReply(executed: CodeExecuteResult): CodeReply {
     return {content: [...notices, {type: 'text', text}], isError: true}
   }
   return {content: [...notices, ...resultContent(executed.result, executed.logs)]}
+}
+
+export function codeDiscoverReply(discovered: CodeDiscoverResult): CodeReply {
+  const notices = discovered.finished.map(queueNoticePart)
+  return {content: [...notices, {type: 'text', text: cappedText(safeStringify(discovered.tools))}]}
 }
 
 export function queueNotice(result: PageQueueResult): string {

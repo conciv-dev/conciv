@@ -46,8 +46,13 @@ export type QueueStart = {
 
 export type PageQueues = {
   start: (sessionId: SessionId, start: QueueStart) => Promise<{queueId: string; actions: number}>
-  play: (sessionId: SessionId, start: QueueStart) => Promise<PageQueueResult | PageQueueProgress>
-  wait: (sessionId: SessionId, queueId: string, waitMs: number) => Promise<PageQueueResult | PageQueueProgress>
+  play: (sessionId: SessionId, start: QueueStart, signal?: AbortSignal) => Promise<PageQueueResult | PageQueueProgress>
+  wait: (
+    sessionId: SessionId,
+    queueId: string,
+    waitMs: number,
+    signal?: AbortSignal,
+  ) => Promise<PageQueueResult | PageQueueProgress>
   undelivered: (sessionId: SessionId, outside: boolean) => PageQueueResult[]
   startedBy: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => PageQueueHandle[]
   deliver: (record: QueueRecord) => boolean
@@ -133,30 +138,17 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
     }
   }
 
-  const evictBeyond = (kept: QueueRecord[], limit: number): QueueRecord[] => {
-    const evicted = kept.slice(0, Math.max(0, kept.length - limit))
-    for (const old of evicted) records.delete(old.queueId)
-    return evicted
-  }
-
   const keep = (record: QueueRecord): void => {
     records.set(record.queueId, record)
-    const finished = [...records.values()].filter((each) => each.result !== null)
-    evictBeyond(
-      finished.filter((each) => each.delivered),
-      KEPT_QUEUES,
-    )
-    const dropped = evictBeyond(
-      finished.filter((each) => !each.delivered),
-      OWED_QUEUES,
-    )
-    for (const old of dropped) {
-      logError(`[core] queue ${old.queueId} was dropped with its result never delivered; ${OWED_QUEUES} are kept`)
-    }
+    const delivered = [...records.values()].filter((each) => each.result !== null && each.delivered)
+    for (const old of delivered.slice(0, Math.max(0, delivered.length - KEPT_QUEUES))) records.delete(old.queueId)
   }
 
   async function start(sessionId: SessionId, given: QueueStart): Promise<{queueId: string; actions: number}> {
     const {actions} = PageQueueActionsSchema.parse(given.input)
+    if ([...records.values()].filter((each) => !each.delivered).length >= OWED_QUEUES) {
+      throw new Error(`${OWED_QUEUES} queue results are still undelivered; collect them before queueing more`)
+    }
     const queueId = `q_${randomUUID()}`
     const playing = deps.bus.playQueue(
       sessionId,
@@ -204,12 +196,16 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
     sessionId: SessionId,
     queueId: string,
     waitMs: number,
+    signal?: AbortSignal,
   ): Promise<PageQueueResult | PageQueueProgress> {
     const record = records.get(queueId)
     if (record === undefined || record.sessionId !== sessionId) {
       throw new Error(`no queue ${queueId} on this tab`)
     }
-    if (record.result === null && waitMs > 0) await pTimeout(record.done, {milliseconds: waitMs, fallback: () => null})
+    if (record.result === null && waitMs > 0) {
+      await pTimeout(record.done, {milliseconds: waitMs, fallback: () => null, signal})
+    }
+    signal?.throwIfAborted()
     if (record.result !== null) {
       record.delivered = true
       return record.result
@@ -222,9 +218,13 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
     }
   }
 
-  async function play(sessionId: SessionId, given: QueueStart): Promise<PageQueueResult | PageQueueProgress> {
+  async function play(
+    sessionId: SessionId,
+    given: QueueStart,
+    signal?: AbortSignal,
+  ): Promise<PageQueueResult | PageQueueProgress> {
     const {queueId} = await start(sessionId, given)
-    return wait(sessionId, queueId, deps.syncMs ?? PAGE_QUEUE_SYNC_MS)
+    return wait(sessionId, queueId, deps.syncMs ?? PAGE_QUEUE_SYNC_MS, signal)
   }
 
   function undelivered(sessionId: SessionId, outside: boolean): PageQueueResult[] {
@@ -281,7 +281,11 @@ export async function startQueueFollowUp(
   const owed = queues.owedTurn(sessionId).filter((record) => queues.deliver(record))
   const results = owed.flatMap((record) => (record.result === null ? [] : [record.result]))
   if (results.length === 0) return
-  if (await plane.followUp(sessionId, results.map(queueNotice).join('\n\n'))) return
+  const started = await plane.followUp(sessionId, results.map(queueNotice).join('\n\n')).catch((error: unknown) => {
+    logError(`[core] the page queue follow-up turn for ${sessionId} failed to start: ${String(error)}`)
+    return false
+  })
+  if (started) return
   for (const record of owed) record.delivered = false
 }
 

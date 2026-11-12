@@ -247,10 +247,13 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     followUp: async (sessionId, input) => {
       if (server.driving(sessionId) || (await stores.runs.findActiveRun(sessionId)) !== null) return false
       const runId = randomUUID()
-      await server
-        .drive({threadId: sessionId, runId, kind: 'page-queue', input}, [])
-        .catch((error: unknown) => deps.log(`[chat] the page queue follow-up run ${runId} failed: ${String(error)}`))
-      return stores.runs.known(runId)
+      return server.drive({threadId: sessionId, runId, kind: 'page-queue', input}, []).then(
+        () => true,
+        (error: unknown) => {
+          deps.log(`[chat] the page queue follow-up run ${runId} failed: ${String(error)}`)
+          return false
+        },
+      )
     },
     codeRunner: async (sessionId, publish, given, outside) => {
       const model = deps.sessions.row(sessionId)?.model ?? null

@@ -4098,12 +4098,17 @@ describe('token charset', () => {
 
 const tempDir = (prefix: string): string => mkdtempSync(join(tmpdir(), prefix))
 
-function bootAt(homeDir: string, root = tempDir('conciv-outside-'), hubAccess: HubAccess = 'session'): Promise<Engine> {
+function bootAt(
+  homeDir: string,
+  root = tempDir('conciv-outside-'),
+  hubAccess: HubAccess = 'session',
+  harness = createFakeHarness(),
+): Promise<Engine> {
   return start({
     options: {stateRoot: root, hubAccess},
     root,
     launchEditor: () => {},
-    harness: createFakeHarness(),
+    harness,
     homeDir,
   })
 }
@@ -5006,10 +5011,10 @@ describe('page action queue delivery', () => {
 
   type QueuedOnTab = {id: string; replies: string[]}
 
-  async function engineWithTab() {
+  async function engineWithTab(harness = createFakeHarness()) {
     const home = tempDir('conciv-queue-home-')
     withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
-    const engine = await bootAt(home, tempDir('conciv-queue-'), 'open')
+    const engine = await bootAt(home, tempDir('conciv-queue-'), 'open', harness)
     engines.push(engine)
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
@@ -5058,9 +5063,10 @@ describe('page action queue delivery', () => {
       return seenChunk(matches)
     }
     const finishedEvent = (queueId: string) => seenChunk((chunk) => pageQueueEvent.parse(chunk)?.queueId === queueId)
-    const followUpFinished = async (): Promise<void> => {
-      await seenChunk((chunk) => sessionRunEvent.parse(chunk) !== null)
-      const runId = seen.flatMap((chunk) => sessionRunEvent.parse(chunk) ?? [])[0]?.runId ?? ''
+    const runIds = () => seen.flatMap((chunk) => sessionRunEvent.parse(chunk)?.runId ?? [])
+    const followUpFinished = async (earlier: readonly string[] = []): Promise<void> => {
+      await seenChunk(() => runIds().some((runId) => !earlier.includes(runId)))
+      const runId = runIds().find((known) => !earlier.includes(known)) ?? ''
       const joined = webSocket(`ws://127.0.0.1:${engine.port}/t/${engine.agentToken}${CHAT_WS_PATH}`)
       for await (const chunk of joined.joinRun(runId, pages.signal)) {
         if (chunk.type === ChatEventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') return
@@ -5074,7 +5080,32 @@ describe('page action queue delivery', () => {
       await answering
     }
     void watching
-    return {base, sessionId, tab, nextQueue, play, hub, close, queueEvents, finishedEvent, followUpFinished}
+    const discover = async (toolNames: string[]): Promise<unknown> => {
+      const mcp = await connectMcpClient(`${base}/api/mcp`, {...HUB, [CONCIV_SESSION_HEADER]: sessionId})
+      try {
+        const tool = (await mcp.tools()).find((entry) => entry.name === 'discover_tools')
+        if (!tool?.execute) throw new Error('discover_tools not on /api/mcp')
+        return await tool.execute({toolNames})
+      } finally {
+        await mcp.close()
+      }
+    }
+    return {
+      base,
+      sessionId,
+      engine,
+      tab,
+      nextQueue,
+      play,
+      hub,
+      discover,
+      close,
+      queueEvents,
+      finishedEvent,
+      followUpFinished,
+      runIds,
+      seenChunk,
+    }
   }
 
   const queued = (actions: unknown[] = ACTIONS) =>
@@ -5171,6 +5202,20 @@ describe('page action queue delivery', () => {
     expect(after).not.toContain(queueId)
   })
 
+  it('a discover_tools reply carries a finished result the session was not handed yet', async () => {
+    const page = await engineWithTab()
+    const {queueId} = handleOf(await page.hub(queued()))
+    const onTab = await page.nextQueue()
+    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    await page.finishedEvent(queueId)
+    const [notice] = z
+      .array(z.object({type: z.literal('text'), content: z.string()}))
+      .parse(await page.discover(['page_fill']))
+    expect(notice?.content.split('\n')[0]).toBe(`queue ${queueId} finished: 2 played, 0 failed`)
+    expect(String(await page.hub('return 1'))).not.toContain(queueId)
+  })
+
   it('external_page_queue returns every outcome in-call, and neither the next reply nor the chat repeats it', async () => {
     const page = await engineWithTab()
     const replied = page.hub(played)
@@ -5232,5 +5277,37 @@ describe('page action queue delivery', () => {
     expect(parts).toContainEqual({type: 'text', content: 'ok'})
     expect(hydrated.activeRun).toBeNull()
     expect(page.queueEvents()).toHaveLength(1)
+  })
+
+  it('an in-page queue that finishes while its run is live starts the follow-up turn once that run ends', async () => {
+    const harness = createFakeHarness()
+    const page = await engineWithTab(harness)
+    harness.script.hold()
+    const viewer = new AbortController()
+    onTestFinished(() => viewer.abort())
+    const turn = fetch(`${page.base}${CHAT_SSE_PATH}`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({
+        threadId: page.sessionId,
+        runId: 'queueing-run',
+        messages: [{id: 'queueing-run-user', role: 'user', content: 'fill the form'}],
+        tools: [],
+        context: [],
+      }),
+      signal: viewer.signal,
+    })
+    await page.seenChunk(() => page.runIds().includes('queueing-run'))
+    const handle = page.tab.registry.call({name: 'page_queue', input: {actions: ACTIONS}})
+    const onTab = await page.nextQueue()
+    const {queueId} = z.object({queueId: z.string()}).parse(await handle)
+    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    await page.finishedEvent(queueId)
+    harness.script.release()
+    await (await turn).text()
+    await page.followUpFinished(['queueing-run'])
+    expect(page.runIds().filter((runId) => runId !== 'queueing-run')).toHaveLength(1)
+    expect((await page.tab.chat.hydrate({sessionId: page.sessionId})).activeRun).toBeNull()
   })
 })

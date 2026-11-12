@@ -814,7 +814,7 @@ describe('page action queue', () => {
     )
   }
 
-  function queuePage() {
+  function queuePage(delivered: (requestId: string) => Promise<void> = () => Promise.resolve()) {
     const heard: string[] = []
     render(() => <QueueForm heard={(event) => heard.push(event)} />)
     const host = document.createElement('div')
@@ -837,7 +837,10 @@ describe('page action queue', () => {
     const plane = startPagePlane({
       source: {
         queries: (signal) => streamed(frames, wake, signal ?? new AbortController().signal),
-        reply: async ({requestId, outcome}) => replyTo(requestId).resolve(outcome),
+        reply: async ({requestId, outcome}) => {
+          await delivered(requestId)
+          replyTo(requestId).resolve(outcome)
+        },
       },
       tools: collectClientTools([pageExtension]),
     })
@@ -919,6 +922,19 @@ describe('page action queue', () => {
     const after = queuePage()
     await after.queue('q-next', [fill('city', 'Paris')]).played
     await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).not.toBeInTheDocument()
+    expect(before.heard).not.toContain('first')
+  })
+
+  it('a queue whose acceptance never reached the engine plays nothing', async () => {
+    const {heard, queue} = queuePage(async (requestId) => {
+      if (requestId === 'q-unsent-accept') throw new Error(`the socket closed before ${requestId} was sent`)
+    })
+    const outcomes = await queue('q-unsent', [fill('first', 'Ada'), fill('last', 'Byron')]).played
+    expect(outcomes).toMatchObject([
+      {ok: false, error: {message: expect.stringContaining('did not run')}},
+      {ok: false, error: {message: expect.stringContaining('did not run')}},
+    ])
+    expect(heard).toEqual([])
   })
 
   it('a queued fill types into a contenteditable editor', async () => {
@@ -942,28 +958,30 @@ describe('page action queue', () => {
     ])
   })
 
-  it('two clicks on the mask stop the queue: actions not reached say so and nothing after the stop changes', async () => {
-    const {queue} = queuePage()
+  it('two clicks on the mask stop the queue: no action after the stop runs and the mask comes down', async () => {
+    const sent = Promise.withResolvers<void>()
+    const {heard, queue} = queuePage((requestId) => (requestId === 'q-stop-accept' ? sent.promise : Promise.resolve()))
     const played = queue(
       'q-stop',
       FIELDS.map((name) => fill(name, `${name} value`)),
     )
-    await played.each[0]
+    await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).toBeInTheDocument()
     await userEvent.click(page.getByRole('button', {name: 'Send'}), {force: true})
     await userEvent.click(page.getByRole('button', {name: 'Send'}), {force: true})
+    sent.resolve()
     const outcomes = await played.played
-    const reached = outcomes.findIndex((outcome) => !outcome.ok)
-    expect(reached).toBeGreaterThan(0)
-    expect(outcomes.slice(0, reached).every((outcome) => outcome.ok)).toBe(true)
-    for (const outcome of outcomes.slice(reached)) {
-      expect(outcome).toMatchObject({
-        ok: false,
-        error: {message: 'stopped by the user before this action', raised: {code: 'QUEUE_STOPPED'}},
-      })
-    }
-    for (const name of FIELDS.slice(reached)) {
-      await expect.element(page.getByRole('textbox', {name, exact: true})).toHaveValue('')
-    }
+    expect(outcomes).toEqual(
+      FIELDS.map(() =>
+        expect.objectContaining({
+          ok: false,
+          error: expect.objectContaining({
+            message: 'stopped by the user before this action',
+            raised: expect.objectContaining({code: 'QUEUE_STOPPED'}),
+          }),
+        }),
+      ),
+    )
+    expect(heard).toEqual([])
     await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).not.toBeInTheDocument()
   })
 

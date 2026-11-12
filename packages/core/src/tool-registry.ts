@@ -54,7 +54,7 @@ function runQueueTool(env: PageEnv, tool: ForwardedPageTool, record: Record<stri
     outside: request.outside === true,
     toolCallId: request.toolCallId,
   }
-  if (tool.name === PAGE_QUEUE_TOOL) return env.queues.play(session().id, given)
+  if (tool.name === PAGE_QUEUE_TOOL) return env.queues.play(session().id, given, request.signal)
   return env.queues.start(session().id, given)
 }
 
