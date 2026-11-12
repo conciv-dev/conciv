@@ -2,7 +2,7 @@ import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, test, 
 import {main as cliMain} from '../src/main.js'
 import {runCli} from '../src/run.js'
 import {execFile, execFileSync, spawn, spawnSync} from 'node:child_process'
-import {once} from 'node:events'
+import {EventEmitter, once} from 'node:events'
 import {createServer} from 'node:net'
 import {chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
@@ -19,7 +19,7 @@ import {loginThroughTerminal} from '@conciv/harness-testkit'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {stdioTransport} from '@tanstack/ai-mcp/stdio'
 import {CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER, TabOpenSchema} from '@conciv/protocol/chat-types'
-import {approvalAskOf, ChatEventType} from '@conciv/protocol/chat-event-types'
+import {approvalAskOf, type ChatEvent, ChatEventType, pageQueueEvent} from '@conciv/protocol/chat-event-types'
 import {PageQuerySchema} from '@conciv/protocol/page-types'
 import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PageServingFrame} from '@conciv/protocol/push-types'
@@ -1811,14 +1811,49 @@ describe('cli', () => {
         const {home, mcp} = fakeClaude()
         expect(mcp('connect', 'claude')).toMatchObject({status: 0})
         const accepted: Array<{id: string; replies: string[]}> = []
-        const engine = await engineWithTab(home, {hubAccess: 'open', queued: (queue) => accepted.push(queue)})
+        const arrivals = new EventEmitter()
+        const engine = await engineWithTab(home, {
+          hubAccess: 'open',
+          queued: (queue) => {
+            accepted.push(queue)
+            arrivals.emit('queued')
+          },
+        })
+        const events = await engine.page.chat.events({sessionId: engine.sessionId}, {signal: pages.signal})
+        const finishedIds = new Set<string>()
+        void collectFinished(events, (queueId) => {
+          finishedIds.add(queueId)
+          arrivals.emit('finished')
+        })
+        const queueAt = async (index: number): Promise<{id: string; replies: string[]}> => {
+          const queue = accepted[index]
+          if (queue !== undefined) return queue
+          await once(arrivals, 'queued')
+          return queueAt(index)
+        }
+        const finishedOf = async (queueId: string): Promise<void> => {
+          if (finishedIds.has(queueId)) return
+          await once(arrivals, 'finished')
+          return finishedOf(queueId)
+        }
         const play = async (index: number) => {
-          await vi.waitFor(() => expect(accepted.length).toBeGreaterThan(index))
-          for (const requestId of accepted[index]?.replies ?? []) {
+          const queue = await queueAt(index)
+          for (const requestId of queue.replies) {
             await engine.page.page.reply({requestId, outcome: {ok: true, result: {ok: true}}})
           }
+          await finishedOf(queue.id)
         }
         return {home, engine, play, accepted}
+      }
+
+      async function collectFinished(
+        events: AsyncIterable<ChatEvent>,
+        heard: (queueId: string) => void,
+      ): Promise<void> {
+        for await (const chunk of events) {
+          const queueId = pageQueueEvent.parse(chunk)?.queueId
+          if (queueId !== undefined) heard(queueId)
+        }
       }
 
       function rawHub(home: string) {
@@ -1929,14 +1964,8 @@ describe('cli', () => {
             hubAccess: 'open',
             shared: {root: engine.root, sessionId: engine.sessionId},
           })
-          const ended = await vi.waitFor(
-            async () => {
-              const polled = await client.poll(task.taskId)
-              expect(polled).toMatchObject({taskId: task.taskId, status: 'failed'})
-              return polled
-            },
-            {timeout: 10_000},
-          )
+          const ended = await client.poll(task.taskId)
+          expect(ended).toMatchObject({taskId: task.taskId, status: 'failed'})
           expect(String(ended?.['statusMessage'])).toMatch(
             /^queue q_\S+ was lost: the engine holding the tab no longer has it/,
           )
@@ -1970,11 +1999,8 @@ describe('cli', () => {
           const task = TaskSchema.parse(await client.execute(QUEUE, engine.sessionId))
           expect(await client.poll(task.taskId)).toMatchObject({taskId: task.taskId, status: 'working'})
           await play(0)
-          const done = await vi.waitFor(async () => {
-            const polled = await client.poll(task.taskId)
-            expect(polled).toMatchObject({status: 'completed'})
-            return polled
-          })
+          const done = await client.poll(task.taskId)
+          expect(done).toMatchObject({status: 'completed'})
           const text = JSON.stringify(done?.['result'])
           expect(text).toContain('\\"status\\":\\"finished\\"')
           expect(text).toContain('\\"index\\":0,\\"tool\\":\\"page_fill\\",\\"ok\\":true')
@@ -2003,11 +2029,8 @@ describe('cli', () => {
           const queueId = /"queueId\\":\\"(q_[^\\]+)/.exec(queued)?.[1]
           expect(queueId).toMatch(/^q_/)
           await play(0)
-          const next = await vi.waitFor(async () => {
-            const reply = await onTab('return 1')
-            expect(reply).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
-            return reply
-          })
+          const next = await onTab('return 1')
+          expect(next).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
           expect(next).toContain('\\"result\\":1')
           expect(next.split(`queue ${queueId} finished`)).toHaveLength(2)
           expect(await onTab('return 2')).not.toContain(`queue ${queueId}`)
@@ -2025,10 +2048,8 @@ describe('cli', () => {
           expect(started).toMatchObject({resultType: 'task', ttlMs: 3_600_000})
           const task = TaskSchema.parse(started)
           await play(0)
-          await vi.waitFor(async () =>
-            expect(JSON.stringify(await client.execute('return 1', engine.sessionId))).toMatch(
-              /queue q_\S+ finished: 2 played, 0 failed/,
-            ),
+          expect(JSON.stringify(await client.execute('return 1', engine.sessionId))).toMatch(
+            /queue q_\S+ finished: 2 played, 0 failed/,
           )
           expect((await client.request('tasks/get', {taskId: task.taskId})).error).toMatchObject({code: -32602})
         } finally {
