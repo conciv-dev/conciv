@@ -42,7 +42,7 @@ import {
 } from '@conciv/contract'
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
-import {chatRuns, openDb, type ConcivDb} from '@conciv/db'
+import {chatRuns, openDb, sessions as sessionTable, type ConcivDb} from '@conciv/db'
 import {
   createClientSettings,
   defineTool,
@@ -676,6 +676,21 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
     } finally {
       written.mockRestore()
       await once(taken.close(), 'close')
+    }
+  })
+})
+
+describe('configured session rows', () => {
+  it('the configured conciv and harness session rows exist once the engine resolves', async () => {
+    const root = tempDir()
+    const configured = {sessionId: 'conciv_configured', claudeSessionId: 'native-configured'}
+    const made = await makeApp({cfg: resolveConfig(configured, root), cwd: root, openInEditor: () => {}})
+    try {
+      const rows = await made.chat.db.select().from(sessionTable)
+      expect(rows.map((row) => row.id)).toContain('conciv_configured')
+      expect(rows.map((row) => row.harnessSessionId)).toContain('native-configured')
+    } finally {
+      await made.dispose()
     }
   })
 })
