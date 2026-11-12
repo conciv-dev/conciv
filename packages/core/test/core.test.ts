@@ -710,22 +710,40 @@ describe('page bus and the session scope', () => {
     queue: z.object({id: z.string(), replies: z.array(z.string())}),
   })
 
+  type QueueFrame = z.infer<typeof QueueFrameSchema>
+
   function queueingTab(
     bus: ReturnType<typeof makePageBus>,
     focus?: () => {focusedAt: number; visible: boolean},
-  ): z.infer<typeof QueueFrameSchema>[] {
-    const queued: z.infer<typeof QueueFrameSchema>[] = []
+  ): QueueFrame[] {
+    return arrivingTab(bus, focus).queued
+  }
+
+  function arrivingTab(
+    bus: ReturnType<typeof makePageBus>,
+    focus?: () => {focusedAt: number; visible: boolean},
+  ): {queued: QueueFrame[]; frame: (index: number) => Promise<QueueFrame>} {
+    const queued: QueueFrame[] = []
+    const arrivals = new Map<number, PromiseWithResolvers<QueueFrame>>()
+    const arrival = (index: number): PromiseWithResolvers<QueueFrame> => {
+      const known = arrivals.get(index)
+      if (known !== undefined) return known
+      const made = Promise.withResolvers<QueueFrame>()
+      arrivals.set(index, made)
+      return made
+    }
     bus.subscribe(
       SESSION_A,
       (frame) => {
         const parsed = QueueFrameSchema.safeParse(frame)
         if (!parsed.success) return
         queued.push(parsed.data)
+        arrival(queued.length - 1).resolve(parsed.data)
         queueMicrotask(() => bus.resolve(SESSION_A, parsed.data.requestId, {ok: true, result: {}}))
       },
       focus,
     )
-    return queued
+    return {queued, frame: (index) => arrival(index).promise}
   }
 
   function pageQueues(bus: ReturnType<typeof makePageBus>, syncMs?: number): PageQueues {
@@ -806,13 +824,13 @@ describe('page bus and the session scope', () => {
 
   it('a sync queue returns its result in-call, and it is never announced or owed afterwards', async () => {
     const bus = makePageBus(2000)
-    const queued = queueingTab(bus)
+    const tab = arrivingTab(bus)
     const queues = pageQueues(bus)
     const announced: string[] = []
     queues.finished((record) => announced.push(record.queueId))
     const played = queues.play(SESSION_A, queueStart([{tool: 'page_check', selector: '#agree'}]))
-    await vi.waitFor(() => expect(queued).toHaveLength(1))
-    bus.resolve(SESSION_A, queued[0]?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
+    const onTab = await tab.frame(0)
+    bus.resolve(SESSION_A, onTab.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
     const result = await played
     expect(result).toMatchObject({status: 'finished', played: 1, failed: 0})
     await setImmediate()
@@ -865,7 +883,8 @@ describe('page bus and the session scope', () => {
 
   it('an async queue started while another plays answers its queueId at once, and its actions reach the tab only after the first finishes', async () => {
     const bus = makePageBus(2000)
-    const queued = queueingTab(bus)
+    const tab = arrivingTab(bus)
+    const queued = tab.queued
     const queues = pageQueues(bus)
     const finished = finishedOf(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
@@ -881,14 +900,16 @@ describe('page bus and the session scope', () => {
     })
     bus.resolve(SESSION_A, queued[0]?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
     await finished(earlier.queueId)
-    await vi.waitFor(() => expect(queued.map((frame) => frame.queue.id)).toEqual([earlier.queueId, later?.queueId]))
-    bus.resolve(SESSION_A, queued[1]?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
+    const second = await tab.frame(1)
+    expect(queued.map((frame) => frame.queue.id)).toEqual([earlier.queueId, later?.queueId])
+    bus.resolve(SESSION_A, second.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
     await finished(later?.queueId ?? '')
   })
 
   it('a sync queue started while another plays waits for its turn and returns its own result', async () => {
     const bus = makePageBus(2000)
-    const queued = queueingTab(bus)
+    const tab = arrivingTab(bus)
+    const queued = tab.queued
     const queues = pageQueues(bus)
     const finished = finishedOf(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
@@ -898,9 +919,9 @@ describe('page bus and the session scope', () => {
     expect(queued).toHaveLength(1)
     bus.resolve(SESSION_A, queued[0]?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
     await finished(earlier.queueId)
-    await vi.waitFor(() => expect(queued).toHaveLength(2))
-    bus.resolve(SESSION_A, queued[1]?.queue.replies[0] ?? '', {ok: true, result: {checked: false}})
-    expect(await played).toMatchObject({queueId: queued[1]?.queue.id, status: 'finished', played: 1, failed: 0})
+    const second = await tab.frame(1)
+    bus.resolve(SESSION_A, second.queue.replies[0] ?? '', {ok: true, result: {checked: false}})
+    expect(await played).toMatchObject({queueId: second.queue.id, status: 'finished', played: 1, failed: 0})
   })
 
   it('queues started all at once past 1000 owed are refused: a start that is still waiting for the page holds its place', async () => {
@@ -916,6 +937,7 @@ describe('page bus and the session scope', () => {
       })
     })
     const queues = pageQueues(bus)
+    const finished = finishedOf(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
     const starts = await Promise.allSettled(
       Array.from({length: 1001}, () => queues.start(SESSION_A, queueStart(check))),
@@ -926,8 +948,7 @@ describe('page bus and the session scope', () => {
         reason: new Error('1000 queue results are still undelivered; collect them before queueing more'),
       },
     ])
-    await vi.waitFor(() => expect(queued).toHaveLength(1000))
-    await setImmediate()
+    await Promise.all(starts.flatMap((each) => (each.status === 'fulfilled' ? [finished(each.value.queueId)] : [])))
     expect(queued).toHaveLength(1000)
   })
 
@@ -1003,11 +1024,12 @@ describe('page bus and the session scope', () => {
     const earlier = await queues.start(SESSION_A, queueStart(check))
     const later = queues.start(SESSION_A, queueStart(check))
     closeFirst()
-    const second = queueingTab(bus)
+    const second = arrivingTab(bus)
     const {queueId} = await later
+    const onSecond = await second.frame(0)
     expect(onFirst.map((frame) => frame.queue.id)).toEqual([earlier.queueId])
-    await vi.waitFor(() => expect(second.map((frame) => frame.queue.id)).toEqual([queueId]))
-    expect(bus.resolve(SESSION_A, second[0]?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})).toBe(true)
+    expect(second.queued.map((frame) => frame.queue.id)).toEqual([queueId])
+    expect(bus.resolve(SESSION_A, onSecond.queue.replies[0] ?? '', {ok: true, result: {checked: true}})).toBe(true)
     await finished(queueId)
     expect(await queues.wait(SESSION_A, queueId, 0)).toMatchObject({queueId, status: 'finished', played: 1})
   })
