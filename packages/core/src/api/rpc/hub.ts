@@ -1,9 +1,14 @@
+import {statSync} from 'node:fs'
+import {mkdir, watch} from 'node:fs/promises'
 import {homedir} from 'node:os'
+import {join} from 'node:path'
+import {isEqual} from 'es-toolkit'
 import {z} from 'zod'
 import {concivHome} from '@conciv/db'
 import {detectHarnesses} from '@conciv/harness-init/detect'
 import {createHubConnections} from '@conciv/harness-init/hub'
 import {initContributions} from '@conciv/harness-init/registry'
+import type {HubAgents} from '@conciv/protocol/chat-types'
 import type {InitHarnessId} from '@conciv/protocol/harness-types'
 import {logError} from '../../lib/debug.js'
 import corePackage from '../../../package.json' with {type: 'json'}
@@ -13,10 +18,13 @@ const DetectionEnvSchema = z.object({
   HOME: z.string().min(1).catch(homedir()),
 })
 
+const HOME_DB = 'home.db'
+
 type HubConnections = ReturnType<typeof createHubConnections>
 
 export function createHubInstaller(homeDir: string | undefined) {
-  const connections = (): HubConnections => createHubConnections(concivHome({homeDir, env: process.env}))
+  const home = (): string => concivHome({homeDir, env: process.env})
+  const connections = (): HubConnections => createHubConnections(home())
   const connected = (): ReturnType<HubConnections['list']> => {
     try {
       return connections().list()
@@ -25,17 +33,42 @@ export function createHubInstaller(homeDir: string | undefined) {
       return []
     }
   }
+  const agents = (): HubAgents => {
+    const present = connected()
+    const installs = detectHarnesses(DetectionEnvSchema.parse(process.env)).flatMap(({id}) => {
+      const hub = initContributions[id].hub
+      if (hub === undefined || present.some((connection) => connection.harness === id)) return []
+      return [{harnessId: id, name: hub.name}]
+    })
+    return {
+      installs,
+      connections: present.map((connection) => ({harnessId: connection.harness, name: connection.name})),
+    }
+  }
   return {
-    installs: (): Array<{harnessId: InitHarnessId; name: string}> => {
-      const present = connected()
-      return detectHarnesses(DetectionEnvSchema.parse(process.env)).flatMap(({id}) => {
-        const hub = initContributions[id].hub
-        if (hub === undefined || present.some((connection) => connection.harness === id)) return []
-        return [{harnessId: id, name: hub.name}]
-      })
+    async *agents(signal: AbortSignal | undefined): AsyncGenerator<HubAgents, void, void> {
+      const folder = home()
+      await mkdir(folder, {recursive: true, mode: 0o700})
+      const changes = watch(folder, {signal})
+      let written = homeDbStamp(folder)
+      let current = agents()
+      yield current
+      try {
+        for await (const change of changes) {
+          if (change.filename?.startsWith(HOME_DB) === false) continue
+          const stamp = homeDbStamp(folder)
+          if (stamp === written) continue
+          written = stamp
+          const next = agents()
+          if (isEqual(next, current)) continue
+          current = next
+          yield current
+        }
+      } catch (error) {
+        if (signal?.aborted === true) return
+        throw error
+      }
     },
-    connections: (): Array<{harnessId: InitHarnessId; name: string}> =>
-      connected().map((connection) => ({harnessId: connection.harness, name: connection.name})),
     connect: (harness: InitHarnessId) => connections().connect(harness, hubCommand(harness)),
     disconnect: (harness: InitHarnessId) => connections().disconnect(harness),
     generation: (): number | null => {
@@ -50,4 +83,13 @@ export function createHubInstaller(homeDir: string | undefined) {
 
 function hubCommand(harness: InitHarnessId): string[] {
   return ['npx', '-y', `@conciv/cli@${corePackage.version}`, 'mcp', 'serve', '--agent', harness]
+}
+
+function homeDbStamp(folder: string): string {
+  return [HOME_DB, `${HOME_DB}-wal`]
+    .map((file) => {
+      const found = statSync(join(folder, file), {throwIfNoEntry: false})
+      return found === undefined ? 'absent' : `${found.mtimeMs}:${found.size}`
+    })
+    .join('|')
 }

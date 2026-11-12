@@ -74,7 +74,8 @@ function writeFixtureFiles(appDir: string, overrides: Record<string, string>): v
     join(appDir, 'next.config.ts'),
     [
       `import {withConciv} from '@conciv/it/plugin/nextjs'`,
-      `export default withConciv({typescript: {ignoreBuildErrors: true}}, {port: ${ENGINE_PORT}, devEndpointDir: ${JSON.stringify(DEV_ENDPOINT_DIR)}})`,
+      `import tanstack from '@conciv/extension-tanstack'`,
+      `export default withConciv({typescript: {ignoreBuildErrors: true}}, {port: ${ENGINE_PORT}, devEndpointDir: ${JSON.stringify(DEV_ENDPOINT_DIR)}, extensions: [tanstack()]})`,
       ``,
     ].join('\n'),
   )
@@ -137,7 +138,6 @@ function writeFixtureFiles(appDir: string, overrides: Record<string, string>): v
     join(appDir, 'app/page.tsx'),
     `export default function Home() { return <h1 id="ready">fixture-ready</h1> }\n`,
   )
-  writeFileSync(join(appDir, 'conciv/extensions/tanstack.tsx'), `export {default} from '@conciv/extension-tanstack'\n`)
 }
 
 export function secondExtensionSource(): string {

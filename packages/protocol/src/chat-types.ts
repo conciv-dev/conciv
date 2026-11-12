@@ -19,9 +19,13 @@ export const CONCIV_ORIGIN_HEADER = 'conciv-origin'
 
 export const CONCIV_CLIENT_HEADER = 'conciv-client'
 
+export const CONCIV_NAMED_TAB_HEADER = 'conciv-named-tab'
+
 export const OUTSIDE_SESSION_TARGET = 'outside-session'
 
-export type HubAccess = 'open' | 'session' | 'project'
+export const HubAccessSchema = z.enum(['open', 'session', 'project'])
+
+export type HubAccess = z.infer<typeof HubAccessSchema>
 
 export const CODE_MODE_SYNTHETIC_PART_MARKER = 'codeModeSynthetic'
 

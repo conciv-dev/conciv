@@ -10,13 +10,12 @@ import {delimiter, dirname, join, relative, resolve as resolvePath} from 'node:p
 import {fileURLToPath} from 'node:url'
 import {z} from 'zod'
 import {defineExtension, defineTool} from '@conciv/extension'
-import {design} from '@conciv/extension-design/server'
 import {createServer as createHttpServer, type Server} from 'node:http'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {engineOrigin} from '../src/engine-origin.js'
-import {runRevoke} from '../src/auth.js'
+import {runLink, runRevoke} from '../src/auth.js'
 import {start as startEngine} from '@conciv/core'
-import {loginThroughTerminal} from '@conciv/harness-testkit'
+import {exchangePrintedCode, loginThroughTerminal} from '@conciv/harness-testkit'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {stdioTransport} from '@tanstack/ai-mcp/stdio'
 import {CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER, TabOpenSchema} from '@conciv/protocol/chat-types'
@@ -251,7 +250,7 @@ describe('cli', () => {
       it('offline, group help and group verbs fail with the start-a-server envelope', () => {
         for (const argv of [
           ['tools', 'page', '--help'],
-          ['tools', 'design', '--help'],
+          ['tools', 'acme', '--help'],
           ['tools', 'page', 'snapshot'],
         ]) {
           const run = conciv(argv)
@@ -316,6 +315,8 @@ describe('cli', () => {
         strokes: z.array(z.object({x: z.number()}).loose()),
         parts: z.array(z.unknown()).optional(),
         label: z.string().nullable().optional(),
+        colors: z.array(z.string()).optional(),
+        image: z.string().meta({format: 'path'}).optional(),
       }),
       outputSchema: z.object({painted: z.boolean()}),
       meta: {summary: 'paint strokes and patch the acme canvas', mutating: true},
@@ -327,56 +328,52 @@ describe('cli', () => {
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 
     describe('the CLI reads its commands from the tool declarations', () => {
-      it('derives design verbs from the design tool declarations online', async () => {
-        await bootCli(cleanups, {extensions: [design]})
-        expect(await helpText(['tools', 'design', '--help'])).toContain('compare the live page with its design target')
-      })
-
-      it('sends design diff flags to the server as the tool input', async () => {
-        const kit = await bootCli(cleanups, {extensions: [design]})
-        const answer = await answerNextQuery(kit, {ok: true, result: {pathname: '/cards', search: ''}})
-        expect(await runCli(cliMain, ['tools', 'design', 'diff', '--width', '390', '--limit', '5'])).toBe(1)
-        expect(answer.seen()).toMatchObject({name: 'page_route'})
-        expect(onlyDocument(written)).toMatchObject({
-          ok: false,
-          error: {message: 'no design target for /cards at 390px; register one with design_target'},
-        })
-      })
-
       it('sends every repeat of an array flag to the server as one array', async () => {
-        const kit = await bootCli(cleanups, {extensions: [design]})
-        const answer = await answerNextQuery(kit, {ok: true, result: {padding: null, gap: null}})
+        const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
+        const answer = await answerNextQuery(kit, {ok: true, result: {painted: true}})
         expect(
           await runCli(cliMain, [
             'tools',
-            'design',
-            'winner',
-            '--selector',
-            '#a',
-            '--properties',
-            'padding',
-            '--properties',
-            'gap',
+            'acme',
+            'paint',
+            '--patch',
+            '{}',
+            '--strokes',
+            '{"x":1}',
+            '--colors',
+            'red',
+            '--colors',
+            'blue',
           ]),
         ).toBe(0)
-        expect(answer.seen()).toMatchObject({
-          name: 'design_winner',
-          input: {selector: '#a', properties: ['padding', 'gap']},
-        })
+        expect(answer.seen()).toMatchObject({name: 'acme_paint', input: {colors: ['red', 'blue']}})
       })
 
-      it('resolves a relative image path against the CLI working directory', async () => {
-        await bootCli(cleanups, {extensions: [design]})
+      it('resolves a relative path flag against the CLI working directory', async () => {
+        const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
+        const answer = await answerNextQuery(kit, {ok: true, result: {painted: true}})
         const home = process.cwd()
-        const dir = mkdtempSync(join(tmpdir(), 'conciv-design-image-'))
+        const dir = mkdtempSync(join(tmpdir(), 'conciv-path-flag-'))
         writeFileSync(join(dir, 'u1.png'), Buffer.from(ONE_PIXEL_PNG, 'base64'))
         process.chdir(dir)
         cleanups.push(async () => {
           process.chdir(home)
           rmSync(dir, {recursive: true, force: true})
         })
-        expect(await runCli(cliMain, ['tools', 'design', 'target', './u1.png', '--route', '/', '--width', '1'])).toBe(0)
-        expect(onlyDocument(written)).toMatchObject({ok: true, data: {route: '/', width: 1}})
+        expect(
+          await runCli(cliMain, [
+            'tools',
+            'acme',
+            'paint',
+            '--patch',
+            '{}',
+            '--strokes',
+            '{"x":1}',
+            '--image',
+            './u1.png',
+          ]),
+        ).toBe(0)
+        expect(answer.seen()).toMatchObject({name: 'acme_paint', input: {image: join(process.cwd(), 'u1.png')}})
       })
 
       it('serves a group from an extension the CLI has never heard of', async () => {
@@ -1001,7 +998,7 @@ describe('cli', () => {
       expect(isTrustedBrowser(stateDir, kept)).toBe(false)
     })
 
-    test('auth revoke locks a browser out of the running engine without a restart', async () => {
+    test('auth link logs a browser in without printing a code, and auth revoke locks it out without a restart', async () => {
       const project = projectWith(null)
       const printed: string[] = []
       const engine = await startEngine({
@@ -1012,8 +1009,28 @@ describe('cli', () => {
       })
       try {
         const origin = `http://127.0.0.1:${engine.port}`
+        const linked = z
+          .object({data: z.object({link: z.string(), expiresAt: z.number()})})
+          .parse(await runLink({url: 'http://localhost:3001/app?x=1#tab=chat', cwd: project.nested}))
+        const link = new URL(linked.data.link)
+        const fragment = new URLSearchParams(link.hash.slice(1))
+        const code = fragment.get('conciv_otp') ?? ''
+        expect([`${link.origin}${link.pathname}${link.search}`, fragment.get('tab'), code]).toEqual([
+          'http://localhost:3001/app?x=1',
+          'chat',
+          expect.stringMatching(/^\d{6}$/),
+        ])
+        expect(printed.join('\n')).not.toContain(code)
+        const linkedToken = await exchangePrintedCode(origin, code)
+        const statusOf = async (scope: string) =>
+          (await fetch(`${origin}${scope}/rpc/meta/engine`, {method: 'POST'})).status
+        expect(await statusOf(`/t/${linkedToken}`)).not.toBe(401)
+        await expect(makeRpcClient(`${origin}/t/${linkedToken}`).auth.issueCode()).rejects.toMatchObject({
+          code: 'FORBIDDEN',
+        })
+        expect((await fetch(`${origin}/rpc/auth/issueCode`, {method: 'POST'})).status).toBe(401)
         const token = await loginThroughTerminal(origin, () => printed.join('\n'))
-        const call = async () => (await fetch(`${origin}/t/${token}/rpc/meta/engine`, {method: 'POST'})).status
+        const call = async () => statusOf(`/t/${token}`)
         expect(await call()).not.toBe(401)
         const {sessionId} = await makeRpcClient(`${origin}/t/${token}`).sessions.create(undefined)
         const serving: PageServingFrame = {channel: 'page-serving', serving: true}
@@ -1037,7 +1054,7 @@ describe('cli', () => {
             .code
         const closed = Promise.all([closedCode(browser), closedCode(framed)])
         runRevoke({all: true, cwd: project.nested})
-        expect(await call()).toBe(401)
+        expect([await call(), await statusOf(`/t/${linkedToken}`)]).toEqual([401, 401])
         expect([...(await closed), agent.readyState]).toEqual([1008, 1008, WebSocket.OPEN])
         agent.close()
       } finally {
@@ -1149,6 +1166,14 @@ describe('cli', () => {
         expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
         await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: true})
         expect(await waiting).toMatchObject(listed)
+        const restart = ['tools', 'server', 'restart']
+        expect([
+          await conciv(elsewhere, home, [...restart, '--tab', sessionId]),
+          await conciv(elsewhere, home, restart),
+        ]).toMatchObject([
+          {ok: false, error: {code: 'NO_BUNDLER'}},
+          {ok: false, error: {code: 'APPROVAL_DENIED', message: expect.stringMatching(/needs the user/)}},
+        ])
         expect(await conciv(elsewhere, home, ['tools', 'tabs'])).toMatchObject(listed)
         const missing = ['tools', 'tabs', '--tab', 'conciv_gone']
         expect(await conciv(elsewhere, home, missing)).toMatchObject({
