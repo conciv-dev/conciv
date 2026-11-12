@@ -569,8 +569,10 @@ describe('chat stores', () => {
       typeof message === 'object' && message !== null && 'worker' in message && message.worker instanceof Worker
     const trackedWorkers = () => {
       const live = new Set<Worker>()
+      const created: Worker[] = []
       const track = (message: unknown) => {
         if (!isWorkerCreated(message)) return
+        created.push(message.worker)
         live.add(message.worker)
         message.worker.once('exit', () => live.delete(message.worker))
       }
@@ -578,10 +580,10 @@ describe('chat stores', () => {
       onTestFinished(() => {
         unsubscribe('worker_threads', track)
       })
-      return live
+      return {live, created}
     }
     const workersFromHere = () => {
-      const live = trackedWorkers()
+      const {live} = trackedWorkers()
       return () => [...live].map((worker) => worker.threadId)
     }
     const LIMITS = {timeout: 10_000, memoryLimit: 64}
@@ -676,30 +678,22 @@ describe('chat stores', () => {
     })
 
     it('a worker that errors while its pool shuts down never throws on the server thread, and the worker piscina respawns is shut down too', async () => {
-      const ours = workersFromHere()
+      const {live, created} = trackedWorkers()
       const logged: string[] = []
       const log = (message: string) => logged.push(message)
       const open = openPool(log)
       const [thread] = open.pool.threads
       if (thread === undefined) throw new Error('the pool booted no worker')
-      const respawned: Worker[] = []
-      const track = (message: unknown) => {
-        if (isWorkerCreated(message)) respawned.push(message.worker)
-      }
-      subscribe('worker_threads', track)
-      onTestFinished(() => {
-        unsubscribe('worker_threads', track)
-      })
       const closing = closePool(open, log)
       expect(() => thread.emit('error', new Error('the worker failed'))).not.toThrow()
       await closing
-      expect(respawned).toHaveLength(1)
+      expect(created).toHaveLength(2)
       expect(logged).toEqual(['[ai] the QuickJS worker failed: Error: the worker failed'])
-      expect(ours()).toEqual([])
+      expect([...live]).toEqual([])
     })
 
     async function heldRun() {
-      const live = trackedWorkers()
+      const {live} = trackedWorkers()
       const entered = Promise.withResolvers<void>()
       const hold = binding('hold', () => {
         entered.resolve()
@@ -760,6 +754,8 @@ describe('chat stores', () => {
     it('dispose stops the run in flight, leaves no worker, and a later run boots the pool again', async () => {
       const ours = workersFromHere()
       const {driver, running, next} = await heldRun()
+      expect(await next()).toMatchObject({success: true, value: 'undefined'})
+      expect(ours().length).toBeGreaterThan(1)
       await driver.dispose()
       expect(await running).toMatchObject({success: false, error: {name: 'AbortError'}})
       expect(ours()).toEqual([])
