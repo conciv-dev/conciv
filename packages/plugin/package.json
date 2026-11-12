@@ -21,8 +21,8 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/plugin.d.ts",
-      "import": "./dist/plugin.js"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
   },
   "publishConfig": {

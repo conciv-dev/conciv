@@ -1,32 +1,15 @@
-import type {App, BundlerDomain, HarnessDomain, ListInput, Location, RequestOptions} from './domains.js'
+import type {App} from './app.js'
+import type {BundlerDomain, HarnessDomain, RequestOptions} from './domains.js'
+import type {ExperimentalGenerateApi} from './generate.js'
+import type {Info, PublicRef} from './location.js'
+import type {ModelDomain} from './model.js'
+import type {PluginOptions} from './options.js'
+import type {PermissionDomain} from './permission.js'
 import type {Servers} from './servers.js'
+import type {SessionDomain} from './session.js'
 import type {SkillDomain} from './skill.js'
-import type {Json, StorageDomain} from './storage.js'
+import type {StorageDomain} from './storage.js'
 import type {ToolDomain} from './tool.js'
-
-export {isToolError, toolError} from './tool.js'
-export type {
-  ToolContent,
-  ToolContext,
-  ToolDomain,
-  ToolEditor,
-  ToolError,
-  ToolFileContent,
-  ToolInfo,
-  ToolMetadata,
-  ToolNamespace,
-  ToolOptions,
-  ToolResult,
-  ToolTextContent,
-} from './tool.js'
-export type {Hooks, Registration, Transform} from './registration.js'
-export type {Skill, SkillDomain, SkillEditor} from './skill.js'
-export type {Json, StorageDomain, StorageEntry, StorageScanOptions, StorageScanResult} from './storage.js'
-export type {ServerRef, Servers} from './servers.js'
-export type {App, BundlerDomain, HarnessDomain, ListInput, Location, RequestOptions, ServerHarness} from './domains.js'
-
-/** A plugin's options from its entry in the conciv config, as its engine part receives them. */
-export type PluginOptions = {readonly [key: string]: Json}
 
 export type PluginSource =
   | {readonly type: 'builtin'}
@@ -59,15 +42,24 @@ export interface PluginInfo {
 }
 
 export interface Context {
-  readonly app: App
-  readonly location: Location
+  /** Not implemented yet. Always undefined in this version. */
+  readonly app: App | undefined
+  readonly location: Info
   readonly options: PluginOptions
-  readonly plugin: {
-    readonly list: (
-      input?: ListInput,
-      requestOptions?: RequestOptions,
-    ) => Promise<{location: Location; data: PluginInfo[]}>
+  readonly experimental: {
+    /**
+     * Stateless generation with a model and a prompt: no session, history or tools.
+     *
+     * Not implemented yet. Always undefined in this version.
+     */
+    readonly generate: ExperimentalGenerateApi | undefined
   }
+  readonly model: ModelDomain
+  readonly permission: PermissionDomain
+  readonly plugin: {
+    readonly list: (requestOptions?: RequestOptions) => Promise<{location: PublicRef; data: PluginInfo[]}>
+  }
+  readonly session: SessionDomain
   readonly skill: SkillDomain
   readonly storage: StorageDomain
   readonly tool: ToolDomain

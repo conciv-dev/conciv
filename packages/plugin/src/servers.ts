@@ -9,6 +9,8 @@ export interface ServerRef {
   readonly name: string
   /** The server's base URL. */
   readonly url: string
+  /** The HTTP basic password the user configured; undefined when there is none. */
+  readonly password?: string
   /** The app's own local server, or a loopback http connection to its port. */
   readonly local: boolean
   /** The server the plugin runs in. */

@@ -1,26 +1,32 @@
-import type {ListInput, Location, RequestOptions} from './domains.js'
+import type {RequestOptions} from './domains.js'
+import type {PublicRef} from './location.js'
 import type {Transform} from './registration.js'
 
-export interface Skill {
-  readonly id: string
-  readonly name: string
+export type Id = string
+
+export type Name = string
+
+export interface Info {
+  readonly id: Id
+  readonly name: Name
   readonly description?: string
   readonly autoinvoke?: boolean
+  readonly path: string
   readonly content: string
 }
 
-type MutableSkill = {-readonly [Key in keyof Skill]: Skill[Key]}
+type MutableInfo = {-readonly [Key in keyof Info]: Info[Key]}
 
 export interface SkillEditor {
-  list(): readonly MutableSkill[]
-  get(id: string): MutableSkill | undefined
-  add(skill: Skill): void
-  update(id: string, update: (skill: MutableSkill) => void): void
+  list(): readonly MutableInfo[]
+  get(id: string): MutableInfo | undefined
+  add(skill: Info): void
+  update(id: string, update: (skill: MutableInfo) => void): void
   remove(id: string): void
 }
 
 export interface SkillDomain {
-  readonly list: (input?: ListInput, requestOptions?: RequestOptions) => Promise<{location: Location; data: Skill[]}>
+  readonly list: (requestOptions?: RequestOptions) => Promise<{location: PublicRef; data: Info[]}>
   readonly transform: Transform<SkillEditor>
   readonly reload: () => Promise<void>
 }
