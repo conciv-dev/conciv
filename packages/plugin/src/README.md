@@ -14,8 +14,8 @@ and stores).
 
 The engine part. `Plugin.define({id, setup})` returns its argument typed; `setup(ctx)` may be async and may return
 a cleanup. `ctx` is `Plugin.Context`: the `tool`, `skill`, `session`, `rpc`, `storage`, `permission`, `model`,
-`plugin`, `location`, `options`, `servers`, `harness` and `bundler` domains. The entry also exports the `Tool`,
-`Skill`, `Model`, `Location` and `Rpc` namespaces, `PluginOptions` and the storage types.
+`agent`, `event`, `plugin`, `location`, `options`, `servers`, `harness` and `bundler` domains. The entry also exports
+the `Agent`, `Tool`, `Skill`, `Model`, `Location` and `Rpc` namespaces, `PluginOptions` and the storage types.
 
 ```ts
 import {z} from 'zod'
@@ -115,8 +115,8 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 
 ### Files and exports
 
-- `index.ts` mirrors `plugin/src/promise/index.ts`: `PluginOptions`, the storage types and the `Plugin` namespace; of the schema namespaces it re-exports only those conciv declares (`Location`, `Model`, `Rpc`, `Skill`), plus `Tool`, which opencode authors import from `@opencode/schema/tool` (conciv has no schema package).
-- A namespace module joins opencode's schema file and promise file of the same name: `tool.ts` (`schema/src/tool.ts` + `promise/tool.ts`), `skill.ts` (`schema/src/skill.ts` + `promise/skill.ts`), `model.ts` (`schema/src/model.ts` + `promise/model.ts`), `permission.ts` (`src/permission.ts` + `promise/permission.ts`), `storage.ts` (`src/storage.ts` + `promise/storage.ts`), `rpc.ts` (`schema/src/rpc.ts` + `promise/rpc.ts` + the types of `client/src/promise/rpc.ts`), so the `Rpc` namespace also carries `RpcDomain`, `RpcClient`, `RpcApi` and the other caller and handler types.
+- `index.ts` mirrors `plugin/src/promise/index.ts`: `PluginOptions`, the storage types and the `Plugin` namespace; of the schema namespaces it re-exports only those conciv declares (`Agent`, `Location`, `Model`, `Rpc`, `Skill`), plus `Tool`, which opencode authors import from `@opencode/schema/tool` (conciv has no schema package).
+- A namespace module joins opencode's schema file and promise file of the same name: `tool.ts` (`schema/src/tool.ts` + `promise/tool.ts`), `skill.ts` (`schema/src/skill.ts` + `promise/skill.ts`), `model.ts` (`schema/src/model.ts` + `promise/model.ts`), `permission.ts` (`src/permission.ts` + `promise/permission.ts` + `Source`, `Effect`, `Rule` and `Ruleset` of `schema/src/permission.ts`), `agent.ts` (`schema/src/agent.ts` + `promise/agent.ts`), `event.ts` (`promise/event.ts` + `SelectedEvent` and `SubscribeOptions` of `client/src/shared-events.ts` + the event types it needs from `schema/src/event.ts`, `schema/src/session-event.ts` and `protocol/src/groups/event.ts`), `storage.ts` (`src/storage.ts` + `promise/storage.ts`), `rpc.ts` (`schema/src/rpc.ts` + `promise/rpc.ts` + the types of `client/src/promise/rpc.ts`), so the `Rpc` namespace also carries `RpcDomain`, `RpcClient`, `RpcApi` and the other caller and handler types.
 - `rpc.ts` does not re-export itself as `Rpc` (source `schema/src/rpc.ts` does, and fallow reports that as a cycle): `index.ts` and `rpc-entry.ts`, the `./rpc` entry mirroring `plugin/src/rpc.ts`, export the namespace.
 - Request and response types of the client API (`client/src/promise/generated/types.ts`) sit in the domain file that uses them; `generate.ts` holds `ExperimentalGenerateApi`.
 - `domains.ts` holds `RequestOptions` and the conciv-only `HarnessDomain` (`ServerHarness` copied from the old extension package) and `BundlerDomain`.
@@ -170,7 +170,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 ### Names and types
 
 - `ID` is spelled `Id` (`sessionId`, `messageId`, `requestId`, `parentId`, `modelId`, `providerId`, `workspaceId`, `shellId`, `partId`).
-- Branded ids (`Event.ID`, `Skill.ID`, `Skill.Name`, `Tool.CallID`, `Agent.ID`, `Model.ID`, `Provider.ID`, `Permission.ID`) are plain strings; session ids are conciv's `SessionId`.
+- Branded ids (`Event.ID`, `Skill.ID`, `Skill.Name`, `Tool.CallID`, `Agent.ID`, `Agent.Name`, `Model.ID`, `Provider.ID`, `Permission.ID`) are plain strings; session ids are conciv's `SessionId`.
 - No `any`: `PluginOptions` values are `Json`; `Tool.Metadata` is `Readonly<Record<string, unknown>>`.
 - `Types.Mutable` / `Types.DeepMutable` become a mapped type that drops `readonly` one level deep (the edited values are flat); `ModelEditor` hands out `Model.Info` as is.
 - `Tool.Info.execute` uses method syntax, so a `Tool.Info<Input, Output>` is assignable to `Tool.Info` without `any`.
@@ -181,16 +181,26 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - `Permission` `source.messageId` accepts `undefined` for the same reason.
 - `PluginFeatures`: `gui` is `experimental`; no `tui`.
 - RPC schemas are zod: `PortableValueSchema` and the event schemas are `z.ZodType`, the plain JSON Schema branches (and their `EventInputData` / `EventData` cases) are dropped; `Input` / `Output` are `z.input` / `z.output`, and `HandlerOutput` is the input side (zod parses forward, as Standard Schema does in source).
-- `Rpc.EventPayload` and `RpcEventPayload` write out the event envelope fields (`id`, `created`, `metadata`, `location`) instead of deriving them from `Event.Payload` and the generated event type, which are not ported; no `durable`.
+- `Rpc.EventPayload` builds on `PayloadBase` (`schema/src/event.ts`, private there, exported from `event.ts` for it) in place of `Event.Payload`, which is not ported; no `durable` (RPC events are ephemeral). `RpcEventPayload` derives from the `rpc.*` member of `ConcivEvent`, as source derives it from `OpenCodeEvent`.
 - `RpcCallOptions` is `RequestOptions` (`{signal}`), without `location` (one project per engine).
 - `ServerRef.client` is `ConcivClient`, conciv's full engine client as opencode's is the full `OpenCodeClient`: the typed client of the core contract (`RpcClient`, `@conciv/contract`) plus `rpc: RpcApi`. `@conciv/contract` is a dependency for that type.
 
 ### Context members
 
-- Absent, not ours: `agent`, `aisdk`, `credential`, `integration`, `mcp`, `provider`, `reference`, `shell`, `vcs`, `websearch`, `worktree`, `experimental.terminal`, `experimental.artifact`. Also absent: top-level `generate` (deprecated in source; `experimental.generate` replaces it).
+- Absent, not ours: `aisdk`, `credential`, `integration`, `mcp`, `provider`, `reference`, `shell`, `vcs`, `websearch`, `worktree`, `experimental.terminal`, `experimental.artifact`. Also absent: top-level `generate` (deprecated in source; `experimental.generate` replaces it).
 - Added by ruling: `servers`, `harness`, `bundler`, `storage.directory`.
 - `app` is `App | undefined`: the engine has no app version or channel to give.
 - `plugin.list`, `skill.list`, `model.list`, `model.default`: no `location` input (one project per engine); every domain method's request options are `{signal}` only (no `headers`, no `onActivity`).
+
+### Agent and events
+
+- `agent` is ported for permission rules only (ruling; conciv runs one agent per session): `AgentDomain` has `transform` alone, without `AgentApi`'s `list` and `get` and without `reload`; `AgentEditor` has `list` alone, without `get`, `default`, `update` and `remove`.
+- `Agent.Info` has `id`, `name` and `permissions`; the other agent settings are the CLI's and absent: `model`, `request`, `system`, `description`, `mode`, `hidden`, `color`, `steps`. `Agent.Color`, `Agent.Info.default` and `Agent.Event` (`agent.updated`) are not ported.
+- The agent editor's `Types.DeepMutable<Agent.Info>` is a mapped type that drops `readonly` from the info and from each permission rule.
+- `ConcivEvent` is opencode's `OpenCodeEvent` (`protocol/src/groups/event.ts:82`) cut to the events conciv emits: `session.deleted` (`schema/src/session-event.ts:182`, by ruling: the page plugin drops an attachment when its session is deleted) and the `rpc.*` event; every other server event is absent (conciv's session stream `sessions.changes` carries only an index `version`, `packages/contract/src/contract.ts:73`).
+- `server.connected` is absent (conciv's engine sends no connect frame), so `EventDomain`'s event type excludes nothing.
+- `SessionDeleted.durable` is `DurableEnvelope` (`schema/src/event.ts:34`): `aggregateID` is `aggregateId`, the branded `Seq` and `Version` are numbers with their JSDoc on the fields.
+- `SubscribeOptions` has no `onActivity` (request options are `{signal}` only).
 
 ### Session
 
@@ -207,7 +217,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 
 ### Skill and servers
 
-- `Skill.DirectorySource`, `Skill.UrlSource`, `Skill.EmbeddedSource`, `Skill.Source` and `Skill.Event` are not ported: conciv loads no skill folders or URLs, and the event domain is not available yet.
+- `Skill.DirectorySource`, `Skill.UrlSource`, `Skill.EmbeddedSource`, `Skill.Source` and `Skill.Event` are not ported: conciv loads no skill folders or URLs and emits no skill events.
 
 ### Scope
 
@@ -229,7 +239,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - Store schemas are zod object schemas (`z.ZodObject`). Source reads the value type as Effect's `Schema.Type`, whose struct fields are readonly; zod's output is not, so `StoreType<S>` (added) is zod's output made readonly all the way down, and `Persisted.update` still hands out a `Mutable` draft.
 - `Store`, `Registry` and `Contract` carry their member JSDoc on an explicit type of the constant (the `Scope.make` rule above); the JSDoc on `update`'s `draft` parameter is dropped (the lint keeps doc blocks above declarations and members only).
 - `Plugin.Definition` has `setup` only and `WithSetup` is `{setup}` (no `main`).
-- `Context` members by `docs/specs/plugins-ctx-audit.md` Table 1 and the spec's "Host APIs on ctx" table: `layout`, `sessions`, `screen`, `storage`, `servers`, `tabs`, `links`, `ui`, `toast`, `appearance`, `router`, `app`, `keybinds` implemented; `desktop` is `Desktop | undefined` as in source; `dialogs` is implemented with `open` and `active` (audit: have it) while `confirm`, `alert`, `prompt` and `select` are `T | undefined`; `commands`, `system`, `attention` are `T | undefined` as whole members (the spec table wins over the audit, which marks `system.copy` "have it"); absent: `main`, `t`, `plural`, `embeds`, `locale`, `workspaces` (with `Embeds`, `EmbedProps`, `Locale`, `Workspaces`).
+- `Context` members by `docs/specs/plugins-ctx-audit.md` Table 1 and the spec's "Host APIs on ctx" table: `layout`, `sessions`, `screen`, `storage`, `servers`, `tabs`, `links`, `ui`, `toast`, `appearance`, `router`, `app`, `keybinds` implemented; `desktop` is `Desktop | undefined` as in source; `dialogs` is implemented with `open` and `active` (audit: have it) while `confirm`, `alert`, `prompt` and `select` are `T | undefined`; `system` is implemented with `copy` (ruling) while `save` and `openExternal` are `T | undefined`; `commands` and `attention` are `T | undefined` as whole members; absent: `main`, `t`, `plural`, `embeds`, `locale`, `workspaces` (with `Embeds`, `EmbedProps`, `Locale`, `Workspaces`).
 - `ServerRef` and `Servers` are `../servers.ts`, re-exported; the browser source adds no members beyond `data` (see Not available yet).
 - `SessionRef.location` is `Location.Ref` (opencode's `LocationRef`).
 - `Composer`: `text` and `focus` are implemented by the spec table ("`ctx.screen` (`composer.attach`, `composer.focus`, text)") where the audit says "concept fits"; `attach` takes `file`, `note` and `quote` (the audit's UNSURE quote row is settled by the spec's Attachments section). `commentID` is `commentId`, `ComposerModel.providerID` / `modelID` are `providerId` / `modelId`. Mentions of subagent sessions are dropped from the JSDoc (subagents run inside the CLI).
@@ -258,24 +268,26 @@ Each is typed `| undefined` (or optional) and always undefined in this version.
 
 - `Context.app`, `Context.experimental.generate`
 - `model.transform`, `model.reload`
-- `permission.hook`, `permission.assert`
-- `session.generate`, `session.command`, `session.synthetic`
+- `permission.hook`
+- `session.generate`, `session.command`
 - `location.project.id`, `location.project.canonical`
 - `Tool.ToolContext.messageId`, `messageId` in the tool hooks
 - `Model.Ref.providerId`, `Model.Ref.variant`
 - `Model.Info`: `providerId`, `canonical`, `type`, `family`, `capabilities`, `variants`, `time`, `cost`, `status`, `limit`
-- session info: `parentId`, `fork`, `projectId`, `outcome`, `time.created`, `time.busy`, `time.idle`, `time.viewed`, `time.archived`, `subpath`, `metadata`, `permissions`, `revert`
+- session info: `parentId`, `fork`, `projectId`, `outcome`, `time.created`, `time.busy`, `time.idle`, `time.viewed`, `time.archived`, `subpath`, `metadata`, `revert`
 - session list input: `order`, `parentId`, `archived`
 - session create input: every field
-- session update input: `metadata`, `permissions`, `archived`
+- session update input: `metadata`, `archived`
 - session compact: input `id`, `delivery`; result (`SessionInboxCompaction`) `id`, `delivery`
 - session interrupt input: `resume`
 - `SessionIdle.background`
 - permission request: `resources`, `save`, `metadata`, `message`; permission reply input: `message`
-- app part `Context`: `commands`, `system`, `attention`
+- `SessionDeleted.durable.seq`
+- app part `Context`: `commands`, `attention`
+- `System`: `save`, `openExternal`
 - `Dialogs`: `confirm`, `alert`, `prompt`, `select`
 - `Desktop`: `reveal`, `installed`, `pick`
-- `Layout`: `narrow`, `hide`, `scroll`
+- `Layout`: `narrow`, `scroll`
 - `Composer`: `setText`, `quotable`, `update`, `detach`, `focused`
 - `MountedSession.local`
 - `Tabs.move`
@@ -285,7 +297,6 @@ Each is typed `| undefined` (or optional) and always undefined in this version.
 
 Not declared: declaring them would mean inventing a conciv copy of an opencode type that conciv does not have.
 
-- `Context.event` / `EventDomain` (`plugin/src/promise/plugin.ts:35`): no conciv event union.
 - `Context.command` / `CommandDomain` (`plugin/src/promise/plugin.ts:33`): needs opencode's `PromptInput.Prompt` and `SessionInbox.Delivery` (`promise/command.ts:9-10`).
 - the `prompt` and `context` session hooks (`plugin/src/promise/session.ts:200-201`): their event types need opencode's message and prompt types.
 - `SessionDomain.prompt` and `SessionDomain.context` (`plugin/src/promise/session.ts:224,232`): same message and prompt types.

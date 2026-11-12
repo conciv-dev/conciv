@@ -48,7 +48,7 @@ function pluginContext(id: string, sessions: Sessions = {list: () => [], current
       open: unused,
       close: unused,
       toggle: unused,
-      hide: undefined,
+      hide: unused,
       state: unused,
       stored: unused,
       scroll: undefined,
@@ -58,7 +58,7 @@ function pluginContext(id: string, sessions: Sessions = {list: () => [], current
     sessions,
     screen: {current: unused},
     storage: {store: unused, memory: unused, remove: unused},
-    system: undefined,
+    system: {copy: unused, save: undefined, openExternal: undefined},
     desktop: undefined,
     dialogs: {
       open: unused,

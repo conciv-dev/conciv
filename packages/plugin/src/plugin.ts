@@ -1,5 +1,7 @@
+import type {AgentDomain} from './agent.js'
 import type {App} from './app.js'
 import type {BundlerDomain, HarnessDomain, RequestOptions} from './domains.js'
+import type {EventDomain} from './event.js'
 import type {ExperimentalGenerateApi} from './generate.js'
 import type {Info, PublicRef} from './location.js'
 import type {ModelDomain} from './model.js'
@@ -47,6 +49,8 @@ export interface Context {
   readonly app: App | undefined
   readonly location: Info
   readonly options: PluginOptions
+  readonly agent: AgentDomain
+  readonly event: EventDomain
   readonly experimental: {
     /**
      * Stateless generation with a model and a prompt: no session, history or tools.

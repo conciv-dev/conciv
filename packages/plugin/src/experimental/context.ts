@@ -107,16 +107,14 @@ export interface Context extends BaseContext {
    */
   readonly storage: Storage
   /**
-   * Not implemented yet. Always undefined in this version.
-   *
    * The clipboard, saving files, and opening URLs in a new browser tab.
    *
    * @example
    * ```ts
-   * await ctx.system?.copy(url)
+   * await ctx.system.copy(url)
    * ```
    */
-  readonly system: System | undefined
+  readonly system: System
   /**
    * Abilities on the user's machine, through the engine: opening a file in the user's editor.
    *

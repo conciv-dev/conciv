@@ -15,6 +15,14 @@ export type Source = z.infer<typeof Source>
 
 export type Effect = 'allow' | 'deny' | 'ask'
 
+export interface Rule {
+  readonly action: string
+  readonly resource: string
+  readonly effect: Effect
+}
+
+export type Ruleset = ReadonlyArray<Rule>
+
 const AssertInput = z.object({
   sessionId: SessionId,
   agent: z.string().optional(),
@@ -82,8 +90,6 @@ export interface PermissionDomain {
    * waits for the reply. Resolves when allowed. A deny rule or a rejection with feedback rejects with
    * a `Tool.Error` carrying the reason. A plain rejection rejects with an error that ends the current
    * step; rethrow it rather than returning it as tool output.
-   *
-   * Not implemented yet. Always undefined in this version.
    */
-  readonly assert: ((input: AssertInput) => Promise<void>) | undefined
+  readonly assert: (input: AssertInput) => Promise<void>
 }

@@ -355,7 +355,7 @@ export interface OpenOptions {
 /**
  * The session layout: panel tabs, scroll offsets, and the settings page. Panel keys are `${plugin}:${tab id}`. Nothing
  * throws before the app interface mounts: `ready()` is false, reads return what an empty layout holds (each says its
- * default), and writes (`open`, `close`, `toggle`, `settings`) wait and apply in call order once it mounts.
+ * default), and writes (`open`, `close`, `toggle`, `hide`, `settings`) wait and apply in call order once it mounts.
  */
 export interface Layout {
   /**
@@ -391,12 +391,13 @@ export interface Layout {
    */
   toggle(key: string, session: SessionRef): void
   /**
-   * Not implemented yet. Always undefined in this version.
-   *
    * Hides the pane that shows a visible tab without closing the tab. Does nothing unless `state` is "visible". Opening
    * the tab again shows its pane.
+   *
+   * @param key - `${plugin}:${tab id}`.
+   * @param session - The session whose pane hides.
    */
-  readonly hide: ((key: string, session: SessionRef) => void) | undefined
+  hide(key: string, session: SessionRef): void
   /**
    * Where a key stands. "closed" while the session's location is unknown and before the app interface mounts.
    * Reactive.
@@ -573,23 +574,29 @@ export interface System {
    */
   copy(text: string): Promise<void>
   /**
+   * Not implemented yet. Always undefined in this version.
+   *
    * Saves a file: a download on the web.
    *
    * @param file - The suggested name and the content.
    * @returns Always true on the web.
    */
-  save(file: {
-    /** The suggested file name. */
-    readonly name: string
-    /** The file's content. */
-    readonly content: string
-  }): Promise<boolean>
+  readonly save:
+    | ((file: {
+        /** The suggested file name. */
+        readonly name: string
+        /** The file's content. */
+        readonly content: string
+      }) => Promise<boolean>)
+    | undefined
   /**
+   * Not implemented yet. Always undefined in this version.
+   *
    * Opens a URL in a new browser tab. For links inside the app, use `Links.open`.
    *
    * @param url - The URL to open.
    */
-  openExternal(url: string): void
+  readonly openExternal: ((url: string) => void) | undefined
 }
 
 /** Abilities on the user's machine, through the engine. */

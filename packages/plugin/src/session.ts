@@ -2,6 +2,7 @@ import type {SessionId} from '@conciv/protocol/chat-types'
 import type {RequestOptions} from './domains.js'
 import type {PublicRef} from './location.js'
 import type {Ref} from './model.js'
+import type {Ruleset} from './permission.js'
 import type {Hooks} from './registration.js'
 import type {Json} from './storage.js'
 
@@ -46,7 +47,6 @@ export interface SessionInfo {
   subpath?: string
   /** Not implemented yet. Always undefined in this version. */
   metadata?: {[key: string]: Json}
-  /** Not implemented yet. Always undefined in this version. */
   permissions?: Array<{action: string; resource: string; effect: 'allow' | 'deny' | 'ask'}>
   /** Not implemented yet. Always undefined in this version. */
   revert?: {
@@ -91,10 +91,7 @@ export interface SessionCreateInput {
   /** Not implemented yet. Always undefined in this version. */
   readonly metadata?: {readonly [key: string]: Json} | null | undefined
   /** Not implemented yet. Always undefined in this version. */
-  readonly permissions?:
-    | ReadonlyArray<{readonly action: string; readonly resource: string; readonly effect: 'allow' | 'deny' | 'ask'}>
-    | null
-    | undefined
+  readonly permissions?: Ruleset | null | undefined
 }
 
 export interface SessionUpdateInput {
@@ -102,10 +99,7 @@ export interface SessionUpdateInput {
   readonly title?: string | undefined
   /** Not implemented yet. Always undefined in this version. */
   readonly metadata?: {readonly [key: string]: Json} | undefined
-  /** Not implemented yet. Always undefined in this version. */
-  readonly permissions?:
-    | ReadonlyArray<{readonly action: string; readonly resource: string; readonly effect: 'allow' | 'deny' | 'ask'}>
-    | undefined
+  readonly permissions?: Ruleset | undefined
   /** Not implemented yet. Always undefined in this version. */
   readonly archived?: boolean | undefined
 }
@@ -253,10 +247,7 @@ export interface SessionDomain {
     },
     requestOptions?: RequestOptions,
   ) => Promise<SessionInboxCompaction>
-  /** Not implemented yet. Always undefined in this version. */
-  readonly synthetic:
-    | ((input: SessionSyntheticInput, requestOptions?: RequestOptions) => Promise<SessionInboxSynthetic>)
-    | undefined
+  readonly synthetic: (input: SessionSyntheticInput, requestOptions?: RequestOptions) => Promise<SessionInboxSynthetic>
   readonly interrupt: (
     input: {
       readonly sessionId: SessionId

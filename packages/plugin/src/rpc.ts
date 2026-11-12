@@ -1,6 +1,7 @@
 import type {z} from 'zod'
 import type {RequestOptions} from './domains.js'
-import type {PublicRef, Ref} from './location.js'
+import type {ConcivEvent, PayloadBase} from './event.js'
+import type {Ref} from './location.js'
 import type {Registration} from './registration.js'
 
 export type ErrorMap = Readonly<Record<string, z.ZodType>> & {
@@ -129,15 +130,6 @@ export type EventInput<D extends Definition> = {
   [Name in keyof D['events'] & string]: [name: Name, data: EventInputData<D['events'][Name]['schema']>]
 }[keyof D['events'] & string]
 
-type PayloadBase = {
-  readonly id: string
-  readonly type: string
-  readonly created: number
-  readonly data: unknown
-  readonly location?: Ref
-  readonly metadata?: Record<string, unknown>
-}
-
 type EventPayloadFor<D extends Definition, Name extends keyof D['events'] & string> = Omit<
   PayloadBase,
   'type' | 'data' | 'location'
@@ -178,14 +170,7 @@ export interface RpcDomain extends RpcApi<
   ) => Promise<RpcRegistration<D>>
 }
 
-type RpcEvent = {
-  id: string
-  created: number
-  metadata?: Record<string, unknown> | undefined
-  type: `rpc.${string}`
-  location: PublicRef
-  data: Record<string, unknown>
-}
+type RpcEvent = Extract<ConcivEvent, {type: `rpc.${string}`}>
 
 export type RpcCallOptions = RequestOptions
 

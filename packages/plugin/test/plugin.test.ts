@@ -12,10 +12,10 @@ import * as Zod from 'zod'
 import {z} from 'zod'
 import {makeRpcClient} from '@conciv/contract'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
-import type {SessionId} from '@conciv/protocol/chat-types'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {Scope} from '../src/experimental/scope.js'
-import {Plugin, Rpc, Tool} from '../src/index.js'
-import type {Registration} from '../src/registration.js'
+import {Agent, Plugin, Rpc, Tool} from '../src/index.js'
+import type {Registration, Transform} from '../src/registration.js'
 import type {ServerRef} from '../src/servers.js'
 import type {Accessor} from 'solid-js'
 import * as Experimental from '../src/experimental/index.js'
@@ -54,6 +54,7 @@ function recordingContext(calls: string[]): Plugin.Context {
     compatible: true,
     connected: true,
   }
+  const agents: ReturnType<Agent.AgentEditor['list']> = [{id: 'build', name: 'build', permissions: []}]
   const editor: Tool.ToolEditor = {
     list: () => tools,
     get: (id) => tools.find((tool) => tool.id === id),
@@ -66,6 +67,15 @@ function recordingContext(calls: string[]): Plugin.Context {
     app: undefined,
     location: {directory: '/workspace', project: {id: undefined, directory: '/workspace', canonical: undefined}},
     options: {fps: 30},
+    agent: {
+      transform: async (callback) => {
+        callback({list: () => agents})
+        return registration
+      },
+    },
+    event: {
+      subscribe: () => ({[Symbol.asyncIterator]: () => ({next: async () => ({done: true, value: undefined})})}),
+    },
     experimental: {generate: undefined},
     model: {
       list: async () => ({location: {directory: '/workspace'}, data: []}),
@@ -78,7 +88,7 @@ function recordingContext(calls: string[]): Plugin.Context {
       get: async () => Promise.reject(new Error('no request')),
       reply: async () => void calls.push('reply'),
       hook: undefined,
-      assert: undefined,
+      assert: async (input) => void calls.push(`assert ${input.action} ${input.resources.join(' ')}`),
     },
     plugin: {list: async () => ({location: {directory: '/workspace'}, data: []})},
     rpc: Object.assign(unreachable, {
@@ -126,7 +136,14 @@ function sessionDomain(registration: Registration): Plugin.Context['session'] {
     generate: undefined,
     command: undefined,
     compact: async () => Promise.reject(new Error('no session')),
-    synthetic: undefined,
+    synthetic: async (input) => ({
+      id: input.id ?? 'synthetic',
+      sessionId: input.sessionId,
+      time: {created: 0},
+      type: 'synthetic',
+      payload: {text: input.text},
+      delivery: input.delivery ?? 'queue',
+    }),
     interrupt: async () => ({interrupted: false}),
     update: async () => {},
     wait: async () => {},
@@ -154,14 +171,31 @@ describe('define', () => {
             execute: async (input) => ({content: input.text}),
           }),
         )
+        await context.agent.transform((editor) =>
+          editor.list().forEach((agent) => agent.permissions.push({action: 'acme', resource: '*', effect: 'deny'})),
+        )
+        await context.permission.assert({
+          sessionId: SessionId.parse('conciv_session'),
+          action: 'acme',
+          resources: ['page'],
+        })
         return () => void calls.push('cleanup')
       },
     })
     const context = recordingContext(calls)
     const cleanup = await plugin.setup(context)
     if (typeof cleanup === 'function') await cleanup()
-    expect(calls).toEqual(['cleanup'])
+    expect(calls).toEqual(['assert acme page', 'cleanup'])
     expect((await context.tool.list()).map((tool) => tool.id)).toEqual(['acme_echo'])
+    const rules: Agent.Info['permissions'][] = []
+    await context.agent.transform((editor) => void rules.push(...editor.list().map((agent) => agent.permissions)))
+    expect(rules).toEqual([[{action: 'acme', resource: '*', effect: 'deny'}]])
+    const synthetic = await context.session.synthetic({
+      sessionId: SessionId.parse('conciv_session'),
+      text: 'done',
+      resume: true,
+    })
+    expect(synthetic.payload.text).toBe('done')
   })
 
   it('types a tool call context with an always undefined messageId', () => {
@@ -170,15 +204,21 @@ describe('define', () => {
     expectTypeOf<Plugin.Context['bundler']>().toEqualTypeOf<BundlerBridge | undefined>()
   })
 
+  it('types the members the ported plugins need as always defined', () => {
+    expectTypeOf<Plugin.Context['agent']['transform']>().toEqualTypeOf<Transform<Agent.AgentEditor>>()
+    expectTypeOf<Plugin.Context['event']['subscribe']>().toBeFunction()
+    expectTypeOf<undefined>().not.toExtend<Plugin.Context['permission']['assert']>()
+    expectTypeOf<undefined>().not.toExtend<Plugin.Context['session']['synthetic']>()
+    expectTypeOf<Plugin.Context['session']['update']>().parameter(0).toHaveProperty('permissions')
+  })
+
   it('types the members conciv does not implement yet as possibly undefined', () => {
     expectTypeOf<Plugin.Context['app']>().toExtend<undefined | object>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['app']>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['experimental']['generate']>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['session']['generate']>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['session']['command']>()
-    expectTypeOf<undefined>().toExtend<Plugin.Context['session']['synthetic']>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['permission']['hook']>()
-    expectTypeOf<undefined>().toExtend<Plugin.Context['permission']['assert']>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['model']['transform']>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['location']['project']['id']>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['location']['project']['canonical']>()
@@ -552,7 +592,10 @@ describe('experimental', () => {
     expectTypeOf<undefined>().toExtend<Experimental.Dialogs['prompt']>()
     expectTypeOf<undefined>().toExtend<Experimental.Dialogs['select']>()
     expectTypeOf<undefined>().toExtend<Experimental.Context['commands']>()
-    expectTypeOf<undefined>().toExtend<Experimental.Context['system']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.Context['system']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.System['copy']>()
+    expectTypeOf<undefined>().toExtend<Experimental.System['save']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.Layout['hide']>()
     expectTypeOf<undefined>().toExtend<Experimental.Context['attention']>()
     expectTypeOf<undefined>().toExtend<Experimental.Desktop['reveal']>()
     expectTypeOf<undefined>().toExtend<Experimental.Layout['scroll']>()
