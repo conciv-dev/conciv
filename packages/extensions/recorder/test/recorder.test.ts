@@ -16,6 +16,7 @@ import {makeExtRpcClient, type AnyExtension} from '@conciv/extension'
 import {rpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
 import {failRpcCalls, gateRpcCalls} from '@conciv/extension-testkit/rpc-fault'
 import {rpcObserverFor} from '@conciv/extension-testkit/rpc-observer'
+import {rpcSocketFor, type RpcSocketCall} from '@conciv/extension-testkit/rpc-socket'
 import {connectMcpClient, createFakeHarness, makeDiscoverTools} from '@conciv/harness-testkit'
 import {until} from '@conciv/harness-testkit/until'
 import {CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
@@ -949,6 +950,34 @@ describe('panel stream', () => {
     return label
   }
 
+  function holdFlushes(page: Page): {admitOneBatch: () => Promise<void>; release: () => void} {
+    const held: RpcSocketCall[] = []
+    const arrivals: (() => void)[] = []
+    const stopHolding = rpcSocketFor(page).rule((flush) => {
+      if (flush.path.join('/') !== 'ext/recorder/flush') return 'pass'
+      held.push(flush)
+      for (const arrive of arrivals.splice(0)) arrive()
+      return 'handled'
+    })
+    const nextHeld = async (): Promise<RpcSocketCall> => {
+      const flush = held.shift()
+      if (flush) return flush
+      await new Promise<void>((resolve) => arrivals.push(resolve))
+      return nextHeld()
+    }
+    return {
+      admitOneBatch: async () => {
+        await (await nextHeld()).reply(503)
+        const merged = await nextHeld()
+        merged.forward()
+      },
+      release: () => {
+        stopHolding()
+        for (const flush of held.splice(0)) flush.forward()
+      },
+    }
+  }
+
   describe('panel stream replay (real browser)', () => {
     it('streams live by default with a working, accessible controller', async () => {
       const page = api().page
@@ -982,6 +1011,10 @@ describe('panel stream', () => {
     it('pausing playback detaches from live and playing catches back up', async () => {
       const page = api().page
       await openPanelStreaming(page)
+      const flushes = holdFlushes(page)
+      const shown = await addMarker(page)
+      await flushes.admitOneBatch()
+      await expectLocator(replayed(page, shown)).toBeAttached({timeout: 30_000})
       await page.getByRole('button', {name: 'Toggle playback'}).click()
       await page.getByRole('button', {name: 'Go live'}).waitFor({state: 'visible', timeout: 10_000})
 
@@ -989,9 +1022,11 @@ describe('panel stream', () => {
       const lengthBefore = await timeline.getAttribute('aria-valuemax')
       if (lengthBefore === null) throw new Error('the Timeline slider has no length')
       const missed = await addMarker(page)
+      await flushes.admitOneBatch()
       await expectLocator(timeline).not.toHaveAttribute('aria-valuemax', lengthBefore, {timeout: 30_000})
       expect(await replayShows(page, missed)).toBe(false)
 
+      flushes.release()
       await page.getByRole('button', {name: 'Toggle playback'}).click()
       await expectLocator(replayed(page, missed)).toBeAttached({timeout: 30_000})
       await page.getByText('LIVE', {exact: true}).waitFor({state: 'visible', timeout: 10_000})

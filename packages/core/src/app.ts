@@ -585,20 +585,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     plane,
   }
 
-  if (opts.cfg.harnessSessionId !== undefined) {
-    void ensureAgentRow(rows, opts.cfg.harnessSessionId).catch((error: unknown) =>
-      logError(`[core] the configured harness session row could not be ensured: ${String(error)}`),
-    )
-  }
-  if (opts.cfg.sessionId !== undefined) {
-    void ensureRow(db, opts.cfg.sessionId, harness.id, opts.cwd).catch((error: unknown) =>
-      logError(`[core] the configured session row could not be ensured: ${String(error)}`),
-    )
-  }
-  void sweepEmptyRows(db).catch((error: unknown) =>
-    logError(`[core] the empty session row sweep failed: ${String(error)}`),
-  )
-
   const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness})
 
   const admitOutside = async (
@@ -663,6 +649,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       harnessId: harness.id,
       mcp: {
         codeRunner: (sessionId, publish, capabilities) => plane.codeRunner(sessionId, publish, capabilities),
+        admitCall: (sessionId, call) => plane.admitCall(sessionId, call),
         outsideCapabilities: (sessionId) =>
           outsideRunCapabilities([
             ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall),
@@ -721,6 +708,13 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     onTrusted: opts.onTrusted,
   })
 
+  await ensureConfiguredRows(rows, opts.cfg).catch(async (error: unknown) => {
+    await dispose().catch((failure: unknown) =>
+      logError(`[core] disposing after a failed start also failed: ${String(failure)}`),
+    )
+    throw error
+  })
+
   return {
     app,
     fetch,
@@ -731,6 +725,25 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     dispose,
     extensionContexts,
     runtime,
+  }
+}
+
+async function ensureConfiguredRows(rows: RowScope, cfg: ResolvedConcivConfig): Promise<void> {
+  await sweepEmptyRows(rows.db).catch((error: unknown) =>
+    logError(`[core] the empty session row sweep failed: ${String(error)}`),
+  )
+  const {sessionId, harnessSessionId} = cfg
+  if (harnessSessionId !== undefined) {
+    await ensureAgentRow(rows, harnessSessionId).catch((error: unknown) => {
+      throw new Error(`conciv: the configured harness session "${harnessSessionId}" could not be ensured`, {
+        cause: error,
+      })
+    })
+  }
+  if (sessionId !== undefined) {
+    await ensureRow(rows.db, sessionId, rows.harnessKind, rows.cwd).catch((error: unknown) => {
+      throw new Error(`conciv: the configured conciv session "${sessionId}" could not be ensured`, {cause: error})
+    })
   }
 }
 
