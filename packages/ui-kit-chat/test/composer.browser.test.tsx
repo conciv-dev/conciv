@@ -9,7 +9,6 @@ import {
   splitProps,
   untrack,
   onMount,
-  onCleanup,
   type ParentProps,
   type Accessor,
 } from 'solid-js'
@@ -45,6 +44,7 @@ import type {WebStorage} from '@conciv/storage-history'
 import {Error as ErrorPrimitive} from '../src/primitives/error/error.js'
 import {Composer} from '../src/styled/composer.js'
 import {createStore} from 'solid-js/store'
+import {makeEventListener} from '@solid-primitives/event-listener'
 import type {ElementCapture} from '@conciv/protocol/element-capture-types'
 import {
   ELEMENT_CAPTURE_FIXTURE_CSS,
@@ -1044,20 +1044,17 @@ describe('composer send morph', () => {
   })
 
   it('Escape while the run is stopping passes through and never stops the run a second time', async () => {
-    const [stopping, setStopping] = createSignal(false)
-    const [escape, setEscape] = createSignal('no escape yet')
+    const [state, setState] = createStore({stopping: false, escape: 'no escape yet'})
     function StoppingHost(): JSX.Element {
       const chat = createChat({threadId: 'composer-escape-stopping', connection: storyConnection(SLOW_STREAM)})
-      const recordEscape = (event: KeyboardEvent): void => {
+      makeEventListener(window, 'keydown', (event) => {
         if (event.key !== 'Escape') return
-        setEscape(event.defaultPrevented ? 'escape consumed' : 'escape passed through')
-      }
-      onMount(() => window.addEventListener('keydown', recordEscape))
-      onCleanup(() => window.removeEventListener('keydown', recordEscape))
+        setState('escape', event.defaultPrevented ? 'escape consumed' : 'escape passed through')
+      })
       return (
-        <ChatProvider chat={{...chat, stopping}}>
+        <ChatProvider chat={{...chat, stopping: () => state.stopping}}>
           <ComposerHandlersProvider value={{}}>
-            <span>{escape()}</span>
+            <span>{state.escape}</span>
             <RunSettledIndicator />
             <ComposerPrimitive.Root>
               <ComposerPrimitive.Input aria-label="Message" />
@@ -1073,7 +1070,7 @@ describe('composer send morph', () => {
     await userEvent.fill(input, 'keep running')
     await userEvent.click(page.getByRole('button', {name: 'Send'}))
     await expect.element(page.getByText('run live')).toBeVisible()
-    setStopping(true)
+    setState('stopping', true)
     const stop = page.getByRole('button', {name: 'Stop'})
     await expect.element(stop).toBeDisabled()
     await userEvent.click(input)
