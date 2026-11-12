@@ -91,6 +91,7 @@
     "hono": "catalog:",
     "lucide-solid": "catalog:",
     "p-queue": "catalog:",
+    "p-retry": "catalog:",
     "p-timeout": "catalog:",
     "unstorage": "catalog:",
     "zod": "catalog:"

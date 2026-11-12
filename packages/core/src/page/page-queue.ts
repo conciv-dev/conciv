@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {setImmediate} from 'node:timers/promises'
+import pRetry from 'p-retry'
 import pTimeout from 'p-timeout'
 import {
   isPageFailure,
@@ -38,7 +39,6 @@ export type QueueRecord = {
   settled: (Settled | undefined)[]
   result: PageQueueResult | null
   delivery: Delivery
-  failedFollowUps: number
   done: Promise<PageQueueResult>
 }
 
@@ -61,7 +61,7 @@ export type PageQueues = {
   undelivered: (sessionId: SessionId, outside: boolean) => PageQueueResult[]
   startedBy: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => PageQueueHandle[]
   claim: (record: QueueRecord) => boolean
-  confirm: (record: QueueRecord, outcome: FollowUpOutcome) => void
+  confirm: (record: QueueRecord, delivered: boolean) => void
   owedTurn: (sessionId: SessionId) => QueueRecord[]
   finished: (listener: (record: QueueRecord) => void) => void
 }
@@ -70,7 +70,9 @@ const KEPT_QUEUES = 200
 
 const OWED_QUEUES = 1000
 
-const FOLLOW_UP_ATTEMPTS = 3
+const FOLLOW_UP_RETRIES = 2
+
+const FOLLOW_UP_BACKOFF_MS = 100
 
 const QUEUE_RESULT_CHARS = RESULT_CAP_CHARS - 5000
 
@@ -202,7 +204,6 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
       settled: actions.map(() => undefined),
       result: null,
       delivery: 'owed',
-      failedFollowUps: 0,
       done: settledAll.promise,
     }
     const landed = playing.played.map((reply, index) => {
@@ -293,25 +294,15 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
     return true
   }
 
-  function confirm(record: QueueRecord, outcome: FollowUpOutcome): void {
+  function confirm(record: QueueRecord, delivered: boolean): void {
     if (record.delivery !== 'claimed') return
-    record.delivery = outcome.kind === 'delivered' ? 'delivered' : 'owed'
-    if (outcome.kind !== 'failed') return
-    record.failedFollowUps += 1
-    if (record.failedFollowUps < FOLLOW_UP_ATTEMPTS) return
-    logError(
-      `[core] ${FOLLOW_UP_ATTEMPTS} follow-up turns for queue ${record.queueId} failed; its result waits for the next reply. Last error: ${outcome.error}`,
-    )
+    record.delivery = delivered ? 'delivered' : 'owed'
   }
 
   function owedTurn(sessionId: SessionId): QueueRecord[] {
     return [...records.values()].filter(
       (record) =>
-        record.sessionId === sessionId &&
-        !record.outside &&
-        record.delivery === 'owed' &&
-        record.result !== null &&
-        record.failedFollowUps < FOLLOW_UP_ATTEMPTS,
+        record.sessionId === sessionId && !record.outside && record.delivery === 'owed' && record.result !== null,
     )
   }
 
@@ -337,13 +328,20 @@ export async function startQueueFollowUp(
   const owed = queues.owedTurn(sessionId).filter((record) => queues.claim(record))
   const results = owed.flatMap((record) => (record.result === null ? [] : [record.result]))
   if (results.length === 0) return
-  const outcome = await plane
-    .followUp(sessionId, results.map(queueNotice).join('\n\n'))
-    .catch((error: unknown): FollowUpOutcome => {
-      logError(`[core] the page queue follow-up turn for ${sessionId} failed to start: ${String(error)}`)
-      return {kind: 'failed', error: String(error)}
-    })
-  for (const record of owed) queues.confirm(record, outcome)
+  const notices = results.map(queueNotice).join('\n\n')
+  const outcome = await pRetry(
+    async (): Promise<FollowUpOutcome> => {
+      const attempt = await plane.followUp(sessionId, notices)
+      if (attempt.kind === 'failed') throw new Error(attempt.error)
+      return attempt
+    },
+    {retries: FOLLOW_UP_RETRIES, minTimeout: FOLLOW_UP_BACKOFF_MS},
+  ).catch((error: unknown): FollowUpOutcome => {
+    const queueIds = owed.map((record) => record.queueId).join(', ')
+    logError(`[core] the follow-up turns for queues ${queueIds} failed; they wait for the next reply: ${String(error)}`)
+    return {kind: 'failed', error: String(error)}
+  })
+  for (const record of owed) queues.confirm(record, outcome.kind === 'delivered')
 }
 
 export function pageQueueChunks(options: {result: PageQueueResult; record: QueueRecord; live: boolean}): ChatEvent[] {

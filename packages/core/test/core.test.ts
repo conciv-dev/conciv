@@ -983,7 +983,7 @@ describe('page bus and the session scope', () => {
       const queueId = await played(true)
       await queues.wait(SESSION_A, queueId, 0)
     }
-    starting.resolve({kind: 'failed', error: 'the harness could not launch'})
+    starting.resolve({kind: 'busy'})
     await following
     expect(queues.owedTurn(SESSION_A).map((record) => record.queueId)).toEqual([owed])
     await startQueueFollowUp(queues, plane, SESSION_A)
@@ -1019,34 +1019,55 @@ describe('page bus and the session scope', () => {
       return queueId
     }
     const owedIds = () => queues.owedTurn(fixture.sessionId).map((record) => record.queueId)
-    return {fixture, queues, played, owedIds}
+    const runStatuses = () =>
+      fixture.db
+        .select({status: chatRuns.status})
+        .from(chatRuns)
+        .where(eq(chatRuns.threadId, fixture.sessionId))
+        .orderBy(chatRuns.startedAt)
+        .all()
+        .map((run) => run.status)
+    return {fixture, queues, played, owedIds, runStatuses}
   }
 
-  it('a follow-up run that ends in RUN_ERROR leaves its result owed, and the next follow-up that finishes delivers it', async () => {
-    const {fixture, queues, played, owedIds} = await followUpFixture()
-    const owed = await played()
+  it('a follow-up run that ends in RUN_ERROR is retried, and the retry that finishes delivers the result', async () => {
+    const {fixture, queues, played, owedIds, runStatuses} = await followUpFixture()
+    await played()
     fixture.harness.script.scriptError('the harness could not launch')
     await startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
-    expect(owedIds()).toEqual([owed])
-    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
+    expect(runStatuses()).toEqual(['failed', 'completed'])
     expect(owedIds()).toEqual([])
     expect(queues.undelivered(fixture.sessionId, false)).toEqual([])
   })
 
-  it('three failed follow-ups stop following up on a queue, and the next reply still delivers its result', async () => {
-    const {fixture, queues, played, owedIds} = await followUpFixture()
+  it('three failed follow-up runs leave the result owed, and the next reply delivers it', async () => {
+    const {fixture, queues, played, owedIds, runStatuses} = await followUpFixture()
     const owed = await played()
-    for (const attempt of [1, 2, 3]) {
-      expect(owedIds()).toEqual([owed])
-      fixture.harness.script.scriptError(`launch failure ${attempt}`)
-      await startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
-    }
-    const runsAfterFailures = (await fixture.plane.history(fixture.sessionId)).length
-    expect(owedIds()).toEqual([])
+    for (const attempt of [1, 2, 3]) fixture.harness.script.scriptError(`launch failure ${attempt}`)
     await startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
-    expect((await fixture.plane.history(fixture.sessionId)).length).toBe(runsAfterFailures)
+    expect(runStatuses()).toEqual(['failed', 'failed', 'failed'])
+    expect(owedIds()).toEqual([owed])
     expect(queues.undelivered(fixture.sessionId, false).map((result) => result.queueId)).toEqual([owed])
-    expect(queues.undelivered(fixture.sessionId, false)).toEqual([])
+    expect(owedIds()).toEqual([])
+  })
+
+  it('a follow-up the plane declines because a run is driving is not retried', async () => {
+    const {fixture, queues, played, owedIds, runStatuses} = await followUpFixture()
+    const owed = await played()
+    fixture.harness.script.hold()
+    const driving = fixture.plane.followUp(fixture.sessionId, 'an earlier follow-up')
+    const plane = {
+      live: async () => false,
+      followUp: async (sessionId: SessionId, input: string): Promise<FollowUpOutcome> => {
+        const declined = await fixture.plane.followUp(sessionId, input)
+        fixture.harness.script.release()
+        await driving
+        return declined
+      },
+    }
+    await startQueueFollowUp(queues, plane, fixture.sessionId)
+    expect(runStatuses()).toEqual(['completed'])
+    expect(owedIds()).toEqual([owed])
   })
 
   it('a follow-up run that finishes confirms its result delivered', async () => {
