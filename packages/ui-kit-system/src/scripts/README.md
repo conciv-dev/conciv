@@ -1,4 +1,4 @@
-# ui-kit-system/scripts
+# ui-kit-system/src/scripts
 
 ## Overview
 

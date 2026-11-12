@@ -3,6 +3,5 @@
   "compilerOptions": {
     "rootDir": "../..",
     "types": ["vite/client", "node"]
-  },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "*.ts"]
+  }
 }

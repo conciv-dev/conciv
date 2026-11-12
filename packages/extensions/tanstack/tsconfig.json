@@ -3,14 +3,10 @@
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx", "*.ts"],
   "exclude": [
-    "test/host/main.tsx",
-    "test/host/virtual-extension.d.ts",
-    "test/fixtures/build-errors-app/broken.ts",
-    "test/fixtures/double-quoted-manifest-app",
-    "test/fixtures/route-manifest-app",
-    "dist",
-    "node_modules"
+    "${configDir}/test/host",
+    "${configDir}/test/fixtures/build-errors-app/broken.ts",
+    "${configDir}/test/fixtures/double-quoted-manifest-app",
+    "${configDir}/test/fixtures/route-manifest-app"
   ]
 }

@@ -5,7 +5,7 @@ export default defineConfig({
   test: {
     ...ciTest(),
     environment: 'node',
-    include: ['tests/unit/**/*.test.ts'],
+    include: ['test/unit/**/*.test.ts'],
     fileParallelism: false,
     testTimeout: 60_000,
     hookTimeout: 90_000,

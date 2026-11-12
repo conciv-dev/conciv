@@ -8,7 +8,7 @@ Landing page install snippets for `apps/site` and the generator that pre-highlig
 
 - `site-snippets`: `FRAMEWORK_SNIPPETS`, `FrameworkSnippet`, `cleanSnippet` (`src/framework-snippets.ts`)
 - `site-snippets/generated`: `MAGIC_MOVE_STEP_IDS`, `MAGIC_MOVE_STEPS`, `SNIPPET_TWOSLASH` and their types (`src/framework-snippets.gen.ts`, generated)
-- `scripts/highlight-snippets.ts`: renders `FRAMEWORK_SNIPPETS` with shiki, twoslash and `codeToKeyedTokens`; run by `pnpm --filter site-snippets gen:snippets`
+- `src/scripts/highlight-snippets.ts`: renders `FRAMEWORK_SNIPPETS` with shiki, twoslash and `codeToKeyedTokens`; run by `pnpm --filter site-snippets gen:snippets`
 
 ## Side Effects
 

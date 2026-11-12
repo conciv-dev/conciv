@@ -2,15 +2,5 @@
   "extends": "@conciv/tsconfig/tsconfig.solid.json",
   "compilerOptions": {
     "types": ["node"]
-  },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "test/**/*.ts",
-    "test/**/*.tsx",
-    "e2e/**/*.ts",
-    "fixtures/**/*.ts",
-    "fixtures/**/*.tsx",
-    "*.ts"
-  ]
+  }
 }

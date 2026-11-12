@@ -3,10 +3,10 @@
   "compilerOptions": {
     "types": ["node", "vite/client"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "*.ts"],
   "exclude": [
-    "test/fixtures/provenance/Classes.tsx",
-    "test/fixtures/provenance/Inline.tsx",
-    "test/fixtures/provenance/Sx.tsx"
+    "${configDir}/test/fixtures/host",
+    "${configDir}/test/fixtures/provenance/Classes.tsx",
+    "${configDir}/test/fixtures/provenance/Inline.tsx",
+    "${configDir}/test/fixtures/provenance/Sx.tsx"
   ]
 }

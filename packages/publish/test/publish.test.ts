@@ -2,6 +2,7 @@ import {test, expect, describe, onTestFinished} from 'vitest'
 import {writeFile, mkdir, mkdtemp, rm, symlink, readFile} from 'node:fs/promises'
 import {dirname, join, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
+import {createRequire} from 'node:module'
 import {
   assertSharedDependenciesCatalogued,
   PUBLIC_PACKAGES,
@@ -112,6 +113,30 @@ describe('typecheck coverage', () => {
     await expect(rejection).rejects.toThrow('packages/a/test/a.test.ts')
     await expect(rejection).rejects.toThrow('packages/a/test/fixtures/broken.ts')
     await writeTsconfig({include: ['src', 'test'], exclude: ['test/fixtures/broken.ts']})
+    await expect(assertTypecheckCoversTrackedFiles(root)).resolves.toBeUndefined()
+  }, 10_000)
+
+  test('assertTypecheckCoversTrackedFiles counts the files tsc checks for an include inherited from a shared tsconfig, under TypeScript 6 too', async () => {
+    const root = await scaffoldWorkspaceRoot('typecheck-coverage-shared-')
+    const pkg = join(root, 'packages', 'a')
+    await writeManifest(pkg, {name: '@conciv/a', scripts: {typecheck: 'tsc -p tsconfig.json --noEmit'}})
+    await mkdir(join(pkg, 'src'), {recursive: true})
+    await mkdir(join(pkg, 'node_modules', '.bin'), {recursive: true})
+    await symlink(join(repoRoot, 'node_modules'), join(root, 'node_modules'))
+    const typescript6 = dirname(
+      createRequire(join(repoRoot, 'apps', 'site-snippets', 'package.json')).resolve('typescript/package.json'),
+    )
+    await Promise.all([
+      symlink(join(typescript6, 'bin', 'tsc'), join(pkg, 'node_modules', '.bin', 'tsc')),
+      writeFile(join(pkg, 'src', 'index.ts'), 'export const a = 1\n'),
+      writeFile(join(root, 'tsconfig.shared.json'), JSON.stringify({include: ['${configDir}/src/**/*']})),
+      writeFile(join(pkg, 'tsconfig.json'), JSON.stringify({extends: '../../tsconfig.shared.json'})),
+    ])
+    await execa('git', ['init', '-q'], {cwd: root})
+    await execa('git', ['add', 'packages/a/src', 'packages/a/tsconfig.json'], {cwd: root})
+    await expect(execa('tsc', ['--version'], {cwd: pkg, preferLocal: true})).resolves.toMatchObject({
+      stdout: expect.stringMatching(/^Version 6\./),
+    })
     await expect(assertTypecheckCoversTrackedFiles(root)).resolves.toBeUndefined()
   }, 10_000)
 

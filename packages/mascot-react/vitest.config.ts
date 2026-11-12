@@ -11,14 +11,14 @@ export default defineConfig({
         test: {
           name: 'mascot-react',
           environment: 'node',
-          include: ['tests/unit/**/*.test.ts'],
+          include: ['test/unit/**/*.test.ts'],
         },
       },
       {
         extends: true,
         test: {
           name: 'mascot-react-browser',
-          include: ['tests/browser/**/*.browser.test.tsx'],
+          include: ['test/browser/**/*.browser.test.tsx'],
           fileParallelism: false,
           browser: {
             enabled: true,

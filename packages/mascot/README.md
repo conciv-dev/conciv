@@ -113,8 +113,8 @@ starts.
 - `package.json:exports` - `.`, `./solid`, `./adapter`, and `./effects/<name>` for binary, matrix, thought-cloud, pixel-bubbles, signal-rings, speech-bubble, steam, spark, spark-burst, spark-fountain, satellite, led-cone, tick-ring, signal-bars, heart, notes.
 - `tsdown.config.ts:entry` - `src/core/index.ts`, `src/core/style-merge.ts`, `src/core/adapter.ts`, `src/solid/index.ts` and each `src/core/effects/<name>.ts` (unbundled, ESM, `vite-plugin-solid`).
 - `tsdown.solid-source.config.ts` - `src/solid/index.ts` to `dist/solid` with `jsx: 'preserve'` and `.jsx` output.
-- `playwright.config.ts:testDir` - `./tests/e2e`.
-- Source: [src](./src/README.md). Tests: `tests/browser/` (DOM helpers for the browser tests) and [tests/e2e](./tests/e2e/README.md).
+- `playwright.config.ts:testDir` - `./test/e2e`.
+- Source: [src](./src/README.md). Tests: `test/browser/` (DOM helpers for the browser tests) and [test/e2e](./test/e2e/README.md).
 
 ## Invariants
 
@@ -126,5 +126,5 @@ starts.
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/mascot` from the repo root (turbo builds the package and its dependencies first) (vitest, then Playwright on `tests/e2e`)
+- Run: `pnpm exec turbo run test --filter=@conciv/mascot` from the repo root (turbo builds the package and its dependencies first) (vitest, then Playwright on `test/e2e`)
 - Run: `pnpm exec turbo run typecheck --filter=@conciv/mascot` from the repo root (turbo builds the package and its dependencies first)

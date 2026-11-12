@@ -15,6 +15,7 @@ Private workspace package (`private: true`) holding the shared TypeScript preset
 ## Invariants
 
 - Every path uses `${configDir}`, so it resolves against the package that extends the preset, not this directory.
+- `tsconfig.base.json` owns the include every preset inherits: `src/**/*`, `test/**/*` and the package root's `*.ts`. A package's `tsconfig.json` is `extends` plus the `compilerOptions` it needs, with no `include` of its own.
 - `tsconfig.build.json` extends nothing: listed after a package's `tsconfig.json`, it only switches emit on and must not reset that package's libs or JSX.
 
 ## Side Effects

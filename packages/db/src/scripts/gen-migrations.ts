@@ -3,7 +3,7 @@ import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {readMigrationFiles} from 'drizzle-orm/migrator'
 
-const packageRoot = fileURLToPath(new URL('..', import.meta.url))
+const packageRoot = fileURLToPath(new URL('../..', import.meta.url))
 const header = "import type {MigrationMeta} from 'drizzle-orm/migrator'"
 
 writeMigrations('drizzle', 'migrations', 'migrations.gen.ts')

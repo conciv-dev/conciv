@@ -2,14 +2,5 @@
   "extends": "@conciv/tsconfig/tsconfig.solid.json",
   "compilerOptions": {
     "types": ["vite/client", "node"]
-  },
-  "include": [
-    "src/solid/**/*.ts",
-    "src/solid/**/*.tsx",
-    "src/*.stories.tsx",
-    "src/*.mdx",
-    "tests/browser/lockup-dom.ts",
-    "tests/browser/solid-lockup.browser.test.tsx",
-    "*.ts"
-  ]
+  }
 }

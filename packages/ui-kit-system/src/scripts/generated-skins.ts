@@ -1,6 +1,6 @@
-import type {Skin} from '../src/skin-contract.ts'
-import {concivSkin} from '../src/skin-conciv.ts'
-import {terminalSkin} from '../src/skin-terminal.ts'
+import type {Skin} from '../skin-contract.ts'
+import {concivSkin} from '../skin-conciv.ts'
+import {terminalSkin} from '../skin-terminal.ts'
 
 export const BASE_SKIN: Skin = concivSkin
 

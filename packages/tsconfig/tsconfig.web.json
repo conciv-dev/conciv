@@ -3,6 +3,5 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2024", "DOM", "DOM.Iterable"]
-  },
-  "include": ["${configDir}/src/**/*", "${configDir}/test/**/*", "${configDir}/*.ts"]
+  }
 }

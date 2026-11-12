@@ -13,12 +13,12 @@ The testkit runs the real product path: the page under test uses the same transp
 - `exports['.']` (`package.json`): ./src/get-extension-test-api.ts
 - `exports` subpaths (`package.json`): ./card-harness, ./connect-handshake, ./core-kit, ./framework-fake, ./host, ./host/grab, ./widget-suite, ./test-host, ./page-plane, ./listen-local, ./serve-host, ./navigation-state, ./rpc-counts, ./rpc-wire, ./chat-wire, ./push-wire, ./rpc-fault, ./chat-fault
 - `scripts` (`package.json`): build (`vite build -c vite.test-host.config.ts`), typecheck, lint, test
-- `vite.test-host.config.ts`: `testHostConfig({clientEntry: fixtures/ping/client.tsx, outDir: dist/test-host})`
+- `vite.test-host.config.ts`: `testHostConfig({clientEntry: test/fixtures/ping/client.tsx, outDir: dist/test-host})`
 - `vitest.config.ts`: project 'extension-testkit', node env, test/**/*.test.ts
-- `uno.config.ts`: `presetConciv` over src and fixtures
+- `uno.config.ts`: `presetConciv` over src and test/fixtures
 - Subdirectories:
   - src: [./src/README.md](./src/README.md) - test API, servers, wire observers and fault injectors
-  - `fixtures/ping/`: the fixture extension the default test-host build mounts (client buttons for ping, grab pick, an oRPC round trip and composer actions; server with three tools and a one-procedure router)
+  - `test/fixtures/ping/`: the fixture extension the default test-host build mounts (client buttons for ping, grab pick, an oRPC round trip and composer actions; server with three tools and a one-procedure router)
 
 ## Invariants
 

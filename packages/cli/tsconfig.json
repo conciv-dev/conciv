@@ -5,6 +5,5 @@
     "declarationMap": false,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "*.ts"],
-  "exclude": ["test/fixtures"]
+  "exclude": ["${configDir}/test/fixtures"]
 }

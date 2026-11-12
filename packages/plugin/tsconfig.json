@@ -3,6 +3,5 @@
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "*.ts"],
-  "exclude": ["test/fixtures/diagnostics-app/broken.ts"]
+  "exclude": ["${configDir}/test/fixtures/diagnostics-app/broken.ts"]
 }

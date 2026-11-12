@@ -140,7 +140,7 @@ shipped source).
 - `exports["./client"]` (`package.json`): maps to `./dist/client.js` and `./dist/client.d.ts`
 - `exports["./bridge"]` (`package.json`): maps to `./dist/shared/bridge.js`
 - `exports["./bridge-client"]` (`package.json`): maps to `./dist/shared/bridge-client.js`
-- `scripts.gen:fixtures` (`package.json`): runs `node fixtures/bridge/gen.ts`
+- `scripts.gen:fixtures` (`package.json`): runs `node test/fixtures/bridge/gen.ts`
 - `scripts.build` (`package.json`): runs `tsdown && vite build && tsc -p tsconfig.build.json`
 - default export `defineConfig` (`tsdown.config.ts`): ESM entries `src/server.ts`, `src/shared/bridge.ts` and `src/shared/bridge-client.ts`, with `dts: false`
 - default export `defineConfig` (`vite.config.ts`): ES lib build of `src/client.tsx` to `client.js`, with `emptyOutDir: false` and sourcemaps

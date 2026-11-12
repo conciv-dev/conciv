@@ -1,5 +1,5 @@
-import {anchorEntries, declarationBlock, renderSkinCss} from '../src/skin-contract.ts'
-import {DERIVED_TOKENS} from '../src/derived-tokens.ts'
+import {anchorEntries, declarationBlock, renderSkinCss} from '../skin-contract.ts'
+import {DERIVED_TOKENS} from '../derived-tokens.ts'
 import {BASE_SKIN, OVERLAY_SKINS} from './generated-skins.ts'
 
 const SCHEME_RULES = ['.light {\n  color-scheme: light;\n}', '.dark {\n  color-scheme: dark;\n}'].join('\n\n')

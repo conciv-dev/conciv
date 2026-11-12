@@ -6,13 +6,5 @@
     "paths": {
       "@conciv/preact": ["./src/index.ts"]
     }
-  },
-  "include": [
-    "src/**/*.ts",
-    "test/**/*.ts",
-    "test/**/*.tsx",
-    "tsdown.config.ts",
-    "vite.fixture.config.ts",
-    "vitest.config.ts"
-  ]
+  }
 }

@@ -6,7 +6,6 @@ import {findOwner, readWorkspacePackages, type WorkspacePackage} from './workspa
 const TYPESCRIPT_PATHSPECS = ['*.ts', '*.tsx', '*.mts', '*.cts']
 
 const shownConfigSchema = z.object({
-  files: z.array(z.string()).default([]),
   exclude: z.array(z.string()).default([]),
   references: z.array(z.object({path: z.string()})).default([]),
 })
@@ -91,14 +90,15 @@ async function readCoverages(
   if (seen.has(config)) return []
   seen.add(config)
   const configDir = dirname(config)
-  const result = await execa('tsc', ['-p', config, '--showConfig'], {cwd: packageDir, preferLocal: true, reject: false})
-  if (result.exitCode !== 0) {
-    throw new Error(`${config}: tsc --showConfig failed\n${result.stdout}${result.stderr}`)
-  }
-  const shown = shownConfigSchema.parse(JSON.parse(result.stdout))
+  const [shown, files] = await Promise.all([
+    runTsc(packageDir, config, '--showConfig').then((stdout) => shownConfigSchema.parse(JSON.parse(stdout))),
+    runTsc(packageDir, config, '--listFilesOnly').then((stdout) =>
+      stdout.split('\n').filter((line) => line.length > 0),
+    ),
+  ])
   const toPackagePath = (path: string) => relative(packageDir, resolve(configDir, path))
   const coverage = {
-    included: new Set(shown.files.map(toPackagePath)),
+    included: new Set(files.map(toPackagePath)),
     excluded: shown.exclude.filter((pattern) => !/[*?[{]/.test(pattern)).map(toPackagePath),
   }
   if (!followReferences) return [coverage]
@@ -108,6 +108,12 @@ async function readCoverages(
     ),
   )
   return [coverage, ...referenced.flat()]
+}
+
+async function runTsc(packageDir: string, config: string, flag: string): Promise<string> {
+  const result = await execa('tsc', ['-p', config, flag], {cwd: packageDir, preferLocal: true, reject: false})
+  if (result.exitCode !== 0) throw new Error(`${config}: tsc ${flag} failed\n${result.stdout}${result.stderr}`)
+  return result.stdout
 }
 
 function isCovered(coverage: Coverage, file: string): boolean {

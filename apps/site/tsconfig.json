@@ -9,6 +9,5 @@
       "@/*": ["./src/*"],
       "collections/*": ["./.source/*"]
     }
-  },
-  "include": ["**/*.ts", "**/*.tsx"]
+  }
 }
