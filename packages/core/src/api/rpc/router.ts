@@ -202,8 +202,9 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     },
     page: {
       queue: {
-        wait: os.page.queue.wait.handler(({input, errors}) =>
-          deps.queues.wait(input.sessionId, input.queueId, input.waitMs).catch((error: unknown) => {
+        wait: os.page.queue.wait.handler(({input, errors, signal}) =>
+          deps.queues.wait(input.sessionId, input.queueId, input.waitMs, signal).catch((error: unknown) => {
+            if (signal?.aborted === true) throw error
             throw errors.NO_QUEUE({message: error instanceof Error ? error.message : String(error)})
           }),
         ),
