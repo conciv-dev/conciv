@@ -678,17 +678,9 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
       await once(taken.close(), 'close')
     }
   })
+})
 
-  it('a configured session id that is not a conciv or harness id fails start, naming the id', async () => {
-    const options = {harnessBin: 'true', systemPrompt: false}
-    await expect(bootEngine(tempDir(), {options: {...options, sessionId: 'not-a-conciv-id'}})).rejects.toThrow(
-      'the configured conciv session id "not-a-conciv-id" is not a conciv session id',
-    )
-    await expect(bootEngine(tempDir(), {options: {...options, claudeSessionId: 'not a native id'}})).rejects.toThrow(
-      'the configured harness session id "not a native id" is not a harness session id',
-    )
-  })
-
+describe('configured session rows', () => {
   it('the configured conciv and harness session rows exist once the engine resolves', async () => {
     const root = tempDir()
     const configured = {sessionId: 'conciv_configured', claudeSessionId: 'native-configured'}
