@@ -507,11 +507,9 @@ const queueTool = queueDef
   .client((input, ctx) => {
     const queued = ctx.queued
     if (queued === undefined) badArgs('page_queue plays through the engine queue only')
-    acceptQueue(queued.id)
     startTask(ctx.agentId)
     touchTask()
-    ctx.signal?.addEventListener('abort', () => finishQueue(queued.id), {once: true})
-    if (ctx.signal?.aborted === true) finishQueue(queued.id)
+    acceptQueue(queued.id, ctx.signal)
     return {queueId: queued.id, actions: input.actions.length}
   })
   .render(actCard)
