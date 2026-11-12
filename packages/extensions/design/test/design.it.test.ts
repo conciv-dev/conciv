@@ -16,11 +16,11 @@ import {afterAll, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {makeRpcClient, ToolCommandSignatureSchema, type RpcClient} from '@conciv/contract'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
-import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
 import {magicLink} from '@conciv/harness-testkit/login'
-import type {} from '@conciv/extension-design/client'
+import type {} from '../src/client.js'
+import design from '../src/index.js'
 import {
   CaptureInputSchema,
   ClearInputSchema,
@@ -37,17 +37,17 @@ import {
   type StatusReport,
   type TargetResult,
   type WinnerResult,
-} from '@conciv/extension-design/defs'
-import {mapDeclaration} from '@conciv/extension-design/provenance'
-import {glyphCoreColor} from '@conciv/extension-design/colors'
-import {destroyPaddle, paddleReader, trimToInk} from '@conciv/extension-design/paddle'
-import {groupText} from '@conciv/extension-design/text-groups'
-import type {Box, ColorMetric, LiveComponent, Provenance, Raster, TextRun, Winner} from '@conciv/extension-design/types'
-import {unplugin} from '../src/plugin-instance.js'
-import {renderTargets} from './fixtures/design/render-targets.js'
+} from '../src/shared/defs.js'
+import {mapDeclaration} from '../src/server/provenance/mappers.js'
+import {glyphCoreColor} from '../src/server/deltas/colors.js'
+import {destroyPaddle, paddleReader, trimToInk} from '../src/server/comparators/paddle.js'
+import {groupText} from '../src/server/text-groups.js'
+import type {Box, ColorMetric, LiveComponent, Provenance, Raster, TextRun, Winner} from '../src/shared/types.js'
+import conciv from '@conciv/it/plugin/vite'
+import {renderTargets} from './fixtures/render-targets.js'
 
-const HOST_ROOT = fileURLToPath(new URL('fixtures/design/host/', import.meta.url))
-const PROVENANCE_DIR = fileURLToPath(new URL('fixtures/design/provenance/', import.meta.url))
+const HOST_ROOT = fileURLToPath(new URL('fixtures/host/', import.meta.url))
+const PROVENANCE_DIR = fileURLToPath(new URL('fixtures/provenance/', import.meta.url))
 const ENDPOINT_FILE = 'dev-endpoint.json'
 const PAGE_DRIVER_TIMEOUT_MS = 30_000
 const COLOR_DELTA_E = 3
@@ -58,7 +58,7 @@ const HOST_STYLES = join(HOST_ROOT, 'src', 'styles.css')
 const CatalogSchema = z.array(ToolCommandSignatureSchema)
 const EndpointSchema = z.object({apiBase: z.string().min(1)})
 
-type DesignConfigInput = NonNullable<ConcivConfig['extensions']>['design']
+type DesignConfigInput = Parameters<typeof design>[0]
 
 function decodePng(bytes: Buffer): PNG {
   return PNG.sync.read(bytes)
@@ -137,12 +137,12 @@ async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
     server: {host: '127.0.0.1', port: 0},
     plugins: [
       react(),
-      unplugin.vite({
+      conciv({
         stateRoot,
         harnessBin: 'true',
         systemPrompt: false,
         devEndpointDir,
-        extensions: {design: options.config ?? {}},
+        extensions: [design(options.config)],
       }),
     ],
   })
@@ -390,13 +390,10 @@ it('a page without source attributes returns a hint and no components', async ()
 })
 
 it('names the route and width when no target exists', async () => {
-  const message = await rpc.registry.call({name: 'design_diff', input: {width: 1024}}).then(
-    () => '',
-    (error: unknown) => String(error),
-  )
-  expect(message).toContain('design_target')
-  expect(message).toContain('/plain.html')
-  expect(message).toContain('1024')
+  await expect(rpc.registry.call({name: 'design_diff', input: {width: 1024}})).rejects.toMatchObject({
+    code: 'no-target',
+    message: 'no design target for /plain.html at 1024px; register one with design_target',
+  })
 })
 
 it('refuses to diff a target while the tab shows another route', async () => {

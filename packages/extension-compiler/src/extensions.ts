@@ -3,9 +3,11 @@ import {join} from 'node:path'
 import {pathToFileURL} from 'node:url'
 import {createJiti, type Jiti, type JSXOptions, type TransformOptions, type TransformResult} from 'jiti'
 import type {AnyExtension} from '@conciv/extension'
+import type {ExtensionPackage} from '@conciv/protocol/config-types'
 import {DOCK_REVEAL_EVENT} from '@conciv/protocol/event-bus'
 import {splitExtension} from './split-extension.js'
 import {dedupeExtensions, EXTENSION_GLOB, type ExtensionEntry} from './dedupe-extensions.js'
+import {isExtension} from './extension-guard.js'
 
 export const EXTENSIONS_VIRTUAL_ID = 'virtual:conciv-extensions'
 export const EXTENSIONS_RESOLVED_ID = '\0' + EXTENSIONS_VIRTUAL_ID
@@ -14,14 +16,15 @@ export const EXTENSIONS_DOCK_RESOLVED_ID = `${EXTENSIONS_RESOLVED_ID}-dock`
 export const EXTENSIONS_DOCK_ROUTE = '/@conciv/extensions-dock.js'
 
 export type Builtins = {
-  serverExtensions: readonly AnyExtension[]
-  clientEntries: readonly string[]
   embedEntry?: string
   dedupeEntry?: string
   nativePageDir?: string
 }
 
-export const NO_BUILTINS: Builtins = {serverExtensions: [], clientEntries: []}
+export type LoadedExtensionPackages = {
+  extensions: AnyExtension[]
+  config: Record<string, unknown>
+}
 
 export type ExtensionsSurface = 'page' | 'dock'
 
@@ -115,21 +118,23 @@ export function listExtensionFiles(root: string): string[] {
 }
 
 export async function loadExtensionPackages(
-  root: string,
-  resolveFrom: string,
-  specifiers: readonly string[],
-): Promise<AnyExtension[]> {
-  const rootJiti = createJiti(pathToFileURL(join(root, 'noop.js')).href)
-  const resolveFromUrl = rootJiti.esmResolve(resolveFrom)
-  const packageJiti = createJiti(resolveFromUrl)
-  return Promise.all(
-    specifiers.map(async (specifier) => {
-      const loaded = await packageJiti.import<{default?: AnyExtension}>(specifier)
-      const extension = loaded && typeof loaded === 'object' && 'default' in loaded ? loaded.default : undefined
-      if (extension === undefined) throw new Error(`conciv builtin extension ${specifier} has no default export`)
-      return extension
-    }),
+  packages: readonly ExtensionPackage[] = [],
+): Promise<LoadedExtensionPackages> {
+  const loaded = await Promise.all(
+    packages.map(async (entry) => ({extension: await importServerEntry(entry.server), config: entry.config})),
   )
+  return {
+    extensions: loaded.map(({extension}) => extension),
+    config: Object.fromEntries(loaded.map(({extension, config}) => [extension.name, config])),
+  }
+}
+
+async function importServerEntry(server: string): Promise<AnyExtension> {
+  const loaded: unknown = await import(pathToFileURL(server).href)
+  const extension = loaded && typeof loaded === 'object' && 'default' in loaded ? loaded.default : undefined
+  if (!isExtension(extension))
+    throw new Error(`conciv extension server entry ${server} has no extension default export`)
+  return extension
 }
 
 const EXTENSION_JSX: JSXOptions = {runtime: 'automatic', importSource: 'solid-js'}

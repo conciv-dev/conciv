@@ -2,7 +2,7 @@
 
 ## Overview
 
-CaptureDriver gets the extension API base and starts bootRecorder. bootRecorder subscribes to the server's control stream and starts or stops a capture session based on the live flag. A capture session runs rrweb record and pushes each event into a Flusher, which batches events, posts them through rpc.flush, and backs off after failures. The capture stops after the tab has been hidden for 30s. The panel view polls the window and log procedures, renews viewer presence, streams the live replay through mountStreamPlayer, and can save a recording, export it as video, or attach a recording reference to the composer. RecordingCard replays a saved recording inside a dialog.
+CaptureDriver gets the extension API base and starts bootRecorder. bootRecorder subscribes to the server's control stream and starts or stops a capture session based on the live flag. A capture session runs rrweb record and pushes each event into a Flusher, which batches events, posts them through rpc.flush, and backs off after failures. The capture stops after the tab has been hidden for 30s. The panel view follows the replay stream until the recording can be replayed, reads the log once, renews its viewer lease, follows the events stream into mountStreamPlayer, and can save a recording, export it as video, or attach a recording reference to the composer. RecordingCard replays a saved recording inside a dialog.
 
 ## Interface
 
@@ -29,8 +29,8 @@ CaptureDriver gets the extension API base and starts bootRecorder. bootRecorder 
 - `enqueue` (`flusher.ts`): drops any single event larger than MAX_FLUSH_BYTES; when the queue passes MAX_QUEUE_BYTES (8 MiB) it drops the oldest events but keeps the last full snapshot (type 2)
 - `takeChunk` (`flusher.ts`): a POST holds at most MAX_POST_BYTES (1 MiB) unless the chunk is a single event; after a send failure the chunk is requeued and the backoff grows from 1s up to 30s
 - `drain` (`flusher.ts`): the draining flag blocks concurrent drains; the cadence is 200ms while live and 5000ms while idle
-- `recordingWithEnoughEvents` / `hasReplay` (`panel-view.tsx`): replay needs at least 2 events; the window and log queries poll every 1000ms until they have data
-- `mountStreamPlayer` (`player.ts`): live means the player is playing and within LIVE_EDGE_MS (2500ms) of the tail; it polls for new events every LIVE_POLL_MS (1000ms); ArrowLeft/ArrowRight on the timeline scrub by 5000ms, clamped to [0,total]
+- `recordingWithEnoughEvents` (`panel-view.tsx`): replay needs at least REPLAY_MIN_EVENTS (2) events; the recording is a live query over the replay stream, which the server ends once it is replayable; the log is read once and again when it is sent to the agent; neither polls
+- `mountStreamPlayer` (`player.ts`): live means the player is playing and within LIVE_EDGE_MS (2500ms) of the tail; it follows the `follow` stream (the events procedure, retried without limit) for new events and stops following on dispose; ArrowLeft/ArrowRight on the timeline scrub by 5000ms, clamped to [0,total]
 - `detachEvents` (`player.ts`): deep-clones events and validates them with RrwebEventSchema before the player gets them
 - `RecordingCard` (`recording-card.tsx`): plays only with at least 2 events; shows 'Recording expired.' when recordings.get returns expired
 
@@ -41,7 +41,7 @@ CaptureDriver gets the extension API base and starts bootRecorder. bootRecorder 
 - `startCapture` (`capture.ts`): runs rrweb record on the host page DOM; `loadCaptureLibrary` caches its dynamic import in module-global state
 - `saveFileToDisk` (`download.ts`): creates and revokes an object URL and clicks an anchor to start a download
 - `RecorderBlockedNotice` (`notices.tsx`): the Reload page button calls location.reload()
-- `RecorderPanel` in `RecorderPanelView` (`panel-view.tsx`): calls presence with live:true on mount and every VIEWER_RENEW_MS (7000ms) and with live:false on cleanup; calls reset, recordings.save and recordings.exportVideo; attaches a File with type RECORDER_MIME to the composer
+- `RecorderPanel` in `RecorderPanelView` (`panel-view.tsx`): calls presence with live:true on mount and every VIEWER_RENEW_MS (7000ms) and with live:false on cleanup (a lease heartbeat: the server drops a viewer that stops renewing for 20s; a failed call is logged); calls reset, recordings.save and recordings.exportVideo; attaches a File with type RECORDER_MIME to the composer
 - `mountStreamPlayer` / `mountPlayer` (`player.ts`): inject <style> elements, rewrite injected rrweb styles into @layer rrweb, set ARIA attributes on the player controls, and attach a ResizeObserver; `loadPlayerKit` caches its import in module-global state
 - `RecordingCard` (`recording-card.tsx`): calls the recordings.get and recordings.exportVideo procedures
 

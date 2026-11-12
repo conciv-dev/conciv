@@ -2,7 +2,7 @@ import {createEffect, createSignal, onCleanup, type Accessor} from 'solid-js'
 import {Debouncer} from '@tanstack/pacer'
 import {onlineManager} from '@tanstack/query-core'
 import {ORPCError} from '@orpc/client'
-import {isRetryableRpcFailure, subscribeRpcReachability} from '@conciv/contract'
+import {subscribeRpcReachability} from '@conciv/contract'
 
 export const ENGINE_OFFLINE_GRACE_MS = 1000
 
@@ -88,24 +88,8 @@ export function sustainedEngineOffline(graceMs = ENGINE_OFFLINE_GRACE_MS): Acces
   return sustained
 }
 
-export const ENGINE_PROBE_INTERVAL_MS = 2000
-export const ENGINE_HEARTBEAT_INTERVAL_MS = 30_000
-
-export function engineProbeRefetchInterval(reachable: boolean, heartbeat: boolean): number | false {
-  if (!reachable) return ENGINE_PROBE_INTERVAL_MS
-  return heartbeat ? ENGINE_HEARTBEAT_INTERVAL_MS : false
-}
-
 export function subscribeEngineOnline(listener: () => void): () => void {
   return onlineManager.subscribe((online) => {
     if (online) listener()
   })
-}
-
-export function voteEngineProbeSettled(succeeded: boolean, error?: unknown): void {
-  if (succeeded) {
-    onlineManager.setOnline(true)
-    return
-  }
-  onlineManager.setOnline(!isRetryableRpcFailure(true, error))
 }

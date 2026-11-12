@@ -105,15 +105,15 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     sessions: sessionsRouter(deps),
     chat: chatRouter(deps, sessionOs),
     settings: {
-      all: os.settings.all.handler(({input}) => deps.settings.file(input.scope, input.namespace).read()),
-      set: os.settings.set.handler(({input}) =>
-        deps.settings.file(input.scope, input.namespace).set(input.key, input.value),
+      all: os.settings.all.handler(async ({input}) => (await deps.settings.file(input.scope, input.namespace)).read()),
+      set: os.settings.set.handler(async ({input}) =>
+        (await deps.settings.file(input.scope, input.namespace)).set(input.key, input.value),
       ),
-      delete: os.settings.delete.handler(({input}) =>
-        deps.settings.file(input.scope, input.namespace).delete(input.key),
+      delete: os.settings.delete.handler(async ({input}) =>
+        (await deps.settings.file(input.scope, input.namespace)).delete(input.key),
       ),
-      changes: os.settings.changes.handler(({input, signal}) =>
-        deps.settings.file(input.scope, input.namespace).changes(signal),
+      changes: os.settings.changes.handler(async ({input, signal}) =>
+        (await deps.settings.file(input.scope, input.namespace)).changes(signal),
       ),
     },
     drafts: {
@@ -243,10 +243,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       ),
       tools: os.meta.tools.handler(() => ({tools: deps.tools})),
       engine: os.meta.engine.handler(() => engine.staleness()),
-      hubAgents: os.meta.hubAgents.handler(() => ({
-        installs: deps.hub.installs(),
-        connections: deps.hub.connections(),
-      })),
+      hubAgents: os.meta.hubAgents.handler(({signal}) => deps.hub.agents(signal)),
       connectHub: os.meta.connectHub.handler(({input}) => deps.hub.connect(input.harness)),
       disconnectHub: os.meta.disconnectHub.handler(({input}) => deps.hub.disconnect(input.harness)),
     },
