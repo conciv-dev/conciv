@@ -46,7 +46,7 @@
     "@conciv/protocol": "workspace:^",
     "@orpc/client": "catalog:",
     "@tanstack/ai-mcp": "catalog:",
-    "diff": "catalog:",
+    "diff": "^9.0.0",
     "es-toolkit": "catalog:",
     "nypm": "^0.6.12",
     "picocolors": "^1.1.1",

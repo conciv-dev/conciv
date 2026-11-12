@@ -1,6 +1,6 @@
 import {existsSync} from 'node:fs'
 import {dirname, join} from 'node:path'
-import {addSourceToJsx} from './inject-source.js'
+import {addSourceToJsx} from '@tanstack/devtools-bundler-core'
 import {compileExtensionSolid, isExtensionModule} from './compile-extension.js'
 import {splitExtension} from './split-extension.js'
 import {
@@ -11,6 +11,8 @@ import {
   EXTENSIONS_VIRTUAL_ID,
   extensionsModuleSource,
 } from './extensions.js'
+
+const UNSTAMPED_PATHS = ['?raw', '/dist/', '/build/']
 
 const SOLID_SINGLETONS = ['solid-js', 'solid-js/web', 'solid-js/store', '@tanstack/solid-router', '@ark-ui/solid']
 
@@ -75,15 +77,12 @@ export function isClientEntry(id: string): boolean {
   return id.includes('client-entry')
 }
 
-export type TransformContext = {root: string; keys: Parameters<typeof addSourceToJsx>[0]['keys']}
-
 export function transformConcivModule(
   code: string,
   id: string,
   ssr: boolean,
-  ctx: TransformContext,
 ):
-  | ReturnType<typeof addSourceToJsx>
+  | NonNullable<ReturnType<typeof addSourceToJsx>>
   | Promise<{code: string; map: string | null} | null>
   | {code: string; map: null}
   | null {
@@ -95,5 +94,6 @@ export function transformConcivModule(
     const split = splitExtension(code, id, 'browser')
     return compileExtensionSolid(split?.code ?? code, id, ssr)
   }
-  return addSourceToJsx({code, id, root: ctx.root, keys: ctx.keys})
+  if (UNSTAMPED_PATHS.some((part) => id.includes(part))) return null
+  return addSourceToJsx(code, id) ?? null
 }

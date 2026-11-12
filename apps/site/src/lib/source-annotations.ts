@@ -1,10 +1,10 @@
-import {addSourceToJsx} from '@conciv/extension-compiler/inject-source'
+import {addSourceToJsx} from '@tanstack/devtools-bundler-core'
 import type {Plugin} from 'vite'
 
-export function annotateSiteFile(code: string, id: string, root: string): ReturnType<typeof addSourceToJsx> {
+export function annotateSiteFile(code: string, id: string, root: string): ReturnType<typeof addSourceToJsx> | null {
   const file = id.split('?')[0] ?? id
   if (!file.startsWith(`${root}/src/`)) return null
-  return addSourceToJsx({code, id: file, root, keys: null})
+  return addSourceToJsx(code, file) ?? null
 }
 
 export function sourceAnnotations(root: string): Plugin {

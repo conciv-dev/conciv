@@ -22,7 +22,7 @@ Each file exports one ServerStep that receives (input, ctx, request, page) and w
 - `diffStep` (`diff.ts`) only reports pairs with `mismatch >= TOLERANCES.tileGate` and drops a component that has no deltas but has reported children
 - `diffStep` (`diff.ts`) sorts components with deltas first, then by mismatch times live box area, keeps the first `input.limit` (DiffInputSchema bounds limit to 1-50) and rounds mismatch to 4 decimals (`MISMATCH_PRECISION` 10_000)
 - `diffStep` (`diff.ts`) skips provenance for winners that are null, undefined or `inherited`; properties in `PARENT_PROPERTIES` are looked up on the parent pair
-- `diffStep` (`diff.ts`) adds a `hint` when no live component carries data-conciv-source or when the xray url is not absolute
+- `diffStep` (`diff.ts`) adds a `hint` when no live component carries data-tsd-source or when the xray url is not absolute
 - `targetStep` (`target.ts`) throws toolError 'image-unreadable' when no `design.adapters` entry accepts the image ref
 - `statusStep` (`status.ts`): `done` is true only when there is at least one target and every target has a run (`lastAt !== null`) with `above === 0`
 - `captureStep` (`capture.ts`) and `targetStep` (`target.ts`) check page responses with zod (`ViewportResultSchema`, and `PageRouteSchema` for pathname/search)

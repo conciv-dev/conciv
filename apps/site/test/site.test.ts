@@ -1,19 +1,19 @@
 import {mkdtempSync, mkdirSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {describe, expect, it} from 'vitest'
 import {buildManifest} from '../scripts/build-source-manifest.mjs'
 import {annotateSiteFile} from '../src/lib/source-annotations'
 
 describe('source annotations', () => {
-  const ROOT = '/repo/apps/site'
+  const ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)))
   const FIXTURE = 'export function Hero() {\n  return <h1 className="od-display">hi</h1>\n}\n'
 
   describe('annotateSiteFile', () => {
-    it('stamps data-conciv-source with a root-relative path', () => {
+    it('stamps data-tsd-source with the path from the site root', () => {
       const out = annotateSiteFile(FIXTURE, `${ROOT}/src/components/landing/hero.tsx`, ROOT)
-      expect(out?.code).toContain('data-conciv-source="src/components/landing/hero.tsx:2:10"')
+      expect(out?.code).toContain('data-tsd-source="/src/components/landing/hero.tsx:2:10"')
     })
 
     it('ignores files outside src/', () => {

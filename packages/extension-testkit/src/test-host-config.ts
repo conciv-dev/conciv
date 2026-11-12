@@ -15,18 +15,14 @@ const VIRTUAL_ID = 'virtual:conciv-extension-under-test'
 const RESOLVED_VIRTUAL_ID = `\0${VIRTUAL_ID}`
 
 function concivBuildPlugin(): Plugin {
-  let root = process.cwd()
   return {
     name: 'conciv:build',
     enforce: 'pre',
     config: () => concivSolidConfig(),
-    configResolved(config) {
-      root = config.root
-    },
     resolveId: (id) => resolveExtensionsModule(id),
     load: (id) => loadExtensionsModule(id, []),
     transform(code, id, opts) {
-      return transformConcivModule(code, id, opts?.ssr ?? false, {root, keys: null})
+      return transformConcivModule(code, id, opts?.ssr ?? false)
     },
   }
 }

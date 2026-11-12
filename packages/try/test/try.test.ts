@@ -245,7 +245,7 @@ describe('seed workspace', () => {
       const seeded = await seedWorkspace(origin, root)
       expect(seeded).toBe(true)
       expect(readFileSync(join(root, 'src/components/landing/hero.tsx'), 'utf8')).toContain('Hero')
-      expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('data-conciv-source')
+      expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('data-tsd-source')
     })
 
     it('only writes src/** and package.json, dropping escaping and out-of-tree paths', async () => {

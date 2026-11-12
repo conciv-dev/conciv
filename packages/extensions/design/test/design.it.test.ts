@@ -252,10 +252,15 @@ function mapFixture(input: {
 
 process.env.LAUNCH_EDITOR = 'true'
 
+const home = process.cwd()
+process.chdir(HOST_ROOT)
 const kit = await boot()
 const {rpc, browser, page, stateRoot, call, goto} = kit
 
-afterAll(() => kit.dispose())
+afterAll(async () => {
+  await kit.dispose()
+  process.chdir(home)
+})
 
 it('declares six design tools with the flags from the spec', async () => {
   const catalog = CatalogSchema.parse(await rpc.registry.catalog(undefined)).filter((entry) =>
@@ -302,8 +307,8 @@ it('captures the live page at the tab width as a 1x PNG with the component tree'
   const result = await call('design_capture', {width: 1280, height: 720})
   const png = decodePng(readFileSync(fileUnder(stateRoot, result.path)))
   expect([png.width, png.height]).toEqual([1280, 720])
-  const toolbar = result.components.find((c) => c.source?.file === 'src/Toolbar.tsx')
-  expect(toolbar?.source).toEqual({file: 'src/Toolbar.tsx', line: 4, column: 5})
+  const toolbar = result.components.find((c) => c.source?.file === '/src/Toolbar.tsx')
+  expect(toolbar?.source).toEqual({file: '/src/Toolbar.tsx', line: 4, column: 5})
   expect(toolbar?.children.map((c) => c.text)).toEqual(['Export', 'Create'])
   expect(toolbar?.styles.background).toBe('#ffffff')
 })
@@ -347,13 +352,13 @@ it('ranks the toolbar first with an inset delta and reports the missing card, ne
   await goto('/')
   await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
   const report = await call('design_diff', {})
-  expect(report.components[0]?.source).toEqual({file: 'src/Toolbar.tsx', line: 4, column: 5})
+  expect(report.components[0]?.source).toEqual({file: '/src/Toolbar.tsx', line: 4, column: 5})
   expect(report.components[0]?.deltas).toContainEqual(
     expect.objectContaining({kind: 'inset-right', live: 24, target: 0}),
   )
   expect(report.components.flatMap((c) => c.deltas.map((d) => d.kind))).not.toContain('width')
   expect(report.unmatched).toContainEqual(
-    expect.objectContaining({kind: 'extra', source: {file: 'src/Cards.tsx', line: 9, column: 7}}),
+    expect.objectContaining({kind: 'extra', source: {file: '/src/Cards.tsx', line: 9, column: 7}}),
   )
   expect(report.diffImage.startsWith('.conciv/design/') || isAbsolute(report.diffImage)).toBe(true)
   expect(existsSync(fileUnder(stateRoot, report.diffImage))).toBe(true)
@@ -380,7 +385,7 @@ it('a page without source attributes returns a hint and no components', async ()
   await call('design_target', {image: target('plain-1280'), route: '/plain.html', width: 1280})
   const report = await call('design_diff', {})
   expect(report.components).toEqual([])
-  expect(report.hint).toContain('data-conciv-source')
+  expect(report.hint).toContain('data-tsd-source')
 })
 
 it('names the route and width when no target exists', async () => {
@@ -403,7 +408,7 @@ it('the pixelmatch comparator produces the same ranking as blazediff', async () 
   try {
     await other.goto('/')
     await other.call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
-    expect((await other.call('design_diff', {})).components[0]?.source?.file).toBe('src/Toolbar.tsx')
+    expect((await other.call('design_diff', {})).components[0]?.source?.file).toBe('/src/Toolbar.tsx')
   } finally {
     await other.dispose()
   }
@@ -412,7 +417,7 @@ it('the pixelmatch comparator produces the same ranking as blazediff', async () 
 it('names the winning declaration per property with media, inline, inherited and library sheets', async () => {
   await goto('/')
   const winners = await call('design_winner', {
-    selector: '[data-conciv-source="src/Toolbar.tsx:4:5"]',
+    selector: '[data-tsd-source="/src/Toolbar.tsx:4:5"]',
     properties: ['padding-right', 'padding-left', 'background-color', 'color', 'min-height'],
   })
   expect(winners['padding-right']).toMatchObject({
@@ -446,11 +451,11 @@ it('deltas carry provenance: a CSS line, a className token, a library default', 
     }),
   )
   expect(toolbar.deltas).toContainEqual(
-    expect.objectContaining({kind: 'inset-left', via: 'className', file: 'src/Toolbar.tsx', declaration: 'pl-8'}),
+    expect.objectContaining({kind: 'inset-left', via: 'className', file: '/src/Toolbar.tsx', declaration: 'pl-8'}),
   )
   expect(toolbar.deltas.find((d) => d.via === 'library')).toMatchObject({
     selector: '.Lib-toolbar',
-    file: 'src/Toolbar.tsx',
+    file: '/src/Toolbar.tsx',
     line: 4,
     column: 5,
   })
@@ -512,7 +517,7 @@ it('a component whose pixels differ without a measured delta is reported and kee
   await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
   const report = await call('design_diff', {})
   expect(report.components).toContainEqual(
-    expect.objectContaining({source: expect.objectContaining({file: 'src/Toolbar.tsx'}), tag: 'header', deltas: []}),
+    expect.objectContaining({source: expect.objectContaining({file: '/src/Toolbar.tsx'}), tag: 'header', deltas: []}),
   )
   const status = await call('design_status', {route: '/'})
   expect(status.done).toBe(false)
@@ -558,7 +563,7 @@ it('diffs at 390 through an inert hidden frame and leaves the tab untouched', as
   await call('design_target', {image: target('u1-390'), route: '/', width: 390})
   const report = await call('design_diff', {width: 390})
   expect(report.target.width).toBe(390)
-  expect(report.components.find((c) => c.source?.file === 'src/Cards.tsx')).toBeDefined()
+  expect(report.components.find((c) => c.source?.file === '/src/Cards.tsx')).toBeDefined()
   const frame = page.locator('iframe[data-conciv-capture]')
   expect(await frame.count()).toBe(1)
   expect(await frame.getAttribute('inert')).not.toBeNull()
@@ -743,13 +748,13 @@ describe('x-ray page', () => {
     await goto('/')
     const report = await call('design_diff', {width: 1280})
     const first = report.components[0]
-    expect(first?.selector).toContain('[data-conciv-source=')
+    expect(first?.selector).toContain('[data-tsd-source=')
     if (first === undefined) return
     const xray = await browser.newPage()
     await xray.goto(report.xray)
     const row = xray.getByRole('listitem').first()
     await expectLocator(row.getByText(first.tag, {exact: true})).toBeVisible()
-    await expectLocator(row).not.toContainText('data-conciv-source')
+    await expectLocator(row).not.toContainText('data-tsd-source')
     await xray.close()
   })
 
@@ -926,7 +931,7 @@ function sameSource(input: {a: LiveComponent['source']; b: LiveComponent['source
 
 async function toolbarButtons(): Promise<LiveComponent[]> {
   const captured = await call('design_capture', {width: 1280, height: 720})
-  const toolbar = captured.components.find((c) => c.source?.file === 'src/Toolbar.tsx')
+  const toolbar = captured.components.find((c) => c.source?.file === '/src/Toolbar.tsx')
   return toolbar?.children ?? []
 }
 
@@ -961,7 +966,7 @@ function aboveTolerance(component: ReportedComponent): boolean {
 }
 
 function fromToolbar(component: ReportedComponent): boolean {
-  return component.source?.file === 'src/Toolbar.tsx'
+  return component.source?.file === '/src/Toolbar.tsx'
 }
 
 function croppedPixels(input: {png: PNG; box: z.infer<typeof ButtonBoxSchema>}): Uint8Array {
@@ -1085,7 +1090,7 @@ describe('text', () => {
       live: 'Download',
       target: 'Export',
       via: 'source',
-      file: 'src/Toolbar.tsx',
+      file: '/src/Toolbar.tsx',
     })
   })
 

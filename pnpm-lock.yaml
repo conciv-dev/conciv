@@ -135,6 +135,9 @@ catalogs:
     '@tanstack/ai-solid':
       specifier: 1.0.1
       version: 1.0.1
+    '@tanstack/devtools-bundler-core':
+      specifier: 0.1.3
+      version: 0.1.3
     '@tanstack/devtools-vite':
       specifier: ^0.8.5
       version: 0.8.5
@@ -267,9 +270,6 @@ catalogs:
     devframe:
       specifier: 1.2.6
       version: 1.2.6
-    diff:
-      specifier: ^9.0.0
-      version: 9.0.0
     drizzle-kit:
       specifier: 1.0.0-rc.5
       version: 1.0.0-rc.5
@@ -992,9 +992,6 @@ importers:
       '@conciv/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@conciv/extension-compiler':
-        specifier: workspace:*
-        version: link:../../packages/extension-compiler
       '@conciv/harness-testkit':
         specifier: workspace:*
         version: link:../../packages/harness-testkit
@@ -1010,6 +1007,9 @@ importers:
       '@tailwindcss/vite':
         specifier: 'catalog:'
         version: 4.3.3(vite@8.3.5)
+      '@tanstack/devtools-bundler-core':
+        specifier: 'catalog:'
+        version: 0.1.3(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)
       '@types/mdx':
         specifier: ^2.0.14
         version: 2.0.14
@@ -2220,7 +2220,7 @@ importers:
         specifier: 'catalog:'
         version: 1.1.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
       diff:
-        specifier: 'catalog:'
+        specifier: ^9.0.0
         version: 9.0.0
       es-toolkit:
         specifier: 'catalog:'
@@ -2784,24 +2784,18 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@tanstack/devtools-bundler-core':
+        specifier: 'catalog:'
+        version: 0.1.3(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)
       babel-dead-code-elimination:
         specifier: ^2.0.0
         version: 2.0.0
       babel-preset-solid:
         specifier: ^1.9.16
         version: 1.9.16(@babel/core@7.29.7)(solid-js@1.9.17)
-      diff:
-        specifier: 'catalog:'
-        version: 9.0.0
       jiti:
         specifier: ^2.7.0
         version: 2.7.0
-      magic-string:
-        specifier: ^1.4.5
-        version: 1.4.5
-      oxc-parser:
-        specifier: 'catalog:'
-        version: 0.156.0
     devDependencies:
       '@conciv/tsconfig':
         specifier: workspace:*
