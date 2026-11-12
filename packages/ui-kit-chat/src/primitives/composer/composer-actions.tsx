@@ -156,6 +156,7 @@ function OverflowGroup(props: {action: RegisteredAction}): JSX.Element {
     <For each={local.action.menuContent()}>
       {(entry) => (
         <Menu.Item
+          {...entry.attributes}
           value={entry.key}
           disabled={local.action.disabled() || (entry.disabled?.() ?? false)}
           onSelect={() => entry.onSelect()}
@@ -237,7 +238,13 @@ function ActionButton(props: ComposerActionsActionButtonProps): JSX.Element {
   const pairing = useContext(PairingContext)
   const disabled = (): boolean => pairing?.disabled() === true || local.disabled?.() === true
   const entries: ActionMenuEntry[] = [
-    {key: createUniqueId(), label: () => local.tooltip, icon: () => local.children, onSelect: () => local.onClick()},
+    {
+      key: createUniqueId(),
+      label: () => local.tooltip,
+      icon: () => local.children,
+      onSelect: () => local.onClick(),
+      attributes: rest,
+    },
   ]
   const inline = usePlacement({
     priority: () => local.priority ?? 0,
