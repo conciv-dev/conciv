@@ -292,7 +292,7 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
           task.tab,
           (rpc, aborted) => pollQueue(rpc, task.tab, queueId, aborted),
           () => ({content: []}),
-          undefined,
+          AbortSignal.timeout(TASK_POLL_MS),
         )
         return waited.value
       }),

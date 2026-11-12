@@ -1496,11 +1496,12 @@ describe('cli', () => {
 
     async function frontOf(home: string, engine: {root: string; base: string}) {
       const upstream = new URL(engine.base)
-      const mode = {dropCalls: false}
+      const mode = {dropCalls: false, holdWaits: false}
       const front = createHttpServer(async (request, response) => {
         const chunks: Buffer[] = []
         for await (const chunk of request) chunks.push(Buffer.from(chunk))
         const body = Buffer.concat(chunks)
+        if (mode.holdWaits && request.url?.endsWith('/rpc/page/queue/wait')) return
         if (mode.dropCalls && request.url?.endsWith('/rpc/code/execute')) {
           request.socket.destroy()
           return
@@ -1529,6 +1530,9 @@ describe('cli', () => {
       return {
         dropCalls: (drop: boolean) => {
           mode.dropCalls = drop
+        },
+        holdWaits: (hold: boolean) => {
+          mode.holdWaits = hold
         },
         close: async () => {
           front.closeAllConnections()
@@ -1950,6 +1954,24 @@ describe('cli', () => {
           await engine.engine.stop()
         }
       })
+
+      it('a tasks/get whose engine accepts the poll but never answers stays working, and completes once the engine answers again', async () => {
+        const {home, engine, play} = await queueTab()
+        const front = await frontOf(home, engine)
+        const client = rawHub(home)
+        try {
+          const task = TaskSchema.parse(await client.execute(QUEUE, engine.sessionId))
+          front.holdWaits(true)
+          expect(await client.poll(task.taskId)).toMatchObject({taskId: task.taskId, status: 'working'})
+          front.holdWaits(false)
+          await play(0)
+          expect(await client.poll(task.taskId)).toMatchObject({taskId: task.taskId, status: 'completed'})
+        } finally {
+          await client.close()
+          await front.close()
+          await engine.engine.stop()
+        }
+      }, 10_000)
 
       it('a tasks-capable client gets a plain reply, never a task, for a sync page_queue that finished in-call', async () => {
         const {home, engine, playInCall} = await queueTab()
