@@ -15,6 +15,7 @@ import {
   type TokenUsage,
 } from '@tanstack/ai'
 import {defineLock, InMemoryLockStore, withLocks} from '@tanstack/ai/locks'
+import {getPendingTurn} from '@tanstack/ai/adapter-internals'
 import {defineAIPersistence, reconstructChat, withPersistence, type MessageStore} from '@tanstack/ai-persistence'
 import {
   APPROVAL_REQUESTED_EVENT,
@@ -527,12 +528,6 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
           setup: () => endRuns(turn.threadId, turn.runId),
         }),
         defineChatMiddleware({
-          name: 'conciv-run-record',
-          setup: async () => {
-            await stores.runs.createOrResume({runId: turn.runId, threadId: turn.threadId, startedAt: Date.now()})
-          },
-        }),
-        defineChatMiddleware({
           name: 'conciv-image-tools',
           provides: [ToolBridgeProvisionerCapability],
           setup: (ctx) => provideToolBridgeProvisioner(ctx, imageToolProvisioner),
@@ -547,6 +542,13 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         }),
         childCards(config.codeModeResult),
         ...(turn.kind === 'compact' ? [compactionStamp(stores.messages)] : []),
+        defineChatMiddleware({
+          name: 'conciv-run-record',
+          setup: async (ctx) => {
+            await stores.runs.createOrResume({runId: turn.runId, threadId: turn.threadId, startedAt: Date.now()})
+            await getPendingTurn(ctx, {optional: true})?.snapshot()
+          },
+        }),
         withSandbox(sandbox, {locks}),
         toolHistory(),
         concivTurn(turn, plan, granted, view, entry),
