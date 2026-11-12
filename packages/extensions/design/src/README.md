@@ -13,7 +13,7 @@
 - Subdirectories:
   - [server](./server/README.md): Server-side core of the design extension: an on-disk target store, PNG raster utilities, x-ray HTTP/oRPC routes, the delta-kind list, the registry wiring, breakpoint tagging and detection of unmatched regions.
   - [shared](./shared/README.md): Code shared by the client and server: zod schemas and tool definitions for the six `design_*` tools, the extension config schema, the error catalog, tolerance constants, iframe message names, CSS property alias helpers, and the TypeScript types for the runtime, store, comparators and provenance.
-  - [client](./client/README.md): Browser-side code for the design extension: viewport or off-screen iframe capture with snapdom, collection of the `data-conciv-source` component tree, and a CSS cascade resolver that names the winning declaration for each property.
+  - [client](./client/README.md): Browser-side code for the design extension: viewport or off-screen iframe capture with snapdom, collection of the `data-tsd-source` component tree, and a CSS cascade resolver that names the winning declaration for each property.
   - [xray](./xray/README.md): SolidJS single-page viewer (the 'design x-ray') that loads a design target with its last diff report from the engine and shows the live, design and diff images next to a list of the components that differ.
   - [tool](./tool/README.md): Puts the design tool definitions together with their step implementations, giving one list of client tools and one list of server tools.
 

@@ -1,4 +1,5 @@
 import {z} from 'zod'
+import {PageQueueResultSchema} from './page-types.js'
 import {EventType, type CustomEvent, type StreamChunk} from '@tanstack/ai'
 
 export type ChatEvent = StreamChunk
@@ -92,6 +93,11 @@ export const codeModeResultEvent = defineChatEvent(
 export const codeModeErrorEvent = defineChatEvent(
   'conciv.code-mode-error',
   z.looseObject({callId: z.string().min(1), error: z.string()}),
+)
+
+export const pageQueueEvent = defineChatEvent(
+  'conciv.page-queue',
+  PageQueueResultSchema.extend({toolCallId: z.string().min(1).optional()}),
 )
 
 export function isRunPhaseTerminal(phase: RunPhase): boolean {

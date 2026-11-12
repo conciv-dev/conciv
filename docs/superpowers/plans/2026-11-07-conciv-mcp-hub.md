@@ -118,7 +118,7 @@
 
 **Files:**
 
-- Modify: `packages/core/src/page-bus.ts` (`openSessions`), `packages/core/src/README.md`, `packages/core/src/app.ts` (route inside `makeApp`, beside `/api/mcp`), `packages/protocol/src/chat-types.ts` (schemas)
+- Modify: `packages/core/src/page/page-bus.ts` (`openSessions`), `packages/core/src/README.md`, `packages/core/src/app.ts` (route inside `makeApp`, beside `/api/mcp`), `packages/protocol/src/chat-types.ts` (schemas)
 - Create: `packages/core/src/api/tabs.ts` (Hono sub-app, same pattern as `api/mcp.ts` with its own `Variables`)
 - Test: `packages/core/test/core-api.it.test.ts`
 

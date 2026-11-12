@@ -16,12 +16,9 @@ import {compileExtensionSolid} from '../src/compile-extension.js'
 import {mkdtempSync, writeFileSync, mkdirSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {defineExtension} from '@conciv/extension'
-import {addSourceToJsx} from '../src/inject-source.js'
 import {scaffold} from '@conciv/extension/catalog'
 
 describe('client entry inject', () => {
-  const CTX = {root: '/app', deferToTsd: false}
-
   describe('client-entry module-graph injection', () => {
     it('matches framework client-entry ids, not ordinary modules', () => {
       expect(isClientEntry('virtual:tanstack-start-dev-client-entry')).toBe(true)
@@ -35,7 +32,6 @@ describe('client entry inject', () => {
         'await import("/entry.client.tsx")',
         'virtual:tanstack-start-dev-client-entry',
         false,
-        CTX,
       )
       expect(out).not.toBeNull()
       const code = (out as {code: string}).code
@@ -48,14 +44,13 @@ describe('client entry inject', () => {
         'await import("/entry.client.tsx")',
         'virtual:tanstack-start-dev-client-entry',
         true,
-        CTX,
       )
       if (out && 'code' in out) expect(out.code).not.toContain(EXTENSIONS_VIRTUAL_ID)
     })
 
     it('does not double-inject when the entry already imports the extensions module (HMR re-transform)', () => {
       const already = `await import("/entry.client.tsx")\nimport(${JSON.stringify(EXTENSIONS_VIRTUAL_ID)})\n`
-      const out = transformConcivModule(already, 'virtual:tanstack-start-dev-client-entry', false, CTX)
+      const out = transformConcivModule(already, 'virtual:tanstack-start-dev-client-entry', false)
       expect(out).toBeNull()
     })
 
@@ -206,85 +201,6 @@ describe('extensions', () => {
       )
       expect(source).toContain('import {loadExtensions, toSortedLoaders} from "/abs/pkg/dist/dedupe-extensions.js"')
       expect(source).not.toContain('@conciv/extension-compiler/dedupe')
-    })
-  })
-})
-
-describe('inject source', () => {
-  const ROOT = '/proj'
-
-  const sourceValues = (code: string): string[] =>
-    [...code.matchAll(/data-conciv-source="([^"]+)"/g)].map((m) => m[1] ?? '')
-
-  describe('addSourceToJsx', () => {
-    it('stamps a host element with data-conciv-source="<relpath>:<line>:<col>"', () => {
-      const code = `export const A = () => <div className="x">hi</div>\n`
-      const out = addSourceToJsx(code, `${ROOT}/src/App.tsx`, ROOT)
-      expect(out).not.toBeNull()
-      expect(out!.code).toContain('data-conciv-source="src/App.tsx:1:24"')
-      expect(out!.code).toContain('className="x"')
-    })
-
-    it('handles self-closing elements', () => {
-      const code = `export const B = () => <img src="a.png" />\n`
-      const out = addSourceToJsx(code, `${ROOT}/src/B.tsx`, ROOT)
-      expect(out!.code).toMatch(/<img src="a\.png"\s+data-conciv-source="src\/B\.tsx:1:\d+"\s*\/>/)
-    })
-
-    it('skips Fragments', () => {
-      const code = `export const C = () => <><span>x</span></>\n`
-      const out = addSourceToJsx(code, `${ROOT}/src/C.tsx`, ROOT)
-
-      expect(out!.code).toContain('<span data-conciv-source=')
-      expect(out!.code).not.toContain('<> data-conciv-source')
-    })
-
-    it('returns null for non-JSX files', () => {
-      expect(addSourceToJsx('export const x = 1', `${ROOT}/src/util.ts`, ROOT)).toBeNull()
-    })
-
-    it('returns null when there is no JSX', () => {
-      expect(addSourceToJsx('export const x = 1', `${ROOT}/src/util.tsx`, ROOT)).toBeNull()
-    })
-
-    it('does not double-stamp an element that already has the attribute', () => {
-      const code = `export const D = () => <div data-conciv-source="x">y</div>\n`
-      const out = addSourceToJsx(code, `${ROOT}/src/D.tsx`, ROOT)
-      expect(out).toBeNull()
-    })
-
-    it('JSON-escapes the path so a quote cannot break out of the attribute', () => {
-      const code = `export const E = () => <div>q</div>\n`
-      const out = addSourceToJsx(code, `${ROOT}/src/we"ird.tsx`, ROOT)
-
-      expect(out!.code).toContain('\\"')
-      expect(out!.code).not.toContain('data-conciv-source="src/we"ird')
-    })
-
-    it('stamps line numbers from the on-disk source, stable across per-environment line shifts', () => {
-      const dir = mkdtempSync(join(tmpdir(), 'conciv-inject-'))
-      const raw = [
-        'export function Root() {',
-        '  return (',
-        '    <html lang="en">',
-        '      <head><title>x</title></head>',
-        '      <body>hi</body>',
-        '    </html>',
-        '  )',
-        '}',
-        '',
-      ].join('\n')
-      const file = join(dir, 'App.tsx')
-      writeFileSync(file, raw)
-
-      const client = addSourceToJsx(raw, file, dir)
-      const server = addSourceToJsx('// injected by SSR transform\n'.repeat(12) + raw, file, dir)
-
-      expect(client).not.toBeNull()
-      expect(server).not.toBeNull()
-
-      expect(sourceValues(server!.code)).toEqual(sourceValues(client!.code))
-      expect(sourceValues(client!.code)).toContain('App.tsx:5:7')
     })
   })
 })

@@ -15,7 +15,9 @@ import {isRunPhaseTerminal, runLifecycleEvent, type ChatEvent, type RunPhase} fr
 import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-types'
 import {z} from 'zod'
 
-export type Turn = {threadId: string; runId: string; kind: 'chat' | 'compact'}
+export type Turn =
+  | {threadId: string; runId: string; kind: 'chat' | 'compact'}
+  | {threadId: string; runId: string; kind: 'page-queue'; input: string}
 
 export type SocketSink = {send: (data: string) => void; close: (code?: number, reason?: string) => void}
 

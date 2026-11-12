@@ -4,6 +4,7 @@ import {TOOL_ICON_KEYS, type ToolIconKey, type ToolLabel} from '@conciv/protocol
 import type {ExtensionRegistry} from '@conciv/protocol/config-types'
 import {
   createRouterClient,
+  ORPCError,
   os,
   type AnyRouter,
   type MergedErrorMap,
@@ -24,13 +25,22 @@ import {
 } from './define-tool.js'
 import {isPageVerbError} from './page-errors.js'
 import {isRegistryBranch, walkRegistryProcedures, type RegistryWalkEntry} from './registry-walk.js'
-import type {CtxOf, ServerToolRegistryAccess, ServerToolPageAccess, ToolRequest, UnionToIntersection} from './types.js'
+import type {
+  CtxOf,
+  ServerToolRegistryAccess,
+  ServerToolPageAccess,
+  ToolMiddleware,
+  ToolRequest,
+  UnionToIntersection,
+} from './types.js'
 
 export type {ServerToolRegistryAccess, ServerToolPageAccess} from './types.js'
 
 export type RegistryToolMeta = ToolMeta & {name: string; binding: ToolBinding; approval?: 'ask'}
 
-export type RegistryCallContext = {request: ToolRequest}
+export type RegistryCallGate = <Output>(run: () => Promise<Output>) => Promise<Output>
+
+export type RegistryCallContext = {request: ToolRequest; gate?: RegistryCallGate}
 
 type RegisteredExtensionTools<Entry> = Entry extends {tools: infer Tools} ? Tools : Record<never, never>
 
@@ -143,8 +153,8 @@ export type ToolSignature = ToolCatalogEntry & {
 }
 
 export type ToolRegistration<Ctx> = unknown extends Ctx
-  ? [registration: {owner: string; context?: Ctx}]
-  : [registration: {owner: string; context: Ctx}]
+  ? [registration: {owner: string; context?: Ctx; middleware?: ToolMiddleware}]
+  : [registration: {owner: string; context: Ctx; middleware?: ToolMiddleware}]
 
 export type SandboxTool = ToolSignature & {
   schema: z.ZodObject<z.ZodRawShape>
@@ -159,7 +169,7 @@ export type ToolRegistry = {
   router: ExtensionToolRouter
   register: <Tool extends AnyToolBuilder>(tool: Tool, ...registration: ToolRegistration<CtxOf<Tool>>) => void
   has: (name: string) => boolean
-  call: (name: string, input: unknown, options: {request: ToolRequest}) => Promise<unknown>
+  call: (name: string, input: unknown, options: RegistryCallContext) => Promise<unknown>
   catalog: ToolCatalog
   sandboxTools: () => SandboxTool[]
   whenPageConnected: (connected: () => boolean) => {catalog: ToolCatalog; sandboxTools: () => SandboxTool[]}
@@ -175,7 +185,7 @@ export function createToolRegistry(
   const walked = (): RegistryWalkEntry[] => namedConsistently(walkRegistryProcedures(router))
   const has = (name: string): boolean => walked().some((entry) => entry.path.join('.') === name)
   const call: ToolRegistry['call'] = (name, input, callCtx) =>
-    has(name) ? callTool(router, name, input, callCtx.request) : Promise.reject(new Error(`unknown tool "${name}"`))
+    has(name) ? callTool(router, name, input, callCtx) : Promise.reject(new Error(`unknown tool "${name}"`))
   const viewFor = (connected: () => boolean) => ({
     catalog: {
       list: () => catalogEntries(walked(), connected()),
@@ -190,7 +200,7 @@ export function createToolRegistry(
   const engineView = viewFor(anyPageConnected)
   return {
     router,
-    register: (tool: AnyToolBuilder, registration: {owner: string; context?: unknown}) =>
+    register: (tool: AnyToolBuilder, registration: ToolRegistrationOf) =>
       registerTool(router, tool, pageCaller, self, registration, owners),
     has,
     call,
@@ -222,9 +232,14 @@ function toolMember(node: unknown, segment: string): unknown {
   return Reflect.get(node, segment)
 }
 
-function callTool(router: ExtensionToolRouter, name: string, input: unknown, request: ToolRequest): Promise<unknown> {
+function callTool(
+  router: ExtensionToolRouter,
+  name: string,
+  input: unknown,
+  context: RegistryCallContext,
+): Promise<unknown> {
   const dispatch: AnyRouter = router
-  const client = createRouterClient(dispatch, {context: {request}})
+  const client = createRouterClient(dispatch, {context})
   const target = name.split('.').reduce<unknown>(toolMember, client)
   if (typeof target !== 'function') return Promise.reject(new Error(`unknown tool "${name}"`))
   const result: unknown = target(input)
@@ -273,7 +288,7 @@ function registerTool(
   tool: AnyToolBuilder,
   pageCaller: RegistryPageCaller | undefined,
   self: RegistrySelf,
-  registration: {owner: string; context?: unknown},
+  registration: ToolRegistrationOf,
   owners: Map<string, string>,
 ): void {
   assertToolName(tool.name)
@@ -286,7 +301,7 @@ function registerTool(
   if (holder !== undefined) {
     throw new Error(`tool "${tool.name}" is declared by both ${holder} and ${registration.owner}`)
   }
-  insertProcedure(router, tool.name.split('.'), compileTool(tool, pageCaller, self, registration.context))
+  insertProcedure(router, tool.name.split('.'), compileTool(tool, pageCaller, self, registration))
   owners.set(tool.name, registration.owner)
 }
 
@@ -327,12 +342,27 @@ const registryBase = os
 
 type ToolErrorConstructors = ORPCErrorConstructorMap<ToolErrors>
 
+type ToolRegistrationOf = {owner: string; context?: unknown; middleware?: ToolMiddleware}
+
+const passThrough: ToolMiddleware = ({next}) => next()
+
+type Admission = {admitted: boolean; refusal: unknown}
+
+const admitAll: RegistryCallGate = (run) => run()
+
+function unadmitted(name: string): ORPCError<'FORBIDDEN', unknown> {
+  return new ORPCError('FORBIDDEN', {
+    message: `tool "${name}": its extension middleware answered the call before conciv admitted it`,
+  })
+}
+
 function compileTool(
   tool: RegistryTool,
   pageCaller: RegistryPageCaller | undefined,
   self: RegistrySelf,
-  context: unknown,
+  registration: ToolRegistrationOf,
 ): AnyRouter {
+  const context = registration.context
   const meta: RegistryToolMeta = {
     ...tool.meta,
     name: tool.name,
@@ -341,7 +371,31 @@ function compileTool(
   }
   const declaredErrors: ToolErrors =
     tool.binding === 'client' ? {...tool.errors, ...TOOL_TRANSPORT_ERRORS} : (tool.errors ?? {})
-  const procedure = registryBase.meta(meta).errors(declaredErrors).input(tool.inputSchema).output(tool.outputSchema)
+  const procedure = registryBase
+    .use(async ({next}) => {
+      const admission: Admission = {admitted: false, refusal: null}
+      const result = await next({context: {admission}})
+      if (admission.admitted) return result
+      throw admission.refusal ?? unadmitted(tool.name)
+    })
+    .use(registration.middleware ?? passThrough)
+    .use(async ({context: call, next}, _input, output) => {
+      const admitted = async () => {
+        call.admission.admitted = true
+        return (await next()).output
+      }
+      const gate = call.gate ?? admitAll
+      try {
+        return output(await gate(admitted))
+      } catch (error) {
+        if (!call.admission.admitted) call.admission.refusal = error
+        throw error
+      }
+    })
+    .meta(meta)
+    .errors(declaredErrors)
+    .input(tool.inputSchema)
+    .output(tool.outputSchema)
   if (tool.binding === 'server') {
     return procedure.handler(({input, errors, context: call}) =>
       runServerTool(tool, input, context, call.request, declaredErrors, errors, pageCaller, self),
@@ -538,7 +592,7 @@ function sandboxToolList(
     return {
       ...signatureOf(entry, base),
       schema: entry.inputSchema,
-      run: (input, request) => callTool(router, base.name, input, request),
+      run: (input, request) => callTool(router, base.name, input, {request}),
     }
   })
 }

@@ -188,7 +188,7 @@ Response zod schema in `@conciv/protocol`:
 - `project.name`: root `package.json` `name`, else null. `branch`: `.git/HEAD` (following a worktree's `.git`
   file), re-read on each request, else null.
 - Tabs are the sessions with at least one page-bus subscriber. Add to `makePageBus`
-  (`packages/core/src/page-bus.ts`) one accessor, `openSessions(): Array<{sessionId, subscribers: number}>`, beside
+  (`packages/core/src/page/page-bus.ts`) one accessor, `openSessions(): Array<{sessionId, subscribers: number}>`, beside
   `anySubscriber`; document it in `packages/core/src/README.md`.
 - For each open session, `bus.ask(sessionId, {name: 'page_route', input: {}})` raced against
   200 ms (Revision 7: under the 300 ms its callers wait), all in parallel. Timeout or a `no-widget` error gives `page: null`; the session stays
@@ -486,7 +486,7 @@ Causes, each confirmed in code:
 4. The hub runs every call on the newest registered live engine (`.live.at(-1)`). Any engine on the machine
    qualifies, including one a script started seconds ago and is about to stop. A call routed through it fails with
    "the conciv engine at <unrelated root> stopped answering".
-5. `bus.ask` (`packages/core/src/page-bus.ts`) sends each page query to every browser tab of the session and keeps
+5. `bus.ask` (`packages/core/src/page/page-bus.ts`) sends each page query to every browser tab of the session and keeps
    the first reply. With two browser tabs, reads come from either one, actions run in both, and a ref taken from
    one tab's snapshot is stale in the other, so the fast tab answers "stale ref" while the slow one performs the
    action.
@@ -556,6 +556,8 @@ error codes, `HANDLER_ERROR` wrapping), since the CLI's `--tab` uses it.
   and keep working; only the default changes. Tests that relied on the default name `'session'` explicitly.
 
 ### 6. Page actions do not wait on the simulated pointer (Omri's yes, 2026-11-10: for every caller)
+
+Queued actions play toolbar style again, without the agent waiting: see `docs/specs/page-action-queue.md`.
 
 - Today the action happens after the pointer animation and the reply after that
   (`packages/extensions/page/src/client/simulator.ts`). Now the action and the reply happen at once, for the in-page

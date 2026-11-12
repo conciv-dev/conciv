@@ -1,1 +1,1 @@
-export const SOURCE_ATTR = 'data-conciv-source'
+export const SOURCE_ATTR = 'data-tsd-source'

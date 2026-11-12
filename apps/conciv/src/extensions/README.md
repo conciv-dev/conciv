@@ -12,7 +12,7 @@ Built-in `highlight` extension: hold Alt (or drive it from context) to outline t
 ## Invariants
 
 - `highlight.tsx:isEditing`: Alt does not activate highlighting while focus is in an input, textarea or contenteditable
-- `highlight.tsx`: elements are resolved through `[data-conciv-source],[data-tsd-source]` and `elementAt`, which skips `[data-conciv-effects]` nodes
+- `highlight.tsx`: elements are resolved through `[data-tsd-source]` and `elementAt`, which skips `[data-conciv-effects]` nodes
 - `highlight.tsx`: Escape exits inspection
 
 ## Side Effects

@@ -155,9 +155,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
   const clientEntries = (options.extensions ?? []).map((extension) => extension.client)
   let engine: Engine | null = null
   let apiBase: string | undefined
-  let root = process.cwd()
 
-  let deferToTsd = false
   let managedExcludes: string[] = []
   let docked = false
   let devServer: ViteDevServer | undefined
@@ -215,12 +213,10 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
       dropIncludedFromExcludes(environmentConfig.optimizeDeps, managedExcludes)
     },
     configResolved(config) {
-      root = config.root
       docked =
         options.widget !== false &&
         resolveConfig(options, config.root).enabled &&
         config.plugins.some((plugin) => plugin.name === 'vite:devtools')
-      deferToTsd = config.plugins.some((p) => p.name === '@tanstack/devtools:inject-source')
     },
     resolveId(id) {
       return resolveExtensionsModule(id)
@@ -230,7 +226,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
     },
     transform(code, id, opts) {
       if (options.enabled === false) return null
-      return transformConcivModule(code, id, opts?.ssr ?? false, {root, deferToTsd})
+      return transformConcivModule(code, id, opts?.ssr ?? false)
     },
     transformIndexHtml: {
       order: 'pre',
