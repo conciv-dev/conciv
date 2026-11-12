@@ -6,6 +6,7 @@ import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {ActCard} from '../src/client/cards/act-card.js'
 import {storyAddResult, storyCtx, storyPart, storyResult} from '../src/client/cards/story.fixtures.js'
 import {ReactCard} from '../src/client/cards/react-card.js'
+import {consoleCard} from '../src/client/cards/console-card.js'
 import {ReadBulkCard} from '../src/client/cards/read-bulk-card.js'
 import {ReadValueCard} from '../src/client/cards/read-value-card.js'
 import {GRAB_FILE_NAME, GRAB_MIME} from '@conciv/grab/grab-attachment'
@@ -92,6 +93,26 @@ describe('act card body nonempty', () => {
     await expandFirstCard()
     await expect.element(page.getByText('ada@example.com')).toBeVisible()
     await expect.element(page.getByText('element not found')).toBeVisible()
+  })
+})
+
+describe('console card', () => {
+  it('marks the card as an error when the page threw, uncaught or unhandled', async () => {
+    const ConsoleCard = consoleCard.render
+    render(() => (
+      <ConsoleCard
+        part={storyPart('page_console', {})}
+        result={storyResult({
+          entries: [
+            {level: 'log', ts: 1, text: 'booted'},
+            {level: 'uncaught', ts: 2, text: 'Error: boom\n    at app.js:3:7'},
+          ],
+        })}
+        ctx={storyCtx({})}
+        addResult={storyAddResult}
+      />
+    ))
+    await expect.element(page.getByRole('img', {name: 'error'})).toBeInTheDocument()
   })
 })
 

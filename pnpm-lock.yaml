@@ -138,6 +138,9 @@ catalogs:
     '@tanstack/devtools-vite':
       specifier: ^0.8.5
       version: 0.8.5
+    '@tanstack/hotkeys':
+      specifier: ^0.18.0
+      version: 0.18.0
     '@tanstack/pacer':
       specifier: ^0.23.1
       version: 0.23.1
@@ -608,7 +611,7 @@ importers:
         specifier: 'catalog:'
         version: 2.2.0(solid-js@1.9.17)
       '@tanstack/hotkeys':
-        specifier: ^0.18.0
+        specifier: 'catalog:'
         version: 0.18.0
       '@tanstack/pacer':
         specifier: 'catalog:'
@@ -3163,6 +3166,9 @@ importers:
       '@solid-primitives/map':
         specifier: 'catalog:'
         version: 0.7.4(solid-js@1.9.17)
+      '@tanstack/hotkeys':
+        specifier: 'catalog:'
+        version: 0.18.0
       '@tanstack/solid-pacer':
         specifier: 'catalog:'
         version: 0.24.0(solid-js@1.9.17)

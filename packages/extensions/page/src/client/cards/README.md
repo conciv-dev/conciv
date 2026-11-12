@@ -36,7 +36,7 @@ Each `*Card` `ToolCardView` pairs a `render` component built on `CardShell` from
 - `sessionLocation` (`session-card.tsx`) uses the href from the latest successful `${PAGE_TOOL_PREFIX}route` result; it falls back to `location` only while streaming
 - `editLiveCard.hasEmbeddedBody` (`edit-live-card.tsx`) is true for eval/css verbs, when a before-capture exists, or on error
 - `readValueCard.hasEmbeddedBody` (`read-value-card.tsx`) is false when the result carries an image URL and there is no error
-- `ConsoleCard` (`console-card.tsx`) marks the card status 'error' if any entry has level 'error' or the result errored
+- `ConsoleCard` (`console-card.tsx`) marks the card status 'error' if any entry has level 'error', 'uncaught' or 'unhandled', or the result errored
 - `safeColor` (`grab-snapshot-frame.tsx`) accepts only CSS values that match `/^[\w\s%.,()/#-]+$/`, else it uses a fallback, before interpolating into srcdoc
 - `GrabSnapshotFrame` (`grab-snapshot-frame.tsx`) sets a CSP of `default-src 'none'; img-src data:; style-src 'unsafe-inline' data:; font-src data:` and an empty `sandbox`
 - `resolvePayload` (`grab-card.tsx`) returns null on a base64 decode failure; `GrabCard` shows 'Grabbed element could not be read' when the payload is null or errored

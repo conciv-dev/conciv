@@ -60,6 +60,8 @@ export type {
   ServerHarness,
   ServerSessions,
   ServerResult,
+  ToolCallContext,
+  ToolMiddleware,
   Settings,
   SettingsForNamespace,
   SettingsOf,
