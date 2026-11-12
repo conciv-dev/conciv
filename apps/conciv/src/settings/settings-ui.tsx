@@ -5,7 +5,7 @@ import {useFieldContext} from './form-context.js'
 import {SettingNote} from './setting-note.js'
 
 export const MICRO =
-  'm-0 [font-family:var(--chat-mono)] text-[0.59375rem] leading-[1.2] font-normal uppercase tracking-[0.14em] text-chat-dim whitespace-nowrap'
+  'm-0 font-chat-mono text-[0.59375rem] leading-[1.2] font-normal uppercase tracking-[0.14em] text-chat-dim whitespace-nowrap'
 const CARD =
   'flex flex-col rounded-chat-surface-md [border:1px_solid_var(--chat-line)] bg-chat-fill-soft [&>*+*]:[border-block-start:1px_solid_var(--chat-line-soft)]'
 const LABEL = 'flex items-center gap-2 text-[0.8125rem] font-medium text-chat-text-hi'
@@ -19,16 +19,17 @@ export const BUTTON_DANGER_FILL = `${BUTTON} !bg-chat-danger [border-color:var(-
 const ROW = 'flex items-center gap-3 min-h-11.5 py-2.5 px-3'
 const STACK = 'flex flex-col gap-2.5 p-3'
 const TEXT = 'flex flex-1 min-w-0 flex-col gap-0.5'
-const LOCK = 'inline-flex items-center gap-1.25 [font-family:var(--chat-mono)] text-[0.65625rem] text-chat-dim'
+export const NOTE_TEXT = 'font-chat-mono text-[0.65625rem] text-chat-dim'
+export const LOCK = `inline-flex items-center gap-1.25 ${NOTE_TEXT}`
 const HEADLINE = 'flex min-w-0 items-baseline gap-x-2'
-const NOTE = 'flex-1 min-w-0 truncate [font-family:var(--chat-mono)] text-[0.65625rem] text-chat-dim'
+const NOTE = `flex-1 min-w-0 truncate ${NOTE_TEXT}`
 const ERROR = 'text-[0.75rem] leading-[1.35] text-chat-danger'
 const SECTION = `${CARD} overflow-hidden`
 const SECTION_DANGER = '[border-color:color-mix(in_oklch,var(--chat-danger)_35%,transparent)]'
 const SECTION_HEAD = 'flex items-start gap-2.5 pt-3 px-3 pb-2.5'
 const SECTION_TEXT = 'flex flex-1 min-w-0 flex-col gap-0.5'
 const SECTION_TITLE =
-  'flex items-center gap-1.75 m-0 [font-family:var(--chat-font-display)] text-[0.84375rem] font-semibold text-chat-text-hi'
+  'flex items-center gap-1.75 m-0 font-chat-display text-[0.84375rem] font-semibold text-chat-text-hi'
 const SECTION_DESCRIPTION = 'm-0 text-[0.71875rem] leading-[1.35] text-chat-text-2'
 
 type GroupProps = {
@@ -43,7 +44,7 @@ type GroupProps = {
 export function Group(props: GroupProps): JSX.Element {
   const titleId = createUniqueId()
   const noteOf = useContext(SettingNote)
-  const note = () => props.keys?.map(noteOf).find((text) => text !== undefined)
+  const note = () => props.keys?.map((key) => noteOf(key)).find((text) => text !== undefined)
   return (
     <section class={`${SECTION} ${props.danger ? SECTION_DANGER : ''}`} aria-labelledby={titleId}>
       <div class={SECTION_HEAD}>

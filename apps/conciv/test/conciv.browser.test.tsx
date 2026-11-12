@@ -5205,6 +5205,13 @@ describe('settings page', () => {
     await expect.element(command('New quick terminal pane')).toHaveFocus()
     await recordGlobalToggle('u')
     await expect.element(page.getByText(formatForDisplay('Control+Shift+U', {useSymbols: false}))).toBeInTheDocument()
+    await expect.element(page.getByText('From all projects', {exact: true})).toBeVisible()
+    await scopeLabel().click()
+    await expect.element(allProjects()).toBeChecked()
+    await expect.element(page.getByText('This project overrides it', {exact: true}).nth(1)).toBeVisible()
+    await expect.element(page.getByText('This project overrides it', {exact: true}).nth(2)).not.toBeInTheDocument()
+    await scopeLabel().click()
+    await expect.element(allProjects()).not.toBeChecked()
 
     await userEvent.keyboard('{Escape}')
     await expect.element(composer(), {timeout: 8000}).toBeVisible()

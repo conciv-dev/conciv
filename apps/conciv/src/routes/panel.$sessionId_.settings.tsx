@@ -24,8 +24,7 @@ import {settingsSearchSchema} from '../settings/settings-search-schemas.js'
 
 const PAGE = 'flex flex-1 flex-col min-h-0'
 const HEADER = 'flex h-13 shrink-0 items-center gap-1.5 px-2 [border-block-end:1px_solid_var(--chat-line-soft)]'
-const TITLE =
-  'flex-1 m-0 [font-family:var(--chat-font-display)] text-[0.9375rem] font-semibold text-chat-text-hi leading-[1.25]'
+const TITLE = 'flex-1 m-0 font-chat-display text-[0.9375rem] font-semibold text-chat-text-hi leading-[1.25]'
 const BACK = 'size-9 shrink-0'
 const SCOPE = 'min-h-11 px-1.5'
 const SPLIT = 'flex flex-1 min-h-0 flex-col @lg:[--settings-rail:wide] data-[orientation=vertical]:flex-row'

@@ -27,7 +27,7 @@ export function PreferencesForm(props: PreferencesFormProps): JSX.Element {
         {(scope) => {
           const form = createPreferencesForm(scope)
           return (
-            <SettingNote.Provider value={(key) => preferences.note(scope, key)}>
+            <SettingNote.Provider value={(key, entry) => preferences.note(scope, key, entry)}>
               <form class={FORM} aria-label={props.label} onSubmit={(event) => event.preventDefault()}>
                 {props.children(form)}
               </form>

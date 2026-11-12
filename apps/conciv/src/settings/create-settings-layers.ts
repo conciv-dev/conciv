@@ -29,7 +29,11 @@ export function createSettingsLayers(options: SettingsLayersOptions) {
     const snapshot = snapshots[scope]
     return snapshot.isPending ? {} : (snapshot.data?.value ?? {})
   }
-  const has = (scope: SettingsScope, key: string) => Object.hasOwn(layer(scope), key)
+  const has = (scope: SettingsScope, key: string, entry?: string) => {
+    const value = layer(scope)[key]
+    if (entry === undefined) return Object.hasOwn(layer(scope), key)
+    return typeof value === 'object' && value !== null && Object.hasOwn(value, entry)
+  }
   const applied = createMemo(() => mergeSettings(layer('project'), layer('global')))
   return {
     status: (): 'pending' | 'error' | 'success' => {
@@ -43,9 +47,9 @@ export function createSettingsLayers(options: SettingsLayersOptions) {
     applied,
     shown: (scope: SettingsScope) => (scope === 'project' ? applied() : layer('global')),
     fallthrough: (scope: SettingsScope) => (scope === 'project' ? layer('global') : {}),
-    note: (scope: SettingsScope, key: string): string | undefined => {
-      if (scope === 'global') return has('project', key) ? NOTES.global : undefined
-      return !has('project', key) && has('global', key) ? NOTES.project : undefined
+    note: (scope: SettingsScope, key: string, entry?: string): string | undefined => {
+      if (scope === 'global') return has('project', key, entry) ? NOTES.global : undefined
+      return !has('project', key, entry) && has('global', key, entry) ? NOTES.project : undefined
     },
   }
 }

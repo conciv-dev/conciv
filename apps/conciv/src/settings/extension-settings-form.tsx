@@ -38,7 +38,7 @@ export function ExtensionSettingsForm(): JSX.Element {
           const page = extensionSettingsPage(extension)
           const form = createExtensionForm({extension, layers, scope}, page.fields)
           return (
-            <SettingNote.Provider value={(key) => layers.note(scope, key)}>
+            <SettingNote.Provider value={(key, entry) => layers.note(scope, key, entry)}>
               {extensionFields(page, form)}
             </SettingNote.Provider>
           )

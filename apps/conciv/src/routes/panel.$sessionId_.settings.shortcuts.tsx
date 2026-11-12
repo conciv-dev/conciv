@@ -21,7 +21,7 @@ function ShortcutsSettings(): JSX.Element {
   return (
     <PreferencesForm label="Shortcuts">
       {(form) => (
-        <Group title="Keyboard shortcuts" description="Click a command to record new keys" keys={['commandShortcuts']}>
+        <Group title="Keyboard shortcuts" description="Click a command to record new keys">
           <form.AppField name="commandShortcuts">
             {(field) => <ShortcutsList entries={COMMANDS} all={COMMANDS} field={field()} scope={search().scope} />}
           </form.AppField>
