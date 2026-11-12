@@ -946,15 +946,17 @@ describe('page bus and the session scope', () => {
     const owed = await played(false)
     const turns: string[] = []
     const starting = Promise.withResolvers<boolean>()
+    const entered = Promise.withResolvers<void>()
     const plane = {
       live: async () => false,
       followUp: async (_sessionId: SessionId, input: string) => {
         turns.push(input)
+        entered.resolve()
         return turns.length === 1 ? starting.promise : true
       },
     }
     const following = startQueueFollowUp(queues, plane, SESSION_A)
-    await expect.poll(() => turns).toHaveLength(1)
+    await entered.promise
     for (const _ of Array.from({length: 205})) {
       const queueId = await played(true)
       await queues.wait(SESSION_A, queueId, 0)
@@ -984,6 +986,30 @@ describe('page bus and the session scope', () => {
     await finished(earlier.queueId)
     expect((await later).queueId).toBe(second[0]?.queue.id)
     expect(first).toHaveLength(1)
+  })
+
+  it('a queue waiting behind another plays on the tab that serves the session when its turn comes, though the tab it was queued for closed', async () => {
+    const bus = makePageBus(2000)
+    const onFirst: z.infer<typeof QueueFrameSchema>[] = []
+    const closeFirst = bus.subscribe(SESSION_A, (frame) => {
+      const parsed = QueueFrameSchema.safeParse(frame)
+      if (!parsed.success) return
+      onFirst.push(parsed.data)
+      queueMicrotask(() => bus.resolve(SESSION_A, parsed.data.requestId, {ok: true, result: {}}))
+    })
+    const queues = pageQueues(bus)
+    const finished = finishedOf(queues)
+    const check = [{tool: 'page_check', selector: '#agree'}]
+    const earlier = await queues.start(SESSION_A, queueStart(check))
+    const later = queues.start(SESSION_A, queueStart(check))
+    closeFirst()
+    const second = queueingTab(bus)
+    const {queueId} = await later
+    expect(onFirst.map((frame) => frame.queue.id)).toEqual([earlier.queueId])
+    expect(second.map((frame) => frame.queue.id)).toEqual([queueId])
+    expect(bus.resolve(SESSION_A, second[0]?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})).toBe(true)
+    await finished(queueId)
+    expect(await queues.wait(SESSION_A, queueId, 0)).toMatchObject({queueId, status: 'finished', played: 1})
   })
 
   it('a queue wait its caller aborts rejects at once and leaves the result owed to the next reply', async () => {

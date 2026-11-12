@@ -119,6 +119,8 @@ type BrowserTab = {id: string; order: number; emit: (frame: unknown) => void; fo
 
 type SessionPage = {pending: Pending<PageOutcome>; browserTabs: Map<string, BrowserTab>}
 
+type QueueDispatch = {page: SessionPage; held: Map<string, Promise<Held<PageOutcome>>>; answer: Promise<PageOutcome>}
+
 const UNREPORTED: BrowserTabFocus = {focusedAt: 0, visible: false}
 
 const BROWSER_TAB_RETURN_MS = 5000
@@ -276,42 +278,52 @@ export function makePageBus(timeoutMs = 5000, queuedActionMs = QUEUED_ACTION_MS)
     queueId: string,
     count: number,
   ): QueuePlay {
-    const tab = target(sessionId, bySession.get(sessionId), undefined)
-    const page = pageOf(sessionId)
+    target(sessionId, bySession.get(sessionId), undefined)
     const requestId = randomUUID()
     const replies = Array.from({length: count}, () => randomUUID())
-    const sent = (): Promise<PageOutcome> => {
+    const dispatch = (): QueueDispatch => {
+      const page = pageOf(sessionId)
+      const tab = target(sessionId, page, undefined)
       const answer = page.pending.await(requestId, tab.id, timeoutMs)
+      const held = new Map(replies.map((id) => [id, page.pending.hold(id, tab.id)]))
       tab.emit({requestId, ...query, queue: {id: queueId, replies}})
-      return answer
+      return {page, held, answer}
     }
     const turn = busy(sessionId) ? laneOf(sessionId).add(() => undefined) : Promise.resolve()
-    const accepted = turn.then(sent).then((outcome): PageAnswer => {
-      if (!outcome.ok) throw pageFailure(outcome.error.code, outcome.error.message, outcome.error.raised)
-      return {result: outcome.result}
-    })
+    const dispatched = turn.then(dispatch)
+    const accepted = dispatched
+      .then((sent) => sent.answer)
+      .then((outcome): PageAnswer => {
+        if (!outcome.ok) throw pageFailure(outcome.error.code, outcome.error.message, outcome.error.raised)
+        return {result: outcome.result}
+      })
     const refusal = accepted.then(
       () => null,
-      (error: unknown): PageOutcome => {
-        replies.forEach((id) => page.pending.drop(id))
+      async (error: unknown): Promise<PageOutcome> => {
+        const sent = await dispatched.catch(() => null)
+        replies.forEach((id) => sent?.page.pending.drop(id))
         return {ok: false, error: {code: 'handler-error', message: `the page refused the queue: ${String(error)}`}}
       },
     )
     const lane = laneOf(sessionId)
-    const playedNext = async (id: string, reply: Promise<Held<PageOutcome>>): Promise<PageOutcome> => {
+    const playedNext = async (id: string): Promise<PageOutcome> => {
       const refused = await refusal
       if (refused !== null) return refused
+      const sent = await dispatched
+      const reply = sent.held.get(id) ?? Promise.resolve<Held<PageOutcome>>({kind: 'failed', reason: unanswered()})
       const answered = await pTimeout(reply, {milliseconds: queuedActionMs, message: unanswered()}).finally(() =>
-        page.pending.drop(id),
+        sent.page.pending.drop(id),
       )
       if (answered.kind === 'failed') throw answered.reason
       return answered.value
     }
-    const played = replies.map((id) => {
-      const reply = page.pending.hold(id, tab.id)
-      return lane.add(() => playedNext(id, reply))
-    })
-    void Promise.allSettled([accepted, ...played]).then(() => dropIfIdle(sessionId, page))
+    const played = replies.map((id) => lane.add(() => playedNext(id)))
+    void Promise.allSettled([accepted, ...played])
+      .then(() => dispatched)
+      .then(
+        (sent) => dropIfIdle(sessionId, sent.page),
+        () => undefined,
+      )
     return {accepted, played}
   }
 

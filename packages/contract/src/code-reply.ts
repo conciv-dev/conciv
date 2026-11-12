@@ -8,7 +8,7 @@ import {
 import type {PageQueueResult} from '@conciv/protocol/page-types'
 import type {CodeDiscoverResult, CodeExecuteResult} from './contract.js'
 
-const RESULT_CAP_CHARS = 50_000
+export const RESULT_CAP_CHARS = 50_000
 
 const TRUNCATION_HEAD_CHARS = 4_000
 

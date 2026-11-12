@@ -17,7 +17,7 @@ import {
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {ChatEventType, pageQueueEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {generateMessageId} from '@conciv/protocol/chat-message-types'
-import {queueNotice} from '@conciv/contract'
+import {queueNotice, RESULT_CAP_CHARS} from '@conciv/contract'
 import type {Journal, PageBus} from './page-bus.js'
 import {logError} from '../lib/debug.js'
 
@@ -67,6 +67,8 @@ const KEPT_QUEUES = 200
 
 const OWED_QUEUES = 1000
 
+const QUEUE_RESULT_CHARS = RESULT_CAP_CHARS - 5000
+
 function playedOutcome(index: number, tool: string, outcome: PageOutcome): Settled {
   if (outcome.ok) return {outcome: {index, tool, ok: true, result: outcome.result}, landed: 'played'}
   const raised = outcome.error.raised
@@ -99,13 +101,33 @@ function resultOf(record: QueueRecord): PageQueueResult {
     : settled.some((entry) => entry.landed === 'stopped')
       ? 'stopped'
       : 'finished'
-  return {
+  return fitted({
     queueId: record.queueId,
     status,
     outcomes: settled.map((entry) => entry.outcome),
     failed: ran.filter((entry) => !entry.outcome.ok).length,
     played: ran.length,
-  }
+  })
+}
+
+function fitted(
+  result: PageQueueResult,
+  share = Math.floor(QUEUE_RESULT_CHARS / Math.max(result.outcomes.length, 1)),
+): PageQueueResult {
+  const capped = {...result, outcomes: result.outcomes.map((outcome) => cappedOutcome(outcome, share))}
+  if (JSON.stringify(capped).length <= QUEUE_RESULT_CHARS || share === 0) return capped
+  return fitted(result, Math.floor(share / 2))
+}
+
+function cappedOutcome(outcome: PageQueueOutcome, share: number): PageQueueOutcome {
+  if (!outcome.ok) return outcome.error.length <= share ? outcome : {...outcome, error: headOf(outcome.error, share)}
+  const body = JSON.stringify(outcome.result)
+  if (body.length <= share) return outcome
+  return {...outcome, result: {truncated: true, length: body.length, head: headOf(body, share)}}
+}
+
+function headOf(text: string, length: number): string {
+  return Array.from(text).slice(0, length).join('')
 }
 
 function stringField(record: Record<string, unknown>, key: 'ref' | 'selector'): string | undefined {

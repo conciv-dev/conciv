@@ -75,7 +75,7 @@ type Simulator = {
   cursor: string
   onStop: (sessionId: string) => void
   running: (sessionId: string) => boolean
-  queues: Set<string>
+  queues: Map<string, AbortController>
   stoppedQueues: Set<string>
   pacing: boolean
 }
@@ -92,7 +92,7 @@ const sim: Simulator = {
   cursor: '',
   onStop: ignore,
   running: idle,
-  queues: new Set(),
+  queues: new Map(),
   stoppedQueues: new Set(),
   pacing: false,
 }
@@ -142,7 +142,7 @@ function shake(): void {
 }
 
 function stop(): void {
-  for (const queue of sim.queues) sim.stoppedQueues.add(queue)
+  for (const queue of sim.queues.keys()) sim.stoppedQueues.add(queue)
   const session = sim.taskSession
   if (session !== null) sim.onStop(session)
 }
@@ -177,6 +177,7 @@ function unmountSimulator(): void {
   clearTimeout(sim.timeout)
   disarm()
   if (sim.run) unmountRun(sim.run)
+  for (const held of sim.queues.values()) held.abort()
   sim.queues.clear()
   sim.stoppedQueues.clear()
   Object.assign(sim, {
@@ -290,8 +291,11 @@ export function endRun(sessionId: string): void {
 
 export type Beat = 'click' | 'input' | 'point'
 
-export function acceptQueue(queueId: string): void {
-  sim.queues.add(queueId)
+export function acceptQueue(queueId: string, plane: AbortSignal | undefined): void {
+  const held = new AbortController()
+  sim.queues.set(queueId, held)
+  plane?.addEventListener('abort', () => finishQueue(queueId), {once: true, signal: held.signal})
+  if (plane?.aborted === true) finishQueue(queueId)
 }
 
 export function queueStopped(queueId: string): boolean {
@@ -323,7 +327,10 @@ export async function landQueued<Result>(options: {beat: Beat; act: () => Promis
 }
 
 export function finishQueue(queueId: string): void {
-  if (!sim.queues.delete(queueId)) return
+  const held = sim.queues.get(queueId)
+  if (held === undefined) return
+  sim.queues.delete(queueId)
+  held.abort()
   sim.stoppedQueues.delete(queueId)
   if (sim.queues.size > 0) return
   if (sim.taskSession !== null && sim.running(sim.taskSession)) return

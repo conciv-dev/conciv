@@ -24,7 +24,7 @@ import {join, dirname} from 'node:path'
 import {afterAll, beforeAll, describe, expect, it, afterEach, onTestFinished, test, vi, beforeEach} from 'vitest'
 import {createMCPClient, imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
 import {foldChatEvents} from '@conciv/ai/testkit'
-import {abortableFetch, cappedValue, type EngineStaleness} from '@conciv/contract'
+import {abortableFetch, cappedValue, codeExecuteReply, type EngineStaleness} from '@conciv/contract'
 import {
   defineExtension,
   defineTool,
@@ -106,7 +106,12 @@ import {
 } from '@conciv/protocol/chat-types'
 import {type ElementCapture, type ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 import {type HarnessChatDeps, type HarnessListCursor, type HarnessModel} from '@conciv/protocol/harness-types'
-import {type PageOutcome, PageQuerySchema, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
+import {
+  type PageOutcome,
+  PageQuerySchema,
+  PageQueueResultSchema,
+  PAGE_TRANSPORT_ERROR_CODES,
+} from '@conciv/protocol/page-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
@@ -5103,7 +5108,7 @@ describe('page action queue delivery', () => {
     const queries = await tab.page.queries(undefined, {signal: AbortSignal.any([pages.signal, closed.signal])})
     const accepted: QueuedOnTab[] = []
     const arrivals = new EventTarget()
-    const answering = (async () => {
+    const answer = async (): Promise<void> => {
       for await (const {requestId, query} of queries) {
         const parsed = PageQuerySchema.parse(query)
         if (parsed.queue === undefined) {
@@ -5115,7 +5120,8 @@ describe('page action queue delivery', () => {
         accepted.push({id, replies})
         arrivals.dispatchEvent(new Event('queue'))
       }
-    })().catch((error: unknown) => {
+    }
+    const answering = answer().catch((error: unknown) => {
       if (!closed.signal.aborted && !pages.signal.aborted) throw error
     })
     const nextQueue = async (): Promise<QueuedOnTab> => {
@@ -5128,12 +5134,13 @@ describe('page action queue delivery', () => {
       tab.page.reply({requestId: queued.replies[index] ?? '', outcome})
     const events = await tab.chat.events({sessionId}, {signal: pages.signal})
     const seen: ChatEvent[] = []
-    const watching = (async () => {
+    const watch = async (): Promise<void> => {
       for await (const chunk of events) {
         seen.push(chunk)
         arrivals.dispatchEvent(new Event('chunk'))
       }
-    })().catch((error: unknown) => {
+    }
+    const watching = watch().catch((error: unknown) => {
       if (!pages.signal.aborted) throw error
     })
     const queueEvents = () => seen.flatMap((chunk) => pageQueueEvent.parse(chunk) ?? [])
@@ -5280,6 +5287,57 @@ describe('page action queue delivery', () => {
     const after = await page.hub('return 8')
     expect(after).toContain('"result":8')
     expect(after).not.toContain(queueId)
+  })
+
+  it('a queue result far over the text cap still carries every outcome, in the next reply, the sync reply and the hub reply', async () => {
+    const page = await engineWithTab()
+    const actions = Array.from({length: 50}, (_, index) => ({
+      tool: 'page_fill',
+      selector: `#field-${index}`,
+      value: 'x',
+    }))
+    const playLarge = async (onTab: QueuedOnTab): Promise<void> => {
+      for (const index of actions.keys()) {
+        await page.play(
+          onTab,
+          index,
+          index % 2 === 0
+            ? {ok: true, result: {ok: true, value: 'v'.repeat(3000)}}
+            : {ok: false, error: {code: 'invalid-args', message: 'e'.repeat(3000)}},
+        )
+      }
+    }
+    const expected = actions.map((_, index) =>
+      index % 2 === 0
+        ? {index, tool: 'page_fill', ok: true, result: expect.any(Object)}
+        : {index, tool: 'page_fill', ok: false, error: expect.stringMatching(/^e+/)},
+    )
+    const noticed = (text: string | undefined) =>
+      PageQueueResultSchema.parse(JSON.parse(text?.split('\n').slice(1).join('\n') ?? ''))
+    const {queueId} = handleOf(await page.hub(queued(actions)))
+    await playLarge(await page.nextQueue())
+    await page.finishedEvent(queueId)
+    const [notice] = z.array(z.object({type: z.literal('text'), content: z.string()})).parse(await page.hub('return 7'))
+    expect(notice?.content.split('\n')[0]).toBe(`queue ${queueId} finished: 50 played, 25 failed`)
+    expect(noticed(notice?.content)).toEqual({queueId, status: 'finished', outcomes: expected, failed: 25, played: 50})
+    const replied = page.hub(`return await external_page_queue({actions: ${JSON.stringify(actions)}})`)
+    await playLarge(await page.nextQueue())
+    expect(PageQueueResultSchema.parse(JSON.parse(String(await replied)).result).outcomes).toEqual(expected)
+    const typed = makeRpcClient(page.base, {headers: HUB})
+    const started = await typed.code.execute({
+      sessionId: page.sessionId,
+      typescriptCode: `return await external_page_queue_async({actions: ${JSON.stringify(actions)}})`,
+    })
+    const onTab = await page.nextQueue()
+    expect(started).toMatchObject({ok: true, queued: [{queueId: onTab.id, actions: 50}]})
+    await playLarge(onTab)
+    await page.finishedEvent(onTab.id)
+    const next = await typed.code.execute({sessionId: page.sessionId, typescriptCode: 'return 8'})
+    const [hubNotice] = codeExecuteReply(next).content
+    expect(hubNotice?.type === 'text' ? hubNotice.text.split('\n')[0] : null).toBe(
+      `queue ${onTab.id} finished: 50 played, 25 failed`,
+    )
+    expect(noticed(hubNotice?.type === 'text' ? hubNotice.text : undefined).outcomes).toEqual(expected)
   })
 
   it('a discover_tools reply carries a finished result the session was not handed yet', async () => {
