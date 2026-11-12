@@ -90,6 +90,7 @@ import {
   CHAT_WS_PATH,
   CONCIV_CLAUDE_SESSION_HEADER,
   CONCIV_CLIENT_HEADER,
+  CONCIV_NAMED_TAB_HEADER,
   CONCIV_ORIGIN_HEADER,
   type HubAccess,
   TabOpenSchema,
@@ -4781,16 +4782,20 @@ describe('outside agent consent', () => {
         await mcp.close()
       }
     }
-    const outsideCalls = [
-      await makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB}})
+    const overRpc = (headers: Record<string, string>) =>
+      makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...headers}})
         .registry.call(restart)
-        .then(String, String),
+        .then(String, String)
+    const outsideCalls = [
+      await overRpc({...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'}),
       await overMcp({[CONCIV_SESSION_HEADER]: sessionId, ...HUB}),
       await overMcp({[CONCIV_CLAUDE_SESSION_HEADER]: 'plugin-bridge-native'}),
     ]
     const ran = expect.stringMatching(/no dev server is attached to conciv/)
     expect(outsideCalls).toEqual([ran, ran, ran])
     expect(await pendingOf(base, sessionId)).toEqual([])
+    expect(await overRpc(HUB)).toMatch(/needs the user/)
+    expect((await pendingOf(base, sessionId)).map((ask) => ask.toolName)).toEqual([restart.name])
     const insideCalls = [
       await rpcOf(base, sessionId).registry.call(restart).then(String, String),
       await overMcp({[CONCIV_SESSION_HEADER]: sessionId}),

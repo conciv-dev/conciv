@@ -105,17 +105,22 @@ A tool with `approval: 'ask'` runs without a prompt when the caller is an outsid
 
 A caller is an outside agent when either holds:
 
-- it labels itself `conciv-origin: hub` (the CLI found through `--tab` or the home db, and `conciv mcp serve`), or
+- it labels itself `conciv-origin: hub` AND named the tab it acts on (`conciv tools --tab <id>`, or a `conciv mcp serve` call with a `tab`), or
 - it reaches `/api/mcp` through the Claude plugin bridge: a Claude session header and no conciv session header.
 
 The in-widget agent is neither: it always sends a conciv session header (`packages/harness/src/claude/args.ts:8`) and never the hub label. The plugin bridge is not hub-labelled on main (`packages/harness-init/src/claude/bridge.ts:126` sends only the Claude session id), which is why the second clause exists.
 
 ### The two places that ask
 
-1. **RPC**, used by `conciv tools ...`: `refuseUnapproved` (`packages/core/src/api/rpc/router.ts:65-72`), three call sites (`:148,209,215`). Skip when `callTrace(...).hub !== null`.
+1. **RPC**, used by `conciv tools ...`: `refuseUnapproved` (`packages/core/src/api/rpc/router.ts:65-72`), three call sites (`:148,209,215`). Skip when the caller is hub-labelled and named its tab.
 2. **MCP**, used by the plugin's Claude and by a hub call that names a tab: the code runner wraps every asking tool in `admitCall` (`packages/chat/src/index.ts:269-285`). `/api/mcp` already knows who is calling (`packages/core/src/api/mcp.ts:353-357`) and decides there.
 
-A tab-less hub call is unaffected: its asking tools are already removed (`packages/core/src/api/outside-run.ts:9`).
+A hub caller that did NOT name a tab keeps today's behaviour on both paths:
+
+- Over MCP its asking tools are already removed (`packages/core/src/api/outside-run.ts:9`).
+- Over RPC it is the CLI run from a folder with no `.conciv/server.json` above it: `engineOrigin` falls back to the home db (`packages/cli/src/engine-origin.ts:46-48`) and `withSession` sends the hub label with a session from `sessions.resolve({})`, which is the user's latest session row. That call still gets an Approve card. Skipping it there would let an agent in any folder run `page_eval` or `server restart` in the user's most recent tab with no prompt (review finding on #839).
+
+Core cannot tell the two RPC cases apart from the session header, since the CLI sends one either way. The CLI therefore says so: it adds `conciv-named-tab: 1` next to the hub label only when `--tab` was given, `callTrace` reads it into the hub origin, and `refuseUnapproved` skips only for a hub caller that carries it. Like the hub label it is self-declared; it is a guardrail for our own tooling, not a boundary.
 
 ### Why
 

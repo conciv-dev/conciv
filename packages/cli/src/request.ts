@@ -2,6 +2,7 @@ import {safe, toORPCError, type ORPCError} from '@orpc/client'
 import {z} from 'zod'
 import {
   CONCIV_CLIENT_HEADER,
+  CONCIV_NAMED_TAB_HEADER,
   CONCIV_ORIGIN_HEADER,
   CONCIV_SESSION_HEADER,
   isSessionId,
@@ -67,7 +68,8 @@ type EngineOrigin = Awaited<ReturnType<typeof engineOrigin>>
 
 async function withSession(engine: EngineOrigin, target: CliTarget, call: RpcCall): Promise<unknown> {
   const session = {[CONCIV_SESSION_HEADER]: target.tab ?? (await sessionId(engine.origin))}
-  const hub = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: callingAgent(process.env)}
+  const named = target.tab === null ? {} : {[CONCIV_NAMED_TAB_HEADER]: '1'}
+  const hub = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: callingAgent(process.env), ...named}
   return call(makeRpcClient(engine.origin, {headers: engine.outside ? {...session, ...hub} : session}))
 }
 

@@ -1166,6 +1166,14 @@ describe('cli', () => {
         expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
         await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: true})
         expect(await waiting).toMatchObject(listed)
+        const restart = ['tools', 'server', 'restart']
+        expect([
+          await conciv(elsewhere, home, [...restart, '--tab', sessionId]),
+          await conciv(elsewhere, home, restart),
+        ]).toMatchObject([
+          {ok: false, error: {code: 'NO_BUNDLER'}},
+          {ok: false, error: {code: 'APPROVAL_DENIED', message: expect.stringMatching(/needs the user/)}},
+        ])
         expect(await conciv(elsewhere, home, ['tools', 'tabs'])).toMatchObject(listed)
         const missing = ['tools', 'tabs', '--tab', 'conciv_gone']
         expect(await conciv(elsewhere, home, missing)).toMatchObject({
