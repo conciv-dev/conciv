@@ -60,7 +60,8 @@ export const Tanstack = Rpc.define({
 
 The browser part. `Plugin.define({stores, setup})` has no id (the host gives it the engine part's id as `ctx.id`);
 `setup` is synchronous and runs under the plugin's Solid owner. `ctx.add(Registry, item)` adds to a registry
-(`Panel`, `Slot`, `Command`, `ComposerPill`, `LinkHandler`, `SettingsPage`, `CodeBlock`, `CodeBlockAction`), and
+(`Panel`, `Slot`, `Command`, `ComposerPill`, `LinkHandler`, `SettingsPage`, `CodeBlock`, `CodeBlockAction`,
+`NoteCard`), and
 everything added is withdrawn when the plugin reloads or stops. Also exported: `Store` (`global`, `project`,
 `session`), `Registry`, `Contract`, the host API types, `createKeyed`, `createLatest`, `createVisitState`,
 `usePlugin`, `bindPlugin`, `usePanel` and `useDrawer`. `ctx.client.rpc(Definition)` calls the plugin's own engine
@@ -246,6 +247,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - `SettingsPage.page` is `'general'` only and `group` is absent: conciv's settings have no Servers or About page (`apps/conciv/src/routes/panel.$sessionId_.settings.*.tsx`).
 - `SlotMap` has five places: source's `session.header` and `window.bottom` (inputs verbatim), and conciv's `session.status` (`{screen, session}`), `window.connect` (`{origin, found(apiBase)}`, what the connect slot gets today: `ConnectHostApi`, `packages/extension/src/host-context.ts:9`) and `page.overlay` (`Record<string, never>`).
 - A `page.overlay` `Slot` item carries the conciv-only field `hides` (the widget hides while the overlay is up), because the host owns focus and layers as in opencode and this is the one thing a plugin states about its overlay; the plugin API has no layer registration, focus yielding or suppression.
+- The `NoteCard` registry is conciv-only, shaped like `CodeBlock` (`plugin/src/gui/registries.ts:719`), so a plugin can draw the inside of its own composer notes (a recording as a player); it is keyed by the note's existing `origin` field (`origins`, as `CodeBlock` lists `languages`), so the note type gains no field.
 - Not ported (spec "Not ported" list and its brief): `MenuItem` and its three item types, `Server`, `ServerEntry`, `ServerRow`, `ServerState`, `ServerHealth`, `TitlebarItem`, `Style`, `Theme` and its colour types.
 - `builtin.ts` ports `onIdle` and adds the built-in `ToolCall` registry (ruling). `ToolCallProps` follows `CodeBlockProps`: `tool`, `id`, `input`, `result` (`success` with `output`, or `error`), `session`; it is what a finished call has in conciv's tool card props (`ToolCardProps`, `packages/protocol/src/tool-view-types.ts:43`, through `ToolCard`, `packages/extension/src/types.ts:55`), without the card's `ctx`, `addResult`, `durationMs` and `capture`. Not ported: the legacy-key migration helpers `BuiltinStoreFrom`, `BuiltinStoreDeclaration`, `BuiltinStore`, `BuiltinCommand`, `BuiltinPanel`, `BuiltinPanelTab`, `BuiltinSlotMap`, `BuiltinSlot`, `BuiltinStoreOptions`, `BuiltinStorage`, `BuiltinDesktop`, `BuiltinLayout`, `BuiltinLocale`, `BuiltinContext`, `builtinContext` (conciv has no shipped plugin keys to migrate), so `Entry.stores` is `Declarations.stores`; absent: `MainStoreFrom`, `BuiltinMainStorage`, `Lifecycle`, `BuiltinMainContext`, `builtinMainContext`, `BuiltinCatalog`, `builtinCatalog` (no main process, no i18n).
 - `gui/file.ts`, `gui/review.ts`, `gui/browser.ts`, `gui/updater.ts` are not ported: they are contracts of opencode's own built-in plugins, and the audit has no row for any of them.

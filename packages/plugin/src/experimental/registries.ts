@@ -1,7 +1,7 @@
 import type {JSX} from 'solid-js'
 import type {IconName} from './icon-name.js'
 import {Registry} from './core.js'
-import type {SessionRef, MountedSession, SessionScreen} from './host-apis.js'
+import type {ComposerNote, SessionRef, MountedSession, SessionScreen} from './host-apis.js'
 
 /** The name of a shared icon, from the app's icon catalog. */
 export type {IconName}
@@ -525,6 +525,42 @@ export interface CodeBlockAction {
   run(input: CodeBlockProps): void | Promise<void>
 }
 
+/**
+ * One composer note, as a `NoteCard` render receives it. Do not destructure: `session` is a getter.
+ */
+export interface NoteCardProps {
+  /** The note, as the plugin attached it through `composer.attach`. */
+  readonly note: ComposerNote
+  /**
+   * The routed session of the screen that shows the note; a new object when another session is routed. Undefined
+   * outside a session screen.
+   */
+  readonly session?: MountedSession
+}
+
+/**
+ * Renders the inside of the composer notes some plugins attach as your own UI in place of the host's note chip, for
+ * example a player for a recording. Applies to the note in the composer and in the sent message. The host keeps the
+ * note's frame, its remove button and its placement around your UI; notes of other origins cost nothing.
+ */
+export interface NoteCard {
+  /**
+   * The origins whose notes you render, compared with `ComposerNote.origin`, e.g. `["recorder"]`. When several
+   * contributions list an origin, the first contributed renders it.
+   */
+  readonly origins: readonly string[]
+  /**
+   * Renders one note once, under your plugin's context; its own reactivity updates it, also when another session is
+   * routed. Return `undefined` or `null` to keep the host's note chip, e.g. for a note you cannot show. A render that
+   * throws records the error under your plugin and the note shows its chip; the plugin keeps running. The host
+   * renders it again only when the note or the set of contributions changes.
+   *
+   * @param props - The note and its session. Do not destructure.
+   * @returns Your UI for the note, or `undefined` or `null` to keep the chip.
+   */
+  render(props: NoteCardProps): JSX.Element | undefined
+}
+
 /** The places a `Slot` renders, with the input each passes to `render`. */
 export interface SlotMap {
   /** Full-width strip at the bottom of the pane. */
@@ -693,6 +729,23 @@ export const CodeBlock = Registry.define<CodeBlock>('code-block')
  * ```
  */
 export const CodeBlockAction = Registry.define<CodeBlockAction>('code-block-action')
+
+/**
+ * The registry of renderers for the inside of composer notes, by origin.
+ *
+ * @example
+ * ```tsx
+ * ctx.add(NoteCard, {
+ *   origins: ["recorder"],
+ *   render: (props) => {
+ *     const recording = findRecording(props.note.href)
+ *
+ *     return recording ? <Player recording={recording} /> : undefined
+ *   },
+ * })
+ * ```
+ */
+export const NoteCard = Registry.define<NoteCard>('note-card')
 
 /**
  * The registry of content for the host's slots (`SlotMap`).

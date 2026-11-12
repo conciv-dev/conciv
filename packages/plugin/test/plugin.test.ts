@@ -373,7 +373,7 @@ describe('Scope', () => {
 })
 
 describe('experimental', () => {
-  const {CodeBlock, CodeBlockAction, Command, Contract, Plugin: App, Registry, Store} = Experimental
+  const {CodeBlock, CodeBlockAction, Command, Contract, NoteCard, Plugin: App, Registry, Store} = Experimental
   const Notes = Contract.define<{count(): number}, 'acme.notes'>('acme.notes')
   const Tree = Contract.define<{open(path: string): void}, 'fixture.tree'>('fixture.tree')
   const View = z.object({open: z.boolean()})
@@ -533,7 +533,13 @@ describe('experimental', () => {
       })
       // @ts-expect-error an action needs an icon
       ctx.add(CodeBlockAction, {id: 'run', languages: ['sh'], title: 'Run', run() {}})
+      ctx.add(NoteCard, {origins: ['recorder'], render: (card) => (card.note.href ? card.note.label : undefined)})
+      // @ts-expect-error a note card lists the origins it renders
+      ctx.add(NoteCard, {render: () => undefined})
     }
+    expectTypeOf<Experimental.NoteCardProps['note']>().toEqualTypeOf<Experimental.ComposerNote>()
+    expectTypeOf<Experimental.NoteCardProps['session']>().toEqualTypeOf<Experimental.MountedSession | undefined>()
+    expectTypeOf<Experimental.ComposerNote['origin']>().toEqualTypeOf<string>()
     expect(typeof codeBlocks).toBe('function')
   })
 
