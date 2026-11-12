@@ -1,5 +1,23 @@
 # @conciv/ui-kit-chat
 
+## 0.0.23
+
+### Patch Changes
+
+- [#827](https://github.com/conciv-dev/conciv/pull/827) [`f2d65ca`](https://github.com/conciv-dev/conciv/commit/f2d65ca836ddf7ff5cdd79bcd56a4f7aab86bb00) Thanks [@omridevk](https://github.com/omridevk)! - Code highlight and diagram caches free the entries they drop, so a long chat with many code blocks no longer keeps one tracking signal per block it ever rendered.
+
+- [#816](https://github.com/conciv-dev/conciv/pull/816) [`564dd14`](https://github.com/conciv-dev/conciv/commit/564dd148e0dd2f8b7b7b252211f00b5349bab101) Thanks [@omridevk](https://github.com/omridevk)! - The widget bundles are now small classic-script loaders over shared, code-split ES chunks in `dist/widget/`, so mermaid, katex, shiki grammars, xterm and the chat highlight worker load only when used, and the IIFE source maps are gone (the embed `dist` drops from 152 MB to about 30 MB). Serve `dist/widget/` next to `conciv-widget.global.js`; the native page serves it automatically.
+
+- [#848](https://github.com/conciv-dev/conciv/pull/848) [`8d57382`](https://github.com/conciv-dev/conciv/commit/8d57382a4365e2031bc484478b5b8950bd45cca9) Thanks [@omridevk](https://github.com/omridevk)! - The ui-kit-chat composer no longer sends a second stop when Escape is pressed while the run is already stopping. `useComposer().canCancel()` is now false while the run is stopping, and the new `useComposer().isRunning()` keeps the Stop control on screen (disabled) until the run ends.
+
+- [#814](https://github.com/conciv-dev/conciv/pull/814) [`5fd874f`](https://github.com/conciv-dev/conciv/commit/5fd874fb09d5bfda28ce4954506e0abcf7a6f796) Thanks [@omridevk](https://github.com/omridevk)! - Each outside agent call is now its own turn in the chat panel, so a tab driven by an outside agent no longer grows one ever larger turn the panel can never unload. Consecutive outside calls still read as one open list with no fold and one continuous trace line; under the last call of the list a Copy action copies the calls (no Retry).
+- Updated dependencies [[`1feae4a`](https://github.com/conciv-dev/conciv/commit/1feae4aefa390212f63d656a9ad718d4b23a1be9), [`15cc7ed`](https://github.com/conciv-dev/conciv/commit/15cc7ed773ab889319370b8070426756d6cf98bb), [`23d0787`](https://github.com/conciv-dev/conciv/commit/23d078759618f08b80223d26187abb7b2fc5843f), [`33345d3`](https://github.com/conciv-dev/conciv/commit/33345d3bbc25419086a899a36f96991ae37a59ae), [`f2d65ca`](https://github.com/conciv-dev/conciv/commit/f2d65ca836ddf7ff5cdd79bcd56a4f7aab86bb00), [`4a710d4`](https://github.com/conciv-dev/conciv/commit/4a710d475e8975be8162a2740884c69d1e03231d), [`eaa4b2a`](https://github.com/conciv-dev/conciv/commit/eaa4b2a94f44bbfeb14b6a85b343cd16a9c2d743)]:
+  - @conciv/protocol@0.0.23
+  - @conciv/ui-kit-system@0.0.23
+  - @conciv/solid-diffs@0.0.23
+  - @conciv/solid-streamdown@0.0.23
+  - @conciv/storage-history@0.0.23
+
 ## 0.0.22
 
 ### Patch Changes

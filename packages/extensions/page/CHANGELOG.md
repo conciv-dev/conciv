@@ -1,5 +1,28 @@
 # @conciv/extension-page
 
+## 0.0.23
+
+### Patch Changes
+
+- [#823](https://github.com/conciv-dev/conciv/pull/823) [`65fd8fe`](https://github.com/conciv-dev/conciv/commit/65fd8fe0b0f4d7431a82ccd51da0b6f3d5662eae) Thanks [@omridevk](https://github.com/omridevk)! - `page_fill` now types into rich-text editors built on `contenteditable` (plain, `plaintext-only`, Tiptap/ProseMirror, Lexical, Slate, Quill): it dispatches `beforeinput`/`input` first, falls back to editing commands when the editor cancels them, and fails with a clear error when the editor's text still lacks the value. Read-only editors (`contenteditable="false"`, `aria-readonly="true"`) and CodeMirror/Monaco code editors are refused instead of reported as filled.
+
+- [#835](https://github.com/conciv-dev/conciv/pull/835) [`33345d3`](https://github.com/conciv-dev/conciv/commit/33345d3bbc25419086a899a36f96991ae37a59ae) Thanks [@omridevk](https://github.com/omridevk)! - The hub talks to engines over the typed oRPC contract. `conciv mcp serve` now calls `code.execute`, `code.discover`, `code.describe`, `tabs.get` and `page.queue.wait` instead of reading MCP text from `/api/mcp`, so a queue call becomes an MCP task whenever the script started a queue, whatever it returns, and a script that only returns a queue-shaped object no longer does. `GET /api/tabs` is replaced by `tabs.list` / `tabs.get`; an engine without them is reported as too old. `/api/mcp` and `code.execute` run one shared engine function. The image helpers (`imagesIn`, `withoutImages`, `imageBlocks`) move from `@conciv/ai/server` to `@conciv/protocol/chat-message-types`.
+
+  `page_queue` now plays the list and returns every outcome in the same call (if the list outlasts 120 s it returns the progress so far plus a queueId and the rest arrives on its own); `page_queue_async` answers with a queueId at once and pushes the outcomes back when the list ends. `page_queue_wait` is gone as an agent tool; only queues still playing when a call returns become an MCP task.
+
+- [#829](https://github.com/conciv-dev/conciv/pull/829) [`4a710d4`](https://github.com/conciv-dev/conciv/commit/4a710d475e8975be8162a2740884c69d1e03231d) Thanks [@omridevk](https://github.com/omridevk)! - Agents can queue a list of page actions in one call; the page plays them in order with the pointer and the results come back when the list is done.
+
+- [#841](https://github.com/conciv-dev/conciv/pull/841) [`ba22a7d`](https://github.com/conciv-dev/conciv/commit/ba22a7dd30703632d5af0ac6ca854cc257cda70f) Thanks [@omridevk](https://github.com/omridevk)! - Page tools reach into the page's open shadow roots: a selector that matches nothing in the document finds its element inside a web component, and the page snapshot lists shadow content (the widget's own shadow root stays out). `page_press` takes a hotkey binding such as `Mod+Shift+X` and sends its modifiers and key code, so a host hotkey listener fires. The page console records uncaught errors as `uncaught` and unhandled rejections as `unhandled`, with their stacks, and the console card marks either as an error.
+
+- [#840](https://github.com/conciv-dev/conciv/pull/840) [`c0686d5`](https://github.com/conciv-dev/conciv/commit/c0686d5a73cd6982f749209d7acd743df9e30ca3) Thanks [@omridevk](https://github.com/omridevk)! - The Vite plugin stamps JSX with TanStack devtools' own source injector (`addSourceToJsx` from `@tanstack/devtools-bundler-core`) instead of a conciv copy, and every reader (element grab, page tools, highlight, design extension) reads `data-tsd-source`. The conciv-named source attribute is gone. A host that also runs `@tanstack/devtools-vite` gets one attribute per element, since the injector skips elements that already carry one. The `./inject-source` export of `@conciv/extension-compiler` is removed.
+- Updated dependencies [[`1feae4a`](https://github.com/conciv-dev/conciv/commit/1feae4aefa390212f63d656a9ad718d4b23a1be9), [`f2d65ca`](https://github.com/conciv-dev/conciv/commit/f2d65ca836ddf7ff5cdd79bcd56a4f7aab86bb00), [`15cc7ed`](https://github.com/conciv-dev/conciv/commit/15cc7ed773ab889319370b8070426756d6cf98bb), [`564dd14`](https://github.com/conciv-dev/conciv/commit/564dd148e0dd2f8b7b7b252211f00b5349bab101), [`8d57382`](https://github.com/conciv-dev/conciv/commit/8d57382a4365e2031bc484478b5b8950bd45cca9), [`042f5f1`](https://github.com/conciv-dev/conciv/commit/042f5f1dc38120382a7f2f9e780733439b1cfd5b), [`23d0787`](https://github.com/conciv-dev/conciv/commit/23d078759618f08b80223d26187abb7b2fc5843f), [`33345d3`](https://github.com/conciv-dev/conciv/commit/33345d3bbc25419086a899a36f96991ae37a59ae), [`f2d65ca`](https://github.com/conciv-dev/conciv/commit/f2d65ca836ddf7ff5cdd79bcd56a4f7aab86bb00), [`5fd874f`](https://github.com/conciv-dev/conciv/commit/5fd874fb09d5bfda28ce4954506e0abcf7a6f796), [`4a710d4`](https://github.com/conciv-dev/conciv/commit/4a710d475e8975be8162a2740884c69d1e03231d), [`ba22a7d`](https://github.com/conciv-dev/conciv/commit/ba22a7dd30703632d5af0ac6ca854cc257cda70f), [`ebcb3ac`](https://github.com/conciv-dev/conciv/commit/ebcb3ac7177c5854a31a9480e31aaaf769b18f24), [`eaa4b2a`](https://github.com/conciv-dev/conciv/commit/eaa4b2a94f44bbfeb14b6a85b343cd16a9c2d743), [`c0686d5`](https://github.com/conciv-dev/conciv/commit/c0686d5a73cd6982f749209d7acd743df9e30ca3)]:
+  - @conciv/protocol@0.0.23
+  - @conciv/ui-kit-chat@0.0.23
+  - @conciv/extension@0.0.23
+  - @conciv/ui-kit-system@0.0.23
+  - @conciv/page@0.0.23
+  - @conciv/grab@0.0.23
+
 ## 0.0.22
 
 ### Patch Changes

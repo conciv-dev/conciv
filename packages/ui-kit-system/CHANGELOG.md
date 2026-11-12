@@ -1,5 +1,11 @@
 # @conciv/ui-kit-system
 
+## 0.0.23
+
+### Patch Changes
+
+- [#827](https://github.com/conciv-dev/conciv/pull/827) [`f2d65ca`](https://github.com/conciv-dev/conciv/commit/f2d65ca836ddf7ff5cdd79bcd56a4f7aab86bb00) Thanks [@omridevk](https://github.com/omridevk)! - A long chat session no longer leaks memory through truncated text and icon button tooltips: the shared tooltip group kept one reactive slot for every row that ever mounted, so a tab driven by an outside agent grew by about 50 slots per page call. The chat panel's focus trap now lets go while focus sits on the host page, so Tab on the host page moves through the host page instead of jumping into the panel, and the trap no longer rescans the panel on every chat update while an agent drives the page.
+
 ## 0.0.22
 
 ### Patch Changes

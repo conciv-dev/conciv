@@ -1,5 +1,12 @@
 # @conciv/e2e-utils
 
+## 0.0.23
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/harness-testkit@0.0.23
+
 ## 0.0.22
 
 ### Patch Changes

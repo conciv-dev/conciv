@@ -1,5 +1,20 @@
 # conciv-storybook
 
+## 0.0.13
+
+### Patch Changes
+
+- Updated dependencies [[`f2d65ca`](https://github.com/conciv-dev/conciv/commit/f2d65ca836ddf7ff5cdd79bcd56a4f7aab86bb00), [`564dd14`](https://github.com/conciv-dev/conciv/commit/564dd148e0dd2f8b7b7b252211f00b5349bab101), [`8d57382`](https://github.com/conciv-dev/conciv/commit/8d57382a4365e2031bc484478b5b8950bd45cca9), [`65fd8fe`](https://github.com/conciv-dev/conciv/commit/65fd8fe0b0f4d7431a82ccd51da0b6f3d5662eae), [`33345d3`](https://github.com/conciv-dev/conciv/commit/33345d3bbc25419086a899a36f96991ae37a59ae), [`f2d65ca`](https://github.com/conciv-dev/conciv/commit/f2d65ca836ddf7ff5cdd79bcd56a4f7aab86bb00), [`0f6f1f4`](https://github.com/conciv-dev/conciv/commit/0f6f1f42530bb65adde3e01884885e65522cf839), [`5fd874f`](https://github.com/conciv-dev/conciv/commit/5fd874fb09d5bfda28ce4954506e0abcf7a6f796), [`1e9abca`](https://github.com/conciv-dev/conciv/commit/1e9abca9874b798e8ba59df5e1e02392b90a6865), [`4a710d4`](https://github.com/conciv-dev/conciv/commit/4a710d475e8975be8162a2740884c69d1e03231d), [`ba22a7d`](https://github.com/conciv-dev/conciv/commit/ba22a7dd30703632d5af0ac6ca854cc257cda70f), [`c0686d5`](https://github.com/conciv-dev/conciv/commit/c0686d5a73cd6982f749209d7acd743df9e30ca3)]:
+  - @conciv/ui-kit-chat@0.0.23
+  - @conciv/extension-page@0.0.23
+  - @conciv/ui-kit-system@0.0.23
+  - @conciv/mascot@0.0.23
+  - @conciv/ui-kit-chat-tools@0.0.23
+  - @conciv/ui-kit-tap@0.0.23
+  - @conciv/brand@0.0.23
+  - @conciv/solid-diffs@0.0.23
+  - @conciv/solid-streamdown@0.0.23
+
 ## 0.0.12
 
 ### Patch Changes

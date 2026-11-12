@@ -1,5 +1,9 @@
 # @conciv/solid-streamdown
 
+## 0.0.23
+
+No changes in this release.
+
 ## 0.0.22
 
 ### Patch Changes
