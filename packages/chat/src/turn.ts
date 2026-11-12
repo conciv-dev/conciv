@@ -3,7 +3,7 @@ import {readFile} from 'node:fs/promises'
 import {approvalAskOf, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {tokenUsageToSnapshot, toTokenUsage, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {type ContentPart, type ModelMessage} from '@conciv/protocol/chat-message-types'
-import type {TurnHooks} from '@conciv/ai/server'
+import type {Turn, TurnHooks} from '@conciv/ai/server'
 import type {AttachmentDocumentPart} from '@conciv/extension'
 import {transcriptPathWithin} from '@conciv/harness'
 import {isHarnessSessionId, SessionId, type HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
@@ -120,6 +120,12 @@ async function expandedMessage(message: ModelMessage, deps: TurnDeps): Promise<M
   return {...message, content: parts.flat()}
 }
 
+function askedMessages(turn: Turn, messages: ModelMessage[], harness: HarnessAdapter): ModelMessage[] {
+  if (turn.kind === 'compact') return [...messages, compactPrompt(harness)]
+  if (turn.kind === 'page-queue') return [...messages, {role: 'user', content: turn.input}]
+  return messages
+}
+
 function compactPrompt(harness: HarnessAdapter): ModelMessage {
   return {role: 'user', content: harness.capabilities.compaction ? '/compact' : COMPACT_FALLBACK_PROMPT}
 }
@@ -216,10 +222,10 @@ export function turnHooks(
           if (turn.kind === 'chat' && lastUser !== undefined && isBlank(lastUser)) {
             throw new Error('the message is empty')
           }
-          return turn.kind === 'compact' ? messages : expandedLastUser(messages, deps)
+          return turn.kind === 'chat' ? expandedLastUser(messages, deps) : messages
         },
         providerMessages: async (messages) => {
-          const asked = turn.kind === 'compact' ? [...messages, compactPrompt(harness)] : messages
+          const asked = askedMessages(turn, messages, harness)
           const prepared = resumeSessionId === null ? asked : fromLastUser(asked)
           return config.prepareMessages?.(prepared) ?? prepared
         },

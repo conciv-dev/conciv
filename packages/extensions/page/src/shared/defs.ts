@@ -2,6 +2,13 @@ import {z} from 'zod'
 import type {ToolIconKey, ToolLabel} from '@conciv/protocol/tool-icon-types'
 import type {ToolCaptureMode} from '@conciv/protocol/element-capture-types'
 import {defineTool, type ToolBuilder, type ToolErrors, type ToolMeta} from '@conciv/extension/tool'
+import {
+  PAGE_QUEUE_MAX_ACTIONS,
+  PAGE_QUEUE_TOOL,
+  PAGE_QUEUE_WAIT_TOOL,
+  PageQueueProgressSchema,
+  PageQueueResultSchema,
+} from '@conciv/protocol/page-types'
 
 export const PAGE_EXTENSION_NAME = 'page'
 
@@ -542,6 +549,70 @@ export const pressDef = pageTool({
   output: OkResult,
 })
 
+function queued<Name extends string, Shape extends z.ZodRawShape>(def: {name: Name; inputSchema: z.ZodObject<Shape>}) {
+  return def.inputSchema.extend({tool: z.literal(def.name)})
+}
+
+export const PageQueueActionSchema = z.discriminatedUnion('tool', [
+  queued(clickDef),
+  queued(hoverDef),
+  queued(fillDef),
+  queued(selectDef),
+  queued(checkDef),
+  queued(uncheckDef),
+  queued(pressDef),
+  queued(scrollDef),
+])
+
+export const queueDef = pageTool({
+  verb: pageVerbOfTool(PAGE_QUEUE_TOOL),
+  summary: 'queue a list of page actions the page plays in order with the pointer, answering at once',
+  category: 'act',
+  icon: 'pointer',
+  label: {running: 'Queueing page actions', done: 'Queued page actions'},
+  hint: `answers at once with a queueId while the page plays the list in order, one action at a time; a failed action is skipped and the rest still play; when the list ends every outcome comes back on its own (with your next conciv call, or as a follow-up), and ${PAGE_QUEUE_WAIT_TOOL} returns it now if you need it; at most ${PAGE_QUEUE_MAX_ACTIONS} actions; no reads or submit inside a queue`,
+  mutating: true,
+  capture: 'none',
+  keywords: ['batch', 'list', 'sequence', 'fill form', 'many'],
+  input: z.object({
+    actions: z
+      .array(PageQueueActionSchema)
+      .min(1)
+      .max(PAGE_QUEUE_MAX_ACTIONS, `a queue holds at most ${PAGE_QUEUE_MAX_ACTIONS} actions; split the list`)
+      .describe(
+        'the actions to play in order, each {tool, ...that tool input}: page_click, page_hover, page_fill, page_select, page_check, page_uncheck, page_press, page_scroll',
+      ),
+  }),
+  output: z.object({
+    queueId: z.string().describe('pass to page_queue_wait; the result also arrives on its own'),
+    actions: z.number().describe('how many actions the page accepted'),
+  }),
+})
+
+export const QUEUE_WAIT_DEFAULT_MS = 30_000
+export const QUEUE_WAIT_MAX_MS = 120_000
+
+export const queueWaitDef = pageTool({
+  verb: pageVerbOfTool(PAGE_QUEUE_WAIT_TOOL),
+  summary: 'wait for a page action queue to finish and return every outcome',
+  category: 'read',
+  icon: 'wait',
+  label: {running: 'Waiting for the queue', done: 'Read the queue'},
+  hint: 'optional: a finished queue result also arrives on its own with your next conciv call or as a follow-up, so polling is a choice, not a duty',
+  keywords: ['queue', 'result', 'outcome'],
+  input: z.object({
+    queueId: z.string().min(1).describe('the queueId page_queue returned'),
+    waitMs: z
+      .number()
+      .int()
+      .min(0)
+      .max(QUEUE_WAIT_MAX_MS)
+      .optional()
+      .describe(`how long to wait for the end, in ms (default ${QUEUE_WAIT_DEFAULT_MS})`),
+  }),
+  output: z.union([PageQueueResultSchema, PageQueueProgressSchema]),
+})
+
 export const setattrDef = pageTool({
   verb: 'setattr',
   summary: 'set an attribute on an element',
@@ -692,6 +763,8 @@ export const PAGE_TOOL_DEFS = [
   hoverDef,
   scrollDef,
   submitDef,
+  queueDef,
+  queueWaitDef,
   setattrDef,
   removeattrDef,
   addclassDef,

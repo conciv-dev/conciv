@@ -6,7 +6,7 @@ import {z} from 'zod'
 import type {SessionMeta} from '@conciv/contract'
 import {SessionId, TabsSchema, type TabOpen, type Tabs} from '@conciv/protocol/chat-types'
 import {isPageFailure} from '@conciv/protocol/page-types'
-import type {PageBus} from '../page-bus.js'
+import type {PageBus} from '../page/page-bus.js'
 
 const PAGE_PROBE_MS = 200
 

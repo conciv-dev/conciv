@@ -17,7 +17,7 @@ import {loadSnapshotLibrary, loadedSnapshotLibrary, takeElementCapture} from './
 
 export type PageToolAnswer = {result: PageResult; capture?: PageCaptureBundle}
 
-export type PageToolDispatch = (query: PageQuery) => Promise<PageToolAnswer>
+export type PageToolDispatch = (query: PageQuery, signal?: AbortSignal) => Promise<PageToolAnswer>
 
 function notOurs(el: Element | null | undefined): Element | null {
   return el && !isOurs(el) ? el : null
@@ -45,11 +45,12 @@ function missingTarget(locator: ClientToolLocator): never {
 type TargetSlot = {el: Element | null}
 
 function callCtx(
-  agentId: string,
+  query: PageQuery,
   refs: Refs,
   consoleBuf: ConsoleEntry[],
   effects: readonly ClientEffect[],
   slot: TargetSlot,
+  signal: AbortSignal | undefined,
 ): ClientToolCtx {
   const remember = (el: Element | null): Element | null => {
     if (el !== null) slot.el = el
@@ -57,7 +58,9 @@ function callCtx(
   }
   const resolve = (locator: ClientToolLocator): Element | null => remember(locatorTarget(locator, refs))
   return {
-    agentId,
+    agentId: query.agentId,
+    ...(query.queued === undefined ? {} : {queued: query.queued}),
+    ...(signal === undefined ? {} : {signal}),
     document,
     resolve,
     target: (locator) => {
@@ -138,18 +141,18 @@ export function makePageToolDispatcher(
 ): PageToolDispatch {
   const byName = new Map(tools.map((tool) => [tool.name, tool] as const))
   void loadSnapshotLibrary()
-  return async (query) => {
+  return async (query, signal) => {
     const tool = byName.get(query.name)
     if (!tool) unknownVerb(`no mounted extension declares a client tool named "${query.name}"`)
     void loadSnapshotLibrary()
     const slot: TargetSlot = {el: null}
     const captures = makeCaptureCollector()
-    const ctx = callCtx(query.agentId, refs, consoleBuf, effects, slot)
+    const ctx = callCtx(query, refs, consoleBuf, effects, slot, signal)
     try {
       const result = await tool.execute(query.input, capturingCtx(ctx, tool.capture, captures))
       const record = plainRecordOf(result)
       if (!record || !isJsonSerializable(record)) fail(`${query.name} returned a non-serializable result`)
-      if (tool.capture !== 'none') captures.take('after', slot.el)
+      if (tool.capture !== 'none' && query.queued === undefined) captures.take('after', slot.el)
       const bundle = await tryBuildCaptureBundle(captures.entries())
       return bundle === undefined ? {result: record} : {result: record, capture: bundle}
     } catch (error) {
