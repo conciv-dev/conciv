@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {setImmediate} from 'node:timers/promises'
 import pTimeout from 'p-timeout'
+import {asyncRetry} from '@tanstack/pacer'
 import {
   isPageFailure,
   PAGE_QUEUE_ASYNC_TOOL,
@@ -16,6 +17,7 @@ import {
   type PageQueueResult,
 } from '@conciv/protocol/page-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
+import type {ChatPlane, FollowUpOutcome} from '@conciv/chat'
 import {ChatEventType, pageQueueEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {generateMessageId} from '@conciv/protocol/chat-message-types'
 import {queueNotice, RESULT_CAP_CHARS} from '@conciv/contract'
@@ -26,7 +28,7 @@ type Landed = 'played' | 'stopped' | 'lost'
 
 type Settled = {outcome: PageQueueOutcome; landed: Landed}
 
-type Delivery = 'owed' | 'claimed' | 'delivered'
+type Delivery = 'owed' | 'claimed' | 'nextReply' | 'delivered'
 
 export type QueueRecord = {
   queueId: string
@@ -59,7 +61,7 @@ export type PageQueues = {
   undelivered: (sessionId: SessionId, outside: boolean) => PageQueueResult[]
   startedBy: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => PageQueueHandle[]
   claim: (record: QueueRecord) => boolean
-  confirm: (record: QueueRecord, delivered: boolean) => void
+  confirm: (record: QueueRecord, delivery: Exclude<Delivery, 'claimed'>) => void
   owedTurn: (sessionId: SessionId) => QueueRecord[]
   finished: (listener: (record: QueueRecord) => void) => void
 }
@@ -67,6 +69,10 @@ export type PageQueues = {
 const KEPT_QUEUES = 200
 
 const OWED_QUEUES = 1000
+
+const FOLLOW_UP_ATTEMPTS = 3
+
+const FOLLOW_UP_BACKOFF_MS = 100
 
 const QUEUE_RESULT_CHARS = RESULT_CAP_CHARS - 5000
 
@@ -140,6 +146,10 @@ function headOf(text: string, length: number): string {
 function stringField(record: Record<string, unknown>, key: 'ref' | 'selector'): string | undefined {
   const value = record[key]
   return typeof value === 'string' ? value : undefined
+}
+
+function awaitsDelivery(record: QueueRecord): boolean {
+  return (record.delivery === 'owed' || record.delivery === 'nextReply') && record.result !== null
 }
 
 export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: number}): PageQueues {
@@ -277,26 +287,25 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
   }
 
   function deliver(record: QueueRecord): boolean {
-    if (record.delivery !== 'owed' || record.result === null) return false
+    if (!awaitsDelivery(record)) return false
     record.delivery = 'delivered'
     return true
   }
 
   function claim(record: QueueRecord): boolean {
-    if (record.delivery !== 'owed' || record.result === null) return false
+    if (!awaitsDelivery(record)) return false
     record.delivery = 'claimed'
     return true
   }
 
-  function confirm(record: QueueRecord, delivered: boolean): void {
+  function confirm(record: QueueRecord, delivery: Exclude<Delivery, 'claimed'>): void {
     if (record.delivery !== 'claimed') return
-    record.delivery = delivered ? 'delivered' : 'owed'
+    record.delivery = delivery
   }
 
   function owedTurn(sessionId: SessionId): QueueRecord[] {
     return [...records.values()].filter(
-      (record) =>
-        record.sessionId === sessionId && !record.outside && record.delivery === 'owed' && record.result !== null,
+      (record) => record.sessionId === sessionId && !record.outside && awaitsDelivery(record),
     )
   }
 
@@ -315,21 +324,42 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
 
 export async function startQueueFollowUp(
   queues: PageQueues,
-  plane: {
-    live: (sessionId: SessionId) => Promise<boolean>
-    followUp: (sessionId: SessionId, input: string) => Promise<boolean>
-  },
+  plane: Pick<ChatPlane, 'live' | 'followUp'>,
   sessionId: SessionId,
 ): Promise<void> {
-  if (queues.owedTurn(sessionId).length === 0 || (await plane.live(sessionId))) return
-  const owed = queues.owedTurn(sessionId).filter((record) => queues.claim(record))
-  const results = owed.flatMap((record) => (record.result === null ? [] : [record.result]))
-  if (results.length === 0) return
-  const started = await plane.followUp(sessionId, results.map(queueNotice).join('\n\n')).catch((error: unknown) => {
-    logError(`[core] the page queue follow-up turn for ${sessionId} failed to start: ${String(error)}`)
-    return false
+  if (!queues.owedTurn(sessionId).some((record) => record.delivery === 'owed') || (await plane.live(sessionId))) return
+  const owed = queues.owedTurn(sessionId).flatMap((record) => {
+    const before: 'owed' | 'nextReply' = record.delivery === 'owed' ? 'owed' : 'nextReply'
+    return queues.claim(record) ? [{record, before}] : []
   })
-  for (const record of owed) queues.confirm(record, started)
+  const results = owed.flatMap(({record}) => (record.result === null ? [] : [record.result]))
+  if (results.length === 0) return
+  const notices = results.map(queueNotice).join('\n\n')
+  const followUp = asyncRetry(
+    async (): Promise<FollowUpOutcome> => {
+      const attempt = await plane.followUp(sessionId, notices)
+      if (attempt.kind === 'failed') throw new Error(attempt.error)
+      return attempt
+    },
+    {maxAttempts: FOLLOW_UP_ATTEMPTS, backoff: 'exponential', baseWait: FOLLOW_UP_BACKOFF_MS, throwOnError: 'last'},
+  )
+  const outcome = await followUp().then(
+    (attempt): FollowUpOutcome => attempt ?? {kind: 'failed', error: 'the follow-up retryer did not run'},
+    (error: unknown): FollowUpOutcome => {
+      const queueIds = owed.map(({record}) => record.queueId).join(', ')
+      logError(
+        `[core] the follow-up turns for queues ${queueIds} failed; they wait for the next reply: ${String(error)}`,
+      )
+      return {kind: 'failed', error: String(error)}
+    },
+  )
+  for (const {record, before} of owed) queues.confirm(record, deliveryAfter(outcome, before))
+}
+
+function deliveryAfter(outcome: FollowUpOutcome, before: 'owed' | 'nextReply'): Exclude<Delivery, 'claimed'> {
+  if (outcome.kind === 'delivered') return 'delivered'
+  if (outcome.kind === 'failed' || outcome.kind === 'stopped') return 'nextReply'
+  return before
 }
 
 export function pageQueueChunks(options: {result: PageQueueResult; record: QueueRecord; live: boolean}): ChatEvent[] {
