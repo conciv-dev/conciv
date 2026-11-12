@@ -7,8 +7,26 @@ import {findOwner, readWorkspacePackages, type WorkspacePackage} from './workspa
 
 const TYPESCRIPT_PATHSPECS = ['*.ts', '*.tsx', '*.mts', '*.cts']
 const PRESET_PREFIX = '@conciv/tsconfig/'
-const PACKAGE_TSCONFIGS = ['tsconfig.json', 'tsconfig.build.json']
 const PRESET_OWNED_KEYS = ['include', 'exclude', 'files']
+const OFF_PRESET_PACKAGES = new Set([
+  'apps/examples/nextjs-app',
+  'apps/examples/tanstack-start',
+  'e2e/astro',
+  'e2e/harnesses',
+  'e2e/nextjs',
+  'e2e/nextjs-component',
+  'e2e/solid-start',
+  'e2e/svelte',
+  'e2e/tanstack-start',
+  'e2e/tanstack-start-redact',
+  'e2e/vite-preact-component',
+  'e2e/vite-react',
+  'e2e/vite-react-component',
+  'e2e/vite-solid',
+  'e2e/vite-solid-component',
+  'e2e/vite-vanilla',
+  'native/swift',
+])
 
 const tsconfigSchema = z.looseObject({extends: z.union([z.string(), z.array(z.string())]).optional()})
 
@@ -44,37 +62,47 @@ async function trackedTypescriptFiles(cwd: string): Promise<string[]> {
 }
 
 async function packageViolations(pkg: WorkspacePackage, files: string[]): Promise<string[]> {
-  const configs = await readPackageTsconfigs(pkg.dir)
-  const main = configs.get('tsconfig.json')
-  if (main === undefined || !extendsPreset(main)) return []
-  const ownedKeys = [...configs].flatMap(([name, config]) =>
-    PRESET_OWNED_KEYS.filter((key) => key in config).map(
+  const main = await readTsconfig(join(pkg.dir, 'tsconfig.json')).catch(() => undefined)
+  const onPreset = main !== undefined && extendsPreset(main)
+  if (OFF_PRESET_PACKAGES.has(pkg.relativeDir)) {
+    return onPreset ? [`${pkg.relativeDir}: extends the @conciv/tsconfig preset, so it leaves the off-preset list`] : []
+  }
+  if (!onPreset) {
+    return [
+      `${pkg.relativeDir}/tsconfig.json: extends neither the @conciv/tsconfig preset nor is on the off-preset list`,
+    ]
+  }
+  const script = pkg.manifest.scripts?.typecheck
+  if (script === undefined) return [`${pkg.relativeDir}: has TypeScript files but no "typecheck" script`]
+  const projects = typecheckProjects(script)
+  if (projects.length === 0) return [`${pkg.relativeDir}: "typecheck" script runs no "tsc -p <tsconfig>"`]
+  const configNames = [...new Set(['tsconfig.json', 'tsconfig.build.json', ...projects])]
+  const configs = await Promise.all(configNames.map((name) => readTsconfig(join(pkg.dir, name))))
+  const ownedKeys = configNames.flatMap((name, index) =>
+    PRESET_OWNED_KEYS.filter((key) => key in (configs[index] ?? {})).map(
       (key) => `${pkg.relativeDir}/${name}: sets "${key}", which the @conciv/tsconfig preset owns`,
     ),
   )
-  const script = pkg.manifest.scripts?.typecheck
-  if (script === undefined) return [...ownedKeys, `${pkg.relativeDir}: has TypeScript files but no "typecheck" script`]
-  const projects = typecheckProjects(script)
-  if (projects.length === 0) return [...ownedKeys, `${pkg.relativeDir}: "typecheck" script runs no "tsc -p <tsconfig>"`]
   const checked = await Promise.all(projects.map((project) => listCheckedFiles(pkg.dir, resolve(pkg.dir, project))))
   const covered = new Set(checked.flat())
   const unchecked = files.filter((file) => !covered.has(file)).map((file) => `${pkg.relativeDir}/${file}: not checked`)
   return [...ownedKeys, ...unchecked]
 }
 
-async function readPackageTsconfigs(packageDir: string): Promise<Map<string, Tsconfig>> {
-  const present = PACKAGE_TSCONFIGS.filter((name) => existsSync(join(packageDir, name)))
-  const texts = await Promise.all(present.map((name) => readFile(join(packageDir, name), 'utf8')))
-  if (present[0] !== 'tsconfig.json' || !texts[0]?.includes(PRESET_PREFIX)) return new Map()
-  return new Map(
-    present.map((name, index): [string, Tsconfig] => [name, parseTsconfig(join(packageDir, name), texts[index])]),
-  )
-}
-
-function parseTsconfig(path: string, text: string | undefined): Tsconfig {
-  const result = tsconfigSchema.safeParse(JSON.parse(text ?? '{}'))
+async function readTsconfig(path: string): Promise<Tsconfig | undefined> {
+  if (!existsSync(path)) return undefined
+  const text = await readFile(path, 'utf8')
+  const result = tsconfigSchema.safeParse(parseJson(path, text))
   if (!result.success) throw new Error(`${path}: invalid tsconfig\n${result.error.message}`)
   return result.data
+}
+
+function parseJson(path: string, text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch (error: unknown) {
+    throw new Error(`${path}: a tsconfig on the @conciv/tsconfig preset is plain JSON`, {cause: error})
+  }
 }
 
 function extendsPreset(config: Tsconfig): boolean {

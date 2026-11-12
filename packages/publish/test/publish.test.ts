@@ -92,9 +92,13 @@ describe('catalog', () => {
 describe('typecheck coverage', () => {
   const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 
-  async function presetPackage(prefix: string, files: Record<string, string>): Promise<{root: string; pkg: string}> {
-    const root = await scaffoldWorkspaceRoot(prefix)
-    const pkg = join(root, 'packages', 'a')
+  async function presetPackage(
+    prefix: string,
+    files: Record<string, string>,
+    dir = 'packages/a',
+  ): Promise<{root: string; pkg: string}> {
+    const root = await scaffoldWorkspaceRoot(prefix, ['packages/*', 'e2e/*'])
+    const pkg = join(root, dir)
     await writeManifest(pkg, {name: '@conciv/a', scripts: {typecheck: 'tsc -p tsconfig.json --noEmit'}})
     await mkdir(join(pkg, 'node_modules', '@conciv'), {recursive: true})
     await symlink(join(repoRoot, 'node_modules'), join(root, 'node_modules'))
@@ -107,7 +111,7 @@ describe('typecheck coverage', () => {
       }),
     )
     await execa('git', ['init', '-q'], {cwd: root})
-    await execa('git', ['add', 'packages/a'], {cwd: root})
+    await execa('git', ['add', dir], {cwd: root})
     return {root, pkg}
   }
 
@@ -151,13 +155,31 @@ describe('typecheck coverage', () => {
     await expect(assertTypecheckCoversTrackedFiles(root)).resolves.toBeUndefined()
   }, 10_000)
 
-  test('assertTypecheckCoversTrackedFiles leaves a package off the preset to its framework', async () => {
-    const {root, pkg} = await presetPackage('typecheck-coverage-framework-', {
+  test('assertTypecheckCoversTrackedFiles rejects a package off the preset unless the off-preset list names it', async () => {
+    const framework = {
       'app/page.ts': 'export const page = 1\n',
-      'tsconfig.json': JSON.stringify({include: ['next-env.d.ts']}),
+      'tsconfig.json': '{\n  // framework-owned\n  "include": ["next-env.d.ts"]\n}\n',
+    }
+    const unlisted = await presetPackage('typecheck-coverage-unlisted-', framework)
+    await expect(assertTypecheckCoversTrackedFiles(unlisted.root)).rejects.toThrow(
+      'packages/a/tsconfig.json: extends neither the @conciv/tsconfig preset nor is on the off-preset list',
+    )
+    const listed = await presetPackage('typecheck-coverage-listed-', framework, 'e2e/vite-react')
+    await expect(assertTypecheckCoversTrackedFiles(listed.root)).resolves.toBeUndefined()
+  }, 10_000)
+
+  test('assertTypecheckCoversTrackedFiles checks every tsconfig the typecheck script runs', async () => {
+    const {root, pkg} = await presetPackage('typecheck-coverage-scripted-', {
+      'src/index.ts': 'export const a = 1\n',
+      'tsconfig.node.json': JSON.stringify({extends: './tsconfig.json', include: ['${configDir}/src/**/*']}),
     })
-    await writeManifest(pkg, {name: '@conciv/a'})
-    await expect(assertTypecheckCoversTrackedFiles(root)).resolves.toBeUndefined()
+    await writeManifest(pkg, {
+      name: '@conciv/a',
+      scripts: {typecheck: 'tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit'},
+    })
+    await expect(assertTypecheckCoversTrackedFiles(root)).rejects.toThrow(
+      'packages/a/tsconfig.node.json: sets "include"',
+    )
   }, 10_000)
 })
 

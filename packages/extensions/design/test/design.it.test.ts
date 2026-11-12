@@ -270,6 +270,7 @@ const {rpc, browser, page, stateRoot, call, goto} = kit
 afterAll(async () => {
   await kit.dispose()
   process.chdir(home)
+  await rm(PROVENANCE_DIR, {recursive: true, force: true})
 })
 
 it('declares six design tools with the flags from the spec', async () => {

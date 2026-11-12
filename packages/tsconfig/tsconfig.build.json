@@ -15,6 +15,7 @@
     "${configDir}/src/**/*.test.*",
     "${configDir}/src/**/fixtures.*",
     "${configDir}/src/**/*.fixtures.*",
-    "${configDir}/src/scripts/**"
+    "${configDir}/src/scripts/**",
+    "${configDir}/src/xray/**"
   ]
 }

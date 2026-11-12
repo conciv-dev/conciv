@@ -23,6 +23,7 @@ The package.json describes this as the design built-in extension, internal to @c
 
 - `rollupOptions.external` (`vite.config.ts`) treats imports matching solid-js, zod, @conciv/, lucide-solid, rrweb, @rrweb/, @tanstack/, @orpc/, @zumer/ or @bramus/ as external unless the import path contains `.css`
 - `renderBuiltUrl` (`vite.xray.config.ts`) prefixes HTML asset URLs with `xray/` and uses relative URLs for JS and CSS
+- `src/xray/**` emits no declarations: the shared `@conciv/tsconfig/tsconfig.build.json` excludes it
 - `ppu-paddle-ocr`, `ppu-ocv` and `onnxruntime-web` are pinned exactly (see [OCR engine](#ocr-engine))
 
 ## Side Effects
