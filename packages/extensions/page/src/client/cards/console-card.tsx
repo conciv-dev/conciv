@@ -24,6 +24,8 @@ const TEXT =
   'text-[length:var(--chat-text-sm)] flex-1 min-w-0 whitespace-pre-wrap [color:var(--chat-text)] [font-family:var(--chat-mono)] [overflow-wrap:anywhere]'
 const TEXT_DANGER = `${DANGER_TEXT_CLASS} flex-1 min-w-0 [overflow-wrap:anywhere]`
 
+const ERROR_LEVELS: ReadonlySet<string> = new Set(['error', 'uncaught', 'unhandled'])
+
 type ConsoleLine = {level: string; ts: number; text: string}
 
 function linesOf(payload: unknown): readonly ConsoleLine[] | undefined {
@@ -36,7 +38,7 @@ function lineLabel(count: number): string {
 }
 
 function isErrorLevel(level: string): boolean {
-  return level === 'error'
+  return ERROR_LEVELS.has(level)
 }
 
 function textClassOf(level: string): string {

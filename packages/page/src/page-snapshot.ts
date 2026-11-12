@@ -1,3 +1,5 @@
+import {pageShadowRoot} from './select-deep.js'
+
 export type Refs = {map: Map<string, WeakRef<Element>>; n: number}
 export type RefAdder = (el: Element) => string
 export type SnapNode = {
@@ -113,7 +115,7 @@ export function buildSnapshot(root: Element, addRef: RefAdder): SnapNode[] {
   const out: SnapNode[] = []
   const walk = (el: Element): void => {
     if (isInteresting(el)) out.push(snapNode(el, addRef))
-    for (const child of Array.from(el.children)) walk(child)
+    for (const child of [...Array.from(pageShadowRoot(el)?.children ?? []), ...Array.from(el.children)]) walk(child)
   }
   walk(root)
   return out
