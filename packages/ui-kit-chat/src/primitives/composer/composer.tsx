@@ -403,7 +403,7 @@ function Input(props: InputProps): JSX.Element {
   const onKeyDown = (event: ComposerKeyboardEvent) => {
     forwardKeyDown(event, local.onKeyDown)
     if (event.isComposing) return
-    if (shouldCancelOnEscape(event, local.cancelOnEscape ?? true, composer.canCancel() && !composer.isStopping())) {
+    if (shouldCancelOnEscape(event, local.cancelOnEscape ?? true, composer.canCancel())) {
       event.preventDefault()
       cancelViaHandlers()
       return
@@ -456,7 +456,7 @@ function Cancel(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>): JSX.Element
   const handlers = useComposerHandlers()
   const cancel = () => (handlers.onCancel ? handlers.onCancel() : composer.cancel())
   return (
-    <Show when={composer.canCancel()}>
+    <Show when={composer.isRunning()}>
       <button type="button" aria-label="Stop" onClick={cancel} {...props} disabled={composer.isStopping()} />
     </Show>
   )

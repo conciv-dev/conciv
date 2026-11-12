@@ -33,7 +33,7 @@ export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Elem
   let wrapper: HTMLDivElement | undefined
   const submit = () => wrapper?.closest('form')?.requestSubmit()
   const cancelOnEscape = (event: KeyboardEvent) => {
-    if (event.key !== 'Escape' || !composer.canCancel() || composer.isStopping()) return
+    if (event.key !== 'Escape' || !composer.canCancel()) return
     event.preventDefault()
     event.stopPropagation()
     if (handlers.onCancel) {
