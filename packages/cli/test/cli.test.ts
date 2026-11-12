@@ -1990,7 +1990,7 @@ describe('cli', () => {
         }
       })
 
-      it('tasks/get fails the task, naming the lost queue, once the engine holding the tab restarted without it', async () => {
+      it('tasks/get fails the task, naming the lost queue, once the engine holding the tab restarted without it, and answers the same on every later poll', async () => {
         const {home, engine} = await queueTab()
         const client = rawHub(home)
         const restarted: {engine?: Awaited<ReturnType<typeof engineWithTab>>} = {}
@@ -2007,7 +2007,7 @@ describe('cli', () => {
           expect(String(ended?.['statusMessage'])).toMatch(
             /^queue q_\S+ was lost: the engine holding the tab no longer has it/,
           )
-          expect((await client.request('tasks/get', {taskId: task.taskId})).error).toMatchObject({code: -32602})
+          expect(await client.poll(task.taskId)).toEqual(ended)
         } finally {
           await client.close()
           await restarted.engine?.engine.stop()
@@ -2028,7 +2028,7 @@ describe('cli', () => {
         }
       })
 
-      it('tasks/get reports working then completed with every outcome, and a poll against a stopped engine keeps the task working', async () => {
+      it('tasks/get reports working then completed with every outcome on every later poll, and a poll against a stopped engine keeps the task working', async () => {
         const {home, engine, play} = await queueTab()
         const client = rawHub(home)
         const stopping: {engine?: Promise<void>} = {}
@@ -2044,7 +2044,7 @@ describe('cli', () => {
           expect(text).toContain('\\"index\\":0,\\"tool\\":\\"page_fill\\",\\"ok\\":true')
           expect(text).toContain('\\"index\\":1,\\"tool\\":\\"page_check\\",\\"ok\\":true')
           expect(text).toContain('\\"played\\":2')
-          expect((await client.request('tasks/get', {taskId: task.taskId})).error).toMatchObject({code: -32602})
+          expect(await client.poll(task.taskId)).toEqual(done)
           const stranded = TaskSchema.parse(await client.execute(QUEUE, engine.sessionId))
           await stop()
           expect(await client.poll(stranded.taskId)).toMatchObject({taskId: stranded.taskId, status: 'working'})

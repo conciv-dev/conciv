@@ -87,7 +87,18 @@ type TabOwner = {root: string; apiBase: string; instructions: string | null; rpc
 
 type TabEntry = {owner: Promise<TabOwner> | null; greeted: boolean}
 
-type QueueTask = {tab: SessionId; queued: PageQueueHandle[]; createdAt: string; lastUpdatedAt: string; reply: Reply}
+type TaskAnswer = Record<string, unknown>
+
+type QueueTask =
+  | {
+      status: 'working'
+      tab: SessionId
+      queued: PageQueueHandle[]
+      createdAt: string
+      lastUpdatedAt: string
+      reply: Reply
+    }
+  | {status: 'settled'; createdAt: string; answer: TaskAnswer}
 
 type GoneQueue = {queueId: string; status: 'gone'}
 
@@ -233,7 +244,7 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
     }
     const taskId = randomUUID()
     const now = new Date().toISOString()
-    queueTasks.set(taskId, {tab, queued, createdAt: now, lastUpdatedAt: now, reply: executed.reply})
+    queueTasks.set(taskId, {status: 'working', tab, queued, createdAt: now, lastUpdatedAt: now, reply: executed.reply})
     return {
       content: [],
       resultType: 'task',
@@ -246,20 +257,35 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
     }
   }
 
-  function settleDelivered(finished: readonly PageQueueResult[]): void {
-    const delivered = new Set(finished.map((result) => result.queueId))
+  function expireTasks(): void {
     const expired = Date.now() - TASK_TTL_MS
     for (const [taskId, task] of queueTasks) {
-      const queued = task.queued.filter((handle) => !delivered.has(handle.queueId))
-      task.queued = queued
-      if (queued.length === 0 || Date.parse(task.createdAt) < expired) queueTasks.delete(taskId)
+      if (Date.parse(task.createdAt) < expired) queueTasks.delete(taskId)
     }
   }
 
-  async function queueTask(params: unknown): Promise<Record<string, unknown>> {
-    const {taskId} = TaskIdParamsSchema.parse(params)
+  function settleDelivered(finished: readonly PageQueueResult[]): void {
+    expireTasks()
+    const delivered = new Set(finished.map((result) => result.queueId))
+    for (const [taskId, task] of queueTasks) {
+      if (task.status === 'working') {
+        task.queued = task.queued.filter((handle) => !delivered.has(handle.queueId))
+        if (task.queued.length === 0) queueTasks.delete(taskId)
+      }
+    }
+  }
+
+  function knownTask(taskId: string): QueueTask {
+    expireTasks()
     const task = queueTasks.get(taskId)
     if (task === undefined) throw Object.assign(new Error(`no queue task ${taskId}`), {code: UNKNOWN_TASK})
+    return task
+  }
+
+  async function queueTask(params: unknown): Promise<TaskAnswer> {
+    const {taskId} = TaskIdParamsSchema.parse(params)
+    const task = knownTask(taskId)
+    if (task.status === 'settled') return task.answer
     const polled = await Promise.all(
       task.queued.map(async ({queueId}) => {
         const waited = await routed(
@@ -271,26 +297,25 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
         return waited.value
       }),
     )
-    const settled = polled.flatMap((state) => (state === null || state.status === 'playing' ? [] : [state]))
-    const stamped = {taskId, createdAt: task.createdAt, ttlMs: TASK_TTL_MS}
-    if (settled.length < task.queued.length) {
+    const current = knownTask(taskId)
+    if (current.status === 'settled') return current.answer
+    const pending = new Set(current.queued.map((handle) => handle.queueId))
+    const settled = polled.flatMap((state) =>
+      state === null || state.status === 'playing' || !pending.has(state.queueId) ? [] : [state],
+    )
+    const stamped = {taskId, createdAt: current.createdAt, ttlMs: TASK_TTL_MS}
+    if (settled.length < current.queued.length) {
       return {
         resultType: 'complete',
         ...stamped,
         status: 'working',
-        lastUpdatedAt: task.lastUpdatedAt,
+        lastUpdatedAt: current.lastUpdatedAt,
         pollIntervalMs: TASK_POLL_MS,
       }
     }
-    queueTasks.delete(taskId)
-    const notices = settled.map((state) => (state.status === 'gone' ? goneNotice(state) : queueNoticePart(state)))
-    const lastUpdatedAt = new Date().toISOString()
-    if (settled.every((state) => state.status !== 'gone')) {
-      const result = {...task.reply, content: [...task.reply.content, ...notices]}
-      return {resultType: 'complete', ...stamped, status: 'completed', lastUpdatedAt, result}
-    }
-    const statusMessage = notices.map((notice) => notice.text).join('\n\n')
-    return {resultType: 'complete', ...stamped, status: 'failed', lastUpdatedAt, statusMessage}
+    const answer = settledAnswer(stamped, current.reply, settled)
+    queueTasks.set(taskId, {status: 'settled', createdAt: current.createdAt, answer})
+    return answer
   }
 
   async function discoverCall(input: z.infer<typeof DiscoverInputSchema>, signal: AbortSignal): Promise<Reply> {
@@ -464,6 +489,21 @@ async function pollQueue(
     if (error instanceof ORPCError && error.code === 'NO_QUEUE') return {queueId, status: 'gone'}
     throw error
   }
+}
+
+function settledAnswer(
+  stamped: {taskId: string; createdAt: string; ttlMs: number},
+  reply: Reply,
+  settled: readonly (PageQueueResult | GoneQueue)[],
+): TaskAnswer {
+  const notices = settled.map((state) => (state.status === 'gone' ? goneNotice(state) : queueNoticePart(state)))
+  const lastUpdatedAt = new Date().toISOString()
+  if (settled.every((state) => state.status !== 'gone')) {
+    const result = {...reply, content: [...reply.content, ...notices]}
+    return {resultType: 'complete', ...stamped, status: 'completed', lastUpdatedAt, result}
+  }
+  const statusMessage = notices.map((notice) => notice.text).join('\n\n')
+  return {resultType: 'complete', ...stamped, status: 'failed', lastUpdatedAt, statusMessage}
 }
 
 function goneNotice(gone: GoneQueue): {type: 'text'; text: string} {
