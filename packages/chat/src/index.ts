@@ -254,12 +254,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
         if ((await stores.runs.findActiveRun(sessionId)) !== null) return {kind: 'busy'}
         const runId = randomUUID()
         return await server.drive({threadId: sessionId, runId, kind: 'page-queue', input}, []).then(
-          async (): Promise<FollowUpOutcome> => {
-            const ended = await stores.runs.get(runId)
-            if (ended?.status === 'aborted' || ended?.cancelRequested === true) return {kind: 'stopped'}
-            if (ended?.status === 'completed' || ended?.status === 'interrupted') return {kind: 'delivered'}
-            return {kind: 'failed', error: ended?.error?.message ?? `the run ended ${ended?.status ?? 'unrecorded'}`}
-          },
+          async () => followUpOutcomeOf(await stores.runs.get(runId)),
           (error: unknown): FollowUpOutcome => {
             deps.log(`[chat] the page queue follow-up run ${runId} failed: ${String(error)}`)
             return {kind: 'failed', error: String(error)}
@@ -307,6 +302,15 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       }
     },
   }
+}
+
+type EndedRun = Awaited<ReturnType<ReturnType<typeof drizzleChatStores>['runs']['get']>>
+
+function followUpOutcomeOf(ended: EndedRun): FollowUpOutcome {
+  if (ended === null) return {kind: 'failed', error: 'the follow-up run left no record'}
+  if (ended.status === 'aborted' || ended.cancelRequested === true) return {kind: 'stopped'}
+  if (ended.status === 'completed' || ended.status === 'interrupted') return {kind: 'delivered'}
+  return {kind: 'failed', error: ended.error?.message ?? `the run ended ${ended.status}`}
 }
 
 function refusalOf(admission: Admission, toolName: string): CallRefusal | null {
