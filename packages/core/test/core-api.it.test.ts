@@ -104,7 +104,7 @@ import {
   CHAT_WS_PATH,
   CONCIV_CLAUDE_SESSION_HEADER,
   CONCIV_CLIENT_HEADER,
-  CONCIV_NAMED_TAB_HEADER,
+  CONCIV_CHOSEN_ENGINE_HEADER,
   CONCIV_ORIGIN_HEADER,
   type HubAccess,
   TabOpenSchema,
@@ -4884,7 +4884,7 @@ describe('outside agent consent', () => {
         .registry.call(restart)
         .then(String, String)
     const outsideCalls = [
-      await overRpc({...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'}),
+      await overRpc({...HUB, [CONCIV_CHOSEN_ENGINE_HEADER]: '1'}),
       await overMcp({[CONCIV_SESSION_HEADER]: sessionId, ...HUB}),
       await overMcp({[CONCIV_CLAUDE_SESSION_HEADER]: 'plugin-bridge-native'}),
     ]

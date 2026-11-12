@@ -1175,6 +1175,17 @@ describe('cli', () => {
         await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: true})
         expect(await waiting).toMatchObject(listed)
         const restart = ['tools', 'server', 'restart']
+        const inFolder = mkdtempSync(join(tmpdir(), 'conciv-project-'))
+        mkdirSync(join(inFolder, '.conciv'))
+        const recorded = {port: engine.port, token: engine.agentToken}
+        writeFileSync(join(inFolder, '.conciv', 'server.json'), JSON.stringify(recorded))
+        expect(await conciv(inFolder, home, restart)).toMatchObject({ok: false, error: {code: 'NO_BUNDLER'}})
+        expect((await page.chat.hydrate({sessionId})).pendingApprovals).toEqual([])
+        expect(await conciv(inFolder, home, restart, {CONCIV_SESSION_ID: sessionId})).toMatchObject({
+          ok: false,
+          error: {code: 'APPROVAL_DENIED', message: expect.stringMatching(/needs the user/)},
+        })
+        expect((await page.chat.hydrate({sessionId})).pendingApprovals).toHaveLength(1)
         expect([
           await conciv(elsewhere, home, [...restart, '--tab', sessionId]),
           await conciv(elsewhere, home, restart),

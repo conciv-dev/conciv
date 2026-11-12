@@ -2,17 +2,17 @@ import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {generateMessageId, type OutsideCallMetadataSchema} from '@conciv/protocol/chat-message-types'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
-import {CONCIV_CLIENT_HEADER, CONCIV_NAMED_TAB_HEADER, CONCIV_ORIGIN_HEADER} from '@conciv/protocol/chat-types'
+import {CONCIV_CLIENT_HEADER, CONCIV_CHOSEN_ENGINE_HEADER, CONCIV_ORIGIN_HEADER} from '@conciv/protocol/chat-types'
 import {safeStringify} from '@conciv/contract'
 import {logError} from '../lib/debug.js'
 
 const HubOriginSchema = z.object({
   origin: z.enum(['hub']).optional().catch(undefined),
   client: z.string().max(64).optional().catch(undefined),
-  namedTab: z.enum(['1']).optional().catch(undefined),
+  choseEngine: z.enum(['1']).optional().catch(undefined),
 })
 
-type HubOrigin = {client: string | null; namedTab: boolean}
+type HubOrigin = {client: string | null; choseEngine: boolean}
 
 type CallMarker = z.infer<typeof OutsideCallMetadataSchema> | null
 
@@ -67,10 +67,10 @@ function hubOrigin(header: (name: string) => string | null): HubOrigin | null {
   const parsed = HubOriginSchema.parse({
     origin: header(CONCIV_ORIGIN_HEADER) ?? undefined,
     client: header(CONCIV_CLIENT_HEADER) ?? undefined,
-    namedTab: header(CONCIV_NAMED_TAB_HEADER) ?? undefined,
+    choseEngine: header(CONCIV_CHOSEN_ENGINE_HEADER) ?? undefined,
   })
   if (parsed.origin === undefined) return null
-  return {client: parsed.client ?? null, namedTab: parsed.namedTab !== undefined}
+  return {client: parsed.client ?? null, choseEngine: parsed.choseEngine !== undefined}
 }
 
 function marked(chunk: ChatEvent, marker: CallMarker): ChatEvent {

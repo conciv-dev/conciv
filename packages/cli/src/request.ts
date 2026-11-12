@@ -2,7 +2,7 @@ import {safe, toORPCError, type ORPCError} from '@orpc/client'
 import {z} from 'zod'
 import {
   CONCIV_CLIENT_HEADER,
-  CONCIV_NAMED_TAB_HEADER,
+  CONCIV_CHOSEN_ENGINE_HEADER,
   CONCIV_ORIGIN_HEADER,
   CONCIV_SESSION_HEADER,
   isSessionId,
@@ -68,9 +68,11 @@ type EngineOrigin = Awaited<ReturnType<typeof engineOrigin>>
 
 async function withSession(engine: EngineOrigin, target: CliTarget, call: RpcCall): Promise<unknown> {
   const session = {[CONCIV_SESSION_HEADER]: target.tab ?? (await sessionId(engine.origin))}
-  const named = target.tab === null ? {} : {[CONCIV_NAMED_TAB_HEADER]: '1'}
-  const hub = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: callingAgent(process.env), ...named}
-  return call(makeRpcClient(engine.origin, {headers: engine.outside ? {...session, ...hub} : session}))
+  const widgetAgent = target.tab === null && engine.chosen && declaredSessionId() !== null
+  if (widgetAgent) return call(makeRpcClient(engine.origin, {headers: session}))
+  const chosen: Record<string, string> = engine.chosen ? {[CONCIV_CHOSEN_ENGINE_HEADER]: '1'} : {}
+  const hub = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: callingAgent(process.env), ...chosen}
+  return call(makeRpcClient(engine.origin, {headers: {...session, ...hub}}))
 }
 
 export async function engineAnswer<Answer>(origin: string, pending: Promise<Answer>): Promise<Answer> {

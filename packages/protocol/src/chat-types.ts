@@ -19,7 +19,7 @@ export const CONCIV_ORIGIN_HEADER = 'conciv-origin'
 
 export const CONCIV_CLIENT_HEADER = 'conciv-client'
 
-export const CONCIV_NAMED_TAB_HEADER = 'conciv-named-tab'
+export const CONCIV_CHOSEN_ENGINE_HEADER = 'conciv-chosen-engine'
 
 export const OUTSIDE_SESSION_TARGET = 'outside-session'
 

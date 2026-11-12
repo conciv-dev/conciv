@@ -66,7 +66,7 @@ async function callTool<Output extends z.ZodType>(
 
 async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, call: GatedCall): Promise<void> {
   if (widgetCaller(call.context.callerOrigin, deps.allowedOrigins)) return
-  if (callTrace((header) => rpcHeader(call.context, header)).hub?.namedTab === true) return
+  if (callTrace((header) => rpcHeader(call.context, header)).hub?.choseEngine === true) return
   const asks = deps.runtime.engine.catalog().find((tool) => tool.name === name)?.approval === 'ask'
   if (!asks) return
   const scope = call.context.session

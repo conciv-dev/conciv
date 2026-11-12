@@ -36,17 +36,17 @@ export function discoveredEngine(directory: string): ServerState | undefined {
   return discoveredEngine(parent)
 }
 
-type EngineOrigin = {origin: string; outside: boolean}
+type EngineOrigin = {origin: string; chosen: boolean}
 
 export async function engineOrigin(cwd: string, env: NodeJS.ProcessEnv, tab: SessionId | null): Promise<EngineOrigin> {
-  if (tab !== null) return {origin: await tabOwner(await liveEngines(env), tab), outside: true}
+  if (tab !== null) return {origin: await tabOwner(await liveEngines(env), tab), chosen: true}
   const discovered = discoveredEngine(cwd)
   const port = env.CONCIV_PORT ?? discovered?.port
   const token = env.CONCIV_TOKEN ?? discovered?.token
-  if (port !== undefined) return {origin: scopedOrigin(port, token), outside: false}
+  if (port !== undefined) return {origin: scopedOrigin(port, token), chosen: true}
   const latest = (await liveEngines(env)).at(-1)
-  if (latest === undefined) return {origin: scopedOrigin(DEFAULT_ENGINE_PORT, token), outside: false}
-  return {origin: latest.apiBase, outside: true}
+  if (latest === undefined) return {origin: scopedOrigin(DEFAULT_ENGINE_PORT, token), chosen: true}
+  return {origin: latest.apiBase, chosen: false}
 }
 
 export function scopedOrigin(port: string | number, token: string | undefined): string {

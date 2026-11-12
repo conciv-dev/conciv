@@ -105,14 +105,14 @@ A tool with `approval: 'ask'` runs without a prompt when the caller is an outsid
 
 A caller is an outside agent when either holds:
 
-- it labels itself `conciv-origin: hub` AND named the tab it acts on (`conciv tools --tab <id>`, or a `conciv mcp serve` call with a `tab`), or
+- it labels itself `conciv-origin: hub` AND chose its engine (`conciv tools --tab <id>`, `conciv tools` in the project folder with no `CONCIV_SESSION_ID` per the addendum below, or a `conciv mcp serve` call with a `tab`), or
 - it reaches `/api/mcp` through the Claude plugin bridge: a Claude session header and no conciv session header.
 
 The in-widget agent is neither: it always sends a conciv session header (`packages/harness/src/claude/args.ts:8`) and never the hub label. The plugin bridge is not hub-labelled on main (`packages/harness-init/src/claude/bridge.ts:126` sends only the Claude session id), which is why the second clause exists.
 
 ### The two places that ask
 
-1. **RPC**, used by `conciv tools ...`: `refuseUnapproved` (`packages/core/src/api/rpc/router.ts:65-72`), three call sites (`:148,209,215`). Skip when the caller is hub-labelled and named its tab.
+1. **RPC**, used by `conciv tools ...`: `refuseUnapproved` (`packages/core/src/api/rpc/router.ts:65-72`), three call sites (`:148,209,215`). Skip when the caller is hub-labelled and chose its engine.
 2. **MCP**, used by the plugin's Claude and by a hub call that names a tab: the code runner wraps every asking tool in `admitCall` (`packages/chat/src/index.ts:269-285`). `/api/mcp` already knows who is calling (`packages/core/src/api/mcp.ts:353-357`) and decides there.
 
 A hub caller that did NOT name a tab keeps today's behaviour on both paths:
@@ -120,7 +120,37 @@ A hub caller that did NOT name a tab keeps today's behaviour on both paths:
 - Over MCP its asking tools are already removed (`packages/core/src/api/outside-run.ts:9`).
 - Over RPC it is the CLI run from a folder with no `.conciv/server.json` above it: `engineOrigin` falls back to the home db (`packages/cli/src/engine-origin.ts:46-48`) and `withSession` sends the hub label with a session from `sessions.resolve({})`, which is the user's latest session row. That call still gets an Approve card. Skipping it there would let an agent in any folder run `page_eval` or `server restart` in the user's most recent tab with no prompt (review finding on #839).
 
-Core cannot tell the two RPC cases apart from the session header, since the CLI sends one either way. The CLI therefore says so: it adds `conciv-named-tab: 1` next to the hub label only when `--tab` was given, `callTrace` reads it into the hub origin, and `refuseUnapproved` skips only for a hub caller that carries it. Like the hub label it is self-declared; it is a guardrail for our own tooling, not a boundary.
+Core cannot tell the two RPC cases apart from the session header, since the CLI sends one either way. The CLI therefore says so: it adds `conciv-chosen-engine: 1` next to the hub label only when the caller chose its engine (`--tab`, or the project folder since the addendum below), `callTrace` reads it into the hub origin, and `refuseUnapproved` skips only for a hub caller that carries it. Like the hub label it is self-declared; it is a guardrail for our own tooling, not a boundary.
+
+### Addendum: a shell inside the project folder (approved)
+
+Approved by Omri on 2026-11-12 ("close the gap").
+
+After #839 one outside caller was still asked: `conciv tools ...` typed in a shell inside the project folder with no `--tab`. `engineOrigin` finds `.conciv/server.json` and returns `outside: false`, so `withSession` sends the session header alone. Core sees neither a widget origin nor a hub label and raises an Approve card, exactly as it does for the in-widget agent's own CLI.
+
+The two are told apart by `CONCIV_SESSION_ID`. The engine puts it in the environment of every agent it starts (`harnessEnv`, `packages/core/src/start.ts`); a shell the user or an outside agent opened does not have it.
+
+New rule in the CLI (`withSession`, `packages/cli/src/request.ts`), core's gate unchanged in behaviour:
+
+| Call                                                        | Hub label | Chose its engine | Approve card |
+| ----------------------------------------------------------- | --------- | ---------------- | ------------ |
+| `--tab <id>`, any folder                                    | yes       | yes              | no           |
+| in the project folder, no `CONCIV_SESSION_ID`               | yes (new) | yes (new)        | no (new)     |
+| in the project folder, `CONCIV_SESSION_ID` set (the widget) | no        | no               | yes          |
+| any other folder, engine taken from the home db             | yes       | no               | yes          |
+
+The header that carried "named its tab" now also covers "ran in the project folder", so it is renamed to say what it means: `conciv-named-tab` becomes `conciv-chosen-engine` (`CONCIV_CHOSEN_ENGINE_HEADER`), and the hub origin field `namedTab` becomes `choseEngine`. Every call site moves; no alias is kept.
+
+What the hub label brings to the in-folder shell, all of it already true for `--tab`:
+
+- its calls show in the chat as outside calls (`hubTraced`);
+- `hubAccess: 'session'` / `'project'` asks for one Allow, the default `'open'` asks for nothing;
+- an agent the user disconnected is refused;
+- page queues it starts are delivered to it and not followed up in the widget chat.
+
+Not changed: `conciv mcp serve` without a `tab` still has its asking tools removed.
+
+Test: in the existing CLI journey, a `conciv tools` call to an asking tool from a folder holding `.conciv/server.json` and no `CONCIV_SESSION_ID` runs with nothing pending; the same call with `CONCIV_SESSION_ID` set is still asked. It must fail before the change.
 
 ### Why
 
