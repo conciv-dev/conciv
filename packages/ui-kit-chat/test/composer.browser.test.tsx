@@ -9,6 +9,7 @@ import {
   splitProps,
   untrack,
   onMount,
+  onCleanup,
   type ParentProps,
   type Accessor,
 } from 'solid-js'
@@ -16,7 +17,7 @@ import {ActionBar} from '../src/primitives/action-bar/action-bar.js'
 import {MessageProvider} from '../src/primitives/message/message-context.js'
 import {createTurnParts} from '../src/store/turn-parts.js'
 import type {Turn} from '../src/store/grouping.js'
-import {mountView, HARNESS_MODELS} from './helpers.js'
+import {mountView, HARNESS_MODELS, RunSettledIndicator} from './helpers.js'
 import {createChat, type ConnectConnectionAdapter} from '@conciv/ai/client'
 import {ChatEventType} from '@conciv/protocol/chat-event-types'
 import {ChatProvider} from '../src/store/chat-context.js'
@@ -1040,6 +1041,47 @@ describe('composer send morph', () => {
     await userEvent.click(stop)
     await expect.element(page.getByRole('button', {name: 'Send message'})).toBeVisible()
     await expect.element(input).toHaveValue('follow-up while running')
+  })
+
+  it('Escape while the run is stopping passes through and never stops the run a second time', async () => {
+    const [stopping, setStopping] = createSignal(false)
+    const [escape, setEscape] = createSignal('no escape yet')
+    function StoppingHost(): JSX.Element {
+      const chat = createChat({threadId: 'composer-escape-stopping', connection: storyConnection(SLOW_STREAM)})
+      const recordEscape = (event: KeyboardEvent): void => {
+        if (event.key !== 'Escape') return
+        setEscape(event.defaultPrevented ? 'escape consumed' : 'escape passed through')
+      }
+      onMount(() => window.addEventListener('keydown', recordEscape))
+      onCleanup(() => window.removeEventListener('keydown', recordEscape))
+      return (
+        <ChatProvider chat={{...chat, stopping}}>
+          <ComposerHandlersProvider value={{}}>
+            <span>{escape()}</span>
+            <RunSettledIndicator />
+            <ComposerPrimitive.Root>
+              <ComposerPrimitive.Input aria-label="Message" />
+              <ComposerPrimitive.Send>Send</ComposerPrimitive.Send>
+              <ComposerPrimitive.Cancel />
+            </ComposerPrimitive.Root>
+          </ComposerHandlersProvider>
+        </ChatProvider>
+      )
+    }
+    mountView(() => <StoppingHost />)
+    const input = page.getByRole('textbox', {name: 'Message'})
+    await userEvent.fill(input, 'keep running')
+    await userEvent.click(page.getByRole('button', {name: 'Send'}))
+    await expect.element(page.getByText('run live')).toBeVisible()
+    setStopping(true)
+    const stop = page.getByRole('button', {name: 'Stop'})
+    await expect.element(stop).toBeDisabled()
+    await userEvent.click(input)
+    await expect.element(input).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByText('escape passed through')).toBeVisible()
+    await expect.element(page.getByText('run live')).toBeVisible()
+    await expect.element(stop).toBeDisabled()
   })
 })
 
