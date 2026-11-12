@@ -550,7 +550,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const hub = createHubInstaller(opts.home)
   const plane = await createChatPlane({
     cwd: opts.cwd,
-    stateRoot: opts.cfg.stateRoot,
     hubAccess: opts.cfg.hubAccess,
     hubGeneration: hub.generation,
     harnessFor,

@@ -12,7 +12,6 @@ import {
   type MetadataStore,
   type RunRecord,
   type RunStore,
-  type StreamDurability,
   type TokenUsage,
 } from '@tanstack/ai'
 import {defineLock, InMemoryLockStore, withLocks} from '@tanstack/ai/locks'
@@ -78,7 +77,7 @@ export type TurnHooks = {
 
 export type ChatServerConfig = {
   stores: ChatStores
-  sandbox: {dir: string; journalDir: string}
+  sandbox: {dir: string}
   hooks: TurnHooks
   codeModeResult: (value: unknown) => unknown
   firstOutputTimeoutMs: number
@@ -481,12 +480,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     })
   }
 
-  function run(
-    turn: Turn,
-    messages: Array<ChatMessage | ModelMessage>,
-    durability: StreamDurability,
-    controller: AbortController,
-  ) {
+  function run(turn: Turn, messages: Array<ChatMessage | ModelMessage>, controller: AbortController) {
     const entry: LiveRun = {
       threadId: turn.threadId,
       controller,
@@ -547,16 +541,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         }),
         childCards(config.codeModeResult),
         ...(turn.kind === 'compact' ? [compactionStamp(stores.messages)] : []),
-        withSandbox(sandbox, {
-          runs: stores.runs,
-          locks,
-          durability: {
-            adapter: durability,
-            journal: config.sandbox.journalDir,
-            detachOnDisconnect: true,
-            attachWaitMs: config.firstOutputTimeoutMs,
-          },
-        }),
+        withSandbox(sandbox, {locks}),
         toolHistory(),
         concivTurn(turn, plan, granted, view, entry),
       ],

@@ -419,7 +419,6 @@ describe('chat plane', () => {
     const db = openDatabase(root)
     return createChatPlane({
       db,
-      stateRoot: root,
       hubAccess: 'session',
       hubGeneration: () => 0,
       cwd: root,

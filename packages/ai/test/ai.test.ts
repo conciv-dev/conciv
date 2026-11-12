@@ -301,14 +301,66 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
     },
   )
 
-  it(
-    "a fresh run's CLI silent past the journal's first-byte default fails as a stalled journal",
-    {timeout: 25_000},
-    async () => {
-      const bin = join(mkdtempSync(join(tmpdir(), 'conciv-slow-cli-')), 'claude')
-      writeFileSync(bin, '#!/bin/sh\nsleep 11\nexit 1\n')
-      chmodSync(bin, 0o755)
+  describe('a turn driven by an agent CLI', () => {
+    const ANSWER = 'the answer'
+    const SESSION = 'fake-session'
+
+    function fakeClaude(behaviour: {silentMs: number; afterSilence: 'answer' | 'gate' | 'hang'}) {
+      const dir = mkdtempSync(join(tmpdir(), 'conciv-fake-claude-'))
+      const files = {bin: join(dir, 'claude'), launches: join(dir, 'launches'), gate: join(dir, 'gate')}
+      const line = (value: unknown) => JSON.stringify(`${JSON.stringify(value)}\n`)
+      const init = line({type: 'system', subtype: 'init', session_id: SESSION, model: 'opus', tools: []})
+      const answer = line({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: SESSION,
+        message: {id: 'answer', role: 'assistant', content: [{type: 'text', text: ANSWER}]},
+      })
+      const result = line({
+        type: 'result',
+        subtype: 'success',
+        is_error: false,
+        result: ANSWER,
+        session_id: SESSION,
+        usage: {input_tokens: 1, output_tokens: 1},
+      })
+      const gate = JSON.stringify(files.gate)
+      const afterSilence = {
+        answer: `process.stdout.write(${answer} + ${result})`,
+        gate: `const poll = setInterval(() => { if (!fs.existsSync(${gate})) return; clearInterval(poll); process.stdout.write(${answer} + ${result}) }, 20)`,
+        hang: `process.stdout.write(${answer}); setInterval(() => undefined, 1000)`,
+      }
+      writeFileSync(
+        files.bin,
+        [
+          '#!/usr/bin/env node',
+          "const fs = require('node:fs')",
+          `fs.appendFileSync(${JSON.stringify(files.launches)}, process.pid + '\\n')`,
+          `setTimeout(() => { process.stdout.write(${init}); ${afterSilence[behaviour.afterSilence]} }, ${behaviour.silentMs})`,
+        ].join('\n'),
+      )
+      chmodSync(files.bin, 0o755)
+      const pids = () => readFileSync(files.launches, 'utf8').trim().split('\n').map(Number)
+      return {
+        bin: files.bin,
+        pids,
+        alive: () => pids().filter(processAlive),
+        open: () => writeFileSync(files.gate, ''),
+      }
+    }
+
+    function processAlive(pid: number): boolean {
+      try {
+        process.kill(pid, 0)
+        return true
+      } catch {
+        return false
+      }
+    }
+
+    function cliTurn(bin: string) {
       const ended = Promise.withResolvers<RunLifecycle>()
+      const answered = Promise.withResolvers<void>()
       const hooks: TurnHooks = {
         plan: () => ({
           adapter: claudeCode('opus', {claudeExecutable: bin}),
@@ -318,20 +370,124 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
           setup: async () => new Map(),
           expand: async (messages) => messages,
           providerMessages: async (messages) => messages,
-          chunk: async (chunk) => [chunk],
+          chunk: async (chunk) => {
+            if (chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT) answered.resolve()
+            return [chunk]
+          },
         }),
         usage: async () => undefined,
         started: () => undefined,
         end: async (_turn, run) => ended.resolve(run),
       }
-      const server = await chatServer(hooks, () => undefined)
-      await server.drive({threadId: 'thread', runId: 'slow', kind: 'chat'}, [
+      return {hooks, ended: ended.promise, answered: answered.promise}
+    }
+
+    async function answers(server: Awaited<ReturnType<typeof chatServer>>, threadId: string) {
+      return (await server.hydrate(threadId)).messages
+        .filter((message) => message.role === 'assistant')
+        .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])))
+    }
+
+    it('an agent silent for 12s before it answers completes its turn once', {timeout: 30_000}, async () => {
+      const agent = fakeClaude({silentMs: 12_000, afterSilence: 'answer'})
+      const turn = cliTurn(agent.bin)
+      const server = await chatServer(turn.hooks, () => undefined)
+      await server.drive({threadId: 'slow-start', runId: 'slow-start', kind: 'chat'}, [
         {id: 'user-hi', role: 'user', content: 'hi'},
       ])
-      const run = await ended.promise
-      expect(run.error).toMatch(/^cannot attach to run slow: its journal \(.+\) delivered no bytes within 10000ms/)
-    },
-  )
+      const run = await turn.ended
+      expect({
+        run: {phase: run.phase, error: run.error},
+        launches: agent.pids().length,
+        answers: await answers(server, 'slow-start'),
+      }).toEqual({run: {phase: 'completed', error: null}, launches: 1, answers: [ANSWER]})
+    })
+
+    it('an agent silent past the first-output timeout fails with it and is gone', {timeout: 45_000}, async () => {
+      const agent = fakeClaude({silentMs: 600_000, afterSilence: 'answer'})
+      const turn = cliTurn(agent.bin)
+      const server = await chatServer(turn.hooks, () => undefined)
+      const startedAt = Date.now()
+      await server.drive({threadId: 'silent', runId: 'silent', kind: 'chat'}, [
+        {id: 'user-hi', role: 'user', content: 'hi'},
+      ])
+      const run = await turn.ended
+      expect({
+        error: run.error,
+        waitedTheTimeout: Date.now() - startedAt >= 29_000,
+        alive: agent.alive(),
+      }).toEqual({error: 'the agent produced no output within 30s', waitedTheTimeout: true, alive: []})
+    })
+
+    it(
+      'a client that leaves mid-turn and returns gets the whole turn once from the agent it left running',
+      {timeout: 10_000},
+      async () => {
+        const agent = fakeClaude({silentMs: 0, afterSilence: 'gate'})
+        const turn = cliTurn(agent.bin)
+        const server = await chatServer(turn.hooks, () => undefined)
+        const response = await server.events(
+          new Request('http://conciv.local/chat', {
+            method: 'POST',
+            headers: {'content-type': 'application/json'},
+            body: JSON.stringify({
+              threadId: 'left',
+              runId: 'left',
+              messages: [{id: 'user-hi', role: 'user', content: 'hi'}],
+              tools: [],
+              context: [],
+            }),
+          }),
+        )
+        const reader = response.body?.getReader()
+        const decoder = new TextDecoder()
+        const live = {text: ''}
+        while (!live.text.includes(SESSION)) {
+          const read = await reader?.read()
+          if (read === undefined || read.done) break
+          live.text += decoder.decode(read.value, {stream: true})
+        }
+        await reader?.cancel()
+        agent.open()
+        const run = await turn.ended
+        const replay = await replayed(server, 'left')
+        expect({
+          agentStartedLive: live.text.includes(SESSION),
+          phase: run.phase,
+          launches: agent.pids().length,
+          replayedText: replay.flatMap((chunk) => (chunk.delta === undefined ? [] : [chunk.delta])).join(''),
+          replayedFinishes: replay.filter((chunk) => chunk.type === ChatEventType.RUN_FINISHED).length,
+          answers: await answers(server, 'left'),
+        }).toEqual({
+          agentStartedLive: true,
+          phase: 'completed',
+          launches: 1,
+          replayedText: ANSWER,
+          replayedFinishes: 1,
+          answers: [ANSWER],
+        })
+      },
+    )
+
+    it('a stop during an agent run ends it aborted and the agent is gone', {timeout: 10_000}, async () => {
+      const db = chatDb()
+      const agent = fakeClaude({silentMs: 0, afterSilence: 'hang'})
+      const turn = cliTurn(agent.bin)
+      const server = await chatServer(turn.hooks, () => undefined, db)
+      const driven = server.drive({threadId: 'stopped', runId: 'stopped', kind: 'chat'}, [
+        {id: 'user-hi', role: 'user', content: 'hi'},
+      ])
+      await turn.answered
+      await server.stop('stopped', ['stopped'])
+      await driven
+      const run = await turn.ended
+      expect({
+        phase: run.phase,
+        status: db.$client.prepare('SELECT status FROM chat_runs').all(),
+        alive: agent.alive(),
+      }).toEqual({phase: 'aborted', status: [{status: 'aborted'}], alive: []})
+    })
+  })
 
   it('endAllRuns interrupts a run blocked in a tool call and records it aborted', {timeout: 15_000}, async () => {
     const db = chatDb()
@@ -455,16 +611,20 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
 
   const ReplayedChunkSchema = z.looseObject({
     type: z.string(),
+    delta: z.string().optional(),
     name: z.string().optional(),
     value: z.looseObject({phase: z.string().optional()}).optional(),
   })
 
-  async function replayEnd(server: Awaited<ReturnType<typeof chatServer>>, runId: string) {
+  async function replayed(server: Awaited<ReturnType<typeof chatServer>>, runId: string) {
     const replay = server.resume(new Request(`http://conciv.local/chat?runId=${runId}&offset=-1`))
-    const chunks = ((await replay?.text()) ?? '')
+    return ((await replay?.text()) ?? '')
       .split('\n')
       .flatMap((line) => (line.startsWith('data: ') ? [ReplayedChunkSchema.parse(JSON.parse(line.slice(6)))] : []))
-    const phases = chunks.flatMap((chunk) =>
+  }
+
+  async function replayEnd(server: Awaited<ReturnType<typeof chatServer>>, runId: string) {
+    const phases = (await replayed(server, runId)).flatMap((chunk) =>
       chunk.name === runLifecycleEvent.name && chunk.value?.phase !== undefined ? [chunk.value.phase] : [],
     )
     return phases.at(-1)
@@ -533,7 +693,7 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
     const dir = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
     const server = await createChatServer({
       stores: drizzleChatStores(db, {harnessOf: () => 'test-harness'}),
-      sandbox: {dir, journalDir: join(dir, 'runs')},
+      sandbox: {dir},
       hooks,
       codeModeResult: (value) => value,
       firstOutputTimeoutMs: 30_000,
