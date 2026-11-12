@@ -60,7 +60,11 @@ All inputs and outputs zod. Session routing and hub admission come from the head
     no queue is in both `queued` and `finished`.
   - `finished`: the finished, undelivered queues for this caller (today's next-reply path, `mcp.ts`
     `withFinishedQueues`), marked delivered by this call.
-  - Same transcript mirroring, call trace and result cap as `/api/mcp` `runExecute`.
+  - Same transcript mirroring, call trace and result cap as `/api/mcp` `runExecute`. One capped formatter
+    (`packages/contract/src/code-reply.ts`: `codeExecuteReply`, `codeDiscoverReply`, `queueNotice`) turns these results
+    into text for both the engine's `/api/mcp` and the hub, under one `RESULT_CAP_CHARS`. A queue result is fitted to
+    that cap where it is built (`page-queue.ts` `fitted`): every outcome keeps `index`, `tool` and `ok`; an oversized ok
+    value becomes `{truncated, length, head}` and an oversized error is cut to its share.
 - `code.discover({sessionId, toolNames})` → the typed signatures `runDiscover` returns today.
 - `page.queue.wait({sessionId, queueId, waitMs})` → `PageQueueResultSchema | PageQueueProgressSchema`
   (discriminated on `status`). The queue store's internal `wait` (no agent tool calls it); a returned result is marked delivered.
@@ -73,11 +77,17 @@ so the two cannot drift. No logic is duplicated between them.
 
 - One `makeRpcClient(row.apiBase, ...)` per engine, headers per call (oRPC passes them per request), replacing the
   per-tab `createMCPClient` cache (`hub.ts:594` comment's reason goes away).
+- The hub serves its tool list only after `code.describe` answers (bounded at 2 s, `DESCRIBE_MS`), so a client never
+  sees placeholder descriptions.
+- A call the engine refused or answered UNAUTHORIZED ran nothing, so the hub drops that tab's client, looks the
+  engine up again and resends once.
 - `execute_typescript` → `code.execute`. The hub turns the typed result into MCP `content` for its caller (result JSON
   text part, logs, finished-queue notices as leading text parts, greeting on first call per tab) — formatting only, no
   parsing.
 - MCP task: the hub answers as a task when the client negotiated the tasks extension and `queued` is non-empty. One task
   per call; `taskId` is the hub's own id mapping to the call's `queued` list.
+- A task is working or settled, and the hub keeps it until `TASK_TTL_MS` (1 h) after its last change; expired tasks are
+  swept on `tasks/get`, and the task is re-read after each poll so a concurrent settle is not lost.
 - `tasks/get` → `page.queue.wait({waitMs: 0})` per queued id; `completed` when all are final, with the typed results
   formatted as MCP content. A transport failure keeps the task and reports `working` (it is read-only; retrying is
   safe). An engine that answers NO_QUEUE restarted and lost the queue: the task ends `failed` with a `statusMessage`
@@ -95,7 +105,8 @@ so the two cannot drift. No logic is duplicated between them.
 
 An installed hub can meet an older or newer engine. A missing procedure or an output that fails the contract is
 reported once per engine as `engine too old; upgrade its @conciv packages` (the existing `TOO_OLD` text), and that engine
-is skipped. `x-conciv-version` is already sent by `makeRpcClient`.
+is skipped. `x-conciv-version` is already sent by `makeRpcClient`, and `makeRpcClient` always validates responses
+against the contract, so a drifted engine fails loudly instead of handing the hub an unchecked shape.
 
 ## Not in this change
 
