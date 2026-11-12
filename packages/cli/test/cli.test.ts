@@ -651,9 +651,10 @@ describe('cli', () => {
 
       it('a server whose catalog serves no page tools rejects page as a user error', async () => {
         process.env.CONCIV_PORT = String(
-          await listen((_request, response) => {
+          await listen((request, response) => {
             response.writeHead(200, {'content-type': 'application/json'})
-            response.end(JSON.stringify({json: []}))
+            const resolved = request.url?.endsWith('/sessions/resolve') === true
+            response.end(JSON.stringify({json: resolved ? {sessionId: 'conciv_catalog'} : []}))
           }),
         )
         const code = await runCli(cliMain, ['tools', 'page', 'snapshot'])

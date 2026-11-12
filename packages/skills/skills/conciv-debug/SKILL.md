@@ -64,7 +64,7 @@ by two different paths.
 
 - **Tools declared `approval: 'ask'`** go through `gatedTools`
   (`packages/ai/src/server/chat-server.ts:162-176`), whether the agent calls them directly or from
-  code mode (`chatToolSet` splits them out, `packages/chat/src/code-mode.ts:147-149`). Without a grant
+  code mode (`chatToolSet` splits them out, `packages/chat/src/code-mode.ts:89-91`). Without a grant
   the wrapper emits an `approval-requested` custom event and throws at once:
   `Tool "<name>" needs the user's approval. The request is shown to the user; retry once they approve
   it.` (`approvalNeeded`, `packages/ai/src/server/chat-server.ts:156-160`). A tool result carrying that
