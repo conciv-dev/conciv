@@ -10,7 +10,11 @@ import {startConsoleBuffer} from './console-buffer.js'
 import type {Refs} from './page-snapshot.js'
 import {makePageToolDispatcher} from './page-tool-dispatcher.js'
 
-export type PageDriver = {execute: (query: PageQuery) => Promise<PageOutcome>; refs: Refs; dispose: () => void}
+export type PageDriver = {
+  execute: (query: PageQuery, signal?: AbortSignal) => Promise<PageOutcome>
+  refs: Refs
+  dispose: () => void
+}
 
 function pageErrorOf(error: unknown): PageError {
   if (!isPageFailure(error)) {
@@ -29,9 +33,9 @@ export function makeDomPageDriver(
   const {buf: consoleBuf, dispose: disposeConsoleBuffer} = startConsoleBuffer()
   const dispatch = makePageToolDispatcher(deps.tools ?? [], refs, consoleBuf, effects)
 
-  async function execute(query: PageQuery): Promise<PageOutcome> {
+  async function execute(query: PageQuery, signal?: AbortSignal): Promise<PageOutcome> {
     try {
-      const answer = await dispatch(query)
+      const answer = await dispatch(query, signal)
       if (answer.capture === undefined) return {ok: true, result: answer.result}
       return {ok: true, result: answer.result, capture: answer.capture}
     } catch (error) {

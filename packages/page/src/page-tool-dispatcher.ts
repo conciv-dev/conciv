@@ -22,7 +22,7 @@ import {loadSnapshotLibrary, loadedSnapshotLibrary, takeElementCapture} from './
 
 export type PageToolAnswer = {result: PageResult; capture?: PageCaptureBundle}
 
-export type PageToolDispatch = (query: PageQuery) => Promise<PageToolAnswer>
+export type PageToolDispatch = (query: PageQuery, signal?: AbortSignal) => Promise<PageToolAnswer>
 
 function isOurs(el: Element): boolean {
   if (el.closest(CONCIV_UI_SELECTOR) !== null) return true
@@ -61,6 +61,7 @@ function callCtx(
   consoleBuf: ConsoleEntry[],
   effects: readonly ClientEffect[],
   slot: TargetSlot,
+  signal: AbortSignal | undefined,
 ): ClientToolCtx {
   const remember = (el: Element | null): Element | null => {
     if (el !== null) slot.el = el
@@ -70,6 +71,7 @@ function callCtx(
   return {
     agentId: query.agentId,
     ...(query.queued === undefined ? {} : {queued: query.queued}),
+    ...(signal === undefined ? {} : {signal}),
     document,
     resolve,
     target: (locator) => {
@@ -150,13 +152,13 @@ export function makePageToolDispatcher(
 ): PageToolDispatch {
   const byName = new Map(tools.map((tool) => [tool.name, tool] as const))
   void loadSnapshotLibrary()
-  return async (query) => {
+  return async (query, signal) => {
     const tool = byName.get(query.name)
     if (!tool) unknownVerb(`no mounted extension declares a client tool named "${query.name}"`)
     void loadSnapshotLibrary()
     const slot: TargetSlot = {el: null}
     const captures = makeCaptureCollector()
-    const ctx = callCtx(query, refs, consoleBuf, effects, slot)
+    const ctx = callCtx(query, refs, consoleBuf, effects, slot, signal)
     try {
       const result = await tool.execute(query.input, capturingCtx(ctx, tool.capture, captures))
       const record = plainRecordOf(result)
