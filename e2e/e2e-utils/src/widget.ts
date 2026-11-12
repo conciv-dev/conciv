@@ -99,17 +99,22 @@ async function engineOrigin(page: Page, path: string): Promise<string> {
   return url.origin
 }
 
+async function pageEngine(page: Page, path: string, projectDir: string): Promise<{origin: string; base: string}> {
+  const origin = await engineOrigin(page, path)
+  return {origin, base: recordedEngineBase(projectDir, origin)}
+}
+
 export async function loginWidget(page: Page, path = '/', projectDir = process.cwd()): Promise<void> {
-  await engineOrigin(page, path)
-  const link = await magicLink(recordedEngineBase(projectDir), page.url())
+  const {base} = await pageEngine(page, path, projectDir)
+  const link = await magicLink(base, page.url())
   await page.goto('about:blank')
   await page.goto(link, {waitUntil: 'domcontentloaded', timeout: 60_000})
   await expect(page.getByRole('button', {name: /conciv chat$/})).toBeVisible()
 }
 
 export async function trustedEngineBase(page: Page, path = '/', projectDir = process.cwd()): Promise<string> {
-  const origin = await engineOrigin(page, path)
-  return `${origin}/t/${await trustedBrowserToken(recordedEngineBase(projectDir))}`
+  const {origin, base} = await pageEngine(page, path, projectDir)
+  return `${origin}/t/${await trustedBrowserToken(base)}`
 }
 
 const PRINTED_CODE = /#conciv_otp=(\d{6})/g

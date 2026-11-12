@@ -59,9 +59,17 @@ export async function trustedBrowserToken(engineBase: string): Promise<string> {
   return exchangePrintedCode(new URL(engineBase).origin, await issuedCode(engineBase))
 }
 
-export function recordedEngineBase(projectDir: string): string {
-  const recorded = RecordedEngineSchema.parse(
-    JSON.parse(readFileSync(join(concivStateDir(projectDir), 'server.json'), 'utf8')),
-  )
+export function recordedEngineBase(projectDir: string, servedOrigin?: string): string {
+  const stateFile = join(concivStateDir(projectDir), 'server.json')
+  const recorded = RecordedEngineSchema.parse(JSON.parse(readFileSync(stateFile, 'utf8')))
+  if (servedOrigin !== undefined) refuseOtherEngine(stateFile, recorded.port, servedOrigin)
   return `http://127.0.0.1:${recorded.port}/t/${recorded.token}`
+}
+
+function refuseOtherEngine(stateFile: string, recordedPort: number, servedOrigin: string): void {
+  const servedPort = Number(new URL(servedOrigin).port)
+  if (servedPort === recordedPort) return
+  throw new Error(
+    `the page talks to the conciv engine on port ${servedPort}, but ${stateFile} records port ${recordedPort}; a stale server.json or another dev server is answering, so a login code from it would never unlock this page`,
+  )
 }
