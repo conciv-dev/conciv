@@ -984,7 +984,7 @@ describe('page action queue', () => {
     await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).not.toBeInTheDocument()
   })
 
-  it('a queue whose acceptance never reached the engine plays nothing', async () => {
+  it('a queue whose acceptance never reached the engine plays nothing and takes the mask down', async () => {
     const {heard, queue} = queuePage(async (requestId) => {
       if (requestId === 'q-unsent-accept') throw new Error(`the socket closed before ${requestId} was sent`)
     })
@@ -994,6 +994,7 @@ describe('page action queue', () => {
       {ok: false, error: {message: expect.stringContaining('did not run')}},
     ])
     expect(heard).toEqual([])
+    await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).not.toBeInTheDocument()
   })
 
   it('a queued fill types into a contenteditable editor', async () => {
