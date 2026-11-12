@@ -527,6 +527,12 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
           setup: () => endRuns(turn.threadId, turn.runId),
         }),
         defineChatMiddleware({
+          name: 'conciv-run-record',
+          setup: async () => {
+            await stores.runs.createOrResume({runId: turn.runId, threadId: turn.threadId, startedAt: Date.now()})
+          },
+        }),
+        defineChatMiddleware({
           name: 'conciv-image-tools',
           provides: [ToolBridgeProvisionerCapability],
           setup: (ctx) => provideToolBridgeProvisioner(ctx, imageToolProvisioner),

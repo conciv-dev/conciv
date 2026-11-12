@@ -51,6 +51,7 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 - `image-tool-results.ts:imageToolProvisioner.provision` - starts a `node:http` server on `127.0.0.1` on a random port with a random 24-byte token.
 - `chat-stores.ts:drizzleChatStores` - SQLite reads and writes on `chat_runs`, `chat_messages` and `chat_metadata`.
 - `chat-server.ts:createChatServer` - on startup marks every `running` run as `aborted` (`sweepAbandonedRuns`) and calls `hooks.end`.
+- `chat-server.ts:createChatServer` - each run writes its `running` row through `stores.runs.createOrResume` in a middleware `setup`, before `withSandbox` emits its first event, so a client that has seen `RUN_STARTED` finds the run active.
 - `chat-server.ts:createChatServer` - creates a `localSandbox` at `config.sandbox.dir`; the agent CLI's stdout is read straight from its pipe (no run journal), so `firstOutputTimeoutMs` is the only limit on a silent CLI.
 - `chat-server.ts:saveStoppedTurn` - on abort saves the partial assistant messages and marks the run `failed` if an error was seen.
 - `chat-server.ts:createChatServer` - keeps an in-process `live` run map and an `InMemoryLockStore`.
