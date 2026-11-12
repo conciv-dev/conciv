@@ -953,7 +953,7 @@ describe('page action queue', () => {
     const after = queuePage()
     await after.queue('q-next', [fill('city', 'Paris')]).played
     await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).not.toBeInTheDocument()
-    expect(before.heard).not.toContain('first')
+    expect(before.heard).toEqual(['city'])
   })
 
   it('a session switch mid-queue lands nothing more of the old queue, reports none of it, and takes the mask down', async () => {
