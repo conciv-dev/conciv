@@ -21,6 +21,8 @@ type Landed = 'played' | 'stopped' | 'lost'
 
 type Settled = {outcome: PageQueueOutcome; landed: Landed}
 
+type Delivery = 'owed' | 'claimed' | 'delivered'
+
 export type QueueRecord = {
   queueId: string
   sessionId: SessionId
@@ -29,7 +31,7 @@ export type QueueRecord = {
   tools: string[]
   settled: (Settled | undefined)[]
   result: PageQueueResult | null
-  delivered: boolean
+  delivery: Delivery
   done: Promise<PageQueueResult>
 }
 
@@ -49,7 +51,8 @@ export type PageQueues = {
     signal?: AbortSignal,
   ) => Promise<PageQueueResult | PageQueueProgress>
   undelivered: (sessionId: SessionId, outside: boolean) => PageQueueResult[]
-  deliver: (record: QueueRecord) => boolean
+  claim: (record: QueueRecord) => boolean
+  confirm: (record: QueueRecord, delivered: boolean) => void
   owedTurn: (sessionId: SessionId) => QueueRecord[]
   finished: (listener: (record: QueueRecord) => void) => void
 }
@@ -140,13 +143,13 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
 
   const keep = (record: QueueRecord): void => {
     records.set(record.queueId, record)
-    const delivered = [...records.values()].filter((each) => each.result !== null && each.delivered)
+    const delivered = [...records.values()].filter((each) => each.result !== null && each.delivery === 'delivered')
     for (const old of delivered.slice(0, Math.max(0, delivered.length - KEPT_QUEUES))) records.delete(old.queueId)
   }
 
   async function start(sessionId: SessionId, given: QueueStart): Promise<{queueId: string; actions: number}> {
     const {actions} = PageQueueActionsSchema.parse(given.input)
-    if ([...records.values()].filter((each) => !each.delivered).length >= OWED_QUEUES) {
+    if ([...records.values()].filter((each) => each.delivery !== 'delivered').length >= OWED_QUEUES) {
       throw new Error(`${OWED_QUEUES} queue results are still undelivered; collect them before queueing more`)
     }
     const queueId = `q_${randomUUID()}`
@@ -165,7 +168,7 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
       tools: actions.map((action) => action.tool),
       settled: actions.map(() => undefined),
       result: null,
-      delivered: false,
+      delivery: 'owed',
       done: settledAll.promise,
     }
     const landed = play.played.map((reply, index) => {
@@ -181,8 +184,11 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
         },
       )
     })
-    await play.accepted
     keep(record)
+    await play.accepted.catch((error: unknown) => {
+      records.delete(queueId)
+      throw error
+    })
     void Promise.all(landed).then(() => settledAll.resolve(finish(record)))
     return {queueId, actions: actions.length}
   }
@@ -202,7 +208,7 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
     }
     signal?.throwIfAborted()
     if (record.result !== null) {
-      record.delivered = true
+      record.delivery = 'delivered'
       return record.result
     }
     return {
@@ -221,14 +227,26 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
   }
 
   function deliver(record: QueueRecord): boolean {
-    if (record.delivered || record.result === null) return false
-    record.delivered = true
+    if (record.delivery !== 'owed' || record.result === null) return false
+    record.delivery = 'delivered'
     return true
+  }
+
+  function claim(record: QueueRecord): boolean {
+    if (record.delivery !== 'owed' || record.result === null) return false
+    record.delivery = 'claimed'
+    return true
+  }
+
+  function confirm(record: QueueRecord, delivered: boolean): void {
+    if (record.delivery !== 'claimed') return
+    record.delivery = delivered ? 'delivered' : 'owed'
   }
 
   function owedTurn(sessionId: SessionId): QueueRecord[] {
     return [...records.values()].filter(
-      (record) => record.sessionId === sessionId && !record.outside && !record.delivered && record.result !== null,
+      (record) =>
+        record.sessionId === sessionId && !record.outside && record.delivery === 'owed' && record.result !== null,
     )
   }
 
@@ -236,7 +254,8 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
     start,
     wait,
     undelivered,
-    deliver,
+    claim,
+    confirm,
     owedTurn,
     finished: (listener) => void listeners.push(listener),
   }
@@ -251,15 +270,14 @@ export async function startQueueFollowUp(
   sessionId: SessionId,
 ): Promise<void> {
   if (queues.owedTurn(sessionId).length === 0 || (await plane.live(sessionId))) return
-  const owed = queues.owedTurn(sessionId).filter((record) => queues.deliver(record))
+  const owed = queues.owedTurn(sessionId).filter((record) => queues.claim(record))
   const results = owed.flatMap((record) => (record.result === null ? [] : [record.result]))
   if (results.length === 0) return
   const started = await plane.followUp(sessionId, results.map(queueNotice).join('\n\n')).catch((error: unknown) => {
     logError(`[core] the page queue follow-up turn for ${sessionId} failed to start: ${String(error)}`)
     return false
   })
-  if (started) return
-  for (const record of owed) record.delivered = false
+  for (const record of owed) queues.confirm(record, started)
 }
 
 export function pageQueueChunks(options: {result: PageQueueResult; record: QueueRecord; live: boolean}): ChatEvent[] {

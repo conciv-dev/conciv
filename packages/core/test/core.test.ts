@@ -71,7 +71,7 @@ import {makeStalenessProbe} from '../src/lib/engine-stamp.js'
 import {withSavedModels} from '../src/lib/saved-models.js'
 import {statePaths} from '../src/lib/state-paths.js'
 import {makeJournal, makePageBus} from '../src/page/page-bus.js'
-import {makePageQueues, type PageQueues} from '../src/page/page-queue.js'
+import {makePageQueues, startQueueFollowUp, type PageQueues} from '../src/page/page-queue.js'
 import {makeCoreRuntime} from '../src/runtime/core-runtime.js'
 import {makeSessionPrimitives} from '../src/runtime/primitives.js'
 import {runWithSession} from '../src/runtime/session-context.js'
@@ -825,6 +825,69 @@ describe('page bus and the session scope', () => {
     const {queueId: freed} = await queues.start(SESSION_A, queueStart(check))
     expect(queued.at(-1)?.queue.id).toBe(freed)
     expect(queues.undelivered(SESSION_A, true).map((result) => result.queueId)).toEqual(started.slice(1))
+  })
+
+  it('queues started all at once past 1000 owed are refused: a start that is still waiting for the page holds its place', async () => {
+    const bus = makePageBus(2000)
+    const queued: z.infer<typeof QueueFrameSchema>[] = []
+    bus.subscribe(SESSION_A, (frame) => {
+      const parsed = QueueFrameSchema.safeParse(frame)
+      if (!parsed.success) return
+      queued.push(parsed.data)
+      queueMicrotask(() => {
+        bus.resolve(SESSION_A, parsed.data.requestId, {ok: true, result: {}})
+        bus.resolve(SESSION_A, parsed.data.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
+      })
+    })
+    const queues = pageQueues(bus)
+    const check = [{tool: 'page_check', selector: '#agree'}]
+    const starts = await Promise.allSettled(
+      Array.from({length: 1001}, () => queues.start(SESSION_A, queueStart(check))),
+    )
+    expect(starts.filter((each) => each.status === 'rejected')).toEqual([
+      {
+        status: 'rejected',
+        reason: new Error('1000 queue results are still undelivered; collect them before queueing more'),
+      },
+    ])
+    expect(queued).toHaveLength(1000)
+  })
+
+  it('a follow-up turn that fails to start gives its results back even when 200 delivered queues pass them while it starts', async () => {
+    const bus = makePageBus(2000)
+    const queued = queueingTab(bus)
+    const queues = pageQueues(bus)
+    const finished = finishedOf(queues)
+    const check = [{tool: 'page_check', selector: '#agree'}]
+    const played = async (outside: boolean): Promise<string> => {
+      const {queueId} = await queues.start(SESSION_A, {...queueStart(check), outside})
+      bus.resolve(SESSION_A, queued.at(-1)?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
+      await finished(queueId)
+      return queueId
+    }
+    const owed = await played(false)
+    const turns: string[] = []
+    const starting = Promise.withResolvers<boolean>()
+    const plane = {
+      live: async () => false,
+      followUp: async (_sessionId: SessionId, input: string) => {
+        turns.push(input)
+        return turns.length === 1 ? starting.promise : true
+      },
+    }
+    const following = startQueueFollowUp(queues, plane, SESSION_A)
+    await expect.poll(() => turns).toHaveLength(1)
+    for (const _ of Array.from({length: 205})) {
+      const queueId = await played(true)
+      await queues.wait(SESSION_A, queueId, 0)
+    }
+    starting.resolve(false)
+    await following
+    expect(queues.owedTurn(SESSION_A).map((record) => record.queueId)).toEqual([owed])
+    await startQueueFollowUp(queues, plane, SESSION_A)
+    expect(turns).toHaveLength(2)
+    expect(turns[1]).toContain(`queue ${owed} finished`)
+    expect(queues.owedTurn(SESSION_A)).toEqual([])
   })
 
   it('a queue for a session whose earlier queue still plays reaches the newly focused tab only once that queue is done', async () => {
