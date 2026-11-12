@@ -17,7 +17,14 @@ import {MessageProvider} from '../src/primitives/message/message-context.js'
 import {createTurnParts} from '../src/store/turn-parts.js'
 import type {Turn} from '../src/store/grouping.js'
 import {mountView, HARNESS_MODELS, RunSettledIndicator} from './helpers.js'
-import {createChat, type ConnectConnectionAdapter} from '@conciv/ai/client'
+import {
+  createChat,
+  createChatSession,
+  type ChatSessionCallbacks,
+  type ChatSessionConnection,
+  type ChatSessionHydration,
+  type ConnectConnectionAdapter,
+} from '@conciv/ai/client'
 import {ChatEventType} from '@conciv/protocol/chat-event-types'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {Thread} from '../src/styled/thread.js'
@@ -1044,17 +1051,50 @@ describe('composer send morph', () => {
   })
 
   it('Escape while the run is stopping passes through and never stops the run a second time', async () => {
-    const [state, setState] = createStore({stopping: false, escape: 'no escape yet'})
+    const [state, setState] = createStore({stopRequests: 0, escape: 'no escape yet'})
+    const heldStop = Promise.withResolvers<void>()
+    const hydration: ChatSessionHydration = {messages: [], messageHarness: {}, lastRun: null, pendingApprovals: []}
+    const untilAborted = (signal: AbortSignal | undefined): Promise<void> =>
+      new Promise((resolve) => signal?.addEventListener('abort', () => resolve(), {once: true}))
+    const heldRunConnection = (callbacks: ChatSessionCallbacks): ChatSessionConnection => ({
+      subscribe: async function* (signal) {
+        await untilAborted(signal)
+        yield* []
+      },
+      send: async (_messages, _data, signal) => {
+        const now = Date.now()
+        callbacks.onLifecycle({
+          runId: 'held-run',
+          phase: 'running',
+          startedAt: now,
+          finishedAt: null,
+          serverNow: now,
+          error: null,
+        })
+        await untilAborted(signal)
+      },
+      refresh: () => Promise.resolve(hydration),
+      close: () => undefined,
+    })
     function StoppingHost(): JSX.Element {
-      const chat = createChat({threadId: 'composer-escape-stopping', connection: storyConnection(SLOW_STREAM)})
+      const session = createChatSession({
+        sessionId: 'composer-escape-stopping',
+        connect: heldRunConnection,
+        stop: () => {
+          setState('stopRequests', (count) => count + 1)
+          return heldStop.promise
+        },
+        decide: () => Promise.resolve({startsTurn: false}),
+      })
       makeEventListener(window, 'keydown', (event) => {
         if (event.key !== 'Escape') return
         setState('escape', event.defaultPrevented ? 'escape consumed' : 'escape passed through')
       })
       return (
-        <ChatProvider chat={{...chat, stopping: () => state.stopping}}>
+        <ChatProvider chat={session}>
           <ComposerHandlersProvider value={{}}>
             <span>{state.escape}</span>
+            <span>{`stop requests: ${state.stopRequests}`}</span>
             <RunSettledIndicator />
             <ComposerPrimitive.Root>
               <ComposerPrimitive.Input aria-label="Message" />
@@ -1070,15 +1110,19 @@ describe('composer send morph', () => {
     await userEvent.fill(input, 'keep running')
     await userEvent.click(page.getByRole('button', {name: 'Send'}))
     await expect.element(page.getByText('run live')).toBeVisible()
-    setState('stopping', true)
     const stop = page.getByRole('button', {name: 'Stop'})
+    await userEvent.click(stop)
+    await expect.element(page.getByText('stop requests: 1')).toBeVisible()
     await expect.element(stop).toBeDisabled()
     await userEvent.click(input)
     await expect.element(input).toHaveFocus()
     await userEvent.keyboard('{Escape}')
     await expect.element(page.getByText('escape passed through')).toBeVisible()
-    await expect.element(page.getByText('run live')).toBeVisible()
+    await expect.element(page.getByText('stop requests: 1')).toBeVisible()
     await expect.element(stop).toBeDisabled()
+    heldStop.resolve()
+    await expect.element(page.getByText('run settled')).toBeVisible()
+    await expect.element(page.getByText('stop requests: 1')).toBeVisible()
   })
 })
 
