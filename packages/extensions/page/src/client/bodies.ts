@@ -15,6 +15,7 @@ import {
   MASKED_VALUE,
   navigatePath,
   reactBridge,
+  selectDeep,
   startTracking,
   stopTracking,
   trackReport,
@@ -103,7 +104,7 @@ function waitFor(selector: string, state: 'visible' | 'hidden', timeout: number)
   const deadline = Date.now() + timeout
   return new Promise((resolve, reject) => {
     const tick = (): void => {
-      const el = document.querySelector(selector)
+      const el = selectDeep(selector)[0]
       const visible = el instanceof HTMLElement && el.offsetParent !== null
       if (state === 'visible' ? visible : !visible) return resolve(ok({state}))
       if (Date.now() > deadline) {
@@ -201,7 +202,7 @@ const INSERT_POS: Record<string, InsertPosition> = {
 }
 
 function rootOf(ctx: ClientToolCtx, selector: string | undefined): Element | null {
-  return selector ? ctx.document.querySelector(selector) : ctx.document.body
+  return selector ? (selectDeep(selector)[0] ?? null) : ctx.document.body
 }
 
 function hasLocator(input: ClientToolLocator): boolean {
@@ -235,8 +236,8 @@ const domTool = domDef
 
 const queryTool = queryDef
   .client(
-    touching((input, ctx) => {
-      const matches = input.selector ? Array.from(ctx.document.querySelectorAll(input.selector)) : []
+    touching((input) => {
+      const matches = input.selector ? selectDeep(input.selector) : []
       return {count: matches.length, elements: matches.slice(0, 20).map(describeElement)}
     }),
   )
@@ -244,8 +245,8 @@ const queryTool = queryDef
 
 const existsTool = existsDef
   .client(
-    touching((input, ctx) => {
-      const matches = input.selector ? ctx.document.querySelectorAll(input.selector) : []
+    touching((input) => {
+      const matches = input.selector ? selectDeep(input.selector) : []
       return {exists: matches.length > 0, count: matches.length}
     }),
   )

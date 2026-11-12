@@ -7,7 +7,7 @@ import type {SourceLoc} from '@conciv/protocol/page-types'
 import type {NavigationWrite} from '@conciv/protocol/chat-types'
 import type {RawFrame} from '../editor/symbolicate.js'
 import type {ChatHistoryWindow, ChatHydration, EngineStaleness, ToolCommandSignature} from '@conciv/contract'
-import type {ToolRegistry} from '@conciv/extension/registry'
+import type {RegistryCallGate, ToolRegistry} from '@conciv/extension/registry'
 import type {ToolRequest} from '@conciv/extension'
 import type {BrowserTabFocus, ChangeEntry} from '../page/page-bus.js'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
@@ -20,7 +20,7 @@ export type SessionTools = {
   call: (
     name: string,
     input: unknown,
-    options?: {toolCallId?: string; signal?: AbortSignal; outside?: boolean},
+    options?: {toolCallId?: string; signal?: AbortSignal; outside?: boolean; gate?: RegistryCallGate},
   ) => Promise<unknown>
   has: (name: string) => boolean
   catalog: ToolCatalog

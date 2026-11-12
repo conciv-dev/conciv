@@ -14,6 +14,7 @@ import {
   type SettingsState,
   type ServerToolPageAccess,
   type ServerToolRegistryAccess,
+  type ToolMiddleware,
   type ToolRequest,
 } from '../src/types.js'
 import {Hono} from 'hono'
@@ -21,13 +22,14 @@ import {SessionId} from '@conciv/protocol/chat-types'
 import {readFile} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
 import {pageVerbError, isPageVerbError} from '../src/page-errors.js'
-import {os, createRouterClient, type AnyRouter} from '@orpc/server'
+import {os, createRouterClient, onError, type AnyRouter} from '@orpc/server'
 import {rpcWebsocketRoute, type UpgradeWebSocket} from '../src/rpc-mount.js'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {isDefinedError, ORPCError} from '@orpc/client'
 import {
   createToolRegistry,
   TOOL_TRANSPORT_ERRORS,
+  type RegistryCallGate,
   type RegistryToolMeta,
   type ToolRegistry,
 } from '../src/tool-registry.js'
@@ -623,6 +625,72 @@ describe('tool registry', () => {
       meta: {summary: 'a tool nobody bound'},
     })
     expect(() => registry.register(tool, {owner: 'a test registrant'})).toThrow(/server\(\)|client\(\)/)
+  })
+
+  test("an extension's middleware sees a call the gate refuses, and the handler never runs", async () => {
+    type Refusals = {seen: string[]; ran: number}
+    const refusals: Refusals = {seen: [], ran: 0}
+    const tool = defineTool({
+      name: 'gated_tool',
+      description: 'd',
+      inputSchema: z.object({target: z.string()}),
+      outputSchema: z.object({done: z.string()}),
+      meta: {summary: 'a tool behind a gate'},
+    }).server<Refusals>((input, state) => {
+      state.ran += 1
+      return {done: input.target}
+    })
+    const middleware: ToolMiddleware = onError((error, {path, context}, input) => {
+      refusals.seen.push(`${context.request.sessionId} ${path.join('.')} ${JSON.stringify(input)} ${error.message}`)
+    })
+    const registry = createToolRegistry()
+    registry.register(tool, {owner: 'a test registrant', context: refusals, middleware})
+    const refused = registry.call(
+      'gated_tool',
+      {target: 'x'},
+      {
+        request: TEST_REQUEST,
+        gate: () => Promise.reject(new ORPCError('APPROVAL_DENIED', {message: 'the user said no'})),
+      },
+    )
+    await expect(refused).rejects.toMatchObject({code: 'APPROVAL_DENIED', message: 'the user said no'})
+    const admitted = registry.call('gated_tool', {target: 'y'}, {request: TEST_REQUEST, gate: (run) => run()})
+    await expect(admitted).resolves.toEqual({done: 'y'})
+    expect(refusals).toEqual({
+      seen: [`${TEST_REQUEST.sessionId} gated_tool {"target":"x"} the user said no`],
+      ran: 1,
+    })
+  })
+
+  test('an extension middleware cannot answer a call the gate refused or never reached', async () => {
+    const tool = defineTool({
+      name: 'guarded_tool',
+      description: 'd',
+      inputSchema: z.object({}),
+      outputSchema: z.object({done: z.string()}),
+      meta: {summary: 'a tool whose extension tries to answer for it'},
+    }).server(() => ({done: 'handler'}))
+    const refuse = () => Promise.reject(new ORPCError('APPROVAL_DENIED', {message: 'the user said no'}))
+    const swallowing: ToolMiddleware = async ({next}) => {
+      try {
+        return await next()
+      } catch {
+        return {output: {done: 'fallback'}, context: {}}
+      }
+    }
+    const skipping: ToolMiddleware = () => ({output: {done: 'cached'}, context: {}})
+    const callWith = (middleware: ToolMiddleware, gate: RegistryCallGate) => {
+      const registry = createToolRegistry()
+      registry.register(tool, {owner: 'a test registrant', middleware})
+      return registry.call('guarded_tool', {}, {request: TEST_REQUEST, gate})
+    }
+    await expect(callWith(swallowing, refuse)).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+    await expect(callWith(skipping, refuse)).rejects.toMatchObject({code: 'FORBIDDEN'})
+    await expect(callWith(skipping, (run) => run())).rejects.toMatchObject({code: 'FORBIDDEN'})
+    await expect(callWith(swallowing, (run) => run())).resolves.toEqual({done: 'handler'})
+    const ungated = createToolRegistry()
+    ungated.register(tool, {owner: 'a test registrant', middleware: skipping})
+    await expect(ungated.call('guarded_tool', {}, {request: TEST_REQUEST})).rejects.toMatchObject({code: 'FORBIDDEN'})
   })
 
   test('registering the same tool name twice fails loudly', () => {

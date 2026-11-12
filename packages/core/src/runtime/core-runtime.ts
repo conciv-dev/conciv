@@ -88,7 +88,11 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
     id,
     model,
     tools: {
-      call: (name, input, options) => registry.call(name, input, {request: requestFor(options)}),
+      call: (name, input, options) =>
+        registry.call(name, input, {
+          request: requestFor(options),
+          ...(options?.gate === undefined ? {} : {gate: options.gate}),
+        }),
       has: (name) => registry.has(name),
       catalog: view.catalog,
     },

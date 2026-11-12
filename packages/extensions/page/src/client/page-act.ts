@@ -1,3 +1,4 @@
+import {LETTER_KEYS, NUMBER_KEYS, PUNCTUATION_CODE_MAP, parseHotkey} from '@tanstack/hotkeys'
 import {isSensitiveField, MASKED_VALUE} from '@conciv/page'
 import {frameDocument} from './agent-cursor.js'
 import {setNativeValue, simulateClick, simulateFill, typeByCommands, typeByEvents} from './simulator.js'
@@ -195,7 +196,40 @@ export function focusedElement(): Element {
 
 export function press(options: {element: Element; key: string}): void {
   const {element, key} = options
-  const init = {key, bubbles: true, cancelable: true, composed: true, view: element.ownerDocument.defaultView}
+  const init = {...keyInit(key), view: element.ownerDocument.defaultView}
   element.dispatchEvent(new KeyboardEvent('keydown', init))
   element.dispatchEvent(new KeyboardEvent('keyup', init))
+}
+
+const LETTERS: ReadonlySet<string> = LETTER_KEYS
+const DIGITS: ReadonlySet<string> = NUMBER_KEYS
+
+function keyInit(binding: string): KeyboardEventInit {
+  const parsed = parseHotkey(binding.trim() === '' ? 'Space' : binding)
+  const name = parsed.key ?? parsed.code
+  return {
+    key: typedKey({name, shift: parsed.shift}),
+    code: parsed.code ?? codeOf(name),
+    ctrlKey: parsed.ctrl,
+    shiftKey: parsed.shift,
+    altKey: parsed.alt,
+    metaKey: parsed.meta,
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+  }
+}
+
+function typedKey(options: {name: string; shift: boolean}): string {
+  const {name, shift} = options
+  if (name === 'Space') return ' '
+  if (!LETTERS.has(name) || shift) return name
+  return name.toLowerCase()
+}
+
+function codeOf(key: string): string {
+  const upper = key.toUpperCase()
+  if (LETTERS.has(upper)) return `Key${upper}`
+  if (DIGITS.has(key)) return `Digit${key}`
+  return Object.entries(PUNCTUATION_CODE_MAP).find(([, character]) => character === key)?.[0] ?? key
 }
