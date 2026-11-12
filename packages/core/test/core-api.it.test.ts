@@ -5279,6 +5279,26 @@ describe('page action queue delivery', () => {
     expect(JSON.stringify(await page.hub('return 1'))).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
   }, 5000)
 
+  it('a code.execute its caller aborts hands over no finished result, so that result leads the next reply', async () => {
+    const page = await engineWithTab()
+    const {queueId} = handleOf(await page.hub(queued()))
+    const first = await page.nextQueue()
+    await page.play(first, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+    await page.play(first, 1, {ok: true, result: {ok: true, checked: true}})
+    await page.finishedEvent(queueId)
+    const caller = new AbortController()
+    const typed = makeRpcClient(page.base, {headers: HUB})
+    const running = typed.code.execute({sessionId: page.sessionId, typescriptCode: played}, {signal: caller.signal})
+    const blocking = await page.nextQueue()
+    caller.abort()
+    await expect(running).rejects.toMatchObject({name: 'AbortError'})
+    await page.seenChunk(
+      (chunk) => chunk.type === ChatEventType.TOOL_CALL_RESULT && chunk.content.includes('Code execution was stopped'),
+    )
+    expect(blocking.id).not.toBe(queueId)
+    expect(JSON.stringify(await page.hub('return 1'))).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
+  }, 5000)
+
   it('the next reply for that session carries the finished result once, and the reply after does not', async () => {
     const page = await engineWithTab()
     const {queueId} = handleOf(await page.hub(queued()))

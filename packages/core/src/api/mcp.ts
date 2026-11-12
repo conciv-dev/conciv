@@ -298,7 +298,7 @@ export async function openCodeSession(
     run,
     signal: caller.signal,
   }
-  const finished = (): PageQueueResult[] => deps.finishedQueues(scope.id, hub)
+  const finished = (): PageQueueResult[] => (caller.signal.aborted ? [] : deps.finishedQueues(scope.id, hub))
   return {
     runner,
     describe: () => ({
