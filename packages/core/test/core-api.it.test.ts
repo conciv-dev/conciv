@@ -24,7 +24,14 @@ import {join, dirname} from 'node:path'
 import {afterAll, beforeAll, describe, expect, it, afterEach, onTestFinished, test, vi, beforeEach} from 'vitest'
 import {createMCPClient, imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
 import {foldChatEvents} from '@conciv/ai/testkit'
-import {abortableFetch, cappedValue, codeExecuteReply, type EngineStaleness} from '@conciv/contract'
+import {
+  abortableFetch,
+  browserRpcConnection,
+  cappedValue,
+  codeExecuteReply,
+  makeBrowserRpcClient,
+  type EngineStaleness,
+} from '@conciv/contract'
 import {
   defineExtension,
   defineTool,
@@ -5103,7 +5110,11 @@ describe('page action queue delivery', () => {
     engines.push(engine)
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
-    const tab = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+    const origin = `http://127.0.0.1:${engine.port}`
+    const browser = makeBrowserRpcClient(origin, {session: () => sessionId})
+    expect(await browserRpcConnection(origin).trust.requestTrustWithToken(engine.agentToken)).toBe(true)
+    onTestFinished(() => browser.close())
+    const tab = browser.rpc
     const closed = new AbortController()
     const queries = await tab.page.queries(undefined, {signal: AbortSignal.any([pages.signal, closed.signal])})
     const accepted: QueuedOnTab[] = []
