@@ -1,7 +1,7 @@
 {
   "name": "@conciv/extension-ios",
   "version": "0.0.22",
-  "description": "Internal to @conciv/it (installed automatically, do not install directly). The iOS built-in extension bridge protocol: zod schemas for the WKWebView page and native message contract, the platform-neutral page-side bridge client state machine, and cross-platform conformance fixtures.",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). The iOS built-in extension bridge protocol: zod schemas for the WKWebView page and native message contract, and the platform-neutral page-side bridge client state machine.",
   "keywords": [
     "bridge",
     "conciv",
@@ -18,8 +18,7 @@
     "directory": "packages/extensions/ios"
   },
   "files": [
-    "dist",
-    "fixtures"
+    "dist"
   ],
   "type": "module",
   "exports": {
@@ -51,7 +50,7 @@
   },
   "scripts": {
     "build": "tsdown && vite build && tsc -p tsconfig.build.json",
-    "gen:fixtures": "node fixtures/bridge/gen.ts",
+    "gen:fixtures": "node test/fixtures/bridge/gen.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",

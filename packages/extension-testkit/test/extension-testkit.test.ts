@@ -6,7 +6,7 @@ import {
   makeRunTypescript,
   resolveSession,
 } from '@conciv/harness-testkit'
-import ping from '../fixtures/ping/server.js'
+import ping from './fixtures/ping/server.js'
 import {bootExtensionServer} from '../src/boot-server.js'
 import {z} from 'zod'
 import {fileURLToPath} from 'node:url'

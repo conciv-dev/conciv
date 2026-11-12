@@ -17,7 +17,7 @@ export default defineConfig(({mode}) => ({
         test: {
           name: 'mascot',
           environment: 'node',
-          include: ['tests/unit/**/*.test.ts'],
+          include: ['test/unit/**/*.test.ts'],
           testTimeout: ciTest().testTimeout,
           hookTimeout: ciTest().hookTimeout,
         },
@@ -28,7 +28,7 @@ export default defineConfig(({mode}) => ({
         test: {
           ...ciTestSolidBrowser(),
           name: 'mascot-browser',
-          include: ['tests/browser/solid-*.browser.test.tsx'],
+          include: ['test/browser/solid-*.browser.test.tsx'],
           fileParallelism: false,
           browser: {
             enabled: true,

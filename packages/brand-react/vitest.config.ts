@@ -6,7 +6,7 @@ export default defineConfig({
   test: {
     ...ciTest(),
     name: 'brand-react-browser',
-    include: ['tests/browser/react-lockup.browser.test.tsx'],
+    include: ['test/browser/react-lockup.browser.test.tsx'],
     fileParallelism: false,
     browser: {
       enabled: true,

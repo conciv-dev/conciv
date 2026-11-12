@@ -3,7 +3,7 @@ import {fileURLToPath} from 'node:url'
 import {createHighlighter} from 'shiki'
 import {createTwoslasher} from 'twoslash'
 import {codeToKeyedTokens} from '@shikijs/magic-move/core'
-import {cleanSnippet, FRAMEWORK_SNIPPETS} from '../src/framework-snippets.ts'
+import {cleanSnippet, FRAMEWORK_SNIPPETS} from '../framework-snippets.ts'
 
 const THEMES = {light: 'github-light', dark: 'github-dark'} as const
 
@@ -74,6 +74,6 @@ const body = [
   '',
 ].join('\n')
 
-const out = fileURLToPath(new URL('../src/framework-snippets.gen.ts', import.meta.url))
+const out = fileURLToPath(new URL('../framework-snippets.gen.ts', import.meta.url))
 await writeFile(out, body)
 console.log(`wrote ${out} (${steps.length} steps, ${hoverData.length} twoslash)`)

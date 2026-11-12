@@ -420,3 +420,20 @@ describe('test file budget', () => {
     })
   })
 })
+
+describe('no comments', () => {
+  async function lintFixture(fixture: string): Promise<string[]> {
+    const diagnostics = await lintDiagnostics('test/oxlintrc-no-comments.json', `test/fixtures/no-comments/${fixture}`)
+    return diagnostics
+      .filter((diagnostic) => diagnostic.code === 'conciv(no-comments)')
+      .map((diagnostic) => String(diagnostic.message))
+  }
+
+  test('reports a plain comment', async () => {
+    expect(await lintFixture('plain-comment.ts')).toHaveLength(1)
+  })
+
+  test('keeps a per-file @jsxImportSource pragma, which TypeScript and the bundler read', async () => {
+    expect(await lintFixture('jsx-import-source.tsx')).toEqual([])
+  })
+})

@@ -318,7 +318,7 @@
       }
     },
     {
-      "files": ["packages/embed/tests/**", "packages/extension-testkit/src/**"],
+      "files": ["packages/embed/test/**", "packages/extension-testkit/src/**"],
       "rules": {
         "playwright/prefer-web-first-assertions": "error"
       }
@@ -420,7 +420,6 @@
     "packages/extensions/design/test/fixtures/provenance/**",
     "packages/cli/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",
-    "packages/oxlint-plugin/fixtures/**",
     "e2e/*/src",
     "e2e/*/app"
   ]

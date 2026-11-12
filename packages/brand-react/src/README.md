@@ -8,7 +8,7 @@ React version of the conciv logo: the full lockup (mark plus wordmark) and the s
 
 - `ConcivLockup({className?, interactive = false})` (`conciv-lockup.tsx`): 249.46x56.26 viewBox SVG with `role="img"` and `aria-label="conciv"`. With `interactive` it renders the internal `InteractiveLockup`, otherwise the static `LockupSvg`.
 - `ConcivMark({className?})` (`conciv-lockup.tsx`): static 64x64 mark SVG filled with `MARK_COLOR` (`#D7263D`).
-- DOM hooks: `data-conciv-part="cursor"` on the cursor path and `data-conciv-part="antenna"` on the antenna group (`conciv-lockup.tsx`). The browser tests select these through `tests/browser/lockup-dom.ts`.
+- DOM hooks: `data-conciv-part="cursor"` on the cursor path and `data-conciv-part="antenna"` on the antenna group (`conciv-lockup.tsx`). The browser tests select these through `test/browser/lockup-dom.ts`.
 
 ## Invariants
 

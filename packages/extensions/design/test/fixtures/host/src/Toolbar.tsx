@@ -1,4 +1,4 @@
-export function Toolbar(props: ToolbarProps) {
+/* @jsxImportSource react */ export function Toolbar(props: ToolbarProps) {
   const style = {...toolbarStyle(props.variant), ...(props.badge ? BADGE : {})}
   return (
     <header className="Lib-toolbar toolbar pl-8" style={style}>

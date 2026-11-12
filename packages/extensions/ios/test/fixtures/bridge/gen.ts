@@ -5,7 +5,10 @@ import {bridgeFixtures, nativeEncodeFixtures} from './bridge.fixtures.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
-const swiftFixtureDir = join(here, '../../../../../native/swift/ConcivWidget/Tests/ConcivWidgetTests/Fixtures/bridge')
+const swiftFixtureDir = join(
+  here,
+  '../../../../../../native/swift/ConcivWidget/Tests/ConcivWidgetTests/Fixtures/bridge',
+)
 
 type Tree = {valid: string; invalid: string; unknownKey: string}
 

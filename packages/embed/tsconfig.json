@@ -3,15 +3,5 @@
   "compilerOptions": {
     "rootDir": "../..",
     "types": ["vite/client", "node"]
-  },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "tests/**/*.ts",
-    "tests/**/*.tsx",
-    "vite.config.ts",
-    "vite.global.config.ts",
-    "vitest.config.ts",
-    "playwright.config.ts"
-  ]
+  }
 }

@@ -8,7 +8,7 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 - `package.json:exports` - `.`, `./vite`, `./webpack`, `./rspack`, `./rollup`, `./esbuild`, `./nextjs`, `./nextjs/widget`.
 - Source: [src](./src/README.md).
-- Test support: `test/fixtures/diagnostics-app/` (one compiling and one broken module for the diagnostics tests) and `test/helpers/` (temporary Vite dev servers for the plugin tests).
+- Test support: `test/fixtures/diagnostics-app/` (the compiling module for the diagnostics tests; the test writes the broken one into its temp copy) and `test/helpers/` (temporary Vite dev servers for the plugin tests).
 
 ## Invariants
 

@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "storybook": "storybook dev -p 6006",
-    "build-storybook": "NODE_OPTIONS=--max-old-space-size=8192 storybook build",
+    "storybook": "storybook dev -p 6006 --config-dir src/storybook",
+    "build-storybook": "NODE_OPTIONS=--max-old-space-size=8192 storybook build --config-dir src/storybook",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint"

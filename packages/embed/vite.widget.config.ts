@@ -4,7 +4,7 @@ import solid from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
 
 const entries = {
-  'conciv-widget': fileURLToPath(new URL('tests/fixtures/global-entry.ts', import.meta.url)),
+  'conciv-widget': fileURLToPath(new URL('test/fixtures/global-entry.ts', import.meta.url)),
   'conciv-widget-native': fileURLToPath(new URL('src/native-entry.ts', import.meta.url)),
 }
 

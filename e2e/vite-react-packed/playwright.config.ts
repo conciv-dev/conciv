@@ -1,6 +1,6 @@
 import {defineConfig} from '@playwright/test'
 import {e2eConfig} from '@conciv/e2e-utils/config'
-import {PACKED_APP_DIR} from './packed-app-dir.ts'
+import {PACKED_APP_DIR} from './test/packed-app-dir.ts'
 
 export default defineConfig(
   e2eConfig('vite-react-packed', {

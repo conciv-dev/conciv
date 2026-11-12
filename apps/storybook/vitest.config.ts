@@ -14,7 +14,7 @@ export default defineConfig({
     projects: [
       {
         extends: true,
-        plugins: [storybookTest({configDir: path.join(dirname, '.storybook')})],
+        plugins: [storybookTest({configDir: path.join(dirname, 'src', 'storybook')})],
         optimizeDeps: browserOptimizeDeps(['@testing-library/dom']),
         test: {
           name: 'storybook',

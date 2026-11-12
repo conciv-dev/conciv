@@ -1,5 +1,4 @@
 {
   "extends": "@conciv/tsconfig/tsconfig.web.json",
-  "compilerOptions": {},
-  "include": ["src/**/*.ts"]
+  "compilerOptions": {}
 }

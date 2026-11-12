@@ -2,6 +2,5 @@
   "extends": "@conciv/tsconfig/tsconfig.base.json",
   "compilerOptions": {
     "types": ["node"]
-  },
-  "include": ["src/**/*.ts", "test/**/*.ts"]
+  }
 }

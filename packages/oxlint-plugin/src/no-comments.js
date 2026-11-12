@@ -1,5 +1,5 @@
 const DIRECTIVE_RE =
-  /^(?:\/|!|@ts-|@__PURE__|#__PURE__|@__NO_SIDE_EFFECTS__|#__NO_SIDE_EFFECTS__|eslint-|oxlint-|global\b|globals\b|exported\b|prettier-ignore|oxfmt-ignore|@vite-ignore|webpack[A-Z]|v8 ignore|c8 ignore|istanbul ignore|@license|@preserve|sourceMappingURL|#\s*sourceMappingURL)/
+  /^(?:\/|!|@ts-|@__PURE__|#__PURE__|@__NO_SIDE_EFFECTS__|#__NO_SIDE_EFFECTS__|eslint-|oxlint-|global\b|globals\b|exported\b|prettier-ignore|oxfmt-ignore|@vite-ignore|@jsxImportSource\b|webpack[A-Z]|v8 ignore|c8 ignore|istanbul ignore|@license|@preserve|sourceMappingURL|#\s*sourceMappingURL)/
 
 export default {
   meta: {

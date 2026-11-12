@@ -247,6 +247,7 @@ jobs:
       # retrigger on label changes (pull_request's default types can't).
       - run: pnpm exec conciv-publish check-changesets
       - run: pnpm exec conciv-publish check-catalog
+      - run: pnpm exec conciv-publish check-typecheck-coverage
       # The browser jobs' container image must be one digest-pinned reference whose tag
       # is the playwright version the lockfile resolves, else Playwright looks for
       # browser builds the image does not have. Dependabot cannot bump container images

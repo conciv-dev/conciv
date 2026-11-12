@@ -9,7 +9,7 @@ const SOURCE_APP = join(WORKSPACE_ROOT, 'e2e/vite-react')
 const SCAFFOLD_ENTRIES = ['index.html', 'src', 'public']
 const VITE_TOOLING = ['vite', '@vitejs/plugin-react']
 const TARBALL_DIR = join(PACKED_ROOT, 'tarballs')
-const LOCK_PATH = join(import.meta.dirname, 'fixture-lock.yaml')
+const LOCK_PATH = join(import.meta.dirname, '..', 'fixture-lock.yaml')
 const DEV_ENDPOINT_IMPORT = `import {E2E_DEV_ENDPOINT_DIR} from '@conciv/e2e-utils/dev-endpoint'`
 
 async function timed<T>(label: string, step: () => Promise<T>): Promise<T> {
@@ -65,8 +65,8 @@ await timed('install', () =>
   }),
 )
 const playwright = spawnSync(
-  join(import.meta.dirname, 'node_modules/.bin/playwright'),
-  ['test', '--config', join(import.meta.dirname, 'playwright.config.ts'), ...process.argv.slice(2)],
+  join(import.meta.dirname, '..', 'node_modules/.bin/playwright'),
+  ['test', '--config', join(import.meta.dirname, '..', 'playwright.config.ts'), ...process.argv.slice(2)],
   {cwd: PACKED_APP_DIR, stdio: 'inherit'},
 )
 if (playwright.error !== undefined) throw playwright.error

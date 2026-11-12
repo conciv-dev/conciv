@@ -17,6 +17,7 @@ import {
   assertWorkspaceRoot,
 } from './guards.ts'
 import {registryRecord} from './registry.ts'
+import {assertTypecheckCoversTrackedFiles} from './typecheck-coverage.ts'
 import {buildSyncPlan, pushMissingTags, type SyncPackageState, type SyncPlanEntry} from './sync.ts'
 import {
   assembleMirrorTree,
@@ -90,6 +91,18 @@ const checkCatalog = defineCommand({
   async run() {
     const {cwd} = await atRoot()
     await assertSharedDependenciesCatalogued(cwd)
+  },
+})
+
+const checkTypecheckCoverage = defineCommand({
+  meta: {
+    name: 'check-typecheck-coverage',
+    description:
+      "Fail when a tracked TypeScript file is not in a tsconfig its package's typecheck script runs, nor excluded there by name",
+  },
+  async run() {
+    const {cwd} = await atRoot()
+    await assertTypecheckCoversTrackedFiles(cwd)
   },
 })
 
@@ -367,6 +380,7 @@ const main = defineCommand({
     version,
     'check-changesets': checkChangesets,
     'check-catalog': checkCatalog,
+    'check-typecheck-coverage': checkTypecheckCoverage,
     check,
     release,
     snapshot,

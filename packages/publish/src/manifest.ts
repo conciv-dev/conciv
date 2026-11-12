@@ -5,6 +5,7 @@ const manifestSchema = z.object({
   version: z.string().optional(),
   private: z.boolean().optional(),
   files: z.array(z.string()).optional(),
+  scripts: z.record(z.string(), z.string()).optional(),
   dependencies: z.record(z.string(), z.string()).optional(),
   devDependencies: z.record(z.string(), z.string()).optional(),
   optionalDependencies: z.record(z.string(), z.string()).optional(),

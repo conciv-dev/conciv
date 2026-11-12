@@ -17,7 +17,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "lint": "oxlint",
-    "gen:snippets": "node --experimental-strip-types scripts/highlight-snippets.ts"
+    "gen:snippets": "node --experimental-strip-types src/scripts/highlight-snippets.ts"
   },
   "dependencies": {
     "@shikijs/magic-move": "catalog:"

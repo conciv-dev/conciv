@@ -240,7 +240,7 @@ export function fixture(options: FixtureOptions = {}): Fixture {
   }
   writeFileSync(join(cwd, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
   if (configFixture !== null) {
-    writeFileSync(join(cwd, 'vite.config.ts'), readFileSync(new URL(configFixture, fixturesDir), 'utf8'))
+    writeFileSync(join(cwd, 'vite.config.ts'), readFileSync(new URL(`${configFixture}.txt`, fixturesDir), 'utf8'))
   }
   execFileSync('git', ['init'], {cwd})
   commitAll(cwd)

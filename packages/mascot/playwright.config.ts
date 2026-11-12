@@ -6,7 +6,7 @@ function reporters(): ReporterDescription[] {
 }
 
 export default defineConfig({
-  testDir: './tests/e2e',
+  testDir: './test/e2e',
   testMatch: '**/*.it.test.ts',
   fullyParallel: false,
   workers: 1,

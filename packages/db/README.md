@@ -10,7 +10,7 @@ Persistence package for conciv, internal to `@conciv/it`. It defines the drizzle
 - `package.json:scripts` - `build` (`tsdown`), `typecheck`, `gen-migrations`, `lint` (`oxlint`), `test` (`vitest run`), `publint`, `attw`.
 - `drizzle.config.ts` - dialect `sqlite`, schema files `src/schema.ts` and `src/run-schema.ts`, migrations out to `./drizzle`.
 - `drizzle-home.config.ts` - the per-user home db: schema `src/home-schema.ts`, migrations out to `./drizzle-home` (`pnpm --filter @conciv/db exec drizzle-kit generate --config drizzle-home.config.ts`).
-- Subdirectories: [src](./src/README.md) - schema, `openDb` and queries; [scripts](./scripts/README.md) - migration bundling.
+- Subdirectories: [src](./src/README.md) - schema, `openDb` and queries; [src/scripts](./src/scripts/README.md) - migration bundling.
 
 ## Invariants
 
@@ -23,7 +23,7 @@ Persistence package for conciv, internal to `@conciv/it`. It defines the drizzle
 
 - See [src](./src/README.md): `openDb` creates and migrates `conciv.db` under `concivStateDir(stateRoot)`.
 - `openHomeDb` creates the home folder (`0700`) and `home.db` (`0600`); see [src](./src/README.md).
-- `scripts/gen-migrations.ts` overwrites `src/migrations.gen.ts` and `src/home-migrations.gen.ts`.
+- `src/scripts/gen-migrations.ts` overwrites `src/migrations.gen.ts` and `src/home-migrations.gen.ts`.
 
 ## Verification
 

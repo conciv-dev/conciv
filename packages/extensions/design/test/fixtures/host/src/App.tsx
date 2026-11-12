@@ -1,4 +1,4 @@
-import {Cards} from './Cards'
+/* @jsxImportSource react */ import {Cards} from './Cards'
 import {Table} from './Table'
 import {Toolbar} from './Toolbar'
 

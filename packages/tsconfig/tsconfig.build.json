@@ -9,11 +9,13 @@
     "rootDir": "${configDir}/src",
     "outDir": "${configDir}/dist"
   },
-  "include": ["${configDir}/src"],
+  "include": ["${configDir}/src/**/*"],
   "exclude": [
     "${configDir}/src/**/*.stories.*",
     "${configDir}/src/**/*.test.*",
     "${configDir}/src/**/fixtures.*",
-    "${configDir}/src/**/*.fixtures.*"
+    "${configDir}/src/**/*.fixtures.*",
+    "${configDir}/src/scripts/**",
+    "${configDir}/src/xray/**"
   ]
 }

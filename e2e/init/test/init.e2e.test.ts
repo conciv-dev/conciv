@@ -4,7 +4,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 
-const repoRoot = join(import.meta.dirname, '..', '..')
+const repoRoot = join(import.meta.dirname, '..', '..', '..')
 const cliBin = join(repoRoot, 'packages', 'cli', 'dist', 'bin.js')
 
 function isRecord(value: unknown): value is Record<string, unknown> {

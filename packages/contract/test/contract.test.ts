@@ -7,6 +7,7 @@ import {createHash} from 'node:crypto'
 import {EventEmitter, once} from 'node:events'
 import type {Duplex} from 'node:stream'
 import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
+import type {HarnessListCursor} from '@conciv/protocol/harness-types'
 import contractManifest from '../package.json' with {type: 'json'}
 
 describe('client', () => {
@@ -30,7 +31,10 @@ describe('client', () => {
     })
 
     it('is typed by the contract', () => {
-      expectTypeOf<Awaited<ReturnType<RpcClient['sessions']['list']>>>().toEqualTypeOf<SessionMeta[]>()
+      expectTypeOf<Awaited<ReturnType<RpcClient['sessions']['list']>>>().toEqualTypeOf<{
+        sessions: SessionMeta[]
+        next: HarnessListCursor | null
+      }>()
     })
   })
 

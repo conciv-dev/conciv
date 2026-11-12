@@ -38,8 +38,8 @@
     "access": "public"
   },
   "scripts": {
-    "gen:tokens": "node scripts/gen-tokens.ts",
-    "gen:check": "node scripts/check-tokens.ts",
+    "gen:tokens": "node src/scripts/gen-tokens.ts",
+    "gen:check": "node src/scripts/check-tokens.ts",
     "build": "pnpm gen:tokens && vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",

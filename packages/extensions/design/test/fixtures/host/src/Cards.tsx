@@ -1,4 +1,4 @@
-import styles from './card.module.css'
+/* @jsxImportSource react */ import styles from './card.module.css'
 
 const TITLES = ['Revenue', 'Invoices', 'Customers']
 const TARGET_TITLES = TITLES.filter((title) => title !== 'Invoices')

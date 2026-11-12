@@ -7,11 +7,11 @@ import {
   anchorTokenDefinitions,
   skinClassName,
   type SkinAnchorName,
-} from '../src/skin-contract.ts'
-import {DERIVED_TOKENS} from '../src/derived-tokens.ts'
+} from '../skin-contract.ts'
+import {DERIVED_TOKENS} from '../derived-tokens.ts'
 import {ALL_SKINS, BASE_SKIN} from './generated-skins.ts'
 
-const GENERATED_BY = 'packages/ui-kit-system/scripts/gen-tokens.ts'
+const GENERATED_BY = 'packages/ui-kit-system/src/scripts/gen-tokens.ts'
 
 const ALL_ANCHORS: SkinAnchorName[] = [...SKIN_SCHEME_ANCHORS, ...SKIN_SCALAR_ANCHORS]
 const SCHEME_ANCHORS = new Set<string>(SKIN_SCHEME_ANCHORS)

@@ -89,6 +89,7 @@ describe('bundler diagnostics', () => {
     it('captures a real transform error and a real HMR file change through server.bundler.subscribe', async () => {
       const root = await realpath(await mkdtemp(join(await realpath(tmpdir()), 'conciv-diag-')))
       await cp(FIXTURE, root, {recursive: true})
+      await writeFile(join(root, 'broken.ts'), 'export const broken = = 1\n')
       const server = await createServer({
         root,
         configFile: false,

@@ -50,7 +50,7 @@ touches none of this is fine.
 
 `vite-react-packed` installs conciv the way an npm user does, using the packing helpers in
 `packages/vitest-config/src/pack.ts` (`@conciv/vitest-config/pack`, shared with `nextjs/packed` and the
-packages' packed describes). Its `test:packed` runs `test-packed.ts`:
+packages' packed describes). Its `test:packed` runs `test/test-packed.ts`:
 it builds and `pnpm pack`s `@conciv/it`'s workspace dependency closure, copies `index.html`, `src/` and
 `public/` from `vite-react` into a temp dir outside the workspace, generates the `package.json` and
 `vite.config.ts`, overrides each `@conciv/*` to its tarball and runs `pnpm install` there, seeded from

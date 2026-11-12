@@ -1,7 +1,7 @@
 {
   "extends": "@conciv/tsconfig/tsconfig.solid.json",
   "compilerOptions": {
-    "types": ["node"]
-  },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx", "fixtures/bridge/bridge.fixtures.ts"]
+    "types": ["node"],
+    "allowImportingTsExtensions": true
+  }
 }

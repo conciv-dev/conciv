@@ -1,10 +1,10 @@
 import {execFileSync} from 'node:child_process'
 import {cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
-import {mkdtemp, realpath} from 'node:fs/promises'
+import {mkdtemp, realpath, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {afterAll, afterEach, beforeAll, describe, expect, it, test} from 'vitest'
+import {afterAll, afterEach, beforeAll, describe, expect, it, onTestFinished, test} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import type {ViteDevServer} from 'vite'
 import {z} from 'zod'
@@ -439,7 +439,6 @@ describe('router adapter', () => {
 })
 
 describe('server tools', () => {
-  const BUILD_APP = fileURLToPath(new URL('./fixtures/build-errors-app', import.meta.url))
   const MANIFEST_APP = fileURLToPath(new URL('./fixtures/route-manifest-app', import.meta.url))
   const DOUBLE_QUOTED_APP = fileURLToPath(new URL('./fixtures/double-quoted-manifest-app', import.meta.url))
 
@@ -459,7 +458,9 @@ describe('server tools', () => {
   const RoutesSchema = z.array(RouteInfoSchema)
 
   async function makeStateRoot(): Promise<string> {
-    return realpath(await mkdtemp(join(await realpath(tmpdir()), 'conciv-ts-server-')))
+    const root = await realpath(await mkdtemp(join(await realpath(tmpdir()), 'conciv-ts-server-')))
+    onTestFinished(() => rm(root, {recursive: true, force: true}))
+    return root
   }
 
   async function bootEngine(root: string, bridge?: BundlerBridge): Promise<{engine: Engine; callTool: CallTool}> {
@@ -484,11 +485,13 @@ describe('server tools', () => {
     })
 
     it('tanstack_build_errors surfaces a real vite transform error through the bundler stream', async () => {
-      const {vite, viteBase} = await startViteFixtureServer(BUILD_APP)
+      const buildApp = await makeStateRoot()
+      await writeFile(join(buildApp, 'broken.ts'), 'export const broken = = 1\n')
+      const {vite, viteBase} = await startViteFixtureServer(buildApp)
       state.vite = vite
 
       const bridge = makeViteBridge(vite)
-      const {engine, callTool} = await bootEngine(BUILD_APP, bridge)
+      const {engine, callTool} = await bootEngine(buildApp, bridge)
       state.engine = engine
 
       const failed = Promise.withResolvers<BundlerDiagnostic>()
