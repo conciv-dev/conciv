@@ -1,6 +1,6 @@
 import {afterEach, expect, test, vi, describe} from 'vitest'
 import {ciReporters, ciTest} from '../src/reporters.ts'
-import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {
@@ -771,6 +771,8 @@ describe('packed fixture lock drift', () => {
       return undefined
     } catch (error) {
       return String(error)
+    } finally {
+      rmSync(root, {recursive: true, force: true})
     }
   }
 
@@ -781,6 +783,7 @@ describe('packed fixture lock drift', () => {
     )
     expect(message).toContain('+ @conciv/unplugin')
     expect(message).toContain('- @conciv/plugin')
+    expect(message).not.toContain('@conciv/core')
   })
 
   test('the same packed conciv packages built to other tarballs are not drift', () => {
@@ -790,15 +793,5 @@ describe('packed fixture lock drift', () => {
         [packedEntry('@conciv/core', '0.0.23'), packedEntry('@conciv/plugin', '0.0.23')],
       ),
     ).toBeUndefined()
-  })
-
-  test('an added and a removed packed conciv package are drift', () => {
-    const message = driftOf(
-      [packedEntry('@conciv/core', '0.0.22'), packedEntry('@conciv/grab', '0.0.22')],
-      [packedEntry('@conciv/core', '0.0.22'), packedEntry('@conciv/mascot', '0.0.22')],
-    )
-    expect(message).toContain('+ @conciv/mascot')
-    expect(message).toContain('- @conciv/grab')
-    expect(message).not.toContain('@conciv/core')
   })
 })
