@@ -229,7 +229,7 @@ export function makePageBus(timeoutMs = 5000, queuedActionMs = QUEUED_ACTION_MS)
     route?: {browserTab: string} | {mutating: boolean},
     signal?: AbortSignal,
   ): Promise<PageAnswer> {
-    if (query.mutating !== true || !busy(sessionId)) return askNow(sessionId, query, route, signal)
+    if (query.mutating !== true) return askNow(sessionId, query, route, signal)
     return laneOf(sessionId).add(() => askNow(sessionId, query, route, signal), {signal})
   }
 

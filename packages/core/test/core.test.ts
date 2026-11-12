@@ -991,6 +991,33 @@ describe('page bus and the session scope', () => {
     expect(queues.owedTurn(SESSION_A)).toEqual([])
   })
 
+  it('a queue started while a mutating call is in flight reaches the tab only after that call answers', async () => {
+    const bus = makePageBus(2000)
+    const frames: unknown[] = []
+    const queueFrame = Promise.withResolvers<QueueFrame>()
+    bus.subscribe(SESSION_A, (frame) => {
+      frames.push(frame)
+      const parsed = QueueFrameSchema.safeParse(frame)
+      if (!parsed.success) return
+      queueFrame.resolve(parsed.data)
+      queueMicrotask(() => bus.resolve(SESSION_A, parsed.data.requestId, {ok: true, result: {}}))
+    })
+    const queues = pageQueues(bus)
+    const clicked = bus.ask(
+      SESSION_A,
+      {name: 'fixture_click', input: {}, agentId: SESSION_A, mutating: true},
+      {mutating: true},
+    )
+    await setImmediate()
+    const clickId = requestIdOf(frames[0]) ?? ''
+    const {queueId} = await queues.start(SESSION_A, queueStart([{tool: 'page_check', selector: '#agree'}]))
+    await setImmediate()
+    expect(frames).toHaveLength(1)
+    expect(bus.resolve(SESSION_A, clickId, {ok: true, result: {clicked: true}})).toBe(true)
+    await clicked
+    expect((await queueFrame.promise).queue.id).toBe(queueId)
+  })
+
   it('a queue for a session whose earlier queue still plays reaches the newly focused tab only once that queue is done', async () => {
     const bus = makePageBus(2000)
     const focusedAt = {first: 2, second: 1}
