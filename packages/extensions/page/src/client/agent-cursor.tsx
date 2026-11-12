@@ -157,7 +157,7 @@ function settleEveryAim(): void {
   for (const aim of aims.values()) aim.arrived()
 }
 
-function cannotAnimate(): boolean {
+export function cannotAnimate(): boolean {
   return document.visibilityState === 'hidden' || reducedMotion()
 }
 

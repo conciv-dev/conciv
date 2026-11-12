@@ -15,6 +15,7 @@ import {
   AimedCursors,
   CursorLook,
   aimCursor,
+  cannotAnimate,
   cursorElement,
   dropCursor,
   pageAt,
@@ -303,17 +304,18 @@ export function queueStopped(queueId: string): boolean {
   return sim.stoppedQueues.has(queueId)
 }
 
-function wait(ms: number): Promise<void> {
+function pace(ms: number): Promise<void> {
+  if (cannotAnimate()) return Promise.resolve()
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 export async function arriveAt(options: {element: Element; agent: string; beat: Beat}): Promise<void> {
   const {element, agent, beat} = options
   const {arrived} = moveTo({element, agent})
-  await Promise.all([arrived, wait(MOVE_MS)])
+  await Promise.all([arrived, pace(MOVE_MS)])
   if (beat === 'point') return
   ripple(agent)
-  await wait(AFTER_RIPPLE_MS)
+  await pace(AFTER_RIPPLE_MS)
 }
 
 export async function landQueued<Result>(options: {beat: Beat; act: () => Promise<Result>}): Promise<Result> {
@@ -322,7 +324,7 @@ export async function landQueued<Result>(options: {beat: Beat; act: () => Promis
     return await options.act()
   } finally {
     sim.pacing = false
-    await wait(options.beat === 'click' ? AFTER_CLICK_MS : AFTER_INPUT_MS)
+    await pace(options.beat === 'click' ? AFTER_CLICK_MS : AFTER_INPUT_MS)
   }
 }
 
