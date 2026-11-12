@@ -28,7 +28,7 @@ The SDK is a port of opencode's plugin package (`/Users/omrikatz/Public/web/_ref
 - An absolute specifier (a local directory's conventional file) resolves by a file lookup with the same extension list instead of Node's resolver: Node refuses every file under a `package.json` that does not parse, so source's Node runtime fails source's own "package.json that does not parse" case (its tests run on Bun, whose resolver finds the file).
 - The manifest is read with zod (`name`, `exports`, both unknown); a `package.json` that is not a JSON object counts as missing. Error codes are read with zod instead of `"code" in error`.
 - The source's `//` comments are dropped; `packageID` is `packageId`.
-- `experimental/host.ts` ports `Entry` (`windowEntry` only; no `mainEntry`; `stores` is `Declarations.stores`, no `BuiltinStoreDeclaration`), `compose`, `EnableState`, `pluginEnabled`, `pluginIdAvailable` (reserved namespace `conciv`), `Installed` (no `tui`, no `unsupported`) and `shipsPluginGui` as `shipsPluginExperimental`, reading `features.experimental`. It re-exports `Scope`; `PluginContext`, `LifetimeContext`, `liveAccessor`, `PanelContext` and `DrawerContext` come with Task B8. `runsOn` is absent (no `os`); `Bridge`, `BridgeLayout`, `BridgeMessage`, `BridgeMenubarItem`, `BridgePluginGui`, `BridgePluginGuis` are absent (Electron bridge, no desktop main process). The file's header comment is dropped.
+- `experimental/host.ts` ports `Entry` (`windowEntry` only; no `mainEntry`; `stores` is `Declarations.stores`, no `BuiltinStoreDeclaration`), `compose`, `EnableState`, `pluginEnabled`, `pluginIdAvailable` (reserved namespace `conciv`), `Installed` (no `tui`, no `unsupported`) and `shipsPluginGui` as `shipsPluginExperimental`, reading `features.experimental`. It re-exports `Scope` and, as source does, `DrawerContext`, `LifetimeContext`, `liveAccessor`, `PanelContext` and `PluginContext` from `internal.ts`. `runsOn` is absent (no `os`); `Bridge`, `BridgeLayout`, `BridgeMessage`, `BridgeMenubarItem`, `BridgePluginGui`, `BridgePluginGuis` are absent (Electron bridge, no desktop main process). The file's header comment is dropped.
 
 ### Evaluating a bundle (`experimental/host.ts`, `experimental/modules.ts`)
 
@@ -46,6 +46,17 @@ The SDK is a port of opencode's plugin package (`/Users/omrikatz/Public/web/_ref
 - The build fails on `@conciv/*` and `solid-js/*` modules outside the provided list; source's `effect/` prefix has no conciv counterpart (no Effect). So `@conciv/ui-kit*` fails here: `experimental()` is the outside-plugin build.
 - The error reads "<module> is not a module the conciv app provides to plugins: <list>" (source: "<module> is not a module the OpenCode app provides to plugin GUIs: <list>").
 - The `//` comment above `provided` is its JSDoc.
+
+### Reactive helpers and bindings (`experimental/reactive.ts`, `solid.ts`, `internal.ts`)
+
+- `internal.ts` ports `gui/internal.ts`; the live-accessor symbol is `Symbol.for('conciv.plugin.live')`. Its header comment is dropped.
+- `reactive.ts` ports `gui/reactive.ts` with the same algorithms. In place of source's two `SAFETY` casts to `KeyedValue<S>`, `createKeyed` hands its callbacks to a private `keyed` as methods taking `unknown` (method parameters are bivariant), and the `Live` or plain memo is built by a private `activeRun` with a guard instead of a ternary (lint `solid/reactivity`). Source's `//` comments are dropped.
+- `createLatest` starts a request with `new Promise((resolve) => resolve(fetch(...)))` in place of `Promise.try` (same behaviour: a synchronous throw becomes the rejection): TypeScript 7's bundled lib does not declare `Promise.try`.
+- JSDoc examples and text drop `ctx.t`, `Ipc` and the "goes Home and back" wording (conciv has no Home view).
+- `usePlugin` is two overloads (`usePlugin(): Context`, `usePlugin<D>(): SetupContext<D>`) in place of source's conditional return type `[D] extends [never] ? Context : SetupContext<D>` and its `SAFETY` cast; callers see the same types.
+- `PanelFrame.placement` is `'pane' | 'mobile'` (source `'side' | 'mobile'`; Panel ruling). Side-column-only parts are absent: `PanelFrame.reserve`, `PanelFrame.sidebar` and `PanelSidebar`.
+- These files use `createSignal`, `createRenderEffect`, `createMemo` and `createRoot` as the SDK's sanctioned wrappers; no lint rule bans those imports (the ban is a review law in `AGENTS.md`), so no lint exemption was added.
+- `test/plugin.browser.test.tsx` runs in a `browser` vitest project (headless Chromium, `@vitest/browser-playwright`, `vite-plugin-solid`), copied from `packages/ui-kit-system/vitest.config.ts`; the `node` project runs `test/plugin.test.ts` with `environment: 'node'`.
 
 ### Names and types
 
@@ -99,7 +110,7 @@ The SDK is a port of opencode's plugin package (`/Users/omrikatz/Public/web/_ref
 
 ### App part (`experimental/`)
 
-- Files follow `plugin/src/gui/`: `core.ts`, `declarations.ts`, `plugin.ts`, `context.ts`, `host-apis.ts`, `registries.ts`, `icon-name.ts`, `builtin.ts`; `index.ts` mirrors `gui/index.ts` without the `solid.js` and `reactive.js` lines, which Task B8 adds. `host-apis.ts` (about 1700 lines) stays one file, as in source.
+- Files follow `plugin/src/gui/`: `core.ts`, `declarations.ts`, `plugin.ts`, `context.ts`, `host-apis.ts`, `registries.ts`, `icon-name.ts`, `builtin.ts`; `index.ts` mirrors `gui/index.ts`. `host-apis.ts` (about 1700 lines) stays one file, as in source.
 - Package exports `./experimental` and `./experimental/builtin` (source keeps `builtin.ts` out of its published build; conciv's built-in plugins live in other workspace packages, so it is exported).
 - `Json` and `PluginOptions` are the engine part's types, re-exported (same shape).
 - `App` keeps the source's fields; JSDoc names conciv. `Context.app` is `App` (implemented), unlike the engine part's `App | undefined`.

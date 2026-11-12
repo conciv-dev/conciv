@@ -5,6 +5,8 @@ import type {Declarations, Stores} from './declarations.js'
 
 export {Scope} from './scope.js'
 
+export {DrawerContext, LifetimeContext, liveAccessor, PanelContext, PluginContext} from './internal.js'
+
 /**
  * A plugin as a host runs it: its id, its `Plugin.Declarations`, plus the setup the host loads lazily. A built-in's
  * entry is its app part module; a plugin's `./plugin-experimental` bundle becomes a window entry that runs its `setup`.
