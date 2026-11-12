@@ -803,7 +803,7 @@ describe('page action queue', () => {
     }
   }
 
-  function QueueForm(props: {heard: (event: string) => void}) {
+  function QueueForm(props: {heard: (event: string) => void; drafting: () => void}) {
     const field = (name: string) => (
       <label>
         {name}
@@ -831,13 +831,28 @@ describe('page action queue', () => {
         <div id="notes" contenteditable="true" role="textbox" aria-label="Notes">
           <p id="notes-line">old note</p>
         </div>
+        <div
+          contenteditable="true"
+          role="textbox"
+          aria-label="Draft"
+          onBeforeInput={(event) => {
+            if (event.isTrusted) return
+            event.preventDefault()
+            props.drafting()
+          }}
+        >
+          <p id="draft-line">old draft</p>
+        </div>
       </form>
     )
   }
 
-  function queuePage(delivered: (requestId: string) => Promise<void> = () => Promise.resolve()) {
+  function queuePage(
+    delivered: (requestId: string) => Promise<void> = () => Promise.resolve(),
+    drafting: () => void = () => {},
+  ) {
     const heard: string[] = []
-    render(() => <QueueForm heard={(event) => heard.push(event)} />)
+    render(() => <QueueForm heard={(event) => heard.push(event)} drafting={drafting} />)
     const host = document.createElement('div')
     host.setAttribute('data-conciv-root', '')
     document.body.append(host)
@@ -993,6 +1008,17 @@ describe('page action queue', () => {
       {ok: true, result: {ok: true, value: 'Hello editor'}},
     ])
     await expect.element(page.getByRole('textbox', {name: 'Notes'})).toMatchTextContent(/^\s*Hello editor\s*$/)
+  })
+
+  it('a session switch while a queued fill waits on the editor does not fall back to typing into it', async () => {
+    const switched = Promise.withResolvers<ReturnType<typeof before.switchSession>>()
+    const before = queuePage(undefined, () => switched.resolve(before.switchSession()))
+    const cut = before.queue('q-draft', [{tool: 'page_fill', selector: '#draft-line', value: 'Hello draft'}])
+    await cut.accepted
+    const after = await switched.promise
+    await after.queue('q-after', [fill('city', 'Paris')]).played
+    await expect.element(page.getByRole('textbox', {name: 'Draft'})).toMatchTextContent(/^\s*old draft\s*$/)
+    expect(before.replied).toEqual(['q-draft-accept', 'q-after-accept', 'q-after-0'])
   })
 
   it('masks a card number in the result', async () => {

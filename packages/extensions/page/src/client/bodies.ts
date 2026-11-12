@@ -154,6 +154,10 @@ function stoppedBefore(queued: Queued): void {
   if (queueStopped(queued.id)) throw toolError(PAGE_QUEUE_STOPPED, {message: PAGE_QUEUE_STOPPED_MESSAGE})
 }
 
+function stillQueued(ctx: ClientToolCtx): void {
+  if (ctx.queued !== undefined) stoppedBefore(ctx.queued)
+}
+
 function paceTarget(input: ClientToolLocator, ctx: ClientToolCtx): Element | null {
   const element = hasLocator(input) ? ctx.resolve(input) : focusedElement()
   if (element === null || element === ctx.document.body) return null
@@ -463,7 +467,7 @@ const fillTool = fillDef
   .client(
     acting(async (input, ctx) => {
       const element = actionableTarget(ctx, input)
-      return outcomeOf(await fill({element, value: input.value, agent: ctx.agentId}))
+      return outcomeOf(await fill({element, value: input.value, agent: ctx.agentId, halt: () => stillQueued(ctx)}))
     }, 'input'),
   )
   .render(actCard)
