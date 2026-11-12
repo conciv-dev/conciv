@@ -2,6 +2,7 @@ import {safe, toORPCError, type ORPCError} from '@orpc/client'
 import {z} from 'zod'
 import {
   CONCIV_CLIENT_HEADER,
+  CONCIV_NAMED_TAB_HEADER,
   CONCIV_ORIGIN_HEADER,
   CONCIV_SESSION_HEADER,
   isSessionId,
@@ -67,24 +68,23 @@ type EngineOrigin = Awaited<ReturnType<typeof engineOrigin>>
 
 async function withSession(engine: EngineOrigin, target: CliTarget, call: RpcCall): Promise<unknown> {
   const session = {[CONCIV_SESSION_HEADER]: target.tab ?? (await sessionId(engine.origin))}
-  const hub = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: callingAgent(process.env)}
+  const named = target.tab === null ? {} : {[CONCIV_NAMED_TAB_HEADER]: '1'}
+  const hub = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: callingAgent(process.env), ...named}
   return call(makeRpcClient(engine.origin, {headers: engine.outside ? {...session, ...hub} : session}))
 }
 
-async function servedOutcome(engine: EngineOrigin, target: CliTarget, call: RpcCall): Promise<CliOutcome | null> {
-  const result = await safe(withSession(engine, target, call))
-  if (result.isSuccess) return {report: 'json', data: result.data}
+export async function engineAnswer<Answer>(origin: string, pending: Promise<Answer>): Promise<Answer> {
+  const result = await safe(pending)
+  if (result.isSuccess) return result.data
   if (result.isDefined) throw rpcFailure(toORPCError(result.error))
-  if (offline(result.error, 0)) return null
+  if (offline(result.error, 0)) throw offlineFailure(origin)
   if (rejectedByServer(result.error)) throw rpcFailure(toORPCError(result.error))
   throw result.error
 }
 
 export async function runRpc(target: CliTarget, call: RpcCall): Promise<CliOutcome> {
   const engine = await engineOrigin(process.cwd(), process.env, target.tab)
-  const outcome = await servedOutcome(engine, target, call)
-  if (outcome === null) throw offlineFailure(engine.origin)
-  return outcome
+  return {report: 'json', data: await engineAnswer(engine.origin, withSession(engine, target, call))}
 }
 
 function callingAgent(env: NodeJS.ProcessEnv): string {

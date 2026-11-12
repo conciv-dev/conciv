@@ -91,7 +91,7 @@ export function browserBase(apiBase: string): string {
 
 export async function openLoggedIn(page: Page, kit: EmbedKit, pageUrl: string): Promise<void> {
   await page.goto('about:blank')
-  await page.goto(await magicLink(kit.origin, kit.terminal, pageUrl), {waitUntil: 'domcontentloaded'})
+  await page.goto(await magicLink(kit.base, pageUrl), {waitUntil: 'domcontentloaded'})
 }
 
 export function hostPage(opts: {apiBase: string; widget?: string; body?: string}): string {

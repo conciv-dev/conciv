@@ -22,6 +22,7 @@ import {
   RESULT_CAP_CHARS,
   safeStringify,
   truncationEnvelope,
+  type ChatPlane,
   type CodeCapability,
   type CodeRunner,
   type CodeTool,
@@ -275,6 +276,7 @@ type McpDeps = {
   ) => Promise<CodeRunner | null>
   finishedQueues: (sessionId: SessionId, outside: boolean) => PageQueueResult[]
   outsideCapabilities: (sessionId: SessionId) => CodeCapability[]
+  admitCall: ChatPlane['admitCall']
   resolveSession: (header: SessionId | null, nativeId: HarnessSessionId | null) => Promise<SessionScope>
   admitOutside: (scope: SessionScope, client: string | null, signal: AbortSignal) => Promise<string | null>
   hubRefusal: (client: string | null) => string | null
@@ -291,7 +293,23 @@ function gated<Args>(admit: () => Promise<string | null>, run: (args: Args) => P
   }
 }
 
-type McpCaller = {trace: CallTrace; outside: boolean; signal: AbortSignal}
+type McpCaller = {trace: CallTrace; outside: boolean; askBeforeCalls: boolean; signal: AbortSignal}
+
+function approvedFirst(
+  deps: McpDeps,
+  sessionId: SessionId,
+  tool: CodeTool,
+  publish: (chunk: ChatEvent) => void,
+): CodeTool {
+  return {
+    ...tool,
+    run: async (input, parentToolCallId, signal) => {
+      const refusal = await deps.admitCall(sessionId, {toolName: tool.name, input, publish})
+      if (refusal !== null) throw new Error(refusal.message)
+      return tool.run(input, parentToolCallId, signal)
+    },
+  }
+}
 
 function withFinishedQueues(reply: ExecuteReply, finished: readonly PageQueueResult[]): ExecuteReply {
   if (finished.length === 0) return reply
@@ -309,9 +327,10 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCalle
   }
   const run = {threadId: scope.id, live: await scope.run.live()}
   const mirror = caller.trace.mirror(run, {publish: scope.stream.publish, record: scope.run.record})
+  const publish = (chunk: ChatEvent): void => mirror.publish([caller.trace.mark(chunk)])
   const runner = await deps.codeRunner(
     scope.id,
-    (chunk) => mirror.publish([caller.trace.mark(chunk)]),
+    publish,
     origin !== null && caller.outside ? deps.outsideCapabilities(scope.id) : undefined,
     origin !== null,
   )
@@ -339,11 +358,12 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCalle
             inputSchema: DiscoverInputSchema,
           }).server(gated(admit, async (args) => delivered(await runDiscover(runner, args.toolNames)))),
         ]
-  const askingTools = runner.asking.map((tool) =>
-    defineTool({name: tool.name, description: tool.description, inputSchema: tool.inputSchema}).server(
-      gated(admit, async (args) => delivered(await runDirect(tool, args, calls))),
-    ),
-  )
+  const askingTools = runner.asking.map((tool) => {
+    const asking = caller.askBeforeCalls ? approvedFirst(deps, scope.id, tool, publish) : tool
+    return defineTool({name: tool.name, description: tool.description, inputSchema: tool.inputSchema}).server(
+      gated(admit, async (args) => delivered(await runDirect(asking, args, calls))),
+    )
+  })
   const executeTool = defineTool({
     name: EXECUTE_TOOL_NAME,
     description: executeDescription(runner, deps.staleness()),
@@ -367,7 +387,12 @@ const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
   const nativeId = nativeIdFromHeaders(c.req.raw.headers)
   const trace = callTrace((name) => c.req.raw.headers.get(name))
   const scope = await c.var.mcp.resolveSession(header, nativeId)
-  const caller = {trace, outside: trace.hub !== null && header === null && nativeId === null, signal: c.req.raw.signal}
+  const caller = {
+    trace,
+    outside: trace.hub !== null && header === null && nativeId === null,
+    askBeforeCalls: trace.hub === null && (header !== null || nativeId === null),
+    signal: c.req.raw.signal,
+  }
   const server = createMCPServer({
     name: 'conciv',
     version: corePackage.version,
