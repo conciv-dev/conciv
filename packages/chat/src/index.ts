@@ -1,6 +1,5 @@
 import {randomUUID} from 'node:crypto'
 import {eq} from 'drizzle-orm'
-import {join} from 'node:path'
 import {Hono} from 'hono'
 import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
 import {approvalRequestedEvent, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
@@ -9,7 +8,6 @@ import {approvalNeeded, childCardChunks, createChatServer, drizzleChatStores, to
 import {cappedValue, type ChatHistoryWindow, type ChatHydration} from '@conciv/contract'
 import {chatRuns, markers, type ConcivDb} from '@conciv/db'
 import {CHAT_SSE_PATH, CHAT_WS_PATH, isSessionId, SessionId, type HubAccess} from '@conciv/protocol/chat-types'
-import {concivStateDir} from '@conciv/protocol/state-types'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
 import {
   createApprovalStore,
@@ -32,7 +30,6 @@ const OUTSIDE_DENIED = 'the user denied outside agents for this session'
 
 type ChatPlaneDeps = TurnDeps & {
   db: ConcivDb
-  stateRoot: string
   hubAccess: HubAccess
   hubGeneration: () => number | null
   firstOutputTimeoutMs?: number
@@ -131,7 +128,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   })
   const server = await createChatServer({
     stores,
-    sandbox: {dir: deps.cwd, journalDir: join(concivStateDir(deps.stateRoot), 'runs')},
+    sandbox: {dir: deps.cwd},
     hooks: turnHooks(deps, {approvals, ui, transcripts}),
     codeModeResult: cappedValue,
     firstOutputTimeoutMs: deps.firstOutputTimeoutMs ?? FIRST_OUTPUT_TIMEOUT_MS,
