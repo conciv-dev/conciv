@@ -80,7 +80,14 @@ import {claude} from '@conciv/harness/claude'
 import {codex as codexHarness} from '@conciv/harness/codex'
 import {pi as piHarness} from '@conciv/harness/pi'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
-import {approvalAskOf, type ChatEvent, ChatEventType, pageQueueEvent} from '@conciv/protocol/chat-event-types'
+import {
+  approvalAskOf,
+  type ChatEvent,
+  ChatEventType,
+  pageQueueEvent,
+  sessionRunEvent,
+} from '@conciv/protocol/chat-event-types'
+import {webSocket} from '@conciv/ai/client'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {
   CHAT_SSE_PATH,
@@ -5016,10 +5023,19 @@ describe('page action queue delivery', () => {
       if (!pages.signal.aborted) throw error
     })
     const queueEvents = () => seen.flatMap((chunk) => pageQueueEvent.parse(chunk) ?? [])
-    const finishedEvent = async (queueId: string): Promise<void> => {
-      if (queueEvents().some((event) => event.queueId === queueId)) return
+    const seenChunk = async (matches: (chunk: ChatEvent) => boolean): Promise<void> => {
+      if (seen.some(matches)) return
       await once(arrivals, 'chunk')
-      return finishedEvent(queueId)
+      return seenChunk(matches)
+    }
+    const finishedEvent = (queueId: string) => seenChunk((chunk) => pageQueueEvent.parse(chunk)?.queueId === queueId)
+    const followUpFinished = async (): Promise<void> => {
+      await seenChunk((chunk) => sessionRunEvent.parse(chunk) !== null)
+      const runId = seen.flatMap((chunk) => sessionRunEvent.parse(chunk) ?? [])[0]?.runId ?? ''
+      const joined = webSocket(`ws://127.0.0.1:${engine.port}/t/${engine.agentToken}${CHAT_WS_PATH}`)
+      for await (const chunk of joined.joinRun(runId, pages.signal)) {
+        if (chunk.type === ChatEventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') return
+      }
     }
     const tabOpen = async () => TabOpenSchema.parse(await (await fetch(`${base}/api/tabs?session=${sessionId}`)).json())
     await vi.waitFor(async () => expect((await tabOpen()).open).toBe(true), {timeout: 3000})
@@ -5029,7 +5045,7 @@ describe('page action queue delivery', () => {
       await answering
     }
     void watching
-    return {base, sessionId, tab, nextQueue, play, hub, close, queueEvents, finishedEvent}
+    return {base, sessionId, tab, nextQueue, play, hub, close, queueEvents, finishedEvent, followUpFinished}
   }
 
   const queued = (actions: unknown[] = ACTIONS) =>
@@ -5123,17 +5139,14 @@ describe('page action queue delivery', () => {
     await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
     await page.finishedEvent(queueId)
     expect(page.queueEvents()).toEqual([expect.objectContaining({queueId, status: 'finished', played: 2, failed: 0})])
-    await vi.waitFor(
-      async () => {
-        const hydrated = await page.tab.chat.hydrate({sessionId: page.sessionId})
-        const assistant = hydrated.messages.filter((message) => message.role === 'assistant')
-        const parts = assistant.flatMap((message) => message.parts)
-        expect(parts).toContainEqual(expect.objectContaining({type: 'tool-call', name: 'page_queue_wait'}))
-        expect(parts).toContainEqual({type: 'text', content: 'ok'})
-        expect(hydrated.activeRun).toBeNull()
-      },
-      {timeout: 10_000},
-    )
+    await page.followUpFinished()
+    const hydrated = await page.tab.chat.hydrate({sessionId: page.sessionId})
+    const parts = hydrated.messages
+      .filter((message) => message.role === 'assistant')
+      .flatMap((message) => message.parts)
+    expect(parts).toContainEqual(expect.objectContaining({type: 'tool-call', name: 'page_queue_wait'}))
+    expect(parts).toContainEqual({type: 'text', content: 'ok'})
+    expect(hydrated.activeRun).toBeNull()
     expect(page.queueEvents()).toHaveLength(1)
   })
 })
