@@ -19,6 +19,17 @@ The SDK is a port of opencode's plugin package (`/Users/omrikatz/Public/web/_ref
 - `conciv/banned-vocabulary` is off for `packages/plugin/src/**`: opencode's names use words the rule rejects.
 - `no-shadow` is off for `packages/plugin/src/**`: opencode's type parameter names (`Input` in `RpcArguments<Input, Options>`) repeat names the same module declares.
 
+### Finding a plugin's parts (`host.ts`, `experimental/host.ts`)
+
+- `host.ts` ports `plugin/src/host.ts`; it does not re-export itself as `Host` (the `rpc.ts` rule above): callers import it as a namespace, `import * as Host from '@conciv/plugin/host'`.
+- `Entrypoints` has `server`, `rpc` and `experimental` (source `gui`); no `tui`. Bundle file names are `plugin-experimental.*` and the package export is `./plugin-experimental`.
+- A local directory without `exports` also resolves its app part from TypeScript source, `plugin-experimental.tsx` then `plugin-experimental.ts`, after the prebuilt `.cjs` and `.js` (spec: local plugins compile from source). A named package's `./plugin-experimental` must still be `.cjs` or `.js`.
+- `resolveModule` and `importModule` (`util/src/runtime-import.ts`) are private functions of `host.ts`, ported from the Node runtime (`util/src/runtime/import.node.ts`); the Bun and workerd runtimes are dropped.
+- An absolute specifier (a local directory's conventional file) resolves by a file lookup with the same extension list instead of Node's resolver: Node refuses every file under a `package.json` that does not parse, so source's Node runtime fails source's own "package.json that does not parse" case (its tests run on Bun, whose resolver finds the file).
+- The manifest is read with zod (`name`, `exports`, both unknown); a `package.json` that is not a JSON object counts as missing. Error codes are read with zod instead of `"code" in error`.
+- The source's `//` comments are dropped; `packageID` is `packageId`.
+- `experimental/host.ts` ports `Entry` (`windowEntry` only; no `mainEntry`), `compose`, `EnableState`, `pluginEnabled`, `pluginIdAvailable` (reserved namespace `conciv`), `Installed` (no `tui`, no `unsupported`) and `shipsPluginGui` as `shipsPluginExperimental`, reading `features.experimental`. It re-exports `Scope`; `PluginContext`, `LifetimeContext`, `liveAccessor`, `PanelContext` and `DrawerContext` come with Task B8. `runsOn` is absent (no `os`); `Bridge`, `BridgeLayout`, `BridgeMessage`, `BridgeMenubarItem`, `BridgePluginGui`, `BridgePluginGuis` are absent (Electron bridge, no desktop main process). The file's header comment is dropped.
+
 ### Names and types
 
 - `ID` is spelled `Id` (`sessionId`, `messageId`, `requestId`, `parentId`, `modelId`, `providerId`, `workspaceId`, `shellId`, `partId`).

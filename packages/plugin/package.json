@@ -28,6 +28,10 @@
       "types": "./dist/rpc-entry.d.ts",
       "import": "./dist/rpc-entry.js"
     },
+    "./host": {
+      "types": "./dist/host.d.ts",
+      "import": "./dist/host.js"
+    },
     "./experimental": {
       "types": "./dist/experimental/index.d.ts",
       "import": "./dist/experimental/index.js"
@@ -35,6 +39,10 @@
     "./experimental/builtin": {
       "types": "./dist/experimental/builtin.d.ts",
       "import": "./dist/experimental/builtin.js"
+    },
+    "./experimental/host": {
+      "types": "./dist/experimental/host.d.ts",
+      "import": "./dist/experimental/host.js"
     }
   },
   "publishConfig": {

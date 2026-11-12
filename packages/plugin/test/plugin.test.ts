@@ -1,3 +1,7 @@
+import {mkdir, mkdtemp, realpath, rm, writeFile} from 'node:fs/promises'
+import {tmpdir} from 'node:os'
+import path from 'node:path'
+import {pathToFileURL} from 'node:url'
 import {afterEach, beforeEach, describe, expect, expectTypeOf, it, vi} from 'vitest'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
@@ -8,6 +12,8 @@ import type {Registration} from '../src/registration.js'
 import type {ServerRef} from '../src/servers.js'
 import type {Accessor} from 'solid-js'
 import * as Experimental from '../src/experimental/index.js'
+import {pluginIdAvailable} from '../src/experimental/host.js'
+import * as Host from '../src/host.js'
 
 function unreachable(): never {
   throw new Error('no server')
@@ -510,5 +516,214 @@ describe('experimental', () => {
     expectTypeOf<undefined>().toExtend<Experimental.Composer['setText']>()
     expectTypeOf<undefined>().toExtend<Experimental.Tabs['move']>()
     expectTypeOf<undefined>().toExtend<Experimental.Links['exists']>()
+  })
+})
+
+describe('host', () => {
+  const source = 'throw new Error("Plugin code must not run during resolution")'
+  const name = '@fixture/plugin'
+
+  async function fixture(files: Record<string, string>, installed = false) {
+    const root = await realpath(await mkdtemp(path.join(tmpdir(), 'conciv-host-')))
+    const directory = installed ? path.join(root, 'node_modules', name) : root
+    await Promise.all(
+      Object.entries(files).map(async ([file, content]) => {
+        await mkdir(path.dirname(path.join(directory, file)), {recursive: true})
+        await writeFile(path.join(directory, file), content)
+      }),
+    )
+    return {
+      target: {directory, ...(installed ? {name} : {})},
+      url: (file: string) => pathToFileURL(path.join(directory, file)).href,
+      [Symbol.asyncDispose]: () => rm(root, {recursive: true, force: true}),
+    }
+  }
+
+  describe('Host.resolve', () => {
+    it('resolves conventional entrypoints without package.json', async () => {
+      await using plugin = await fixture({'index.ts': source, 'rpc.ts': source})
+      expect(Host.resolve(plugin.target)).toEqual({
+        server: plugin.url('index.ts'),
+        rpc: plugin.url('rpc.ts'),
+        experimental: undefined,
+      })
+    })
+
+    it.each([undefined, 'lib/backend.js'])('resolves packages without exports using %s', async (main) => {
+      await using plugin = await fixture(
+        {'package.json': JSON.stringify({name, main}), [main ?? 'index.js']: source, 'rpc.js': source},
+        true,
+      )
+      expect(Host.resolve(plugin.target)).toEqual({
+        server: plugin.url(main ?? 'index.js'),
+        rpc: plugin.url('rpc.js'),
+        experimental: undefined,
+      })
+    })
+
+    it('resolves local conventional entrypoints with package.json but no exports', async () => {
+      await using plugin = await fixture({
+        'package.json': JSON.stringify({name, type: 'module'}),
+        'index.js': source,
+        'rpc.js': source,
+      })
+      expect(Host.resolve(plugin.target)).toEqual({
+        server: plugin.url('index.js'),
+        rpc: plugin.url('rpc.js'),
+        experimental: undefined,
+      })
+    })
+
+    it('honors exports and prefers the explicit server entrypoint over the root', async () => {
+      await using plugin = await fixture(
+        {
+          'package.json': JSON.stringify({
+            name,
+            exports: {'.': './dist/root.js', './server': './dist/backend.js', './rpc': './dist/contract.js'},
+          }),
+          'dist/root.js': source,
+          'dist/backend.js': source,
+          'dist/contract.js': source,
+        },
+        true,
+      )
+      expect(Host.resolve(plugin.target)).toEqual({
+        server: plugin.url('dist/backend.js'),
+        rpc: plugin.url('dist/contract.js'),
+        experimental: undefined,
+      })
+    })
+
+    it('falls back to the root export and uses import rather than require conditions', async () => {
+      await using plugin = await fixture(
+        {
+          'package.json': JSON.stringify({
+            name,
+            exports: {'.': {import: './dist/server.mjs', require: './dist/server.cjs'}},
+          }),
+          'dist/server.mjs': source,
+          'dist/server.cjs': source,
+        },
+        true,
+      )
+      expect(Host.resolve(plugin.target)).toEqual({
+        server: plugin.url('dist/server.mjs'),
+        rpc: undefined,
+        experimental: undefined,
+      })
+    })
+
+    it('resolves the app part entrypoint from exports beside the server entrypoint', async () => {
+      await using plugin = await fixture(
+        {
+          'package.json': JSON.stringify({
+            name,
+            exports: {'.': './dist/server.js', './plugin-experimental': './dist/plugin-experimental.cjs'},
+          }),
+          'dist/server.js': source,
+          'dist/plugin-experimental.cjs': source,
+        },
+        true,
+      )
+      expect(Host.resolve(plugin.target)).toEqual({
+        server: plugin.url('dist/server.js'),
+        rpc: undefined,
+        experimental: plugin.url('dist/plugin-experimental.cjs'),
+      })
+    })
+
+    it('resolves a local directory through its package.json exports, as the published package', async () => {
+      await using plugin = await fixture({
+        'package.json': JSON.stringify({
+          name: 'conciv-acme-plugin',
+          exports: {'.': './src/index.ts', './plugin-experimental': './dist/plugin-experimental.cjs'},
+        }),
+        'src/index.ts': source,
+        'dist/plugin-experimental.cjs': source,
+        'rpc.ts': source,
+        'plugin-experimental.cjs': source,
+      })
+      expect(Host.resolve(plugin.target)).toEqual({
+        server: plugin.url('src/index.ts'),
+        rpc: undefined,
+        experimental: plugin.url('dist/plugin-experimental.cjs'),
+      })
+    })
+
+    it('names a plugin without a server part after its package, or its local directory', async () => {
+      await using named = await fixture({'package.json': JSON.stringify({name: '@acme/conciv-app'})})
+      await using unnamed = await fixture({'plugin-experimental.cjs': source})
+      await using published = await fixture({'package.json': JSON.stringify({name})}, true)
+      expect(Host.packageId(named.target)).toBe('@acme/conciv-app')
+      expect(Host.packageId(unnamed.target)).toBe(path.basename(unnamed.target.directory))
+      expect(Host.packageId(published.target)).toBe(name)
+    })
+
+    it('treats a package.json that does not parse as missing, so resolution falls back to root files', async () => {
+      await using plugin = await fixture({'package.json': '{ "name": "bad", ', 'index.ts': source})
+      expect(Host.resolve(plugin.target)).toEqual({
+        server: plugin.url('index.ts'),
+        rpc: undefined,
+        experimental: undefined,
+      })
+      expect(Host.packageId(plugin.target)).toBe(path.basename(plugin.target.directory))
+    })
+
+    it('resolves the conventional app part entrypoint in a local directory', async () => {
+      await using plugin = await fixture({'index.ts': source, 'plugin-experimental.js': source})
+      expect(Host.resolve(plugin.target)).toEqual({
+        server: plugin.url('index.ts'),
+        rpc: undefined,
+        experimental: plugin.url('plugin-experimental.js'),
+      })
+    })
+
+    it('does not treat TypeScript or ES module app part sources as the CommonJS bundle', async () => {
+      await using local = await fixture({'index.ts': source, 'experimental.tsx': source})
+      await using published = await fixture(
+        {
+          'package.json': JSON.stringify({
+            name,
+            exports: {'.': './dist/server.js', './plugin-experimental': './dist/plugin-experimental.mjs'},
+          }),
+          'dist/server.js': source,
+          'dist/plugin-experimental.mjs': source,
+        },
+        true,
+      )
+      expect(Host.resolve(local.target).experimental).toBeUndefined()
+      expect(Host.resolve(published.target).experimental).toBeUndefined()
+    })
+
+    it('does not return an exported entrypoint whose file is missing', async () => {
+      await using plugin = await fixture(
+        {'package.json': JSON.stringify({name, exports: {'./rpc': './missing.js'}})},
+        true,
+      )
+      expect(Host.resolve(plugin.target)).toEqual({server: undefined, rpc: undefined, experimental: undefined})
+    })
+
+    it('resolves a local folder plugin from its TypeScript source', async () => {
+      await using plugin = await fixture({'index.ts': source, 'rpc.ts': source, 'plugin-experimental.tsx': source})
+      expect(Host.resolve(plugin.target)).toEqual({
+        server: plugin.url('index.ts'),
+        rpc: plugin.url('rpc.ts'),
+        experimental: plugin.url('plugin-experimental.tsx'),
+      })
+    })
+  })
+
+  it.each([
+    ['acme', true],
+    ['file', false],
+    ['file.extra', false],
+    ['tools', false],
+    ['conciv', false],
+    ['conciv.acme', false],
+    ['conciv-acme', true],
+  ])('a plugin app part may take the id %s: %s', (id, available) => {
+    const builtins = [{id: 'file'}, {id: 'tools.git'}]
+
+    expect(pluginIdAvailable(id, builtins)).toBe(available)
   })
 })
