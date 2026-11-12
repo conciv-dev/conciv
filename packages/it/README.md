@@ -40,7 +40,7 @@ proves the widget mounts on both the classic and nitro stacks (toggle with
 
 ## Side Effects
 
-- The package root (configs and manifest) has none. At runtime package paths are resolved with `import.meta.resolve` at module load; the bundled plugin carries `@conciv/plugin`'s effects. Full list in [src/README.md](./src/README.md#side-effects).
+- The package root (configs and manifest) has none. At runtime package paths are resolved with `import.meta.resolve` at module load; the bundled plugin carries `@conciv/unplugin`'s effects. Full list in [src/README.md](./src/README.md#side-effects).
 
 ## Verification
 

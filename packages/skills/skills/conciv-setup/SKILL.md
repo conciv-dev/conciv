@@ -86,7 +86,7 @@ module.exports = {plugins: [conciv.default({enabled: process.env.NODE_ENV !== 'p
 ```
 
 Gate it like every other integration: the webpack/Rspack `unplugin` hooks boot the engine whenever
-`options.enabled !== false`, with no build-mode check of their own (`packages/plugin/src/index.ts:19-24`)
+`options.enabled !== false`, with no build-mode check of their own (`packages/unplugin/src/index.ts:19-24`)
 — unlike Vite, where the plugin only runs in `serve` mode, a webpack/Rspack production build DOES
 run this hook, so an unguarded `enabled` really does boot the engine in prod.
 
@@ -243,7 +243,7 @@ conciv({widget: {quickTerminal: false}}) // corner modal only
 - `packages/embed/package.json`
 - `packages/core/src/config.ts`
 - `packages/core/src/start.ts`
-- `packages/plugin/src/index.ts`
+- `packages/unplugin/src/index.ts`
 - `packages/it/README.md`
 - `packages/it/package.json`
 - `packages/protocol/src/config-types.ts`

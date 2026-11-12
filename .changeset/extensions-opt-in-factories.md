@@ -1,6 +1,6 @@
 ---
 '@conciv/it': patch
-'@conciv/plugin': patch
+'@conciv/unplugin': patch
 '@conciv/protocol': patch
 '@conciv/core': patch
 '@conciv/extension': patch

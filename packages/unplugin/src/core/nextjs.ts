@@ -28,8 +28,8 @@ type WithConcivResult<T> = Omit<T, 'env' | 'serverExternalPackages' | 'turbopack
   webpack?: WebpackHook
 }
 
-const ENGINE_EXTERNALS = ['@conciv/it', '@conciv/plugin', '@conciv/core', '@conciv/db', '@conciv/harness']
-const EDGE_REGISTER_ENTRIES = ['@conciv/it/plugin/nextjs', '@conciv/plugin/nextjs']
+const ENGINE_EXTERNALS = ['@conciv/it', '@conciv/unplugin', '@conciv/core', '@conciv/db', '@conciv/harness']
+const EDGE_REGISTER_ENTRIES = ['@conciv/it/plugin/nextjs', '@conciv/unplugin/nextjs']
 
 function findInstrumentationFile(dir: string, pageExtensions: string[]): string | undefined {
   const hasRootRoutes = existsSync(join(dir, 'app')) || existsSync(join(dir, 'pages'))

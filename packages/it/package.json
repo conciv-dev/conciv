@@ -68,7 +68,7 @@
   "dependencies": {
     "@conciv/embed": "workspace:^",
     "@conciv/extension-compiler": "workspace:^",
-    "@conciv/plugin": "workspace:^"
+    "@conciv/unplugin": "workspace:^"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",

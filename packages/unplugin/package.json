@@ -1,5 +1,5 @@
 {
-  "name": "@conciv/plugin",
+  "name": "@conciv/unplugin",
   "version": "0.0.22",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv dev agent as an unplugin: vite (full: viteBridge + widget middleware + boot), webpack/rspack (boot the engine), rollup/esbuild (build-only no-ops). One factory, per-bundler subpath entries.",
   "keywords": [
@@ -16,7 +16,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/conciv-dev/conciv.git",
-    "directory": "packages/plugin"
+    "directory": "packages/unplugin"
   },
   "files": [
     "dist"

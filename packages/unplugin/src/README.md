@@ -26,4 +26,4 @@ The unplugin factory and its per-bundler entries. Vite gets the full hook; webpa
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/plugin` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run test --filter=@conciv/unplugin` from the repo root (turbo builds the package and its dependencies first)

@@ -1,4 +1,4 @@
-# @conciv/plugin
+# @conciv/unplugin
 
 The conciv dev agent as an unplugin: vite (full: viteBridge + widget middleware + boot), webpack/rspack (boot the engine), rollup/esbuild (build-only no-ops). One factory, per-bundler subpath entries.
 
@@ -20,4 +20,4 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/plugin` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run test --filter=@conciv/unplugin` from the repo root (turbo builds the package and its dependencies first)

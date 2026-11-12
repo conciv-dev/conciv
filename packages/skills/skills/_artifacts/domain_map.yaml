@@ -219,7 +219,7 @@ gaps: []
 
 coverage:
   ignored_packages:
-    - name: '@conciv/plugin'
+    - name: '@conciv/unplugin'
       reason: 'internal to @conciv/it, not installed directly'
     - name: '@conciv/try'
       reason: 'internal to @conciv/it, not installed directly'

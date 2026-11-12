@@ -49,7 +49,7 @@ export function assertValidPackageName(name: string): void {
 
 export const PUBLIC_PACKAGES = [
   '@conciv/it',
-  '@conciv/plugin',
+  '@conciv/unplugin',
   '@conciv/cli',
   '@conciv/try',
   '@conciv/core',

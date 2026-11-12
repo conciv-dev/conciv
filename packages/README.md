@@ -10,7 +10,7 @@ Engine and plugin:
 
 - core: [core/README.md](./core/README.md) - `@conciv/core`, the Hono engine: sessions, chat plane, oRPC router, MCP endpoint, push WebSocket and extension mounting.
 - it: [it/README.md](./it/README.md) - `@conciv/it`, the installable umbrella. Builds the per-bundler plugin entries and bundles the built-in extensions.
-- plugin: [plugin/README.md](./plugin/README.md) - `@conciv/plugin`, the unplugin that boots the engine and injects the widget (Vite full hook, webpack/rspack boot, Next.js wrapper).
+- unplugin: [unplugin/README.md](./unplugin/README.md) - `@conciv/unplugin`, the unplugin that boots the engine and injects the widget (Vite full hook, webpack/rspack boot, Next.js wrapper).
 - extension-compiler: [extension-compiler/README.md](./extension-compiler/README.md) - Build plumbing for extension code: client/server split, Solid compile, source stamping, the `virtual:conciv-extensions` module.
 - cli: [cli/README.md](./cli/README.md) - The `conciv` binary: `init` and `tools`, each leaf command writing one JSON envelope.
 - try: [try/README.md](./try/README.md) - `npx @conciv/try --token`: a token-gated loopback core paired with conciv.dev.

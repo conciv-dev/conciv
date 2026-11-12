@@ -40,4 +40,4 @@ The plugin internals: booting the engine process, the Vite hook (HTML tags, widg
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/plugin` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run test --filter=@conciv/unplugin` from the repo root (turbo builds the package and its dependencies first)
