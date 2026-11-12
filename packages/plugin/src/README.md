@@ -39,6 +39,14 @@ The SDK is a port of opencode's plugin package (`/Users/omrikatz/Public/web/_ref
 - `mainOnlyModule` and `inertModule` are kept: the page's `require` gives a bundle an inert placeholder for Node built-ins, as opencode's window does. `mainOnlyModule` no longer counts `electron` (no desktop app). JSDoc speaks of the browser in place of the window and main processes.
 - `modules.ts` keeps source's split: `pluginSharedModules` is `@conciv/plugin/experimental`, `@conciv/plugin/rpc`, `zod`; `pluginWindowModules` is `solid-js`, `solid-js/web`, `solid-js/store` (the spec's list for outside plugins). With no main process the split only separates Solid from the rest. Absent: `effect`, `@opencode/plugin/gui/main`, `@opencode/schema/rpc` (conciv's contract module is `@conciv/plugin/rpc`), `@opencode/client`, `@opencode/client/effect`, `@opencode/client/solid`, and the `gui/file`, `gui/review`, `gui/browser` contract modules (not ported).
 
+### Building an app part (`experimental/vite.ts`)
+
+- `experimental/vite.ts` ports `plugin/src/gui/vite.ts`: `gui()` is `experimental()`, `GuiOptions` is `ExperimentalOptions`, the Vite plugin is `conciv-experimental`, and the defaults are `src/plugin-experimental.tsx` and `dist/plugin-experimental.cjs`. The package export is `./experimental/vite`.
+- `electron` is not kept external: conciv has no desktop app.
+- The build fails on `@conciv/*` and `solid-js/*` modules outside the provided list; source's `effect/` prefix has no conciv counterpart (no Effect). So `@conciv/ui-kit*` fails here: `experimental()` is the outside-plugin build.
+- The error reads "<module> is not a module the conciv app provides to plugins: <list>" (source: "<module> is not a module the OpenCode app provides to plugin GUIs: <list>").
+- The `//` comment above `provided` is its JSDoc.
+
 ### Names and types
 
 - `ID` is spelled `Id` (`sessionId`, `messageId`, `requestId`, `parentId`, `modelId`, `providerId`, `workspaceId`, `shellId`, `partId`).

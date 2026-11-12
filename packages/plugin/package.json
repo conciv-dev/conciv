@@ -36,6 +36,10 @@
       "types": "./dist/experimental/index.d.ts",
       "import": "./dist/experimental/index.js"
     },
+    "./experimental/vite": {
+      "types": "./dist/experimental/vite.d.ts",
+      "import": "./dist/experimental/vite.js"
+    },
     "./experimental/builtin": {
       "types": "./dist/experimental/builtin.d.ts",
       "import": "./dist/experimental/builtin.js"
@@ -65,8 +69,11 @@
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
+    "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {

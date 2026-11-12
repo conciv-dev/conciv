@@ -1,8 +1,14 @@
-import {mkdir, mkdtemp, realpath, rm, writeFile} from 'node:fs/promises'
+import * as NodeFs from 'node:fs'
+import {mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {pathToFileURL} from 'node:url'
-import {afterEach, beforeEach, describe, expect, expectTypeOf, it, vi} from 'vitest'
+import {afterAll, afterEach, beforeEach, describe, expect, expectTypeOf, it, vi} from 'vitest'
+import * as SolidJs from 'solid-js'
+import * as SolidStore from 'solid-js/store'
+import * as SolidWeb from 'solid-js/web'
+import {build} from 'vite'
+import * as Zod from 'zod'
 import {z} from 'zod'
 import {makeRpcClient} from '@conciv/contract'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
@@ -13,7 +19,17 @@ import type {Registration} from '../src/registration.js'
 import type {ServerRef} from '../src/servers.js'
 import type {Accessor} from 'solid-js'
 import * as Experimental from '../src/experimental/index.js'
-import {evaluatePluginBundle, inertModule, pluginIdAvailable, type InertModule} from '../src/experimental/host.js'
+import {
+  evaluatePluginBundle,
+  inertModule,
+  pluginIdAvailable,
+  pluginSharedModules,
+  pluginWindowModules,
+  type InertModule,
+  type PluginModule,
+} from '../src/experimental/host.js'
+import {experimental} from '../src/experimental/vite.js'
+import * as RpcEntry from '../src/rpc-entry.js'
 import * as Host from '../src/host.js'
 
 function unreachable(): never {
@@ -821,4 +837,76 @@ describe('host', () => {
       expect(seen.name).toBe('[inert module node:fs]')
     })
   })
+})
+
+describe('experimental() build', () => {
+  const dirs: string[] = []
+
+  afterAll(() => Promise.all(dirs.map((dir) => rm(dir, {recursive: true, force: true}))))
+
+  const project = async (files: Record<string, string>) => {
+    const root = await mkdtemp(path.join(tmpdir(), 'conciv-experimental-vite-'))
+    dirs.push(root)
+    await Promise.all(
+      Object.entries(files).map(async ([file, text]) => {
+        await mkdir(path.dirname(path.join(root, file)), {recursive: true})
+        await writeFile(path.join(root, file), text)
+      }),
+    )
+
+    return root
+  }
+
+  const bundle = (root: string) => build({root, configFile: false, logLevel: 'silent', plugins: experimental()})
+
+  const provided: Record<PluginModule, object> = {
+    '@conciv/plugin/experimental': Experimental,
+    '@conciv/plugin/rpc': RpcEntry,
+    zod: Zod,
+    'solid-js': SolidJs,
+    'solid-js/web': SolidWeb,
+    'solid-js/store': SolidStore,
+  }
+  const real = new Map<string, object>([...Object.entries(provided), ['node:fs', NodeFs]])
+
+  it('the preset writes one CommonJS file that requires only what the app provides', async () => {
+    const hosted = [...pluginSharedModules, ...pluginWindowModules]
+    const root = await project({
+      'src/plugin-experimental.tsx': [
+        ...hosted.map((name, index) => `import * as m${index} from "${name}"`),
+        'import { readFileSync } from "node:fs"',
+        'const Page = m0 && (() => import("./page"))',
+        `export default { id: "acme", modules: [${hosted.map((_, index) => `m${index}`).join(', ')}], readFileSync, Page, setup() {} }`,
+      ].join('\n'),
+      'src/page.tsx': 'export default () => <p>Notes</p>',
+    })
+
+    await bundle(root)
+    const code = await readFile(path.join(root, 'dist/plugin-experimental.cjs'), 'utf8')
+    const required = new Set(Array.from(code.matchAll(/require\("([^"]+)"\)/g), (match) => match[1]))
+
+    expect(await readdir(path.join(root, 'dist'))).toEqual(['plugin-experimental.cjs'])
+    expect(code).toContain('Notes')
+    expect([...required].toSorted()).toEqual([...hosted, 'node:fs'].toSorted())
+    expect(
+      evaluatePluginBundle(code, {
+        require: (name) => {
+          const module = real.get(name)
+
+          if (module) return module
+
+          throw new Error(`not provided: ${name}`)
+        },
+      }).setup,
+    ).toBeTypeOf('function')
+  }, 60_000)
+
+  it('the preset fails the build on a conciv or Solid module the app does not provide', async () => {
+    const root = await project({
+      'src/plugin-experimental.tsx':
+        'import { Button } from "@conciv/ui-kit-system"\nexport default { id: "acme", Button }',
+    })
+
+    await expect(bundle(root)).rejects.toThrow('@conciv/ui-kit-system is not a module the conciv app provides')
+  }, 60_000)
 })
