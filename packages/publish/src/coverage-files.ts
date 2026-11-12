@@ -4,7 +4,7 @@ const CODE_FILE_EXTENSIONS = new Set(['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'c
 
 function isTestPath(packageRelativePath: string): boolean {
   const segments = packageRelativePath.split('/')
-  if (segments[0] === 'test' || segments[0] === 'tests') return true
+  if (segments[0] === 'test') return true
   const base = segments.at(-1) ?? ''
   return /\.(test|spec)\./.test(base)
 }
