@@ -12,7 +12,7 @@ import type {Registration} from '../src/registration.js'
 import type {ServerRef} from '../src/servers.js'
 import type {Accessor} from 'solid-js'
 import * as Experimental from '../src/experimental/index.js'
-import {pluginIdAvailable} from '../src/experimental/host.js'
+import {evaluatePluginBundle, inertModule, pluginIdAvailable, type InertModule} from '../src/experimental/host.js'
 import * as Host from '../src/host.js'
 
 function unreachable(): never {
@@ -725,5 +725,88 @@ describe('host', () => {
     const builtins = [{id: 'file'}, {id: 'tools.git'}]
 
     expect(pluginIdAvailable(id, builtins)).toBe(available)
+  })
+
+  describe('plugin app part bundles', () => {
+    const modules = new Map<string, object>([
+      [
+        '@conciv/plugin/experimental',
+        {Contract: Experimental.Contract, Plugin: Experimental.Plugin, Store: Experimental.Store},
+      ],
+      ['zod', {z}],
+    ])
+
+    const evaluate = (code: string) =>
+      evaluatePluginBundle(code, {
+        require: (required) => {
+          const module = modules.get(required)
+
+          if (module) return module
+
+          throw new Error(`not shared: ${required}`)
+        },
+      })
+
+    it("read the default export's declarations and setups", () => {
+      const bundle = evaluate(`
+        const sdk = require("@conciv/plugin/experimental")
+        const {z} = require("zod")
+        exports.default = sdk.Plugin.define({
+          stores: { view: sdk.Store.project(z.object({ open: z.boolean() }), { open: false }) },
+          setup() {},
+        })
+      `)
+
+      expect(bundle.definition.stores?.view?.scope).toBe('project')
+      expect(bundle.definition.stores?.view?.initial).toEqual({open: false})
+      expect(bundle.setup).toBeTypeOf('function')
+    })
+
+    it("accept a bundler's default mode, where the plugin is the module itself", () => {
+      expect(evaluate('module.exports = { setup() {} }').setup).toBeTypeOf('function')
+    })
+
+    it.each([
+      ['a store without a schema', 'stores: { count: { scope: "global", initial: 0 } }', 'schema'],
+      ['a setup that is not a function', 'setup: true', 'setup'],
+    ])('reject a plugin with %s', (_, field, named) => {
+      const evaluated = () => evaluate(`exports.default = { ${field} }`)
+
+      expect(evaluated).toThrow('must default-export a `Plugin.define`')
+      expect(evaluated).toThrow(named)
+    })
+
+    it('have at least one setup', () => {
+      expect(() => evaluate('exports.default = {}')).toThrow('must have a window `setup`')
+    })
+  })
+
+  describe('inert modules', () => {
+    it('give module-scope code a placeholder that ignores writes and never poses as a promise or a class', async () => {
+      const seen: {ready?: InertModule; window?: boolean; name?: string} = {}
+
+      const probe = {
+        ready: (value: InertModule) => void (seen.ready = value),
+        window: (value: boolean) => void (seen.window = value),
+        name: (value: string) => void (seen.name = value),
+      }
+
+      evaluatePluginBundle(
+        `
+          const fs = require("node:fs")
+          const probe = require("probe")
+          fs.app.name = "patched"
+          probe.ready(fs.app.whenReady())
+          probe.window({} instanceof fs.BrowserWindow)
+          probe.name(String(fs.app.name))
+          module.exports = { setup() {} }
+        `,
+        {require: (required) => (required === 'probe' ? probe : inertModule(required))},
+      )
+
+      expect(await Promise.resolve(seen.ready)).toBe(seen.ready)
+      expect(seen.window).toBe(false)
+      expect(seen.name).toBe('[inert module node:fs]')
+    })
   })
 })

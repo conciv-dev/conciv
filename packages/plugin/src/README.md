@@ -30,6 +30,15 @@ The SDK is a port of opencode's plugin package (`/Users/omrikatz/Public/web/_ref
 - The source's `//` comments are dropped; `packageID` is `packageId`.
 - `experimental/host.ts` ports `Entry` (`windowEntry` only; no `mainEntry`), `compose`, `EnableState`, `pluginEnabled`, `pluginIdAvailable` (reserved namespace `conciv`), `Installed` (no `tui`, no `unsupported`) and `shipsPluginGui` as `shipsPluginExperimental`, reading `features.experimental`. It re-exports `Scope`; `PluginContext`, `LifetimeContext`, `liveAccessor`, `PanelContext` and `DrawerContext` come with Task B8. `runsOn` is absent (no `os`); `Bridge`, `BridgeLayout`, `BridgeMessage`, `BridgeMenubarItem`, `BridgePluginGui`, `BridgePluginGuis` are absent (Electron bridge, no desktop main process). The file's header comment is dropped.
 
+### Evaluating a bundle (`experimental/host.ts`, `experimental/modules.ts`)
+
+- `PluginBundle` has `definition` and `setup` (no `main`); `definition` carries `stores` only (no `os`, no `i18n`).
+- `PluginBundleHost` has `require` only: `process` (`'window' | 'main'`) is absent, since it only tells the two processes apart and nothing reads it in the evaluator.
+- `evaluatePluginBundle` checks the definition with zod (`stores` entries need a `global`, `project` or `session` scope and a zod object schema; `setup` must be a function) and puts `z.prettifyError`'s field path in the message where source puts Effect's `Cause.pretty`. Its texts are source's with the entry name and package: "A plugin's ./plugin-experimental bundle must default-export a `Plugin.define` from `@conciv/plugin/experimental`: <problem>" and "A plugin's ./plugin-experimental bundle must have a window `setup`" (source: "A plugin's GUI must have a window `setup`, a `main` setup, or both").
+- A type guard over the zod check stands in for source's `Schema.is` plus its two `SAFETY` casts; source's `//` comments are dropped.
+- `mainOnlyModule` and `inertModule` are kept: the page's `require` gives a bundle an inert placeholder for Node built-ins, as opencode's window does. `mainOnlyModule` no longer counts `electron` (no desktop app). JSDoc speaks of the browser in place of the window and main processes.
+- `modules.ts` keeps source's split: `pluginSharedModules` is `@conciv/plugin/experimental`, `@conciv/plugin/rpc`, `zod`; `pluginWindowModules` is `solid-js`, `solid-js/web`, `solid-js/store` (the spec's list for outside plugins). With no main process the split only separates Solid from the rest. Absent: `effect`, `@opencode/plugin/gui/main`, `@opencode/schema/rpc` (conciv's contract module is `@conciv/plugin/rpc`), `@opencode/client`, `@opencode/client/effect`, `@opencode/client/solid`, and the `gui/file`, `gui/review`, `gui/browser` contract modules (not ported).
+
 ### Names and types
 
 - `ID` is spelled `Id` (`sessionId`, `messageId`, `requestId`, `parentId`, `modelId`, `providerId`, `workspaceId`, `shellId`, `partId`).
