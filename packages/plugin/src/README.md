@@ -64,10 +64,43 @@ The SDK is a port of opencode's plugin package (`/Users/omrikatz/Public/web/_ref
 
 ### Scope
 
-- `experimental/scope.ts` ports `plugin/src/gui/scope.ts`; `experimental/core.ts` holds only `Cleanup` from `gui/core.ts` so far.
+- `experimental/scope.ts` ports `plugin/src/gui/scope.ts`.
 - `Scope.make` carries its JSDoc on an explicit type of the `Scope` constant: `conciv/no-comments` keeps doc blocks above declarations and type members only, not above an object literal's property.
 - The source's three `//` comments are gone (zero comments in code): the one above `Finalizer` is its JSDoc, the two inside `create` are dropped.
 - `fork` returns early after closing a fork made on a closed scope instead of `if ... else` (repo law: no `else` where a guard works).
+
+### App part (`experimental/`)
+
+- Files follow `plugin/src/gui/`: `core.ts`, `declarations.ts`, `plugin.ts`, `context.ts`, `host-apis.ts`, `registries.ts`, `icon-name.ts`, `builtin.ts`; `index.ts` mirrors `gui/index.ts` without the `solid.js` and `reactive.js` lines, which Task B8 adds. `host-apis.ts` (about 1700 lines) stays one file, as in source.
+- Package exports `./experimental` and `./experimental/builtin` (source keeps `builtin.ts` out of its published build; conciv's built-in plugins live in other workspace packages, so it is exported).
+- `Json` and `PluginOptions` are the engine part's types, re-exported (same shape).
+- `App` keeps the source's fields; JSDoc names conciv. `Context.app` is `App` (implemented), unlike the engine part's `App | undefined`.
+- `Token` is `Contract<unknown>` only, `TokenValue` has no Ipc branch, `Live` and `Context.use` / `provide` speak of contracts only: no main process, so no `Ipc`, `IpcSpec`, `IpcClient`, `IpcImpl`, `IpcProvider`, `IpcMethod`, `IpcCallOptions`, `Caller`, `Ipc.define`, `Context.main`, `Definition.main`, `MainSetup`, `MainContext`.
+- `BaseContext.client` is `ConcivClient` (the client of the plugin's own engine); no `t` or `plural`, and no `OS`, `Params`, `Messages`, `Catalog`, `Declarations.os`, `Declarations.i18n`.
+- `Store` has three scopes, `global`, `project` (this repo, conciv's layered project settings) and `session`; `StoreDeclaration`, `BuiltinStoreDeclaration` and the `stores` handle take `project` as `global` (loaded before setup).
+- Store schemas are zod object schemas (`z.ZodObject`). Source reads the value type as Effect's `Schema.Type`, whose struct fields are readonly; zod's output is not, so `StoreType<S>` (added) is zod's output made readonly all the way down, and `Persisted.update` still hands out a `Mutable` draft.
+- `Store`, `Registry`, `Contract` and `BuiltinStore` carry their member JSDoc on an explicit type of the constant (the `Scope.make` rule above); the JSDoc on `update`'s `draft` parameter is dropped (the lint keeps doc blocks above declarations and members only).
+- `Plugin.Definition` has `setup` only and `WithSetup` is `{setup}` (no `main`).
+- `Context` members by `docs/specs/plugins-ctx-audit.md` Table 1 and the spec's "Host APIs on ctx" table: `layout`, `sessions`, `screen`, `storage`, `servers`, `tabs`, `links`, `ui`, `toast`, `appearance`, `router`, `app`, `keybinds` implemented; `desktop` is `Desktop | undefined` as in source; `dialogs`, `commands`, `system`, `attention` are `T | undefined` as whole members (the spec table wins over the audit, which marks `dialogs.open`, `dialogs.active` and `system.copy` "have it"); absent: `main`, `t`, `plural`, `embeds`, `locale`, `workspaces` (with `Embeds`, `EmbedProps`, `Locale`, `Workspaces`).
+- `ServerRef` and `Servers` are `../servers.ts`, re-exported; the browser source adds no members beyond `data` (see Not available yet).
+- `SessionRef.location` is `Location.Ref` (opencode's `LocationRef`).
+- `Composer`: `text` and `focus` are implemented by the spec table ("`ctx.screen` (`composer.attach`, `composer.focus`, text)") where the audit says "concept fits"; `attach` takes `file`, `note` and `quote` (the audit's UNSURE quote row is settled by the spec's Attachments section). `commentID` is `commentId`, `ComposerModel.providerID` / `modelID` are `providerId` / `modelId`. Mentions of subagent sessions are dropped from the JSDoc (subagents run inside the CLI).
+- `SessionScreen` has `composer` only: `file` (`Files`, `FileState`, `FileContent`, `FileNode`, `LineRange`) and `comment` (`Comments`, `Comment`) are not ours (audit rows `screen.file.*`, `screen.comment.*`).
+- `MountedSession` keeps `visit` and `directory`; `local` is declared, not implemented; `background` and `BackgroundTask` are absent (subagents run inside the CLI); `listedProject` is absent (no sidebar; audit row `layout.sidebar.opened`); `project` is not available yet.
+- `Layout`: `side` and `sidebar` are absent: conciv has no side region (`apps/conciv/src/pane/status-bar.tsx:48`, a panel replaces the chat; `apps/conciv/src/routes/panel-height.ts:8`). This settles the audit's UNSURE `layout.side.width` row and drops `side.menu` with `MenuItem`. `project` is absent (one directory per engine). `OpenOptions` and `PanelState` JSDoc no longer mention the side region or narrow screens.
+- `Desktop`: no `os`, no `zoom`; `launch(path, position?)` takes a `{line, column?}` position in place of source's `app?` argument, backed by the engine's open-in-editor (`packages/contract/src/contract.ts:410`, `editor.open`).
+- `StorageScope` keeps source's `{server, directory?}` scope; a conciv server is an engine, which runs in one project.
+- `System.save` and `openExternal` JSDoc describe the web only (download, new tab).
+- `Tabs.focus` is declared: the quick pane `focus` search param backs it (`apps/conciv/src/lib/quick-search.ts:15`), which settles the audit's UNSURE row; `Tabs.close` is declared by the spec table although the audit says "concept fits".
+- `Ui` keeps every source component and prop type; examples use literal text in place of `ctx.t`, and conciv icon names.
+- `IconName` is conciv's catalog, not opencode's: the 92 `lucide-solid/icons/<name>` names conciv imports today (`apps/conciv/src`, `packages/*/src`), since opencode's names (`bubble-5`, `outline-rotate-clockwise`, …) are its own artwork.
+- `Command` JSDoc drops the command palette (conciv has none, audit Table 2); fields are source's.
+- `Panel.region` is `'pane'` (ruling). Left out as side-column-only: `wide` (wider session minimum while the side region is open), `width` (side region width), `mobile` with `MobileView` (the narrow-screen switcher that stands in for the side region; a conciv panel already replaces the chat), `enter` (runs when the side region opens on the tab with its toggle).
+- `SettingsPage.page` is `'general'` only and `group` is absent: conciv's settings have no Servers or About page (`apps/conciv/src/routes/panel.$sessionId_.settings.*.tsx`).
+- `SlotMap` has five places: source's `session.header` and `window.bottom` (inputs verbatim), and conciv's `session.status` (`{screen, session}`), `window.connect` (`{origin, found(apiBase)}`, what the connect slot gets today: `ConnectHostApi`, `packages/extension/src/host-context.ts:9`) and `page.overlay` (`Record<string, never>`).
+- Not ported (spec "Not ported" list and its brief): `MenuItem` and its three item types, `Server`, `ServerEntry`, `ServerRow`, `ServerState`, `ServerHealth`, `TitlebarItem`, `Style`, `Theme` and its colour types.
+- `builtin.ts` keeps `BuiltinStoreFrom`, `BuiltinStoreDeclaration`, `BuiltinStore` (used by the host in Task B5) and adds the built-in `ToolCall` registry (ruling). `ToolCallProps` follows `CodeBlockProps`: `tool`, `id`, `input`, `result` (`success` with `output`, or `error`), `session`; it is what a finished call has in conciv's tool card props (`ToolCardProps`, `packages/protocol/src/tool-view-types.ts:43`, through `ToolCard`, `packages/extension/src/types.ts:55`), without the card's `ctx`, `addResult`, `durationMs` and `capture`. Not ported, no audit or spec verdict: `onIdle`, `BuiltinCommand`, `BuiltinPanel`, `BuiltinPanelTab`, `BuiltinSlotMap`, `BuiltinSlot`, `BuiltinStoreOptions`, `BuiltinStorage`, `BuiltinDesktop`, `BuiltinLayout`, `BuiltinLocale`, `BuiltinContext`, `builtinContext` (also a cast); absent: `MainStoreFrom`, `BuiltinMainStorage`, `Lifecycle`, `BuiltinMainContext`, `builtinMainContext`, `BuiltinCatalog`, `builtinCatalog` (no main process, no i18n).
+- `gui/file.ts`, `gui/review.ts`, `gui/browser.ts`, `gui/updater.ts` are not ported: they are contracts of opencode's own built-in plugins, and the audit has no row for any of them.
 
 ## Declared, not implemented
 
@@ -89,6 +122,13 @@ Each is typed `| undefined` (or optional) and always undefined in this version.
 - session interrupt input: `resume`
 - `SessionIdle.background`
 - permission request: `resources`, `save`, `metadata`, `message`; permission reply input: `message`
+- app part `Context`: `dialogs`, `commands`, `system`, `attention`
+- `Desktop`: `reveal`, `installed`, `pick`
+- `Layout`: `narrow`, `hide`, `scroll`
+- `Composer`: `setText`, `quotable`, `update`, `detach`, `focused`
+- `MountedSession.local`
+- `Tabs.move`
+- `Links.exists`
 
 ## Not available yet
 
@@ -99,3 +139,5 @@ Not declared: declaring them would mean inventing a conciv copy of an opencode t
 - the `prompt` and `context` session hooks (`plugin/src/promise/session.ts:200-201`): their event types need opencode's message and prompt types.
 - `SessionDomain.prompt` and `SessionDomain.context` (`plugin/src/promise/session.ts:224,232`): same message and prompt types.
 - `ServerRef.data` (`plugin/src/gui/host-apis.ts:25`): its type is opencode's Solid sync store of the whole server.
+- `MountedSession.project` (`plugin/src/gui/host-apis.ts:721`): its type is opencode's `ProjectListOutput` entry with worktrees.
+- `Slot` at `session.location.menu` and `session.panel.end` (`plugin/src/gui/registries.ts:885,894`): conciv's UI has no project menu slot and no side tab strip.

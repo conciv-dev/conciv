@@ -1,7 +1,12 @@
 import {defineConfig} from 'tsdown'
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/rpc-entry.ts'],
+  entry: {
+    index: 'src/index.ts',
+    'rpc-entry': 'src/rpc-entry.ts',
+    'experimental/index': 'src/experimental/index.ts',
+    'experimental/builtin': 'src/experimental/builtin.ts',
+  },
   format: 'esm',
   fixedExtension: false,
   dts: false,

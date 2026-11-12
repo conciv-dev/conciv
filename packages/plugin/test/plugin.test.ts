@@ -6,6 +6,8 @@ import {Scope} from '../src/experimental/scope.js'
 import {Plugin, Rpc, Tool} from '../src/index.js'
 import type {Registration} from '../src/registration.js'
 import type {ServerRef} from '../src/servers.js'
+import type {Accessor} from 'solid-js'
+import * as Experimental from '../src/experimental/index.js'
 
 function unreachable(): never {
   throw new Error('no server')
@@ -339,5 +341,174 @@ describe('Scope', () => {
     expect(world.events).toEqual(['last', 'hung', 'first'])
     expect(closing.settled).toBe(true)
     expect(world.logs).toEqual([{message: 'scope finalizer timed out', data: {scope: 'test', finalizer: 'hung'}}])
+  })
+})
+
+describe('experimental', () => {
+  const {CodeBlock, CodeBlockAction, Command, Contract, Plugin: App, Registry, Store} = Experimental
+  const Notes = Contract.define<{count(): number}, 'acme.notes'>('acme.notes')
+  const Tree = Contract.define<{open(path: string): void}, 'fixture.tree'>('fixture.tree')
+  const View = z.object({open: z.boolean()})
+  const Consumer = App.define({
+    stores: {view: Store.global(View, {open: false}), draft: Store.session(View, {open: true})},
+  })
+  const Nested = App.define({
+    stores: {prefs: Store.global(z.object({items: z.array(z.object({shown: z.boolean()}))}), {items: []})},
+  })
+  const Fixture = App.define({})
+
+  it('tokens carry their kind and id', () => {
+    expect(Registry.define<{readonly label: string}>('details.badge')).toEqual({kind: 'registry', id: 'details.badge'})
+    expect(Notes).toEqual({kind: 'contract', id: 'acme.notes'})
+    expectTypeOf(Notes.id).toEqualTypeOf<'acme.notes'>()
+  })
+
+  it('stores carry their scope, schema, initial value and older homes', () => {
+    expect(Store.global(View, {open: false}, 'plugin.acme.view')).toEqual({
+      scope: 'global',
+      schema: View,
+      initial: {open: false},
+      from: 'plugin.acme.view',
+    })
+    expect(Store.project(View, {open: true})).toEqual({
+      scope: 'project',
+      schema: View,
+      initial: {open: true},
+      from: undefined,
+    })
+    expect(Store.session(View, {open: false}, ['b', 'a'])).toEqual({
+      scope: 'session',
+      schema: View,
+      initial: {open: false},
+      from: ['b', 'a'],
+    })
+  })
+
+  it('define returns the plugin and types the setup from the declared stores', () => {
+    const plugin = App.define({
+      stores: {prefs: Store.global(z.object({on: z.boolean()}), {on: true})},
+      setup(ctx) {
+        ctx.provide(Notes, {count: () => 1})
+        ctx.add(Command, () => ({id: 'open', title: String(ctx.stores.prefs.value.on), run() {}}))
+        return () => {}
+      },
+    })
+    const declared = App.define({stores: {count: Store.global(z.object({n: z.number()}), {n: 0})}})
+    const setup: Experimental.Plugin.Setup<typeof declared> = (ctx) => {
+      ctx.stores.count.set({n: ctx.stores.count.value.n + 1})
+    }
+    const split = App.define({...declared, setup})
+    const wrongImpl = App.define({
+      setup(ctx) {
+        // @ts-expect-error the implementation must match the contract
+        ctx.provide(Notes, {size: () => 1})
+      },
+    })
+    const asyncWindow = App.define({
+      // @ts-expect-error a window setup is synchronous
+      async setup() {},
+    })
+    expect(split.setup).toBe(setup)
+    expect([plugin, wrongImpl, asyncWindow].map((definition) => typeof definition.setup)).toEqual([
+      'function',
+      'function',
+      'function',
+    ])
+  })
+
+  it('types the setup context', () => {
+    const setup: Experimental.Plugin.Setup<typeof Consumer> = (ctx) => {
+      expectTypeOf(ctx.use(Tree)).toEqualTypeOf<Accessor<Experimental.Live<{open(path: string): void}>>>()
+      ctx.provide(Tree, {open: () => undefined})
+      // @ts-expect-error the implementation must match the contract
+      ctx.provide(Tree, {close: () => undefined})
+      expectTypeOf(ctx.stores.view.value).toEqualTypeOf<{readonly open: boolean}>()
+      expectTypeOf<ReturnType<typeof ctx.stores.draft>['value']>().toEqualTypeOf<{readonly open: boolean} | undefined>()
+      expectTypeOf(ctx.desktop).toEqualTypeOf<Experimental.Desktop | undefined>()
+      // @ts-expect-error no store named missing
+      void ctx.stores.missing
+      const session = ctx.sessions.current()
+      // @ts-expect-error a session has no workspace files
+      void session?.file
+      // @ts-expect-error a session has no comments
+      void session?.comment
+      // @ts-expect-error a session has no composer: read `ctx.screen.current()?.composer`
+      void session?.composer
+      expectTypeOf<ReturnType<typeof ctx.screen.current>>().toEqualTypeOf<Experimental.SessionScreen | undefined>()
+      // @ts-expect-error the screen has no duplicate session accessor
+      void ctx.screen.current()?.session
+      ctx.stores.view.update((draft) => {
+        draft.open = true
+      })
+      ctx.stores.view.set({open: false})
+      // @ts-expect-error update only mutates; replacement values go through set
+      ctx.stores.view.update(() => ({open: true}))
+      // @ts-expect-error replacement values match the schema
+      ctx.stores.view.set({open: 'wrong'})
+    }
+    expectTypeOf<ReturnType<Experimental.Plugin.Setup<typeof Consumer>>>().toEqualTypeOf<Experimental.Cleanup | void>()
+    // @ts-expect-error an async window setup returns a Promise, not nothing or a cleanup
+    const asyncSetup: Experimental.Plugin.Setup<typeof Consumer> = async () => {}
+    // @ts-expect-error a window setup cannot return an object either
+    const returningSetup: Experimental.Plugin.Setup<typeof Consumer> = () => ({open: true})
+    const nested: Experimental.Plugin.Setup<typeof Nested> = (ctx) => {
+      ctx.stores.prefs.update((draft) => {
+        draft.items.push({shown: true})
+        const [first] = draft.items
+        if (first) first.shown = false
+      })
+      // @ts-expect-error stored values stay readonly outside update
+      ctx.stores.prefs.value.items.push({shown: true})
+    }
+    expect([setup, asyncSetup, returningSetup, nested].every((value) => typeof value === 'function')).toBe(true)
+  })
+
+  it('types panels, slots, tabs, live providers and icons', () => {
+    expectTypeOf<Experimental.PanelProps['screen']>().toEqualTypeOf<Experimental.SessionScreen>()
+    expectTypeOf<Parameters<Experimental.Panel['list']>[0]['session']>().toEqualTypeOf<Experimental.MountedSession>()
+    expectTypeOf<Parameters<Experimental.Panel['list']>[0]['screen']>().toEqualTypeOf<Experimental.SessionScreen>()
+    expectTypeOf<Parameters<NonNullable<Experimental.Panel['focus']>>[0]['restored']>().toEqualTypeOf<boolean>()
+    expectTypeOf<
+      Parameters<NonNullable<Experimental.Panel['normalize']>>[0]['screen']
+    >().toEqualTypeOf<Experimental.SessionScreen>()
+    expectTypeOf<Parameters<NonNullable<Experimental.Panel['close']>>[0]>().toEqualTypeOf<Experimental.PanelProps>()
+    expectTypeOf<Experimental.SlotMap['session.header']['screen']>().toEqualTypeOf<Experimental.SessionScreen>()
+    expectTypeOf<Experimental.SlotMap['window.bottom']['screen']>().toEqualTypeOf<never>()
+    expectTypeOf<Experimental.PanelTab['fallback']>().toEqualTypeOf<boolean | undefined>()
+    const ineligible: Experimental.PanelTab = {id: 'details', title: 'Details', fallback: false}
+    expectTypeOf<Extract<Experimental.Live<never>, {status: 'inactive'}>['reason']>().toEqualTypeOf<
+      'disabled' | 'failed'
+    >()
+    // @ts-expect-error only known artwork names belong to SDK icon fields
+    const unknownIcon: Experimental.IconName = 'not-an-icon'
+    expect([ineligible.fallback, unknownIcon]).toEqual([false, 'not-an-icon'])
+  })
+
+  it('types code block contributions', () => {
+    const codeBlocks: Experimental.Plugin.Setup<typeof Fixture> = (ctx) => {
+      ctx.add(CodeBlock, {languages: ['csv'], render: (block) => (block.code ? block.language : undefined)})
+      ctx.add(CodeBlockAction, {
+        id: 'run',
+        languages: ['sh'],
+        icon: 'terminal',
+        title: 'Run',
+        run: async (input) => void input.session?.directory,
+      })
+      // @ts-expect-error an action needs an icon
+      ctx.add(CodeBlockAction, {id: 'run', languages: ['sh'], title: 'Run', run() {}})
+    }
+    expect(typeof codeBlocks).toBe('function')
+  })
+
+  it('declares the members conciv does not implement yet as undefined', () => {
+    expectTypeOf<undefined>().toExtend<Experimental.Context['dialogs']>()
+    expectTypeOf<undefined>().toExtend<Experimental.Context['commands']>()
+    expectTypeOf<undefined>().toExtend<Experimental.Context['system']>()
+    expectTypeOf<undefined>().toExtend<Experimental.Context['attention']>()
+    expectTypeOf<undefined>().toExtend<Experimental.Desktop['reveal']>()
+    expectTypeOf<undefined>().toExtend<Experimental.Layout['scroll']>()
+    expectTypeOf<undefined>().toExtend<Experimental.Composer['setText']>()
+    expectTypeOf<undefined>().toExtend<Experimental.Tabs['move']>()
+    expectTypeOf<undefined>().toExtend<Experimental.Links['exists']>()
   })
 })

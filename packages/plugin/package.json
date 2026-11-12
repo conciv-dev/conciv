@@ -27,6 +27,14 @@
     "./rpc": {
       "types": "./dist/rpc-entry.d.ts",
       "import": "./dist/rpc-entry.js"
+    },
+    "./experimental": {
+      "types": "./dist/experimental/index.d.ts",
+      "import": "./dist/experimental/index.js"
+    },
+    "./experimental/builtin": {
+      "types": "./dist/experimental/builtin.d.ts",
+      "import": "./dist/experimental/builtin.js"
     }
   },
   "publishConfig": {
