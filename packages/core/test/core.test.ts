@@ -1041,15 +1041,42 @@ describe('page bus and the session scope', () => {
   })
 
   it('three failed follow-up runs end follow-ups for the result, and the next reply delivers it', async () => {
-    const {fixture, queues, played, owedIds, runStatuses} = await followUpFixture()
+    const {fixture, queues, played, runStatuses} = await followUpFixture()
     const owed = await played()
     for (const attempt of [1, 2, 3]) fixture.harness.script.scriptError(`launch failure ${attempt}`)
     await startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
     expect(runStatuses()).toEqual(['failed', 'failed', 'failed'])
-    expect(owedIds()).toEqual([])
+    expect(queues.owedTurn(fixture.sessionId).map((record) => record.delivery)).toEqual(['nextReply'])
     await startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
     expect(runStatuses()).toEqual(['failed', 'failed', 'failed'])
     expect(queues.undelivered(fixture.sessionId, false).map((result) => result.queueId)).toEqual([owed])
+    expect(queues.undelivered(fixture.sessionId, false)).toEqual([])
+  })
+
+  it('a result whose follow-ups failed rides the next follow-up another queue starts, and nothing else starts one', async () => {
+    const {fixture, queues, played, runStatuses} = await followUpFixture()
+    const stranded = await played()
+    const [record] = queues.owedTurn(fixture.sessionId)
+    for (const attempt of [1, 2, 3]) fixture.harness.script.scriptError(`launch failure ${attempt}`)
+    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
+    expect(record?.delivery).toBe('nextReply')
+    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
+    expect(runStatuses()).toEqual(['failed', 'failed', 'failed'])
+    const later = await played()
+    const inputs: string[] = []
+    const plane = {
+      live: fixture.plane.live,
+      followUp: (sessionId: SessionId, input: string): Promise<FollowUpOutcome> => {
+        inputs.push(input)
+        return fixture.plane.followUp(sessionId, input)
+      },
+    }
+    await startQueueFollowUp(queues, plane, fixture.sessionId)
+    expect(runStatuses()).toEqual(['failed', 'failed', 'failed', 'completed'])
+    expect(inputs).toHaveLength(1)
+    expect(inputs[0]).toContain(`queue ${stranded} finished`)
+    expect(inputs[0]).toContain(`queue ${later} finished`)
+    expect(record?.delivery).toBe('delivered')
     expect(queues.undelivered(fixture.sessionId, false)).toEqual([])
   })
 
