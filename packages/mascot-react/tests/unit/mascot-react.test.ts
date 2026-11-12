@@ -1,18 +1,10 @@
 import {execFileSync} from 'node:child_process'
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from 'node:fs'
+import {mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
 import {dirname, join, resolve} from 'node:path'
 import {afterAll, describe, expect, test} from 'vitest'
+import {packTarball} from '@conciv/vitest-config/pack'
 
 const packageRoot = resolve(import.meta.dirname, '../..')
 const mascotRoot = realpathSync(join(packageRoot, 'node_modules/@conciv/mascot'))
@@ -46,15 +38,8 @@ process.stdout.write(
 )
 `
 
-describe.skip('packed install', () => {
+describe('packed install', {tags: ['packed']}, () => {
   const consumerRoots: string[] = []
-
-  function packTarball(root: string, destination: string): string {
-    const output = execFileSync('pnpm', ['pack', '--pack-destination', destination], {cwd: root, encoding: 'utf8'})
-    const tarball = output.trim().split('\n').at(-1)
-    if (tarball === undefined || !existsSync(tarball)) throw new Error(`pnpm pack produced no tarball:\n${output}`)
-    return tarball
-  }
 
   function installPacked(consumerRoot: string, root: string, name: string): void {
     const target = join(consumerRoot, 'node_modules', name)

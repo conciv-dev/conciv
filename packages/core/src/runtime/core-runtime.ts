@@ -8,7 +8,7 @@ import {symbolicateFrames} from '../editor/symbolicate.js'
 import type {ChatPlane} from '@conciv/chat'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {logError} from '../lib/debug.js'
-import {pageQueryStream} from '../page-bus.js'
+import {pageQueryStream} from '../page/page-bus.js'
 import type {SessionPrimitives} from './primitives.js'
 import {runWithSession} from './session-context.js'
 import type {CoreRuntime, EngineScope, SessionScope, ToolCatalog} from './scope-types.js'
@@ -76,19 +76,23 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
   const model = deps.model(id)
   const view = registry.whenPageConnected(() => page.bus.connected(id))
   const agentId: string = id
-  const requestFor = (toolCallId: string | undefined, signal: AbortSignal | undefined): ToolRequest => ({
+  const requestFor = (options: {toolCallId?: string; signal?: AbortSignal; outside?: boolean} = {}): ToolRequest => ({
     sessionId: id,
     agentId,
     model,
-    ...(toolCallId === undefined ? {} : {toolCallId}),
-    ...(signal === undefined ? {} : {signal}),
+    ...(options.toolCallId === undefined ? {} : {toolCallId: options.toolCallId}),
+    ...(options.signal === undefined ? {} : {signal: options.signal}),
+    ...(options.outside === true ? {outside: true} : {}),
   })
   return {
     id,
     model,
     tools: {
       call: (name, input, options) =>
-        registry.call(name, input, {request: requestFor(options?.toolCallId, options?.signal)}),
+        registry.call(name, input, {
+          request: requestFor(options),
+          ...(options?.gate === undefined ? {} : {gate: options.gate}),
+        }),
       has: (name) => registry.has(name),
       catalog: view.catalog,
     },

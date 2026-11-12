@@ -18,7 +18,7 @@ Browser page for the test host. It mounts the extension under test (from a virtu
 
 ## Invariants
 
-- `makeHostGrab` (`grab.ts`): only elements with or inside `[data-conciv-source]` can be picked; `cancel` resolves the pending pick with null
+- `makeHostGrab` (`grab.ts`): only elements with or inside `[data-tsd-source]` can be picked; `cancel` resolves the pending pick with null
 - `parseSource` (`grab.ts`): `filePath:line:column` split on the last two colons
 - `startPageHost` (`page-host.ts`): an empty `conciv-session` serves no page plane
 - `startHost` (`host-runtime.tsx`): `testkit:attach` events failing the zod `attachDetail` schema are ignored; an empty `conciv-session` gives sessionId null

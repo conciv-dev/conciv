@@ -2,9 +2,12 @@ import {defineConfig} from 'vitest/config'
 import {playwright} from '@vitest/browser-playwright'
 import {ciTest} from '@conciv/vitest-config'
 
-export default defineConfig({
+const PACKED_TAG = 'packs and installs tarballs; runs only in .github/workflows/packed.yml'
+
+export default defineConfig(({mode}) => ({
   test: {
     ...ciTest(),
+    tags: [{name: 'packed', description: PACKED_TAG, skip: mode !== 'packed'}],
     projects: [
       {
         extends: true,
@@ -30,4 +33,4 @@ export default defineConfig({
       },
     ],
   },
-})
+}))

@@ -1,8 +1,7 @@
 import type {SourceLoc} from '@conciv/protocol/page-introspect-types'
 
 export function sourceFromAttr(el: Element): SourceLoc | null {
-  const node = el.closest('[data-conciv-source],[data-tsd-source]')
-  const raw = node?.getAttribute('data-conciv-source') ?? node?.getAttribute('data-tsd-source')
+  const raw = el.closest('[data-tsd-source]')?.getAttribute('data-tsd-source')
   if (!raw) return null
   const parts = raw.split(':')
   const column = Number(parts.pop())

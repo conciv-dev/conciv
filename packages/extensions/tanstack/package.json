@@ -45,6 +45,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/host/tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
+    "test:packed": "vitest run --mode packed --project tanstack --tags-filter=packed",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
   },

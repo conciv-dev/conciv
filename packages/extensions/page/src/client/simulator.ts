@@ -15,6 +15,7 @@ import {
   AimedCursors,
   CursorLook,
   aimCursor,
+  cannotAnimate,
   cursorElement,
   dropCursor,
   pageAt,
@@ -24,6 +25,10 @@ import {
 } from './agent-cursor.js'
 
 const TASK_TIMEOUT_MS = 60_000
+const MOVE_MS = 300
+const AFTER_RIPPLE_MS = 100
+const AFTER_CLICK_MS = 200
+const AFTER_INPUT_MS = 100
 const STOP_CONFIRM_MS = 3000
 const HIDE_MS = 800
 const BLOCKED_EVENTS = ['click', 'mousedown', 'mouseup', 'mousemove', 'wheel', 'keydown', 'keyup']
@@ -69,6 +74,10 @@ type Simulator = {
   taskSession: string | null
   cursor: string
   onStop: (sessionId: string) => void
+  running: (sessionId: string) => boolean
+  queues: Map<string, AbortController>
+  stoppedQueues: Set<string>
+  pacing: boolean
 }
 
 const sim: Simulator = {
@@ -82,9 +91,17 @@ const sim: Simulator = {
   taskSession: null,
   cursor: '',
   onStop: ignore,
+  running: idle,
+  queues: new Map(),
+  stoppedQueues: new Set(),
+  pacing: false,
 }
 
 function ignore(): void {}
+
+function idle(): boolean {
+  return false
+}
 
 function warnUnlessCanceled(reason: unknown): void {
   if (reason === GLOW_CANCELED) return
@@ -125,6 +142,7 @@ function shake(): void {
 }
 
 function stop(): void {
+  for (const queue of sim.queues.keys()) sim.stoppedQueues.add(queue)
   const session = sim.taskSession
   if (session !== null) sim.onStop(session)
 }
@@ -143,9 +161,15 @@ export function mountSimulator(options: {
   root: ShadowRoot
   session: () => string | null
   onStop: (sessionId: string) => void
+  running?: (sessionId: string) => boolean
 }): () => void {
   unmountSimulator()
-  Object.assign(sim, {root: options.root, session: options.session, onStop: options.onStop})
+  Object.assign(sim, {
+    root: options.root,
+    session: options.session,
+    onStop: options.onStop,
+    running: options.running ?? idle,
+  })
   return unmountSimulator
 }
 
@@ -153,7 +177,18 @@ function unmountSimulator(): void {
   clearTimeout(sim.timeout)
   disarm()
   if (sim.run) unmountRun(sim.run)
-  Object.assign(sim, {root: null, run: null, shown: false, taskSession: null, session: () => null, onStop: ignore})
+  for (const held of sim.queues.values()) held.abort()
+  sim.queues.clear()
+  sim.stoppedQueues.clear()
+  Object.assign(sim, {
+    root: null,
+    run: null,
+    shown: false,
+    taskSession: null,
+    session: () => null,
+    onStop: ignore,
+    running: idle,
+  })
 }
 
 function mountRun(root: ShadowRoot): Run {
@@ -249,7 +284,57 @@ export function endTask(): void {
 }
 
 export function endRun(sessionId: string): void {
-  if (sim.taskSession === sessionId) endTask()
+  if (sim.taskSession !== sessionId) return
+  if (sim.queues.size > 0) return
+  endTask()
+}
+
+export type Beat = 'click' | 'input' | 'point'
+
+export function acceptQueue(queueId: string, plane: AbortSignal | undefined): void {
+  const held = new AbortController()
+  sim.queues.set(queueId, held)
+  plane?.addEventListener('abort', () => finishQueue(queueId), {once: true, signal: held.signal})
+  if (plane?.aborted === true) finishQueue(queueId)
+}
+
+export function queueStopped(queueId: string): boolean {
+  return sim.stoppedQueues.has(queueId) || !sim.queues.has(queueId)
+}
+
+function pace(ms: number): Promise<void> {
+  if (cannotAnimate()) return Promise.resolve()
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+export async function arriveAt(options: {element: Element; agent: string; beat: Beat}): Promise<void> {
+  const {element, agent, beat} = options
+  const {arrived} = moveTo({element, agent})
+  await Promise.all([arrived, pace(MOVE_MS)])
+  if (beat === 'point') return
+  ripple(agent)
+  await pace(AFTER_RIPPLE_MS)
+}
+
+export async function landQueued<Result>(options: {beat: Beat; act: () => Promise<Result>}): Promise<Result> {
+  sim.pacing = true
+  try {
+    return await options.act()
+  } finally {
+    sim.pacing = false
+    await pace(options.beat === 'click' ? AFTER_CLICK_MS : AFTER_INPUT_MS)
+  }
+}
+
+export function finishQueue(queueId: string): void {
+  const held = sim.queues.get(queueId)
+  if (held === undefined) return
+  sim.queues.delete(queueId)
+  held.abort()
+  sim.stoppedQueues.delete(queueId)
+  if (sim.queues.size > 0) return
+  if (sim.taskSession !== null && sim.running(sim.taskSession)) return
+  endTask()
 }
 
 function ripple(agent: string): void {
@@ -344,7 +429,10 @@ export function simulateClick(options: {element: Element; agent: string}): void 
   blurLastClicked()
   sim.lastClicked = element
   const {point, arrived} = moveTo({element, agent})
-  void arrived.then(() => ripple(agent))
+  const paced = sim.pacing
+  void arrived.then(() => {
+    if (!paced) ripple(agent)
+  })
   dispatchPress({target: hitTarget({element, point}), element, point})
 }
 

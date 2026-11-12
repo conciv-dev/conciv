@@ -216,7 +216,7 @@ already renders `in {sourceLabel(source)}` (`grab-reference.tsx:35-37,68-76`). F
 ## 4. Grab-disabled state (capability-driven)
 
 **Problem.** The grab button silently no-ops when the host has no grabbable surface (true on web when a
-page has no `data-conciv-source` elements, and on native when a screen has nothing interesting).
+page has no `data-tsd-source` elements, and on native when a screen has nothing interesting).
 
 **Target.** The grab affordance reflects a capability signal and disables itself when nothing is grabbable.
 
@@ -227,7 +227,7 @@ between the provider and the button. Sources:
 
 - **Native:** the provider's `grabbable()` reflects the last `grabCapability` bridge message (`02`) — the
   SDK answers cheaply from its hit-test/anchor registry.
-- **Web:** the react-grab adapter reports whether any `data-conciv-source` element exists; **default `true`
+- **Web:** the react-grab adapter reports whether any `data-tsd-source` element exists; **default `true`
   when `grabbable` is absent** so existing web hosts are byte-for-byte unchanged.
 
 The grab button lives in the composer action area (terminal has its own at `terminal-actions.tsx:106`; the

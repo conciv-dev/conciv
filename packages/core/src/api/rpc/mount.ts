@@ -19,6 +19,9 @@ import type {AuthRouter} from '../../engine-login.js'
 import type {createSessionSearch} from '../../sessions/session-search.js'
 import type {createHubInstaller} from './hub.js'
 import type {createSettingsStorage} from '../../settings/settings-storage.js'
+import type {McpVars} from '../mcp.js'
+import type {createTabs} from '../tabs.js'
+import type {PageQueues} from '../../page/page-queue.js'
 
 export type ChatContext = {
   defaultHarness: HarnessAdapter
@@ -43,6 +46,9 @@ export type RpcDeps = {
   settings: ReturnType<typeof createSettingsStorage>
   hub: ReturnType<typeof createHubInstaller>
   assist: (sessionId: SessionId) => readonly ConcivServerTool[]
+  code: McpVars['mcp']
+  tabs: ReturnType<typeof createTabs>
+  queues: Pick<PageQueues, 'wait'>
 }
 
 export const os: Implementer<typeof contract, RpcContext, RpcContext> = implement(contract).$context<RpcContext>()
@@ -78,6 +84,28 @@ export function makeSessionOs(deps: RpcDeps): SessionOs {
   })
 }
 
+export function makeToolCallOs(deps: RpcDeps): SessionOs {
+  return os.use(({context, next}) => {
+    const scope = callerScope(deps, context)
+    return runWithSession(scope, () => next({context: {session: scope}}))
+  })
+}
+
+const ADMITTED_INSIDE_THE_TOOL = new Set(['registry.call'])
+
+export async function admitOutsideCall(
+  deps: RpcDeps,
+  context: RpcContext,
+  scope: SessionScope,
+  signal: AbortSignal | undefined,
+  procedure: string,
+): Promise<void> {
+  const hub = callTrace((header) => rpcHeader(context, header)).hub
+  if (hub === null) return
+  refuseOutside(deps, hub.client, procedure)
+  await admitHubCaller(deps, context, scope, signal)
+}
+
 const DECIDING_PROCEDURES = new Set(['chat.permissionDecision', 'chat.allowOutside'])
 
 const OUTSIDE_DECISION_REFUSAL = "outside agents can't answer permission requests; decide it in the tab"
@@ -89,7 +117,8 @@ const OUTSIDE_HUB_REFUSAL = "outside agents can't connect or disconnect agents; 
 export function makeHubAdmission(deps: RpcDeps) {
   return plainOs.$context<RpcContext>().middleware(async ({context, next, signal, path}, input: unknown) => {
     const hub = callTrace((header) => rpcHeader(context, header)).hub
-    if (hub !== null) refuseOutside(deps, hub.client, path.join('.'))
+    const procedure = path.join('.')
+    if (hub !== null && !ADMITTED_INSIDE_THE_TOOL.has(procedure)) refuseOutside(deps, hub.client, procedure)
     const named = NamedSessionSchema.safeParse(input)
     if (named.success) await admitHubCaller(deps, context, deps.runtime.forSession(named.data.sessionId), signal)
     return next()

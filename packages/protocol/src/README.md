@@ -6,13 +6,13 @@ Zod schemas and TypeScript types for the conciv wire protocol: chat sessions and
 
 ## Interface
 
-- Paths and headers (`chat-types.ts`): CHAT_WS_PATH '/chat-ws', CHAT_SSE_PATH '/chat-sse', CHAT_HISTORY_PAGE_SIZE 50, CONCIV_SESSION_HEADER 'conciv-session-id', CONCIV_CLAUDE_SESSION_HEADER, CHAT_DELIVERY_HEADERS, MAX_ATTACHMENT_RAW_BYTES
+- Paths and headers (`chat-types.ts`): CHAT_WS_PATH '/chat-ws', CHAT_SSE_PATH '/chat-sse', CHAT_HISTORY_PAGE_SIZE 50, CONCIV_SESSION_HEADER 'conciv-session-id', CONCIV_CLAUDE_SESSION_HEADER, CHAT_DELIVERY_HEADERS, MAX_ATTACHMENT_RAW_BYTES, CODE_MODE_TIMEOUT_MS 150000 (the code-mode execute timeout)
 - Chat schemas (`chat-types.ts`): ChatContentPartSchema, SessionId, HarnessSessionId, SessionRecordSchema (with a nullable `effort`), ReasoningEffortSchema (`low` `medium` `high` `xhigh` `max`), HarnessModelSchema (optional `efforts`), PermissionDecisionSchema, NavigationStateSchema, ChatModelsSchema, HarnessMetaSchema, HarnessMenuEntrySchema (a harness with its `models`, `defaultModel` and `modelsFailed`), ChatHarnessesSchema, ChatCommandsSchema, ChatToolsSchema, ChatSessionsSchema, RenameSessionSchema and more, with `isSessionId` / `isHarnessSessionId`
 - Chat events (`chat-event-types.ts`): `defineChatEvent`; 'approval-requested', 'conciv.run-lifecycle', 'conciv.session-run'; `approvalAskOf`, `isRunPhaseTerminal`
-- Chat messages (`chat-message-types.ts`): @tanstack/ai aliases, `toModelMessages`, `toChatMessages`, `CompactionMetadataSchema`, `OutsideCallMetadataSchema` (the `{conciv: {origin: 'hub', client, run}}` marker an outside agent's call carries)
+- Chat messages (`chat-message-types.ts`): @tanstack/ai aliases, `toModelMessages`, `toChatMessages`, `CompactionMetadataSchema`, `OutsideCallMetadataSchema` (the `{conciv: {origin: 'hub', client, run}}` marker an outside agent's call carries), `isContentParts`, and `imagesIn` / `withoutImages` / `imageBlocks` (find image parts anywhere in a value, replace them with a stub, and turn them into MCP image blocks)
 - `chatBusy` (`chat-busy.ts`); `ChatTool` / `defineTool` (`chat-tool-types.ts`)
 - Push frames (`push-types.ts`): PUSH_WS_PATH '/push-ws', PUSH_SESSION_PARAM 'sessionId', PushFrameSchema (channels ready, page, chat), PageServingFrameSchema (client to server: 'page-serving' with `serving`)
-- Page protocol (`page-types.ts`): PageQuerySchema, PageReplySchema, PAGE_ERROR_CODES, SymbolicateSchema, OpenSourceResultSchema, `pageFailure`
+- Page protocol (`page-types.ts`): PageQuerySchema, PageReplySchema, PAGE_ERROR_CODES, SymbolicateSchema, OpenSourceResultSchema, `pageFailure`, PageQueueHandleSchema (`{queueId, actions}`), PAGE_QUEUE_TOOL, PAGE_QUEUE_ASYNC_TOOL, PAGE_QUEUE_SYNC_MS (`CODE_MODE_TIMEOUT_MS` minus 30 s)
 - Element captures (`element-capture-types.ts`): ELEMENT_CAPTURE_KINDS, TOOL_CAPTURE_MODES, ElementCaptureSchema, PageCaptureBundleSchema
 - Terminal control (`terminal-types.ts`): TtyClientControlSchema (resize, inject), TtyServerControlSchema (exit, busy, error)
 - UI input (`ui-types.ts`): UiInputSchema, UiAnswerSchema, `aguiSnapshotFor`

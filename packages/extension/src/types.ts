@@ -1,7 +1,7 @@
 import type {Component, JSX} from 'solid-js'
 import type {z} from 'zod'
 import type {ContentPart, ChatMessage} from '@conciv/protocol/chat-message-types'
-import type {AnyRouter} from '@orpc/server'
+import type {AnyRouter, ErrorMap, Meta, Middleware, ORPCErrorConstructorMap} from '@orpc/server'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
@@ -29,6 +29,7 @@ export type ToolRequest = {
   model: string | null
   toolCallId?: string
   signal?: AbortSignal
+  outside?: boolean
 }
 
 export type ExtensionServerTool = {
@@ -164,8 +165,20 @@ export type ServerApi<Config, SettingsValue extends object = Record<never, never
   upgradeWebSocket: UpgradeWebSocket
 }
 
+export type ToolCallContext = {request: ToolRequest}
+
+export type ToolMiddleware = Middleware<
+  ToolCallContext,
+  Record<never, never>,
+  unknown,
+  unknown,
+  ORPCErrorConstructorMap<ErrorMap>,
+  Meta
+>
+
 export type ServerResult<Context> = {
   context: Context
+  middleware?: ToolMiddleware
   router?: AnyRouter
   app?: unknown
   turnEnd?: (sessionId: SessionId) => void | Promise<void>

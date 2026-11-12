@@ -11,6 +11,7 @@ export type PaneActivity = 'unmounted' | 'idle' | 'running'
 
 export type LiveSessions = {
   activityIn: (sessionId: string | null) => PaneActivity
+  runLive: (sessionId: string) => boolean
   waitingIn: (sessionId: string | null) => boolean
   open: (sessionId: Accessor<string>) => Accessor<ChatSession>
   reopen: (sessionId: string) => void
@@ -150,6 +151,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
   const chatOf = (sessionId: string | null) => chats().find((entry) => entry.sessionId === sessionId)
 
   return {
+    runLive: (sessionId) => runOf(sessionId).live !== null,
     activityIn(sessionId) {
       const entry = chatOf(sessionId)
       if (!entry) return 'unmounted'

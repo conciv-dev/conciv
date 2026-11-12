@@ -42,6 +42,8 @@ export type ClientToolCtx = {
   resetRefs: () => void
   consoleEntries: (since?: number) => ClientConsoleEntry[]
   effects: readonly ClientEffect[]
+  queued?: {id: string; index: number; of: number}
+  signal?: AbortSignal
 }
 
 export function toolError(code: string, options: {message?: string; data?: unknown} = {}): ToolError {

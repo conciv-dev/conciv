@@ -2,6 +2,15 @@ import {z} from 'zod'
 import type {ToolIconKey, ToolLabel} from '@conciv/protocol/tool-icon-types'
 import type {ToolCaptureMode} from '@conciv/protocol/element-capture-types'
 import {defineTool, type ToolBuilder, type ToolErrors, type ToolMeta} from '@conciv/extension/tool'
+import {
+  PAGE_QUEUE_ASYNC_TOOL,
+  PAGE_QUEUE_MAX_ACTIONS,
+  PAGE_QUEUE_SYNC_MS,
+  PAGE_QUEUE_TOOL,
+  PageQueueHandleSchema,
+  PageQueueProgressSchema,
+  PageQueueResultSchema,
+} from '@conciv/protocol/page-types'
 
 export const PAGE_EXTENSION_NAME = 'page'
 
@@ -294,7 +303,7 @@ export const locateDef = pageTool({
   category: 'react',
   icon: 'react',
   label: {running: 'Locating the source', done: 'Located the source'},
-  hint: 'exact when the element carries a data-conciv-source attribute',
+  hint: 'exact when the element carries a data-tsd-source attribute',
   keywords: ['source', 'file'],
   input: target,
   output: z.looseObject({
@@ -538,8 +547,65 @@ export const pressDef = pageTool({
   label: {running: 'Pressing a key', done: 'Pressed'},
   mutating: true,
   keywords: ['keyboard', 'key'],
-  input: z.object({...ElementTarget, key: z.string().describe('keyboard key, e.g. Enter')}),
+  input: z.object({...ElementTarget, key: z.string().describe('a key or a hotkey binding, e.g. Enter or Mod+Shift+X')}),
   output: OkResult,
+})
+
+function queued<Name extends string, Shape extends z.ZodRawShape>(def: {name: Name; inputSchema: z.ZodObject<Shape>}) {
+  return def.inputSchema.extend({tool: z.literal(def.name)})
+}
+
+export const PageQueueActionSchema = z.discriminatedUnion('tool', [
+  queued(clickDef),
+  queued(hoverDef),
+  queued(fillDef),
+  queued(selectDef),
+  queued(checkDef),
+  queued(uncheckDef),
+  queued(pressDef),
+  queued(scrollDef),
+])
+
+const QueueActionsInput = z.object({
+  actions: z
+    .array(PageQueueActionSchema)
+    .min(1)
+    .max(PAGE_QUEUE_MAX_ACTIONS, `a queue holds at most ${PAGE_QUEUE_MAX_ACTIONS} actions; split the list`)
+    .describe(
+      'the actions to play in order, each {tool, ...that tool input}: page_click, page_hover, page_fill, page_select, page_check, page_uncheck, page_press, page_scroll',
+    ),
+})
+
+const QUEUE_KEYWORDS = ['batch', 'list', 'sequence', 'fill form', 'many']
+
+const QUEUE_PLAYS = `the page plays up to ${PAGE_QUEUE_MAX_ACTIONS} actions in order, one at a time; only page_click, page_hover, page_fill, page_select, page_check, page_uncheck, page_press and page_scroll go in a list (a click on a submit button is fine); a failed action is skipped and the rest still play`
+
+export const queueDef = pageTool({
+  verb: pageVerbOfTool(PAGE_QUEUE_TOOL),
+  summary: 'play a list of page actions in order with the pointer and return every outcome',
+  category: 'act',
+  icon: 'pointer',
+  label: {running: 'Playing page actions', done: 'Played page actions'},
+  hint: `${QUEUE_PLAYS}; returns every outcome; if the list takes longer than ${PAGE_QUEUE_SYNC_MS / 1000} s you get the progress so far plus a queueId, and the rest comes back on its own (with your next conciv call, or as a follow-up)`,
+  mutating: true,
+  capture: 'none',
+  keywords: QUEUE_KEYWORDS,
+  input: QueueActionsInput,
+  output: z.union([PageQueueResultSchema, PageQueueProgressSchema]),
+})
+
+export const queueAsyncDef = pageTool({
+  verb: pageVerbOfTool(PAGE_QUEUE_ASYNC_TOOL),
+  summary: 'queue a list of page actions the page plays in order with the pointer, answering at once',
+  category: 'act',
+  icon: 'pointer',
+  label: {running: 'Queueing page actions', done: 'Queued page actions'},
+  hint: `${QUEUE_PLAYS}; returns a queueId at once, and every outcome comes back on its own when the list ends (with your next conciv call, or as a follow-up)`,
+  mutating: true,
+  capture: 'none',
+  keywords: QUEUE_KEYWORDS,
+  input: QueueActionsInput,
+  output: PageQueueHandleSchema.describe('the queue id and how many actions the page accepted'),
 })
 
 export const setattrDef = pageTool({
@@ -692,6 +758,8 @@ export const PAGE_TOOL_DEFS = [
   hoverDef,
   scrollDef,
   submitDef,
+  queueDef,
+  queueAsyncDef,
   setattrDef,
   removeattrDef,
   addclassDef,

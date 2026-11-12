@@ -1,4 +1,5 @@
 import {describe, expect, it, vi, test} from 'vitest'
+import {once} from 'es-toolkit'
 import {parseSync} from 'oxc-parser'
 import {TOKENS} from '@conciv/ui-kit-system/tokens'
 import {buildCatalog, scaffold, validateSource, type ScaffoldKind} from '../src/catalog.js'
@@ -8,12 +9,15 @@ import {collectAttachmentCards, collectToolRenderers, collectClientEffects} from
 import {z} from 'zod'
 import {defineTool, type ClientToolCtx, isToolError, toolError} from '../src/define-tool.js'
 import {createSettingsStore} from '../src/settings-store.js'
+import {mergeSettings} from '../src/merge-settings.js'
 import type {SettingsSnapshot} from '@conciv/contract'
 import {
   type ClientEffect,
   type SettingsState,
+  type SettingsStore,
   type ServerToolPageAccess,
   type ServerToolRegistryAccess,
+  type ToolMiddleware,
   type ToolRequest,
 } from '../src/types.js'
 import {Hono} from 'hono'
@@ -21,13 +25,14 @@ import {SessionId} from '@conciv/protocol/chat-types'
 import {readFile} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
 import {pageVerbError, isPageVerbError} from '../src/page-errors.js'
-import {os, createRouterClient, type AnyRouter} from '@orpc/server'
+import {os, createRouterClient, onError, type AnyRouter} from '@orpc/server'
 import {rpcWebsocketRoute, type UpgradeWebSocket} from '../src/rpc-mount.js'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {isDefinedError, ORPCError} from '@orpc/client'
 import {
   createToolRegistry,
   TOOL_TRANSPORT_ERRORS,
+  type RegistryCallGate,
   type RegistryToolMeta,
   type ToolRegistry,
 } from '../src/tool-registry.js'
@@ -270,36 +275,93 @@ describe('define extension', () => {
     expect(defineExtension({name: 'plain'}).parseSettings({anything: 1})).toEqual({})
   })
 
-  test('readSettings serves the stored values parsed, now and on every change', async () => {
-    const ext = defineExtension({name: 'terminal', settings: terminalSettings})
+  test('merges project over global: arrays replace, records merge per key, missing and null fall through', () => {
+    const global = {
+      skin: 'terminal',
+      launcher: 'hidden',
+      docksHidden: ['notes', 'terminal'],
+      commandShortcuts: {togglePanel: ['Mod+J'], quickTerminal: ['Mod+T']},
+    }
+    const project = {launcher: null, docksHidden: ['files'], commandShortcuts: {quickTerminal: ['Mod+K']}}
+    expect(mergeSettings(project, global)).toEqual({
+      skin: 'terminal',
+      launcher: 'hidden',
+      docksHidden: ['files'],
+      commandShortcuts: {togglePanel: ['Mod+J'], quickTerminal: ['Mod+K']},
+    })
+    expect(mergeSettings({}, global)).toEqual(global)
+  })
+
+  const memoryStore = (value: Record<string, unknown>) => {
     const saved: {snapshot: SettingsSnapshot; listeners: ((snapshot: SettingsSnapshot) => void)[]} = {
-      snapshot: {generation: 'extension-test', version: 1, value: {fontSize: 16, shell: 7}},
+      snapshot: {generation: 'extension-test', version: 1, value},
       listeners: [],
     }
-    const commit = (value: Record<string, unknown>): SettingsSnapshot => {
-      saved.snapshot = {...saved.snapshot, version: saved.snapshot.version + 1, value}
+    const commit = (next: Record<string, unknown>): SettingsSnapshot => {
+      saved.snapshot = {...saved.snapshot, version: saved.snapshot.version + 1, value: next}
       saved.listeners.forEach((listener) => listener(saved.snapshot))
       return saved.snapshot
     }
     const state: SettingsState = {
       read: async () => saved.snapshot,
-      set: async (key, value) => commit({...saved.snapshot.value, [key]: value}),
-      delete: async () => saved.snapshot,
+      set: async (key, next) => commit({...saved.snapshot.value, [key]: next}),
+      delete: async (key) =>
+        commit(Object.fromEntries(Object.entries(saved.snapshot.value).filter(([name]) => name !== key))),
       subscribe: async (listener) => {
         saved.listeners.push(listener)
         return () => undefined
       },
     }
-    const reader = ext.readSettings(createSettingsStore(async () => state))
+    return createSettingsStore<Record<string, unknown>>(async () => state)
+  }
+
+  test('readSettings applies project over global over defaults, now and on every change of either file', async () => {
+    const ext = defineExtension({name: 'terminal', settings: terminalSettings})
+    const stores = {project: memoryStore({shell: 7}), global: memoryStore({fontSize: 16})}
+    const reader = ext.readSettings(stores)
     expect(await reader.all()).toEqual({fontSize: 16, cursor: 'block', copyOnSelect: false, shell: ''})
     const changes: unknown[] = []
     await reader.onChange((value) => changes.push(value))
-    await state.set('cursor', 'nope')
-    await state.set('copyOnSelect', true)
+    await stores.project.set('fontSize', 18)
+    await stores.global.set('cursor', 'bar')
+    await stores.project.delete('fontSize')
     expect(changes).toEqual([
-      {fontSize: 16, cursor: 'block', copyOnSelect: false, shell: ''},
-      {fontSize: 16, cursor: 'block', copyOnSelect: true, shell: ''},
+      {fontSize: 18, cursor: 'block', copyOnSelect: false, shell: ''},
+      {fontSize: 18, cursor: 'bar', copyOnSelect: false, shell: ''},
+      {fontSize: 16, cursor: 'bar', copyOnSelect: false, shell: ''},
     ])
+    expect(await reader.all()).toEqual({fontSize: 16, cursor: 'bar', copyOnSelect: false, shell: ''})
+  })
+
+  test('readSettings delivers a write that lands while it loads the files', async () => {
+    const ext = defineExtension({name: 'terminal', settings: terminalSettings})
+    const project = memoryStore({})
+    const racingWrite = once(() => project.set('fontSize', 20))
+    const racing: SettingsStore = {
+      ...project,
+      all: async () => {
+        const value = await project.all()
+        void racingWrite()
+        return value
+      },
+    }
+    const reader = ext.readSettings({project: racing, global: memoryStore({})})
+    const changes: unknown[] = []
+    await reader.onChange((value) => changes.push(value))
+    await project.set('cursor', 'bar')
+    expect(changes).toEqual([
+      {fontSize: 20, cursor: 'block', copyOnSelect: false, shell: ''},
+      {fontSize: 20, cursor: 'bar', copyOnSelect: false, shell: ''},
+    ])
+  })
+
+  test('readSettings leaves out a settings file it cannot read and applies the other one', async () => {
+    const ext = defineExtension({name: 'terminal', settings: terminalSettings})
+    const unreadable = createSettingsStore<Record<string, unknown>>(() =>
+      Promise.reject(new Error('the project settings file is unreadable')),
+    )
+    const reader = ext.readSettings({project: unreadable, global: memoryStore({fontSize: 16})})
+    expect(await reader.all()).toEqual({fontSize: 16, cursor: 'block', copyOnSelect: false, shell: ''})
   })
 })
 
@@ -623,6 +685,72 @@ describe('tool registry', () => {
       meta: {summary: 'a tool nobody bound'},
     })
     expect(() => registry.register(tool, {owner: 'a test registrant'})).toThrow(/server\(\)|client\(\)/)
+  })
+
+  test("an extension's middleware sees a call the gate refuses, and the handler never runs", async () => {
+    type Refusals = {seen: string[]; ran: number}
+    const refusals: Refusals = {seen: [], ran: 0}
+    const tool = defineTool({
+      name: 'gated_tool',
+      description: 'd',
+      inputSchema: z.object({target: z.string()}),
+      outputSchema: z.object({done: z.string()}),
+      meta: {summary: 'a tool behind a gate'},
+    }).server<Refusals>((input, state) => {
+      state.ran += 1
+      return {done: input.target}
+    })
+    const middleware: ToolMiddleware = onError((error, {path, context}, input) => {
+      refusals.seen.push(`${context.request.sessionId} ${path.join('.')} ${JSON.stringify(input)} ${error.message}`)
+    })
+    const registry = createToolRegistry()
+    registry.register(tool, {owner: 'a test registrant', context: refusals, middleware})
+    const refused = registry.call(
+      'gated_tool',
+      {target: 'x'},
+      {
+        request: TEST_REQUEST,
+        gate: () => Promise.reject(new ORPCError('APPROVAL_DENIED', {message: 'the user said no'})),
+      },
+    )
+    await expect(refused).rejects.toMatchObject({code: 'APPROVAL_DENIED', message: 'the user said no'})
+    const admitted = registry.call('gated_tool', {target: 'y'}, {request: TEST_REQUEST, gate: (run) => run()})
+    await expect(admitted).resolves.toEqual({done: 'y'})
+    expect(refusals).toEqual({
+      seen: [`${TEST_REQUEST.sessionId} gated_tool {"target":"x"} the user said no`],
+      ran: 1,
+    })
+  })
+
+  test('an extension middleware cannot answer a call the gate refused or never reached', async () => {
+    const tool = defineTool({
+      name: 'guarded_tool',
+      description: 'd',
+      inputSchema: z.object({}),
+      outputSchema: z.object({done: z.string()}),
+      meta: {summary: 'a tool whose extension tries to answer for it'},
+    }).server(() => ({done: 'handler'}))
+    const refuse = () => Promise.reject(new ORPCError('APPROVAL_DENIED', {message: 'the user said no'}))
+    const swallowing: ToolMiddleware = async ({next}) => {
+      try {
+        return await next()
+      } catch {
+        return {output: {done: 'fallback'}, context: {}}
+      }
+    }
+    const skipping: ToolMiddleware = () => ({output: {done: 'cached'}, context: {}})
+    const callWith = (middleware: ToolMiddleware, gate: RegistryCallGate) => {
+      const registry = createToolRegistry()
+      registry.register(tool, {owner: 'a test registrant', middleware})
+      return registry.call('guarded_tool', {}, {request: TEST_REQUEST, gate})
+    }
+    await expect(callWith(swallowing, refuse)).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+    await expect(callWith(skipping, refuse)).rejects.toMatchObject({code: 'FORBIDDEN'})
+    await expect(callWith(skipping, (run) => run())).rejects.toMatchObject({code: 'FORBIDDEN'})
+    await expect(callWith(swallowing, (run) => run())).resolves.toEqual({done: 'handler'})
+    const ungated = createToolRegistry()
+    ungated.register(tool, {owner: 'a test registrant', middleware: skipping})
+    await expect(ungated.call('guarded_tool', {}, {request: TEST_REQUEST})).rejects.toMatchObject({code: 'FORBIDDEN'})
   })
 
   test('registering the same tool name twice fails loudly', () => {

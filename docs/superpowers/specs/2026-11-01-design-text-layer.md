@@ -18,7 +18,7 @@ This design does three things, in order of weight:
 
 Terms used below:
 
-- **Component**: a DOM element on the live page that carries a `data-conciv-source` attribute (a source location), with its box, styles and children. The client collects them; the server receives them as `LiveComponent` records.
+- **Component**: a DOM element on the live page that carries a `data-tsd-source` attribute (a source location), with its box, styles and children. The client collects them; the server receives them as `LiveComponent` records.
 - **Target model**: what `design_target` stores for a registered image: the raster, the viewport and a node tree. For a PNG target the tree is one root node covering the image; after this change the root also holds one child node per OCR run.
 - **Run**: one piece of text with its box. A **target run** is a `kind: 'text'` node under the target root, produced by OCR. A **live glyph** is a text node under a component, with its string and its line boxes, produced by the DOM.
 - **Tile**: the crop of the live and target rasters around a component's box, grown by `tileMargin`, that the matcher compares to get the component's **mismatch**: the share of the tile's pixels that differ after a blur of `blurRadius`.

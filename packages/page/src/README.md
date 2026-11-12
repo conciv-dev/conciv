@@ -8,9 +8,10 @@ The DOM side of the page plane. `startPagePlane` reads page queries from the eng
 
 - `index.ts:startPagePlane({source, driver?, tools?})` - serves page queries until `dispose()`.
 - `index.ts:servePageQueries` - for each query that parses with `PageQuerySchema`, runs `driver.execute` and replies with `{requestId, outcome}`; `PageQuerySource` type.
-- `page-driver.ts:makeDomPageDriver({tools?, effects?, refs?})` - `PageDriver` with `execute(query)`, `refs`, `dispose()`.
+- `page-driver.ts:makeDomPageDriver({tools?, effects?, refs?})` - `PageDriver` with `execute(query, signal?)` (a queued action stops once `signal` aborts), `refs`, `dispose()`.
 - `page-tool-dispatcher.ts:makePageToolDispatcher` - dispatches a query to the client tool with the same `name`; `PageToolAnswer`, `PageToolDispatch`.
 - `page-snapshot.ts:buildSnapshot` / `addRef` / `describeElement` / `roleOf` / `accessibleNameOf` / `DOM_CAP` (20000) - accessibility-style snapshots and refs.
+- `select-deep.ts:selectDeep(selector)` - the elements a selector matches in the document, followed by those it matches in the page's open shadow roots (never the widget's own; `pageShadowRoot` in the same module decides which shadow roots count, and `isOurs` tells whether an element belongs to the widget).
 - `element-descriptor.ts:isSensitiveField` / `MASKED_VALUE` (`***`) / `elementDescriptor`.
 - `react-bridge.ts:installReactBridge` / `locate` / `describe` / `inspect` / `override` / `tree` / `find` / `rootFibers` / `elementByName` - React fiber inspection; also exported as the `reactBridge` namespace.
 - `render-tracker.ts:startTracking` / `stopTracking` / `report` (exported as `trackReport`) - React commit counting.
@@ -27,6 +28,7 @@ The DOM side of the page plane. `startPagePlane` reads page queries from the eng
 - `index.ts:servePageQueries` - queries that fail `PageQuerySchema` are skipped; reply failures are swallowed.
 - `page-driver.ts:execute` - never throws; errors become `{ok: false, error}`.
 - `page-tool-dispatcher.ts` - an unknown tool name fails with `unknownVerb`; a locator with no `ref`, `selector` or `name` fails with `badArgs('no target: pass ref, selector, or name')`.
+- `console-buffer.ts:startConsoleBuffer` - console calls are recorded at their own level; an uncaught error is recorded as `uncaught` and an unhandled rejection as `unhandled`, each with its message and its stack when it is an `Error` (the message is kept separately when the stack does not begin with it, as in Firefox and Safari).
 - `element-descriptor.ts:isSensitiveField` - `type=password` or an `autocomplete` containing `cc-`, `one-time-code`, `current-password` or `new-password` is sensitive.
 - `console-buffer.ts:startConsoleBuffer` - keeps the last 200 entries (`CONSOLE_CAP`).
 - `render-tracker.ts:installTracker` - installs the commit hook only once.
