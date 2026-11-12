@@ -2,9 +2,13 @@ import {describe, expect, expectTypeOf, it} from 'vitest'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import {Plugin, Tool} from '../src/index.js'
+import {Plugin, Rpc, Tool} from '../src/index.js'
 import type {Registration} from '../src/registration.js'
 import type {ServerRef} from '../src/servers.js'
+
+function unreachable(): never {
+  throw new Error('no server')
+}
 
 function recordingContext(calls: string[]): Plugin.Context {
   const registration: Registration = {dispose: async () => void calls.push('dispose')}
@@ -13,6 +17,7 @@ function recordingContext(calls: string[]): Plugin.Context {
     id: 'sidecar',
     name: 'engine',
     url: 'http://127.0.0.1:5173/t/token',
+    client: {rpc: unreachable},
     local: true,
     builtin: true,
     compatible: true,
@@ -45,6 +50,9 @@ function recordingContext(calls: string[]): Plugin.Context {
       assert: undefined,
     },
     plugin: {list: async () => ({location: {directory: '/workspace'}, data: []})},
+    rpc: Object.assign(unreachable, {
+      register: async () => ({dispose: registration.dispose, events: {emit: async () => {}}}),
+    }),
     session: sessionDomain(registration),
     skill: {
       list: async () => ({location: {directory: '/workspace'}, data: []}),
@@ -149,6 +157,71 @@ describe('define', () => {
     type SumTool = Tool.Info<z.ZodObject<{left: z.ZodNumber}>, z.ZodObject<{sum: z.ZodNumber}>>
     expectTypeOf<Parameters<SumTool['execute']>[0]>().toEqualTypeOf<{left: number}>()
     expectTypeOf<NonNullable<Awaited<ReturnType<SumTool['execute']>>['output']>>().toEqualTypeOf<{sum: number}>()
+  })
+})
+
+describe('Rpc', () => {
+  const Acme = Rpc.define({
+    id: 'acme',
+    methods: {
+      search: {
+        input: z.object({query: z.string(), limit: z.number().default(10)}),
+        output: z.object({hits: z.array(z.string())}),
+        errors: {not_found: z.object({query: z.string()})},
+      },
+    },
+    events: {indexed: {schema: z.object({count: z.number()})}},
+  })
+
+  it('define returns its argument', () => {
+    const definition = {
+      id: 'acme',
+      methods: {ping: {input: z.object({}), output: z.object({ok: z.boolean()})}},
+      events: {},
+    }
+    expect(Rpc.define(definition)).toBe(definition)
+  })
+
+  it('define rejects an error name in the reserved rpc. space', () => {
+    expect(() =>
+      Rpc.define({
+        id: 'acme',
+        methods: {
+          ping: {
+            input: z.object({}),
+            output: z.object({}),
+            // @ts-expect-error error names starting with rpc. are reserved
+            errors: {'rpc.internal': z.object({})},
+          },
+        },
+        events: {},
+      }),
+    ).toThrow('RPC error names starting with "rpc." are reserved: rpc.internal')
+  })
+
+  it('types handlers, the error factory, the client and event payloads from the definition', () => {
+    type Handlers = Rpc.RpcHandlers<typeof Acme>
+    type Search = typeof Acme.methods.search
+    expectTypeOf<Parameters<Handlers['search']>[0]>().toEqualTypeOf<{query: string; limit: number}>()
+    expectTypeOf<Rpc.ErrorName<Search>>().toEqualTypeOf<'not_found'>()
+    expectTypeOf<Parameters<Rpc.ErrorFactory<Search>>>().toEqualTypeOf<
+      [type: 'not_found', message: string, data: {query: string}]
+    >()
+    expectTypeOf<Rpc.MethodError<Search>>().toEqualTypeOf<{
+      readonly type: 'not_found'
+      readonly message: string
+      readonly data: {query: string}
+    }>()
+    type Client = Rpc.RpcClient<typeof Acme>
+    expectTypeOf<Parameters<Client['search']>>().toEqualTypeOf<
+      [input: {query: string; limit?: number | undefined}, options?: Rpc.RpcCallOptions]
+    >()
+    expectTypeOf<Awaited<ReturnType<Client['search']>>>().toEqualTypeOf<{hits: string[]}>()
+    expectTypeOf<Rpc.RpcEventPayload<typeof Acme>['type']>().toEqualTypeOf<'rpc.acme.indexed'>()
+    expectTypeOf<Rpc.RpcEventPayload<typeof Acme>['data']>().toEqualTypeOf<{count: number}>()
+    expectTypeOf<Rpc.EventInput<typeof Acme>>().toEqualTypeOf<[name: 'indexed', data: {count: number}]>()
+    expectTypeOf<Plugin.Context['rpc']>().toEqualTypeOf<Rpc.RpcDomain>()
+    expectTypeOf<ServerRef['client']['rpc']>().toEqualTypeOf<Rpc.RpcApi>()
   })
 })
 

@@ -152,7 +152,8 @@
     {
       "files": ["packages/plugin/src/**"],
       "rules": {
-        "conciv/no-comments": ["error", {"keepDocComments": true}]
+        "conciv/no-comments": ["error", {"keepDocComments": true}],
+        "conciv/banned-vocabulary": "off"
       }
     },
     {

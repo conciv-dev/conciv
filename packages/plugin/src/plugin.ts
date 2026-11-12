@@ -5,6 +5,7 @@ import type {Info, PublicRef} from './location.js'
 import type {ModelDomain} from './model.js'
 import type {PluginOptions} from './options.js'
 import type {PermissionDomain} from './permission.js'
+import type {RpcDomain} from './rpc.js'
 import type {Servers} from './servers.js'
 import type {SessionDomain} from './session.js'
 import type {SkillDomain} from './skill.js'
@@ -59,6 +60,7 @@ export interface Context {
   readonly plugin: {
     readonly list: (requestOptions?: RequestOptions) => Promise<{location: PublicRef; data: PluginInfo[]}>
   }
+  readonly rpc: RpcDomain
   readonly session: SessionDomain
   readonly skill: SkillDomain
   readonly storage: StorageDomain

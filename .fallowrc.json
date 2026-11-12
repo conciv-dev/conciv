@@ -189,6 +189,10 @@
       "exports": ["*"]
     },
     {
+      "file": "packages/plugin/src/**",
+      "exports": ["Info", "Ref"]
+    },
+    {
       "file": "packages/ui-kit-chat/src/tools/primitives/tool-fallback.tsx",
       "exports": ["*"]
     },

@@ -1,6 +1,12 @@
+import type {RpcApi} from './rpc.js'
+
+export interface ConcivClient {
+  readonly rpc: RpcApi
+}
+
 /**
- * A server the app lists. One ref per id that follows the live connection: read `url` from it each time, as a
- * restarted server gets a new connection under the same id.
+ * A server the app lists. One ref per id that follows the live connection: read `client` and `url` from it each time,
+ * as a restarted server gets a new connection under the same id.
  */
 export interface ServerRef {
   /** The server's id. */
@@ -11,6 +17,8 @@ export interface ServerRef {
   readonly url: string
   /** The HTTP basic password the user configured; undefined when there is none. */
   readonly password?: string
+  /** The server's API client. */
+  readonly client: ConcivClient
   /** The app's own local server, or a loopback http connection to its port. */
   readonly local: boolean
   /** The server the plugin runs in. */

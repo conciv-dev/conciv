@@ -171,53 +171,6 @@ export interface InstructionEntryInfo {
 
 type SessionInput = {readonly sessionId: SessionId}
 
-export type JsonSchema = Record<string, unknown>
-
-export type CacheTtl = `${number}${'ms' | 's' | 'm' | 'h' | 'd'}`
-
-export interface CacheHint {
-  readonly type: 'ephemeral' | 'persistent'
-  readonly ttl?: CacheTtl
-}
-
-export interface SystemPart {
-  readonly type: 'text'
-  readonly text: string
-  /** Not implemented yet. Always undefined in this version. */
-  readonly cache?: CacheHint
-  readonly metadata?: Record<string, unknown>
-}
-
-export interface GenerationOptionsFields {
-  maxTokens?: number
-  temperature?: number
-  topP?: number
-  topK?: number
-  frequencyPenalty?: number
-  seed?: number
-  stop?: Array<string>
-}
-
-/** Request overrides. Typed keys are generation settings; any other key is a provider option. */
-export type SessionRequestOptions = GenerationOptionsFields & Record<string, unknown>
-
-export interface SessionRequest {
-  readonly sessionId: SessionId
-  readonly model: Ref
-  /**
-   * The instructions part keeps each source's text in `metadata.experimental.instructions` as `{ key, text }`. It is
-   * not updated when a hook edits `text`. Experimental.
-   */
-  system: Array<SystemPart>
-  /** Not implemented yet. Always undefined in this version. */
-  options: SessionRequestOptions | undefined
-}
-
-export interface SessionContext extends SessionRequest {
-  readonly agent: string
-  tools: Record<string, {description: string; input: JsonSchema}>
-}
-
 /**
  * Background work still running for the idle Session or one of its descendants. `sessionId` is
  * the Session that owns the job: the idle Session itself, or a descendant such as a subagent child.
@@ -262,8 +215,6 @@ export interface SessionIdle {
 }
 
 export interface SessionHooks {
-  /** Not implemented yet. Never runs in this version. */
-  readonly context: SessionContext
   readonly 'experimental.idle': SessionIdle
 }
 
