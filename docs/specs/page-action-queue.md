@@ -149,6 +149,12 @@ store; a result is never delivered twice down the same path.
    in-call is not published again. If the agent's turn is still running, path 2 hands it the result
    on its next tool call. If the turn has ended, the engine starts a follow-up turn for that session (`kind: 'page-queue'`, beside
    `'chat' | 'compact'` in `delivery.ts:18`) whose input is the queue result, so the agent reacts to it unprompted.
+   The result counts as delivered only when that run's record ends `completed` (or `interrupted` on a tool approval,
+   since the agent has seen the notice by then); a run that ends in `RUN_ERROR` or whose `drive` rejects is a failed
+   follow-up. A failed follow-up is retried with `p-retry` (3 attempts, short backoff). When all 3 fail, the queue is
+   logged once and moves to the `nextReply` delivery state: no further follow-up turn is started for it, so a harness
+   that always fails cannot loop, and the session's next agent reply still carries the result. A follow-up the plane
+   declines because a run is already active is not a failure and is not retried; the result stays owed.
    Attaching it to the next user turn alone does not work for resumed harnesses: `providerMessages` sends only from
    the last user message on (`packages/chat/src/turn.ts:134-141`).
 
