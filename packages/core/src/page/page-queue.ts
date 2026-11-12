@@ -254,7 +254,11 @@ export async function startQueueFollowUp(
   const owed = queues.owedTurn(sessionId).filter((record) => queues.deliver(record))
   const results = owed.flatMap((record) => (record.result === null ? [] : [record.result]))
   if (results.length === 0) return
-  if (await plane.followUp(sessionId, results.map(queueNotice).join('\n\n'))) return
+  const started = await plane.followUp(sessionId, results.map(queueNotice).join('\n\n')).catch((error: unknown) => {
+    logError(`[core] the page queue follow-up turn for ${sessionId} failed to start: ${String(error)}`)
+    return false
+  })
+  if (started) return
   for (const record of owed) record.delivered = false
 }
 
