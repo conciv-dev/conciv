@@ -19,6 +19,7 @@ import {
   type ServerHarness,
   type ServerResult,
   type ServerSessions,
+  type ToolMiddleware,
   type ToolRequest,
 } from '@conciv/extension'
 import type {ToolRegistry} from '@conciv/extension/registry'
@@ -224,12 +225,21 @@ function declaredToolErrors(tool: AnyToolBuilder): {code: string; message: strin
   return Object.entries(tool.errors ?? {}).map(([code, spec]) => ({code, message: spec.message}))
 }
 
-type RegistryToolSource = {extensionName: string; registryTools: readonly AnyToolBuilder[]; context: unknown}
+type RegistryToolSource = {
+  extensionName: string
+  registryTools: readonly AnyToolBuilder[]
+  context: unknown
+  middleware: ToolMiddleware | undefined
+}
 
 function registerExtensionTools(registry: ToolRegistry, sources: RegistryToolSource[]): void {
   for (const source of sources) {
     for (const tool of source.registryTools) {
-      registry.register(tool, {owner: `extension "${source.extensionName}"`, context: source.context})
+      registry.register(tool, {
+        owner: `extension "${source.extensionName}"`,
+        context: source.context,
+        ...(source.middleware === undefined ? {} : {middleware: source.middleware}),
+      })
     }
   }
 }
@@ -475,6 +485,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         .map((tool) => registryBackedTool(tool, scopedToolCall)),
       attachmentExpanders: buildAttachmentExpanders(extension, context),
       context,
+      middleware: result?.middleware,
       dispose: result?.dispose,
       turnEnd: result?.turnEnd,
     }
