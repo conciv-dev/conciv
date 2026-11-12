@@ -34,7 +34,7 @@ import {UsageSnapshotSchema, contextUsedTokens, tokenUsageToSnapshot} from '@con
 import {createTextChunks, fakeText, storyConnection} from '../src/testkit.js'
 import {localSandbox} from '../src/server/local-sandbox.js'
 import type {FakeResponse, FakeResponseStep} from '@tanstack/ai/testing'
-import {chmodSync, mkdtempSync, readdirSync, readFileSync, writeFileSync} from 'node:fs'
+import {mkdtempSync, readdirSync, readFileSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {fileURLToPath} from 'node:url'
 import {join} from 'node:path'
@@ -42,8 +42,6 @@ import {parseSync} from 'oxc-parser'
 import {subscribe, unsubscribe} from 'node:diagnostics_channel'
 import {Worker} from 'node:worker_threads'
 import {closePool, openPool} from '../src/server/quickjs-thread.js'
-
-type TurnPlan = ReturnType<TurnHooks['plan']>
 
 describe('chat stores', () => {
   function chatDb() {
@@ -203,41 +201,51 @@ describe('chat stores', () => {
     const ANSWER = 'the answer'
     const SESSION = 'fake-session'
 
+    const FAKE_CLAUDE = `#!/usr/bin/env node
+const fs = require('node:fs')
+const data = JSON.parse(fs.readFileSync(require('node:path').join(__dirname, 'claude.json'), 'utf8'))
+fs.appendFileSync(data.launches, process.pid + '\\n')
+setTimeout(() => {
+  process.stdout.write(data.init)
+  if (data.afterSilence === 'answer') process.stdout.write(data.answer + data.result)
+  if (data.afterSilence === 'answer') return
+  if (data.afterSilence === 'hang') process.stdout.write(data.answer)
+  const poll = setInterval(() => {
+    if (data.afterSilence === 'hang' || !fs.existsSync(data.gate)) return
+    clearInterval(poll)
+    process.stdout.write(data.answer + data.result)
+  }, 20)
+}, data.silentMs)
+`
+
     function fakeClaude(behaviour: {silentMs: number; afterSilence: 'answer' | 'gate' | 'hang'}) {
       const dir = mkdtempSync(join(tmpdir(), 'conciv-fake-claude-'))
       const files = {bin: join(dir, 'claude'), launches: join(dir, 'launches'), gate: join(dir, 'gate')}
-      const line = (value: unknown) => JSON.stringify(`${JSON.stringify(value)}\n`)
-      const init = line({type: 'system', subtype: 'init', session_id: SESSION, model: 'opus', tools: []})
-      const answer = line({
-        type: 'assistant',
-        parent_tool_use_id: null,
-        session_id: SESSION,
-        message: {id: 'answer', role: 'assistant', content: [{type: 'text', text: ANSWER}]},
-      })
-      const result = line({
-        type: 'result',
-        subtype: 'success',
-        is_error: false,
-        result: ANSWER,
-        session_id: SESSION,
-        usage: {input_tokens: 1, output_tokens: 1},
-      })
-      const gate = JSON.stringify(files.gate)
-      const afterSilence = {
-        answer: `process.stdout.write(${answer} + ${result})`,
-        gate: `const poll = setInterval(() => { if (!fs.existsSync(${gate})) return; clearInterval(poll); process.stdout.write(${answer} + ${result}) }, 20)`,
-        hang: `process.stdout.write(${answer}); setInterval(() => undefined, 1000)`,
-      }
+      const line = (value: unknown) => `${JSON.stringify(value)}\n`
       writeFileSync(
-        files.bin,
-        [
-          '#!/usr/bin/env node',
-          "const fs = require('node:fs')",
-          `fs.appendFileSync(${JSON.stringify(files.launches)}, process.pid + '\\n')`,
-          `setTimeout(() => { process.stdout.write(${init}); ${afterSilence[behaviour.afterSilence]} }, ${behaviour.silentMs})`,
-        ].join('\n'),
+        join(dir, 'claude.json'),
+        JSON.stringify({
+          ...behaviour,
+          launches: files.launches,
+          gate: files.gate,
+          init: line({type: 'system', subtype: 'init', session_id: SESSION, model: 'opus', tools: []}),
+          answer: line({
+            type: 'assistant',
+            parent_tool_use_id: null,
+            session_id: SESSION,
+            message: {id: 'answer', role: 'assistant', content: [{type: 'text', text: ANSWER}]},
+          }),
+          result: line({
+            type: 'result',
+            subtype: 'success',
+            is_error: false,
+            result: ANSWER,
+            session_id: SESSION,
+            usage: {input_tokens: 1, output_tokens: 1},
+          }),
+        }),
       )
-      chmodSync(files.bin, 0o755)
+      writeFileSync(files.bin, FAKE_CLAUDE, {mode: 0o755})
       const pids = () => readFileSync(files.launches, 'utf8').trim().split('\n').map(Number)
       return {
         bin: files.bin,
@@ -266,12 +274,6 @@ describe('chat stores', () => {
       return {...agent, db, server, ended: ended.promise, answered: answered.promise}
     }
 
-    async function answers(server: ChatServer, threadId: string) {
-      return (await server.hydrate(threadId)).messages
-        .filter((message) => message.role === 'assistant')
-        .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])))
-    }
-
     it('an agent silent for 12s before it answers completes its turn once', {timeout: 30_000}, async () => {
       const agent = await cliAgent({silentMs: 12_000, afterSilence: 'answer'})
       await say(agent.server, 'slow-start', 'slow-start')
@@ -279,7 +281,7 @@ describe('chat stores', () => {
       expect({
         run: {phase: run.phase, error: run.error},
         launches: agent.pids().length,
-        answers: await answers(agent.server, 'slow-start'),
+        answers: await texts(agent.server, 'slow-start', 'assistant'),
       }).toEqual({run: {phase: 'completed', error: null}, launches: 1, answers: [ANSWER]})
     })
 
@@ -326,7 +328,7 @@ describe('chat stores', () => {
           launches: agent.pids().length,
           replayedText: replay.flatMap((chunk) => (chunk.delta === undefined ? [] : [chunk.delta])).join(''),
           replayedFinishes: replay.filter((chunk) => chunk.type === ChatEventType.RUN_FINISHED).length,
-          answers: await answers(agent.server, 'left'),
+          answers: await texts(agent.server, 'left', 'assistant'),
         }).toEqual({
           agentStartedLive: true,
           phase: 'completed',
@@ -363,8 +365,7 @@ describe('chat stores', () => {
       outputSchema: z.unknown(),
     }).server(async (_args, context) => {
       toolRunning.resolve()
-      const signal = context?.abortSignal
-      await new Promise((resolve) => signal?.addEventListener('abort', resolve, {once: true}))
+      await new Promise((resolve) => context?.abortSignal?.addEventListener('abort', resolve, {once: true}))
       return 'stopped'
     })
     const hooks = turnHooks(() => ({
@@ -428,9 +429,7 @@ describe('chat stores', () => {
       launched,
       runs: db.$client.prepare('SELECT run_id, status FROM chat_runs ORDER BY started_at').all(),
       replayEnds: [await replayEnd(server, 'in-setup'), await replayEnd(server, 'streaming')],
-      userTexts: (await server.hydrate('thread')).messages
-        .filter((message) => message.role === 'user')
-        .map((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('')),
+      userTexts: await texts(server, 'thread', 'user'),
       stoppedTurns: (await server.hydrate('thread')).messages.flatMap((message) =>
         StoppedTurnSchema.safeParse(message.metadata).success ? message.parts : [],
       ),
@@ -455,6 +454,12 @@ describe('chat stores', () => {
     name: z.string().optional(),
     value: z.looseObject({phase: z.string().optional()}).optional(),
   })
+
+  async function texts(server: ChatServer, threadId: string, role: 'user' | 'assistant') {
+    return (await server.hydrate(threadId)).messages
+      .filter((message) => message.role === role)
+      .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])))
+  }
 
   async function replayed(server: ChatServer, runId: string) {
     const replay = server.resume(new Request(`http://conciv.local/chat?runId=${runId}&offset=-1`))
@@ -519,7 +524,7 @@ describe('chat stores', () => {
   }
 
   function turnHooks(
-    plan: (turn: Turn) => Pick<TurnPlan, 'adapter'> & Partial<TurnPlan>,
+    plan: (turn: Turn) => Pick<ReturnType<TurnHooks['plan']>, 'adapter'> & Partial<ReturnType<TurnHooks['plan']>>,
     hooks: Partial<Omit<TurnHooks, 'plan'>> = {},
   ): TurnHooks {
     return {
