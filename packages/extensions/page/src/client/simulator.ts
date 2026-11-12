@@ -301,7 +301,7 @@ export function acceptQueue(queueId: string): void {
 }
 
 export function queueStopped(queueId: string): boolean {
-  return sim.stoppedQueues.has(queueId)
+  return sim.stoppedQueues.has(queueId) || !sim.queues.has(queueId)
 }
 
 function pace(ms: number): Promise<void> {

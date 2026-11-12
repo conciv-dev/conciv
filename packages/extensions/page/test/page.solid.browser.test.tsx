@@ -922,6 +922,7 @@ describe('page action queue', () => {
     const after = queuePage()
     await after.queue('q-next', [fill('city', 'Paris')]).played
     await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).not.toBeInTheDocument()
+    expect(before.heard).not.toContain('first')
   })
 
   it('a queue whose acceptance never reached the engine plays nothing', async () => {
