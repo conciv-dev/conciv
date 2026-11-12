@@ -1,10 +1,13 @@
 import {randomUUID} from 'node:crypto'
 import {once} from 'node:events'
 import {orderBy} from 'es-toolkit'
+import PQueue from 'p-queue'
+import pTimeout from 'p-timeout'
 import {isPageFailure, pageFailure, type PageOutcome, type PageQuery} from '@conciv/protocol/page-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {PageCaptureBundle} from '@conciv/protocol/element-capture-types'
 import {appendPageChange, clearPageChanges, pageChangesFor, type ConcivDb} from '@conciv/db'
+import type {PageQueues} from './page-queue.js'
 
 export type ChangeEntry = {
   seq: number
@@ -29,8 +32,12 @@ export function makeJournal(db: ConcivDb): Journal {
   }
 }
 
+type Held<T> = {kind: 'value'; value: T} | {kind: 'failed'; reason: unknown}
+
 type Pending<T> = {
   await(id: string, owner: string, timeoutMs: number, signal?: AbortSignal): Promise<T>
+  hold(id: string, owner: string): Promise<Held<T>>
+  drop(id: string): void
   resolve(id: string, value: T): boolean
   abandon(owner: string, reason: Error): void
   idle(): boolean
@@ -42,33 +49,17 @@ function makePending<T>(timedOut: () => Error): Pending<T> {
   const waiters = new Map<string, Waiter<T>>()
 
   function awaitReply(id: string, owner: string, timeoutMs: number, signal?: AbortSignal): Promise<T> {
-    return new Promise<T>((settle, reject) => {
-      const timer = setTimeout(() => {
-        done()
-        reject(timedOut())
-      }, timeoutMs)
-      const aborted = (): void => {
-        done()
-        reject(signal?.reason)
-      }
-      const done = (): void => {
-        clearTimeout(timer)
-        waiters.delete(id)
-        signal?.removeEventListener('abort', aborted)
-      }
-      signal?.addEventListener('abort', aborted, {once: true})
-      waiters.set(id, {
-        owner,
-        settle: (value) => {
-          done()
-          settle(value)
-        },
-        fail: (reason) => {
-          done()
-          reject(reason)
-        },
-      })
-    })
+    const reply = new Promise<T>((settle, fail) => waiters.set(id, {owner, settle, fail}))
+    return pTimeout(reply, {milliseconds: timeoutMs, message: timedOut(), signal}).finally(() => waiters.delete(id))
+  }
+
+  function hold(id: string, owner: string): Promise<Held<T>> {
+    return new Promise<T>((settle, fail) => waiters.set(id, {owner, settle, fail}))
+      .then(
+        (value): Held<T> => ({kind: 'value', value}),
+        (reason: unknown): Held<T> => ({kind: 'failed', reason}),
+      )
+      .finally(() => waiters.delete(id))
   }
 
   function resolve(id: string, value: T): boolean {
@@ -83,12 +74,23 @@ function makePending<T>(timedOut: () => Error): Pending<T> {
     owned.forEach((waiter) => waiter.fail(reason))
   }
 
-  return {await: awaitReply, resolve, abandon, idle: () => waiters.size === 0}
+  return {
+    await: awaitReply,
+    hold,
+    drop: (id) => void waiters.delete(id),
+    resolve,
+    abandon,
+    idle: () => waiters.size === 0,
+  }
 }
 
 export type PageAnswer = {result: Record<string, unknown>; capture?: PageCaptureBundle}
 
 export type BrowserTabFocus = {focusedAt: number; visible: boolean}
+
+export type QueuePlay = {accepted: Promise<PageAnswer>; played: Promise<PageOutcome>[]}
+
+export const QUEUED_ACTION_MS = 7000
 
 export type PageBus = {
   ask: (
@@ -102,6 +104,7 @@ export type PageBus = {
   openSessions: () => Array<{sessionId: SessionId; browserTabs: string[]}>
   resolve: (sessionId: SessionId, requestId: string, outcome: PageOutcome) => boolean
   subscribe: (sessionId: SessionId, emit: (frame: unknown) => void, focus?: () => BrowserTabFocus) => () => void
+  playQueue: (sessionId: SessionId, query: Omit<PageQuery, 'requestId'>, queueId: string, count: number) => QueuePlay
 }
 
 export type CaptureSink = (params: {
@@ -110,20 +113,39 @@ export type CaptureSink = (params: {
   bundle: PageCaptureBundle
 }) => Promise<void>
 
-export type PageEnv = {journal: Journal; root: string; bus: PageBus; storeCapture: CaptureSink}
+export type PageEnv = {journal: Journal; root: string; bus: PageBus; storeCapture: CaptureSink; queues: PageQueues}
 
 type BrowserTab = {id: string; order: number; emit: (frame: unknown) => void; focus: () => BrowserTabFocus}
 
 type SessionPage = {pending: Pending<PageOutcome>; browserTabs: Map<string, BrowserTab>}
 
+type QueueDispatch = {page: SessionPage; held: Map<string, Promise<Held<PageOutcome>>>; answer: Promise<PageOutcome>}
+
 const UNREPORTED: BrowserTabFocus = {focusedAt: 0, visible: false}
 
 const BROWSER_TAB_RETURN_MS = 5000
 
-export function makePageBus(timeoutMs = 5000): PageBus {
+export function makePageBus(timeoutMs = 5000, queuedActionMs = QUEUED_ACTION_MS): PageBus {
   const bySession = new Map<SessionId, SessionPage>()
   const subscribed = {count: 0}
   const arrivals = new EventTarget()
+  const lanes = new Map<SessionId, PQueue>()
+
+  const laneOf = (sessionId: SessionId): PQueue => {
+    const existing = lanes.get(sessionId)
+    if (existing !== undefined) return existing
+    const lane = new PQueue({concurrency: 1})
+    lane.addEventListener('idle', () => {
+      if (lanes.get(sessionId) === lane) lanes.delete(sessionId)
+    })
+    lanes.set(sessionId, lane)
+    return lane
+  }
+
+  const busy = (sessionId: SessionId): boolean => {
+    const lane = lanes.get(sessionId)
+    return lane !== undefined && lane.size + lane.pending > 0
+  }
 
   const pageOf = (sessionId: SessionId): SessionPage => {
     const existing = bySession.get(sessionId)
@@ -201,11 +223,21 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     return once(arrivals, sessionId, {signal: signal === undefined ? waited : AbortSignal.any([waited, signal])})
   }
 
-  async function ask(
+  function ask(
     sessionId: SessionId,
     query: Omit<PageQuery, 'requestId'>,
     route?: {browserTab: string} | {mutating: boolean},
     signal?: AbortSignal,
+  ): Promise<PageAnswer> {
+    if (query.mutating !== true || !busy(sessionId)) return askNow(sessionId, query, route, signal)
+    return laneOf(sessionId).add(() => askNow(sessionId, query, route, signal), {signal})
+  }
+
+  async function askNow(
+    sessionId: SessionId,
+    query: Omit<PageQuery, 'requestId'>,
+    route: {browserTab: string} | {mutating: boolean} | undefined,
+    signal: AbortSignal | undefined,
   ): Promise<PageAnswer> {
     const pinned = route !== undefined && 'browserTab' in route ? route.browserTab : undefined
     const tab = target(sessionId, bySession.get(sessionId), pinned)
@@ -240,6 +272,61 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     return {result: outcome.result, capture: outcome.capture}
   }
 
+  function playQueue(
+    sessionId: SessionId,
+    query: Omit<PageQuery, 'requestId'>,
+    queueId: string,
+    count: number,
+  ): QueuePlay {
+    target(sessionId, bySession.get(sessionId), undefined)
+    const requestId = randomUUID()
+    const replies = Array.from({length: count}, () => randomUUID())
+    const dispatch = (): QueueDispatch => {
+      const page = pageOf(sessionId)
+      const tab = target(sessionId, page, undefined)
+      const answer = page.pending.await(requestId, tab.id, timeoutMs)
+      const held = new Map(replies.map((id) => [id, page.pending.hold(id, tab.id)]))
+      tab.emit({requestId, ...query, queue: {id: queueId, replies}})
+      return {page, held, answer}
+    }
+    const turn = busy(sessionId) ? laneOf(sessionId).add(() => undefined) : Promise.resolve()
+    const dispatched = turn.then(dispatch)
+    const accepted = dispatched
+      .then((sent) => sent.answer)
+      .then((outcome): PageAnswer => {
+        if (!outcome.ok) throw pageFailure(outcome.error.code, outcome.error.message, outcome.error.raised)
+        return {result: outcome.result}
+      })
+    const refusal = accepted.then(
+      () => null,
+      async (error: unknown): Promise<PageOutcome> => {
+        const sent = await dispatched.catch(() => null)
+        replies.forEach((id) => sent?.page.pending.drop(id))
+        return {ok: false, error: {code: 'handler-error', message: `the page refused the queue: ${String(error)}`}}
+      },
+    )
+    const lane = laneOf(sessionId)
+    const playedNext = async (id: string): Promise<PageOutcome> => {
+      const refused = await refusal
+      if (refused !== null) return refused
+      const sent = await dispatched
+      const reply = sent.held.get(id) ?? Promise.resolve<Held<PageOutcome>>({kind: 'failed', reason: unanswered()})
+      const answered = await pTimeout(reply, {milliseconds: queuedActionMs, message: unanswered()}).finally(() =>
+        sent.page.pending.drop(id),
+      )
+      if (answered.kind === 'failed') throw answered.reason
+      return answered.value
+    }
+    const played = replies.map((id) => lane.add(() => playedNext(id)))
+    void Promise.allSettled([accepted, ...played])
+      .then(() => dispatched)
+      .then(
+        (sent) => dropIfIdle(sessionId, sent.page),
+        () => undefined,
+      )
+    return {accepted, played}
+  }
+
   function connected(sessionId: SessionId): boolean {
     return (bySession.get(sessionId)?.browserTabs.size ?? 0) > 0
   }
@@ -251,6 +338,7 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     openSessions,
     resolve: (sessionId, requestId, outcome) => bySession.get(sessionId)?.pending.resolve(requestId, outcome) ?? false,
     subscribe,
+    playQueue,
   }
 }
 

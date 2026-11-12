@@ -90,6 +90,8 @@
     "es-toolkit": "catalog:",
     "hono": "catalog:",
     "lucide-solid": "catalog:",
+    "p-queue": "catalog:",
+    "p-timeout": "catalog:",
     "unstorage": "catalog:",
     "zod": "catalog:"
   },

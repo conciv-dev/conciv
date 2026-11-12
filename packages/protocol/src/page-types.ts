@@ -1,12 +1,33 @@
 import {z} from 'zod'
 import {PageCaptureBundleSchema} from './element-capture-types.js'
 
+export const PAGE_QUEUE_TOOL = 'page_queue'
+export const PAGE_QUEUE_WAIT_TOOL = 'page_queue_wait'
+export const PAGE_QUEUE_MAX_ACTIONS = 50
+export const PAGE_QUEUE_STOPPED = 'QUEUE_STOPPED'
+export const PAGE_QUEUE_STOPPED_MESSAGE = 'stopped by the user before this action'
+
+export const PageQueueSlotSchema = z.object({
+  id: z.string().min(1),
+  index: z.number().int().min(-1),
+  of: z.number().int().min(1),
+})
+export type PageQueueSlot = z.infer<typeof PageQueueSlotSchema>
+
 export const PageQuerySchema = z.object({
   requestId: z.string().optional(),
   agentId: z.string().min(1).describe('the agent the page call acts for; keys its cursor on the page'),
   name: z.string().min(1).describe('registry tool name whose client body runs in the page'),
   input: z.record(z.string(), z.unknown()).describe('schema-validated input for the named tool'),
+  mutating: z.boolean().optional().describe('an act call, played in turn behind a queue playing on the tab'),
+  queue: z
+    .object({id: z.string().min(1), replies: z.array(z.string().min(1)).min(1)})
+    .optional()
+    .describe('a page_queue call: the queue id and the request id each played action replies with'),
+  queued: PageQueueSlotSchema.optional().describe('the queue slot this action plays in'),
 })
+
+export const PageQueueActionsSchema = z.object({actions: z.array(z.looseObject({tool: z.string().min(1)})).min(1)})
 
 export type PageQuery = z.infer<typeof PageQuerySchema>
 
@@ -89,3 +110,26 @@ export const SymbolicateFrameSchema = z.object({
 export const SymbolicateSchema = z.object({frames: z.array(SymbolicateFrameSchema).min(1).max(32)})
 export const OpenSourceResultSchema = z.object({status: z.enum(['opened', 'no-source', 'failed'])})
 export type OpenSourceResult = z.infer<typeof OpenSourceResultSchema>['status']
+
+export const PageQueueOutcomeSchema = z.discriminatedUnion('ok', [
+  z.object({index: z.number().int(), tool: z.string(), ok: z.literal(true), result: z.record(z.string(), z.unknown())}),
+  z.object({index: z.number().int(), tool: z.string(), ok: z.literal(false), error: z.string()}),
+])
+export type PageQueueOutcome = z.infer<typeof PageQueueOutcomeSchema>
+
+export const PageQueueResultSchema = z.object({
+  queueId: z.string(),
+  status: z.enum(['finished', 'stopped', 'lost']),
+  outcomes: z.array(PageQueueOutcomeSchema),
+  failed: z.number().int(),
+  played: z.number().int(),
+})
+export type PageQueueResult = z.infer<typeof PageQueueResultSchema>
+
+export const PageQueueProgressSchema = z.object({
+  queueId: z.string(),
+  status: z.literal('playing'),
+  done: z.number().int(),
+  of: z.number().int(),
+})
+export type PageQueueProgress = z.infer<typeof PageQueueProgressSchema>

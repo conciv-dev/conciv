@@ -5,7 +5,14 @@ import {z} from 'zod'
 import {defineExtension, imageResult, type AnyToolBuilder} from '@conciv/extension'
 import {CONCIV_STATE_DIR} from '@conciv/protocol/state-types'
 import {RawFrameSchema, type RawFrame, type SourceLoc} from '@conciv/protocol/page-types'
-import {locateDef, PAGE_EXTENSION_NAME, PAGE_TOOL_DEFS, PageScreenshotSchema, screenshotDef} from './shared/defs.js'
+import {
+  locateDef,
+  PAGE_EXTENSION_NAME,
+  PAGE_TOOL_DEFS,
+  PageScreenshotSchema,
+  queueWaitDef,
+  screenshotDef,
+} from './shared/defs.js'
 import {grabAttachment} from './server/grab-attachment.js'
 
 export type PageServerContext = {
@@ -36,15 +43,20 @@ const screenshotServer = screenshotDef.server(async (input, ctx: PageServerConte
   return imageResult('image/webp', image, {width, height, path, ...(warnings ? {warnings} : {})})
 })
 
+const queueWaitServer = queueWaitDef.server((input, _ctx: PageServerContext, _request, page) =>
+  page.call(queueWaitDef.name, input),
+)
+
 const SERVER_STEPS: Record<string, AnyToolBuilder> = {
   [locateDef.name]: locateServer,
   [screenshotDef.name]: screenshotServer,
+  [queueWaitDef.name]: queueWaitServer,
 }
 
 const declarations: AnyToolBuilder[] = PAGE_TOOL_DEFS.map((def) => SERVER_STEPS[def.name] ?? def.client())
 
 const PAGE_PROMPT =
-  'Drive the live page through the dedicated page capabilities: read it with page_snapshot, page_screenshot, page_text, page_value, page_query and page_console, after editing a file wait for the hot update to land with page_hmr before reading the page, act on it with page_click, page_fill, page_select, page_check, page_press and page_reload, restyle it with page_setstyle, page_addclass, page_settext and page_css, and inspect React with page_inspect, page_tree, page_locate and page_find. Search the capability catalog for the verb you need before reaching for page_eval: it is the last resort for what none of the others can express, and it asks the user for approval on every call.'
+  'Drive the live page through the dedicated page capabilities: read it with page_snapshot, page_screenshot, page_text, page_value, page_query and page_console, after editing a file wait for the hot update to land with page_hmr before reading the page, act on it with page_click, page_fill, page_select, page_check, page_press and page_reload, hand it a whole list of those actions at once with page_queue (it answers at once and the outcomes come back when the page has played them), restyle it with page_setstyle, page_addclass, page_settext and page_css, and inspect React with page_inspect, page_tree, page_locate and page_find. Search the capability catalog for the verb you need before reaching for page_eval: it is the last resort for what none of the others can express, and it asks the user for approval on every call.'
 
 export const page = defineExtension({
   name: PAGE_EXTENSION_NAME,

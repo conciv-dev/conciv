@@ -1,6 +1,6 @@
 import {createDebouncer, type SolidDebouncer} from '@tanstack/solid-pacer'
 import {For, onCleanup, untrack} from 'solid-js'
-import {createStore} from 'solid-js/store'
+import {ReactiveMap} from '@solid-primitives/map'
 import {
   ARROW_CLASS,
   BORDER_CLASS,
@@ -60,7 +60,7 @@ const pass: {dirty: boolean; seenLayout: number} = {dirty: false, seenLayout: -1
 const frameLoop: {scheduled: boolean; layout: number} = {scheduled: false, layout: 0}
 const watchedDocuments = new WeakSet<Document>()
 
-const [aimedStore, setAimed] = createStore<Record<string, CursorLook | undefined>>({})
+const aimed = new ReactiveMap<string, CursorLook>()
 
 export function reducedMotion(): boolean {
   return matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -124,9 +124,14 @@ function bumpLayout(): void {
   request()
 }
 
+function settleWhenHidden(): void {
+  if (document.visibilityState === 'hidden') settleEveryAim()
+}
+
 function watchDocument(doc: Document): void {
   if (watchedDocuments.has(doc)) return
   watchedDocuments.add(doc)
+  if (doc === document) doc.addEventListener('visibilitychange', settleWhenHidden)
   doc.addEventListener('scroll', bumpLayout, {capture: true, passive: true})
   doc.defaultView?.addEventListener('resize', bumpLayout, {passive: true})
 }
@@ -141,12 +146,25 @@ function watchLayoutOf(at: CursorAt): void {
 }
 
 function aimedCursors(look: CursorLook): string[] {
-  return Object.keys(aimedStore).filter((id) => aimedStore[id] === look)
+  return [...aimed].flatMap(([id, aimedLook]) => (aimedLook === look ? [id] : []))
+}
+
+function settleAim(id: string): void {
+  aims.get(id)?.arrived()
+}
+
+function settleEveryAim(): void {
+  for (const aim of aims.values()) aim.arrived()
+}
+
+export function cannotAnimate(): boolean {
+  return document.visibilityState === 'hidden' || reducedMotion()
 }
 
 export function dropCursor(id: string): void {
+  settleAim(id)
   aims.delete(id)
-  setAimed(id, undefined)
+  aimed.delete(id)
   pass.dirty = true
   request()
 }
@@ -176,11 +194,13 @@ export function aimCursor(options: {id: string; at: CursorAt; look: CursorLook})
   const arrival = Promise.withResolvers<void>()
   const shown = placed.get(id)?.last
   const from = shown && !reducedMotion() ? sampleOf(windowAt(shown)) : sampleOf(at)
+  settleAim(id)
   aims.set(id, {from, to: sampleOf(at), t: from.at === at ? 1 : 0, last: 0, arrived: arrival.resolve})
-  setAimed(id, look)
+  aimed.set(id, look)
   watchLayoutOf(at)
   pass.dirty = true
   request()
+  if (cannotAnimate()) arrival.resolve()
   return arrival.promise
 }
 
@@ -274,7 +294,10 @@ function glide(options: {aim: Aim; now: number; layout: number}): Frame {
   const {aim, now, layout} = options
   const from = pointOf(locateSample({sample: aim.from, layout}))
   const to = pointOf(locateSample({sample: aim.to, layout}))
-  if (!to) return {point: null, settled: aim.t >= 1}
+  if (!to) {
+    aim.arrived()
+    return {point: null, settled: aim.t >= 1}
+  }
   const elapsed = Math.min(MAX_STEP_MS, now - (aim.last || now - FRAME_MS))
   aim.last = now
   const k = 1 - (1 - FOLLOW) ** (elapsed / FRAME_MS)
@@ -351,6 +374,7 @@ function placeCursors(): void {
     write({entry, point: frame.point})
     if (frame.settled) settle(entry)
   }
+  for (const [id, aim] of aims) if (!placed.has(id)) aim.arrived()
   if (pass.dirty) request()
 }
 

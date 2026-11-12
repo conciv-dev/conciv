@@ -2,13 +2,13 @@
 
 ## Overview
 
-`captureStep` either snapshots the current viewport with snapdom (removing the widget root) or, when the requested width/height differs from the tab, renders the current URL in a hidden same-origin iframe and asks the page inside it to snapshot itself over a MessageChannel. Before the PNG is base64-encoded, every capture is composited onto the page's canvas background. `collectComponents` walks the DOM and records each element carrying `data-conciv-source` with its clipped box, text box, axis, computed styles and sibling index. `winnerStep` scans all stylesheets (including @media, @supports, @layer, @import, nesting and adopted sheets), ranks candidate declarations by importance, inline, layer, specificity and order, and confirms the winner against the computed value.
+`captureStep` either snapshots the current viewport with snapdom (removing the widget root) or, when the requested width/height differs from the tab, renders the current URL in a hidden same-origin iframe and asks the page inside it to snapshot itself over a MessageChannel. Before the PNG is base64-encoded, every capture is composited onto the page's canvas background. `collectComponents` walks the DOM and records each element carrying `data-tsd-source` with its clipped box, text box, axis, computed styles and sibling index. `winnerStep` scans all stylesheets (including @media, @supports, @layer, @import, nesting and adopted sheets), ranks candidate declarations by importance, inline, layer, specificity and order, and confirms the winner against the computed value.
 
 ## Interface
 
 - `captureStep(input: CaptureInput)` (`capture.ts`): returns the viewport size for `probe`/`clear`, otherwise `{image (base64 PNG), width, height, route, components}`
 - `ClientCapture` type (`capture.ts`): `{image; width; height; route; components: LiveComponent[]}`
-- `collectComponents({root})` (`components.ts`): returns the `LiveComponent[]` tree of elements with `data-conciv-source` (format `file:line:column`)
+- `collectComponents({root})` (`components.ts`): returns the `LiveComponent[]` tree of elements with `data-tsd-source` (format `file:line:column`)
 - `answerCaptureRequests()` (`frame-capture.ts`): inside a `data-conciv-capture` frame, answers `conciv-design:capture` requests with a snapdom PNG blob and posts `conciv-design:capture-ready` to the parent
 - `frameAnswering({frame, signal})` (`frame-capture.ts`): resolves when the given frame posts `CAPTURE_READY`
 - `requestFrameCapture(frame)` (`frame-capture.ts`): sends `CAPTURE_REQUEST` with a MessagePort and resolves with the PNG blob

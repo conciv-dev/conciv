@@ -37,6 +37,7 @@ function ViewsSettings(): JSX.Element {
                     <Group
                       title="Tab bar"
                       description="Drag, or Alt + arrow keys, to reorder."
+                      keys={['docksHidden', 'docksPinned', 'docksCustomOrder']}
                       action={
                         <button
                           type="button"

@@ -35,6 +35,7 @@
     "@conciv/grab": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "bippy": "catalog:",
+    "p-queue": "catalog:",
     "react-grab": "catalog:",
     "rrweb-snapshot": "catalog:",
     "solid-js": "catalog:"

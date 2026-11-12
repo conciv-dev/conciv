@@ -1,3 +1,4 @@
+import {LETTER_KEYS, NUMBER_KEYS, PUNCTUATION_CODE_MAP, parseHotkey} from '@tanstack/hotkeys'
 import {isSensitiveField, MASKED_VALUE} from '@conciv/page'
 import {frameDocument} from './agent-cursor.js'
 import {setNativeValue, simulateClick, simulateFill, typeByCommands, typeByEvents} from './simulator.js'
@@ -104,11 +105,13 @@ async function fillEditor(options: {
   host: HTMLElement
   value: string
   agent: string
+  halt: () => void
 }): Promise<{value: string} | string> {
-  const {host, value, agent} = options
+  const {host, value, agent, halt} = options
   simulateClick({element: host, agent})
   typeByEvents({host, value})
   await pageTurn()
+  halt()
   if (!holds({host, value})) typeByCommands({host, value})
   host.dispatchEvent(new Event('change', {bubbles: true}))
   await pageTurn()
@@ -120,15 +123,16 @@ export async function fill(options: {
   element: Element
   value: string
   agent: string
+  halt: () => void
 }): Promise<{value: string} | string> {
-  const {element, value, agent} = options
+  const {element, value, agent, halt} = options
   if (element.closest(CODE_EDITORS)) return 'That is a code editor (CodeMirror or Monaco); fill cannot type into it.'
   const readOnly = element.closest('[aria-readonly]')?.getAttribute('aria-readonly') === 'true'
   if (!isInput(element) && !isTextArea(element)) {
     const host = editableHost(element)
     if (!host) return 'That element is not a text field.'
     if (readOnly || !host.isContentEditable) return 'That field is read-only.'
-    return fillEditor({host, value, agent})
+    return fillEditor({host, value, agent, halt})
   }
   if (readOnly || element.readOnly) return 'That field is read-only.'
   simulateFill({element, value, agent})
@@ -195,7 +199,40 @@ export function focusedElement(): Element {
 
 export function press(options: {element: Element; key: string}): void {
   const {element, key} = options
-  const init = {key, bubbles: true, cancelable: true, composed: true, view: element.ownerDocument.defaultView}
+  const init = {...keyInit(key), view: element.ownerDocument.defaultView}
   element.dispatchEvent(new KeyboardEvent('keydown', init))
   element.dispatchEvent(new KeyboardEvent('keyup', init))
+}
+
+const LETTERS: ReadonlySet<string> = LETTER_KEYS
+const DIGITS: ReadonlySet<string> = NUMBER_KEYS
+
+function keyInit(binding: string): KeyboardEventInit {
+  const parsed = parseHotkey(binding.trim() === '' ? 'Space' : binding)
+  const name = parsed.key ?? parsed.code
+  return {
+    key: typedKey({name, shift: parsed.shift}),
+    code: parsed.code ?? codeOf(name),
+    ctrlKey: parsed.ctrl,
+    shiftKey: parsed.shift,
+    altKey: parsed.alt,
+    metaKey: parsed.meta,
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+  }
+}
+
+function typedKey(options: {name: string; shift: boolean}): string {
+  const {name, shift} = options
+  if (name === 'Space') return ' '
+  if (!LETTERS.has(name) || shift) return name
+  return name.toLowerCase()
+}
+
+function codeOf(key: string): string {
+  const upper = key.toUpperCase()
+  if (LETTERS.has(upper)) return `Key${upper}`
+  if (DIGITS.has(key)) return `Digit${key}`
+  return Object.entries(PUNCTUATION_CODE_MAP).find(([, character]) => character === key)?.[0] ?? key
 }

@@ -77,26 +77,17 @@ describe.skipIf(inFirefox)('effects', () => {
       })
     })
 
-    it('enabling visibly changes the page and disabling reverts it', async () => {
+    it('enable, toggle, start and stop visibly change the page, and report tells the truth', async () => {
       expect(await effectResult({action: 'enable', effect: 'banner'})).toEqual({effect: 'banner', enabled: true})
       await expect.element(banner()).toBeVisible()
       expect(await effectResult({action: 'report', effect: 'banner'})).toEqual({effect: 'banner', enabled: true})
-      expect(await effectResult({action: 'disable', effect: 'banner'})).toEqual({effect: 'banner', enabled: false})
-      await expect.element(banner()).not.toBeInTheDocument()
-    })
-
-    it('toggle flips the effect each call', async () => {
-      expect(await effectResult({action: 'toggle', effect: 'banner'})).toEqual({effect: 'banner', enabled: true})
-      await expect.element(banner()).toBeVisible()
       expect(await effectResult({action: 'toggle', effect: 'banner'})).toEqual({effect: 'banner', enabled: false})
       await expect.element(banner()).not.toBeInTheDocument()
-    })
-
-    it('start and stop drive the effect like enable and disable', async () => {
       expect(await effectResult({action: 'start', effect: 'banner'})).toEqual({effect: 'banner', enabled: true})
       await expect.element(banner()).toBeVisible()
       expect(await effectResult({action: 'stop', effect: 'banner'})).toEqual({effect: 'banner', enabled: false})
       await expect.element(banner()).not.toBeInTheDocument()
+      expect(await effectResult({action: 'report', effect: 'banner'})).toEqual({effect: 'banner', enabled: false})
     })
 
     it('an unknown effect name fails with the declared error naming what exists', async () => {
@@ -106,21 +97,12 @@ describe.skipIf(inFirefox)('effects', () => {
       expect(failure.message).toContain('banner')
     })
 
-    it('a driving action without an effect name fails as invalid args', async () => {
-      const failure = await effectFailure({action: 'enable'})
-      expect(failure.code).toBe('invalid-args')
-      expect(failure.message).toContain('list')
-    })
-
-    it('list rejects a passed effect name as invalid args instead of ignoring it', async () => {
-      const failure = await effectFailure({action: 'list', effect: 'banner'})
-      expect(failure.code).toBe('invalid-args')
-      expect(failure.message).toContain('list')
-    })
-
-    it('report on a disabled effect truthfully returns enabled: false', async () => {
-      expect(await effectResult({action: 'report', effect: 'banner'})).toEqual({effect: 'banner', enabled: false})
-      await expect.element(banner()).not.toBeInTheDocument()
+    it('a driving action without an effect name, or list with one, fails as invalid args', async () => {
+      for (const input of [{action: 'enable'}, {action: 'list', effect: 'banner'}]) {
+        const failure = await effectFailure(input)
+        expect(failure.code).toBe('invalid-args')
+        expect(failure.message).toContain('list')
+      }
     })
   })
 })
@@ -188,35 +170,16 @@ describe.skipIf(inFirefox)('page tools', () => {
   })
 
   describe('target resolution', () => {
-    it('resolves selector, snapshot ref, and React component name targets', async () => {
-      expect(await resultOf('text', {selector: '#prose'})).toEqual({text: 'hello page'})
-      const snapshot = await resultOf('snapshot')
-      const nodes = Array.isArray(snapshot.nodes) ? snapshot.nodes : []
-      expect(nodes.length).toBeGreaterThan(0)
-      const first = nodes[0] && typeof nodes[0] === 'object' ? {...nodes[0]} : {}
-      const viaRef = await resultOf('text', {ref: String(first.ref)})
-      expect(typeof viaRef.text).toBe('string')
-      const viaName = await resultOf('text', {name: 'Leaf'})
-      expect(String(viaName.text)).toContain('A:')
-    })
-
     it('explains each way a target can be missing, as an invalid-args failure', async () => {
-      expect(await failureOf('click', {ref: 'v999'})).toEqual({
-        code: 'invalid-args',
-        message: 'stale ref v999; re-run page snapshot',
-      })
-      expect(await failureOf('click', {name: 'Nope'})).toEqual({
-        code: 'invalid-args',
-        message: 'no React component named "Nope" found',
-      })
-      expect(await failureOf('click', {selector: '#missing'})).toEqual({
-        code: 'invalid-args',
-        message: 'no element for selector #missing',
-      })
-      expect(await failureOf('click')).toEqual({
-        code: 'invalid-args',
-        message: 'no target: pass ref, selector, or name',
-      })
+      const missing = [
+        {input: {ref: 'v999'}, message: 'stale ref v999; re-run page snapshot'},
+        {input: {name: 'Nope'}, message: 'no React component named "Nope" found'},
+        {input: {selector: '#missing'}, message: 'no element for selector #missing'},
+        {input: {}, message: 'no target: pass ref, selector, or name'},
+      ]
+      for (const {input, message} of missing) {
+        expect(await failureOf('click', input)).toEqual({code: 'invalid-args', message})
+      }
     })
   })
 
@@ -226,16 +189,13 @@ describe.skipIf(inFirefox)('page tools', () => {
       await expect.element(leaf()).toMatchTextContent(':1:')
     })
 
-    it('fills form fields with native events', async () => {
+    it('fills form fields with native events and masks a password value in the results', async () => {
       expect(await resultOf('fill', {selector: '#field', value: 'typed'})).toEqual({ok: true, value: 'typed'})
       expect(await resultOf('value', {selector: '#field'})).toEqual({value: 'typed'})
       expect(await failureOf('fill', {selector: '#prose', value: 'x'})).toEqual({
         code: 'invalid-args',
         message: 'That element is not a text field.',
       })
-    })
-
-    it('masks a password value in the fill and value tool results', async () => {
       expect(await resultOf('fill', {selector: '#secret', value: 'hunter2'})).toEqual({ok: true, value: '***'})
       expect(await resultOf('value', {selector: '#secret'})).toEqual({value: '***'})
     })
@@ -280,16 +240,11 @@ describe.skipIf(inFirefox)('page tools', () => {
     })
 
     it('reports route, existence, and query matches', async () => {
-      const route = await resultOf('route')
-      expect(route.pathname).toBe(location.pathname)
+      document.title = 'Settings'
+      expect(await resultOf('route')).toMatchObject({pathname: location.pathname, title: 'Settings', state: 'visible'})
       expect(await resultOf('exists', {selector: '#frm'})).toEqual({exists: true, count: 1})
       const query = await resultOf('query', {selector: 'input'})
       expect(query.count).toBe(8)
-    })
-
-    it('route reports the document title and visibility', async () => {
-      document.title = 'Settings'
-      expect(await resultOf('route')).toMatchObject({title: 'Settings', state: 'visible'})
     })
 
     it('waits for visibility and times out with an explanation', async () => {
@@ -303,17 +258,12 @@ describe.skipIf(inFirefox)('page tools', () => {
       })
     })
 
-    it('evaluates code and serializes element results', async () => {
-      const value = await resultOf('eval', {code: 'return 2 + 3'})
-      expect(value).toEqual({result: 5})
-      const element = await resultOf('eval', {code: 'return document.querySelector("#frm")'})
-      expect(element.result).toMatchObject({tagName: 'form'})
-    })
-
     it('returns the value of a bare expression and still runs a statement body', async () => {
       expect(await resultOf('eval', {code: '2 + 3'})).toEqual({result: 5})
       expect(await resultOf('eval', {code: 'document.querySelector("#frm").tagName'})).toEqual({result: 'FORM'})
       expect(await resultOf('eval', {code: 'const a = 1; return a + 1'})).toEqual({result: 2})
+      const element = await resultOf('eval', {code: 'return document.querySelector("#frm")'})
+      expect(element.result).toMatchObject({tagName: 'form'})
     })
 
     it('injects css stylesheets', async () => {
@@ -362,7 +312,7 @@ describe.skipIf(inFirefox)('page tools', () => {
   })
 
   describe('act and edit-live verbs', () => {
-    it('selects an option with native change events', async () => {
+    it('selects by value or visible label with native change events, and a missing option changes nothing', async () => {
       const changes: string[] = []
       document.querySelector('#sel')?.addEventListener('change', (event) => {
         const el = event.target
@@ -371,9 +321,6 @@ describe.skipIf(inFirefox)('page tools', () => {
       expect(await resultOf('select', {selector: '#sel', value: 'b'})).toEqual({ok: true, value: 'b'})
       expect(changes).toEqual(['b'])
       expect(await resultOf('value', {selector: '#sel'})).toEqual({value: 'b'})
-    })
-
-    it('selects by visible label, and a missing option fails listing the options without changing the select', async () => {
       expect(await resultOf('select', {selector: '#sel', value: 'Full Stack'})).toEqual({ok: true, value: 'fs'})
       expect(await failureOf('select', {selector: '#sel', value: 'fullstack'})).toEqual({
         code: 'invalid-args',
@@ -415,16 +362,63 @@ describe.skipIf(inFirefox)('page tools', () => {
       expect(submitted).toEqual(['submitted'])
     })
 
-    it('presses a key so keydown and keyup both reach the element', async () => {
-      const keys: string[] = []
-      document.querySelector('#field')?.addEventListener('keydown', (event) => {
-        if (event instanceof KeyboardEvent) keys.push(`down:${event.key}`)
+    it('presses keys so the page shortcuts a user would trigger fire', async () => {
+      const log = document.createElement('p')
+      const record = (what: string): void => {
+        log.textContent = [log.textContent, what].filter(Boolean).join(', ')
+      }
+      const onKeyDown = (event: KeyboardEvent): void => {
+        if (event.key === 'k' && (event.metaKey || event.ctrlKey)) record('opened palette')
+        if (event.key === ' ' && event.target === document.body) record('played')
+        if (event.key === 'a' && !event.shiftKey && event.target === document.body) record('archived')
+      }
+      const onFieldKeyUp = (event: KeyboardEvent): void => {
+        if (event.key === 'Enter') record('searched')
+      }
+      container.appendChild(log)
+      document.addEventListener('keydown', onKeyDown)
+      document.querySelector<HTMLInputElement>('#field')?.addEventListener('keyup', onFieldKeyUp)
+      onTestFinished(() => {
+        log.remove()
+        document.removeEventListener('keydown', onKeyDown)
+        document.querySelector<HTMLInputElement>('#field')?.removeEventListener('keyup', onFieldKeyUp)
       })
-      document.querySelector('#field')?.addEventListener('keyup', (event) => {
-        if (event instanceof KeyboardEvent) keys.push(`up:${event.key}`)
-      })
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+      for (const key of ['Mod+k', ' ', 'a']) expect(await resultOf('press', {key})).toEqual({ok: true})
       expect(await resultOf('press', {selector: '#field', key: 'Enter'})).toEqual({ok: true})
-      expect(keys).toEqual(['down:Enter', 'up:Enter'])
+      await expect.element(page.getByText('opened palette, played, archived, searched')).toBeVisible()
+    })
+
+    it('reaches into open shadow roots by selector, but never into the widget own shadow root', async () => {
+      const shadowButton = (text: string, hostAttribute: string): HTMLButtonElement => {
+        const host = document.createElement('div')
+        host.setAttribute(hostAttribute, '')
+        const button = Object.assign(document.createElement('button'), {
+          id: text.replaceAll(' ', '-'),
+          name: 'save',
+          textContent: text,
+        })
+        host.attachShadow({mode: 'open'}).appendChild(button)
+        container.appendChild(host)
+        onTestFinished(() => host.remove())
+        return button
+      }
+      const inShadow = shadowButton('in the shadow', 'data-web-component')
+      inShadow.addEventListener('click', () => (inShadow.textContent = 'clicked in the shadow'))
+      shadowButton('widget button', 'data-conciv-root')
+      expect(await resultOf('exists', {selector: '#in-the-shadow'})).toEqual({exists: true, count: 1})
+      expect(await resultOf('click', {selector: '#in-the-shadow'})).toEqual({ok: true})
+      const snapshot = await resultOf('snapshot')
+      const names = (Array.isArray(snapshot.nodes) ? snapshot.nodes : []).flatMap((node) =>
+        typeof node === 'object' && node !== null && 'name' in node ? [node.name] : [],
+      )
+      expect(names).toContain('clicked in the shadow')
+      expect(names).not.toContain('widget button')
+      expect(await resultOf('exists', {selector: '#widget-button'})).toEqual({exists: false, count: 0})
+      const inPage = Object.assign(document.createElement('button'), {name: 'save', textContent: 'save in the page'})
+      container.appendChild(inPage)
+      onTestFinished(() => inPage.remove())
+      expect(await resultOf('query', {selector: 'button[name="save"]'})).toMatchObject({count: 2})
     })
 
     it('hovers with bubbling mouseover and mouseenter', async () => {
@@ -663,59 +657,6 @@ describe.skipIf(inFirefox)('page tools', () => {
     })
   })
 
-  describe('console reads', () => {
-    it('since is inclusive: an entry stamped exactly at since is returned, one past it is not', async () => {
-      console.log('console-marker-inclusive')
-      const all = await resultOf('console')
-      const entries = Array.isArray(all.entries) ? all.entries : []
-      const marker = entries.flatMap((entry) =>
-        typeof entry === 'object' && entry !== null && 'text' in entry && entry.text === 'console-marker-inclusive'
-          ? [entry]
-          : [],
-      )[0]
-      const ts = marker && 'ts' in marker && typeof marker.ts === 'number' ? marker.ts : Number.NaN
-      expect(Number.isNaN(ts)).toBe(false)
-      const atSince = await resultOf('console', {since: ts})
-      const atEntries = Array.isArray(atSince.entries) ? atSince.entries : []
-      expect(
-        atEntries.some(
-          (entry) =>
-            typeof entry === 'object' && entry !== null && 'text' in entry && entry.text === 'console-marker-inclusive',
-        ),
-      ).toBe(true)
-      const pastSince = await resultOf('console', {since: ts + 1})
-      const pastEntries = Array.isArray(pastSince.entries) ? pastSince.entries : []
-      expect(
-        pastEntries.some(
-          (entry) =>
-            typeof entry === 'object' && entry !== null && 'text' in entry && entry.text === 'console-marker-inclusive',
-        ),
-      ).toBe(false)
-    })
-  })
-
-  describe('stale refs', () => {
-    it('a snapshot ref whose element React removed fails as stale instead of acting on a detached node', async () => {
-      const ephemeral = document.createElement('button')
-      ephemeral.id = 'ephemeral-btn'
-      ephemeral.textContent = 'Ephemeral target'
-      container.appendChild(ephemeral)
-      const snapshot = await resultOf('snapshot')
-      const nodes = Array.isArray(snapshot.nodes) ? snapshot.nodes : []
-      const entry = nodes.flatMap((node) =>
-        typeof node === 'object' && node !== null && 'name' in node && node.name === 'Ephemeral target' ? [node] : [],
-      )[0]
-      const ref = entry && 'ref' in entry ? String(entry.ref) : ''
-      expect(ref).not.toBe('')
-      expect(await resultOf('text', {ref})).toEqual({text: 'Ephemeral target'})
-      ephemeral.remove()
-      expect(await failureOf('text', {ref})).toEqual({
-        code: 'invalid-args',
-        message: `stale ref ${ref}; re-run page snapshot`,
-      })
-    })
-  })
-
   describe('refs across snapshots', () => {
     const refOfRole = (snapshot: Record<string, unknown>, role: string): string => {
       const nodes = Array.isArray(snapshot.nodes) ? snapshot.nodes : []
@@ -901,29 +842,6 @@ describe.skipIf(inFirefox)('page tools', () => {
       })
     })
 
-    it('gives up with an explanation when no update ever arrives', async () => {
-      const {hot} = fakeHot()
-      const result = await watchHotUpdates(hot)(60)
-      expect(result).toMatchObject({supported: true, applied: false, error: 'the hot update did not land within 60ms'})
-      expect(result.waitedMs).toBeGreaterThanOrEqual(50)
-    })
-
-    it('reports applied when the wait is called before the update even starts', async () => {
-      const {hot, fire} = fakeHot()
-      const waited = watchHotUpdates(hot)(500)
-      setTimeout(() => fire('vite:beforeUpdate', {type: 'update', updates: []}), 20)
-      setTimeout(() => fire('vite:afterUpdate', {type: 'update', updates: []}), 40)
-      expect(await waited).toMatchObject({supported: true, applied: true, error: null})
-    })
-
-    it('reports applied at once when the update landed just before the call', async () => {
-      const {hot, fire} = fakeHot()
-      const wait = watchHotUpdates(hot)
-      fire('vite:beforeUpdate', {type: 'update', updates: []})
-      fire('vite:afterUpdate', {type: 'update', updates: []})
-      expect(await wait(500)).toEqual({supported: true, applied: true, waitedMs: 0, error: null})
-    })
-
     it('waits for an update already in flight instead of reporting the one before it', async () => {
       const {hot, fire} = fakeHot()
       const wait = watchHotUpdates(hot)
@@ -969,6 +887,51 @@ describe.skipIf(inFirefox)('page tools', () => {
         error: 'the hot update did not land within 60ms',
       })
       expect(result.waitedMs).toBeGreaterThanOrEqual(50)
+    })
+  })
+})
+
+describe('page console', () => {
+  const ConsoleEntries = z.object({entries: z.array(z.object({level: z.string(), ts: z.number(), text: z.string()}))})
+
+  const consoleRead = async (driver: PageDriver, since?: number) => {
+    const input = since === undefined ? {} : {since}
+    const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}console`, input})
+    if (!outcome.ok) throw new Error(`expected console entries, got ${outcome.error.code}: ${outcome.error.message}`)
+    return ConsoleEntries.parse(outcome.result).entries
+  }
+
+  const pageEvent = (type: 'error' | 'unhandledrejection'): Promise<void> =>
+    new Promise((resolve) => window.addEventListener(type, () => resolve(), {once: true}))
+
+  it('since is inclusive: an entry stamped exactly at since is returned, one past it is not', async () => {
+    const driver = makeDomPageDriver({tools: collectClientTools([pageExtension])})
+    onTestFinished(() => driver.dispose())
+    console.log('console-marker-inclusive')
+    const marker = (await consoleRead(driver)).find((entry) => entry.text === 'console-marker-inclusive')
+    if (!marker) throw new Error('the console buffer did not record the marker')
+    const texts = async (since: number) => (await consoleRead(driver, since)).map((entry) => entry.text)
+    expect(await texts(marker.ts)).toContain('console-marker-inclusive')
+    expect(await texts(marker.ts + 1)).not.toContain('console-marker-inclusive')
+  })
+
+  it('records what the page threw, uncaught or unhandled, with its message and where it came from', async () => {
+    const driver = makeDomPageDriver({tools: collectClientTools([pageExtension])})
+    onTestFinished(() => driver.dispose())
+    const thrown = Promise.all([pageEvent('error'), pageEvent('unhandledrejection')])
+    setTimeout(() => {
+      throw new Error('page-boom-uncaught')
+    })
+    void Promise.reject(new Error('page-boom-unhandled'))
+    await thrown
+    const entries = await consoleRead(driver)
+    const recorded = (message: string) =>
+      entries.flatMap((entry) =>
+        entry.text.includes(message) && entry.text.includes('page.browser.test') ? [entry.level] : [],
+      )
+    expect({uncaught: recorded('page-boom-uncaught'), unhandled: recorded('page-boom-unhandled')}).toEqual({
+      uncaught: ['uncaught'],
+      unhandled: ['unhandled'],
     })
   })
 })

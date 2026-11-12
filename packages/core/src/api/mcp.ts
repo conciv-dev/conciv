@@ -31,6 +31,8 @@ import {createMCPServer, imageBlocks, imagesIn, withoutImages} from '@conciv/ai/
 import {loopbackHostAllowlist} from '../lib/cors.js'
 import {callTrace} from './call-trace.js'
 import {EXECUTE_TOOL_NAME, ExecuteInputSchema, ExecuteResultSchema} from './execute-schemas.js'
+import {queueNotice} from '../page/page-queue.js'
+import type {PageQueueResult} from '@conciv/protocol/page-types'
 
 export function sessionIdFromHeaders(headers: Headers): SessionId | null {
   const raw = headers.get(CONCIV_SESSION_HEADER)?.trim()
@@ -270,7 +272,9 @@ type McpDeps = {
     sessionId: SessionId,
     publish: (chunk: ChatEvent) => void,
     capabilities?: readonly CodeCapability[],
+    outside?: boolean,
   ) => Promise<CodeRunner | null>
+  finishedQueues: (sessionId: SessionId, outside: boolean) => PageQueueResult[]
   outsideCapabilities: (sessionId: SessionId) => CodeCapability[]
   admitCall: ChatPlane['admitCall']
   resolveSession: (header: SessionId | null, nativeId: HarnessSessionId | null) => Promise<SessionScope>
@@ -307,6 +311,12 @@ function approvedFirst(
   }
 }
 
+function withFinishedQueues(reply: ExecuteReply, finished: readonly PageQueueResult[]): ExecuteReply {
+  if (finished.length === 0) return reply
+  const notices = finished.map((result): TextContent => ({type: 'text', text: cappedText(queueNotice(result))}))
+  return {...reply, content: [...notices, ...reply.content]}
+}
+
 async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCaller) {
   const origin = caller.trace.hub
   const admit = async (): Promise<string | null> => {
@@ -322,7 +332,10 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCalle
     scope.id,
     publish,
     origin !== null && caller.outside ? deps.outsideCapabilities(scope.id) : undefined,
+    origin !== null,
   )
+  const delivered = (reply: ExecuteReply): ExecuteReply =>
+    withFinishedQueues(reply, deps.finishedQueues(scope.id, origin !== null))
   if (runner === null) {
     logError('[mcp] code mode is unavailable (no isolate driver or an empty registry); no tools registered')
     return []
@@ -343,12 +356,12 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCalle
             name: DISCOVER_TOOL_NAME,
             description: discover.description,
             inputSchema: DiscoverInputSchema,
-          }).server(gated(admit, (args) => runDiscover(runner, args.toolNames))),
+          }).server(gated(admit, async (args) => delivered(await runDiscover(runner, args.toolNames)))),
         ]
   const askingTools = runner.asking.map((tool) => {
     const asking = caller.askBeforeCalls ? approvedFirst(deps, scope.id, tool, publish) : tool
     return defineTool({name: tool.name, description: tool.description, inputSchema: tool.inputSchema}).server(
-      gated(admit, (args) => runDirect(asking, args, calls)),
+      gated(admit, async (args) => delivered(await runDirect(asking, args, calls))),
     )
   })
   const executeTool = defineTool({
@@ -358,7 +371,7 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCalle
   }).server(
     gated(admit, async (args) => {
       try {
-        return await runExecute(runner, args.typescriptCode, calls)
+        return delivered(await runExecute(runner, args.typescriptCode, calls))
       } catch (error) {
         logError(`[mcp] ${EXECUTE_TOOL_NAME} failed outside the sandbox: ${String(error)}`)
         throw error
