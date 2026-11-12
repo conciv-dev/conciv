@@ -2,10 +2,8 @@ import {createFileRoute} from '@tanstack/solid-router'
 import type {JSX} from 'solid-js'
 import {useMutation} from '@conciv/client'
 import {ConfirmDialog} from '@conciv/ui-kit-system'
-import type {SettingsScope} from '@conciv/contract'
 import {useAnnounce, usePreferences} from '../app/context.js'
-
-const SCOPE_NAMES: Record<SettingsScope, string> = {project: 'for this project', global: 'for all projects'}
+import {SCOPE_NAMES} from '../settings/scope-names.js'
 
 export const Route = createFileRoute('/panel/$sessionId_/settings/advanced/reset')({component: ResetAllDialog})
 

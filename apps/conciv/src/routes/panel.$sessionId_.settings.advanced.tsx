@@ -9,6 +9,7 @@ import {useAnnounce, usePreferences, useRpc} from '../app/context.js'
 import type {PreferenceKey} from '../settings/preferences-schema.js'
 import {ActionRow, BUTTON_DANGER_FILL, BUTTON_WARN, Group} from '../settings/settings-ui.js'
 import {writeLastTab} from '../settings/last-tab.js'
+import {SCOPE_NAMES} from '../settings/scope-names.js'
 
 const RESETS: {label: string; hint: string; action: string; keys: PreferenceKey[]}[] = [
   {
@@ -19,8 +20,6 @@ const RESETS: {label: string; hint: string; action: string; keys: PreferenceKey[
   },
   {label: 'Shortcuts', hint: 'Back to the default keys.', action: 'Reset shortcuts', keys: ['commandShortcuts']},
 ]
-
-const SCOPE_NAMES: Record<SettingsScope, string> = {project: 'for this project', global: 'for all projects'}
 
 export const Route = createFileRoute('/panel/$sessionId_/settings/advanced')({
   onEnter: () => writeLastTab('advanced'),
