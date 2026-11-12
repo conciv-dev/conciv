@@ -126,12 +126,18 @@ export const Variants: Story = {
     <div class="p-4 flex flex-col gap-3 w-80 [background:var(--chat-bg)]">
       <TextField aria-label="Filled" placeholder="Filled" />
       <TextField aria-label="Outline" placeholder="Outline" variant="outline" />
+      <TextField aria-label="Filled invalid" value="bad value" aria-invalid="true" />
+      <TextField aria-label="Outline invalid" value="bad value" aria-invalid="true" variant="outline" />
+      <TextField aria-label="Filled disabled" value="locked" disabled />
+      <TextField aria-label="Outline disabled" value="locked" disabled variant="outline" />
     </div>
   ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('textbox', {name: 'Filled'})).toBeVisible()
     await expect(canvas.getByRole('textbox', {name: 'Outline'})).toBeVisible()
+    await expect(canvas.getByRole('textbox', {name: 'Outline invalid'})).toHaveAttribute('aria-invalid', 'true')
+    await expect(canvas.getByRole('textbox', {name: 'Outline disabled'})).toBeDisabled()
   },
 }
 
