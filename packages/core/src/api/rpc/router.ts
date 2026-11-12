@@ -102,6 +102,10 @@ type CodeErrors = {NO_CODE_MODE: (options?: {message: string}) => Error}
 
 type CodeCall = {context: RpcContext; errors: CodeErrors; signal?: AbortSignal}
 
+function hubOrigin(context: RpcContext): boolean {
+  return callTrace((header) => rpcHeader(context, header)).hub !== null
+}
+
 async function codeSessionOf(deps: RpcDeps, sessionId: SessionId | undefined, call: CodeCall): Promise<CodeSession> {
   const trace = callTrace((header) => rpcHeader(call.context, header))
   const scope =
@@ -174,7 +178,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         }
         const call = (): Promise<unknown> =>
           assist === undefined
-            ? context.session.tools.call(input.name, input.input, {signal, gate})
+            ? context.session.tools.call(input.name, input.input, {signal, gate, outside: hubOrigin(context)})
             : gate(() => assist.execute(input.input))
         return call().catch((error: unknown) => {
           throw registryCallError(error, errors)

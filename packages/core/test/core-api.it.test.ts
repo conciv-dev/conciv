@@ -5293,9 +5293,24 @@ describe('page action queue delivery', () => {
     caller.abort()
     await expect(running).rejects.toMatchObject({name: 'AbortError'})
     await page.seenChunk(
-      (chunk) => chunk.type === ChatEventType.TOOL_CALL_RESULT && chunk.content.includes('Code execution was stopped'),
+      (chunk) =>
+        chunk.type === ChatEventType.TOOL_CALL_RESULT &&
+        JSON.stringify(chunk.content).includes('Code execution was stopped'),
     )
     expect(blocking.id).not.toBe(queueId)
+    expect(JSON.stringify(await page.hub('return 1'))).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
+  }, 5000)
+
+  it('a page_queue_async a hub caller starts through registry.call is outside work: its result leads the next hub reply', async () => {
+    const page = await engineWithTab()
+    const typed = makeRpcClient(page.base, {headers: {...HUB, [CONCIV_SESSION_HEADER]: page.sessionId}})
+    const {queueId} = z
+      .object({queueId: z.string()})
+      .parse(await typed.registry.call({name: 'page_queue_async', input: {actions: ACTIONS}}))
+    const onTab = await page.nextQueue()
+    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    await page.finishedEvent(queueId)
     expect(JSON.stringify(await page.hub('return 1'))).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
   }, 5000)
 
