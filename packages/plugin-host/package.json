@@ -39,10 +39,14 @@
   "dependencies": {
     "@conciv/db": "workspace:^",
     "@effect/sql-sqlite-node": "catalog:",
+    "@npmcli/arborist": "catalog:",
+    "@npmcli/config": "catalog:",
     "@standard-schema/spec": "catalog:",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "glob": "catalog:",
+    "npm-package-arg": "catalog:",
+    "pacote": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -50,6 +54,9 @@
     "@conciv/vitest-config": "workspace:*",
     "@effect/platform-node": "catalog:",
     "@types/node": "catalog:",
+    "@types/npm-package-arg": "catalog:",
+    "@types/npmcli__arborist": "catalog:",
+    "@types/pacote": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "fast-check": "catalog:",
     "tsdown": "catalog:",
