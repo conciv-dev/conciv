@@ -1,0 +1,57 @@
+{
+  "name": "@conciv/plugin-host",
+  "version": "0.0.22",
+  "description": "Internal to @conciv/core (installed automatically, do not install directly). The engine-side plugin host: opencode's replayable state, hook registry and tool domain, in Effect.",
+  "keywords": [
+    "conciv",
+    "plugin",
+    "plugins"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/plugin-host"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@standard-schema/spec": "catalog:",
+    "effect": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "fast-check": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=26.0.0"
+  }
+}

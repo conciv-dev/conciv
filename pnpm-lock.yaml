@@ -81,6 +81,9 @@ catalogs:
     '@solidjs/testing-library':
       specifier: ^0.8.10
       version: 0.8.10
+    '@standard-schema/spec':
+      specifier: 1.1.0
+      version: 1.1.0
     '@storybook/addon-docs':
       specifier: ^10.6.5
       version: 10.6.5
@@ -282,6 +285,9 @@ catalogs:
     drizzle-orm:
       specifier: 1.0.0-rc.5
       version: 1.0.0-rc.5
+    effect:
+      specifier: 4.1.0
+      version: 4.1.0
     env-paths:
       specifier: ^3.0.0
       version: 3.0.0
@@ -294,6 +300,9 @@ catalogs:
     eslint-plugin-solid:
       specifier: 0.18.1
       version: 0.18.1
+    fast-check:
+      specifier: 4.9.0
+      version: 4.9.0
     get-port:
       specifier: ^7.2.0
       version: 7.2.0
@@ -1972,7 +1981,7 @@ importers:
         version: 0.11.2
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7)
+        version: 1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
       piscina:
         specifier: 'catalog:'
         version: 5.3.2
@@ -2173,6 +2182,9 @@ importers:
       '@conciv/harness':
         specifier: workspace:^
         version: link:../harness
+      '@conciv/plugin-host':
+        specifier: workspace:^
+        version: link:../plugin-host
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -2181,7 +2193,10 @@ importers:
         version: link:../tools
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7)
+        version: 1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.0
       hono:
         specifier: 'catalog:'
         version: 4.13.14
@@ -2192,9 +2207,15 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@conciv/vitest-config':
+        specifier: workspace:*
+        version: link:../vitest-config
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+      '@vitest/coverage-v8':
+        specifier: 'catalog:'
+        version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
@@ -2204,6 +2225,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
 
   packages/cli:
     dependencies:
@@ -2408,6 +2432,9 @@ importers:
       '@conciv/harness-init':
         specifier: workspace:^
         version: link:../harness-init
+      '@conciv/plugin-host':
+        specifier: workspace:^
+        version: link:../plugin-host
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -2449,7 +2476,10 @@ importers:
         version: 1.2.6(@devframes/agentic@1.2.6)(cac@7.1.0)(ocache@0.3.1)(srvx@1.0.8)
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7)
+        version: 1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.0
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
@@ -2467,7 +2497,7 @@ importers:
         version: 8.0.0
       unstorage:
         specifier: 'catalog:'
-        version: 1.17.5(@netlify/blobs@10.7.9)(db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7)))(ioredis@5.11.1)
+        version: 1.17.5(@netlify/blobs@10.7.9)(db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)))(ioredis@5.11.1)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -2543,7 +2573,7 @@ importers:
         version: link:../protocol
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7)
+        version: 1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
       env-paths:
         specifier: 'catalog:'
         version: 3.0.0
@@ -2565,7 +2595,7 @@ importers:
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
       drizzle-kit:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7))
+        version: 1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7))
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
@@ -3015,18 +3045,6 @@ importers:
       '@conciv/contract':
         specifier: workspace:^
         version: link:../../contract
-      '@conciv/extension-compiler':
-        specifier: workspace:^
-        version: link:../../extension-compiler
-      '@conciv/extension-testkit':
-        specifier: workspace:^
-        version: link:../../extension-testkit
-      '@conciv/harness-testkit':
-        specifier: workspace:^
-        version: link:../../harness-testkit
-      '@conciv/it':
-        specifier: workspace:^
-        version: link:../../it
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
@@ -3036,9 +3054,6 @@ importers:
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
-      '@conciv/vitest-config':
-        specifier: workspace:*
-        version: link:../../vitest-config
       '@iconify-json/ph':
         specifier: 'catalog:'
         version: 1.2.2
@@ -3060,30 +3075,9 @@ importers:
       '@types/pngjs':
         specifier: 'catalog:'
         version: 6.0.5
-      '@types/react':
-        specifier: 'catalog:'
-        version: 19.3.0
-      '@types/react-dom':
-        specifier: 'catalog:'
-        version: 19.3.0(@types/react@19.3.0)
       '@unocss/reset':
         specifier: 'catalog:'
         version: 66.12.0
-      '@vitejs/plugin-react':
-        specifier: 'catalog:'
-        version: 6.1.2(vite@8.3.5)
-      '@vitest/coverage-v8':
-        specifier: 'catalog:'
-        version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
-      playwright:
-        specifier: 'catalog:'
-        version: 1.64.1
-      react:
-        specifier: 'catalog:'
-        version: 19.3.1
-      react-dom:
-        specifier: 'catalog:'
-        version: 19.3.1(react@19.3.1)
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
@@ -3102,9 +3096,6 @@ importers:
       vite-plugin-solid:
         specifier: 'catalog:'
         version: 2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5)
-      vitest:
-        specifier: 'catalog:'
-        version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
 
   packages/extensions/ios:
     dependencies:
@@ -4309,6 +4300,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@standard-schema/spec':
+        specifier: 'catalog:'
+        version: 1.1.0
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -4346,6 +4340,43 @@ importers:
       vite-plugin-solid:
         specifier: 'catalog:'
         version: 2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5)
+      vitest:
+        specifier: 'catalog:'
+        version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
+
+  packages/plugin-host:
+    dependencies:
+      '@standard-schema/spec':
+        specifier: 'catalog:'
+        version: 1.1.0
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.0
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+    devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@conciv/vitest-config':
+        specifier: workspace:*
+        version: link:../vitest-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      '@vitest/coverage-v8':
+        specifier: 'catalog:'
+        version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
+      fast-check:
+        specifier: 'catalog:'
+        version: 4.9.0
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -14309,6 +14340,9 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
+  effect@4.1.0:
+    resolution: {integrity: sha512-lGx2MJJyrXA8RZb2UpQ/0Nkb5Utaimby7oD92+18noBxLPE85IFOvptdzau8dvcxAOwfwHo9iqapbKeFzqQM/Q==}
+
   electron-to-chromium@1.5.466:
     resolution: {integrity: sha512-WkgFvScwZjvCPupYGfQr5qlKCv/Tu+GYELGMCGcoBOQbNb6nx/TqGwJyLMwcNAAy2kKJF2agjM7KZKest538JA==}
 
@@ -14708,6 +14742,10 @@ packages:
     resolution: {integrity: sha512-oqMmHAoZlbgVAdOHFgw771TTG5xs1r+TO+Fy/Qx4Rez11ShzgUbzhtOMm8T1HCMKs2W00kV2+IKi8UzQ028Mvw==}
     engines: {node: '>=22'}
     hasBin: true
+
+  fast-check@4.9.0:
+    resolution: {integrity: sha512-7ms6T7SybUev/PQITciI0yLM2pOSFy5zpG8Ty7tQofcVaQUvrMXp6CBwqF6fThLCLOrfBtuHAtwq6Yu4XPCllg==}
+    engines: {node: '>=12.17.0'}
 
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
@@ -17157,6 +17195,9 @@ packages:
   punycode@2.3.1:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
+
+  pure-rand@8.4.2:
+    resolution: {integrity: sha512-vvuOGgcuPJAirlHvuQw1TrOiw7ptaIXXmIbNuiNOY6lNGJJH49PQ1Kj4nd783nPdQhQdicgOjVI2yI/9BD6/Ng==}
 
   pwacompat@2.0.17:
     resolution: {integrity: sha512-6Du7IZdIy7cHiv7AhtDy4X2QRM8IAD5DII69mt5qWibC2d15ZU8DmBG1WdZKekG11cChSu4zkSUGPF9sweOl6w==}
@@ -27383,11 +27424,11 @@ snapshots:
       '@libsql/client': 0.18.0
       drizzle-orm: 0.45.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)
 
-  db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7)):
+  db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)):
     optionalDependencies:
       '@electric-sql/pglite': 0.3.16
       '@libsql/client': 0.18.0
-      drizzle-orm: 1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7)
+      drizzle-orm: 1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
     optional: true
 
   debounce-fn@4.0.0:
@@ -27549,9 +27590,9 @@ snapshots:
       esbuild: 0.25.12
       tsx: 4.23.15
 
-  drizzle-kit@1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7)):
+  drizzle-kit@1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)):
     optionalDependencies:
-      drizzle-orm: 1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7)
+      drizzle-orm: 1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
 
   drizzle-orm@0.45.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1):
     optionalDependencies:
@@ -27559,11 +27600,12 @@ snapshots:
       '@libsql/client': 0.18.0
       '@opentelemetry/api': 1.9.1
 
-  drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7):
+  drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7):
     optionalDependencies:
       '@electric-sql/pglite': 0.3.16
       '@libsql/client': 0.18.0
       '@opentelemetry/api': 1.9.1
+      effect: 4.1.0
       zod: 4.6.7
 
   dset@3.1.4: {}
@@ -27597,6 +27639,8 @@ snapshots:
       semver: 7.8.5
 
   ee-first@1.1.1: {}
+
+  effect@4.1.0: {}
 
   electron-to-chromium@1.5.466: {}
 
@@ -28261,6 +28305,10 @@ snapshots:
       fallow-type-aware: 3.36.0
     transitivePeerDependencies:
       - tsrs
+
+  fast-check@4.9.0:
+    dependencies:
+      pure-rand: 8.4.2
 
   fast-deep-equal@3.1.3: {}
 
@@ -31231,6 +31279,8 @@ snapshots:
 
   punycode@2.3.1: {}
 
+  pure-rand@8.4.2: {}
+
   pwacompat@2.0.17: {}
 
   qified@0.10.1:
@@ -33012,7 +33062,7 @@ snapshots:
       db0: 0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@0.45.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1))
       ioredis: 5.11.1
 
-  unstorage@1.17.5(@netlify/blobs@10.7.9)(db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7)))(ioredis@5.11.1):
+  unstorage@1.17.5(@netlify/blobs@10.7.9)(db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)))(ioredis@5.11.1):
     dependencies:
       anymatch: 3.1.3
       chokidar: 5.0.0
@@ -33024,7 +33074,7 @@ snapshots:
       ufo: 1.6.4
     optionalDependencies:
       '@netlify/blobs': 10.7.9
-      db0: 0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7))
+      db0: 0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7))
       ioredis: 5.11.1
 
   untun@0.1.3:

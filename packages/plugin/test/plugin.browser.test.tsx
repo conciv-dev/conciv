@@ -14,7 +14,7 @@ import {
   type Context,
   type Sessions,
 } from '../src/experimental/index.js'
-import type {ServerRef} from '../src/servers.js'
+import type {ServerRef} from '../src/experimental/index.js'
 
 function unused(): never {
   throw new Error('not used by this test')

@@ -32,6 +32,7 @@
     "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
+    "test": "vitest run",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
   },
@@ -41,18 +42,23 @@
     "@conciv/db": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/harness": "workspace:^",
+    "@conciv/plugin-host": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/tools": "workspace:^",
     "drizzle-orm": "catalog:",
+    "effect": "catalog:",
     "hono": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "tsdown": "catalog:",
     "tsx": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   },
   "engines": {
     "node": ">=26.0.0"

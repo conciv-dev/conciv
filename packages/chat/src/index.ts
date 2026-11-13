@@ -14,6 +14,7 @@ import {
   createUiChannel,
   type Admission,
   type ApprovalDecision,
+  type ApprovalAsked,
   type ApprovalScope,
 } from './approvals.js'
 import {chatToolSet, type CodeCapability} from './code-mode.js'
@@ -21,7 +22,7 @@ import {clearThread, metadataKeysEndingWith, runningThreadIds} from './stores.js
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
 import {firstUserTitle, turnHooks, type TurnDeps} from './turn.js'
 
-export {assistCapabilities, registryCapabilities, type CodeCapability} from './code-mode.js'
+export {assistCapabilities, registryCapabilities, toolDomainCapabilities, type CodeCapability} from './code-mode.js'
 export type {AttachmentExpanders, SessionPort} from './turn.js'
 
 const FIRST_OUTPUT_TIMEOUT_MS = 30_000
@@ -93,7 +94,11 @@ export type ChatPlane = {
   catchUp: (sessionId: SessionId) => Promise<ChatEvent[]>
   outsideDenied: (sessionId: SessionId) => Promise<boolean>
   allowOutside: (sessionId: SessionId) => Promise<void>
+  permissionAsked: (sessionId: SessionId, ask: PermissionAsk) => Promise<void>
+  permissionSettled: (sessionId: SessionId, approvalId: string) => Promise<void>
 }
+
+type PermissionAsk = Omit<ApprovalAsked, 'runId' | 'permission'> & {permission: {always: boolean}}
 
 export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   const startingFollowUps = new Set<SessionId>()
@@ -227,13 +232,8 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     askUi: (sessionId) => ui.ask(sessionId),
     admitCall,
     catchUp: async (sessionId) => {
-      const asks: ChatEvent[] = (await approvals.pending(sessionId)).map((ask) => ({
-        ...approvalRequestedEvent.create({
-          approvalId: ask.approvalId,
-          toolCallId: ask.toolCallId,
-          title: ask.toolName,
-          input: ask.input,
-        }),
+      const asks: ChatEvent[] = (await approvals.pending(sessionId)).map(({toolName, runId: _runId, ...ask}) => ({
+        ...approvalRequestedEvent.create({...ask, title: toolName}),
         timestamp: Date.now(),
       }))
       const active = await stores.runs.findActiveRun(sessionId).catch((error: unknown) => {
@@ -244,6 +244,8 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     },
     outsideDenied: (sessionId) => approvals.outsideDenied(sessionId),
     allowOutside: (sessionId) => approvals.allowOutside(sessionId),
+    permissionAsked: (sessionId, ask) => approvals.asked(sessionId, {...ask, runId: null}),
+    permissionSettled: (sessionId, approvalId) => approvals.remove(sessionId, approvalId),
     followUp: async (sessionId, input) => {
       if (startingFollowUps.has(sessionId) || server.driving(sessionId)) return {kind: 'busy'}
       startingFollowUps.add(sessionId)

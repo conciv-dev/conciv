@@ -1,4 +1,4 @@
-export type Json = string | number | boolean | null | readonly Json[] | {readonly [key: string]: Json}
+import type {Json} from './experimental/core.js'
 
 export interface StorageEntry {
   readonly key: string
@@ -14,12 +14,4 @@ export interface StorageScanOptions {
 export interface StorageScanResult {
   readonly entries: readonly StorageEntry[]
   readonly next?: string
-}
-
-export interface StorageDomain {
-  readonly directory: string
-  readonly get: (key: string) => Promise<Json | undefined>
-  readonly set: (key: string, value: Json) => Promise<void>
-  readonly remove: (key: string) => Promise<void>
-  readonly scan: (options: StorageScanOptions) => Promise<StorageScanResult>
 }

@@ -9,7 +9,6 @@
     "packages/aidx/**",
     "packages/contract/test/helpers/fake-native-socket.ts",
     "packages/extensions/tanstack/test/fixtures/**",
-    "packages/extensions/design/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",
     "packages/cli/test/fixtures/**",
     "packages/unplugin/test/fixtures/extension/**",
@@ -98,6 +97,12 @@
         "maxCognitive": 48,
         "maxCrap": 88,
         "maxUnitSize": 120
+      },
+      {
+        "files": ["packages/plugin-host/src/**"],
+        "maxCognitive": 24,
+        "maxCrap": 72,
+        "reason": "copied from opencode: the copy keeps opencode's shape"
       }
     ]
   },
@@ -175,6 +180,7 @@
     "@conciv/mascot-react",
     "@conciv/unplugin",
     "@conciv/plugin",
+    "@conciv/plugin-host",
     "@conciv/preact",
     "@conciv/protocol",
     "@conciv/react",
@@ -203,7 +209,11 @@
     },
     {
       "file": "packages/plugin/src/**",
-      "exports": ["Info", "Ref", "define", "Cleanup", "Id", "Name"]
+      "exports": ["Info", "Ref", "define", "Cleanup", "Id", "Name", "PluginOptions"]
+    },
+    {
+      "file": "packages/plugin-host/src/**",
+      "exports": ["Id", "Interface", "Options", "Service", "Tool", "layer"]
     },
     {
       "file": "packages/ui-kit-chat/src/tools/primitives/tool-fallback.tsx",
