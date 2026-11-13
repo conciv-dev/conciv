@@ -1,5 +1,6 @@
 import {createUniqueId, For, Show, splitProps, type JSX} from 'solid-js'
-import {RadioGroup} from '@ark-ui/solid/radio-group'
+import {RadioGroup as Ark} from '@ark-ui/solid/radio-group'
+import {nativeFocusPart} from './native-focus.js'
 
 const ROOT = 'flex flex-col gap-1.5 min-w-0'
 const ITEM =
@@ -9,6 +10,8 @@ const CONTROL =
 const BODY = 'flex flex-col gap-0.5 min-w-0'
 const TITLE = 'text-[0.8125rem] leading-snug font-medium text-chat-text-hi'
 const DESCRIPTION = 'text-[0.75rem] leading-snug text-chat-text-2'
+
+const RadioGroup = Object.assign({}, Ark, {ItemHiddenInput: nativeFocusPart(Ark.ItemHiddenInput, 'input')})
 
 type RadioCardOption = {value: string; title: string; description?: string; disabled?: boolean}
 
