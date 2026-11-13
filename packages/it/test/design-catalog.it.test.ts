@@ -172,6 +172,20 @@ describe('a Figma stroke drawn inside the box', () => {
   })
 })
 
+describe('a text field', () => {
+  it('shows its placeholder as the design text it stands for', async () => {
+    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
+    await kit.goto('input-field-input')
+    await call('design_get', {
+      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1418',
+      document: JSON.parse(await readFile(fixture('input-field.json'), 'utf8')),
+      image: fixture('input-field.png'),
+    })
+    const checked = roundOf(await call('design_check', {}))
+    expect(checked.coverage.missing.includes('100:1421')).toBe(false)
+  })
+})
+
 describe('a Figma frame stroked on one side', () => {
   it('is told with its side weights, and a box stroked all round is flagged', async () => {
     const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))

@@ -77,7 +77,8 @@ src/
   border row then names the sides and fails a box stroked on other sides; the rules ask for it as an outline inset by its weight, which takes no
   space, and the measure reads a border, an outline or an inset box-shadow with no blur as the stroke, each on the
   sides it draws. A border row names the
-  align after the expected stroke.
+  align after the expected stroke. An empty input or textarea measures its placeholder as its text, so a real form
+  control pairs with the design text it stands for.
 - A run builds one page, so its targets share one route. `design_get` takes `route`, the path of that page (`/pricing`,
   with a query when the page needs one), and moves every target of the run there, the frames of that call and the
   frames registered before it; without it a new target takes the pathname the tab is on when the design is registered.

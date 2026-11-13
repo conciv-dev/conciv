@@ -49,6 +49,7 @@ const INPUT_LINES = {
   'input-field-bare': {...INPUT_LINE, borderBottom: '1px solid #333333'},
   'input-field-shadow': {...INPUT_LINE, borderBottom: '1px solid #333333'},
   'input-field-rule': {...INPUT_LINE, height: 'auto'},
+  'input-field-input': {...INPUT_LINE, borderBottom: '1px solid #333333'},
 }
 const INPUT_FIELDS = {
   'input-field': INPUT_FIELD,
@@ -58,7 +59,17 @@ const INPUT_FIELDS = {
   'input-field-bare': {...INPUT_FIELD, border: 'none'},
   'input-field-shadow': {...INPUT_FIELD, border: 'none', boxShadow: 'inset 0 0 0 1px #262626'},
   'input-field-rule': INPUT_FIELD,
+  'input-field-input': INPUT_FIELD,
 }
+const PLACEHOLDER_INPUT = {
+  height: 24,
+  padding: 0,
+  border: 'none',
+  background: 'transparent',
+  fontSize: 16,
+  lineHeight: '24px',
+  color: '#656567',
+} as const
 const DISCOVERY_TEXT =
   'We begin by thoroughly understanding your business goals, target audience, and project requirements. We conduct in-depth research to gather insights and define project objectives, allowing us to develop a tailored strategy.'
 const PLANNING_TEXT =
@@ -100,7 +111,8 @@ export function App() {
     requested === 'input-field-outline' ||
     requested === 'input-field-bare' ||
     requested === 'input-field-shadow' ||
-    requested === 'input-field-rule'
+    requested === 'input-field-rule' ||
+    requested === 'input-field-input'
   ) {
     return (
       <main data-conciv-key="iNfMnA">
@@ -112,9 +124,13 @@ export function App() {
             style={INPUT_LINES[requested]}
             data-conciv-key="iNfSbA"
           >
-            <span style={{fontSize: 16, lineHeight: '24px', color: '#656567'}} data-conciv-key="iNfPhA">
-              Type here
-            </span>
+            {requested === 'input-field-input' ? (
+              <input placeholder="Type here" style={PLACEHOLDER_INPUT} data-conciv-key="iNfInA" />
+            ) : (
+              <span style={{fontSize: 16, lineHeight: '24px', color: '#656567'}} data-conciv-key="iNfPhA">
+                Type here
+              </span>
+            )}
             {requested === 'input-field-rule' ? (
               <span style={{height: 1, background: '#333333'}} data-conciv-key="iNfRlA" />
             ) : null}
