@@ -3,7 +3,8 @@ import {Progress as Ark} from '@ark-ui/solid/progress'
 
 export type LoaderSize = 'sm' | 'md' | 'lg'
 
-const ROOT = 'loader-size flex flex-col items-center justify-center gap-8 p-8'
+const ROOT = 'loader-size flex flex-col items-center justify-center gap-8'
+const ROOT_PADDING = 'p-8'
 const ORB = 'loader-orb'
 const TEXT = 'loader-text'
 const LABEL = 'loader-label'
@@ -23,15 +24,15 @@ function LoaderArcs(): JSX.Element {
 }
 
 function Root(
-  props: Omit<ComponentProps<typeof Ark.Root>, 'value' | 'defaultValue'> & {size?: LoaderSize},
+  props: Omit<ComponentProps<typeof Ark.Root>, 'value' | 'defaultValue'> & {size?: LoaderSize; bare?: boolean},
 ): JSX.Element {
-  const [local, rest] = splitProps(props, ['class', 'size'])
+  const [local, rest] = splitProps(props, ['class', 'size', 'bare'])
   return (
     <Ark.Root
       translations={DEFAULT_TRANSLATIONS}
       {...rest}
       value={null}
-      class={`${ROOT}  ${local.class ?? ''}`}
+      class={`${ROOT}  ${local.bare ? '' : ROOT_PADDING}  ${local.class ?? ''}`}
       data-size={local.size ?? 'md'}
     />
   )

@@ -76,3 +76,22 @@ export const SwappedIndicator: Story = {
     </Loader.Root>
   ),
 }
+
+export const Bare: Story = {
+  render: () => (
+    <div class="flex flex-col gap-4 items-start">
+      <div class="text-chat-text-2 px-2.5 py-2 border border-chat-line rounded-chat-surface-md flex gap-2 items-center">
+        <Loader.Root size="sm" bare translations={{value: () => 'Installing the plugin'}}>
+          <Loader.Indicator class="size-3.5" />
+        </Loader.Root>
+        <span class="text-chat-sm">Installing the plugin</span>
+      </div>
+      <div class="text-chat-text-2 px-2.5 py-2 border border-chat-line rounded-chat-surface-md flex gap-2 items-center">
+        <Loader.Root size="sm" translations={{value: () => 'Installing the plugin'}}>
+          <Loader.Indicator class="size-3.5" />
+        </Loader.Root>
+        <span class="text-chat-sm">Installing the plugin (default padding)</span>
+      </div>
+    </div>
+  ),
+}

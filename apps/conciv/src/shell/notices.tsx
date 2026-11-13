@@ -87,7 +87,7 @@ function NoticeIconSlot(props: {type: string | undefined; icon: NoticeIcon | und
       }
     >
       <span class={ICON_SLOT}>
-        <Loader.Root size="sm" class="!p-0">
+        <Loader.Root size="sm" bare>
           <Loader.Indicator class={ICON} />
         </Loader.Root>
       </span>
