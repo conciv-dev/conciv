@@ -3472,19 +3472,19 @@ describe('queue strip', () => {
     return last.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(' ')
   }
 
-  const abortOf = (signal: AbortSignal | undefined): Promise<void> =>
+  const waitForAbort = (signal: AbortSignal | undefined): Promise<void> =>
     new Promise((resolve) => signal?.addEventListener('abort', () => resolve(), {once: true}))
 
   function sessionOverHeldRuns() {
     const sent: string[] = []
     const connection: ChatSessionConnection = {
       subscribe: async function* (signal) {
-        await abortOf(signal)
+        await waitForAbort(signal)
         yield* []
       },
       send: async (messages, _data, signal) => {
         sent.push(lastUserText(messages))
-        await abortOf(signal)
+        await waitForAbort(signal)
       },
       refresh: () => Promise.resolve(EMPTY_HYDRATION),
       close: () => undefined,
@@ -3517,10 +3517,10 @@ describe('queue strip', () => {
       const hydration: ChatSessionHydration = {...EMPTY_HYDRATION, lastRun: ended('other-client-run', 'completed')}
       const connection: ChatSessionConnection = {
         subscribe: async function* (signal) {
-          await abortOf(signal)
+          await waitForAbort(signal)
           yield* []
         },
-        send: async (_messages, _data, signal) => abortOf(signal),
+        send: async (_messages, _data, signal) => waitForAbort(signal),
         refresh: async () => {
           await fetches.shift()?.promise
           announcements[0]?.onHydrated(hydration)
@@ -3631,7 +3631,7 @@ describe('quick add pane', () => {
   const splitPane = () => page.getByRole('button', {name: 'Split pane', exact: true})
   const sessionTrigger = () => page.getByRole('button', {name: /^Session: /})
 
-  const sessionIdsOf = async (rpc: RpcClient): Promise<string[]> =>
+  const listSessionIds = async (rpc: RpcClient): Promise<string[]> =>
     (await rpc.sessions.list({limit: 100})).sessions.map((row) => row.id)
 
   const idsAddedBy = (before: string[], after: string[]): string[] => after.filter((id) => !before.includes(id))
@@ -3662,11 +3662,11 @@ describe('quick add pane', () => {
       .element(page.getByRole('button', {name: /^Session: Warm split source$/}), {timeout: 8000})
       .toBeVisible()
 
-    const beforeFirstSplit = await sessionIdsOf(rpc)
+    const beforeFirstSplit = await listSessionIds(rpc)
     await splitPane().click()
     await expect.element(closePane().nth(1), {timeout: 8000}).toBeVisible()
     await expect.element(sessionTrigger().nth(1), {timeout: 8000}).toBeVisible()
-    const afterFirstSplit = await sessionIdsOf(rpc)
+    const afterFirstSplit = await listSessionIds(rpc)
     const firstMinted = idsAddedBy(beforeFirstSplit, afterFirstSplit)
     expect(firstMinted).toHaveLength(1)
     expect(firstMinted).not.toContain(sessionId)
@@ -3674,7 +3674,7 @@ describe('quick add pane', () => {
     await splitPane().click()
     await expect.element(closePane().nth(2), {timeout: 8000}).toBeVisible()
     await expect.element(sessionTrigger().nth(2), {timeout: 8000}).toBeVisible()
-    const afterSecondSplit = await sessionIdsOf(rpc)
+    const afterSecondSplit = await listSessionIds(rpc)
     const secondMinted = idsAddedBy(afterFirstSplit, afterSecondSplit)
     expect(secondMinted).toHaveLength(1)
     expect(secondMinted).not.toEqual(firstMinted)

@@ -17,7 +17,7 @@ import {openDb, type ConcivDb} from '../src/db.js'
 import {importLegacyThreads} from '../src/chat-thread-import.js'
 import {chatMessages, chatRuns, runMessages, runs, sessionHistory} from '../src/run-schema.js'
 import {sessions} from '../src/schema.js'
-import {modelOf, runMessagesFor} from '../src/run-queries.js'
+import {readModel, runMessagesFor} from '../src/run-queries.js'
 import {
   closeHomeDb,
   concivHome,
@@ -483,12 +483,12 @@ describe('run queries', () => {
   describe('run lifecycle queries', () => {
     it('reads fall back safely for unknown sessions', () => {
       const db = fresh()
-      expect(modelOf(db, 'missing')).toBeNull()
+      expect(readModel(db, 'missing')).toBeNull()
       expect(runMessagesFor(db, 'missing')).toBeNull()
       expect(legacyHistoryRows(db, 'missing')).toEqual([])
     })
 
-    it('modelOf reads the sessions row', () => {
+    it('readModel reads the sessions row', () => {
       const db = fresh()
       db.insert(sessions)
         .values({
@@ -504,7 +504,7 @@ describe('run queries', () => {
           updatedAt: 1,
         })
         .run()
-      expect(modelOf(db, 'conciv_m')).toBe('haiku')
+      expect(readModel(db, 'conciv_m')).toBe('haiku')
     })
   })
 })

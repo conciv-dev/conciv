@@ -37,7 +37,7 @@ const fnv1a = (input: string): string => {
   return (hash >>> 0).toString(16).padStart(8, '0')
 }
 
-const tagOf = (element: OxcNode): string => {
+const readTag = (element: OxcNode): string => {
   const opening = asNode(element.openingElement)
   const name = opening ? asNode(opening.name) : null
   return (name ? str(name.name) : null) ?? '?'
@@ -49,7 +49,7 @@ const structure = (element: OxcNode): string => {
     .map(asNode)
     .filter((c): c is OxcNode => c !== null && c.type === 'JSXElement')
     .map(structure)
-  return `${tagOf(element)}(${nested.join(',')})`
+  return `${readTag(element)}(${nested.join(',')})`
 }
 
 const componentName = (node: OxcNode): string | null => {
@@ -79,7 +79,7 @@ const findAt = (program: OxcNode, offset: number): Found | null => {
     const covers = node.type === 'JSXElement' && start !== null && end !== null && start <= offset && offset < end
     if (covers && start !== null && end !== null && (!best || end - start < best.span))
       best = {target: node, ancestors: [...ancestors], component: nextComponent, span: end - start}
-    const childAncestors = covers ? [...ancestors, tagOf(node)] : ancestors
+    const childAncestors = covers ? [...ancestors, readTag(node)] : ancestors
     for (const key of Object.keys(node)) if (key !== 'type') visit(node[key], childAncestors, nextComponent)
   }
   visit(program, [], null)
@@ -132,14 +132,14 @@ export function scanElements(source: string): ElementFingerprint[] {
       const start = num(node.start) ?? 0
       out.push({
         ...offsetToLineCol(source, start),
-        tag: tagOf(node),
+        tag: readTag(node),
         hash: fnv1a(structure(node)),
         salt: fnv1a(ancestors.join('>')),
         component: nextComponent,
         snippet: redactSnippet(source.slice(start, num(node.end) ?? start)),
       })
       for (const key of Object.keys(node))
-        if (key !== 'type') visit(node[key], [...ancestors, tagOf(node)], nextComponent)
+        if (key !== 'type') visit(node[key], [...ancestors, readTag(node)], nextComponent)
       return
     }
     for (const key of Object.keys(node)) if (key !== 'type') visit(node[key], ancestors, nextComponent)

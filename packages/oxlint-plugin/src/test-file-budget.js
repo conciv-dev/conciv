@@ -11,11 +11,11 @@ function hasPackageJson(directory) {
   return existsSync(join(directory, 'package.json'))
 }
 
-function packageDirectoryOf(filename) {
+function findPackageDirectory(filename) {
   const parent = dirname(filename)
   if (hasPackageJson(parent)) return parent
   if (parent === dirname(parent)) return undefined
-  return packageDirectoryOf(parent)
+  return findPackageDirectory(parent)
 }
 
 function isWalkedDirectory(path, name) {
@@ -48,7 +48,7 @@ function isCountedTestFile(filename, packageDirectory) {
     .every((segment) => !IGNORED_DIRECTORIES.has(segment))
 }
 
-function maxOf(options) {
+function readMax(options) {
   const max = options[0]?.max
   return typeof max === 'number' ? max : DEFAULT_MAX
 }
@@ -57,18 +57,18 @@ function displayDirectory(packageDirectory) {
   return relative(process.cwd(), packageDirectory) || basename(packageDirectory)
 }
 
-function countedPackageOf(filename) {
-  const packageDirectory = packageDirectoryOf(filename)
+function findCountedPackage(filename) {
+  const packageDirectory = findPackageDirectory(filename)
   if (packageDirectory === undefined || !isCountedTestFile(filename, packageDirectory)) return undefined
   return packageDirectory
 }
 
 function checkProgram(node, context) {
   const filename = context.filename
-  const packageDirectory = countedPackageOf(filename)
+  const packageDirectory = findCountedPackage(filename)
   if (packageDirectory === undefined) return
   const files = packageTestFiles(packageDirectory)
-  const max = maxOf(context.options)
+  const max = readMax(context.options)
   if (files.length <= max || files[0] !== filename) return
   context.report({
     node,

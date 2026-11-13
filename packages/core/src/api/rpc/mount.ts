@@ -5,7 +5,7 @@ import {CONCIV_SESSION_HEADER, isSessionId, SessionId} from '@conciv/protocol/ch
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import type {ChatTool} from '@conciv/protocol/chat-types'
 import type {EngineStaleness} from '@conciv/contract'
-import type {CompositeRpcRouter as CompositeRouterOf} from '@conciv/extension/rpc-mount'
+import type {CompositeRpcRouter as ExtensionCompositeRpcRouter} from '@conciv/extension/rpc-mount'
 import type {ChatPlane} from '@conciv/chat'
 import type {ConcivDb} from '@conciv/db'
 import type {ConcivServerTool} from '@conciv/tools'
@@ -147,4 +147,4 @@ async function admitHubCaller(
 
 export type SessionOs = ReturnType<typeof os.use<{session: SessionScope}>>
 
-export type CompositeRpcRouter = CompositeRouterOf<ReturnType<typeof makeRpcRouter>>
+export type CompositeRpcRouter = ExtensionCompositeRpcRouter<ReturnType<typeof makeRpcRouter>>

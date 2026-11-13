@@ -19,7 +19,7 @@ export type MascotContextValue = {
   effectHostProps: (id: string) => MascotPartProps
   claimPart: (part: MascotPartName, token: ClaimToken, follow: boolean | undefined) => () => void
   claimEffect: () => () => void
-  claimOf: (part: MascotPartName) => PartClaim | undefined
+  readClaim: (part: MascotPartName) => PartClaim | undefined
   effectCount: () => number
   curve: () => CurveStyle | undefined
 }

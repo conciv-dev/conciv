@@ -19,7 +19,7 @@ export function routeFailure(failure: MethodNotAllowed | UnprocessableContent): 
   if (token !== null) return unexpectedFailure({token, definition: failure.definition, label})
   return {
     kind: 'user',
-    message: failure.issues.map((issue) => issueText(issue, paramsOf(failure.definition))).join('; '),
+    message: failure.issues.map((issue) => issueText(issue, collectParams(failure.definition))).join('; '),
     hint: argumentsHint(label),
   }
 }
@@ -43,7 +43,7 @@ function unexpectedToken(issue: Issue): string | null {
 
 function unexpectedFailure(input: {token: string; definition: AnyRoute; label: string}): EnvelopeError {
   const {token, definition, label} = input
-  const params = paramsOf(definition)
+  const params = collectParams(definition)
   if (token.startsWith('-')) return flagFailure({token, params, label})
   const children = definition.phases.flatMap((phase) => phase.routes).map((child) => child.name)
   if (children.length === 0) {
@@ -82,7 +82,7 @@ function issueText(issue: Issue, params: Param[]): string {
   return `${param?.label ?? key.data}: ${issue.message}`
 }
 
-function paramsOf(definition: AnyRoute): Param[] {
+function collectParams(definition: AnyRoute): Param[] {
   return definition.phases
     .flatMap((phase) => Object.values(phase.model.params))
     .flatMap((param) => {

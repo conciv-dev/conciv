@@ -14,7 +14,7 @@ export function isHTMLElement(node: Node | null | undefined): node is HTMLElemen
   return node !== undefined && node !== null && node.nodeType === ELEMENT_NODE && 'style' in node
 }
 
-export function viewOf(node: Node | null | undefined): Window {
+export function resolveView(node: Node | null | undefined): Window {
   if (isDocument(node)) return node.defaultView ?? window
   return node?.ownerDocument?.defaultView ?? window
 }

@@ -62,11 +62,11 @@ function queryState(host: Record<string, unknown>, state: Record<string, unknown
   return 'fresh'
 }
 
-function statusOf(state: Record<string, unknown>): string | null {
+function readStatus(state: Record<string, unknown>): string | null {
   return typeof state.status === 'string' ? state.status : null
 }
 
-function updatedAtOf(state: Record<string, unknown>, key: string): number | null {
+function readUpdatedAt(state: Record<string, unknown>, key: string): number | null {
   const value = state[key]
   return typeof value === 'number' ? value : null
 }
@@ -78,9 +78,9 @@ function queryToEntry(query: unknown): CacheEntry {
   return {
     key: JSON.stringify(query.queryKey),
     state: queryState(query, state),
-    status: statusOf(state),
+    status: readStatus(state),
     value: dehydrate(state.data),
-    updatedAt: updatedAtOf(state, 'dataUpdatedAt'),
+    updatedAt: readUpdatedAt(state, 'dataUpdatedAt'),
     error: errorMessage(state.error),
     observers: callNumber(query, 'getObserversCount'),
   }
@@ -105,9 +105,9 @@ function mutationToEntry(mutation: unknown): CacheEntry {
   return {
     key: mutationKey(mutation),
     state: mutationState(state),
-    status: statusOf(state),
+    status: readStatus(state),
     value: dehydrate(state.data),
-    updatedAt: updatedAtOf(state, 'submittedAt'),
+    updatedAt: readUpdatedAt(state, 'submittedAt'),
     error: errorMessage(state.error),
     observers: callNumber(mutation, 'getObserversCount'),
   }

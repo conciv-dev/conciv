@@ -77,6 +77,9 @@ README.md; this file is the non-obvious operational rules.
 - Functions, not classes. (Sole exception: `DelegatingTextAdapter` behind `makeTextAdapter`
   in `packages/ai/src/adapters.ts`, which the library's typing forces.)
 - No IIFEs unless explicitly required.
+- No identifier ending in "Of" (`conciv/no-of-suffix`): name a function with a verb first that says what its body does,
+  e.g. `readApprovalAsk`, not `approvalAskOf`. Files copied from opencode in `packages/plugin-host/src` and
+  `packages/plugin/src` keep the source's names.
 - Zero code comments in TS/JS (only tool directives like `@ts-`/`eslint-` survive). The
   `conciv/no-comments` lint rule autofix-DELETES anything else, so don't write comments and let lint
   strip them; write self-explanatory code.

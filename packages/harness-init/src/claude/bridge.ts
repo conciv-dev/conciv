@@ -63,7 +63,7 @@ function endpoint() {
   }
 }
 
-function idOf(line) {
+function readId(line) {
   try {
     const parsed = JSON.parse(line)
     return parsed.id ?? null
@@ -77,7 +77,7 @@ function reply(payload) {
 }
 
 function failed(line, reason) {
-  const id = idOf(line)
+  const id = readId(line)
   if (id === null) return
   reply({jsonrpc: '2.0', id, error: {code: -32000, message: \`conciv bridge: \${reason}\`}})
 }
@@ -88,7 +88,7 @@ function timeoutMs() {
   return ${BRIDGE_TIMEOUT_MS}
 }
 
-function eventsOf(text) {
+function splitEvents(text) {
   return text
     .replace(/\\r\\n/g, '\\n')
     .split(/\\n\\n+/)
@@ -101,8 +101,8 @@ function eventsOf(text) {
     })
 }
 
-function framesOf(contentType, body) {
-  if (contentType.includes('text/event-stream')) return eventsOf(body)
+function splitFrames(contentType, body) {
+  if (contentType.includes('text/event-stream')) return splitEvents(body)
   const text = body.trim()
   return text.length === 0 ? [] : [text]
 }
@@ -130,7 +130,7 @@ async function send(line) {
   })
   if (!response.ok) return failed(line, \`http \${response.status}\`)
   const body = await response.text()
-  const texts = framesOf(response.headers.get('content-type') ?? '', body)
+  const texts = splitFrames(response.headers.get('content-type') ?? '', body)
   if (texts.length === 0) return failed(line, 'empty response')
   for (const text of texts) {
     const frame = parsed(text)

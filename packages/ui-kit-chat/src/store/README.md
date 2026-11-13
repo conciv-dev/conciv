@@ -8,7 +8,7 @@ Chat state and pure derivations: the `ChatProvider` context with view state, tur
 
 - `chat-context.tsx:ChatProvider`, `useChatContext`, `useChatContextOptional`, `useThread`, `useComposer`; types `Chat`, `ChatContextValue`, `ViewState`, `TurnItem`.
 - `turn-parts.ts:createTurnParts` - one turn's parts keyed by tool-call id, tool-result call id or position, with per-call `resultFor` and `hidesResult` lookups that wake only the row whose result arrives.
-- `grouping.ts:coalesceTurns`, `buildGroupTree`, `groupParts`, `groupPartByType`, `defaultGrouper`, `stickyGrouper`, `pairResults`, `childCallsFor`, `parentToolCallIdOf`, `standaloneToolNames`, `isReplyText`, `CHAIN_GROUP_KEY` (`group-chain`), `PAGE_SESSION_GROUP_KEY` (`group-page-session`); types `Turn`, `Grouper`, `Grouping`, `GroupNode`, `GroupEntry`.
+- `grouping.ts:coalesceTurns`, `buildGroupTree`, `groupParts`, `groupPartByType`, `defaultGrouper`, `stickyGrouper`, `pairResults`, `childCallsFor`, `readParentToolCallId`, `standaloneToolNames`, `isReplyText`, `CHAIN_GROUP_KEY` (`group-chain`), `PAGE_SESSION_GROUP_KEY` (`group-page-session`); types `Turn`, `Grouper`, `Grouping`, `GroupNode`, `GroupEntry`.
 - `page-session.ts:createPageSessionGrouper`, `createGrouping`, `pageSessionCallParts`, `pageSessionThinkingParts`.
 - `turn-rollup.ts:turnRollup`, `createTurnRollup`, `summaryLine`, `sessionTotals`; `session-status.ts:deriveSessionStatus`, `createSessionStatus`; `run-clock.ts:runClock`, `createRunClock`, `formatElapsed`; `active-call.ts:activeToolCall`, `activeCallInParts`.
 - `tool-context.tsx:ToolProvider`, `useToolCtx`, `INERT_TOOL_CTX`, `INERT_ADD_RESULT`.

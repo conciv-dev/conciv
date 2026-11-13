@@ -61,16 +61,16 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
     return uniq([...opened(), ...watched(), ...(active === null ? [] : [active])])
   })
 
-  const runOf = (sessionId: string): RunWatch => state.runs[sessionId] ?? IDLE_RUN
+  const readRun = (sessionId: string): RunWatch => state.runs[sessionId] ?? IDLE_RUN
 
   const start = (sessionId: string, lifecycle: RunLifecycle) => {
-    const run = runOf(sessionId)
+    const run = readRun(sessionId)
     if (lifecycle.runId === run.live || lifecycle.runId === run.settled) return
     setState('runs', sessionId, {live: lifecycle.runId, settled: run.settled})
   }
 
   const finish = (sessionId: string, lifecycle: RunLifecycle, sentHere: boolean) => {
-    const run = runOf(sessionId)
+    const run = readRun(sessionId)
     if (lifecycle.runId === run.settled || !(lifecycle.runId === run.live || sentHere)) return
     setState('runs', sessionId, {live: null, settled: lifecycle.runId})
     deps.onRunEnd?.(sessionId)
@@ -83,7 +83,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
   const hydrated = (sessionId: string, lastRun: RunLifecycle | null) => {
     if (lastRun === null) return
     if (!isRunPhaseTerminal(lastRun.phase)) return start(sessionId, lastRun)
-    if (lastRun.runId === runOf(sessionId).live) finish(sessionId, lastRun, false)
+    if (lastRun.runId === readRun(sessionId).live) finish(sessionId, lastRun, false)
   }
 
   const liveChat = (sessionId: string, dispose: () => void): LiveChat => {
@@ -148,33 +148,33 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
   onCleanup(() => {
     for (const entry of untrack(chats)) entry.dispose()
   })
-  const chatOf = (sessionId: string | null) => chats().find((entry) => entry.sessionId === sessionId)
+  const findChat = (sessionId: string | null) => chats().find((entry) => entry.sessionId === sessionId)
 
   return {
-    runLive: (sessionId) => runOf(sessionId).live !== null,
+    runLive: (sessionId) => readRun(sessionId).live !== null,
     activityIn(sessionId) {
-      const entry = chatOf(sessionId)
+      const entry = findChat(sessionId)
       if (!entry) return 'unmounted'
       return entry.chat().runInProgress() ? 'running' : 'idle'
     },
     waitingIn(sessionId) {
-      return (chatOf(sessionId)?.chat().pendingApprovals().length ?? 0) > 0
+      return (findChat(sessionId)?.chat().pendingApprovals().length ?? 0) > 0
     },
     open(sessionId) {
       setState('openers', (list) => [...list, sessionId])
       onCleanup(() => setState('openers', (list) => list.filter((entry) => entry !== sessionId)))
       return () => {
-        const entry = chatOf(sessionId())
+        const entry = findChat(sessionId())
         if (!entry) throw new Error(`no live chat for session ${sessionId()}`)
         return entry.chat()
       }
     },
     reopen(sessionId) {
-      const entry = chatOf(sessionId)
+      const entry = findChat(sessionId)
       if (entry) setState('retired', {[sessionId]: entry.chat()})
     },
     stop(sessionId) {
-      void chatOf(sessionId)?.chat().stop()
+      void findChat(sessionId)?.chat().stop()
     },
   }
 }

@@ -3,6 +3,7 @@ import corePurity from './core-purity.js'
 import lucidePerIcon from './lucide-per-icon.js'
 import noComments from './no-comments.js'
 import noLocatorPoll from './no-locator-poll.js'
+import noOfSuffix from './no-of-suffix.js'
 import noPredicateWaits from './no-predicate-waits.js'
 import noSignalRef from './no-signal-ref.js'
 import noTimersInTests from './no-timers-in-tests.js'
@@ -19,6 +20,7 @@ export default {
     'lucide-per-icon': lucidePerIcon,
     'no-comments': noComments,
     'no-locator-poll': noLocatorPoll,
+    'no-of-suffix': noOfSuffix,
     'no-predicate-waits': noPredicateWaits,
     'no-signal-ref': noSignalRef,
     'no-timers-in-tests': noTimersInTests,

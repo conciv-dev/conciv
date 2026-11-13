@@ -410,7 +410,7 @@ describe('claude terminal command', () => {
     return [command.bin, ...command.args]
   }
 
-  function mcpConfigOf(argv: string[]): unknown {
+  function parseMcpConfig(argv: string[]): unknown {
     const raw = argv[argv.indexOf('--mcp-config') + 1]
     if (!raw) throw new Error('plan has no --mcp-config payload')
     return JSON.parse(raw)
@@ -421,7 +421,7 @@ describe('claude terminal command', () => {
       const argv = plan({resume: true, mcpUrl: 'http://127.0.0.1:1/api/mcp'})
       expect(argv.slice(0, 3)).toEqual(['claude', '--resume', 'tok-1'])
       expect(argv).toContain('--strict-mcp-config')
-      expect(mcpConfigOf(argv)).toEqual({
+      expect(parseMcpConfig(argv)).toEqual({
         mcpServers: {
           conciv: {
             type: 'http',
@@ -1063,7 +1063,7 @@ describe('codex history', () => {
   ]
 
   const rollout = (lines: unknown[]): string => `${lines.map((line) => JSON.stringify(line)).join('\n')}\n`
-  const offsetOf = (index: number): number => Buffer.byteLength(rollout(ROLLOUT_LINES.slice(0, index)))
+  const measureOffset = (index: number): number => Buffer.byteLength(rollout(ROLLOUT_LINES.slice(0, index)))
 
   async function seedRollout(name: string, lines: unknown[]): Promise<string> {
     const dir = join(sessionsRoot(), '2026', '07', '30')
@@ -1126,9 +1126,9 @@ describe('codex history', () => {
   describe('codex rollout parsing', () => {
     it('builds a user/assistant spine with tool calls and their outputs', async () => {
       expect(await history().messages(PROJECT, SESSION)).toEqual([
-        {id: `${SESSION}:o${offsetOf(2)}`, role: 'user', parts: [{type: 'text', content: 'list the files'}]},
+        {id: `${SESSION}:o${measureOffset(2)}`, role: 'user', parts: [{type: 'text', content: 'list the files'}]},
         {
-          id: `${SESSION}:o${offsetOf(3)}`,
+          id: `${SESSION}:o${measureOffset(3)}`,
           role: 'assistant',
           parts: [
             {
@@ -1219,13 +1219,13 @@ describe('codex history', () => {
 
     it('pages newest first, breaks updatedAt ties by id, and reads only the rollouts on the page', async () => {
       const paged = '/workspace/codex.paged'
-      const rolloutOf = (id: string) => seedRollout(`rollout-2026-07-30T16-23-00-${id}.jsonl`, ROLLOUT_LINES)
+      const writeRollout = (id: string) => seedRollout(`rollout-2026-07-30T16-23-00-${id}.jsonl`, ROLLOUT_LINES)
       const oldest = join(sessionsRoot(), '2026', '07', '30', 'rollout-oldest.jsonl')
       blockingTranscript(oldest, 1)
       seedThreads([
-        {id: PAGED_IDS.newest, path: await rolloutOf(PAGED_IDS.newest), cwd: paged, updated: 3_000_000},
-        {id: PAGED_IDS.tieHigh, path: await rolloutOf(PAGED_IDS.tieHigh), cwd: paged, updated: 2_000_000},
-        {id: PAGED_IDS.tieLow, path: await rolloutOf(PAGED_IDS.tieLow), cwd: paged, updated: 2_000_000},
+        {id: PAGED_IDS.newest, path: await writeRollout(PAGED_IDS.newest), cwd: paged, updated: 3_000_000},
+        {id: PAGED_IDS.tieHigh, path: await writeRollout(PAGED_IDS.tieHigh), cwd: paged, updated: 2_000_000},
+        {id: PAGED_IDS.tieLow, path: await writeRollout(PAGED_IDS.tieLow), cwd: paged, updated: 2_000_000},
         {id: PAGED_IDS.oldest, path: oldest, cwd: paged, updated: 1_000_000},
       ])
       await expectPagingContract(
@@ -2166,21 +2166,21 @@ describe('pi history', () => {
       const project = '/workspace/pi-paged.demo'
       const dir = sessionsDir(project)
       await mkdir(dir, {recursive: true})
-      const fileOf = (id: string) => join(dir, `2026-07-30T09-45-14-653Z_${id}.jsonl`)
+      const resolveFile = (id: string) => join(dir, `2026-07-30T09-45-14-653Z_${id}.jsonl`)
       const write = (id: string, mtimeSec: number) => {
-        writeFileSync(fileOf(id), jsonl(LINES))
-        utimesSync(fileOf(id), mtimeSec, mtimeSec)
+        writeFileSync(resolveFile(id), jsonl(LINES))
+        utimesSync(resolveFile(id), mtimeSec, mtimeSec)
       }
       write(PAGED_IDS.newest, 3000)
       write(PAGED_IDS.tieHigh, 2000)
       write(PAGED_IDS.tieLow, 2000)
-      blockingTranscript(fileOf(PAGED_IDS.oldest), 1000)
+      blockingTranscript(resolveFile(PAGED_IDS.oldest), 1000)
       await expectPagingContract(
         (page) => history().list({cwd: project}, page),
         PAGED_IDS,
         2_000_000,
         async () => {
-          rmSync(fileOf(PAGED_IDS.oldest))
+          rmSync(resolveFile(PAGED_IDS.oldest))
           write(PAGED_IDS.oldest, 1000)
         },
       )
@@ -3112,7 +3112,7 @@ describe('resume.command', () => {
 describe('claude transcript usage', () => {
   const cwd = mkdtempSync(join(tmpdir(), 'conciv-usage-'))
   const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-usage-elsewhere-'))
-  const usageOf = (nativeId: string) =>
+  const readUsage = (nativeId: string) =>
     claude.history?.transcriptUsage?.({cwd, nativeId: HarnessSessionId.parse(nativeId)})
 
   const user = (timestamp: string) =>
@@ -3153,7 +3153,7 @@ describe('claude transcript usage', () => {
   })
 
   it('sums the usage of the transcript the native id names, by the model of most messages', async () => {
-    expect(await usageOf('the-run')).toEqual({
+    expect(await readUsage('the-run')).toEqual({
       nativeId: 'the-run',
       model: 'claude-sonnet-4-5',
       usage: {
@@ -3168,7 +3168,7 @@ describe('claude transcript usage', () => {
   })
 
   it('finds the transcript of an agent that ran in another project folder by its id', async () => {
-    expect(await usageOf('agent-elsewhere')).toEqual({
+    expect(await readUsage('agent-elsewhere')).toEqual({
       nativeId: 'agent-elsewhere',
       model: 'claude-opus-4-5',
       usage: {promptTokens: 9, completionTokens: 0, totalTokens: 9},
@@ -3176,7 +3176,7 @@ describe('claude transcript usage', () => {
   })
 
   it('answers null when no transcript has the id or it holds no real assistant message', async () => {
-    expect(await usageOf('never-ran')).toBeNull()
-    expect(await usageOf('only-synthetic')).toBeNull()
+    expect(await readUsage('never-ran')).toBeNull()
+    expect(await readUsage('only-synthetic')).toBeNull()
   })
 })

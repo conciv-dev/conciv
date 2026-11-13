@@ -37,7 +37,7 @@ function unquoted(value: string): string {
   return value.trim().replace(/^["']|["']$/g, '')
 }
 
-function familiesOf(value: string): string[] {
+function splitFamilies(value: string): string[] {
   return value
     .split(',')
     .map(unquoted)
@@ -50,7 +50,7 @@ function webfontFamilies(): Set<string> {
   return families
 }
 
-function letterSpacingOf(styles: CSSStyleDeclaration): number {
+function measureLetterSpacing(styles: CSSStyleDeclaration): number {
   const parsed = Number.parseFloat(styles.letterSpacing)
   return Number.isFinite(parsed) ? parsed : 0
 }
@@ -85,14 +85,14 @@ async function openMeasurer(): Promise<Measurer | null> {
   return {doc, close: () => frame.remove()}
 }
 
-function candidatesOf(runs: readonly TextRun[]): Candidate[] {
+function collectCandidates(runs: readonly TextRun[]): Candidate[] {
   const webfonts = webfontFamilies()
   return runs.flatMap((run) => {
     const text = run.source.textContent ?? ''
     if (text.trim() === '') return []
     const styles = getComputedStyle(run.source)
-    if (!familiesOf(styles.fontFamily).some((family) => webfonts.has(family))) return []
-    const base = letterSpacingOf(styles)
+    if (!splitFamilies(styles.fontFamily).some((family) => webfonts.has(family))) return []
+    const base = measureLetterSpacing(styles)
     return [
       {
         run,
@@ -107,7 +107,7 @@ function candidatesOf(runs: readonly TextRun[]): Candidate[] {
 
 export async function correctFallbackMetrics(runs: readonly TextRun[]): Promise<void> {
   if (runs.length === 0 || document.fonts.size === 0) return
-  const candidates = candidatesOf(runs)
+  const candidates = collectCandidates(runs)
   if (candidates.length === 0) return
   const measurer = await openMeasurer()
   if (!measurer) return

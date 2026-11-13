@@ -90,7 +90,7 @@ export function workspacePackages(): Map<string, PackageInfo> {
   return byName
 }
 
-export function closureOf(packages: ReadonlyMap<string, PackageInfo>, roots: string[]): string[] {
+export function collectClosure(packages: ReadonlyMap<string, PackageInfo>, roots: string[]): string[] {
   const seen = new Set<string>()
   const stack = [...roots]
   while (stack.length > 0) {
@@ -140,7 +140,7 @@ export async function buildAndPack(
 ): Promise<{overrides: Record<string, string>; closure: string[]}> {
   assertPackAllowed()
   const byName = workspacePackages()
-  const closure = closureOf(byName, roots)
+  const closure = collectClosure(byName, roots)
   await run('pnpm', ['turbo', 'run', 'build', ...closure.flatMap((name) => ['--filter', name])], WORKSPACE_ROOT)
   await Promise.all(
     closure.map((name) => {
@@ -273,7 +273,7 @@ function untrustedResolutions(resolutions: LockResolutions): string[] {
   })
 }
 
-function integrityOf(resolution: string): string {
+function readIntegrity(resolution: string): string {
   return resolutionField(resolution, 'integrity') ?? resolution
 }
 
@@ -291,7 +291,7 @@ function lockDrift(committedText: string, producedText: string): string[] {
   const changed = [...produced]
     .filter(([key, resolution]) => {
       const before = committed.get(key)
-      return before !== undefined && integrityOf(before) !== integrityOf(resolution)
+      return before !== undefined && readIntegrity(before) !== readIntegrity(resolution)
     })
     .map(([key]) => `~ ${key} (integrity changed)`)
   return [...registry, ...packed, ...changed].toSorted((left, right) => left.slice(2).localeCompare(right.slice(2)))

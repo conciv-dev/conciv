@@ -37,7 +37,7 @@ export function createReactAnchorResolver(opts: {root: string}): AnchorResolver 
     instance,
   })
 
-  const domOf = (anchor: Anchor): ResolveResult['dom'] =>
+  const resolveDom = (anchor: Anchor): ResolveResult['dom'] =>
     anchor.instance?.selector
       ? {selector: anchor.instance.selector, rect: anchor.instance.rect, instanceKey: anchor.instance.instanceKey}
       : undefined
@@ -59,7 +59,7 @@ export function createReactAnchorResolver(opts: {root: string}): AnchorResolver 
 
   const resolve: AnchorResolver['resolve'] = async (anchor) => {
     const src = anchor.source
-    const dom = domOf(anchor)
+    const dom = resolveDom(anchor)
     const abs = await confineToRoot(root, src.file).catch(() => null)
     if (abs === null) return {status: 'orphaned', dom}
     const source = await readFile(abs, 'utf8').catch(() => null)

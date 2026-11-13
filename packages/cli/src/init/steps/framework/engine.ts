@@ -18,7 +18,7 @@ type BindingStyle = 'default' | 'named' | 'require'
 
 type BindingState = 'bound' | 'conflict' | 'absent'
 
-function moduleSpecifierOf(statement: SgNode): string | null {
+function readModuleSpecifier(statement: SgNode): string | null {
   const specifier = statement.field('source')
   if (specifier === null) return null
   return specifier.text().slice(1, -1)
@@ -28,24 +28,24 @@ function isTypeOnly(node: SgNode): boolean {
   return node.children().some((child) => child.kind() === 'type')
 }
 
-function valueImportsOf(root: SgNode, importFrom: string): SgNode[] {
+function findValueImports(root: SgNode, importFrom: string): SgNode[] {
   return importStatements(root).filter(
-    (statement) => !isTypeOnly(statement) && moduleSpecifierOf(statement) === importFrom,
+    (statement) => !isTypeOnly(statement) && readModuleSpecifier(statement) === importFrom,
   )
 }
 
-function importClauseOf(statement: SgNode): SgNode | null {
+function findImportClause(statement: SgNode): SgNode | null {
   return statement.children().find((child) => child.kind() === 'import_clause') ?? null
 }
 
 function bindsDefaultAs(statement: SgNode, name: string): boolean {
-  const clause = importClauseOf(statement)
+  const clause = findImportClause(statement)
   if (clause === null) return false
   return clause.children().some((child) => child.kind() === 'identifier' && child.text() === name)
 }
 
 function bindsNamedAs(statement: SgNode, name: string): boolean {
-  const clause = importClauseOf(statement)
+  const clause = findImportClause(statement)
   if (clause === null) return false
   return clause
     .children()
@@ -59,7 +59,7 @@ function bindsNamedAs(statement: SgNode, name: string): boolean {
     })
 }
 
-function requiredModuleOf(declarator: SgNode): string | null {
+function readRequiredModule(declarator: SgNode): string | null {
   const value = declarator.field('value')
   if (value === null || value.kind() !== 'call_expression') return null
   if (value.field('function')?.text() !== 'require') return null
@@ -82,10 +82,10 @@ function isTopLevel(declarator: SgNode): boolean {
   return enclosing.kind() === 'export_statement' && enclosing.parent()?.kind() === 'program'
 }
 
-function tokensOf(node: SgNode): SgNode[] {
+function collectTokens(node: SgNode): SgNode[] {
   const children = node.children()
   if (children.length === 0) return [node]
-  return children.flatMap(tokensOf)
+  return children.flatMap(collectTokens)
 }
 
 function fillsField(node: SgNode, parentKind: string, field: string): boolean {
@@ -100,7 +100,7 @@ function isRequireRead(token: SgNode): boolean {
 }
 
 function requireIsShadowed(root: SgNode): boolean {
-  return tokensOf(root)
+  return collectTokens(root)
     .filter((token) => token.text() === 'require')
     .some((token) => !isRequireRead(token))
 }
@@ -108,7 +108,7 @@ function requireIsShadowed(root: SgNode): boolean {
 function bindsRequireAs(root: SgNode, requireFrom: string, name: string): boolean {
   return root.findAll({rule: {kind: 'variable_declarator'}}).some((declarator) => {
     if (!isTopLevel(declarator)) return false
-    if (requiredModuleOf(declarator) !== requireFrom) return false
+    if (readRequiredModule(declarator) !== requireFrom) return false
     const target = declarator.field('name')
     return target !== null && target.kind() === 'identifier' && target.text() === name
   })
@@ -116,13 +116,14 @@ function bindsRequireAs(root: SgNode, requireFrom: string, name: string): boolea
 
 function boundToModule(root: SgNode, moduleFrom: string, name: string, style: BindingStyle): boolean {
   if (style === 'require') return bindsRequireAs(root, moduleFrom, name)
-  if (style === 'default') return valueImportsOf(root, moduleFrom).some((statement) => bindsDefaultAs(statement, name))
-  return valueImportsOf(root, moduleFrom).some((statement) => bindsNamedAs(statement, name))
+  if (style === 'default')
+    return findValueImports(root, moduleFrom).some((statement) => bindsDefaultAs(statement, name))
+  return findValueImports(root, moduleFrom).some((statement) => bindsNamedAs(statement, name))
 }
 
 function referencesModule(root: SgNode, moduleFrom: string, style: BindingStyle): boolean {
   if (style === 'require') return requiresFrom(root, moduleFrom)
-  return valueImportsOf(root, moduleFrom).length > 0
+  return findValueImports(root, moduleFrom).length > 0
 }
 
 function usesIdentifier(root: SgNode, name: string): boolean {
@@ -301,12 +302,12 @@ function pluginsArray(root: SgNode): SgNode | null {
   return pair.field('value')
 }
 
-function calleeOf(callExpr: string): string {
+function readCallee(callExpr: string): string {
   return callExpr.slice(0, callExpr.indexOf('('))
 }
 
-function bindingOf(callExpr: string): string {
-  const callee = calleeOf(callExpr)
+function readBinding(callExpr: string): string {
+  const callee = readCallee(callExpr)
   const dot = callee.indexOf('.')
   if (dot === -1) return callee
   return callee.slice(0, dot)
@@ -316,7 +317,9 @@ function callsPlugin(array: SgNode, callExpr: string): boolean {
   return array
     .children()
     .filter((child) => child.isNamed())
-    .some((element) => element.kind() === 'call_expression' && element.field('function')?.text() === calleeOf(callExpr))
+    .some(
+      (element) => element.kind() === 'call_expression' && element.field('function')?.text() === readCallee(callExpr),
+    )
 }
 
 function commit(root: SgNode, source: string, edits: Edit[]): Transform {
@@ -331,7 +334,7 @@ export function pluginCallWired(
   opts: {importStyle: 'default' | 'require'},
 ): boolean {
   const root = parse(Lang.TypeScript, source).root()
-  if (bindingState(root, importFrom, bindingOf(callExpr), opts.importStyle) !== 'bound') return false
+  if (bindingState(root, importFrom, readBinding(callExpr), opts.importStyle) !== 'bound') return false
   const array = pluginsArray(root)
   if (array === null) return false
   return callsPlugin(array, callExpr)

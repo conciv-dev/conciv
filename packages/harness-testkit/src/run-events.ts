@@ -1,4 +1,4 @@
-import {ChatEventType, type ChatEvent, approvalAskOf} from '@conciv/protocol/chat-event-types'
+import {ChatEventType, type ChatEvent, readApprovalAsk} from '@conciv/protocol/chat-event-types'
 import {foldChatEvents} from '@conciv/ai/testkit'
 import {z} from 'zod'
 
@@ -31,7 +31,7 @@ function renderedMessages(all: ChatEvent[]): unknown[] {
   return foldChatEvents(all)
 }
 
-function partsOf(all: ChatEvent[], role?: string): unknown[] {
+function collectParts(all: ChatEvent[], role?: string): unknown[] {
   return renderedMessages(all).flatMap((message) => {
     const parsed = MessageSchema.safeParse(message)
     if (!parsed.success) return []
@@ -41,12 +41,12 @@ function partsOf(all: ChatEvent[], role?: string): unknown[] {
 }
 
 export function approvalIds(chunk: ChatEvent): string[] {
-  const ask = approvalAskOf(chunk)
+  const ask = readApprovalAsk(chunk)
   return ask ? [ask.approvalId] : []
 }
 
 export function collectToolCalls(all: ChatEvent[], name?: string): SeenToolCall[] {
-  return partsOf(all)
+  return collectParts(all)
     .flatMap((part) => {
       const parsed = ToolCallPartSchema.safeParse(part)
       return parsed.success ? [parsed.data] : []
@@ -56,7 +56,7 @@ export function collectToolCalls(all: ChatEvent[], name?: string): SeenToolCall[
 }
 
 function snapshotText(all: ChatEvent[]): string {
-  return partsOf(all, 'assistant')
+  return collectParts(all, 'assistant')
     .flatMap((part) => {
       const parsed = TextPartSchema.safeParse(part)
       return parsed.success ? [parsed.data.content] : []

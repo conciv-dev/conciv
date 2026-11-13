@@ -13,7 +13,7 @@ import {
   ResultImage,
   ToolCard,
 } from '@conciv/ui-kit-chat/tools'
-import {failureOf, FieldRows, MonoLine, type Field} from '../card-util.js'
+import {parseFailure, FieldRows, MonoLine, type Field} from '../card-util.js'
 
 const DetailSchema = z
   .object({
@@ -56,7 +56,7 @@ function elementCount(elements: unknown[] | number | undefined): number | null {
   return null
 }
 
-function opOf(name: string): string {
+function readOperation(name: string): string {
   return name.startsWith('canvas_') ? name.slice('canvas_'.length) : name
 }
 
@@ -211,7 +211,7 @@ function SourceBlock(props: {part: ToolCardProps['part']; op: string}): JSX.Elem
 }
 
 export function CanvasOpCard(props: ToolCardProps): JSX.Element {
-  const op = () => opOf(props.part.name)
+  const op = () => readOperation(props.part.name)
   const media = () => parseResultMedia(props.result)
   const detail = () => {
     const parsed = DetailSchema.safeParse(media().json)
@@ -219,7 +219,7 @@ export function CanvasOpCard(props: ToolCardProps): JSX.Element {
   }
   const failure = () => {
     if (props.result?.state === 'error') return {error: resultText(props.result) || 'the tool call failed'}
-    return failureOf(media().json)
+    return parseFailure(media().json)
   }
   const destructive = () => DESTRUCTIVE.has(op())
   return (

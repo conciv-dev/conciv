@@ -1,0 +1,20 @@
+import {expectTypeOf} from 'vitest'
+
+type Schema = {anyOf: unknown[]; oneOf: unknown[]; allOf: unknown[]}
+
+export const page = {isPartOf: {id: 'site'}}
+
+export const wrapped = {
+  valueOf: () => 1,
+  indexOf: (value: string) => value.length,
+  lastIndexOf: (value: string) => value.length,
+  getPrototypeOf: () => null,
+  setPrototypeOf: () => null,
+}
+
+export function readSchema(schema: Schema): number {
+  expectTypeOf(schema).toBeObject()
+  return [1, 2].indexOf(2) + schema.anyOf.length
+}
+
+export const proof = 'Of'

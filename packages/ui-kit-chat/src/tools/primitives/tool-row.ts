@@ -28,7 +28,7 @@ const MARK_OF_STATUS: Record<ToolStatus, ToolRowMark> = {
   cancelled: 'cancelled',
 }
 
-export function rowMarkOf(part: ToolCallPart, result: Parameters<typeof toolStatus>[1]): ToolRowMark {
+export function resolveRowMark(part: ToolCallPart, result: Parameters<typeof toolStatus>[1]): ToolRowMark {
   return MARK_OF_STATUS[toolStatus(part, result)]
 }
 
@@ -171,7 +171,7 @@ export function primaryArgument(part: ToolCallPart): string {
 
 export function genericRowProjection(source: ToolRowProps): ToolRowProjection {
   return {
-    mark: rowMarkOf(source.part, source.result),
+    mark: resolveRowMark(source.part, source.result),
     label: shortToolLabel(source.part.name),
     target: primaryArgument(source.part) || source.part.name,
     meta: source.result?.outcome,
@@ -195,7 +195,7 @@ export function headerRowProjection(header: EmbeddedCardHeader, source: ToolRowP
   return {
     mark:
       source.result?.outcome ??
-      (header.status === undefined ? rowMarkOf(source.part, source.result) : MARK_OF_STATUS[header.status]),
+      (header.status === undefined ? resolveRowMark(source.part, source.result) : MARK_OF_STATUS[header.status]),
     label: shortToolLabel(source.part.name),
     target: namedArgument(source.part) ?? clipTarget(title),
     meta: source.result?.outcome ?? filled(header.meta),

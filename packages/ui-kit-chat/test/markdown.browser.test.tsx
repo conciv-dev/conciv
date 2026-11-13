@@ -48,7 +48,7 @@ describe('markdown code selection', () => {
     return ['```typescript', ...lines, '```'].join('\n')
   }
 
-  function textNodeOf(host: HTMLElement, text: string): Text {
+  function findTextNode(host: HTMLElement, text: string): Text {
     const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT)
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       if (node instanceof Text && node.data.trim() === text) return node
@@ -64,7 +64,7 @@ describe('markdown code selection', () => {
     const host = mountView(() => <Markdown content={content()} streaming />)
 
     await expect.element(page.getByText(marker, {exact: true})).toBeVisible()
-    const selected = textNodeOf(host, marker)
+    const selected = findTextNode(host, marker)
     document.getSelection()?.setBaseAndExtent(selected, 0, selected, selected.length)
     const selectedText = document.getSelection()?.toString()
 

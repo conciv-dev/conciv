@@ -14,7 +14,7 @@ function shortPath(path: string): string {
   return segments.length > 2 ? `…/${tail}` : tail || path
 }
 
-function targetOf(input: {file: string; line?: number} | undefined, fallback: string): string {
+function formatTarget(input: {file: string; line?: number} | undefined, fallback: string): string {
   if (!input) return fallback
   return input.line === undefined ? shortPath(input.file) : `${shortPath(input.file)}:${input.line}`
 }
@@ -34,7 +34,7 @@ export function OpenCard(props: ToolCardProps): JSX.Element {
     <ToolCard
       Icon={Icon}
       title="Open in editor"
-      subtitle={targetOf(input(), props.part.name)}
+      subtitle={formatTarget(input(), props.part.name)}
       part={props.part}
       result={props.result}
     >

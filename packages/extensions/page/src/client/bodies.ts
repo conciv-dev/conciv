@@ -187,7 +187,7 @@ function actionableTarget(ctx: ClientToolCtx, input: ClientToolLocator): Element
   return element
 }
 
-function outcomeOf<Result extends Record<string, unknown>>(result: Result | string): PageResult {
+function buildOutcome<Result extends Record<string, unknown>>(result: Result | string): PageResult {
   if (typeof result === 'string') badArgs(result)
   return ok(result)
 }
@@ -195,7 +195,7 @@ function outcomeOf<Result extends Record<string, unknown>>(result: Result | stri
 async function setCheckedOn(input: ClientToolLocator, ctx: ClientToolCtx, checked: boolean): Promise<PageResult> {
   const element = ctx.target(input)
   if (isDisabled(element)) badArgs('That element is disabled.')
-  return outcomeOf(await setChecked({element, checked, agent: ctx.agentId}))
+  return buildOutcome(await setChecked({element, checked, agent: ctx.agentId}))
 }
 
 const INSERT_POS: Record<string, InsertPosition> = {
@@ -205,7 +205,7 @@ const INSERT_POS: Record<string, InsertPosition> = {
   append: 'beforeend',
 }
 
-function rootOf(ctx: ClientToolCtx, selector: string | undefined): Element | null {
+function resolveRoot(ctx: ClientToolCtx, selector: string | undefined): Element | null {
   return selector ? (selectDeep(selector)[0] ?? null) : ctx.document.body
 }
 
@@ -259,7 +259,7 @@ const existsTool = existsDef
 const snapshotTool = snapshotDef
   .client(
     touching((input, ctx) => {
-      const root = rootOf(ctx, input.selector)
+      const root = resolveRoot(ctx, input.selector)
       if (!root) return {nodes: []}
       ctx.resetRefs()
       return {nodes: buildSnapshot(root, ctx.addRef)}
@@ -325,7 +325,7 @@ const overrideTool = overrideDef
 const treeTool = treeDef
   .client(
     touching(async (input, ctx) => {
-      const root = rootOf(ctx, input.selector)
+      const root = resolveRoot(ctx, input.selector)
       return root ? await reactBridge.tree(root, ctx.addRef) : badArgs('no root element')
     }),
   )
@@ -467,7 +467,7 @@ const fillTool = fillDef
   .client(
     acting(async (input, ctx) => {
       const element = actionableTarget(ctx, input)
-      return outcomeOf(await fill({element, value: input.value, agent: ctx.agentId, halt: () => stillQueued(ctx)}))
+      return buildOutcome(await fill({element, value: input.value, agent: ctx.agentId, halt: () => stillQueued(ctx)}))
     }, 'input'),
   )
   .render(actCard)
@@ -478,7 +478,7 @@ const selectTool = selectDef
       const element = ctx.target(input)
       if (isDisabled(element)) badArgs('That element is disabled.')
       pointAt({element, agent: ctx.agentId})
-      return outcomeOf(await select({element, value: input.value}))
+      return buildOutcome(await select({element, value: input.value}))
     }),
   )
   .render(actCard)

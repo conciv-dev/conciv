@@ -12,7 +12,7 @@ describe('peer provision', () => {
     ...Object.keys(manifest.devDependencies),
   ])
 
-  const peersOf = (name: string): string[] => {
+  const readPeers = (name: string): string[] => {
     const raw: unknown = JSON.parse(readFileSync(`${packageRoot}node_modules/${name}/package.json`, 'utf8'))
     const peers = (raw as {peerDependencies?: Record<string, string>}).peerDependencies
     return Object.keys(peers ?? {})
@@ -22,7 +22,7 @@ describe('peer provision', () => {
     test.each(Object.keys(manifest.dependencies).filter((name) => !name.startsWith('@conciv/')))(
       '%s declares no peer this package leaves unresolved',
       (name) => {
-        expect(peersOf(name).filter((peer) => !declared.has(peer))).toEqual([])
+        expect(readPeers(name).filter((peer) => !declared.has(peer))).toEqual([])
       },
     )
   })

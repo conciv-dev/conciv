@@ -9,7 +9,7 @@ Headless pieces for tool-call rendering: status derivation, toolkit definition, 
 - `tool-status.ts:toolStatus`, type `ToolStatus` (`running`, `complete`, `error`, `approval`).
 - `define-toolkit.ts:defineToolkit` - maps `{name: entry}` to `ToolCardEntry[]`.
 - `tool-util.ts:parseInput`, `resultText`, `parseResultPayload`, `stripReadLineNumbers`, `formatDuration`; `result-media.ts:parseResultMedia`; `schema-params.ts:schemaFields`, `schemaParams`.
-- `tool-row.ts:rowMarkOf`, `countLabel`, `shortToolLabel`, `primaryArgument`, `genericRowProjection`, `headerRowProjection`; `now-title.ts:humanToolName`, `nowTitle`.
+- `tool-row.ts:resolveRowMark`, `countLabel`, `shortToolLabel`, `primaryArgument`, `genericRowProjection`, `headerRowProjection`; `now-title.ts:humanToolName`, `nowTitle`.
 - `tool-presentation.ts:cardPhase`, `cardTitle`, `displayValue`, `clip`, `MUTATING_BADGE`, `QUIET_TEXT_CLASS`, `DANGER_TEXT_CLASS`.
 - `permission.tsx:Permission`, `usePermission`; `tool-fallback.tsx:ToolFallback`, `useToolFallback`; `tool-duration.tsx:ToolDurationProvider`, `useToolCallDuration`; `status-visual.tsx:StatusVisual`.
 

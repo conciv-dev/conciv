@@ -28,7 +28,7 @@ function trimToCap(events: RrwebEvent[]): RrwebEvent[] | null {
   return null
 }
 
-function timestampOf(name: string): number {
+function parseTimestamp(name: string): number {
   const prefix = name.split('-')[0]
   const parsed = Number(prefix)
   return Number.isFinite(parsed) ? parsed : 0
@@ -94,7 +94,7 @@ export function createRecordingStore(dir: string): RecordingStore {
       await clearStrayTmp(dir)
       const names = await listByRecency(dir)
       const cutoff = Date.now() - RECORDING_TTL_MS
-      const expired = names.filter((name) => timestampOf(name) < cutoff)
+      const expired = names.filter((name) => parseTimestamp(name) < cutoff)
       await Promise.all(expired.map((name) => unlink(join(dir, name)).catch(() => {})))
       await prune(dir, {bytes: 0, count: 0})
     },

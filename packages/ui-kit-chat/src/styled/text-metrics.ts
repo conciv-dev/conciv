@@ -61,7 +61,7 @@ function num(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-function maxWidthOf(element: HTMLElement): number {
+function measureMaxWidth(element: HTMLElement): number {
   const raw = getComputedStyle(element).maxWidth
   return raw.endsWith('px') ? num(raw) : Number.POSITIVE_INFINITY
 }
@@ -80,7 +80,7 @@ function readRowStyle(box: HTMLElement, textHolder: HTMLElement): RowStyle {
     whiteSpace: textStyle.whiteSpace === 'pre-wrap' ? 'pre-wrap' : 'normal',
     wordBreak: textStyle.wordBreak === 'keep-all' ? 'keep-all' : 'normal',
     lineHeight,
-    maxWidth: maxWidthOf(box),
+    maxWidth: measureMaxWidth(box),
     boxSizing: boxStyle.boxSizing,
     padX: num(boxStyle.paddingLeft) + num(boxStyle.paddingRight),
     padY: num(boxStyle.paddingTop) + num(boxStyle.paddingBottom),
@@ -133,7 +133,7 @@ function resolveMetrics(viewport: HTMLElement): Metrics {
   const viewportStyle = getComputedStyle(viewport)
   const rootStyle = getComputedStyle(assistantRoot)
   const rowStyle = readRowStyle(answerRow, firstParagraph)
-  const assistant: RowStyle = {...rowStyle, maxWidth: maxWidthOf(assistantRoot)}
+  const assistant: RowStyle = {...rowStyle, maxWidth: measureMaxWidth(assistantRoot)}
   const proseHeight = prose.getBoundingClientRect().height
   const metrics: Metrics = {
     user: readRowStyle(userBubble, userText),
@@ -166,11 +166,11 @@ function stripMarkdown(content: string): string {
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
 }
 
-function textOf(part: ChatPart | undefined): string | undefined {
+function readText(part: ChatPart | undefined): string | undefined {
   return part?.type === 'text' ? part.content : undefined
 }
 
-function paragraphsOf(text: string): string[] {
+function splitParagraphs(text: string): string[] {
   return text
     .split(PARAGRAPH_BREAK)
     .map((block) => block.trim())
@@ -206,7 +206,7 @@ export function createTurnEstimator(
   }
 
   const proseHeight = (text: string, style: RowStyle, containerWidth: number, paragraphGapY: number): number => {
-    const blocks = paragraphsOf(text)
+    const blocks = splitParagraphs(text)
     if (blocks.length === 0) return 0
     const stacked = blocks.reduce((sum, block) => sum + textHeight(block, style, containerWidth), 0)
     return stacked + paragraphGapY * (blocks.length - 1)
@@ -218,7 +218,7 @@ export function createTurnEstimator(
     if (!turn.parts.every((part) => part.type === 'text')) return undefined
     const bubbles = turn.parts.map(
       (part) =>
-        textHeight(textOf(part) ?? '', style, containerWidth, PROMPT_WIDTH_FRACTION) + style.padY + style.borderY,
+        textHeight(readText(part) ?? '', style, containerWidth, PROMPT_WIDTH_FRACTION) + style.padY + style.borderY,
     )
     if (bubbles.length === 0) return undefined
     const height = bubbles.reduce((sum, bubble) => sum + bubble, 0) + PROMPT_GAP_PX * (bubbles.length - 1)
@@ -227,7 +227,7 @@ export function createTurnEstimator(
 
   const estimateNode = (node: GroupNode, parts: ChatPart[], resolved: Metrics, width: number): TurnEstimate => {
     if (node.type !== 'part') return {height: COLLAPSED_TRACE_APPROX_PX, exact: false}
-    const content = textOf(parts[node.index])
+    const content = readText(parts[node.index])
     if (content === undefined) return {height: COLLAPSED_CARD_APPROX_PX, exact: false}
     const style = resolved.assistant
     const plain = !MARKDOWN_SYNTAX.test(content)

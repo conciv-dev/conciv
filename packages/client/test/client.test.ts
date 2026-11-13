@@ -46,7 +46,7 @@ describe('chat client', () => {
     return {client, observed}
   }
 
-  const textOf = (message: ChatMessage): string =>
+  const readText = (message: ChatMessage): string =>
     message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('\n')
 
   describe('ChatClient over chatConnection (useChatSession composition, headless)', () => {
@@ -65,7 +65,7 @@ describe('chat client', () => {
         expect(
           observed.messages
             .filter((message) => message.role === 'assistant')
-            .map(textOf)
+            .map(readText)
             .join(''),
         ).toContain('ok')
       } finally {
@@ -106,7 +106,7 @@ describe('chat client', () => {
       client.subscribe()
       client.attach()
       try {
-        expect((await hydrated.promise).some((message) => textOf(message).includes('started elsewhere'))).toBe(true)
+        expect((await hydrated.promise).some((message) => readText(message).includes('started elsewhere'))).toBe(true)
         clientKit.gate.release()
         await settled.promise
       } finally {
@@ -173,7 +173,7 @@ describe('chat connection', () => {
     return {rpc, sessionId, connection: chatConnection(rpc, clientKit.base, sessionId)}
   }
 
-  async function turnOf(runId: string, parts: ChatMessage['parts'], extra: ChatMessage[] = []) {
+  async function runTurn(runId: string, parts: ChatMessage['parts'], extra: ChatMessage[] = []) {
     const {rpc, sessionId, connection} = await opened()
     const abort = new AbortController()
     const draining = drainRun(connection, abort)
@@ -200,14 +200,14 @@ describe('chat connection', () => {
 
   describe('chatConnection', () => {
     it('carries the run it starts and leaves the assistant reply on the thread', async () => {
-      const {seen, thread} = await turnOf('chat-connection-1', [{type: 'text', content: 'hello'}])
+      const {seen, thread} = await runTurn('chat-connection-1', [{type: 'text', content: 'hello'}])
 
       expect(seen.at(-1)?.type).toBe(ChatEventType.RUN_FINISHED)
       expect(thread).toContain('"role":"assistant"')
     }, 60_000)
 
     it('sends only the LAST user message as the turn', async () => {
-      const {thread} = await turnOf(
+      const {thread} = await runTurn(
         'chat-connection-2',
         [{type: 'text', content: 'second line'}],
         [
@@ -221,7 +221,7 @@ describe('chat connection', () => {
     }, 60_000)
 
     it('preserves text and image content through the turn', async () => {
-      const {thread} = await turnOf('chat-connection-3', [
+      const {thread} = await runTurn('chat-connection-3', [
         {type: 'text', content: 'describe this'},
         {type: 'image', source: {type: 'data', value: 'aGVsbG8=', mimeType: 'image/png'}},
       ])
@@ -306,7 +306,7 @@ describe('chat connection', () => {
         transport: 'fetch',
         onRunError: () => runErrors.push('run error'),
       })
-      const lastOf = async (runId: string) => {
+      const collectLast = async (runId: string) => {
         const seen: ChatEvent[] = []
         for await (const chunk of connection.joinRun(runId)) seen.push(chunk)
         const last = seen.at(-1)
@@ -316,10 +316,10 @@ describe('chat connection', () => {
       }
       try {
         expect({
-          completes: await lastOf('completes'),
-          fails: await lastOf('fails'),
-          stopped: await lastOf('stopped'),
-          stoppedAfterAToolStep: await lastOf('stopped-after-a-tool-step'),
+          completes: await collectLast('completes'),
+          fails: await collectLast('fails'),
+          stopped: await collectLast('stopped'),
+          stoppedAfterAToolStep: await collectLast('stopped-after-a-tool-step'),
           runErrors,
         }).toEqual({
           completes: {finished: 'length'},
@@ -637,7 +637,7 @@ describe('push channel', () => {
     const pageText = {name: 'page_text', input: {selector: 'body'}}
     const POLL = {timeout: 4_000, interval: 50}
 
-    function outcomeOf(call: Promise<unknown>): Promise<unknown> {
+    function captureOutcome(call: Promise<unknown>): Promise<unknown> {
       return call.catch((error: unknown) => ({
         rejected: error instanceof ORPCError ? error.code : 'unexpected',
         message: error instanceof Error ? error.message : String(error),
@@ -665,7 +665,7 @@ describe('push channel', () => {
       const backgroundRpc = makeRpcClient(booted.base, {headers: {[CONCIV_SESSION_HEADER]: background}})
 
       await expect
-        .poll(() => outcomeOf(backgroundRpc.registry.call(pageText)), POLL)
+        .poll(() => captureOutcome(backgroundRpc.registry.call(pageText)), POLL)
         .toMatchObject({
           rejected: 'NO_PAGE_CLIENT',
           message: expect.stringContaining(
@@ -674,7 +674,9 @@ describe('push channel', () => {
         })
 
       const serving = answerEvery(backgroundChannel.queries(abort.signal), backgroundRpc, 'shown again')
-      await expect.poll(() => outcomeOf(backgroundRpc.registry.call(pageText)), POLL).toEqual({text: 'shown again'})
+      await expect
+        .poll(() => captureOutcome(backgroundRpc.registry.call(pageText)), POLL)
+        .toEqual({text: 'shown again'})
 
       abort.abort()
       await serving
@@ -687,10 +689,10 @@ describe('push channel', () => {
       void channel.events(abort.signal)
       const servedOnce = answerOnce(channel.queries(), booted.rpc, 'once')
 
-      await expect.poll(() => outcomeOf(booted.rpc.registry.call(pageText)), POLL).toEqual({text: 'once'})
+      await expect.poll(() => captureOutcome(booted.rpc.registry.call(pageText)), POLL).toEqual({text: 'once'})
       await servedOnce
       await expect
-        .poll(() => outcomeOf(booted.rpc.registry.call(pageText)), POLL)
+        .poll(() => captureOutcome(booted.rpc.registry.call(pageText)), POLL)
         .toMatchObject({rejected: 'NO_PAGE_CLIENT'})
 
       abort.abort()

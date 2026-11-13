@@ -13,7 +13,7 @@ import {transcriptPath, transcriptRoot, withinProject} from './history.js'
 export async function transcriptUsage(query: TranscriptUsageQuery): Promise<TranscriptUsage | null> {
   const {cwd, nativeId} = query
   const own = withinProject(cwd, nativeId) ? await readTranscript(transcriptPath(cwd, nativeId), nativeId) : null
-  if (own !== null) return usageOf(own)
+  if (own !== null) return summarizeUsage(own)
   const projects = dirname(transcriptRoot(cwd))
   const entries = await readdir(projects, {withFileTypes: true}).catch(whenMissing<Dirent[]>([]))
   const found = await Promise.all(
@@ -22,7 +22,7 @@ export async function transcriptUsage(query: TranscriptUsageQuery): Promise<Tran
       .map((entry) => readTranscript(join(projects, entry.name, `${nativeId}${JSONL}`), nativeId)),
   )
   const transcript = found.find((each) => each !== null)
-  return transcript === undefined ? null : usageOf(transcript)
+  return transcript === undefined ? null : summarizeUsage(transcript)
 }
 
 async function readTranscript(path: string, nativeId: HarnessSessionId): Promise<Transcript | null> {
@@ -30,7 +30,7 @@ async function readTranscript(path: string, nativeId: HarnessSessionId): Promise
   return folded === null ? null : {nativeId, ...folded}
 }
 
-function usageOf(transcript: Transcript): TranscriptUsage | null {
+function summarizeUsage(transcript: Transcript): TranscriptUsage | null {
   const messages = [...transcript.messages.values()]
   const model = mostUsed(messages.map((message) => message.model).filter((name) => name !== SYNTHETIC))
   if (model === undefined) return null

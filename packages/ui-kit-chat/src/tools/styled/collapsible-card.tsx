@@ -61,7 +61,7 @@ function CardFrame(props: {
   )
 }
 
-function triggerClassOf(variant: CardVariant, flush: boolean): string {
+function pickTriggerClass(variant: CardVariant, flush: boolean): string {
   if (variant === 'terminal') return TRIGGER_TERMINAL
   return flush ? TRIGGER_FLUSH : TRIGGER
 }
@@ -72,7 +72,7 @@ function CardTrigger(props: {
   variant: CardVariant
   header: JSX.Element
 }): JSX.Element {
-  const triggerClass = () => triggerClassOf(props.variant, props.flush)
+  const triggerClass = () => pickTriggerClass(props.variant, props.flush)
   return (
     <Show
       when={props.tooltip}

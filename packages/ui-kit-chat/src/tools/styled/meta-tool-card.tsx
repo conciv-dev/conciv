@@ -35,7 +35,7 @@ const SchemaRoot = z
 
 type ResultView = 'list' | 'code' | 'chip' | 'json'
 
-function resultViewOf(outputSchema: unknown): ResultView {
+function pickResultView(outputSchema: unknown): ResultView {
   const parsed = SchemaRoot.safeParse(outputSchema)
   if (!parsed.success) return 'json'
   const root = parsed.data.type
@@ -88,7 +88,7 @@ function ResultBlock(props: {contents: string; name: string}): JSX.Element {
 }
 
 function ResultView(props: {outputSchema: unknown; payload: unknown; raw: string}): JSX.Element {
-  const view = () => resultViewOf(props.outputSchema)
+  const view = () => pickResultView(props.outputSchema)
   const list = () => (Array.isArray(props.payload) ? props.payload : undefined)
   const decoded = () => (typeof props.payload === 'string' ? props.payload : props.raw)
   return (

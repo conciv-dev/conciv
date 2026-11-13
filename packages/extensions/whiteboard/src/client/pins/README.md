@@ -18,7 +18,7 @@
 - `PinsLayer` disconnect (`pins.tsx`) calls `detachAnchor` (comment becomes `floating`) and sets `pinState 'offset'`; keep sets `pinState 'offset'` and stores the original position as `anchorX`/`anchorY`
 - `PinsLayer` (`pins.tsx`) falls back to status `'open'` when the comment status is not one of `open`/`resolved`/`drifted`/`orphaned`, and draws the dashed anchor line only when `pinState === 'offset'` and both anchor coordinates are non-null
 - `Compose` (`compose.tsx`) cancels instead of creating when the trimmed text is empty; Enter submits only when `!event.isComposing`
-- `ThreadPopover` (`thread.tsx`) is open only while `rootOf(openCid)` resolves; the comment remove menu appears only when `ownedBySelf` is true
+- `ThreadPopover` (`thread.tsx`) is open only while `findRoot(openCid)` resolves; the comment remove menu appears only when `ownedBySelf` is true
 - `renderPart` (`thread.tsx`) checks each part against the zod schemas `TextPart`, then `MentionPart`, then `ToolPart`, and renders anything else as a JSON code block
 
 ## Side Effects

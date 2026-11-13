@@ -4,8 +4,8 @@ import {createVirtualizer} from '@tanstack/solid-virtual'
 
 export type VirtualListProps<Row> = {
   rows: readonly Row[]
-  sizeOf: (row: Row) => number
-  keyOf: (row: Row) => string
+  readSize: (row: Row) => number
+  readKey: (row: Row) => string
   children: (row: Row) => JSX.Element
   more?: boolean
   moreRow?: JSX.Element
@@ -28,13 +28,13 @@ export function VirtualList<Row>(props: VirtualListProps<Row>): JSX.Element {
       const rows = props.rows
       return (index: number) => {
         const row = rows[index]
-        return row === undefined ? 'more' : props.keyOf(row)
+        return row === undefined ? 'more' : props.readKey(row)
       }
     },
     getScrollElement: () => scroller ?? null,
     estimateSize: (index) => {
       const row = props.rows[index]
-      return row === undefined ? (props.moreRowSize ?? 0) : props.sizeOf(row)
+      return row === undefined ? (props.moreRowSize ?? 0) : props.readSize(row)
     },
     overscan: OVERSCAN,
     useAnimationFrameWithResizeObserver: true,

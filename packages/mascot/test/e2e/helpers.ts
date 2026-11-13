@@ -384,17 +384,17 @@ const HARNESS_SCRIPT = `
 
   const globalTweenCount = () => gsap.globalTimeline.getChildren(true, true, true).length
 
-  const activeWritersOf = (element) => gsap.getTweensOf(element).filter((tween) => tween.isActive()).length
+  const countActiveWriters = (element) => gsap.getTweensOf(element).filter((tween) => tween.isActive()).length
 
   const activeWritersOfProperty = (element, property) =>
     gsap.getTweensOf(element).filter((tween) => tween.isActive() && Object.hasOwn(tween.vars, property)).length
 
-  const boxOf = (element) => ({
+  const measureBox = (element) => ({
     left: element.offsetLeft + property(element, 'x'),
     top: element.offsetTop + property(element, 'y'),
   })
 
-  const anchorOf = (element) => ({
+  const measureAnchor = (element) => ({
     left: parseFloat(element.style.left) + property(element, 'x'),
     top: parseFloat(element.style.top) + property(element, 'y'),
   })
@@ -405,13 +405,13 @@ const HARNESS_SCRIPT = `
     return reads
   }
 
-  const transformOriginOf = (element) => String(gsap.getProperty(element, 'transformOrigin'))
+  const readTransformOrigin = (element) => String(gsap.getProperty(element, 'transformOrigin'))
 
   const failingEffect = () => {
     throw new Error('this effect refuses to mount')
   }
 
-  const particleFlightOf = (emitter, index) => {
+  const measureParticleFlight = (emitter, index) => {
     const particle = requireParticle(emitter, index)
     return {
       left: parseFloat(emitter.style.left) + property(emitter, 'x') + property(particle, 'x'),
@@ -455,7 +455,7 @@ const HARNESS_SCRIPT = `
   const emitterFlight = (parts, seconds) => {
     const emitter = requireEmitter()
     const digit = requireParticle(emitter, 0)
-    const launchLeft = particleFlightOf(emitter, 0).left
+    const launchLeft = measureParticleFlight(emitter, 0).left
     const geometry = emitterGeometry(emitter)
     return {
       launchLeft,
@@ -533,7 +533,7 @@ const HARNESS_SCRIPT = `
     countingEffectTotals,
     failingEffect,
     layoutReads,
-    transformOriginOf,
+    readTransformOrigin,
     wait,
     nextFrame,
     sampleFrames,
@@ -549,11 +549,11 @@ const HARNESS_SCRIPT = `
     watchResize,
     awaitResize,
     globalTweenCount,
-    activeWritersOf,
+    countActiveWriters,
     activeWritersOfProperty,
-    boxOf,
-    anchorOf,
-    particleFlightOf,
+    measureBox,
+    measureAnchor,
+    measureParticleFlight,
     repeatingTimeline,
   }
   document.documentElement.dataset.harness = 'ready'
@@ -796,10 +796,10 @@ export function medianStep(values: readonly number[]): number {
   return sorted[Math.floor(sorted.length / 2)] ?? Number.NaN
 }
 
-export const scaleFactorOf = (antennaPx: number): number => antennaPx / robotSkin.referenceAntennaPx
+export const computeScaleFactor = (antennaPx: number): number => antennaPx / robotSkin.referenceAntennaPx
 
 export const travelPerFrame = (travelPx: number, durationS: number, antennaPx: number): number =>
-  (travelPx * scaleFactorOf(antennaPx)) / durationS / FRAMES_PER_SECOND
+  (travelPx * computeScaleFactor(antennaPx)) / durationS / FRAMES_PER_SECOND
 
 export const risePerFrame = (antennaPx: number): number =>
   travelPerFrame(BINARY_EMITTER_RISE_PX, BINARY_EMITTER_RISE_DURATION_S, antennaPx)

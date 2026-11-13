@@ -137,7 +137,7 @@ export function makePageBus(timeoutMs = 5000, queuedActionMs = QUEUED_ACTION_MS)
   const arrivals = new EventTarget()
   const lanes = new Map<SessionId, PQueue>()
 
-  const laneOf = (sessionId: SessionId): PQueue => {
+  const ensureLane = (sessionId: SessionId): PQueue => {
     const existing = lanes.get(sessionId)
     if (existing !== undefined) return existing
     const lane = new PQueue({concurrency: 1})
@@ -153,7 +153,7 @@ export function makePageBus(timeoutMs = 5000, queuedActionMs = QUEUED_ACTION_MS)
     return lane !== undefined && lane.size + lane.pending > 0
   }
 
-  const pageOf = (sessionId: SessionId): SessionPage => {
+  const ensurePage = (sessionId: SessionId): SessionPage => {
     const existing = bySession.get(sessionId)
     if (existing) return existing
     const created: SessionPage = {pending: makePending<PageOutcome>(unanswered), browserTabs: new Map()}
@@ -171,7 +171,7 @@ export function makePageBus(timeoutMs = 5000, queuedActionMs = QUEUED_ACTION_MS)
     emit: (frame: unknown) => void,
     focus: () => BrowserTabFocus = () => UNREPORTED,
   ): () => void {
-    const page = pageOf(sessionId)
+    const page = ensurePage(sessionId)
     subscribed.count += 1
     const id = `b${subscribed.count}`
     page.browserTabs.set(id, {id, order: subscribed.count, emit, focus})
@@ -218,7 +218,7 @@ export function makePageBus(timeoutMs = 5000, queuedActionMs = QUEUED_ACTION_MS)
   ): Promise<PageOutcome> {
     signal?.throwIfAborted()
     const requestId = randomUUID()
-    const settled = pageOf(sessionId)
+    const settled = ensurePage(sessionId)
     tab.emit({requestId, ...query})
     return settled.pending.await(requestId, tab.id, ms, signal).finally(() => dropIfIdle(sessionId, settled))
   }
@@ -236,7 +236,7 @@ export function makePageBus(timeoutMs = 5000, queuedActionMs = QUEUED_ACTION_MS)
     signal?: AbortSignal,
   ): Promise<PageAnswer> {
     if (query.mutating !== true) return askNow(sessionId, query, route, signal)
-    return laneOf(sessionId).add(() => askNow(sessionId, query, route, signal), {signal})
+    return ensureLane(sessionId).add(() => askNow(sessionId, query, route, signal), {signal})
   }
 
   async function askNow(
@@ -288,14 +288,14 @@ export function makePageBus(timeoutMs = 5000, queuedActionMs = QUEUED_ACTION_MS)
     const requestId = randomUUID()
     const replies = Array.from({length: count}, () => randomUUID())
     const dispatch = (): QueueDispatch => {
-      const page = pageOf(sessionId)
+      const page = ensurePage(sessionId)
       const tab = target(sessionId, page, undefined)
       const answer = page.pending.await(requestId, tab.id, timeoutMs)
       const held = new Map(replies.map((id) => [id, page.pending.hold(id, tab.id)]))
       tab.emit({requestId, ...query, queue: {id: queueId, replies}})
       return {page, held, answer}
     }
-    const turn = busy(sessionId) ? laneOf(sessionId).add(() => undefined) : Promise.resolve()
+    const turn = busy(sessionId) ? ensureLane(sessionId).add(() => undefined) : Promise.resolve()
     const dispatched = turn.then(dispatch)
     const accepted = dispatched
       .then((sent) => sent.answer)
@@ -312,7 +312,7 @@ export function makePageBus(timeoutMs = 5000, queuedActionMs = QUEUED_ACTION_MS)
         return {ok: false, error: {code: 'handler-error', message, raised: {code: PAGE_QUEUE_REFUSED, message}}}
       },
     )
-    const lane = laneOf(sessionId)
+    const lane = ensureLane(sessionId)
     const playedNext = async (id: string): Promise<PageOutcome> => {
       const refused = await refusal
       if (refused !== null) return refused

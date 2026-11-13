@@ -74,7 +74,7 @@ function isSideEdge(edge: TriggerEdge): boolean {
   return edge === 'left' || edge === 'right'
 }
 
-function percentsOf(placement: Placement): TriggerCoords {
+function computePercents(placement: Placement): TriggerCoords {
   if (placement.kind === 'free') return {x: placement.x, y: placement.y}
   if (placement.kind === 'corner')
     return {x: placement.corner.endsWith('left') ? 0 : 100, y: placement.corner.startsWith('top') ? 0 : 100}
@@ -84,9 +84,9 @@ function percentsOf(placement: Placement): TriggerCoords {
   return {x: placement.along, y: 100}
 }
 
-function pixelsOf(placement: Placement, measured: Measure): TriggerCoords {
+function computePixels(placement: Placement, measured: Measure): TriggerCoords {
   if (placement.kind === 'corner') return cornerCoords(placement.corner, measured.bounds)
-  const percents = percentsOf(placement)
+  const percents = computePercents(placement)
   return {
     x: toPixels(percents.x, measured.bounds.minX, measured.bounds.maxX),
     y: toPixels(percents.y, measured.bounds.minY, measured.bounds.maxY),
@@ -227,8 +227,8 @@ function anchorAt(at: TriggerCoords, measured: Measure): LauncherAnchor {
   }
 }
 
-function anchorOf(placement: Placement): LauncherAnchor {
-  const percents = percentsOf(placement)
+function computeAnchor(placement: Placement): LauncherAnchor {
+  const percents = computePercents(placement)
   return {
     corner: `${percents.y < 50 ? 'top' : 'bottom'}-${percents.x < 50 ? 'left' : 'right'}`,
     left: spanCalc(percents.x),
@@ -300,7 +300,7 @@ export function createDraggablePosition(options: {initial: TriggerPosition; stor
 
   const settle = (drag: Drag, frames: TriggerCoords[], placement: Placement) => {
     commit(placement)
-    const final = pixelsOf(placement, drag.measure)
+    const final = computePixels(placement, drag.measure)
     const moved = frames.some((frame) => Math.hypot(frame.x - final.x, frame.y - final.y) >= RESTING_EPSILON)
     if (!moved || reduceMotion()) {
       setGesture({phase: 'released'})
@@ -358,7 +358,7 @@ export function createDraggablePosition(options: {initial: TriggerPosition; stor
       element,
       pointerId: event.pointerId,
       start: {x: event.clientX, y: event.clientY},
-      origin: pixelsOf(state.placement, measured),
+      origin: computePixels(state.placement, measured),
       measure: measured,
       from: state.placement,
       velocity: {x: 0, y: 0},
@@ -415,7 +415,7 @@ export function createDraggablePosition(options: {initial: TriggerPosition; stor
     if (deltaX === 0 && deltaY === 0) return
     event.preventDefault()
     const measured = measure()
-    const current = pixelsOf(state.placement, measured)
+    const current = computePixels(state.placement, measured)
     if (event.shiftKey) {
       const fallback =
         state.placement.kind === 'corner'
@@ -440,21 +440,21 @@ export function createDraggablePosition(options: {initial: TriggerPosition; stor
 
   const restore = () => {
     if (state.placement.kind !== 'edge') return
-    commit({kind: 'free', ...percentsOf(state.placement)})
+    commit({kind: 'free', ...computePercents(state.placement)})
     setGesture({phase: 'idle'})
   }
 
   const anchor = createMemo((): LauncherAnchor => {
     const gesture = state.gesture
     if (gesture.phase === 'dragging') return anchorAt(gesture.at, gesture.measure)
-    return anchorOf(state.placement)
+    return computeAnchor(state.placement)
   })
 
   const rootSize = createElementSize(document.documentElement)
   const growsTowardStart = (labelWidth: number): boolean => {
     const measured = measure({width: rootSize.clientWidth ?? viewportWidth(), height: viewportHeight()})
     const gesture = state.gesture
-    const left = gesture.phase === 'dragging' ? gesture.at.x : pixelsOf(state.placement, measured).x
+    const left = gesture.phase === 'dragging' ? gesture.at.x : computePixels(state.placement, measured).x
     return left + measured.size + labelWidth > measured.viewport.width - measured.bounds.minX
   }
 
@@ -463,7 +463,7 @@ export function createDraggablePosition(options: {initial: TriggerPosition; stor
     const gesture = state.gesture
     if (gesture.phase === 'dragging') return {at: gesture.at, size: gesture.measure.size}
     const measured = measure({width: rootSize.width ?? windowSize.width, height: windowSize.height})
-    return {at: pixelsOf(state.placement, measured), size: measured.size}
+    return {at: computePixels(state.placement, measured), size: measured.size}
   })
   const panelFrame = (size: {width: number; height: number}): PanelFrame => {
     const box = launcherBox()

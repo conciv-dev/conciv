@@ -156,7 +156,7 @@ function foldLine(state: PiFold, line: string): PiFold {
   return state
 }
 
-function messagesOf(entries: Entry[]): ChatMessage[] {
+function collectMessages(entries: Entry[]): ChatMessage[] {
   return pathMessages(activePath(entries))
 }
 
@@ -227,12 +227,12 @@ async function transcriptMessages(
   const path = containedTranscript(cwd, sessionId)
   if (path === null) return []
   const folded = await foldJsonlFile(path, emptyFold(), foldLine, options).catch(whenMissing(null))
-  return folded === null ? [] : messagesOf(folded.entries)
+  return folded === null ? [] : collectMessages(folded.entries)
 }
 
 function observeTranscript(cwd: string, sessionId: string): TranscriptHandle {
   return makeJsonlHandle<PiFold>({
-    parser: {empty: emptyFold, foldLine, messages: (state) => messagesOf(state.entries)},
+    parser: {empty: emptyFold, foldLine, messages: (state) => collectMessages(state.entries)},
     resolvePath: async () => {
       const dir = sessionsDir(cwd)
       const names = await readdir(dir).catch(whenMissing([]))
@@ -284,7 +284,7 @@ async function metaHead(path: string): Promise<MetaHead> {
       }
       const info = SessionInfoSchema.safeParse(record)
       if (info.success) head.name = info.data.name
-      head.firstUser = firstUserOf(record)
+      head.firstUser = readFirstUser(record)
       if (head.firstUser !== null) return head
     }
     return head
@@ -293,7 +293,7 @@ async function metaHead(path: string): Promise<MetaHead> {
   }
 }
 
-function firstUserOf(record: unknown): string | null {
+function readFirstUser(record: unknown): string | null {
   const entry = EntrySchema.safeParse(record)
   if (!entry.success || entry.data.type !== 'message') return null
   const spoken = spokenMessage(entry.data.message)
@@ -350,7 +350,7 @@ async function storedMeta(cwd: string, sessionId: HarnessSessionId): Promise<Har
   return sessionMeta(sessionId, path, {updatedAt: Math.round(info.mtimeMs), sizeBytes: info.size}, cwd)
 }
 
-function entryOf(line: string): Entry | null {
+function parseEntry(line: string): Entry | null {
   const parsed = EntrySchema.safeParse(parseJsonOrNull(line.trim()))
   return parsed.success ? parsed.data : null
 }
@@ -370,7 +370,7 @@ function chainScanner(
 ): (line: string) => {line: Entry; boundary: boolean; first: boolean} | null {
   const chain = {wanted, orphanResults: false}
   return (line) => {
-    const entry = entryOf(line)
+    const entry = parseEntry(line)
     if (entry === null || !onChain(entry, chain.wanted)) return null
     chain.wanted = entry.parentId || null
     const role = chainRole(entry)

@@ -15,7 +15,7 @@ const AnchorSource = z.object({
 
 export type EnrichedAnchor = {anchor: unknown; file: string | null; component: string | null; hash: string | null}
 
-const sourceOf = (anchor: unknown): {file: string | null; component: string | null; hash: string | null} => {
+const readSource = (anchor: unknown): {file: string | null; component: string | null; hash: string | null} => {
   const parsed = AnchorSource.safeParse(anchor)
   if (!parsed.success) return {file: null, component: null, hash: null}
   return {
@@ -27,7 +27,7 @@ const sourceOf = (anchor: unknown): {file: string | null; component: string | nu
 
 export const enrichAnchor = async (cwd: string, raw: unknown): Promise<EnrichedAnchor> => {
   const parsed = PickAnchor.safeParse(raw)
-  const fallback = (): EnrichedAnchor => ({anchor: raw ?? null, ...sourceOf(raw)})
+  const fallback = (): EnrichedAnchor => ({anchor: raw ?? null, ...readSource(raw)})
   if (!parsed.success || cwd === '') return fallback()
   try {
     const resolver = await loadResolver(cwd)

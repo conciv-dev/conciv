@@ -39,7 +39,7 @@ function toolEntry(tool: ChatTool): RichTextFieldTriggerItem {
   return {id: tool.name, label: `@${tool.name}`, group: tool.extension ?? 'Tools', description: tool.description}
 }
 
-const groupOf = (entry: RichTextFieldTriggerItem): string => entry.group ?? ''
+const readGroup = (entry: RichTextFieldTriggerItem): string => entry.group ?? ''
 
 type TextMatch = (text: string, query: string) => boolean
 
@@ -47,7 +47,7 @@ type Matcher = {equals: TextMatch; startsWith: TextMatch; contains: TextMatch}
 
 const UNMATCHED = 4
 
-function rankOf(entry: RichTextFieldTriggerItem, query: string, match: Matcher): number {
+function computeRank(entry: RichTextFieldTriggerItem, query: string, match: Matcher): number {
   if (match.equals(entry.id, query)) return 0
   if (match.startsWith(entry.id, query)) return 1
   if (match.contains(entry.id, query)) return 2
@@ -57,9 +57,11 @@ function rankOf(entry: RichTextFieldTriggerItem, query: string, match: Matcher):
 
 function matchingItems(entries: RichTextFieldTriggerItem[], query: string, match: Matcher): RichTextFieldTriggerItem[] {
   return entries
-    .map((entry) => ({entry, rank: rankOf(entry, query, match)}))
+    .map((entry) => ({entry, rank: computeRank(entry, query, match)}))
     .filter((ranked) => ranked.rank < UNMATCHED)
-    .toSorted((first, second) => first.rank - second.rank || groupOf(first.entry).localeCompare(groupOf(second.entry)))
+    .toSorted(
+      (first, second) => first.rank - second.rank || readGroup(first.entry).localeCompare(readGroup(second.entry)),
+    )
     .map((ranked) => ranked.entry)
 }
 

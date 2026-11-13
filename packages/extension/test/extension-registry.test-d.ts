@@ -165,16 +165,16 @@ type HostileRegistry = RegisterExtension<typeof hostile>
 
 declare const registry: ToolRegistry
 
-type FailureOf<Procedure> =
+type InferFailure<Procedure> =
   Procedure extends Client<infer _Context, infer _Input, infer _Output, infer Failure> ? Failure : never
 
-type DefinedErrorOf<Procedure> = Extract<FailureOf<Procedure>, ORPCError<string, unknown>>
+type InferDefinedError<Procedure> = Extract<InferFailure<Procedure>, ORPCError<string, unknown>>
 
-type DoublerError = FailureOf<typeof client.demo_doubler>
+type DoublerError = InferFailure<typeof client.demo_doubler>
 
-type LocatorError = FailureOf<typeof client.demo_locator>
+type LocatorError = InferFailure<typeof client.demo_locator>
 
-type GuardError = FailureOf<typeof client.demo_guard>
+type GuardError = InferFailure<typeof client.demo_guard>
 
 type TransportErrorCode = 'NO_PAGE_CLIENT' | 'PAGE_TIMEOUT' | 'UNKNOWN_TOOL' | 'INVALID_ARGS' | 'HANDLER_ERROR'
 
@@ -265,23 +265,23 @@ test('a declared tool error narrows through isDefinedError with its code and its
 })
 
 test('a client-bound tool carries its declared error alongside the transport codes', () => {
-  expectTypeOf<DefinedErrorOf<typeof client.demo_locator>['code']>().toEqualTypeOf<
+  expectTypeOf<InferDefinedError<typeof client.demo_locator>['code']>().toEqualTypeOf<
     'ELEMENT_NOT_FOUND' | TransportErrorCode
   >()
 })
 
 test('a client-bound tool that declares nothing still carries the transport codes', () => {
-  expectTypeOf<DefinedErrorOf<typeof client.demo_doubler>['code']>().toEqualTypeOf<TransportErrorCode>()
+  expectTypeOf<InferDefinedError<typeof client.demo_doubler>['code']>().toEqualTypeOf<TransportErrorCode>()
 })
 
 test('an unbound renderer declaration still reports the transport codes its runtime twin can raise', () => {
-  expectTypeOf<DefinedErrorOf<typeof client.demo_picker>['code']>().toEqualTypeOf<
+  expectTypeOf<InferDefinedError<typeof client.demo_picker>['code']>().toEqualTypeOf<
     'PICK_CANCELLED' | TransportErrorCode
   >()
 })
 
 test('a server-bound tool carries its declared error and no transport code', () => {
-  expectTypeOf<DefinedErrorOf<typeof client.demo_guard>['code']>().toEqualTypeOf<'FACTOR_TOO_LARGE'>()
+  expectTypeOf<InferDefinedError<typeof client.demo_guard>['code']>().toEqualTypeOf<'FACTOR_TOO_LARGE'>()
 })
 
 test('an undeclared error stays outside the defined-error union', () => {

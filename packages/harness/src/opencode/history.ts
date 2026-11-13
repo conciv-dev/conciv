@@ -58,7 +58,7 @@ const StampedRowSchema = DataRowSchema.extend({time_created: z.number()})
 const PartRowSchema = z.object({message_id: z.string(), data: z.string()}).loose()
 const StatRowSchema = z.object({latest: z.number().nullish(), parts: z.number().nullish()}).loose()
 
-function rowsOf<T extends z.ZodType>(schema: T, rows: unknown[]): z.infer<T>[] {
+function parseRows<T extends z.ZodType>(schema: T, rows: unknown[]): z.infer<T>[] {
   return rows.flatMap((row) => {
     const parsed = schema.safeParse(row)
     return parsed.success ? [parsed.data] : []
@@ -123,7 +123,7 @@ const STAT_OF =
   'select (select max(time_updated) from message where session_id = ?) as latest, (select count(*) from part where session_id = ?) as parts'
 
 function sessionRow(db: DatabaseSync, sessionId: string): z.infer<typeof SessionRowSchema> | null {
-  return rowsOf(SessionRowSchema, db.prepare(SESSION_BY_ID).all(sessionId)).at(0) ?? null
+  return parseRows(SessionRowSchema, db.prepare(SESSION_BY_ID).all(sessionId)).at(0) ?? null
 }
 
 function condense(value: string | null | undefined, max: number): string {
@@ -157,8 +157,8 @@ async function transcriptMessages(
   return withDatabase<ChatMessage[]>([], (db) => {
     const session = sessionRow(db, sessionId)
     if (!session || !sameCwd(session.directory, cwd)) return []
-    const messageRows = rowsOf(DataRowSchema, db.prepare(MESSAGES_OF).all(sessionId))
-    const partRows = rowsOf(PartRowSchema, db.prepare(PARTS_OF).all(sessionId))
+    const messageRows = parseRows(DataRowSchema, db.prepare(MESSAGES_OF).all(sessionId))
+    const partRows = parseRows(PartRowSchema, db.prepare(PARTS_OF).all(sessionId))
     return buildMessages(messageRows, partRows)
   })
 }
@@ -178,13 +178,13 @@ async function transcriptTail(cwd: string, sessionId: string, options: Transcrip
     const session = sessionRow(db, sessionId)
     if (!session || !sameCwd(session.directory, cwd) || cursor?.success === false) return {messages: [], earlier: null}
     const created = cursor?.data.created ?? null
-    const rows = rowsOf(
+    const rows = parseRows(
       StampedRowSchema,
       db.prepare(TAIL_MESSAGES).all(sessionId, created, created, cursor?.data.id ?? null, options.limit + 1),
     )
     const kept = rows.slice(0, options.limit).toReversed()
     const oldest = kept.at(0)
-    const partRows = rowsOf(
+    const partRows = parseRows(
       PartRowSchema,
       db.prepare(TAIL_PARTS).all(sessionId, JSON.stringify(kept.map((row) => row.id))),
     )
@@ -199,7 +199,7 @@ async function listSessions(scope: HarnessListScope, page: HarnessListPage): Pro
   const after = page.after
   const projectCwd = 'cwd' in scope ? realpathOrSelf(scope.cwd) : null
   return withDatabase<HarnessSessionPage>({sessions: [], next: null}, (db) => {
-    const rows = rowsOf(
+    const rows = parseRows(
       SessionRowSchema,
       db
         .prepare(LIST_SESSIONS)
@@ -259,7 +259,7 @@ function openSession(cwd: string, sessionId: string): OpencodeSession | Transcri
       messages: db.prepare(MESSAGES_OF),
       parts: db.prepare(PARTS_OF),
     }
-    const session = rowsOf(SessionRowSchema, statements.session.all(sessionId)).at(0)
+    const session = parseRows(SessionRowSchema, statements.session.all(sessionId)).at(0)
     if (!session || !sameCwd(session.directory, cwd)) {
       db.close()
       return transcriptFailure('missing', `opencode session ${sessionId} is not recorded in ${cwd}`)
@@ -271,9 +271,9 @@ function openSession(cwd: string, sessionId: string): OpencodeSession | Transcri
   }
 }
 
-function revisionOf(statements: OpencodeStatements, sessionId: string): TranscriptRevision | TranscriptFailure {
+function readRevision(statements: OpencodeStatements, sessionId: string): TranscriptRevision | TranscriptFailure {
   try {
-    const row = rowsOf(StatRowSchema, statements.stat.all(sessionId, sessionId)).at(0)
+    const row = parseRows(StatRowSchema, statements.stat.all(sessionId, sessionId)).at(0)
     const latest = row?.latest ?? 0
     return {rev: `${latest}:${row?.parts ?? 0}`, changedAt: latest}
   } catch (error) {
@@ -297,16 +297,16 @@ function observeTranscript(cwd: string, sessionId: string): TranscriptHandle {
     revision(): Promise<TranscriptRevision | TranscriptFailure> {
       const session = connect()
       if ('ok' in session) return Promise.resolve(session)
-      return Promise.resolve(revisionOf(session.statements, sessionId))
+      return Promise.resolve(readRevision(session.statements, sessionId))
     },
     read(): Promise<TranscriptChunk | TranscriptFailure> {
       const session = connect()
       if ('ok' in session) return Promise.resolve(session)
-      const rev = revisionOf(session.statements, sessionId)
+      const rev = readRevision(session.statements, sessionId)
       if ('ok' in rev) return Promise.resolve(rev)
       try {
-        const messageRows = rowsOf(DataRowSchema, session.statements.messages.all(sessionId))
-        const partRows = rowsOf(PartRowSchema, session.statements.parts.all(sessionId))
+        const messageRows = parseRows(DataRowSchema, session.statements.messages.all(sessionId))
+        const partRows = parseRows(PartRowSchema, session.statements.parts.all(sessionId))
         return Promise.resolve({ok: true, ...rev, messages: buildMessages(messageRows, partRows), replaced: true})
       } catch (error) {
         return Promise.resolve(transcriptFailure('unreadable', `opencode rows for ${sessionId}: ${String(error)}`))
