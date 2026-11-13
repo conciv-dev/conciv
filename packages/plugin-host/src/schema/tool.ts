@@ -14,7 +14,7 @@ export type CallId = typeof CallId.Type
 export interface Context {
   readonly sessionId: Session.Id
   readonly agent: Agent.Id
-  readonly messageId: SessionMessage.Id
+  readonly messageId: SessionMessage.Id | undefined
   readonly id: CallId
   readonly progress: (update: Metadata) => Effect.Effect<void>
   readonly cancel?: Effect.Effect<void>

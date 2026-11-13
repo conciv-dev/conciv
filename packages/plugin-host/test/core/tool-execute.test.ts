@@ -8,7 +8,7 @@ import type {Info} from '../../src/schema/tool.js'
 import {Effect, Schema} from 'effect'
 
 const context = {
-  sessionId: Session.Id.make('ses_execute'),
+  sessionId: Session.Id.make('conciv_execute'),
   agent: Agent.Id.make('build'),
   messageId: SessionMessage.Id.make('msg_execute'),
   id: Tool.CallId.make('call_execute'),
