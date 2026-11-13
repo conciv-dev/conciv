@@ -30,6 +30,7 @@ import {logError} from '../lib/debug.js'
 import corePackage from '../../package.json' with {type: 'json'}
 import type {ChatPlane, CodeCapability, CodeRunner, CodeSandbox, CodeTool} from '@conciv/chat'
 import {createMCPServer} from '@conciv/ai/server'
+import {CodeModeCatalog, CodeModeInstructions} from '@conciv/plugin-host'
 import {loopbackHostAllowlist} from '../lib/cors.js'
 import {callTrace} from './call-trace.js'
 import {EXECUTE_TOOL_NAME, ExecuteInputSchema, ExecuteResultSchema, type ExecuteResult} from './execute-schemas.js'
@@ -68,7 +69,7 @@ const STALE_SUFFIX =
 
 function stalenessNotice(staleness: EngineStaleness, room: number): string {
   if (!staleness.stale) return ''
-  const changed = fittedList(staleness.changed, room - STALE_PREFIX.length - STALE_SUFFIX.length, '')
+  const changed = fittedList(staleness.changed, room - STALE_PREFIX.length - STALE_SUFFIX.length)
   return `${STALE_PREFIX}${changed}${STALE_SUFFIX}`
 }
 
@@ -79,57 +80,40 @@ const SANDBOX_RULES = `Rules of the sandbox:
 
 const DESCRIPTION_BUDGET_CHARS = 4096
 
-const NAMES_ONLY_HEADER = '\n\nMore capabilities, by name only: '
-
 const NAME_SEPARATOR = ', '
 
-const LIST_ALL_HINT =
-  ' (list every name from inside execute_typescript: return Object.keys(globalThis).filter((key) => key.startsWith("external_")))'
-
-type RunnerCapability = CodeSandbox['capabilities'][number]
+const LISTED_CHARACTERS_PER_TOKEN = 5
 
 function executeDescription(runner: CodeSandbox, staleness: EngineStaleness): string {
-  const rest = `${EXECUTE_DESCRIPTION}\n\n${SANDBOX_RULES}\n\n${capabilitiesIntro(runner)}`
-  const names = runner.capabilities.map(sandboxName)
-  const namesReserve =
-    names.length === 0 ? 0 : NAMES_ONLY_HEADER.length + overflowTail(0, names.length, LIST_ALL_HINT).length
-  const head = `${stalenessNotice(staleness, DESCRIPTION_BUDGET_CHARS - rest.length - namesReserve)}${rest}`
-  const lines = runner.capabilities.map(capabilityLine)
-  const allNamesOnly = `${NAMES_ONLY_HEADER}${names.join(NAME_SEPARATOR)}`
-  const room = DESCRIPTION_BUDGET_CHARS - head.length
-  const described = lines.join('').length <= room ? lines.length : fittingCount(lines, room - allNamesOnly.length)
-  const body = `${head}${lines.slice(0, described).join('')}`
-  return `${body}${namesOnly(names.slice(described), DESCRIPTION_BUDGET_CHARS - body.length)}`
+  const rest = `${EXECUTE_DESCRIPTION}\n\n${SANDBOX_RULES}\n\n`
+  const floor = CodeModeCatalog.summarize(runner.inventory, {budget: 0})
+  const floorText = CodeModeInstructions.render(floor)
+  const head = `${stalenessNotice(staleness, DESCRIPTION_BUDGET_CHARS - rest.length - floorText.length)}${rest}`
+  const spare = Math.floor((DESCRIPTION_BUDGET_CHARS - head.length - floorText.length) / LISTED_CHARACTERS_PER_TOKEN)
+  const budget = chargedCost(floor) + Math.max(spare, 0)
+  return `${head}${CodeModeInstructions.render(CodeModeCatalog.summarize(runner.inventory, {budget}))}`
 }
 
-function capabilitiesIntro(runner: CodeSandbox): string {
-  if (runner.discover === null) return 'Capabilities:'
-  return 'Capabilities (call discover_tools with their names for typed signatures; it is a separate tool call, not available inside the sandbox):'
+function chargedCost(floor: CodeModeCatalog.Summary): number {
+  return floor.namespaces.reduce(
+    (total, namespace) =>
+      total +
+      CodeModeCatalog.cost(CodeModeCatalog.namespaceLine({...namespace, entries: []})) +
+      namespace.entries.reduce((sum, entry) => sum + CodeModeCatalog.cost(entry.line), 0),
+    0,
+  )
 }
 
-function sandboxName(capability: RunnerCapability): string {
-  return `external_${capability.name}`
-}
-
-function capabilityLine(capability: RunnerCapability): string {
-  return `\n- ${sandboxName(capability)}: ${capability.description.split('\n')[0] ?? ''}`
-}
-
-function namesOnly(names: string[], room: number): string {
-  if (names.length === 0) return ''
-  return `${NAMES_ONLY_HEADER}${fittedList(names, room - NAMES_ONLY_HEADER.length, LIST_ALL_HINT)}`
-}
-
-function fittedList(items: readonly string[], room: number, hint: string): string {
+function fittedList(items: readonly string[], room: number): string {
   const pieces = items.map((item, index) => (index === 0 ? item : `${NAME_SEPARATOR}${item}`))
   const all = pieces.join('')
   if (all.length <= room) return all
-  const listed = fittingCount(pieces, room - overflowTail(1, items.length, hint).length)
-  return `${pieces.slice(0, listed).join('')}${overflowTail(listed, items.length - listed, hint)}`
+  const listed = fittingCount(pieces, room - overflowTail(1, items.length).length)
+  return `${pieces.slice(0, listed).join('')}${overflowTail(listed, items.length - listed)}`
 }
 
-function overflowTail(listed: number, hidden: number, hint: string): string {
-  return `${listed === 0 ? '' : NAME_SEPARATOR}and ${hidden} more${hint}`
+function overflowTail(listed: number, hidden: number): string {
+  return `${listed === 0 ? '' : NAME_SEPARATOR}and ${hidden} more`
 }
 
 function fittingCount(pieces: string[], room: number): number {

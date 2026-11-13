@@ -70,6 +70,7 @@ import {eq} from 'drizzle-orm'
 import {
   Agent,
   Bus,
+  CodeModeCatalog,
   Database,
   Location,
   Permission,
@@ -83,7 +84,7 @@ import {
   Tool,
 } from '@conciv/plugin-host'
 import {makeRpc, Rpc as PluginRpc} from '@conciv/plugin'
-import {Effect, Layer, ManagedRuntime, Schema, Scope} from 'effect'
+import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {isEqual} from 'es-toolkit'
 import getPort from 'get-port'
 import {WSContext, defineWebSocketHelper} from 'hono/ws'
@@ -219,7 +220,7 @@ describe('chat plane', () => {
     expect(capability?.description).toMatch(/^Do the unit thing\. Prefer small inputs\.\n\nReturns JSON matching: /)
   })
 
-  it('a turn falls back to systemPromptText and logs an unreadable systemPromptFile, a credential-shaped capability fails only its own run, and plugin skills reach the system prompt when the starting point resets and the user words in between', async () => {
+  it('a turn falls back to systemPromptText and logs an unreadable systemPromptFile, a credential-shaped capability fails only its own run, plugin skills and the code-mode catalog reach the system prompt when the starting point resets and the user words in between, and search finds a tool by its parameter', async () => {
     const root = tempDir()
     const cli = fakeCli()
     const log: string[] = []
@@ -232,7 +233,7 @@ describe('chat plane', () => {
       inputSchema: z.object({text: z.string()}),
       execute: async (input) => input,
     }
-    const secret = {...echo, name: 'unit_secret', inputSchema: z.object({apiKey: z.string()})}
+    const secret = {...echo, name: 'unit_secret', path: 'unit_secret', inputSchema: z.object({apiKey: z.string()})}
     const chat = await plane(cliHarness(cli), root, {
       systemPrompt: {systemPromptFile: missing, systemPromptText: 'the fallback prompt'},
       log: (line) => log.push(line),
@@ -248,11 +249,13 @@ describe('chat plane', () => {
     )
 
     const skilled = sessionId('skills')
+    const builtins = sessionId('builtins')
     const db = openDatabase(root)
     await ensureRow(db, skilled, 'fake-cli', root)
+    await ensureRow(db, builtins, 'fake-cli', root)
     const host = ManagedRuntime.make(
-      Layer.mergeAll(SkillInstructions.layer, SessionProjector.layer).pipe(
-        Layer.provideMerge(Layer.mergeAll(Skill.layer, Agent.layer, permissionSessions(db))),
+      Layer.mergeAll(SkillInstructions.layer, SessionProjector.layer, Tool.layer).pipe(
+        Layer.provideMerge(Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, permissionSessions(db))),
         Layer.provideMerge(Bus.configured()),
         Layer.provideMerge(
           Layer.succeed(
@@ -287,46 +290,126 @@ describe('chat plane', () => {
           ),
         ).pipe(Scope.provide(skillScope)),
       )
+    const plugin = (
+      namespace: {name: string; description: string},
+      names: string[],
+      input = z.object({}),
+      scope = host.runSync(Scope.make()),
+    ) =>
+      host
+        .runPromise(
+          Tool.Service.use((tools) =>
+            tools.transform((editor) => {
+              editor.namespace(namespace)
+              names.forEach((name) =>
+                editor.add({
+                  name,
+                  description: `The ${name} tool.`,
+                  input,
+                  options: {namespace: namespace.name},
+                  execute: (given: object) => Effect.succeed({content: `${name} ${JSON.stringify(given)}`}),
+                }),
+              )
+            }),
+          ).pipe(Scope.provide(scope)),
+        )
+        .then(() => scope)
+    const capabilities = (id: SessionId): CodeCapability[] =>
+      toolDomainCapabilities(
+        id === builtins ? [echo, secret] : [],
+        host.runSync(sessionSnapshot(id)),
+        (effect, signal) => host.runPromiseExit(effect, {signal}),
+        () => undefined,
+      )
     const told = fakeCli()
     const instructed = {
-      pluginInstructions: (id: SessionId, reset: 'keep' | 'reset') => host.runPromise(pluginInstructions(id, reset)),
+      capabilities,
+      pluginInstructions: (id: SessionId, reset: 'keep' | 'reset', inventory: CodeModeCatalog.Inventory) =>
+        host.runPromise(pluginInstructions(id, reset, inventory)),
     }
     const fresh = await plane(cliHarness(told), root, instructed)
     const resumed = await plane(cliHarness(told, true), root, {
       ...instructed,
       sessions: sessionPort(HarnessSessionId.parse('native-skills')),
     })
-    const listed = (...ids: string[]) => ids.map((id) => `<id>${id}</id>`).join('[\\s\\S]*')
+    const listed = (...ids: string[]) => new RegExp(ids.map((id) => `<id>${id}</id>`).join('[\\s\\S]*'))
+    const noTools =
+      'No Code Mode tools are currently available. Later Code Mode catalog updates may add or remove tools. Do not call `execute_typescript` unless there is at least one available Code Mode tool.'
+    const preface = expect.stringContaining('Use `console.log()` for debugging (logs are captured)')
+    const projectTools = {name: 'tools', description: 'Project utilities'}
+
+    await fresh.followUp(builtins, 'what can you do')
+    const [catalog, ...rest] = told.systemPrompts.at(-1) ?? []
+    expect(catalog).toContain('## Code Mode tools (call only inside `execute_typescript`)')
+    expect(catalog).toContain('The catalog is complete.')
+    expect(catalog).toContain('external_unit_echo(input: {')
+    expect(catalog).toContain('external_unit_secret(input: {')
+    expect(rest).toEqual([preface])
+    expect(rest.join('')).not.toContain('external_unit_echo')
+    expect(told.tools.at(-1)).toContain('execute_typescript')
 
     await fresh.followUp(skilled, 'first')
-    expect(told.systemPrompts.at(-1)).toEqual([])
+    expect(told.systemPrompts.at(-1)).toEqual([noTools])
+    expect(told.tools.at(-1)).not.toContain('execute_typescript')
     expect(told.asked.at(-1)).toBe('first')
 
     await addSkill('review')
     await resumed.followUp(skilled, 'second')
-    expect(told.systemPrompts.at(-1)).toEqual([])
+    expect(told.systemPrompts.at(-1)).toEqual([noTools])
     expect(told.asked.at(-1)).toEqual([
       {type: 'text', content: expect.stringMatching(listed('review'))},
       {type: 'text', content: 'second'},
     ])
 
+    const registered = await plugin(projectTools, ['zeta', 'alpha'])
     await resumed.followUp(skilled, 'third')
-    expect(told.systemPrompts.at(-1)).toEqual([])
-    expect(told.asked.at(-1)).toBe('third')
+    expect(told.systemPrompts.at(-1)).toEqual([noTools, preface])
+    expect(told.asked.at(-1)).toEqual([
+      {type: 'text', content: expect.stringContaining('This catalog supersedes the previous Code Mode tool catalog.')},
+      {type: 'text', content: 'third'},
+    ])
+    expect(JSON.stringify(told.asked.at(-1))).toContain('- tools (2 tools) // Project utilities')
+
+    await host.runPromise(Scope.close(registered, Exit.void))
+    await plugin(projectTools, ['alpha', 'zeta'])
+    await resumed.followUp(skilled, 'reordered')
+    expect(told.asked.at(-1)).toBe('reordered')
+
+    await plugin({name: 'sky', description: 'Sky readings'}, ['measure'], z.object({declination: z.string()}))
+    await resumed.followUp(skilled, 'fourth')
+    const [added] = z.array(z.object({content: z.string()})).parse(told.asked.at(-1))
+    expect(added?.content).toMatch(
+      /^The Code Mode tool catalog has changed\.\n\nNew tools are available:\n- sky \(1 tool\) \/\/ Sky readings\n  - external_sky_measure\(input: \{/,
+    )
+    expect(added?.content).not.toContain('supersedes')
+    expect(added?.content).not.toContain('external_tools_alpha')
+
+    const skilledRunner = await resumed.codeRunner(skilled, () => undefined)
+    const found = z
+      .object({result: z.object({items: z.array(z.object({path: z.string()}))})})
+      .parse(await skilledRunner?.code?.run('return search({query: "declination"})', 'parent'))
+    expect(found.result.items.map((item) => item.path)).toEqual(['external_sky_measure'])
+    await expect(
+      skilledRunner?.code?.run(`return await ${found.result.items[0]?.path}({declination: "north"})`, 'parent'),
+    ).resolves.toMatchObject({result: 'measure {"declination":"north"}'})
 
     await addSkill('deploy')
     await resumed.compact(skilled)
-    expect(told.systemPrompts.at(-1)).toEqual([expect.stringMatching(listed('deploy', 'review'))])
+    expect(told.systemPrompts.at(-1)).toEqual([
+      expect.stringMatching(/- sky \(1 tool\) \/\/ Sky readings[\s\S]*- tools \(2 tools\) \/\/ Project utilities/),
+      preface,
+    ])
+    expect(told.systemPrompts.at(-1)?.[0]).toMatch(listed('deploy', 'review'))
     expect(told.asked.at(-1)).toEqual(expect.not.stringContaining('<id>'))
 
-    await resumed.followUp(skilled, 'fourth')
-    expect(told.systemPrompts.at(-1)).toEqual([expect.stringMatching(listed('deploy', 'review'))])
-    expect(told.asked.at(-1)).toBe('fourth')
+    await resumed.followUp(skilled, 'fifth')
+    expect(told.systemPrompts.at(-1)?.[0]).toMatch(listed('deploy', 'review'))
+    expect(told.asked.at(-1)).toBe('fifth')
 
     await addSkill('lint')
-    await fresh.followUp(skilled, 'fifth')
-    expect(told.systemPrompts.at(-1)).toEqual([expect.stringMatching(listed('deploy', 'lint', 'review'))])
-    expect(told.asked.at(-1)).toBe('fifth')
+    await fresh.followUp(skilled, 'sixth')
+    expect(told.systemPrompts.at(-1)?.[0]).toMatch(listed('deploy', 'lint', 'review'))
+    expect(told.asked.at(-1)).toBe('sixth')
   })
 
   it('after a restart the finished and interrupted turns all show, and the interrupted run is aborted with a finish time', async () => {
@@ -453,6 +536,7 @@ describe('chat plane', () => {
   type FakeCli = {
     steps: CliStep[]
     systemPrompts: string[][]
+    tools: string[][]
     asked: unknown[]
     gate: Promise<void>
     release: () => void
@@ -464,7 +548,7 @@ describe('chat plane', () => {
 
   function fakeCli(...steps: CliStep[]): FakeCli {
     const gate = Promise.withResolvers<void>()
-    return {steps, systemPrompts: [], asked: [], gate: gate.promise, release: () => gate.resolve()}
+    return {steps, systemPrompts: [], tools: [], asked: [], gate: gate.promise, release: () => gate.resolve()}
   }
 
   function cliHarness(cli: FakeCli, resume = false): HarnessAdapter {
@@ -474,6 +558,7 @@ describe('chat plane', () => {
       chatConfig: () => ({
         adapter: makeTextAdapter('fake-cli', async function* (options) {
           cli.systemPrompts.push([...(options.systemPrompts ?? [])].map(String))
+          cli.tools.push((options.tools ?? []).map((tool) => tool.name))
           cli.asked.push(options.messages.findLast((message) => message.role === 'user')?.content)
           const step = cli.steps.shift() ?? 'reply'
           const run = {threadId: options.threadId ?? '', runId: options.runId ?? ''}
@@ -2374,6 +2459,9 @@ describe('plugin permission cards', () => {
 
 describe('direct tools on the MCP surface', () => {
   const ToolsListed = z.object({result: z.object({tools: z.array(z.object({name: z.string()}))})})
+  const ToolsDescribed = z.object({
+    result: z.object({tools: z.array(z.object({name: z.string(), description: z.string()}))}),
+  })
   const ToolCalled = z.object({
     result: z.object({content: z.array(z.object({text: z.string()})), isError: z.boolean().optional()}),
   })
@@ -2425,6 +2513,19 @@ describe('direct tools on the MCP surface', () => {
     expect(open).toContain('execute_typescript')
     expect(open.filter((name) => name === 'unit_direct')).toEqual(['unit_direct'])
     expect(open).not.toContain('unit_coded')
+    const described = ToolsDescribed.parse(await post('tools/list', {})).result.tools
+    const execute = described.find((tool) => tool.name === 'execute_typescript')?.description ?? ''
+    expect(execute.length).toBeLessThanOrEqual(4096)
+    expect(execute).toContain('Rules of the sandbox:')
+    expect(execute).toContain('## Code Mode tools (call only inside `execute_typescript`)')
+    expect(execute).not.toContain('More capabilities, by name only')
+    const searched = ToolCalled.parse(
+      await post('tools/call', {
+        name: 'execute_typescript',
+        arguments: {typescriptCode: 'return search({query: "unit_coded"})'},
+      }),
+    )
+    expect(searched.result.content.map((part) => part.text).join('')).toContain('external_unit_coded')
     const called = ToolCalled.parse(await post('tools/call', {name: 'unit_direct', arguments: {text: 'hi'}}))
     expect(called.result.isError).not.toBe(true)
     expect(called.result.content.map((part) => part.text).join('')).toContain('direct hi')

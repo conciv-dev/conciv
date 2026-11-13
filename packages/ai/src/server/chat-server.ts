@@ -530,7 +530,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       messages,
       threadId: turn.threadId,
       runId: turn.runId,
-      systemPrompts: coded === null ? [] : [coded.systemPrompt],
+      systemPrompts: coded === null ? [] : [coded.preface],
       tools: [...(coded?.tools ?? []), ...gatedTools(plan.asking, approvals), ...plan.direct],
       lazyToolsConfig: {includeDescription: 'first-sentence'},
       retry: {maxRetries: 2},

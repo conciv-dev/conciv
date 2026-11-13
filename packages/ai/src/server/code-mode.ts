@@ -86,7 +86,30 @@ function isServerTool(tool: ChatTool): tool is CodeModeTool {
   return '__toolSide' in tool && tool.__toolSide === 'server'
 }
 
-export type CodeModeTools = {tools: ChatTool[]; systemPrompt: string; execute: ChatTool; discover: ChatTool | null}
+export type CodeModeTools = {tools: ChatTool[]; preface: string; execute: ChatTool; discover: ChatTool | null}
+
+const SANDBOX_PREFACE = `## Code Execution Tool
+
+You have access to \`execute_typescript\` which runs TypeScript code in a sandboxed environment.
+
+### When to Use
+
+Use \`execute_typescript\` when you need to:
+- Process data with loops, conditionals, or complex logic
+- Make multiple API calls in parallel (Promise.all)
+- Transform, filter, or aggregate data
+- Perform calculations or data analysis
+
+For simple operations, prefer calling tools directly.
+
+### Important Notes
+
+- All \`external_*\` calls are async - always use \`await\`
+- Return a value to pass results back to you. The tool returns \`{ success, result, logs, error }\`, where \`result\` is the value your code returned
+- Use \`console.log()\` for debugging (logs are captured)
+- The sandbox is isolated - no network access or file system
+- Each execution is independent (no shared state between calls)
+`
 
 type ToolContext = Parameters<NonNullable<ChatTool['execute']>>[1]
 
@@ -216,7 +239,7 @@ export function codeModeTools(
     codeMode.discoveryTool === null ? null : {...codeMode.discoveryTool, description: DISCOVER_DESCRIPTION}
   return {
     tools: discover === null ? [execute] : [execute, discover],
-    systemPrompt: codeMode.systemPrompt,
+    preface: SANDBOX_PREFACE,
     execute,
     discover,
   }
