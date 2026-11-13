@@ -2701,6 +2701,7 @@ describe('plugin context keys provided by core', () => {
     const first = await instructions()
     expect(first.initial).toContain('<context key="brief">\nship it\n</context>')
     expect(first.initial).toContain('<context key="notes">\n{\n  "done": false\n}\n</context>')
+    await first.told()
 
     await entries((service) => service.remove({sessionId: SessionSchema.Id.make(id), key: 'notes'}))
     expect(await entries((service) => service.list(SessionSchema.Id.make(id)))).toEqual([
