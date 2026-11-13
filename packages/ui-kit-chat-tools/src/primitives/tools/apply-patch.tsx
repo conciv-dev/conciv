@@ -5,7 +5,7 @@ import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat/tools'
 export type ApplyPatchBlock = {type: 'Update' | 'Add' | 'Delete'; path: string; body: string}
 export type ApplyPatchInfo = {files: string[]; added: number; removed: number}
 
-export function patchTextOf(part: ToolCallPart): string {
+export function readPatchText(part: ToolCallPart): string {
   try {
     const input = JSON.parse(part.arguments || '{}')
     const value = input.patchText ?? input.patch ?? input.input ?? input.content
@@ -56,7 +56,7 @@ export function parseClaudePatchBlocks(patchText: string): ApplyPatchBlock[] {
   return blocks
 }
 
-function diffLinesOf(body: string): string[] {
+function filterDiffLines(body: string): string[] {
   return body
     .split('\n')
     .filter((line) => line.trim() !== '' || line.startsWith(' '))
@@ -66,7 +66,7 @@ function diffLinesOf(body: string): string[] {
 
 export function claudeBlockToUnifiedDiff(block: ApplyPatchBlock): string {
   const {type, path} = block
-  const diffLines = diffLinesOf(block.body)
+  const diffLines = filterDiffLines(block.body)
   const headers = {
     Add: `diff --git a/${path} b/${path}\nnew file mode 100644\n--- /dev/null\n+++ b/${path}`,
     Delete: `diff --git a/${path} b/${path}\ndeleted file mode 100644\n--- a/${path}\n+++ /dev/null`,
@@ -104,7 +104,7 @@ export function useApplyPatch(): ApplyPatchContextValue {
 }
 
 function Root(props: {part: ToolCallPart; result: ToolResultPart | undefined; children: JSX.Element}): JSX.Element {
-  const patchText = createMemo(() => patchTextOf(props.part))
+  const patchText = createMemo(() => readPatchText(props.part))
   const info = createMemo(() => patchInfo(patchText()))
   const blocks = createMemo(() => parseClaudePatchBlocks(patchText()))
   const status = createMemo(() => toolStatus(props.part, props.result))

@@ -70,14 +70,14 @@ const OLDER_GROUP = 'Older versions'
 
 const PINNED_PREFIX = 'claude-'
 
-function familyOf(value: string): string {
+function readFamily(value: string): string {
   return value.replace(PINNED_PREFIX, '').split(/[-[]/)[0] ?? value
 }
 
 function toHarnessModel(model: ModelInfo, aliasFamilies: ReadonlySet<string>): HarnessModel {
   const [version, ...summary] = model.description.split(' · ')
   const versioned = version !== undefined && summary.length > 0
-  const superseded = model.value.startsWith(PINNED_PREFIX) && aliasFamilies.has(familyOf(model.value))
+  const superseded = model.value.startsWith(PINNED_PREFIX) && aliasFamilies.has(readFamily(model.value))
   return {
     id: model.value,
     name: versioned ? version : model.displayName,
@@ -90,7 +90,7 @@ function toHarnessModel(model: ModelInfo, aliasFamilies: ReadonlySet<string>): H
 function toHarnessModels(models: ModelInfo[]): HarnessModel[] {
   const rows = models.filter((model) => model.value !== 'default')
   const aliasFamilies = new Set(
-    rows.filter((model) => !model.value.startsWith(PINNED_PREFIX)).map((model) => familyOf(model.value)),
+    rows.filter((model) => !model.value.startsWith(PINNED_PREFIX)).map((model) => readFamily(model.value)),
   )
   return rows.map((model) => toHarnessModel(model, aliasFamilies))
 }

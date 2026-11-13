@@ -118,7 +118,7 @@ const SECRET_REFUSAL = 'looks like a secret, so code mode refuses to run it'
 
 const FailedRunSchema = z.object({success: z.literal(false), error: z.object({message: z.string()})})
 
-export function secretRefusalOf(result: unknown): string | null {
+export function readSecretRefusal(result: unknown): string | null {
   const failed = FailedRunSchema.safeParse(result)
   return failed.success && failed.data.error.message.includes(SECRET_REFUSAL) ? failed.data.error.message : null
 }

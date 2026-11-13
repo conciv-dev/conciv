@@ -129,7 +129,7 @@ function* customEventChunks(events: {name: string; value: unknown}[], run: RunId
 
 type Gate = {hold: () => void; release: (paced?: PacedRelease) => void; wait: (signal?: AbortSignal) => Promise<void>}
 
-function requestSignalOf(options: ScriptedRequest | undefined): AbortSignal | undefined {
+function readRequestSignal(options: ScriptedRequest | undefined): AbortSignal | undefined {
   return options?.request?.signal ?? undefined
 }
 
@@ -247,7 +247,7 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
     yield {type: ChatEventType.RUN_FINISHED, ...run}
   }
   const chatStream = async function* (deps: HarnessChatDeps, options?: ScriptedRequest): AsyncGenerator<ChatEvent> {
-    const signal = requestSignalOf(options)
+    const signal = readRequestSignal(options)
     const run = runIdentity(deps, options)
     const nextId = runScopedIds(run.runId)
     const drainCustomEvents = () => customEventChunks(queuedCustomEvents.splice(0), run)

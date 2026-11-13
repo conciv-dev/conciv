@@ -12,10 +12,10 @@ import {
   emittersIn,
   leanWrappersIn,
   liveTweenCount,
-  partOf,
+  findPart,
   partsIn,
   ridersIn,
-  rootOf,
+  findRoot,
   styleRule,
 } from './mascot-dom.js'
 
@@ -38,7 +38,7 @@ describe('solid wrapper', () => {
     return {container: mounted.container, unmount: mounted.unmount}
   }
 
-  const shadowStageOf = (host: HTMLElement): HTMLElement => {
+  const findShadowStage = (host: HTMLElement): HTMLElement => {
     const shadowed = [...host.querySelectorAll('div')].flatMap((element) =>
       element.shadowRoot === null
         ? []
@@ -58,27 +58,27 @@ describe('solid wrapper', () => {
     expect(partsIn(container, 'head')).toHaveLength(1)
     expect(partsIn(container, 'antenna')).toHaveLength(1)
     expect(partsIn(container, 'eyes')).toHaveLength(1)
-    const box = rootOf(container).getBoundingClientRect()
+    const box = findRoot(container).getBoundingClientRect()
     expect([box.width, box.height]).toEqual([44, 44])
   })
 
   it('lets a consumer class size the stage instead of the default', () => {
     styleRule(`.${SIZING_CLASS}{inline-size:88px;block-size:88px}`)
     const {container} = renderMascot(() => <Mascot class={SIZING_CLASS} />)
-    const box = rootOf(container).getBoundingClientRect()
+    const box = findRoot(container).getBoundingClientRect()
     expect([box.width, box.height]).toEqual([88, 88])
   })
 
   it('lets a consumer style size the stage instead of the default', () => {
     const {container} = renderMascot(() => <Mascot style={{width: '72px', height: '72px'}} />)
-    const box = rootOf(container).getBoundingClientRect()
+    const box = findRoot(container).getBoundingClientRect()
     expect([box.width, box.height]).toEqual([72, 72])
   })
 
   it('keeps the stage visible at its default size when a consumer class only paints', () => {
     styleRule(`.${FADED_CLASS}{opacity:0.7}`)
     const {container} = renderMascot(() => <Mascot class={FADED_CLASS} />)
-    const box = rootOf(container).getBoundingClientRect()
+    const box = findRoot(container).getBoundingClientRect()
     expect([box.width, box.height]).toEqual([44, 44])
   })
 
@@ -255,8 +255,8 @@ describe('solid wrapper', () => {
     const target = container.querySelector('#gaze-target')
     if (target === null) throw new Error('the gaze target did not render')
     await page.elementLocator(target).hover()
-    const eyes = partOf(container, 'eyes')
-    const lean = partOf(container, 'antenna').parentElement
+    const eyes = findPart(container, 'eyes')
+    const lean = findPart(container, 'antenna').parentElement
     await vi.waitFor(() => expect(Math.abs(Number(gsap.getProperty(eyes, 'x'))) > 0).toBe(true), DRAIN_TIMEOUT)
     expect(Number(gsap.getProperty(lean, 'rotation'))).toBe(0)
   })
@@ -278,7 +278,7 @@ describe('solid wrapper', () => {
         <Mascot />
       </Portal>
     ))
-    const root = shadowStageOf(document.body)
+    const root = findShadowStage(document.body)
     const box = root.getBoundingClientRect()
     expect([box.width, box.height]).toEqual([44, 44])
   })

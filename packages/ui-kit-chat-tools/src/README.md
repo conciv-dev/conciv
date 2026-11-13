@@ -6,7 +6,7 @@ Single barrel `index.tsx` that re-exports the tool primitives and the styled too
 
 ## Interface
 
-- Primitives (`index.tsx`): `Bash`, `useBash`, `parseBashOutput`, `ApplyPatch`, `useApplyPatch`, `patchTextOf`, `patchInfo`, `parseClaudePatchBlocks`, `claudeBlockToUnifiedDiff`, `FileRead`, `FileEdit`, `Search`, `Todo` and their hooks
+- Primitives (`index.tsx`): `Bash`, `useBash`, `parseBashOutput`, `ApplyPatch`, `useApplyPatch`, `readPatchText`, `patchInfo`, `parseClaudePatchBlocks`, `claudeBlockToUnifiedDiff`, `FileRead`, `FileEdit`, `Search`, `Todo` and their hooks
 - Helpers (`index.tsx`): `humanToolName`, `nowTitle`, `schemaParams` from @conciv/ui-kit-chat/tools; `inlineValue`, `shortenPath`, `basename`, `truncate`, `SUMMARY_KEYS`
 - Cards (`index.tsx`): `BashCard`, `ApplyPatchDiff`, `DiscoveredApisCard`, `FileReadCard`, `FileEditCard`, `SearchCard`, `TodoCard` with their `*Tool` entries
 - Inline rows and registry (`index.tsx`): `inlineTool`, `ReadInline` to `ToolCallInline`, `builtinToolCards`

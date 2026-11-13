@@ -154,7 +154,7 @@ export function ViewsList(props: ViewsListProps): JSX.Element {
       isEqual(next, natural) ? {} : Object.fromEntries(next.map((viewId, index) => [viewId, index])),
     )
   }
-  const indexOf = (id: string) => ordered().findIndex((view) => view.id === id)
+  const findViewIndex = (id: string) => ordered().findIndex((view) => view.id === id)
   const toggle = (field: AnyFieldApi, list: string[], id: string, on: boolean) =>
     field.handleChange(on ? [...difference(list, [id]), id] : without(list, id))
   return (
@@ -168,12 +168,12 @@ export function ViewsList(props: ViewsListProps): JSX.Element {
           drop={drag.over === view.id && drag.from !== view.id}
           onShownChange={(shown) => toggle(props.hidden, hidden(), view.id, !shown)}
           onPinnedChange={(on) => toggle(props.pinned, pinned(), view.id, on)}
-          onMove={(step) => place(view.id, indexOf(view.id) + step)}
+          onMove={(step) => place(view.id, findViewIndex(view.id) + step)}
           onDragStart={() => setDrag({from: view.id, over: undefined})}
           onDragOver={() => setDrag('over', view.id)}
           onDragEnd={() => setDrag({from: undefined, over: undefined})}
           onDrop={() => {
-            if (drag.from) place(drag.from, indexOf(view.id))
+            if (drag.from) place(drag.from, findViewIndex(view.id))
             setDrag({from: undefined, over: undefined})
           }}
         />

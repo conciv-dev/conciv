@@ -53,7 +53,7 @@ type MascotHarness = {
   countingEffectTotals: () => EffectTotals
   failingEffect: MascotModule.EffectMount
   layoutReads: () => LayoutReads
-  transformOriginOf: (element: HTMLElement) => string
+  readTransformOrigin: (element: HTMLElement) => string
   wait: (milliseconds: number) => Promise<void>
   nextFrame: () => Promise<number>
   sampleFrames: <T>(read: () => T, milliseconds: number) => Promise<T[]>
@@ -69,11 +69,11 @@ type MascotHarness = {
   watchResize: () => void
   awaitResize: () => Promise<void>
   globalTweenCount: () => number
-  activeWritersOf: (element: HTMLElement) => number
+  countActiveWriters: (element: HTMLElement) => number
   activeWritersOfProperty: (element: HTMLElement, property: string) => number
-  boxOf: (element: HTMLElement) => Anchor
-  anchorOf: (element: HTMLElement) => Anchor
-  particleFlightOf: (emitter: HTMLElement, index: number) => Anchor
+  measureBox: (element: HTMLElement) => Anchor
+  measureAnchor: (element: HTMLElement) => Anchor
+  measureParticleFlight: (emitter: HTMLElement, index: number) => Anchor
   repeatingTimeline: () => object | undefined
 }
 

@@ -106,13 +106,13 @@ export async function framesForElement(el: Element): Promise<RawFrame[]> {
   })
 }
 
-function hostElementOf(composite: Fiber): Element | null {
+function findHostElement(composite: Fiber): Element | null {
   const host = getNearestHostFiber(composite)
   return host?.stateNode instanceof Element ? host.stateNode : null
 }
 
-function ownerOf(f: Fiber, addRef: RefAdder): Owner {
-  const el = hostElementOf(f)
+function describeOwner(f: Fiber, addRef: RefAdder): Owner {
+  const el = findHostElement(f)
   return {component: getDisplayName(f) || '?', ref: el ? addRef(el) : ''}
 }
 
@@ -120,7 +120,7 @@ function ownerChain(fiber: Fiber, addRef: RefAdder, limit = 12): Owner[] {
   return getFiberStack(fiber)
     .filter((f: Fiber) => isCompositeFiber(f))
     .slice(0, limit)
-    .map((f: Fiber) => ownerOf(f, addRef))
+    .map((f: Fiber) => describeOwner(f, addRef))
 }
 
 export async function locate(el: Element, addRef: RefAdder): Promise<LocateResult | null> {
@@ -138,7 +138,7 @@ export function componentHostAt(el: Element): Element | null {
   const fiber = getFiberFromHostInstance(el)
   const composite = fiber ? composedFiber(fiber) : undefined
   if (!composite) return null
-  return hostElementOf(composite) ?? el
+  return findHostElement(composite) ?? el
 }
 
 export function describe(host: Element): {component: string; file: string | null} {
@@ -156,7 +156,7 @@ function classState(composite: Fiber): unknown {
 const isClassComponent = (composite: Fiber): boolean =>
   Boolean(composite.stateNode) && typeof composite.stateNode.setState === 'function'
 
-function rectOf(el: Element | null): {x: number; y: number; w: number; h: number} | null {
+function measureRect(el: Element | null): {x: number; y: number; w: number; h: number} | null {
   const r = el?.getBoundingClientRect()
   return r ? {x: r.x, y: r.y, w: r.width, h: r.height} : null
 }
@@ -171,7 +171,7 @@ export async function inspect(el: Element): Promise<InspectResult | null> {
     props: composite.memoizedProps,
     state: classState(composite),
     hooks: isClassComponent(composite) ? [] : readHooks(composite),
-    rect: rectOf(hostElementOf(composite)),
+    rect: measureRect(findHostElement(composite)),
   }
 }
 
@@ -279,12 +279,12 @@ export async function tree(
   if (!rootFiber) return {nodes: [], truncated: 0}
   const out: TreeNode[] = []
   const byFiber = new Map<Fiber, TreeNode>()
-  const depthOf = new Map<Fiber, number>()
+  const depthByFiber = new Map<Fiber, number>()
   const counters = {count: 0, truncated: 0}
   traverseFiber(rootFiber, (node: Fiber) => {
     if (!isCompositeFiber(node)) return false
-    const depth = compositeDepth(depthOf, node)
-    depthOf.set(node, depth)
+    const depth = compositeDepth(depthByFiber, node)
+    depthByFiber.set(node, depth)
     if (depth > maxDepth || counters.count >= maxNodes) {
       counters.truncated++
       recordTruncation(byFiber, node)
@@ -304,9 +304,9 @@ function nearestCompositeAncestor(f: Fiber): Fiber | null {
   return isCompositeFiber(f) ? f : nearestCompositeAncestor(f.return)
 }
 
-function compositeDepth(depthOf: Map<Fiber, number>, node: Fiber): number {
+function compositeDepth(depthByFiber: Map<Fiber, number>, node: Fiber): number {
   const comp = nearestCompositeAncestor(node.return)
-  return comp ? (depthOf.get(comp) ?? 0) + 1 : 0
+  return comp ? (depthByFiber.get(comp) ?? 0) + 1 : 0
 }
 
 function nearestRecordedAncestor(byFiber: Map<Fiber, TreeNode>, f: Fiber): TreeNode | undefined {
@@ -320,7 +320,7 @@ function recordTruncation(byFiber: Map<Fiber, TreeNode>, node: Fiber): void {
 }
 
 function treeNodeFor(node: Fiber, addRef: RefAdder): TreeNode {
-  const el = hostElementOf(node)
+  const el = findHostElement(node)
   return {component: getDisplayName(node) || '?', ref: el ? addRef(el) : '', children: []}
 }
 
@@ -366,7 +366,7 @@ export function elementByName(name: string): Element | null {
   for (const root of reactRootFibers()) {
     traverseFiber(root, (node: Fiber) => {
       if (found.el || !isNamedComposite(node, name)) return false
-      found.el = hostElementOf(node)
+      found.el = findHostElement(node)
       return false
     })
     if (found.el) break
@@ -383,7 +383,7 @@ export function find(
   const counter = {total: 0}
   for (const root of reactRootFibers()) {
     traverseFiber(root, (node: Fiber) => {
-      const el = isNamedComposite(node, name) ? hostElementOf(node) : null
+      const el = isNamedComposite(node, name) ? findHostElement(node) : null
       if (!el) return false
       counter.total++
       if (matches.length < limit) matches.push({ref: addRef(el), component: name})

@@ -1,5 +1,5 @@
 import type {ElementDescriptor} from '@conciv/protocol/element-capture-types'
-import {accessibleNameOf, checkedStateOf, roleOf, valueOf} from './page-snapshot.js'
+import {readAccessibleName, readCheckedState, readRole, readValue} from './page-snapshot.js'
 import {componentHostAt, describe} from './react-bridge.js'
 import {sourceFromAttr} from './source-attr.js'
 
@@ -24,7 +24,7 @@ function segmentFor(el: Element): string {
   return `${tag}:nth-of-type(${siblings.indexOf(el) + 1})`
 }
 
-function selectorPathOf(el: Element): string {
+function buildSelectorPath(el: Element): string {
   const segments: string[] = []
   let current: Element | null = el
   while (current !== null && current.tagName.toLowerCase() !== 'html') {
@@ -36,7 +36,7 @@ function selectorPathOf(el: Element): string {
   return segments.join(' > ')
 }
 
-function componentOf(el: Element): {componentName?: string; sourceFile?: string; sourceLine?: number} {
+function describeComponent(el: Element): {componentName?: string; sourceFile?: string; sourceLine?: number} {
   const host = componentHostAt(el)
   if (host === null) return {}
   const described = describe(host)
@@ -49,18 +49,18 @@ function componentOf(el: Element): {componentName?: string; sourceFile?: string;
 
 export function elementDescriptor(el: Element): ElementDescriptor {
   const rect = el.getBoundingClientRect()
-  const name = accessibleNameOf(el)
-  const rawValue = valueOf(el)
+  const name = readAccessibleName(el)
+  const rawValue = readValue(el)
   const value = rawValue === undefined ? undefined : isSensitiveField(el) ? MASKED_VALUE : rawValue
-  const checked = checkedStateOf(el)
+  const checked = readCheckedState(el)
   return {
     tagName: el.tagName.toLowerCase(),
-    role: roleOf(el),
+    role: readRole(el),
     ...(name === '' ? {} : {accessibleName: name}),
     ...(value === undefined ? {} : {value}),
     ...(checked === undefined ? {} : {checked}),
     rect: {x: rect.x, y: rect.y, width: rect.width, height: rect.height},
-    selectorPath: selectorPathOf(el),
-    ...componentOf(el),
+    selectorPath: buildSelectorPath(el),
+    ...describeComponent(el),
   }
 }

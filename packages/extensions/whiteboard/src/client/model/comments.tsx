@@ -59,9 +59,9 @@ export function createCommentsModel(
   const pinEls = new Map<string, HTMLButtonElement>()
   let panFn: ((sceneX: number, sceneY: number) => void) | undefined
 
-  const rootOf = (cid: string): Comment | undefined => comments().find((comment) => comment.cid === cid)
-  const threadOf = (cid: string): Comment[] => {
-    const threadId = rootOf(cid)?.threadId
+  const findRoot = (cid: string): Comment | undefined => comments().find((comment) => comment.cid === cid)
+  const collectThread = (cid: string): Comment[] => {
+    const threadId = findRoot(cid)?.threadId
     if (!threadId) return []
     return comments()
       .filter((comment) => comment.threadId === threadId)
@@ -80,20 +80,21 @@ export function createCommentsModel(
     comment.authorKind === 'ai' ? `ai:${aiLabel(comment)}` : (comment.authorId ?? 'human')
   const threadParticipants = (cid: string): Participant[] => {
     const seen = new Map<string, Participant>()
-    threadOf(cid).forEach((comment) => {
+    collectThread(cid).forEach((comment) => {
       const key = participantKey(comment)
       if (!seen.has(key)) seen.set(key, {id: key, label: displayName(comment)})
     })
     return [...seen.values()]
   }
-  const replyCount = (cid: string): number => Math.max(0, threadOf(cid).length - 1)
-  const lastActivityAt = (cid: string): number | undefined => newest(threadOf(cid).map((comment) => comment.createdAt))
+  const replyCount = (cid: string): number => Math.max(0, collectThread(cid).length - 1)
+  const lastActivityAt = (cid: string): number | undefined =>
+    newest(collectThread(cid).map((comment) => comment.createdAt))
 
   const humanParticipant = (comment: Comment, self: string): Participant | null =>
     comment.authorId
       ? {id: comment.authorId, label: comment.authorId === self ? 'You' : (comment.authorName ?? 'Human')}
       : null
-  const participantOf = (comment: Comment, self: string): Participant | null =>
+  const resolveParticipant = (comment: Comment, self: string): Participant | null =>
     comment.authorKind === 'ai'
       ? {id: `ai:${aiLabel(comment)}`, label: aiLabel(comment)}
       : humanParticipant(comment, self)
@@ -102,7 +103,7 @@ export function createCommentsModel(
     const self = accountId()
     if (self) seen.set(self, {id: self, label: 'You'})
     comments().forEach((comment) => {
-      const entry = participantOf(comment, self)
+      const entry = resolveParticipant(comment, self)
       if (entry) seen.set(entry.id, entry)
     })
     return [...seen.values()]
@@ -158,7 +159,7 @@ export function createCommentsModel(
     if (pin) db.pins.update(pin.id, (draft) => Object.assign(draft, patch))
   }
   const detachAnchor = (cid: string): void => {
-    const comment = rootOf(cid)
+    const comment = findRoot(cid)
     if (comment)
       db.comments.update(comment.id, (draft) => {
         draft.kind = 'floating'
@@ -207,7 +208,7 @@ export function createCommentsModel(
     setComposeTarget(null)
     onComposeSettled('cancelled')
   }
-  const anchorOf = (source: CommentSource): JsonValue | null =>
+  const buildAnchor = (source: CommentSource): JsonValue | null =>
     source ? ({source: {file: source.file, line: source.line ?? 1, column: 1}} as JsonValue) : null
   const newComment = (target: ComposeTarget, cid: string, text: string): void => {
     const now = Date.now()
@@ -225,7 +226,7 @@ export function createCommentsModel(
       authorAvatar: null,
       status: 'open',
       kind: target.source ? 'source-linked' : 'floating',
-      anchor: anchorOf(target.source),
+      anchor: buildAnchor(target.source),
       anchorFile: target.source?.file ?? null,
       anchorComponent: null,
       anchorHash: null,
@@ -264,7 +265,7 @@ export function createCommentsModel(
   }
 
   const reply = (segments: MentionSegment[]): void => {
-    const parent = rootOf(openCid() ?? '')
+    const parent = findRoot(openCid() ?? '')
     if (!parent || segments.length === 0) return
     const now = Date.now()
     db.comments.insert({
@@ -291,7 +292,7 @@ export function createCommentsModel(
     })
   }
   const resolve = (): void => {
-    const parent = rootOf(openCid() ?? '')
+    const parent = findRoot(openCid() ?? '')
     if (!parent) return
     const now = Date.now()
     db.comments.update(parent.id, (draft) => {
@@ -302,7 +303,7 @@ export function createCommentsModel(
     closeThread()
   }
   const deleteThread = (): void => {
-    const parent = rootOf(openCid() ?? '')
+    const parent = findRoot(openCid() ?? '')
     if (!parent) return
     comments()
       .filter((comment) => comment.threadId === parent.threadId)
@@ -323,8 +324,8 @@ export function createCommentsModel(
     ctx,
     comments,
     pins,
-    rootOf,
-    threadOf,
+    findRoot,
+    collectThread,
     orderedThreads,
     participants,
     threadParticipants,

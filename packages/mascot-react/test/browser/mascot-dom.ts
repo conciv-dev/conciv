@@ -30,13 +30,13 @@ export const ridersIn = (emitter: HTMLElement): Element[] =>
 
 export const liveTweenCount = (): number => gsap.globalTimeline.getChildren(true, true, true).length
 
-export function rootOf(container: ParentNode): HTMLElement {
+export function findRoot(container: ParentNode): HTMLElement {
   const root = partsIn(container, 'root')[0]
   if (root === undefined) throw new Error('the mascot root did not render')
   return root
 }
 
-export function partOf(container: ParentNode, part: string): HTMLElement {
+export function findPart(container: ParentNode, part: string): HTMLElement {
   const element = partsIn(container, part)[0]
   if (element === undefined) throw new Error(`the mascot ${part} did not render`)
   return element

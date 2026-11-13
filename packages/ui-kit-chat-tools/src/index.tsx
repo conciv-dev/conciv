@@ -2,7 +2,7 @@ export {Bash, useBash, parseBashOutput, type BashOutput} from './primitives/tool
 export {
   ApplyPatch,
   useApplyPatch,
-  patchTextOf,
+  readPatchText,
   patchInfo,
   parseClaudePatchBlocks,
   claudeBlockToUnifiedDiff,

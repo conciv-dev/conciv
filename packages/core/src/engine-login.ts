@@ -306,7 +306,7 @@ export function rpcSocketGate(trust: ConnectionTrust, authorization: string | un
   }
 }
 
-function requesterOf(context: RpcContext): BrowserRequester {
+function describeRequester(context: RpcContext): BrowserRequester {
   return {
     browser: describeBrowser(rpcHeader(context, 'user-agent') ?? ''),
     origin: context.callerOrigin ?? context.origin,
@@ -328,12 +328,12 @@ export function makeAuthRouter(deps: {
     exchange: os.auth.exchange.handler(({input, context}) => {
       const outcome = deps.codes.exchange(input.code)
       if (outcome !== 'trusted') return {refused: outcome}
-      const token = deps.browsers.grant(requesterOf(context), deps.now())
+      const token = deps.browsers.grant(describeRequester(context), deps.now())
       context.socket?.admit(token)
       return {token}
     }),
     requestCode: os.auth.requestCode.handler(({input, context}) =>
-      deps.codes.request(requesterOf(context), input.reissue ?? false),
+      deps.codes.request(describeRequester(context), input.reissue ?? false),
     ),
     issueCode: os.auth.issueCode.handler(({context, errors}) => {
       const presented = BEARER.exec(rpcHeader(context, 'authorization') ?? '')?.[1]

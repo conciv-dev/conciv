@@ -13,7 +13,7 @@ import type {
 import {MetaToolCard} from '../src/tools/styled/meta-tool-card.js'
 import {ToolFallback} from '../src/tools/styled/tool-fallback.js'
 import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '../src/store/tool-context.js'
-import {cardPart, cardResult, catalogOf, ctxWith, mountView} from './helpers.js'
+import {cardPart, cardResult, makeCatalog, ctxWith, mountView} from './helpers.js'
 import {render} from '@solidjs/testing-library'
 import {CardShell} from '../src/tools/styled/card-shell.js'
 import {CollapsibleCard} from '../src/tools/styled/collapsible-card.js'
@@ -56,7 +56,7 @@ describe('card body nonempty', () => {
       <MetaToolCard
         part={cardPart('page_noop', {})}
         result={undefined}
-        ctx={ctxWith(catalogOf({page_noop: NO_SCHEMA_META}))}
+        ctx={ctxWith(makeCatalog({page_noop: NO_SCHEMA_META}))}
         addResult={INERT_ADD_RESULT}
       />
     ))
@@ -70,7 +70,7 @@ describe('card body nonempty', () => {
       <MetaToolCard
         part={cardPart('page_fill', {selector: '#name', value: 'Ada', timeoutMs: 250})}
         result={undefined}
-        ctx={ctxWith(catalogOf({page_fill: FILL_META}))}
+        ctx={ctxWith(makeCatalog({page_fill: FILL_META}))}
         addResult={INERT_ADD_RESULT}
       />
     ))
@@ -85,7 +85,7 @@ describe('card body nonempty', () => {
       <MetaToolCard
         part={cardPart('page_noop', {reason: 'warming the cache'})}
         result={undefined}
-        ctx={ctxWith(catalogOf({page_noop: NO_SCHEMA_META}))}
+        ctx={ctxWith(makeCatalog({page_noop: NO_SCHEMA_META}))}
         addResult={INERT_ADD_RESULT}
       />
     ))
@@ -100,7 +100,7 @@ describe('card body nonempty', () => {
       <MetaToolCard
         part={cardPart('page_fill', {selector: '#name', value: 'Ada'})}
         result={errorResult('element not found')}
-        ctx={ctxWith(catalogOf({page_fill: FILL_META}))}
+        ctx={ctxWith(makeCatalog({page_fill: FILL_META}))}
         addResult={INERT_ADD_RESULT}
       />
     ))
@@ -297,7 +297,7 @@ describe('meta tool card error', () => {
       <MetaToolCard
         part={cardPart('page_fill', {selector: '#ghost', value: 'nobody'})}
         result={errorResult('{"error":{"message":"page_fill failed","code":"NO_MATCH"}}')}
-        ctx={ctxWith(catalogOf({page_fill: fillMeta}))}
+        ctx={ctxWith(makeCatalog({page_fill: fillMeta}))}
         addResult={INERT_ADD_RESULT}
       />
     ))
@@ -312,7 +312,7 @@ describe('meta tool card error', () => {
       <MetaToolCard
         part={cardPart('page_fill', {selector: '#ghost', value: 'nobody'})}
         result={errorResult('{"error":{"message":"the sandbox blew up","code":"SOMETHING_ELSE"}}')}
-        ctx={ctxWith(catalogOf({page_fill: fillMeta}))}
+        ctx={ctxWith(makeCatalog({page_fill: fillMeta}))}
         addResult={INERT_ADD_RESULT}
       />
     ))
@@ -327,7 +327,7 @@ describe('meta tool card error', () => {
       <MetaToolCard
         part={cardPart('page_fill', {selector: '#ghost', value: 'nobody'})}
         result={errorResult('NO_MATCH: the field vanished')}
-        ctx={ctxWith(catalogOf({page_fill: fillMeta}))}
+        ctx={ctxWith(makeCatalog({page_fill: fillMeta}))}
         addResult={INERT_ADD_RESULT}
       />
     ))
@@ -342,7 +342,7 @@ describe('meta tool card error', () => {
       <MetaToolCard
         part={cardPart('page_fill', {selector: '#ghost', value: 'nobody'})}
         result={errorResult('{"error":"NO_MATCH: the field vanished"}')}
-        ctx={ctxWith(catalogOf({page_fill: fillMeta}))}
+        ctx={ctxWith(makeCatalog({page_fill: fillMeta}))}
         addResult={INERT_ADD_RESULT}
       />
     ))
@@ -358,7 +358,7 @@ describe('meta tool card error', () => {
       <MetaToolCard
         part={cardPart('page_ship', {selector: '#hero'})}
         result={successResult(JSON.stringify('shipped-42'))}
-        ctx={ctxWith(catalogOf({page_ship: shipMeta}))}
+        ctx={ctxWith(makeCatalog({page_ship: shipMeta}))}
         addResult={INERT_ADD_RESULT}
       />
     ))
@@ -384,7 +384,7 @@ describe('meta tool card error', () => {
             outcome,
             error: `The tool call was ${outcome}.`,
           }}
-          ctx={ctxWith(catalogOf({page_fill: fillMeta}))}
+          ctx={ctxWith(makeCatalog({page_fill: fillMeta}))}
           tools={() => []}
         />
       ))
@@ -416,7 +416,7 @@ describe('meta tool card object result', () => {
       <MetaToolCard
         part={cardPart('page_measure', {selector: '#hero'})}
         result={cardResult('{"width":320,"height":48}', 'complete')}
-        ctx={ctxWith(catalogOf({page_measure: measureMeta}))}
+        ctx={ctxWith(makeCatalog({page_measure: measureMeta}))}
         addResult={INERT_ADD_RESULT}
       />
     ))
@@ -499,7 +499,7 @@ describe('tool call card dispatch', () => {
       <ToolCallCard
         part={part('page_ship')}
         result={undefined}
-        ctx={ctxAsking(catalogOf({page_ship: shipMeta}))}
+        ctx={ctxAsking(makeCatalog({page_ship: shipMeta}))}
         tools={() => [extensionEntry, builtinEntry]}
       />
     ))
@@ -513,7 +513,7 @@ describe('tool call card dispatch', () => {
       <ToolCallCard
         part={part('page_ship')}
         result={undefined}
-        ctx={ctxAsking(catalogOf({page_ship: shipMeta}))}
+        ctx={ctxAsking(makeCatalog({page_ship: shipMeta}))}
         tools={() => [builtinEntry]}
       />
     ))
@@ -527,7 +527,7 @@ describe('tool call card dispatch', () => {
       <ToolCallCard
         part={part('page_ship')}
         result={undefined}
-        ctx={ctxAsking(catalogOf({page_ship: shipMeta}))}
+        ctx={ctxAsking(makeCatalog({page_ship: shipMeta}))}
         tools={() => []}
       />
     ))
@@ -541,7 +541,7 @@ describe('tool call card dispatch', () => {
       <ToolCallCard
         part={part('mcp__weather__forecast')}
         result={undefined}
-        ctx={ctxAsking(catalogOf({}))}
+        ctx={ctxAsking(makeCatalog({}))}
         tools={() => []}
       />
     ))
@@ -559,7 +559,7 @@ describe('tool call card dispatch', () => {
       <ToolCallCard
         part={approval}
         result={undefined}
-        ctx={ctxAsking(catalogOf({page_ship: shipMeta}))}
+        ctx={ctxAsking(makeCatalog({page_ship: shipMeta}))}
         tools={() => []}
       />
     ))
@@ -725,7 +725,7 @@ describe('tool fallback json', () => {
 
 describe('tool trace row', () => {
   function ctxRecording(decisions: Array<{id: string; approved: boolean}>): ToolViewCtx {
-    return {...ctxWith(catalogOf({})), respondApproval: (id, approved) => decisions.push({id, approved})}
+    return {...ctxWith(makeCatalog({})), respondApproval: (id, approved) => decisions.push({id, approved})}
   }
 
   const noCtx = ctxRecording([])
@@ -905,7 +905,7 @@ describe('tool trace row', () => {
 })
 
 describe('trace row card header', () => {
-  const ctx = ctxWith(catalogOf({}))
+  const ctx = ctxWith(makeCatalog({}))
 
   function call(name: string, input: Record<string, unknown>): ToolCallPart {
     return {type: 'tool-call', id: 'c1', name, arguments: JSON.stringify(input), input, state: 'complete'}

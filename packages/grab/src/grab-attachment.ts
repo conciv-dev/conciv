@@ -41,7 +41,7 @@ const GrabPayloadSchema = z.object({
 
 export type GrabPayload = z.infer<typeof GrabPayloadSchema>
 
-function payloadOf(grab: Grab, preview: GrabPreview | null): GrabPayload {
+function buildPayload(grab: Grab, preview: GrabPreview | null): GrabPayload {
   return {
     text: grab.text,
     ...(grab.snippet === undefined ? {} : {snippet: grab.snippet}),
@@ -77,14 +77,14 @@ function shrunkToBudget(payload: GrabPayload): GrabPayload {
 }
 
 export function imagePreviewBudget(grab: Grab, preview: Extract<GrabPreview, {kind: 'image'}>): number {
-  const envelope = payloadOf(grab, {...preview, dataUrl: ''})
+  const envelope = buildPayload(grab, {...preview, dataUrl: ''})
   return Math.max(0, MAX_PAYLOAD_BYTES - payloadBytes(envelope))
 }
 
 export function grabToPayload(grab: Grab): GrabPayload {
-  const full = payloadOf(grab, grab.preview)
+  const full = buildPayload(grab, grab.preview)
   if (withinBudget(full)) return full
-  const withoutPreview = payloadOf({...grab, snippet: undefined}, null)
+  const withoutPreview = buildPayload({...grab, snippet: undefined}, null)
   if (withinBudget(withoutPreview)) return withoutPreview
   const shrunk = shrunkToBudget(withoutPreview)
   if (withinBudget(shrunk)) return shrunk

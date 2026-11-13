@@ -5,7 +5,7 @@ import type {RegisteredTools, ToolBinding, ToolBuilder, ToolErrors} from './defi
 import type {AnyAttachmentBuilder} from './define-attachment.js'
 import type {
   ClientFactoryResult,
-  ConfigOf,
+  InferConfig,
   ConnectGate,
   ExtensionCommand,
   ExtensionSettingsSchema,
@@ -14,7 +14,7 @@ import type {
   RequiredContext,
   ServerApi,
   ServerResult,
-  SettingsOf,
+  InferSettings,
   SettingsReader,
   SettingsStore,
   SystemPromptFactory,
@@ -51,7 +51,7 @@ export type ExtensionMeta<
   views?: readonly ExtensionView[]
   Component?: Component
   Surface?: Component
-  systemPrompt?: string | SystemPromptFactory<Exclude<ConfigOf<Schema>, undefined>>
+  systemPrompt?: string | SystemPromptFactory<Exclude<InferConfig<Schema>, undefined>>
   connectGate?: ConnectGate
 }
 
@@ -75,13 +75,13 @@ export type ExtensionBuilder<
   attachments?: Attachments
   commands?: readonly ExtensionCommand[]
   views?: readonly ExtensionView[]
-  parseConfig: (raw: unknown) => ConfigOf<Schema>
-  parseSettings: (raw: unknown) => SettingsOf<Settings>
-  readSettings: (stores: Record<SettingsScope, SettingsStore>) => SettingsReader<SettingsOf<Settings>>
-  useSettings: () => Accessor<SettingsOf<Settings>>
+  parseConfig: (raw: unknown) => InferConfig<Schema>
+  parseSettings: (raw: unknown) => InferSettings<Settings>
+  readSettings: (stores: Record<SettingsScope, SettingsStore>) => SettingsReader<InferSettings<Settings>>
+  useSettings: () => Accessor<InferSettings<Settings>>
   __client?(): ClientFactoryResult<ClientValue>
   __server?(
-    server: ServerApi<ConfigOf<Schema>, SettingsOf<Settings>>,
+    server: ServerApi<InferConfig<Schema>, InferSettings<Settings>>,
   ): ServerResult<unknown> | Promise<ServerResult<unknown>>
   useContext: {
     (): ClientValue
@@ -92,7 +92,7 @@ export type ExtensionBuilder<
   ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue & Value, Settings>
   server: <Context extends RequiredContext<readonly [...Tools, ...Attachments]>>(
     factory: (
-      server: ServerApi<ConfigOf<Schema>, SettingsOf<Settings>>,
+      server: ServerApi<InferConfig<Schema>, InferSettings<Settings>>,
     ) => ServerResult<Context> | Promise<ServerResult<Context>>,
   ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue, Settings>
 }
@@ -123,14 +123,14 @@ export type RegisterExtension<Extension> =
       }
     : Record<never, never>
 
-function parseExtensionConfig<Schema extends z.ZodType>(schema: Schema | undefined, raw: unknown): ConfigOf<Schema> {
-  return (schema ? schema.parse(raw ?? {}) : {}) as ConfigOf<Schema>
+function parseExtensionConfig<Schema extends z.ZodType>(schema: Schema | undefined, raw: unknown): InferConfig<Schema> {
+  return (schema ? schema.parse(raw ?? {}) : {}) as InferConfig<Schema>
 }
 
 function configuredOrUndefined<Schema extends z.ZodType>(
   schema: Schema | undefined,
   raw: unknown,
-): ConfigOf<Schema> | undefined {
+): InferConfig<Schema> | undefined {
   try {
     return parseExtensionConfig(schema, raw)
   } catch {
@@ -201,7 +201,9 @@ export function defineExtension<
       builder.__client = factory
       return builder
     },
-    server(factory: (server: ServerApi<ConfigOf<Schema>>) => ServerResult<unknown> | Promise<ServerResult<unknown>>) {
+    server(
+      factory: (server: ServerApi<InferConfig<Schema>>) => ServerResult<unknown> | Promise<ServerResult<unknown>>,
+    ) {
       builder.__server = factory
       return builder
     },

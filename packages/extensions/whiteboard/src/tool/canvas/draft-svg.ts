@@ -15,16 +15,16 @@ export type DraftElement = {
 const escape = (value: string): string =>
   value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll("'", '&apos;')
 
-const styleOf = (element: DraftElement): string =>
+const buildStyle = (element: DraftElement): string =>
   `fill='${element.backgroundColor ?? 'transparent'}' stroke='${element.strokeColor ?? '#1e1e1e'}' stroke-width='${element.strokeWidth ?? 1}'`
 
 const rectNode = (element: DraftElement): string =>
-  `<rect x='${element.x}' y='${element.y}' width='${element.width ?? 0}' height='${element.height ?? 0}' ${styleOf(element)}/>`
+  `<rect x='${element.x}' y='${element.y}' width='${element.width ?? 0}' height='${element.height ?? 0}' ${buildStyle(element)}/>`
 
 const ellipseNode = (element: DraftElement): string => {
   const rx = (element.width ?? 0) / 2
   const ry = (element.height ?? 0) / 2
-  return `<ellipse cx='${element.x + rx}' cy='${element.y + ry}' rx='${rx}' ry='${ry}' ${styleOf(element)}/>`
+  return `<ellipse cx='${element.x + rx}' cy='${element.y + ry}' rx='${rx}' ry='${ry}' ${buildStyle(element)}/>`
 }
 
 const textNode = (element: DraftElement): string =>
@@ -46,9 +46,9 @@ const NODE_BUILDERS: Record<string, (element: DraftElement) => string> = {
   text: textNode,
 }
 
-const nodeOf = (element: DraftElement): string => (NODE_BUILDERS[element.type] ?? polylineNode)(element)
+const buildNode = (element: DraftElement): string => (NODE_BUILDERS[element.type] ?? polylineNode)(element)
 
-const maxOf = (values: number[], floor: number): number =>
+const findMax = (values: number[], floor: number): number =>
   values.reduce((max, value) => (Number.isFinite(value) && value > max ? value : max), floor)
 
 export function draftToSvg(elements: DraftElement[]): {svg: string; width: number; height: number} {
@@ -62,9 +62,9 @@ export function draftToSvg(elements: DraftElement[]): {svg: string; width: numbe
     element.y + (element.height ?? 0),
     ...(element.points ?? []).map(([, py = 0]) => element.y + py),
   ])
-  const width = Math.round(maxOf(xs, 400) + 40)
-  const height = Math.round(maxOf(ys, 300) + 40)
-  const body = elements.map(nodeOf).join('')
+  const width = Math.round(findMax(xs, 400) + 40)
+  const height = Math.round(findMax(ys, 300) + 40)
+  const body = elements.map(buildNode).join('')
   const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${width} ${height}' width='${width}' height='${height}'><rect x='0' y='0' width='${width}' height='${height}' fill='#ffffff'/>${body}</svg>`
   return {svg, width, height}
 }

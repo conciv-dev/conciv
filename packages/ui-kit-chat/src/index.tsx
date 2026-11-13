@@ -17,7 +17,7 @@ export {
   groupParts,
   isReplyText,
   pairResults,
-  parentToolCallIdOf,
+  readParentToolCallId,
   standaloneToolNames,
   CHAIN_GROUP_KEY,
   PAGE_SESSION_GROUP_KEY,

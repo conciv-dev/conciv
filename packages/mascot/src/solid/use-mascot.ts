@@ -19,11 +19,11 @@ export function createMascotHost(props: MascotProps): MascotHost {
     antenna: undefined,
   }
 
-  const followOf = (part: MascotPartName): boolean | undefined => (slots[part] ? sources[part]?.follow : undefined)
+  const readFollow = (part: MascotPartName): boolean | undefined => (slots[part] ? sources[part]?.follow : undefined)
 
   const follow = (): MascotFollow => {
     const base = followChannels(props.follow ?? true)
-    return {eyes: followOf('eyes') ?? base.eyes, antenna: followOf('antenna') ?? base.antenna}
+    return {eyes: readFollow('eyes') ?? base.eyes, antenna: readFollow('antenna') ?? base.antenna}
   }
 
   const config = createMemo<MascotConfig>(() => ({

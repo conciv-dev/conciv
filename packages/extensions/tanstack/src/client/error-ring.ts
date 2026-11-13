@@ -16,21 +16,21 @@ export function readRuntimeErrors(): {errors: AppError[]} {
   return {errors: [...stored]}
 }
 
-function messageOf(value: unknown, fallback: string): string {
+function readMessage(value: unknown, fallback: string): string {
   if (value instanceof Error) return value.message
   if (typeof value === 'string') return value
   return fallback
 }
 
-function stackOf(value: unknown): string | null {
+function readStack(value: unknown): string | null {
   if (value instanceof Error && typeof value.stack === 'string') return value.stack
   return null
 }
 
 export function installRuntimeErrorListeners(): () => void {
-  const onError = (event: ErrorEvent) => push(toAppError(event.message, stackOf(event.error)))
+  const onError = (event: ErrorEvent) => push(toAppError(event.message, readStack(event.error)))
   const onRejection = (event: PromiseRejectionEvent) =>
-    push(toAppError(messageOf(event.reason, 'Unhandled promise rejection'), stackOf(event.reason)))
+    push(toAppError(readMessage(event.reason, 'Unhandled promise rejection'), readStack(event.reason)))
   window.addEventListener('error', onError)
   window.addEventListener('unhandledrejection', onRejection)
   return () => {

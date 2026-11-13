@@ -100,14 +100,14 @@ export function createApprovalStore(
   hubGeneration: () => number | null,
 ): ApprovalStore {
   const outsideHolder = (threadId: string): string => (hubAccess === 'project' ? PROJECT_HOLDER : threadId)
-  const holderOf = (threadId: string, approvalId: string): string =>
+  const resolveHolder = (threadId: string, approvalId: string): string =>
     approvalId === OUTSIDE_APPROVAL_ID ? outsideHolder(threadId) : threadId
   const decisionKey = (threadId: string, approvalId: string): string =>
-    `${holderOf(threadId, approvalId)}:${approvalId}`
+    `${resolveHolder(threadId, approvalId)}:${approvalId}`
   const decisions = new EventEmitter().setMaxListeners(0)
-  const pendingOf = async (threadId: string) =>
+  const loadPending = async (threadId: string) =>
     PendingSchema.parse((await metadata.get(APPROVALS_NAMESPACE, pendingKey(threadId))) ?? [])
-  const grantsOf = async (threadId: string): Promise<Grants> =>
+  const loadGrants = async (threadId: string): Promise<Grants> =>
     GrantsSchema.parse(
       (await metadata.get(APPROVALS_NAMESPACE, grantsKey(threadId))) ?? {
         session: [],
@@ -148,7 +148,7 @@ export function createApprovalStore(
   const decideOutside = async (threadId: string, approved: boolean): Promise<ApprovalDecision> => {
     const holder = outsideHolder(threadId)
     await clearCoveredCards()
-    const grants = await grantsOf(holder)
+    const grants = await loadGrants(holder)
     const bucket = approved ? 'session' : 'refused'
     const allowedGeneration = approved ? hubGeneration() : grants.outsideAllowedGeneration
     await writeGrants(holder, {
@@ -164,7 +164,7 @@ export function createApprovalStore(
     approved: boolean,
     scope: ApprovalScope,
   ): Promise<ApprovalDecision | null> => {
-    const pending = await pendingOf(threadId)
+    const pending = await loadPending(threadId)
     const decided = pending.find((entry) => entry.approvalId === approvalId)
     if (decided === undefined) return null
     await metadata.set(
@@ -173,7 +173,7 @@ export function createApprovalStore(
       pending.filter((entry) => entry.approvalId !== approvalId),
     )
     if (approvalId === OUTSIDE_APPROVAL_ID) return decideOutside(threadId, approved)
-    const grants = await grantsOf(threadId)
+    const grants = await loadGrants(threadId)
     const inTurn = decided.runId !== null
     if (!approved) {
       if (inTurn) await writeGrants(threadId, {...grants, denied: [...new Set([...grants.denied, approvalId])]})
@@ -185,7 +185,7 @@ export function createApprovalStore(
     return {startsTurn: inTurn}
   }
   const outsideDenied = async (threadId: string): Promise<boolean> =>
-    (await grantsOf(outsideHolder(threadId))).refused.includes(OUTSIDE_APPROVAL_ID)
+    (await loadGrants(outsideHolder(threadId))).refused.includes(OUTSIDE_APPROVAL_ID)
   const outsideRevoked = (allowedGeneration: number | null): boolean => {
     const current = hubGeneration()
     return current === null || allowedGeneration !== current
@@ -193,18 +193,19 @@ export function createApprovalStore(
   return {
     asked: (threadId, ask) =>
       serialised(threadId, async () => {
-        const pending = await pendingOf(threadId)
+        const pending = await loadPending(threadId)
         if (pending.some((entry) => entry.approvalId === ask.approvalId)) return
         await metadata.set(APPROVALS_NAMESPACE, pendingKey(threadId), [...pending, ask])
       }),
     remove: (threadId, approvalId) =>
       serialised(threadId, async () => {
-        const pending = await pendingOf(threadId)
+        const pending = await loadPending(threadId)
         const kept = pending.filter((entry) => entry.approvalId !== approvalId)
         if (kept.length === pending.length) return
         await metadata.set(APPROVALS_NAMESPACE, pendingKey(threadId), kept)
       }),
-    pending: async (threadId) => (await pendingOf(threadId)).map(({title, ...entry}) => ({...entry, toolName: title})),
+    pending: async (threadId) =>
+      (await loadPending(threadId)).map(({title, ...entry}) => ({...entry, toolName: title})),
     decide: async (threadId, approvalId, approved, scope) => {
       const decision = await serialised(threadId, () => record(threadId, approvalId, approved, scope))
       if (decision !== null) decisions.emit(decisionKey(threadId, approvalId))
@@ -216,7 +217,7 @@ export function createApprovalStore(
         () => undefined,
       ),
     forRun: async (threadId) => {
-      const grants = await grantsOf(threadId)
+      const grants = await loadGrants(threadId)
       if (grants.once.length > 0 || grants.denied.length > 0)
         await writeGrants(threadId, {...grants, once: [], denied: []})
       return new Map([
@@ -225,8 +226,8 @@ export function createApprovalStore(
       ])
     },
     admit: async (threadId, approvalId) => {
-      const holder = holderOf(threadId, approvalId)
-      const grants = await grantsOf(holder)
+      const holder = resolveHolder(threadId, approvalId)
+      const grants = await loadGrants(holder)
       const revoked = approvalId === OUTSIDE_APPROVAL_ID && outsideRevoked(grants.outsideAllowedGeneration)
       if (grants.session.includes(approvalId) && !revoked) return 'allowed'
       if (grants.refused.includes(approvalId)) return 'denied'
@@ -237,7 +238,7 @@ export function createApprovalStore(
     outsideDenied,
     allowOutside: async (threadId) => {
       const holder = outsideHolder(threadId)
-      const grants = await grantsOf(holder)
+      const grants = await loadGrants(holder)
       await writeGrants(holder, {...grants, refused: grants.refused.filter((id) => id !== OUTSIDE_APPROVAL_ID)})
     },
   }
@@ -281,7 +282,7 @@ function withTimeout<T>(start: (settle: (value: T) => void) => void, ms: number,
 
 export function createUiChannel(): UiChannel {
   const threads = new Map<string, UiThread>()
-  const threadOf = (threadId: string): UiThread => {
+  const ensureThread = (threadId: string): UiThread => {
     const existing = threads.get(threadId)
     if (existing) return existing
     const created: UiThread = {calls: [], waiters: [], answers: new Map()}
@@ -296,7 +297,7 @@ export function createUiChannel(): UiChannel {
   return {
     noteToolCall: (threadId, toolCallId, toolName) => {
       if (toolName.replace(MCP_PREFIX, '') !== UI_TOOL_NAME) return
-      const thread = threadOf(threadId)
+      const thread = ensureThread(threadId)
       thread.answers.set(toolCallId, answerSlot())
       const waiter = thread.waiters.shift()
       if (waiter) waiter(toolCallId)
@@ -309,7 +310,7 @@ export function createUiChannel(): UiChannel {
       return true
     },
     ask: async (threadId) => {
-      const thread = threadOf(threadId)
+      const thread = ensureThread(threadId)
       const callId = await nextCall(thread)
       if (callId === null) return UNANSWERED
       const slot = thread.answers.get(callId)

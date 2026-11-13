@@ -163,12 +163,12 @@ function turnHarnessNames(
   const mixed = createMemo(() => {
     const harnessId = current()
     if (harnessId === undefined) return false
-    return turns().some((turn) => turn.role === 'assistant' && (chat.harnessOf(turn.key) ?? harnessId) !== harnessId)
+    return turns().some((turn) => turn.role === 'assistant' && (chat.readHarness(turn.key) ?? harnessId) !== harnessId)
   })
   return (turn) => {
     if (!mixed() || turn.role !== 'assistant') return undefined
-    const harnessId = chat.harnessOf(turn.key) ?? current()
-    return harnessId === undefined ? undefined : harnesses.nameOf(harnessId)
+    const harnessId = chat.readHarness(turn.key) ?? current()
+    return harnessId === undefined ? undefined : harnesses.resolveName(harnessId)
   }
 }
 

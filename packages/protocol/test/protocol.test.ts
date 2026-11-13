@@ -14,10 +14,10 @@ import {
 } from '../src/chat-types.js'
 import {defineFrameworkAdapter, type FrameworkClientCore, type FrameworkServerCore} from '../src/framework-types.js'
 import {
-  approvalAskOf,
+  readApprovalAsk,
   approvalRequestedEvent,
   approvalSettledEvent,
-  approvalSettledOf,
+  readApprovalSettled,
   ChatEventType,
   type RunStatus,
 } from '../src/chat-event-types.js'
@@ -690,7 +690,7 @@ describe('terminal types', () => {
 describe('chat event types', () => {
   describe('permission cards travel as approval events', () => {
     it('an asked permission keeps its member, a plain ask has none, and a settle names the approval', () => {
-      const permissionAsk = approvalAskOf({
+      const permissionAsk = readApprovalAsk({
         ...approvalRequestedEvent.create({
           approvalId: 'per_1',
           toolCallId: 'per_1',
@@ -708,7 +708,7 @@ describe('chat event types', () => {
         permission: {always: true},
       })
 
-      const plainAsk = approvalAskOf({
+      const plainAsk = readApprovalAsk({
         ...approvalRequestedEvent.create({approvalId: 'claude-code:command:ls', title: 'Bash: ls', command: 'ls'}),
         timestamp: 1,
       })
@@ -721,8 +721,8 @@ describe('chat event types', () => {
 
       const settled = approvalSettledEvent.create({approvalId: 'per_1'})
       expect(settled).toEqual({type: ChatEventType.CUSTOM, name: 'approval-settled', value: {approvalId: 'per_1'}})
-      expect(approvalSettledOf({...settled, timestamp: 2})).toBe('per_1')
-      expect(approvalSettledOf({...approvalRequestedEvent.create({approvalId: 'a', title: 't'}), timestamp: 3})).toBe(
+      expect(readApprovalSettled({...settled, timestamp: 2})).toBe('per_1')
+      expect(readApprovalSettled({...approvalRequestedEvent.create({approvalId: 'a', title: 't'}), timestamp: 3})).toBe(
         null,
       )
     })

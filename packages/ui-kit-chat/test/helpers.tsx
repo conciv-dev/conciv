@@ -12,7 +12,7 @@ import {ChatProvider, useThread} from '../src/store/chat-context.js'
 import {storyConnection} from '@conciv/ai/testkit'
 import {Thread} from '../src/styled/thread.js'
 
-export function catalogOf(entries: Record<string, ToolViewMeta>): ToolCatalogView {
+export function makeCatalog(entries: Record<string, ToolViewMeta>): ToolCatalogView {
   return {loaded: () => true, meta: (name) => entries[name]}
 }
 

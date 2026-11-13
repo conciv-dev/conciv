@@ -25,7 +25,7 @@ const FALLBACK_LINE_HEIGHT = 18
 
 type ClampMeasure = {viewportHeight: number; contentHeight: number; lineHeight: number}
 
-function lineHeightOf(element: Element): number {
+function measureLineHeight(element: Element): number {
   const parsed = Number.parseFloat(getComputedStyle(element).lineHeight)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : FALLBACK_LINE_HEIGHT
 }
@@ -48,7 +48,7 @@ export function TraceClamp(props: {
   const elements: {viewport?: HTMLDivElement} = {}
   const applyEntry = (entry: ResizeObserverEntry): void => {
     if (entry.target !== elements.viewport) return setMeasured('contentHeight', entry.contentRect.height)
-    setMeasured({viewportHeight: entry.contentRect.height, lineHeight: lineHeightOf(entry.target)})
+    setMeasured({viewportHeight: entry.contentRect.height, lineHeight: measureLineHeight(entry.target)})
   }
   const {observe} = makeResizeObserver((entries) => batch(() => entries.forEach(applyEntry)))
   const mountViewport = (element: HTMLDivElement) => {

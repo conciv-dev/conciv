@@ -115,7 +115,7 @@ function isPushSocket(socket: PageWebSocket): boolean {
   return socket.url().includes(PUSH_WS_PATH)
 }
 
-function readyOf(socket: PageWebSocket): Promise<boolean> {
+function waitForReady(socket: PageWebSocket): Promise<boolean> {
   return socket
     .waitForEvent('framereceived', {
       timeout: SUBSCRIBE_TIMEOUT_MS,
@@ -141,7 +141,7 @@ function watchPagePlane(page: Page): PagePlaneWatch {
     note(`websocket open ${socket.url()}`)
     const gate = held.gate
     if (isPushSocket(socket)) {
-      void readyOf(socket).then((ready) => {
+      void waitForReady(socket).then((ready) => {
         if (ready) gate.open()
       })
     }

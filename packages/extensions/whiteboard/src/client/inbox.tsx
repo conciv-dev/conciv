@@ -21,7 +21,7 @@ const partText = (part: unknown): string => {
   const mention = z.object({label: z.string()}).safeParse(part)
   return mention.success ? `@${mention.data.label}` : ''
 }
-const textOf = (comment: Comment): string =>
+const readText = (comment: Comment): string =>
   (Array.isArray(comment.parts) ? comment.parts : []).map(partText).join(' ').trim()
 
 const stripeClass = (unread: boolean): string =>
@@ -57,7 +57,7 @@ function FeedItem(props: {root: Comment}): JSX.Element {
           <span class={nameClass(unread())}>{model.displayName(props.root)}</span>
           <RelativeTime value={new Date(activity())} class="text-[0.75rem] text-chat-text-3 ml-auto shrink-0" />
         </div>
-        <p class="text-[0.8125rem] text-chat-text-2 truncate">{textOf(props.root)}</p>
+        <p class="text-[0.8125rem] text-chat-text-2 truncate">{readText(props.root)}</p>
         <Show when={replies() > 0}>
           <span class="text-[0.75rem] text-chat-text-3">
             {replies()} {replies() === 1 ? 'reply' : 'replies'}
@@ -94,8 +94,8 @@ export function Inbox(): JSX.Element {
     if (!query) return model.orderedThreads()
     return model.orderedThreads().filter((root) =>
       model
-        .threadOf(root.cid)
-        .map((comment) => `${textOf(comment)} ${model.displayName(comment)}`)
+        .collectThread(root.cid)
+        .map((comment) => `${readText(comment)} ${model.displayName(comment)}`)
         .join(' ')
         .toLowerCase()
         .includes(query),

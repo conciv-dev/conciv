@@ -24,7 +24,7 @@ function rrwebAssets(): {script: string; style: string} {
 
 const metaSize = z.object({width: z.number().optional(), height: z.number().optional()})
 
-function viewportOf(events: RrwebEvent[]): {width: number; height: number} {
+function readViewport(events: RrwebEvent[]): {width: number; height: number} {
   const parsed = metaSize.safeParse(events.find((event) => event.type === 4)?.data)
   const size = parsed.success ? parsed.data : {}
   return {width: size.width ?? 1024, height: size.height ?? 768}
@@ -46,7 +46,7 @@ export async function createChromiumRenderer(): Promise<KeyframeRenderer | null>
     async render(events, timestamps) {
       if (!events.some((event) => event.type === 2)) return []
       const assets = rrwebAssets()
-      const page = await browser.newPage({viewport: viewportOf(events)})
+      const page = await browser.newPage({viewport: readViewport(events)})
       try {
         await page.setContent('<!doctype html><html><body><div id="replay"></div></body></html>')
         await page.addStyleTag({path: assets.style})
@@ -66,7 +66,7 @@ export async function createChromiumRenderer(): Promise<KeyframeRenderer | null>
     async renderVideo(events) {
       if (!events.some((event) => event.type === 2)) return null
       const assets = rrwebAssets()
-      const viewport = viewportOf(events)
+      const viewport = readViewport(events)
       const videoDir = await mkdtemp(join(tmpdir(), 'conciv-recorder-video-'))
       const context = await browser.newContext({viewport, recordVideo: {dir: videoDir, size: viewport}})
       try {

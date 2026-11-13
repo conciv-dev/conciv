@@ -13,7 +13,7 @@ Pi harness, published as `./pi`. Chat is unsupported (`unsupportedChatConfig`). 
 
 - `messages` streams the transcript through `foldJsonlFile` with the same line fold `observe` uses.
 - Transcript reads go through `containedPath(sessionsDir, ...)`; a path outside it yields `[]` messages and `'missing'` from observe (`history.ts`).
-- Only entries on the active `parentId` chain become messages, with cycle protection (`activePath`); a `toolResult` attaches to the last assistant message or opens one (`messagesOf`).
+- Only entries on the active `parentId` chain become messages, with cycle protection (`activePath`); a `toolResult` attaches to the last assistant message or opens one (`collectMessages`).
 - `tail` follows the same chain backwards through `tailLines`, from the last `message` entry (or the parent id in the cursor), keeping only chain entries; a safe boundary is a spoken user entry with no later tool result before the next assistant entry, and the cursor is `<byte offset of the boundary line>:<its parentId>`; an entry without a parent ends the chain (`earlier: null`).
 - `listSessions` keeps `.jsonl` names whose id token passes `HarnessSessionId.safeParse`, returns one page newest first by `(mtime, id)` after the page cursor, and builds each meta without parsing the transcript: the head is streamed only up to the first user message (title, `createdAt` from the session header), the last 64 KB are scanned for the last `session_info.name`, which wins as the title, and `sizeBytes` and `updatedAt` come from `stat`.
 - File naming: `transcriptPath` looks for `*_<id>.jsonl` and falls back to `<id>.jsonl`; `observeTranscript` matches only `*_<id>.jsonl`.
