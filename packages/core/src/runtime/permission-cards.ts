@@ -7,7 +7,7 @@ import {
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {Agent, Bus, Permission} from '@conciv/plugin-host'
+import {Agent, Bus, Permission, Session, Tool} from '@conciv/plugin-host'
 import {Effect, Layer, Option, Schema} from 'effect'
 import {currentRow} from '../sessions/session-rows.js'
 
@@ -42,11 +42,24 @@ export function permissionSessions(db: ConcivDb) {
       get: (sessionId) =>
         Effect.sync(() => {
           const parsed = SessionId.safeParse(sessionId)
-          if (!parsed.success || currentRow(db, parsed.data) === null) return undefined
-          return {agent: Agent.defaultId}
+          if (!parsed.success) return undefined
+          const row = currentRow(db, parsed.data)
+          if (row === null) return undefined
+          return {agent: Agent.defaultId, permissions: row.permissions ?? []}
         }),
     }),
   )
+}
+
+export function sessionSnapshot(
+  sessionId: SessionId,
+): Effect.Effect<Tool.Snapshot, never, Tool.Interface | Agent.Interface | Permission.SessionsInterface> {
+  return Effect.gen(function* () {
+    const session = yield* (yield* Permission.PermissionSessions).get(Session.Id.make(sessionId))
+    const agent = yield* (yield* Agent.Service).select(session?.agent)
+    const rules = Permission.merge(agent.info?.permissions ?? [], session?.permissions ?? [])
+    return yield* (yield* Tool.Service).snapshot(rules)
+  })
 }
 
 function titleOf(request: Permission.Request): string {

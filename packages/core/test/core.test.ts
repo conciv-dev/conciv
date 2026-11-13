@@ -118,12 +118,13 @@ import {RPCLink as WebsocketRpcLink} from '@orpc/client/websocket'
 import {CONCIV_VERSION_HEADER, RPC_WS_PATH, rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
 import coreManifest from '../package.json' with {type: 'json'}
-import {ensureRow} from '../src/sessions/session-rows.js'
+import {ensureRow, setPermissions} from '../src/sessions/session-rows.js'
 import {
   answerPermission,
   decidePermissionCard,
   followPermissionCards,
   permissionSessions,
+  sessionSnapshot,
 } from '../src/runtime/permission-cards.js'
 import {bootMadeApp, chunkWithInlineMap, cleanupChunks, makeChatFixture} from './helpers.js'
 
@@ -2123,7 +2124,7 @@ describe('plugin permission cards', () => {
     return pick(next.value) ?? nextOf(events, pick)
   }
 
-  it('a plugin tool asks once on every client, an answer settles it without a turn, a gone request is cleared on click, another session cannot answer, and a restart sweeps permission cards', async () => {
+  it('a plugin tool asks once on every client, an answer settles it without a turn, a gone request is cleared on click, another session cannot answer, session rules allow and hide, and a restart sweeps permission cards', async () => {
     const fixture = await makeChatFixture()
     const {plane, runtime, db, sessionId: id, stateRoot} = fixture
     const other = SessionId.parse('conciv_other')
@@ -2181,12 +2182,14 @@ describe('plugin permission cards', () => {
         })
       }).pipe(Scope.provide(scope)),
     )
-    const [readEnv] = toolDomainCapabilities(
-      [],
-      host.runSync(Tool.Service.use((tools) => tools.snapshot())),
-      (effect, signal) => host.runPromiseExit(effect, {signal}),
-      () => undefined,
-    )
+    const capabilitiesOf = (sessionId: SessionId) =>
+      toolDomainCapabilities(
+        [],
+        host.runSync(sessionSnapshot(sessionId)),
+        (effect, signal) => host.runPromiseExit(effect, {signal}),
+        () => undefined,
+      )
+    const [readEnv] = capabilitiesOf(id)
     const call = (sessionId: SessionId, file: string) =>
       readEnv?.execute({file}, {sessionId, agentId: sessionId, model: null, toolCallId: randomUUID()})
     const answer = (sessionId: SessionId, requestId: string, reply: Permission.Reply) =>
@@ -2226,6 +2229,12 @@ describe('plugin permission cards', () => {
     expect(await decide(id, otherAsk.approvalId, true, 'once')).toBeNull()
     expect(await decide(other, otherAsk.approvalId, false, 'once')).toEqual({startsTurn: false})
     await expect(foreign).rejects.toThrow()
+
+    await setPermissions(db, other, [{action: 'read', resource: '*', effect: 'allow'}])
+    await expect(call(other, 'other/.env')).resolves.toBe('read other/.env')
+    await setPermissions(db, other, [{action: 'unit_read_env', resource: '*', effect: 'deny'}])
+    expect(capabilitiesOf(other)).toEqual([])
+    expect(capabilitiesOf(id).map((capability) => capability.name)).toEqual(['unit_read_env'])
 
     await plane.permissionAsked(id, {
       approvalId: 'per_gone',

@@ -83,7 +83,12 @@ import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
 import {pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
-import {answerPermission, followPermissionCards, permissionSessions} from './runtime/permission-cards.js'
+import {
+  answerPermission,
+  followPermissionCards,
+  permissionSessions,
+  sessionSnapshot,
+} from './runtime/permission-cards.js'
 import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
@@ -582,16 +587,16 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const reportToolCollision = memoize((name: string) =>
     logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`),
   )
-  const withPluginTools = (capabilities: CodeCapability[]): CodeCapability[] =>
+  const withPluginTools = (sessionId: SessionId, capabilities: CodeCapability[]): CodeCapability[] =>
     toolDomainCapabilities(
       capabilities,
-      pluginHost.runSync(Tool.Service.use((tools) => tools.snapshot())),
+      pluginHost.runSync(sessionSnapshot(sessionId)),
       (effect, signal) => pluginHost.runPromiseExit(effect, {signal}),
       reportToolCollision,
     )
 
   const codeModeCapabilities = (sessionId: SessionId): CodeCapability[] =>
-    withPluginTools([
+    withPluginTools(sessionId, [
       ...registryCapabilities(
         registry.whenPageConnected(() => primitives.page.bus.connected(sessionId)).sandboxTools(),
         scopedToolCall,
@@ -689,7 +694,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     admitCall: (sessionId, call) => plane.admitCall(sessionId, call),
     outsideCapabilities: (sessionId) =>
       outsideRunCapabilities(
-        withPluginTools([
+        withPluginTools(sessionId, [
           ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall),
           ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
         ]),

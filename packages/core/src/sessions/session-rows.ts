@@ -6,6 +6,7 @@ import type {SessionHit, SessionMeta} from '@conciv/contract'
 import type {
   HarnessSessionId,
   NativeSessionRef,
+  PermissionRule,
   SessionId,
   SessionRecord,
   SessionRecordInput,
@@ -185,6 +186,10 @@ export async function tombstoneRow(db: ConcivDb, id: SessionId): Promise<void> {
 
 export async function restoreRow(db: ConcivDb, id: SessionId): Promise<void> {
   await db.update(sessions).set({deletedAt: null, updatedAt: Date.now()}).where(eq(sessions.id, id))
+}
+
+export async function setPermissions(db: ConcivDb, id: SessionId, rules: PermissionRule[]): Promise<void> {
+  await db.update(sessions).set({permissions: rules, updatedAt: Date.now()}).where(eq(sessions.id, id))
 }
 
 export async function ensureAgentRow(scope: RowScope, nativeId: HarnessSessionId): Promise<SessionRecord> {

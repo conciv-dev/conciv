@@ -52,6 +52,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/protocol": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@effect/platform-node": "catalog:",

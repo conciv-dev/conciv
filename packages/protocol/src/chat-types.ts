@@ -103,6 +103,13 @@ export type NativeSessionRef = z.infer<typeof NativeSessionRefSchema>
 export const ReasoningEffortSchema = z.enum(['low', 'medium', 'high', 'xhigh', 'max'])
 export type ReasoningEffort = z.infer<typeof ReasoningEffortSchema>
 
+export const PermissionRuleSchema = z.object({
+  action: z.string(),
+  resource: z.string(),
+  effect: z.enum(['allow', 'ask', 'deny']),
+})
+export type PermissionRule = z.infer<typeof PermissionRuleSchema>
+
 export const SessionRecordSchema = z.object({
   id: SessionId,
   harnessSessionId: HarnessSessionId.nullable(),
@@ -117,6 +124,7 @@ export const SessionRecordSchema = z.object({
   attachedPid: z.number().nullable().default(null),
   attachedAt: z.number().nullable().default(null),
   deletedAt: z.number().nullable().default(null),
+  permissions: z.array(PermissionRuleSchema).nullable().default(null),
   createdAt: z.number(),
   updatedAt: z.number(),
 })

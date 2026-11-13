@@ -4488,6 +4488,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/protocol':
+        specifier: workspace:*
+        version: link:../protocol
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig

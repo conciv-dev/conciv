@@ -1,5 +1,6 @@
-import {describe, expect, test} from 'vitest'
+import {describe, expect, expectTypeOf, test} from 'vitest'
 import {Cause, Deferred, Effect, Fiber, Predicate, Schema} from 'effect'
+import type {SessionRecord} from '@conciv/protocol/chat-types'
 import {Agent} from '../../src/core/agent.js'
 import {Database} from '../../src/core/database/database.js'
 import {Bus} from '../../src/core/bus.js'
@@ -388,4 +389,12 @@ describe('Permission', () => {
       }),
     )
   }
+})
+
+describe('session permissions on the conciv session row', () => {
+  test('the row schema output and Permission.Rule are assignable both ways', () => {
+    type SessionRule = NonNullable<SessionRecord['permissions']>[number]
+    expectTypeOf<SessionRule>().toExtend<Permission.Rule>()
+    expectTypeOf<Permission.Rule>().toExtend<SessionRule>()
+  })
 })
