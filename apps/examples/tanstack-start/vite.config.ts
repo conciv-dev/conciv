@@ -4,7 +4,6 @@ import {tanstackStart} from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import conciv from '@conciv/it/plugin/vite'
-import design from '@conciv/extension-design'
 import recorder from '@conciv/extension-recorder'
 import tanstack from '@conciv/extension-tanstack'
 import terminal from '@conciv/extension-terminal'
@@ -26,7 +25,7 @@ export default defineConfig(async () => {
       viteReact(),
       conciv({
         widget: {quickTerminal: {hotkey: 'Alt+k'}},
-        extensions: [tanstack(), terminal(), testRunner(), whiteboard(), recorder(), design()],
+        extensions: [tanstack(), terminal(), testRunner(), whiteboard(), recorder()],
       }),
     ],
   }
