@@ -7,7 +7,17 @@ import {
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {Agent, Bus, Permission, Session, Tool} from '@conciv/plugin-host'
+import {
+  Agent,
+  Bus,
+  Database,
+  Instructions,
+  InstructionState,
+  Permission,
+  Session,
+  SkillInstructions,
+  Tool,
+} from '@conciv/plugin-host'
 import {Effect, Layer, Option, Schema} from 'effect'
 import {currentRow} from '../sessions/session-rows.js'
 
@@ -56,14 +66,38 @@ export function permissionSessions(db: ConcivDb) {
   )
 }
 
+function sessionRules(
+  sessionId: SessionId,
+): Effect.Effect<Permission.Ruleset, never, Agent.Interface | Permission.SessionsInterface> {
+  return Effect.gen(function* () {
+    const session = yield* (yield* Permission.PermissionSessions).get(Session.Id.make(sessionId))
+    const agent = yield* (yield* Agent.Service).select(session?.agent)
+    return Permission.merge(agent.info?.permissions ?? [], session?.permissions ?? [])
+  })
+}
+
 export function sessionSnapshot(
   sessionId: SessionId,
 ): Effect.Effect<Tool.Snapshot, never, Tool.Interface | Agent.Interface | Permission.SessionsInterface> {
   return Effect.gen(function* () {
-    const session = yield* (yield* Permission.PermissionSessions).get(Session.Id.make(sessionId))
-    const agent = yield* (yield* Agent.Service).select(session?.agent)
-    const rules = Permission.merge(agent.info?.permissions ?? [], session?.permissions ?? [])
-    return yield* (yield* Tool.Service).snapshot(rules)
+    return yield* (yield* Tool.Service).snapshot(yield* sessionRules(sessionId))
+  })
+}
+
+export function pluginInstructions(sessionId: SessionId, reset: 'keep' | 'reset') {
+  return Effect.gen(function* () {
+    const db = (yield* Database.Service).db
+    const bus = yield* Bus.Service
+    const id = Session.Id.make(sessionId)
+    const skills = yield* (yield* SkillInstructions.Service).load(yield* sessionRules(sessionId))
+    const instructions = Instructions.combine([skills])
+    const previewed = yield* InstructionState.preview(db, id, instructions, yield* Instructions.read(instructions))
+    yield* InstructionState.commit(db, bus, instructions, yield* InstructionState.observe(db, instructions, id))
+    if (reset === 'reset') yield* InstructionState.advanceEpoch(db, id, yield* Bus.latestSequence(db, id))
+    return {
+      initial: Instructions.join(yield* InstructionState.initial(db, id, instructions)),
+      update: reset === 'reset' ? '' : previewed.update,
+    }
   })
 }
 

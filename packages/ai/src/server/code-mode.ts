@@ -7,7 +7,7 @@ import {
   type DebugConfig,
   type SchemaInput,
 } from '@tanstack/ai'
-import {createCodeMode, type CodeModeTool, type IsolateDriver} from '@tanstack/ai-code-mode'
+import {createCodeMode, jsonSchemaToTypeScript, type CodeModeTool, type IsolateDriver} from '@tanstack/ai-code-mode'
 import {codeModeCallEvent, codeModeErrorEvent, codeModeResultEvent} from '@conciv/protocol/chat-event-types'
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import {CODE_MODE_TIMEOUT_MS} from '@conciv/protocol/chat-types'
@@ -123,6 +123,16 @@ export function readSecretRefusal(result: unknown): string | null {
   return failed.success && failed.data.error.message.includes(SECRET_REFUSAL) ? failed.data.error.message : null
 }
 
+export function describeInput(schema: SchemaInput): {type: string; parameters: string[]} {
+  const jsonSchema = convertSchemaToJsonSchema(schema) ?? {type: 'object', properties: {}}
+  const input = jsonSchemaToTypeScript({...jsonSchema}, 'Input')
+  const prefix = `interface ${input.name} `
+  return {
+    type: input.declaration.startsWith(prefix) ? input.declaration.slice(prefix.length) : input.name,
+    parameters: Object.keys(jsonSchema.properties ?? {}),
+  }
+}
+
 function childCall(tool: CodeModeTool, secrets: ReadonlyMap<string, string>): CodeModeTool {
   const execute = tool.execute
   if (!execute) return tool
@@ -169,9 +179,12 @@ function validated(schema: SchemaInput | undefined, value: unknown, failure: str
 const DISCOVER_DESCRIPTION =
   'Return the full TypeScript signature, description and declared errors of named sandbox capabilities. Pass toolNames: the external_* capability names listed for execute_typescript (the external_ prefix is optional). Call this as its own tool call before writing execute_typescript code that uses those capabilities; it is not available inside the sandbox.'
 
+const SEARCH_DESCRIPTION = 'Search available tools'
+
 export function codeModeTools(
   driver: IsolateDriver,
   tools: readonly ChatTool[],
+  search: ((input: unknown) => Promise<unknown>) | null,
   shapeResult: (value: unknown) => unknown,
   debug: DebugConfig,
 ): CodeModeTools | null {
@@ -185,6 +198,18 @@ export function codeModeTools(
     debug,
     onSecretParameter: (found) => secrets.set(found.toolName, found.paramPath.join('.')),
     lazyToolsConfig: {includeDescription: 'first-sentence'},
+    ...(search === null
+      ? {}
+      : {
+          getSnippetBindings: async () => ({
+            search: {
+              name: 'search',
+              description: SEARCH_DESCRIPTION,
+              inputSchema: {type: 'object'},
+              execute: (input: unknown) => search(input),
+            },
+          }),
+        }),
   })
   const execute = withResult(endingCalls(codeMode.tool), shapeResult)
   const discover =

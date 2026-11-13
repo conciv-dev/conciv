@@ -8,9 +8,20 @@ import {openDb, type ConcivDb} from '@conciv/db'
 import {defineHarness} from '@conciv/harness'
 import {readApprovalAsk, approvalRequestedEvent} from '@conciv/protocol/chat-event-types'
 import {SessionId} from '@conciv/protocol/chat-types'
+import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 import {Effect, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {z} from 'zod'
-import {Agent, Bus, Database, Location, Permission, PermissionSaved, PluginHooks, Tool} from '@conciv/plugin-host'
+import {
+  Agent,
+  Bus,
+  CodeModeCatalog,
+  Database,
+  Location,
+  Permission,
+  PermissionSaved,
+  PluginHooks,
+  Tool,
+} from '@conciv/plugin-host'
 import {createChatPlane, toolDomainCapabilities, type CodeCapability} from '../src/index.js'
 
 const model = fakeText()
@@ -74,6 +85,7 @@ function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typ
     toolNames: new Set(),
     capabilities: () => [],
     attachmentExpanders: {},
+    pluginInstructions: async () => ({initial: '', update: ''}),
     log: () => undefined,
     ...overrides,
   })
@@ -152,6 +164,7 @@ describe('plugin tools in code mode', () => {
     const scope = host.runSync(Scope.make())
     const builtin: CodeCapability = {
       name: 'unit_taken',
+      path: 'unit_taken',
       description: 'Built in.',
       errors: [],
       inputSchema: z.object({}),
@@ -243,6 +256,83 @@ describe('plugin tools in code mode', () => {
     await expect(runner?.code?.run('return await external_unit_taken({})', 'parent')).resolves.toMatchObject({
       result: 'built in',
     })
+  })
+
+  it('a tool outside the listed budget is found by search and called through the returned path', async () => {
+    const host = ManagedRuntime.make(Tool.layer.pipe(Layer.provideMerge(PluginHooks.layer)))
+    onTestFinished(() => host.dispose())
+    const scope = host.runSync(Scope.make())
+    const helper = (index: number) =>
+      `Bulk helper ${index} reads, filters and reshapes the shared demo records for the weekly reporting pages.`
+    const target = 'Measure the quasar brightness of one sky region.'
+    await host.runPromise(
+      Effect.gen(function* () {
+        const tools = yield* Tool.Service
+        yield* tools.transform((editor) => {
+          editor.namespace({name: 'bulk', description: 'Bulk record helpers'})
+          Array.from({length: 120}, (_, index) =>
+            editor.add({
+              name: `helper_${index}`,
+              description: helper(index),
+              input: z.object({id: z.string()}),
+              options: {namespace: 'bulk'},
+              execute: (input: {id: string}) => Effect.succeed({content: input.id}),
+            }),
+          )
+          editor.add({
+            name: 'zz_quasar',
+            description: target,
+            input: z.object({region: z.string()}),
+            options: {namespace: 'bulk'},
+            execute: (input: {region: string}) => Effect.succeed({content: `bright ${input.region}`}),
+          })
+        })
+      }).pipe(Scope.provide(scope)),
+    )
+    const listed = CodeModeCatalog.summarize({
+      tools: [
+        {
+          type: 'namespace',
+          name: 'bulk',
+          tools: [
+            ...Array.from({length: 120}, (_, index) => ({
+              type: 'tool' as const,
+              name: `helper_${index}`,
+              description: helper(index),
+              signature: '',
+            })),
+            {type: 'tool', name: 'zz_quasar', description: target, signature: ''},
+          ],
+        },
+      ],
+    })
+    expect(listed.namespaces[0]?.entries.map((entry) => entry.path)).not.toContain('bulk.zz_quasar')
+
+    const capabilities = (): CodeCapability[] =>
+      toolDomainCapabilities(
+        [],
+        host.runSync(Tool.Service.use((tools) => tools.snapshot())),
+        (effect, signal) => host.runPromiseExit(effect, {signal}),
+        () => undefined,
+      )
+    const {root, db} = openDatabase()
+    const chat = await chatPlane(db, root, {capabilities})
+    const runner = await chat.codeRunner(SessionId.parse('conciv_search'), () => undefined)
+    await expect(runner?.code?.run('return search({query: "quasar brightness"})', 'parent')).resolves.toMatchObject({
+      success: true,
+      result: {
+        items: [
+          {
+            path: 'external_bulk_zz_quasar',
+            description: target,
+            signature: expect.stringContaining('region: string'),
+          },
+        ],
+      },
+    })
+    await expect(
+      runner?.code?.run('return await external_bulk_zz_quasar({region: "north"})', 'parent'),
+    ).resolves.toMatchObject({result: 'bright north'})
   })
 })
 
@@ -362,6 +452,7 @@ describe('direct tools', () => {
     )
     const builtin: CodeCapability = {
       name: 'unit_builtin',
+      path: 'unit_builtin',
       description: 'Built in.',
       errors: [],
       inputSchema: z.object({}),
@@ -420,5 +511,42 @@ describe('direct tools', () => {
     expect(closedRunner?.code).toBeNull()
     expect(names(closedRunner?.direct)).toEqual(['unit_coded', 'unit_direct'])
     await expect(closedRunner?.direct[0]?.run({text: 'shut'}, 'parent')).resolves.toBe('coded shut')
+  })
+})
+
+describe('plugin instructions', () => {
+  it('the initial text is one more system prompt and an empty one adds none, and the change text goes once in front of the user words', async () => {
+    const {root, db} = openDatabase()
+    const sessionId = SessionId.parse('conciv_instructions')
+    const told = [
+      {initial: 'the skill list', update: 'a skill was added'},
+      {initial: '', update: ''},
+    ]
+    const chat = await chatPlane(db, root, {
+      systemPrompt: {systemPromptText: 'the base prompt'},
+      pluginInstructions: async () => told.shift() ?? {initial: '', update: ''},
+    })
+    const sent: {systemPrompts: unknown[]; messages: ModelMessage[]}[] = []
+    const recorded = ({request}: {request: {systemPrompts?: readonly unknown[]; messages: ModelMessage[]}}) => {
+      sent.push({systemPrompts: [...(request.systemPrompts ?? [])], messages: request.messages})
+      return {text: 'done'}
+    }
+    const lastUserContent = (index: number) =>
+      sent[index]?.messages.findLast((message) => message.role === 'user')?.content
+
+    model.setResponses([recorded])
+    await chat.followUp(sessionId, 'look around')
+    expect(sent[0]?.systemPrompts).toEqual(['the base prompt', 'the skill list'])
+    expect(lastUserContent(0)).toEqual([
+      {type: 'text', content: 'a skill was added'},
+      {type: 'text', content: 'look around'},
+    ])
+    expect(JSON.stringify(sent[0]?.messages).split('a skill was added')).toHaveLength(2)
+
+    model.setResponses([recorded])
+    await chat.followUp(sessionId, 'and again')
+    expect(sent[1]?.systemPrompts).toEqual(['the base prompt'])
+    expect(lastUserContent(1)).toBe('and again')
+    expect(JSON.stringify(sent[1]?.messages)).not.toContain('a skill was added')
   })
 })

@@ -277,7 +277,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       const model = deps.sessions.row(sessionId)?.model ?? null
       const capabilities = given ?? deps.capabilities(sessionId)
       const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model, ...(outside ? {outside} : {})})
-      const runner = server.codeRunner(toolSet.codeMode)
+      const runner = server.codeRunner(toolSet.codeMode, toolSet.search)
       if (runner === null && toolSet.direct.length === 0) return null
       const emitter = (parentToolCallId: string | null) => (name: string, value: Record<string, unknown>) => {
         const chunk: ChatEvent = {type: ChatEventType.CUSTOM, name, value, timestamp: Date.now()}

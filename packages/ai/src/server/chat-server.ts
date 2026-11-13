@@ -60,8 +60,9 @@ export type Approvals = ReadonlyMap<string, boolean>
 export type TurnPlan = {
   adapter: TextAdapter
   modelOptions?: Record<string, unknown>
-  systemPrompts: readonly string[]
+  systemPrompts: () => Promise<readonly string[]>
   codeMode: readonly ChatTool[]
+  search: ((input: unknown) => Promise<unknown>) | null
   asking: readonly ChatTool[]
   direct: readonly ChatTool[]
   setup: () => Promise<Approvals>
@@ -117,7 +118,10 @@ export type ChatServer = ChatDelivery & {
   driving: (threadId: string) => boolean
   hydrate: (threadId: string, window?: ChatThreadWindow) => Promise<ChatThread>
   record: (threadId: string, chunks: readonly ChatEvent[]) => Promise<void>
-  codeRunner: (codeMode: readonly ChatTool[]) => CodeRunner | null
+  codeRunner: (
+    codeMode: readonly ChatTool[],
+    search: ((input: unknown) => Promise<unknown>) | null,
+  ) => CodeRunner | null
 }
 
 const PHASE_BY_STATUS: Record<RunRecord['status'], RunPhase> = {
@@ -146,8 +150,9 @@ function failedPlan(error: unknown): TurnPlan {
     adapter: makeTextAdapter('failed-launch', async function* () {
       yield {type: EventType.RUN_ERROR, message, timestamp: Date.now()}
     }),
-    systemPrompts: [],
+    systemPrompts: async () => [],
     codeMode: [],
+    search: null,
     asking: [],
     direct: [],
     setup: async () => new Map(),
@@ -432,6 +437,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         }
         if (ctx.phase !== 'init') return
         granted.approvals = await plan.setup()
+        const systemPrompts = [...(await plan.systemPrompts()), ...current.systemPrompts]
         const expanded = await plan.expand(current.messages)
         prepared.sent = expanded.length
         prepared.provider = await plan.providerMessages(expanded)
@@ -441,6 +447,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
             expanded.findLast((message) => message.role === 'user'),
           ),
           providerMessages: prepared.provider,
+          systemPrompts,
           resumeToolState: {
             ...current.resumeToolState,
             approvals: new Map([...(current.resumeToolState?.approvals ?? []), ...granted.approvals]),
@@ -497,7 +504,13 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     const coded =
       driver === null
         ? null
-        : codeModeTools(stoppedWith(driver, controller.signal, config.log), plan.codeMode, config.codeModeResult, debug)
+        : codeModeTools(
+            stoppedWith(driver, controller.signal, config.log),
+            plan.codeMode,
+            plan.search,
+            config.codeModeResult,
+            debug,
+          )
     const seconds = Math.round(config.firstOutputTimeoutMs / 1000)
     const view: RunMessages = {full: []}
     const stream = chat({
@@ -517,7 +530,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       messages,
       threadId: turn.threadId,
       runId: turn.runId,
-      systemPrompts: [...plan.systemPrompts, ...(coded === null ? [] : [coded.systemPrompt])],
+      systemPrompts: coded === null ? [] : [coded.systemPrompt],
       tools: [...(coded?.tools ?? []), ...gatedTools(plan.asking, approvals), ...plan.direct],
       lazyToolsConfig: {includeDescription: 'first-sentence'},
       retry: {maxRetries: 2},
@@ -599,9 +612,9 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       await Promise.all(filterLiveRuns(threadId).map(([, entry]) => entry.settled.promise))
       await savingShown(threadId, () => saveShown(stores.messages, threadId, processor, (message) => message))
     },
-    codeRunner: (codeMode) => {
+    codeRunner: (codeMode, search) => {
       if (driver === null) return null
-      const coded = codeModeTools(driver, codeMode, (value) => value, debug)
+      const coded = codeModeTools(driver, codeMode, search, (value) => value, debug)
       if (coded === null) return null
       const execute = coded.execute.execute
       if (!execute) return null

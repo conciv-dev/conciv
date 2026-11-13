@@ -64,6 +64,9 @@ import {
   PermissionSaved,
   PluginHooks,
   Rpc,
+  SessionProjector,
+  Skill,
+  SkillInstructions,
   Tool,
 } from '@conciv/plugin-host'
 import {pushRoutes, type PushDeps} from './api/push.js'
@@ -87,6 +90,7 @@ import {
   answerPermission,
   followPermissionCards,
   permissionSessions,
+  pluginInstructions,
   sessionSnapshot,
 } from './runtime/permission-cards.js'
 import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-types.js'
@@ -569,8 +573,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   registerExtensionTools(registry, mounted)
 
   const pluginHost: PluginHost = ManagedRuntime.make(
-    Layer.mergeAll(Tool.layer, Permission.layer).pipe(
-      Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(db))),
+    Layer.mergeAll(Tool.layer, Permission.layer, SkillInstructions.layer, SessionProjector.layer).pipe(
+      Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(db), Skill.layer)),
       Layer.provideMerge(PluginHooks.layer),
       Layer.provideMerge(Layer.mergeAll(Rpc.layer, KV.layer)),
       Layer.provideMerge(Bus.configured()),
@@ -636,6 +640,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     toolNames: new Set([...toolList.map((tool) => tool.name), ...concivSandboxToolNames()]),
     capabilities: codeModeCapabilities,
     attachmentExpanders,
+    pluginInstructions: (sessionId, reset) => pluginHost.runPromise(pluginInstructions(sessionId, reset)),
     firstOutputTimeoutMs: opts.firstChunkTimeoutMs,
     log: logError,
   })
