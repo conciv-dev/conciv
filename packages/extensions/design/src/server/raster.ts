@@ -40,9 +40,9 @@ function rasterOf(pixels: Pixels): Raster {
   return raster
 
   function png(): Uint8Array {
-    const encoded = new PNG({width, height})
+    const encoded = new PNG({width, height, ...PNG_WRITE})
     encoded.data = Buffer.from(data)
-    return new Uint8Array(PNG.sync.write(encoded))
+    return new Uint8Array(PNG.sync.write(encoded, PNG_WRITE))
   }
 
   function region(input: {box: Box; margin?: number}): {raster: Raster; box: Box} {
@@ -175,14 +175,15 @@ function edgeMap(pixels: Pixels): Uint8Array {
 function medianRgb(input: {pixels: Pixels; exclude: Uint8Array}): Rgb {
   const {pixels, exclude} = input
   const histograms = [new Uint32Array(256), new Uint32Array(256), new Uint32Array(256)]
-  const kept = range(pixels.width * pixels.height).filter((index) => exclude[index] !== 1)
-  kept.forEach((index) =>
+  const kept = new Uint8Array(pixels.width * pixels.height).reduce((count, _, index) => {
+    if (exclude[index] === 1) return count
     histograms.forEach((histogram, channel) => {
       const value = pixels.data[index * 4 + channel] ?? 0
       histogram[value] = (histogram[value] ?? 0) + 1
-    }),
-  )
-  const [red, green, blue] = histograms.map((histogram) => channelMedian({histogram, count: kept.length}))
+    })
+    return count + 1
+  }, 0)
+  const [red, green, blue] = histograms.map((histogram) => channelMedian({histogram, count: kept}))
   return [red ?? 0, green ?? 0, blue ?? 0]
 }
 
@@ -249,7 +250,7 @@ function blurPass(input: {pixels: Pixels; radius: number; horizontal: boolean}):
 
 function diffMask(input: {output: Uint8Array; width: number; height: number}): Uint8Array {
   const {output, width, height} = input
-  return Uint8Array.from({length: width * height}, (_, i) => {
+  return new Uint8Array(width * height).map((_, i) => {
     const red = output[i * 4] === 255 && output[i * 4 + 1] === 0 && output[i * 4 + 2] === 0
     return red && output[i * 4 + 3] === 255 ? 1 : 0
   })
@@ -259,3 +260,5 @@ const EDGE_THRESHOLD = 48
 const MINIMUM_TRIM_SIDE = 2
 const DIFF_OPTIONS = {threshold: TOLERANCES.perceptualThreshold, includeAA: false, diffMask: true} as const
 const DIFF_RED = [255, 0, 0, 255]
+const SUB_FILTER = 1
+const PNG_WRITE = {filterType: SUB_FILTER} as const

@@ -46,8 +46,8 @@ function fomOf(node: IdNode): FomSite {
 function maskPng(mask: {pixels: Uint8Array; width: number}): Uint8Array {
   const {pixels, width} = mask
   const height = width === 0 ? 0 : pixels.length / width
-  const rgba = Uint8Array.from({length: pixels.length * 4}, (_, index) =>
-    index % 4 === 3 ? OPAQUE : (pixels[Math.floor(index / 4)] ?? 0) * OPAQUE,
+  const rgba = new Uint8Array(pixels.length * 4).map((_, index) =>
+    index % 4 === 3 ? OPAQUE : (pixels[(index - (index % 4)) / 4] ?? 0) * OPAQUE,
   )
   return createRaster({pixels: rgba, width, height}).png()
 }
