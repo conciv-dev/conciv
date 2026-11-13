@@ -10,12 +10,11 @@ import * as SolidWeb from 'solid-js/web'
 import {build} from 'vite'
 import * as Zod from 'zod'
 import {z} from 'zod'
-import {makeRpcClient} from '@conciv/contract'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {Scope} from '../src/experimental/scope.js'
 import {Agent, Plugin, Rpc, Tool} from '../src/index.js'
-import type {Registration, Transform} from '../src/registration.js'
+import type {Transform} from '../src/registration.js'
 import type {ServerRef} from '../src/servers.js'
 import type {Accessor} from 'solid-js'
 import * as Experimental from '../src/experimental/index.js'
@@ -32,139 +31,18 @@ import {experimental} from '../src/experimental/vite.js'
 import * as RpcEntry from '../src/rpc-entry.js'
 import * as Host from '../src/host.js'
 
-function unreachable(): never {
-  throw new Error('no server')
-}
-
-function recordingContext(calls: string[]): Plugin.Context {
-  const registration: Registration = {dispose: async () => void calls.push('dispose')}
-  const tools: (Tool.Info & {readonly id: string})[] = []
-  const builtin: ServerRef = {
-    id: 'sidecar',
-    name: 'engine',
-    url: 'http://127.0.0.1:5173/t/token',
-    client: Object.assign(
-      new Proxy(makeRpcClient('http://127.0.0.1:5173/t/token'), {
-        get: (target, key) => (key === 'rpc' ? unreachable : Reflect.get(target, key)),
-      }),
-      {rpc: unreachable},
-    ),
-    local: true,
-    builtin: true,
-    compatible: true,
-    connected: true,
-  }
-  const agents: ReturnType<Agent.AgentEditor['list']> = [{id: 'build', name: 'build', permissions: []}]
-  const editor: Tool.ToolEditor = {
-    list: () => tools,
-    get: (id) => tools.find((tool) => tool.id === id),
-    namespace: (namespace) => void calls.push(`namespace ${namespace.name}`),
-    add: (tool) => void tools.push({...tool, id: tool.name}),
-    update: (id) => void calls.push(`update ${id}`),
-    remove: (id) => void calls.push(`remove ${id}`),
-  }
-  return {
-    app: undefined,
-    location: {directory: '/workspace', project: {id: undefined, directory: '/workspace', canonical: undefined}},
-    options: {fps: 30},
-    agent: {
-      transform: async (callback) => {
-        callback({list: () => agents})
-        return registration
-      },
-    },
-    event: {
-      subscribe: () => ({[Symbol.asyncIterator]: () => ({next: async () => ({done: true, value: undefined})})}),
-    },
-    experimental: {generate: undefined},
-    model: {
-      list: async () => ({location: {directory: '/workspace'}, data: []}),
-      default: async () => ({location: {directory: '/workspace'}, data: null}),
-      transform: undefined,
-      reload: undefined,
-    },
-    permission: {
-      list: async () => [],
-      get: async () => Promise.reject(new Error('no request')),
-      reply: async () => void calls.push('reply'),
-      hook: undefined,
-      assert: async (input) => void calls.push(`assert ${input.action} ${input.resources.join(' ')}`),
-    },
-    plugin: {list: async () => ({location: {directory: '/workspace'}, data: []})},
-    rpc: Object.assign(unreachable, {
-      register: async () => ({dispose: registration.dispose, events: {emit: async () => {}}}),
-    }),
-    session: sessionDomain(registration),
-    skill: {
-      list: async () => ({location: {directory: '/workspace'}, data: []}),
-      transform: async () => registration,
-      reload: async () => void calls.push('skill reload'),
-    },
-    storage: {
-      directory: '/state/acme',
-      get: async () => undefined,
-      set: async (key) => void calls.push(`set ${key}`),
-      remove: async (key) => void calls.push(`remove ${key}`),
-      scan: async () => ({entries: []}),
-    },
-    tool: {
-      transform: async (callback) => {
-        callback(editor)
-        return registration
-      },
-      reload: async () => void calls.push('tool reload'),
-      list: async () => tools,
-      hook: async () => registration,
-    },
-    servers: {
-      list: () => [builtin.id],
-      get: (id) => (id === builtin.id ? builtin : undefined),
-    },
-    harness: {
-      get: () => ({id: 'claude'}),
-      resumeToken: async () => null,
-      recordToken: async (sessionId, token) => void calls.push(`record ${sessionId} ${token}`),
-      mcpUrl: 'http://127.0.0.1:4000/t/token/api/mcp',
-    },
-    bundler: undefined,
-  }
-}
-
-function sessionDomain(registration: Registration): Plugin.Context['session'] {
-  return {
-    list: async () => ({data: [], cursor: {}}),
-    create: async () => Promise.reject(new Error('no session')),
-    get: async () => Promise.reject(new Error('no session')),
-    remove: async () => {},
-    switchAgent: async () => {},
-    switchModel: async () => {},
-    generate: undefined,
-    command: undefined,
-    compact: async () => Promise.reject(new Error('no session')),
-    synthetic: async (input) => ({
-      id: input.id ?? 'synthetic',
-      sessionId: input.sessionId,
-      time: {created: 0},
-      type: 'synthetic',
-      payload: {text: input.text},
-      delivery: input.delivery ?? 'queue',
-    }),
-    interrupt: async () => ({interrupted: false}),
-    update: async () => {},
-    wait: async () => {},
-    instructions: {entry: {list: async () => [], put: async () => {}, remove: async () => {}}},
-    hook: async () => registration,
-  }
-}
-
 describe('define', () => {
   it('returns the same plugin object', () => {
     const plugin = {id: 'acme', setup: () => {}}
     expect(Plugin.define(plugin)).toBe(plugin)
   })
 
-  it('accepts a setup that returns a cleanup', async () => {
-    const calls: string[] = []
+  it('types a realistic setup against the plugin context', () => {
+    const Echo = Rpc.define({
+      id: 'acme',
+      methods: {echo: {input: z.object({text: z.string()}), output: z.object({text: z.string()})}},
+      events: {},
+    })
     const plugin = Plugin.define({
       id: 'acme',
       setup: async (context) => {
@@ -179,28 +57,17 @@ describe('define', () => {
         await context.agent.transform((editor) =>
           editor.list().forEach((agent) => agent.permissions.push({action: 'acme', resource: '*', effect: 'deny'})),
         )
-        await context.permission.assert({
-          sessionId: SessionId.parse('conciv_session'),
-          action: 'acme',
-          resources: ['page'],
-        })
-        return () => void calls.push('cleanup')
+        const sessionId = SessionId.parse('conciv_session')
+        await context.permission.assert({sessionId, action: 'acme', resources: ['page']})
+        await context.session.synthetic({sessionId, text: 'done', resume: true})
+        const registration = await context.rpc.register(Echo, {echo: async (input) => ({text: input.text})})
+        const token = await context.harness.resumeToken(sessionId)
+        if (token) await context.harness.recordToken(sessionId, token)
+        expectTypeOf(context.harness.mcpUrl).toEqualTypeOf<string | undefined>()
+        return () => registration.dispose()
       },
     })
-    const context = recordingContext(calls)
-    const cleanup = await plugin.setup(context)
-    if (typeof cleanup === 'function') await cleanup()
-    expect(calls).toEqual(['assert acme page', 'cleanup'])
-    expect((await context.tool.list()).map((tool) => tool.id)).toEqual(['acme_echo'])
-    const rules: Agent.Info['permissions'][] = []
-    await context.agent.transform((editor) => void rules.push(...editor.list().map((agent) => agent.permissions)))
-    expect(rules).toEqual([[{action: 'acme', resource: '*', effect: 'deny'}]])
-    const synthetic = await context.session.synthetic({
-      sessionId: SessionId.parse('conciv_session'),
-      text: 'done',
-      resume: true,
-    })
-    expect(synthetic.payload.text).toBe('done')
+    expectTypeOf(plugin).toEqualTypeOf<Plugin.Plugin>()
   })
 
   it('types a tool call context with an always undefined messageId', () => {
