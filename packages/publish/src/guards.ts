@@ -84,7 +84,6 @@ export const PUBLIC_PACKAGES = [
   '@conciv/extension-tanstack',
   '@conciv/extension-ios',
   '@conciv/extension-page',
-  '@conciv/extension-design',
   '@conciv/mascot',
   '@conciv/mascot-react',
   '@conciv/embed',

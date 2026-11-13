@@ -21,6 +21,8 @@ const E2E_GROUPS = ['e2e', 'apps']
 
 export const PACKAGES_WITH_DEDICATED_JOBS = ['conciv-storybook']
 
+export const PACKAGES_OUT_OF_CI = ['@conciv/extension-design']
+
 export const E2E_HARNESS_PACKAGE = 'conciv-e2e-harnesses'
 
 export const TARGET_SHARD_MS = 150_000
@@ -76,7 +78,9 @@ export function discoverPackages(rootDir: string, groupDirs: string[]): Workspac
 }
 
 export function plannedPackages(rootDir: string): WorkspacePackage[] {
-  return discoverPackages(rootDir, PACKAGE_GROUPS).filter((entry) => !PACKAGES_WITH_DEDICATED_JOBS.includes(entry.name))
+  return discoverPackages(rootDir, PACKAGE_GROUPS).filter(
+    (entry) => !PACKAGES_WITH_DEDICATED_JOBS.includes(entry.name) && !PACKAGES_OUT_OF_CI.includes(entry.name),
+  )
 }
 
 export function e2ePackages(rootDir: string): WorkspacePackage[] {
