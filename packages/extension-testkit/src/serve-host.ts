@@ -1,5 +1,5 @@
 import {createServer, type Server} from 'node:http'
-import {listenLocal} from './listen-local.js'
+import {listenLocal} from '@conciv/plugin-testkit/listen-local'
 
 export async function serveHost(html: (url: URL) => string): Promise<{base: string; close: () => Promise<void>}> {
   const server: Server = createServer((req, res) => {
