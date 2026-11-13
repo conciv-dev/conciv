@@ -27,6 +27,11 @@ type PermissionCards = {
   log: (line: string) => void
 }
 
+type CardSettle = {
+  plane: Pick<ChatPlane, 'permissionSettled'>
+  publish: PermissionCards['publish']
+}
+
 type CardDecision = {approvalId: string; approved: boolean; scope: 'once' | 'session'}
 
 const isAsked = Schema.is(Permission.Event.Asked.data)
@@ -80,7 +85,7 @@ async function showCard(cards: PermissionCards, request: Permission.Request): Pr
   cards.publish(sessionId, {...approvalRequestedEvent.create(card), timestamp: Date.now()})
 }
 
-async function dropCard(cards: PermissionCards, sessionId: string, requestId: string): Promise<void> {
+async function dropCard(cards: CardSettle, sessionId: string, requestId: string): Promise<void> {
   const session = SessionId.parse(sessionId)
   await cards.plane.permissionSettled(session, requestId)
   cards.publish(session, {...approvalSettledEvent.create({approvalId: requestId}), timestamp: Date.now()})
@@ -131,7 +136,11 @@ function replyOf(approved: boolean, scope: CardDecision['scope']): Permission.Re
 }
 
 export async function decidePermissionCard(
-  deps: {plane: Pick<ChatPlane, 'catchUp' | 'decide' | 'permissionSettled'>; answer: PermissionAnswer},
+  deps: {
+    plane: Pick<ChatPlane, 'catchUp' | 'decide' | 'permissionSettled'>
+    answer: PermissionAnswer
+    publish: PermissionCards['publish']
+  },
   sessionId: SessionId,
   decision: CardDecision,
 ): Promise<{startsTurn: boolean} | null> {
@@ -140,6 +149,6 @@ export async function decidePermissionCard(
   if (card?.permission === undefined)
     return deps.plane.decide(sessionId, decision.approvalId, decision.approved, decision.scope)
   const outcome = await deps.answer(sessionId, decision.approvalId, replyOf(decision.approved, decision.scope))
-  if (outcome === 'gone') await deps.plane.permissionSettled(sessionId, decision.approvalId)
+  if (outcome === 'gone') await dropCard(deps, sessionId, decision.approvalId)
   return outcome === 'replied' ? {startsTurn: false} : null
 }

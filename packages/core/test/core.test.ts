@@ -2197,8 +2197,9 @@ describe('plugin permission cards', () => {
       readEnv?.execute({file}, {sessionId, agentId: sessionId, model: null, toolCallId: randomUUID()})
     const answer = (sessionId: SessionId, requestId: string, reply: Permission.Reply) =>
       host.runPromise(answerPermission(sessionId, requestId, reply))
+    const publish = (sessionId: SessionId, chunk: ChatEvent) => runtime.forSession(sessionId).stream.publish(chunk)
     const decide = (sessionId: SessionId, approvalId: string, approved: boolean, lasting: 'once' | 'session') =>
-      decidePermissionCard({plane, answer}, sessionId, {approvalId, approved, scope: lasting})
+      decidePermissionCard({plane, answer, publish}, sessionId, {approvalId, approved, scope: lasting})
     const first = runtime.forSession(id).stream.events(clients.signal)
     const second = runtime.forSession(id).stream.events(clients.signal)
 
@@ -2247,6 +2248,7 @@ describe('plugin permission cards', () => {
       permission: {always: false},
     })
     expect(await decide(id, 'per_gone', true, 'once')).toBeNull()
+    expect(await nextOf(second, approvalSettledOf)).toBe('per_gone')
     expect((await plane.hydrate(id)).pendingApprovals).toEqual([])
 
     await plane.permissionAsked(id, {

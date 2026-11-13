@@ -15,7 +15,11 @@ export function chatRouter(deps: RpcDeps, sessionOs: SessionOs): Router<typeof c
     stop: os.chat.stop.handler(({input}) => deps.runtime.forSession(input.sessionId).run.stop(input.runIds)),
     permissionDecision: sessionOs.chat.permissionDecision.handler(async ({input, context, errors}) => {
       const decision = await decidePermissionCard(
-        {plane: deps.chat.plane, answer: deps.answerPermission},
+        {
+          plane: deps.chat.plane,
+          answer: deps.answerPermission,
+          publish: (sessionId, chunk) => deps.runtime.forSession(sessionId).stream.publish(chunk),
+        },
         context.session.id,
         input,
       )
