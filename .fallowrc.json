@@ -97,6 +97,13 @@
         "maxCognitive": 24,
         "maxCrap": 72,
         "reason": "copied from opencode: the copy keeps opencode's shape"
+      },
+      {
+        "files": ["packages/plugin-host/src/core/bus.ts"],
+        "maxCyclomatic": 40,
+        "maxCognitive": 30,
+        "maxCrap": 400,
+        "reason": "copied whole from opencode core/src/bus.ts: commitDurableEvent and publishAll keep opencode's shape"
       }
     ]
   },
@@ -203,7 +210,20 @@
     },
     {
       "file": "packages/plugin-host/src/**",
-      "exports": ["Id", "Info", "Interface", "Options", "Service", "Tool", "layer"]
+      "exports": [
+        "Id",
+        "Info",
+        "Interface",
+        "Options",
+        "Service",
+        "Tool",
+        "layer",
+        "Durable",
+        "Definition",
+        "durable",
+        "ephemeral",
+        "versionedType"
+      ]
     },
     {
       "file": "packages/ui-kit-chat/src/tools/primitives/tool-fallback.tsx",
@@ -217,7 +237,6 @@
   "entry": [
     "packages/plugin-host/src/core/database/**",
     "packages/plugin-host/src/core/location.ts",
-    "packages/plugin-host/src/schema/event.ts",
     "packages/plugin-host/src/plugin/effect/rpc.ts",
     "packages/plugin-host/src/core/schema.ts",
     "packages/brand-react/src/conciv-lockup.tsx",

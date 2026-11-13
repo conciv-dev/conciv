@@ -1,9 +1,17 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "eb2a2388-8ba4-46bb-89f9-d7ff4b0a7341",
-  "prevIds": ["6c6fbf72-43f6-41a3-861f-a4079fbdeefa"],
+  "id": "e7858b2d-2279-4797-a8fd-8bd31156209f",
+  "prevIds": ["0e09d3ac-c157-49ed-bd51-d9ff014b363a"],
   "ddl": [
+    {
+      "name": "event_sequence",
+      "entityType": "tables"
+    },
+    {
+      "name": "event",
+      "entityType": "tables"
+    },
     {
       "name": "kv",
       "entityType": "tables"
@@ -59,6 +67,96 @@
     {
       "name": "image_history",
       "entityType": "tables"
+    },
+    {
+      "table": "event_sequence",
+      "name": "aggregate_id",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "event_sequence",
+      "name": "seq",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "event_sequence",
+      "name": "owner_id",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "event",
+      "name": "id",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "event",
+      "name": "aggregate_id",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "event",
+      "name": "seq",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "event",
+      "name": "created",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "event",
+      "name": "type",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "event",
+      "name": "data",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
     },
     {
       "table": "kv",
@@ -901,6 +999,46 @@
       "entityType": "columns"
     },
     {
+      "table": "event",
+      "name": "event_aggregate_seq_idx",
+      "columns": [
+        {
+          "value": "aggregate_id",
+          "isExpression": false
+        },
+        {
+          "value": "seq",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "entityType": "indexes"
+    },
+    {
+      "table": "event",
+      "name": "event_aggregate_type_seq_idx",
+      "columns": [
+        {
+          "value": "aggregate_id",
+          "isExpression": false
+        },
+        {
+          "value": "type",
+          "isExpression": false
+        },
+        {
+          "value": "seq",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "entityType": "indexes"
+    },
+    {
       "table": "page_changes",
       "name": "page_changes_session_id_idx",
       "columns": [
@@ -1019,6 +1157,17 @@
       "entityType": "indexes"
     },
     {
+      "table": "event",
+      "name": "fk_event_aggregate_id_event_sequence_aggregate_id_fk",
+      "columns": ["aggregate_id"],
+      "tableTo": "event_sequence",
+      "columnsTo": ["aggregate_id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "entityType": "fks"
+    },
+    {
       "table": "tool_captures",
       "name": "tool_captures_pk",
       "columns": ["tool_call_id", "kind", "session_id"],
@@ -1036,6 +1185,20 @@
       "table": "chat_metadata",
       "name": "chat_metadata_pk",
       "columns": ["namespace", "key"],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "table": "event_sequence",
+      "name": "event_sequence_pk",
+      "columns": ["aggregate_id"],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "table": "event",
+      "name": "event_pk",
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },
