@@ -9,6 +9,9 @@ export * as Rpc from '../schema/rpc.js'
 export * as Skill from '../schema/skill.js'
 export * as Tool from '../schema/tool.js'
 
+export type {Hooks, Registration, Transform} from './registration.js'
+export type {Rule, Ruleset} from '../schema/permission.js'
+
 export type {AgentDomain, AgentEditor} from './agent.js'
 export type {ModelDomain, ModelEditor} from './model.js'
 export type {RpcCallContext, RpcDomain, RpcHandlers, RpcRegistration} from './rpc.js'

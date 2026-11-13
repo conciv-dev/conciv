@@ -13,10 +13,15 @@ import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {
+  Agent,
   Plugin,
   Rpc,
   Tool,
   type AgentEditor,
+  type Hooks,
+  type Registration,
+  type Rule,
+  type Ruleset,
   type RpcApi,
   type RpcCallOptions,
   type RpcClient,
@@ -24,8 +29,8 @@ import {
   type RpcEventPayload,
   type RpcHandlers,
   type ToolContext,
+  type Transform,
 } from '../src/promise/index.js'
-import type {Transform} from '../src/promise/registration.js'
 import type {ServerRef} from '../src/experimental/index.js'
 import type {Accessor} from 'solid-js'
 import * as Experimental from '../src/experimental/index.js'
@@ -94,6 +99,13 @@ describe('define', () => {
     expectTypeOf<undefined>().not.toExtend<Plugin.Context['permission']['assert']>()
     expectTypeOf<undefined>().not.toExtend<Plugin.Context['session']['synthetic']>()
     expectTypeOf<Plugin.Context['session']['update']>().parameter(0).toHaveProperty('permissions')
+  })
+
+  it('exports what the engine host builds the context from', () => {
+    expectTypeOf<Registration['dispose']>().toEqualTypeOf<() => Promise<void>>()
+    expectTypeOf<ReturnType<Hooks<{readonly ping: {readonly count: number}}>>>().toEqualTypeOf<Promise<Registration>>()
+    expectTypeOf<Agent.Info['permissions']>().toEqualTypeOf<Ruleset>()
+    expectTypeOf<Ruleset[number]>().toEqualTypeOf<Rule>()
     expectTypeOf<Plugin.Context['harness']['resumeToken']>().returns.toEqualTypeOf<Promise<HarnessSessionId | null>>()
     expectTypeOf<Plugin.Context['harness']['recordToken']>().parameter(1).toEqualTypeOf<HarnessSessionId>()
     expectTypeOf<Plugin.Context['harness']['mcpUrl']>().toEqualTypeOf<string | undefined>()
