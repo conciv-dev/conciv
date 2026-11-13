@@ -41,14 +41,11 @@
     "@parcel/watcher": "catalog:",
     "@standard-schema/spec": "catalog:",
     "effect": "catalog:",
-    "glob": "catalog:",
-    "mime-types": "catalog:",
-    "minimatch": "catalog:"
+    "glob": "catalog:"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
-    "@types/mime-types": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "fast-check": "catalog:",
