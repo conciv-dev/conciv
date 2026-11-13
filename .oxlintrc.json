@@ -410,12 +410,13 @@
       }
     },
     {
-      "files": ["apps/conciv/src/runtime/plugin/**"],
+      "files": ["apps/conciv/src/runtime/plugin/**", "apps/conciv/src/runtime/persistence/**"],
       "rules": {
         "conciv/banned-vocabulary": "off",
         "unicorn/no-thenable": "off",
         "no-shadow": "off",
-        "unicorn/no-array-sort": "off"
+        "unicorn/no-array-sort": "off",
+        "solid/reactivity": "off"
       }
     },
     {

@@ -112,6 +112,12 @@
     "unused-dev-dependencies": "warn",
     "circular-dependencies": "warn"
   },
+  "overrides": [
+    {
+      "files": ["apps/conciv/src/runtime/plugin/**", "apps/conciv/src/runtime/persistence/**"],
+      "rules": {"unused-files": "off"}
+    }
+  ],
   "ignoreDependencies": [
     "@conciv/extension-tanstack",
     "@agentclientprotocol/sdk",
