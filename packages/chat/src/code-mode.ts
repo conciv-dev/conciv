@@ -54,6 +54,10 @@ export function assistCapabilities(tools: ConcivServerTool[]): CodeCapability[] 
 
 type EffectRun = <A, E>(effect: Effect.Effect<A, E>, signal: AbortSignal | undefined) => Promise<A>
 
+function jsonSchemaOnly(schema: ReturnType<typeof ToolRuntime.definition>['inputSchema']): SchemaInput {
+  return {...schema}
+}
+
 function cancelOf(signal: AbortSignal): Effect.Effect<void> {
   return Effect.callback<void>((resume) => {
     const settle = () => resume(Effect.void)
@@ -99,7 +103,7 @@ export function toolDomainCapabilities(
         name,
         description: tool.description,
         errors: [],
-        inputSchema: {...ToolRuntime.definition(tool).inputSchema},
+        inputSchema: jsonSchemaOnly(ToolRuntime.definition(tool).inputSchema),
         execute: async (input, request) =>
           resultValue(await run(codeMode.execute(name, input, toolContext(request)), request.signal)),
       })),
