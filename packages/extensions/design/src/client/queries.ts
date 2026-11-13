@@ -27,7 +27,7 @@ function rulesOf(input: {sheet: CSSStyleSheet | null; view: PageWindow}): CSSRul
 function nested(input: {rule: CSSRule; view: PageWindow}): CSSRule[] {
   const {rule, view} = input
   if (rule instanceof view.CSSImportRule) return rulesOf({sheet: rule.styleSheet, view})
-  if (rule instanceof view.CSSGroupingRule)
+  if (rule instanceof view.CSSGroupingRule || rule instanceof view.CSSStyleRule)
     return [...rule.cssRules].flatMap((inner) => [inner, ...nested({rule: inner, view})])
   return []
 }

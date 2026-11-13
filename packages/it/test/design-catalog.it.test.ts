@@ -206,6 +206,13 @@ describe('a media query on the page', () => {
       await writeFile(stylesFile, styles)
     }
   })
+
+  it('adds the width of an @media nested inside a style rule', async () => {
+    await kit.goto('media-height')
+    await call('design_get', await cardsDesign(kit.targetsDir))
+    const checked = roundOf(await call('design_check', {}))
+    expect(checked.reflow.widths.map((entry) => entry.width)).toContain(640)
+  })
 })
 
 describe('an image node drawn as a box with its icon inside', () => {
