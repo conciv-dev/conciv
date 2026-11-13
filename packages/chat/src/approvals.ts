@@ -55,7 +55,6 @@ export type Admission = 'allowed' | 'ask' | 'denied'
 export type ApprovalStore = {
   asked: (threadId: string, ask: ApprovalAsked) => Promise<void>
   remove: (threadId: string, approvalId: string) => Promise<void>
-  removeWhere: (threadId: string, test: (entry: ApprovalAsked) => boolean) => Promise<void>
   pending: (threadId: string) => Promise<ChatPendingApproval[]>
   decide: (
     threadId: string,
@@ -119,11 +118,15 @@ export function createApprovalStore(
         outsideAllowedGeneration: null,
       },
     )
-  const removeWhere = async (threadId: string, test: (entry: ApprovalAsked) => boolean): Promise<void> => {
-    const pending = await pendingOf(threadId)
-    const kept = pending.filter((entry) => !test(entry))
-    if (kept.length === pending.length) return
-    await metadata.set(APPROVALS_NAMESPACE, pendingKey(threadId), kept)
+  const pendingTails = new Map<string, Promise<unknown>>()
+  const serialised = <T>(threadId: string, update: () => Promise<T>): Promise<T> => {
+    const run = (pendingTails.get(threadId) ?? Promise.resolve()).then(update)
+    const tail = run.catch(() => undefined)
+    pendingTails.set(threadId, tail)
+    void tail.then(() => {
+      if (pendingTails.get(threadId) === tail) pendingTails.delete(threadId)
+    })
+    return run
   }
   const writeGrants = (threadId: string, grants: Grants): Promise<void> =>
     metadata.set(APPROVALS_NAMESPACE, grantsKey(threadId), grants)
@@ -188,16 +191,22 @@ export function createApprovalStore(
     return current === null || allowedGeneration !== current
   }
   return {
-    asked: async (threadId, ask) => {
-      const pending = await pendingOf(threadId)
-      if (pending.some((entry) => entry.approvalId === ask.approvalId)) return
-      await metadata.set(APPROVALS_NAMESPACE, pendingKey(threadId), [...pending, ask])
-    },
-    remove: (threadId, approvalId) => removeWhere(threadId, (entry) => entry.approvalId === approvalId),
-    removeWhere,
+    asked: (threadId, ask) =>
+      serialised(threadId, async () => {
+        const pending = await pendingOf(threadId)
+        if (pending.some((entry) => entry.approvalId === ask.approvalId)) return
+        await metadata.set(APPROVALS_NAMESPACE, pendingKey(threadId), [...pending, ask])
+      }),
+    remove: (threadId, approvalId) =>
+      serialised(threadId, async () => {
+        const pending = await pendingOf(threadId)
+        const kept = pending.filter((entry) => entry.approvalId !== approvalId)
+        if (kept.length === pending.length) return
+        await metadata.set(APPROVALS_NAMESPACE, pendingKey(threadId), kept)
+      }),
     pending: async (threadId) => (await pendingOf(threadId)).map(({title, ...entry}) => ({...entry, toolName: title})),
     decide: async (threadId, approvalId, approved, scope) => {
-      const decision = await record(threadId, approvalId, approved, scope)
+      const decision = await serialised(threadId, () => record(threadId, approvalId, approved, scope))
       if (decision !== null) decisions.emit(decisionKey(threadId, approvalId))
       return decision
     },

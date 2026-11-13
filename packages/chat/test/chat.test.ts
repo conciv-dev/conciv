@@ -2,20 +2,30 @@ import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it, onTestFinished} from 'vitest'
-import {drizzleChatStores} from '@conciv/ai/server'
+import {toolApprovalId} from '@conciv/ai/server'
 import {fakeText} from '@conciv/ai/testkit'
 import {openDb} from '@conciv/db'
 import {defineHarness} from '@conciv/harness'
-import {approvalAskOf} from '@conciv/protocol/chat-event-types'
+import {approvalAskOf, approvalRequestedEvent} from '@conciv/protocol/chat-event-types'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {createApprovalStore} from '../src/approvals.js'
 import {createChatPlane} from '../src/index.js'
-import {metadataKeysEndingWith} from '../src/stores.js'
+
+const model = fakeText()
+const answer = model.chatStream.bind(model)
+const asking = Object.assign(model, {
+  chatStream: async function* (options: Parameters<typeof answer>[0]) {
+    yield {
+      ...approvalRequestedEvent.create({approvalId: 'per_turn', title: 'turn ask', permission: {always: false}}),
+      timestamp: Date.now(),
+    }
+    yield* answer(options)
+  },
+})
 
 const harness = defineHarness({
   id: 'fake',
   binName: 'true',
-  chatConfig: () => ({adapter: fakeText()}),
+  chatConfig: () => ({adapter: asking}),
   capabilities: {
     resume: false,
     permissionGate: 'none',
@@ -40,7 +50,7 @@ function openDatabase() {
 }
 
 describe('permission cards', () => {
-  it('a permission card is stored, replayed with its member, removed without a grant, and swept by test', async () => {
+  it('a permission card is stored, replayed with its member, kept in order under overlapping writes, and removed without a grant', async () => {
     const {root, db} = openDatabase()
     const sessionId = SessionId.parse('conciv_cards')
     const plane = await createChatPlane({
@@ -66,50 +76,63 @@ describe('permission cards', () => {
       attachmentExpanders: {},
       log: () => undefined,
     })
-    const stores = drizzleChatStores(db, {harnessOf: () => 'fake', saved: () => undefined})
-    const approvals = createApprovalStore(
-      {...stores.metadata, keysEndingWith: (namespace, suffix) => metadataKeysEndingWith(db, namespace, suffix)},
-      'session',
-      () => 0,
-    )
-
-    await plane.permissionAsked(sessionId, {
-      approvalId: 'per_1',
-      toolCallId: 'per_1',
-      title: 'edit src/a.ts',
-      input: {filepath: 'src/a.ts'},
-      permission: {always: true},
+    const editId = toolApprovalId('edit')
+    const pendingIds = async () => (await plane.hydrate(sessionId)).pendingApprovals.map((entry) => entry.approvalId)
+    const permissionCard = (approvalId: string, always: boolean) => ({
+      approvalId,
+      toolCallId: approvalId,
+      title: `ask ${approvalId}`,
+      input: {approvalId},
+      permission: {always},
     })
-    const card = {
-      approvalId: 'per_1',
-      toolCallId: 'per_1',
-      toolName: 'edit src/a.ts',
-      input: {filepath: 'src/a.ts'},
-      runId: null,
-      permission: {always: true},
-    }
-    expect((await plane.hydrate(sessionId)).pendingApprovals).toEqual([card])
+
+    await plane.permissionAsked(sessionId, {...permissionCard(editId, true), title: 'edit src/a.ts'})
+    expect((await plane.hydrate(sessionId)).pendingApprovals).toEqual([
+      {
+        approvalId: editId,
+        toolCallId: editId,
+        toolName: 'edit src/a.ts',
+        input: {approvalId: editId},
+        runId: null,
+        permission: {always: true},
+      },
+    ])
     expect((await plane.catchUp(sessionId)).map(approvalAskOf)).toEqual([
       {
-        approvalId: 'per_1',
-        toolCallId: 'per_1',
+        approvalId: editId,
+        toolCallId: editId,
         toolName: 'edit src/a.ts',
-        input: {filepath: 'src/a.ts'},
+        input: {approvalId: editId},
         permission: {always: true},
       },
     ])
 
-    await plane.permissionSettled(sessionId, 'per_1')
-    expect((await plane.hydrate(sessionId)).pendingApprovals).toEqual([])
-    expect(await approvals.admit(sessionId, 'per_1')).toBe('ask')
+    await Promise.all([
+      plane.permissionAsked(sessionId, permissionCard('per_2', false)),
+      plane.permissionAsked(sessionId, permissionCard('per_3', true)),
+      plane.permissionSettled(sessionId, editId),
+    ])
+    expect(await pendingIds()).toEqual(['per_2', 'per_3'])
 
-    const plain = {approvalId: 'tool:a', toolCallId: 'tool:a', title: 'a', input: {}, runId: null}
-    await approvals.asked(sessionId, plain)
-    await approvals.asked(sessionId, {...plain, approvalId: 'per_2', toolCallId: 'per_2', permission: {always: false}})
-    await approvals.remove(sessionId, 'tool:a')
-    expect(await approvals.admit(sessionId, 'tool:a')).toBe('ask')
-    await approvals.asked(sessionId, plain)
-    await approvals.removeWhere(sessionId, (entry) => entry.permission !== undefined)
-    expect((await approvals.pending(sessionId)).map((entry) => entry.approvalId)).toEqual(['tool:a'])
+    await plane.permissionSettled(sessionId, 'per_2')
+    expect(await pendingIds()).toEqual(['per_3'])
+    const published: unknown[] = []
+    expect(
+      await plane.admitCall(sessionId, {
+        toolName: 'edit',
+        input: {},
+        publish: (chunk) => published.push(chunk),
+        until: AbortSignal.abort(),
+      }),
+    ).toMatchObject({reason: 'asked'})
+
+    model.setResponses([{text: 'done'}])
+    await plane.followUp(sessionId, 'go on')
+    expect(
+      (await plane.hydrate(sessionId)).pendingApprovals.find((entry) => entry.approvalId === 'per_turn'),
+    ).toMatchObject({
+      toolName: 'turn ask',
+      permission: {always: false},
+    })
   })
 })
