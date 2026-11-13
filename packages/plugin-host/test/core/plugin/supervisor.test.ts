@@ -166,7 +166,7 @@ describe('PluginSupervisor', () => {
     }),
   )
 
-  for (const targets of [['opencode.config.policy', 'opencode.provider.opencode', 'opencode.config.agent'], ['*']]) {
+  for (const targets of [['conciv.tool.skill'], ['*']]) {
     it.effect(`applies plugin removals to instance plugins: ${targets}`, () =>
       Effect.gen(function* () {
         source.operations = targets.map((target) => ({type: 'remove', target}))
@@ -177,6 +177,8 @@ describe('PluginSupervisor', () => {
           yield* plugins.awaitActivation
           return yield* plugins.list()
         }).pipe(Effect.scoped, Effect.provide(locations.get(directory.path)))
+        const status = (id: string) => inventory.find((plugin) => plugin.id === id)?.state.status
+        expect(status('conciv.tool.skill')).toBeUndefined()
         expect(inventory.some((plugin) => plugin.id === id)).toBe(targets[0] !== '*')
       }).pipe(
         Effect.ensuring(
