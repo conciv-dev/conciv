@@ -18,7 +18,7 @@ import {text as bodyText} from 'node:stream/consumers'
 import {randomUUID} from 'node:crypto'
 import {setImmediate, setTimeout as wait} from 'node:timers/promises'
 import {describe, it, expect, afterEach, onTestFinished, test, vi} from 'vitest'
-import {makeTextAdapter} from '@conciv/ai/server'
+import {makeTextAdapter, quickJSThreadDriver} from '@conciv/ai/server'
 import {createToolCallChunks, fakeText} from '@conciv/ai/testkit'
 import {
   createChatPlane,
@@ -44,7 +44,14 @@ import {
 } from '@conciv/contract'
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
-import {chatMetadata, chatRuns, openDb, sessions as sessionTable, type ConcivDb} from '@conciv/db'
+import {
+  chatMetadata,
+  chatRuns,
+  InstructionStateTable,
+  openDb,
+  sessions as sessionTable,
+  type ConcivDb,
+} from '@conciv/db'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {
   createClientSettings,
@@ -113,6 +120,7 @@ import {runWithSession} from '../src/runtime/session-context.js'
 import {start, composeSystemPrompt} from '../src/start.js'
 import {makeApp} from '../src/app.js'
 import {outsideRunCapabilities} from '../src/api/outside-run.js'
+import mcpApp, {type McpVars} from '../src/api/mcp.js'
 import {
   CODE_LIFETIME_MS,
   OPEN_PATHS,
@@ -249,7 +257,7 @@ describe('chat plane', () => {
     expect(capability?.description).toMatch(/^Do the unit thing\. Prefer small inputs\.\n\nReturns JSON matching: /)
   })
 
-  it('a turn falls back to systemPromptText and logs an unreadable systemPromptFile, a credential-shaped capability fails only its own run, plugin skills and the code-mode catalog reach the system prompt when the starting point resets and the user words in between, and search finds a tool by its parameter', async () => {
+  it('a turn falls back to systemPromptText and logs an unreadable systemPromptFile, a credential-shaped capability fails only its own run, plugin skills and the code-mode catalog reach the system prompt when the starting point resets and the user words in between, search finds a tool by its parameter, and with no isolate driver every tool reaches the model and the MCP listing directly with no catalog', async () => {
     const root = tempDir()
     const cli = fakeCli()
     const log: string[] = []
@@ -353,7 +361,7 @@ describe('chat plane', () => {
     const told = fakeCli()
     const instructed = {
       capabilities,
-      pluginInstructions: (id: SessionId, reset: 'keep' | 'reset', inventory: CodeModeCatalog.Inventory) =>
+      pluginInstructions: (id: SessionId, reset: 'keep' | 'reset', inventory: CodeModeCatalog.Inventory | undefined) =>
         host.runPromise(pluginInstructions(id, reset, inventory)),
     }
     const fresh = await plane(cliHarness(told), root, instructed)
@@ -463,6 +471,105 @@ describe('chat plane', () => {
     await fresh.followUp(skilled, 'sixth')
     expect(told.systemPrompts.at(-1)?.[0]).toMatch(listed('deploy', 'lint', 'review'))
     expect(told.asked.at(-1)).toBe('sixth')
+
+    const codeless = sessionId('codeless')
+    await ensureRow(db, codeless, 'fake-cli', root)
+    const registry = createToolRegistry()
+    const ping = defineTool({
+      name: 'unit_ping',
+      description: 'Ping the text back.',
+      inputSchema: z.object({text: z.string()}),
+      outputSchema: z.object({pinged: z.string()}),
+      meta: {summary: 'Ping the text back'},
+    }).server((input) => ({pinged: input.text}))
+    registry.register(ping, {owner: 'unit'})
+    const pinged = registryCapabilities(
+      registry.sandboxTools(),
+      (name, input, request) => registry.call(name, input, {request}),
+      () => 'unit',
+    )
+    const withoutDriver = await plane(cliHarness(told), root, {
+      ...instructed,
+      capabilities: (id) =>
+        toolDomainCapabilities(
+          pinged,
+          host.runSync(sessionSnapshot(id)),
+          (effect, signal) => host.runPromiseExit(effect, {signal}),
+          () => undefined,
+        ),
+      driver: null,
+    })
+    await withoutDriver.followUp(codeless, 'no sandbox')
+    expect(told.systemPrompts.at(-1)?.[0]).toMatch(listed('deploy', 'lint', 'review'))
+    expect(JSON.stringify(told.systemPrompts.at(-1))).not.toMatch(/Code Mode|external_|console\.log/)
+    expect(told.tools.at(-1)).toEqual(expect.arrayContaining(['unit_ping', 'sky_measure', 'tools_alpha', 'tools_zeta']))
+    expect(told.tools.at(-1)).not.toContain('execute_typescript')
+    expect(told.tools.at(-1)).not.toContain('discover_tools')
+    const instructionKeys = async (id: SessionId) => {
+      const [row] = await db.select().from(InstructionStateTable).where(eq(InstructionStateTable.session_id, id))
+      return Object.keys(row?.current_values ?? {})
+    }
+    expect(await instructionKeys(skilled)).toContain('core/codemode')
+    expect(await instructionKeys(codeless)).not.toContain('core/codemode')
+
+    const unchanged: EngineStaleness = {stale: false, changed: [], tracked: [], bootedAt: 0, fingerprint: 'test'}
+    const primitives = makeSessionPrimitives({
+      db,
+      root,
+      storeCapture: () => Promise.resolve(),
+      bundler: () => undefined,
+      openInEditor: () => {},
+      listTabs: async () => ({tabs: [], unreachable: []}),
+    })
+    const runtime = makeCoreRuntime({
+      primitives,
+      plane: withoutDriver,
+      db,
+      model: () => null,
+      staleness: () => unchanged,
+    })
+    const mcp = new Hono<{Variables: McpVars}>()
+      .use(async (c, next) => {
+        c.set('mcp', {
+          codeRunner: (id, publish, given, outside) => withoutDriver.codeRunner(id, publish, given, outside),
+          finishedQueues: () => [],
+          startedQueues: () => [],
+          outsideCapabilities: () => [],
+          admitCall: (id, call) => withoutDriver.admitCall(id, call),
+          resolveSession: async () => runtime.forSession(codeless),
+          admitOutside: async () => null,
+          hubRefusal: () => null,
+          staleness: () => unchanged,
+        })
+        await next()
+      })
+      .route('/', mcpApp)
+    const rpc = async (method: string, params: Record<string, unknown>) => {
+      const response = await mcp.request('http://127.0.0.1/', {
+        method: 'POST',
+        headers: {...JSON_TYPE, host: '127.0.0.1', accept: 'application/json, text/event-stream'},
+        body: JSON.stringify({jsonrpc: '2.0', id: 1, method, params}),
+      })
+      const text = await response.text()
+      const data = text.split('\n').find((line) => line.startsWith('data: '))
+      return JSON.parse(data === undefined ? text : data.slice('data: '.length))
+    }
+    const mcpListed = z
+      .object({result: z.object({tools: z.array(z.object({name: z.string()}))})})
+      .parse(await rpc('tools/list', {}))
+      .result.tools.map((tool) => tool.name)
+    expect(mcpListed).toEqual(expect.arrayContaining(['unit_ping', 'sky_measure', 'tools_alpha', 'tools_zeta']))
+    expect(mcpListed).not.toContain('execute_typescript')
+    expect(mcpListed).not.toContain('discover_tools')
+    const calledText = async (name: string, input: Record<string, unknown>) =>
+      z
+        .object({result: z.object({content: z.array(z.object({text: z.string()}))})})
+        .parse(await rpc('tools/call', {name, arguments: input}))
+        .result.content.map((part) => part.text)
+    expect(await calledText('sky_measure', {declination: 'north'})).toEqual([
+      '"measure {\\"declination\\":\\"north\\"}"',
+    ])
+    expect(await calledText('unit_ping', {text: 'pong'})).toEqual([expect.stringContaining('"pinged":"pong"')])
   })
 
   it('after a restart the finished and interrupted turns all show, and the interrupted run is aborted with a finish time', async () => {
@@ -683,6 +790,7 @@ describe('chat plane', () => {
     overrides: Partial<Parameters<typeof createChatPlane>[0]> = {},
   ): Promise<ChatPlane> {
     const db = openDatabase(root)
+    const {driver = quickJSDriver(), ...given} = overrides
     return createChatPlane({
       db,
       hubAccess: 'session',
@@ -697,8 +805,15 @@ describe('chat plane', () => {
       pluginInstructions: async () => ({initial: '', update: '', told: async () => undefined}),
       firstOutputTimeoutMs: 30_000,
       log: () => undefined,
-      ...overrides,
+      driver,
+      ...given,
     })
+  }
+
+  function quickJSDriver() {
+    const driver = quickJSThreadDriver({timeout: 10_000, memoryLimit: 64, maxStackSize: 1024 * 1024}, () => undefined)
+    onTestFinished(() => driver.dispose())
+    return driver
   }
 
   const noUpgrade = defineWebSocketHelper(async () => undefined)

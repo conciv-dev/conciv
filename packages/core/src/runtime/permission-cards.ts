@@ -112,7 +112,7 @@ function observedValues(read: Instructions.ReadResult) {
 export function pluginInstructions(
   sessionId: SessionId,
   reset: 'keep' | 'reset',
-  inventory: CodeModeCatalog.Inventory,
+  inventory: CodeModeCatalog.Inventory | undefined,
 ) {
   return Effect.gen(function* () {
     const db = (yield* Database.Service).db

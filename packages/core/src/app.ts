@@ -109,6 +109,7 @@ import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
 import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
+import {loadIsolateDriver} from '@conciv/ai/server'
 import {runInOrder} from './lib/shutdown.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import {
@@ -648,6 +649,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       pluginHost.runPromise(pluginInstructions(sessionId, reset, inventory)),
     firstOutputTimeoutMs: opts.firstChunkTimeoutMs,
     log: logError,
+    driver: await loadIsolateDriver(logError),
   })
   planeRef.current = plane
   await pluginHost.runPromise(

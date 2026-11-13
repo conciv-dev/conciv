@@ -53,7 +53,7 @@ export type TurnDeps = {
   pluginInstructions: (
     sessionId: SessionId,
     reset: InstructionReset,
-    inventory: CodeModeCatalog.Inventory,
+    inventory: CodeModeCatalog.Inventory | undefined,
   ) => Promise<PluginInstructions>
   log: (message: string) => void
 }
@@ -207,7 +207,7 @@ async function recordContext(deps: TurnDeps, sessionId: SessionId): Promise<void
 
 export function turnHooks(
   deps: TurnDeps,
-  context: {approvals: ApprovalStore; ui: UiChannel; transcripts: TranscriptImporter},
+  context: {approvals: ApprovalStore; ui: UiChannel; transcripts: TranscriptImporter; codeMode: boolean},
 ): TurnHooks {
   const normalize = toolNameNormalizer(deps.toolNames)
   return {
@@ -221,7 +221,11 @@ export function turnHooks(
       const resumeSessionId = resumableToken(deps, harness, row)
       const reset: InstructionReset = turn.kind === 'compact' || resumeSessionId === null ? 'reset' : 'keep'
       const instructions = Promise.withResolvers<PluginInstructions>()
-      const toolSet = chatToolSet(deps.capabilities(sessionId), {sessionId, agentId: sessionId, model})
+      const toolSet = chatToolSet(
+        deps.capabilities(sessionId),
+        {sessionId, agentId: sessionId, model},
+        context.codeMode,
+      )
       const config = harness.chatConfig({
         cwd: deps.cwd,
         sessionId,

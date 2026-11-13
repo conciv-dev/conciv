@@ -2,7 +2,7 @@ import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it, onTestFinished} from 'vitest'
-import {toolApprovalId} from '@conciv/ai/server'
+import {quickJSThreadDriver, toolApprovalId} from '@conciv/ai/server'
 import {fakeText} from '@conciv/ai/testkit'
 import {openDb, type ConcivDb} from '@conciv/db'
 import {defineHarness} from '@conciv/harness'
@@ -64,6 +64,8 @@ function openDatabase() {
 }
 
 function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typeof createChatPlane>[0]> = {}) {
+  const driver = quickJSThreadDriver({timeout: 10_000, memoryLimit: 64, maxStackSize: 1024 * 1024}, () => undefined)
+  onTestFinished(() => driver.dispose())
   return createChatPlane({
     db,
     hubAccess: 'session',
@@ -87,6 +89,7 @@ function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typ
     attachmentExpanders: {},
     pluginInstructions: async () => ({initial: '', update: '', told: async () => undefined}),
     log: () => undefined,
+    driver,
     ...overrides,
   })
 }
@@ -590,7 +593,7 @@ describe('plugin instructions', () => {
       inputSchema: z.object({text: z.string()}),
       execute: async () => 'noted',
     }
-    const inventories: CodeModeCatalog.Inventory[] = []
+    const inventories: (CodeModeCatalog.Inventory | undefined)[] = []
     const chat = await chatPlane(db, root, {
       systemPrompt: {systemPromptText: 'the base prompt'},
       capabilities: () => [note],

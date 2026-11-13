@@ -350,8 +350,8 @@ function sandboxDiscovery(capabilities: readonly CodeCapability[]): {
 }
 
 export type ChatToolSet = {
-  inventory: CodeModeCatalog.Inventory
-  search: SandboxSearch
+  inventory: CodeModeCatalog.Inventory | undefined
+  search: SandboxSearch | null
   codeMode: ChatTool[]
   asking: ChatTool[]
   asked: CodeCapability[]
@@ -382,12 +382,17 @@ function chatTool(capability: CodeCapability, request: ToolRequest, lazy: boolea
   })
 }
 
-export function chatToolSet(capabilities: readonly CodeCapability[], request: ToolRequest): ChatToolSet {
+export function chatToolSet(
+  capabilities: readonly CodeCapability[],
+  request: ToolRequest,
+  codeMode: boolean,
+): ChatToolSet {
   const asked = capabilities.filter((capability) => capability.approval === 'ask')
-  const directed = capabilities.filter((capability) => capability.approval !== 'ask' && capability.direct === true)
-  const sandboxed = capabilities.filter((capability) => capability.approval !== 'ask' && capability.direct !== true)
+  const coded = (capability: CodeCapability) => codeMode && capability.direct !== true
+  const directed = capabilities.filter((capability) => capability.approval !== 'ask' && !coded(capability))
+  const sandboxed = capabilities.filter((capability) => capability.approval !== 'ask' && coded(capability))
   return {
-    ...sandboxDiscovery(sandboxed),
+    ...(codeMode ? sandboxDiscovery(sandboxed) : {inventory: undefined, search: null}),
     codeMode: sandboxed.map((capability) => chatTool(capability, request, true)),
     asking: asked.map((capability) => chatTool(capability, request, false)),
     asked,
