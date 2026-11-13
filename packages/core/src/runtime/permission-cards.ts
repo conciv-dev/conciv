@@ -15,6 +15,7 @@ import {
   Database,
   Instructions,
   InstructionState,
+  KV,
   Permission,
   Session,
   SkillInstructions,
@@ -22,6 +23,7 @@ import {
 } from '@conciv/plugin-host'
 import {Effect, Layer, Option, Schema} from 'effect'
 import {currentRow} from '../sessions/session-rows.js'
+import {loadInstructionEntries} from './instruction-entries.js'
 
 const TITLE_LIMIT = 200
 
@@ -96,7 +98,8 @@ export function pluginInstructions(
     const bus = yield* Bus.Service
     const id = Session.Id.make(sessionId)
     const skills = yield* (yield* SkillInstructions.Service).load(yield* sessionRules(sessionId))
-    const instructions = Instructions.combine([CodeModeInstructions.make(inventory), skills])
+    const entries = yield* loadInstructionEntries(yield* KV.Service, id)
+    const instructions = Instructions.combine([CodeModeInstructions.make(inventory), skills, entries])
     const previewed = yield* InstructionState.preview(db, id, instructions, yield* Instructions.read(instructions))
     yield* InstructionState.commit(db, bus, instructions, yield* InstructionState.observe(db, instructions, id))
     if (reset === 'reset') yield* InstructionState.advanceEpoch(db, id, yield* Bus.latestSequence(db, id))

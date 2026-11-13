@@ -47,9 +47,25 @@ const ExtensionPackageSchema = z.object({
 
 export type ExtensionPackage = z.infer<typeof ExtensionPackageSchema>
 
+const PolicyStatementSchema = z.object({
+  action: z.enum([
+    'provider.use',
+    'tool.use',
+    'integration.connect',
+    'integration.use',
+    'mcp.use',
+    'skill.use',
+    'plugin.use',
+    'websearch.use',
+  ]),
+  resource: z.string(),
+  effect: z.enum(['allow', 'deny']),
+})
+
 export const ConcivConfigSchema = z.object({
   enabled: z.boolean().optional(),
   extensions: z.array(ExtensionPackageSchema).readonly().optional(),
+  policies: z.array(PolicyStatementSchema).readonly().optional(),
   widgetUrl: z.string().optional(),
   widget: z.union([WidgetConfigSchema, z.literal(false)]).optional(),
   stateRoot: z.string().optional(),

@@ -12,6 +12,8 @@ Builds the per-session and engine-wide scope objects that join the tool registry
 - `EngineScope` (`scope-types.ts`): {catalog, staleness, symbolicate, navigation: {get, set}}
 - `CoreRuntime`, `ToolCatalog`, `ScopedToolCall` (`scope-types.ts`)
 - `runWithSession` / `session` (`session-context.ts`)
+- `provideInstructionEntries` / `loadInstructionEntries` (`instruction-entries.ts`): the plugin `InstructionEntry` key on the plugin host's `KV` store, one row per session and key under the reserved prefix `conciv.instruction-entry:<sessionId>:`, a removed entry kept as `{value: null, removed: true}`; `loadInstructionEntries` turns a session's rows into one instruction source each (`api/<key>`), which `pluginInstructions` (`permission-cards.ts`) combines with code mode and skills
+- `provideHarnessSource` / `provideBundlerSource` / `provideExtensionSlugs` / `provideApp` / `provideConfiguredPolicies` (`plugin-sources.ts`): the plugin host's `HarnessSource` (with `mcpUrl` read on each access from the token-scoped base), `BundlerSource`, `ExtensionSlugs`, `App` (core's package version) and `ManagedPolicy.ConfiguredPolicies` (the config's `policies` decoded with `ConfigPolicy.Info`) as layers
 
 ## Invariants
 
@@ -22,6 +24,7 @@ Builds the per-session and engine-wide scope objects that join the tool registry
 
 ## Side Effects
 
+- `provideInstructionEntries` (`instruction-entries.ts`): `KV` reads and writes on the project database
 - `navigation` get/set (`core-runtime.ts`): SQLite select and upsert on the `navigation` table
 - `captures.store` (`core-runtime.ts`): `writeToolCapture` to the DB
 - `session-context.ts`: module-level AsyncLocalStorage

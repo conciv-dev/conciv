@@ -45,6 +45,7 @@ import {
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {chatRuns, openDb, sessions as sessionTable, type ConcivDb} from '@conciv/db'
+import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {
   createClientSettings,
   defineTool,
@@ -69,14 +70,21 @@ import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protoco
 import {eq} from 'drizzle-orm'
 import {
   Agent,
+  App,
   Bus,
   CodeModeCatalog,
   Database,
+  InstructionEntry,
+  InstructionEntrySchema,
+  KV,
   Location,
+  ManagedPolicy,
   Permission,
   PermissionSaved,
   PluginHooks,
+  PluginHost,
   Rpc,
+  Session,
   SessionEvent,
   SessionProjector,
   Skill,
@@ -123,7 +131,15 @@ import {RPCLink as WebsocketRpcLink} from '@orpc/client/websocket'
 import {CONCIV_VERSION_HEADER, RPC_WS_PATH, rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
 import coreManifest from '../package.json' with {type: 'json'}
-import {ensureRow, setPermissions} from '../src/sessions/session-rows.js'
+import {ensureRow, nativeIdFor, recordNativeId, setPermissions} from '../src/sessions/session-rows.js'
+import {provideInstructionEntries} from '../src/runtime/instruction-entries.js'
+import {
+  provideApp,
+  provideBundlerSource,
+  provideConfiguredPolicies,
+  provideExtensionSlugs,
+  provideHarnessSource,
+} from '../src/runtime/plugin-sources.js'
 import {
   answerPermission,
   decidePermissionCard,
@@ -256,7 +272,7 @@ describe('chat plane', () => {
     const host = ManagedRuntime.make(
       Layer.mergeAll(SkillInstructions.layer, SessionProjector.layer, Tool.layer).pipe(
         Layer.provideMerge(Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, permissionSessions(db))),
-        Layer.provideMerge(Bus.configured()),
+        Layer.provideMerge(Layer.mergeAll(Bus.configured(), KV.layer)),
         Layer.provideMerge(
           Layer.succeed(
             Location.Service,
@@ -2547,5 +2563,108 @@ describe('direct tools on the MCP surface', () => {
     expect((await listed()).toSorted()).toEqual(['unit_coded', 'unit_direct'])
     const shut = ToolCalled.parse(await post('tools/call', {name: 'unit_coded', arguments: {text: 'shut'}}))
     expect(shut.result.content.map((part) => part.text).join('')).toContain('coded shut')
+  })
+})
+
+describe('plugin context keys provided by core', () => {
+  it('instruction entries are kept per session, reach the plugin instructions and leave them on remove, an oversized value is refused, the harness source reads its MCP url lazily, and the bundler, extension slugs, app and configured policies are provided', async () => {
+    const root = tempDir()
+    const db = openDb(root)
+    const id = SessionId.parse('conciv_entries')
+    const other = SessionId.parse('conciv_entries_other')
+    await ensureRow(db, id, 'fake-cli', root)
+    await ensureRow(db, other, 'fake-cli', root)
+    const base: {current: string | undefined} = {current: undefined}
+    const devServer = defineBundlerBridge({
+      id: 'unit-bundler',
+      config: () => ({root, base: '/', mode: 'development', aliases: [], plugins: []}),
+      resolve: async (spec) => ({id: spec}),
+      moduleGraph: () => [],
+      transform: async () => ({code: null}),
+      urls: () => ({local: [], network: []}),
+      reload: async () => undefined,
+      restart: async () => undefined,
+    })
+    const host = ManagedRuntime.make(
+      Layer.mergeAll(
+        SkillInstructions.layer,
+        SessionProjector.layer,
+        provideInstructionEntries,
+        provideHarnessSource({
+          harness: (sessionId) => ({id: `fake-cli:${sessionId}`}),
+          sessions: {
+            resumeToken: (sessionId) => nativeIdFor(db, sessionId),
+            recordToken: (sessionId, token) => recordNativeId(db, sessionId, 'fake-cli', token),
+          },
+          tokenScopedBase: () => base.current,
+        }),
+        provideBundlerSource(devServer),
+        provideExtensionSlugs(['page']),
+        provideApp(),
+        provideConfiguredPolicies([
+          {action: 'plugin.use', resource: 'blocked-*', effect: 'deny'},
+          {action: 'integration.use', resource: 'plugin:legacy', effect: 'deny'},
+        ]),
+      ).pipe(
+        Layer.provideMerge(Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, permissionSessions(db))),
+        Layer.provideMerge(Layer.mergeAll(Bus.configured(), KV.layer)),
+        Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),
+      ),
+    )
+    onTestFinished(() => host.dispose())
+    const entries = (run: (service: InstructionEntry.Interface) => Effect.Effect<unknown, unknown>) =>
+      host.runPromise(InstructionEntry.Service.use(run))
+    const instructions = () => host.runPromise(pluginInstructions(id, 'keep', {tools: []}))
+
+    await entries((service) => service.put({sessionId: Session.Id.make(id), key: 'notes', value: {done: false}}))
+    await entries((service) => service.put({sessionId: Session.Id.make(id), key: 'brief', value: 'ship it'}))
+    expect(await entries((service) => service.list(Session.Id.make(id)))).toEqual([
+      {key: 'brief', value: 'ship it'},
+      {key: 'notes', value: {done: false}},
+    ])
+    expect(await entries((service) => service.list(Session.Id.make(other)))).toEqual([])
+
+    const first = await instructions()
+    expect(first.initial).toContain('<context key="brief">\nship it\n</context>')
+    expect(first.initial).toContain('<context key="notes">\n{\n  "done": false\n}\n</context>')
+
+    await entries((service) => service.remove({sessionId: Session.Id.make(id), key: 'notes'}))
+    expect(await entries((service) => service.list(Session.Id.make(id)))).toEqual([{key: 'brief', value: 'ship it'}])
+    expect((await instructions()).update).toContain('The context under "notes" no longer applies. Disregard it.')
+
+    const refused = await host.runPromise(
+      InstructionEntry.Service.use((service) =>
+        service.put({
+          sessionId: Session.Id.make(id),
+          key: 'huge',
+          value: 'x'.repeat(InstructionEntrySchema.MaxValueBytes + 1),
+        }),
+      ).pipe(Effect.flip),
+    )
+    expect(refused).toMatchObject({
+      _tag: 'InstructionEntryValueTooLargeError',
+      maxBytes: InstructionEntrySchema.MaxValueBytes,
+    })
+    expect(await entries((service) => service.list(Session.Id.make(id)))).toEqual([{key: 'brief', value: 'ship it'}])
+
+    const harness = await host.runPromise(PluginHost.HarnessSource)
+    expect(harness.mcpUrl).toBeUndefined()
+    base.current = 'http://127.0.0.1:4100/agent-token'
+    expect(harness.mcpUrl).toBe('http://127.0.0.1:4100/agent-token/api/mcp')
+    expect(harness.get(id).id).toBe(`fake-cli:${id}`)
+    await harness.recordToken(id, HarnessSessionId.parse('native-entries'))
+    expect(await harness.resumeToken(id)).toBe('native-entries')
+
+    const bundler = await host.runPromise(PluginHost.BundlerSource)
+    expect(bundler?.config().root).toBe(root)
+    expect(await host.runPromise(PluginHost.ExtensionSlugs)).toEqual(['page'])
+    expect(await host.runPromise(App.Service)).toMatchObject({name: 'conciv', version: coreManifest.version})
+    const policies = await host.runPromise(ManagedPolicy.ConfiguredPolicies)
+    expect(policies).toEqual([
+      {action: 'plugin.use', resource: 'blocked-*', effect: 'deny'},
+      {action: 'plugin.use', resource: 'legacy', effect: 'deny'},
+    ])
+    expect(ManagedPolicy.decision(policies, 'plugin.use', 'blocked-one')).toBe('deny')
+    expect(ManagedPolicy.decision(policies, 'plugin.use', 'kept')).toBe('allow')
   })
 })
