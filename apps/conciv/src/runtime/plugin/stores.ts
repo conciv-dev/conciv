@@ -12,7 +12,8 @@ import {
   type Owner,
 } from 'solid-js'
 import {produce, reconcile, type SetStoreFunction} from 'solid-js/store'
-import type {Mutable, Persisted, SessionRef} from '@conciv/plugin/experimental'
+import type {Mutable, Persisted, SessionRef, StoreFrom} from '@conciv/plugin/experimental'
+import {Persist, type CopyFrom} from '../persistence/storage'
 import {
   createSessionStoreState,
   selectSessionStoreEntry,
@@ -34,6 +35,26 @@ const loads = new WeakMap<object, Promise<void>>()
 
 export function storeName(plugin: string, key: string) {
   return `plugin.${plugin}.${key}`
+}
+
+export function globalStoreTarget(
+  plugin: string,
+  key: string,
+  from: StoreFrom | readonly StoreFrom[] | undefined,
+  scope: 'global' | 'project',
+) {
+  return {
+    ...Persist[scope](`plugin.${plugin}`, key),
+    copyFrom: storeImports(from),
+  }
+}
+
+export function storeImports(from: StoreFrom | readonly StoreFrom[] | undefined): CopyFrom[] {
+  return [from ?? []].flat().map((item) => copySpec(item))
+}
+
+function copySpec(from: StoreFrom): CopyFrom {
+  return typeof from === 'string' ? {key: from} : from
 }
 
 export function persistedHandle<T extends object>(input: {

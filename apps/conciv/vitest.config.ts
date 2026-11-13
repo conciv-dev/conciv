@@ -15,7 +15,11 @@ const SHELL_DEPS = [
   'semver/functions/valid',
 ]
 const BUILT_PACKAGE = /\/packages\/.+\/dist\//
-const BROWSER_SUITES = ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx']
+const BROWSER_SUITES = [
+  'test/**/*.browser.test.ts',
+  'test/**/*.browser.test.tsx',
+  'src/runtime/persistence/**/*.browser.test.ts',
+]
 
 type BrowserName = 'chromium' | 'firefox'
 
@@ -60,8 +64,12 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'node',
-          include: ['test/**/*.test.ts', 'src/runtime/plugin/**/*.test.ts'],
-          exclude: ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx'],
+          include: ['test/**/*.test.ts', 'src/runtime/plugin/**/*.test.ts', 'src/runtime/persistence/**/*.test.ts'],
+          exclude: [
+            'test/**/*.browser.test.ts',
+            'test/**/*.browser.test.tsx',
+            'src/runtime/persistence/**/*.browser.test.ts',
+          ],
           testTimeout: ciTest().testTimeout,
           hookTimeout: ciTest().hookTimeout,
         },

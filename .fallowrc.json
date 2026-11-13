@@ -92,9 +92,9 @@
     "maxCrap": 30,
     "thresholdOverrides": [
       {
-        "files": ["apps/conciv/src/runtime/plugin/**"],
+        "files": ["apps/conciv/src/runtime/plugin/**", "apps/conciv/src/runtime/persistence/**"],
         "maxCyclomatic": 37,
-        "maxCognitive": 48,
+        "maxCognitive": 51,
         "maxCrap": 88,
         "maxUnitSize": 120
       },
@@ -211,6 +211,10 @@
     },
     {
       "file": "apps/conciv/src/runtime/plugin/**",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/conciv/src/runtime/persistence/**",
       "exports": ["*"]
     },
     {

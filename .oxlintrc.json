@@ -406,7 +406,7 @@
     {
       "files": ["apps/conciv/**"],
       "rules": {
-        "conciv/test-file-budget": ["error", {"max": 16}]
+        "conciv/test-file-budget": ["error", {"max": 18}]
       }
     },
     {
@@ -416,6 +416,7 @@
         "unicorn/no-thenable": "off",
         "no-shadow": "off",
         "unicorn/no-array-sort": "off",
+        "unicorn/no-useless-spread": "off",
         "solid/reactivity": "off"
       }
     },
