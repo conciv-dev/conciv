@@ -227,6 +227,33 @@ describe('a media query on the page', () => {
   })
 })
 
+describe('an idle page while files outside the page change', () => {
+  it('is measured once, as a database the tools write beside it changes', async () => {
+    const stateDir = fileURLToPath(new URL('fixtures/design/host/.conciv-idle/', import.meta.url))
+    await mkdir(stateDir, {recursive: true})
+    const stateFile = join(stateDir, 'state.db')
+    await writeFile(stateFile, '0')
+    await kit.goto('target')
+    await call('design_get', await cardsDesign(kit.targetsDir))
+    const writes = {count: 0, running: true}
+    const writing = (async () => {
+      while (writes.running) {
+        writes.count += 1
+        await writeFile(stateFile, String(writes.count))
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+    })()
+    try {
+      const checked = roundOf(await call('design_check', {}))
+      expect([checked.verdict.length > 0, writes.count > 1]).toEqual([true, true])
+    } finally {
+      writes.running = false
+      await writing
+      await rm(stateDir, {recursive: true, force: true})
+    }
+  })
+})
+
 describe('a Figma wrapper that draws nothing', () => {
   it('is not required when the page merges it into its children', async () => {
     const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))

@@ -94,8 +94,8 @@ src/
   than rendered, in its first reason after the page rows. Only for a target with no route do they add that
   `design_get` with `route` points the target at another page; a target with a route was measured on its own page.
 - `design_check({nodes?})` waits for the last save to settle, measures the page at the design width and every reflow
-  width before it writes anything, and measures them all again (up to 3 times) when an edit reached the dev server while
-  it measured, so a reply never mixes the page from before an edit with the page after it. It then updates the
+  width before it writes anything, and measures them all again (up to 3 times) when an edit to a file in the page's module graph reached the dev server while
+  it measured (a database or other file the page does not import does not count), so a reply never mixes the page from before an edit with the page after it. It then updates the
   mapping, and returns `{round, rows, reflow, coverage, counts, verdict, reasons}`. A row is `{node, key, kind, name, text, magnitude, property, expected, actual, delta}`;
   rows at `slightly` are counted, not listed. When the CSS rule that wins a row's property sits inside an `@media` rule
   (nested ones included), the row text ends with `set by @media (...)`; the measure returns that condition per CSS

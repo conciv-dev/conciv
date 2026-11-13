@@ -463,9 +463,10 @@ function watchEdits(input: {bundler: BundlerBridge | undefined; cwd: string}): {
     failed: CompileError | null
     updated: number
   } = {timer: undefined, settled: null, failed: null, updated: 0}
+  const inGraph = (file: string): boolean => (bundler?.moduleGraph(file).length ?? 0) > 0
   const unsubscribe = bundler?.subscribe?.((diagnostic) => {
     if (diagnostic.kind === 'build-error') state.failed = compileErrorOf({diagnostic, cwd})
-    if (diagnostic.kind !== 'hmr-update') return
+    if (diagnostic.kind !== 'hmr-update' || !inGraph(diagnostic.file)) return
     state.updated = diagnostic.timestamp
     const settled = state.settled ?? Promise.withResolvers<void>()
     state.settled = settled
