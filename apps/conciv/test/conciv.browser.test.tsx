@@ -3,7 +3,13 @@ import 'virtual:uno.css'
 import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe, onTestFinished} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
 import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
-import {makeBrowserRpcClient, makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
+import {
+  makeBrowserRpcClient,
+  makeRpcClient,
+  subscribeRpcReachability,
+  type RpcClient,
+  type EngineStaleness,
+} from '@conciv/contract'
 import appManifest from '../package.json' with {type: 'json'}
 import {until} from '@conciv/harness-testkit/until'
 import {formatForDisplay} from '@tanstack/solid-hotkeys'
@@ -111,6 +117,12 @@ import {createToolRegistry} from '@conciv/extension/registry'
 import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
 import {pluginEnabled, type EnableState} from '@conciv/plugin/experimental/host'
 import {createManager} from '../src/runtime/plugin/manager.js'
+import {createBundleSource} from '../src/runtime/plugin/bundle-source.js'
+import {
+  PluginExperimentalLoader,
+  type PluginExperimental,
+  type PluginExperimentalSource,
+} from '../src/runtime/plugin/plugins.js'
 
 const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
@@ -5530,4 +5542,154 @@ describe('plugin enable state', () => {
         {id: 'y', enabled: false},
       ])
   })
+})
+
+type PluginExperimentalsPush = Parameters<Parameters<PluginExperimentalSource['on']>[0]>[0]
+
+function arrivals<Item>() {
+  const items: Item[] = []
+  const waiting = new Map<number, PromiseWithResolvers<Item>>()
+  const slot = (count: number) => {
+    const existing = waiting.get(count)
+    if (existing) return existing
+    const created = Promise.withResolvers<Item>()
+    waiting.set(count, created)
+    return created
+  }
+  return {
+    items,
+    add(item: Item) {
+      items.push(item)
+      slot(items.length).resolve(item)
+    },
+    nth: (count: number) => slot(count).promise,
+  }
+}
+
+function onlyRevision(push: PluginExperimentalsPush): string {
+  const [plugin, ...others] = push.plugins
+  if (!plugin || others.length > 0) throw new Error(`expected one pushed plugin, got ${push.plugins.length}`)
+  return plugin.revision
+}
+
+function storeNames(plugins: readonly PluginExperimental[]): string[][] {
+  return plugins.map((plugin) => Object.keys(plugin.definition.stores ?? {}))
+}
+
+function recordPushes(source: PluginExperimentalSource) {
+  const pushes = arrivals<PluginExperimentalsPush>()
+  onTestFinished(source.on((message) => pushes.add(message)))
+  return pushes
+}
+
+describe('plugin bundles reach the widget', () => {
+  const PANE_BUNDLE = 'pane/plugin-experimental.js'
+  const TAKEN_BUNDLE = 'taken/plugin-experimental.js'
+  const EXPERIMENTAL = ['plugin', 'experimental']
+  const LISTED = ['plugin', 'list']
+  const server = (id: string) => `export default {id: '${id}', async setup() {}}
+`
+  const bundle = (label: string) => `const {z} = require('zod')
+module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.string()}}, setup() {}}}
+`
+  const coreBase = bootedCore('plugin-bundles', {
+    plugins: [['./pane', {greeting: 'hi'}], './plain', './taken'],
+    files: {
+      'pane/index.ts': server('pane'),
+      [PANE_BUNDLE]: bundle('first'),
+      'plain/index.ts': server('plain'),
+      'taken/index.ts': server('conciv'),
+      [TAKEN_BUNDLE]: bundle('taken'),
+    },
+  })
+  const faults = trackedFaults()
+  const servedSince = async (path: string[]) => {
+    const before = await coreControl.rpcCallCount(path)
+    return (more: number) => coreControl.rpcStartedOnceServed(path, before + more, [])
+  }
+
+  test('a driver lists, fetches and pushes each shipped plugin bundle as the engine changes it', async () => {
+    const base = coreBase()
+    const votes = arrivals<boolean>()
+    onTestFinished(subscribeRpcReachability(base, (reachable) => votes.add(reachable)))
+    const first = createBundleSource({rpc: coreRpc(base), apiBase: base})
+    onTestFinished(first.dispose)
+    const pushes = recordPushes(first)
+    const pane = (label: string) => ({
+      type: 'pluginExperimentals',
+      plugins: [
+        {id: 'pane', revision: expect.stringMatching(/^[0-9a-f]{64}$/), code: bundle(label), options: {greeting: 'hi'}},
+      ],
+      reserved: ['conciv'],
+    })
+
+    const listed = await pushes.nth(1)
+    expect(listed).toEqual(pane('first'))
+    expect(await first.pluginExperimentals()).toEqual({plugins: listed.plugins, reserved: ['conciv']})
+    expect(await coreControl.rpcCallCount(EXPERIMENTAL, {id: 'conciv'})).toBe(0)
+
+    await coreControl.writeProjectFile(PANE_BUNDLE, bundle('second'))
+    const rebuilt = await pushes.nth(2)
+    expect(rebuilt).toEqual(pane('second'))
+    expect(onlyRevision(rebuilt)).not.toBe(onlyRevision(listed))
+
+    const listings = await servedSince(LISTED)
+    const truncated = await faults.install({kind: 'truncate', path: EXPERIMENTAL})
+    await coreControl.writeProjectFile(PANE_BUNDLE, bundle('third'))
+    await listings(1)
+    await coreControl.writeProjectFile(TAKEN_BUNDLE, bundle('third'))
+    await listings(2)
+    expect(pushes.items).toHaveLength(2)
+    expect(await first.pluginExperimentals()).toEqual({plugins: rebuilt.plugins, reserved: ['conciv']})
+    await coreControl.writeProjectFile(PANE_BUNDLE, bundle('fourth'))
+    await coreControl.releaseFault(truncated)
+    const recovered = await pushes.nth(3)
+    expect(recovered).toEqual(pane('fourth'))
+    expect(votes.items).not.toContain(false)
+
+    const fetches = await servedSince(EXPERIMENTAL)
+    await coreControl.writeProjectFile(TAKEN_BUNDLE, bundle('fourth'))
+    await fetches(1)
+    await coreControl.writeProjectFile(PANE_BUNDLE, bundle('fifth'))
+    const fifth = await pushes.nth(4)
+    expect(fifth).toEqual(pane('fifth'))
+    expect(await coreControl.rpcCallCount(EXPERIMENTAL, {id: 'conciv'})).toBe(0)
+
+    const dropped = votes.nth(votes.items.length + 1)
+    const offline = await faults.install({kind: 'offline'})
+    expect(await dropped).toBe(false)
+    await coreControl.writeProjectFile(PANE_BUNDLE, bundle('sixth'))
+    await coreControl.releaseFault(offline)
+    const reconnected = await pushes.nth(5)
+    expect(reconnected).toEqual(pane('sixth'))
+
+    const second = createBundleSource({rpc: coreRpc(base), apiBase: base})
+    onTestFinished(second.dispose)
+    const secondPushes = recordPushes(second)
+    expect(await secondPushes.nth(1)).toEqual(reconnected)
+    first.dispose()
+    await coreControl.writeProjectFile(PANE_BUNDLE, bundle('seventh'))
+    const afterDispose = await secondPushes.nth(2)
+    expect(afterDispose).toEqual(pane('seventh'))
+    expect(pushes.items).toHaveLength(5)
+
+    const loaded = arrivals<{plugins: readonly PluginExperimental[]; reserved: readonly string[]}>()
+    const rendered = render(() => (
+      <PluginExperimentalLoader
+        source={second}
+        client={() => undefined}
+        onChange={(plugins, reserved) => loaded.add({plugins, reserved})}
+      />
+    ))
+    onTestFinished(rendered.unmount)
+    const evaluated = await loaded.nth(1)
+    expect(evaluated.reserved).toEqual(['conciv'])
+    expect(evaluated.plugins.map((plugin) => plugin.definition.id)).toEqual(['pane'])
+    expect(storeNames(evaluated.plugins)).toEqual([['seventh']])
+    expect(evaluated.plugins.map((plugin) => plugin.options)).toEqual([{greeting: 'hi'}])
+    await coreControl.writeProjectFile(PANE_BUNDLE, bundle('eighth'))
+    const reevaluated = await loaded.nth(2)
+    expect(reevaluated.plugins.map((plugin) => plugin.definition.id)).toEqual(['pane'])
+    expect(storeNames(reevaluated.plugins)).toEqual([['eighth']])
+  }, 90_000)
 })

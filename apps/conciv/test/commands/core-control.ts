@@ -326,7 +326,8 @@ function restoreHubCli(state: FileState): void {
   rmSync(current.root, {recursive: true, force: true})
 }
 
-const rpcCallCount: BrowserCommand<[string[]]> = (ctx, path): number => requireCalls(ctx).servedSince(path)
+const rpcCallCount: BrowserCommand<[string[], unknown?]> = (ctx, path, input): number =>
+  requireCalls(ctx).servedSince(path, input)
 
 const rpcStartedOnceServed: BrowserCommand<[string[], number, string[][]]> = async (
   ctx,
@@ -489,9 +490,10 @@ function statusOptions(status: number | undefined): {status?: number} {
 function brokenRpcCalls(
   testkit: CoreTestkit,
   ctx: BrowserCommandContext,
-  spec: Extract<FaultSpec, {kind: 'abort' | 'fail'}>,
+  spec: Extract<FaultSpec, {kind: 'abort' | 'fail' | 'truncate'}>,
 ): ReturnType<CoreTestkit['abortRpcCalls']> {
   if (spec.kind === 'abort') return testkit.abortRpcCalls(ctx.page, pathOptions(spec.path))
+  if (spec.kind === 'truncate') return testkit.truncateRpcReplies(ctx.page, {path: spec.path})
   return testkit.failRpcCalls(ctx.page, {path: spec.path, ...statusOptions(spec.status)})
 }
 
@@ -505,9 +507,6 @@ async function createFault(ctx: BrowserCommandContext, handle: string, spec: Fau
   if (spec.kind === 'pre-version-engine') return trackedFault(handle, spec.kind, await preVersionEngine(ctx))
   if (spec.kind === 'chat-refused') {
     return trackedFault(handle, spec.kind, await testkit.failChatTurns(ctx.page, statusOptions(spec.status)))
-  }
-  if (spec.kind === 'truncate') {
-    return trackedFault(handle, spec.kind, await testkit.truncateRpcReplies(ctx.page, {path: spec.path}))
   }
   return trackedFault(handle, spec.kind, await brokenRpcCalls(testkit, ctx, spec))
 }
