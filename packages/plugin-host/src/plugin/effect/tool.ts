@@ -21,7 +21,7 @@ export interface ToolHooks {
     tool: string
     readonly sessionId: Session.Id
     readonly agent: Agent.Id
-    readonly messageId: SessionMessage.Id
+    readonly messageId: SessionMessage.Id | undefined
     readonly id: Tool.CallId
     input: unknown
   }
@@ -29,7 +29,7 @@ export interface ToolHooks {
     readonly tool: string
     readonly sessionId: Session.Id
     readonly agent: Agent.Id
-    readonly messageId: SessionMessage.Id
+    readonly messageId: SessionMessage.Id | undefined
     readonly id: Tool.CallId
     readonly input: unknown
   } & (

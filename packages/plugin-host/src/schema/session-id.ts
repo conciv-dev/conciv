@@ -1,12 +1,7 @@
 import {Schema} from 'effect'
-import {descending} from './identifier.js'
-import {statics} from './schema.js'
 
-export const SessionId = Schema.String.check(Schema.isStartingWith('ses')).pipe(
+export const SessionId = Schema.String.check(Schema.isStartingWith('conciv_')).pipe(
   Schema.brand('SessionID'),
   Schema.annotate({identifier: 'Session.ID'}),
-  statics((schema) => ({
-    create: () => schema.make('ses_' + descending()),
-  })),
 )
 export type SessionId = typeof SessionId.Type

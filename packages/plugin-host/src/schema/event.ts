@@ -25,7 +25,7 @@ export const Version = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)).pipe(
 )
 export type Version = typeof Version.Type
 
-const DurableEnvelope = Schema.Struct({aggregateId: Schema.String, seq: Seq, version: Version})
+const DurableEnvelope = Schema.Struct({aggregateID: Schema.String, seq: Seq, version: Version})
 export type DurableEnvelope = typeof DurableEnvelope.Type
 
 export type DurableDefinition<
@@ -87,7 +87,7 @@ export function durable<
 >(input: Input<Type, Fields> & {readonly durable: NonNullable<Input<Type, Fields>['durable']>}) {
   const data = Schema.Struct(input.schema)
   const durable = Schema.Struct({
-    aggregateId: DurableEnvelope.fields.aggregateId,
+    aggregateID: DurableEnvelope.fields.aggregateID,
     seq: DurableEnvelope.fields.seq,
     version: Schema.Literal(input.durable.version).pipe(
       Schema.decodeTo(

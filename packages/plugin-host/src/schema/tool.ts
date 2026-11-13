@@ -1,6 +1,6 @@
 export * as Tool from './tool.js'
 
-import {Effect, Schema} from 'effect'
+import {Effect, JsonSchema, Schema} from 'effect'
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import type {Agent} from './agent.js'
 import type {Session} from './session.js'
@@ -14,7 +14,7 @@ export type CallId = typeof CallId.Type
 export interface Context {
   readonly sessionId: Session.Id
   readonly agent: Agent.Id
-  readonly messageId: SessionMessage.Id
+  readonly messageId: SessionMessage.Id | undefined
   readonly id: CallId
   readonly progress: (update: Metadata) => Effect.Effect<void>
   readonly cancel?: Effect.Effect<void>
@@ -42,7 +42,7 @@ export type Options = BaseOptions &
       }
   )
 
-export type ValueSchema<A = unknown> = StandardSchemaV1<any, A>
+export type ValueSchema<A = unknown> = Schema.Codec<A, any> | StandardSchemaV1<any, A> | JsonSchema.JsonSchema
 
 type InputValue<S> = 0 extends 1 & S
   ? any

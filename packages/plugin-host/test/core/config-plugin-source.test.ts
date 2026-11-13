@@ -7,6 +7,7 @@ import path from 'node:path'
 import {ConfigPluginSource} from '../../src/core/config/plugin/source.js'
 import {Watcher} from '../../src/core/filesystem/watcher.js'
 import {Location} from '../../src/core/location.js'
+import {ProjectId} from '../../src/schema/project-id.js'
 import {AbsolutePath} from '../../src/schema/schema.js'
 import {FSUtil} from '../../src/util/fs-util.js'
 import {it} from './lib/effect'
@@ -30,7 +31,10 @@ const services = (root: string, plugins: readonly string[]) =>
         Watcher.layer().pipe(Layer.provide(Watcher.nativeLayer)),
         FSUtil.layer.pipe(Layer.provide(NodeFileSystem.layer)),
         Layer.succeed(ConfigPluginSource.ConfiguredPlugins, plugins),
-        Layer.succeed(Location.Service, Location.Service.of({directory: AbsolutePath.make(root)})),
+        Layer.succeed(
+          Location.Service,
+          Location.Service.of({directory: AbsolutePath.make(root), project: {id: ProjectId.global}}),
+        ),
       ),
     ),
   )
