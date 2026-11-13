@@ -1,10 +1,10 @@
 import {Schema} from 'effect'
-import {ToolCallID} from './ids.js'
+import {ToolCallId} from './ids.js'
 import {ProviderMetadata} from './options.js'
 
 export const ToolCall = Schema.Struct({
   type: Schema.tag('tool-call'),
-  id: ToolCallID,
+  id: ToolCallId,
   name: Schema.String,
   namespace: Schema.optional(Schema.String),
   input: Schema.Unknown,

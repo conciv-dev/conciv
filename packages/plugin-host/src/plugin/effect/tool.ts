@@ -19,18 +19,18 @@ export interface ToolEditor {
 export interface ToolHooks {
   readonly 'execute.before': {
     tool: string
-    readonly sessionID: Session.ID
-    readonly agent: Agent.ID
-    readonly messageID: SessionMessage.ID
-    readonly id: Tool.CallID
+    readonly sessionId: Session.Id
+    readonly agent: Agent.Id
+    readonly messageId: SessionMessage.Id
+    readonly id: Tool.CallId
     input: unknown
   }
   readonly 'execute.after': {
     readonly tool: string
-    readonly sessionID: Session.ID
-    readonly agent: Agent.ID
-    readonly messageID: SessionMessage.ID
-    readonly id: Tool.CallID
+    readonly sessionId: Session.Id
+    readonly agent: Agent.Id
+    readonly messageId: SessionMessage.Id
+    readonly id: Tool.CallId
     readonly input: unknown
   } & (
     | {

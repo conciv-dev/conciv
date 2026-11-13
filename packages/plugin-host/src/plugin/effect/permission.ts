@@ -3,8 +3,8 @@ import type {Permission} from '../../schema/permission.js'
 import type {Session} from '../../schema/session.js'
 
 export interface PermissionEvaluation {
-  readonly sessionID: Session.ID
-  readonly agent?: Agent.ID
+  readonly sessionId: Session.Id
+  readonly agent?: Agent.Id
   readonly action: string
   readonly resources: ReadonlyArray<string>
   readonly metadata?: Record<string, unknown>
