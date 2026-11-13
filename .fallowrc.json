@@ -239,6 +239,7 @@
   "entry": [
     "packages/plugin-host/src/core/database/**",
     "packages/plugin-host/src/core/location.ts",
+    "packages/plugin-host/src/core/agent.ts",
     "packages/plugin-host/src/schema/permission-saved.ts",
     "packages/plugin-host/src/schema/project.ts",
     "packages/brand-react/src/conciv-lockup.tsx",
