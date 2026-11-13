@@ -97,7 +97,7 @@ const SettingsSnapshotSchema = z.object({
 export type SettingsSnapshot = z.infer<typeof SettingsSnapshotSchema>
 
 const SettingsInput = z.object({scope: SettingsScopeSchema, namespace: SettingsNamespaceSchema})
-const SettingsKeyInput = SettingsInput.extend({key: z.string().max(200)})
+const SettingsKeyInput = SettingsInput.extend({key: z.string().max(512)})
 const ChatPendingInterruptSchema = z.object({
   id: z.string(),
   reason: z.string(),
