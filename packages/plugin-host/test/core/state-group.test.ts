@@ -16,13 +16,13 @@ it.effect('detaches every registration of a failed group and refreshes every aff
     })
     const first = State.create({
       name: 'first',
-      initial: () => ({values: new Array<string>()}),
+      initial: () => ({values: [] as string[]}),
       editor: (value) => value,
       notify: () => Effect.sync(() => void notices.push('first')),
     })
     const second = State.create({
       name: 'second',
-      initial: () => ({values: new Array<string>()}),
+      initial: () => ({values: [] as string[]}),
       editor: (value) => value,
       notify: () => Effect.sync(() => void notices.push('second')),
     })
@@ -92,7 +92,7 @@ it.effect('disables multiple failing groups once each before publishing a comple
     const reported: string[] = []
     const first = State.group(() => reported.push('first'))
     const second = State.group(() => reported.push('second'))
-    const state = State.create({initial: () => ({values: new Array<string>()}), editor: (value) => value})
+    const state = State.create({initial: () => ({values: [] as string[]}), editor: (value) => value})
     yield* State.batch(
       Effect.gen(function* () {
         yield* state

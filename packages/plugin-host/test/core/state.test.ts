@@ -10,7 +10,7 @@ describe('State', () => {
       const release = yield* Deferred.make<void>()
       let block = true
       const state = State.create({
-        initial: () => ({values: new Array<string>()}),
+        initial: () => ({values: [] as string[]}),
         editor: (editor) => ({add: (value: string) => editor.values.push(value)}),
         notify: () =>
           block ? Deferred.succeed(rebuilding, undefined).pipe(Effect.andThen(Deferred.await(release))) : Effect.void,
@@ -37,7 +37,7 @@ describe('State', () => {
     Effect.gen(function* () {
       const observed: string[][] = []
       const state: State.Interface<{values: string[]}, {add: (item: string) => void}> = State.create({
-        initial: () => ({values: new Array<string>()}),
+        initial: () => ({values: [] as string[]}),
         editor: (editor) => ({add: (item: string) => editor.values.push(item)}),
         notify: () => Effect.sync(() => observed.push([...state.get().values])),
       })
@@ -54,7 +54,7 @@ describe('State', () => {
     Effect.gen(function* () {
       let value = 'first'
       const state = State.create({
-        initial: () => ({values: new Array<string>()}),
+        initial: () => ({values: [] as string[]}),
         editor: (editor) => ({add: (item: string) => editor.values.push(item)}),
       })
 
@@ -72,7 +72,7 @@ describe('State', () => {
   it.effect('disposes a transform once and rebuilds remaining state', () =>
     Effect.gen(function* () {
       const state = State.create({
-        initial: () => ({values: new Array<string>()}),
+        initial: () => ({values: [] as string[]}),
         editor: (editor) => ({add: (item: string) => editor.values.push(item)}),
       })
       yield* state.transform((editor) => {
@@ -95,12 +95,12 @@ describe('State', () => {
     Effect.gen(function* () {
       let finalized = 0
       const first = State.create({
-        initial: () => ({values: new Array<string>()}),
+        initial: () => ({values: [] as string[]}),
         editor: (editor) => ({add: (item: string) => editor.values.push(item)}),
         notify: () => Effect.sync(() => finalized++),
       })
       const second = State.create({
-        initial: () => ({values: new Array<string>()}),
+        initial: () => ({values: [] as string[]}),
         editor: (editor) => ({add: (item: string) => editor.values.push(item)}),
         notify: () => Effect.sync(() => finalized++),
       })
@@ -131,7 +131,7 @@ describe('State', () => {
       let finalized = 0
       let disposed = 0
       const state = State.create({
-        initial: () => ({values: new Array<string>()}),
+        initial: () => ({values: [] as string[]}),
         editor: (editor) => ({add: (item: string) => editor.values.push(item)}),
         notify: () => Effect.sync(() => finalized++),
       })
@@ -184,7 +184,7 @@ describe('State', () => {
     Effect.gen(function* () {
       let finalized = 0
       const state = State.create({
-        initial: () => ({values: new Array<string>()}),
+        initial: () => ({values: [] as string[]}),
         editor: (editor) => ({add: (item: string) => editor.values.push(item)}),
         notify: () => Effect.sync(() => finalized++),
       })
@@ -205,7 +205,7 @@ describe('State', () => {
       let notifications = 0
       let label = 'first'
       const state = State.create({
-        initial: () => ({items: new Array<{name: string; execute: () => void}>()}),
+        initial: () => ({items: [] as {name: string; execute: () => void}[]}),
         editor: (editor) => ({
           add: (name: string) => editor.items.push({name, execute: () => {}}),
         }),
