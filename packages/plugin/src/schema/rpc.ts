@@ -1,8 +1,6 @@
 import type {z} from 'zod'
-import type {RequestOptions} from '../promise/harness.js'
-import type {ConcivEvent, PayloadBase} from './event.js'
+import type {PayloadBase} from './event.js'
 import type {Ref} from './location.js'
-import type {Registration} from '../promise/registration.js'
 
 export type ErrorMap = Readonly<Record<string, z.ZodType>> & {
   readonly [Name in `rpc.${string}`]?: never
@@ -140,75 +138,3 @@ type EventPayloadFor<D extends Definition, Name extends keyof D['events'] & stri
 export type EventPayload<D extends Definition, Name extends keyof D['events'] & string = keyof D['events'] & string> = {
   readonly [K in Name]: EventPayloadFor<D, K>
 }[Name]
-
-export interface RpcCallContext<M extends Method> {
-  readonly signal: AbortSignal
-  readonly error: ErrorFactory<M>
-}
-
-export type RpcHandlers<D extends PortableDefinition> = {
-  readonly [Name in keyof D['methods']]: (
-    input: Output<D['methods'][Name]['input']>,
-    context: RpcCallContext<D['methods'][Name]>,
-  ) => Promise<HandlerOutput<D['methods'][Name]['output']> | HandlerError<D['methods'][Name]>>
-}
-
-export interface RpcRegistration<D extends PortableDefinition> extends Registration {
-  readonly events: {
-    readonly emit: (...args: EventInput<D>) => Promise<void>
-  }
-}
-
-export interface RpcDomain extends RpcApi<
-  Pick<RpcCallOptions, 'signal'> & {readonly location?: never; readonly headers?: never}
-> {
-  readonly register: <const D extends PortableDefinition>(
-    definition: D,
-    handlers: RpcHandlers<NoInfer<D>>,
-  ) => Promise<RpcRegistration<D>>
-}
-
-type RpcEvent = Extract<ConcivEvent, {type: `rpc.${string}`}>
-
-export type RpcCallOptions = RequestOptions
-
-export type RpcArguments<Input, Options> = unknown extends Input
-  ? [input: Input, options?: Options]
-  : undefined extends Input
-    ? [input?: Input, options?: Options]
-    : [input: Input, options?: Options]
-
-export type RpcClient<D extends PortableDefinition, Options = RpcCallOptions> = {
-  readonly [Name in keyof D['methods']]: (
-    ...args: RpcArguments<Input<D['methods'][Name]['input']>, Options>
-  ) => Promise<Output<D['methods'][Name]['output']>>
-} & {
-  readonly events: {
-    readonly subscribe: <Name extends keyof D['events'] & string>(
-      name: Name,
-      options?: Pick<RequestOptions, 'signal'>,
-    ) => AsyncIterable<RpcEventPayload<D, Name>>
-    readonly on: <Name extends keyof D['events'] & string>(
-      name: Name,
-      handler: (event: RpcEventPayload<D, Name>) => Promise<void> | void,
-      options?: Pick<RequestOptions, 'signal'>,
-    ) => () => void
-  }
-}
-
-type RpcEventPayloadFor<D extends PortableDefinition, Name extends keyof D['events'] & string> = Omit<
-  RpcEvent,
-  'type' | 'data'
-> & {
-  type: `rpc.${D['id']}.${Name}`
-  data: EventData<D['events'][Name]['schema']>
-}
-
-export type RpcEventPayload<
-  D extends PortableDefinition,
-  Name extends keyof D['events'] & string = keyof D['events'] & string,
-> = {[K in Name]: RpcEventPayloadFor<D, K>}[Name]
-
-export interface RpcApi<Options = RpcCallOptions> {
-  <D extends PortableDefinition>(definition: D): RpcClient<D, Options>
-}

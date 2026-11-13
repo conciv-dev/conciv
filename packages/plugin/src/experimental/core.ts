@@ -1,9 +1,9 @@
 import type {z} from 'zod'
 import type {ConcivClient} from '../client/promise/index.js'
-import type {PluginOptions} from '../options.js'
 
-export type {Json} from '../storage.js'
-export type {PluginOptions} from '../options.js'
+export type Json = string | number | boolean | null | readonly Json[] | {readonly [key: string]: Json}
+
+export type PluginOptions = {readonly [key: string]: Json}
 
 export type Cleanup = () => void | Promise<void>
 

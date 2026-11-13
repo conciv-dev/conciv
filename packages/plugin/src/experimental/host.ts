@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {PluginInfo} from '../promise/plugin.js'
+import type {PluginInfo} from '../client/promise/generated/types.js'
 import type {Cleanup} from './core.js'
 import type {Declarations, Stores} from './declarations.js'
 

@@ -12,9 +12,21 @@ import * as Zod from 'zod'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
-import {Agent, Plugin, Rpc, Tool} from '../src/promise/index.js'
+import {
+  Plugin,
+  Rpc,
+  Tool,
+  type AgentEditor,
+  type RpcApi,
+  type RpcCallOptions,
+  type RpcClient,
+  type RpcDomain,
+  type RpcEventPayload,
+  type RpcHandlers,
+  type ToolContext,
+} from '../src/promise/index.js'
 import type {Transform} from '../src/promise/registration.js'
-import type {ServerRef} from '../src/client/promise/index.js'
+import type {ServerRef} from '../src/experimental/index.js'
 import type {Accessor} from 'solid-js'
 import * as Experimental from '../src/experimental/index.js'
 import {
@@ -71,13 +83,13 @@ describe('define', () => {
   })
 
   it('types a tool call context with an always undefined messageId', () => {
-    expectTypeOf<Tool.ToolContext['messageId']>().toEqualTypeOf<string | undefined>()
-    expectTypeOf<Tool.ToolContext['sessionId']>().toEqualTypeOf<SessionId>()
+    expectTypeOf<ToolContext['messageId']>().toEqualTypeOf<string | undefined>()
+    expectTypeOf<ToolContext['sessionId']>().toEqualTypeOf<SessionId>()
     expectTypeOf<Plugin.Context['bundler']>().toEqualTypeOf<BundlerBridge | undefined>()
   })
 
   it('types the members the ported plugins need as always defined', () => {
-    expectTypeOf<Plugin.Context['agent']['transform']>().toEqualTypeOf<Transform<Agent.AgentEditor>>()
+    expectTypeOf<Plugin.Context['agent']['transform']>().toEqualTypeOf<Transform<AgentEditor>>()
     expectTypeOf<Plugin.Context['event']['subscribe']>().toBeFunction()
     expectTypeOf<undefined>().not.toExtend<Plugin.Context['permission']['assert']>()
     expectTypeOf<undefined>().not.toExtend<Plugin.Context['session']['synthetic']>()
@@ -149,7 +161,7 @@ describe('Rpc', () => {
   })
 
   it('types handlers, the error factory, the client and event payloads from the definition', () => {
-    type Handlers = Rpc.RpcHandlers<typeof Acme>
+    type Handlers = RpcHandlers<typeof Acme>
     type Search = typeof Acme.methods.search
     expectTypeOf<Parameters<Handlers['search']>[0]>().toEqualTypeOf<{query: string; limit: number}>()
     expectTypeOf<Rpc.ErrorName<Search>>().toEqualTypeOf<'not_found'>()
@@ -161,16 +173,16 @@ describe('Rpc', () => {
       readonly message: string
       readonly data: {query: string}
     }>()
-    type Client = Rpc.RpcClient<typeof Acme>
+    type Client = RpcClient<typeof Acme>
     expectTypeOf<Parameters<Client['search']>>().toEqualTypeOf<
-      [input: {query: string; limit?: number | undefined}, options?: Rpc.RpcCallOptions]
+      [input: {query: string; limit?: number | undefined}, options?: RpcCallOptions]
     >()
     expectTypeOf<Awaited<ReturnType<Client['search']>>>().toEqualTypeOf<{hits: string[]}>()
-    expectTypeOf<Rpc.RpcEventPayload<typeof Acme>['type']>().toEqualTypeOf<'rpc.acme.indexed'>()
-    expectTypeOf<Rpc.RpcEventPayload<typeof Acme>['data']>().toEqualTypeOf<{count: number}>()
+    expectTypeOf<RpcEventPayload<typeof Acme>['type']>().toEqualTypeOf<'rpc.acme.indexed'>()
+    expectTypeOf<RpcEventPayload<typeof Acme>['data']>().toEqualTypeOf<{count: number}>()
     expectTypeOf<Rpc.EventInput<typeof Acme>>().toEqualTypeOf<[name: 'indexed', data: {count: number}]>()
-    expectTypeOf<Plugin.Context['rpc']>().toEqualTypeOf<Rpc.RpcDomain>()
-    expectTypeOf<ServerRef['client']['rpc']>().toEqualTypeOf<Rpc.RpcApi>()
+    expectTypeOf<Plugin.Context['rpc']>().toEqualTypeOf<RpcDomain>()
+    expectTypeOf<ServerRef['client']['rpc']>().toEqualTypeOf<RpcApi>()
   })
 })
 
