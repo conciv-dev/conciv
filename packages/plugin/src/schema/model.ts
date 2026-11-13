@@ -16,8 +16,17 @@ export interface Capabilities {
   temperature?: boolean
 }
 
+interface VariantSettings {
+  compaction?: {type: 'summary'} | {type: 'native'}
+  encoding?: 'zstd' | 'gzip' | 'none'
+  [key: string]: unknown
+}
+
 export interface Variant {
   id: string
+  headers?: Record<string, string>
+  body?: Record<string, unknown>
+  settings?: VariantSettings
 }
 
 export interface Cost {

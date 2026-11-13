@@ -236,7 +236,8 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 ### Model
 
 - `Model` keeps `Ref`, `Info`, `Capabilities`, `Variant`, `Cost` and `Type`; `ID`, `VariantID`, `Family`, `Settings`, `Overlays`, `Compatibility` and `Event` are not ported.
-- `Model.Info` has no `compatibility`, `package`, `settings`, `headers` or `body`, and `Model.Variant` no `settings`, `headers` or `body`: provider wire settings are not ours.
+- `Model.Info` has no `compatibility`, `package`, `settings`, `headers` or `body`: provider wire settings are not ours.
+- `Model.Variant` is the source's, with `Record<string, any>` typed `Record<string, unknown>`; conciv fills only `settings.effort` today, from the harness's efforts (`packages/core/src/runtime/harness-models.ts:15-18`).
 - `ModelEditor.provider` is absent: providers are not ours.
 
 ### Skill and servers
