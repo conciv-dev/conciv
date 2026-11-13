@@ -125,8 +125,9 @@ function bordered(input: {
   const {record} = input
   const frame = record.parent === null ? undefined : input.byId.get(record.parent)
   if (record.kind !== LINE_KIND || frame === undefined) return false
-  const border = input.first(frame.id)?.styles.border
-  return border !== undefined && border.width > 0 && border.side === lineSide({line: record.box, frame: frame.box})
+  const side = lineSide({line: record.box, frame: frame.box})
+  const sides = input.first(frame.id)?.styles.border.sides ?? []
+  return sides.some((shown) => shown.side === side)
 }
 
 function lineSide(input: {line: Box; frame: Box}): string | null {

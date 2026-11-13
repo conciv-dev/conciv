@@ -979,7 +979,8 @@ function readBorder(style: CSSStyleDeclaration): LiveBorder {
     (best, side) => (best === undefined || side.width > best.width ? side : best),
     undefined,
   )
-  return widest ?? sides[0] ?? {side: 'top', width: 0, style: 'none', color: '#000000'}
+  const shown = visible.map((side) => ({side: side.side, width: side.width}))
+  return {...(widest ?? sides[0] ?? {side: 'top', width: 0, style: 'none', color: '#000000'}), sides: shown}
 }
 
 function readHints(el: Element): string[] {

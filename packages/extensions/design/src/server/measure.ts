@@ -167,7 +167,7 @@ function pageRoot(input: {reply: MeasureReply; raster: Raster}): LiveComponent {
     glyphs: [],
     axis: null,
     columns: null,
-    styles: {...ROOT_STYLES, background: `rgb(${red}, ${green}, ${blue})`},
+    styles: {...ROOT_STYLES, border: {...ROOT_STYLES.border, sides: []}, background: `rgb(${red}, ${green}, ${blue})`},
     role: null,
     hints: [],
     index: 1,

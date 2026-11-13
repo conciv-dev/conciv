@@ -96,7 +96,7 @@ describe('design_check on the cards page', () => {
 })
 
 describe('a Figma line', () => {
-  it('keeps the check from done while the page draws no line, and takes a border on that side as the line', async () => {
+  it('keeps the check from done while the page draws no line, and takes a visible border on that side as the line', async () => {
     const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
     await kit.goto('input-field')
     await call('design_get', {
@@ -107,12 +107,15 @@ describe('a Figma line', () => {
     const bare = roundOf(await call('design_check', {}))
     await kit.goto('input-field-line')
     const lined = roundOf(await call('design_check', {}))
+    await kit.goto('input-field-box')
+    const boxed = roundOf(await call('design_check', {}))
     expect([
       bare.verdict,
       bare.coverage.missing.includes('100:1422'),
       bare.reasons.some((reason) => reason.includes('100:1422')),
       lined.coverage.missing.includes('100:1422'),
-    ]).toEqual(['not yet', true, true, false])
+      boxed.coverage.missing.includes('100:1422'),
+    ]).toEqual(['not yet', true, true, false, false])
   })
 })
 

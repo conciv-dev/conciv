@@ -41,6 +41,11 @@ const INPUT_FIELD = {
   background: '#242424',
 } as const
 const INPUT_LINE = {display: 'flex', flexDirection: 'column', gap: 6, height: 30, boxSizing: 'border-box'} as const
+const INPUT_LINES = {
+  'input-field': INPUT_LINE,
+  'input-field-line': {...INPUT_LINE, borderBottom: '1px solid #333333'},
+  'input-field-box': {...INPUT_LINE, border: '1px solid #333333'},
+}
 const MEDIA_HEIGHT_CSS = '#root section { @media (width >= 40rem) { height: 120px; } }'
 const FIELD_BORDER = {borderColor: '#d64545', borderRadius: 0}
 const SLOW_FONT_CSS = "@import url('/slow-font.css');"
@@ -70,7 +75,7 @@ export function App() {
       </main>
     )
   }
-  if (requested === 'input-field' || requested === 'input-field-line') {
+  if (requested === 'input-field' || requested === 'input-field-line' || requested === 'input-field-box') {
     return (
       <main data-conciv-key="iNfMnA">
         <label style={INPUT_FIELD} data-conciv-key="iNfLbA">
@@ -78,7 +83,7 @@ export function App() {
             Full Name
           </span>
           <span
-            style={requested === 'input-field' ? INPUT_LINE : {...INPUT_LINE, borderBottom: '1px solid #333333'}}
+            style={INPUT_LINES[requested]}
             data-conciv-key="iNfSbA"
           >
             <span style={{fontSize: 16, lineHeight: '24px', color: '#656567'}} data-conciv-key="iNfPhA">
