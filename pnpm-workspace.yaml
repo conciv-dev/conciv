@@ -15,6 +15,13 @@ syncInjectedDepsAfterScripts:
 # version here means every manifest's "catalog:" resolves to the same exact release.
 catalog:
   '@effect/sql-sqlite-node': 4.1.0
+  '@npmcli/arborist': 9.4.0
+  '@npmcli/config': 10.8.1
+  '@types/npm-package-arg': 6.1.4
+  '@types/npmcli__arborist': 6.3.3
+  '@types/pacote': 11.1.8
+  npm-package-arg: 13.0.2
+  pacote: 21.5.1
   '@modelcontextprotocol/sdk': ^1.32.2
   '@orpc/client': 1.16.1
   '@orpc/contract': 1.16.1
