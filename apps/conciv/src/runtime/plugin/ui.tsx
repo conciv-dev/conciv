@@ -1,7 +1,7 @@
 import {children, createUniqueId, For, Show, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {Ui, UiIconProps, UiMenuItem, UiMenuSubProps} from '@conciv/plugin/experimental'
-import {Streamdown} from '@conciv/solid-streamdown'
+import {Markdown} from '@conciv/ui-kit-chat'
 import {
   Button,
   createListCollection,
@@ -308,9 +308,15 @@ export const ui: Ui = {
       <Keys keys={props.keys} class={props.class} />
     </Show>
   ),
-  Markdown: (props) => <Streamdown class={`prose-chat ${props.class ?? ''}`}>{props.text}</Streamdown>,
+  Markdown: (props) => (
+    <div class={props.class}>
+      <Markdown content={props.text} />
+    </div>
+  ),
   Code: (props) => (
-    <Streamdown class={`prose-chat ${props.class ?? ''}`}>{fence(props.content, props.language)}</Streamdown>
+    <div class={props.class}>
+      <Markdown content={fence(props.content, props.language)} />
+    </div>
   ),
   SettingsLayout: (props) => (
     <>
