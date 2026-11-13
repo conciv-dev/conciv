@@ -38,14 +38,14 @@ export type Options = BaseOptions &
       }
   )
 
-export type ValueSchema<A = unknown> = StandardSchemaV1<unknown, A>
+interface JsonSchema {
+  [x: string]: unknown
+}
 
-type InputValue<Schema> = Schema extends StandardSchemaV1<unknown, infer A> ? A : unknown
-type OutputValue<Schema> = Schema extends undefined
-  ? never
-  : Schema extends StandardSchemaV1<infer A, unknown>
-    ? A
-    : unknown
+export type ValueSchema<A = unknown> = StandardSchemaV1<any, A> | JsonSchema
+
+type InputValue<S> = 0 extends 1 & S ? any : S extends StandardSchemaV1<any, infer A> ? A : unknown
+type OutputValue<S> = S extends undefined ? never : S extends StandardSchemaV1<infer A, any> ? A : any
 
 export type Error = {
   readonly _tag: 'Tool.Error'

@@ -2,8 +2,8 @@
 '@conciv/plugin': patch
 ---
 
-The plugin SDK follows opencode's file layout, takes any Standard Schema (not only zod) for tool, RPC and store
-schemas, and exports every engine-side type by name from its root entry, including `SessionIdle`, `SessionInfo`,
+The plugin SDK follows opencode's file layout, takes any Standard Schema (not only zod) or a raw JSON Schema
+object for tool and RPC schemas and any Standard Schema for store schemas, as opencode does, and exports every engine-side type by name from its root entry, including `SessionIdle`, `SessionInfo`,
 `ConcivClient`, `ConcivEvent` and `ServerRef`. Breaking: namespace members that were not opencode's moved to root
 names on `@conciv/plugin`: `Rpc.Rpc*` (`RpcClient`, `RpcApi`, `RpcHandlers`, `RpcDomain`, `RpcCallOptions`,
 `RpcEventPayload`, `RpcArguments`, `RpcCallContext`, `RpcRegistration`), `Tool.ToolContext`, `Tool.ToolEditor` and

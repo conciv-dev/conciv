@@ -61,6 +61,8 @@ const CountSchema: StandardSchemaV1<Count, Count> = {
   },
 }
 
+const CountJsonSchema = {type: 'object', properties: {count: {type: 'number'}}, required: ['count']}
+
 describe('define', () => {
   it('returns the same plugin object', () => {
     const plugin = {id: 'acme', setup: () => {}}
@@ -100,21 +102,12 @@ describe('define', () => {
     expectTypeOf(plugin).toEqualTypeOf<Plugin.Plugin>()
   })
 
-  it('types a tool call context with an always undefined messageId', () => {
-    expectTypeOf<ToolContext['messageId']>().toEqualTypeOf<string | undefined>()
-    expectTypeOf<ToolContext['sessionId']>().toEqualTypeOf<SessionId>()
-    expectTypeOf<Plugin.Context['bundler']>().toEqualTypeOf<BundlerBridge | undefined>()
-  })
-
-  it('types the members the ported plugins need as always defined', () => {
+  it('exports what the engine host builds the context from, defines what the ported plugins need, and leaves what conciv does not implement yet possibly undefined', () => {
     expectTypeOf<Plugin.Context['agent']['transform']>().toEqualTypeOf<Transform<AgentEditor>>()
     expectTypeOf<Plugin.Context['event']['subscribe']>().toBeFunction()
     expectTypeOf<undefined>().not.toExtend<Plugin.Context['permission']['assert']>()
     expectTypeOf<undefined>().not.toExtend<Plugin.Context['session']['synthetic']>()
     expectTypeOf<Plugin.Context['session']['update']>().parameter(0).toHaveProperty('permissions')
-  })
-
-  it('exports what the engine host builds the context from', () => {
     expectTypeOf<Registration['dispose']>().toEqualTypeOf<() => Promise<void>>()
     expectTypeOf<ReturnType<Hooks<{readonly ping: {readonly count: number}}>>>().toEqualTypeOf<Promise<Registration>>()
     expectTypeOf<Agent.Info['permissions']>().toEqualTypeOf<Ruleset>()
@@ -125,9 +118,6 @@ describe('define', () => {
     expectTypeOf<Awaited<ReturnType<Plugin.Context['permission']['get']>>['resources']>().toEqualTypeOf<
       readonly string[]
     >()
-  })
-
-  it('types the members conciv does not implement yet as possibly undefined', () => {
     expectTypeOf<Plugin.Context['app']>().toExtend<undefined | object>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['app']>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['experimental']['generate']>()
@@ -139,27 +129,31 @@ describe('define', () => {
     expectTypeOf<undefined>().toExtend<Plugin.Context['location']['project']['canonical']>()
   })
 
-  it("types execute's input as the input schema's output and its output as the output schema's input, as opencode does", () => {
+  it("types execute's input as the input schema's output and its output as the output schema's input from zod, any Standard Schema or a raw JSON Schema, as opencode does", () => {
     const Limit = z.object({limit: z.string().transform(Number)})
     type LimitTool = Tool.Info<typeof Limit, typeof Limit>
     expectTypeOf<Parameters<LimitTool['execute']>[0]>().toEqualTypeOf<{limit: number}>()
     expectTypeOf<NonNullable<Awaited<ReturnType<LimitTool['execute']>>['output']>>().toEqualTypeOf<{limit: string}>()
-  })
-
-  it('types a tool from any Standard Schema, not only zod', () => {
     type CountTool = Tool.Info<typeof CountSchema, typeof CountSchema>
     expectTypeOf<Parameters<CountTool['execute']>[0]>().toEqualTypeOf<Count>()
     expectTypeOf<NonNullable<Awaited<ReturnType<CountTool['execute']>>['output']>>().toEqualTypeOf<Count>()
+    type JsonTool = Tool.Info<typeof CountJsonSchema, typeof CountJsonSchema>
+    expectTypeOf<Parameters<JsonTool['execute']>[0]>().toEqualTypeOf<unknown>()
+    expectTypeOf<Awaited<ReturnType<JsonTool['execute']>>['output']>().toEqualTypeOf<any>()
   })
 
   it("gives a tool's execute the call's abort signal", () => {
     const tool: Tool.Info = {
       name: 'wait',
-      input: CountSchema,
+      input: CountJsonSchema,
+      output: CountJsonSchema,
       description: 'Wait for a count',
       execute: async (_input, context) => ({output: context.signal.aborted}),
     }
     expectTypeOf<Parameters<Tool.Info['execute']>[1]['signal']>().toEqualTypeOf<AbortSignal>()
+    expectTypeOf<ToolContext['messageId']>().toEqualTypeOf<string | undefined>()
+    expectTypeOf<ToolContext['sessionId']>().toEqualTypeOf<SessionId>()
+    expectTypeOf<Plugin.Context['bundler']>().toEqualTypeOf<BundlerBridge | undefined>()
     expectTypeOf<ToolContext>().toEqualTypeOf<Tool.Context>()
     expect(tool.name).toBe('wait')
   })
@@ -179,11 +173,7 @@ describe('Rpc', () => {
   })
 
   it('define returns its argument', () => {
-    const definition = {
-      id: 'acme',
-      methods: {ping: {input: z.object({}), output: z.object({ok: z.boolean()})}},
-      events: {},
-    }
+    const definition = {id: 'acme', methods: {ping: {input: z.object({}), output: z.object({})}}, events: {}}
     expect(Rpc.define(definition)).toBe(definition)
   })
 
@@ -229,7 +219,7 @@ describe('Rpc', () => {
     expectTypeOf<ServerRef['client']['rpc']>().toEqualTypeOf<RpcApi>()
   })
 
-  it('types a contract from any Standard Schema, not only zod', () => {
+  it('types a contract from any Standard Schema or a raw JSON Schema, as opencode does', () => {
     const Counter = Rpc.define({
       id: 'counter',
       methods: {bump: {input: CountSchema, output: CountSchema, errors: {full: CountSchema}}},
@@ -239,6 +229,17 @@ describe('Rpc', () => {
     expectTypeOf<Awaited<ReturnType<RpcClient<typeof Counter>['bump']>>>().toEqualTypeOf<Count>()
     expectTypeOf<Rpc.MethodError<typeof Counter.methods.bump>['data']>().toEqualTypeOf<Count>()
     expectTypeOf<RpcEventPayload<typeof Counter>['data']>().toEqualTypeOf<Count>()
+    const Raw = Rpc.define({
+      id: 'raw',
+      methods: {bump: {input: CountJsonSchema, output: CountJsonSchema, errors: {full: CountJsonSchema}}},
+      events: {bumped: {schema: {type: 'object', properties: {count: {type: 'number'}}}}},
+    })
+    expectTypeOf<Parameters<RpcHandlers<typeof Raw>['bump']>[0]>().toEqualTypeOf<unknown>()
+    expectTypeOf<Awaited<ReturnType<RpcClient<typeof Raw>['bump']>>>().toEqualTypeOf<unknown>()
+    expectTypeOf<RpcEventPayload<typeof Raw>['data']>().toEqualTypeOf<Readonly<Record<string, unknown>>>()
+    expectTypeOf<Rpc.EventInput<typeof Raw>>().toEqualTypeOf<
+      [name: 'bumped', data: Readonly<Record<string, unknown>>]
+    >()
   })
 })
 

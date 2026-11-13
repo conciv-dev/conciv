@@ -22,7 +22,8 @@ the `Agent`, `Tool`, `Skill`, `Model`, `Location` and `Rpc` namespaces and, by n
 engine-side files: the domain, editor, hook, caller and handler types (`ToolContext`, `SessionIdle`, `RpcClient` ...),
 the client's request and response types (`SessionInfo`, `PluginInfo` ...), `ConcivClient`, `ConcivEvent`, `ServerRef`,
 and what an engine host builds a plugin's context from (`Registration`, `Transform`, `Hooks`, `Rule`, `Ruleset`). Tool, RPC and store schemas
-are any Standard Schema (zod, Valibot, ArkType ...).
+are any Standard Schema (zod, Valibot, ArkType ...) or a raw JSON Schema object, as opencode's (store schemas: Standard
+Schema only).
 
 ```ts
 import {z} from 'zod'
@@ -51,7 +52,7 @@ export default Plugin.define({
 
 The `Rpc` namespace alone, for the contract module both parts import. `Rpc.define({id, methods, events})` returns
 its argument typed and throws when an error name starts with `rpc.` (reserved). Method and event schemas are any
-Standard Schema.
+Standard Schema or a raw JSON Schema object (an event's with `type: 'object'`).
 
 ```ts
 import {z} from 'zod'
@@ -187,17 +188,17 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 
 - `ID` is spelled `Id` (`sessionId`, `messageId`, `requestId`, `parentId`, `modelId`, `providerId`, `workspaceId`, `shellId`, `partId`).
 - Branded ids (`Event.ID`, `Skill.ID`, `Skill.Name`, `Tool.CallID`, `Agent.ID`, `Agent.Name`, `Model.ID`, `Provider.ID`, `Permission.ID`) are plain strings; session ids are conciv's `SessionId`.
-- No `any`: `PluginOptions` values are `Json`; `Tool.Metadata` is `Readonly<Record<string, unknown>>`.
+- No `any`: `PluginOptions` values are `Json`; `Tool.Metadata` is `Readonly<Record<string, unknown>>`. `Tool.ValueSchema`, `InputValue` and `OutputValue` keep source's `any` (`schema/src/tool.ts:61-76`).
 - `Types.Mutable` / `Types.DeepMutable` become a mapped type that drops `readonly` one level deep (the edited values are flat); `ModelEditor` hands out `Model.Info` as is.
 - `Tool.Info.execute` uses method syntax, so a `Tool.Info<Input, Output>` is assignable to `Tool.Info` without `any`.
-- `Tool.ValueSchema` is `StandardSchemaV1<unknown, A>` (`@standard-schema/spec`, a dependency); source's `Schema.Codec` and plain JSON Schema members are absent (no Effect). `Tool.Info.input` and `output`, RPC method, error and event schemas, and store schemas take any Standard Schema; zod 4 schemas are Standard Schemas.
-- A Standard Schema whose `validate` returns a promise is refused by the hosts; opencode awaits it.
+- `Tool.ValueSchema` is `StandardSchemaV1<any, A> | JsonSchema` (`@standard-schema/spec`, a dependency): source's `schema/src/tool.ts:61` without its `Schema.Codec` member, and `InputValue` / `OutputValue` (`:63-76`) without their `Schema.Codec` branches (no Effect). So `Tool.Info.input` and `output` and RPC method, error and event schemas take any Standard Schema or a raw JSON Schema object, where opencode takes each; a JSON Schema infers what source gives (`unknown` for execute's input, `any` for its output; `unknown` for an RPC method's input and output; `Readonly<Record<string, unknown>>` for event data). zod 4 schemas are Standard Schemas. Store schemas are Standard Schemas only: opencode's store bound is an Effect codec (`plugin/src/gui/core.ts:458`) and takes no JSON Schema.
+- `JsonSchema` is a private interface `{[x: string]: unknown}` in `schema/tool.ts` and `schema/rpc.ts`, the two files where source imports Effect's `JsonSchema.JsonSchema`; it is structurally equal to Effect 4.1.0's (`effect/src/JsonSchema.ts:33-35`).
 - `Tool.Error` is a plain object type `{_tag: 'Tool.Error', message, error?, metadata?}` (no classes): `toolError({message, error?, metadata?})` takes the same input as opencode's `new Tool.Error({...})` (`schema/src/tool.ts:78-82`), so a tool error carries its cause in `error`, and `isToolError()` checks it.
 - `Tool.Freeform`, `Tool.FreeformFormat` and `Tool.Info.freeform` are absent: MCP takes JSON input only.
 - `Tool.Context.messageId`, `ToolContext.messageId` and the tool hooks' `messageId` are `string | undefined` (calls arrive from the CLI over MCP).
 - `Permission` `source.messageId` accepts `undefined` for the same reason.
 - `PluginFeatures`: `gui` is `experimental`; no `tui`.
-- RPC schemas are Standard Schemas: `PortableValueSchema` is `StandardSchemaV1<unknown, unknown>` and the event schemas `StandardSchemaV1<unknown, EventDataObject>`; the plain JSON Schema branches (and their `EventInputData` / `EventData` cases) are dropped; `Input` / `Output` are `StandardSchemaV1.InferInput` / `InferOutput`, and `HandlerOutput` is the input side (Standard Schema parses forward, as in source).
+- RPC schemas: `PortableValueSchema` is `StandardSchemaV1<unknown, unknown> | JsonSchema` (`schema/src/rpc.ts:19`), the event schemas are `StandardSchemaV1<unknown, EventDataObject> | (JsonSchema & {readonly type: 'object'})` (`:30-36`, without the `Schema.Codec` member), and `EventInputData` / `EventData` (`:144-149`) keep their JSON Schema case. `Input` / `Output` (`:62-72`) drop their `Schema.Top` branch, and `HandlerOutput` (`:75`) is the input side (Standard Schema parses forward, as in source); a JSON Schema gives `unknown`, as in source.
 - `Rpc.EventPayload` builds on `PayloadBase` (`schema/src/event.ts`, private there, exported from `schema/event.ts` for it) in place of `Event.Payload`, which is not ported; no `durable` (RPC events are ephemeral). `RpcEventPayload` derives from the `rpc.*` member of `ConcivEvent`, as source derives it from `OpenCodeEvent`.
 - `RpcCallOptions` is `RequestOptions` (`{signal}`), without `location` (one project per engine).
 - `ServerRef.client` is `ConcivClient`, conciv's full engine client as opencode's is the full `OpenCodeClient`: the typed client of the core contract (`RpcClient`, `@conciv/contract`) plus `rpc: RpcApi`. `@conciv/contract` is a dependency for that type.

@@ -13,7 +13,11 @@ export interface Method {
   readonly errors?: ErrorMap
 }
 
-export type PortableValueSchema = StandardSchemaV1<unknown, unknown>
+interface JsonSchema {
+  [x: string]: unknown
+}
+
+export type PortableValueSchema = StandardSchemaV1<unknown, unknown> | JsonSchema
 
 export interface PortableMethod extends Method {
   readonly input: PortableValueSchema
@@ -24,8 +28,8 @@ export interface PortableMethod extends Method {
 }
 
 type EventDataObject = Readonly<Record<string, unknown>>
-type EventValueSchema = StandardSchemaV1<unknown, EventDataObject>
-type PortableEventValueSchema = StandardSchemaV1<unknown, EventDataObject>
+type EventValueSchema = StandardSchemaV1<unknown, EventDataObject> | (JsonSchema & {readonly type: 'object'})
+type PortableEventValueSchema = StandardSchemaV1<unknown, EventDataObject> | (JsonSchema & {readonly type: 'object'})
 
 export interface EventDefinition {
   readonly schema: EventValueSchema
@@ -120,8 +124,8 @@ export type ErrorFactory<M extends Method> = <Name extends ErrorName<M>>(
   ...args: ErrorArguments<M, Name>
 ) => HandlerErrorFor<M, Name>
 
-export type EventInputData<S extends EventValueSchema> = HandlerOutput<S>
-export type EventData<S extends EventValueSchema> = Output<S>
+export type EventInputData<S extends EventValueSchema> = S extends JsonSchema ? EventDataObject : HandlerOutput<S>
+export type EventData<S extends EventValueSchema> = S extends JsonSchema ? EventDataObject : Output<S>
 
 export type EventInput<D extends Definition> = {
   [Name in keyof D['events'] & string]: [name: Name, data: EventInputData<D['events'][Name]['schema']>]
