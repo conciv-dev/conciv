@@ -150,6 +150,18 @@ describe('define', () => {
     expectTypeOf<Parameters<CountTool['execute']>[0]>().toEqualTypeOf<Count>()
     expectTypeOf<NonNullable<Awaited<ReturnType<CountTool['execute']>>['output']>>().toEqualTypeOf<Count>()
   })
+
+  it("gives a tool's execute the call's abort signal", () => {
+    const tool: Tool.Info = {
+      name: 'wait',
+      input: CountSchema,
+      description: 'Wait for a count',
+      execute: async (_input, context) => ({output: context.signal.aborted}),
+    }
+    expectTypeOf<Parameters<Tool.Info['execute']>[1]['signal']>().toEqualTypeOf<AbortSignal>()
+    expectTypeOf<ToolContext>().toEqualTypeOf<Tool.Context>()
+    expect(tool.name).toBe('wait')
+  })
 })
 
 describe('Rpc', () => {
@@ -868,6 +880,19 @@ describe('host', () => {
       expect(seen.window).toBe(false)
       expect(seen.name).toBe('[inert module node:fs]')
     })
+  })
+})
+
+describe('published declarations', () => {
+  it('never import zod', async () => {
+    const dist = path.join(import.meta.dirname, '../dist')
+    const names = (await readdir(dist, {recursive: true})).filter((name) => name.endsWith('.d.ts'))
+    const declarations = await Promise.all(
+      names.map(async (name) => ({name, text: await readFile(path.join(dist, name), 'utf8')})),
+    )
+
+    expect(names.length).toBeGreaterThan(0)
+    expect(declarations.filter(({text}) => /from ['"]zod['"]/.test(text)).map(({name}) => name)).toEqual([])
   })
 })
 

@@ -12,6 +12,7 @@ export interface Context {
   /** @remarks Not implemented yet. Always undefined in this version. */
   readonly messageId: string | undefined
   readonly id: CallId
+  readonly signal: AbortSignal
   readonly progress: (update: Metadata) => Promise<void>
 }
 
@@ -46,6 +47,13 @@ type OutputValue<Schema> = Schema extends undefined
     ? A
     : unknown
 
+export type Error = {
+  readonly _tag: 'Tool.Error'
+  readonly message: string
+  readonly error?: unknown
+  readonly metadata?: Record<string, unknown> | undefined
+}
+
 const ErrorSchema = z
   .object({
     _tag: z.literal('Tool.Error'),
@@ -53,9 +61,7 @@ const ErrorSchema = z
     error: z.unknown().optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
   })
-  .readonly()
-
-export type Error = z.infer<typeof ErrorSchema>
+  .readonly() satisfies z.ZodType<Error>
 
 export interface TextContent {
   readonly type: 'text'
