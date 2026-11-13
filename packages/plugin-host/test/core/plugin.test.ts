@@ -2,12 +2,14 @@ import {expect} from 'vitest'
 import {mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {Deferred, Effect, Logger, Stream} from 'effect'
+import {Deferred, Effect, Fiber, Logger, Stream} from 'effect'
 import {Agent} from '../../src/core/agent.js'
 import {Bus} from '../../src/core/bus.js'
 import {Watcher} from '../../src/core/filesystem/watcher.js'
 import {Plugin} from '../../src/core/plugin.js'
+import {PluginHost} from '../../src/core/plugin/host.js'
 import {PluginModule} from '../../src/core/plugin/module.js'
+import {Rpc} from '../../src/core/rpc.js'
 import {Session} from '../../src/core/session.js'
 import {Tool} from '../../src/core/tool.js'
 import {fromPromise} from '../../src/plugin/promise/adapter.js'
@@ -219,6 +221,58 @@ it.effect('reports a failed plugin without blocking a healthy plugin', () =>
       error: expect.stringContaining('Setup failed'),
     })
     expect(yield* get(tools, 'greet')).toBeDefined()
+  }),
+)
+
+it.effect('disables a plugin whose transform fails after setup without publishing its partial edits', () =>
+  Effect.gen(function* () {
+    const plugins = yield* Plugin.Service
+    const tools = yield* Tool.Service
+    let cleaned = false
+    yield* plugins.activate([
+      {
+        id: 'before',
+        revision: '1',
+        effect: (ctx) =>
+          ctx.tool
+            .transform((editor) =>
+              editor.add({name: 'shared', description: 'original', input: {}, execute: () => Effect.succeed({})}),
+            )
+            .pipe(Effect.asVoid),
+      },
+      {
+        id: 'broken',
+        revision: '1',
+        effect: (ctx) =>
+          Effect.gen(function* () {
+            yield* Effect.addFinalizer(() => Effect.sync(() => void (cleaned = true)))
+            yield* ctx.tool.transform((editor) => {
+              editor.add({name: 'shared', description: 'partial', input: {}, execute: () => Effect.succeed({})})
+              throw new Error('replay failed')
+            })
+          }),
+      },
+      {
+        id: 'after',
+        revision: '1',
+        effect: (ctx) =>
+          ctx.tool
+            .transform((editor) =>
+              editor.add({name: 'healthy', description: '', input: {}, execute: () => Effect.succeed({})}),
+            )
+            .pipe(Effect.asVoid),
+      },
+    ])
+
+    yield* plugins.awaitActivation
+    expect(cleaned).toBe(true)
+    expect((yield* plugins.list()).find((plugin) => plugin.id === 'broken')?.state).toMatchObject({
+      status: 'failed',
+      error: expect.stringContaining('tool.transform failed'),
+      ref: expect.stringMatching(/^err_/),
+    })
+    expect(yield* get(tools, 'shared')).toMatchObject({description: 'original'})
+    expect(yield* get(tools, 'healthy')).toBeDefined()
   }),
 )
 
@@ -559,6 +613,24 @@ it.effect('reloading a plugin replaces its tool implementation', () =>
     yield* load('2', 'after')
     yield* execute
     expect(output).toEqual(['before', 'after'])
+  }),
+)
+
+it.effect('host event subscriptions deliver requested rpc types and ignore unknown types', () =>
+  Effect.gen(function* () {
+    const bus = yield* Bus.Service
+    const host = yield* PluginHost.make(yield* Plugin.Service, 'test')
+    const fiber = yield* host.event
+      // @ts-expect-error untyped JavaScript plugins can still pass unknown type names
+      .subscribe({types: ['rpc.test.ping', 'test.unknown']})
+      .pipe(Stream.take(1), Stream.runCollect, Effect.forkScoped({startImmediately: true}))
+
+    yield* bus.publish(Plugin.Event.Updated, {})
+    yield* bus.publish(Rpc.eventDefinition('rpc.test.ping'), {value: 1})
+
+    expect(Array.from(yield* Fiber.join(fiber)).map((event) => [event.type, event.data])).toEqual([
+      ['rpc.test.ping', {value: 1}],
+    ])
   }),
 )
 

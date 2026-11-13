@@ -9,7 +9,7 @@ import {
   CodeModeCatalog,
   CodeModeToolRuntime,
   Permission,
-  Session,
+  SessionSchema,
   Tool,
   ToolRuntime,
 } from '@conciv/plugin-host'
@@ -98,7 +98,7 @@ function waitForCancel(signal: AbortSignal): Effect.Effect<void> {
 
 function toolContext(request: ToolRequest): Tool.Context {
   return {
-    sessionId: Session.Id.make(request.sessionId),
+    sessionId: SessionSchema.Id.make(request.sessionId),
     agent: Agent.defaultId,
     messageId: undefined,
     id: Tool.CallId.make(request.toolCallId ?? randomUUID()),

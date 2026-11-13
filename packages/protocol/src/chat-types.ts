@@ -110,6 +110,9 @@ export const PermissionRuleSchema = z.object({
 })
 export type PermissionRule = z.infer<typeof PermissionRuleSchema>
 
+const SessionMetadataSchema = z.record(z.string(), z.json())
+export type SessionMetadata = z.infer<typeof SessionMetadataSchema>
+
 export const SessionRecordSchema = z.object({
   id: SessionId,
   harnessSessionId: HarnessSessionId.nullable(),
@@ -125,6 +128,7 @@ export const SessionRecordSchema = z.object({
   attachedAt: z.number().nullable().default(null),
   deletedAt: z.number().nullable().default(null),
   permissions: z.array(PermissionRuleSchema).nullable().default(null),
+  metadata: SessionMetadataSchema.nullable().default(null),
   createdAt: z.number(),
   updatedAt: z.number(),
 })

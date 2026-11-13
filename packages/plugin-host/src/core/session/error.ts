@@ -1,6 +1,7 @@
 export * as SessionErrors from './error.js'
 
 import {Schema} from 'effect'
+import {Agent} from '../../schema/agent.js'
 import {Session} from '../../schema/session.js'
 import {SessionMessage} from '../../schema/session-message.js'
 
@@ -42,4 +43,15 @@ export const makeCompactionConflictError = (
 ): CompactionConflictError =>
   Object.assign(new globalThis.Error(), CompactionConflictError.make(fields), {
     name: 'Session.CompactionConflictError',
+  })
+
+export const AgentNotFoundError = Schema.TaggedStruct('Session.AgentNotFoundError', {
+  sessionId: Session.Id,
+  agent: Agent.Id,
+})
+export type AgentNotFoundError = typeof AgentNotFoundError.Type & globalThis.Error
+
+export const makeAgentNotFoundError = (fields: Omit<typeof AgentNotFoundError.Type, '_tag'>): AgentNotFoundError =>
+  Object.assign(new globalThis.Error(`Agent not found: "${fields.agent}"`), AgentNotFoundError.make(fields), {
+    name: 'Session.AgentNotFoundError',
   })

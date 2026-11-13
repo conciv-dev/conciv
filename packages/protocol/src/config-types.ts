@@ -47,12 +47,33 @@ const ExtensionPackageSchema = z.object({
 
 export type ExtensionPackage = z.infer<typeof ExtensionPackageSchema>
 
-const PluginEntrySchema = z.union([z.string(), z.tuple([z.string(), z.record(z.string(), z.unknown())])])
+const PolicyStatementSchema = z.object({
+  action: z.enum([
+    'provider.use',
+    'tool.use',
+    'integration.connect',
+    'integration.use',
+    'mcp.use',
+    'skill.use',
+    'plugin.use',
+    'websearch.use',
+  ]),
+  resource: z.string(),
+  effect: z.enum(['allow', 'deny']),
+})
+
+const PluginEntrySchema = z.union([z.string(), z.tuple([z.string(), z.record(z.string(), z.json())])], {
+  error: (issue) =>
+    Array.isArray(issue.input) && typeof issue.input[0] === 'string'
+      ? `plugin "${issue.input[0]}": the entry must be [name, options] and every option value must be JSON (a string, number, boolean, null, array or object)`
+      : undefined,
+})
 
 export const ConcivConfigSchema = z.object({
   enabled: z.boolean().optional(),
   extensions: z.array(ExtensionPackageSchema).readonly().optional(),
   plugins: z.array(PluginEntrySchema).readonly().optional(),
+  policies: z.array(PolicyStatementSchema).readonly().optional(),
   widgetUrl: z.string().optional(),
   widget: z.union([WidgetConfigSchema, z.literal(false)]).optional(),
   stateRoot: z.string().optional(),

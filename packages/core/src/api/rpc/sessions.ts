@@ -1,4 +1,3 @@
-import {randomUUID} from 'node:crypto'
 import {platform} from 'node:os'
 import {and, eq, isNull} from 'drizzle-orm'
 import {uniqBy} from 'es-toolkit'
@@ -21,9 +20,8 @@ import type {
   TranscriptTailOptions,
 } from '@conciv/protocol/harness-types'
 import {resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
-import {clearPageChanges, deleteSessionCaptures, drafts, markers, readModel, sessions} from '@conciv/db'
+import {readModel, sessions} from '@conciv/db'
 import {
-  createRow,
   ensureRow,
   listSessionMetas,
   openNativeRow,
@@ -32,12 +30,11 @@ import {
   restoreRow,
   rowById,
   switchRowHarness,
-  tombstoneRow,
   type NativePage,
 } from '../../sessions/session-rows.js'
 import {logError} from '../../lib/debug.js'
+import {createChatSession, deleteSession, renameSession} from '../../sessions/session-actions.js'
 import {os, type ChatContext, type RpcDeps} from './mount.js'
-import {Bus, Session, SessionEvent} from '@conciv/plugin-host'
 
 async function loadNativePage(
   chat: ChatContext,
@@ -141,14 +138,6 @@ function cmdQuote(value: string): string {
   return `"${value.replace(/"/g, '""')}"`
 }
 
-function cleanTitle(title: string): string {
-  return title
-    .replace(/\p{Cc}/gu, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 120)
-}
-
 export function buildHarnessMeta(harness: HarnessAdapter): HarnessMeta {
   return {
     id: harness.id,
@@ -250,22 +239,7 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       if (input.cwd !== undefined) search.cover(input.cwd)
       return page
     }),
-    create: os.sessions.create.handler(async () => {
-      const sessionId = SessionId.parse(`conciv_${randomUUID()}`)
-      await createRow(db, {
-        id: sessionId,
-        harnessSessionId: null,
-        harnessKind: scope.harnessKind,
-        origin: 'chat',
-        title: null,
-        model: null,
-        usage: null,
-        cwd: scope.cwd,
-        deletedAt: null,
-      })
-      await db.insert(markers).values({id: randomUUID(), sessionId, afterMessageId: null, kind: 'new'})
-      return {sessionId}
-    }),
+    create: os.sessions.create.handler(() => createChatSession(db, scope)),
     resolve: os.sessions.resolve.handler(({input}) => resolveRow(scope, input)),
     open: os.sessions.open.handler(({input}) => openNativeRow(scope, input)),
     restore: os.sessions.restore.handler(async ({input}) => {
@@ -273,22 +247,12 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       return {sessionId: input.sessionId}
     }),
     rename: os.sessions.rename.handler(async ({input, errors}) => {
-      const row = await rowById(db, input.sessionId)
-      if (!row) throw errors.NOT_FOUND()
-      const title = cleanTitle(input.title)
-      await db.update(sessions).set({title, updatedAt: Date.now()}).where(eq(sessions.id, input.sessionId))
-      if (row.harnessSessionId !== null) await search.retitle(row.harnessKind, row.harnessSessionId, title)
-      return {title}
+      const outcome = await renameSession({db, search}, input.sessionId, input.title)
+      if (outcome === 'missing') throw errors.NOT_FOUND()
+      return outcome
     }),
     delete: os.sessions.delete.handler(async ({input}) => {
-      await tombstoneRow(db, input.sessionId)
-      await db.delete(drafts).where(eq(drafts.sessionId, input.sessionId))
-      await chat.plane.clear(input.sessionId)
-      await deleteSessionCaptures(db, input.sessionId)
-      await clearPageChanges(db, input.sessionId)
-      await deps.pluginHost.runPromise(
-        Bus.Service.use((bus) => bus.publish(SessionEvent.Deleted, {sessionID: Session.Id.make(input.sessionId)})),
-      )
+      await deleteSession({db, plane: chat.plane, pluginHost: deps.pluginHost}, input.sessionId)
       return {ok: true as const}
     }),
     model: os.sessions.model.handler(async ({input, errors}) => {

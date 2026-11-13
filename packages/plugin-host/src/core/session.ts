@@ -14,6 +14,7 @@ import type {
   SessionSyntheticInput,
 } from '@conciv/plugin'
 import type {
+  AgentNotFoundError,
   CompactionConflictError,
   InvalidListCursorError,
   NotFoundError,
@@ -42,7 +43,10 @@ export interface Interface {
   readonly create: (input: CreateInput) => Effect.Effect<SessionInfo, NotFoundError>
   readonly get: (sessionId: SessionId) => Effect.Effect<SessionInfo, NotFoundError>
   readonly remove: (sessionId: SessionId) => Effect.Effect<void, NotFoundError>
-  readonly switchAgent: (input: {sessionId: SessionId; agent: string}) => Effect.Effect<void, NotFoundError>
+  readonly switchAgent: (input: {
+    sessionId: SessionId
+    agent: string
+  }) => Effect.Effect<void, NotFoundError | AgentNotFoundError>
   readonly switchModel: (input: {sessionId: SessionId; model: Model.Ref}) => Effect.Effect<void, NotFoundError>
   readonly rename: (input: {sessionId: SessionId; title: string}) => Effect.Effect<void, NotFoundError>
   readonly setMetadata: (input: {sessionId: SessionId; metadata: Metadata}) => Effect.Effect<void, NotFoundError>

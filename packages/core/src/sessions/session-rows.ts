@@ -8,6 +8,7 @@ import type {
   NativeSessionRef,
   PermissionRule,
   SessionId,
+  SessionMetadata,
   SessionRecord,
   SessionRecordInput,
 } from '@conciv/protocol/chat-types'
@@ -190,6 +191,10 @@ export async function restoreRow(db: ConcivDb, id: SessionId): Promise<void> {
 
 export async function setPermissions(db: ConcivDb, id: SessionId, rules: PermissionRule[]): Promise<void> {
   await db.update(sessions).set({permissions: rules, updatedAt: Date.now()}).where(eq(sessions.id, id))
+}
+
+export async function setMetadata(db: ConcivDb, id: SessionId, metadata: SessionMetadata): Promise<void> {
+  await db.update(sessions).set({metadata, updatedAt: Date.now()}).where(eq(sessions.id, id))
 }
 
 export async function ensureAgentRow(scope: RowScope, nativeId: HarnessSessionId): Promise<SessionRecord> {

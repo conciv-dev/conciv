@@ -1,6 +1,12 @@
 import {index, integer, primaryKey, sqliteTable, text, uniqueIndex} from 'drizzle-orm/sqlite-core'
 import type {Brand, Schema} from 'effect'
-import type {NavigationEntry, PermissionRule, ReasoningEffort, SessionId} from '@conciv/protocol/chat-types'
+import type {
+  NavigationEntry,
+  PermissionRule,
+  ReasoningEffort,
+  SessionId,
+  SessionMetadata,
+} from '@conciv/protocol/chat-types'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import type {ElementCapture, ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 
@@ -21,6 +27,7 @@ export const sessions = sqliteTable(
     attachedAt: integer('attached_at'),
     deletedAt: integer('deleted_at'),
     permissions: text('permissions', {mode: 'json'}).$type<PermissionRule[]>(),
+    metadata: text('metadata', {mode: 'json'}).$type<SessionMetadata>(),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
