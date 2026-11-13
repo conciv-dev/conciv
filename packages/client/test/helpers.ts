@@ -19,6 +19,7 @@ export async function bootClientKit(opts: {extensions?: AnyExtension[]} = {}): P
         harnessSessionId: undefined,
         systemPrompt: '',
         hubAccess: 'session',
+        plugins: [],
       },
       cwd: env.cwd,
       openInEditor: () => {},
