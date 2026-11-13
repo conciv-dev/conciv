@@ -749,8 +749,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         search.dispose,
         settings.close,
         () => browsers.close(),
-        () => db.$client.close(),
         () => pluginHost.dispose(),
+        () => db.$client.close(),
       ],
       'conciv: disposing the engine failed',
     )
