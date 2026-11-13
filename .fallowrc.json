@@ -104,6 +104,11 @@
         "maxCognitive": 30,
         "maxCrap": 400,
         "reason": "copied whole from opencode core/src/bus.ts: commitDurableEvent and publishAll keep opencode's shape"
+      },
+      {
+        "files": ["packages/plugin-host/src/util/flock.ts"],
+        "maxCognitive": 30,
+        "reason": "copied whole from opencode util/src/flock.ts: tryAcquireLockDir keeps opencode's shape"
       }
     ]
   },
