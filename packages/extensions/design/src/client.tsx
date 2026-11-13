@@ -86,6 +86,7 @@ const NORMAL_LINE_HEIGHT = 1.2
 const DATA_URL_COMMA = ','
 const CANVAS_FALLBACK = '#ffffff'
 const BORDER_SIDES = ['top', 'right', 'bottom', 'left'] as const
+const HIDDEN_LINES = new Set(['none', 'hidden'])
 const PX_UNIT = 'px'
 const REACT_FIBER = '__reactFiber'
 const VITE_DEV_ID = '[data-vite-dev-id]'
@@ -968,19 +969,33 @@ function pxLength(value: string): boolean {
 }
 
 function readBorder(style: CSSStyleDeclaration): LiveBorder {
-  const sides = BORDER_SIDES.map((side) => ({
-    side,
-    width: Number.parseFloat(style.getPropertyValue(`border-${side}-width`)) || 0,
-    style: style.getPropertyValue(`border-${side}-style`),
-    color: toHex(style.getPropertyValue(`border-${side}-color`)),
-  }))
-  const visible = sides.filter((side) => side.width > 0 && side.style !== 'none' && side.style !== 'hidden')
+  const sides = BORDER_SIDES.map((side) => ({side, ...readLine({style, prefix: `border-${side}`})}))
+  const visible = sides.filter(shows)
   const widest = visible.reduce<(typeof sides)[number] | undefined>(
     (best, side) => (best === undefined || side.width > best.width ? side : best),
     undefined,
   )
-  const shown = visible.map((side) => ({side: side.side, width: side.width}))
-  return {...(widest ?? sides[0] ?? {side: 'top', width: 0, style: 'none', color: '#000000'}), sides: shown}
+  if (widest === undefined) return readOutline({style, unseen: sides[0]})
+  return {...widest, sides: visible.map((side) => ({side: side.side, width: side.width}))}
+}
+
+function readOutline(input: {style: CSSStyleDeclaration; unseen: Omit<LiveBorder, 'sides'> | undefined}): LiveBorder {
+  const outline = readLine({style: input.style, prefix: 'outline'})
+  if (!shows(outline)) return {...(input.unseen ?? {side: 'top', width: 0, style: 'none', color: '#000000'}), sides: []}
+  return {...outline, side: 'top', sides: BORDER_SIDES.map((side) => ({side, width: outline.width}))}
+}
+
+function readLine(input: {style: CSSStyleDeclaration; prefix: string}): {width: number; style: string; color: string} {
+  const {style, prefix} = input
+  return {
+    width: Number.parseFloat(style.getPropertyValue(`${prefix}-width`)) || 0,
+    style: style.getPropertyValue(`${prefix}-style`),
+    color: toHex(style.getPropertyValue(`${prefix}-color`)),
+  }
+}
+
+function shows(line: {width: number; style: string}): boolean {
+  return line.width > 0 && !HIDDEN_LINES.has(line.style)
 }
 
 function readHints(el: Element): string[] {

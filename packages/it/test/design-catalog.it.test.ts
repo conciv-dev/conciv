@@ -119,6 +119,31 @@ describe('a Figma line', () => {
   })
 })
 
+describe('a Figma stroke drawn inside the box', () => {
+  it('is told as inside, and an outline inset by its weight draws it', async () => {
+    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
+    const borderRows = async () =>
+      roundOf(await call('design_check', {}))
+        .rows.filter((row) => row.node === '100:1418' && row.property === 'border')
+        .map((row) => row.text)
+    await kit.goto('input-field-bare')
+    const got = await call('design_get', {
+      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1418',
+      document: JSON.parse(await readFile(fixture('input-field.json'), 'utf8')),
+      image: fixture('input-field.png'),
+    })
+    const bare = await borderRows()
+    await kit.goto('input-field-outline')
+    const outlined = await borderRows()
+    expect([
+      got.nodes.find((node) => node.id === '100:1418')?.strokeAlign,
+      got.rules.some((rule) => rule.includes('outline-offset')),
+      bare,
+      outlined,
+    ]).toEqual(['INSIDE', true, ['wrong border at [100:1418]: 1px #262626 inside expected, none found'], []])
+  })
+})
+
 describe('a thin Figma bar', () => {
   it('pairs a 3px bar drawn at its design height', async () => {
     const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))

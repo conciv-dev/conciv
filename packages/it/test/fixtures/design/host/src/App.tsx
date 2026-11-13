@@ -45,6 +45,15 @@ const INPUT_LINES = {
   'input-field': INPUT_LINE,
   'input-field-line': {...INPUT_LINE, borderBottom: '1px solid #333333'},
   'input-field-box': {...INPUT_LINE, border: '1px solid #333333'},
+  'input-field-outline': {...INPUT_LINE, borderBottom: '1px solid #333333'},
+  'input-field-bare': {...INPUT_LINE, borderBottom: '1px solid #333333'},
+}
+const INPUT_FIELDS = {
+  'input-field': INPUT_FIELD,
+  'input-field-line': INPUT_FIELD,
+  'input-field-box': INPUT_FIELD,
+  'input-field-outline': {...INPUT_FIELD, border: 'none', outline: '1px solid #262626', outlineOffset: -1},
+  'input-field-bare': {...INPUT_FIELD, border: 'none'},
 }
 const SLIDER_LAYER = {gridColumn: 1, gridRow: 1} as const
 const MEDIA_HEIGHT_CSS = '#root section { @media (width >= 40rem) { height: 120px; } }'
@@ -76,10 +85,16 @@ export function App() {
       </main>
     )
   }
-  if (requested === 'input-field' || requested === 'input-field-line' || requested === 'input-field-box') {
+  if (
+    requested === 'input-field' ||
+    requested === 'input-field-line' ||
+    requested === 'input-field-box' ||
+    requested === 'input-field-outline' ||
+    requested === 'input-field-bare'
+  ) {
     return (
       <main data-conciv-key="iNfMnA">
-        <label style={INPUT_FIELD} data-conciv-key="iNfLbA">
+        <label style={INPUT_FIELDS[requested]} data-conciv-key="iNfLbA">
           <span style={{fontSize: 18, lineHeight: '27px', color: '#ffffff'}} data-conciv-key="iNfTtA">
             Full Name
           </span>

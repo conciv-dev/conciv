@@ -27,6 +27,7 @@ type NodeLook = {
   fill_opacity: number | null
   stroke: string | null
   stroke_weight: number | null
+  strokeAlign: string | null
   radius: number | null
   font_family: string | null
   font_weight: number | null
@@ -63,6 +64,7 @@ const FieldsSchema = z.object({
   fills: z.array(PaintSchema).catch([]),
   strokes: z.array(PaintSchema).catch([]),
   strokeWeight: z.number().optional().catch(undefined),
+  strokeAlign: z.string().optional().catch(undefined),
   radius: z
     .union([z.number(), z.array(z.number())])
     .optional()
@@ -127,6 +129,7 @@ function paintLook(input: {fields: Fields; image: boolean; scale: number}) {
     fill_opacity: fill?.opacity ?? null,
     stroke: stroke?.color ?? null,
     stroke_weight: stroke === undefined ? null : scaled(fields.strokeWeight ?? 1, scale),
+    strokeAlign: stroke === undefined ? null : (fields.strokeAlign?.toLowerCase() ?? null),
     radius: scaled(radius, scale),
     gradient: first === undefined || last === undefined ? null : {from: first, to: last},
   }

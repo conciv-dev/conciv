@@ -56,6 +56,7 @@ const FigmaNodeSchema = z.looseObject({
   fills: z.array(PaintSchema).optional(),
   strokes: z.array(PaintSchema).optional(),
   strokeWeight: z.number().optional(),
+  strokeAlign: z.string().optional(),
   cornerRadius: z.number().optional(),
   rectangleCornerRadii: z.array(z.number()).optional(),
   layoutMode: z.string().optional(),

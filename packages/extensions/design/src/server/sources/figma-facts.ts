@@ -51,7 +51,13 @@ function paintFields(input: {node: FigmaNode; fills: Record<string, unknown>[]})
   const radius = node.rectangleCornerRadii ?? node.cornerRadius
   return {
     ...(fills.length === 0 ? {} : {fills}),
-    ...(strokes.length === 0 ? {} : {strokes, strokeWeight: node.strokeWeight ?? 1}),
+    ...(strokes.length === 0
+      ? {}
+      : {
+          strokes,
+          strokeWeight: node.strokeWeight ?? 1,
+          ...(node.strokeAlign === undefined ? {} : {strokeAlign: node.strokeAlign}),
+        }),
     ...(radius === undefined || radius === 0 ? {} : {radius}),
   }
 }

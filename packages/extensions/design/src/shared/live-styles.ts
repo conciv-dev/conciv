@@ -26,7 +26,7 @@ export const LiveStylesSchema = z.object({
     sides: z
       .array(z.object({side: z.enum(BORDER_SIDES), width: z.number()}))
       .default([])
-      .describe('every visible side with its width'),
+      .describe('every visible side with its width; an outline draws all four'),
   }),
   gradient: z.object({from: z.string(), to: z.string()}).nullable().default(null),
   opacity: z.number().optional(),

@@ -648,7 +648,10 @@ function borderRows(seen: Seen): Compared[] {
   const weight = look.stroke_weight ?? 1
   const shown = border.style === 'none' || border.width === 0 ? 'none' : `${border.width}px ${border.color}`
   const same = border.width === weight && near({a: border.color, b: look.stroke})
-  return same ? [] : [{kind: 'border', expected: `${weight}px ${look.stroke}`, found: shown, token: look.token_stroke}]
+  const drawn = look.strokeAlign === null ? '' : ` ${look.strokeAlign}`
+  return same
+    ? []
+    : [{kind: 'border', expected: `${weight}px ${look.stroke}${drawn}`, found: shown, token: look.token_stroke}]
 }
 
 function opacityRows(seen: Seen): Compared[] {
