@@ -1,5 +1,4 @@
 import {splitProps, type JSX} from 'solid-js'
-import {Dialog as ArkDialog} from '@ark-ui/solid/dialog'
 import {Button} from './button.js'
 import {Dialog} from './dialog.js'
 
@@ -58,7 +57,7 @@ export function ConfirmDialog(props: ConfirmDialogProps): JSX.Element {
         </div>
       }
     >
-      <ArkDialog.Description class={DESCRIPTION}>{local.description}</ArkDialog.Description>
+      <Dialog.Description class={DESCRIPTION}>{local.description}</Dialog.Description>
     </Dialog>
   )
 }

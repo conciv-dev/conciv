@@ -4,7 +4,7 @@ The conciv design system: SolidJS primitives (Button plus Ark-UI-based Collapsib
 HoverCard, ScrollArea, Combobox, Progress) styled with the shared UnoCSS preset, so every
 surface looks and behaves identically. Most components are viewable in Storybook.
 
-The full component list (Dialog, Select, Menu, Popover, Tooltip/TooltipGroup, Toast, Tabs,
+The full component list (Dialog and its parts, Select, Menu, Popover, Tooltip/TooltipGroup, Toast, Tabs,
 Switch, Slider, TextField/TextArea, VirtualJsonTree, ZoomableImage and more), the skin system
 and the token exports are in [src/README.md](./src/README.md).
 

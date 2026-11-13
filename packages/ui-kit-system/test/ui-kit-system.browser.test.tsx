@@ -2,6 +2,7 @@ import 'virtual:uno.css'
 import {afterEach, describe, expect, it, test, onTestFinished} from 'vitest'
 import {fitHeight, measureTextArea} from '../src/autosize.js'
 import {createSignal, For, Show, createRoot, type JSX} from 'solid-js'
+import {createStore} from 'solid-js/store'
 import {render} from '@solidjs/testing-library'
 import {page, userEvent} from 'vitest/browser'
 import {createClipboardCopy} from '../src/clipboard.js'
@@ -550,6 +551,59 @@ describe('dialog', () => {
 
     setOpen(false)
     await expect.element(page.getByRole('button', {name: 'Open'})).toHaveFocus()
+  })
+})
+
+describe('dialog parts', () => {
+  afterEach(() => {
+    cleanupMounts()
+  })
+
+  it('opens a dialog composed from the parts inside the shadow root and closes it from its close button', async () => {
+    const shadow = mountInShadow((root) => {
+      const [focus, setFocus] = createStore({on: 'nothing'})
+      const track = (name: string) => ({
+        onFocus: () => setFocus('on', name),
+        onBlur: () => setFocus('on', 'nothing'),
+      })
+      return (
+        <EnvironmentProvider value={() => root}>
+          <p>Focus is on {focus.on}</p>
+          <Dialog.Root>
+            <Dialog.Trigger {...track('the opener')}>Open plugin settings</Dialog.Trigger>
+            <Dialog.Portal>
+              <Dialog.Backdrop />
+              <Dialog.Positioner>
+                <Dialog.Content size="lg">
+                  <Dialog.Header>
+                    <Dialog.Title>Plugin settings</Dialog.Title>
+                    <Dialog.CloseTrigger {...track('the close button')} />
+                  </Dialog.Header>
+                  <Dialog.Body>
+                    <p>Choose what the plugin may read.</p>
+                  </Dialog.Body>
+                  <Dialog.Footer>
+                    <button type="button">Save</button>
+                  </Dialog.Footer>
+                </Dialog.Content>
+              </Dialog.Positioner>
+            </Dialog.Portal>
+          </Dialog.Root>
+        </EnvironmentProvider>
+      )
+    })
+    shadow.host.setAttribute('role', 'region')
+    shadow.host.setAttribute('aria-label', 'Widget')
+    const widget = page.getByRole('region', {name: 'Widget'})
+
+    await userEvent.click(widget.getByRole('button', {name: 'Open plugin settings'}))
+    await expect.element(widget.getByRole('dialog', {name: 'Plugin settings'})).toBeVisible()
+    await expect.element(widget.getByText('Choose what the plugin may read.')).toBeVisible()
+    await expect.element(widget.getByText('Focus is on the close button')).toBeVisible()
+
+    await userEvent.click(widget.getByRole('button', {name: 'Close'}))
+    await expect.element(widget.getByRole('dialog')).not.toBeInTheDocument()
+    await expect.element(widget.getByText('Focus is on the opener')).toBeVisible()
   })
 })
 
