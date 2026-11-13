@@ -46,6 +46,7 @@ const INPUT_LINES = {
   'input-field-line': {...INPUT_LINE, borderBottom: '1px solid #333333'},
   'input-field-box': {...INPUT_LINE, border: '1px solid #333333'},
 }
+const SLIDER_LAYER = {gridColumn: 1, gridRow: 1} as const
 const MEDIA_HEIGHT_CSS = '#root section { @media (width >= 40rem) { height: 120px; } }'
 const FIELD_BORDER = {borderColor: '#d64545', borderRadius: 0}
 const SLOW_FONT_CSS = "@import url('/slow-font.css');"
@@ -91,6 +92,23 @@ export function App() {
             </span>
           </span>
         </label>
+      </main>
+    )
+  }
+  if (requested === 'range-slider') {
+    return (
+      <main style={{margin: -24, paddingTop: 5.67, background: '#141414'}} data-conciv-key="rSmNaA">
+        <div style={{display: 'grid', padding: '26px 3px'}} data-conciv-key="rSfRmA">
+          <span style={{...SLIDER_LAYER, height: 2, alignSelf: 'center', background: '#333333'}} data-conciv-key="rStRkA" />
+          <span
+            style={{...SLIDER_LAYER, display: 'flex', alignItems: 'center', alignSelf: 'center', width: 326, margin: '-9px 0 -9px 57px'}}
+            data-conciv-key="rSrWaA"
+          >
+            <SliderKnob label="$1000" />
+            <span style={{height: 3, flex: 1, background: '#9eff00'}} data-conciv-key="rSbArA" />
+            <SliderKnob label="$5000" />
+          </span>
+        </div>
       </main>
     )
   }
@@ -224,6 +242,23 @@ export function App() {
         />
       ) : null}
     </>
+  )
+}
+
+function SliderKnob(props: {label: string}) {
+  return (
+    <span
+      style={{display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 4, borderRadius: 30, background: '#4c4c4d'}}
+      data-conciv-key="rSkNbA"
+    >
+      <span style={{width: 12, height: 12, borderRadius: 6, background: '#9eff00'}} data-conciv-key="rSdOtA" />
+      <span
+        style={{margin: '12px -16px -33px', fontSize: 14, lineHeight: '17px', color: '#ffffff', whiteSpace: 'nowrap'}}
+        data-conciv-key="rSlBlA"
+      >
+        {props.label}
+      </span>
+    </span>
   )
 }
 

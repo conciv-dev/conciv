@@ -119,6 +119,23 @@ describe('a Figma line', () => {
   })
 })
 
+describe('a thin Figma bar', () => {
+  it('pairs a 3px bar drawn at its design height', async () => {
+    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
+    await kit.goto('range-slider')
+    await call('design_get', {
+      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1449',
+      document: JSON.parse(await readFile(fixture('range-slider.json'), 'utf8')),
+      image: fixture('range-slider.png'),
+    })
+    const checked = roundOf(await call('design_check', {}))
+    expect([
+      checked.coverage.missing.includes('100:1455'),
+      checked.rows.filter((row) => row.node === '100:1455').map((row) => row.text),
+    ]).toEqual([false, []])
+  })
+})
+
 describe('a check in a new run of the same project', () => {
   it('numbers its rounds from 1, with no round of the run before', async () => {
     const stateRoot = await mkdtemp(join(tmpdir(), 'conciv-design-runs-state-'))

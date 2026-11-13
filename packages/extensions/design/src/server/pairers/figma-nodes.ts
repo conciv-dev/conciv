@@ -343,7 +343,7 @@ function scoreOf(input: {vote: Vote; entry: Node; element: Element; anywhere?: b
   if (anchor !== null && !underAnchor({vote, element, anchor})) return []
   const image = pictured(node) && element.img ? PAIR.imageBonus : 0
   const parent = anchor === null ? 0 : PAIR.parentBonus
-  const dom = PAIR.overlapWeight * iou({a: box, b: flowed}) + textualOf({node, element}) + image + parent
+  const dom = PAIR.overlapWeight * looseOverlap({a: box, b: flowed}) + textualOf({node, element}) + image + parent
   const src = kindOf({node, element}) + PAIR.nameWeight * namedAs({node, element})
   const cssom = layoutVote({node, element})
   return [{path: element.path, score: dom + src + cssom, layers: {dom, src, cssom}}]
@@ -562,6 +562,10 @@ function sameBox(input: {a: Box; b: Box}): boolean {
     Math.abs(a.w - b.w) <= SAME_BOX_PX &&
     Math.abs(a.h - b.h) <= SAME_BOX_PX
   )
+}
+
+function looseOverlap(input: {a: Box; b: Box}): number {
+  return iou({a: shapes.expand({box: input.a, by: SAME_BOX_PX}), b: shapes.expand({box: input.b, by: SAME_BOX_PX})})
 }
 
 function iou(input: {a: Box; b: Box}): number {
