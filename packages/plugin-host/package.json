@@ -37,18 +37,33 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@parcel/watcher": "catalog:",
     "@standard-schema/spec": "catalog:",
-    "effect": "catalog:"
+    "effect": "catalog:",
+    "glob": "catalog:",
+    "mime-types": "catalog:",
+    "minimatch": "catalog:"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
+    "@types/mime-types": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "fast-check": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "optionalDependencies": {
+    "@parcel/watcher-darwin-arm64": "catalog:",
+    "@parcel/watcher-darwin-x64": "catalog:",
+    "@parcel/watcher-linux-arm64-glibc": "catalog:",
+    "@parcel/watcher-linux-arm64-musl": "catalog:",
+    "@parcel/watcher-linux-x64-glibc": "catalog:",
+    "@parcel/watcher-linux-x64-musl": "catalog:",
+    "@parcel/watcher-win32-arm64": "catalog:",
+    "@parcel/watcher-win32-x64": "catalog:"
   },
   "engines": {
     "node": ">=26.0.0"

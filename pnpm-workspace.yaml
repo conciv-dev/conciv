@@ -51,6 +51,15 @@ catalog:
   '@iconify-json/ph': '^1.2.2'
   '@orama/orama': 3.1.18
   '@oxlint/plugins': 1.90.0
+  '@parcel/watcher': 2.5.1
+  '@parcel/watcher-darwin-arm64': 2.5.1
+  '@parcel/watcher-darwin-x64': 2.5.1
+  '@parcel/watcher-linux-arm64-glibc': 2.5.1
+  '@parcel/watcher-linux-arm64-musl': 2.5.1
+  '@parcel/watcher-linux-x64-glibc': 2.5.1
+  '@parcel/watcher-linux-x64-musl': 2.5.1
+  '@parcel/watcher-win32-arm64': 2.5.1
+  '@parcel/watcher-win32-x64': 2.5.1
   '@playwright/test': '^1.64.1'
   '@shikijs/langs-precompiled': 4.5.0
   '@shikijs/magic-move': '^4.5.0'
@@ -91,6 +100,7 @@ catalog:
   '@tiptap/extension-text': '^3.32.1'
   '@tiptap/pm': '^3.32.1'
   '@types/culori': ^4.0.1
+  '@types/mime-types': 3.0.1
   '@types/node': '^26.6.6'
   '@types/pngjs': ^6.0.5
   '@types/react': '^19.3.0'
@@ -121,12 +131,15 @@ catalog:
   eslint-plugin-solid: 0.18.1
   fast-check: 4.9.0
   get-port: '^7.2.0'
+  glob: 13.0.5
   gsap: '^3.15.0'
   hono: '^4.13.14'
   lucide-react: '^1.64.0'
   lucide-solid: '~1.66.0'
   marked: '^18.1.2'
   mermaid: '^12.2.0'
+  mime-types: 3.0.2
+  minimatch: 10.2.5
   motion: '^14.7.1'
   next: 16.4.3
   nitro: npm:nitro-nightly@3.0.1-20261028-065025-1a9a371c
