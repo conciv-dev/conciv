@@ -259,7 +259,8 @@
         "UrlSource",
         "EmbeddedSource",
         "toModelOutput",
-        "Rpc"
+        "Rpc",
+        "Definition"
       ]
     },
     {
