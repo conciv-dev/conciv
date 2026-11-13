@@ -549,6 +549,12 @@ describe('chat plane', () => {
               execute: (input: {count: number}) => Effect.succeed({content: String(input.count * 2)}),
             })
             editor.add({
+              name: 'unit_refuse',
+              description: 'Refuse every call.',
+              input: z.object({}),
+              execute: () => Effect.fail(Tool.makeError({message: 'the tool refused'})),
+            })
+            editor.add({
               name: 'unit_taken',
               description: 'A plugin copy.',
               input: z.object({}),
@@ -573,6 +579,7 @@ describe('chat plane', () => {
         'unit_taken',
         'unit_shout',
         'unit_double',
+        'unit_refuse',
       ])
       expect(uniq(collisions)).toEqual(['unit_taken'])
       await expect(runner?.run('return await external_unit_shout({text: "hi"})', 'parent')).resolves.toMatchObject({
@@ -586,6 +593,10 @@ describe('chat plane', () => {
         'before unit_double without a message {"count":"2"}',
         'after unit_double completed',
       ])
+      await expect(runner?.run('return await external_unit_refuse({})', 'parent')).resolves.toMatchObject({
+        success: false,
+        error: {message: expect.stringContaining('the tool refused')},
+      })
       await expect(runner?.run('return await external_unit_taken({})', 'parent')).resolves.toMatchObject({
         result: 'built in',
       })
