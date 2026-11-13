@@ -138,24 +138,34 @@ async function codeSessionOf(deps: RpcDeps, sessionId: SessionId | undefined, ca
 
 type PluginEventsInput = {rpcId: string; types?: string[] | undefined}
 
-async function* pluginEvents(host: PluginHost, input: PluginEventsInput, signal: AbortSignal | undefined) {
+async function pluginEvents(host: PluginHost, input: PluginEventsInput, signal: AbortSignal | undefined) {
   const publisher = new EventPublisher<{event: unknown}>()
   const prefix = `rpc.${input.rpcId}.`
-  const subscription = Effect.gen(function* () {
-    const bus = yield* Bus.Service
-    const [first, ...rest] = (input.types ?? []).map((name) => Rpc.eventDefinition(`rpc.${input.rpcId}.${name}`))
-    const events =
-      first === undefined
-        ? bus.subscribe().pipe(Stream.filter((event) => event.type.startsWith(prefix)))
-        : bus.subscribe([first, ...rest])
-    yield* Stream.runForEach(events, (event) => Effect.sync(() => publisher.publish('event', event)))
-  })
   const delivered = publisher.subscribe('event', {signal})
-  const fiber = host.runFork(subscription)
+  const fiber = await host.runPromise(
+    Effect.gen(function* () {
+      const bus = yield* Bus.Service
+      const [first, ...rest] = (input.types ?? []).map((name) => Rpc.eventDefinition(`rpc.${input.rpcId}.${name}`))
+      const events =
+        first === undefined
+          ? bus.subscribe().pipe(Stream.filter((event) => event.type.startsWith(prefix)))
+          : bus.subscribe([first, ...rest])
+      return yield* Effect.forkDetach(
+        Stream.runForEach(events, (event) => Effect.sync(() => publisher.publish('event', event))),
+        {startImmediately: true},
+      )
+    }),
+  )
+  const stop = () => Effect.runPromise(Fiber.interrupt(fiber))
+  signal?.addEventListener('abort', () => void stop(), {once: true})
+  return relay(delivered, stop)
+}
+
+async function* relay(delivered: AsyncIterable<unknown>, stop: () => Promise<void>) {
   try {
     for await (const event of delivered) yield PluginRpcEventSchema.parse(event)
   } finally {
-    await Effect.runPromise(Fiber.interrupt(fiber))
+    await stop()
   }
 }
 
