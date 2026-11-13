@@ -825,15 +825,16 @@ function processAlive(pid: number): boolean {
 
 describe('local sandbox', () => {
   it(
-    'forgets a finished run, so a destroy that names no cancelled run stops the live one',
+    'forgets a finished run, so a destroy that names no cancelled run stops the live one, even a child that outlives SIGTERM',
     {timeout: 15_000},
     async () => {
       const provider = localSandbox({dir: mkdtempSync(join(tmpdir(), 'conciv-local-sandbox-'))})
       const finished = await provider.create({})
       await (await finished.process.spawn('true')).wait()
       const live = await provider.create({})
-      const agent = await live.process.spawn('sleep 600')
+      const agent = await live.process.spawn(`(trap '' TERM; echo ready; exec sleep 600) & wait`)
       try {
+        expect((await agent.stdout[Symbol.asyncIterator]().next()).value).toBe('ready\n')
         await provider.destroy({id: live.id})
         expect(processAlive(-agent.pid)).toBe(false)
       } finally {
