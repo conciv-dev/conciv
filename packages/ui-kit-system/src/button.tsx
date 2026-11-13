@@ -31,7 +31,7 @@ const button = cva(
       },
       size: {
         sm: 'font-chat focus-ring text-[0.6875rem] rounded-chat-surface-sm py-0.5 px-2',
-        md: 'font-chat focus-ring text-[0.8125rem] rounded-chat-surface-md py-2 px-3',
+        md: 'font-chat focus-ring text-[0.8125rem] leading-5 rounded-chat-surface-md py-2 px-3',
         lg: 'font-chat focus-ring text-[0.8125rem] leading-5 rounded-chat-surface-md py-2.5 px-4',
         icon: 'font-chat focus-ring rounded-chat-surface-md size-9.5',
         bare: 'font-chat focus-ring text-[0.75rem] p-0',
