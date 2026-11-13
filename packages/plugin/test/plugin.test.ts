@@ -652,8 +652,8 @@ describe('host', () => {
       })
     })
 
-    it('does not treat TypeScript or ES module app part sources as the CommonJS bundle', async () => {
-      await using local = await fixture({'index.ts': source, 'experimental.tsx': source})
+    it('does not treat an ES module app part as the CommonJS bundle', async () => {
+      await using local = await fixture({'index.ts': source, 'plugin-experimental.mjs': source})
       await using published = await fixture(
         {
           'package.json': JSON.stringify({
