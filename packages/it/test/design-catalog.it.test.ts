@@ -31,6 +31,15 @@ const [, checkDef] = DESIGN_TOOLS
 
 type Checked = Exclude<z.output<NonNullable<typeof checkDef.outputSchema>>, {variants: unknown}>
 type Kit = Awaited<ReturnType<typeof bootDesignHost>>
+const VariantsSchema = z.object({
+  variants: z.array(
+    z.object({
+      width: z.number(),
+      reflow: z.object({widths: z.array(z.object({width: z.number()}))}),
+      rows: z.array(z.object({text: z.string(), magnitude: z.string(), width: z.number().optional()})),
+    }),
+  ),
+})
 
 const kit = await bootDesignHost()
 const {call} = kit
@@ -256,6 +265,40 @@ describe('a page that drifts from the design', () => {
       [],
       ['the page drifts from the design: Card [100:1675] sits 7 px lower on the page than in the frame'],
       true,
+    ])
+  })
+})
+
+describe('a page between two frames', () => {
+  it('is checked at its own breakpoints that fall between the frames', async () => {
+    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
+    const document = async (file: string): Promise<unknown> => JSON.parse(await readFile(fixture(file), 'utf8'))
+    await kit.goto('hero-gap')
+    await call('design_get', {
+      figma: [
+        'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1480',
+        'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1170',
+      ],
+      document: [await document('hero-390.json'), await document('hero-1440.json')],
+      image: [fixture('hero-390.png'), fixture('hero-1440.png')],
+    })
+    const between = async () =>
+      VariantsSchema.parse(await call('design_check', {})).variants.map((variant) =>
+        variant.rows.filter((row) => row.magnitude === 'reflow' && row.width !== variant.width).map((row) => row.text),
+      )
+    const broken = await between()
+    await kit.goto('hero-gap-fit')
+    const fitted = await between()
+    expect([broken, fitted]).toEqual([
+      [
+        [],
+        [
+          'frame Text Container [100:1480] at 600 wide: the page scrolls sideways; nothing may be wider than the page',
+          'text Heading [100:1481] at 600 wide: sticks out of the page; keep it inside the page width',
+          'text Paragraph [100:1482] at 600 wide: sticks out of the page; keep it inside the page width',
+        ],
+      ],
+      [[], []],
     ])
   })
 })

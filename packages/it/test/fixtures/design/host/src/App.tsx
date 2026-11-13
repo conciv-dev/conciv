@@ -81,6 +81,13 @@ const COLUMN_CARDS = [292, 292, 334, 334, 340, 340, 334, 340]
 const MEDIA_HEIGHT_CSS = '#root section { @media (width >= 40rem) { height: 120px; } }'
 const FIELD_BORDER = {borderColor: '#d64545', borderRadius: 0}
 const SLOW_FONT_CSS = "@import url('/slow-font.css');"
+const HERO_GAP_CSS = [
+  '.hero-gap { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 50px 16px; text-align: center; color: #ffffff; }',
+  '.hero-gap-heading { margin: 0; width: 100%; font-size: 28px; font-weight: 600; }',
+  '.hero-gap-text { margin: 0; width: 100%; font-size: 14px; line-height: 24px; color: #e6e6e6; }',
+  '@media (width >= 600px) { .hero-gap { gap: 10px; padding: 100px 250px; } .hero-gap-heading, .hero-gap-text { width: 780px; } }',
+].join(' ')
+const HERO_FIT_CSS = HERO_GAP_CSS.replace('width: 780px', 'width: 100%; max-width: 780px')
 const LATE_FONT_CSS = `${SLOW_FONT_CSS} @media (width < 900px) { #root { font-family: 'Slow Sans', monospace; } }`
 const SLOW_FONT_TEXT = 'The quarterly report lists every invoice that was paid late, with the customer and the days overdue.'
 const WRAP_TEXT = 'The quarterly report lists every invoice that was paid late, with the customer and the days overdue.'
@@ -206,6 +213,21 @@ export function App() {
             Web Design
           </span>
         </label>
+      </main>
+    )
+  }
+  if (requested === 'hero-gap' || requested === 'hero-gap-fit') {
+    return (
+      <main style={{margin: -24, background: '#1a1a1a'}} data-conciv-key="hGmNaA">
+        <style data-conciv-key="hGsTyA">{requested === 'hero-gap' ? HERO_GAP_CSS : HERO_FIT_CSS}</style>
+        <section className="hero-gap" data-conciv-key="hGsCnA">
+          <h1 className="hero-gap-heading" data-conciv-key="hGhDgA">
+            Process of Starting the Project
+          </h1>
+          <p className="hero-gap-text" data-conciv-key="hGpRgA">
+            At SquareUp, we value transparency, collaboration, and delivering exceptional results.
+          </p>
+        </section>
       </main>
     )
   }

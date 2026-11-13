@@ -1,0 +1,195 @@
+{
+  "name": "Digital Agency Company Website UI Design Template in Dark Theme ( FREE Editable ) (Community)",
+  "lastModified": "2026-11-08T14:57:11Z",
+  "version": "2419516100481360310",
+  "nodes": {
+    "100:1170": {
+      "document": {
+        "id": "100:1170",
+        "name": "Text Container",
+        "type": "FRAME",
+        "scrollBehavior": "SCROLLS",
+        "children": [
+          {
+            "id": "100:1171",
+            "name": "Heading",
+            "type": "TEXT",
+            "scrollBehavior": "SCROLLS",
+            "blendMode": "PASS_THROUGH",
+            "fills": [{"blendMode": "NORMAL", "type": "SOLID", "color": {"r": 1, "g": 1, "b": 1, "a": 1}}],
+            "strokes": [],
+            "strokeWeight": 1,
+            "strokeAlign": "OUTSIDE",
+            "styles": {"fill": "19:476"},
+            "absoluteBoundingBox": {"x": 30677, "y": -1035, "width": 780, "height": 46},
+            "absoluteRenderBounds": {
+              "x": 30812.341796875,
+              "y": -1024.4739990234375,
+              "width": 510.3046875,
+              "height": 35.34002685546875
+            },
+            "constraints": {"vertical": "TOP", "horizontal": "LEFT"},
+            "layoutAlign": "STRETCH",
+            "layoutGrow": 0,
+            "layoutSizingHorizontal": "FILL",
+            "layoutSizingVertical": "HUG",
+            "characters": "Process of Starting the Project",
+            "characterStyleOverrides": [],
+            "styleOverrideTable": {},
+            "lineTypes": ["NONE"],
+            "lineIndentations": [0],
+            "style": {
+              "fontFamily": "Barlow",
+              "fontPostScriptName": "Barlow-SemiBold",
+              "fontStyle": "SemiBold",
+              "fontWeight": 600,
+              "textAutoResize": "HEIGHT",
+              "fontSize": 38,
+              "textAlignHorizontal": "CENTER",
+              "textAlignVertical": "TOP",
+              "letterSpacing": 0,
+              "lineHeightPx": 45.60000228881836,
+              "lineHeightPercent": 100,
+              "lineHeightUnit": "INTRINSIC_%"
+            },
+            "layoutVersion": 4,
+            "effects": [],
+            "interactions": [],
+            "complexStrokeProperties": {"strokeType": "BASIC"}
+          },
+          {
+            "id": "100:1172",
+            "name": "Paragraph",
+            "type": "TEXT",
+            "scrollBehavior": "SCROLLS",
+            "blendMode": "PASS_THROUGH",
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "type": "SOLID",
+                "color": {"r": 0.9019607901573181, "g": 0.9019607901573181, "b": 0.9019607901573181, "a": 1}
+              }
+            ],
+            "strokes": [],
+            "strokeWeight": 1,
+            "strokeAlign": "OUTSIDE",
+            "styles": {"fill": "19:494"},
+            "absoluteBoundingBox": {"x": 30677, "y": -979, "width": 780, "height": 24},
+            "absoluteRenderBounds": {
+              "x": 30741.1875,
+              "y": -972.780029296875,
+              "width": 650.701171875,
+              "height": 16.3800048828125
+            },
+            "constraints": {"vertical": "TOP", "horizontal": "LEFT"},
+            "layoutAlign": "STRETCH",
+            "layoutGrow": 0,
+            "layoutSizingHorizontal": "FILL",
+            "layoutSizingVertical": "HUG",
+            "characters": "At SquareUp, we value transparency, collaboration, and delivering exceptional results.",
+            "characterStyleOverrides": [],
+            "styleOverrideTable": {},
+            "lineTypes": ["NONE"],
+            "lineIndentations": [0],
+            "style": {
+              "fontFamily": "Barlow",
+              "fontPostScriptName": "Barlow-Regular",
+              "fontStyle": "Regular",
+              "fontWeight": 400,
+              "textAutoResize": "HEIGHT",
+              "fontSize": 18,
+              "textAlignHorizontal": "CENTER",
+              "textAlignVertical": "TOP",
+              "letterSpacing": -0.10800000429153443,
+              "lineHeightPx": 24,
+              "lineHeightPercent": 111.1111068725586,
+              "lineHeightPercentFontSize": 133.3333282470703,
+              "lineHeightUnit": "PIXELS"
+            },
+            "layoutVersion": 4,
+            "effects": [],
+            "interactions": [],
+            "complexStrokeProperties": {"strokeType": "BASIC"}
+          }
+        ],
+        "blendMode": "PASS_THROUGH",
+        "clipsContent": false,
+        "background": [
+          {
+            "blendMode": "OVERLAY",
+            "type": "IMAGE",
+            "scaleMode": "FILL",
+            "imageRef": "3cf97699bf6b954360c49ad34e129d1ebd1f7693",
+            "filters": {"saturation": -1}
+          },
+          {
+            "opacity": 0.6000000238418579,
+            "blendMode": "NORMAL",
+            "type": "IMAGE",
+            "scaleMode": "TILE",
+            "imageRef": "f4fdd2a23aecc907f995d84427b3721050e3a086",
+            "scalingFactor": 1
+          },
+          {
+            "opacity": 0.20000000298023224,
+            "blendMode": "COLOR",
+            "type": "SOLID",
+            "color": {"r": 0.6736470460891724, "g": 1, "b": 0.1411764770746231, "a": 1}
+          }
+        ],
+        "fills": [
+          {
+            "blendMode": "OVERLAY",
+            "type": "IMAGE",
+            "scaleMode": "FILL",
+            "imageRef": "3cf97699bf6b954360c49ad34e129d1ebd1f7693",
+            "filters": {"saturation": -1}
+          },
+          {
+            "opacity": 0.6000000238418579,
+            "blendMode": "NORMAL",
+            "type": "IMAGE",
+            "scaleMode": "TILE",
+            "imageRef": "f4fdd2a23aecc907f995d84427b3721050e3a086",
+            "scalingFactor": 1
+          },
+          {
+            "opacity": 0.20000000298023224,
+            "blendMode": "COLOR",
+            "type": "SOLID",
+            "color": {"r": 0.6736470460891724, "g": 1, "b": 0.1411764770746231, "a": 1}
+          }
+        ],
+        "strokes": [
+          {
+            "blendMode": "NORMAL",
+            "type": "SOLID",
+            "color": {"r": 0.15000000596046448, "g": 0.15000000596046448, "b": 0.15000000596046448, "a": 1}
+          }
+        ],
+        "strokeWeight": 1,
+        "strokeAlign": "OUTSIDE",
+        "backgroundColor": {"r": 0, "g": 0, "b": 0, "a": 0},
+        "styles": {"strokes": "19:488", "stroke": "19:488"},
+        "layoutMode": "VERTICAL",
+        "counterAxisSizingMode": "FIXED",
+        "counterAxisAlignItems": "CENTER",
+        "paddingLeft": 250,
+        "paddingRight": 250,
+        "paddingTop": 100,
+        "paddingBottom": 100,
+        "itemSpacing": 10,
+        "layoutWrap": "NO_WRAP",
+        "absoluteBoundingBox": {"x": 30427, "y": -1135, "width": 1280, "height": 280},
+        "absoluteRenderBounds": {"x": 30426, "y": -1136, "width": 1282, "height": 282},
+        "constraints": {"vertical": "TOP", "horizontal": "CENTER"},
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "effects": [],
+        "interactions": [],
+        "complexStrokeProperties": {"strokeType": "BASIC"}
+      },
+      "components": {}
+    }
+  }
+}

@@ -6,6 +6,8 @@ export function widthsOf(input: {design: Design; styles: number[]; variants?: nu
   const own = Math.round(design.root.figma?.box.w ?? design.root.box.w)
   const tags = [...walk(design.root)].flatMap(({node}) => (node.reflow === undefined ? [] : [{...node.reflow, node}]))
   const floor = Math.min(...tags.flatMap((tag) => (tag.minChildWidth === undefined ? [] : [tag.minChildWidth])))
+  const wider = variants.filter((width) => width > own)
+  const next = wider.length === 0 ? own : Math.min(...wider)
   const named = [
     {width: own, from: 'design'},
     ...tags.flatMap((tag) =>
@@ -14,7 +16,10 @@ export function widthsOf(input: {design: Design; styles: number[]; variants?: nu
         : pair({width: tag.breakpoint, from: `${tag.kind} ${tag.node.id}`}),
     ),
     ...input.styles.flatMap((width) => pair({width, from: `query ${width}`})),
-  ].filter((entry) => entry.width === own || (variants.length === 0 && !(entry.width < floor)))
+  ].filter(
+    (entry) =>
+      entry.width === own || (variants.length === 0 ? !(entry.width < floor) : own < entry.width && entry.width < next),
+  )
   const grouped = new Map<number, string[]>()
   named.forEach((entry) => grouped.set(entry.width, [...(grouped.get(entry.width) ?? []), entry.from]))
   return [...grouped].toSorted(([a], [b]) => a - b).map(([width, from]) => ({width, from}))

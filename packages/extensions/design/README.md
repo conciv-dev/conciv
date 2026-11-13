@@ -101,7 +101,8 @@ src/
   (nested ones included), the row text ends with `set by @media (...)`; the measure returns that condition per CSS
   property in `styles.media`. `@container` rules are not read. `reflow` holds one entry per width: the design width, each
   width a `@media` rule on the page names (top level, in `@layer` or nested inside a style rule) and the width under it (read from the frame's own document, so the mirror
-  frame's rules count too), and the reflow tags' breakpoints: `rootHeight,
+  frame's rules count too), and the reflow tags' breakpoints; with several frames, a frame keeps its own width and the page's
+  query widths between it and the next wider frame, checked against its own nodes for what sticks out or scrolls sideways: `rootHeight,
   sticksOut, overflowX, overlaps, tags` with `ok` and `why`. A box (not a text) that sits more than 4 px lower or higher
   on the page than in the frame, measured from the frame's top, gives one page row that blocks done: each element may be
   within tolerance of its parent while the offsets add up down the page (a Figma line takes no space, a 1px element
