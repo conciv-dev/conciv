@@ -1,14 +1,11 @@
 {
   "name": "@conciv/plugin",
   "version": "0.0.22",
-  "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv dev agent as an unplugin: vite (full: viteBridge + widget middleware + boot), webpack/rspack (boot the engine), rollup/esbuild (build-only no-ops). One factory, per-bundler subpath entries.",
+  "description": "The conciv plugin SDK: Plugin.define for a plugin's engine and browser parts, RPC contracts, registries and stores.",
   "keywords": [
     "conciv",
-    "esbuild",
-    "nextjs",
-    "rollup",
-    "rspack",
-    "webpack"
+    "plugin",
+    "plugins"
   ],
   "homepage": "https://conciv.dev",
   "bugs": "https://github.com/conciv-dev/conciv/issues",
@@ -27,36 +24,29 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./vite": {
-      "types": "./dist/vite.d.ts",
-      "import": "./dist/vite.js"
+    "./rpc": {
+      "types": "./dist/rpc-entry.d.ts",
+      "import": "./dist/rpc-entry.js"
     },
-    "./webpack": {
-      "types": "./dist/webpack.d.ts",
-      "import": "./dist/webpack.js"
+    "./host": {
+      "types": "./dist/host.d.ts",
+      "import": "./dist/host.js"
     },
-    "./rspack": {
-      "types": "./dist/rspack.d.ts",
-      "import": "./dist/rspack.js"
+    "./experimental": {
+      "types": "./dist/experimental/index.d.ts",
+      "import": "./dist/experimental/index.js"
     },
-    "./rollup": {
-      "types": "./dist/rollup.d.ts",
-      "import": "./dist/rollup.js"
+    "./experimental/vite": {
+      "types": "./dist/experimental/vite.d.ts",
+      "import": "./dist/experimental/vite.js"
     },
-    "./esbuild": {
-      "types": "./dist/esbuild.d.ts",
-      "import": "./dist/esbuild.js"
+    "./experimental/builtin": {
+      "types": "./dist/experimental/builtin.d.ts",
+      "import": "./dist/experimental/builtin.js"
     },
-    "./nextjs": {
-      "types": "./dist/nextjs.d.ts",
-      "edge-light": "./dist/nextjs-edge.js",
-      "import": "./dist/nextjs.js",
-      "default": "./dist/nextjs.js"
-    },
-    "./nextjs/widget": {
-      "types": "./dist/nextjs-widget.d.ts",
-      "import": "./dist/nextjs-widget.js",
-      "default": "./dist/nextjs-widget.js"
+    "./experimental/host": {
+      "types": "./dist/experimental/host.d.ts",
+      "import": "./dist/experimental/host.js"
     }
   },
   "publishConfig": {
@@ -66,47 +56,39 @@
     "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@conciv/cli": "workspace:^",
-    "@conciv/core": "workspace:^",
-    "@conciv/embed": "workspace:^",
-    "@conciv/extension": "workspace:^",
-    "@conciv/extension-compiler": "workspace:^",
+    "@conciv/contract": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "chokidar": "^6.0.0",
-    "knitwork": "^1.3.0",
-    "launch-editor": "^2.14.2",
-    "unplugin": "^3.6.0"
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/extension-testkit": "workspace:^",
-    "@conciv/harness-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
-    "@tanstack/devtools-vite": "catalog:",
+    "@solidjs/testing-library": "catalog:",
     "@types/node": "catalog:",
-    "@vitejs/devtools": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
-    "get-port": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
     "playwright": "catalog:",
+    "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "next": "^15.3.0 || ^16.0.0",
-    "vite": "^6.0.0 || ^7.0.0 || ^8.0.0"
+    "solid-js": "^1.9.13",
+    "vite": ">=8",
+    "vite-plugin-solid": "^2.11.14"
   },
   "peerDependenciesMeta": {
     "vite": {
       "optional": true
     },
-    "next": {
+    "vite-plugin-solid": {
       "optional": true
     }
   }

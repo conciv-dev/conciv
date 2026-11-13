@@ -1,0 +1,124 @@
+import {existsSync} from 'node:fs'
+import {join} from 'node:path'
+import {ConcivConfigSchema, type ConcivConfig} from '@conciv/protocol/config-types'
+import {writeExtensionsEntry} from './extensions-entry.js'
+
+export const CONCIV_DEFAULT_PORT = 41700
+
+const APP_EXTENSIONS_SPECIFIER = '@conciv/app-extensions'
+const ENTRY_RELATIVE = './.conciv/extensions-client.gen.tsx'
+
+type TurbopackConfig = {resolveAlias?: Record<string, unknown>; [key: string]: unknown}
+type WebpackEntry = () => Promise<Record<string, unknown>>
+type WebpackConfig = {entry?: WebpackEntry; resolve?: {alias?: Record<string, string | false>}}
+type WebpackContext = {nextRuntime?: string; dev?: boolean; dir?: string; config?: {pageExtensions?: string[]}}
+type WebpackHook = (config: WebpackConfig, context: WebpackContext) => WebpackConfig
+
+type ConfigWithEnv = {
+  env?: Record<string, string | undefined>
+  serverExternalPackages?: string[]
+  turbopack?: TurbopackConfig
+  webpack?: WebpackHook
+}
+
+type WithConcivResult<T> = Omit<T, 'env' | 'serverExternalPackages' | 'turbopack' | 'webpack'> & {
+  env: Record<string, string | undefined>
+  serverExternalPackages: string[]
+  turbopack?: TurbopackConfig
+  webpack?: WebpackHook
+}
+
+const ENGINE_EXTERNALS = ['@conciv/it', '@conciv/unplugin', '@conciv/core', '@conciv/db', '@conciv/harness']
+const EDGE_REGISTER_ENTRIES = ['@conciv/it/plugin/nextjs', '@conciv/unplugin/nextjs']
+
+function findInstrumentationFile(dir: string, pageExtensions: string[]): string | undefined {
+  const hasRootRoutes = existsSync(join(dir, 'app')) || existsSync(join(dir, 'pages'))
+  const base = hasRootRoutes ? dir : join(dir, 'src')
+  return pageExtensions.map((extension) => join(base, `instrumentation.${extension}`)).find(existsSync)
+}
+
+function compileInstrumentationFirst(config: WebpackConfig, context: WebpackContext): void {
+  if (context.dev !== true || context.nextRuntime !== 'nodejs') return
+  const {entry} = config
+  if (entry === undefined || context.dir === undefined) return
+  const file = findInstrumentationFile(context.dir, context.config?.pageExtensions ?? [])
+  if (file === undefined) return
+  config.entry = async () => ({
+    ...(await entry()),
+    instrumentation: {import: file, filename: 'instrumentation.js', layer: 'instrument'},
+  })
+}
+
+export function withConciv<T extends object>(nextConfig: T = {} as T, options: ConcivConfig = {}): WithConcivResult<T> {
+  const base = nextConfig as ConfigWithEnv
+  const baseEnv = base.env ?? {}
+  const baseExternals = base.serverExternalPackages ?? []
+  const serverExternalPackages = [...new Set([...baseExternals, ...ENGINE_EXTERNALS])]
+  if (options.enabled === false) return {...nextConfig, env: baseEnv, serverExternalPackages}
+  const port = options.port ?? CONCIV_DEFAULT_PORT
+  const resolved: ConcivConfig = {...options, port}
+  const concivEnv = {
+    NEXT_PUBLIC_CONCIV_PORT: String(port),
+    CONCIV_OPTIONS: JSON.stringify(resolved),
+  }
+  for (const [key, value] of Object.entries(concivEnv)) {
+    if (process.env[key] === undefined) process.env[key] = value
+  }
+  const generated = writeExtensionsEntry(process.cwd(), clientEntriesOf(options))
+  const baseTurbopack = base.turbopack ?? {}
+  const turbopack: TurbopackConfig = {
+    ...baseTurbopack,
+    resolveAlias: {...baseTurbopack.resolveAlias, [APP_EXTENSIONS_SPECIFIER]: ENTRY_RELATIVE},
+  }
+  const userWebpack = base.webpack
+  const webpack: WebpackHook = (config, context) => {
+    const resolveConfig = config.resolve ?? {}
+    const alias: Record<string, string | false> = {...resolveConfig.alias, [APP_EXTENSIONS_SPECIFIER]: generated.path}
+    if (context.nextRuntime === 'edge') for (const entry of EDGE_REGISTER_ENTRIES) alias[entry] = false
+    resolveConfig.alias = alias
+    config.resolve = resolveConfig
+    compileInstrumentationFirst(config, context)
+    return userWebpack ? userWebpack(config, context) : config
+  }
+  return {
+    ...nextConfig,
+    env: {...baseEnv, ...concivEnv},
+    serverExternalPackages,
+    turbopack,
+    webpack,
+  }
+}
+
+export async function register(): Promise<void> {
+  if (process.env.NODE_ENV === 'production') return
+  if (process.env.NEXT_RUNTIME !== 'nodejs') return
+  const options = readConcivOptions(process.env.CONCIV_OPTIONS ?? '{}')
+  if (options.enabled === false) return
+  const root = process.cwd()
+  try {
+    const {watchExtensionsDir} = await import('./extensions-watch.js')
+    watchExtensionsDir(root, clientEntriesOf(options))
+  } catch (error) {
+    console.error('conciv: failed to start extensions watcher', error)
+  }
+  const {makeEngineBooter} = await import('./boot.js')
+  await makeEngineBooter(options, root, {}, 'exact')()
+}
+
+function readConcivOptions(text: string): ConcivConfig {
+  const parsed = ConcivConfigSchema.safeParse(parseJson(text))
+  if (parsed.success) return parsed.data
+  throw new Error(`conciv: CONCIV_OPTIONS is not a valid conciv config: ${parsed.error.message}`)
+}
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch (error) {
+    throw new Error('conciv: CONCIV_OPTIONS is not JSON', {cause: error})
+  }
+}
+
+function clientEntriesOf(options: ConcivConfig): string[] {
+  return (options.extensions ?? []).map((extension) => extension.client)
+}

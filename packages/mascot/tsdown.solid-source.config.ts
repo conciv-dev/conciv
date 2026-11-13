@@ -9,6 +9,5 @@ export default defineConfig({
   dts: false,
   clean: false,
   outExtensions: () => ({js: '.jsx'}),
-  inputOptions: {jsx: 'preserve'},
   external: ['solid-js', /^solid-js\//, /^\.\.\//],
 })

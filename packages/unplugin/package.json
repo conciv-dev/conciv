@@ -1,0 +1,113 @@
+{
+  "name": "@conciv/unplugin",
+  "version": "0.0.22",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv dev agent as an unplugin: vite (full: viteBridge + widget middleware + boot), webpack/rspack (boot the engine), rollup/esbuild (build-only no-ops). One factory, per-bundler subpath entries.",
+  "keywords": [
+    "conciv",
+    "esbuild",
+    "nextjs",
+    "rollup",
+    "rspack",
+    "webpack"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/unplugin"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./vite": {
+      "types": "./dist/vite.d.ts",
+      "import": "./dist/vite.js"
+    },
+    "./webpack": {
+      "types": "./dist/webpack.d.ts",
+      "import": "./dist/webpack.js"
+    },
+    "./rspack": {
+      "types": "./dist/rspack.d.ts",
+      "import": "./dist/rspack.js"
+    },
+    "./rollup": {
+      "types": "./dist/rollup.d.ts",
+      "import": "./dist/rollup.js"
+    },
+    "./esbuild": {
+      "types": "./dist/esbuild.d.ts",
+      "import": "./dist/esbuild.js"
+    },
+    "./nextjs": {
+      "types": "./dist/nextjs.d.ts",
+      "edge-light": "./dist/nextjs-edge.js",
+      "import": "./dist/nextjs.js",
+      "default": "./dist/nextjs.js"
+    },
+    "./nextjs/widget": {
+      "types": "./dist/nextjs-widget.d.ts",
+      "import": "./dist/nextjs-widget.js",
+      "default": "./dist/nextjs-widget.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@conciv/cli": "workspace:^",
+    "@conciv/core": "workspace:^",
+    "@conciv/embed": "workspace:^",
+    "@conciv/extension": "workspace:^",
+    "@conciv/extension-compiler": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "chokidar": "^6.0.0",
+    "knitwork": "^1.3.0",
+    "launch-editor": "^2.14.2",
+    "unplugin": "^3.6.0"
+  },
+  "devDependencies": {
+    "@conciv/extension-testkit": "workspace:^",
+    "@conciv/harness-testkit": "workspace:^",
+    "@conciv/tsconfig": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
+    "@tanstack/devtools-vite": "catalog:",
+    "@types/node": "catalog:",
+    "@vitejs/devtools": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "get-port": "catalog:",
+    "playwright": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "next": "^15.3.0 || ^16.0.0",
+    "vite": "^6.0.0 || ^7.0.0 || ^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    },
+    "next": {
+      "optional": true
+    }
+  }
+}

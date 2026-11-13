@@ -355,6 +355,7 @@ describe('optimize deps', () => {
         '@tanstack/solid-router',
         '@ark-ui/solid',
         '@conciv/extension',
+        '@conciv/plugin',
       ])
       expect(optimizeDeps.include).toEqual([])
     })

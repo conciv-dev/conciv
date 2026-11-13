@@ -1,8 +1,6 @@
 {
-  "extends": "@conciv/tsconfig/tsconfig.base.json",
+  "extends": "@conciv/tsconfig/tsconfig.solid.json",
   "compilerOptions": {
     "types": ["node"]
-  },
-  "include": ["src/**/*.ts", "test/**/*.ts"],
-  "exclude": ["test/fixtures/**"]
+  }
 }

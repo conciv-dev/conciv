@@ -9,7 +9,7 @@ Private package (`"private": true`, `"sideEffects": false`) that ships the conci
 - [src/README.md](./src/README.md): `ConcivLockup` and `ConcivMark`.
 - `exports["."]` (`package.json`): `./dist/conciv-lockup.js` (tsdown) + `./dist/conciv-lockup.d.ts` (tsc, `tsconfig.build.json`).
 - Peer dependency `react` ^19; runtime dep `motion`.
-- `tests/browser/`: the browser test and its DOM helpers; Vitest project `brand-react-browser` (`vitest.config.ts`) runs headless Playwright Chromium with `fileParallelism: false`.
+- `test/browser/`: the browser test and its DOM helpers; Vitest project `brand-react-browser` (`vitest.config.ts`) runs headless Playwright Chromium with `fileParallelism: false`.
 - Scripts: `build`, `typecheck`, `lint` (`oxlint`), `test` (`vitest run`).
 
 ## Invariants

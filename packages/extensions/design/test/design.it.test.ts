@@ -1,6 +1,6 @@
 /* oxlint-disable playwright/no-raw-locators, playwright/prefer-web-first-assertions -- the Task 7 cases read the hidden capture frame and the tab field directly */
 import {existsSync, readFileSync} from 'node:fs'
-import {mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises'
+import {cp, mkdtemp, readdir, readFile, rename, rm, writeFile} from 'node:fs/promises'
 import {request as httpRequest} from 'node:http'
 import {tmpdir} from 'node:os'
 import {isAbsolute, join} from 'node:path'
@@ -47,7 +47,7 @@ import conciv from '@conciv/it/plugin/vite'
 import {renderTargets} from './fixtures/render-targets.js'
 
 const HOST_ROOT = fileURLToPath(new URL('fixtures/host/', import.meta.url))
-const PROVENANCE_DIR = fileURLToPath(new URL('fixtures/provenance/', import.meta.url))
+const PROVENANCE_DIR = await materializeProvenance(fileURLToPath(new URL('fixtures/provenance/', import.meta.url)))
 const ENDPOINT_FILE = 'dev-endpoint.json'
 const PAGE_DRIVER_TIMEOUT_MS = 30_000
 const COLOR_DELTA_E = 3
@@ -250,6 +250,16 @@ function mapFixture(input: {
   })
 }
 
+async function materializeProvenance(source: string): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'conciv-design-provenance-'))
+  await cp(source, dir, {recursive: true})
+  const names = await readdir(dir)
+  await Promise.all(
+    names.filter((name) => name.endsWith('.txt')).map((name) => rename(join(dir, name), join(dir, name.slice(0, -4)))),
+  )
+  return dir
+}
+
 process.env.LAUNCH_EDITOR = 'true'
 
 const home = process.cwd()
@@ -260,6 +270,7 @@ const {rpc, browser, page, stateRoot, call, goto} = kit
 afterAll(async () => {
   await kit.dispose()
   process.chdir(home)
+  await rm(PROVENANCE_DIR, {recursive: true, force: true})
 })
 
 it('declares six design tools with the flags from the spec', async () => {

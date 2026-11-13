@@ -229,13 +229,27 @@ export function assertClosed(root: string): void {
 
 const PACKAGE_CATALOG_ENTRY = /^ {2}'?(\S+?)'?:$/
 const RESOLUTION_LINE = /^ {4}resolution: \{(.*)\}$/
-const PACKED_CONCIV_ENTRY = /^@conciv\/[a-z0-9-]+@file:/
+const PACKED_CONCIV_ENTRY = /^(@conciv\/[a-z0-9-]+)@file:/
 
 type LockResolutions = Map<string, string>
 
-function packageResolutions(lockText: string): LockResolutions {
+function packageBlocks(lockText: string): string[] {
   const section = lockText.split('\npackages:\n')[1]?.split('\nsnapshots:\n')[0] ?? ''
-  return new Map(section.split('\n\n').flatMap(entryResolution))
+  return section.split('\n\n')
+}
+
+function packageResolutions(lockText: string): LockResolutions {
+  return new Map(packageBlocks(lockText).flatMap(entryResolution))
+}
+
+function packedConcivNames(lockText: string): Set<string> {
+  return new Set(packageBlocks(lockText).flatMap(packedConcivName))
+}
+
+function packedConcivName(block: string): string[] {
+  const head = block.split('\n').find((line) => line !== '') ?? ''
+  const name = PACKED_CONCIV_ENTRY.exec(PACKAGE_CATALOG_ENTRY.exec(head)?.[1] ?? '')?.[1]
+  return name === undefined ? [] : [name]
 }
 
 function entryResolution(block: string): [string, string][] {
@@ -263,16 +277,24 @@ function integrityOf(resolution: string): string {
   return resolutionField(resolution, 'integrity') ?? resolution
 }
 
-function lockDrift(committed: LockResolutions, produced: LockResolutions): string[] {
-  const added = [...produced.keys()].filter((key) => !committed.has(key)).map((key) => `+ ${key}`)
-  const removed = [...committed.keys()].filter((key) => !produced.has(key)).map((key) => `- ${key}`)
+function membershipDrift(committed: ReadonlySet<string>, produced: ReadonlySet<string>, suffix: string): string[] {
+  const added = [...produced].filter((key) => !committed.has(key)).map((key) => `+ ${key}${suffix}`)
+  const removed = [...committed].filter((key) => !produced.has(key)).map((key) => `- ${key}${suffix}`)
+  return [...added, ...removed]
+}
+
+function lockDrift(committedText: string, producedText: string): string[] {
+  const committed = packageResolutions(committedText)
+  const produced = packageResolutions(producedText)
+  const registry = membershipDrift(new Set(committed.keys()), new Set(produced.keys()), '')
+  const packed = membershipDrift(packedConcivNames(committedText), packedConcivNames(producedText), ' (packed)')
   const changed = [...produced]
     .filter(([key, resolution]) => {
       const before = committed.get(key)
       return before !== undefined && integrityOf(before) !== integrityOf(resolution)
     })
     .map(([key]) => `~ ${key} (integrity changed)`)
-  return [...added, ...removed, ...changed].toSorted((left, right) => left.slice(2).localeCompare(right.slice(2)))
+  return [...registry, ...packed, ...changed].toSorted((left, right) => left.slice(2).localeCompare(right.slice(2)))
 }
 
 export function assertTrustedResolutions(root: string): void {
@@ -288,13 +310,12 @@ export function assertTrustedResolutions(root: string): void {
 export function assertLockNotDrifted(root: string, lockPath: string): void {
   if (!existsSync(lockPath)) return
   assertTrustedResolutions(root)
-  const produced = packageResolutions(readFileSync(join(root, 'pnpm-lock.yaml'), 'utf8'))
-  const diff = lockDrift(packageResolutions(readFileSync(lockPath, 'utf8')), produced)
+  const diff = lockDrift(readFileSync(lockPath, 'utf8'), readFileSync(join(root, 'pnpm-lock.yaml'), 'utf8'))
   if (diff.length === 0) return
   if (process.env.GITHUB_ACTIONS === 'true') copyFileSync(join(root, 'pnpm-lock.yaml'), lockPath)
   throw new Error(
     [
-      'packed fixture install resolved different registry packages than the committed lockfile',
+      'packed fixture install resolved different packages than the committed lockfile',
       `${relative(WORKSPACE_ROOT, lockPath)}:`,
       ...diff,
       REFRESH_INSTRUCTIONS,

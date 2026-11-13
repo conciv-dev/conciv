@@ -12,7 +12,6 @@
       "inputs": [
         "$TURBO_DEFAULT$",
         "!test/**",
-        "!tests/**",
         "!e2e/**",
         "!**/*.test.ts",
         "!**/*.test.tsx",

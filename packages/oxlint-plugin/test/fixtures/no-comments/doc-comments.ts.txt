@@ -1,0 +1,34 @@
+/**
+ * Kept: prose inside a tagged block.
+ *
+ * @remarks Kept: a tagged block stays whole.
+ */
+export interface Shape {
+  /** @remarks Kept: a single-line tagged block above a member. */
+  readonly name: string
+  /** deleted: a prose-only block above a member */
+  readonly label: string
+  // deleted: a line comment
+  readonly size: number
+}
+
+/**
+ * Kept: documents the function.
+ * @param shape Kept: the shape to measure.
+ * @returns Kept: the area.
+ */
+export function area(shape: Shape): number {
+  /** @remarks Deleted: floats inside a function body. */
+  const doubled = shape.size * 2
+  /* deleted: a plain block comment */
+  return doubled
+}
+
+/** deleted: prose only, mailing user@example.com about {@link Shape}. */
+export const unit = 1
+
+/**
+ * deleted: prose only, an inline {@link area} and an @mention mid-sentence.
+ * {@link Shape} opens this line but is no tag.
+ */
+export type Unit = number

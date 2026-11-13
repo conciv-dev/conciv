@@ -7,7 +7,7 @@ Private package (`"private": true`, `"sideEffects": false`) that ships the conci
 ## Interface
 
 - [src/README.md](./src/README.md): Storybook stories and brand guidelines; components in [src/solid/README.md](./src/solid/README.md).
-- `tests/browser/`: browser tests and their DOM helpers.
+- `test/browser/`: browser tests and their DOM helpers.
 - `exports["./solid"]` (`package.json`): `./dist/solid.js` (vite lib entry `solid`) + `./dist/solid/conciv-lockup.d.ts` (tsc, `tsconfig.build.json`).
 - `exports["./logos.json"]` -> `./assets/manifest.json`; `exports["./assets/*"]` -> raw asset files (`package.json`). `files` publishes `dist` and `assets`.
 - Peer dependency `solid-js` ^1.9.13, optional (`peerDependenciesMeta`); runtime deps `motion`, `@solid-primitives/event-listener`.

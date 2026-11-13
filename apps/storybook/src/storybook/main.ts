@@ -1,0 +1,76 @@
+import type {StorybookConfig} from 'storybook-solidjs-vite'
+import {TANSTACK_AI_SOLID_DEPS} from '@conciv/vitest-config'
+
+const config: StorybookConfig = {
+  stories: [
+    '../**/*.stories.@(js|jsx|mjs|ts|tsx)',
+    '../../../../packages/brand/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
+    '../../../../packages/brand/src/**/*.mdx',
+    '../../../../packages/ui-kit-system/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
+    '../../../../packages/mascot/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
+    '../../../../packages/ui-kit-chat/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
+    '../../../../packages/ui-kit-chat-tools/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
+    '../../../../packages/extensions/page/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
+    '../../../../packages/extensions/tanstack/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
+    '../../../../packages/extensions/recorder/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
+    '../../../../packages/extensions/test-runner/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
+    '../../../../packages/extensions/whiteboard/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
+    '../../../../packages/tools/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
+    '../../../../packages/core/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
+    '../../../../packages/ui-kit-tap/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
+    '../../../../packages/solid-diffs/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
+    '../../../../packages/solid-streamdown/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
+  ],
+  addons: [
+    '@chromatic-com/storybook',
+    '@storybook/addon-vitest',
+    '@storybook/addon-a11y',
+    '@storybook/addon-docs',
+    '@storybook/addon-themes',
+  ],
+  framework: process.env.VITEST ? {name: 'storybook-solidjs-vite', options: {docgen: false}} : 'storybook-solidjs-vite',
+  async viteFinal(storybookViteConfig) {
+    const {mergeConfig} = await import('vite')
+    return mergeConfig(storybookViteConfig, {
+      resolve: {dedupe: ['solid-js', 'solid-js/web', '@ark-ui/solid']},
+      optimizeDeps: {
+        include: [
+          ...TANSTACK_AI_SOLID_DEPS.map((dependency) => `@conciv/ui-kit-chat > ${dependency}`),
+          '@tanstack/solid-virtual',
+          '@tiptap/core',
+          '@tiptap/pm/state',
+          '@tiptap/pm/view',
+          '@tiptap/extension-document',
+          '@tiptap/extension-paragraph',
+          '@tiptap/extension-text',
+          '@tiptap/extension-hard-break',
+          '@tiptap/extension-mention',
+          'unified',
+          'remark-parse',
+          'remark-rehype',
+          'remark-gfm',
+          'remend',
+          'marked',
+          'rehype-harden',
+          'rehype-raw',
+          'rehype-sanitize',
+          'shiki/core',
+          'shiki/engine/javascript',
+          'shiki/langs/bash.mjs',
+          'shiki/themes/github-dark.mjs',
+          'shiki/themes/github-light.mjs',
+          '@shikijs/langs-precompiled/css',
+          '@shikijs/langs-precompiled/html',
+          '@shikijs/langs-precompiled/javascript',
+          '@shikijs/langs-precompiled/json',
+          '@shikijs/langs-precompiled/jsx',
+          '@shikijs/langs-precompiled/markdown',
+          '@shikijs/langs-precompiled/tsx',
+          '@shikijs/langs-precompiled/typescript',
+        ],
+        exclude: ['solid-js', 'solid-js/web', 'solid-js/store', '@ark-ui/solid'],
+      },
+    })
+  },
+}
+export default config

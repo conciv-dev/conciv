@@ -2,7 +2,7 @@
 
 Repo-wide end-to-end tests. Each directory is a consumer app scaffolded with its framework's
 official CLI, wired with `@conciv/it` exactly the way a real user would, plus its own Playwright
-suite (`tests/` + `playwright.config.ts`). Layout follows TanStack Router's `e2e/`.
+suite (`test/` + `playwright.config.ts`). Layout follows TanStack Router's `e2e/`.
 
 ## Why these exist
 
@@ -50,7 +50,7 @@ touches none of this is fine.
 
 `vite-react-packed` installs conciv the way an npm user does, using the packing helpers in
 `packages/vitest-config/src/pack.ts` (`@conciv/vitest-config/pack`, shared with `nextjs/packed` and the
-packages' packed describes). Its `test:packed` runs `test-packed.ts`:
+packages' packed describes). Its `test:packed` runs `test/test-packed.ts`:
 it builds and `pnpm pack`s `@conciv/it`'s workspace dependency closure, copies `index.html`, `src/` and
 `public/` from `vite-react` into a temp dir outside the workspace, generates the `package.json` and
 `vite.config.ts`, overrides each `@conciv/*` to its tarball and runs `pnpm install` there, seeded from
@@ -65,7 +65,7 @@ Everything that packs runs only in `.github/workflows/packed.yml`, never in `pnp
 CI planner, or on a laptop. Each suite is a `test:packed` script:
 
 - `vite-react-packed`: the whole app (it has no `test:e2e`).
-- `nextjs`: specs named `tests/packed-*.spec.ts`, run by `playwright.packed.config.ts`; the shared
+- `nextjs`: specs named `test/packed-*.spec.ts`, run by `playwright.packed.config.ts`; the shared
   `e2eConfig` ignores that pattern, so `test:e2e` never picks them up.
 - `mascot`, `mascot-react`, `extension-tanstack`: describes tagged `packed`; their vitest configs define the
   `packed` tag as skipped unless vitest runs in `packed` mode, and `test:packed` runs
@@ -107,6 +107,6 @@ port registry (`src/ports.ts`) so suites can run side by side.
 2. Add the app to `E2E_PORTS` in `e2e-utils/src/ports.ts`.
 3. Add `@conciv/it` (`workspace:*`) and wire the plugin the way the framework's docs say.
 4. Add `@conciv/e2e-utils` + `@playwright/test` dev deps, a `test:e2e` script, a
-   `playwright.config.ts` built from `e2eConfig(...)`, and a `tests/widget.spec.ts`.
+   `playwright.config.ts` built from `e2eConfig(...)`, and a `test/widget.spec.ts`.
 5. Add `e2e/<name>/**` to `ignorePatterns` in `.fallowrc.json` (scaffold output is not audited,
    same as `apps/examples/**`).

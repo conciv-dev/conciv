@@ -13,7 +13,7 @@ export default defineConfig({
         test: {
           ...ciTestSolidBrowser(),
           name: 'brand-solid-browser',
-          include: ['tests/browser/solid-lockup.browser.test.tsx'],
+          include: ['test/browser/solid-lockup.browser.test.tsx'],
           fileParallelism: false,
           browser: {
             enabled: true,

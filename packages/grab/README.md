@@ -19,7 +19,7 @@ npm install -D @conciv/it
 
 ## Invariants
 
-- `tsconfig.json` uses `lib: [ES2024, DOM, DOM.Iterable]`, `types: []`, and includes only `src/**/*.ts`.
+- `tsconfig.json` uses `lib: [ES2024, DOM, DOM.Iterable]`, `types: []`, and takes its include from the shared config (`src`, `test` and root `*.ts`).
 - Payload size and shape rules are in [src/README.md](./src/README.md#invariants).
 
 ## Side Effects

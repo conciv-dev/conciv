@@ -1,6 +1,6 @@
 ---
 '@conciv/extension-compiler': patch
-'@conciv/plugin': patch
+'@conciv/unplugin': patch
 '@conciv/page': patch
 '@conciv/extension-page': patch
 '@conciv/extension-design': patch

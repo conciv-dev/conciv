@@ -2,6 +2,5 @@
   "extends": "@conciv/tsconfig/tsconfig.react.json",
   "compilerOptions": {
     "types": ["node"]
-  },
-  "include": ["src/**/*.ts", "test/**/*.ts", "test/**/*.tsx"]
+  }
 }

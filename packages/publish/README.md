@@ -12,7 +12,8 @@ Exposes the `conciv-publish` CLI (citty), invoked by the root release scripts:
 | `pnpm release:snapshot beta` | `conciv-publish snapshot` | prerelease under a dist-tag (e.g. `beta`), not latest                |
 | `pnpm release:sync`          | `conciv-publish sync`     | first publish, trusted publishing and git tags for `PUBLIC_PACKAGES` |
 
-Subcommands without a root script: `check-changesets` (`--require-coverage`, `--base`), `check-catalog`, and
+Subcommands without a root script: `check-changesets` (`--require-coverage`, `--base`), `check-catalog`,
+`check-typecheck-coverage`, and
 `swift-mirror` (`--dry-run`), which mirrors `native/swift` into `conciv-dev/conciv-swift`.
 
 All commands run `changeset`/`turbo` via execa in the current directory, which must be the workspace

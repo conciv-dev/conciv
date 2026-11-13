@@ -6,7 +6,7 @@ name: Packed
 # them, and every pack helper (@conciv/vitest-config/pack) throws outside GitHub Actions.
 # Each suite is a `test:packed` script:
 #   - vitest packages tag the describes `packed` (skipped outside `vitest --mode packed`)
-#   - e2e/nextjs keeps its packed specs as tests/packed-*.spec.ts, run by
+#   - e2e/nextjs keeps its packed specs as test/packed-*.spec.ts, run by
 #     playwright.packed.config.ts (the default config ignores them)
 #   - e2e/vite-react-packed is packed end to end
 # It runs on pull requests and on demand; on main, release.yml calls it on every push,

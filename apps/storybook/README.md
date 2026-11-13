@@ -6,7 +6,7 @@ Solid Storybook (`storybook-solidjs-vite`) that collects stories from `src/` and
 
 ## Interface
 
-- `config.stories` (`.storybook/main.ts`): globs `../src/**` plus `packages/brand`, `ui-kit-system`, `mascot`, `ui-kit-chat`, `ui-kit-chat-tools`, `extensions/{page,tanstack,recorder,test-runner,whiteboard}`, `tools`, `core`, `ui-kit-tap`, `solid-diffs`, `solid-streamdown`
+- `config.stories` (`src/storybook/main.ts`, passed as `--config-dir src/storybook` to `storybook dev`/`build` and as `configDir` to the vitest plugin): globs `src/**` plus `packages/brand`, `ui-kit-system`, `mascot`, `ui-kit-chat`, `ui-kit-chat-tools`, `extensions/{page,tanstack,recorder,test-runner,whiteboard}`, `tools`, `core`, `ui-kit-tap`, `solid-diffs`, `solid-streamdown`
 - `storybookTest` project `storybook` (`vitest.config.ts`): runs every story's `play` in headless Chromium through Playwright
 - `uno.config.ts`: UnoCSS with `presetConciv`, scanning the same package sources
 - scripts (`package.json`): `storybook` (port 6006), `build-storybook`, `test`, `typecheck`, `lint`

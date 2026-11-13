@@ -39,7 +39,7 @@ export function e2eConfig(
   const port = E2E_PORTS[app]
   const timeout = opts.timeout ?? 90_000
   return defineConfig({
-    testDir: './tests',
+    testDir: './test',
     testIgnore: PACKED_SPECS,
     workers: 1,
     timeout,
@@ -57,7 +57,7 @@ export function e2eConfig(
 export function packedE2eConfig(): ReturnType<typeof defineConfig> {
   isolatedConcivHome()
   return defineConfig({
-    testDir: './tests',
+    testDir: './test',
     testMatch: PACKED_SPECS,
     workers: 1,
     timeout: 90_000,
@@ -97,7 +97,7 @@ export function harnessMatrixConfig(opts: {
 }): ReturnType<typeof defineConfig> {
   const entries = selectedHarnesses()
   return defineConfig({
-    testDir: './tests',
+    testDir: './test',
     workers: 1,
     timeout: 150_000,
     reporter: reporters(),

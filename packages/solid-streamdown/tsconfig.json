@@ -2,6 +2,5 @@
   "extends": "@conciv/tsconfig/tsconfig.solid.json",
   "compilerOptions": {
     "types": ["node", "vite/client"]
-  },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx", "vite.config.ts", "vitest.config.ts"]
+  }
 }

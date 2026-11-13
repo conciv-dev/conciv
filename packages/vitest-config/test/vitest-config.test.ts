@@ -1,6 +1,6 @@
 import {afterEach, expect, test, vi, describe} from 'vitest'
 import {ciReporters, ciTest} from '../src/reporters.ts'
-import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {
@@ -27,6 +27,7 @@ import {
   parseSummaries,
   renderSummary,
 } from '../src/summary.ts'
+import {assertLockNotDrifted} from '../src/pack.ts'
 
 describe('reporters', () => {
   afterEach(() => {
@@ -734,5 +735,63 @@ describe('summary', () => {
     })
     const [summary] = parseReport('@conciv/parallel', overlapping)
     expect(summary?.timeMs).toBe(10_200)
+  })
+})
+
+describe('packed fixture lock drift', () => {
+  function packedEntry(name: string, build: string): string {
+    const file = `${name.replace('@', '').replace('/', '-')}-${build}.tgz`
+    return [
+      `  '${name}@file:../tarballs/${file}':`,
+      `    resolution: {integrity: sha512-${build}, tarball: file:../tarballs/${file}}`,
+      `    version: ${build}`,
+    ].join('\n')
+  }
+
+  function lockText(entries: string[]): string {
+    const registry = ['  zod@4.6.7:', '    resolution: {integrity: sha512-zod}'].join('\n')
+    return [
+      "lockfileVersion: '9.0'",
+      '',
+      'packages:',
+      '',
+      ...[registry, ...entries].flatMap((entry) => [entry, '']),
+      'snapshots:',
+      '',
+    ].join('\n')
+  }
+
+  function driftOf(committed: string[], produced: string[]): string | undefined {
+    const root = mkdtempSync(join(tmpdir(), 'packed-lock-'))
+    const lockPath = join(root, 'fixture-lock.yaml')
+    writeFileSync(lockPath, lockText(committed))
+    writeFileSync(join(root, 'pnpm-lock.yaml'), lockText(produced))
+    try {
+      assertLockNotDrifted(root, lockPath)
+      return undefined
+    } catch (error) {
+      return String(error)
+    } finally {
+      rmSync(root, {recursive: true, force: true})
+    }
+  }
+
+  test('a renamed packed conciv package is drift that names both packages', () => {
+    const message = driftOf(
+      [packedEntry('@conciv/core', '0.0.22'), packedEntry('@conciv/plugin', '0.0.22')],
+      [packedEntry('@conciv/core', '0.0.22'), packedEntry('@conciv/unplugin', '0.0.22')],
+    )
+    expect(message).toContain('+ @conciv/unplugin')
+    expect(message).toContain('- @conciv/plugin')
+    expect(message).not.toContain('@conciv/core')
+  })
+
+  test('the same packed conciv packages built to other tarballs are not drift', () => {
+    expect(
+      driftOf(
+        [packedEntry('@conciv/core', '0.0.22'), packedEntry('@conciv/plugin', '0.0.22')],
+        [packedEntry('@conciv/core', '0.0.23'), packedEntry('@conciv/plugin', '0.0.23')],
+      ),
+    ).toBeUndefined()
   })
 })

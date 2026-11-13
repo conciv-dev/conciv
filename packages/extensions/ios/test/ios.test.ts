@@ -28,7 +28,7 @@ import {
   SUBTREE_MAX_DEPTH,
   SUBTREE_MAX_NODES,
 } from '../src/shared/bridge.js'
-import {bridgeFixtures, nativeEncodeFixtures} from '../fixtures/bridge/bridge.fixtures.js'
+import {bridgeFixtures, nativeEncodeFixtures} from './fixtures/bridge/bridge.fixtures.js'
 import {IosConfigSchema, type IosConfig} from '../src/shared/meta.js'
 import {nativePageBase} from '../src/shared/page-base.js'
 import {iosSystemPrompt} from '../src/server/prompt.js'
@@ -64,7 +64,7 @@ const bridgeMessageSchemasByType = {
 }
 
 describe('bridge conformance', () => {
-  const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'bridge')
+  const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'bridge')
 
   type Fixture = {file: string; data: {type?: unknown}}
 

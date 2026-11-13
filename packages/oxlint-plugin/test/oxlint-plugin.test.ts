@@ -420,3 +420,40 @@ describe('test file budget', () => {
     })
   })
 })
+
+describe('no comments', () => {
+  async function lintFixture(fixture: string, config = 'test/oxlintrc-no-comments.json'): Promise<string[]> {
+    const diagnostics = await lintDiagnostics(config, `test/fixtures/no-comments/${fixture}`)
+    return diagnostics
+      .filter((diagnostic) => diagnostic.code === 'conciv(no-comments)')
+      .map((diagnostic) => String(diagnostic.message))
+  }
+
+  test('reports a plain comment', async () => {
+    expect(await lintFixture('plain-comment.ts')).toHaveLength(1)
+  })
+
+  test('keeps a per-file @jsxImportSource pragma, which TypeScript and the bundler read', async () => {
+    expect(await lintFixture('jsx-import-source.tsx')).toEqual([])
+  })
+
+  test('with keepDocComments keeps only a tagged doc comment directly above a declaration or member', async () => {
+    expect(await lintFixture('doc-comments.ts', 'test/oxlintrc-no-comments-docs.json')).toHaveLength(6)
+  })
+
+  test('with keepDocComments the autofix keeps tagged blocks whole and deletes every other comment', async () => {
+    const fixed = await lintFix('test/oxlintrc-no-comments-docs.json', 'test/fixtures/no-comments/doc-comments.ts')
+    expect(fixed).toContain('Kept: prose inside a tagged block.')
+    expect(fixed).toContain('@remarks Kept: a tagged block stays whole.')
+    expect(fixed).toContain('/** @remarks Kept: a single-line tagged block above a member. */')
+    expect(fixed).toContain('Kept: documents the function.')
+    expect(fixed).toContain('@param shape Kept: the shape to measure.')
+    expect(fixed).toContain('@returns Kept: the area.')
+    expect(fixed).not.toContain('deleted')
+    expect(fixed).not.toContain('Deleted')
+  })
+
+  test('without keepDocComments reports every doc comment too', async () => {
+    expect(await lintFixture('doc-comments.ts')).toHaveLength(9)
+  })
+})

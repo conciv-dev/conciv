@@ -28,7 +28,7 @@ const DEV_BUNDLER_BRIDGE_PATHS = [
   'packages/core/src/api/rpc/mount.ts',
   'packages/protocol/src/bundler-types.ts',
   'packages/extension/src/vite-bridge.ts',
-  'packages/plugin/src/',
+  'packages/unplugin/src/',
 ]
 
 const NATIVE_AND_REACT_BRIDGE_PATHS = [
@@ -37,7 +37,7 @@ const NATIVE_AND_REACT_BRIDGE_PATHS = [
   'packages/publish/src/swift-mirror.ts',
   'packages/page/src/',
   'packages/embed/src/mount-impl.tsx',
-  'packages/embed/tests/helpers.ts',
+  'packages/embed/test/helpers.ts',
 ]
 
 const PRE_REWRITE_BRIDGE_PATHS = [

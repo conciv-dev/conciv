@@ -4,7 +4,13 @@ import {parseChangesetFile} from '@changesets/parse'
 import {execa} from 'execa'
 import {qualifiesForCoverage} from './coverage-files.ts'
 import {parseManifest} from './manifest.ts'
-import {buildDependencyGraph, readWorkspacePackages, transitiveDependents, type WorkspacePackage} from './workspace.ts'
+import {
+  buildDependencyGraph,
+  findOwner,
+  readWorkspacePackages,
+  transitiveDependents,
+  type WorkspacePackage,
+} from './workspace.ts'
 
 const CHANGESET_DIR = '.changeset'
 
@@ -43,7 +49,7 @@ export function assertValidPackageName(name: string): void {
 
 export const PUBLIC_PACKAGES = [
   '@conciv/it',
-  '@conciv/plugin',
+  '@conciv/unplugin',
   '@conciv/cli',
   '@conciv/try',
   '@conciv/core',
@@ -62,6 +68,7 @@ export const PUBLIC_PACKAGES = [
   '@conciv/tools',
   '@conciv/extension',
   '@conciv/extension-compiler',
+  '@conciv/plugin',
   '@conciv/solid-diffs',
   '@conciv/solid-streamdown',
   '@conciv/ui-kit-system',
@@ -200,13 +207,6 @@ async function addedChangesetPackageNames(cwd: string, entries: DiffEntry[]): Pr
     }),
   )
   return [...new Set(names.flat())]
-}
-
-function findOwner(packages: WorkspacePackage[], path: string): WorkspacePackage | undefined {
-  return packages
-    .filter((pkg) => path === pkg.relativeDir || path.startsWith(`${pkg.relativeDir}/`))
-    .toSorted((a, b) => b.relativeDir.length - a.relativeDir.length)
-    .at(0)
 }
 
 export async function assertPublishedChangesCovered(cwd: string, base: string): Promise<void> {

@@ -1,23 +1,34 @@
 # @conciv/plugin
 
-The conciv dev agent as an unplugin: vite (full: viteBridge + widget middleware + boot), webpack/rspack (boot the engine), rollup/esbuild (build-only no-ops). One factory, per-bundler subpath entries.
+The conciv plugin SDK, a port of opencode's plugin package: `Plugin.define` for a plugin's engine part and browser
+part, RPC contracts between the two, registries and stores. Nothing in conciv uses it yet.
 
 Part of [conciv](https://github.com/conciv-dev/conciv).
 
 ## Interface
 
-- `package.json:exports` - `.`, `./vite`, `./webpack`, `./rspack`, `./rollup`, `./esbuild`, `./nextjs`, `./nextjs/widget`.
-- Source: [src](./src/README.md).
-- Test support: `test/fixtures/diagnostics-app/` (one compiling and one broken module for the diagnostics tests) and `test/helpers/` (temporary Vite dev servers for the plugin tests).
+| Entry                                 | What it is                                                                                                                                                |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@conciv/plugin`                      | The engine part: `Plugin.define({id, setup})`, its `Context`, and the `Tool`, `Skill`, `Model`, `Location` and `Rpc` namespaces                           |
+| `@conciv/plugin/rpc`                  | `Rpc.define({id, methods, events})`: the contract both parts import                                                                                       |
+| `@conciv/plugin/experimental`         | The browser part: `Plugin.define({stores, setup})`, registries, `Store`, `Contract`, `Registry`, `createKeyed`, `createLatest`, `usePlugin`, `bindPlugin` |
+| `@conciv/plugin/experimental/vite`    | `experimental()`: builds a browser part into its `./plugin-experimental` bundle                                                                           |
+| `@conciv/plugin/experimental/builtin` | First-party tier (`ToolCall`, `onIdle`), never for outside plugins                                                                                        |
+| `@conciv/plugin/host`                 | Engine-side host only: finds a plugin's entry files                                                                                                       |
+| `@conciv/plugin/experimental/host`    | Browser-side host only: `compose`, enable rules, the bundle evaluator                                                                                     |
+
+- Source, examples and every difference from opencode: [src](./src/README.md).
 
 ## Invariants
 
-- webpack and rspack boot the engine only when `enabled !== false`; the Next.js widget starts only in a browser with `NEXT_PUBLIC_CONCIV_PORT` set and `NODE_ENV` not `production`. Full list in [src/README.md](./src/README.md#invariants).
+- ESM only (`type: module`); `solid-js` is a peer, `vite` and `vite-plugin-solid` are optional peers (only
+  `./experimental/vite` needs them).
 
 ## Side Effects
 
-- The package root (configs and manifest) has none. At runtime the Vite, webpack and rspack entries boot the engine process (`src/core/boot.ts`), the Vite hook injects the widget tags into served HTML and writes `.conciv/extensions-client.gen.tsx`, and the Next.js widget entry mounts browser UI on `window`. Full list in [src/README.md](./src/README.md#side-effects).
+- None at import. `./host` reads plugin folders and imports their entry files when the host calls it.
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/plugin` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run test --filter=@conciv/plugin` from the repo root (turbo builds the package and its
+  dependencies first)
