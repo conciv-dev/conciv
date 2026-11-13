@@ -16,9 +16,9 @@ import {revokeBrowsers as revokeTrustedBrowsers} from '@conciv/protocol/engine-t
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {FixtureSession, PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
-import type {AlternateHarness} from '@conciv/extension-testkit/core-kit'
-import type {PushWireWatch} from '@conciv/extension-testkit/push-wire'
-import type {RpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
+import type {AlternateHarness} from '@conciv/plugin-testkit/core-kit'
+import type {PushWireWatch} from '@conciv/plugin-testkit/push-wire'
+import type {RpcCallCursor} from '@conciv/plugin-testkit/rpc-counts'
 
 export type BootCoreInput = {
   id: string

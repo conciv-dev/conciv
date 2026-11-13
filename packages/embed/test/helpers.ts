@@ -1,18 +1,18 @@
 import type {AnyExtension} from '@conciv/extension'
 import type {HarnessCommand, HarnessModel, HarnessSessionMeta} from '@conciv/protocol/harness-types'
-import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
+import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import fs from 'node:fs'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {createServer, type Server, request as httpRequest, type IncomingMessage} from 'node:http'
-import {listenLocal} from '@conciv/extension-testkit/listen-local'
+import {listenLocal} from '@conciv/plugin-testkit/listen-local'
 import type {Duplex} from 'node:stream'
 import {test, expect, type Page} from '@playwright/test'
 import type {DraftRow} from '@conciv/contract'
 import {until} from '@conciv/harness-testkit/until'
 import {magicLink, requestPrintedCode} from '@conciv/harness-testkit/login'
 import {PageToNativeSchema, type PageToNativeMessage} from '@conciv/extension-ios/bridge'
-import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
+import {awaitPagePlaneSubscribed} from '@conciv/plugin-testkit/page-plane'
 
 export type EmbedKit = CoreKit
 

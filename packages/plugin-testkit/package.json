@@ -1,0 +1,59 @@
+{
+  "name": "@conciv/plugin-testkit",
+  "version": "0.0.22",
+  "private": true,
+  "description": "Boots the real engine and widget with the fake model chat for widget and plugin tests.",
+  "homepage": "https://conciv.dev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/plugin-testkit"
+  },
+  "type": "module",
+  "exports": {
+    "./connect-handshake": "./src/connect-handshake.ts",
+    "./core-kit": "./src/core-kit.ts",
+    "./host/grab": "./src/host/grab.ts",
+    "./widget-suite": "./src/widget-suite.ts",
+    "./page-plane": "./src/page-plane.ts",
+    "./listen-local": "./src/listen-local.ts",
+    "./navigation-state": "./src/navigation-state.ts",
+    "./rpc-counts": "./src/rpc-counts.ts",
+    "./rpc-wire": "./src/rpc-wire.ts",
+    "./chat-wire": "./src/chat-wire.ts",
+    "./push-wire": "./src/push-wire.ts",
+    "./rpc-fault": "./src/rpc-fault.ts",
+    "./rpc-socket": "./src/rpc-socket.ts",
+    "./rpc-observer": "./src/rpc-observer.ts",
+    "./chat-fault": "./src/chat-fault.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@conciv/browser-fixture": "workspace:*",
+    "@conciv/contract": "workspace:^",
+    "@conciv/core": "workspace:^",
+    "@conciv/extension": "workspace:^",
+    "@conciv/grab": "workspace:^",
+    "@conciv/harness-testkit": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@orpc/client": "catalog:",
+    "@orpc/standard-server-peer": "catalog:",
+    "p-timeout": "catalog:",
+    "playwright": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
+    "@orpc/server": "catalog:",
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "typescript": "catalog:"
+  }
+}
