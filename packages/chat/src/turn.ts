@@ -232,6 +232,7 @@ export function turnHooks(
         modelOptions: config.modelOptions,
         systemPrompts: async () => [systemText, (await instructions.promise).initial].filter((text) => text !== ''),
         codeMode: toolSet.codeMode,
+        search: toolSet.search,
         asking: toolSet.asking,
         direct: toolSet.direct,
         setup: async () => {

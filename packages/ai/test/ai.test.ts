@@ -530,6 +530,7 @@ const watched = require('node:net').connect(data.socket, () => {
       plan: (turn) => ({
         systemPrompts: async () => [],
         codeMode: [],
+        search: null,
         asking: [],
         direct: [],
         setup: async () => new Map(),
@@ -786,7 +787,7 @@ const watched = require('node:net').connect(data.socket, () => {
         inputSchema: z.object({}),
         outputSchema: z.unknown(),
       }).server(async (args) => args)
-      const runner = server.codeRunner([echo])
+      const runner = server.codeRunner([echo], null)
       if (runner === null) throw new Error('code mode found no driver')
       const booted = ours()
       expect(booted).toHaveLength(onQuickJS ? 1 : 0)

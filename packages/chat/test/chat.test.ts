@@ -11,7 +11,17 @@ import {SessionId} from '@conciv/protocol/chat-types'
 import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 import {Effect, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {z} from 'zod'
-import {Agent, Bus, Database, Location, Permission, PermissionSaved, PluginHooks, Tool} from '@conciv/plugin-host'
+import {
+  Agent,
+  Bus,
+  CodeModeCatalog,
+  Database,
+  Location,
+  Permission,
+  PermissionSaved,
+  PluginHooks,
+  Tool,
+} from '@conciv/plugin-host'
 import {createChatPlane, toolDomainCapabilities, type CodeCapability} from '../src/index.js'
 
 const model = fakeText()
@@ -154,6 +164,7 @@ describe('plugin tools in code mode', () => {
     const scope = host.runSync(Scope.make())
     const builtin: CodeCapability = {
       name: 'unit_taken',
+      path: 'unit_taken',
       description: 'Built in.',
       errors: [],
       inputSchema: z.object({}),
@@ -245,6 +256,83 @@ describe('plugin tools in code mode', () => {
     await expect(runner?.code?.run('return await external_unit_taken({})', 'parent')).resolves.toMatchObject({
       result: 'built in',
     })
+  })
+
+  it('a tool outside the listed budget is found by search and called through the returned path', async () => {
+    const host = ManagedRuntime.make(Tool.layer.pipe(Layer.provideMerge(PluginHooks.layer)))
+    onTestFinished(() => host.dispose())
+    const scope = host.runSync(Scope.make())
+    const helper = (index: number) =>
+      `Bulk helper ${index} reads, filters and reshapes the shared demo records for the weekly reporting pages.`
+    const target = 'Measure the quasar brightness of one sky region.'
+    await host.runPromise(
+      Effect.gen(function* () {
+        const tools = yield* Tool.Service
+        yield* tools.transform((editor) => {
+          editor.namespace({name: 'bulk', description: 'Bulk record helpers'})
+          Array.from({length: 120}, (_, index) =>
+            editor.add({
+              name: `helper_${index}`,
+              description: helper(index),
+              input: z.object({id: z.string()}),
+              options: {namespace: 'bulk'},
+              execute: (input: {id: string}) => Effect.succeed({content: input.id}),
+            }),
+          )
+          editor.add({
+            name: 'zz_quasar',
+            description: target,
+            input: z.object({region: z.string()}),
+            options: {namespace: 'bulk'},
+            execute: (input: {region: string}) => Effect.succeed({content: `bright ${input.region}`}),
+          })
+        })
+      }).pipe(Scope.provide(scope)),
+    )
+    const listed = CodeModeCatalog.summarize({
+      tools: [
+        {
+          type: 'namespace',
+          name: 'bulk',
+          tools: [
+            ...Array.from({length: 120}, (_, index) => ({
+              type: 'tool' as const,
+              name: `helper_${index}`,
+              description: helper(index),
+              signature: '',
+            })),
+            {type: 'tool', name: 'zz_quasar', description: target, signature: ''},
+          ],
+        },
+      ],
+    })
+    expect(listed.namespaces[0]?.entries.map((entry) => entry.path)).not.toContain('bulk.zz_quasar')
+
+    const capabilities = (): CodeCapability[] =>
+      toolDomainCapabilities(
+        [],
+        host.runSync(Tool.Service.use((tools) => tools.snapshot())),
+        (effect, signal) => host.runPromiseExit(effect, {signal}),
+        () => undefined,
+      )
+    const {root, db} = openDatabase()
+    const chat = await chatPlane(db, root, {capabilities})
+    const runner = await chat.codeRunner(SessionId.parse('conciv_search'), () => undefined)
+    await expect(runner?.code?.run('return search({query: "quasar brightness"})', 'parent')).resolves.toMatchObject({
+      success: true,
+      result: {
+        items: [
+          {
+            path: 'external_bulk_zz_quasar',
+            description: target,
+            signature: expect.stringContaining('region: string'),
+          },
+        ],
+      },
+    })
+    await expect(
+      runner?.code?.run('return await external_bulk_zz_quasar({region: "north"})', 'parent'),
+    ).resolves.toMatchObject({result: 'bright north'})
   })
 })
 
@@ -359,6 +447,7 @@ describe('direct tools', () => {
     )
     const builtin: CodeCapability = {
       name: 'unit_builtin',
+      path: 'unit_builtin',
       description: 'Built in.',
       errors: [],
       inputSchema: z.object({}),

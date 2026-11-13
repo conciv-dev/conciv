@@ -226,6 +226,7 @@ describe('chat plane', () => {
     const missing = join(root, 'no-such-prompt.md')
     const echo: CodeCapability = {
       name: 'unit_echo',
+      path: 'unit_echo',
       description: 'Echo the text back.',
       errors: [],
       inputSchema: z.object({text: z.string()}),
@@ -2421,6 +2422,7 @@ describe('direct tools on the MCP surface', () => {
 
     const direct: CodeCapability = {
       name: 'unit_kept_direct',
+      path: 'unit_kept_direct',
       description: 'Direct.',
       errors: [],
       inputSchema: z.object({}),
