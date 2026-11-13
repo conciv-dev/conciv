@@ -143,6 +143,57 @@ export function ephemeral<
     ) satisfies EphemeralDefinition<Type, typeof data>
 }
 
+export function inventory<const Definitions extends ReadonlyArray<Definition>>(...definitions: Definitions) {
+  return Object.freeze(definitions)
+}
+
+export function latest(definitions: ReadonlyArray<Definition>) {
+  return readonlyMap(
+    definitions.reduce((result, definition) => {
+      const existing = result.get(definition.type)
+      if (!existing) {
+        result.set(definition.type, definition)
+        return result
+      }
+      if (definition.durable && existing.durable && definition.durable.version !== existing.durable.version) {
+        if (definition.durable.version > existing.durable.version) result.set(definition.type, definition)
+        return result
+      }
+      if (definition !== existing) throw new Error(`Duplicate latest event definition for ${definition.type}`)
+      return result
+    }, new Map<string, Definition>()),
+  )
+}
+
 export function versionedType(type: string, version: number) {
   return `${type}.${version}`
+}
+
+export function durableMap<const Definitions extends ReadonlyArray<Definition>>(definitions: Definitions) {
+  return readonlyMap(
+    definitions.reduce((result, definition) => {
+      if (definition.durability !== 'durable') return result
+      const key = versionedType(definition.type, definition.durable.version)
+      if (result.has(key)) throw new Error(`Duplicate durable event definition for ${key}`)
+      result.set(key, definition)
+      return result
+    }, new Map<string, DurableDefinition>()),
+  )
+}
+
+function readonlyMap<Key, Value>(map: Map<Key, Value>): ReadonlyMap<Key, Value> {
+  const result: ReadonlyMap<Key, Value> = Object.freeze({
+    get size() {
+      return map.size
+    },
+    entries: () => map.entries(),
+    forEach: (callback: (value: Value, key: Key, map: ReadonlyMap<Key, Value>) => void, thisArg?: unknown) =>
+      map.forEach((value, key) => callback.call(thisArg, value, key, result)),
+    get: (key: Key) => map.get(key),
+    has: (key: Key) => map.has(key),
+    keys: () => map.keys(),
+    values: () => map.values(),
+    [Symbol.iterator]: () => map[Symbol.iterator](),
+  })
+  return result
 }
