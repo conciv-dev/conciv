@@ -44,7 +44,7 @@ import {
 } from '@conciv/contract'
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
-import {chatRuns, openDb, sessions as sessionTable, type ConcivDb} from '@conciv/db'
+import {chatMetadata, chatRuns, openDb, sessions as sessionTable, type ConcivDb} from '@conciv/db'
 import {
   createClientSettings,
   defineTool,
@@ -78,6 +78,7 @@ import {
   PermissionSaved,
   PluginHooks,
   Rpc,
+  Session,
   SessionEvent,
   SessionProjector,
   Skill,
@@ -2529,6 +2530,39 @@ describe('plugin permission cards', () => {
     expect(written).toEqual([])
     expect(await readNextEvent(events, readApprovalSettled)).toBe(shown.approvalId)
     expect((await plane.hydrate(id)).pendingApprovals).toEqual([])
+  })
+
+  it('closing the engine clears a pending plugin card from storage before the database closes, with no error', async () => {
+    const fixture = await makeChatFixture()
+    const {plane, pluginHost, db, sessionId: id, stateRoot} = fixture
+    await setPermissions(db, id, [{action: 'edit', resource: '*', effect: 'ask'}])
+    const asked = await pluginHost.runPromise(
+      Effect.gen(function* () {
+        return yield* (yield* Permission.Service).ask({
+          sessionId: Session.Id.make(id),
+          action: 'edit',
+          resources: ['notes.md'],
+          metadata: {file: 'notes.md'},
+        })
+      }),
+    )
+    expect(asked.effect).toBe('ask')
+    await vi.waitFor(async () =>
+      expect((await plane.hydrate(id)).pendingApprovals.map((entry) => entry.approvalId)).toEqual([asked.id]),
+    )
+    const stderr = vi.spyOn(process.stderr, 'write')
+    await fixture.dispose()
+    const logged = stderr.mock.calls.map(([chunk]) => String(chunk)).join('')
+    stderr.mockRestore()
+    const reopened = openDb(stateRoot)
+    onTestFinished(() => reopened.$client.close())
+    const stored = reopened
+      .select({value: chatMetadata.valueJson})
+      .from(chatMetadata)
+      .where(eq(chatMetadata.key, `${id}:pending-approvals`))
+      .all()
+    expect(stored).toEqual([{value: []}])
+    expect(logged).toBe('')
   })
 })
 

@@ -141,8 +141,8 @@ export function followPermissionCards(cards: PermissionCards): Effect.Effect<Bus
   return Effect.gen(function* () {
     const bus = yield* Bus.Service
     return yield* bus.listen((event) =>
-      Effect.sync(() => {
-        void cardWork(cards, event.type, event.data)?.catch((error: unknown) =>
+      Effect.promise(async () => {
+        await cardWork(cards, event.type, event.data)?.catch((error: unknown) =>
           cards.log(`[core] the permission card for ${event.type} could not be updated: ${String(error)}`),
         )
       }),
