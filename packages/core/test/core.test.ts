@@ -23,6 +23,7 @@ import {createToolCallChunks, fakeText} from '@conciv/ai/testkit'
 import {
   createChatPlane,
   registryCapabilities,
+  toolDomainCapabilities,
   type ChatPlane,
   type CodeCapability,
   type FollowUpOutcome,
@@ -60,7 +61,9 @@ import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
 import {eq} from 'drizzle-orm'
-import {isEqual} from 'es-toolkit'
+import {PluginHooks, Tool} from '@conciv/plugin-host'
+import {Effect, Layer, ManagedRuntime, Scope} from 'effect'
+import {isEqual, uniq} from 'es-toolkit'
 import getPort from 'get-port'
 import {WSContext, defineWebSocketHelper} from 'hono/ws'
 import {z} from 'zod'
@@ -498,6 +501,74 @@ describe('chat plane', () => {
   function sessionId(name: string): SessionId {
     return SessionId.parse(`conciv_${name}`)
   }
+
+  describe('plugin tools in code mode', () => {
+    it('an empty tool domain changes no list, a plugin tool runs through code mode with its hooks, and a name a built-in capability has is left out', async () => {
+      const host = ManagedRuntime.make(Tool.layer.pipe(Layer.provideMerge(PluginHooks.layer)))
+      onTestFinished(() => host.dispose())
+      const scope = host.runSync(Scope.make())
+      const builtin: CodeCapability = {
+        name: 'unit_taken',
+        description: 'Built in.',
+        errors: [],
+        inputSchema: z.object({}),
+        execute: async () => 'built in',
+      }
+      const collisions: string[] = []
+      const capabilities = (): CodeCapability[] =>
+        toolDomainCapabilities(
+          [builtin],
+          host.runSync(Tool.Service.use((tools) => tools.snapshot())),
+          (effect, signal) => host.runPromise(effect, {signal}),
+          (name) => collisions.push(name),
+        )
+      expect(capabilities()).toEqual([builtin])
+
+      const seen: string[] = []
+      await host.runPromise(
+        Effect.gen(function* () {
+          const tools = yield* Tool.Service
+          const hooks = yield* PluginHooks.Service
+          yield* tools.transform((editor) => {
+            editor.add({
+              name: 'unit_shout',
+              description: 'Shout the text.',
+              input: z.object({text: z.string()}),
+              execute: (input: {text: string}, context) =>
+                Effect.succeed({content: `${input.text.toUpperCase()} in ${context.sessionId}`}),
+            })
+            editor.add({
+              name: 'unit_taken',
+              description: 'A plugin copy.',
+              input: z.object({}),
+              execute: () => Effect.succeed({content: 'plugin'}),
+            })
+          })
+          yield* hooks.register('tool', 'execute.before', (event) =>
+            Effect.sync(() => {
+              seen.push(`before ${event.tool} ${event.messageId ?? 'without a message'}`)
+              event.input = {text: 'changed by a hook'}
+            }),
+          )
+          yield* hooks.register('tool', 'execute.after', (event) =>
+            Effect.sync(() => seen.push(`after ${event.tool} ${event.status}`)),
+          )
+        }).pipe(Scope.provide(scope)),
+      )
+
+      const chat = await plane(cliHarness(fakeCli()), tempDir(), {capabilities})
+      const runner = await chat.codeRunner(sessionId('plugin'), () => undefined)
+      expect(runner?.capabilities.map((capability) => capability.name)).toEqual(['unit_taken', 'unit_shout'])
+      expect(uniq(collisions)).toEqual(['unit_taken'])
+      await expect(runner?.run('return await external_unit_shout({text: "hi"})', 'parent')).resolves.toMatchObject({
+        result: 'CHANGED BY A HOOK in conciv_plugin',
+      })
+      expect(seen).toEqual(['before unit_shout without a message', 'after unit_shout completed'])
+      await expect(runner?.run('return await external_unit_taken({})', 'parent')).resolves.toMatchObject({
+        result: 'built in',
+      })
+    })
+  })
 })
 
 describe('config', () => {
