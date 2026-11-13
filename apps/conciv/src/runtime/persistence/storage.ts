@@ -28,6 +28,8 @@ type PickPart = (value: unknown) => unknown
 
 export type CopyFrom = {key: string; pick?: PickPart}
 
+const PLUGIN_STORAGE = 'plugins'
+
 async function readCurrentAsync(input: {
   storage: AsyncStorage
   key: string
@@ -107,14 +109,14 @@ async function relocateStoredValueAsync(input: {
 }
 
 export const Persist = {
-  global(namespace: string, key: string): PersistTarget {
-    return {scope: 'global', namespace, key}
+  global(key: string): PersistTarget {
+    return {scope: 'global', namespace: PLUGIN_STORAGE, key}
   },
-  project(namespace: string, key: string): PersistTarget {
-    return {scope: 'project', namespace, key}
+  project(key: string): PersistTarget {
+    return {scope: 'project', namespace: PLUGIN_STORAGE, key}
   },
-  session(namespace: string, session: string, key: string): PersistTarget {
-    return {scope: 'project', namespace, key: `session:${session}:${key}`}
+  session(session: string, key: string): PersistTarget {
+    return {scope: 'project', namespace: PLUGIN_STORAGE, key: `session:${session}:${key}`}
   },
 }
 
@@ -157,7 +159,7 @@ export function persisted<S extends StandardSchemaV1<unknown, object>>(
   rpc: RpcClient,
 ): PersistedWithReady<StandardSchemaV1.InferOutput<S>> {
   const config = target
-  const name = `${config.namespace}.${config.key}`
+  const name = config.key
 
   const decode = (raw: string) => {
     const value = decodeJson(raw)

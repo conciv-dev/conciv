@@ -44,7 +44,7 @@ export function globalStoreTarget(
   scope: 'global' | 'project',
 ) {
   return {
-    ...Persist[scope](`plugin.${plugin}`, key),
+    ...Persist[scope](storeName(plugin, key)),
     copyFrom: storeImports(from),
   }
 }
