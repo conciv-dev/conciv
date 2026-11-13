@@ -132,7 +132,7 @@
   },
   "overrides": [
     {
-      "files": ["packages/plugin-host/src/plugin/*.ts", "packages/plugin-host/src/util/*.ts"],
+      "files": ["packages/plugin-host/src/plugin/**/*.ts", "packages/plugin-host/src/util/*.ts"],
       "rules": {"unused-files": "off"}
     }
   ],
