@@ -273,7 +273,12 @@ describe('refusal text', () => {
         Layer.provideMerge(
           Layer.succeed(
             Location.Service,
-            Location.Service.of(Schema.decodeSync(Location.Info)({directory: root, project: {id: root}})),
+            Location.Service.of(
+              Schema.decodeSync(Location.Info)({
+                directory: root,
+                project: {id: root, directory: root, canonical: root},
+              }),
+            ),
           ),
         ),
         Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),
