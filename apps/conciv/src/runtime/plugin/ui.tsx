@@ -1,6 +1,6 @@
 import {children, createUniqueId, For, Show, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import type {Ui, UiIconProps, UiMenuItem} from '@conciv/plugin/experimental'
+import type {Ui, UiIconProps, UiMenuItem, UiMenuSubProps} from '@conciv/plugin/experimental'
 import {Streamdown} from '@conciv/solid-streamdown'
 import {
   Button,
@@ -178,21 +178,28 @@ export const ui: Ui = {
     </Menu.ItemGroup>
   ),
   MenuSub: (props) => (
-    <Menu.Root
-      positioning={{placement: 'right-start', gutter: 4, overflowPadding: 16, overlap: true}}
-      onOpenChange={(details) => props.onOpenChange?.(details.open)}
+    <Show
+      when={!props.disabled}
+      fallback={
+        <Menu.Item value={createUniqueId()} disabled>
+          <SubTriggerBody icon={props.icon} label={props.label} />
+        </Menu.Item>
+      }
     >
-      <Menu.TriggerItem class={MENU_ITEM}>
-        <Show when={props.icon}>{(icon) => <Icon name={icon()} class={MUTED_ICON} />}</Show>
-        <span class="min-w-0 truncate">{props.label}</span>
-        <Icon name="chevron-right" class={`ms-auto ${MUTED_ICON}`} />
-      </Menu.TriggerItem>
-      <Menu.Positioner>
-        <Menu.Content class={MENU_CONTENT} aria-label={props.label}>
-          {props.children}
-        </Menu.Content>
-      </Menu.Positioner>
-    </Menu.Root>
+      <Menu.Root
+        positioning={{placement: 'right-start', gutter: 4, overflowPadding: 16, overlap: true}}
+        onOpenChange={(details) => props.onOpenChange?.(details.open)}
+      >
+        <Menu.TriggerItem class={MENU_ITEM}>
+          <SubTriggerBody icon={props.icon} label={props.label} />
+        </Menu.TriggerItem>
+        <Menu.Positioner>
+          <Menu.Content class={MENU_CONTENT} aria-label={props.label}>
+            {props.children}
+          </Menu.Content>
+        </Menu.Positioner>
+      </Menu.Root>
+    </Show>
   ),
   Loader: (props) => (
     <Loader.Root size={loaderSize[props.size ?? 'normal']} bare class={props.class}>
@@ -360,6 +367,16 @@ function MenuItem(props: UiMenuItem) {
         <Keys keys={props.keys ?? []} class="ms-auto" />
       </Show>
     </Menu.Item>
+  )
+}
+
+function SubTriggerBody(props: Pick<UiMenuSubProps, 'icon' | 'label'>): JSX.Element {
+  return (
+    <>
+      <Show when={props.icon}>{(icon) => <Icon name={icon()} class={MUTED_ICON} />}</Show>
+      <span class="min-w-0 truncate">{props.label}</span>
+      <Icon name="chevron-right" class={`ms-auto ${MUTED_ICON}`} />
+    </>
   )
 }
 
