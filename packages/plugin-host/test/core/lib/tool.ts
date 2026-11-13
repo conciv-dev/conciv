@@ -1,9 +1,36 @@
+import {Agent} from '../../../src/core/agent.js'
 import type {Permission} from '../../../src/core/permission.js'
+import {SessionMessage} from '../../../src/schema/session-message.js'
 import {Tool} from '../../../src/core/tool.js'
-import {Effect} from 'effect'
+import type {Context} from '../../../src/plugin/effect/plugin.js'
+import {Effect, type Scope} from 'effect'
+
+export const toolIdentity = {
+  agent: Agent.Id.make('build'),
+  messageId: SessionMessage.Id.make('msg_tool_test'),
+}
 
 export const toolDefinitions = (registry: Tool.Interface, permissions?: Permission.Ruleset) =>
   registry.snapshot(permissions).pipe(Effect.map((toolSet) => toolSet.definitions))
+
+export const registerToolPlugin = <R>(
+  plugin: {
+    readonly id: string
+    readonly effect: (context: Context) => Effect.Effect<void, never, R>
+  },
+  hook?: Context['tool']['hook'],
+): Effect.Effect<void, never, R | Tool.Interface | Scope.Scope> =>
+  Effect.gen(function* () {
+    const tools = yield* Tool.Service
+    yield* plugin.effect({
+      tool: {
+        transform: tools.transform,
+        reload: tools.reload,
+        list: tools.list,
+        hook: hook ?? (() => Effect.die('registerToolPlugin does not support tool hooks')),
+      },
+    })
+  })
 
 export interface ToolExecution {
   readonly status: 'completed' | 'error'

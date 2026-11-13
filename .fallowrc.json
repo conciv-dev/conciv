@@ -257,7 +257,8 @@
         "Skill",
         "DirectorySource",
         "UrlSource",
-        "EmbeddedSource"
+        "EmbeddedSource",
+        "toModelOutput"
       ]
     },
     {

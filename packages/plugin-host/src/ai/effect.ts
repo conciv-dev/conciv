@@ -1,2 +1,2 @@
-export {emptyInputJsonSchema} from './tool.js'
+export {makeToolFailure, emptyInputJsonSchema} from './tool.js'
 export * from './public.js'
