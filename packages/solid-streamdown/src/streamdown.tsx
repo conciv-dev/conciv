@@ -2,13 +2,17 @@ import {
   createComputed,
   createMemo,
   createRenderEffect,
+  type Accessor,
   For,
+  from,
   Index,
   type JSX,
+  mapArray,
   Match,
   on,
   onMount,
   Switch,
+  untrack,
 } from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
 import {Dynamic} from 'solid-js/web'
@@ -22,6 +26,13 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, {defaultSchema} from 'rehype-sanitize'
 import {parseMarkdownIntoBlocks} from './parse-blocks.js'
 import {highlightWord} from '@zag-js/highlight-word'
+import {
+  isInlineCodePath,
+  localLinkPath,
+  localLinkTarget,
+  type LocalFileExists,
+  type OpenLocalFile,
+} from './local-file-links.js'
 
 export type FenceView = (props: {code: string}) => JSX.Element
 
@@ -43,6 +54,7 @@ const rawPlugins: Pluggable[] = [rehypeRaw, [rehypeSanitize, rawSchema]]
 const defaultLinkPrefixes: string[] = ['*']
 const defaultImagePrefixes: string[] = ['*']
 const unmarkedTags = new Set(['code', 'pre'])
+const heldLocalLinkTag = 'sd-local-link'
 
 export type StreamdownProps = {
   children: string
@@ -57,6 +69,8 @@ export type StreamdownProps = {
   linkBlockPolicy?: 'indicator' | 'text-only'
   highlightCode?: HighlightCode
   highlight?: readonly string[]
+  openLocalFile?: OpenLocalFile
+  localFileExists?: LocalFileExists
   class?: string
 }
 
@@ -146,8 +160,12 @@ function hastNode(node: HastContent, path: string, walk: HastWalk): MarkdownNode
   ]
 }
 
-function hastToMarkdownNodes(root: HastRoot, walk: HastWalk): MarkdownNode[] {
-  return root.children.flatMap((node, index) => (node.type === 'doctype' ? [] : hastNode(node, `${index}`, walk)))
+function rootContent(root: HastRoot): HastContent[] {
+  return root.children.flatMap((node) => (node.type === 'doctype' ? [] : [node]))
+}
+
+function hastToMarkdownNodes(content: HastContent[], walk: HastWalk): MarkdownNode[] {
+  return content.flatMap((node, index) => hastNode(node, `${index}`, walk))
 }
 
 function codeLang(className: unknown): string | undefined {
@@ -240,6 +258,7 @@ type MarkdownProcessorOptions = {
   imagePrefixes: string[]
   linkBlockPolicy: 'indicator' | 'text-only'
   highlight: readonly string[]
+  localLinks: boolean
 }
 
 function createMarkdownProcessor(options: MarkdownProcessorOptions) {
@@ -249,6 +268,7 @@ function createMarkdownProcessor(options: MarkdownProcessorOptions) {
     .use(remarkRehype, {allowDangerousHtml: true})
     .use([
       ...(options.allowRawHtml ? rawPlugins : []),
+      ...(options.localLinks ? [rehypeHoldLocalLinks] : []),
       [
         harden,
         {
@@ -257,6 +277,7 @@ function createMarkdownProcessor(options: MarkdownProcessorOptions) {
           linkBlockPolicy: options.linkBlockPolicy,
         },
       ],
+      ...(options.localLinks ? [rehypeRestoreLocalLinks] : []),
       ...(options.highlight.length === 0 ? [] : [[rehypeMark, options.highlight] satisfies Pluggable]),
     ])
 }
@@ -283,16 +304,100 @@ function markedText(value: string, words: readonly string[]): HastContent[] {
   })
 }
 
+function rehypeHoldLocalLinks() {
+  return (tree: {children: HastContent[]}): void => {
+    tree.children = heldLocalLinks(tree.children)
+  }
+}
+
+function heldLocalLinks(children: HastContent[]): HastContent[] {
+  return children.map((child): HastContent => {
+    if (child.type !== 'element') return child
+    const href = child.properties.href
+    const path = child.tagName === 'a' && typeof href === 'string' ? localLinkPath(href) : undefined
+    if (path === undefined) return {...child, children: heldLocalLinks(child.children)}
+    const {href: _href, target: _target, ...properties} = child.properties
+    return {...child, tagName: heldLocalLinkTag, properties: {...properties, 'data-local-link': path}}
+  })
+}
+
+function rehypeRestoreLocalLinks() {
+  return (tree: {children: HastContent[]}): void => {
+    tree.children = restoredLocalLinks(tree.children)
+  }
+}
+
+function restoredLocalLinks(children: HastContent[]): HastContent[] {
+  return children.map((child): HastContent => {
+    if (child.type !== 'element') return child
+    if (child.tagName !== heldLocalLinkTag) return {...child, children: restoredLocalLinks(child.children)}
+    return {...child, tagName: 'a', properties: {...child.properties, role: 'link', tabindex: '0'}}
+  })
+}
+
+function inlineCodePaths(children: HastContent[]): string[] {
+  return children.flatMap((child): string[] => {
+    if (child.type !== 'element' || child.tagName === 'pre' || child.tagName === 'a') return []
+    if (child.tagName !== 'code') return inlineCodePaths(child.children)
+    const text = hastText(child).trim()
+    return isInlineCodePath(text) ? [text] : []
+  })
+}
+
+function markedLocalPaths(children: HastContent[], paths: readonly string[]): HastContent[] {
+  return children.map((child): HastContent => {
+    if (child.type !== 'element' || child.tagName === 'pre' || child.tagName === 'a') return child
+    if (child.tagName !== 'code') return {...child, children: markedLocalPaths(child.children, paths)}
+    if (!paths.includes(hastText(child).trim())) return child
+    return {...child, properties: {...child.properties, 'data-inline-code-kind': 'path'}}
+  })
+}
+
+function fileExistence(check: LocalFileExists | undefined, path: string): Accessor<boolean> {
+  if (!check) return () => false
+  const answer = askFileExists(check, path)
+  if (typeof answer === 'boolean') return () => answer
+  return from<boolean>((set) => {
+    void answer.then(
+      (found) => set(found),
+      () => undefined,
+    )
+    return () => undefined
+  }, false)
+}
+
+function askFileExists(check: LocalFileExists, path: string): boolean | Promise<boolean> {
+  try {
+    return check(path)
+  } catch {
+    return false
+  }
+}
+
 type MarkdownProcessor = ReturnType<typeof createMarkdownProcessor>
 
 function Block(props: {
   text: string
   streaming: boolean
+  live: boolean
   enter: boolean
   processor: MarkdownProcessor
   highlightCode: HighlightCode | undefined
+  localFileExists: LocalFileExists | undefined
 }): JSX.Element {
-  const hast = createMemo(() => props.processor.runSync(props.processor.parse(props.text)))
+  const hast = createMemo(() => rootContent(props.processor.runSync(props.processor.parse(props.text))))
+  const candidatePaths = createMemo(() => {
+    if (props.live || !props.localFileExists) return []
+    return Array.from(new Set(inlineCodePaths(hast())))
+  })
+  const answers = mapArray(candidatePaths, (path) => ({
+    path,
+    exists: fileExistence(
+      untrack(() => props.localFileExists),
+      path,
+    ),
+  }))
+  const existingPaths = createMemo(() => answers().flatMap((answer) => (answer.exists() ? [answer.path] : [])))
   const parsed = createMemo(
     on([hast, () => props.streaming], ([root, streaming], previous) => ({
       root,
@@ -303,8 +408,10 @@ function Block(props: {
   const [nodes, setNodes] = createStore<MarkdownNode[]>([])
   createComputed(() => {
     const {root, words, animate} = parsed()
+    const paths = existingPaths()
+    const marked = paths.length === 0 ? root : markedLocalPaths(root, paths)
     setNodes(
-      reconcile(hastToMarkdownNodes(root, {words, animate, inlineCode: false, highlightCode: props.highlightCode}), {
+      reconcile(hastToMarkdownNodes(marked, {words, animate, inlineCode: false, highlightCode: props.highlightCode}), {
         key: 'key',
       }),
     )
@@ -338,6 +445,7 @@ export function Streamdown(props: StreamdownProps): JSX.Element {
       imagePrefixes: props.allowedImagePrefixes ?? defaultImagePrefixes,
       linkBlockPolicy: props.linkBlockPolicy ?? 'indicator',
       highlight: highlight(),
+      localLinks: props.openLocalFile !== undefined,
     }),
   )
 
@@ -353,16 +461,42 @@ export function Streamdown(props: StreamdownProps): JSX.Element {
     return {'--sd-caret': `"${carets[variant]}"`}
   }
 
+  const openLocalFile = (event: Event, path: string | undefined): void => {
+    const open = props.openLocalFile
+    if (!path || !open) return
+    event.preventDefault()
+    open(path)
+  }
+
+  const openClicked = (event: MouseEvent): void => {
+    if (event.defaultPrevented || event.button !== 0) return
+    openLocalFile(event, localLinkTarget(event.target))
+  }
+
+  const openPressed = (event: KeyboardEvent): void => {
+    if (event.key !== 'Enter' || event.defaultPrevented) return
+    if (!(event.target instanceof HTMLElement) || !event.target.matches('a[data-local-link]')) return
+    openLocalFile(event, event.target.dataset.localLink)
+  }
+
   return (
-    <div class={`sd-root${props.class ? ` ${props.class}` : ''}`} style={caretStyle()}>
+    <div
+      class={`sd-root${props.class ? ` ${props.class}` : ''}`}
+      style={caretStyle()}
+      data-local-links={props.openLocalFile ? '' : undefined}
+      on:click={openClicked}
+      on:keydown={openPressed}
+    >
       <Index each={blocks()}>
-        {(block) => (
+        {(block, index) => (
           <Block
             text={block()}
             streaming={shouldAnimate()}
+            live={shouldAnimate() && index === blocks().length - 1}
             enter={ready && shouldAnimate()}
             processor={processor()}
             highlightCode={props.highlightCode}
+            localFileExists={props.localFileExists}
           />
         )}
       </Index>
