@@ -394,7 +394,7 @@
       }
     },
     {
-      "files": ["packages/plugin-host/src/**"],
+      "files": ["packages/plugin-host/src/**", "packages/plugin-host/test/**"],
       "rules": {
         "require-yield": "off"
       }
