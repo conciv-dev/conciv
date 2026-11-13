@@ -8,6 +8,7 @@ import type {AttachmentDocumentPart} from '@conciv/extension'
 import {transcriptPathWithin} from '@conciv/harness'
 import {isHarnessSessionId, SessionId, type HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import type {HarnessAdapter} from '@conciv/harness'
+import type {CodeModeCatalog} from '@conciv/plugin-host'
 import type {ApprovalStore, UiChannel} from './approvals.js'
 import {chatToolSet, type CodeCapability} from './code-mode.js'
 import {normalizedChunk, toolNameNormalizer, type TranscriptImporter} from './transcript.js'
@@ -49,7 +50,11 @@ export type TurnDeps = {
   toolNames: ReadonlySet<string>
   capabilities: (sessionId: SessionId) => CodeCapability[]
   attachmentExpanders: AttachmentExpanders
-  pluginInstructions: (sessionId: SessionId, reset: InstructionReset) => Promise<PluginInstructions>
+  pluginInstructions: (
+    sessionId: SessionId,
+    reset: InstructionReset,
+    inventory: CodeModeCatalog.Inventory,
+  ) => Promise<PluginInstructions>
   log: (message: string) => void
 }
 
@@ -240,7 +245,7 @@ export function turnHooks(
           await deps.sessions.onRunStart(sessionId)
           await context.transcripts.sync(sessionId)
           const approvals = await context.approvals.forRun(sessionId)
-          instructions.resolve(deps.pluginInstructions(sessionId, reset))
+          instructions.resolve(deps.pluginInstructions(sessionId, reset, toolSet.inventory))
           return approvals
         },
         expand: async (messages) => {

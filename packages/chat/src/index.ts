@@ -20,6 +20,7 @@ import {
 } from './approvals.js'
 import {chatToolSet, type CodeCapability} from './code-mode.js'
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
+import type {CodeModeCatalog} from '@conciv/plugin-host'
 import {clearThread, metadataKeysEndingWith, runningThreadIds} from './stores.js'
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
 import {firstUserTitle, turnHooks, type TurnDeps} from './turn.js'
@@ -47,6 +48,7 @@ export type CodeTool = {
 
 export type CodeSandbox = {
   capabilities: {name: string; description: string}[]
+  inventory: CodeModeCatalog.Inventory
   run: (code: string, parentToolCallId: string | null, signal?: AbortSignal) => Promise<unknown>
   discover: {description: string; run: (toolNames: string[]) => Promise<unknown>} | null
   declaredCodes: ReadonlySet<string>
@@ -293,6 +295,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       return {
         code: {
           capabilities: toolSet.codeMode.map((tool) => ({name: tool.name, description: tool.description})),
+          inventory: toolSet.inventory,
           run: (code, parentToolCallId, signal) => runner.run(code, emitter(parentToolCallId), signal),
           discover: runner.discover,
           declaredCodes: new Set(capabilities.flatMap((capability) => capability.errors.map(({code}) => code))),

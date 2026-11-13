@@ -510,17 +510,31 @@ describe('direct tools', () => {
 })
 
 describe('plugin instructions', () => {
-  it('the initial text is one more system prompt and an empty one adds none, and the change text goes once in front of the user words', async () => {
+  it('the initial text is one more system prompt and an empty one adds none, the change text goes once in front of the user words, and the code-mode inventory reaches the instructions in place of the library listing', async () => {
     const {root, db} = openDatabase()
     const sessionId = SessionId.parse('conciv_instructions')
     const told = [
       {initial: 'the skill list', update: 'a skill was added'},
       {initial: '', update: ''},
     ]
+    const note: CodeCapability = {
+      name: 'unit_note',
+      path: 'unit_note',
+      description: 'Note the text.',
+      errors: [],
+      inputSchema: z.object({text: z.string()}),
+      execute: async () => 'noted',
+    }
+    const inventories: CodeModeCatalog.Inventory[] = []
     const chat = await chatPlane(db, root, {
       systemPrompt: {systemPromptText: 'the base prompt'},
-      pluginInstructions: async () => told.shift() ?? {initial: '', update: ''},
+      capabilities: () => [note],
+      pluginInstructions: async (_sessionId, _reset, inventory) => {
+        inventories.push(inventory)
+        return told.shift() ?? {initial: '', update: ''}
+      },
     })
+    const preface = expect.stringContaining('Use `console.log()` for debugging (logs are captured)')
     const sent: {systemPrompts: unknown[]; messages: ModelMessage[]}[] = []
     const recorded = ({request}: {request: {systemPrompts?: readonly unknown[]; messages: ModelMessage[]}}) => {
       sent.push({systemPrompts: [...(request.systemPrompts ?? [])], messages: request.messages})
@@ -531,7 +545,18 @@ describe('plugin instructions', () => {
 
     model.setResponses([recorded])
     await chat.followUp(sessionId, 'look around')
-    expect(sent[0]?.systemPrompts).toEqual(['the base prompt', 'the skill list'])
+    expect(sent[0]?.systemPrompts).toEqual(['the base prompt', 'the skill list', preface])
+    expect(JSON.stringify(sent[0]?.systemPrompts)).not.toContain('external_unit_note')
+    expect(inventories).toHaveLength(1)
+    expect(CodeModeCatalog.summarize(inventories[0] ?? {tools: []}).namespaces).toEqual([
+      {
+        name: 'unit_note',
+        tools: ['unit_note'],
+        entries: [
+          {path: 'unit_note', line: expect.stringMatching(/^  - external_unit_note\(input: \{[\s\S]*text: string/)},
+        ],
+      },
+    ])
     expect(lastUserContent(0)).toEqual([
       {type: 'text', content: 'a skill was added'},
       {type: 'text', content: 'look around'},
@@ -540,7 +565,7 @@ describe('plugin instructions', () => {
 
     model.setResponses([recorded])
     await chat.followUp(sessionId, 'and again')
-    expect(sent[1]?.systemPrompts).toEqual(['the base prompt'])
+    expect(sent[1]?.systemPrompts).toEqual(['the base prompt', preface])
     expect(lastUserContent(1)).toBe('and again')
     expect(JSON.stringify(sent[1]?.messages)).not.toContain('a skill was added')
   })

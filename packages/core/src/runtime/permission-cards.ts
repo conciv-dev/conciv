@@ -10,6 +10,8 @@ import {SessionId} from '@conciv/protocol/chat-types'
 import {
   Agent,
   Bus,
+  CodeModeCatalog,
+  CodeModeInstructions,
   Database,
   Instructions,
   InstructionState,
@@ -84,13 +86,17 @@ export function sessionSnapshot(
   })
 }
 
-export function pluginInstructions(sessionId: SessionId, reset: 'keep' | 'reset') {
+export function pluginInstructions(
+  sessionId: SessionId,
+  reset: 'keep' | 'reset',
+  inventory: CodeModeCatalog.Inventory,
+) {
   return Effect.gen(function* () {
     const db = (yield* Database.Service).db
     const bus = yield* Bus.Service
     const id = Session.Id.make(sessionId)
     const skills = yield* (yield* SkillInstructions.Service).load(yield* sessionRules(sessionId))
-    const instructions = Instructions.combine([skills])
+    const instructions = Instructions.combine([CodeModeInstructions.make(inventory), skills])
     const previewed = yield* InstructionState.preview(db, id, instructions, yield* Instructions.read(instructions))
     yield* InstructionState.commit(db, bus, instructions, yield* InstructionState.observe(db, instructions, id))
     if (reset === 'reset') yield* InstructionState.advanceEpoch(db, id, yield* Bus.latestSequence(db, id))
