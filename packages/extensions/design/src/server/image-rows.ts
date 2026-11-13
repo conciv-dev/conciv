@@ -47,7 +47,7 @@ export async function imageRowsOf(input: {
       const shown = element.styles.image ?? ''
       const sameFile = await showsAsset({shown, asset, box, pictures})
       const told = sameFile ? expected : `${expected}, ${foundIn(element)}`
-      if (!sameFile && shown === '') return [{row: row(told), node: look.node, shot: null}]
+      if (!sameFile && foundIn(element) === NONE) return [{row: row(told), node: look.node, shot: null}]
       if (sameFile && background) return []
       const shot = {
         selector: named.selector,
@@ -156,10 +156,11 @@ function foundIn(element: LiveComponent): string {
   if (image !== '') return element.tag === IMG ? `<img src=${image}>` : `an image ${image}`
   const fill = parse(background)
   const painted = (fill !== undefined && (fill.alpha ?? 1) > 0) || border.width > 0 || gradient !== null
-  return painted ? 'css shape' : 'none'
+  return painted ? 'css shape' : NONE
 }
 
 const INLINE_SVG = 'inline svg'
+const NONE = 'none'
 const SVG_EXT = '.svg'
 const IMG = 'img'
 const QUOTES = ['"', "'"]

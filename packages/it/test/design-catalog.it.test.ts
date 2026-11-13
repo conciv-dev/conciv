@@ -260,6 +260,22 @@ describe('a page that drifts from the design', () => {
   })
 })
 
+describe('a Figma line drawn in CSS', () => {
+  it('is cropped from the frame render at its stroke and passes as a 1px box', async () => {
+    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
+    await kit.goto('process-column')
+    const got = await call('design_get', {
+      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1535',
+      document: JSON.parse(await readFile(fixture('process-column.json'), 'utf8')),
+      image: fixture('process-column.png'),
+    })
+    const imageRows = roundOf(await call('design_check', {}))
+      .rows.filter((row) => row.property === 'image')
+      .map((row) => row.text)
+    expect([got.nodes.find((node) => node.id === '100:1615')?.asset, imageRows]).toEqual(['/design/100-1615.png', []])
+  })
+})
+
 describe('an image node drawn as a box with its icon inside', () => {
   it('passes when the drawn element looks like the asset, whatever the file is named', async () => {
     const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))

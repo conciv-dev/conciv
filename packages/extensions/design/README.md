@@ -80,7 +80,9 @@ src/
   sides it draws. A border row names the
   align after the expected stroke. An empty input or textarea measures its placeholder as its text, in the
   `::placeholder` colour (not the colour of typed text), so a real form control pairs with the design text it stands for. An asset node passes when its element shows that file, or shows
-  any image and its capture matches the asset by pixels; an element with no image fails as a wrong image.
+  any image or paints a CSS shape (a fill, border or gradient) and its capture matches the asset by pixels; an element that paints
+  nothing fails as a wrong image. A Figma line cropped from the frame render takes its stroke weight, so a 1px line drawn as a 1px box
+  matches it.
 - A run builds one page, so its targets share one route. `design_get` takes `route`, the path of that page (`/pricing`,
   with a query when the page needs one), and moves every target of the run there, the frames of that call and the
   frames registered before it; without it a new target takes the pathname the tab is on when the design is registered.

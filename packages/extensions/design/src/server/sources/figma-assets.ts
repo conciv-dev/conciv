@@ -73,6 +73,7 @@ const URI_TOO_LONG = 414
 const ImagesSchema = z.looseObject({images: z.record(z.string(), z.string().nullable())})
 const FillsSchema = z.looseObject({meta: z.looseObject({images: z.record(z.string(), z.string())})})
 const StackSchema = z.array(figmaSchemas.layer).catch([])
+const WeightSchema = z.number().catch(0)
 const SolidsSchema = z.array(z.looseObject({type: z.string(), color: z.string().optional()})).catch([])
 
 function assetNodes(input: {root: DesignNode; scale: number}): Wanted[] {
@@ -90,13 +91,24 @@ function assetNodes(input: {root: DesignNode; scale: number}): Wanted[] {
     const kind = assetKind(node)
     if (kind === null) return []
     covered.add(node.id)
-    return [{id: node.id, ext: kind, box, stack: null, backdrop: null, scale}]
+    return [{id: node.id, ext: kind, box: strokedBox({box, node}), stack: null, backdrop: null, scale}]
   })
 }
 
 function stackOf(node: DesignNode): Layer[] | null {
   const stack = StackSchema.parse(node.figma?.fields.stack ?? [])
   return stack.length > 0 && node.children.length > 0 ? stack : null
+}
+
+function strokedBox(input: {box: DesignNode['box']; node: DesignNode}): DesignNode['box'] {
+  const {box} = input
+  const weight = WeightSchema.parse(input.node.figma?.fields.strokeWeight)
+  return {
+    x: box.w >= weight ? box.x : Math.floor(box.x + box.w / 2 - weight / 2),
+    y: box.h >= weight ? box.y : Math.floor(box.y + box.h / 2 - weight / 2),
+    w: Math.max(box.w, weight),
+    h: Math.max(box.h, weight),
+  }
 }
 
 function backdropOf(input: {node: DesignNode; parents: Map<string, DesignNode | null>}): string | null {
