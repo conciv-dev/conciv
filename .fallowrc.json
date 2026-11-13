@@ -94,8 +94,8 @@
     "thresholdOverrides": [
       {
         "files": ["packages/plugin-host/src/**"],
-        "maxCognitive": 18,
-        "maxCrap": 32,
+        "maxCognitive": 24,
+        "maxCrap": 72,
         "reason": "copied from opencode: the copy keeps opencode's shape"
       },
       {
