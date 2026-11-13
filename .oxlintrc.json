@@ -422,6 +422,7 @@
         "no-shadow": "off",
         "unicorn/no-array-sort": "off",
         "unicorn/no-useless-spread": "off",
+        "no-unassigned-vars": "off",
         "solid/reactivity": "off"
       }
     },
