@@ -6,7 +6,7 @@ import {
   approvalSettledEvent,
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
-import {SessionId} from '@conciv/protocol/chat-types'
+import {SessionId, type PermissionRule} from '@conciv/protocol/chat-types'
 import {
   Agent,
   Bus,
@@ -21,7 +21,8 @@ import {
   Tool,
 } from '@conciv/plugin-host'
 import {Effect, Layer, Option, Schema} from 'effect'
-import {currentRow} from '../sessions/session-rows.js'
+import {logError} from '../lib/debug.js'
+import {storedSessionRules, type StoredRules} from '../sessions/session-rows.js'
 
 const TITLE_LIMIT = 200
 
@@ -52,6 +53,17 @@ const isReplied = Schema.is(Permission.Event.Replied.data)
 
 const decodeRequestId = Schema.decodeUnknownOption(Permission.Id)
 
+const NO_PLUGIN_TOOLS: PermissionRule[] = [
+  {action: '*', resource: '*', effect: 'deny'},
+  {action: 'execute', resource: '*', effect: 'allow'},
+]
+
+function sessionPermissions(sessionId: SessionId, stored: StoredRules): PermissionRule[] {
+  if (stored.readable) return stored.rules ?? []
+  logError(`[core] session ${sessionId} has permission rules that cannot be read, so it is offered no plugin tools`)
+  return NO_PLUGIN_TOOLS
+}
+
 export function permissionSessions(db: ConcivDb) {
   return Layer.succeed(
     Permission.PermissionSessions,
@@ -60,9 +72,9 @@ export function permissionSessions(db: ConcivDb) {
         Effect.sync(() => {
           const parsed = SessionId.safeParse(sessionId)
           if (!parsed.success) return undefined
-          const row = currentRow(db, parsed.data)
-          if (row === null) return undefined
-          return {agent: Agent.defaultId, permissions: row.permissions ?? []}
+          const stored = storedSessionRules(db, parsed.data)
+          if (stored === null) return undefined
+          return {agent: Agent.defaultId, permissions: sessionPermissions(parsed.data, stored)}
         }),
     }),
   )

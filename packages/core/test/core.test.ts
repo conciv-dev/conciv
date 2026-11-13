@@ -67,7 +67,7 @@ import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {ConcivConfigSchema} from '@conciv/protocol/config-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
-import {eq} from 'drizzle-orm'
+import {eq, sql} from 'drizzle-orm'
 import {
   Agent,
   Bus,
@@ -2652,5 +2652,31 @@ describe('direct tools on the MCP surface', () => {
     expect((await listed()).toSorted()).toEqual(['unit_coded', 'unit_direct'])
     const shut = ToolCalled.parse(await post('tools/call', {name: 'unit_coded', arguments: {text: 'shut'}}))
     expect(shut.result.content.map((part) => part.text).join('')).toContain('coded shut')
+
+    const builtIn = open.filter((name) => name !== 'unit_direct')
+    const searchedCoded = async () =>
+      ToolCalled.parse(
+        await post('tools/call', {
+          name: 'execute_typescript',
+          arguments: {typescriptCode: 'return search({query: "unit_coded"})'},
+        }),
+      )
+        .result.content.map((part) => part.text)
+        .join('')
+    await made.chat.db
+      .update(sessionTable)
+      .set({permissions: sql`'{not json'`})
+      .where(eq(sessionTable.id, id))
+    expect(await listed()).toEqual(builtIn)
+    expect(await searchedCoded()).not.toContain('external_unit_coded')
+    const rpc = makeRpcClient(`${origin}/t/${made.agentToken}`)
+    expect((await rpc.sessions.list(undefined)).sessions.map((session) => session.id)).toContain(id)
+    expect(await rpc.sessions.get({sessionId: id})).toMatchObject({id})
+    await made.chat.db
+      .update(sessionTable)
+      .set({permissions: sql`'[{"action":"unit_coded"}]'`})
+      .where(eq(sessionTable.id, id))
+    expect(await listed()).toEqual(builtIn)
+    expect(await searchedCoded()).not.toContain('external_unit_coded')
   })
 })
