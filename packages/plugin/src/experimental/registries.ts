@@ -317,6 +317,107 @@ export interface SettingsPage {
   }): JSX.Element
 }
 
+/**
+ * Where a contributed server stands.
+ * - `stopped`: not running.
+ * - `starting`: starting up.
+ * - `auth`: waiting for the user to sign in.
+ * - `ready`: reachable; `http` holds its endpoint.
+ * - `failed`: could not start.
+ * - `incompatible`: running a version this app does not support.
+ */
+export type ServerState = 'stopped' | 'starting' | 'auth' | 'ready' | 'failed' | 'incompatible'
+
+/** A server a plugin contributes through a `Server` source. */
+export interface ServerEntry {
+  /** The entry's id; its key is `${plugin}:${id}`. */
+  readonly id: string
+  /** The display name. */
+  readonly name: string
+  /**
+   * Not implemented yet. Always undefined in this version.
+   *
+   * Short badge after the name, e.g. "SSH".
+   */
+  readonly label?: string
+  /** Where the server stands. */
+  readonly state: ServerState
+  /**
+   * Not implemented yet. Always undefined in this version.
+   *
+   * False keeps the entry out of the app's server list.
+   */
+  readonly listed?: boolean
+  /** The endpoint, once the server is `ready`. */
+  readonly http?: {
+    /** The base URL. */
+    readonly url: string
+    /**
+     * Not implemented yet. Always undefined in this version.
+     *
+     * The HTTP basic password.
+     */
+    readonly password?: string
+  }
+  /**
+   * Resolves the endpoint again after the connection drops, e.g. a tunnel. Such a server is managed:
+   * the host probes every new endpoint and holds prompts until the event connection is up.
+   *
+   * @param signal - Aborts when the host stops waiting.
+   */
+  reconnect?(signal: AbortSignal): Promise<{
+    /** The new base URL. */
+    readonly url: string
+    /**
+     * Not implemented yet. Always undefined in this version.
+     *
+     * The new HTTP basic password.
+     */
+    readonly password?: string
+  }>
+  /**
+   * Not implemented yet. Always undefined in this version.
+   *
+   * Called before opening a server that is not ready. Resolves true once it is.
+   */
+  connect?(): Promise<boolean>
+  /**
+   * Not implemented yet. Always undefined in this version.
+   *
+   * Runs before the host forgets the server.
+   */
+  remove?(): Promise<void>
+  /**
+   * Not implemented yet. Always undefined in this version.
+   *
+   * Covers the routed session or draft while the entry is not ready; the route stays mounted underneath.
+   * `tab` identifies the routed tab and changes when another one is routed.
+   *
+   * @param input - The routed tab.
+   */
+  cover?(input: {
+    /** The routed tab's key. */
+    readonly tab: string
+  }): JSX.Element
+}
+
+/** A source of servers, e.g. an engine found on this machine or the engine of a native app. */
+export interface Server {
+  /**
+   * Startup waits until every source is ready. A ready source's entries are its complete inventory: the host
+   * forgets a server only when a ready source stops listing it.
+   */
+  readonly ready: boolean
+  /**
+   * Not implemented yet. Always undefined in this version.
+   *
+   * Sources list in ascending order. Defaults to 0.
+   */
+  readonly order?: number
+  /** Keys are `${plugin}:${id}`. */
+  readonly entries: readonly ServerEntry[]
+}
+
 /** A local link the app routes to a `LinkHandler`, e.g. a file path in a message. */
 export interface Link {
   /** The link target: a path, URL or `file://` link. */
@@ -670,6 +771,16 @@ export const Panel = Registry.define<Panel>('panel')
  * ```
  */
 export const SettingsPage = Registry.define<SettingsPage>('settings-page')
+
+/**
+ * The registry of server sources the app lists.
+ *
+ * @example
+ * ```ts
+ * ctx.add(Server, () => ({ ready: probed(), entries: [{ id: "local", name: "Local", state: "ready", http: { url } }] }))
+ * ```
+ */
+export const Server = Registry.define<Server>('server')
 
 /**
  * The registry of handlers that open local links, such as file paths in messages.

@@ -60,7 +60,7 @@ export const Tanstack = Rpc.define({
 
 The browser part. `Plugin.define({stores, setup})` has no id (the host gives it the engine part's id as `ctx.id`);
 `setup` is synchronous and runs under the plugin's Solid owner. `ctx.add(Registry, item)` adds to a registry
-(`Panel`, `Slot`, `Command`, `ComposerPill`, `LinkHandler`, `SettingsPage`, `CodeBlock`, `CodeBlockAction`,
+(`Panel`, `Slot`, `Command`, `ComposerPill`, `LinkHandler`, `SettingsPage`, `Server`, `CodeBlock`, `CodeBlockAction`,
 `NoteCard`), and
 everything added is withdrawn when the plugin reloads or stops. Also exported: `Store` (`global`, `project`,
 `session`), `Registry`, `Contract`, the host API types, `createKeyed`, `createLatest`, `createVisitState`,
@@ -207,6 +207,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 
 - `session.hook` is plain `Hooks`: `ModelHookOptions` and `ModelHooks` are absent (providers are not ours).
 - `SessionHooks` has `experimental.idle` only; `fork`, `compaction`, `generate`, `title`, `experimental.model.resolve`, `model.request`, `http.request`, `http.response`, `experimental.ws.handshake`, `experimental.ws.send`, `experimental.ws.receive` and `retry` are not ours, with their event types.
+- `experimental.idle` does not run after a stopped or failed run, as in opencode; no second hook exists (ruling: whiteboard drafts from such a turn stay drafts).
 - `SessionDomain` has no `move` (not ours: one directory per engine).
 - The session list input has no `directory`, `project` or `subpath`, and the session create input no `location` (one project per engine).
 
@@ -259,9 +260,16 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - `SlotMap` has five places: source's `session.header` and `window.bottom` (inputs verbatim), and conciv's `session.status` (`{screen, session}`), `window.connect` (`{origin, found(apiBase)}`, what the connect slot gets today: `ConnectHostApi`, `packages/extension/src/host-context.ts:9`) and `page.overlay` (`Record<string, never>`).
 - A `page.overlay` `Slot` item carries the conciv-only field `hides` (the widget hides while the overlay is up), because the host owns focus and layers as in opencode and this is the one thing a plugin states about its overlay; the plugin API has no layer registration, focus yielding or suppression.
 - The `NoteCard` registry is conciv-only, shaped like `CodeBlock` (`plugin/src/gui/registries.ts:719`), so a plugin can draw the inside of its own composer notes (a recording as a player); it is keyed by the note's existing `origin` field (`origins`, as `CodeBlock` lists `languages`), so the note type gains no field.
-- Not ported (spec "Not ported" list and its brief): `MenuItem` and its three item types, `Server`, `ServerEntry`, `ServerRow`, `ServerState`, `ServerHealth`, `TitlebarItem`, `Style`, `Theme` and its colour types.
+- Not ported (spec "Not ported" list and its brief): `MenuItem` and its three item types, `TitlebarItem`, `Style`, `Theme` and its colour types.
 - `builtin.ts` ports `onIdle` and adds the built-in `ToolCall` registry (ruling). `ToolCallProps` follows `CodeBlockProps`: `tool`, `id`, `input`, `result` (`success` with `output`, or `error`), `session`; it is what a finished call has in conciv's tool card props (`ToolCardProps`, `packages/protocol/src/tool-view-types.ts:43`, through `ToolCard`, `packages/extension/src/types.ts:55`), without the card's `ctx`, `addResult`, `durationMs` and `capture`. Not ported: the legacy-key migration helpers `BuiltinStoreFrom`, `BuiltinStoreDeclaration`, `BuiltinStore`, `BuiltinCommand`, `BuiltinPanel`, `BuiltinPanelTab`, `BuiltinSlotMap`, `BuiltinSlot`, `BuiltinStoreOptions`, `BuiltinStorage`, `BuiltinDesktop`, `BuiltinLayout`, `BuiltinLocale`, `BuiltinContext`, `builtinContext` (conciv has no shipped plugin keys to migrate), so `Entry.stores` is `Declarations.stores`; absent: `MainStoreFrom`, `BuiltinMainStorage`, `Lifecycle`, `BuiltinMainContext`, `builtinMainContext`, `BuiltinCatalog`, `builtinCatalog` (no main process, no i18n).
 - `gui/file.ts`, `gui/review.ts`, `gui/browser.ts`, `gui/updater.ts` are not ported: they are contracts of opencode's own built-in plugins, and the audit has no row for any of them.
+
+### Server registry
+
+- `Server`, `ServerEntry` and `ServerState` are ported (ruling) so a plugin can offer an engine: try-it's pre-boot probe reports through `Server.ready` and an entry's `state` and `http.url` (today `connectGate.preflight`, `packages/embed/src/mount-impl.tsx:322`), and a later find updates the same entry (today `found(apiBase)`, `apps/conciv/src/routes/panel.connect.tsx:33`).
+- ios re-points the widget through its entry: a new `http.url` while `ready`, and `reconnect` resolving the next address after the old connection drops (today the `conciv:rebind` event, `packages/extensions/ios/src/client.tsx:106`); `incompatible` is its `onIncompatible`.
+- `ServerEntry.row`, `ServerRow` and `ServerHealth` are absent: they draw a row on a Servers settings page, which conciv does not have (`SettingsPage.page` is `'general'` only).
+- `Server` and `Server.ready` JSDoc drop SSH, WSL and server tabs (conciv has no server tabs); `http.password` JSDoc drops the fixed user name.
 
 ## Declared, not implemented
 
@@ -293,6 +301,7 @@ Each is typed `| undefined` (or optional) and always undefined in this version.
 - `MountedSession.local`
 - `Tabs.move`
 - `Links.exists`
+- `Server.order`; `ServerEntry`: `label`, `listed`, `http.password`, `connect`, `remove`, `cover`; `reconnect`'s `password`
 
 ## Not available yet
 
