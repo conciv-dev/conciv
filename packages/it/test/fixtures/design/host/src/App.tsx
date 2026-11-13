@@ -57,6 +57,10 @@ const INPUT_FIELDS = {
   'input-field-bare': {...INPUT_FIELD, border: 'none'},
   'input-field-shadow': {...INPUT_FIELD, border: 'none', boxShadow: 'inset 0 0 0 1px #262626'},
 }
+const DISCOVERY_TEXT =
+  'We begin by thoroughly understanding your business goals, target audience, and project requirements. We conduct in-depth research to gather insights and define project objectives, allowing us to develop a tailored strategy.'
+const PLANNING_TEXT =
+  'Based on the gathered information, we create a comprehensive project plan and strategy. This includes defining project milestones, timelines, deliverables, and resource allocation. We collaborate closely with you to align our strategy with your vision.'
 const SLIDER_LAYER = {gridColumn: 1, gridRow: 1} as const
 const MEDIA_HEIGHT_CSS = '#root section { @media (width >= 40rem) { height: 120px; } }'
 const FIELD_BORDER = {borderColor: '#d64545', borderRadius: 0}
@@ -110,6 +114,16 @@ export function App() {
             </span>
           </span>
         </label>
+      </main>
+    )
+  }
+  if (requested === 'process-row' || requested === 'process-row-boxed') {
+    const boxed = requested === 'process-row-boxed'
+    return (
+      <main style={{margin: -24, display: 'flex', alignItems: 'flex-start', background: '#1a1a1a'}} data-conciv-key="pRmNaA">
+        <ProcessCard number="01" heading="Discovery" text={DISCOVERY_TEXT} boxed={boxed} divided={false} />
+        {boxed ? <span style={{width: 1, alignSelf: 'stretch', background: '#262626'}} data-conciv-key="pRlNeA" /> : null}
+        <ProcessCard number="02" heading="Planning and Strategy" text={PLANNING_TEXT} boxed={boxed} divided={!boxed} />
       </main>
     )
   }
@@ -260,6 +274,46 @@ export function App() {
         />
       ) : null}
     </>
+  )
+}
+
+function ProcessCard(props: {number: string; heading: string; text: string; boxed: boolean; divided: boolean}) {
+  return (
+    <div
+      style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 50,
+        padding: '100px 50px',
+        boxSizing: 'border-box',
+        borderLeft: props.divided ? '1px solid #262626' : 'none',
+      }}
+      data-conciv-key="pRcRdA"
+    >
+      <div style={{display: 'flex', alignItems: 'flex-end', gap: 14}} data-conciv-key="pRcNtA">
+        <span style={{fontSize: 150, lineHeight: '105px', fontWeight: 600, color: '#d8ff99'}} data-conciv-key="pRnMbA">
+          {props.number}
+        </span>
+        <span
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 0 26px 10px',
+            ...(props.boxed ? {border: '1px solid #262626'} : {borderBottom: '1px solid #262626'}),
+          }}
+          data-conciv-key="pRtXcA"
+        >
+          <span style={{fontSize: 30, lineHeight: '36px', fontWeight: 500, color: '#98989a'}} data-conciv-key="pRhDgA">
+            {props.heading}
+          </span>
+        </span>
+      </div>
+      <p style={{margin: 0, fontSize: 18, lineHeight: '27px', color: '#98989a'}} data-conciv-key="pRpGhA">
+        {props.text}
+      </p>
+    </div>
   )
 }
 

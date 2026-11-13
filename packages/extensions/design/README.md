@@ -72,8 +72,9 @@ src/
   depth, box` (exact, frame-relative) and the Figma fields it has (`fills, strokes, radius, text, font, layout,
   sizing, layoutAlign, constraints, clips, image, crop, absolute`), `implied: true` on a group the layout implies,
   `reflow: {kind: stack | wrap | scroll, minChildWidth}` and `key` once the mapping holds the node. `count` leaves
-  implied nodes out. `rules` are the sentences the page must follow. A stroke comes with `strokeWeight` and
-  `strokeAlign` (INSIDE, CENTER or OUTSIDE); the rules ask for it as an outline inset by its weight, which takes no
+  implied nodes out. `rules` are the sentences the page must follow. A stroke comes with `strokeWeight`,
+  `strokeAlign` (INSIDE, CENTER or OUTSIDE) and, when Figma strokes only some sides, `individualStrokeWeights`; a
+  border row then names the sides and fails a box stroked on other sides; the rules ask for it as an outline inset by its weight, which takes no
   space, and the measure reads a border, an outline or an inset box-shadow with no blur as the stroke, each on the
   sides it draws. A border row names the
   align after the expected stroke.

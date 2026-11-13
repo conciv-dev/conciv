@@ -57,6 +57,9 @@ function paintFields(input: {node: FigmaNode; fills: Record<string, unknown>[]})
           strokes,
           strokeWeight: node.strokeWeight ?? 1,
           ...(node.strokeAlign === undefined ? {} : {strokeAlign: node.strokeAlign}),
+          ...(node.individualStrokeWeights === undefined
+            ? {}
+            : {individualStrokeWeights: node.individualStrokeWeights}),
         }),
     ...(radius === undefined || radius === 0 ? {} : {radius}),
   }

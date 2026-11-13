@@ -147,6 +147,32 @@ describe('a Figma stroke drawn inside the box', () => {
   })
 })
 
+describe('a Figma frame stroked on one side', () => {
+  it('is told with its side weights, and a box stroked all round is flagged', async () => {
+    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
+    const borderRows = async () =>
+      roundOf(await call('design_check', {}))
+        .rows.filter((row) => row.node === '50:880' && row.property === 'border')
+        .map((row) => row.text)
+    await kit.goto('process-row')
+    const got = await call('design_get', {
+      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=50-876',
+      document: JSON.parse(await readFile(fixture('process-row.json'), 'utf8')),
+      image: fixture('process-row.png'),
+    })
+    const underlined = await borderRows()
+    await kit.goto('process-row-boxed')
+    const boxed = await borderRows()
+    expect([got.nodes.find((node) => node.id === '50:880')?.individualStrokeWeights, underlined, boxed]).toEqual([
+      {top: 0, right: 0, bottom: 1, left: 0},
+      [],
+      [
+        'wrong border at [50:880]: 1px #262626 inside on bottom expected, 1px #262626 on top, right, bottom, left found',
+      ],
+    ])
+  })
+})
+
 describe('a thin Figma bar', () => {
   it('pairs a 3px bar drawn at its design height', async () => {
     const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))

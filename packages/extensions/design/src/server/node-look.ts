@@ -1,3 +1,4 @@
+import {mapValues} from 'es-toolkit'
 import {z} from 'zod'
 import type {Design, DesignNode} from '../shared/defs.js'
 import {walk} from '../shared/tree.js'
@@ -28,6 +29,7 @@ type NodeLook = {
   stroke: string | null
   stroke_weight: number | null
   strokeAlign: string | null
+  strokeSides: StrokeSides | null
   radius: number | null
   font_family: string | null
   font_weight: number | null
@@ -50,6 +52,8 @@ type NodeLook = {
 
 type Stop = {color: string; opacity: number}
 
+export type StrokeSides = z.output<typeof StrokeSidesSchema>
+
 const PIXELS = 'PIXELS'
 const INTRINSIC = 'INTRINSIC'
 const StopSchema = z.object({color: z.string(), opacity: z.number().default(1)})
@@ -59,12 +63,14 @@ const PaintSchema = z.object({
   opacity: z.number().optional(),
   stops: z.array(StopSchema).optional(),
 })
+const StrokeSidesSchema = z.object({top: z.number(), right: z.number(), bottom: z.number(), left: z.number()})
 const TokensSchema = z.partialRecord(z.enum(['fill', 'stroke', 'radius', 'font', 'gap', 'padding']), z.string())
 const FieldsSchema = z.object({
   fills: z.array(PaintSchema).catch([]),
   strokes: z.array(PaintSchema).catch([]),
   strokeWeight: z.number().optional().catch(undefined),
   strokeAlign: z.string().optional().catch(undefined),
+  individualStrokeWeights: StrokeSidesSchema.optional().catch(undefined),
   radius: z
     .union([z.number(), z.array(z.number())])
     .optional()
@@ -130,6 +136,10 @@ function paintLook(input: {fields: Fields; image: boolean; scale: number}) {
     stroke: stroke?.color ?? null,
     stroke_weight: stroke === undefined ? null : scaled(fields.strokeWeight ?? 1, scale),
     strokeAlign: stroke === undefined ? null : (fields.strokeAlign?.toLowerCase() ?? null),
+    strokeSides:
+      stroke === undefined || fields.individualStrokeWeights === undefined
+        ? null
+        : mapValues(fields.individualStrokeWeights, (weight) => weight * scale),
     radius: scaled(radius, scale),
     gradient: first === undefined || last === undefined ? null : {from: first, to: last},
   }

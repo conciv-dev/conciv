@@ -6,7 +6,7 @@ import {box as shapes} from '../shared/box.js'
 import {designConfig} from '../shared/tolerances.js'
 import {walk} from '../shared/tree.js'
 import type {readIds} from '../shared/id-tree.js'
-import {nodeLooks} from './node-look.js'
+import {nodeLooks, type StrokeSides} from './node-look.js'
 import {wrapsOf} from './wraps.js'
 
 export function gateOf(input: {design: Design; reads: ReturnType<typeof readIds>; live: LiveComponent}): Gate {
@@ -141,6 +141,7 @@ function lineSide(input: {line: Box; frame: Box}): string | null {
 }
 
 const LINE_KIND = 'line'
+const BORDER_ORDER = ['top', 'right', 'bottom', 'left'] as const
 const MEDIA_PROPERTIES = designConfig.mediaProperties
 const FAR_PX = 24
 const CONTAINER_TOLERANCE = 0.08
@@ -645,13 +646,21 @@ function borderRows(seen: Seen): Compared[] {
   const {look, element} = seen
   if (look.stroke === null) return []
   const {border} = element.styles
-  const weight = look.stroke_weight ?? 1
-  const shown = border.style === 'none' || border.width === 0 ? 'none' : `${border.width}px ${border.color}`
-  const same = border.width === weight && near({a: border.color, b: look.stroke})
+  const wanted = look.strokeSides === null ? null : sidesDrawn(look.strokeSides)
+  const weight = look.strokeSides === null ? (look.stroke_weight ?? 1) : Math.max(...Object.values(look.strokeSides))
+  const found = border.sides.map((side) => side.side)
+  const where = (sides: string[]) => (wanted === null ? '' : ` on ${sides.join(', ')}`)
+  const shown =
+    border.style === 'none' || border.width === 0 ? 'none' : `${border.width}px ${border.color}${where(found)}`
+  const sameSides = wanted === null || wanted.join() === found.join()
+  const same = sameSides && border.width === weight && near({a: border.color, b: look.stroke})
   const drawn = look.strokeAlign === null ? '' : ` ${look.strokeAlign}`
-  return same
-    ? []
-    : [{kind: 'border', expected: `${weight}px ${look.stroke}${drawn}`, found: shown, token: look.token_stroke}]
+  const expected = `${weight}px ${look.stroke}${drawn}${where(wanted ?? [])}`
+  return same ? [] : [{kind: 'border', expected, found: shown, token: look.token_stroke}]
+}
+
+function sidesDrawn(sides: StrokeSides): string[] {
+  return BORDER_ORDER.filter((side) => sides[side] > 0)
 }
 
 function opacityRows(seen: Seen): Compared[] {
