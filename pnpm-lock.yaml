@@ -246,9 +246,6 @@ catalogs:
     '@types/culori':
       specifier: ^4.0.1
       version: 4.0.1
-    '@types/mime-types':
-      specifier: 3.0.1
-      version: 3.0.1
     '@types/node':
       specifier: ^26.6.6
       version: 26.6.6
@@ -360,12 +357,6 @@ catalogs:
     mermaid:
       specifier: ^12.2.0
       version: 12.2.0
-    mime-types:
-      specifier: 3.0.2
-      version: 3.0.2
-    minimatch:
-      specifier: 10.2.5
-      version: 10.2.5
     motion:
       specifier: ^14.7.1
       version: 14.7.1
@@ -4448,12 +4439,6 @@ importers:
       glob:
         specifier: 'catalog:'
         version: 13.0.5
-      mime-types:
-        specifier: 'catalog:'
-        version: 3.0.2
-      minimatch:
-        specifier: 'catalog:'
-        version: 10.2.5
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -4464,9 +4449,6 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
-      '@types/mime-types':
-        specifier: 'catalog:'
-        version: 3.0.1
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -12134,9 +12116,6 @@ packages:
   '@types/micromatch@4.0.10':
     resolution: {integrity: sha512-5jOhFDElqr4DKTrTEbnW8DZ4Hz5LRUEmyrGpCMrD/NphYv3nUnaF08xmSLx1rGGnyEs/kFnhiw6dCgcDqMr5PQ==}
 
-  '@types/mime-types@3.0.1':
-    resolution: {integrity: sha512-xRMsfuQbnRq1Ef+C+RKaENOxXX87Ygl38W1vDfPHRku02TgQr+Qd8iivLtAMcR0KF5/29xlnFihkTlbqFrGOVQ==}
-
   '@types/ms@2.1.0':
     resolution: {integrity: sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==}
 
@@ -16615,10 +16594,6 @@ packages:
   miniflare@5.20261023.1-beta:
     resolution: {integrity: sha512-hgm1AJhwC6W+iaRhvMnfs7bPOsxjKa8LXTFR2WVPA5qA9KhpyBd2LddmT+9M9tm65VZ8YWkwQGvB+cKbqJoKeA==}
     engines: {node: '>=22.0.0'}
-
-  minimatch@10.2.5:
-    resolution: {integrity: sha512-MULkVLfKGYDFYejP07QOurDLLQpcjk7Fw+7jXS2R2czRQzR56yHRveU5NDJEOviH+hETZKSkIk5c+T23GjFUMg==}
-    engines: {node: 18 || 20 || >=22}
 
   minimatch@10.2.6:
     resolution: {integrity: sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A==}
@@ -25289,8 +25264,6 @@ snapshots:
     dependencies:
       '@types/braces': 3.0.5
 
-  '@types/mime-types@3.0.1': {}
-
   '@types/ms@2.1.0': {}
 
   '@types/nlcst@2.0.3':
@@ -30525,10 +30498,6 @@ snapshots:
       - '@types/node'
       - bufferutil
       - utf-8-validate
-
-  minimatch@10.2.5:
-    dependencies:
-      brace-expansion: 5.0.12
 
   minimatch@10.2.6:
     dependencies:
