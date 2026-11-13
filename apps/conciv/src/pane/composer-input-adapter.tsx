@@ -1,4 +1,4 @@
-import {type JSX} from 'solid-js'
+import {createMemo, type JSX} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {useComposer, useComposerContext, useComposerHandlers} from '@conciv/ui-kit-chat'
 import {RichTextField, type RichTextFieldTriggerSource} from '@conciv/ui-kit-tap'
@@ -32,8 +32,17 @@ export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Elem
   const handlers = useComposerHandlers()
   let wrapper: HTMLDivElement | undefined
   const submit = () => wrapper?.closest('form')?.requestSubmit()
+  const stoppingPeriod = createMemo(() => (composer.isStopping() ? {escapeIgnored: false} : undefined))
   const cancelOnEscape = (event: KeyboardEvent) => {
-    if (event.key !== 'Escape' || !composer.canCancel()) return
+    if (event.key !== 'Escape') return
+    const period = stoppingPeriod()
+    if (period && !period.escapeIgnored) {
+      period.escapeIgnored = true
+      event.preventDefault()
+      event.stopPropagation()
+      return
+    }
+    if (!composer.canCancel()) return
     event.preventDefault()
     event.stopPropagation()
     if (handlers.onCancel) {
