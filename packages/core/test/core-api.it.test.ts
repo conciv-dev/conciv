@@ -4724,6 +4724,35 @@ describe('outside agent consent', () => {
     await engines.find((booted) => booted.base === second)?.stop()
     await listed([firstId], {event: 'the second engine stopped', at: performance.now()})
     expect(servers.get(secondId)).toBeUndefined()
+    const oldId = 'engine-before-plugin-rpc'
+    const old = createServer((request, response) => {
+      if (request.url === '/health') {
+        response.writeHead(200, {'content-type': 'application/json'}).end(JSON.stringify({ok: true, id: oldId}))
+        return
+      }
+      response.writeHead(404).end()
+    })
+    old.listen(0, '127.0.0.1')
+    await once(old, 'listening')
+    onTestFinished(() => {
+      old.closeAllConnections()
+      old.close()
+    })
+    const oldOrigin = `http://127.0.0.1:${z.object({port: z.number()}).parse(old.address()).port}`
+    const oldRow = {id: oldId, pid: process.pid, root: tempDir('conciv-old-'), apiBase: `${oldOrigin}/t/before`}
+    withHomeDb(home, (db) => registerEngine(db, oldRow))
+    await listed([firstId, oldId], {event: 'the old engine registered', at: performance.now()})
+    expect(fields(oldId).compatible).toBe(true)
+    const oldClient = servers.get(oldId)?.client
+    if (oldClient === undefined) throw new Error('the old engine has no ref')
+    await expect(oldClient.tabs.list(undefined, {signal: AbortSignal.timeout(3000)})).rejects.toSatisfy(
+      (error) => error instanceof ORPCError && error.code === 'NOT_FOUND' && error.status === 404,
+    )
+    expect(fields(oldId).compatible).toBe(false)
+    const restarted = `${oldOrigin}/t/after`
+    withHomeDb(home, (db) => registerEngine(db, {...oldRow, apiBase: restarted}))
+    await vi.waitFor(() => expect(fields(oldId).url).toBe(restarted), {timeout: 25_000})
+    expect(fields(oldId).compatible).toBe(true)
   }, 60_000)
 
   it('cancelling a hub block while it waits for the allow leaves nothing to run after a later allow', async () => {
