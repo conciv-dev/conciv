@@ -9,7 +9,7 @@ import {OpenInput} from './open-input.js'
 
 export type ServerToolContext = {bundler: () => BundlerBridge | undefined}
 
-export type OpenToolContext = {openInEditor: (file: string, line?: number) => void}
+export type OpenToolContext = {openInEditor: (file: string, line?: number, column?: number) => void}
 
 export type TabsToolContext = {listTabs: () => Promise<TabsListing>}
 
@@ -173,7 +173,7 @@ export const BUILTIN_OPEN_TOOL = defineTool({
     keywords: ['editor', 'source'],
   },
 }).server((input, ctx: OpenToolContext): {ok: true; file: string; line?: number} => {
-  ctx.openInEditor(input.file, input.line)
+  ctx.openInEditor(input.file, input.line, input.line === undefined ? undefined : input.column)
   return input.line === undefined ? {ok: true, file: input.file} : {ok: true, file: input.file, line: input.line}
 })
 

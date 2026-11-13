@@ -27,7 +27,7 @@ export type StartOpts = {
   options: ConcivConfig
   root: string
   bridge?: BundlerBridge
-  launchEditor: (file: string, line: number) => void
+  launchEditor: (file: string, line: number, column?: number) => void
   childEnv?: (corePort: number) => NodeJS.ProcessEnv
   port?: PortRequest
 
@@ -177,7 +177,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   if (systemPrompt) writeText(paths.systemPrompt, systemPrompt)
 
   const openInEditor = makeEditorOpener(
-    (file, line) => opts.launchEditor(file, line),
+    (file, line, column) => opts.launchEditor(file, line, column),
     4000,
     () => Date.now(),
   )

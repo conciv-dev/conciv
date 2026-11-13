@@ -80,7 +80,7 @@ export type BootOverrides = {
   cwd?: string
   extensions?: AnyExtension[]
   extensionConfig?: Record<string, unknown>
-  openInEditor?: (file: string, line?: number) => void
+  openInEditor?: (file: string, line?: number, column?: number) => void
   bridge?: BundlerBridge
   firstChunkTimeoutMs?: number
   harnesses?: HarnessAdapter[]

@@ -175,7 +175,11 @@ export const ToolCommandSignatureSchema = z.object({
 
 export type ToolCommandSignature = z.infer<typeof ToolCommandSignatureSchema>
 
-export const EditorOpenInputSchema = z.object({file: z.string(), line: z.number().int().min(1).optional()})
+export const EditorOpenInputSchema = z.object({
+  file: z.string(),
+  line: z.number().int().min(1).optional(),
+  column: z.number().int().min(1).optional(),
+})
 
 export const EngineStalenessSchema = z.object({
   stale: z.boolean(),

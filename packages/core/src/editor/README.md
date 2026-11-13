@@ -6,7 +6,7 @@ Opens source locations in an editor. It debounces repeat opens, symbolicates sta
 
 ## Interface
 
-- `makeEditorOpener(launch, windowMs, now)` / `LaunchFn` / `OpenInEditor` (`open.ts`): skips repeat opens of the same file:line within `windowMs`
+- `makeEditorOpener(launch, windowMs, now)` / `LaunchFn` / `OpenInEditor` (`open.ts`): skips repeat opens of the same file:line:column within `windowMs`
 - `symbolicateFrame` / `symbolicateFrames` / `RawFrame` / `SourceLoc` (`symbolicate.ts`): map frames to original source with @jridgewell/trace-mapping
 - `openSourceFromFrames(frames, root, open)` / `OpenSourceStatus` (`open-source.ts`): 'no-source', 'opened' or 'failed'
 
