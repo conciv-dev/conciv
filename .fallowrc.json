@@ -285,6 +285,7 @@
     "packages/plugin-host/src/plugin/effect/rpc.ts",
     "packages/plugin-host/src/core/schema.ts",
     "packages/plugin-host/src/core/plugin/update.ts",
+    "packages/plugin-host/test/core/fixture/*-worker.ts",
     "packages/brand-react/src/conciv-lockup.tsx",
     "packages/brand/src/brand-guidelines.mdx",
     "packages/ui-kit-chat/src/tools.tsx",

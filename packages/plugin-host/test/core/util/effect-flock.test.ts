@@ -9,6 +9,7 @@ import {EffectFlock} from '../../../src/util/effect-flock.js'
 import {FSUtil} from '../../../src/util/fs-util.js'
 import {Global} from '../../../src/util/global.js'
 import {Hash} from '../../../src/util/hash.js'
+import {bundleLockWorker, runLockWorker, spawnLockWorker, stopLockWorker, waitForFile} from '../fixture/lock-worker'
 import {tmpdir} from '../fixture/tmpdir'
 
 function lock(dir: string, key: string) {
@@ -25,6 +26,17 @@ async function exists(file: string) {
 async function readJson<T>(p: string): Promise<T> {
   return JSON.parse(await fs.readFile(p, 'utf8'))
 }
+
+type Msg = {
+  key: string
+  dir: string
+  holdMs?: number
+  ready?: string
+  active?: string
+  done?: string
+}
+
+const workerEntry = path.join(import.meta.dirname, '../fixture/effect-flock-worker.ts')
 
 const testGlobal = Global.layerWith({
   cache: os.tmpdir(),
@@ -280,5 +292,71 @@ describe('util.effect-flock', () => {
       const result = yield* flock.withLock(Effect.void, 'eflock:perm', dir).pipe(Effect.exit)
       expect(String(result)).toContain('PermissionDenied')
     }),
+  )
+
+  it.live(
+    'enforces mutual exclusion under process contention',
+    () =>
+      Effect.promise(async () => {
+        const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'eflock-stress-'))
+        const worker = await bundleLockWorker(workerEntry, tmp)
+        const dir = path.join(tmp, 'locks')
+        const done = path.join(tmp, 'done.log')
+        const active = path.join(tmp, 'active')
+        const n = 16
+
+        try {
+          const out = await Promise.all(
+            Array.from({length: n}, () =>
+              runLockWorker(worker, {key: 'eflock:stress', dir, done, active, holdMs: 30} satisfies Msg),
+            ),
+          )
+
+          expect(out.map((x) => x.code)).toEqual(Array.from({length: n}, () => 0))
+          expect(out.map((x) => x.stderr.toString()).filter(Boolean)).toEqual([])
+
+          const lines = (await fs.readFile(done, 'utf8'))
+            .split('\n')
+            .map((x) => x.trim())
+            .filter(Boolean)
+          expect(lines.length).toBe(n)
+        } finally {
+          await fs.rm(tmp, {recursive: true, force: true})
+        }
+      }),
+    60_000,
+  )
+
+  it.live(
+    'recovers after a crashed lock owner',
+    () =>
+      Effect.promise(async () => {
+        const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'eflock-crash-'))
+        const worker = await bundleLockWorker(workerEntry, tmp)
+        const dir = path.join(tmp, 'locks')
+        const ready = path.join(tmp, 'ready')
+
+        const proc = spawnLockWorker(worker, {key: 'eflock:crash', dir, ready, holdMs: 120_000} satisfies Msg)
+
+        try {
+          await waitForFile(ready, 5_000)
+          await stopLockWorker(proc)
+
+          const lockDir = lock(dir, 'eflock:crash')
+          const old = new Date(Date.now() - 120_000)
+          await fs.utimes(lockDir, old, old).catch(() => {})
+          await fs.utimes(path.join(lockDir, 'heartbeat'), old, old).catch(() => {})
+          await fs.utimes(path.join(lockDir, 'meta.json'), old, old).catch(() => {})
+
+          const done = path.join(tmp, 'done.log')
+          const result = await runLockWorker(worker, {key: 'eflock:crash', dir, done, holdMs: 10} satisfies Msg)
+          expect(result.code).toBe(0)
+          expect(result.stderr.toString()).toBe('')
+        } finally {
+          await stopLockWorker(proc).catch(() => {})
+          await fs.rm(tmp, {recursive: true, force: true})
+        }
+      }),
+    30_000,
   )
 })
