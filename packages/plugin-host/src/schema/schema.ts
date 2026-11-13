@@ -1,5 +1,11 @@
 import {Option, Schema, SchemaGetter} from 'effect'
 
+export const AbsolutePath = Schema.String.pipe(
+  Schema.brand('AbsolutePath'),
+  Schema.annotate({identifier: 'AbsolutePath'}),
+)
+export type AbsolutePath = typeof AbsolutePath.Type
+
 export const optional = <S extends Schema.Top>(schema: S) =>
   Schema.optionalKey(schema).pipe(
     Schema.decodeTo(Schema.optional(Schema.toType(schema)), {
