@@ -241,7 +241,11 @@ describe('chat plane', () => {
     const schemas = {inputSchema: z.object({}), outputSchema: z.object({})}
     const tool = defineTool({name: 'unit_tool', description: 'unit', ...schemas, meta}).server(() => ({}))
     registry.register(tool, {owner: 'unit'})
-    const [capability] = registryCapabilities(registry.sandboxTools(), async () => null)
+    const [capability] = registryCapabilities(
+      registry.sandboxTools(),
+      async () => null,
+      () => undefined,
+    )
     expect(capability?.description).toMatch(/^Do the unit thing\. Prefer small inputs\.\n\nReturns JSON matching: /)
   })
 
@@ -2704,6 +2708,71 @@ describe('direct tools on the MCP surface', () => {
     expect(execute).toContain('Rules of the sandbox:')
     expect(execute).toContain('## Code Mode tools (call only inside `execute_typescript`)')
     expect(execute).not.toContain('More capabilities, by name only')
+    const bindings = ToolCalled.parse(
+      await post('tools/call', {
+        name: 'execute_typescript',
+        arguments: {typescriptCode: 'return Object.keys(globalThis).filter((key) => key.startsWith("external_"))'},
+      }),
+    )
+    const bound = z
+      .object({result: z.array(z.string())})
+      .parse(JSON.parse(bindings.result.content.map((part) => part.text).join('')))
+    expect(bound.result.toSorted()).toEqual([
+      'external_conciv_extensions',
+      'external_conciv_ui',
+      'external_open',
+      'external_page_addclass',
+      'external_page_attr',
+      'external_page_check',
+      'external_page_click',
+      'external_page_console',
+      'external_page_css',
+      'external_page_dom',
+      'external_page_effect',
+      'external_page_exists',
+      'external_page_fill',
+      'external_page_find',
+      'external_page_hmr',
+      'external_page_hover',
+      'external_page_insert',
+      'external_page_inspect',
+      'external_page_locate',
+      'external_page_override',
+      'external_page_press',
+      'external_page_query',
+      'external_page_queue',
+      'external_page_queue_async',
+      'external_page_reload',
+      'external_page_remove',
+      'external_page_removeattr',
+      'external_page_removeclass',
+      'external_page_route',
+      'external_page_screenshot',
+      'external_page_scroll',
+      'external_page_select',
+      'external_page_setattr',
+      'external_page_sethtml',
+      'external_page_setstyle',
+      'external_page_settext',
+      'external_page_snapshot',
+      'external_page_submit',
+      'external_page_text',
+      'external_page_track',
+      'external_page_tree',
+      'external_page_uncheck',
+      'external_page_value',
+      'external_page_wait',
+      'external_server_config',
+      'external_server_graph',
+      'external_server_resolve',
+      'external_server_transform',
+      'external_server_urls',
+      'external_tabs',
+      'external_unit_coded',
+    ])
+    expect(execute).toMatch(/^- page \(41 tools/m)
+    expect(execute).toMatch(/^- server \(5 tools/m)
+    expect(execute).toMatch(/^- conciv \(2 tools/m)
     const searched = ToolCalled.parse(
       await post('tools/call', {
         name: 'execute_typescript',

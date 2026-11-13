@@ -604,11 +604,15 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       reportToolCollision,
     )
 
+  const extensionFor = (name: string): string | undefined =>
+    mounted.find((entry) => entry.registryTools.some((tool) => tool.name === name))?.extensionName
+
   const codeModeCapabilities = (sessionId: SessionId): CodeCapability[] =>
     withPluginTools(sessionId, [
       ...registryCapabilities(
         registry.whenPageConnected(() => primitives.page.bus.connected(sessionId)).sandboxTools(),
         scopedToolCall,
+        extensionFor,
       ),
       ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
     ])
@@ -706,7 +710,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     outsideCapabilities: (sessionId) =>
       outsideRunCapabilities(
         withPluginTools(sessionId, [
-          ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall),
+          ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall, extensionFor),
           ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
         ]),
       ),

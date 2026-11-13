@@ -52,10 +52,19 @@ function discoverableDescription(tool: SandboxTool): string {
   ].join('\n\n')
 }
 
-export function registryCapabilities(tools: readonly SandboxTool[], call: CapabilityCall): CodeCapability[] {
+function groupedPath(name: string, group: string | undefined): string {
+  const prefix = group ?? name.split('_', 1)[0] ?? name
+  return name.startsWith(`${prefix}_`) ? `${prefix}.${name.slice(prefix.length + 1)}` : name
+}
+
+export function registryCapabilities(
+  tools: readonly SandboxTool[],
+  call: CapabilityCall,
+  extensionFor: (name: string) => string | undefined,
+): CodeCapability[] {
   return tools.map((tool) => ({
     name: tool.name,
-    path: tool.name,
+    path: groupedPath(tool.name, extensionFor(tool.name)),
     description: discoverableDescription(tool),
     ...(tool.approval === undefined ? {} : {approval: tool.approval}),
     errors: tool.errors.map(({code, message}) => ({code, message})),
@@ -73,7 +82,7 @@ function registryOutput(schema: unknown): {outputSchema?: SchemaInput} {
 export function assistCapabilities(tools: ConcivServerTool[]): CodeCapability[] {
   return tools.map((tool) => ({
     name: tool.name,
-    path: tool.name,
+    path: groupedPath(tool.name, undefined),
     description: tool.description,
     errors: [],
     inputSchema: tool.inputSchema,
