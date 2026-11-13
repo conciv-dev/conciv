@@ -22,7 +22,7 @@ import {readStamps} from './client/stamps.js'
 import {siteNodeKey} from './client/site-node-key.js'
 import {settled} from './client/settled.js'
 import {thrownOf} from './client/thrown.js'
-import {buildMirror} from './client/mirror.js'
+import {loadMirror, resizeMirror} from './client/mirror.js'
 
 declare global {
   interface Window {
@@ -77,7 +77,7 @@ type Glyph = LiveComponent['glyphs'][number]
 
 type Size = {width: number; height: number}
 type PageWindow = Window & typeof globalThis
-type MirrorSlot = Size & {frame: Promise<HTMLIFrameElement>}
+type MirrorSlot = {route: string; frame: Promise<HTMLIFrameElement>}
 
 const [WIDGET_ROOT_SELECTOR = ''] = hiddenOverlays('hidden')
 const MIRROR_ATTR = 'data-conciv-mirror'
@@ -163,13 +163,13 @@ function xraySwitch() {
 
 async function measureStep(input: MeasureInput, ctx: ClientToolCtx): Promise<MeasureResult> {
   const size = {width: input.width ?? innerWidth, height: input.height ?? innerHeight}
-  releaseMirror()
   const pageError = overlayError()
+  const doc = input.widget === 'shown' ? document : mirrorDocument(await mirrorAt({size, fresh: input.fresh}))
   const measured = await frozen({
-    doc: document,
-    run: () => (size.width === innerWidth ? measureLive({size, widget: input.widget}) : measureMirror({size})),
+    doc,
+    run: () => (doc === document ? measureLive({size, widget: input.widget}) : measureMirrorDoc({doc, size})),
   })
-  const queried = {...measured, ...(await pageQueries(document)), ...thrownOf(ctx.consoleEntries())}
+  const queried = {...measured, ...(await pageQueries(doc)), ...thrownOf(ctx.consoleEntries())}
   return pageError === null ? queried : {...queried, pageError}
 }
 
@@ -230,12 +230,6 @@ function watchLongTasks(): () => number | null {
   }
 }
 
-async function measureMirror(input: {size: Size}): Promise<Measuring> {
-  const {size} = input
-  const doc = mirrorDocument(await mirrorAt(size))
-  return frozen({doc, run: () => measureMirrorDoc({doc, size})})
-}
-
 async function measureMirrorDoc(input: {doc: Document; size: Size}): Promise<Measuring> {
   const {doc, size} = input
   const fontsLoading = await settled({doc, cap: TOLERANCES.settleWait})
@@ -263,7 +257,7 @@ async function measureMirrorDoc(input: {doc: Document; size: Size}): Promise<Mea
 
 async function shotsStep(input: ShotsInput): Promise<{shots: NodeShot[]}> {
   const size = {width: input.width, height: input.height}
-  const doc = size.width === innerWidth ? document : mirrorDocument(await mirrorAt(size))
+  const doc = mirrorDocument(await mirrorAt({size, fresh: false}))
   await settled({doc, cap: TOLERANCES.settleWait})
   return frozen({
     doc,
@@ -345,12 +339,18 @@ function releaseMirror(): void {
   )
 }
 
-function mirrorAt(size: Size): Promise<HTMLIFrameElement> {
+async function mirrorAt(input: {size: Size; fresh: boolean}): Promise<HTMLIFrameElement> {
+  const {size} = input
+  const route = locationRoute()
   const slot = mirrorSlot.current
-  if (slot !== null && slot.width === size.width && slot.height === size.height) return slot.frame
+  if (!input.fresh && slot !== null && slot.route === route) {
+    const frame = await slot.frame
+    resizeMirror({frame, size})
+    return frame
+  }
   releaseMirror()
-  const frame = buildMirror({size, marker: MIRROR_ATTR})
-  mirrorSlot.current = {...size, frame}
+  const frame = loadMirror({route, size, marker: MIRROR_ATTR})
+  mirrorSlot.current = {route, frame}
   return frame
 }
 

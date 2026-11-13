@@ -89,6 +89,7 @@ async function askMeasure(input: {
   width?: number
   height?: number
   widget?: Widget
+  fresh?: boolean
   timeout: number
 }): Promise<MeasureReply> {
   const {page, width, height, timeout} = input
@@ -97,6 +98,7 @@ async function askMeasure(input: {
       ...(width === undefined ? {} : {width}),
       ...(height === undefined ? {} : {height}),
       ...(input.widget === undefined ? {} : {widget: input.widget}),
+      ...(input.fresh === undefined ? {} : {fresh: input.fresh}),
       timeout,
     }),
   )

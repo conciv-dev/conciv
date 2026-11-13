@@ -46,6 +46,7 @@ async function run(input: {runtime: DesignRuntime; folder: Storage; call: Call})
     ...(oneWidth ? {} : {width: record.width}),
     height: record.height,
     widget,
+    fresh: true,
   })
   const thrown = await thrownError({measured, since: call.since, runtime})
   if (thrown !== null) return {thrown}
@@ -238,7 +239,13 @@ async function reflowOf(input: {
     const narrow =
       width === measured.width
         ? measured
-        : await runtime.measurer.measure({page: call.page, width, height: REFLOW_HEIGHT, widget: call.record.widget})
+        : await runtime.measurer.measure({
+            page: call.page,
+            width,
+            height: REFLOW_HEIGHT,
+            widget: call.record.widget,
+            fresh: false,
+          })
     if (narrow !== measured && narrow.fontsLoading !== undefined) waits.push(narrow.fontsLoading)
     const at = idTreeOf({live: narrow.live, sheets: narrow.sheets, mapping, previous: null})
     if (narrow !== measured)

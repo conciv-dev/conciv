@@ -17,10 +17,10 @@ x-ray overlay adopts the widget's stylesheet (`uno.config.ts` here only feeds th
 
 ```text
 src/
-  client.tsx           widget entry: the measure tool (live document or mirror at another width), the composer
+  client.tsx           widget entry: the measure tool (the mirror, or the live document when the widget is the design), the composer
                        button and the Surface that mounts the x-ray overlay on the page
   client/
-    takumi.ts          the takumi second opinion over the mirror snapshot
+    takumi.ts          the takumi second opinion over the mirror
   server.ts            extension entry: storages, store, adapters, measurer, voter, runner, differ, x-ray routes
   shared/
     defs.ts            tool definitions, wire schemas, errors, the domain types and stage interfaces
@@ -179,14 +179,16 @@ A run row is corrected with the house write: `conciv db write --into design_runs
 
 Each delta names the source that measured it.
 
-- `dom`: the live document in the app tab. Used when the tab width equals the design width. Its pixels are taken
-  with snapdom (`capturePath: snapdom-live`) from the computed styles alone: the page's `<style>` and `<link>`
-  elements stay out of the clone, as in the mirror, so an authored `1fr` track never re-sizes against the widths
-  snapdom froze on its items.
-- `mirror`: a scriptless snapshot of the live document, rebuilt in an off-screen iframe at the design width. Used
-  for every box, style and pixel when the tab width differs, so the tab is never resized. Its pixels are taken with
-  snapdom (`capturePath: snapdom-mirror`).
-- `takumi`: the same snapshot laid out by takumi in wasm, when the page's fonts are fetchable web fonts and its
+- `dom`: the live document in the app tab. Used only when the widget itself is the design (`widget: 'shown'`). Its
+  pixels are taken with snapdom (`capturePath: snapdom-live`) from the computed styles alone: the page's `<style>`
+  and `<link>` elements stay out of the clone, as in the mirror, so an authored `1fr` track never re-sizes against
+  the widths snapdom froze on its items.
+- `mirror`: the tab's route loaded again in an off-screen iframe the tool owns (`data-conciv-capture`, so the widget
+  stays out), sized to the design width. The first measure of a check loads it fresh, so the page is what its current
+  code renders, not what the user scrolled, opened or typed in the tab, and the tab is never resized. Used for every
+  box, style and pixel unless the widget is the design. Its pixels are taken with snapdom
+  (`capturePath: snapdom-mirror`).
+- `takumi`: the mirror's document laid out by takumi in wasm, when the page's fonts are fetchable web fonts and its
   styles stay inside takumi's subset. The value is stored as the delta's `opinion` and shown in the overlay beside
   the mirror's; it never changes a count, the score or the stop.
 

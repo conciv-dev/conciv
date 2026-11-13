@@ -1,61 +1,38 @@
-import {
-  absolutifyURLs,
-  createCache,
-  createMirror,
-  rebuildIntoSandboxedIframe,
-  snapshot,
-  visitSnapshot,
-} from 'rrweb-snapshot'
-import {hiddenOverlays} from '../shared/overlays.js'
+import {designConfig} from '../shared/tolerances.js'
 
-export async function buildMirror(input: {
+export async function loadMirror(input: {
+  route: string
   size: {width: number; height: number}
   marker: string
 }): Promise<HTMLIFrameElement> {
-  const {size} = input
-  const source = createMirror()
-  const tree = snapshot(document, {
-    mirror: source,
-    blockSelector: MIRROR_BLOCKED,
-    maskAllInputs: true,
-    inlineStylesheet: true,
-  })
-  if (tree === null) throw new Error('the page could not be snapshotted for the mirror')
-  visitSnapshot(tree, (node) => {
-    if (!('tagName' in node) || node.tagName !== STYLE || typeof node.attributes[CSS_TEXT] !== 'string') return
-    const text = source.getNode(node.id)?.textContent ?? ''
-    if (text.trim() !== '') node.attributes[CSS_TEXT] = absolutifyURLs(text, document.baseURI)
-  })
   const host = offscreenHost(input.marker)
-  const rebuilt = createMirror()
-  const {iframe} = rebuildIntoSandboxedIframe(tree, {
-    root: host,
-    mirror: rebuilt,
-    cache: createCache(),
-    hackCss: false,
-    iframeAttributes: {
-      width: String(size.width),
-      height: String(size.height),
-      style: 'border:0',
-      tabindex: '-1',
-      'aria-hidden': 'true',
-    },
-  })
-  const widget = document.querySelector(WIDGET_ROOT_SELECTOR)
-  const placeholder = widget === null ? null : rebuilt.getNode(source.getId(widget))
-  placeholder?.parentNode?.removeChild(placeholder)
-  return iframe
+  const frame = document.createElement('iframe')
+  frame.setAttribute(CAPTURE_ATTR, '')
+  frame.setAttribute('tabindex', '-1')
+  frame.setAttribute('aria-hidden', 'true')
+  frame.setAttribute('style', 'border:0')
+  resizeMirror({frame, size: input.size})
+  const loaded = new Promise((resolve) => frame.addEventListener('load', resolve, {once: true}))
+  frame.src = input.route
+  host.append(frame)
+  await loaded
+  const doc = frame.contentDocument
+  if (doc !== null) await quiet({doc, until: performance.now() + TOLERANCES.settleWait})
+  return frame
 }
 
-const [WIDGET_ROOT_SELECTOR = ''] = hiddenOverlays('hidden')
+export function resizeMirror(input: {frame: HTMLIFrameElement; size: {width: number; height: number}}): void {
+  input.frame.setAttribute('width', String(input.size.width))
+  input.frame.setAttribute('height', String(input.size.height))
+}
 
-const MIRROR_BLOCKED = `${hiddenOverlays('hidden').join(', ')}, iframe, video, audio, object, embed`
+const CAPTURE_ATTR = 'data-conciv-capture'
 
 const OFFSCREEN_STYLE = 'position:fixed;left:-100000px;top:0;pointer-events:none'
 
-const STYLE = 'style'
+const IDLE_TIMEOUT_MS = 500
 
-const CSS_TEXT = '_cssText'
+const TOLERANCES = designConfig.tolerances
 
 function offscreenHost(marker: string): HTMLDivElement {
   const host = document.createElement('div')
@@ -64,4 +41,30 @@ function offscreenHost(marker: string): HTMLDivElement {
   host.setAttribute('style', OFFSCREEN_STYLE)
   document.body.append(host)
   return host
+}
+
+async function quiet(input: {doc: Document; until: number}): Promise<void> {
+  const view = input.doc.defaultView
+  if (view === null) return
+  const seen = {count: 0}
+  const observer = new view.MutationObserver(() => {
+    seen.count += 1
+  })
+  observer.observe(input.doc, {subtree: true, childList: true, attributes: true, characterData: true})
+  try {
+    await still({view, seen, until: input.until})
+  } finally {
+    observer.disconnect()
+  }
+}
+
+async function still(input: {view: Window; seen: {count: number}; until: number}): Promise<void> {
+  const before = input.seen.count
+  await idle(input.view)
+  if (input.seen.count === before || performance.now() > input.until) return
+  return still(input)
+}
+
+function idle(view: Window): Promise<void> {
+  return new Promise((resolve) => view.requestIdleCallback(() => resolve(), {timeout: IDLE_TIMEOUT_MS}))
 }

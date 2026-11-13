@@ -23,6 +23,7 @@ const TARGET_ALIASES = new Set([
   'webfont',
   'container',
   'process',
+  'filters',
 ])
 const LOOK_CLASSES: Record<string, string> = {webfont: 'webfont', container: 'webfont'}
 const CONTAINER_CSS =
@@ -167,6 +168,12 @@ export function App() {
         placeholder="Search invoices"
         style={requested === 'field-border' ? FIELD_BORDER : undefined} data-conciv-key="z0_ekQ"
       />
+      {requested === 'filters' ? (
+        <details data-conciv-key="fLtRdT">
+          <summary data-conciv-key="fLtRsM">Filters</summary>
+          <div style={{height: 240}} data-conciv-key="fLtRbD" />
+        </details>
+      ) : null}
       {requested === 'painted' ? <PaintedCards data-conciv-key="WViT6A" /> : <Cards variant={variant} column={requested === 'column'} data-conciv-key="EztCBw" />}
       {variant === 'missing' ? null : <Table variant={variant} look={requested} data-conciv-key="rFh37A" />}
       {requested === 'process' ? <section id="process" data-conciv-key="SE7-sA" /> : null}

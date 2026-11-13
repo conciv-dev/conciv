@@ -544,7 +544,10 @@ export const MeasureResultSchema = z.object({
 const Width = z.number().int().positive()
 
 export const MeasureInputSchema = z.object({
-  width: Width.optional().describe('the width to measure at; the mirror is read when it differs from the tab width'),
+  width: Width.optional().describe(
+    'the width to measure at, in the mirror: the tab route loaded in a frame the tool owns',
+  ),
+  fresh: z.boolean().default(false).describe('load the page into the mirror again before measuring'),
   height: Width.optional().describe('the height to capture'),
   widget: WidgetSchema.default('hidden'),
   timeout: z.number().int().positive().optional(),

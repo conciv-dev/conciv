@@ -62,6 +62,15 @@ describe('design_check on the cards page', () => {
     expect([checked.length > 0, checked.filter((line) => line.includes('undefined'))]).toEqual([true, []])
     expect(told((await call('design_status', {})).rows)).toEqual(checked)
   })
+
+  it('measures the page its code renders, not what the user opened in the tab', async () => {
+    await kit.goto('filters')
+    await call('design_get', await cardsDesign(kit.targetsDir))
+    const closed = roundOf(await call('design_check', {}))
+    await kit.page.getByText('Filters').click()
+    const opened = roundOf(await call('design_check', {}))
+    expect(opened.rows.map((row) => row.text)).toEqual(closed.rows.map((row) => row.text))
+  })
 })
 
 describe('catalog component rows', () => {
@@ -286,11 +295,13 @@ describe('catalog component rows', () => {
         .results.map((row) => input.select.map((field) => row[field]))
     const layers = await xrayRpc.xray.layers({id: got.target, round: checked.round})
     const placed = layers === null ? [] : [...walk(layers.root)].flatMap(({node}) => node.fom)
+    const app = (await readFile(join(HOST_ROOT, 'src/App.tsx'), 'utf8')).split('\n')
+    const site = `src/App.tsx:${app.findIndex((line) => line.includes('data-conciv-key="kItPlA"')) + 1}`
     expect([
       await read({from: 'node_components', select: ['node', 'source']}),
       await read({from: 'fom', select: ['node', 'id', 'site']}),
       placed.find((entry) => entry.nodeId === '18:2')?.component?.name,
-    ]).toEqual([[['18:2', 'src/App.tsx:224']], [['18:2', 'kItPlA', 'src/App.tsx:224']], 'Pill'])
+    ]).toEqual([[['18:2', site]], [['18:2', 'kItPlA', site]], 'Pill'])
   })
 
   describe('a kit root that carries only its call site', () => {
