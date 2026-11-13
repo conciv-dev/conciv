@@ -3,7 +3,23 @@ import fs from 'fs/promises'
 import path from 'path'
 import {Flock} from '../../../src/util/flock.js'
 import {Hash} from '../../../src/util/hash.js'
+import {bundleLockWorker, runLockWorker, spawnLockWorker, stopLockWorker, waitForFile} from '../fixture/lock-worker'
 import {tmpdir} from '../fixture/tmpdir'
+
+type Msg = {
+  key: string
+  dir: string
+  staleMs?: number
+  timeoutMs?: number
+  baseDelayMs?: number
+  maxDelayMs?: number
+  holdMs?: number
+  ready?: string
+  active?: string
+  done?: string
+}
+
+const workerEntry = path.join(import.meta.dirname, '../fixture/flock-worker.ts')
 
 function lock(dir: string, key: string) {
   return path.join(dir, Hash.fast(key) + '.lock')
@@ -21,6 +37,114 @@ async function readJson<T>(p: string): Promise<T> {
 }
 
 describe('util.flock', () => {
+  test('enforces mutual exclusion under process contention', async () => {
+    await using tmp = await tmpdir('flock-test-')
+    const worker = await bundleLockWorker(workerEntry, tmp.path)
+    const dir = path.join(tmp.path, 'locks')
+    const done = path.join(tmp.path, 'done.log')
+    const active = path.join(tmp.path, 'active')
+    const key = 'flock:stress'
+    const n = 16
+
+    const out = await Promise.all(
+      Array.from({length: n}, () =>
+        runLockWorker(worker, {
+          key,
+          dir,
+          done,
+          active,
+          holdMs: 30,
+          staleMs: 1_000,
+          timeoutMs: 15_000,
+        } satisfies Msg),
+      ),
+    )
+
+    expect(out.map((x) => x.code)).toEqual(Array.from({length: n}, () => 0))
+    expect(out.map((x) => x.stderr.toString()).filter(Boolean)).toEqual([])
+
+    const lines = (await fs.readFile(done, 'utf8'))
+      .split('\n')
+      .map((x) => x.trim())
+      .filter(Boolean)
+    expect(lines.length).toBe(n)
+  }, 20_000)
+
+  test('times out while waiting when lock is still healthy', async () => {
+    await using tmp = await tmpdir('flock-test-')
+    const worker = await bundleLockWorker(workerEntry, tmp.path)
+    const dir = path.join(tmp.path, 'locks')
+    const key = 'flock:timeout'
+    const ready = path.join(tmp.path, 'ready')
+    const proc = spawnLockWorker(worker, {
+      key,
+      dir,
+      ready,
+      holdMs: 20_000,
+      staleMs: 10_000,
+      timeoutMs: 30_000,
+    } satisfies Msg)
+
+    try {
+      await waitForFile(ready, 5_000)
+      const seen: string[] = []
+      const err = await Flock.withLock(key, async () => {}, {
+        dir,
+        staleMs: 10_000,
+        timeoutMs: 1_000,
+        onWait: (tick) => {
+          seen.push(tick.key)
+        },
+      }).catch((err) => err)
+
+      expect(err).toBeInstanceOf(Error)
+      if (!(err instanceof Error)) throw err
+      expect(err.message).toContain('Timed out waiting for lock')
+      expect(seen.length).toBeGreaterThan(0)
+      expect(seen.every((x) => x === key)).toBe(true)
+    } finally {
+      await stopLockWorker(proc).catch(() => undefined)
+    }
+  }, 15_000)
+
+  test('recovers after a crashed lock owner', async () => {
+    await using tmp = await tmpdir('flock-test-')
+    const worker = await bundleLockWorker(workerEntry, tmp.path)
+    const dir = path.join(tmp.path, 'locks')
+    const key = 'flock:crash'
+    const ready = path.join(tmp.path, 'ready')
+    const proc = spawnLockWorker(worker, {
+      key,
+      dir,
+      ready,
+      holdMs: 20_000,
+      staleMs: 500,
+      timeoutMs: 30_000,
+    } satisfies Msg)
+
+    try {
+      await waitForFile(ready, 5_000)
+      await stopLockWorker(proc)
+
+      let hit = false
+      await Flock.withLock(
+        key,
+        async () => {
+          hit = true
+        },
+        {
+          dir,
+          staleMs: 500,
+          timeoutMs: 8_000,
+        },
+      )
+
+      expect(hit).toBe(true)
+    } finally {
+      await stopLockWorker(proc)
+    }
+  }, 20_000)
+
   test('breaks stale lock dirs when heartbeat is missing', async () => {
     await using tmp = await tmpdir('flock-test-')
     const dir = path.join(tmp.path, 'locks')

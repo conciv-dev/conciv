@@ -58,6 +58,7 @@
     "@types/npmcli__arborist": "catalog:",
     "@types/pacote": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "esbuild": "catalog:",
     "fast-check": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",

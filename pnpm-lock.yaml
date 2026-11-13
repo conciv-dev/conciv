@@ -315,6 +315,9 @@ catalogs:
     es-toolkit:
       specifier: ^1.53.0
       version: 1.53.0
+    esbuild:
+      specifier: 0.28.2
+      version: 0.28.2
     eslint-plugin-playwright:
       specifier: 2.12.1
       version: 2.12.1
@@ -4446,6 +4449,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
+      esbuild:
+        specifier: 'catalog:'
+        version: 0.28.2
       fast-check:
         specifier: 'catalog:'
         version: 4.9.0
