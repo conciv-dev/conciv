@@ -146,13 +146,22 @@ export function readSecretRefusal(result: unknown): string | null {
   return failed.success && failed.data.error.message.includes(SECRET_REFUSAL) ? failed.data.error.message : null
 }
 
-export function describeInput(schema: SchemaInput): {type: string; parameters: string[]} {
-  const jsonSchema = convertSchemaToJsonSchema(schema) ?? {type: 'object', properties: {}}
-  const input = jsonSchemaToTypeScript({...jsonSchema}, 'Input')
-  const prefix = `interface ${input.name} `
+function typeText(schema: Record<string, unknown>, name: string): string {
+  const rendered = jsonSchemaToTypeScript(schema, name)
+  const prefix = `interface ${rendered.name} `
+  return rendered.declaration.startsWith(prefix) ? rendered.declaration.slice(prefix.length) : rendered.name
+}
+
+export function describeSchemas(
+  input: SchemaInput,
+  output: SchemaInput | undefined,
+): {input: string; parameters: string[]; output: string} {
+  const inputSchema = convertSchemaToJsonSchema(input) ?? {type: 'object', properties: {}}
+  const outputSchema = output === undefined ? undefined : convertSchemaToJsonSchema(output)
   return {
-    type: input.declaration.startsWith(prefix) ? input.declaration.slice(prefix.length) : input.name,
-    parameters: Object.keys(jsonSchema.properties ?? {}),
+    input: typeText({...inputSchema}, 'Input'),
+    parameters: Object.keys(inputSchema.properties ?? {}),
+    output: outputSchema === undefined ? 'unknown' : typeText({...outputSchema}, 'Output'),
   }
 }
 

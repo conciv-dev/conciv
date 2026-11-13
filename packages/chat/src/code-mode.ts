@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {Cause, Effect, Exit, Option, Result, Schema} from 'effect'
-import {approvalDenied, describeInput} from '@conciv/ai/server'
+import {approvalDenied, describeSchemas} from '@conciv/ai/server'
 import {cappedValue} from '@conciv/contract'
 import {
   Agent,
@@ -32,8 +32,13 @@ export type CodeCapability = {
   direct?: true
   errors: {code: string; message: string}[]
   inputSchema: SchemaInput
+  outputSchema?: SchemaInput
   execute: (input: unknown, request: ToolRequest) => Promise<unknown>
 }
+
+const JsonSchemaObject = z.record(z.string(), z.unknown())
+
+const PLUGIN_TEXT_OUTPUT: SchemaInput = {type: ['string', 'null']}
 
 export type CapabilityCall = (name: string, input: unknown, request: ToolRequest) => Promise<unknown>
 
@@ -55,8 +60,14 @@ export function registryCapabilities(tools: readonly SandboxTool[], call: Capabi
     ...(tool.approval === undefined ? {} : {approval: tool.approval}),
     errors: tool.errors.map(({code, message}) => ({code, message})),
     inputSchema: tool.schema,
+    ...registryOutput(tool.outputSchema),
     execute: (input, request) => call(tool.name, input, request),
   }))
+}
+
+function registryOutput(schema: unknown): {outputSchema?: SchemaInput} {
+  const parsed = JsonSchemaObject.safeParse(schema)
+  return parsed.success ? {outputSchema: parsed.data} : {}
 }
 
 export function assistCapabilities(tools: ConcivServerTool[]): CodeCapability[] {
@@ -148,9 +159,14 @@ function codeModeCapabilities(codeMode: CodeModeSnapshot, run: EffectRun): CodeC
     description: tool.description,
     errors: [],
     inputSchema: jsonSchemaOnly(ToolRuntime.definition(tool).inputSchema),
+    outputSchema: pluginOutput(ToolRuntime.definition(tool).outputSchema),
     execute: (input, request) =>
       runTool(name, run, codeMode.execute(name, input, toolContext(request)), request.signal),
   }))
+}
+
+function pluginOutput(schema: ReturnType<typeof ToolRuntime.definition>['outputSchema']): SchemaInput {
+  return schema === undefined ? PLUGIN_TEXT_OUTPUT : {...schema}
 }
 
 function directCapabilities(snapshot: Tool.Snapshot, run: EffectRun): CodeCapability[] {
@@ -264,14 +280,16 @@ function catalogInventory(
 }
 
 function visibleTool(capability: CodeCapability): CodeModeToolRuntime.VisibleTool {
-  let input: {type: string; parameters: string[]} | undefined
-  const described = () => (input ??= describeInput(capability.inputSchema))
+  let schemas: ReturnType<typeof describeSchemas> | undefined
+  const described = () => (schemas ??= describeSchemas(capability.inputSchema, capability.outputSchema))
   return {
     description: {
       path: capability.path,
       description: capability.description,
       get signature() {
-        return `${CodeMode.toolExpression(capability.path)}(input: ${described().type}): Promise<unknown>`
+        const {input, parameters, output} = described()
+        const call = parameters.length === 0 ? '()' : `(${input})`
+        return `${CodeMode.toolExpression(capability.path)}${call}: Promise<${output}>`
       },
     },
     get parameters() {

@@ -211,6 +211,13 @@ describe('plugin tools in code mode', () => {
             execute: () => Effect.fail(Tool.makeError({message: 'the tool refused'})),
           })
           editor.add({
+            name: 'unit_send',
+            description: 'Send the draft.',
+            input: z.object({}),
+            output: z.object({sent: z.boolean()}),
+            execute: () => Effect.succeed({output: {sent: true}}),
+          })
+          editor.add({
             name: 'unit_taken',
             description: 'A plugin copy.',
             input: z.object({}),
@@ -237,7 +244,19 @@ describe('plugin tools in code mode', () => {
       'unit_shout',
       'unit_double',
       'unit_refuse',
+      'unit_send',
     ])
+    await expect(
+      runner?.code?.run('return (await search({})).items.map((item) => item.signature)', 'parent'),
+    ).resolves.toMatchObject({
+      result: [
+        'external_unit_double({\n  count: string;\n}): Promise<string | null>',
+        'external_unit_refuse(): Promise<string | null>',
+        'external_unit_send(): Promise<{\n  sent: boolean;\n}>',
+        'external_unit_shout({\n  text: string;\n}): Promise<string | null>',
+        'external_unit_taken(): Promise<unknown>',
+      ],
+    })
     expect(new Set(collisions)).toEqual(new Set(['unit_taken']))
     await expect(runner?.code?.run('return await external_unit_shout({text: "hi"})', 'parent')).resolves.toMatchObject({
       result: 'CHANGED BY A HOOK in conciv_plugin',
@@ -558,7 +577,10 @@ describe('plugin instructions', () => {
         name: 'unit_note',
         tools: ['unit_note'],
         entries: [
-          {path: 'unit_note', line: expect.stringMatching(/^  - external_unit_note\(input: \{[\s\S]*text: string/)},
+          {
+            path: 'unit_note',
+            line: '  - external_unit_note({\n  text: string;\n}): Promise<unknown> // Note the text.',
+          },
         ],
       },
     ])
