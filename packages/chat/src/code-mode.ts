@@ -108,12 +108,24 @@ function toolContext(request: ToolRequest): Tool.Context {
 }
 
 const isDeclined = Schema.is(Permission.DeclinedError)
+const isCorrected = Schema.is(Permission.CorrectedError)
+const isToolError = Schema.is(Tool.Error)
+
+function failureText(error: unknown): string {
+  if (isCorrected(error)) return error.feedback
+  if (isToolError(error)) {
+    if (error.error === undefined) return error.message
+    const unwrapped = failureText(error.error)
+    return unwrapped === '' ? error.message : unwrapped
+  }
+  return error instanceof Error ? error.message : String(error)
+}
 
 function refusal(name: string, cause: Cause.Cause<Tool.Error>): unknown {
   const defect = Cause.findDefect(cause)
   if (Result.isSuccess(defect)) return isDeclined(defect.success) ? approvalDenied(name) : defect.success
   const failure = Cause.findErrorOption(cause)
-  if (Option.isSome(failure)) return new Error(failure.value.message)
+  if (Option.isSome(failure)) return new Error(failureText(failure.value))
   return Cause.squash(cause)
 }
 

@@ -416,26 +416,57 @@ describe('refusal text', () => {
                 .assert({...Permission.invocation(context), action: input.action, resources: ['src/.env']})
                 .pipe(Effect.orDie, Effect.as({content: 'ran'})),
           })
+          editor.add({
+            name: 'unit_wrapped',
+            description: 'Assert a permission and wrap its failure.',
+            input: z.object({action: z.string()}),
+            execute: (input: {action: string}, context) => {
+              const asserted: Effect.Effect<void, unknown> =
+                input.action === 'empty'
+                  ? Effect.fail(new Error(''))
+                  : permission.assert({
+                      ...Permission.invocation(context),
+                      action: input.action,
+                      resources: ['src/.env'],
+                    })
+              return asserted.pipe(
+                Effect.mapError((error) => Tool.makeError({message: `Unable to load skill ${input.action}`, error})),
+                Effect.as({content: 'ran'}),
+              )
+            },
+          })
         })
       }).pipe(Scope.provide(scope)),
     )
-    const [guarded] = toolDomainCapabilities(
+    const [guarded, wrapped] = toolDomainCapabilities(
       [],
       host.runSync(Tool.Service.use((tools) => tools.snapshot())),
       (effect, signal) => host.runPromiseExit(effect, {signal}),
       () => undefined,
     )
-    const call = (action: string) =>
-      guarded?.execute(
-        {action},
-        {sessionId: SessionId.parse('conciv_refusal'), agentId: 'conciv_refusal', model: null, toolCallId: action},
-      )
+    const request = (action: string) => ({
+      sessionId: SessionId.parse('conciv_refusal'),
+      agentId: 'conciv_refusal',
+      model: null,
+      toolCallId: action,
+    })
+    const call = (action: string) => guarded?.execute({action}, request(action))
 
     await expect(call('asked')).rejects.toThrow(
       'The user denied running tool "unit_guarded". Do not retry it; continue without it.',
     )
     await expect(call('refused')).rejects.toThrow('Permission denied: refused')
     await expect(call('corrected')).rejects.toThrow('read the example file instead')
+    expect(wrapped?.name).toBe('unit_wrapped')
+    await expect(wrapped?.execute({action: 'refused'}, request('wrapped-refused'))).rejects.toThrow(
+      'Permission denied: refused',
+    )
+    await expect(wrapped?.execute({action: 'corrected'}, request('wrapped-corrected'))).rejects.toThrow(
+      'read the example file instead',
+    )
+    await expect(wrapped?.execute({action: 'empty'}, request('wrapped-empty'))).rejects.toThrow(
+      'Unable to load skill empty',
+    )
   })
 })
 
