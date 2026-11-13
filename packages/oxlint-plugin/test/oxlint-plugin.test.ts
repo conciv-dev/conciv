@@ -265,6 +265,26 @@ describe('tool card shell', () => {
   })
 })
 
+describe('no delegated focus', () => {
+  async function lintFixture(fixture: string): Promise<string[]> {
+    const diagnostics = await lintDiagnostics('test/oxlintrc-delegated-focus.json', `test/fixtures/${fixture}`)
+    return diagnostics
+      .filter((diagnostic) => diagnostic.code === 'conciv(no-delegated-focus)')
+      .map((diagnostic) => String(diagnostic.message))
+  }
+
+  test('flags every casing of a delegated focusin or focusout prop and names the direct listener', async () => {
+    const findings = await lintFixture('delegated-focus/delegated.tsx')
+    expect(findings).toHaveLength(3)
+    expect(findings[0]).toContain('on:focusin')
+    expect(findings[0]).toContain('nativeFocusPart')
+  })
+
+  test('leaves direct on:focusin, on:focusout, onFocus and onBlur alone', async () => {
+    expect(await lintFixture('delegated-focus/native.tsx')).toEqual([])
+  })
+})
+
 describe('vocabulary', () => {
   type Finding = {message: string}
 
