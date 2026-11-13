@@ -1,12 +1,19 @@
+import {setFlagsFromString} from 'node:v8'
+import {runInNewContext} from 'node:vm'
+import {setTimeout} from 'node:timers/promises'
 import {expect, test} from 'vitest'
-import {Effect} from 'effect'
+import {Effect, Schema, SchemaGetter} from 'effect'
 import {z} from 'zod'
+import {emptyInputJsonSchema} from '../../src/ai/effect.js'
 import {Agent} from '../../src/schema/agent.js'
 import {Session} from '../../src/schema/session.js'
 import {SessionMessage} from '../../src/schema/session-message.js'
 import type {Info} from '../../src/schema/tool.js'
 import {Tool} from '../../src/core/tool.js'
 import {definition, execute} from '../../src/core/tool/runtime.js'
+
+setFlagsFromString('--expose-gc')
+const collectGarbage: () => void = runInNewContext('gc')
 
 const context = {
   sessionID: Session.ID.make('ses_tool_schema'),
@@ -20,8 +27,8 @@ test('tools are structural values', async () => {
   const config = {
     name: 'foreign',
     description: 'Foreign tool',
-    input: z.object({value: z.string()}),
-    output: z.object({ok: z.boolean()}),
+    input: Schema.Struct({value: Schema.String}),
+    output: Schema.Struct({ok: Schema.Boolean}),
     execute: () => Effect.succeed({output: {ok: true}}),
   }
   const tool: Info = config
@@ -31,13 +38,12 @@ test('tools are structural values', async () => {
     name: 'foreign',
     description: 'Foreign tool',
     inputSchema: {
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
       type: 'object',
       properties: {value: {type: 'string'}},
       required: ['value'],
+      additionalProperties: false,
     },
     outputSchema: {
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
       type: 'object',
       properties: {ok: {type: 'boolean'}},
       required: ['ok'],
@@ -45,6 +51,199 @@ test('tools are structural values', async () => {
     },
   })
 })
+
+test('Effect tool schemas use exact optional keys and flatten compatible constraints', () => {
+  const tool: Info = {
+    name: 'constraints',
+    description: 'Constraints',
+    input: Schema.Struct({
+      offset: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+      code: Schema.String.check(Schema.isPattern(/^a/u), Schema.isPattern(/z$/u)),
+    }),
+    execute: () => Effect.succeed({content: 'unused'}),
+  }
+
+  expect(definition(tool).inputSchema).toEqual({
+    type: 'object',
+    properties: {
+      offset: {type: 'integer', minimum: 0},
+      code: {type: 'string', pattern: '^a', allOf: [{pattern: 'z$'}]},
+    },
+    required: ['code'],
+    additionalProperties: false,
+  })
+})
+
+test.each([
+  {name: 'plain', input: Schema.Struct({}), metadata: {}},
+  {
+    name: 'annotated',
+    input: Schema.Struct({}).annotate({identifier: 'Empty Input', description: 'No parameters'}),
+    metadata: {description: 'No parameters'},
+  },
+])('empty $name Effect input structs describe callable object parameters', async ({input, metadata}) => {
+  const tool: Info = {
+    name: 'empty',
+    description: 'Empty tool',
+    input,
+    output: input,
+    execute: (value) => Effect.succeed({output: value}),
+  }
+  expect(definition(tool).inputSchema).toEqual({
+    ...metadata,
+    type: 'object',
+    properties: {},
+    additionalProperties: false,
+  })
+  expect(definition(tool).outputSchema).toEqual({...metadata, not: {type: 'null'}})
+  expect(await Effect.runPromise(execute(tool, {}, context))).toMatchObject({output: {}})
+})
+
+test('empty input normalization preserves explicit Effect overrides and raw JSON schemas', () => {
+  for (const override of [{type: 'object', additionalProperties: true}, {not: {type: 'null'}}]) {
+    const tool: Info = {
+      name: 'explicit',
+      description: 'Explicit schema tool',
+      input: override,
+      execute: () => Effect.succeed({content: 'unused'}),
+    }
+    expect(definition(tool).inputSchema).toEqual(override)
+    const checked = Schema.Struct({}).check(Schema.makeFilter(() => true, {toJsonSchema: () => override}))
+    expect(definition({...tool, output: checked}).outputSchema).toEqual(
+      definition({...tool, input: checked}).inputSchema,
+    )
+  }
+})
+
+test('Effect inputs delegate empty-input projection to the shared helper', async () => {
+  const defaulted = Schema.Struct({}).pipe(
+    Schema.decodeTo(Schema.Struct({token: Schema.String}), {
+      decode: SchemaGetter.transform(() => ({token: 'default'})),
+      encode: SchemaGetter.transform(() => ({})),
+    }),
+  )
+  const checked = Schema.Struct({}).check(Schema.isMinProperties(1))
+  const tool = (input: Schema.Codec<unknown, unknown>): Info => ({
+    name: 'delegated',
+    description: 'Delegated input',
+    input,
+    execute: (value) => Effect.succeed({content: JSON.stringify(value)}),
+  })
+
+  expect(emptyInputJsonSchema(defaulted)).toEqual(definition(tool(defaulted)).inputSchema)
+  expect(definition(tool(defaulted)).inputSchema).toEqual({
+    type: 'object',
+    properties: {},
+    additionalProperties: false,
+  })
+  expect(emptyInputJsonSchema(checked)).toBeUndefined()
+  expect(definition(tool(checked)).inputSchema).toEqual({not: {type: 'null'}, minProperties: 1})
+  expect(await Effect.runPromise(execute(tool(defaulted), {}, context))).toMatchObject({
+    content: [{type: 'text', text: JSON.stringify({token: 'default'})}],
+  })
+})
+
+test('empty input normalization leaves nested empty structs unchanged', () => {
+  const tool: Info = {
+    name: 'nested',
+    description: 'Nested empty struct',
+    input: Schema.Struct({value: Schema.Struct({})}),
+    execute: () => Effect.succeed({content: 'unused'}),
+  }
+  expect(definition(tool).inputSchema).toEqual({
+    type: 'object',
+    properties: {value: {not: {type: 'null'}}},
+    required: ['value'],
+    additionalProperties: false,
+  })
+})
+
+test('Effect tool schemas inline named child schemas', () => {
+  const Child = Schema.Struct({value: Schema.String}).annotate({identifier: 'Child'})
+  const tool: Info = {
+    name: 'references',
+    description: 'References',
+    input: Schema.Struct({child: Child.annotate({description: 'Child value'})}),
+    execute: () => Effect.succeed({content: 'unused'}),
+  }
+
+  expect(definition(tool).inputSchema).toEqual({
+    type: 'object',
+    properties: {
+      child: {
+        type: 'object',
+        properties: {value: {type: 'string'}},
+        required: ['value'],
+        additionalProperties: false,
+        description: 'Child value',
+      },
+    },
+    required: ['child'],
+    additionalProperties: false,
+  })
+})
+
+test('Effect tool schemas resolve escaped definition names', () => {
+  const Slash = Schema.Struct({slash: Schema.String}).annotate({identifier: 'A/B'})
+  const Tilde = Schema.Struct({tilde: Schema.String}).annotate({identifier: 'A~B'})
+  const tool: Info = {
+    name: 'escaped-references',
+    description: 'Escaped references',
+    input: Schema.Struct({slash: Slash, tilde: Tilde}),
+    execute: () => Effect.succeed({content: 'unused'}),
+  }
+
+  expect(JSON.stringify(definition(tool).inputSchema)).not.toContain('$ref')
+  expect(JSON.stringify(definition(tool).inputSchema)).not.toContain('$defs')
+})
+
+test('definitions keep their pinned serialization', () => {
+  const Item = Schema.Struct({id: Schema.String}).annotate({identifier: 'Item'})
+  const tool: Info = {
+    name: 'pinned.tool',
+    description: 'Pinned',
+    options: {namespace: 'mcp.server'},
+    input: Schema.Struct({
+      offset: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+      items: Schema.Array(Item),
+    }),
+    output: Schema.Struct({}).annotate({description: 'Nothing'}),
+    execute: () => Effect.succeed({content: 'unused'}),
+  }
+  const expected =
+    '{"type":"tool","name":"mcp_server_pinned_tool","description":"Pinned","inputSchema":{"type":"object","properties":{"offset":{"type":"integer","minimum":0},"items":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"}},"required":["id"],"additionalProperties":false}}},"required":["items"],"additionalProperties":false},"outputSchema":{"not":{"type":"null"},"description":"Nothing"}}'
+
+  expect(JSON.stringify(definition(tool))).toBe(expected)
+  expect(JSON.stringify(definition(tool))).toBe(expected)
+  expect(JSON.stringify(definition({...tool}))).toBe(expected)
+})
+
+test.each(['Lookup Input', 'café', 'A/B~C% D#E'])(
+  'Effect tool schemas inline URI-encoded definition %s',
+  (identifier) => {
+    const child = Schema.Struct({city: Schema.String}).annotate({identifier})
+    const tool: Info = {
+      name: 'encoded-reference',
+      description: 'Encoded reference',
+      input: child,
+      output: Schema.Struct({result: child}),
+      execute: () => Effect.succeed({content: 'unused'}),
+    }
+    const expected = {
+      type: 'object',
+      properties: {city: {type: 'string'}},
+      required: ['city'],
+      additionalProperties: false,
+    }
+    expect(definition(tool).inputSchema).toEqual(expected)
+    expect(definition(tool).outputSchema).toEqual({
+      type: 'object',
+      properties: {result: expected},
+      required: ['result'],
+      additionalProperties: false,
+    })
+  },
+)
 
 test('portable schemas validate and describe typed tools', async () => {
   const input = {
@@ -62,7 +261,7 @@ test('portable schemas validate and describe typed tools', async () => {
         output: () => ({type: 'object', properties: {count: {type: 'number'}}}),
       },
     },
-  } as const
+  }
   const output = {
     '~standard': {
       version: 1,
@@ -73,7 +272,7 @@ test('portable schemas validate and describe typed tools', async () => {
         output: () => ({type: 'string'}),
       },
     },
-  } as const
+  }
   const tool: Info = {
     name: 'portable',
     description: 'Portable tool',
@@ -171,6 +370,25 @@ test('portable schema failures become tool failures', async () => {
   )
 })
 
+test('Effect schema failures use normalized input issues', async () => {
+  const tool: Info = {
+    name: 'effect',
+    description: 'Effect tool',
+    input: Schema.Struct({
+      value: Schema.String,
+      nested: Schema.Struct({count: Schema.Int.check(Schema.isGreaterThanOrEqualTo(1))}),
+    }),
+    execute: () => Effect.succeed({content: 'unused'}),
+  }
+
+  expect(await Effect.runPromise(Effect.flip(execute(tool, {value: 1, nested: {count: 0}}, context)))).toEqual(
+    Tool.makeError({
+      message:
+        'Invalid arguments for tool "effect":\n- value: Expected string\n- nested.count: Expected a value greater than or equal to 1\n\nArguments provided:\n{\n  "value": 1,\n  "nested": {\n    "count": 0\n  }\n}\n\nUpdate the arguments and call the tool again.',
+    }),
+  )
+})
+
 test('input error prompts limit normalized issues', async () => {
   const input = {
     '~standard': {
@@ -184,7 +402,7 @@ test('input error prompts limit normalized issues', async () => {
         output: () => ({}),
       },
     },
-  } as const
+  }
   const tool: Info = {
     name: 'limited',
     description: 'Limited issues',
@@ -201,8 +419,8 @@ test('input error prompts limit normalized issues', async () => {
 })
 
 test('canonical results carry metadata with typed output', async () => {
-  const input = z.object({value: z.string()})
-  const output = z.object({value: z.string(), internal: z.boolean()})
+  const input = Schema.Struct({value: Schema.String})
+  const output = Schema.Struct({value: Schema.String, internal: Schema.Boolean})
   const tool: Info = {
     name: 'annotated',
     description: 'Annotated tool',
@@ -216,6 +434,127 @@ test('canonical results carry metadata with typed output', async () => {
     metadata: {value: 'out'},
     content: 'out',
   })
+})
+
+test('raw JSON schemas validate and decode tool input', async () => {
+  const input = {
+    type: 'object',
+    properties: {
+      value: {type: 'string'},
+      nested: {
+        type: 'object',
+        properties: {count: {type: 'integer', minimum: 1}},
+        required: ['count'],
+        additionalProperties: false,
+      },
+    },
+    required: ['value'],
+    additionalProperties: false,
+  }
+  const tool: Info = {
+    name: 'raw',
+    description: 'Raw tool',
+    input,
+    execute: (input) => Effect.succeed({content: JSON.stringify(input)}),
+  }
+
+  expect(definition(tool)).toEqual({
+    type: 'tool',
+    name: 'raw',
+    description: 'Raw tool',
+    inputSchema: input,
+  })
+  expect(await Effect.runPromise(execute(tool, {value: 'ok', extra: true}, context))).toEqual({
+    output: undefined,
+    content: [{type: 'text', text: '{"value":"ok"}'}],
+  })
+  expect(await Effect.runPromise(Effect.flip(execute(tool, {value: 1}, context)))).toEqual(
+    Tool.makeError({
+      message:
+        'Invalid arguments for tool "raw":\n- value: Expected string\n\nArguments provided:\n{\n  "value": 1\n}\n\nUpdate the arguments and call the tool again.',
+    }),
+  )
+  expect(await Effect.runPromise(Effect.flip(execute(tool, {}, context)))).toEqual(
+    Tool.makeError({
+      message:
+        'Invalid arguments for tool "raw":\n- value: Missing key\n\nArguments provided:\n{}\n\nUpdate the arguments and call the tool again.',
+    }),
+  )
+  expect(await Effect.runPromise(Effect.flip(execute(tool, {value: 'ok', nested: {count: 0}}, context)))).toEqual(
+    Tool.makeError({
+      message:
+        'Invalid arguments for tool "raw":\n- nested.count: Expected a value greater than or equal to 1\n\nArguments provided:\n{\n  "value": "ok",\n  "nested": {\n    "count": 0\n  }\n}\n\nUpdate the arguments and call the tool again.',
+    }),
+  )
+  expect(await Effect.runPromise(Effect.flip(execute(tool, {value: 1, nested: {count: 0}}, context)))).toEqual(
+    Tool.makeError({
+      message:
+        'Invalid arguments for tool "raw":\n- value: Expected string\n- nested.count: Expected a value greater than or equal to 1\n\nArguments provided:\n{\n  "value": 1,\n  "nested": {\n    "count": 0\n  }\n}\n\nUpdate the arguments and call the tool again.',
+    }),
+  )
+})
+
+test('raw JSON schemas resolve draft-07 definitions', async () => {
+  const tool: Info = {
+    name: 'draft-07',
+    description: 'Draft-07 tool',
+    input: {
+      type: 'object',
+      properties: {value: {$ref: '#/definitions/value'}},
+      required: ['value'],
+      definitions: {value: {type: 'string'}},
+    },
+    execute: (input) => Effect.succeed({content: JSON.stringify(input)}),
+  }
+
+  expect(await Effect.runPromise(execute(tool, {value: 'ok'}, context))).toMatchObject({
+    content: [{type: 'text', text: '{"value":"ok"}'}],
+  })
+  expect(await Effect.runPromise(Effect.flip(execute(tool, {value: 1}, context)))).toEqual(
+    Tool.makeError({
+      message:
+        'Invalid arguments for tool "draft-07":\n- value: Expected value\n\nArguments provided:\n{\n  "value": 1\n}\n\nUpdate the arguments and call the tool again.',
+    }),
+  )
+})
+
+test('raw JSON schemas pass input through when they cannot be imported', async () => {
+  const tool: Info = {
+    name: 'invalid-schema',
+    description: 'Invalid schema tool',
+    input: {
+      type: 'object',
+      properties: {value: {$ref: '#/$defs/missing'}},
+    },
+    execute: (input) => Effect.succeed({content: JSON.stringify(input)}),
+  }
+
+  expect(await Effect.runPromise(execute(tool, {value: 1, extra: true}, context))).toMatchObject({
+    content: [{type: 'text', text: '{"value":1,"extra":true}'}],
+  })
+})
+
+test('raw JSON schema validation does not keep the caller alive', async () => {
+  const call = async () => {
+    const services = {name: 'location services'}
+    const tool: Info = {
+      name: 'raw-retention',
+      description: 'Raw retention tool',
+      input: {type: 'object', properties: {value: {type: 'string'}}, required: ['value']},
+      execute: () => Effect.succeed({content: services.name}),
+    }
+    const run = Effect.fn('LocationCaller.run')(function* () {
+      return yield* execute(tool, {value: 'ok'}, context)
+    })
+    expect(await Effect.runPromise(run())).toMatchObject({content: [{type: 'text', text: 'location services'}]})
+    return new WeakRef(services)
+  }
+  const services = await call()
+  for (let attempt = 0; attempt < 50 && services.deref() !== undefined; attempt++) {
+    await setTimeout(10)
+    collectGarbage()
+  }
+  expect(services.deref()).toBeUndefined()
 })
 
 test('missing external input schemas fall back to an empty schema', () => {

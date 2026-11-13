@@ -41,7 +41,8 @@
     "@effect/sql-sqlite-node": "catalog:",
     "@standard-schema/spec": "catalog:",
     "drizzle-orm": "catalog:",
-    "effect": "catalog:"
+    "effect": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
@@ -51,8 +52,7 @@
     "fast-check": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:",
-    "zod": "catalog:"
+    "vitest": "catalog:"
   },
   "engines": {
     "node": ">=26.0.0"

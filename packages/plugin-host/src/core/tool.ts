@@ -267,7 +267,7 @@ export const layer = Layer.effect(
 )
 
 function commit(editor: Data, id: string, input: Tool.Info & {readonly id: string}) {
-  const tool = input
+  const tool = input.input === undefined || input.input === null ? {...input, input: {}} : input
   const registered = register(tool)
   if (Result.isFailure(registered)) {
     editor.errors.push({
