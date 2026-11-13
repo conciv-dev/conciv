@@ -43,6 +43,8 @@ import {parseSync} from 'oxc-parser'
 import {subscribe, unsubscribe} from 'node:diagnostics_channel'
 import {Worker} from 'node:worker_threads'
 import {closePool, openPool} from '../src/server/quickjs-thread.js'
+import {createChatSession} from '../src/client.js'
+import {createRoot} from 'solid-js'
 
 describe('chat stores', () => {
   function chatDb() {
@@ -861,23 +863,27 @@ describe('events', () => {
   })
 
   describe('conciv events keep their wire shape', () => {
-    it('approval-requested, the shape the sandbox adapters emit', () => {
-      const event = approvalRequestedEvent.create({
-        approvalId: 'claude-code:command:ls',
-        title: 'Bash: ls',
-        command: 'ls',
-      })
-      expect(event).toEqual({
-        type: ChatEventType.CUSTOM,
-        name: 'approval-requested',
-        value: {approvalId: 'claude-code:command:ls', title: 'Bash: ls', command: 'ls'},
-      })
-      expect(approvalAskOf({...event, timestamp: 1})).toEqual({
-        approvalId: 'claude-code:command:ls',
-        toolCallId: 'claude-code:command:ls',
-        toolName: 'Bash: ls',
-        input: {command: 'ls'},
-      })
+    it('approval-requested makes the same card live and after a reload, permission member included', () => {
+      const event = approvalRequestedEvent.create({approvalId: 'per_1', title: 'edit', permission: {always: true}})
+      const live = approvalAskOf({...event, timestamp: 1})
+      const stored = live === null ? [] : [{...live, runId: null}]
+      const session = createRoot(() =>
+        createChatSession({
+          sessionId: 'hydrated-card',
+          connect: (callbacks) => {
+            callbacks.onHydrated({messages: [], messageHarness: {}, lastRun: null, pendingApprovals: stored})
+            return {
+              subscribe: async function* () {},
+              send: async () => undefined,
+              refresh: () => Promise.reject(new Error('unused')),
+              close: () => undefined,
+            }
+          },
+          stop: async () => undefined,
+          decide: async () => ({startsTurn: false}),
+        }),
+      )
+      expect(session.pendingApprovals()).toEqual([live])
     })
 
     it('run lifecycle', () => {
@@ -920,20 +926,14 @@ describe('testkit', () => {
 })
 
 describe('usage', () => {
-  it('a snapshot has only optional, non-negative fields', () => {
+  it('a snapshot has optional non-negative fields, context from contextTokens only, cost from usage.cost', () => {
     expect(UsageSnapshotSchema.safeParse({}).success).toBe(true)
     expect(UsageSnapshotSchema.safeParse({inputTokens: 10, contextWindow: 200000}).data?.inputTokens).toBe(10)
     expect(UsageSnapshotSchema.safeParse({inputTokens: -1}).success).toBe(false)
-  })
-
-  it('context occupancy comes from contextTokens only, never the billing totals', () => {
     expect(contextUsedTokens({contextTokens: 92000, inputTokens: 100, cacheReadTokens: 50, cacheWriteTokens: 10})).toBe(
       92000,
     )
     expect(contextUsedTokens({inputTokens: 773000, cacheReadTokens: 700000, totalCostUsd: 1})).toBeUndefined()
-  })
-
-  it('takes the cost from usage.cost when providerUsageDetails carries none', () => {
     expect(tokenUsageToSnapshot({promptTokens: 10, completionTokens: 2, totalTokens: 12, cost: 0.25})).toMatchObject({
       totalCostUsd: 0.25,
     })

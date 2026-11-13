@@ -33,7 +33,12 @@ export function defineChatEvent<Name extends string, Schema extends z.ZodType>(
 
 export const approvalRequestedEvent = defineChatEvent(
   'approval-requested',
-  z.looseObject({approvalId: z.string().min(1), title: z.string().min(1), toolCallId: z.string().min(1).optional()}),
+  z.looseObject({
+    approvalId: z.string().min(1),
+    title: z.string().min(1),
+    toolCallId: z.string().min(1).optional(),
+    permission: z.object({always: z.boolean()}).optional(),
+  }),
 )
 
 const ApprovalAskSchema = z.object({
@@ -41,6 +46,7 @@ const ApprovalAskSchema = z.object({
   toolCallId: z.string().min(1),
   toolName: z.string().min(1),
   input: z.unknown(),
+  permission: z.object({always: z.boolean()}).optional(),
 })
 
 export type ApprovalAsk = z.infer<typeof ApprovalAskSchema>
@@ -48,13 +54,20 @@ export type ApprovalAsk = z.infer<typeof ApprovalAskSchema>
 export function approvalAskOf(event: ChatEvent): ApprovalAsk | null {
   const value = approvalRequestedEvent.parse(event)
   if (value === null) return null
-  const {approvalId, title, toolCallId, ...detail} = value
-  return {
+  const {approvalId, title, toolCallId, permission, ...detail} = value
+  const ask = {
     approvalId,
     toolCallId: toolCallId ?? approvalId,
     toolName: title,
     input: 'input' in detail ? detail.input : detail,
   }
+  return permission === undefined ? ask : {...ask, permission}
+}
+
+export const approvalSettledEvent = defineChatEvent('approval-settled', z.object({approvalId: z.string().min(1)}))
+
+export function approvalSettledOf(event: ChatEvent): string | null {
+  return approvalSettledEvent.parse(event)?.approvalId ?? null
 }
 
 export type RunStatus = 'running' | 'interrupted' | 'completed' | 'failed' | 'aborted'
