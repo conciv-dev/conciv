@@ -50,6 +50,7 @@ declare module 'vitest/internal/browser' {
     dragButton: (drag: PointerDrag) => Promise<void>
     hoverButton: (hover: PointerHover) => Promise<void>
     closeCore: () => Promise<void>
+    writeProjectFile: (path: string, content: string) => Promise<void>
     pushSocketsOpened: () => Promise<number>
     pushSocketsLive: () => Promise<number>
     printedCode: () => Promise<string>
