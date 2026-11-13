@@ -3,10 +3,10 @@ export * as SessionEvent from './session-event.js'
 import {Schema} from 'effect'
 import {optional} from './schema.js'
 import {Event} from './event.js'
-import {SessionID} from './session-id.js'
+import {SessionId} from './session-id.js'
 
 const Base = {
-  sessionID: SessionID,
+  sessionID: SessionId,
 }
 
 const options = {
