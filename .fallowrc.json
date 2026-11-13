@@ -238,7 +238,6 @@
   ],
   "entry": [
     "packages/plugin-host/src/core/database/**",
-    "packages/plugin-host/src/core/rpc.ts",
     "packages/brand-react/src/conciv-lockup.tsx",
     "packages/brand/src/brand-guidelines.mdx",
     "packages/ui-kit-chat/src/tools.tsx",

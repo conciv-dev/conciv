@@ -52,9 +52,9 @@ import {
   type SessionPort,
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
-import {Layer, ManagedRuntime} from 'effect'
+import {Layer, ManagedRuntime, Schema} from 'effect'
 import {memoize} from 'es-toolkit'
-import {PluginHooks, Tool} from '@conciv/plugin-host'
+import {Bus, Database, KV, Location, PluginHooks, Rpc, Tool} from '@conciv/plugin-host'
 import {pushRoutes, type PushDeps} from './api/push.js'
 import {makeHubAdmission, type ChatContext, type RpcDeps} from './api/rpc/mount.js'
 import {concivHome, drafts, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
@@ -550,7 +550,18 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   registerExtensionTools(registry, mounted)
 
-  const pluginHost = ManagedRuntime.make(Tool.layer.pipe(Layer.provideMerge(PluginHooks.layer)))
+  const pluginHost = ManagedRuntime.make(
+    Tool.layer.pipe(
+      Layer.provideMerge(PluginHooks.layer),
+      Layer.provideMerge(Layer.mergeAll(Rpc.layer, KV.layer)),
+      Layer.provideMerge(Bus.configured()),
+      Layer.provideMerge(
+        Layer.succeed(Location.Service, Location.Service.of(Schema.decodeSync(Location.Info)({directory: opts.cwd}))),
+      ),
+      Layer.provideMerge(Database.layer({path: projectDatabaseFile(db)})),
+    ),
+  )
+  await pluginHost.context()
   const reportToolCollision = memoize((name: string) =>
     logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`),
   )
@@ -803,4 +814,10 @@ async function ensureConfiguredRows(rows: RowScope, cfg: ResolvedConcivConfig): 
 
 function outsideTitle(client: string | null): string {
   return `Allow ${client ?? 'an outside agent'} to use this tab`
+}
+
+function projectDatabaseFile(db: ConcivDb): string {
+  const file = db.$client.location()
+  if (file === null) throw new Error('conciv: the plugin host needs the project database on a file')
+  return file
 }
