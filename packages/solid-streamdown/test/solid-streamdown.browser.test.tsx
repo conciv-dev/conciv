@@ -234,15 +234,25 @@ describe('local file links', () => {
       await userEvent.keyboard('{Enter}')
       await expect.element(openedList.getByRole('listitem').nth(1)).toHaveTextContent('src/app.ts#L42')
 
-      await host.getByText('src/missing.ts', {exact: true}).click()
-      await host.getByText('src/existing.ts', {exact: true}).click()
+      await userEvent.keyboard('{Tab}')
+      const existing = host.getByRole('link', {name: 'src/existing.ts'})
+      await expect.element(existing).toHaveFocus()
+      await userEvent.keyboard('{Enter}')
       await expect.element(openedList.getByRole('listitem').nth(2)).toHaveTextContent('src/existing.ts')
-      await expect.element(openedList.getByRole('listitem').nth(3)).not.toBeInTheDocument()
+      await userEvent.keyboard(' ')
+      await expect.element(openedList.getByRole('listitem').nth(3)).toHaveTextContent('src/existing.ts')
+      await userEvent.keyboard('{Tab}')
+      await expect.element(host.getByRole('link', {name: 'the docs'})).toHaveFocus()
+
+      await host.getByText('src/missing.ts', {exact: true}).click()
+      await existing.click()
+      await expect.element(openedList.getByRole('listitem').nth(4)).toHaveTextContent('src/existing.ts')
+      await expect.element(openedList.getByRole('listitem').nth(5)).not.toBeInTheDocument()
 
       late.resolve(true)
       await late.promise
-      await host.getByText('src/late.ts', {exact: true}).click()
-      await expect.element(openedList.getByRole('listitem').nth(3)).toHaveTextContent('src/late.ts')
+      await host.getByRole('link', {name: 'src/late.ts'}).click()
+      await expect.element(openedList.getByRole('listitem').nth(5)).toHaveTextContent('src/late.ts')
       expect(asked).toEqual(['src/existing.ts', 'src/missing.ts', 'src/late.ts'])
 
       await expect

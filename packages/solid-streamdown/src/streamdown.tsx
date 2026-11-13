@@ -344,12 +344,13 @@ function inlineCodePaths(children: HastContent[]): string[] {
   })
 }
 
-function markedLocalPaths(children: HastContent[], paths: readonly string[]): HastContent[] {
+function markedLocalPaths(children: HastContent[], paths: readonly string[], openable: boolean): HastContent[] {
   return children.map((child): HastContent => {
     if (child.type !== 'element' || child.tagName === 'pre' || child.tagName === 'a') return child
-    if (child.tagName !== 'code') return {...child, children: markedLocalPaths(child.children, paths)}
+    if (child.tagName !== 'code') return {...child, children: markedLocalPaths(child.children, paths, openable)}
     if (!paths.includes(hastText(child).trim())) return child
-    return {...child, properties: {...child.properties, 'data-inline-code-kind': 'path'}}
+    const link = openable ? {role: 'link', tabindex: '0'} : {}
+    return {...child, properties: {...child.properties, 'data-inline-code-kind': 'path', ...link}}
   })
 }
 
@@ -384,6 +385,7 @@ function Block(props: {
   processor: MarkdownProcessor
   highlightCode: HighlightCode | undefined
   localFileExists: LocalFileExists | undefined
+  openable: boolean
 }): JSX.Element {
   const hast = createMemo(() => rootContent(props.processor.runSync(props.processor.parse(props.text))))
   const candidatePaths = createMemo(() => {
@@ -409,7 +411,7 @@ function Block(props: {
   createComputed(() => {
     const {root, words, animate} = parsed()
     const paths = existingPaths()
-    const marked = paths.length === 0 ? root : markedLocalPaths(root, paths)
+    const marked = paths.length === 0 ? root : markedLocalPaths(root, paths, props.openable)
     setNodes(
       reconcile(hastToMarkdownNodes(marked, {words, animate, inlineCode: false, highlightCode: props.highlightCode}), {
         key: 'key',
@@ -417,6 +419,14 @@ function Block(props: {
     )
   })
   return <For each={nodes}>{(node) => <MarkdownDomNode node={node} />}</For>
+}
+
+function pressedLocalPath(event: KeyboardEvent): string | undefined {
+  if (!(event.target instanceof HTMLElement)) return undefined
+  if (event.key === 'Enter' && event.target.matches('a[data-local-link]')) return event.target.dataset.localLink
+  if (event.key !== 'Enter' && event.key !== ' ') return undefined
+  if (!event.target.matches('code[data-inline-code-kind="path"]')) return undefined
+  return localLinkTarget(event.target)
 }
 
 function normalizeCaret(caret: StreamdownProps['caret']): CaretVariant | undefined {
@@ -474,9 +484,8 @@ export function Streamdown(props: StreamdownProps): JSX.Element {
   }
 
   const openPressed = (event: KeyboardEvent): void => {
-    if (event.key !== 'Enter' || event.defaultPrevented) return
-    if (!(event.target instanceof HTMLElement) || !event.target.matches('a[data-local-link]')) return
-    openLocalFile(event, event.target.dataset.localLink)
+    if (event.defaultPrevented) return
+    openLocalFile(event, pressedLocalPath(event))
   }
 
   return (
@@ -497,6 +506,7 @@ export function Streamdown(props: StreamdownProps): JSX.Element {
             processor={processor()}
             highlightCode={props.highlightCode}
             localFileExists={props.localFileExists}
+            openable={props.openLocalFile !== undefined}
           />
         )}
       </Index>
