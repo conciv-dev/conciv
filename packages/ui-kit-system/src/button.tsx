@@ -11,7 +11,7 @@ export type ButtonVariant =
   | 'panel'
   | 'link'
   | 'plain'
-export type ButtonSize = 'sm' | 'md' | 'icon' | 'bare' | 'none'
+export type ButtonSize = 'sm' | 'md' | 'lg' | 'icon' | 'bare' | 'none'
 
 const button = cva(
   'inline-flex items-center justify-center gap-1.5 cursor-pointer trans-btn [border-width:1px] [border-style:solid] disabled:opacity-50 disabled:cursor-not-allowed active:not-disabled:[transform:scale(0.97)]',
@@ -32,6 +32,7 @@ const button = cva(
       size: {
         sm: 'font-chat focus-ring text-[0.6875rem] rounded-chat-surface-sm py-0.5 px-2',
         md: 'font-chat focus-ring text-[0.8125rem] rounded-chat-surface-md py-2 px-3',
+        lg: 'font-chat focus-ring text-[0.8125rem] leading-5 rounded-chat-surface-md py-2.5 px-4',
         icon: 'font-chat focus-ring rounded-chat-surface-md size-9.5',
         bare: 'font-chat focus-ring text-[0.75rem] p-0',
         none: '',

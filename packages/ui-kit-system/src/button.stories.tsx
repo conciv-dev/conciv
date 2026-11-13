@@ -1,6 +1,7 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent} from 'storybook/test'
 import {createSignal} from 'solid-js'
+import X from 'lucide-solid/icons/x'
 import {Button} from './button.js'
 
 const meta: Meta<typeof Button> = {title: 'ui-kit-system/Button', component: Button}
@@ -30,8 +31,9 @@ export const Sizes: Story = {
     <div class="flex gap-2 items-center">
       <Button size="sm">Small</Button>
       <Button size="md">Medium</Button>
+      <Button size="lg">Large</Button>
       <Button size="icon" aria-label="Icon">
-        ✕
+        <X class="size-4" aria-hidden="true" />
       </Button>
     </div>
   ),

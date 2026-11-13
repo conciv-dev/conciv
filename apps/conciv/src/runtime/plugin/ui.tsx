@@ -36,7 +36,7 @@ const buttonVariant: Record<
   danger: {variant: 'danger', class: ''},
 }
 
-const buttonSize: Record<'small' | 'normal' | 'large', ButtonSize> = {small: 'sm', normal: 'md', large: 'md'}
+const buttonSize: Record<'small' | 'normal' | 'large', ButtonSize> = {small: 'sm', normal: 'md', large: 'lg'}
 
 const ICON_BUTTON_FRAME = 'font-chat focus-ring rounded-chat-surface-md'
 
