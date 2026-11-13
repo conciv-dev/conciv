@@ -5,7 +5,7 @@ import {LIST_PANEL, LIST_PANEL_GROUP_LABEL, LIST_PANEL_ITEM} from './list-panel.
 const CONTENT = `hidden data-[state=open]:block data-[state=open]:anim-combo ${LIST_PANEL}`
 const ITEM = `${LIST_PANEL_ITEM} data-[highlighted]:bg-chat-fill-strong data-[highlighted]:text-chat-text data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed`
 const ITEM_GROUP_LABEL = LIST_PANEL_GROUP_LABEL
-const SEPARATOR = 'h-px my-1 bg-chat-line'
+const SEPARATOR = 'h-px my-1 border-0 bg-chat-line'
 
 function Root(props: ComponentProps<typeof Ark.Root>) {
   const [local, rest] = splitProps(props, ['positioning'])
