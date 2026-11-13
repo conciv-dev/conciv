@@ -78,7 +78,34 @@ export function createStore(input: {
       .where(and(eq(targets.target_id, id), await ofProject()))
       .orderBy(desc(targets.run_id))
       .limit(1)
-    return found
+    if (found === undefined) return undefined
+    const open = await openRun(found)
+    if (open === null || open.run === found.run_id) return found
+    return moved({found, run: open.run, session: open.sessionId})
+  }
+
+  async function openRun(found: TargetRow): Promise<{sessionId: string; run: number} | null> {
+    const own = await runs.of(found.session)
+    return own === null ? runs.latest() : {sessionId: found.session, run: own}
+  }
+
+  function moved(input: {found: TargetRow; run: number; session: string}): TargetRow {
+    const {found, run, session} = input
+    return orm.transaction((tx) => {
+      const there = tx
+        .select()
+        .from(targets)
+        .where(and(eq(targets.run_id, run), eq(targets.target_id, found.target_id)))
+        .get()
+      if (there !== undefined) return there
+      const row = {...found, run_id: run, session, unsettled: 0}
+      tx.insert(targets).values(row).run()
+      for (const {seq: _seq, ...look} of tx.select().from(nodes).where(keyed(nodes, found)).all())
+        tx.insert(nodes)
+          .values({...look, run_id: run, session})
+          .run()
+      return row
+    })
   }
 
   async function held(): Promise<TargetRow[]> {
@@ -94,27 +121,12 @@ export function createStore(input: {
     return (await held()).map(recordOf)
   }
 
-  async function runOf(id: string): Promise<{run: number; row: TargetRow}> {
+  async function writable(id: string): Promise<{run: number; row: TargetRow}> {
     const found = await target(id)
     if (found === undefined) throw toolError('no-target', {message: `no design ${id} is registered; call design_get`})
-    const own = await runs.of(found.session)
-    const latest = own === null ? await runs.latest() : {sessionId: found.session, run: own}
-    if (latest === null) throw toolError('no-target', {message: `no run holds ${id}; call design_get again`})
-    const {run} = latest
-    if (run === found.run_id) return {run, row: found}
-    const looks = await orm
-      .select()
-      .from(nodes)
-      .where(and(eq(nodes.run_id, found.run_id), eq(nodes.target_id, id)))
-    const moved = {...found, run_id: run, session: latest.sessionId}
-    orm.transaction((tx) => {
-      tx.insert(targets).values(moved).run()
-      for (const {seq: _seq, ...look} of looks)
-        tx.insert(nodes)
-          .values({...look, run_id: run, session: latest.sessionId})
-          .run()
-    })
-    return {run, row: moved}
+    if ((await openRun(found)) === null)
+      throw toolError('no-target', {message: `no run holds ${id}; call design_get again`})
+    return {run: found.run_id, row: found}
   }
 
   function keyed(table: Keyed, row: {run_id: number; target_id: string}): SQL | undefined {
@@ -336,7 +348,7 @@ export function createStore(input: {
         return source === null ? [] : [source]
       }),
     writeRelation: async ({id, round, tree}) => {
-      const {run: runId, row} = await runOf(id)
+      const {run: runId, row} = await writable(id)
       const {relation, write} = await relateRound({
         db: input.db,
         catalog,
@@ -355,7 +367,7 @@ export function createStore(input: {
       return relation
     },
     writeVotes: async ({id, round, votes: cast}) => {
-      const {run: runId, row} = await runOf(id)
+      const {run: runId, row} = await writable(id)
       const names = await namesOf(id)
       const at = Date.now()
       const own = {target_id: id, run_id: runId, session: row.session, round, at}
@@ -370,14 +382,14 @@ export function createStore(input: {
       })
     },
     writeLabel: async ({target: targetId, round, node, id, verdict, by}) => {
-      const {run, row} = await runOf(targetId)
+      const {run, row} = await writable(targetId)
       await orm
         .insert(labels)
         .values({target_id: targetId, run_id: run, session: row.session, round, node, id, verdict, by})
     },
     writeHints: async ({id, round, hints: told}) => {
       if (told.length === 0) return
-      const {run, row} = await runOf(id)
+      const {run, row} = await writable(id)
       await orm
         .insert(hints)
         .values(told.map((hint) => ({...hint, target_id: id, run_id: run, session: row.session, round})))
@@ -458,7 +470,7 @@ export function createStore(input: {
     },
     unsettledCount: async (id) => (await target(id))?.unsettled ?? 0,
     writeUnsettledCount: async ({id, count}) => {
-      const {row} = await runOf(id)
+      const {row} = await writable(id)
       await orm.update(targets).set({unsettled: count}).where(keyed(targets, row))
     },
     nextRound: async (id) => {
@@ -474,7 +486,7 @@ export function createStore(input: {
       const written = RoundSchema.parse(round)
       const names = await namesOf(id)
       const before = await fomAt({id})
-      const {run: runId, row: found} = await runOf(id)
+      const {run: runId, row: found} = await writable(id)
       const own = {target_id: id, run_id: runId, session: found.session, round: written.round}
       const repeats = await repeatsBefore({found, round: written.round})
       const check = await nextCheck({run: runId, id})
@@ -500,7 +512,7 @@ export function createStore(input: {
       return written
     },
     writeCheck: async ({id, state, sameAs, unsettled, rendered, tree, shots = []}) => {
-      const {run: runId, row: found} = await runOf(id)
+      const {run: runId, row: found} = await writable(id)
       const check = await nextCheck({run: runId, id})
       const own = {target_id: id, run_id: runId, session: found.session, round: null, check}
       orm.transaction((tx) => {
@@ -542,7 +554,7 @@ export function createStore(input: {
     group: async (ids) => {
       const [lead] = ids
       if (lead === undefined) return
-      const {run} = await runOf(lead)
+      const {run} = await writable(lead)
       await orm
         .update(targets)
         .set({lead})

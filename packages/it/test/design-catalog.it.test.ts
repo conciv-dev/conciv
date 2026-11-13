@@ -73,6 +73,34 @@ describe('design_check on the cards page', () => {
   })
 })
 
+describe('a check in a new run of the same project', () => {
+  it('numbers its rounds from 1, with no round of the run before', async () => {
+    const stateRoot = await mkdtemp(join(tmpdir(), 'conciv-design-runs-state-'))
+    const homeDir = await mkdtemp(join(tmpdir(), 'conciv-design-runs-home-'))
+    const checks = (input: {on: Kit; pages: string[]}) =>
+      input.pages.reduce<Promise<number[]>>(async (done, page) => {
+        const rounds = await done
+        await input.on.goto(page)
+        return [...rounds, roundOf(await input.on.call('design_check', {})).round]
+      }, Promise.resolve([]))
+    const first = await bootDesignHost({stateRoot, homeDir})
+    try {
+      await first.goto('target')
+      await first.call('design_get', await cardsDesign(first.targetsDir))
+      expect(await checks({on: first, pages: ['target', 'shifted']})).toEqual([1, 2])
+    } finally {
+      await first.dispose()
+    }
+    const second = await bootDesignHost({stateRoot, homeDir})
+    try {
+      expect(await checks({on: second, pages: ['target']})).toEqual([1])
+    } finally {
+      await second.dispose()
+      await Promise.all([stateRoot, homeDir].map((dir) => rm(dir, {recursive: true, force: true})))
+    }
+  })
+})
+
 describe('catalog component rows', () => {
   const NAMED_LINK = 'https://www.figma.com/design/ItFixtureKey/x?node-id=10-1'
   const BLUE = {r: 0x42 / 255, g: 0x6b / 255, b: 0xf2 / 255, a: 1}

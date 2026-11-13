@@ -139,7 +139,9 @@ Every design session is recorded in one store, `<conciv home>/runs.db`, migrated
   head, version and fingerprint. Another conversation on the same tab opens its own run, and so does a conversation
   that comes back after another one took the tab, or after the engine restarted (the tab's current run is always its
   newest, which the store relies on to find a target's rows). Its targets, rounds, rows and tool calls are written
-  there as they happen.
+  there as they happen. A target registered in an earlier run is copied into the new run the first time the store
+  reads it, with its frame and design but no rounds, so a check in a new run starts at round 1 and compares with
+  nothing from the run before.
 - Every per-run table carries `run` and `session`; per-check tables also `target`, `round` and, where it applies,
   `width`, so `--where 'session == "..."'` works on every source.
 - Every check writes a round with a `state`: `measured`, `unsettled` (the page rendered too little and the check
