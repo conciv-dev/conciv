@@ -528,7 +528,7 @@ const watched = require('node:net').connect(data.socket, () => {
   ): TurnHooks {
     return {
       plan: (turn) => ({
-        systemPrompts: [],
+        systemPrompts: async () => [],
         codeMode: [],
         asking: [],
         direct: [],

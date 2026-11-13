@@ -33,6 +33,8 @@ import type {
   PermissionSaved,
   PluginHooks,
   Rpc,
+  Skill,
+  SkillInstructions,
   Tool,
 } from '@conciv/plugin-host'
 import type {PermissionAnswer} from '../../runtime/permission-cards.js'
@@ -46,6 +48,8 @@ export type PluginHost = ManagedRuntime.ManagedRuntime<
   | PluginHooks.Interface
   | Rpc.Interface
   | KV.Interface
+  | Skill.Interface
+  | SkillInstructions.Interface
   | Bus.Interface
   | Location.Interface
   | Database.Interface,

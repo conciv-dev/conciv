@@ -77,6 +77,9 @@ import {
   PluginHooks,
   Rpc,
   SessionEvent,
+  SessionProjector,
+  Skill,
+  SkillInstructions,
   Tool,
 } from '@conciv/plugin-host'
 import {makeRpc, Rpc as PluginRpc} from '@conciv/plugin'
@@ -125,6 +128,7 @@ import {
   decidePermissionCard,
   followPermissionCards,
   permissionSessions,
+  pluginInstructions,
   sessionSnapshot,
 } from '../src/runtime/permission-cards.js'
 import {bootMadeApp, chunkWithInlineMap, cleanupChunks, makeChatFixture} from './helpers.js'
@@ -215,7 +219,7 @@ describe('chat plane', () => {
     expect(capability?.description).toMatch(/^Do the unit thing\. Prefer small inputs\.\n\nReturns JSON matching: /)
   })
 
-  it('a turn falls back to systemPromptText and logs an unreadable systemPromptFile, and a credential-shaped capability fails only its own run', async () => {
+  it('a turn falls back to systemPromptText and logs an unreadable systemPromptFile, a credential-shaped capability fails only its own run, and plugin skills reach the system prompt when the starting point resets and the user words in between', async () => {
     const root = tempDir()
     const cli = fakeCli()
     const log: string[] = []
@@ -241,6 +245,82 @@ describe('chat plane', () => {
     await expect(runner?.code?.run('return await external_unit_secret({apiKey: "k"})', 'parent')).rejects.toThrow(
       /secret/i,
     )
+
+    const skilled = sessionId('skills')
+    const db = openDatabase(root)
+    await ensureRow(db, skilled, 'fake-cli', root)
+    const host = ManagedRuntime.make(
+      Layer.mergeAll(SkillInstructions.layer, SessionProjector.layer).pipe(
+        Layer.provideMerge(Layer.mergeAll(Skill.layer, Agent.layer, permissionSessions(db))),
+        Layer.provideMerge(Bus.configured()),
+        Layer.provideMerge(
+          Layer.succeed(
+            Location.Service,
+            Location.Service.of(Schema.decodeSync(Location.Info)({directory: root, project: {id: root}})),
+          ),
+        ),
+        Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),
+      ),
+    )
+    onTestFinished(() => host.dispose())
+    await host.context()
+    const skillScope = host.runSync(Scope.make())
+    const addSkill = (id: string) =>
+      host.runPromise(
+        Skill.Service.use((skills) =>
+          skills.transform((editor) =>
+            editor.add(
+              Schema.decodeSync(Skill.Info)({
+                id,
+                name: id,
+                description: `The ${id} skill.`,
+                path: join(root, id, 'SKILL.md'),
+                content: `Do ${id}.`,
+              }),
+            ),
+          ),
+        ).pipe(Scope.provide(skillScope)),
+      )
+    const told = fakeCli()
+    const instructed = {
+      pluginInstructions: (id: SessionId, reset: 'keep' | 'reset') => host.runPromise(pluginInstructions(id, reset)),
+    }
+    const fresh = await plane(cliHarness(told), root, instructed)
+    const resumed = await plane(cliHarness(told, true), root, {
+      ...instructed,
+      sessions: sessionPort(HarnessSessionId.parse('native-skills')),
+    })
+    const listed = (...ids: string[]) => ids.map((id) => `<id>${id}</id>`).join('[\\s\\S]*')
+
+    await fresh.followUp(skilled, 'first')
+    expect(told.systemPrompts.at(-1)).toEqual([])
+    expect(told.asked.at(-1)).toBe('first')
+
+    await addSkill('review')
+    await resumed.followUp(skilled, 'second')
+    expect(told.systemPrompts.at(-1)).toEqual([])
+    expect(told.asked.at(-1)).toEqual([
+      {type: 'text', content: expect.stringMatching(listed('review'))},
+      {type: 'text', content: 'second'},
+    ])
+
+    await resumed.followUp(skilled, 'third')
+    expect(told.systemPrompts.at(-1)).toEqual([])
+    expect(told.asked.at(-1)).toBe('third')
+
+    await addSkill('deploy')
+    await resumed.compact(skilled)
+    expect(told.systemPrompts.at(-1)).toEqual([expect.stringMatching(listed('deploy', 'review'))])
+    expect(told.asked.at(-1)).toEqual(expect.not.stringContaining('<id>'))
+
+    await resumed.followUp(skilled, 'fourth')
+    expect(told.systemPrompts.at(-1)).toEqual([expect.stringMatching(listed('deploy', 'review'))])
+    expect(told.asked.at(-1)).toBe('fourth')
+
+    await addSkill('lint')
+    await fresh.followUp(skilled, 'fifth')
+    expect(told.systemPrompts.at(-1)).toEqual([expect.stringMatching(listed('deploy', 'lint', 'review'))])
+    expect(told.asked.at(-1)).toBe('fifth')
   })
 
   it('after a restart the finished and interrupted turns all show, and the interrupted run is aborted with a finish time', async () => {
@@ -364,7 +444,13 @@ describe('chat plane', () => {
 
   type CliStep = 'reply' | 'partial' | 'streaming' | 'tooling'
 
-  type FakeCli = {steps: CliStep[]; systemPrompts: string[][]; gate: Promise<void>; release: () => void}
+  type FakeCli = {
+    steps: CliStep[]
+    systemPrompts: string[][]
+    asked: unknown[]
+    gate: Promise<void>
+    release: () => void
+  }
 
   const FIRST_DELTA = 'partial reply'
 
@@ -372,16 +458,17 @@ describe('chat plane', () => {
 
   function fakeCli(...steps: CliStep[]): FakeCli {
     const gate = Promise.withResolvers<void>()
-    return {steps, systemPrompts: [], gate: gate.promise, release: () => gate.resolve()}
+    return {steps, systemPrompts: [], asked: [], gate: gate.promise, release: () => gate.resolve()}
   }
 
-  function cliHarness(cli: FakeCli): HarnessAdapter {
+  function cliHarness(cli: FakeCli, resume = false): HarnessAdapter {
     return defineHarness({
       id: 'fake-cli',
       binName: 'true',
       chatConfig: () => ({
         adapter: makeTextAdapter('fake-cli', async function* (options) {
           cli.systemPrompts.push([...(options.systemPrompts ?? [])].map(String))
+          cli.asked.push(options.messages.findLast((message) => message.role === 'user')?.content)
           const step = cli.steps.shift() ?? 'reply'
           const run = {threadId: options.threadId ?? '', runId: options.runId ?? ''}
           const messageId = `${run.runId}-a`
@@ -404,7 +491,7 @@ describe('chat plane', () => {
           yield {type: ChatEventType.RUN_FINISHED, ...run}
         }),
       }),
-      capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
+      capabilities: {...NO_CAPABILITIES, resume, transcriptHistory: false},
     })
   }
 
@@ -462,6 +549,7 @@ describe('chat plane', () => {
       toolNames: new Set(),
       capabilities: () => [],
       attachmentExpanders: {},
+      pluginInstructions: async () => ({initial: '', update: ''}),
       firstOutputTimeoutMs: 30_000,
       log: () => undefined,
       ...overrides,

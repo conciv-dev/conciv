@@ -34,6 +34,10 @@ export type SessionPort = {
 
 export type SystemPromptSources = {systemPromptFile?: string; systemPromptText?: string}
 
+export type InstructionReset = 'keep' | 'reset'
+
+export type PluginInstructions = {initial: string; update: string}
+
 export type AttachmentExpanders = Record<string, (part: AttachmentDocumentPart) => Promise<readonly ContentPart[]>>
 
 export type TurnDeps = {
@@ -45,6 +49,7 @@ export type TurnDeps = {
   toolNames: ReadonlySet<string>
   capabilities: (sessionId: SessionId) => CodeCapability[]
   attachmentExpanders: AttachmentExpanders
+  pluginInstructions: (sessionId: SessionId, reset: InstructionReset) => Promise<PluginInstructions>
   log: (message: string) => void
 }
 
@@ -137,6 +142,21 @@ async function expandedLastUser(messages: ModelMessage[], deps: TurnDeps): Promi
   return messages.with(lastUser, await expandedMessage(target, deps))
 }
 
+function contentParts(content: ModelMessage['content']): ContentPart[] {
+  if (typeof content === 'string') return [{type: 'text', content}]
+  return content ?? []
+}
+
+function withUpdate(messages: ModelMessage[], update: string): ModelMessage[] {
+  const lastUser = messages.findLastIndex((message) => message.role === 'user')
+  const target = messages[lastUser]
+  if (update === '' || target === undefined) return messages
+  return messages.with(lastUser, {
+    ...target,
+    content: [{type: 'text', content: update}, ...contentParts(target.content)],
+  })
+}
+
 function fromLastUser(messages: ModelMessage[]): ModelMessage[] {
   return messages.slice(
     Math.max(
@@ -194,6 +214,8 @@ export function turnHooks(
       const own = ownRow(harness, row)
       const model = own?.model ?? null
       const resumeSessionId = resumableToken(deps, harness, row)
+      const reset: InstructionReset = turn.kind === 'compact' || resumeSessionId === null ? 'reset' : 'keep'
+      const instructions = Promise.withResolvers<PluginInstructions>()
       const toolSet = chatToolSet(deps.capabilities(sessionId), {sessionId, agentId: sessionId, model})
       const config = harness.chatConfig({
         cwd: deps.cwd,
@@ -208,7 +230,7 @@ export function turnHooks(
       return {
         adapter: config.adapter,
         modelOptions: config.modelOptions,
-        systemPrompts: systemText === '' ? [] : [systemText],
+        systemPrompts: async () => [systemText, (await instructions.promise).initial].filter((text) => text !== ''),
         codeMode: toolSet.codeMode,
         asking: toolSet.asking,
         direct: toolSet.direct,
@@ -216,7 +238,9 @@ export function turnHooks(
           await deps.sessions.ensure(sessionId)
           await deps.sessions.onRunStart(sessionId)
           await context.transcripts.sync(sessionId)
-          return context.approvals.forRun(sessionId)
+          const approvals = await context.approvals.forRun(sessionId)
+          instructions.resolve(deps.pluginInstructions(sessionId, reset))
+          return approvals
         },
         expand: async (messages) => {
           const lastUser = messages.findLast((message) => message.role === 'user')
@@ -228,7 +252,8 @@ export function turnHooks(
         providerMessages: async (messages) => {
           const asked = askedMessages(turn, messages, harness)
           const prepared = resumeSessionId === null ? asked : fromLastUser(asked)
-          return config.prepareMessages?.(prepared) ?? prepared
+          const told = withUpdate(prepared, (await instructions.promise).update)
+          return config.prepareMessages?.(told) ?? told
         },
         chunk: async (chunk) => {
           const shaped = normalizedChunk(chunk, normalize)

@@ -60,7 +60,7 @@ export type Approvals = ReadonlyMap<string, boolean>
 export type TurnPlan = {
   adapter: TextAdapter
   modelOptions?: Record<string, unknown>
-  systemPrompts: readonly string[]
+  systemPrompts: () => Promise<readonly string[]>
   codeMode: readonly ChatTool[]
   asking: readonly ChatTool[]
   direct: readonly ChatTool[]
@@ -146,7 +146,7 @@ function failedPlan(error: unknown): TurnPlan {
     adapter: makeTextAdapter('failed-launch', async function* () {
       yield {type: EventType.RUN_ERROR, message, timestamp: Date.now()}
     }),
-    systemPrompts: [],
+    systemPrompts: async () => [],
     codeMode: [],
     asking: [],
     direct: [],
@@ -432,6 +432,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         }
         if (ctx.phase !== 'init') return
         granted.approvals = await plan.setup()
+        const systemPrompts = [...(await plan.systemPrompts()), ...current.systemPrompts]
         const expanded = await plan.expand(current.messages)
         prepared.sent = expanded.length
         prepared.provider = await plan.providerMessages(expanded)
@@ -441,6 +442,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
             expanded.findLast((message) => message.role === 'user'),
           ),
           providerMessages: prepared.provider,
+          systemPrompts,
           resumeToolState: {
             ...current.resumeToolState,
             approvals: new Map([...(current.resumeToolState?.approvals ?? []), ...granted.approvals]),
@@ -517,7 +519,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       messages,
       threadId: turn.threadId,
       runId: turn.runId,
-      systemPrompts: [...plan.systemPrompts, ...(coded === null ? [] : [coded.systemPrompt])],
+      systemPrompts: coded === null ? [] : [coded.systemPrompt],
       tools: [...(coded?.tools ?? []), ...gatedTools(plan.asking, approvals), ...plan.direct],
       lazyToolsConfig: {includeDescription: 'first-sentence'},
       retry: {maxRetries: 2},

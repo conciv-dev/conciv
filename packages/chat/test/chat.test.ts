@@ -8,6 +8,7 @@ import {openDb, type ConcivDb} from '@conciv/db'
 import {defineHarness} from '@conciv/harness'
 import {readApprovalAsk, approvalRequestedEvent} from '@conciv/protocol/chat-event-types'
 import {SessionId} from '@conciv/protocol/chat-types'
+import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 import {Effect, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {z} from 'zod'
 import {Agent, Bus, Database, Location, Permission, PermissionSaved, PluginHooks, Tool} from '@conciv/plugin-host'
@@ -74,6 +75,7 @@ function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typ
     toolNames: new Set(),
     capabilities: () => [],
     attachmentExpanders: {},
+    pluginInstructions: async () => ({initial: '', update: ''}),
     log: () => undefined,
     ...overrides,
   })
@@ -415,5 +417,42 @@ describe('direct tools', () => {
     expect(closedRunner?.code).toBeNull()
     expect(names(closedRunner?.direct)).toEqual(['unit_coded', 'unit_direct'])
     await expect(closedRunner?.direct[0]?.run({text: 'shut'}, 'parent')).resolves.toBe('coded shut')
+  })
+})
+
+describe('plugin instructions', () => {
+  it('the initial text is one more system prompt and an empty one adds none, and the change text goes once in front of the user words', async () => {
+    const {root, db} = openDatabase()
+    const sessionId = SessionId.parse('conciv_instructions')
+    const told = [
+      {initial: 'the skill list', update: 'a skill was added'},
+      {initial: '', update: ''},
+    ]
+    const chat = await chatPlane(db, root, {
+      systemPrompt: {systemPromptText: 'the base prompt'},
+      pluginInstructions: async () => told.shift() ?? {initial: '', update: ''},
+    })
+    const sent: {systemPrompts: unknown[]; messages: ModelMessage[]}[] = []
+    const recorded = ({request}: {request: {systemPrompts?: readonly unknown[]; messages: ModelMessage[]}}) => {
+      sent.push({systemPrompts: [...(request.systemPrompts ?? [])], messages: request.messages})
+      return {text: 'done'}
+    }
+    const lastUserContent = (index: number) =>
+      sent[index]?.messages.findLast((message) => message.role === 'user')?.content
+
+    model.setResponses([recorded])
+    await chat.followUp(sessionId, 'look around')
+    expect(sent[0]?.systemPrompts).toEqual(['the base prompt', 'the skill list'])
+    expect(lastUserContent(0)).toEqual([
+      {type: 'text', content: 'a skill was added'},
+      {type: 'text', content: 'look around'},
+    ])
+    expect(JSON.stringify(sent[0]?.messages).split('a skill was added')).toHaveLength(2)
+
+    model.setResponses([recorded])
+    await chat.followUp(sessionId, 'and again')
+    expect(sent[1]?.systemPrompts).toEqual(['the base prompt'])
+    expect(lastUserContent(1)).toBe('and again')
+    expect(JSON.stringify(sent[1]?.messages)).not.toContain('a skill was added')
   })
 })
