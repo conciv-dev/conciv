@@ -1,6 +1,7 @@
 import type {Router} from '@orpc/server'
 import type {contract} from '@conciv/contract'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
+import {decidePermissionCard} from '../../runtime/permission-cards.js'
 import {os, type RpcDeps, type SessionOs} from './mount.js'
 
 export function chatRouter(deps: RpcDeps, sessionOs: SessionOs): Router<typeof contract.chat, RpcContext> {
@@ -13,7 +14,11 @@ export function chatRouter(deps: RpcDeps, sessionOs: SessionOs): Router<typeof c
     ),
     stop: os.chat.stop.handler(({input}) => deps.runtime.forSession(input.sessionId).run.stop(input.runIds)),
     permissionDecision: sessionOs.chat.permissionDecision.handler(async ({input, context, errors}) => {
-      const decision = await deps.chat.plane.decide(context.session.id, input.approvalId, input.approved, input.scope)
+      const decision = await decidePermissionCard(
+        {plane: deps.chat.plane, answer: deps.answerPermission},
+        context.session.id,
+        input,
+      )
       if (decision === null) throw errors.UNKNOWN_REQUEST()
       return {ok: true as const, startsTurn: decision.startsTurn}
     }),

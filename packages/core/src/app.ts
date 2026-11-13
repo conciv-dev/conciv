@@ -52,9 +52,9 @@ import {
   type SessionPort,
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
-import {Layer, ManagedRuntime} from 'effect'
+import {Layer, ManagedRuntime, Schema} from 'effect'
 import {memoize} from 'es-toolkit'
-import {PluginHooks, Tool} from '@conciv/plugin-host'
+import {Agent, Bus, Database, Location, Permission, PermissionSaved, PluginHooks, Tool} from '@conciv/plugin-host'
 import {pushRoutes, type PushDeps} from './api/push.js'
 import {makeHubAdmission, type ChatContext, type RpcDeps} from './api/rpc/mount.js'
 import {concivHome, drafts, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
@@ -72,6 +72,7 @@ import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
 import {pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
+import {answerPermission, followPermissionCards, permissionSessions} from './runtime/permission-cards.js'
 import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
@@ -550,7 +551,21 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   registerExtensionTools(registry, mounted)
 
-  const pluginHost = ManagedRuntime.make(Tool.layer.pipe(Layer.provideMerge(PluginHooks.layer)))
+  const pluginHost = ManagedRuntime.make(
+    Layer.mergeAll(Tool.layer, Permission.layer).pipe(
+      Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(db))),
+      Layer.provideMerge(PluginHooks.layer),
+      Layer.provideMerge(Bus.configured()),
+      Layer.provideMerge(
+        Layer.succeed(
+          Location.Service,
+          Location.Service.of(Schema.decodeSync(Location.Info)({directory: opts.cwd, project: {id: opts.cwd}})),
+        ),
+      ),
+      Layer.provideMerge(Database.layer({path: projectDatabaseFile(db)})),
+    ),
+  )
+  await pluginHost.context()
   const reportToolCollision = memoize((name: string) =>
     logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`),
   )
@@ -602,6 +617,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     log: logError,
   })
   planeRef.current = plane
+  await pluginHost.runPromise(
+    followPermissionCards({plane, publish: (sessionId, chunk) => stream.publish(sessionId, chunk), log: logError}),
+  )
   const chatDeps: ChatContext = {
     defaultHarness: harness,
     harnesses,
@@ -688,6 +706,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     admitOutside,
     hub,
     assist: (sessionId) => concivSandboxTools(makeToolCtx(sessionId)),
+    answerPermission: (sessionId, requestId, reply) =>
+      pluginHost.runPromise(answerPermission(sessionId, requestId, reply)),
     auth: makeAuthRouter({
       codes: makeCodeStore({now: Date.now, print: opts.print ?? ((text) => console.log(text))}),
       trust,
@@ -803,4 +823,10 @@ async function ensureConfiguredRows(rows: RowScope, cfg: ResolvedConcivConfig): 
 
 function outsideTitle(client: string | null): string {
   return `Allow ${client ?? 'an outside agent'} to use this tab`
+}
+
+function projectDatabaseFile(db: ConcivDb): string {
+  const file = db.$client.location()
+  if (file === null) throw new Error('conciv: the plugin host needs the project database on a file')
+  return file
 }

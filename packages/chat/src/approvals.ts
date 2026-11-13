@@ -55,6 +55,7 @@ export type Admission = 'allowed' | 'ask' | 'denied'
 export type ApprovalStore = {
   asked: (threadId: string, ask: ApprovalAsked) => Promise<void>
   remove: (threadId: string, approvalId: string) => Promise<void>
+  removeWhere: (threadId: string, test: (entry: ApprovalAsked) => boolean) => Promise<void>
   pending: (threadId: string) => Promise<ChatPendingApproval[]>
   decide: (
     threadId: string,
@@ -184,6 +185,13 @@ export function createApprovalStore(
     await writeGrants(threadId, {...grants, [bucket]: [...new Set([...grants[bucket], approvalId])]})
     return {startsTurn: inTurn}
   }
+  const removeWhere = (threadId: string, test: (entry: ApprovalAsked) => boolean): Promise<void> =>
+    serialised(threadId, async () => {
+      const pending = await pendingOf(threadId)
+      const kept = pending.filter((entry) => !test(entry))
+      if (kept.length === pending.length) return
+      await metadata.set(APPROVALS_NAMESPACE, pendingKey(threadId), kept)
+    })
   const outsideDenied = async (threadId: string): Promise<boolean> =>
     (await grantsOf(outsideHolder(threadId))).refused.includes(OUTSIDE_APPROVAL_ID)
   const outsideRevoked = (allowedGeneration: number | null): boolean => {
@@ -197,13 +205,8 @@ export function createApprovalStore(
         if (pending.some((entry) => entry.approvalId === ask.approvalId)) return
         await metadata.set(APPROVALS_NAMESPACE, pendingKey(threadId), [...pending, ask])
       }),
-    remove: (threadId, approvalId) =>
-      serialised(threadId, async () => {
-        const pending = await pendingOf(threadId)
-        const kept = pending.filter((entry) => entry.approvalId !== approvalId)
-        if (kept.length === pending.length) return
-        await metadata.set(APPROVALS_NAMESPACE, pendingKey(threadId), kept)
-      }),
+    remove: (threadId, approvalId) => removeWhere(threadId, (entry) => entry.approvalId === approvalId),
+    removeWhere,
     pending: async (threadId) => (await pendingOf(threadId)).map(({title, ...entry}) => ({...entry, toolName: title})),
     decide: async (threadId, approvalId, approved, scope) => {
       const decision = await serialised(threadId, () => record(threadId, approvalId, approved, scope))
@@ -241,6 +244,18 @@ export function createApprovalStore(
       await writeGrants(holder, {...grants, refused: grants.refused.filter((id) => id !== OUTSIDE_APPROVAL_ID)})
     },
   }
+}
+
+export async function dropPermissionCards(
+  store: ApprovalStore,
+  metadata: Pick<ApprovalMetadata, 'keysEndingWith'>,
+): Promise<void> {
+  const keys = await metadata.keysEndingWith(APPROVALS_NAMESPACE, PENDING_SUFFIX)
+  await Promise.all(
+    keys.map((key) =>
+      store.removeWhere(key.slice(0, -PENDING_SUFFIX.length), (entry) => entry.permission !== undefined),
+    ),
+  )
 }
 
 type UiWaiter = (callId: string | null) => void

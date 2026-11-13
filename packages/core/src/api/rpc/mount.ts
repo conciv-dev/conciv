@@ -22,6 +22,7 @@ import type {createSettingsStorage} from '../../settings/settings-storage.js'
 import type {McpVars} from '../mcp.js'
 import type {createTabs} from '../tabs.js'
 import type {PageQueues} from '../../page/page-queue.js'
+import type {PermissionAnswer} from '../../runtime/permission-cards.js'
 
 export type ChatContext = {
   defaultHarness: HarnessAdapter
@@ -49,6 +50,7 @@ export type RpcDeps = {
   code: McpVars['mcp']
   tabs: ReturnType<typeof createTabs>
   queues: Pick<PageQueues, 'wait'>
+  answerPermission: PermissionAnswer
 }
 
 export const os: Implementer<typeof contract, RpcContext, RpcContext> = implement(contract).$context<RpcContext>()

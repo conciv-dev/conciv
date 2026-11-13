@@ -23,6 +23,7 @@ import {createToolCallChunks, fakeText} from '@conciv/ai/testkit'
 import {
   createChatPlane,
   registryCapabilities,
+  toolDomainCapabilities,
   type ChatPlane,
   type CodeCapability,
   type FollowUpOutcome,
@@ -55,7 +56,13 @@ import {
 } from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {type HarnessAdapter, defineHarness, resolveHarnessModels} from '@conciv/harness'
-import {ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {
+  ChatEventType,
+  approvalAskOf,
+  approvalSettledOf,
+  sessionRunEvent,
+  type ChatEvent,
+} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
@@ -97,7 +104,16 @@ import {RPCLink as WebsocketRpcLink} from '@orpc/client/websocket'
 import {CONCIV_VERSION_HEADER, RPC_WS_PATH, rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
 import coreManifest from '../package.json' with {type: 'json'}
-import {chunkWithInlineMap, cleanupChunks, makeChatFixture} from './helpers.js'
+import {Effect, Layer, ManagedRuntime, Schema, Scope} from 'effect'
+import {Agent, Bus, Database, Location, Permission, PermissionSaved, PluginHooks, Tool} from '@conciv/plugin-host'
+import {ensureRow} from '../src/sessions/session-rows.js'
+import {
+  answerPermission,
+  decidePermissionCard,
+  followPermissionCards,
+  permissionSessions,
+} from '../src/runtime/permission-cards.js'
+import {bootMadeApp, chunkWithInlineMap, cleanupChunks, makeChatFixture} from './helpers.js'
 
 const NO_CAPABILITIES = {
   resume: false,
@@ -1965,5 +1981,148 @@ describe('settings storage', () => {
     } finally {
       await engine.stop()
     }
+  })
+})
+
+describe('plugin permission cards', () => {
+  async function nextOf<T>(events: AsyncGenerator<ChatEvent>, pick: (event: ChatEvent) => T | null): Promise<T> {
+    const next = await events.next()
+    if (next.done) throw new Error('the session stream ended before the expected event')
+    return pick(next.value) ?? nextOf(events, pick)
+  }
+
+  it('a plugin tool asks once on every client, an answer settles it without a turn, a gone request is cleared on click, another session cannot answer, and a restart sweeps permission cards', async () => {
+    const fixture = await makeChatFixture()
+    const {plane, runtime, db, sessionId: id, stateRoot} = fixture
+    const other = SessionId.parse('conciv_other')
+    await ensureRow(db, other, fixture.harness.id, stateRoot)
+    const host = ManagedRuntime.make(
+      Layer.mergeAll(Tool.layer, Permission.layer).pipe(
+        Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(db))),
+        Layer.provideMerge(PluginHooks.layer),
+        Layer.provideMerge(Bus.configured()),
+        Layer.provideMerge(
+          Layer.succeed(
+            Location.Service,
+            Location.Service.of(Schema.decodeSync(Location.Info)({directory: stateRoot, project: {id: stateRoot}})),
+          ),
+        ),
+        Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),
+      ),
+    )
+    const clients = new AbortController()
+    onTestFinished(async () => {
+      clients.abort()
+      await host.dispose()
+      await fixture.dispose()
+    })
+    await host.context()
+    const logged: string[] = []
+    const scope = host.runSync(Scope.make())
+    await host.runPromise(
+      followPermissionCards({
+        plane,
+        publish: (sessionId, chunk) => runtime.forSession(sessionId).stream.publish(chunk),
+        log: (line) => logged.push(line),
+      }),
+    )
+    await host.runPromise(
+      Effect.gen(function* () {
+        const tools = yield* Tool.Service
+        const permission = yield* Permission.Service
+        yield* tools.transform((editor) => {
+          editor.add({
+            name: 'unit_read_env',
+            description: 'Read an env file.',
+            input: z.object({file: z.string()}),
+            execute: (input: {file: string}, context) =>
+              permission
+                .assert({
+                  ...Permission.invocation(context),
+                  action: 'read',
+                  resources: [input.file],
+                  save: [input.file],
+                  metadata: {file: input.file},
+                })
+                .pipe(Effect.orDie, Effect.as({content: `read ${input.file}`})),
+          })
+        })
+      }).pipe(Scope.provide(scope)),
+    )
+    const [readEnv] = toolDomainCapabilities(
+      [],
+      host.runSync(Tool.Service.use((tools) => tools.snapshot())),
+      (effect, signal) => host.runPromise(effect, {signal}),
+      () => undefined,
+    )
+    const call = (sessionId: SessionId, file: string) =>
+      readEnv?.execute({file}, {sessionId, agentId: sessionId, model: null, toolCallId: randomUUID()})
+    const answer = (sessionId: SessionId, requestId: string, reply: Permission.Reply) =>
+      host.runPromise(answerPermission(sessionId, requestId, reply))
+    const decide = (sessionId: SessionId, approvalId: string, approved: boolean, lasting: 'once' | 'session') =>
+      decidePermissionCard({plane, answer}, sessionId, {approvalId, approved, scope: lasting})
+    const first = runtime.forSession(id).stream.events(clients.signal)
+    const second = runtime.forSession(id).stream.events(clients.signal)
+
+    const reading = call(id, 'src/.env')
+    const shown = await nextOf(first, approvalAskOf)
+    expect(shown).toMatchObject({toolName: 'read src/.env', input: {file: 'src/.env'}, permission: {always: true}})
+    expect(shown.approvalId).toMatch(/^per/)
+    expect(shown.toolCallId).toBe(shown.approvalId)
+    expect(await nextOf(second, approvalAskOf)).toEqual(shown)
+    expect((await plane.hydrate(id)).pendingApprovals).toEqual([
+      {
+        approvalId: shown.approvalId,
+        toolCallId: shown.approvalId,
+        toolName: 'read src/.env',
+        input: {file: 'src/.env'},
+        runId: null,
+        permission: {always: true},
+      },
+    ])
+
+    expect(await decide(id, shown.approvalId, true, 'session')).toEqual({startsTurn: false})
+    await expect(reading).resolves.toBe('read src/.env')
+    expect(await nextOf(second, approvalSettledOf)).toBe(shown.approvalId)
+    expect((await plane.hydrate(id)).pendingApprovals).toEqual([])
+    expect(await plane.decide(id, shown.approvalId, true, 'once')).toBeNull()
+    await expect(call(id, 'src/.env')).resolves.toBe('read src/.env')
+
+    const foreign = call(other, 'other/.env')
+    const otherAsk = await nextOf(runtime.forSession(other).stream.events(clients.signal), approvalAskOf)
+    expect(await answer(id, otherAsk.approvalId, 'once')).toBe('foreign')
+    expect(await decide(id, otherAsk.approvalId, true, 'once')).toBeNull()
+    expect(await decide(other, otherAsk.approvalId, false, 'once')).toEqual({startsTurn: false})
+    await expect(foreign).rejects.toThrow()
+
+    await plane.permissionAsked(id, {
+      approvalId: 'per_gone',
+      toolCallId: 'per_gone',
+      title: 'read gone',
+      input: {},
+      permission: {always: false},
+    })
+    expect(await decide(id, 'per_gone', true, 'once')).toBeNull()
+    expect((await plane.hydrate(id)).pendingApprovals).toEqual([])
+
+    await plane.permissionAsked(id, {
+      approvalId: 'per_left',
+      toolCallId: 'per_left',
+      title: 'read left',
+      input: {},
+      permission: {always: false},
+    })
+    expect(
+      await plane.admitCall(id, {
+        toolName: 'unit_kept',
+        input: {},
+        publish: () => undefined,
+        until: AbortSignal.abort(),
+      }),
+    ).toMatchObject({reason: 'asked'})
+    const restarted = await bootMadeApp({stateRoot, cwd: stateRoot, harness: fixture.harness, print: () => {}})
+    onTestFinished(() => restarted.dispose())
+    expect((await restarted.plane.hydrate(id)).pendingApprovals.map((entry) => entry.toolName)).toEqual(['unit_kept'])
+    expect(logged).toEqual([])
   })
 })

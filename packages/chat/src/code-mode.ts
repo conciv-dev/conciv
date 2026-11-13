@@ -70,7 +70,7 @@ function cancelOf(signal: AbortSignal): Effect.Effect<void> {
 function toolContext(request: ToolRequest): Tool.Context {
   return {
     sessionId: Session.Id.make(request.sessionId),
-    agent: Agent.Id.make(request.agentId),
+    agent: Agent.defaultId,
     messageId: undefined,
     id: Tool.CallId.make(request.toolCallId ?? randomUUID()),
     progress: () => Effect.void,

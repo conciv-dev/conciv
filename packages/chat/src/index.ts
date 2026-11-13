@@ -12,6 +12,7 @@ import type {UiAnswer} from '@conciv/protocol/ui-types'
 import {
   createApprovalStore,
   createUiChannel,
+  dropPermissionCards,
   type Admission,
   type ApprovalDecision,
   type ApprovalAsked,
@@ -113,10 +114,13 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       }
     },
   })
-  const approvals = createApprovalStore(
-    {...stores.metadata, keysEndingWith: (namespace, suffix) => metadataKeysEndingWith(deps.db, namespace, suffix)},
-    deps.hubAccess,
-    deps.hubGeneration,
+  const approvalMetadata = {
+    ...stores.metadata,
+    keysEndingWith: (namespace: string, suffix: string) => metadataKeysEndingWith(deps.db, namespace, suffix),
+  }
+  const approvals = createApprovalStore(approvalMetadata, deps.hubAccess, deps.hubGeneration)
+  await dropPermissionCards(approvals, approvalMetadata).catch((error: unknown) =>
+    deps.log(`[chat] removing the permission cards of the previous engine failed: ${String(error)}`),
   )
   const ui = createUiChannel()
   const transcripts = createTranscriptImporter({
