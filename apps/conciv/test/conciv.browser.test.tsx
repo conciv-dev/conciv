@@ -309,6 +309,70 @@ describe('approval replay', () => {
       await expect.element(card('bash git push')).not.toBeInTheDocument()
       await expect.element(page.getByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
     }, 30_000)
+
+    test('a hydrate read before a live ask or settle keeps the live card and does not bring back a settled one', async () => {
+      const announced: ChatSessionCallbacks[] = []
+      const reads: Array<PromiseWithResolvers<ChatSessionHydration>> = []
+      const session = createRoot((dispose) => {
+        disposers.push(dispose)
+        return createChatSession({
+          sessionId: 'permission-hydrate-order',
+          connect: (callbacks) => {
+            announced.push(callbacks)
+            return {
+              ...quietConnection,
+              refresh: async () => {
+                const read = Promise.withResolvers<ChatSessionHydration>()
+                reads.push(read)
+                const hydration = await read.promise
+                callbacks.onHydrated(hydration)
+                return hydration
+              },
+            }
+          },
+          stop: () => Promise.resolve(),
+          decide: () => Promise.resolve({startsTurn: false}),
+        })
+      })
+      const ctx = makeToolViewCtx({
+        harnessId: () => 'claude',
+        catalog: INERT_TOOL_CTX.catalog,
+        sendMessage: () => undefined,
+        decide: session.decide,
+        onError: () => undefined,
+        addResult: INERT_TOOL_CTX.addResult,
+        durationFor: () => undefined,
+        captureFor: () => undefined,
+      })
+      render(() => <PendingApprovals asks={session.pendingApprovals()} ctx={ctx} />)
+      const callbacks = announced[0]
+      const card = (target: string) => page.getByRole('group', {name: 'Permission request'}).filter({hasText: target})
+      const hydration = (pendingApprovals: ChatSessionHydration['pendingApprovals']): ChatSessionHydration => ({
+        messages: [],
+        messageHarness: {},
+        lastRun: null,
+        pendingApprovals,
+      })
+      const liveAsk = permissionAsk('live-ask', 'edit src/live.ts', {filepath: 'src/live.ts'}, false)
+      const settledAsk = permissionAsk('settled-ask', 'read old.env', {filepath: 'old.env'}, false)
+
+      const firstRefresh = session.refresh()
+      callbacks?.onApprovalAsk(liveAsk)
+      await expect.element(card('edit src/live.ts')).toBeVisible()
+      reads[0]?.resolve(hydration([]))
+      await firstRefresh
+      expect.soft(card('edit src/live.ts').query()).not.toBeNull()
+
+      callbacks?.onApprovalAsk(settledAsk)
+      await expect.element(card('read old.env')).toBeVisible()
+      const secondRefresh = session.refresh()
+      callbacks?.onApprovalSettled('settled-ask')
+      await expect.element(card('read old.env')).not.toBeInTheDocument()
+      reads[1]?.resolve(hydration([liveAsk, settledAsk]))
+      await secondRefresh
+      expect(card('read old.env').query()).toBeNull()
+      expect(card('edit src/live.ts').query()).not.toBeNull()
+    }, 30_000)
   })
 })
 
