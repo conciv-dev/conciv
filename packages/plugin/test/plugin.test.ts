@@ -554,11 +554,10 @@ describe('experimental', () => {
     const plainOverlay: Experimental.Slot = {at: 'page.overlay', render: () => null}
     // @ts-expect-error only a page.overlay item says whether the widget hides
     const statusHides: Experimental.Slot = {at: 'session.status', hides: true, render: () => null}
-    expect([overlay, plainOverlay, statusHides].map((slot) => slot.at)).toEqual([
-      'page.overlay',
-      'page.overlay',
-      'session.status',
-    ])
+    expect([overlay, plainOverlay, statusHides].map((slot) => slot.at)).toHaveLength(3)
+    expectTypeOf<keyof Experimental.SlotMap>().toEqualTypeOf<
+      'window.bottom' | 'session.header' | 'session.status' | 'page.overlay'
+    >()
     expectTypeOf<Experimental.PanelTab['fallback']>().toEqualTypeOf<boolean | undefined>()
     const ineligible: Experimental.PanelTab = {id: 'details', title: 'Details', fallback: false}
     expectTypeOf<Extract<Experimental.Live<never>, {status: 'inactive'}>['reason']>().toEqualTypeOf<
@@ -587,7 +586,7 @@ describe('experimental', () => {
       const url = 'http://127.0.0.1:4000/t/token'
       ctx.add(Server, (): Experimental.Server => ({
         ready: true,
-        entries: [{id: 'local', name: 'Local', state: 'ready', http: {url}}],
+        entries: [{id: 'try-it', name: 'Local', state: 'starting', cover: (input) => input.tab ?? url}],
       }))
       ctx.add(Server, {
         ready: true,
@@ -608,6 +607,7 @@ describe('experimental', () => {
     expectTypeOf<undefined>().toExtend<Experimental.Dialogs['alert']>()
     expectTypeOf<undefined>().toExtend<Experimental.Dialogs['prompt']>()
     expectTypeOf<undefined>().toExtend<Experimental.Dialogs['select']>()
+    expectTypeOf<undefined>().toExtend<Parameters<NonNullable<Experimental.ServerEntry['cover']>>[0]['tab']>()
     expectTypeOf<undefined>().toExtend<Experimental.Context['commands']>()
     expectTypeOf<undefined>().not.toExtend<Experimental.Context['system']>()
     expectTypeOf<undefined>().not.toExtend<Experimental.System['copy']>()

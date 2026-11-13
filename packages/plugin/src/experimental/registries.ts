@@ -388,16 +388,18 @@ export interface ServerEntry {
    */
   remove?(): Promise<void>
   /**
-   * Not implemented yet. Always undefined in this version.
-   *
    * Covers the routed session or draft while the entry is not ready; the route stays mounted underneath.
    * `tab` identifies the routed tab and changes when another one is routed.
    *
    * @param input - The routed tab.
    */
   cover?(input: {
-    /** The routed tab's key. */
-    readonly tab: string
+    /**
+     * Not implemented yet. Always undefined in this version.
+     *
+     * The routed tab's key.
+     */
+    readonly tab: string | undefined
   }): JSX.Element
 }
 
@@ -688,17 +690,6 @@ export interface SlotMap {
     /** The routed session; a new object when another session is routed. */
     readonly session: MountedSession
   }
-  /** The connect screen, shown while the widget has no engine bound. */
-  readonly 'window.connect': {
-    /** The origin of the page the widget runs in. */
-    readonly origin: string
-    /**
-     * Binds the widget to the engine at `apiBase`, as the connect screen's own search does.
-     *
-     * @param apiBase - The engine's base URL.
-     */
-    readonly found: (apiBase: string) => void
-  }
   /** Drawn over the user's page, outside the widget, e.g. a recording frame or a whiteboard. */
   readonly 'page.overlay': Record<string, never>
 }
@@ -727,7 +718,6 @@ interface SlotExtras {
   readonly 'window.bottom': unknown
   readonly 'session.header': unknown
   readonly 'session.status': unknown
-  readonly 'window.connect': unknown
   readonly 'page.overlay': {
     /**
      * The conciv widget hides while this overlay is on screen. Defaults to false. Whether or not it hides, the host

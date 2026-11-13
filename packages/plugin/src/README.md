@@ -257,7 +257,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - `Command` JSDoc drops the command palette (conciv has none, audit Table 2); fields are source's.
 - `Panel.region` is `'pane'` (ruling). Left out as side-column-only: `wide` (wider session minimum while the side region is open), `width` (side region width), `enter` (runs when the side region opens on the tab with its toggle). `mobile` and `MobileView` are declared (audit: have it).
 - `SettingsPage.page` is `'general'` only and `group` is absent: conciv's settings have no Servers or About page (`apps/conciv/src/routes/panel.$sessionId_.settings.*.tsx`).
-- `SlotMap` has five places: source's `session.header` and `window.bottom` (inputs verbatim), and conciv's `session.status` (`{screen, session}`), `window.connect` (`{origin, found(apiBase)}`, what the connect slot gets today: `ConnectHostApi`, `packages/extension/src/host-context.ts:9`) and `page.overlay` (`Record<string, never>`).
+- `SlotMap` has four places: source's `session.header` and `window.bottom` (inputs verbatim), and conciv's `session.status` (`{screen, session}`) and `page.overlay` (`Record<string, never>`). The connect screen is no slot: try-it draws it as its `Server` entry's `cover` (see Server registry).
 - A `page.overlay` `Slot` item carries the conciv-only field `hides` (the widget hides while the overlay is up), because the host owns focus and layers as in opencode and this is the one thing a plugin states about its overlay; the plugin API has no layer registration, focus yielding or suppression.
 - The `NoteCard` registry is conciv-only, shaped like `CodeBlock` (`plugin/src/gui/registries.ts:719`), so a plugin can draw the inside of its own composer notes (a recording as a player); it is keyed by the note's existing `origin` field (`origins`, as `CodeBlock` lists `languages`), so the note type gains no field.
 - Not ported (spec "Not ported" list and its brief): `MenuItem` and its three item types, `TitlebarItem`, `Style`, `Theme` and its colour types.
@@ -266,8 +266,10 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 
 ### Server registry
 
-- `Server`, `ServerEntry` and `ServerState` are ported (ruling) so a plugin can offer an engine: try-it's pre-boot probe reports through `Server.ready` and an entry's `state` and `http.url` (today `connectGate.preflight`, `packages/embed/src/mount-impl.tsx:322`), and a later find updates the same entry (today `found(apiBase)`, `apps/conciv/src/routes/panel.connect.tsx:33`).
+- `Server`, `ServerEntry` and `ServerState` are ported (ruling) so a plugin can offer an engine: try-it's pre-boot probe reports through `Server.ready` and an entry's `state` and `http.url` (today `connectGate.preflight`, `packages/embed/src/mount-impl.tsx:322`), and a later find updates the same entry (today `found(apiBase)`, `apps/conciv/src/routes/panel.connect.tsx:34`).
 - ios re-points the widget through its entry: a new `http.url` while `ready`, and `reconnect` resolving the next address after the old connection drops (today the `conciv:rebind` event, `packages/extensions/ios/src/client.tsx:106`); `incompatible` is its `onIncompatible`.
+- `ServerEntry.cover` is built: the host draws it while the entry is not `ready` (opencode `app/src/runtime/plugin/server-shell.tsx:34,63-71`), and try-it draws its connect pane through it (today the `connect` slot, `packages/extensions/try-it/src/client.tsx:21`); the page origin the pane shows is the browser part's own `window.location.origin`. Its input's `tab` is `string | undefined`: no tab is routed while the widget has no engine.
+- `ServerEntry.connect` is declared, not implemented: opencode's host calls it when the user signs in to a server that waits for it (`app/src/session/server-unavailable-panel.tsx:57`, `app/src/runtime/plugin/servers.tsx:191`); try-it has no such action, its probe runs on its own (`packages/extensions/try-it/src/client/use-core-probe.ts:48`).
 - `ServerEntry.row`, `ServerRow` and `ServerHealth` are absent: they draw a row on a Servers settings page, which conciv does not have (`SettingsPage.page` is `'general'` only).
 - `Server` and `Server.ready` JSDoc drop SSH, WSL and server tabs (conciv has no server tabs); `http.password` JSDoc drops the fixed user name.
 
@@ -301,7 +303,7 @@ Each is typed `| undefined` (or optional) and always undefined in this version.
 - `MountedSession.local`
 - `Tabs.move`
 - `Links.exists`
-- `Server.order`; `ServerEntry`: `label`, `listed`, `http.password`, `connect`, `remove`, `cover`; `reconnect`'s `password`
+- `Server.order`; `ServerEntry`: `label`, `listed`, `http.password`, `connect`, `remove`; `cover`'s `tab`; `reconnect`'s `password`
 
 ## Not available yet
 
