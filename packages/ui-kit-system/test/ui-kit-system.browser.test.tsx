@@ -572,21 +572,36 @@ describe('dialog parts', () => {
           <Dialog.Root>
             <Dialog.Trigger {...track('the opener')}>Open plugin settings</Dialog.Trigger>
             <Dialog.Portal>
-              <Dialog.Backdrop />
-              <Dialog.Positioner>
-                <Dialog.Content size="lg">
-                  <Dialog.Header>
-                    <Dialog.Title>Plugin settings</Dialog.Title>
-                    <Dialog.CloseTrigger {...track('the close button')} />
-                  </Dialog.Header>
-                  <Dialog.Body>
-                    <p>Choose what the plugin may read.</p>
-                  </Dialog.Body>
-                  <Dialog.Footer>
-                    <button type="button">Save</button>
-                  </Dialog.Footer>
-                </Dialog.Content>
-              </Dialog.Positioner>
+              <Dialog.Layer>
+                <Dialog.Backdrop />
+                <Dialog.Positioner>
+                  <Dialog.Content size="lg">
+                    <Dialog.Header>
+                      <Dialog.Title>Plugin settings</Dialog.Title>
+                      <Dialog.CloseTrigger {...track('the close button')} />
+                    </Dialog.Header>
+                    <Dialog.Body>
+                      <p>Choose what the plugin may read.</p>
+                      <Dialog.Root>
+                        <Dialog.Trigger>Open plugin details</Dialog.Trigger>
+                        <Dialog.Portal>
+                          <Dialog.Layer>
+                            <Dialog.Backdrop />
+                            <Dialog.Positioner>
+                              <Dialog.Content>
+                                <Dialog.Title>Plugin details</Dialog.Title>
+                              </Dialog.Content>
+                            </Dialog.Positioner>
+                          </Dialog.Layer>
+                        </Dialog.Portal>
+                      </Dialog.Root>
+                    </Dialog.Body>
+                    <Dialog.Footer>
+                      <button type="button">Save</button>
+                    </Dialog.Footer>
+                  </Dialog.Content>
+                </Dialog.Positioner>
+              </Dialog.Layer>
             </Dialog.Portal>
           </Dialog.Root>
         </EnvironmentProvider>
@@ -600,6 +615,12 @@ describe('dialog parts', () => {
     await expect.element(widget.getByRole('dialog', {name: 'Plugin settings'})).toBeVisible()
     await expect.element(widget.getByText('Choose what the plugin may read.')).toBeVisible()
     await expect.element(widget.getByText('Focus is on the close button')).toBeVisible()
+
+    await userEvent.click(widget.getByRole('button', {name: 'Open plugin details'}))
+    await expect.element(widget.getByRole('dialog', {name: 'Plugin details'})).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(widget.getByRole('dialog', {name: 'Plugin details'})).not.toBeInTheDocument()
+    await expect.element(widget.getByRole('dialog', {name: 'Plugin settings'})).toBeVisible()
 
     await userEvent.click(widget.getByRole('button', {name: 'Close'}))
     await expect.element(widget.getByRole('dialog')).not.toBeInTheDocument()

@@ -6,8 +6,10 @@ import X from 'lucide-solid/icons/x'
 import {Button} from './button.js'
 import {isShadowRoot} from './realm.js'
 
+const TOP_LAYER = 'z-[2147483647]'
+const LAYER = `fixed ${TOP_LAYER}`
 const BACKDROP = 'fixed inset-0 z-[2147483646] [background:var(--chat-backdrop)]'
-const POSITIONER = 'fixed inset-0 z-[2147483647] flex items-start justify-center p-4 overflow-y-auto'
+const POSITIONER = `fixed inset-0 ${TOP_LAYER} flex items-start justify-center p-4 overflow-y-auto`
 const CONTENT_BASE =
   'my-auto max-w-[calc(100vw-2rem)] rounded-chat-surface-lg bg-chat-panel text-chat-text font-chat font-normal text-[0.875rem] leading-[1.45] border border-chat-line shadow-chat-lg overflow-hidden focus-visible:outline-none data-[state=open]:anim-rise data-[state=closed]:anim-presence-out'
 const SHELL = 'flex flex-col min-h-0 max-h-[calc(100dvh-2rem)]'
@@ -34,6 +36,11 @@ function LayerPortal(props: {children: JSX.Element}): JSX.Element {
   return <SolidPortal mount={mount()}>{props.children}</SolidPortal>
 }
 
+function Layer(props: ComponentProps<'div'>): JSX.Element {
+  const [local, rest] = splitProps(props, ['class'])
+  return <div {...rest} class={`${LAYER}  ${local.class ?? ''}`} />
+}
+
 function Backdrop(props: ComponentProps<typeof Ark.Backdrop>): JSX.Element {
   const [local, rest] = splitProps(props, ['class'])
   return <Ark.Backdrop {...rest} class={`${BACKDROP}  ${local.class ?? ''}`} />
@@ -47,7 +54,11 @@ function Positioner(props: ComponentProps<typeof Ark.Positioner>): JSX.Element {
 function Content(props: ComponentProps<typeof Ark.Content> & {size?: 'md' | 'lg' | 'xl'}): JSX.Element {
   const [local, rest] = splitProps(props, ['class', 'size', 'children'])
   return (
-    <Ark.Content {...rest} class={`${CONTENT_SIZE[local.size ?? 'md']}  ${CONTENT_BASE}  ${local.class ?? ''}`}>
+    <Ark.Content
+      aria-modal="true"
+      {...rest}
+      class={`${CONTENT_SIZE[local.size ?? 'md']}  ${CONTENT_BASE}  ${local.class ?? ''}`}
+    >
       <div class={SHELL}>{local.children}</div>
     </Ark.Content>
   )
@@ -119,7 +130,7 @@ function ReadyMadeDialog(
       <LayerPortal>
         <Backdrop />
         <Positioner>
-          <Content size={props.size} aria-label={props.title === undefined ? props.label : undefined} aria-modal="true">
+          <Content size={props.size} aria-label={props.title === undefined ? props.label : undefined}>
             <Show when={props.title}>
               {(title) => (
                 <Header>
@@ -139,6 +150,7 @@ function ReadyMadeDialog(
 export const Dialog = Object.assign(ReadyMadeDialog, Ark, {
   Root,
   Portal: LayerPortal,
+  Layer,
   Backdrop,
   Positioner,
   Content,

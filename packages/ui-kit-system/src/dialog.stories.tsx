@@ -62,23 +62,77 @@ function ReleaseNotes() {
     <Dialog.Root open={state.open} onOpenChange={(details) => setState('open', details.open)}>
       <Dialog.Trigger asChild={(triggerProps) => <Button {...triggerProps()}>Open release notes</Button>} />
       <Dialog.Portal>
-        <Dialog.Backdrop />
-        <Dialog.Positioner>
-          <Dialog.Content>
-            <Dialog.Header>
-              <Dialog.Title>Release notes</Dialog.Title>
-              <Dialog.CloseTrigger />
-            </Dialog.Header>
-            <Dialog.Body>
-              <ul class="m-0 p-0 list-none flex flex-col gap-2">
-                <For each={RELEASE_NOTES}>{(note) => <li>{note}</li>}</For>
-              </ul>
-            </Dialog.Body>
-            <Dialog.Footer class={ACTIONS}>
-              <Button onClick={() => setState('open', false)}>Done</Button>
-            </Dialog.Footer>
-          </Dialog.Content>
-        </Dialog.Positioner>
+        <Dialog.Layer>
+          <Dialog.Backdrop />
+          <Dialog.Positioner>
+            <Dialog.Content>
+              <Dialog.Header>
+                <Dialog.Title>Release notes</Dialog.Title>
+                <Dialog.CloseTrigger />
+              </Dialog.Header>
+              <Dialog.Body>
+                <ul class="m-0 p-0 list-none flex flex-col gap-2">
+                  <For each={RELEASE_NOTES}>{(note) => <li>{note}</li>}</For>
+                </ul>
+              </Dialog.Body>
+              <Dialog.Footer class={ACTIONS}>
+                <Button onClick={() => setState('open', false)}>Done</Button>
+              </Dialog.Footer>
+            </Dialog.Content>
+          </Dialog.Positioner>
+        </Dialog.Layer>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+}
+
+function PluginRules() {
+  const [state, setState] = createStore({first: false, second: false, rules: 0})
+  return (
+    <Dialog.Root open={state.first} onOpenChange={(details) => setState('first', details.open)}>
+      <Dialog.Trigger asChild={(triggerProps) => <Button {...triggerProps()}>Open plugin rules</Button>} />
+      <Dialog.Portal>
+        <Dialog.Layer>
+          <Dialog.Backdrop />
+          <Dialog.Positioner>
+            <Dialog.Content size="lg">
+              <Dialog.Header>
+                <Dialog.Title>Plugin rules</Dialog.Title>
+                <Dialog.CloseTrigger />
+              </Dialog.Header>
+              <Dialog.Body class="flex flex-col gap-2 items-start">
+                <span>Rules: {state.rules}</span>
+                <Button variant="outline" onClick={() => setState('rules', (rules) => rules + 1)}>
+                  Add a rule
+                </Button>
+              </Dialog.Body>
+              <Dialog.Footer class={ACTIONS}>
+                <Dialog.Root open={state.second} onOpenChange={(details) => setState('second', details.open)}>
+                  <Dialog.Trigger asChild={(triggerProps) => <Button {...triggerProps()}>Open rule details</Button>} />
+                  <Dialog.Portal>
+                    <Dialog.Layer>
+                      <Dialog.Backdrop />
+                      <Dialog.Positioner>
+                        <Dialog.Content>
+                          <Dialog.Header>
+                            <Dialog.Title>Rule details</Dialog.Title>
+                            <Dialog.CloseTrigger />
+                          </Dialog.Header>
+                          <Dialog.Body>
+                            <p class="m-0">A rule decides which files the plugin may read.</p>
+                          </Dialog.Body>
+                          <Dialog.Footer class={ACTIONS}>
+                            <Button onClick={() => setState('second', false)}>Done</Button>
+                          </Dialog.Footer>
+                        </Dialog.Content>
+                      </Dialog.Positioner>
+                    </Dialog.Layer>
+                  </Dialog.Portal>
+                </Dialog.Root>
+              </Dialog.Footer>
+            </Dialog.Content>
+          </Dialog.Positioner>
+        </Dialog.Layer>
       </Dialog.Portal>
     </Dialog.Root>
   )
@@ -142,4 +196,28 @@ export const LongBody: Story = {
 
 export const ReadyMade: Story = {
   render: () => <ReadyMadeExample />,
+}
+
+export const Stacked: Story = {
+  render: () => <PluginRules />,
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    const page = within(canvasElement.ownerDocument.body)
+
+    await userEvent.click(canvas.getByRole('button', {name: 'Open plugin rules'}))
+    const rules = await page.findByRole('dialog', {name: 'Plugin rules'})
+    const addRule = within(rules).getByRole('button', {name: 'Add a rule'})
+
+    await userEvent.click(within(rules).getByRole('button', {name: 'Open rule details'}))
+    const details = await page.findByRole('dialog', {name: 'Rule details'})
+    await expect(details).toBeVisible()
+    await expect(userEvent.click(addRule)).rejects.toThrow()
+    await expect(within(rules).getByText('Rules: 0')).toBeInTheDocument()
+
+    await userEvent.click(within(details).getByRole('button', {name: 'Done'}))
+    await waitFor(() => expect(page.queryByRole('dialog', {name: 'Rule details'})).toBeNull())
+    await expect(page.getByRole('dialog', {name: 'Plugin rules'})).toBeVisible()
+    await userEvent.click(addRule)
+    await expect(within(rules).getByText('Rules: 1')).toBeVisible()
+  },
 }
