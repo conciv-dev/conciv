@@ -21,17 +21,6 @@ export const makeInvalidListCursorError = (): InvalidListCursorError =>
     name: 'Session.InvalidListCursorError',
   })
 
-export const SyntheticConflictError = Schema.TaggedStruct('Session.SyntheticConflictError', {
-  sessionId: Session.Id,
-  inputId: SessionMessage.Id,
-})
-export type SyntheticConflictError = typeof SyntheticConflictError.Type & globalThis.Error
-
-export const makeSyntheticConflictError = (
-  fields: Omit<typeof SyntheticConflictError.Type, '_tag'>,
-): SyntheticConflictError =>
-  Object.assign(new globalThis.Error(), SyntheticConflictError.make(fields), {name: 'Session.SyntheticConflictError'})
-
 export const CompactionConflictError = Schema.TaggedStruct('Session.CompactionConflictError', {
   sessionId: Session.Id,
   inputId: SessionMessage.Id,

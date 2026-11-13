@@ -299,7 +299,7 @@ tag line `@remarks Not implemented yet. Always undefined in this version.`, and 
 - `Context.app`, `Context.experimental.generate`
 - `model.transform`, `model.reload`
 - `permission.hook`
-- `session.generate`, `session.command`
+- `session.generate`, `session.command`, `session.synthetic`
 - `location.project.id`, `location.project.canonical`
 - `Tool.ToolContext.messageId`, `messageId` in the tool hooks
 - `Model.Ref.providerId`, `Model.Ref.variant`

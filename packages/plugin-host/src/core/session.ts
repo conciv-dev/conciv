@@ -8,17 +8,14 @@ import type {
   SessionCreateInput,
   SessionInboxCompaction,
   SessionInboxDelivery,
-  SessionInboxSynthetic,
   SessionInfo,
   SessionListInput,
-  SessionSyntheticInput,
 } from '@conciv/plugin'
 import type {
   AgentNotFoundError,
   CompactionConflictError,
   InvalidListCursorError,
   NotFoundError,
-  SyntheticConflictError,
 } from './session/error.js'
 
 type SessionId = SessionInfo['id']
@@ -56,9 +53,6 @@ export interface Interface {
   ) => Effect.Effect<SessionInboxCompaction, NotFoundError | CompactionConflictError>
   readonly wait: (id: SessionId) => Effect.Effect<void, NotFoundError>
   readonly interrupt: (sessionId: SessionId, options?: {readonly resume?: boolean}) => Effect.Effect<boolean>
-  readonly synthetic: (
-    input: SessionSyntheticInput,
-  ) => Effect.Effect<SessionInboxSynthetic, NotFoundError | SyntheticConflictError>
 }
 
 export const Service = Context.Service<Interface>('@opencode/Session')
