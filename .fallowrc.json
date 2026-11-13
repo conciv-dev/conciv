@@ -219,6 +219,8 @@
     "packages/plugin-host/src/core/event/**",
     "packages/plugin-host/src/core/session/**",
     "packages/plugin-host/src/core/location.ts",
+    "packages/plugin-host/src/schema/event-log.ts",
+    "packages/plugin-host/src/schema/session-legacy.ts",
     "packages/brand-react/src/conciv-lockup.tsx",
     "packages/brand/src/brand-guidelines.mdx",
     "packages/ui-kit-chat/src/tools.tsx",
