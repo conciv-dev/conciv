@@ -166,6 +166,7 @@
     "@conciv/mascot",
     "@conciv/mascot-react",
     "@conciv/unplugin",
+    "@conciv/plugin",
     "@conciv/preact",
     "@conciv/protocol",
     "@conciv/react",
@@ -187,6 +188,10 @@
     {
       "file": "packages/ui-kit-chat/src/styled/**",
       "exports": ["*"]
+    },
+    {
+      "file": "packages/plugin/src/**",
+      "exports": ["Info", "Ref", "define", "Cleanup", "Id", "Name"]
     },
     {
       "file": "packages/ui-kit-chat/src/tools/primitives/tool-fallback.tsx",

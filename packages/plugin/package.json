@@ -1,0 +1,95 @@
+{
+  "name": "@conciv/plugin",
+  "version": "0.0.22",
+  "description": "The conciv plugin SDK: Plugin.define for a plugin's engine and browser parts, RPC contracts, registries and stores.",
+  "keywords": [
+    "conciv",
+    "plugin",
+    "plugins"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/plugin"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./rpc": {
+      "types": "./dist/rpc-entry.d.ts",
+      "import": "./dist/rpc-entry.js"
+    },
+    "./host": {
+      "types": "./dist/host.d.ts",
+      "import": "./dist/host.js"
+    },
+    "./experimental": {
+      "types": "./dist/experimental/index.d.ts",
+      "import": "./dist/experimental/index.js"
+    },
+    "./experimental/vite": {
+      "types": "./dist/experimental/vite.d.ts",
+      "import": "./dist/experimental/vite.js"
+    },
+    "./experimental/builtin": {
+      "types": "./dist/experimental/builtin.d.ts",
+      "import": "./dist/experimental/builtin.js"
+    },
+    "./experimental/host": {
+      "types": "./dist/experimental/host.d.ts",
+      "import": "./dist/experimental/host.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run --passWithNoTests",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@conciv/contract": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
+    "@solidjs/testing-library": "catalog:",
+    "@types/node": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
+    "playwright": "catalog:",
+    "solid-js": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13",
+    "vite": ">=8",
+    "vite-plugin-solid": "^2.11.14"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    },
+    "vite-plugin-solid": {
+      "optional": true
+    }
+  }
+}

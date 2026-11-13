@@ -150,6 +150,14 @@
   },
   "overrides": [
     {
+      "files": ["packages/plugin/src/**"],
+      "rules": {
+        "conciv/no-comments": ["error", {"keepDocComments": true}],
+        "conciv/banned-vocabulary": "off",
+        "no-shadow": "off"
+      }
+    },
+    {
       "files": ["apps/site/**", "apps/conciv/**"],
       "rules": {
         "conciv/router-idioms": "error"
