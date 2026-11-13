@@ -1,9 +1,9 @@
 import {Context} from 'effect'
-import {Info} from '../schema/location.js'
+import {Info, Ref} from '../schema/location.js'
 
 export * as Location from './location.js'
 
-export {Info}
+export {Info, Ref}
 
 export interface Interface extends Info {}
 
