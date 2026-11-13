@@ -501,7 +501,7 @@ export function Streamdown(props: StreamdownProps): JSX.Element {
           <Block
             text={block()}
             streaming={shouldAnimate()}
-            live={shouldAnimate() && index === blocks().length - 1}
+            live={props.isAnimating === true && index === blocks().length - 1}
             enter={ready && shouldAnimate()}
             processor={processor()}
             highlightCode={props.highlightCode}

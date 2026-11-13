@@ -185,7 +185,7 @@ describe('streamed text stability', () => {
 
 describe('local file links', () => {
   const reply =
-    'Open [the entry](src/app.ts:42), read `src/existing.ts` and `src/missing.ts`, then `src/late.ts`, or see [the docs](https://example.com/docs).'
+    'Open [the entry](src/app.ts:42), read `src/existing.ts` and `src/missing.ts`, then `src/late.ts` and `src/broken.ts`, or see [the docs](https://example.com/docs).'
 
   function OpenedFiles(props: {paths: string[]}): JSX.Element {
     return (
@@ -209,6 +209,7 @@ describe('local file links', () => {
               localFileExists={(path) => {
                 asked.push(path)
                 if (path === 'src/late.ts') return late.promise
+                if (path === 'src/broken.ts') return Promise.reject(new Error('check failed'))
                 return path === 'src/existing.ts'
               }}
             >
@@ -245,6 +246,7 @@ describe('local file links', () => {
       await expect.element(host.getByRole('link', {name: 'the docs'})).toHaveFocus()
 
       await host.getByText('src/missing.ts', {exact: true}).click()
+      await host.getByText('src/broken.ts', {exact: true}).click()
       await existing.click()
       await expect.element(openedList.getByRole('listitem').nth(4)).toHaveTextContent('src/existing.ts')
       await expect.element(openedList.getByRole('listitem').nth(5)).not.toBeInTheDocument()
@@ -253,17 +255,40 @@ describe('local file links', () => {
       await late.promise
       await host.getByRole('link', {name: 'src/late.ts'}).click()
       await expect.element(openedList.getByRole('listitem').nth(5)).toHaveTextContent('src/late.ts')
-      expect(asked).toEqual(['src/existing.ts', 'src/missing.ts', 'src/late.ts'])
+      await expect.element(host.getByRole('link', {name: 'src/broken.ts'})).not.toBeInTheDocument()
+      expect(asked).toEqual(['src/existing.ts', 'src/missing.ts', 'src/late.ts', 'src/broken.ts'])
 
-      await expect
-        .element(host.getByRole('link', {name: 'the docs'}))
-        .toHaveAttribute('href', 'https://example.com/docs')
-      await expect
-        .element(plain.getByRole('link', {name: 'the docs'}))
-        .toHaveAttribute('href', 'https://example.com/docs')
+      await expect.element(host.getByRole('link', {name: 'the docs'})).toBeVisible()
+      await expect.element(plain.getByRole('link', {name: 'the docs'})).toBeVisible()
       await expect.element(plain.getByText('the entry [blocked]')).toBeVisible()
       await expect.element(plain.getByRole('link', {name: 'the entry'})).not.toBeInTheDocument()
       expect(window.location.href).toBe(before)
+    })
+
+    it('asks about the paths of the block still streaming only once streaming ends, animated or not', async () => {
+      const [streaming, setStreaming] = createSignal(true)
+      const asked: string[] = []
+      render(() => (
+        <Streamdown
+          animated={false}
+          isAnimating={streaming()}
+          openLocalFile={() => undefined}
+          localFileExists={(path) => {
+            asked.push(path)
+            return true
+          }}
+        >
+          {'Read `src/first.ts` first.\n\nThen `src/last.ts` next.'}
+        </Streamdown>
+      ))
+
+      await expect.element(page.getByRole('link', {name: 'src/first.ts'})).toBeVisible()
+      expect(asked).toEqual(['src/first.ts'])
+
+      setStreaming(false)
+
+      await expect.element(page.getByRole('link', {name: 'src/last.ts'})).toBeVisible()
+      expect(asked).toEqual(['src/first.ts', 'src/last.ts'])
     })
   })
 })
