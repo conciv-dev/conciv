@@ -305,7 +305,6 @@ tag line `@remarks Not implemented yet. Always undefined in this version.`, and 
 - `model.transform`, `model.reload`
 - `permission.hook`
 - `session.generate`, `session.command`, `session.synthetic`
-- `location.project.id`, `location.project.canonical`
 - `Tool.ToolContext.messageId`, `messageId` in the tool hooks
 - `Model.Ref.providerId`, `Model.Ref.variant`
 - `Model.Info`: `canonical`, `type`, `family`
