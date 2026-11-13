@@ -1,4 +1,5 @@
 import {index, integer, primaryKey, sqliteTable, text, uniqueIndex} from 'drizzle-orm/sqlite-core'
+import type {Schema} from 'effect'
 import type {NavigationEntry, ReasoningEffort} from '@conciv/protocol/chat-types'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import type {ElementCapture, ElementCaptureKind} from '@conciv/protocol/element-capture-types'
@@ -109,3 +110,14 @@ export const EventTable = sqliteTable(
     index('event_aggregate_type_seq_idx').on(table.aggregate_id, table.type, table.seq),
   ],
 )
+
+export const KVTable = sqliteTable('kv', {
+  key: text().primaryKey(),
+  value: text({mode: 'json'}).$type<Schema.Json>().notNull(),
+  time_created: integer()
+    .notNull()
+    .$default(() => Date.now()),
+  time_updated: integer()
+    .notNull()
+    .$onUpdate(() => Date.now()),
+})

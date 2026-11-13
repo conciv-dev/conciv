@@ -2553,6 +2553,9 @@ importers:
       drizzle-orm:
         specifier: 'catalog:'
         version: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.0
       env-paths:
         specifier: 'catalog:'
         version: 3.0.0
