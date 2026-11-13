@@ -338,6 +338,11 @@ describe('vocabulary', () => {
     test('exempts the files copied from opencode', async () => {
       expect(await lintFixture('of-suffix/packages/plugin-host/src/copied.ts', 'conciv(no-of-suffix)')).toEqual([])
       expect(await lintFixture('of-suffix/packages/plugin/src/copied.ts', 'conciv(no-of-suffix)')).toEqual([])
+      for (const folder of ['plugin', 'persistence', 'server']) {
+        expect(
+          await lintFixture(`of-suffix/apps/conciv/src/runtime/${folder}/copied.ts`, 'conciv(no-of-suffix)'),
+        ).toEqual([])
+      }
     })
   })
 
