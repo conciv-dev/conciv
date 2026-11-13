@@ -177,7 +177,6 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 
 - `internal.ts` ports `gui/internal.ts`; the live-accessor symbol is `Symbol.for('conciv.plugin.live')`. Its header comment is dropped.
 - `reactive.ts` ports `gui/reactive.ts` with the same algorithms. In place of source's two `SAFETY` casts to `KeyedValue<S>`, `createKeyed` hands its callbacks to a private `keyed` as methods taking `unknown` (method parameters are bivariant), and the `Live` or plain memo is built by a private `activeRun` with a guard instead of a ternary (lint `solid/reactivity`). Source's `//` comments are dropped.
-- `createLatest` starts a request with `new Promise((resolve) => resolve(fetch(...)))` in place of `Promise.try` (same behaviour: a synchronous throw becomes the rejection): TypeScript 7's bundled lib does not declare `Promise.try`.
 - JSDoc examples and text drop `ctx.t`, `Ipc` and the "goes Home and back" wording (conciv has no Home view).
 - `usePlugin` is two overloads (`usePlugin(): Context`, `usePlugin<D>(): SetupContext<D>`) in place of source's conditional return type `[D] extends [never] ? Context : SetupContext<D>` and its `SAFETY` cast; callers see the same types.
 - `PanelFrame.placement` is `'pane' | 'mobile'` (source `'side' | 'mobile'`; Panel ruling). Side-column-only parts are absent: `PanelFrame.reserve`, `PanelFrame.sidebar` and `PanelSidebar`.
