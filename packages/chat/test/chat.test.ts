@@ -421,6 +421,8 @@ describe('refusal text', () => {
             description: 'Assert a permission and wrap its failure.',
             input: z.object({action: z.string()}),
             execute: (input: {action: string}, context) => {
+              if (input.action === 'missing')
+                return Effect.fail(Tool.makeError({message: 'Unable to load skill missing'}))
               const asserted: Effect.Effect<void, unknown> =
                 input.action === 'empty'
                   ? Effect.fail(new Error(''))
@@ -458,15 +460,22 @@ describe('refusal text', () => {
     await expect(call('refused')).rejects.toThrow('Permission denied: refused')
     await expect(call('corrected')).rejects.toThrow('read the example file instead')
     expect(wrapped?.name).toBe('unit_wrapped')
-    await expect(wrapped?.execute({action: 'refused'}, request('wrapped-refused'))).rejects.toThrow(
-      'Permission denied: refused',
-    )
-    await expect(wrapped?.execute({action: 'corrected'}, request('wrapped-corrected'))).rejects.toThrow(
-      'read the example file instead',
-    )
-    await expect(wrapped?.execute({action: 'empty'}, request('wrapped-empty'))).rejects.toThrow(
-      'Unable to load skill empty',
-    )
+    await expect(wrapped?.execute({action: 'missing'}, request('wrapped-missing'))).rejects.toMatchObject({
+      type: 'tool.execution',
+      message: 'Unable to load skill missing',
+    })
+    await expect(wrapped?.execute({action: 'refused'}, request('wrapped-refused'))).rejects.toMatchObject({
+      type: 'permission.rejected',
+      message: 'Permission denied: refused',
+    })
+    await expect(wrapped?.execute({action: 'corrected'}, request('wrapped-corrected'))).rejects.toMatchObject({
+      type: 'permission.rejected',
+      message: 'read the example file instead',
+    })
+    await expect(wrapped?.execute({action: 'empty'}, request('wrapped-empty'))).rejects.toMatchObject({
+      type: 'tool.execution',
+      message: 'Unable to load skill empty',
+    })
   })
 })
 

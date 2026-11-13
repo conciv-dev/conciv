@@ -108,24 +108,31 @@ function toolContext(request: ToolRequest): Tool.Context {
 }
 
 const isDeclined = Schema.is(Permission.DeclinedError)
+const isBlocked = Schema.is(Permission.BlockedError)
 const isCorrected = Schema.is(Permission.CorrectedError)
 const isToolError = Schema.is(Tool.Error)
 
-function failureText(error: unknown): string {
-  if (isCorrected(error)) return error.feedback
+type SessionError = {type: string; message: string}
+
+function toSessionError(error: unknown): SessionError {
+  if (error instanceof Error && isBlocked(error)) return {type: 'permission.rejected', message: error.message}
+  if (isCorrected(error)) return {type: 'permission.rejected', message: error.feedback}
   if (isToolError(error)) {
-    if (error.error === undefined) return error.message
-    const unwrapped = failureText(error.error)
-    return unwrapped === '' ? error.message : unwrapped
+    if (error.error === undefined) return {type: 'tool.execution', message: error.message}
+    const unwrapped = toSessionError(error.error)
+    return unwrapped.message === '' ? {...unwrapped, type: 'tool.execution', message: error.message} : unwrapped
   }
-  return error instanceof Error ? error.message : String(error)
+  return {type: 'unknown', message: error instanceof Error ? error.message : String(error)}
 }
 
 function refusal(name: string, cause: Cause.Cause<Tool.Error>): unknown {
   const defect = Cause.findDefect(cause)
   if (Result.isSuccess(defect)) return isDeclined(defect.success) ? approvalDenied(name) : defect.success
   const failure = Cause.findErrorOption(cause)
-  if (Option.isSome(failure)) return new Error(failureText(failure.value))
+  if (Option.isSome(failure)) {
+    const {type, message} = toSessionError(failure.value)
+    return Object.assign(new Error(message), {type})
+  }
   return Cause.squash(cause)
 }
 
