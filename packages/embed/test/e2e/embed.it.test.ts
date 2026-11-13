@@ -124,10 +124,13 @@ test.describe('embed boot', () => {
       await openPage(page)
       await openPanel(page)
       await switchToSessionByTitle(page, 'the other session')
-      await until(async () => (await currentHref(kit)).includes(other.sessionId), {
-        hangGuardMs: 30_000,
-        intervalMs: 100,
-      })
+      await until(
+        async () => {
+          const href = await currentHref(kit)
+          return href.includes(other.sessionId) && !href.includes('/options')
+        },
+        {hangGuardMs: 30_000, intervalMs: 100},
+      )
       expect(await currentHref(kit)).not.toContain('/options')
       await switchToSessionByTitle(page, 'the other session')
     })
