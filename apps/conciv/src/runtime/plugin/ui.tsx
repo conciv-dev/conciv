@@ -59,7 +59,7 @@ const MENU_ITEM = `${LIST_PANEL_ITEM} data-[highlighted]:bg-chat-fill-strong dat
 
 const MUTED_ICON = 'shrink-0 text-chat-text-3'
 
-const MENU_CONTENT = 'w-max max-w-[calc(100vw-32px)]'
+const MENU_CONTENT = 'w-max max-w-[calc(100vw-2rem)]'
 
 export const ui: Ui = {
   Icon,
