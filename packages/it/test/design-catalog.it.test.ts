@@ -173,7 +173,7 @@ describe('a Figma stroke drawn inside the box', () => {
 })
 
 describe('a text field', () => {
-  it('shows its placeholder as the design text it stands for', async () => {
+  it('shows its placeholder as the design text it stands for, in the placeholder colour', async () => {
     const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
     await kit.goto('input-field-input')
     await call('design_get', {
@@ -182,7 +182,10 @@ describe('a text field', () => {
       image: fixture('input-field.png'),
     })
     const checked = roundOf(await call('design_check', {}))
-    expect(checked.coverage.missing.includes('100:1421')).toBe(false)
+    expect([
+      checked.coverage.missing.includes('100:1421'),
+      checked.rows.filter((row) => row.node === '100:1421' && row.text.includes('text color')).map((row) => row.text),
+    ]).toEqual([false, []])
   })
 })
 

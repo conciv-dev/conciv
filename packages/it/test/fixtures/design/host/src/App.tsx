@@ -69,8 +69,9 @@ const PLACEHOLDER_INPUT = {
   background: 'transparent',
   fontSize: 16,
   lineHeight: '24px',
-  color: '#656567',
+  color: '#ffffff',
 } as const
+const PLACEHOLDER_CSS = '.typed-field::placeholder { color: #656567; }'
 const DISCOVERY_TEXT =
   'We begin by thoroughly understanding your business goals, target audience, and project requirements. We conduct in-depth research to gather insights and define project objectives, allowing us to develop a tailored strategy.'
 const PLANNING_TEXT =
@@ -127,7 +128,10 @@ export function App() {
             data-conciv-key="iNfSbA"
           >
             {requested === 'input-field-input' ? (
-              <input placeholder="Type here" style={PLACEHOLDER_INPUT} data-conciv-key="iNfInA" />
+              <>
+                <style data-conciv-key="iNfPsA">{PLACEHOLDER_CSS}</style>
+                <input className="typed-field" placeholder="Type here" style={PLACEHOLDER_INPUT} data-conciv-key="iNfInA" />
+              </>
             ) : (
               <span style={{fontSize: 16, lineHeight: '24px', color: '#656567'}} data-conciv-key="iNfPhA">
                 Type here

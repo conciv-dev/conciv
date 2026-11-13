@@ -83,6 +83,7 @@ type MirrorSlot = {route: string; frame: Promise<HTMLIFrameElement>}
 
 const [WIDGET_ROOT_SELECTOR = ''] = hiddenOverlays('hidden')
 const MIRROR_ATTR = 'data-conciv-mirror'
+const PLACEHOLDER_PSEUDO = '::placeholder'
 const MIRROR_EXCLUDE = ['style', 'link']
 const NORMAL_LINE_HEIGHT = 1.2
 const DATA_URL_COMMA = ','
@@ -600,7 +601,7 @@ async function componentTree(input: Walk): Promise<LiveComponent> {
     glyphs: measureGlyphs({el, view, size}),
     axis: readAxis(el),
     columns: readColumns(style),
-    styles: readStyles({style, element: el, scan: input.scan}),
+    styles: readStyles({style, textStyle: textStyleOf({el, view, style}), element: el, scan: input.scan}),
     role: el.getAttribute('role'),
     hints: readHints(el),
     index: siblingIndex(el),
@@ -865,13 +866,23 @@ function readColumns(style: CSSStyleDeclaration): number | null {
   return tracks.count
 }
 
-function readStyles(input: {style: CSSStyleDeclaration; element: Element; scan: Scan}): LiveStyles {
+function textStyleOf(input: {el: Element; view: PageWindow; style: CSSStyleDeclaration}): CSSStyleDeclaration {
+  const field = placeheld(input)
+  return field === null ? input.style : input.view.getComputedStyle(field, PLACEHOLDER_PSEUDO)
+}
+
+function readStyles(input: {
+  style: CSSStyleDeclaration
+  textStyle: CSSStyleDeclaration
+  element: Element
+  scan: Scan
+}): LiveStyles {
   const {style} = input
   const fontSize = Number.parseFloat(style.fontSize)
   const lineHeight = Number.parseFloat(style.lineHeight)
   return {
     background: toHex(style.backgroundColor),
-    color: toHex(style.color),
+    color: toHex(input.textStyle.color),
     fontSize,
     lineHeight: Number.isFinite(lineHeight) ? lineHeight : fontSize * NORMAL_LINE_HEIGHT,
     fontWeight: Number(style.fontWeight),
