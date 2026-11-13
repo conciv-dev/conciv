@@ -641,3 +641,42 @@ describe('plugin instructions', () => {
     expect(JSON.stringify(sent[1]?.messages)).not.toContain('a skill was added')
   })
 })
+
+describe('stopping a run', () => {
+  it('a stop says whether it stopped a live run, a repeat stop does not, and the session settles once the run has ended', async () => {
+    const {root, db} = openDatabase()
+    const sessionId = SessionId.parse('conciv_stopping')
+    const chat = await chatPlane(db, root)
+    const reached = Promise.withResolvers<void>()
+    const released = Promise.withResolvers<void>()
+    model.setResponses([
+      async () => {
+        reached.resolve()
+        await released.promise
+        return {text: 'too late'}
+      },
+    ])
+
+    const turn = chat.followUp(sessionId, 'work for a while')
+    await reached.promise
+    expect(await chat.live(sessionId)).toBe(true)
+    let settledYet = false
+    const settling = chat.settled(sessionId).then(() => {
+      settledYet = true
+    })
+    expect(await chat.stop(sessionId, ['another run'])).toEqual({ok: true, stopped: false})
+    expect(await chat.stop(sessionId)).toEqual({ok: true, stopped: true})
+    expect(await chat.stop(sessionId)).toEqual({ok: true, stopped: false})
+    expect(settledYet).toBe(false)
+
+    released.resolve()
+    await settling
+    expect(chat.driving(sessionId)).toBe(false)
+    expect(await chat.live(sessionId)).toBe(false)
+    expect(await turn).toEqual({kind: 'stopped'})
+
+    expect(await chat.stop(sessionId)).toEqual({ok: true, stopped: false})
+    await chat.settled(sessionId)
+    expect(chat.driving(sessionId)).toBe(false)
+  })
+})

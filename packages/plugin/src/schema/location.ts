@@ -11,11 +11,9 @@ export interface Info {
   readonly directory: string
   readonly workspaceId?: string
   readonly project: {
-    /** @remarks Not implemented yet. Always undefined in this version. */
-    readonly id: string | undefined
+    readonly id: string
     readonly directory: string
-    /** @remarks Not implemented yet. Always undefined in this version. */
-    readonly canonical: string | undefined
+    readonly canonical: string
   }
 }
 

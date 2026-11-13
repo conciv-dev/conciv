@@ -84,13 +84,14 @@ export type ChatPlane = {
   routes: (upgrade: UpgradeWebSocket) => Hono
   hydrate: (sessionId: SessionId, window?: ChatHistoryWindow) => Promise<ChatHydration>
   history: (sessionId: SessionId) => Promise<ChatMessage[]>
-  stop: (sessionId: SessionId, runIds?: readonly string[]) => Promise<{ok: true}>
+  stop: (sessionId: SessionId, runIds?: readonly string[]) => Promise<{ok: true; stopped: boolean}>
   compact: (sessionId: SessionId) => Promise<void>
   clear: (sessionId: SessionId) => Promise<void>
   endAllRuns: () => Promise<void>
   live: (sessionId: SessionId) => Promise<boolean>
   record: (sessionId: SessionId, chunks: readonly ChatEvent[]) => Promise<void>
   driving: (sessionId: SessionId) => boolean
+  settled: (sessionId: SessionId) => Promise<void>
   running: () => Promise<ReadonlySet<string>>
   decide: (
     sessionId: SessionId,
@@ -229,8 +230,8 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     hydrate,
     history: async (sessionId) => (await hydrate(sessionId)).messages,
     stop: async (sessionId, runIds) => {
-      await server.stop(sessionId, runIds)
-      return {ok: true}
+      const stopped = await server.stop(sessionId, runIds)
+      return {ok: true, stopped}
     },
     compact: async (sessionId) => {
       await server.stop(sessionId)
@@ -247,6 +248,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     live: async (sessionId) => (await stores.runs.findActiveRun(sessionId)) !== null,
     record: (sessionId, chunks) => server.record(sessionId, chunks),
     driving: (sessionId) => server.driving(sessionId),
+    settled: (sessionId) => server.settled(sessionId),
     running: () => runningThreadIds(deps.db),
     decide: (sessionId, approvalId, approved, scope) => approvals.decide(sessionId, approvalId, approved, scope),
     answerUi: (sessionId, toolCallId, value) => ui.answer(sessionId, toolCallId, value),

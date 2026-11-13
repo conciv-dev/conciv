@@ -113,7 +113,7 @@ export type CodeRunner = {
 export type CustomEventSink = (name: string, value: Record<string, unknown>) => void
 
 export type ChatServer = ChatDelivery & {
-  stop: (threadId: string, runIds?: readonly string[]) => Promise<void>
+  stop: (threadId: string, runIds?: readonly string[]) => Promise<boolean>
   endRuns: (threadId: string) => Promise<void>
   endAllRuns: () => Promise<void>
   settled: (threadId: string) => Promise<void>
@@ -134,11 +134,15 @@ const PHASE_BY_STATUS: Record<RunRecord['status'], RunPhase> = {
   aborted: 'aborted',
 }
 
+function endedPhase(phase: RunPhase, cancelRequested: boolean | undefined): RunPhase {
+  return phase === 'completed' && cancelRequested === true ? 'aborted' : phase
+}
+
 function buildLifecycle(record: RunRecord): RunLifecycle {
   const stopping = record.status === 'running' && record.cancelRequested === true
   return {
     runId: record.runId,
-    phase: stopping ? 'stopping' : PHASE_BY_STATUS[record.status],
+    phase: stopping ? 'stopping' : endedPhase(PHASE_BY_STATUS[record.status], record.cancelRequested),
     startedAt: record.startedAt,
     finishedAt: record.finishedAt ?? null,
     serverNow: Date.now(),
@@ -373,7 +377,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     const now = Date.now()
     return lifecycleChunk({
       runId,
-      phase: phase === 'completed' && record?.cancelRequested === true ? 'aborted' : phase,
+      phase: endedPhase(phase, record?.cancelRequested),
       startedAt: record?.startedAt ?? now,
       finishedAt: now,
       serverNow: now,
@@ -583,10 +587,12 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     }),
     stop: async (threadId, runIds) => {
       const active = await stores.runs.findActiveRun(threadId)
-      if (active === null) return
-      if (runIds !== undefined && !runIds.includes(active.runId)) return
+      if (active === null) return false
+      if (runIds !== undefined && !runIds.includes(active.runId)) return false
+      if (active.cancelRequested === true) return false
       await requestRunCancel(stores.runs, active.runId)
       live.get(active.runId)?.controller.abort(RUN_CANCEL_REASON)
+      return true
     },
     endRuns: endThreadRuns,
     endAllRuns: async () => {

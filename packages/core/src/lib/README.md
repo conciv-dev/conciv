@@ -13,6 +13,7 @@ Server helpers for the core engine: loopback-only Host/Origin CORS middleware, t
 - `makeStalenessProbe` / `loadedModules` / `engineStaleness` / `TrackedModule` (`engine-stamp.ts`): {stale, changed, tracked, bootedAt, fingerprint}
 - `runInOrder` / `ShutdownStep` (`shutdown.ts`): runs steps one after another, keeps going past failures, rethrows them as one `AggregateError`
 - `writeText` (`fs.ts`): mkdir -p then write
+- `homeDbReads(folder, signal, read)` (`home-db-watch.ts`): an async generator that yields `read()` at once, then watches the conciv home folder and yields `read()` again whenever `home.db` or its WAL changed on disk (an mtime:size stamp of both) and the value differs (`isEqual`); it ends when `signal` aborts. Used by `meta.hubAgents` (`api/rpc/hub.ts`) and the plugin servers list (`runtime/servers-source.ts`)
 - `readPersistedPort` / `writePersistedPort` / `isAddressInUse` (`server-port.ts`)
 - `withSavedModels(adapter, stateDir)` (`saved-models.ts`): wraps a harness whose `models` is a function so it answers from `<stateDir>/<harness id>-models.json` at once and refreshes the live list once per process in the background; with nothing saved it waits for the live list
 - `statePaths` / `StatePaths` (`state-paths.ts`): {dir, systemPrompt: chat-system-prompt.txt, server: server.json} under `concivStateDir(stateRoot)`
@@ -34,6 +35,7 @@ Server helpers for the core engine: loopback-only Host/Origin CORS middleware, t
 - `writeDevEndpoint` / `removeDevEndpoint` (`dev-endpoint.ts`): write or delete files under ~/.conciv by default
 - `engine-stamp.ts`: on load resolves modules with `import.meta.resolve` and hashes them; each `engineStaleness` call re-reads them
 - `writeText` (`fs.ts`), `writePersistedPort` (`server-port.ts`): write files
+- `homeDbReads` (`home-db-watch.ts`): creates the home folder (0700) if missing and holds an `fs.watch` on it until `signal` aborts
 
 ## Verification
 

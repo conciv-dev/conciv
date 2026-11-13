@@ -124,8 +124,8 @@ describe('define', () => {
     expectTypeOf<undefined>().toExtend<Plugin.Context['session']['synthetic']>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['permission']['hook']>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['model']['transform']>()
-    expectTypeOf<undefined>().toExtend<Plugin.Context['location']['project']['id']>()
-    expectTypeOf<undefined>().toExtend<Plugin.Context['location']['project']['canonical']>()
+    expectTypeOf<Plugin.Context['location']['project']['id']>().toEqualTypeOf<string>()
+    expectTypeOf<Plugin.Context['location']['project']['canonical']>().toEqualTypeOf<string>()
   })
 
   it("types execute's input as the input schema's output and its output as the output schema's input from zod, any Standard Schema or a raw JSON Schema, as opencode does", () => {

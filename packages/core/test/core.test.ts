@@ -48,6 +48,7 @@ import {
   chatMetadata,
   chatRuns,
   InstructionStateTable,
+  markers,
   openDb,
   sessions as sessionTable,
   type ConcivDb,
@@ -95,6 +96,7 @@ import {
   PluginHooks,
   PluginHost,
   Rpc,
+  Session,
   SessionSchema,
   SessionEvent,
   SessionProjector,
@@ -154,6 +156,8 @@ import {
   setPermissions,
 } from '../src/sessions/session-rows.js'
 import {provideInstructionEntries} from '../src/runtime/instruction-entries.js'
+import {provideSessions} from '../src/runtime/plugin-sessions.js'
+import {createSessionSearch} from '../src/sessions/session-search.js'
 import {
   provideApp,
   provideBundlerSource,
@@ -2409,6 +2413,20 @@ describe('settings storage', () => {
   })
 })
 
+type MadeApp = Awaited<ReturnType<typeof bootMadeApp>>
+
+function sessionKey(made: MadeApp) {
+  const search = createSessionSearch({db: made.chat.db, cwd: made.chat.cwd, harnesses: made.chat.harnesses})
+  onTestFinished(() => search.dispose())
+  const layer = provideSessions(() => ({chat: made.chat, runtime: made.runtime, search, pluginHost: made.pluginHost}))
+  return {
+    run: <Success, Failure>(use: (service: Session.Interface) => Effect.Effect<Success, Failure>) =>
+      Effect.runPromise(Session.Service.use(use).pipe(Effect.provide(layer))),
+    fail: <Success, Failure>(use: (service: Session.Interface) => Effect.Effect<Success, Failure>) =>
+      Effect.runPromise(Session.Service.use(use).pipe(Effect.flip, Effect.provide(layer))),
+  }
+}
+
 describe('plugin host bus', () => {
   test('deleting a session delivers one session.deleted event to a bus subscriber', async () => {
     const served = await serveCore(tempDir(), [], {})
@@ -2469,6 +2487,58 @@ describe('plugin host bus', () => {
     expect(await following).toEqual({kind: 'stopped'})
     expect(idles).toHaveLength(1)
     expect(turnEnds).toEqual([id, id, id])
+  })
+  test('the session key interrupts a live run, waits for it to end, answers false with nothing to stop even when asked to resume, and compacts a session on its harness', async () => {
+    const stateRoot = tempDir()
+    const harness = createTestHarness(requireClaude())
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
+    onTestFinished(() => made.dispose())
+    const key = sessionKey(made)
+    const id = SessionId.parse('conciv_keyed_run')
+    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    const runs = async () => (await made.chat.db.select().from(chatRuns).where(eq(chatRuns.threadId, id))).length
+
+    harness.script.hold()
+    const started = Promise.withResolvers<void>()
+    const unlisten = made.runtime.forSession(id).stream.listen((chunk) => {
+      if (sessionRunEvent.parse(chunk) !== null) started.resolve()
+    })
+    onTestFinished(unlisten)
+    const following = made.plane.followUp(id, 'keep going until interrupted')
+    await started.promise
+    const waited = key.run((sessions) => sessions.wait(SessionSchema.Id.make(id)))
+    expect(await key.run((sessions) => sessions.interrupt(SessionSchema.Id.make(id)))).toBe(true)
+    harness.script.release()
+    expect(await following).toEqual({kind: 'stopped'})
+    await waited
+    expect(await made.plane.live(id)).toBe(false)
+
+    expect(await key.run((sessions) => sessions.interrupt(SessionSchema.Id.make(id)))).toBe(false)
+    const ranBefore = await runs()
+    expect(await key.run((sessions) => sessions.interrupt(SessionSchema.Id.make(id), {resume: true}))).toBe(false)
+    expect(await made.plane.live(id)).toBe(false)
+    expect(await runs()).toBe(ranBefore)
+
+    const before = Date.now()
+    const compaction = await key.run((sessions) => sessions.compact({sessionId: SessionSchema.Id.make(id)}))
+    const after = Date.now()
+    expect(compaction).toEqual({
+      id: undefined,
+      sessionId: id,
+      time: {created: expect.any(Number)},
+      type: 'compaction',
+      payload: {},
+      delivery: undefined,
+    })
+    expect(compaction.time.created).toBeGreaterThanOrEqual(before)
+    expect(compaction.time.created).toBeLessThanOrEqual(after)
+    await key.run((sessions) => sessions.wait(SessionSchema.Id.make(id)))
+    const boundaries = await made.chat.db.select().from(markers).where(eq(markers.sessionId, id))
+    expect(boundaries.filter((marker) => marker.kind === 'compact')).toHaveLength(1)
+    expect(await runs()).toBe(ranBefore + 1)
+    expect(
+      await key.fail((sessions) => sessions.compact({sessionId: SessionSchema.Id.make('conciv_no_such_session')})),
+    ).toMatchObject({_tag: 'Session.NotFoundError', sessionId: 'conciv_no_such_session'})
   })
 })
 
@@ -3166,5 +3236,128 @@ describe('plugin context keys provided by core', () => {
     const roots = await host.runPromise(Global.Service)
     expect(roots).toEqual({cache: join(home, 'cache'), state: join(home, 'state')})
     expect(existsSync(roots.cache) && existsSync(roots.state)).toBe(true)
+  })
+  it('the session key creates, reads, pages, renames, re-describes, switches and removes conciv sessions on their own rows', async () => {
+    const stateRoot = tempDir()
+    const harness = defineHarness({
+      id: 'listing-cli',
+      binName: 'listing-cli',
+      models: [
+        {id: 'opus', name: 'Opus 5.5'},
+        {id: 'sonnet', name: 'Sonnet 5.5', efforts: ['low', 'high']},
+        {id: 'retired', name: 'Retired', disabled: true},
+      ],
+      defaultModel: 'opus',
+      chatConfig: () => ({adapter: fakeText()}),
+      capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
+    })
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}}, {harnesses: [harness]})
+    onTestFinished(() => made.dispose())
+    const key = sessionKey(made)
+    const heard: {type: string}[] = []
+    await made.pluginHost.runPromise(
+      Bus.Service.use((bus) => bus.listen((event) => Effect.sync(() => heard.push(event)))),
+    )
+    const location = Schema.decodeSync(Location.Ref)({directory: stateRoot})
+
+    const created = await key.run((sessions) =>
+      sessions.create({
+        title: '  Plan\n the   port ',
+        metadata: {ticket: 7, tags: ['plugins']},
+        permissions: [{action: 'bash', resource: '*', effect: 'deny'}],
+        agent: null,
+        model: undefined,
+        location,
+      }),
+    )
+    const sessionId = created.id
+    expect(created).toEqual({
+      id: sessionId,
+      projectId: undefined,
+      agent: 'build',
+      cost: 0,
+      tokens: {input: 0, output: 0, reasoning: 0, cache: {read: 0, write: 0}},
+      time: {created: undefined, updated: expect.any(Number)},
+      title: 'Plan the port',
+      metadata: {ticket: 7, tags: ['plugins']},
+      permissions: [{action: 'bash', resource: '*', effect: 'deny'}],
+      location: {directory: stateRoot},
+    })
+    expect(await key.run((sessions) => sessions.get(sessionId))).toEqual(created)
+
+    await key.run((sessions) =>
+      sessions.switchModel({sessionId, model: {id: 'sonnet', providerId: 'listing-cli', variant: 'high'}}),
+    )
+    expect((await key.run((sessions) => sessions.get(sessionId))).model).toEqual({
+      id: 'sonnet',
+      providerId: 'listing-cli',
+      variant: 'high',
+    })
+
+    const second = await key.run((sessions) =>
+      sessions.create({model: {id: 'opus', providerId: 'listing-cli'}, location}),
+    )
+    expect(second.model).toEqual({id: 'opus', providerId: 'listing-cli'})
+    const listed = await key.run((sessions) => sessions.list())
+    expect(listed.data.map((session) => session.id).toSorted()).toEqual([sessionId, second.id].toSorted())
+    const first = await key.run((sessions) => sessions.list({limit: 1}))
+    expect(first.data).toHaveLength(1)
+    expect(first.cursor.next).toEqual(expect.any(String))
+    const rest = await key.run((sessions) => sessions.list({limit: 1, cursor: first.cursor.next}))
+    expect([...first.data, ...rest.data].map((session) => session.id).toSorted()).toEqual(
+      [sessionId, second.id].toSorted(),
+    )
+    expect(
+      (await key.run((sessions) => sessions.list({search: 'plan the'}))).data.map((session) => session.id),
+    ).toEqual([sessionId])
+    expect(await key.fail((sessions) => sessions.list({cursor: 'not a cursor'}))).toMatchObject({
+      _tag: 'Session.InvalidListCursorError',
+    })
+
+    await key.run((sessions) => sessions.rename({sessionId, title: 'Ship the port'}))
+    await key.run((sessions) => sessions.setMetadata({sessionId, metadata: {reviewed: true}}))
+    await key.run((sessions) =>
+      sessions.setPermissions({sessionId, permissions: [{action: 'edit', resource: 'src/*', effect: 'allow'}]}),
+    )
+    expect(await key.run((sessions) => sessions.get(sessionId))).toMatchObject({
+      title: 'Ship the port',
+      metadata: {reviewed: true},
+      permissions: [{action: 'edit', resource: 'src/*', effect: 'allow'}],
+    })
+
+    await key.run((sessions) => sessions.switchAgent({sessionId, agent: 'build'}))
+    expect(await key.fail((sessions) => sessions.switchAgent({sessionId, agent: 'plan'}))).toMatchObject({
+      _tag: 'Session.AgentNotFoundError',
+      sessionId,
+      agent: 'plan',
+    })
+
+    const switchedTo = (model: {id: string; providerId: string | undefined; variant?: string}) =>
+      key.fail((sessions) => sessions.switchModel({sessionId, model}))
+    expect(await switchedTo({id: 'opus', providerId: 'claude'})).toMatchObject({_tag: 'Session.NotFoundError'})
+    expect(await switchedTo({id: 'gone', providerId: 'listing-cli'})).toMatchObject({_tag: 'Session.NotFoundError'})
+    expect(await switchedTo({id: 'retired', providerId: 'listing-cli'})).toMatchObject({_tag: 'Session.NotFoundError'})
+    expect(await switchedTo({id: 'opus', providerId: 'listing-cli', variant: 'high'})).toMatchObject({
+      _tag: 'Session.NotFoundError',
+    })
+    expect((await key.run((sessions) => sessions.get(sessionId))).model).toEqual({
+      id: 'sonnet',
+      providerId: 'listing-cli',
+      variant: 'high',
+    })
+    await key.run((sessions) => sessions.switchModel({sessionId, model: {id: 'opus', providerId: 'listing-cli'}}))
+    expect((await key.run((sessions) => sessions.get(sessionId))).model).toEqual({
+      id: 'opus',
+      providerId: 'listing-cli',
+    })
+
+    await key.run((sessions) => sessions.remove(sessionId))
+    expect(await key.fail((sessions) => sessions.get(sessionId))).toMatchObject({
+      _tag: 'Session.NotFoundError',
+      sessionId,
+    })
+    expect(await key.fail((sessions) => sessions.remove(sessionId))).toMatchObject({_tag: 'Session.NotFoundError'})
+    expect(heard.filter((event) => event.type === SessionEvent.Deleted.type)).toHaveLength(1)
+    expect((await key.run((sessions) => sessions.list())).data.map((session) => session.id)).toEqual([second.id])
   })
 })
