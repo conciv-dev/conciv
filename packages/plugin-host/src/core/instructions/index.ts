@@ -164,7 +164,9 @@ export interface Rendered {
 export function renderInitial(value: List, values: Readonly<Record<string, Schema.Json>>): ReadonlyArray<Rendered> {
   return value.flatMap((source) => {
     if (!Object.hasOwn(values, source.key)) return []
-    const text = source.initial(values[source.key]!)
+    const stored = values[source.key]
+    if (stored === undefined) return []
+    const text = source.initial(stored)
     return text === undefined ? [] : [{key: source.key, text}]
   })
 }
@@ -181,16 +183,21 @@ export function renderUpdate(
   return render(
     value.flatMap((source) => {
       if (!Object.hasOwn(delta, source.key)) return []
-      const current = delta[source.key]!
+      const current = delta[source.key]
+      if (current === undefined) return []
       if (Option.isNone(current)) {
         if (!Object.hasOwn(previous, source.key)) return []
-        const text = source.removed(previous[source.key]!)
+        const last = previous[source.key]
+        if (last === undefined) return []
+        const text = source.removed(last)
         return text === undefined ? [] : [text]
       }
       const next = current.value
-      const text = Object.hasOwn(previous, source.key)
-        ? source.changed(previous[source.key]!, next)
-        : source.initial(next)
+      const before = previous[source.key]
+      const text =
+        Object.hasOwn(previous, source.key) && before !== undefined
+          ? source.changed(before, next)
+          : source.initial(next)
       return text === undefined ? [] : [text]
     }),
   )
