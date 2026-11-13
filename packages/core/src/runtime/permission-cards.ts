@@ -97,13 +97,28 @@ export function pluginInstructions(
     const id = Session.Id.make(sessionId)
     const skills = yield* (yield* SkillInstructions.Service).load(yield* sessionRules(sessionId))
     const instructions = Instructions.combine([CodeModeInstructions.make(inventory), skills])
-    const previewed = yield* InstructionState.preview(db, id, instructions, yield* Instructions.read(instructions))
-    yield* InstructionState.commit(db, bus, instructions, yield* InstructionState.observe(db, instructions, id))
-    if (reset === 'reset') yield* InstructionState.advanceEpoch(db, id, yield* Bus.latestSequence(db, id))
-    return {
-      initial: Instructions.join(yield* InstructionState.initial(db, id, instructions)),
-      update: reset === 'reset' ? '' : previewed.update,
-    }
+    return yield* db
+      .transaction(() =>
+        Effect.gen(function* () {
+          const previewed = yield* InstructionState.preview(
+            db,
+            id,
+            instructions,
+            yield* Instructions.read(instructions),
+          )
+          yield* InstructionState.commit(db, bus, instructions, yield* InstructionState.observe(db, instructions, id))
+          if (reset === 'reset') yield* InstructionState.advanceEpoch(db, id, yield* Bus.latestSequence(db, id))
+          return {
+            initial: Instructions.join(yield* InstructionState.initial(db, id, instructions)),
+            update: reset === 'reset' ? '' : previewed.update,
+          }
+        }),
+      )
+      .pipe(
+        Effect.catch((error) =>
+          error._tag === 'Instructions.InitializationBlocked' ? Effect.fail(error) : Effect.die(error),
+        ),
+      )
   })
 }
 
