@@ -1,5 +1,5 @@
 import {index, integer, primaryKey, sqliteTable, text, uniqueIndex} from 'drizzle-orm/sqlite-core'
-import type {Schema} from 'effect'
+import type {Brand, Schema} from 'effect'
 import type {NavigationEntry, ReasoningEffort} from '@conciv/protocol/chat-types'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import type {ElementCapture, ElementCaptureKind} from '@conciv/protocol/element-capture-types'
@@ -121,3 +121,20 @@ export const KVTable = sqliteTable('kv', {
     .notNull()
     .$onUpdate(() => Date.now()),
 })
+
+export const PermissionTable = sqliteTable(
+  'permission',
+  {
+    id: text().$type<string & Brand.Brand<'PermissionSaved.ID'>>().primaryKey(),
+    project_id: text().$type<string & Brand.Brand<'Project.ID'>>().notNull(),
+    action: text().notNull(),
+    resource: text().notNull(),
+    time_created: integer()
+      .notNull()
+      .$default(() => Date.now()),
+    time_updated: integer()
+      .notNull()
+      .$onUpdate(() => Date.now()),
+  },
+  (table) => [uniqueIndex('permission_project_action_resource_idx').on(table.project_id, table.action, table.resource)],
+)
