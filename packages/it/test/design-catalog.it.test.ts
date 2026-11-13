@@ -354,6 +354,35 @@ describe('a page between two frames', () => {
   })
 })
 
+describe('a page that switches layouts between two frames', () => {
+  it('is flagged when it keeps the narrow layout past the midpoint between the frames', async () => {
+    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
+    const document = async (file: string): Promise<unknown> => JSON.parse(await readFile(fixture(file), 'utf8'))
+    await kit.goto('contact-bar')
+    await call('design_get', {
+      figma: [
+        'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1513',
+        'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1155',
+      ],
+      document: [await document('contact-bar-390.json'), await document('contact-bar-1440.json')],
+      image: [fixture('contact-bar-390.png'), fixture('contact-bar-1440.png')],
+    })
+    const jumped = async () =>
+      VariantsSchema.parse(await call('design_check', {})).variants.flatMap((variant) =>
+        variant.rows.filter((row) => row.text.includes('lays its children out')).map((row) => row.text),
+      )
+    const late = await jumped()
+    await kit.goto('contact-bar-fit')
+    const early = await jumped()
+    expect([late, early]).toEqual([
+      [
+        'frame Sub Container [100:1514] at 1199 wide: lays its children out in a column as the 358 px frame does, though 1199 is nearer the 1280 px frame, which lays them out in a row; switch to the 358 px layout below 819',
+      ],
+      [],
+    ])
+  })
+})
+
 describe('a Figma line drawn in CSS', () => {
   it('is cropped from the frame render at its stroke and passes as a 1px box', async () => {
     const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))

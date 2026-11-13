@@ -88,6 +88,17 @@ const HERO_GAP_CSS = [
   '@media (width >= 600px) { .hero-gap { gap: 10px; padding: 100px 250px; } .hero-gap-heading, .hero-gap-text { width: 780px; } }',
 ].join(' ')
 const HERO_FIT_CSS = HERO_GAP_CSS.replace('width: 780px', 'width: 100%; max-width: 780px')
+const CONTACT_ITEMS = ['hello@squareup.com', '+91 91813 23 2309', 'Somewhere in the World']
+function contactBarCss(breakpoint: number): string {
+  return [
+    '.contact-bar { display: flex; flex-direction: column; gap: 20px; color: #e6e6e6; font-size: 18px; }',
+    '.contact-bar-items { display: flex; flex-direction: column; }',
+    '.contact-bar-item { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 20px 0; box-shadow: inset 0 0 0 1px #262626; }',
+    '.contact-bar-icon { width: 24px; height: 24px; background: #9eff00; }',
+    '.contact-bar-copy { color: #98989a; font-size: 16px; text-align: center; }',
+    `@media (width >= ${breakpoint}px) { .contact-bar { flex-direction: row; justify-content: space-between; align-items: center; } .contact-bar-items { flex-direction: row; gap: 22px; } .contact-bar-item { padding: 6px 0; gap: 6px; font-size: 16px; } .contact-bar-copy { font-size: 14px; } }`,
+  ].join(' ')
+}
 const LATE_FONT_CSS = `${SLOW_FONT_CSS} @media (width < 900px) { #root { font-family: 'Slow Sans', monospace; } }`
 const SLOW_FONT_TEXT = 'The quarterly report lists every invoice that was paid late, with the customer and the days overdue.'
 const WRAP_TEXT = 'The quarterly report lists every invoice that was paid late, with the customer and the days overdue.'
@@ -248,6 +259,26 @@ export function App() {
         >
           <img src="/design/100-1684.png" alt="" style={{width: 26.67, height: 30}} data-conciv-key="lTiMgA" />
         </div>
+      </main>
+    )
+  }
+  if (requested === 'contact-bar' || requested === 'contact-bar-fit') {
+    return (
+      <main style={{margin: -24, background: '#1a1a1a'}} data-conciv-key="cBmNaA">
+        <style data-conciv-key="cBsTyA">{contactBarCss(requested === 'contact-bar' ? 1200 : 700)}</style>
+        <footer className="contact-bar" data-conciv-key="cBfTrA">
+          <div className="contact-bar-items" data-conciv-key="cBiTmA">
+            {CONTACT_ITEMS.map((item) => (
+              <span className="contact-bar-item" key={item} data-conciv-key="cBbTnA">
+                <span className="contact-bar-icon" data-conciv-key="cBiCnA" />
+                {item}
+              </span>
+            ))}
+          </div>
+          <span className="contact-bar-copy" data-conciv-key="cBcPyA">
+            © 2023 SquareUp. All rights reserved.
+          </span>
+        </footer>
       </main>
     )
   }

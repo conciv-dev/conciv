@@ -24,6 +24,7 @@ import {gateOf} from './gate.js'
 import {reflowAt} from './reflow.js'
 import {widthsOf} from './widths.js'
 import {effectRows} from './effect-rows.js'
+import {jumpRows} from './jump.js'
 import {verdictOf} from './verdict.js'
 import {progressOf} from './progress.js'
 import {imageRowsOf} from './image-rows.js'
@@ -311,13 +312,23 @@ async function measuredRound(input: {
 }
 
 async function reflowOf(input: {
+  runtime: DesignRuntime
+  call: Call
   held: Held
   measured: Measured
   widths: WidthMeasure[]
   mapping: Paired['mapped']['mapping']
 }) {
-  const {measured, mapping} = input
+  const {measured, mapping, runtime, call} = input
   const {design} = input.held
+  const wider =
+    call.wider === undefined
+      ? null
+      : {
+          design: await runtime.store.design(call.wider.id),
+          mapping: await runtime.store.mapping(call.wider.id),
+          width: call.wider.width,
+        }
   const widths = input.widths.map(({width, from}) => ({width, from}))
   const results = []
   const failures = []
@@ -328,15 +339,22 @@ async function reflowOf(input: {
     const at = idTreeOf({live: narrow.live, sheets: narrow.sheets, mapping, previous: null})
     if (narrow !== measured)
       shots.push({width, screenshot: narrow.raster.png(), tree: treeOf(at.root), queries: narrow.queries})
-    const measuredAt = reflowAt({
-      root: design.root,
-      reads: readIds({root: at.root, live: narrow.live}),
-      live: narrow.live,
-      width,
-      overflowX: narrow.overflowX,
-    })
+    const reads = readIds({root: at.root, live: narrow.live})
+    const measuredAt = reflowAt({root: design.root, reads, live: narrow.live, width, overflowX: narrow.overflowX})
+    const jumped =
+      wider === null || narrow === measured
+        ? []
+        : jumpRows({
+            root: design.root,
+            reads,
+            wider,
+            live: narrow.live,
+            sheets: narrow.sheets,
+            own: measured.width,
+            width,
+          })
     results.push(measuredAt.reflow)
-    failures.push(...measuredAt.rows)
+    failures.push(...measuredAt.rows, ...jumped)
   }
   return {reflow: {widths, results}, failures, waits, shots}
 }
