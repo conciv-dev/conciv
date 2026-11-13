@@ -6,7 +6,6 @@ import {Session} from '../../src/schema/session.js'
 import {SessionMessage} from '../../src/schema/session-message.js'
 import type {Info} from '../../src/schema/tool.js'
 import {Effect, Schema} from 'effect'
-import {z} from 'zod'
 
 const context = {
   sessionID: Session.ID.make('ses_execute'),
@@ -20,17 +19,24 @@ test('canonical execution distinguishes declared, model-only, and raw schema out
   const declared: Info = {
     name: 'declared',
     description: 'Declared',
-    input: z.object({value: z.string()}),
-    output: z.object({value: z.string()}),
+    input: Schema.Struct({value: Schema.String}),
+    output: Schema.Struct({value: Schema.String}),
     execute: ({value}) => Effect.succeed({output: {value}}),
   }
-  const modelOnlyInput = z.object({})
+  const modelOnlyInput = Schema.Struct({})
   const modelOnly = {
     name: 'model_only',
     description: 'Model only',
     input: modelOnlyInput,
     execute: () => Effect.succeed({content: 'visible only', metadata: {kind: 'model'}}),
   } satisfies Info<typeof modelOnlyInput, undefined>
+  const raw: Info = {
+    name: 'raw',
+    description: 'Raw',
+    input: {},
+    output: {},
+    execute: (input) => Effect.succeed({output: input, content: 'raw'}),
+  }
 
   expect(await Effect.runPromise(execute(declared, {value: 'encoded'}, context))).toEqual({
     output: {value: 'encoded'},
@@ -41,19 +47,33 @@ test('canonical execution distinguishes declared, model-only, and raw schema out
     content: [{type: 'text', text: 'visible only'}],
     metadata: {kind: 'model'},
   })
+  expect(await Effect.runPromise(execute(raw, {unchecked: true}, context))).toEqual({
+    output: {unchecked: true},
+    content: [{type: 'text', text: 'raw'}],
+  })
 })
 
 test('declared outputs cannot bypass validation and raw outputs stay JSON-compatible', async () => {
   const missing: Info = {
     name: 'missing',
     description: 'Missing output',
-    input: z.object({}),
-    output: z.string(),
+    input: Schema.Struct({}),
+    output: Schema.String,
     execute: () => Effect.succeed({content: 'not an output'}),
+  }
+  const invalid: Info = {
+    name: 'invalid',
+    description: 'Invalid raw output',
+    input: {},
+    output: {},
+    execute: () => Effect.succeed({output: 1n, content: 'not JSON'}),
   }
 
   expect((await Effect.runPromiseExit(execute(missing, {}, context))).toString()).toContain(
     'Tool did not return its declared output',
+  )
+  expect((await Effect.runPromiseExit(execute(invalid, {}, context))).toString()).toContain(
+    'Tool returned a non-JSON value',
   )
 })
 
@@ -66,7 +86,7 @@ test('foreign typed failures settle as Tool.Error at the untrusted boundary', as
   const lying: Info = {
     name: 'lying',
     description: 'Fails with a non-Tool.Error typed failure',
-    input: z.object({}),
+    input: Schema.Struct({}),
     execute: () => Effect.fail(makeForeignFailure({message: 'transport died'})) as never,
   }
 

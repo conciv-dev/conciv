@@ -1,7 +1,20 @@
-import {type ToolDefinition} from '../../ai/effect.js'
+import {emptyInputJsonSchema, makeToolFailure, type ToolDefinition} from '../../ai/effect.js'
+import {isRecord} from '../../util/record.js'
 import {Tool} from '../../schema/tool.js'
 import type {StandardJSONSchemaV1, StandardSchemaV1} from '@standard-schema/spec'
-import {Effect, JsonSchema, Schema} from 'effect'
+import {Effect, JsonPointer, JsonSchema, Result, Schema, SchemaIssue, SchemaRepresentation} from 'effect'
+import {$ZodType, toJSONSchema} from 'zod/v4/core'
+
+const formatEffectIssues = SchemaIssue.makeFormatterStandardSchemaV1()
+
+const jsonSchemas = new WeakMap<object, Schema.Codec<unknown> | undefined>()
+
+const codecFor = (schema: JsonSchema.JsonSchema) => {
+  if (jsonSchemas.has(schema)) return jsonSchemas.get(schema)
+  const codec = Result.try(() => jsonSchema(schema)).pipe(Result.getOrUndefined)
+  jsonSchemas.set(schema, codec)
+  return codec
+}
 
 export const definition = (tool: Tool.Info<any, any>): ToolDefinition => ({
   type: 'tool',
@@ -53,7 +66,17 @@ const validateInput = (
   schema: Tool.ValueSchema<any>,
   value: unknown,
 ): Effect.Effect<StandardSchemaV1.Result<unknown>> => {
-  return validateStandard(schema, value)
+  if (isStandardSchema(schema)) return validateStandard(schema, value)
+  return Effect.gen(function* () {
+    const codec = Schema.isSchema(schema) ? schema : codecFor(schema)
+    if (codec === undefined) return {value}
+    return yield* Schema.decodeUnknownEffect(codec)(value, {errors: 'all'}).pipe(
+      Effect.match({
+        onFailure: (error) => formatEffectIssues(error.issue),
+        onSuccess: (value) => ({value}),
+      }),
+    )
+  })
 }
 
 const formatInputIssues = (tool: string, issues: ReadonlyArray<StandardSchemaV1.Issue>, value: unknown) => {
@@ -70,19 +93,42 @@ const formatInputIssues = (tool: string, issues: ReadonlyArray<StandardSchemaV1.
   return `Invalid arguments for tool "${tool}":\n${details.join('\n')}\n\nArguments provided:\n${JSON.stringify(value, null, 2)}\n\nUpdate the arguments and call the tool again.`
 }
 
+const jsonSchema = (schema: JsonSchema.JsonSchema) => {
+  const draft =
+    (typeof schema.$schema === 'string' && schema.$schema.includes('draft-07')) || 'definitions' in schema
+      ? JsonSchema.fromSchemaDraft07(schema)
+      : JsonSchema.fromSchemaDraft2020_12(schema)
+  return Schema.make<Schema.Codec<unknown>>(SchemaRepresentation.fromJsonSchemaDocument(draft).ast)
+}
+
 const encodeOutput = (schema: Tool.ValueSchema<any>, value: unknown) => {
-  return validateStandard(schema, value).pipe(
-    Effect.flatMap((result) =>
-      result.issues
-        ? Effect.fail(
-            Tool.makeError({
-              message: `Tool returned an invalid value for its output schema: ${result.issues.map((issue) => issue.message).join(', ')}`,
-            }),
-          )
-        : Effect.succeed(result.value),
+  if (Schema.isSchema(schema))
+    return Schema.encodeEffect(schema)(value).pipe(
+      Effect.mapError((error) =>
+        Tool.makeError({message: `Tool returned an invalid value for its output schema: ${error.message}`}),
+      ),
+    )
+  if (isStandardSchema(schema))
+    return validateStandard(schema, value).pipe(
+      Effect.flatMap((result) =>
+        result.issues
+          ? Effect.fail(
+              Tool.makeError({
+                message: `Tool returned an invalid value for its output schema: ${result.issues.map((issue) => issue.message).join(', ')}`,
+              }),
+            )
+          : Effect.succeed(result.value),
+      ),
+    )
+  return Schema.decodeUnknownEffect(Schema.Json)(value).pipe(
+    Effect.mapError((error) =>
+      Tool.makeError({message: `Tool returned a non-JSON value for its output schema: ${error.message}`}),
     ),
   )
 }
+
+const isStandardSchema = (schema: Tool.ValueSchema<any>): schema is StandardSchemaV1<any, any> =>
+  typeof schema === 'object' && schema !== null && '~standard' in schema
 
 const isStandardJSONSchema = (
   schema: StandardSchemaV1<any, any>,
@@ -94,15 +140,7 @@ const validateStandard = (
 ): Effect.Effect<StandardSchemaV1.Result<unknown>> =>
   Effect.gen(function* () {
     const result = yield* Effect.try({try: () => schema['~standard'].validate(value), catch: (error) => error})
-    return result instanceof Promise
-      ? {
-          issues: [
-            {
-              message: `Schema from '${schema['~standard'].vendor}' returned a Promise: async schemas are not supported`,
-            },
-          ],
-        }
-      : result
+    return result instanceof Promise ? yield* Effect.tryPromise({try: () => result, catch: (error) => error}) : result
   }).pipe(
     Effect.match({
       onFailure: (error) => ({issues: [{message: error instanceof Error ? error.message : String(error)}]}),
@@ -112,16 +150,110 @@ const validateStandard = (
 
 const inputJsonSchema = (schema: Tool.ValueSchema<any>): JsonSchema.JsonSchema => {
   if (schema === undefined || schema === null) return {}
-  return standardJsonSchema(schema, 'input')
+  if (isStandardSchema(schema)) return standardJsonSchema(schema, 'input')
+  if (!Schema.isSchema(schema)) return schema
+  return emptyInputJsonSchema(schema) ?? toJsonSchema(schema)
 }
 
 const outputJsonSchema = (schema: Tool.ValueSchema<any>): JsonSchema.JsonSchema => {
-  return standardJsonSchema(schema, 'output')
+  if (isStandardSchema(schema)) return standardJsonSchema(schema, 'output')
+  return Schema.isSchema(schema) ? toJsonSchema(schema) : schema
 }
 
 const standardJsonSchema = (schema: StandardSchemaV1<any, any>, io: 'input' | 'output'): JsonSchema.JsonSchema => {
   if (isStandardJSONSchema(schema)) return schema['~standard'].jsonSchema[io]({target: 'draft-2020-12'})
+  if (schema instanceof $ZodType) return toJSONSchema(schema, {target: 'draft-2020-12', io})
   throw new Error(`Schema vendor "${schema['~standard'].vendor}" does not support JSON Schema conversion`)
+}
+
+const toJsonSchema = (schema: Schema.Top): JsonSchema.JsonSchema => {
+  const document = Schema.toJsonSchemaDocument(schema, {onExcessProperty: 'error'})
+  const normalized = flattenAllOf(
+    Object.keys(document.definitions).length === 0
+      ? document.schema
+      : {...document.schema, $defs: document.definitions},
+  )
+  return dropDefinitionsIfResolved(inlineLocalReferences(normalized)) as JsonSchema.JsonSchema
+}
+
+const flattenAllOf = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(flattenAllOf)
+  if (typeof value !== 'object' || value === null) return value
+
+  const integer = 'type' in value && value.type === 'integer'
+  const schema = Object.fromEntries(
+    Object.entries(value)
+      .filter(
+        ([key, item]) =>
+          !integer ||
+          !(
+            (key === 'minimum' && item === Number.MIN_SAFE_INTEGER) ||
+            (key === 'maximum' && item === Number.MAX_SAFE_INTEGER)
+          ),
+      )
+      .map(([key, item]) => [key, flattenAllOf(item)]),
+  )
+  if (!Array.isArray(schema.allOf) || !schema.allOf.every(isRecord) || !canFlattenAllOf(schema.allOf, schema))
+    return schema
+  const {allOf, ...rest} = schema
+  return flattenAllOf({...Object.assign({}, ...allOf), ...rest})
+}
+
+const canFlattenAllOf = (allOf: ReadonlyArray<Record<string, unknown>>, parent: Record<string, unknown>) => {
+  const keys = new Set(Object.keys(parent).filter((key) => key !== 'allOf'))
+  return allOf.every((item) =>
+    Object.keys(item).every((key) => {
+      if (keys.has(key)) return false
+      keys.add(key)
+      return true
+    }),
+  )
+}
+
+const inlineLocalReferences = (
+  value: unknown,
+  definitions?: Record<string, unknown>,
+  seen = new Set<string>(),
+): unknown => {
+  if (Array.isArray(value)) return value.map((item) => inlineLocalReferences(item, definitions, seen))
+  if (!isRecord(value)) return value
+
+  const localDefinitions = definitions ?? (isRecord(value.$defs) ? value.$defs : undefined)
+  if (typeof value.$ref === 'string' && localDefinitions) {
+    const tokens = JsonPointer.parseUriFragment(value.$ref)
+    const name = tokens?.length === 2 && tokens[0] === '$defs' ? tokens[1] : undefined
+    if (name && !seen.has(name)) {
+      const target = localDefinitions[name]
+      if (target) {
+        const {$ref: _, ...rest} = value
+        const resolvedTarget = inlineLocalReferences(target, localDefinitions, new Set(seen).add(name))
+        const resolvedSiblings = inlineLocalReferences(rest, localDefinitions, seen)
+        if (!isRecord(resolvedTarget) || !isRecord(resolvedSiblings)) return resolvedTarget
+        if (canMergeRecords(resolvedTarget, resolvedSiblings)) return {...resolvedTarget, ...resolvedSiblings}
+        return {allOf: [resolvedTarget, resolvedSiblings]}
+      }
+    }
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [key, inlineLocalReferences(item, localDefinitions, seen)]),
+  )
+}
+
+const canMergeRecords = (left: Record<string, unknown>, right: Record<string, unknown>) =>
+  Object.keys(left).every((key) => !(key in right))
+
+const dropDefinitionsIfResolved = (value: unknown): unknown => {
+  if (!isRecord(value) || hasLocalReference(value)) return value
+  const {$defs: _, ...rest} = value
+  return rest
+}
+
+const hasLocalReference = (value: unknown): boolean => {
+  if (Array.isArray(value)) return value.some(hasLocalReference)
+  if (!isRecord(value)) return false
+  if (typeof value.$ref === 'string' && value.$ref.startsWith('#/$defs/')) return true
+  return Object.values(value).some(hasLocalReference)
 }
 
 export const normalizeContent = (value: string | ReadonlyArray<Tool.Content> | undefined, output?: unknown) => {
@@ -145,3 +277,8 @@ export const effectiveName = (tool: Pick<Tool.Info, 'name' | 'options'>) =>
   tool.options?.namespace === undefined
     ? normalizedName(tool)
     : `${tool.options.namespace.replaceAll('.', '_')}_${normalizedName(tool)}`
+
+export const toolFailure = (message: string) => (error: unknown) =>
+  error instanceof globalThis.Error && Schema.is(Tool.Error)(error) && error.name === 'ToolFailure'
+    ? error
+    : makeToolFailure({message, error})

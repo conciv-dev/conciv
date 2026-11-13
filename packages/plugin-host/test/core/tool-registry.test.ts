@@ -8,7 +8,7 @@ import {State} from '../../src/core/state.js'
 import {Tool} from '../../src/core/tool.js'
 import type {Info} from '../../src/schema/tool.js'
 import {executeTool, toolDefinitions} from './lib/tool'
-import {Deferred, Effect, Exit, Fiber, Layer, Logger, Scope} from 'effect'
+import {Deferred, Effect, Exit, Fiber, Layer, Logger, Schema, SchemaGetter, SchemaIssue, Scope} from 'effect'
 import {z} from 'zod'
 import {testEffect} from './lib/effect'
 
@@ -28,16 +28,16 @@ const call = (name: string, id = `call-${name}`): Parameters<Tool.Snapshot['exec
 const make = (): Info => ({
   name: 'echo',
   description: 'Echo text',
-  input: z.object({text: z.string()}),
-  output: z.object({text: z.string()}),
+  input: Schema.Struct({text: Schema.String}),
+  output: Schema.Struct({text: Schema.String}),
   execute: ({text}) => Effect.succeed({output: {text}, content: text}),
 })
 
 const constant = (text: string): Info => ({
   name: 'constant',
   description: 'Return text',
-  input: z.object({text: z.string()}),
-  output: z.object({text: z.string()}),
+  input: Schema.Struct({text: Schema.String}),
+  output: Schema.Struct({text: Schema.String}),
   execute: () => Effect.succeed({output: {text}, content: text}),
 })
 
@@ -127,8 +127,8 @@ describe('Tool', () => {
         editor.update('acme_tools_echo', (tool) => {
           tool.name = 'renamed'
           tool.options = {namespace: 'other', codemode: false}
-          tool.input = z.object({value: z.number()})
-          tool.output = z.number()
+          tool.input = Schema.Struct({value: Schema.Finite})
+          tool.output = Schema.Finite
           tool.execute = ({value}) => Effect.succeed({output: value + 1})
         })
       })
@@ -384,7 +384,7 @@ describe('Tool', () => {
         editor.add({...make(), name: 'healthy', options: {codemode: false}})
         editor.add({
           name: 'phone_type',
-          input: z.object({}),
+          input: Schema.Struct({}),
           execute: () => Effect.succeed({content: 'ok'}),
           options: {codemode: false},
         } as unknown as Info)
@@ -463,6 +463,25 @@ describe('Tool', () => {
 
       expect(first).toEqual(second)
       expect(first.map((definition) => definition.name)).toEqual(['alpha', 'alpha_beta', 'zeta'])
+    }),
+  )
+
+  it.effect('snapshots external tools with missing input schemas', () =>
+    Effect.gen(function* () {
+      const service = yield* Tool.Service
+      yield* service.transform((editor) =>
+        editor.add({
+          ...make(),
+          input: undefined,
+        } as unknown as Info),
+      )
+      yield* service.transform((editor) =>
+        editor.add({...make(), name: 'direct', input: null, options: {codemode: false}} as unknown as Info),
+      )
+
+      const snapshot = yield* service.snapshot()
+      expect(snapshot.definitions.map((tool) => tool.name)).toEqual(['direct'])
+      expect((yield* snapshot.execute(call('direct'))).output).toEqual({text: 'direct'})
     }),
   )
 
@@ -561,8 +580,8 @@ describe('Tool', () => {
           failed: {
             name: 'failed',
             description: 'Failed',
-            input: z.object({}),
-            output: z.object({ok: z.boolean()}),
+            input: Schema.Struct({}),
+            output: Schema.Struct({ok: Schema.Boolean}),
             execute: () => Effect.fail(Tool.makeError({message: 'Denied'})),
           },
         },
@@ -594,8 +613,8 @@ describe('Tool', () => {
           defect: {
             name: 'defect',
             description: 'Defect',
-            input: z.object({}),
-            output: z.object({}),
+            input: Schema.Struct({}),
+            output: Schema.Struct({}),
             execute: () => Effect.die('unexpected executor defect'),
           },
         },
@@ -636,8 +655,8 @@ describe('Tool', () => {
           context: {
             name: 'context',
             description: 'Context',
-            input: z.object({}),
-            output: z.object({ok: z.boolean()}),
+            input: Schema.Struct({}),
+            output: Schema.Struct({ok: Schema.Boolean}),
             execute: (_, context) => Effect.sync(() => contexts.push(context)).pipe(Effect.as({output: {ok: true}})),
           },
         },
@@ -708,8 +727,8 @@ describe('Tool', () => {
           progressive: {
             name: 'progressive',
             description: 'Emit image progress',
-            input: z.object({text: z.string()}),
-            output: z.object({text: z.string()}),
+            input: Schema.Struct({text: Schema.String}),
+            output: Schema.Struct({text: Schema.String}),
             execute: ({text}, context) => context.progress({stage: 'capture'}).pipe(Effect.as({output: {text}})),
           },
         },
@@ -725,6 +744,95 @@ describe('Tool', () => {
           }),
       })
       expect(updates).toEqual([{stage: 'capture'}])
+    }),
+  )
+
+  it.effect('enforces transformed codecs at execution and projection boundaries', () =>
+    Effect.gen(function* () {
+      const service = yield* Tool.Service
+      const executed: string[] = []
+      const Transformed = Schema.Boolean.pipe(
+        Schema.decodeTo(Schema.String, {
+          decode: SchemaGetter.transform((value) => (value ? 'yes' : 'no')),
+          encode: SchemaGetter.transform((value) => value === 'yes'),
+        }),
+      )
+      yield* transform(
+        service,
+        {
+          transformed: {
+            name: 'transformed',
+            description: 'Transform values',
+            input: Schema.Struct({value: Transformed}),
+            output: Schema.Struct({value: Transformed}),
+            execute: ({value}) =>
+              Effect.sync(() => executed.push(value)).pipe(Effect.as({output: {value}, content: String(value)})),
+          },
+        },
+        {codemode: false},
+      )
+
+      expect(
+        yield* executeTool(service, {
+          sessionID,
+          ...identity,
+          call: {type: 'tool-call', id: 'transformed', name: 'transformed', input: {value: true}},
+        }),
+      ).toEqual({
+        status: 'completed',
+        output: {value: true},
+        content: [{type: 'text', text: 'yes'}],
+      })
+      expect(executed).toEqual(['yes'])
+      expect(
+        yield* executeTool(service, {
+          sessionID,
+          ...identity,
+          call: {type: 'tool-call', id: 'invalid-input', name: 'transformed', input: {value: 'yes'}},
+        }),
+      ).toMatchObject({
+        status: 'error',
+        error: Tool.makeError({
+          message:
+            'Invalid arguments for tool "transformed":\n- value: Expected boolean\n\nArguments provided:\n{\n  "value": "yes"\n}\n\nUpdate the arguments and call the tool again.',
+        }),
+      })
+      expect(executed).toEqual(['yes'])
+
+      yield* transform(
+        service,
+        {
+          invalid_output: {
+            name: 'invalid_output',
+            description: 'Return invalid output',
+            input: Schema.Struct({}),
+            output: Schema.Struct({
+              value: Schema.Boolean.pipe(
+                Schema.decodeTo(Schema.String, {
+                  decode: SchemaGetter.transform((value) => String(value)),
+                  encode: SchemaGetter.transformEffect((value) =>
+                    value === 'valid'
+                      ? Effect.succeed(true)
+                      : Effect.fail(new SchemaIssue.InvalidValue({message: 'invalid output'}, value)),
+                  ),
+                }),
+              ),
+            }),
+            execute: () => Effect.succeed({output: {value: 'invalid'}}),
+          },
+        },
+        {codemode: false},
+      )
+      expect(
+        yield* executeTool(service, {
+          sessionID,
+          ...identity,
+          call: {type: 'tool-call', id: 'invalid-output', name: 'invalid_output', input: {}},
+        }),
+      ).toMatchObject({
+        status: 'error',
+        error: {_tag: 'Tool.Error', message: expect.stringContaining('invalid value for its output schema')},
+      })
     }),
   )
 
