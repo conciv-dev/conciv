@@ -15,11 +15,11 @@ import {
 } from 'solid-js'
 import {Tooltip as Ark, useTooltip, useTooltipContext} from '@ark-ui/solid/tooltip'
 import {useEnvironmentContext} from '@ark-ui/solid/environment'
-import {ark} from '@ark-ui/solid/factory'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {Timer, TooltipGroup, useTooltipGroup, type TooltipGroupApi, type TooltipGroupMember} from './tooltip-group.js'
 import {popIn, sideFromPlacement} from './tooltip-motion.js'
 import {isDocument, isHTMLElement, isShadowRoot} from './realm.js'
+import {nativeFocusPart} from './native-focus.js'
 
 const CONTENT =
   'hidden data-[state=open]:block z-[2147483647] rounded-chat-surface-sm bg-chat-panel text-chat-text border border-chat-line shadow-chat-lg py-1 px-2 text-[0.6875rem] font-chat max-w-60 focus-visible:outline-none'
@@ -174,42 +174,7 @@ function Root(props: RootProps) {
   )
 }
 
-type TriggerProps = ComponentProps<typeof Ark.Trigger>
-type TriggerElementProps = Parameters<NonNullable<TriggerProps['asChild']>>[0]
-type FocusHandler = ReturnType<TriggerElementProps>['onFocusIn']
-type FocusArgument = Parameters<JSX.EventHandler<HTMLElement, FocusEvent>>[0]
-
-function forwardFocus(handler: FocusHandler, event: FocusArgument): void {
-  if (typeof handler === 'function') {
-    handler(event)
-    return
-  }
-  handler?.[0](handler[1], event)
-}
-
-function withNativeFocus(triggerProps: TriggerElementProps): TriggerElementProps {
-  return (userProps) => {
-    const [focus, rest] = splitProps(triggerProps(userProps), ['onFocusIn', 'onFocusOut'])
-    return mergeProps(rest, {
-      'on:focusin': (event: FocusArgument) => forwardFocus(focus.onFocusIn, event),
-      'on:focusout': (event: FocusArgument) => forwardFocus(focus.onFocusOut, event),
-    })
-  }
-}
-
-function Trigger(props: TriggerProps) {
-  const [local, rest] = splitProps(props, ['asChild', 'ref'])
-  return (
-    <Ark.Trigger
-      {...rest}
-      asChild={(triggerProps) => {
-        const rebound = withNativeFocus(triggerProps)
-        if (local.asChild) return local.asChild(rebound)
-        return <ark.button {...rebound()} ref={local.ref} />
-      }}
-    />
-  )
-}
+const Trigger = nativeFocusPart(Ark.Trigger, 'button')
 
 function Positioner(props: ComponentProps<typeof Ark.Positioner>) {
   return (
