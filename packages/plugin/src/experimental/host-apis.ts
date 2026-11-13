@@ -2,22 +2,12 @@ import type {JSX} from 'solid-js'
 import type {Store} from 'solid-js/store'
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import type {Ref as LocationRef} from '../schema/location.js'
-import type {ConcivClient} from '../client/promise/index.js'
+import type {ServerRef} from '../promise/servers.js'
 import type {Persisted, StoreFrom, StoreType} from './core.js'
 import type {IconName} from './icon-name.js'
 import type {Link} from './registries.js'
 
-export interface ServerRef {
-  readonly id: string
-  readonly name: string
-  readonly url: string
-  readonly password?: string
-  readonly client: ConcivClient
-  readonly local: boolean
-  readonly builtin: boolean
-  readonly compatible: boolean
-  readonly connected: boolean
-}
+export type {ServerRef, Servers} from '../promise/servers.js'
 
 export interface SessionRef {
   readonly key: string
@@ -1103,20 +1093,4 @@ export interface Ui {
    * ```
    */
   SettingsRow(props: UiSettingsRowProps): JSX.Element
-}
-
-export interface Servers {
-  list(): readonly string[]
-  /**
-   * A listed server's ref. The same ref for the same id.
-   *
-   * @param id - The server's id, as `list()` returns it.
-   * @returns Undefined while the app does not list the server.
-   *
-   * @example
-   * ```ts
-   * const builtin = () => ctx.servers.list().map((id) => ctx.servers.get(id)).find((server) => server?.builtin)
-   * ```
-   */
-  get(id: string): ServerRef | undefined
 }

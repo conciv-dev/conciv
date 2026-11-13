@@ -139,10 +139,11 @@ describe('define', () => {
     expectTypeOf<undefined>().toExtend<Plugin.Context['location']['project']['canonical']>()
   })
 
-  it('types execute input from the input schema and output from the output schema', () => {
-    type SumTool = Tool.Info<z.ZodObject<{left: z.ZodNumber}>, z.ZodObject<{sum: z.ZodNumber}>>
-    expectTypeOf<Parameters<SumTool['execute']>[0]>().toEqualTypeOf<{left: number}>()
-    expectTypeOf<NonNullable<Awaited<ReturnType<SumTool['execute']>>['output']>>().toEqualTypeOf<{sum: number}>()
+  it("types execute's input as the input schema's output and its output as the output schema's input, as opencode does", () => {
+    const Limit = z.object({limit: z.string().transform(Number)})
+    type LimitTool = Tool.Info<typeof Limit, typeof Limit>
+    expectTypeOf<Parameters<LimitTool['execute']>[0]>().toEqualTypeOf<{limit: number}>()
+    expectTypeOf<NonNullable<Awaited<ReturnType<LimitTool['execute']>>['output']>>().toEqualTypeOf<{limit: string}>()
   })
 
   it('types a tool from any Standard Schema, not only zod', () => {
@@ -840,6 +841,12 @@ describe('host', () => {
         'stores: { count: { scope: "global", schema: {}, initial: 0 } }',
         'schema',
       ],
+      ['a schema without validate', 'stores: { count: { scope: "global", schema: {"~standard": {}} } }', 'schema'],
+      [
+        'a schema whose validate is no function',
+        'stores: { count: { scope: "global", schema: {"~standard": {validate: 1}} } }',
+        'schema',
+      ],
       ['a setup that is not a function', 'setup: true', 'setup'],
     ])('reject a plugin with %s', (_, field, named) => {
       const evaluated = () => evaluate(`exports.default = { ${field} }`)
@@ -884,15 +891,35 @@ describe('host', () => {
 })
 
 describe('published declarations', () => {
+  type Declaration = {readonly name: string; readonly text: string}
+  const dist = path.join(import.meta.dirname, '../dist')
+  const read = (names: readonly string[]) =>
+    Promise.all(names.map(async (name) => ({name, text: await readFile(path.join(dist, name), 'utf8')})))
+  const imports = ({name, text}: Declaration) =>
+    Array.from(text.matchAll(/(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g), (match) => ({name, module: match[1] ?? ''}))
+  const closure = async (names: readonly string[], seen: readonly Declaration[] = []): Promise<Declaration[]> => {
+    const fresh = [...new Set(names)].filter((name) => !seen.some((declaration) => declaration.name === name))
+    if (fresh.length === 0) return [...seen]
+    const declarations = await read(fresh)
+    const relative = declarations.flatMap(imports).filter(({module}) => module.startsWith('.'))
+    const next = relative.map(({name, module}) => path.join(path.dirname(name), module.replace(/\.js$/, '.d.ts')))
+    return closure(next, [...seen, ...declarations])
+  }
+  const leaks = (declarations: readonly Declaration[], banned: RegExp) =>
+    declarations.flatMap(imports).filter(({module}) => banned.test(module))
+
   it('never import zod', async () => {
-    const dist = path.join(import.meta.dirname, '../dist')
     const names = (await readdir(dist, {recursive: true})).filter((name) => name.endsWith('.d.ts'))
-    const declarations = await Promise.all(
-      names.map(async (name) => ({name, text: await readFile(path.join(dist, name), 'utf8')})),
-    )
 
     expect(names.length).toBeGreaterThan(0)
-    expect(declarations.filter(({text}) => /from ['"]zod['"]/.test(text)).map(({name}) => name)).toEqual([])
+    expect(leaks(await read(names), /^zod(\/|$)/)).toEqual([])
+  })
+
+  it('of the engine, RPC and host entries never reach solid-js or vite', async () => {
+    const declarations = await closure(['promise/index.d.ts', 'rpc.d.ts', 'host.d.ts'])
+
+    expect(declarations.map(({name}) => name)).toContain('promise/plugin.d.ts')
+    expect(leaks(declarations, /^(solid-js|vite)(\/|$)/)).toEqual([])
   })
 })
 
