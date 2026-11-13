@@ -5,6 +5,7 @@ import type {
   Location,
   Model,
   Ruleset,
+  SessionCreateInput,
   SessionInboxCompaction,
   SessionInboxDelivery,
   SessionInboxSynthetic,
@@ -22,16 +23,11 @@ import type {
 type SessionId = SessionInfo['id']
 type Metadata = NonNullable<SessionInfo['metadata']>
 
-type CreateBaseInput = {
-  id?: SessionId
-  title?: string
-  agent?: string
-  model?: Model.Ref
-  metadata?: Metadata
-  permissions?: Ruleset
-}
-type CreateInput = CreateBaseInput &
-  ({location: Location.Ref; parentId?: never} | {parentId: SessionId; location?: never})
+type CreateInput = SessionCreateInput &
+  (
+    | {location: Location.Ref; parentId?: never}
+    | {parentId: Exclude<SessionCreateInput['parentId'], undefined>; location?: never}
+  )
 
 type CompactInput = {id?: string; delivery?: SessionInboxDelivery} & {sessionId: SessionId}
 

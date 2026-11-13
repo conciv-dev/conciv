@@ -268,7 +268,10 @@
         "Definition",
         "make",
         "Ref",
-        "Settings"
+        "Settings",
+        "InstructionEntry",
+        "Model",
+        "State"
       ]
     },
     {
@@ -288,10 +291,9 @@
     "packages/plugin-host/src/plugin/effect/rpc.ts",
     "packages/plugin-host/src/core/schema.ts",
     "packages/plugin-host/src/core/plugin/update.ts",
-    "packages/plugin-host/src/core/app.ts",
-    "packages/plugin-host/src/core/session.ts",
-    "packages/plugin-host/src/core/session/instruction-entry.ts",
-    "packages/plugin-host/src/core/model.ts",
+    "packages/plugin-host/src/core/plugin.ts",
+    "packages/plugin-host/src/core/plugin/instance.ts",
+    "packages/plugin-host/src/core/plugin/internal.ts",
     "packages/plugin-host/test/core/fixture/*-worker.ts",
     "packages/brand-react/src/conciv-lockup.tsx",
     "packages/brand/src/brand-guidelines.mdx",
