@@ -388,6 +388,12 @@
       }
     },
     {
+      "files": ["packages/plugin-host/**"],
+      "rules": {
+        "conciv/test-file-budget": ["error", {"max": 6}]
+      }
+    },
+    {
       "files": ["packages/ui-kit-chat/**"],
       "rules": {
         "conciv/test-file-budget": ["error", {"max": 5}]
