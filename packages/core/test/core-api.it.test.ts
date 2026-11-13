@@ -292,9 +292,11 @@ describe('api engine staleness di', () => {
       expect(description.length).toBeLessThanOrEqual(4096)
       expect(description).toContain('## Code Mode tools (call only inside `execute_typescript`)')
       expect(description).toContain('The catalog is partial.')
-      expect(description).toContain('- page_insert (1 tool')
-      expect(sandboxNames.length).toBeGreaterThan(0)
-      expect(sandboxNames.filter((name) => !description.includes(`- ${name.slice('external_'.length)} (`))).toEqual([])
+      expect(description).toContain('- page (41 tools')
+      expect(sandboxNames).toContain('external_page_insert')
+      expect(
+        sandboxNames.filter((name) => !description.includes(`- ${name.slice('external_'.length).split('_', 1)[0]} (`)),
+      ).toEqual([])
       expect(discoverDescription.length).toBeLessThanOrEqual(4096)
       expect(discoverDescription).not.toContain('external_page_insert')
       expect(calls.count).toBeGreaterThanOrEqual(3)
@@ -3213,7 +3215,8 @@ describe('rpc wire', () => {
         }
         const description = offered.find((tool) => tool.name === 'execute_typescript')?.description ?? ''
         expect(description).toContain('discover_tools')
-        expect(description).toContain('- fixture_echo (1 tool')
+        expect(description).toContain('- fixture (7 tools')
+        expect(description).toContain('external_fixture_echo(')
       })
 
       it('code reaches every capability by name, returns values and logs, and keeps each run isolated', async () => {
@@ -3342,7 +3345,7 @@ return seen`
         expect(found).toContain('PROBE_BROKE: the probe broke')
         expect(JSON.stringify(await discover.execute({toolNames: ['fixture_echo']}))).toContain('echoed')
         const execute = await mcpTool('execute_typescript')
-        expect(execute.description).toContain('- fixture_fail (1 tool')
+        expect(execute.description).toContain('- fixture (7 tools')
         expect(execute.description).not.toContain('PROBE_BROKE')
         expect(discover.description).toContain('toolNames')
         expect(discover.description).not.toContain('external_fixture_fail')
