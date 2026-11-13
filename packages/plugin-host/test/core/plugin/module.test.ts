@@ -6,25 +6,19 @@ import {NodeFileSystem} from '@effect/platform-node'
 import {Deferred, Effect, Exit, Fiber, Layer, Schedule, Scope, Stream} from 'effect'
 import {Watcher} from '../../../src/core/filesystem/watcher.js'
 import {ManagedPolicy} from '../../../src/core/managed-policy.js'
+import {Plugin} from '../../../src/core/plugin.js'
 import {PluginModule} from '../../../src/core/plugin/module.js'
 import {EffectFlock} from '../../../src/util/effect-flock.js'
 import {FSUtil} from '../../../src/util/fs-util.js'
-import {Global} from '../../../src/util/global.js'
 import {Npm} from '../../../src/util/npm.js'
 import {setOrganizationPolicy} from '../fixture/policy'
 import {tmpdirScoped} from '../fixture/tmpdir'
 import {testEffect} from '../lib/effect'
-
-const temporaryGlobalLayer = Layer.unwrap(
-  tmpdirScoped().pipe(
-    Effect.map((directory) =>
-      Global.layerWith({cache: path.join(directory.path, 'cache'), state: path.join(directory.path, 'state')}),
-    ),
-  ),
-)
+import {PluginTestLayer, temporaryGlobalLayer} from './fixture'
 
 const it = testEffect(
   Layer.mergeAll(
+    PluginTestLayer,
     Npm.layer.pipe(
       Layer.provide(EffectFlock.layer),
       Layer.provide(temporaryGlobalLayer),
@@ -152,6 +146,48 @@ it.live('blocks a local plugin before module initialization and honors replaceme
     const modules = yield* PluginModule.make().pipe(setOrganizationPolicy(undefined))
     expect(yield* modules.load(operation)).toMatchObject({id: 'policy-fixture'})
     expect(yield* Effect.promise(() => exists(entered))).toBe(true)
+  }),
+)
+
+it.live('loads an experimental-only package under its package name without running it', () =>
+  Effect.gen(function* () {
+    const directory = yield* tmpdirScoped()
+    const experimental = path.join(directory.path, 'experimental')
+    const evaluated = 'throw new Error("A client part must not run on the server")'
+    yield* Effect.promise(() =>
+      Promise.all([
+        write(
+          path.join(experimental, 'package.json'),
+          JSON.stringify({
+            name: 'opencode-acme-experimental',
+            exports: {'./plugin-experimental': './dist/plugin-experimental.cjs'},
+          }),
+        ),
+        write(path.join(experimental, 'dist/plugin-experimental.cjs'), evaluated),
+      ]),
+    )
+    const modules = yield* PluginModule.make()
+    const plugins = yield* Plugin.Service
+
+    const loaded = yield* modules.load({type: 'add', target: experimental, options: {region: 'eu'}})
+    expect(loaded).toMatchObject({
+      id: 'opencode-acme-experimental',
+      features: {experimental: true},
+      experimental: {options: {region: 'eu'}},
+      source: {type: 'local', path: experimental},
+    })
+    if ('pending' in loaded || 'blocked' in loaded) return yield* Effect.die(new Error('The plugin was not loaded'))
+
+    yield* plugins.activate([loaded])
+    yield* plugins.awaitActivation
+    expect((yield* plugins.list()).filter((plugin) => plugin.source.type === 'local')).toEqual([
+      {
+        id: Plugin.Id.make('opencode-acme-experimental'),
+        source: {type: 'local', path: experimental},
+        state: {status: 'active'},
+        features: {experimental: true},
+      },
+    ])
   }),
 )
 
