@@ -120,7 +120,7 @@ describe('a Figma line', () => {
 })
 
 describe('a Figma stroke drawn inside the box', () => {
-  it('is told as inside, and an outline inset by its weight draws it', async () => {
+  it('is told as inside, and an outline inset by its weight or an inset box-shadow draws it', async () => {
     const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
     const borderRows = async () =>
       roundOf(await call('design_check', {}))
@@ -135,12 +135,15 @@ describe('a Figma stroke drawn inside the box', () => {
     const bare = await borderRows()
     await kit.goto('input-field-outline')
     const outlined = await borderRows()
+    await kit.goto('input-field-shadow')
+    const shadowed = await borderRows()
     expect([
       got.nodes.find((node) => node.id === '100:1418')?.strokeAlign,
       got.rules.some((rule) => rule.includes('outline-offset')),
       bare,
       outlined,
-    ]).toEqual(['INSIDE', true, ['wrong border at [100:1418]: 1px #262626 inside expected, none found'], []])
+      shadowed,
+    ]).toEqual(['INSIDE', true, ['wrong border at [100:1418]: 1px #262626 inside expected, none found'], [], []])
   })
 })
 

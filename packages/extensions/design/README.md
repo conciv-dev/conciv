@@ -74,7 +74,8 @@ src/
   `reflow: {kind: stack | wrap | scroll, minChildWidth}` and `key` once the mapping holds the node. `count` leaves
   implied nodes out. `rules` are the sentences the page must follow. A stroke comes with `strokeWeight` and
   `strokeAlign` (INSIDE, CENTER or OUTSIDE); the rules ask for it as an outline inset by its weight, which takes no
-  space, and the measure reads an outline as the stroke when the element has no border. A border row names the
+  space, and the measure reads a border, an outline or an inset box-shadow with no blur as the stroke, each on the
+  sides it draws. A border row names the
   align after the expected stroke.
 - A run builds one page, so its targets share one route. `design_get` takes `route`, the path of that page (`/pricing`,
   with a query when the page needs one), and moves every target of the run there, the frames of that call and the

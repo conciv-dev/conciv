@@ -7,6 +7,7 @@ import {ComposerActions} from '@conciv/ui-kit-chat'
 import {capturePlugins} from '@conciv/extension-page/capture-plugins'
 import {formatHex, formatHex8, parse} from 'culori'
 import {uniq} from 'es-toolkit'
+import cssList from 'postcss/lib/list'
 import type {z} from 'zod'
 import type {Box, LiveComponent, Widget} from './shared/defs.js'
 import {DESIGN_TOOLS} from './shared/design-tools.js'
@@ -72,6 +73,7 @@ const DARK_SCHEME = '(prefers-color-scheme: dark)'
 type MirrorLimits = NonNullable<MeasureResult['limits']>
 type LiveStyles = LiveComponent['styles']
 type LiveBorder = LiveStyles['border']
+type StrokeLine = Omit<LiveBorder, 'sides'>
 type Gradient = NonNullable<LiveStyles['gradient']>
 type Glyph = LiveComponent['glyphs'][number]
 
@@ -87,6 +89,9 @@ const DATA_URL_COMMA = ','
 const CANVAS_FALLBACK = '#ffffff'
 const BORDER_SIDES = ['top', 'right', 'bottom', 'left'] as const
 const HIDDEN_LINES = new Set(['none', 'hidden'])
+const INSET = 'inset'
+const NONE = 'none'
+const SOLID = 'solid'
 const PX_UNIT = 'px'
 const REACT_FIBER = '__reactFiber'
 const VITE_DEV_ID = '[data-vite-dev-id]'
@@ -969,20 +974,45 @@ function pxLength(value: string): boolean {
 }
 
 function readBorder(style: CSSStyleDeclaration): LiveBorder {
-  const sides = BORDER_SIDES.map((side) => ({side, ...readLine({style, prefix: `border-${side}`})}))
-  const visible = sides.filter(shows)
-  const widest = visible.reduce<(typeof sides)[number] | undefined>(
-    (best, side) => (best === undefined || side.width > best.width ? side : best),
+  const borders = BORDER_SIDES.map((side) => ({side, ...readLine({style, prefix: `border-${side}`})}))
+  const lines = [...borders.filter(shows), ...outlineLines(style), ...shadowLines(style)]
+  const widest = lines.reduce<StrokeLine | undefined>(
+    (best, line) => (best === undefined || line.width > best.width ? line : best),
     undefined,
   )
-  if (widest === undefined) return readOutline({style, unseen: sides[0]})
-  return {...widest, sides: visible.map((side) => ({side: side.side, width: side.width}))}
+  const sides = BORDER_SIDES.flatMap((side) => {
+    const width = Math.max(0, ...lines.filter((line) => line.side === side).map((line) => line.width))
+    return width > 0 ? [{side, width}] : []
+  })
+  return {...(widest ?? borders[0] ?? {side: 'top', width: 0, style: 'none', color: '#000000'}), sides}
 }
 
-function readOutline(input: {style: CSSStyleDeclaration; unseen: Omit<LiveBorder, 'sides'> | undefined}): LiveBorder {
-  const outline = readLine({style: input.style, prefix: 'outline'})
-  if (!shows(outline)) return {...(input.unseen ?? {side: 'top', width: 0, style: 'none', color: '#000000'}), sides: []}
-  return {...outline, side: 'top', sides: BORDER_SIDES.map((side) => ({side, width: outline.width}))}
+function outlineLines(style: CSSStyleDeclaration): StrokeLine[] {
+  const outline = readLine({style, prefix: 'outline'})
+  return shows(outline) ? BORDER_SIDES.map((side) => ({...outline, side})) : []
+}
+
+function shadowLines(style: CSSStyleDeclaration): StrokeLine[] {
+  const value = style.getPropertyValue('box-shadow')
+  if (value === '' || value === NONE) return []
+  return cssList.comma(value).flatMap((shadow) => {
+    const tokens = cssList.space(shadow)
+    const [x = 0, y = 0, blur = 0, spread = 0] = tokens.filter(pxLength).map(Number.parseFloat)
+    const color = tokens.find((token) => token !== INSET && !pxLength(token))
+    if (!tokens.includes(INSET) || blur > 0 || color === undefined) return []
+    const widths = {
+      top: spread + Math.max(0, y),
+      right: spread + Math.max(0, -x),
+      bottom: spread + Math.max(0, -y),
+      left: spread + Math.max(0, x),
+    }
+    return BORDER_SIDES.filter((side) => widths[side] > 0).map((side) => ({
+      side,
+      width: widths[side],
+      style: SOLID,
+      color: toHex(color),
+    }))
+  })
 }
 
 function readLine(input: {style: CSSStyleDeclaration; prefix: string}): {width: number; style: string; color: string} {
