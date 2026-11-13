@@ -5832,16 +5832,30 @@ describe('engine plugin bundles', () => {
     }
 
     const changes = await rpc.plugin.changes(undefined, options)
-    const rebuilt = async (label: string) => {
+    const delivered: unknown[] = []
+    const [secondArrival, thirdArrival] = [Promise.withResolvers<void>(), Promise.withResolvers<void>()]
+    const arrivals = [secondArrival, thirdArrival]
+    const consume = async () => {
+      for await (const change of changes) {
+        delivered.push(change)
+        arrivals[delivered.length - 1]?.resolve()
+      }
+    }
+    const consumed = Promise.allSettled([consume()])
+    const rebuilt = async (label: string, arrival: PromiseWithResolvers<void>) => {
       writeFileSync(join(root, 'pane', 'plugin-experimental.js'), bundle(label))
-      expect((await changes.next()).value).toEqual({})
+      await arrival.promise
       return (await rpc.plugin.experimental({id: 'pane'}, options)).data
     }
-    const second = await rebuilt('second')
+    const second = await rebuilt('second', secondArrival)
     expect(second.code).toBe(bundle('second'))
     expect(second.revision).not.toBe(first.data.revision)
-    const third = await rebuilt('third')
+    const third = await rebuilt('third', thirdArrival)
     expect(third.code).toBe(bundle('third'))
     expect(third.revision).not.toBe(second.revision)
+    await changes.return()
+    const [ended] = await consumed
+    expect(delivered).toEqual([{}, {}])
+    expect(ended).toMatchObject({status: 'rejected', reason: {name: 'AbortError', message: 'Stream was cancelled'}})
   })
 })
