@@ -132,7 +132,15 @@ import {RPCLink as WebsocketRpcLink} from '@orpc/client/websocket'
 import {CONCIV_VERSION_HEADER, RPC_WS_PATH, rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
 import coreManifest from '../package.json' with {type: 'json'}
-import {ensureRow, nativeIdFor, recordNativeId, setPermissions} from '../src/sessions/session-rows.js'
+import {
+  currentRow,
+  ensureRow,
+  nativeIdFor,
+  recordNativeId,
+  rowById,
+  setMetadata,
+  setPermissions,
+} from '../src/sessions/session-rows.js'
 import {provideInstructionEntries} from '../src/runtime/instruction-entries.js'
 import {
   provideApp,
@@ -945,6 +953,22 @@ describe('configured session rows', () => {
     } finally {
       await made.dispose()
     }
+  })
+})
+
+describe('session metadata', () => {
+  it('a session starts with no metadata, and each setMetadata replaces the whole record', async () => {
+    const root = tempDir()
+    const db = openDb(root)
+    const id = SessionId.parse('conciv_metadata')
+    await ensureRow(db, id, 'fake-cli', root)
+    expect((await rowById(db, id))?.metadata).toBeNull()
+
+    await setMetadata(db, id, {owner: 'review', tags: ['a', 'b']})
+    expect((await rowById(db, id))?.metadata).toEqual({owner: 'review', tags: ['a', 'b']})
+
+    await setMetadata(db, id, {round: 2, nested: {done: false}})
+    expect(currentRow(db, id)?.metadata).toEqual({round: 2, nested: {done: false}})
   })
 })
 

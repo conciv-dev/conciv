@@ -1,6 +1,7 @@
 import {describe, expect, expectTypeOf, test} from 'vitest'
 import {Cause, Deferred, Effect, Fiber, Predicate, Schema} from 'effect'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
+import type {SessionInfo} from '@conciv/plugin'
 import {Agent} from '../../src/core/agent.js'
 import {Database} from '../../src/core/database/database.js'
 import {Bus} from '../../src/core/bus.js'
@@ -396,5 +397,9 @@ describe('session permissions on the conciv session row', () => {
     type SessionRule = NonNullable<SessionRecord['permissions']>[number]
     expectTypeOf<SessionRule>().toExtend<Permission.Rule>()
     expectTypeOf<Permission.Rule>().toExtend<SessionRule>()
+  })
+
+  test('the row schema metadata is the SDK session metadata', () => {
+    expectTypeOf<NonNullable<SessionRecord['metadata']>>().toExtend<NonNullable<SessionInfo['metadata']>>()
   })
 })
