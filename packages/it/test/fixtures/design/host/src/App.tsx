@@ -149,6 +149,37 @@ export function App() {
       </main>
     )
   }
+  if (requested === 'check-row' || requested === 'check-row-wrong') {
+    return (
+      <main style={{margin: -24, background: '#1a1a1a'}} data-conciv-key="cKmNaA">
+        <label style={{display: 'flex', alignItems: 'center', gap: 10, width: 400}} data-conciv-key="cKlBlA">
+          <span
+            style={{
+              display: 'grid',
+              placeItems: 'center',
+              width: 28,
+              height: 28,
+              boxSizing: 'border-box',
+              borderRadius: 4,
+              background: '#262626',
+              boxShadow: 'inset 0 0 0 1px #333333',
+            }}
+            data-conciv-key="cKbXxA"
+          >
+            <img
+              src={requested === 'check-row' ? '/design/check-icon.svg' : '/design/4-30.svg'}
+              alt=""
+              style={{width: 20, height: 20}}
+              data-conciv-key="cKiCnA"
+            />
+          </span>
+          <span style={{flex: 1, fontSize: 18, lineHeight: '27px', color: '#fdfffa'}} data-conciv-key="cKtXtA">
+            Web Design
+          </span>
+        </label>
+      </main>
+    )
+  }
   if (requested === 'range-slider') {
     return (
       <main style={{margin: -24, paddingTop: 5.67, background: '#141414'}} data-conciv-key="rSmNaA">

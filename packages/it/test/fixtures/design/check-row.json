@@ -1,0 +1,204 @@
+{
+  "name": "Digital Agency Company Website UI Design Template in Dark Theme ( FREE Editable ) (Community)",
+  "lastModified": "2026-11-08T14:57:11Z",
+  "version": "2419516100481360310",
+  "nodes": {
+    "83:30723": {
+      "document": {
+        "id": "83:30723",
+        "name": "Check Box",
+        "type": "FRAME",
+        "scrollBehavior": "SCROLLS",
+        "children": [
+          {
+            "id": "119:119",
+            "name": "Check Box",
+            "type": "FRAME",
+            "scrollBehavior": "SCROLLS",
+            "children": [
+              {
+                "id": "119:120",
+                "name": "Icon",
+                "type": "FRAME",
+                "scrollBehavior": "SCROLLS",
+                "children": [
+                  {
+                    "id": "119:121",
+                    "name": "Vector 616 (Stroke)",
+                    "type": "VECTOR",
+                    "scrollBehavior": "SCROLLS",
+                    "blendMode": "PASS_THROUGH",
+                    "fills": [
+                      {
+                        "blendMode": "NORMAL",
+                        "type": "SOLID",
+                        "color": {"r": 0.6200000047683716, "g": 1, "b": 0, "a": 1}
+                      }
+                    ],
+                    "strokes": [],
+                    "strokeWeight": 1.5,
+                    "strokeAlign": "CENTER",
+                    "strokeJoin": "ROUND",
+                    "strokeCap": "ROUND",
+                    "styles": {"fill": "19:478"},
+                    "absoluteBoundingBox": {"x": 28685.166015625, "y": 2518, "width": 11.666667938232422, "height": 10},
+                    "absoluteRenderBounds": {"x": 28685.166015625, "y": 2518, "width": 11.666015625, "height": 10},
+                    "constraints": {"vertical": "SCALE", "horizontal": "SCALE"},
+                    "effects": [],
+                    "interactions": [],
+                    "complexStrokeProperties": {"strokeType": "BASIC"}
+                  }
+                ],
+                "blendMode": "PASS_THROUGH",
+                "clipsContent": true,
+                "background": [],
+                "fills": [],
+                "strokes": [],
+                "cornerRadius": 4,
+                "cornerSmoothing": 0,
+                "strokeWeight": 1,
+                "strokeAlign": "INSIDE",
+                "backgroundColor": {"r": 0, "g": 0, "b": 0, "a": 0},
+                "absoluteBoundingBox": {"x": 28681, "y": 2513, "width": 20, "height": 20},
+                "absoluteRenderBounds": {"x": 28681, "y": 2513, "width": 20, "height": 20},
+                "constraints": {"vertical": "TOP", "horizontal": "LEFT"},
+                "layoutAlign": "INHERIT",
+                "layoutGrow": 0,
+                "layoutSizingHorizontal": "FIXED",
+                "layoutSizingVertical": "FIXED",
+                "effects": [],
+                "interactions": [],
+                "complexStrokeProperties": {"strokeType": "BASIC"}
+              }
+            ],
+            "blendMode": "PASS_THROUGH",
+            "clipsContent": false,
+            "background": [
+              {
+                "blendMode": "NORMAL",
+                "type": "SOLID",
+                "color": {"r": 0.15000000596046448, "g": 0.15000000596046448, "b": 0.15000000596046448, "a": 1}
+              }
+            ],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "type": "SOLID",
+                "color": {"r": 0.15000000596046448, "g": 0.15000000596046448, "b": 0.15000000596046448, "a": 1}
+              }
+            ],
+            "strokes": [
+              {
+                "blendMode": "NORMAL",
+                "type": "SOLID",
+                "color": {"r": 0.20000000298023224, "g": 0.20000000298023224, "b": 0.20000000298023224, "a": 1}
+              }
+            ],
+            "cornerRadius": 4,
+            "cornerSmoothing": 0,
+            "strokeWeight": 1,
+            "strokeAlign": "INSIDE",
+            "backgroundColor": {"r": 0.15000000596046448, "g": 0.15000000596046448, "b": 0.15000000596046448, "a": 1},
+            "styles": {"fills": "19:488", "strokes": "19:489", "fill": "19:488", "stroke": "19:489"},
+            "layoutMode": "HORIZONTAL",
+            "counterAxisAlignItems": "CENTER",
+            "paddingLeft": 4,
+            "paddingRight": 4,
+            "paddingTop": 4,
+            "paddingBottom": 4,
+            "itemSpacing": 10,
+            "layoutWrap": "NO_WRAP",
+            "absoluteBoundingBox": {"x": 28677, "y": 2509, "width": 28, "height": 28},
+            "absoluteRenderBounds": {"x": 28677, "y": 2509, "width": 28, "height": 28},
+            "constraints": {"vertical": "TOP", "horizontal": "LEFT"},
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutSizingHorizontal": "HUG",
+            "layoutSizingVertical": "HUG",
+            "effects": [],
+            "interactions": [],
+            "complexStrokeProperties": {"strokeType": "BASIC"}
+          },
+          {
+            "id": "83:30725",
+            "name": "Text",
+            "type": "TEXT",
+            "scrollBehavior": "SCROLLS",
+            "blendMode": "PASS_THROUGH",
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "type": "SOLID",
+                "color": {"r": 0.9919999837875366, "g": 1, "b": 0.9800000190734863, "a": 1}
+              }
+            ],
+            "strokes": [],
+            "strokeWeight": 1,
+            "strokeAlign": "OUTSIDE",
+            "styles": {"fill": "19:485"},
+            "absoluteBoundingBox": {"x": 28715, "y": 2509.5, "width": 362, "height": 27},
+            "absoluteRenderBounds": {
+              "x": 28715.486328125,
+              "y": 2517.719970703125,
+              "width": 89.287109375,
+              "height": 16.362060546875
+            },
+            "constraints": {"vertical": "TOP", "horizontal": "LEFT"},
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 1,
+            "layoutSizingHorizontal": "FILL",
+            "layoutSizingVertical": "HUG",
+            "characters": "Web Design",
+            "characterStyleOverrides": [],
+            "styleOverrideTable": {},
+            "lineTypes": ["NONE"],
+            "lineIndentations": [0],
+            "style": {
+              "fontFamily": "Barlow",
+              "fontPostScriptName": "Barlow-Regular",
+              "fontStyle": "Regular",
+              "fontWeight": 400,
+              "textAutoResize": "HEIGHT",
+              "fontSize": 18,
+              "textAlignHorizontal": "LEFT",
+              "textAlignVertical": "TOP",
+              "letterSpacing": 0,
+              "lineHeightPx": 27,
+              "lineHeightPercent": 124.99999237060547,
+              "lineHeightPercentFontSize": 150,
+              "lineHeightUnit": "FONT_SIZE_%"
+            },
+            "layoutVersion": 4,
+            "effects": [],
+            "interactions": [],
+            "complexStrokeProperties": {"strokeType": "BASIC"}
+          }
+        ],
+        "blendMode": "PASS_THROUGH",
+        "clipsContent": false,
+        "background": [],
+        "fills": [],
+        "strokes": [],
+        "strokeWeight": 1,
+        "strokeAlign": "INSIDE",
+        "backgroundColor": {"r": 0, "g": 0, "b": 0, "a": 0},
+        "layoutMode": "HORIZONTAL",
+        "primaryAxisSizingMode": "FIXED",
+        "counterAxisAlignItems": "CENTER",
+        "itemSpacing": 10,
+        "layoutWrap": "NO_WRAP",
+        "absoluteBoundingBox": {"x": 28677, "y": 2509, "width": 400, "height": 28},
+        "absoluteRenderBounds": {"x": 28677, "y": 2509, "width": 400, "height": 28},
+        "constraints": {"vertical": "TOP", "horizontal": "LEFT"},
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 1,
+        "layoutSizingHorizontal": "FILL",
+        "layoutSizingVertical": "HUG",
+        "effects": [],
+        "interactions": [],
+        "complexStrokeProperties": {"strokeType": "BASIC"}
+      },
+      "components": {}
+    }
+  }
+}

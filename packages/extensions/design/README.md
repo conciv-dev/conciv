@@ -78,7 +78,8 @@ src/
   space, and the measure reads a border, an outline or an inset box-shadow with no blur as the stroke, each on the
   sides it draws. A border row names the
   align after the expected stroke. An empty input or textarea measures its placeholder as its text, so a real form
-  control pairs with the design text it stands for.
+  control pairs with the design text it stands for. An asset node passes when its element shows that file, or shows
+  any image and its capture matches the asset by pixels; an element with no image fails as a wrong image.
 - A run builds one page, so its targets share one route. `design_get` takes `route`, the path of that page (`/pricing`,
   with a query when the page needs one), and moves every target of the run there, the frames of that call and the
   frames registered before it; without it a new target takes the pathname the tab is on when the design is registered.

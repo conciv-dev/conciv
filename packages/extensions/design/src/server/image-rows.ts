@@ -44,9 +44,11 @@ export async function imageRowsOf(input: {
       const background = look.image && look.fill_kind !== IMAGE
       const expected = `wrong image at [${look.node}]: ${asset} expected${background ? ' as the background' : ''}`
       const box = smaller({a: {w: look.w, h: look.h}, b: element.box})
-      if (!(await showsAsset({shown: element.styles.image ?? '', asset: asset, box, pictures})))
-        return [{row: row(`${expected}, ${foundIn(element)}`), node: look.node, shot: null}]
-      if (background) return []
+      const shown = element.styles.image ?? ''
+      const sameFile = await showsAsset({shown, asset, box, pictures})
+      const told = sameFile ? expected : `${expected}, ${foundIn(element)}`
+      if (!sameFile && shown === '') return [{row: row(told), node: look.node, shot: null}]
+      if (sameFile && background) return []
       const shot = {
         selector: named.selector,
         width: side(look.w),
@@ -54,7 +56,7 @@ export async function imageRowsOf(input: {
         scale: 1,
         reference: asset,
       }
-      return [{row: row(expected), node: look.node, shot}]
+      return [{row: row(told), node: look.node, shot}]
     }),
   )
   const checked = looked.flat()

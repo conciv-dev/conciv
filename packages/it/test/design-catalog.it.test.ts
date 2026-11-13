@@ -186,6 +186,29 @@ describe('a text field', () => {
   })
 })
 
+describe('an image node drawn as a box with its icon inside', () => {
+  it('passes when the drawn element looks like the asset, whatever the file is named', async () => {
+    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
+    await kit.goto('check-row')
+    await call('design_get', {
+      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=83-30723',
+      document: JSON.parse(await readFile(fixture('check-row.json'), 'utf8')),
+      image: fixture('check-row.png'),
+    })
+    const imageRows = async () =>
+      roundOf(await call('design_check', {}))
+        .rows.filter((row) => row.property === 'image')
+        .map((row) => row.text)
+    const drawn = await imageRows()
+    await kit.goto('check-row-wrong')
+    const wrong = await imageRows()
+    expect([drawn, wrong]).toEqual([
+      [],
+      ['wrong image at [119:119]: /design/119-119.png expected, an image /design/4-30.svg'],
+    ])
+  })
+})
+
 describe('a Figma frame stroked on one side', () => {
   it('is told with its side weights, and a box stroked all round is flagged', async () => {
     const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
