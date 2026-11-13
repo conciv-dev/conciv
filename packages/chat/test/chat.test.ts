@@ -219,26 +219,28 @@ describe('plugin tools in code mode', () => {
     const {root, db} = openDatabase()
     const chat = await chatPlane(db, root, {capabilities})
     const runner = await chat.codeRunner(SessionId.parse('conciv_plugin'), () => undefined)
-    expect(runner?.capabilities.map((capability) => capability.name)).toEqual([
+    expect(runner?.code?.capabilities.map((capability) => capability.name)).toEqual([
       'unit_taken',
       'unit_shout',
       'unit_double',
       'unit_refuse',
     ])
     expect(new Set(collisions)).toEqual(new Set(['unit_taken']))
-    await expect(runner?.run('return await external_unit_shout({text: "hi"})', 'parent')).resolves.toMatchObject({
+    await expect(runner?.code?.run('return await external_unit_shout({text: "hi"})', 'parent')).resolves.toMatchObject({
       result: 'CHANGED BY A HOOK in conciv_plugin',
     })
     expect(seen).toEqual(['before unit_shout without a message {"text":"hi"}', 'after unit_shout completed'])
-    await expect(runner?.run('return await external_unit_double({count: "2"})', 'parent')).resolves.toMatchObject({
-      result: '4',
-    })
+    await expect(runner?.code?.run('return await external_unit_double({count: "2"})', 'parent')).resolves.toMatchObject(
+      {
+        result: '4',
+      },
+    )
     expect(seen.slice(2)).toEqual(['before unit_double without a message {"count":"2"}', 'after unit_double completed'])
-    await expect(runner?.run('return await external_unit_refuse({})', 'parent')).resolves.toMatchObject({
+    await expect(runner?.code?.run('return await external_unit_refuse({})', 'parent')).resolves.toMatchObject({
       success: false,
       error: {message: expect.stringContaining('the tool refused')},
     })
-    await expect(runner?.run('return await external_unit_taken({})', 'parent')).resolves.toMatchObject({
+    await expect(runner?.code?.run('return await external_unit_taken({})', 'parent')).resolves.toMatchObject({
       result: 'built in',
     })
   })
@@ -320,5 +322,98 @@ describe('refusal text', () => {
     )
     await expect(call('refused')).rejects.toThrow('Permission denied: refused')
     await expect(call('corrected')).rejects.toThrow('read the example file instead')
+  })
+})
+
+describe('direct tools', () => {
+  it('a codemode false tool reaches the turn and the runner as its own tool, and a session that denies execute gets every plugin tool directly and no code mode', async () => {
+    const host = ManagedRuntime.make(Tool.layer.pipe(Layer.provideMerge(PluginHooks.layer)))
+    onTestFinished(() => host.dispose())
+    const scope = host.runSync(Scope.make())
+    const ran: string[] = []
+    await host.runPromise(
+      Effect.gen(function* () {
+        const tools = yield* Tool.Service
+        yield* tools.transform((editor) => {
+          editor.add({
+            name: 'unit_direct',
+            description: 'Echo the text directly.',
+            input: z.object({text: z.string()}),
+            options: {codemode: false},
+            execute: (input: {text: string}, context) =>
+              Effect.sync(() => {
+                ran.push(`unit_direct ${input.text} ${context.sessionId}`)
+                return {content: `direct ${input.text}`}
+              }),
+          })
+          editor.add({
+            name: 'unit_coded',
+            description: 'Echo the text in code mode.',
+            input: z.object({text: z.string()}),
+            execute: (input: {text: string}) => Effect.succeed({content: `coded ${input.text}`}),
+          })
+        })
+      }).pipe(Scope.provide(scope)),
+    )
+    const builtin: CodeCapability = {
+      name: 'unit_builtin',
+      description: 'Built in.',
+      errors: [],
+      inputSchema: z.object({}),
+      execute: async () => 'built in',
+    }
+    const shared = SessionId.parse('conciv_direct')
+    const closed = SessionId.parse('conciv_no_execute')
+    const capabilities = (sessionId: SessionId): CodeCapability[] =>
+      toolDomainCapabilities(
+        [builtin],
+        host.runSync(
+          Tool.Service.use((tools) =>
+            tools.snapshot(sessionId === closed ? [{action: 'execute', resource: '*', effect: 'deny'}] : []),
+          ),
+        ),
+        (effect, signal) => host.runPromiseExit(effect, {signal}),
+        () => undefined,
+      )
+    const names = (list: readonly {name: string}[] | undefined) => list?.map((entry) => entry.name)
+
+    expect(capabilities(shared).map(({name, direct}) => ({name, direct}))).toEqual([
+      {name: 'unit_builtin', direct: undefined},
+      {name: 'unit_coded', direct: undefined},
+      {name: 'unit_direct', direct: true},
+    ])
+    const {root, db} = openDatabase()
+    const chat = await chatPlane(db, root, {capabilities})
+    const runner = await chat.codeRunner(shared, () => undefined)
+    expect(names(runner?.code?.capabilities)).toEqual(['unit_builtin', 'unit_coded'])
+    expect(names(runner?.direct)).toEqual(['unit_direct'])
+    await expect(runner?.direct[0]?.run({text: 'hi'}, 'parent')).resolves.toBe('direct hi')
+    expect(ran).toEqual(['unit_direct hi conciv_direct'])
+
+    const offered: string[][] = []
+    model.setResponses([
+      ({request}) => {
+        offered.push(names(request.tools) ?? [])
+        return {
+          toolCalls: [{name: 'unit_direct', input: {text: 'turn'}, id: 'call_direct'}],
+          finishReason: 'tool_calls',
+        }
+      },
+      {text: 'done'},
+    ])
+    await chat.followUp(shared, 'call it')
+    expect(offered[0]?.filter((name) => name === 'unit_direct')).toEqual(['unit_direct'])
+    expect(offered[0]).not.toContain('unit_coded')
+    expect(ran).toEqual(['unit_direct hi conciv_direct', 'unit_direct turn conciv_direct'])
+    expect((await chat.hydrate(shared)).pendingApprovals.map((entry) => entry.toolName)).toEqual(['turn ask'])
+
+    expect(capabilities(closed).map(({name, direct}) => ({name, direct}))).toEqual([
+      {name: 'unit_coded', direct: true},
+      {name: 'unit_direct', direct: true},
+    ])
+    const closedRunner = await chat.codeRunner(closed, () => undefined)
+    expect(closedRunner?.code).toBeNull()
+    expect(names(closedRunner?.direct)).toEqual(['unit_coded', 'unit_direct'])
+    await expect(closedRunner?.direct[0]?.run({text: 'shut'}, 'parent')).resolves.toBe('coded shut')
   })
 })

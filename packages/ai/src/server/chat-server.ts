@@ -63,6 +63,7 @@ export type TurnPlan = {
   systemPrompts: readonly string[]
   codeMode: readonly ChatTool[]
   asking: readonly ChatTool[]
+  direct: readonly ChatTool[]
   setup: () => Promise<Approvals>
   expand: (messages: ModelMessage[]) => Promise<ModelMessage[]>
   providerMessages: (messages: ModelMessage[]) => Promise<ModelMessage[]>
@@ -148,6 +149,7 @@ function failedPlan(error: unknown): TurnPlan {
     systemPrompts: [],
     codeMode: [],
     asking: [],
+    direct: [],
     setup: async () => new Map(),
     expand: async (messages) => messages,
     providerMessages: async (messages) => messages,
@@ -516,7 +518,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       threadId: turn.threadId,
       runId: turn.runId,
       systemPrompts: [...plan.systemPrompts, ...(coded === null ? [] : [coded.systemPrompt])],
-      tools: [...(coded?.tools ?? []), ...gatedTools(plan.asking, approvals)],
+      tools: [...(coded?.tools ?? []), ...gatedTools(plan.asking, approvals), ...plan.direct],
       lazyToolsConfig: {includeDescription: 'first-sentence'},
       retry: {maxRetries: 2},
       modelOptions: plan.modelOptions,

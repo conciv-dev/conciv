@@ -34,7 +34,7 @@ import {
 import type {SessionScope} from '../../runtime/scope-types.js'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {callTrace} from '../call-trace.js'
-import {openCodeSession, type CodeSession} from '../mcp.js'
+import {openCodeSession, type CodeSandboxSession} from '../mcp.js'
 import type {SessionId} from '@conciv/protocol/chat-types'
 
 export const PAGE_ERROR_NAME = {
@@ -122,7 +122,11 @@ function hubOrigin(context: RpcContext): boolean {
   return callTrace((header) => rpcHeader(context, header)).hub !== null
 }
 
-async function codeSessionOf(deps: RpcDeps, sessionId: SessionId | undefined, call: CodeCall): Promise<CodeSession> {
+async function codeSessionOf(
+  deps: RpcDeps,
+  sessionId: SessionId | undefined,
+  call: CodeCall,
+): Promise<CodeSandboxSession> {
   const trace = callTrace((header) => rpcHeader(call.context, header))
   const scope =
     sessionId === undefined ? await deps.code.resolveSession(null, null) : deps.runtime.forSession(sessionId)
@@ -132,8 +136,8 @@ async function codeSessionOf(deps: RpcDeps, sessionId: SessionId | undefined, ca
     askBeforeCalls: trace.hub === null,
     signal: call.signal ?? new AbortController().signal,
   })
-  if (code === null) throw call.errors.NO_CODE_MODE()
-  return code
+  if (code === null || code.sandbox === null) throw call.errors.NO_CODE_MODE()
+  return code.sandbox
 }
 
 type PluginEventsInput = {rpcId: string; types?: string[] | undefined}
@@ -275,7 +279,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       }),
       discover: os.code.discover.handler(async ({input, ...call}) => {
         const code = await codeSessionOf(deps, input.sessionId, call)
-        if (code.runner.discover === null) throw call.errors.NO_CODE_MODE({message: 'no tools to discover'})
+        if (code.sandbox.discover === null) throw call.errors.NO_CODE_MODE({message: 'no tools to discover'})
         return code.discover(input.toolNames)
       }),
     },

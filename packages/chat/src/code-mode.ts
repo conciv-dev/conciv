@@ -15,6 +15,7 @@ export type CodeCapability = {
   name: string
   description: string
   approval?: 'ask'
+  direct?: true
   errors: {code: string; message: string}[]
   inputSchema: SchemaInput
   execute: (input: unknown, request: ToolRequest) => Promise<unknown>
@@ -106,6 +107,31 @@ function resultValue(result: Tool.NormalizedResult): unknown {
   return text === '' ? null : text
 }
 
+type CodeModeSnapshot = NonNullable<Tool.Snapshot['codeMode']>
+
+function codeModeCapabilities(codeMode: CodeModeSnapshot, run: EffectRun): CodeCapability[] {
+  return [...codeMode.tools].map(([name, tool]) => ({
+    name,
+    description: tool.description,
+    errors: [],
+    inputSchema: jsonSchemaOnly(ToolRuntime.definition(tool).inputSchema),
+    execute: (input, request) =>
+      runTool(name, run, codeMode.execute(name, input, toolContext(request)), request.signal),
+  }))
+}
+
+function directCapabilities(snapshot: Tool.Snapshot, run: EffectRun): CodeCapability[] {
+  return snapshot.definitions.map((definition) => ({
+    name: definition.name,
+    description: definition.description,
+    direct: true,
+    errors: [],
+    inputSchema: jsonSchemaOnly(definition.inputSchema),
+    execute: (input, request) =>
+      runTool(definition.name, run, snapshot.execute(directCall(definition.name, input, request)), request.signal),
+  }))
+}
+
 export function toolDomainCapabilities(
   capabilities: readonly CodeCapability[],
   snapshot: Tool.Snapshot,
@@ -113,23 +139,25 @@ export function toolDomainCapabilities(
   collided: (name: string) => void,
 ): CodeCapability[] {
   const codeMode = snapshot.codeMode
-  if (codeMode === undefined) return [...capabilities]
-  const tools = [...codeMode.tools]
-  const taken = (name: string) => capabilities.some((capability) => capability.name === name)
-  tools.filter(([name]) => taken(name)).forEach(([name]) => collided(name))
-  return [
-    ...capabilities,
-    ...tools
-      .filter(([name]) => !taken(name))
-      .map(([name, tool]): CodeCapability => ({
-        name,
-        description: tool.description,
-        errors: [],
-        inputSchema: jsonSchemaOnly(ToolRuntime.definition(tool).inputSchema),
-        execute: (input, request) =>
-          runTool(name, run, codeMode.execute(name, input, toolContext(request)), request.signal),
-      })),
+  const offered = codeMode === undefined ? [] : capabilities
+  const taken = (capability: CodeCapability) => offered.some((entry) => entry.name === capability.name)
+  const added = [
+    ...(codeMode === undefined ? [] : codeModeCapabilities(codeMode, run)),
+    ...directCapabilities(snapshot, run),
   ]
+  added.filter(taken).forEach((capability) => collided(capability.name))
+  return [...offered, ...added.filter((capability) => !taken(capability))]
+}
+
+function directCall(name: string, input: unknown, request: ToolRequest): Parameters<Tool.Snapshot['execute']>[0] {
+  const context = toolContext(request)
+  return {
+    sessionId: context.sessionId,
+    agent: context.agent,
+    messageId: context.messageId,
+    call: {type: 'tool-call', id: context.id, name, input},
+    ...(context.cancel === undefined ? {} : {cancel: context.cancel}),
+  }
 }
 
 function declaredCodeOf(error: unknown): string | null {
@@ -146,7 +174,13 @@ function withDeclaredCode(error: unknown): Error {
   return new Error(`${code}: ${bare}`)
 }
 
-export type ChatToolSet = {codeMode: ChatTool[]; asking: ChatTool[]; asked: CodeCapability[]}
+export type ChatToolSet = {
+  codeMode: ChatTool[]
+  asking: ChatTool[]
+  asked: CodeCapability[]
+  direct: ChatTool[]
+  directed: CodeCapability[]
+}
 
 function chatTool(capability: CodeCapability, request: ToolRequest, lazy: boolean): ChatTool {
   return defineTool({
@@ -173,10 +207,13 @@ function chatTool(capability: CodeCapability, request: ToolRequest, lazy: boolea
 
 export function chatToolSet(capabilities: readonly CodeCapability[], request: ToolRequest): ChatToolSet {
   const asked = capabilities.filter((capability) => capability.approval === 'ask')
-  const sandboxed = capabilities.filter((capability) => capability.approval !== 'ask')
+  const directed = capabilities.filter((capability) => capability.approval !== 'ask' && capability.direct === true)
+  const sandboxed = capabilities.filter((capability) => capability.approval !== 'ask' && capability.direct !== true)
   return {
     codeMode: sandboxed.map((capability) => chatTool(capability, request, true)),
     asking: asked.map((capability) => chatTool(capability, request, false)),
     asked,
+    direct: directed.map((capability) => chatTool(capability, request, false)),
+    directed,
   }
 }

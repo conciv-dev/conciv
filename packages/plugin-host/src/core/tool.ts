@@ -64,7 +64,7 @@ export interface Snapshot {
   readonly execute: (input: {
     readonly sessionId: SessionSchema.Id
     readonly agent: Agent.Id
-    readonly messageId: SessionMessage.Id
+    readonly messageId: SessionMessage.Id | undefined
     readonly call: ToolCall
     readonly progress?: (update: Tool.Metadata) => Effect.Effect<void>
     readonly cancel?: Effect.Effect<void>

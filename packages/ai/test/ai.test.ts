@@ -531,6 +531,7 @@ const watched = require('node:net').connect(data.socket, () => {
         systemPrompts: [],
         codeMode: [],
         asking: [],
+        direct: [],
         setup: async () => new Map(),
         expand: async (messages) => messages,
         providerMessages: async (messages) => messages,

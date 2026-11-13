@@ -28,7 +28,7 @@ import {
 import type {SessionScope} from '../runtime/scope-types.js'
 import {logError} from '../lib/debug.js'
 import corePackage from '../../package.json' with {type: 'json'}
-import type {ChatPlane, CodeCapability, CodeRunner, CodeTool} from '@conciv/chat'
+import type {ChatPlane, CodeCapability, CodeRunner, CodeSandbox, CodeTool} from '@conciv/chat'
 import {createMCPServer} from '@conciv/ai/server'
 import {loopbackHostAllowlist} from '../lib/cors.js'
 import {callTrace} from './call-trace.js'
@@ -86,9 +86,9 @@ const NAME_SEPARATOR = ', '
 const LIST_ALL_HINT =
   ' (list every name from inside execute_typescript: return Object.keys(globalThis).filter((key) => key.startsWith("external_")))'
 
-type RunnerCapability = CodeRunner['capabilities'][number]
+type RunnerCapability = CodeSandbox['capabilities'][number]
 
-function executeDescription(runner: CodeRunner, staleness: EngineStaleness): string {
+function executeDescription(runner: CodeSandbox, staleness: EngineStaleness): string {
   const rest = `${EXECUTE_DESCRIPTION}\n\n${SANDBOX_RULES}\n\n${capabilitiesIntro(runner)}`
   const names = runner.capabilities.map(sandboxName)
   const namesReserve =
@@ -102,7 +102,7 @@ function executeDescription(runner: CodeRunner, staleness: EngineStaleness): str
   return `${body}${namesOnly(names.slice(described), DESCRIPTION_BUDGET_CHARS - body.length)}`
 }
 
-function capabilitiesIntro(runner: CodeRunner): string {
+function capabilitiesIntro(runner: CodeSandbox): string {
   if (runner.discover === null) return 'Capabilities:'
   return 'Capabilities (call discover_tools with their names for typed signatures; it is a separate tool call, not available inside the sandbox):'
 }
@@ -180,7 +180,7 @@ async function publishResult(calls: CallPublisher, reply: CodeReply): Promise<vo
 }
 
 async function runExecute(
-  runner: CodeRunner,
+  runner: CodeSandbox,
   typescriptCode: string,
   calls: CallPublisher,
 ): Promise<CodeExecuteResult> {
@@ -263,11 +263,17 @@ function withFinishedQueues(reply: CodeReply, finished: readonly PageQueueResult
 
 type CodeRun = {result: CodeExecuteResult; reply: CodeReply}
 
-export type CodeSession = {
-  runner: CodeRunner
+export type CodeSandboxSession = {
+  sandbox: CodeSandbox
   describe: () => CodeDescriptions
   execute: (typescriptCode: string) => Promise<CodeRun>
   discover: (toolNames: string[]) => Promise<CodeDiscoverResult>
+}
+
+export type CodeSession = {
+  runner: CodeRunner
+  sandbox: CodeSandboxSession | null
+  asked: (tool: CodeTool, input: unknown) => Promise<CodeReply>
   direct: (tool: CodeTool, input: unknown) => Promise<CodeReply>
 }
 
@@ -299,14 +305,14 @@ export async function openCodeSession(
     signal: caller.signal,
   }
   const finished = (): PageQueueResult[] => (caller.signal.aborted ? [] : deps.finishedQueues(scope.id, hub))
-  return {
-    runner,
+  const sandbox = (code: CodeSandbox): CodeSandboxSession => ({
+    sandbox: code,
     describe: () => ({
-      execute: executeDescription(runner, deps.staleness()),
-      discover: runner.discover?.description ?? null,
+      execute: executeDescription(code, deps.staleness()),
+      discover: code.discover?.description ?? null,
     }),
     execute: async (typescriptCode) => {
-      const executed = await runExecute(runner, typescriptCode, calls)
+      const executed = await runExecute(code, typescriptCode, calls)
       const started = deps.startedQueues(scope.id, childCalls)
       const delivered = finished()
       const finishedIds = new Set(delivered.map((result) => result.queueId))
@@ -318,14 +324,19 @@ export async function openCodeSession(
       return {result, reply: codeExecuteReply(result)}
     },
     discover: async (toolNames) => {
-      if (runner.discover === null) throw new Error('no tools to discover')
-      const tools = cappedValue(await runner.discover.run(toolNames))
+      if (code.discover === null) throw new Error('no tools to discover')
+      const tools = cappedValue(await code.discover.run(toolNames))
       return {tools, finished: finished()}
     },
-    direct: async (tool, input) => {
+  })
+  return {
+    runner,
+    sandbox: runner.code === null ? null : sandbox(runner.code),
+    asked: async (tool, input) => {
       const asking = caller.askBeforeCalls ? approvedFirst(deps, scope.id, tool, publish) : tool
       return withFinishedQueues(await runDirect(asking, input, calls), finished())
     },
+    direct: async (tool, input) => withFinishedQueues(await runDirect(tool, input, calls), finished()),
   }
 }
 
@@ -357,37 +368,48 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: CodeCall
     logError('[mcp] code mode is unavailable (no isolate driver or an empty registry); no tools registered')
     return []
   }
-  const discover = code.runner.discover
+  const sandbox = code.sandbox
+  const discover = code.runner.code?.discover ?? null
   const discoverTools =
-    discover === null
+    sandbox === null || discover === null
       ? []
       : [
           defineTool({
             name: DISCOVER_TOOL_NAME,
             description: discover.description,
             inputSchema: DiscoverInputSchema,
-          }).server(gated(admit, async (args) => codeDiscoverReply(await code.discover(args.toolNames)))),
+          }).server(gated(admit, async (args) => codeDiscoverReply(await sandbox.discover(args.toolNames)))),
         ]
   const askingTools = code.runner.asking.map((tool) =>
+    defineTool({name: tool.name, description: tool.description, inputSchema: tool.inputSchema}).server(
+      gated(admit, (args) => code.asked(tool, args)),
+    ),
+  )
+  const directTools = code.runner.direct.map((tool) =>
     defineTool({name: tool.name, description: tool.description, inputSchema: tool.inputSchema}).server(
       gated(admit, (args) => code.direct(tool, args)),
     ),
   )
-  const executeTool = defineTool({
-    name: EXECUTE_TOOL_NAME,
-    description: code.describe().execute,
-    inputSchema: ExecuteInputSchema,
-  }).server(
-    gated(admit, async (args) => {
-      try {
-        return (await code.execute(args.typescriptCode)).reply
-      } catch (error) {
-        logError(`[mcp] ${EXECUTE_TOOL_NAME} failed outside the sandbox: ${String(error)}`)
-        throw error
-      }
-    }),
-  )
-  return [...discoverTools, ...askingTools, executeTool]
+  const executeTools =
+    sandbox === null
+      ? []
+      : [
+          defineTool({
+            name: EXECUTE_TOOL_NAME,
+            description: sandbox.describe().execute,
+            inputSchema: ExecuteInputSchema,
+          }).server(
+            gated(admit, async (args) => {
+              try {
+                return (await sandbox.execute(args.typescriptCode)).reply
+              } catch (error) {
+                logError(`[mcp] ${EXECUTE_TOOL_NAME} failed outside the sandbox: ${String(error)}`)
+                throw error
+              }
+            }),
+          ),
+        ]
+  return [...discoverTools, ...askingTools, ...directTools, ...executeTools]
 }
 
 const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {

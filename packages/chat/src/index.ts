@@ -19,6 +19,7 @@ import {
   type ApprovalScope,
 } from './approvals.js'
 import {chatToolSet, type CodeCapability} from './code-mode.js'
+import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import {clearThread, metadataKeysEndingWith, runningThreadIds} from './stores.js'
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
 import {firstUserTitle, turnHooks, type TurnDeps} from './turn.js'
@@ -44,12 +45,17 @@ export type CodeTool = {
   run: (input: unknown, parentToolCallId: string, signal?: AbortSignal) => Promise<unknown>
 }
 
-export type CodeRunner = {
+export type CodeSandbox = {
   capabilities: {name: string; description: string}[]
   run: (code: string, parentToolCallId: string | null, signal?: AbortSignal) => Promise<unknown>
   discover: {description: string; run: (toolNames: string[]) => Promise<unknown>} | null
-  asking: CodeTool[]
   declaredCodes: ReadonlySet<string>
+}
+
+export type CodeRunner = {
+  code: CodeSandbox | null
+  asking: CodeTool[]
+  direct: CodeTool[]
 }
 
 type AdmittedCall = {
@@ -272,7 +278,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       const capabilities = given ?? deps.capabilities(sessionId)
       const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model, ...(outside ? {outside} : {})})
       const runner = server.codeRunner(toolSet.codeMode)
-      if (runner === null) return null
+      if (runner === null && toolSet.direct.length === 0) return null
       const emitter = (parentToolCallId: string | null) => (name: string, value: Record<string, unknown>) => {
         const chunk: ChatEvent = {type: ChatEventType.CUSTOM, name, value, timestamp: Date.now()}
         for (const card of childCardChunks(chunk, parentToolCallId, cappedValue) ?? [chunk]) {
@@ -282,29 +288,39 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
           publish(card)
         }
       }
-      const asking = toolSet.asking.flatMap((tool): CodeTool[] => {
-        const execute = tool.execute
-        const capability = toolSet.asked.find((entry) => entry.name === tool.name)
-        if (!execute || capability === undefined) return []
-        return [
-          {
-            name: tool.name,
-            description: tool.description,
-            inputSchema: capability.inputSchema,
-            run: async (input, parentToolCallId, signal) =>
-              execute(input, {emitCustomEvent: emitter(parentToolCallId), abortSignal: signal}),
-          },
-        ]
-      })
+      const direct = codeTools(toolSet.direct, toolSet.directed, emitter)
+      if (runner === null) return {code: null, asking: [], direct}
       return {
-        capabilities: toolSet.codeMode.map((tool) => ({name: tool.name, description: tool.description})),
-        run: (code, parentToolCallId, signal) => runner.run(code, emitter(parentToolCallId), signal),
-        discover: runner.discover,
-        asking,
-        declaredCodes: new Set(capabilities.flatMap((capability) => capability.errors.map(({code}) => code))),
+        code: {
+          capabilities: toolSet.codeMode.map((tool) => ({name: tool.name, description: tool.description})),
+          run: (code, parentToolCallId, signal) => runner.run(code, emitter(parentToolCallId), signal),
+          discover: runner.discover,
+          declaredCodes: new Set(capabilities.flatMap((capability) => capability.errors.map(({code}) => code))),
+        },
+        asking: codeTools(toolSet.asking, toolSet.asked, emitter),
+        direct,
       }
     },
   }
+}
+
+type Emitter = (parentToolCallId: string | null) => (name: string, value: Record<string, unknown>) => void
+
+function codeTools(tools: readonly ChatTool[], capabilities: readonly CodeCapability[], emitter: Emitter): CodeTool[] {
+  return tools.flatMap((tool): CodeTool[] => {
+    const execute = tool.execute
+    const capability = capabilities.find((entry) => entry.name === tool.name)
+    if (!execute || capability === undefined) return []
+    return [
+      {
+        name: tool.name,
+        description: tool.description,
+        inputSchema: capability.inputSchema,
+        run: async (input, parentToolCallId, signal) =>
+          execute(input, {emitCustomEvent: emitter(parentToolCallId), abortSignal: signal}),
+      },
+    ]
+  })
 }
 
 type EndedRun = Awaited<ReturnType<ReturnType<typeof drizzleChatStores>['runs']['get']>>

@@ -99,6 +99,7 @@ import {makeSessionPrimitives} from '../src/runtime/primitives.js'
 import {runWithSession} from '../src/runtime/session-context.js'
 import {start, composeSystemPrompt} from '../src/start.js'
 import {makeApp} from '../src/app.js'
+import {outsideRunCapabilities} from '../src/api/outside-run.js'
 import {
   CODE_LIFETIME_MS,
   OPEN_PATHS,
@@ -237,7 +238,9 @@ describe('chat plane', () => {
     expect(cli.systemPrompts.flat()).toContain('the fallback prompt')
     expect(log.some((line) => line.includes(missing))).toBe(true)
     const runner = await chat.codeRunner(sessionId('prompt'), () => undefined)
-    await expect(runner?.run('return await external_unit_secret({apiKey: "k"})', 'parent')).rejects.toThrow(/secret/i)
+    await expect(runner?.code?.run('return await external_unit_secret({apiKey: "k"})', 'parent')).rejects.toThrow(
+      /secret/i,
+    )
   })
 
   it('after a restart the finished and interrupted turns all show, and the interrupted run is aborted with a finish time', async () => {
@@ -2265,5 +2268,81 @@ describe('plugin permission cards', () => {
     onTestFinished(() => restarted.dispose())
     expect((await restarted.plane.hydrate(id)).pendingApprovals.map((entry) => entry.toolName)).toEqual(['unit_kept'])
     expect(logged).toEqual([])
+  })
+})
+
+describe('direct tools on the MCP surface', () => {
+  const ToolsListed = z.object({result: z.object({tools: z.array(z.object({name: z.string()}))})})
+  const ToolCalled = z.object({
+    result: z.object({content: z.array(z.object({text: z.string()})), isError: z.boolean().optional()}),
+  })
+
+  it('a codemode false tool is its own MCP tool that runs without an approval card, an outside run keeps it, and a session that denies execute lists every plugin tool directly and no execute tool', async () => {
+    const root = tempDir()
+    const {made, origin, stop} = await serveCore(root, [], {})
+    onTestFinished(stop)
+    const id = SessionId.parse('conciv_mcp_direct')
+    await ensureRow(made.chat.db, id, made.chat.defaultHarness.id, root)
+    const scope = made.pluginHost.runSync(Scope.make())
+    await made.pluginHost.runPromise(
+      Effect.gen(function* () {
+        const tools = yield* Tool.Service
+        yield* tools.transform((editor) => {
+          editor.add({
+            name: 'unit_direct',
+            description: 'Echo the text directly.',
+            input: z.object({text: z.string()}),
+            options: {codemode: false},
+            execute: (input: {text: string}) => Effect.succeed({content: `direct ${input.text}`}),
+          })
+          editor.add({
+            name: 'unit_coded',
+            description: 'Echo the text in code mode.',
+            input: z.object({text: z.string()}),
+            execute: (input: {text: string}) => Effect.succeed({content: `coded ${input.text}`}),
+          })
+        })
+      }).pipe(Scope.provide(scope)),
+    )
+    const post = async (method: string, params: Record<string, unknown>) => {
+      const response = await fetch(`${origin}/t/${made.agentToken}/api/mcp`, {
+        method: 'POST',
+        headers: {
+          ...JSON_TYPE,
+          accept: 'application/json, text/event-stream',
+          [CONCIV_SESSION_HEADER]: id,
+        },
+        body: JSON.stringify({jsonrpc: '2.0', id: 1, method, params}),
+      })
+      const text = await response.text()
+      const data = text.split('\n').find((line) => line.startsWith('data: '))
+      return JSON.parse(data === undefined ? text : data.slice('data: '.length))
+    }
+    const listed = async () => ToolsListed.parse(await post('tools/list', {})).result.tools.map((tool) => tool.name)
+
+    const open = await listed()
+    expect(open).toContain('execute_typescript')
+    expect(open.filter((name) => name === 'unit_direct')).toEqual(['unit_direct'])
+    expect(open).not.toContain('unit_coded')
+    const called = ToolCalled.parse(await post('tools/call', {name: 'unit_direct', arguments: {text: 'hi'}}))
+    expect(called.result.isError).not.toBe(true)
+    expect(called.result.content.map((part) => part.text).join('')).toContain('direct hi')
+    expect((await made.plane.hydrate(id)).pendingApprovals).toEqual([])
+
+    const direct: CodeCapability = {
+      name: 'unit_kept_direct',
+      description: 'Direct.',
+      errors: [],
+      inputSchema: z.object({}),
+      direct: true,
+      execute: async () => 'kept',
+    }
+    const [kept] = outsideRunCapabilities([direct])
+    await expect(kept?.execute({}, {sessionId: id, agentId: id, model: null})).resolves.toBe('kept')
+
+    await setPermissions(made.chat.db, id, [{action: 'execute', resource: '*', effect: 'deny'}])
+    expect((await listed()).toSorted()).toEqual(['unit_coded', 'unit_direct'])
+    const shut = ToolCalled.parse(await post('tools/call', {name: 'unit_coded', arguments: {text: 'shut'}}))
+    expect(shut.result.content.map((part) => part.text).join('')).toContain('coded shut')
   })
 })

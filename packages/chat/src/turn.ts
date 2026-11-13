@@ -203,7 +203,7 @@ export function turnHooks(
         effort: own?.effort ?? undefined,
         env: deps.harnessEnv?.(sessionId) ?? process.env,
         kind: turn.kind,
-        hasTools: toolSet.codeMode.length + toolSet.asking.length > 0,
+        hasTools: toolSet.codeMode.length + toolSet.asking.length + toolSet.direct.length > 0,
       })
       return {
         adapter: config.adapter,
@@ -211,6 +211,7 @@ export function turnHooks(
         systemPrompts: systemText === '' ? [] : [systemText],
         codeMode: toolSet.codeMode,
         asking: toolSet.asking,
+        direct: toolSet.direct,
         setup: async () => {
           await deps.sessions.ensure(sessionId)
           await deps.sessions.onRunStart(sessionId)
