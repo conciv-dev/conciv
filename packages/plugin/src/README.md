@@ -1,8 +1,10 @@
 # @conciv/plugin source
 
 The SDK is a port of opencode's plugin package (opencode at commit `a1aa513`; every opencode path below is relative
-to its `packages/` folder). Names, shapes and JSDoc are opencode's except for the lines under "Differences from
-opencode".
+to its `packages/` folder). Names and shapes are opencode's except for the lines under "Differences from opencode".
+The source keeps opencode's JSDoc only where a block carries at least one tag (`@param`, `@returns`, `@example`,
+`@remarks` ...) above a declaration or member: those blocks stay whole, prose-only doc blocks are not kept
+(`conciv/no-comments` with `keepDocComments`).
 
 ## Entries
 
@@ -153,7 +155,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - The build fails on `@conciv/*` and `solid-js/*` modules outside the provided list; source's `effect/` prefix has no conciv counterpart (no Effect). So `@conciv/ui-kit*` fails here: `experimental()` is the outside-plugin build.
 - An installable plugin never imports the UI kit; it uses `ctx.ui`. `experimental()` has no first-party mode: any `@conciv/*` import outside the provided list fails the build, as in opencode. Only the built-in plugins compiled into the app import `@conciv/ui-kit*` directly.
 - The error reads "<module> is not a module the conciv app provides to plugins: <list>" (source: "<module> is not a module the OpenCode app provides to plugin GUIs: <list>").
-- The `//` comment above `provided` is its JSDoc.
+- The `//` comment above `provided` is dropped.
 
 ### Reactive helpers and bindings (`experimental/reactive.ts`, `solid.ts`, `internal.ts`)
 
@@ -199,7 +201,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - The agent editor's `Types.DeepMutable<Agent.Info>` is a mapped type that drops `readonly` from the info and from each permission rule.
 - `ConcivEvent` is opencode's `OpenCodeEvent` (`protocol/src/groups/event.ts:82`) cut to the events conciv emits: `session.deleted` (`schema/src/session-event.ts:182`, by ruling: the page plugin drops an attachment when its session is deleted) and the `rpc.*` event; every other server event is absent (conciv's session stream `sessions.changes` carries only an index `version`, `packages/contract/src/contract.ts:73`).
 - `server.connected` is absent (conciv's engine sends no connect frame), so `EventDomain`'s event type excludes nothing.
-- `SessionDeleted.durable` is `DurableEnvelope` (`schema/src/event.ts:34`): `aggregateID` is `aggregateId`, the branded `Seq` and `Version` are numbers with their JSDoc on the fields.
+- `SessionDeleted.durable` is `DurableEnvelope` (`schema/src/event.ts:34`): `aggregateID` is `aggregateId`, the branded `Seq` and `Version` are numbers; `seq` carries the not-implemented marker.
 - `SubscribeOptions` has no `onActivity` (request options are `{signal}` only).
 
 ### Session
@@ -223,8 +225,8 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 ### Scope
 
 - `experimental/scope.ts` ports `plugin/src/gui/scope.ts`.
-- `Scope.make` carries its JSDoc on an explicit type of the `Scope` constant: `conciv/no-comments` keeps doc blocks above declarations and type members only, not above an object literal's property.
-- The source's three `//` comments are gone (zero comments in code): the one above `Finalizer` is its JSDoc, the two inside `create` are dropped.
+- `Scope.make` carries its JSDoc on an explicit type of the `Scope` constant: `conciv/no-comments` keeps tagged doc blocks above declarations and type members only, not above an object literal's property.
+- The source's three `//` comments are gone (zero comments in code).
 - `fork` returns early after closing a fork made on a closed scope instead of `if ... else` (repo law: no `else` where a guard works).
 - `close` orders the finalizers with `[...finalizers].toReversed()` where source calls `.reverse()` on the same fresh copy (lint `unicorn/no-array-reverse`); same order.
 
@@ -233,12 +235,12 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - Files follow `plugin/src/gui/`: `core.ts`, `declarations.ts`, `plugin.ts`, `context.ts`, `host-apis.ts`, `registries.ts`, `icon-name.ts`, `builtin.ts`; `index.ts` mirrors `gui/index.ts`. `host-apis.ts` (about 1700 lines) stays one file, as in source.
 - Package exports `./experimental` and `./experimental/builtin` (source keeps `builtin.ts` out of its published build; conciv's built-in plugins live in other workspace packages, so it is exported).
 - `Json` and `PluginOptions` are the engine part's types, re-exported (same shape).
-- `App` keeps the source's fields; JSDoc names conciv. `Context.app` is `App` (implemented), unlike the engine part's `App | undefined`.
+- `App` keeps the source's fields. `Context.app` is `App` (implemented), unlike the engine part's `App | undefined`.
 - `Token` is `Contract<unknown>` only, `TokenValue` has no Ipc branch, `Live` and `Context.use` / `provide` speak of contracts only: no main process, so no `Ipc`, `IpcSpec`, `IpcClient`, `IpcImpl`, `IpcProvider`, `IpcMethod`, `IpcCallOptions`, `Caller`, `Ipc.define`, `Context.main`, `Definition.main`, `MainSetup`, `MainContext`.
 - `BaseContext.client` is `ConcivClient` (the client of the plugin's own engine); no `t` or `plural`, and no `OS`, `Params`, `Messages`, `Catalog`, `Declarations.os`, `Declarations.i18n`.
 - `Store` has three scopes, `global`, `project` (this repo, conciv's layered project settings) and `session`; `StoreDeclaration` and the `stores` handle take `project` as `global` (loaded before setup).
 - Store schemas are zod object schemas (`z.ZodObject`). Source reads the value type as Effect's `Schema.Type`, whose struct fields are readonly; zod's output is not, so `StoreType<S>` (added) is zod's output made readonly all the way down, and `Persisted.update` still hands out a `Mutable` draft.
-- `Store`, `Registry` and `Contract` carry their member JSDoc on an explicit type of the constant (the `Scope.make` rule above); the JSDoc on `update`'s `draft` parameter is dropped (the lint keeps doc blocks above declarations and members only).
+- `Store`, `Registry` and `Contract` carry their member JSDoc on an explicit type of the constant (the `Scope.make` rule above); the JSDoc on `update`'s `draft` parameter is dropped (the lint keeps tagged doc blocks above declarations and members only).
 - `Plugin.Definition` has `setup` only and `WithSetup` is `{setup}` (no `main`).
 - `Context` members by `docs/specs/plugins-ctx-audit.md` Table 1 and the spec's "Host APIs on ctx" table: `layout`, `sessions`, `screen`, `storage`, `servers`, `tabs`, `links`, `ui`, `toast`, `appearance`, `router`, `app`, `keybinds` implemented; `desktop` is `Desktop | undefined` as in source; `dialogs` is implemented with `open` and `active` (audit: have it) while `confirm`, `alert`, `prompt` and `select` are `T | undefined`; `system` is implemented with `copy` (ruling) while `save` and `openExternal` are `T | undefined`; `commands` and `attention` are `T | undefined` as whole members; absent: `main`, `t`, `plural`, `embeds`, `locale`, `workspaces` (with `Embeds`, `EmbedProps`, `Locale`, `Workspaces`).
 - `ServerRef` and `Servers` are `../servers.ts`, re-exported; the browser source adds no members beyond `data` (see Not available yet).
@@ -246,7 +248,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - `Composer`: `text` and `focus` are implemented by the spec table ("`ctx.screen` (`composer.attach`, `composer.focus`, text)") where the audit says "concept fits"; `attach` takes `file`, `note` and `quote` (the audit's UNSURE quote row is settled by the spec's Attachments section). `commentID` is `commentId`, `ComposerModel.providerID` / `modelID` are `providerId` / `modelId`. Mentions of subagent sessions are dropped from the JSDoc (subagents run inside the CLI).
 - `SessionScreen` has `composer` only: `file` (`Files`, `FileState`, `FileContent`, `FileNode`, `LineRange`) and `comment` (`Comments`, `Comment`) are not ours (audit rows `screen.file.*`, `screen.comment.*`).
 - `MountedSession` keeps `visit` and `directory`; `local` is declared, not implemented; `background` and `BackgroundTask` are absent (subagents run inside the CLI); `listedProject` is absent (no sidebar; audit row `layout.sidebar.opened`); `project` is not available yet.
-- `Layout`: `side` and `sidebar` are absent: conciv has no side region (`apps/conciv/src/pane/status-bar.tsx:48`, a panel replaces the chat; `apps/conciv/src/routes/panel-height.ts:8`). This settles the audit's UNSURE `layout.side.width` row and drops `side.menu` with `MenuItem`. `project` is absent (one directory per engine). `OpenOptions` and `PanelState` JSDoc no longer mention the side region or narrow screens.
+- `Layout`: `side` and `sidebar` are absent: conciv has no side region (`apps/conciv/src/pane/status-bar.tsx:48`, a panel replaces the chat; `apps/conciv/src/routes/panel-height.ts:8`). This settles the audit's UNSURE `layout.side.width` row and drops `side.menu` with `MenuItem`. `project` is absent (one directory per engine).
 - `Desktop`: no `os`, no `zoom`; `launch(path, position?)` takes a `{line, column?}` position in place of source's `app?` argument, backed by the engine's open-in-editor (`packages/contract/src/contract.ts:410`, `editor.open`).
 - `StorageScope` keeps source's `{server, directory?}` scope; a conciv server is an engine, which runs in one project.
 - `System.save` and `openExternal` JSDoc describe the web only (download, new tab).
@@ -271,11 +273,12 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - `ServerEntry.cover` is built: the host draws it while the entry is not `ready` (opencode `app/src/runtime/plugin/server-shell.tsx:34,63-71`), and try-it draws its connect pane through it (today the `connect` slot, `packages/extensions/try-it/src/client.tsx:21`); the page origin the pane shows is the browser part's own `window.location.origin`. Its input's `tab` is `string | undefined`: no tab is routed while the widget has no engine.
 - `ServerEntry.connect` is declared, not implemented: opencode's host calls it when the user signs in to a server that waits for it (`app/src/session/server-unavailable-panel.tsx:57`, `app/src/runtime/plugin/servers.tsx:191`); try-it has no such action, its probe runs on its own (`packages/extensions/try-it/src/client/use-core-probe.ts:48`).
 - `ServerEntry.row`, `ServerRow` and `ServerHealth` are absent: they draw a row on a Servers settings page, which conciv does not have (`SettingsPage.page` is `'general'` only).
-- `Server` and `Server.ready` JSDoc drop SSH, WSL and server tabs (conciv has no server tabs); `http.password` JSDoc drops the fixed user name.
+- `http.password` JSDoc drops the fixed user name.
 
 ## Declared, not implemented
 
-Each is typed `| undefined` (or optional) and always undefined in this version.
+Each is typed `| undefined` (or optional) and always undefined in this version. The source marks each with the JSDoc
+tag line `@remarks Not implemented yet. Always undefined in this version.`, and this list matches those lines.
 
 - `Context.app`, `Context.experimental.generate`
 - `model.transform`, `model.reload`

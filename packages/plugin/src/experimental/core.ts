@@ -5,38 +5,13 @@ import type {PluginOptions} from '../options.js'
 export type {Json} from '../storage.js'
 export type {PluginOptions} from '../options.js'
 
-/**
- * Undoes a registration, or tears something down. Every `add` and `on` returns one, and so does a window's
- * `provide`; `onCleanup` and a setup's return value take one.
- * Calling it early withdraws at once; a second call does nothing. When the host runs it, a throw or a rejection is
- * logged and the other cleanups still run; main's `Scope` waits for a returned promise until its deadline.
- */
 export type Cleanup = () => void | Promise<void>
 
-/** The running app, with the fields engine plugins get in `ctx.app`. */
 export interface App {
-  /** The app's name, `conciv`, as in an engine plugin's `ctx.app.name`. */
   readonly name: string
-  /**
-   * The app version, e.g. `0.0.22`. It is `""` only in a window whose platform reports none, such as a test or
-   * Storybook fixture, as no build-time version constant exists in every build.
-   */
   readonly version: string
-  /**
-   * The release channel.
-   * - `local`: a build from source, with no channel set.
-   * - `dev`: the development channel.
-   * - `beta`: the beta channel.
-   * - `prod`: the stable release.
-   */
   readonly channel: 'local' | 'dev' | 'beta' | 'prod'
-  /**
-   * Where the code runs.
-   * - `web`: a browser tab.
-   * - `desktop`: a desktop app.
-   */
   readonly platform: 'web' | 'desktop'
-  /** A packaged desktop app, not a development run. Always false on the web. */
   readonly packaged: boolean
 }
 
@@ -53,11 +28,8 @@ declare const brand: unique symbol
  * ```
  */
 export interface Registry<T> {
-  /** The token kind. */
   readonly kind: 'registry'
-  /** The registry's id; contributions are grouped by it. */
   readonly id: string
-  /** Carries the item type `T` at compile time only; never set. */
   readonly [brand]?: T
 }
 
@@ -72,18 +44,13 @@ export interface Registry<T> {
  * ```
  */
 export interface Contract<T, Id extends string = string> {
-  /** The token kind. */
   readonly kind: 'contract'
-  /** The contract's id: `<plugin id>` or `<plugin id>.<name>`. */
   readonly id: Id
-  /** Carries the contract type `T` at compile time only; never set. */
   readonly [brand]?: T
 }
 
-/** Something a plugin provides under its id and other code reads with `ctx.use`: an in-process `Contract`. */
 export type Token = Contract<unknown>
 
-/** The value a token gives its users: the contract itself. */
 export type TokenValue<T> = T extends Contract<infer V> ? V : never
 
 /**
@@ -103,32 +70,18 @@ export type TokenValue<T> = T extends Contract<infer V> ? V : never
  */
 export type Live<T> =
   | {
-      /** The provider has not started yet. */
       readonly status: 'pending'
     }
   | {
-      /** The provider is running. */
       readonly status: 'active'
-      /** The contract. */
       readonly value: T
-      /** Counts activations, starting at 1; each restart brings a new one. */
       readonly generation: number
     }
   | {
-      /** The provider is gone. */
       readonly status: 'inactive'
-      /**
-       * Why the provider is gone.
-       * - `disabled`: turned off or not composed.
-       * - `failed`: its setup threw.
-       */
       readonly reason: 'disabled' | 'failed'
     }
 
-/**
- * What every window entry gets. The host adds the APIs it always provides as properties (`ctx.layout`,
- * `ctx.storage`, …), created on first read, and `provide` for the contracts it hosts.
- */
 export interface BaseContext {
   /**
    * The plugin's options from the conciv config, as `ctx.options` in its engine part. Empty for a built-in.
@@ -230,34 +183,17 @@ export interface BaseContext {
  */
 export type StoreFrom = string
 
-/**
- * A store schema's decoded value, read-only as a stored value is: zod's output type with every field and entry
- * `readonly`. `update` hands out a `Mutable` draft of it.
- */
 export type StoreType<S extends z.ZodObject> = ReadonlyDeep<z.output<S>>
 
 type ReadonlyDeep<T> = T extends object ? {readonly [K in keyof T]: ReadonlyDeep<T[K]>} : T
 
-/** A store a plugin declares in `Plugin.define({ stores })`. Build one with `Store.global`, `Store.project` or `Store.session`. */
 export interface StoreDeclaration<
   S extends z.ZodObject = z.ZodObject,
   Scope extends 'global' | 'project' | 'session' = 'global' | 'project' | 'session',
 > {
-  /**
-   * Where the value lives.
-   * - `global`: one value for every project, loaded before setup.
-   * - `project`: one value for this project, the repo the engine runs in, loaded before setup.
-   * - `session`: one value per session, loaded when the session mounts.
-   */
   readonly scope: Scope
-  /**
-   * Decodes the stored JSON; a zod object schema. A field that is missing or fails to decode takes its `initial`
-   * value; a value that fails as a whole reads as `initial`.
-   */
   readonly schema: S
-  /** The value before anything is stored, and after `Storage.remove`. */
   readonly initial: StoreType<S>
-  /** Older homes the value is imported from once. See `StoreFrom`. */
   readonly from?: StoreFrom | readonly StoreFrom[]
 }
 
@@ -333,9 +269,7 @@ export const Store: {
  * ```
  */
 export interface Persisted<T, V = T | undefined> {
-  /** The stored value; undefined until it has loaded. Reactive. */
   readonly value: V
-  /** The stored value has loaded. Reactive. */
   ready(): boolean
   /**
    * Mutates a deep-mutable draft, even when the schema's fields are readonly. Return nothing or `undefined`;
@@ -354,10 +288,8 @@ export interface Persisted<T, V = T | undefined> {
   set(next: T): void
 }
 
-/** A stored value's writable draft, recursively removing readonly fields and collection entries. */
 export type Mutable<T> = T extends object ? {-readonly [K in keyof T]: Mutable<T[K]>} : T
 
-/** The stores a definition declares; `{}` when it declares none. */
 export type DeclaredStores<D> = D extends {readonly stores?: infer M}
   ? M extends Readonly<Record<string, StoreDeclaration>>
     ? M

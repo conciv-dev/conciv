@@ -29,7 +29,6 @@ export type PluginSource =
 export interface PluginFeatures {
   readonly server?: true
   readonly rpc?: true
-  /** The package exports `./plugin-experimental`, the bundle the conciv app loads. */
   readonly experimental?: true
 }
 
@@ -45,7 +44,7 @@ export interface PluginInfo {
 }
 
 export interface Context {
-  /** Not implemented yet. Always undefined in this version. */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly app: App | undefined
   readonly location: Info
   readonly options: PluginOptions
@@ -55,7 +54,7 @@ export interface Context {
     /**
      * Stateless generation with a model and a prompt: no session, history or tools.
      *
-     * Not implemented yet. Always undefined in this version.
+     * @remarks Not implemented yet. Always undefined in this version.
      */
     readonly generate: ExperimentalGenerateApi | undefined
   }
@@ -71,7 +70,6 @@ export interface Context {
   readonly tool: ToolDomain
   readonly servers: Servers
   readonly harness: HarnessDomain
-  /** Undefined when conciv runs without a bundler it can read. */
   readonly bundler: BundlerDomain | undefined
 }
 

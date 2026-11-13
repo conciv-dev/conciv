@@ -17,29 +17,16 @@ import {usePlugin} from './solid.js'
 
 type Falsy = undefined | null | false
 
-/**
- * What `createKeyed` and `createLatest` follow: a `Live` accessor from `ctx.use(token)`, followed through its
- * generations, or any accessor, followed by the identity of its value.
- */
 export type KeyedSource = Accessor<unknown>
 
-/**
- * What a source gives while it is active: the provider's value for a `Live` accessor; for a plain accessor, its value,
- * which is active while it is not undefined, null or false.
- */
 export type KeyedValue<S> =
   S extends Accessor<Live<infer T>> ? T : S extends Accessor<infer T> ? Exclude<T, Falsy> : never
 
-/** One run of `createKeyed`: the source's value, or none while it is not active. */
 type Run = {readonly value: unknown; readonly generation?: number} | undefined
 
-/** `createKeyed`'s callbacks as it calls them, on the source's values. */
 type KeyedCallbacks = {
-  /** Runs once per key. */
   run(value: unknown): void
-  /** Whether a plain accessor's new value is the same key. */
   equals?(previous: unknown, next: unknown): boolean
-  /** Runs while the source has no key. */
   readonly otherwise?: () => void
 }
 
@@ -73,16 +60,7 @@ export function createKeyed<S extends KeyedSource>(
   source: S,
   fn: (value: KeyedValue<S>) => void,
   options?: {
-    /**
-     * Runs while the source has no key: a `Live` accessor that is pending or inactive, or a plain accessor whose value
-     * is undefined, null or false. Its own owner ends when a key arrives.
-     */
     readonly otherwise?: () => void
-    /**
-     * Whether a plain accessor's new value is the same key as the one `fn` last ran with, so the run stays and `fn`
-     * does not run again. Use it when the source builds an object each time it reads. Defaults to identity (`===`).
-     * A `Live` accessor always keys by generation and ignores it.
-     */
     readonly equals?: (previous: KeyedValue<S>, next: KeyedValue<S>) => boolean
   },
 ) {
@@ -109,14 +87,8 @@ export function createLatest<S extends KeyedSource, T>(
   source: S,
   fetch: (value: KeyedValue<S>, signal: AbortSignal) => Promise<T>,
 ): {
-  /** The last result; kept while a newer request runs and while the source has no value. Undefined before the first. */
   readonly latest: T | undefined
-  /** A request for the current value is in flight. */
   readonly loading: boolean
-  /**
-   * The current request's rejection. Undefined while a request runs, after a result, and while the source has no
-   * value, so it never describes an earlier value's request.
-   */
   readonly error: unknown
 } {
   const [state, setState] = createStore<{latest: T | undefined; loading: boolean; error: unknown}>({

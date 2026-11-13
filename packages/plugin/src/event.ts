@@ -17,10 +17,9 @@ export interface DurableEnvelope {
    * event envelope and synced markers;
    * `after` cursors accept only values that came from those sources.
    *
-   * Not implemented yet. Always undefined in this version.
+   * @remarks Not implemented yet. Always undefined in this version.
    */
   readonly seq: number | undefined
-  /** Durable schema version of one event type, from the event definition that committed it. */
   readonly version: number
 }
 
@@ -41,7 +40,6 @@ type RpcEvent = {
 
 export type ConcivEvent = SessionDeleted | RpcEvent
 
-/** The members of event union `A` whose type matches one of `Type`, including `rpc.*` events. */
 export type SelectedEvent<A extends {readonly type: string}, Type extends string> = A extends unknown
   ? [Extract<Type, A['type']>] extends [never]
     ? never

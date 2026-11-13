@@ -14,7 +14,6 @@ import type {Cleanup} from './core.js'
  * ```
  */
 export interface Scope {
-  /** Aborts when the scope closes. Pass it to long work, and return after an `await` if it aborted. */
   readonly signal: AbortSignal
   /**
    * Runs `fn` when the scope closes, or at once when it already has. A throw or rejection is logged and the other
@@ -30,25 +29,16 @@ export interface Scope {
    * @param name - Labels the child in logs, as `parent/name`.
    */
   fork(name: string): Scope
-  /**
-   * Aborts `signal` at once; the finalizers start once the calling code yields. Settles when they have, or at the
-   * deadline: a finalizer still running then is logged and no longer waited for, and the rest start. Closing again
-   * also waits for the finalizers added since.
-   */
   close(): Promise<void>
 }
 
-/** Writes a structured log entry; the logger serializes each field of `data` as it is. */
 type Log = <Data extends Readonly<Record<string, unknown>>>(message: string, data: Data) => void
 
 type Options = {
-  /** How long `close` waits for the finalizers, in milliseconds. */
   readonly timeout: number
-  /** Reports finalizers that failed or timed out. */
   readonly log: Log
 }
 
-/** A fork has no label: it logs its own finalizers. */
 type Finalizer = {readonly label?: string; readonly run: Cleanup}
 
 /**

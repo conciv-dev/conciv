@@ -56,7 +56,6 @@ export type Input<S extends z.ZodType> = z.input<S>
 
 export type Output<S extends z.ZodType> = z.output<S>
 
-/** zod parses handler results forward, so a handler returns the schema's input side. */
 export type HandlerOutput<S extends z.ZodType> = Input<S>
 
 type MethodErrors<M extends Method> = M extends {
@@ -125,7 +124,6 @@ export type ErrorFactory<M extends Method> = <Name extends ErrorName<M>>(
 export type EventInputData<S extends EventValueSchema> = HandlerOutput<S>
 export type EventData<S extends EventValueSchema> = Output<S>
 
-/** Keeps the event name correlated with its payload even when callers use unions. */
 export type EventInput<D extends Definition> = {
   [Name in keyof D['events'] & string]: [name: Name, data: EventInputData<D['events'][Name]['schema']>]
 }[keyof D['events'] & string]

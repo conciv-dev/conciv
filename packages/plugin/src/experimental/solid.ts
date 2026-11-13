@@ -51,21 +51,11 @@ export function bindPlugin<P extends object>(component: Component<P>): Component
     })
 }
 
-/** Where a panel render is shown. Read it with `usePanel`. */
 export interface PanelFrame {
-  /** The pane is open and this tab is selected. */
   readonly visible: Accessor<boolean>
-  /** Kept on screen while the pane animates closed. */
   readonly present: Accessor<boolean>
-  /**
-   * Where the render is placed.
-   * - `pane`: the pane, in place of the chat.
-   * - `mobile`: a narrow-screen view (`Panel.mobile`).
-   */
   readonly placement: Accessor<'pane' | 'mobile'>
-  /** Plays size animations; false while the user drags the pane's edge. */
   readonly animate: Accessor<boolean>
-  /** This plugin's tab ids stored in the session's strip (the ids `list` receives as `open`). */
   readonly open: Accessor<readonly string[]>
 }
 

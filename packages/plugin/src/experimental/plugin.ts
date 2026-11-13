@@ -24,12 +24,7 @@ export type {Cleanup, Declarations}
  */
 export type Setup<D extends Declarations = Declarations<{}>> = (ctx: SetupContext<D>) => Cleanup | void
 
-/**
- * A plugin's app part: the default export of its `./plugin-experimental` bundle. Its `Declarations`, then a window
- * setup. The app's built-in plugins declare with it too.
- */
 export type Definition<S extends Stores = Stores> = Declarations<S> & {
-  /** Runs in every page the conciv app shows. See `Setup`. */
   readonly setup?: Setup<NoInfer<Declarations<S>>>
 }
 
@@ -70,5 +65,4 @@ export function define(plugin: Definition): Definition {
   return plugin
 }
 
-/** A bundle's default export needs a setup; without one, `define` returns only the declarations. */
 type WithSetup = {readonly setup: unknown}

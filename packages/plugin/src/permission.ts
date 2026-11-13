@@ -43,7 +43,7 @@ export interface PermissionRequest {
   readonly save?: ReadonlyArray<string>
   readonly metadata?: Readonly<Record<string, unknown>>
   readonly source?: Source
-  /** Not implemented yet. Always undefined in this version. */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly message?: string
 }
 
@@ -51,7 +51,7 @@ export interface PermissionReplyInput {
   readonly sessionId: SessionId
   readonly requestId: string
   readonly decision: 'once' | 'always' | 'reject'
-  /** Not implemented yet. Always undefined in this version. */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly message?: string | undefined
 }
 
@@ -80,13 +80,7 @@ export interface PermissionDomain {
     requestOptions?: RequestOptions,
   ) => Promise<PermissionRequest>
   readonly reply: (input: PermissionReplyInput, requestOptions?: RequestOptions) => Promise<void>
-  /** Not implemented yet. Always undefined in this version. */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly hook: Hooks<PermissionHooks> | undefined
-  /**
-   * Evaluates the session's permission rules and, when approval is required, prompts the user and
-   * waits for the reply. Resolves when allowed. A deny rule or a rejection with feedback rejects with
-   * a `Tool.Error` carrying the reason. A plain rejection rejects with an error that ends the current
-   * step; rethrow it rather than returning it as tool output.
-   */
   readonly assert: (input: AssertInput) => Promise<void>
 }

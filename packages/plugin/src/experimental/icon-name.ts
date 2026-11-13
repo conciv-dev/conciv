@@ -1,4 +1,3 @@
-/** An icon from the app's catalog, for SDK fields such as `ComposerNote.icon`. */
 export type IconName =
   | 'app-window'
   | 'arrow-down'

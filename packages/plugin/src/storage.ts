@@ -1,4 +1,3 @@
-/** A JSON value, as plugin options in the conciv config hold. */
 export type Json = string | number | boolean | null | readonly Json[] | {readonly [key: string]: Json}
 
 export interface StorageEntry {
@@ -18,7 +17,6 @@ export interface StorageScanResult {
 }
 
 export interface StorageDomain {
-  /** The plugin's own folder on disk, created by the host. A plugin never sees another plugin's folder. */
   readonly directory: string
   readonly get: (key: string) => Promise<Json | undefined>
   readonly set: (key: string, value: Json) => Promise<void>

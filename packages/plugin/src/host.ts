@@ -13,12 +13,6 @@ export interface Target {
 export interface Entrypoints {
   readonly server?: string
   readonly rpc?: string
-  /**
-   * The prebuilt CommonJS bundle of the app part (`./plugin-experimental`, or `plugin-experimental.cjs` or
-   * `plugin-experimental.js` in a local directory without `exports`). In a local directory without `exports` it may
-   * instead be the TypeScript source `plugin-experimental.tsx` or `plugin-experimental.ts`, which the bundler
-   * integration compiles. Each page the conciv app shows runs its default export.
-   */
   readonly experimental?: string
 }
 
@@ -58,10 +52,6 @@ export function load(entrypoint: string): Promise<unknown> {
   return importModule(entrypoint)
 }
 
-/**
- * The id of a plugin without an engine part: its package name, or a local directory's name when it has no
- * package.json name. An engine part names its plugin in `Plugin.define` instead.
- */
 export function packageId(target: Target) {
   if (target.name) return target.name
   const name = packageManifest(target.directory)?.name

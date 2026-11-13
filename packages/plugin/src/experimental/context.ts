@@ -33,12 +33,6 @@ import type {
   Ui,
 } from './host-apis.js'
 
-/**
- * What every window entry gets. Contracts are provided and read at runtime: `ctx.provide` for your own, `ctx.use` for
- * other plugins'. The APIs the host always provides are properties, each created on first read.
- * Setup runs under the plugin's root owner: Solid's `onCleanup` in setup runs when the plugin goes away.
- * `usePlugin()` returns the same object inside contributions.
- */
 export interface Context extends BaseContext {
   /**
    * Provides an in-process contract. Withdrawn with the current owner, else with the plugin. Throws for a contract
@@ -155,7 +149,7 @@ export interface Context extends BaseContext {
    */
   readonly tabs: Tabs
   /**
-   * Not implemented yet. Always undefined in this version.
+   * @remarks Not implemented yet. Always undefined in this version.
    *
    * System notifications and sounds that follow the user's notification settings, for when they look elsewhere.
    *
@@ -166,7 +160,7 @@ export interface Context extends BaseContext {
    */
   readonly attention: Attention | undefined
   /**
-   * Not implemented yet. Always undefined in this version.
+   * @remarks Not implemented yet. Always undefined in this version.
    *
    * Runs published plugin commands and the app's own.
    *
@@ -250,7 +244,6 @@ type Handle<S> =
       : (session: SessionRef) => Persisted<StoreType<Schema>>
     : never
 
-/** The context `Plugin.Setup<typeof definition>` receives: the host's members, and the definition's declared stores. */
 export interface SetupContext<D> extends Context {
   /**
    * Each declared store, by its name in `stores`. A global or project store is a `Persisted` that has loaded before

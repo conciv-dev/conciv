@@ -7,20 +7,9 @@ export {Scope} from './scope.js'
 
 export {DrawerContext, LifetimeContext, liveAccessor, PanelContext, PluginContext} from './internal.js'
 
-/**
- * A plugin as a host runs it: its id, its `Plugin.Declarations`, plus the setup the host loads lazily. A built-in's
- * entry is its app part module; a plugin's `./plugin-experimental` bundle becomes a window entry that runs its `setup`.
- */
 export interface Entry extends Declarations {
-  /**
-   * The plugin's id: a built-in's key in `compose`, or the engine plugin's id for a bundle. It prefixes every id the
-   * plugin creates: commands (`<id>.<command>`), panel keys (`<id>:<tab>`), stored keys (`plugin.<id>.<key>`), and
-   * its contract ids (`<id>` or `<id>.<name>`). The plugin reads it as `ctx.id`.
-   */
   readonly id: string
-  /** Loads the window setup (`Plugin.Setup<typeof definition>`). */
   readonly windowEntry?: () => Promise<{
-    /** The window setup. */
     readonly default: (ctx: never) => Cleanup | void
   }>
 }
@@ -41,11 +30,8 @@ export function compose(entries: Readonly<Record<string, Omit<Entry, 'id'>>>): E
   return Object.entries(entries).map(([id, entry]) => ({...entry, id}))
 }
 
-/** One explicit enable-state row. An absent row means there is no setting under that id. */
 export interface EnableState {
-  /** The plugin id the user saved a setting under. */
   readonly id: string
-  /** The saved setting: true enables the plugin; false disables it. */
   readonly enabled: boolean
 }
 
@@ -59,9 +45,7 @@ export interface EnableState {
  */
 export function pluginEnabled(
   plugin: {
-    /** The plugin's id. */
     readonly id: string
-    /** Ships with the app. */
     readonly builtin: boolean
   },
   state: readonly EnableState[],
@@ -176,18 +160,13 @@ export function inertModule(name: string): InertModule {
   return placeholder
 }
 
-/** A placeholder `inertModule` returns: it answers every property read, call and construction with itself. */
 export type InertModule = () => void
 
-/** A plugin's `./plugin-experimental` bundle as `evaluatePluginBundle` read it. */
 export interface PluginBundle {
-  /** The declarations of its `Plugin.define`, checked. The host adds the engine plugin's id. */
   readonly definition: Declarations
-  /** Its window `setup`. */
   readonly setup?: (ctx: never) => Cleanup | void
 }
 
-/** The page that evaluates a plugin's `./plugin-experimental` bundle with `evaluatePluginBundle`. */
 export interface PluginBundleHost {
   /**
    * Returns the module the bundle requires.
@@ -262,17 +241,11 @@ export function pluginIdAvailable(id: string, builtins: readonly Pick<Entry, 'id
   )
 }
 
-/** A plugin's app part as the host lists it: a built-in, or the app part of a plugin on the engine. */
 export interface Installed {
-  /** The plugin's id. */
   readonly id: string
-  /** Ships with the app. */
   readonly builtin: boolean
-  /** The user has it enabled. */
   readonly enabled: boolean
-  /** Why its entry failed, if it did. */
   readonly error?: string
-  /** A plugin from the config with an engine part, which this row's switch leaves running. */
   readonly server?: boolean
 }
 
@@ -285,7 +258,6 @@ export interface Installed {
  * @returns True when the plugin's `./plugin-experimental` bundle should load.
  */
 export function shipsPluginExperimental(plugin: PluginInfo): plugin is PluginInfo & {
-  /** The engine plugin's id, which the host gives its app part. */
   readonly id: string
 } {
   return (

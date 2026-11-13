@@ -9,15 +9,9 @@ export type CallId = string
 export interface ToolContext {
   readonly sessionId: SessionId
   readonly agent: string
-  /** Not implemented yet. Always undefined in this version. */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly messageId: string | undefined
   readonly id: CallId
-  /**
-   * Aborted when the call is interrupted, and when the user stops the call if the tool has read this property.
-   * Reading it (spreading the context reads it too) opts the tool into a cooperative stop: on the user's stop the
-   * signal aborts and whatever the tool then returns or throws is still reported as the call's result. A tool
-   * that never reads it, or does not settle soon after the stop, is interrupted.
-   */
   readonly signal: AbortSignal
   readonly progress: (update: Metadata) => Promise<void>
 }
@@ -94,7 +88,6 @@ export interface ToolEditor {
   get(id: string): (Info & {readonly id: string}) | undefined
   namespace(namespace: Namespace): void
   add<Input extends z.ZodType, Output extends z.ZodType | undefined>(tool: Info<Input, Output>): void
-  /** Updates an existing tool; missing IDs are ignored. */
   update(id: string, update: (tool: Mutable<Info>) => void): void
   remove(id: string): void
 }
@@ -104,7 +97,7 @@ interface ToolHooks {
     tool: string
     readonly sessionId: SessionId
     readonly agent: string
-    /** Not implemented yet. Always undefined in this version. */
+    /** @remarks Not implemented yet. Always undefined in this version. */
     readonly messageId: string | undefined
     readonly id: CallId
     input: unknown
@@ -113,7 +106,7 @@ interface ToolHooks {
     readonly tool: string
     readonly sessionId: SessionId
     readonly agent: string
-    /** Not implemented yet. Always undefined in this version. */
+    /** @remarks Not implemented yet. Always undefined in this version. */
     readonly messageId: string | undefined
     readonly id: CallId
     readonly input: unknown
@@ -132,12 +125,10 @@ interface ToolHooks {
 export interface ToolDomain {
   readonly transform: Transform<ToolEditor>
   readonly reload: () => Promise<void>
-  /** Currently registered tools, after every transform, keyed by effective name. */
   readonly list: () => Promise<readonly (Info & {readonly id: string})[]>
   readonly hook: Hooks<ToolHooks>
 }
 
-/** Builds a `Tool.Error` from the same input as opencode's `new Tool.Error({message, error, metadata})`. */
 export function toolError(input: Omit<Error, '_tag'>): Error {
   return {_tag: 'Tool.Error', ...input}
 }
