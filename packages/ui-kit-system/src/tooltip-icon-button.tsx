@@ -137,8 +137,8 @@ export function TooltipIconButtonSlot(props: TooltipIconButtonSlotProps): JSX.El
               <span
                 {...triggerProps()}
                 class={`inline-flex ${local.wrapperClass ?? ''}`}
-                onFocusIn={(event) => event.target.matches(':focus-visible') && api().setOpen(true)}
-                onFocusOut={() => api().setOpen(false)}
+                on:focusin={(event) => event.target.matches(':focus-visible') && api().setOpen(true)}
+                on:focusout={() => api().setOpen(false)}
               >
                 {local.children(() => buttonProps(triggerProps()['aria-describedby']))}
               </span>

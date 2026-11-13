@@ -106,8 +106,15 @@
       {
         "files": ["packages/plugin-host/src/**"],
         "maxCognitive": 24,
-        "maxCrap": 72,
+        "maxCrap": 110,
         "reason": "copied from opencode: the copy keeps opencode's shape"
+      },
+      {
+        "files": ["packages/plugin-host/src/core/bus.ts"],
+        "maxCyclomatic": 40,
+        "maxCognitive": 30,
+        "maxCrap": 400,
+        "reason": "copied whole from opencode core/src/bus.ts: commitDurableEvent and publishAll keep opencode's shape"
       }
     ]
   },
@@ -122,12 +129,22 @@
       "files": [
         "apps/conciv/src/runtime/plugin/**",
         "apps/conciv/src/runtime/persistence/**",
-        "apps/conciv/src/runtime/server/**"
+        "apps/conciv/src/runtime/server/**",
+        "packages/plugin-host/src/plugin/*.ts",
+        "packages/plugin-host/src/util/*.ts"
       ],
       "rules": {"unused-files": "off"}
     }
   ],
   "ignoreDependencies": [
+    "@parcel/watcher-darwin-arm64",
+    "@parcel/watcher-darwin-x64",
+    "@parcel/watcher-linux-arm64-glibc",
+    "@parcel/watcher-linux-arm64-musl",
+    "@parcel/watcher-linux-x64-glibc",
+    "@parcel/watcher-linux-x64-musl",
+    "@parcel/watcher-win32-arm64",
+    "@parcel/watcher-win32-x64",
     "@conciv/extension-tanstack",
     "@agentclientprotocol/sdk",
     "@opencode-ai/sdk",
@@ -178,7 +195,9 @@
     "bippy",
     "react-grab",
     "@solidjs/testing-library",
-    "cytoscape"
+    "cytoscape",
+    "cytoscape-cose-bilkent",
+    "cytoscape-fcose"
   ],
   "ignoreUnresolvedImports": ["collections/*"],
   "publicPackages": [
@@ -236,7 +255,19 @@
     },
     {
       "file": "packages/plugin-host/src/**",
-      "exports": ["Id", "Interface", "Options", "Service", "Tool", "layer"]
+      "exports": [
+        "Id",
+        "Interface",
+        "Options",
+        "Service",
+        "Tool",
+        "layer",
+        "Durable",
+        "Location",
+        "durable",
+        "ephemeral",
+        "versionedType"
+      ]
     },
     {
       "file": "packages/ui-kit-chat/src/tools/primitives/tool-fallback.tsx",
@@ -248,6 +279,7 @@
     }
   ],
   "entry": [
+    "packages/plugin-host/src/core/database/**",
     "packages/brand-react/src/conciv-lockup.tsx",
     "packages/brand/src/brand-guidelines.mdx",
     "packages/ui-kit-chat/src/tools.tsx",

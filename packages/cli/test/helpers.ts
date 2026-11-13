@@ -32,6 +32,7 @@ function bootCliApp(extras: BootExtras): BootApp {
       harnessSessionId: undefined,
       systemPrompt: '',
       hubAccess: 'session',
+      plugins: [],
     }
     const {fetch, dispose, agentToken} = await makeApp({
       print: env.print,

@@ -34,6 +34,7 @@ export async function runTrustPolicyInstall(): Promise<TrustPolicyInstallResult>
       'allowBuilds:',
       '  isolated-vm: false',
       '  protobufjs: false',
+      "  '@parcel/watcher': false",
       'overrides:',
       ...Object.entries(overrides).map(([name, value]) => `  ${JSON.stringify(name)}: ${JSON.stringify(value)}`),
       '',

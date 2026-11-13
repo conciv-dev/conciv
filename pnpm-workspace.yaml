@@ -14,6 +14,7 @@ syncInjectedDepsAfterScripts:
 # it can resolve two different @orpc releases and split the pair. Single-sourcing the
 # version here means every manifest's "catalog:" resolves to the same exact release.
 catalog:
+  '@effect/sql-sqlite-node': 4.1.0
   '@modelcontextprotocol/sdk': ^1.32.2
   '@orpc/client': 1.16.1
   '@orpc/contract': 1.16.1
@@ -47,10 +48,20 @@ catalog:
   '@bomb.sh/router': ^0.8.0
   '@bramus/specificity': ^2.4.3
   '@clack/prompts': '^1.8.1'
+  '@effect/platform-node': 4.1.0
   '@hono/node-server': '^2.1.5'
   '@iconify-json/ph': '^1.2.2'
   '@orama/orama': 3.1.18
   '@oxlint/plugins': 1.90.0
+  '@parcel/watcher': 2.5.1
+  '@parcel/watcher-darwin-arm64': 2.5.1
+  '@parcel/watcher-darwin-x64': 2.5.1
+  '@parcel/watcher-linux-arm64-glibc': 2.5.1
+  '@parcel/watcher-linux-arm64-musl': 2.5.1
+  '@parcel/watcher-linux-x64-glibc': 2.5.1
+  '@parcel/watcher-linux-x64-musl': 2.5.1
+  '@parcel/watcher-win32-arm64': 2.5.1
+  '@parcel/watcher-win32-x64': 2.5.1
   '@playwright/test': '^1.64.1'
   '@shikijs/langs-precompiled': 4.5.0
   '@shikijs/magic-move': '^4.5.0'
@@ -122,6 +133,7 @@ catalog:
   eslint-plugin-solid: 0.18.1
   fast-check: 4.9.0
   get-port: '^7.2.0'
+  glob: 13.0.5
   gsap: '^3.15.0'
   hono: '^4.13.14'
   lucide-react: '^1.64.0'

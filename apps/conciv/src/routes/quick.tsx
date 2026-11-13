@@ -71,7 +71,7 @@ function onGutterDown(e: PointerEvent) {
   window.addEventListener('pointerup', up)
 }
 
-export function QuickTerminalHeader(props: {
+function QuickTerminalHeader(props: {
   splitShortcut: string | undefined
   onPip: () => void
   onSplit: () => void
@@ -289,7 +289,7 @@ function QuickLayer(): JSX.Element {
                     data-conciv-qt-pane
                     class={`flex flex-1 flex-col min-h-0 min-w-55 transition-opacity duration-[160ms] ease-chat relative ${focusedIndex() === index() ? "before:content-[''] before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-chat-accent before:opacity-90" : 'opacity-[0.62]'}`}
                     onPointerDown={() => focusPane(index())}
-                    onFocusIn={() => {
+                    on:focusin={() => {
                       if (focusedIndex() !== index()) focusPane(index())
                     }}
                   >

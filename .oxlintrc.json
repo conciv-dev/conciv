@@ -170,6 +170,12 @@
       }
     },
     {
+      "files": ["packages/ui-kit-*/src/**", "apps/conciv/src/**"],
+      "rules": {
+        "conciv/no-delegated-focus": "error"
+      }
+    },
+    {
       "files": ["packages/ai/**", "packages/protocol/**"],
       "rules": {
         "no-restricted-imports": [
@@ -397,7 +403,7 @@
     {
       "files": ["packages/plugin-host/**"],
       "rules": {
-        "conciv/test-file-budget": ["error", {"max": 6}]
+        "conciv/test-file-budget": ["error", {"max": 14}]
       }
     },
     {

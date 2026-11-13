@@ -47,9 +47,12 @@ const ExtensionPackageSchema = z.object({
 
 export type ExtensionPackage = z.infer<typeof ExtensionPackageSchema>
 
+const PluginEntrySchema = z.union([z.string(), z.tuple([z.string(), z.record(z.string(), z.unknown())])])
+
 export const ConcivConfigSchema = z.object({
   enabled: z.boolean().optional(),
   extensions: z.array(ExtensionPackageSchema).readonly().optional(),
+  plugins: z.array(PluginEntrySchema).readonly().optional(),
   widgetUrl: z.string().optional(),
   widget: z.union([WidgetConfigSchema, z.literal(false)]).optional(),
   stateRoot: z.string().optional(),

@@ -31,25 +31,44 @@
   "scripts": {
     "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "gen-migrations": "node src/scripts/gen-migrations.ts",
     "lint": "oxlint",
     "test": "vitest run",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/db": "workspace:^",
+    "@conciv/plugin": "workspace:^",
+    "@effect/sql-sqlite-node": "catalog:",
+    "@parcel/watcher": "catalog:",
     "@standard-schema/spec": "catalog:",
+    "drizzle-orm": "catalog:",
     "effect": "catalog:",
+    "glob": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
+    "@effect/platform-node": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "drizzle-kit": "catalog:",
     "fast-check": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "optionalDependencies": {
+    "@parcel/watcher-darwin-arm64": "catalog:",
+    "@parcel/watcher-darwin-x64": "catalog:",
+    "@parcel/watcher-linux-arm64-glibc": "catalog:",
+    "@parcel/watcher-linux-arm64-musl": "catalog:",
+    "@parcel/watcher-linux-x64-glibc": "catalog:",
+    "@parcel/watcher-linux-x64-musl": "catalog:",
+    "@parcel/watcher-win32-arm64": "catalog:",
+    "@parcel/watcher-win32-x64": "catalog:"
   },
   "engines": {
     "node": ">=26.0.0"
