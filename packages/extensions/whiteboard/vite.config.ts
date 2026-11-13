@@ -16,7 +16,15 @@ export default defineConfig({
       fileName: () => 'client.js',
     },
     rollupOptions: {
-      external: [/^solid-js/, /^zod/, /^@conciv\//, /^node:/, /^oxc-parser/],
+      external: [
+        /^solid-js/,
+        /^zod/,
+        /^@conciv\//,
+        /^node:/,
+        /^oxc-parser/,
+        /^cytoscape-cose-bilkent/,
+        /^cytoscape-fcose/,
+      ],
     },
     emptyOutDir: false,
     sourcemap: true,
