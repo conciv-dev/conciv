@@ -65,6 +65,7 @@ const ROOT_STYLES = {
   gradient: null,
   opacity: 1,
   image: '',
+  media: {},
 } as const
 
 async function widgetConnected(input: {page: ServerToolPageAccess; tolerances: Tolerances}): Promise<void> {

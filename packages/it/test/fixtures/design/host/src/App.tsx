@@ -24,6 +24,7 @@ const TARGET_ALIASES = new Set([
   'container',
   'process',
   'filters',
+  'media-height',
 ])
 const LOOK_CLASSES: Record<string, string> = {webfont: 'webfont', container: 'webfont'}
 const CONTAINER_CSS =
@@ -40,6 +41,7 @@ const INPUT_FIELD = {
   background: '#242424',
 } as const
 const INPUT_LINE = {display: 'flex', flexDirection: 'column', gap: 6, height: 30, boxSizing: 'border-box'} as const
+const MEDIA_HEIGHT_CSS = '#root section { @media (width >= 40rem) { height: 120px; } }'
 const FIELD_BORDER = {borderColor: '#d64545', borderRadius: 0}
 const SLOW_FONT_CSS = "@import url('/slow-font.css');"
 const SLOW_FONT_TEXT = 'The quarterly report lists every invoice that was paid late, with the customer and the days overdue.'
@@ -209,6 +211,7 @@ export function App() {
       {variant === 'missing' ? null : <Table variant={variant} look={requested} data-conciv-key="rFh37A" />}
       {requested === 'process' ? <section id="process" data-conciv-key="SE7-sA" /> : null}
       {requested === 'container' ? <style data-conciv-key="2WxtqQ">{CONTAINER_CSS}</style> : null}
+      {requested === 'media-height' ? <style data-conciv-key="mDhTst">{MEDIA_HEIGHT_CSS}</style> : null}
       {requested === 'effects-cover' ? (
         <div
           data-conciv-effects=""

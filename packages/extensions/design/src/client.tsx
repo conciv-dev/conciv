@@ -872,7 +872,34 @@ function readStyles(input: {style: CSSStyleDeclaration; element: Element; scan: 
     gradient: gradientStops(style.backgroundImage),
     opacity: Number(style.opacity),
     image: imageSource({element: input.element, image: style.backgroundImage}),
+    media: mediaOf(input),
   }
+}
+
+function mediaOf(input: {element: Element; scan: Scan}): Record<string, string> {
+  const {element, scan} = input
+  const conditioned = scan.entries.filter(
+    (entry) => entry.origin.conditions.some(isMedia) && bestPart({element, selector: entry.selector}) !== null,
+  )
+  if (conditioned.length === 0) return {}
+  const properties = uniq(Object.values(designConfig.mediaProperties))
+  return Object.fromEntries(
+    properties
+      .filter((property) =>
+        conditioned.some((entry) => declared({style: entry.style, aliases: propertyAliases(property)}) !== null),
+      )
+      .flatMap((property) => winningMedia({element, property, scan})),
+  )
+}
+
+function winningMedia(input: {element: Element; property: string; scan: Scan}): [string, string][] {
+  const winner = winningDeclaration(input)
+  const media = winner === null || winner.inherited ? [] : winner.conditions.filter(isMedia)
+  return media.length === 0 ? [] : [[input.property, media.join(' and ')]]
+}
+
+function isMedia(condition: string): boolean {
+  return condition.startsWith(MEDIA_PREFIX)
 }
 
 function imageSource(input: {element: Element; image: string}): string {
@@ -977,7 +1004,7 @@ type Sheet = Winner['sheet']
 
 type Origin = {sheet: Sheet; conditions: string[]; layer: string | null; parent: string | null}
 
-type Entry = {rule: CSSStyleRule; selector: string; origin: Origin}
+type Entry = {style: CSSStyleDeclaration; selector: string; origin: Origin}
 
 type Realm = {doc: Document; view: Window & typeof globalThis}
 
@@ -1043,7 +1070,7 @@ function walk(input: {rules: CSSRuleList; origin: Origin; scan: Scan}): void {
 function visitStyle(input: {rule: CSSStyleRule; origin: Origin; scan: Scan}): void {
   const {rule, origin, scan} = input
   const selector = origin.parent === null ? rule.selectorText : nest({parent: origin.parent, child: rule.selectorText})
-  scan.entries.push({rule, selector, origin})
+  scan.entries.push({style: rule.style, selector, origin})
   walk({rules: rule.cssRules, origin: {...origin, parent: selector}, scan})
 }
 
@@ -1098,6 +1125,8 @@ function visit(input: {rule: CSSRule; origin: Origin; scan: Scan}): void {
   if (rule instanceof view.CSSLayerBlockRule) return visitLayerBlock({rule, origin, scan})
   if (rule instanceof view.CSSLayerStatementRule) return visitLayerStatement({rule, origin, scan})
   if (rule instanceof view.CSSImportRule) return visitImport({rule, origin, scan})
+  if (rule instanceof view.CSSNestedDeclarations && origin.parent !== null)
+    scan.entries.push({style: rule.style, selector: origin.parent, origin})
 }
 
 function scanSheets(realm: Realm): Scan {
@@ -1189,7 +1218,7 @@ function inlineCandidate(input: {element: Element; aliases: string[]; scan: Scan
 function ruleCandidates(input: {element: Element; aliases: string[]; scan: Scan}): Candidate[] {
   const {scan} = input
   return scan.entries.flatMap((entry, order) => {
-    const hit = declared({style: entry.rule.style, aliases: input.aliases})
+    const hit = declared({style: entry.style, aliases: input.aliases})
     if (hit === null) return []
     const best = bestPart({element: input.element, selector: entry.selector})
     if (best === null) return []
@@ -1201,7 +1230,7 @@ function ruleCandidates(input: {element: Element; aliases: string[]; scan: Scan}
           selector: best.part,
           declaration: `${hit.alias}: ${hit.value}`,
           value: hit.value,
-          important: entry.rule.style.getPropertyPriority(hit.alias) === 'important',
+          important: entry.style.getPropertyPriority(hit.alias) === 'important',
           inline: false,
           inherited: false,
           sheet: origin.sheet,
@@ -1282,6 +1311,7 @@ function bestCandidate(input: WinnerQuery): Candidate | null {
 
 const UNSET_LENGTHS = new Set(['auto', '0', '0px', 'none', 'initial', 'unset', 'revert'])
 
+const MEDIA_PREFIX = '@media'
 const KEY_ATTR = 'data-conciv-key'
 const INSTANCE_ATTR = 'data-conciv-instance'
 const SCROLL_SLACK = 2

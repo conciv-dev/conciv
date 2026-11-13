@@ -4,6 +4,22 @@ import {CatalogSchemas} from './catalog-defs.js'
 
 type Rgb = [number, number, number]
 
+const mediaProperties: Record<string, string> = {
+  width: 'width',
+  height: 'height',
+  'width sizing': 'width',
+  'height sizing': 'height',
+  'flex-direction': 'flex-direction',
+  'font size': 'font-size',
+  'font weight': 'font-weight',
+  'font family': 'font-family',
+  'line height': 'line-height',
+  'text color': 'color',
+  fill: 'background-color',
+  radius: 'border-radius',
+  opacity: 'opacity',
+}
+
 export const designConfig = Object.assign(
   z.object({
     comparator: z.enum(['blazediff', 'pixelmatch']).default('blazediff'),
@@ -126,6 +142,7 @@ export const designConfig = Object.assign(
     },
     stampRoot: '../../..',
     rowKinds: {page: 'page'},
+    mediaProperties,
     propertyAliases,
     folded,
     hex,

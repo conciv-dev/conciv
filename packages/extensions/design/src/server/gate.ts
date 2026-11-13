@@ -78,7 +78,9 @@ export function gateOf(input: {design: Design; reads: ReturnType<typeof readIds>
     revoted: 0,
     dupes: records.filter((record) => reads.of(record.id).length > 1).map((record) => record.id),
   }
-  const painted = [...wrapRows, ...rows, ...lookRows({design: input.design, reads, live: input.live, held})]
+  const painted = [...wrapRows, ...rows, ...lookRows({design: input.design, reads, live: input.live, held})].map(
+    (row) => setBy({row, element: reads.of(row.node)[0]}),
+  )
   const [slight, kept] = partition(painted, (row) => row.magnitude === 'slightly')
   return {rows: kept, slight, coverage, counts: countsOf(painted)}
 }
@@ -108,6 +110,13 @@ type Record = {
   direction?: 'row' | 'column'
 }
 
+function setBy(input: {row: GateRow; element: LiveComponent | undefined}): GateRow {
+  const {row} = input
+  const property = row.property === undefined ? undefined : MEDIA_PROPERTIES[row.property]
+  const media = property === undefined ? undefined : input.element?.styles.media[property]
+  return media === undefined ? row : {...row, text: `${row.text}, set by ${media}`}
+}
+
 function bordered(input: {
   record: Record
   byId: Map<string, Record>
@@ -122,15 +131,16 @@ function bordered(input: {
 
 function lineSide(input: {line: Box; frame: Box}): string | null {
   const {line, frame} = input
-  const near = (a: number, b: number) => Math.abs(a - b) <= SAME_PX
-  if (line.h === 0 && near(line.y, frame.y + frame.h)) return 'bottom'
-  if (line.h === 0 && near(line.y, frame.y)) return 'top'
-  if (line.w === 0 && near(line.x, frame.x)) return 'left'
-  if (line.w === 0 && near(line.x, frame.x + frame.w)) return 'right'
+  const close = (a: number, b: number) => Math.abs(a - b) <= SAME_PX
+  if (line.h === 0 && close(line.y, frame.y + frame.h)) return 'bottom'
+  if (line.h === 0 && close(line.y, frame.y)) return 'top'
+  if (line.w === 0 && close(line.x, frame.x)) return 'left'
+  if (line.w === 0 && close(line.x, frame.x + frame.w)) return 'right'
   return null
 }
 
 const LINE_KIND = 'line'
+const MEDIA_PROPERTIES = designConfig.mediaProperties
 const FAR_PX = 24
 const CONTAINER_TOLERANCE = 0.08
 const LEAF_TOLERANCE = 0.2

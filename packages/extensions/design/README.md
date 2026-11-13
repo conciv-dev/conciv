@@ -85,7 +85,9 @@ src/
   `design_get` with `route` points the target at another page; a target with a route was measured on its own page.
 - `design_check({nodes?})` waits for the last save to settle, measures the page at the design width, updates the
   mapping, and returns `{round, rows, reflow, coverage, counts, verdict, reasons}`. A row is `{node, key, kind, name, text, magnitude, property, expected, actual, delta}`;
-  rows at `slightly` are counted, not listed. `reflow` holds one entry per width (1024, 768): `rootHeight,
+  rows at `slightly` are counted, not listed. When the CSS rule that wins a row's property sits inside an `@media` rule
+  (nested ones included), the row text ends with `set by @media (...)`; the measure returns that condition per CSS
+  property in `styles.media`. `@container` rules are not read. `reflow` holds one entry per width (1024, 768): `rootHeight,
   sticksOut, overflowX, overlaps, tags` with `ok` and `why`. A page error, or a page that renders under half the nodes
   of the last settled round, answers `{unsettled: true, rendered, route, verdict: 'unsettled', reasons}`; its round is recorded with state
   `unsettled` and is never judged.

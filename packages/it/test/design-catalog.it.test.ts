@@ -72,6 +72,17 @@ describe('design_check on the cards page', () => {
     expect(opened.rows.map((row) => row.text)).toEqual(closed.rows.map((row) => row.text))
   })
 
+  it('names the media query whose rule sets the measured value', async () => {
+    await kit.goto('media-height')
+    await call('design_get', await cardsDesign(kit.targetsDir))
+    const checked = roundOf(await call('design_check', {}))
+    expect(
+      checked.rows
+        .filter((row) => row.node === '1:2' && row.property === 'height')
+        .map((row) => row.text.includes('set by @media') && row.text.includes('40rem')),
+    ).toEqual([true])
+  })
+
   it('names the route it measured and sends the agent to no other route when the design names its route', async () => {
     await kit.goto('target')
     await call('design_get', {...(await cardsDesign(kit.targetsDir)), route: '/?variant=empty'})

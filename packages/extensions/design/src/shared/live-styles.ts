@@ -22,4 +22,8 @@ export const LiveStylesSchema = z.object({
   gradient: z.object({from: z.string(), to: z.string()}).nullable().default(null),
   opacity: z.number().optional(),
   image: z.string().optional().describe('the src of an img, else the url of the background image'),
+  media: z
+    .record(z.string(), z.string())
+    .default({})
+    .describe('by CSS property, the @media condition of the winning declaration, when it sits in one'),
 })
