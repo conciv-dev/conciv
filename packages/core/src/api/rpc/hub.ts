@@ -1,8 +1,4 @@
-import {statSync} from 'node:fs'
-import {mkdir, watch} from 'node:fs/promises'
 import {homedir} from 'node:os'
-import {join} from 'node:path'
-import {isEqual} from 'es-toolkit'
 import {z} from 'zod'
 import {concivHome} from '@conciv/db'
 import {detectHarnesses} from '@conciv/harness-init/detect'
@@ -11,14 +7,13 @@ import {initContributions} from '@conciv/harness-init/registry'
 import type {HubAgents} from '@conciv/protocol/chat-types'
 import type {InitHarnessId} from '@conciv/protocol/harness-types'
 import {logError} from '../../lib/debug.js'
+import {homeDbReads} from '../../lib/home-db-watch.js'
 import corePackage from '../../../package.json' with {type: 'json'}
 
 const DetectionEnvSchema = z.object({
   PATH: z.string().catch(''),
   HOME: z.string().min(1).catch(homedir()),
 })
-
-const HOME_DB = 'home.db'
 
 type HubConnections = ReturnType<typeof createHubConnections>
 
@@ -46,29 +41,8 @@ export function createHubInstaller(homeDir: string | undefined) {
     }
   }
   return {
-    async *agents(signal: AbortSignal | undefined): AsyncGenerator<HubAgents, void, void> {
-      const folder = home()
-      await mkdir(folder, {recursive: true, mode: 0o700})
-      const changes = watch(folder, {signal})
-      let written = homeDbStamp(folder)
-      let current = agents()
-      yield current
-      try {
-        for await (const change of changes) {
-          if (change.filename?.startsWith(HOME_DB) === false) continue
-          const stamp = homeDbStamp(folder)
-          if (stamp === written) continue
-          written = stamp
-          const next = agents()
-          if (isEqual(next, current)) continue
-          current = next
-          yield current
-        }
-      } catch (error) {
-        if (signal?.aborted === true) return
-        throw error
-      }
-    },
+    agents: (signal: AbortSignal | undefined): AsyncGenerator<HubAgents, void, void> =>
+      homeDbReads(home(), signal, agents),
     connect: (harness: InitHarnessId) => connections().connect(harness, hubCommand(harness)),
     disconnect: (harness: InitHarnessId) => connections().disconnect(harness),
     generation: (): number | null => {
@@ -83,13 +57,4 @@ export function createHubInstaller(homeDir: string | undefined) {
 
 function hubCommand(harness: InitHarnessId): string[] {
   return ['npx', '-y', `@conciv/cli@${corePackage.version}`, 'mcp', 'serve', '--agent', harness]
-}
-
-function homeDbStamp(folder: string): string {
-  return [HOME_DB, `${HOME_DB}-wal`]
-    .map((file) => {
-      const found = statSync(join(folder, file), {throwIfNoEntry: false})
-      return found === undefined ? 'absent' : `${found.mtimeMs}:${found.size}`
-    })
-    .join('|')
 }

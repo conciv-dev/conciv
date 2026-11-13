@@ -20,7 +20,7 @@ import {execFileSync} from 'node:child_process'
 import {createServer, request as httpRequest} from 'node:http'
 import {DatabaseSync} from 'node:sqlite'
 import {tmpdir} from 'node:os'
-import {join, dirname} from 'node:path'
+import {basename, join, dirname} from 'node:path'
 import {afterAll, beforeAll, describe, expect, it, afterEach, onTestFinished, test, vi, beforeEach} from 'vitest'
 import {createMCPClient, imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
 import {foldChatEvents} from '@conciv/ai/testkit'
@@ -83,6 +83,8 @@ import {
   type McpClient,
   type McpTool,
 } from '@conciv/harness-testkit'
+import {Rpc as PluginRpc} from '@conciv/plugin'
+import {PluginHost} from '@conciv/plugin-host'
 import {claude} from '@conciv/harness/claude'
 import {codex as codexHarness} from '@conciv/harness/codex'
 import {pi as piHarness} from '@conciv/harness/pi'
@@ -127,12 +129,14 @@ import {createORPCClient} from '@orpc/client'
 import {RPCLink} from '@orpc/client/fetch'
 import {onError, ORPCError, os, type RouterClient} from '@orpc/server'
 import WebSocket from 'ws'
+import {Effect, ManagedRuntime} from 'effect'
 import {z} from 'zod'
 import {makeApp, type MadeApp} from '../src/app.js'
 import {callTrace} from '../src/api/call-trace.js'
 import {resolveConfig} from '../src/config.js'
 import {openSourceFromFrames} from '../src/editor/open-source.js'
 import {originAllowed} from '../src/lib/cors.js'
+import {provideServersSource} from '../src/runtime/servers-source.js'
 import {start, type Engine} from '../src/start.js'
 import {sampleServerExtension, sampleState} from './fixtures/sample-server-extension.js'
 import corePackage from '../package.json' with {type: 'json'}
@@ -4638,6 +4642,52 @@ describe('outside agent consent', () => {
     expect(JSON.stringify(await onTab('return await external_page_screenshot({})'))).toContain(
       JSON.stringify({type: 'image', source: {type: 'data', value: SCREENSHOT.image, mimeType: 'image/webp'}}),
     )
+  })
+
+  it('a plugin in one engine lists every running engine with a client that reaches it, and loses an engine that stops', async () => {
+    const home = tempDir('conciv-home-')
+    const [first, second] = [await boot('session', home), await boot('session', home)]
+    const healthId = async (base: string): Promise<string> =>
+      z.object({id: z.string()}).parse(await (await fetch(`${new URL(base).origin}/health`)).json()).id
+    const [firstId, secondId] = [await healthId(first), await healthId(second)]
+    const runtime = ManagedRuntime.make(provideServersSource({home, engineId: firstId}))
+    onTestFinished(() => runtime.dispose())
+    const servers = await runtime.runPromise(
+      Effect.gen(function* () {
+        return yield* PluginHost.ServersSource
+      }),
+    )
+    expect(servers.list()).toEqual([])
+    await vi.waitFor(() => expect(servers.list()).toEqual([firstId, secondId]), {timeout: 3000})
+    const fields = (id: string) => {
+      const ref = servers.get(id)
+      if (ref === undefined) throw new Error(`${id} is not listed`)
+      const {name, url, password, local, builtin, compatible, connected} = ref
+      return {id: ref.id, name, url, password, local, builtin, compatible, connected}
+    }
+    const shared = {password: undefined, local: true, compatible: true, connected: true}
+    expect(fields(firstId)).toEqual({...shared, id: firstId, name: expect.any(String), url: first, builtin: true})
+    expect(fields(secondId)).toEqual({...shared, id: secondId, name: expect.any(String), url: second, builtin: false})
+    expect(servers.get(secondId)).toBe(servers.get(secondId))
+    const remote = servers.get(secondId)?.client
+    if (remote === undefined) throw new Error('the second engine has no ref')
+    const listing = await remote.tabs.list(undefined, {signal: AbortSignal.timeout(3000)})
+    expect(fields(secondId).name).toBe(basename(listing.project.root))
+    const Missing = PluginRpc.define({
+      id: 'missing',
+      methods: {ping: {input: z.undefined(), output: z.string()}},
+      events: {pinged: {schema: z.object({count: z.number()})}},
+    })
+    await expect(remote.rpc(Missing).ping(undefined, {signal: AbortSignal.timeout(3000)})).rejects.toMatchObject({
+      type: 'rpc.unavailable',
+    })
+    const listening = new AbortController()
+    const events = await remote.plugin.events({rpcId: 'missing'}, {signal: listening.signal})
+    listening.abort()
+    await events.return()
+    await engines.find((booted) => booted.base === second)?.stop()
+    await vi.waitFor(() => expect(servers.list()).toEqual([firstId]), {timeout: 3000})
+    expect(servers.get(secondId)).toBeUndefined()
   })
 
   it('cancelling a hub block while it waits for the allow leaves nothing to run after a later allow', async () => {
