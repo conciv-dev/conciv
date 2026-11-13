@@ -94,7 +94,7 @@ export type TipEmitter = {
   onRemove: () => void
 }
 
-function placedTipOf(element: HTMLElement, origin: EmitterAnchor): EmitterAnchor {
+function readPlacedTip(element: HTMLElement, origin: EmitterAnchor): EmitterAnchor {
   const left = Number.parseFloat(element.style.left)
   const top = Number.parseFloat(element.style.top)
   if (Number.isNaN(left) || Number.isNaN(top)) {
@@ -105,7 +105,7 @@ function placedTipOf(element: HTMLElement, origin: EmitterAnchor): EmitterAnchor
 
 export function createTipEmitter(emitter: TipEmitter): EffectHandle {
   const {host, element, origin, onStart, onPauseEmission, onRest, onRemove} = emitter
-  const placed = placedTipOf(element, origin)
+  const placed = readPlacedTip(element, origin)
   gsap.set(element, {x: 0, y: 0})
   const shiftX = gsap.quickSetter(element, 'x', 'px')
   const shiftY = gsap.quickSetter(element, 'y', 'px')

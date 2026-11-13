@@ -41,7 +41,7 @@ describe('bridge', () => {
   const running: Server[] = []
   const projects: string[] = []
 
-  function bodyOf(incoming: IncomingMessage): Promise<string> {
+  function readBody(incoming: IncomingMessage): Promise<string> {
     return new Promise((resolve) => {
       const chunks: Buffer[] = []
       incoming.on('data', (chunk: Buffer) => {
@@ -51,12 +51,12 @@ describe('bridge', () => {
     })
   }
 
-  function sessionOf(incoming: IncomingMessage): string | null {
+  function readSessionHeader(incoming: IncomingMessage): string | null {
     const value = incoming.headers[CONCIV_CLAUDE_SESSION_HEADER]
     return typeof value === 'string' ? value : null
   }
 
-  function addressOf(server: Server): string {
+  function readAddress(server: Server): string {
     const address = server.address()
     if (address === null || typeof address === 'string') throw new Error('server is not listening on a port')
     return `http://127.0.0.1:${address.port}/api/mcp`
@@ -70,8 +70,8 @@ describe('bridge', () => {
   async function serve(respond: (recorded: Recorded, response: ServerResponse) => void): Promise<Served> {
     const recorded: Recorded[] = []
     const server = createServer((incoming, response) => {
-      void bodyOf(incoming).then((body) => {
-        const entry = {body, session: sessionOf(incoming)}
+      void readBody(incoming).then((body) => {
+        const entry = {body, session: readSessionHeader(incoming)}
         recorded.push(entry)
         respond(entry, response)
       })
@@ -80,7 +80,7 @@ describe('bridge', () => {
     await new Promise<void>((resolve) => {
       server.listen(0, '127.0.0.1', resolve)
     })
-    return {server, url: addressOf(server), recorded}
+    return {server, url: readAddress(server), recorded}
   }
 
   async function closedServerUrl(): Promise<string> {
@@ -88,7 +88,7 @@ describe('bridge', () => {
     await new Promise<void>((resolve) => {
       server.listen(0, '127.0.0.1', resolve)
     })
-    const url = addressOf(server)
+    const url = readAddress(server)
     await stopServer(server)
     return url
   }
@@ -473,12 +473,12 @@ describe('install state', () => {
     return {root, stateDir: concivStateDir(root)}
   }
 
-  function filesOf(project: Project): HarnessConnectFile[] {
+  function listFiles(project: Project): HarnessConnectFile[] {
     return claudeConnectPluginFiles({stateDir: project.stateDir})
   }
 
   function writeTree(project: Project): void {
-    for (const file of filesOf(project)) {
+    for (const file of listFiles(project)) {
       mkdirSync(dirname(file.path), {recursive: true})
       writeFileSync(file.path, file.contents)
     }
@@ -488,7 +488,7 @@ describe('install state', () => {
     return join(configDir, 'plugins')
   }
 
-  function recordsOf(configDir: string, records: InstallRecord[]): void {
+  function writeRecords(configDir: string, records: InstallRecord[]): void {
     writeFileSync(
       join(pluginsDir(configDir), 'installed_plugins.json'),
       JSON.stringify({version: 2, plugins: {[CLAUDE_CONNECT_INSTALL_TARGET]: records}}),
@@ -510,7 +510,7 @@ describe('install state', () => {
       }),
     )
     const records = [...previous, {scope: 'local', installPath: cache, projectPath: project.root}]
-    recordsOf(configDir, records)
+    writeRecords(configDir, records)
     return records
   }
 
@@ -519,7 +519,7 @@ describe('install state', () => {
       configDir,
       stateDir: project.stateDir,
       root: project.root,
-      files: filesOf(project),
+      files: listFiles(project),
     })
   }
 
@@ -569,7 +569,7 @@ describe('plugin files', () => {
   const FIRST_URL = 'http://127.0.0.1:4242/api/mcp'
   const SECOND_URL = 'http://127.0.0.1:5173/api/mcp'
 
-  function treeOf(stateDir: string): Array<[string, string]> {
+  function readTree(stateDir: string): Array<[string, string]> {
     const root = claudeConnectDir(stateDir)
     return claudeConnectPluginFiles({stateDir}).map((file) => [relative(root, file.path), file.contents])
   }
@@ -583,7 +583,7 @@ describe('plugin files', () => {
 
   describe('claude connect plugin files', () => {
     it('generates the same bytes for every project so one shared plugin cache serves them all', () => {
-      expect(treeOf('/first/.conciv')).toEqual(treeOf('/second/.conciv'))
+      expect(readTree('/first/.conciv')).toEqual(readTree('/second/.conciv'))
     })
 
     it('stamps the plugin and its cache directory with the harness-init release version', () => {
@@ -631,7 +631,7 @@ describe('plugin files', () => {
     })
 
     it('keeps every generated file free of dev server urls', () => {
-      for (const [, contents] of treeOf('/first/.conciv')) {
+      for (const [, contents] of readTree('/first/.conciv')) {
         expect(contents).not.toContain('127.0.0.1')
         expect(contents).not.toContain('http://')
       }

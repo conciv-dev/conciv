@@ -6,7 +6,7 @@ Headless per-tool primitives. Each file defines a Solid context, a `Root` provid
 
 ## Interface
 
-- `ApplyPatch` / `useApplyPatch` / `patchTextOf` / `patchInfo` / `parseClaudePatchBlocks` / `claudeBlockToUnifiedDiff` (`apply-patch.tsx`)
+- `ApplyPatch` / `useApplyPatch` / `readPatchText` / `patchInfo` / `parseClaudePatchBlocks` / `claudeBlockToUnifiedDiff` (`apply-patch.tsx`)
 - `Bash` / `useBash` / `parseBashOutput` / `BashOutput` (`bash.tsx`)
 - `FileEdit` / `useFileEdit` / `FileEditDiff` (`file-edit.tsx`)
 - `FileRead` / `useFileRead` (`file-read.tsx`)

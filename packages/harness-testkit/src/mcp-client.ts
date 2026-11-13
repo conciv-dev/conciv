@@ -27,7 +27,7 @@ const ContentSchema = z.array(
 
 const CallResultSchema = z.object({content: ContentSchema, isError: z.boolean().optional()})
 
-function contentOf(content: z.infer<typeof ContentSchema>): string | McpContentPart[] {
+function convertContent(content: z.infer<typeof ContentSchema>): string | McpContentPart[] {
   const only = content[0]
   if (content.length === 1 && only?.type === 'text') return only.text
   return content.map((part) =>
@@ -37,7 +37,7 @@ function contentOf(content: z.infer<typeof ContentSchema>): string | McpContentP
   )
 }
 
-function textOf(content: z.infer<typeof ContentSchema>): string {
+function readText(content: z.infer<typeof ContentSchema>): string {
   return content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
 }
 
@@ -53,8 +53,8 @@ export async function connectMcpClient(url: string, headers?: Record<string, str
           const result = CallResultSchema.parse(
             await client.callTool({name: tool.name, arguments: input}, undefined, options),
           )
-          if (result.isError === true) throw new Error(textOf(result.content))
-          return contentOf(result.content)
+          if (result.isError === true) throw new Error(readText(result.content))
+          return convertContent(result.content)
         },
       })),
     serverVersion: () => client.getServerVersion()?.version,

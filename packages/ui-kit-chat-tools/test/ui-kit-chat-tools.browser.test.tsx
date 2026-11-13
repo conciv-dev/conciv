@@ -10,7 +10,7 @@ import {defineTool} from '@conciv/extension/tool'
 import type {AnyToolBuilder} from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
 import type {ToolCatalogView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
-import {PAGE_TOOL_DEFS, pageToolMetaOf, pageVerbOfTool} from '@conciv/extension-page/defs'
+import {PAGE_TOOL_DEFS, findPageToolMeta, pageVerbOfTool} from '@conciv/extension-page/defs'
 import {
   GENERIC_TOOL_ICON,
   INERT_ADD_RESULT,
@@ -378,7 +378,7 @@ describe('new tool projection', () => {
   })
 
   it('the card and the running title read a built-in declaration through the default source', async () => {
-    const declared = pageToolMetaOf('setattr')
+    const declared = findPageToolMeta('setattr')
     if (!declared?.label) throw new Error('page_setattr declares no label')
 
     mountView(() => (

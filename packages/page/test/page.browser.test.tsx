@@ -296,7 +296,7 @@ describe('element capture', () => {
     document.getElementById('injected-sheet')?.remove()
   })
 
-  async function captureOf(name: string, input: Record<string, unknown>): Promise<PageCaptureBundle> {
+  async function runCapture(name: string, input: Record<string, unknown>): Promise<PageCaptureBundle> {
     const outcome = await driver.execute({agentId: 'test-agent', name, input})
     if (!outcome.ok) throw new Error(`the ${name} call failed: ${outcome.error.message}`)
     if (outcome.capture === undefined) throw new Error(`the ${name} call carried no capture`)
@@ -401,7 +401,7 @@ describe('element capture', () => {
 
   describe('a page tool capture freezes the element as it was when the tool ran', () => {
     it('survives a later class flip and a later deletion of the captured node', async () => {
-      const bundle = await captureOf('probe_settext', {selector: '#prose', text: 'rewritten'})
+      const bundle = await runCapture('probe_settext', {selector: '#prose', text: 'rewritten'})
       const after = bundle.after
       if (after === undefined) throw new Error('the edit carried no after capture')
       expect(after.descriptor.accessibleName).toBe('rewritten')
@@ -416,7 +416,7 @@ describe('element capture', () => {
     })
 
     it('carries the ancestor skeleton down to a marked target so page css still matches', async () => {
-      const bundle = await captureOf('probe_fill', {selector: '#card', value: CARD_SENTINEL})
+      const bundle = await runCapture('probe_fill', {selector: '#card', value: CARD_SENTINEL})
       const node = JSON.stringify(bundle.after?.node ?? null)
       expect(node).toContain('data-rr-target')
       expect(node).toContain('capture-form')
@@ -425,15 +425,15 @@ describe('element capture', () => {
     })
 
     it('carries the css bundle on every capture so a dropped one never leaves a dangling reference', async () => {
-      const first = await captureOf('probe_fill', {selector: '#card', value: '1'})
-      const second = await captureOf('probe_fill', {selector: '#card', value: '2'})
+      const first = await runCapture('probe_fill', {selector: '#card', value: '1'})
+      const second = await runCapture('probe_fill', {selector: '#card', value: '2'})
       expect(second.after?.cssBundleId).toBe(first.after?.cssBundleId)
       expect(second.cssBundles?.at(0)?.hash).toBe(second.after?.cssBundleId)
       expect(second.cssBundles?.at(0)?.css).toBe(first.cssBundles?.at(0)?.css)
     })
 
     it('keeps a css bundle for each side when the page injects a rule while the tool runs', async () => {
-      const bundle = await captureOf('probe_settextstyled', {selector: '#prose', text: 'restyled'})
+      const bundle = await runCapture('probe_settextstyled', {selector: '#prose', text: 'restyled'})
       const beforeId = bundle.before?.cssBundleId
       const afterId = bundle.after?.cssBundleId
       expect(beforeId).toBeDefined()
@@ -480,7 +480,7 @@ describe('element capture', () => {
     })
 
     it('records a before side and no after side when the verb detaches the element', async () => {
-      const bundle = await captureOf('probe_remove', {selector: '#doomed'})
+      const bundle = await runCapture('probe_remove', {selector: '#doomed'})
       expect(bundle.before?.descriptor.accessibleName).toBe('temporary')
       expect(bundle.after).toBeUndefined()
     })
@@ -489,13 +489,13 @@ describe('element capture', () => {
       const widget = document.createElement('div')
       widget.setAttribute('data-conciv-root', '')
       document.querySelector('#panel')?.appendChild(widget)
-      const bundle = await captureOf('probe_settext', {selector: '#panel', text: 'wiped'})
+      const bundle = await runCapture('probe_settext', {selector: '#panel', text: 'wiped'})
       expect(bundle.before?.node).toBeUndefined()
       expect(bundle.before?.descriptor.selectorPath).toContain('#panel')
     })
 
     it('strips event-handler attributes, javascript: URLs, and iframe/object/embed nodes from the captured subtree', async () => {
-      const bundle = await captureOf('probe_mark', {selector: '#hostile'})
+      const bundle = await runCapture('probe_mark', {selector: '#hostile'})
       const node = bundle.after?.node
       expect(node).toBeDefined()
 
@@ -524,7 +524,7 @@ describe('element capture', () => {
     })
 
     it('keeps script and stylesheet-link nodes out of the serialized payload', async () => {
-      const bundle = await captureOf('probe_mark', {selector: '#hostile'})
+      const bundle = await runCapture('probe_mark', {selector: '#hostile'})
       const node = bundle.after?.node
       expect(node).toBeDefined()
 
@@ -538,7 +538,7 @@ describe('element capture', () => {
     })
 
     it('still produces a capture when an attribute carries an out-of-range numeric character reference', async () => {
-      const bundle = await captureOf('probe_mark', {selector: '#hostile'})
+      const bundle = await runCapture('probe_mark', {selector: '#hostile'})
       const node = bundle.after?.node
       expect(node).toBeDefined()
 
@@ -553,7 +553,7 @@ describe('element capture', () => {
       image.style.width = '24px'
       image.style.height = '16px'
 
-      const bundle = await captureOf('probe_mark', {selector: '#media'})
+      const bundle = await runCapture('probe_mark', {selector: '#media'})
       const imageNode = findById(bundle.after?.node, 'fixture-image')
 
       expect(imageNode).toBeDefined()
@@ -570,7 +570,7 @@ describe('element capture', () => {
       await appendLoadedImage(media, 'first-image', noiseUrl)
       await appendLoadedImage(media, 'second-image', noiseUrl)
 
-      const unconstrained = await captureOf('probe_mark', {selector: '#media'})
+      const unconstrained = await runCapture('probe_mark', {selector: '#media'})
       const probeNode = unconstrained.after?.node
       const firstCost = inlineImageCost(requiredDataUrl(probeNode, 'first-image'))
       const secondCost = inlineImageCost(requiredDataUrl(probeNode, 'second-image'))
@@ -581,7 +581,7 @@ describe('element capture', () => {
       filler.textContent = 'x'.repeat(200_000 - baseBytes - firstCost - Math.floor(firstCost / 2))
       media.appendChild(filler)
 
-      const bundle = await captureOf('probe_mark', {selector: '#media'})
+      const bundle = await runCapture('probe_mark', {selector: '#media'})
       const node = bundle.after?.node
 
       expect(node).toBeDefined()
@@ -598,7 +598,7 @@ describe('element capture', () => {
       filler.textContent = '€'.repeat(69_000)
       media.appendChild(filler)
 
-      const bundle = await captureOf('probe_mark', {selector: '#media'})
+      const bundle = await runCapture('probe_mark', {selector: '#media'})
 
       expect(bundle.after?.descriptor.selectorPath).toContain('#media')
       expect(bundle.after?.node).toBeUndefined()
@@ -611,7 +611,7 @@ describe('element capture', () => {
       oversized.style.height = '10px'
       await appendLoadedImage(media, 'sibling-image', await paintedBlobUrl(8, 8, solidPaint))
 
-      const bundle = await captureOf('probe_mark', {selector: '#media'})
+      const bundle = await runCapture('probe_mark', {selector: '#media'})
       const node = bundle.after?.node
 
       expect(findById(node, 'sibling-image')?.attributes?.['rr_dataURL']).toBeDefined()
@@ -628,7 +628,7 @@ describe('element capture', () => {
       const errorSpy = vi.spyOn(console, 'error')
       const listenerSpy = vi.spyOn(tainted, 'addEventListener')
 
-      const bundle = await captureOf('probe_mark', {selector: '#media'})
+      const bundle = await runCapture('probe_mark', {selector: '#media'})
       const node = bundle.after?.node
 
       expect(findById(node, 'clean-image')?.attributes?.['rr_dataURL']).toBeDefined()
@@ -651,7 +651,7 @@ describe('element capture', () => {
       await appendLoadedImage(blockedWrap, 'nested-blocked-image', await paintedBlobUrl(8, 8, solidPaint))
       await appendLoadedImage(media, 'plain-image', await paintedBlobUrl(8, 8, solidPaint))
 
-      const bundle = await captureOf('probe_mark', {selector: '#media'})
+      const bundle = await runCapture('probe_mark', {selector: '#media'})
       const node = bundle.after?.node
 
       expect(findById(node, 'plain-image')?.attributes?.['rr_dataURL']).toBeDefined()
@@ -672,7 +672,7 @@ describe('element capture', () => {
       }
       panel.appendChild(bloat)
 
-      const bundle = await captureOf('probe_mark', {selector: '#bloated'})
+      const bundle = await runCapture('probe_mark', {selector: '#bloated'})
 
       expect(bundle.after?.descriptor.selectorPath).toContain('#bloated')
       expect(bundle.after?.node).toBeUndefined()

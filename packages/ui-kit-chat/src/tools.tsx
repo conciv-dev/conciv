@@ -42,7 +42,7 @@ export {
   countLabel,
   genericRowProjection,
   primaryArgument,
-  rowMarkOf,
+  resolveRowMark,
   shortToolLabel,
   type ToolRowProps,
   type ToolRowProjection,

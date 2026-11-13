@@ -5,7 +5,7 @@ import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-type
 import {
   ApplyPatch,
   parseClaudePatchBlocks,
-  patchTextOf,
+  readPatchText,
   useApplyPatch,
   type ApplyPatchInfo,
 } from '../../primitives/tools/apply-patch.js'
@@ -75,5 +75,5 @@ export function ApplyPatchDiff(props: ToolCardProps): JSX.Element {
 export const applyPatchTool: ToolCardEntry = {
   names: ['apply_patch'],
   render: ApplyPatchDiff,
-  hasEmbeddedBody: (part) => parseClaudePatchBlocks(patchTextOf(part)).length > 0,
+  hasEmbeddedBody: (part) => parseClaudePatchBlocks(readPatchText(part)).length > 0,
 }

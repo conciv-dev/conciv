@@ -3,15 +3,15 @@ import type {HarnessListCursor, HarnessListPage} from '@conciv/protocol/harness-
 export function pageAfter<T>(
   items: T[],
   page: HarnessListPage,
-  cursorOf: (item: T) => HarnessListCursor,
+  readCursor: (item: T) => HarnessListCursor,
 ): {items: T[]; next: HarnessListCursor | null} {
   const after = page.after
   const ordered = items
-    .filter((item) => after === null || newestFirst(cursorOf(item), after) > 0)
-    .toSorted((first, second) => newestFirst(cursorOf(first), cursorOf(second)))
+    .filter((item) => after === null || newestFirst(readCursor(item), after) > 0)
+    .toSorted((first, second) => newestFirst(readCursor(first), readCursor(second)))
   const kept = ordered.slice(0, page.limit)
   const last = kept.at(-1)
-  return {items: kept, next: ordered.length > page.limit && last !== undefined ? cursorOf(last) : null}
+  return {items: kept, next: ordered.length > page.limit && last !== undefined ? readCursor(last) : null}
 }
 
 function newestFirst(first: HarnessListCursor, second: HarnessListCursor): number {

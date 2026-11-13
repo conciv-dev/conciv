@@ -86,7 +86,7 @@ function mismatchedTargets(cwd: string): string[] {
 
 const CLAUDE_IMPORT = '@AGENTS.md'
 
-function claudeFileOf(cwd: string): string {
+function resolveClaudeFile(cwd: string): string {
   return join(cwd, 'CLAUDE.md')
 }
 
@@ -98,13 +98,13 @@ function importsAgents(file: string): boolean {
 
 function targets(cwd: string): string[] {
   const agentsFile = join(cwd, 'AGENTS.md')
-  const claudeFile = claudeFileOf(cwd)
+  const claudeFile = resolveClaudeFile(cwd)
   if (existsSync(claudeFile) && !importsAgents(claudeFile)) return [agentsFile, claudeFile]
   return [agentsFile]
 }
 
 function needsClaudeImport(cwd: string, consented: HarnessId[]): boolean {
-  return consented.includes('claude') && !existsSync(claudeFileOf(cwd))
+  return consented.includes('claude') && !existsSync(resolveClaudeFile(cwd))
 }
 
 function sectionCurrent(cwd: string, section: string, consented: HarnessId[]): boolean {
@@ -112,7 +112,7 @@ function sectionCurrent(cwd: string, section: string, consented: HarnessId[]): b
 }
 
 function wouldEdit(cwd: string, consented: HarnessId[]): string[] {
-  const files = needsClaudeImport(cwd, consented) ? [...targets(cwd), claudeFileOf(cwd)] : targets(cwd)
+  const files = needsClaudeImport(cwd, consented) ? [...targets(cwd), resolveClaudeFile(cwd)] : targets(cwd)
   return files.map((file) => file.slice(cwd.length + 1))
 }
 
@@ -144,7 +144,7 @@ export function agentsMdStep(consented: () => HarnessId[]): InitStep {
         upsertSection(file, section)
       }
       if (needsClaudeImport(ctx.cwd, consented())) {
-        const claudeFile = claudeFileOf(ctx.cwd)
+        const claudeFile = resolveClaudeFile(ctx.cwd)
         ctx.backup(captureFile(claudeFile))
         writeFileSync(claudeFile, `${CLAUDE_IMPORT}\n`)
       }

@@ -10,10 +10,10 @@ import {
   emittersIn,
   leanWrappersIn,
   liveTweenCount,
-  partOf,
+  findPart,
   partsIn,
   ridersIn,
-  rootOf,
+  findRoot,
   styleRule,
 } from './mascot-dom.js'
 
@@ -30,11 +30,11 @@ type Mounted = {
   errors: string[]
 }
 
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error))
+const readMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
 function mountInto(host: Element | DocumentFragment, container: HTMLElement, view: ReactNode): Mounted {
   const errors: string[] = []
-  const root = createRoot(host, {onUncaughtError: (error) => errors.push(messageOf(error))})
+  const root = createRoot(host, {onUncaughtError: (error) => errors.push(readMessage(error))})
   const unmount = () => {
     if (!container.isConnected) return
     act(() => root.unmount())
@@ -97,27 +97,27 @@ it('renders one head, one antenna and one eyes layer on a stage with a real size
   expect(partsIn(container, 'head')).toHaveLength(1)
   expect(partsIn(container, 'antenna')).toHaveLength(1)
   expect(partsIn(container, 'eyes')).toHaveLength(1)
-  const box = rootOf(container).getBoundingClientRect()
+  const box = findRoot(container).getBoundingClientRect()
   expect([box.width, box.height]).toEqual([44, 44])
 })
 
 it('lets a consumer class size the stage instead of the default', () => {
   styleRule(`.${SIZING_CLASS}{inline-size:88px;block-size:88px}`)
   const {container} = renderMascot(<Mascot className={SIZING_CLASS} />)
-  const box = rootOf(container).getBoundingClientRect()
+  const box = findRoot(container).getBoundingClientRect()
   expect([box.width, box.height]).toEqual([88, 88])
 })
 
 it('lets a consumer style size the stage instead of the default', () => {
   const {container} = renderMascot(<Mascot style={{width: '72px', height: '72px'}} />)
-  const box = rootOf(container).getBoundingClientRect()
+  const box = findRoot(container).getBoundingClientRect()
   expect([box.width, box.height]).toEqual([72, 72])
 })
 
 it('keeps the stage visible at its default size when a consumer class only paints', () => {
   styleRule(`.${FADED_CLASS}{opacity:0.7}`)
   const {container} = renderMascot(<Mascot className={FADED_CLASS} />)
-  const box = rootOf(container).getBoundingClientRect()
+  const box = findRoot(container).getBoundingClientRect()
   expect([box.width, box.height]).toEqual([44, 44])
 })
 
@@ -306,8 +306,8 @@ it('lets the antenna opt out of the gaze while the eyes keep tracking it', async
   const target = container.querySelector('#gaze-target')
   if (target === null) throw new Error('the gaze target did not render')
   await page.elementLocator(target).hover()
-  const eyes = partOf(container, 'eyes')
-  const lean = partOf(container, 'antenna').parentElement
+  const eyes = findPart(container, 'eyes')
+  const lean = findPart(container, 'antenna').parentElement
   await vi.waitFor(() => expect(Math.abs(Number(gsap.getProperty(eyes, 'x'))) > 0).toBe(true), DRAIN_TIMEOUT)
   expect(Number(gsap.getProperty(lean, 'rotation'))).toBe(0)
 })
@@ -325,7 +325,7 @@ it('leaves no emitter and no live tween behind after five rapid mounts', () => {
 
 it('sizes the stage inside a shadow root the same way', () => {
   const shadow = renderInShadow(<Mascot />)
-  const box = rootOf(shadow).getBoundingClientRect()
+  const box = findRoot(shadow).getBoundingClientRect()
   expect([box.width, box.height]).toEqual([44, 44])
 })
 

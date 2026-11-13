@@ -13,7 +13,7 @@ import {partIsModelOnly} from '../primitives/message-part/part-visibility.js'
 
 export type ToolCallPartWithParent = ToolCallPart & {metadata?: {parentToolCallId?: unknown}}
 
-export function parentToolCallIdOf(part: ChatPart): string | null {
+export function readParentToolCallId(part: ChatPart): string | null {
   if (part.type !== 'tool-call') return null
   const {metadata} = part
   if (typeof metadata !== 'object' || metadata === null || !('parentToolCallId' in metadata)) return null
@@ -22,7 +22,7 @@ export function parentToolCallIdOf(part: ChatPart): string | null {
 
 export function childCallsFor(parts: ReadonlyArray<ChatPart>, parentId: string): ToolCallPart[] {
   return parts.filter(
-    (part): part is ToolCallPart => part.type === 'tool-call' && parentToolCallIdOf(part) === parentId,
+    (part): part is ToolCallPart => part.type === 'tool-call' && readParentToolCallId(part) === parentId,
   )
 }
 
@@ -287,7 +287,7 @@ export function buildGroupTree(
   return root.children
 }
 
-function partIdOf(part: ChatPart): string | undefined {
+function readPartId(part: ChatPart): string | undefined {
   return part.type === 'tool-call' && part.id.length > 0 ? part.id : undefined
 }
 
@@ -296,7 +296,7 @@ export function groupParts(
   grouper: Grouper,
   context: GroupByContext,
 ): readonly GroupNode[] {
-  return buildGroupTree(grouper(parts, context), parts.map(partIdOf))
+  return buildGroupTree(grouper(parts, context), parts.map(readPartId))
 }
 
 type StickyMemo = {

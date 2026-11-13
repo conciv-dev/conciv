@@ -18,7 +18,7 @@ The antenna-tip effects. Each file exports one `EffectMount`; `effect.ts` define
 
 ## Invariants
 
-- `effect-support.ts:placedTipOf` - throws `a tip emitter needs inline left and top in pixels before it can be anchored` when the element has no pixel `left`/`top`.
+- `effect-support.ts:readPlacedTip` - throws `a tip emitter needs inline left and top in pixels before it can be anchored` when the element has no pixel `left`/`top`.
 - `effect-support.ts:createTipEmitter.stop` - a second `stop` during an exit is ignored; the element is removed and `onRested` called when the exit tween completes.
 - `effect-support.ts:antennaScaleFactor` - returns 1 when the antenna has no size.
 

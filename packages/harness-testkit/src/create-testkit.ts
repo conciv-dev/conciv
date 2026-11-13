@@ -74,7 +74,7 @@ function isTextPart(part: unknown): part is {type: 'text'; content: string} {
 function userMessage(input: string | ChatMessage): TurnMessage {
   if (typeof input === 'string') return {role: 'user', parts: [{type: 'text', content: input}]}
   const parsed = ChatContentPartSchema.array().safeParse(input.content)
-  if (!parsed.success) return {role: 'user', parts: [{type: 'text', content: textOf(input)}]}
+  if (!parsed.success) return {role: 'user', parts: [{type: 'text', content: readText(input)}]}
   return {role: 'user', parts: parsed.data.map(contentPart)}
 }
 
@@ -84,7 +84,7 @@ function contentPart(part: ChatContentPart): TurnMessage['parts'][number] {
   return {type: 'document', source: part.source}
 }
 
-function textOf(input: string | ChatMessage): string {
+function readText(input: string | ChatMessage): string {
   if (typeof input === 'string') return input
   const parts = input.parts
   if (!Array.isArray(parts)) return ''

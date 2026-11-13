@@ -23,12 +23,12 @@ The `conciv` CLI, routed with `@bomb.sh/router`. Four top-level commands: `init`
 - `tabFlag` (`tab-flag.ts`): `--tab <id>`, zod-parsed as `SessionId`, declared on the root, the tools routes and every tool command that does not declare its own `tab`; `runCli` refuses route models whose `tab`s differ from the flagged one and hands handlers a `CliTarget`
 - `runCli(app, argv)` (`run.ts`): parses, resumes the catalog checkpoint with the live catalog, prints help/version or runs the handler, returns an exit code
 - `routeFailure` (`arguments.ts`): turns the router's method-not-allowed / unprocessable-content result into a user error envelope
-- `handler` / `handlerOf` (`router/handler.ts`): attach a run function to a route definition and read it back from the parsed intent
+- `handler` / `readHandler` (`router/handler.ts`): attach a run function to a route definition and read it back from the parsed intent
 - `wireToolCommand` (`tool-command.ts`): turns a catalog entry's JSON input schema into a router command (positional `argument`, boolean `toggle`, array `multiple()` option, every other field an `option` with a Standard Schema)
 - `toolGroupRoute` (`tool-group.ts`): noun route with one verb per catalog entry (the verb is the name after the first `_`)
 - `runRpc(target, call)` (`request.ts`): oRPC call with the session header; with a `--tab` the session is that tab; with `--tab` or an engine found through the home db fallback the call carries `conciv-origin: hub` and `conciv-client: <agent>`, where the agent is the first init harness whose `hub.shellEnv` is set in the CLI's env (`CLAUDECODE`, `CODEX_THREAD_ID`, `GEMINI_CLI`, `OPENCODE`), else `terminal`, so that engine asks the user for Allow before it runs (unless `hubAccess` is `'open'`) and refuses a disconnected agent; only a `--tab` call adds `conciv-named-tab: 1`, so asking tools run with no per-call Approve only for a caller that named its tab, while a home db fallback call (its session is the user's latest, from `sessions.resolve({})`) still gets the Approve card
 - `engineOrigin(cwd, env, tab)` (`engine-origin.ts`, async): `{origin, outside}`; origin is http://127.0.0.1:&lt;port&gt; or a live engine's `apiBase`; `outside` is true when the engine was found through `--tab` or the home db fallback, and `runRpc` then sends `conciv-origin: hub` and `conciv-client: <agent>`, plus `conciv-named-tab: 1` with `--tab` only (see `runRpc`), so that engine treats the call as an outside agent's
-- `writeOutcome` / `writeFailure` / `CliOutcome` (`envelope.ts`); `userFailure` / `failureOf` (`failure.ts`); `closest` (`suggest.ts`)
+- `writeOutcome` / `writeFailure` / `CliOutcome` (`envelope.ts`); `userFailure` / `readFailure` (`failure.ts`); `closest` (`suggest.ts`)
 - Subdirectories:
   - init: [./init/README.md](./init/README.md) - the `conciv init` pipeline
 
@@ -39,7 +39,7 @@ The `conciv` CLI, routed with `@bomb.sh/router`. Four top-level commands: `init`
 - `-h`/`--help` and `-v`/`--version` are claimed by the router anywhere in argv; only the root supports version
 - `settle` (`run.ts`): every `dynamic()` increment is resumed with the live catalog of the target engine before help, version or execute is decided; with no engine running, `conciv tools ...` (help included) fails with the 'No conciv dev server' envelope; the catalog target is the first `--tab` in argv before `--` (root, tools route, group route or after the verb), and the handler runs on that same tab; a parsed `--tab` that differs from it fails as a user error
 - the CLI carries no tool declarations of its own: no `@conciv/extension*` or `@conciv/tools` import, guarded by the dependency-closure and prod-closure tests
-- `failureOf` (`failure.ts`): tagged errors become user errors; anything else is 'unexpected' with a bug-report hint
+- `readFailure` (`failure.ts`): tagged errors become user errors; anything else is 'unexpected' with a bug-report hint
 - `declaredSessionId` (`request.ts`): an invalid CONCIV_SESSION_ID throws a user failure
 - `engineAnswer` (`request.ts`): oRPC-defined errors, 4xx responses and an `APPROVAL_DENIED` refusal (the user declined, or the agent is disconnected) become user failures, printed with the message and no stack or bug hint; network failures are offline and throw 'No conciv dev server on &lt;host&gt;'; `runRpc` and `runLink` both go through it
 - `runLink` (`auth.ts`): no engine state, or a state file without an engine token, is a user failure

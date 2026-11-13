@@ -6,7 +6,7 @@ import {toolApprovalId} from '@conciv/ai/server'
 import {fakeText} from '@conciv/ai/testkit'
 import {openDb, type ConcivDb} from '@conciv/db'
 import {defineHarness} from '@conciv/harness'
-import {approvalAskOf, approvalRequestedEvent} from '@conciv/protocol/chat-event-types'
+import {readApprovalAsk, approvalRequestedEvent} from '@conciv/protocol/chat-event-types'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {Effect, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {z} from 'zod'
@@ -105,7 +105,7 @@ describe('permission cards', () => {
         permission: {always: true},
       },
     ])
-    expect((await plane.catchUp(sessionId)).map(approvalAskOf)).toEqual([
+    expect((await plane.catchUp(sessionId)).map(readApprovalAsk)).toEqual([
       {
         approvalId: editId,
         toolCallId: editId,

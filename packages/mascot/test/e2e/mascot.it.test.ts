@@ -36,7 +36,7 @@ import {
   readGaze,
   type StagePoint,
   type StageParts,
-  scaleFactorOf,
+  computeScaleFactor,
   travelPerFrame,
   openStreamService,
   type StageSize,
@@ -88,7 +88,7 @@ test.describe('activity channels', () => {
 
   const DISPLACED_FLOOR = 0.1
 
-  const columnOf = (frames: readonly Sample[], index: 0 | 1 | 2): number[] => frames.map((frame) => frame[index])
+  const extractColumn = (frames: readonly Sample[], index: 0 | 1 | 2): number[] => frames.map((frame) => frame[index])
 
   const spread = (values: readonly number[], rest: number): number =>
     Math.max(...values.map((value) => Math.abs(value - rest)))
@@ -135,16 +135,16 @@ test.describe('activity channels', () => {
       )
 
       expect(
-        spread(columnOf(everyFrame, CHECKS[off].column), CHECKS[off].rest),
+        spread(extractColumn(everyFrame, CHECKS[off].column), CHECKS[off].rest),
         `the ${off} channel never moves when it is off, not while working and not on the falling edge`,
       ).toBeLessThan(FLAT_TOLERANCE)
       running.forEach((channel) => {
         expect(
-          spread(columnOf(sampled.cycle, CHECKS[channel].column), CHECKS[channel].rest),
+          spread(extractColumn(sampled.cycle, CHECKS[channel].column), CHECKS[channel].rest),
           `the ${channel} channel still runs its full swing while ${off} is off`,
         ).toBeGreaterThan(CHECKS[channel].swing * SAMPLED_SWING_FRACTION)
         expect(
-          closestTo(columnOf(sampled.cycle, CHECKS[channel].column), CHECKS[channel].rest),
+          closestTo(extractColumn(sampled.cycle, CHECKS[channel].column), CHECKS[channel].rest),
           `the ${channel} channel comes back to rest inside the cycle instead of sticking at its extreme`,
         ).toBeLessThan(RESTED_TOLERANCE)
       })
@@ -195,7 +195,7 @@ test.describe('activity channels', () => {
         RESTED_TOLERANCE,
       )
       expect(
-        spread(columnOf(sampled.tail.slice(-2), check.column), check.rest),
+        spread(extractColumn(sampled.tail.slice(-2), check.column), check.rest),
         `the dropped ${off} channel stays at rest once it has recovered`,
       ).toBeLessThan(RESTED_TOLERANCE)
     })
@@ -272,7 +272,7 @@ test.describe('activity channels', () => {
         const indexes = Array.from({length: count}, (_, index) => index)
         window.service.update({state: 'awake', working: true, follow: false, activity: channels})
         const frames = harness.stepFrames<number[]>(
-          () => indexes.map((index) => harness.particleFlightOf(emitter, index).top),
+          () => indexes.map((index) => harness.measureParticleFlight(emitter, index).top),
           settleSeconds,
         )
         return {frames, stageHeight: root.offsetHeight}
@@ -341,7 +341,7 @@ test.describe('activity', () => {
       const emitter = harness.requireEmitter()
       harness.advanceBy(0)
       const startScale = harness.property(emitter, 'scale')
-      const anchor = harness.boxOf(emitter)
+      const anchor = harness.measureBox(emitter)
       const scales = harness.stepFrames(() => harness.property(emitter, 'scale'), 0.36)
       return {
         digits: emitter.childElementCount,
@@ -417,11 +417,11 @@ test.describe('activity', () => {
         const leaned = harness.property(antenna, 'rotation')
         window.service.update({state: 'rest', working: true, follow: false})
         const emitter = harness.requireEmitter()
-        const entry = harness.particleFlightOf(emitter, 0)
+        const entry = harness.measureParticleFlight(emitter, 0)
         harness.advanceBy(sampleStart)
         const frames = harness.stepFrames<number[]>(
           () => [
-            ...[0, 1, 2, 3, 4].map((index) => harness.particleFlightOf(emitter, index).top),
+            ...[0, 1, 2, 3, 4].map((index) => harness.measureParticleFlight(emitter, index).top),
             harness.property(antenna, 'scaleY'),
             harness.property(antenna, 'yPercent'),
           ],
@@ -470,7 +470,7 @@ test.describe('activity', () => {
         const emitter = harness.requireEmitter()
         const frames = harness.stepFrames<[number, number, number]>(
           () => [
-            harness.particleFlightOf(emitter, digit).top,
+            harness.measureParticleFlight(emitter, digit).top,
             harness.property(antenna, 'scaleY'),
             harness.property(antenna, 'yPercent'),
           ],
@@ -975,7 +975,7 @@ test.describe('anchor perf', () => {
         const before = harness.layoutReads()
         const frames = harness.stepFrames<number[]>(
           () => [
-            ...[0, 1, 2, 3, 4].map((index) => harness.particleFlightOf(emitter, index).top),
+            ...[0, 1, 2, 3, 4].map((index) => harness.measureParticleFlight(emitter, index).top),
             harness.property(window.parts.antenna, 'scaleY'),
             harness.property(window.parts.antenna, 'yPercent'),
           ],
@@ -1061,8 +1061,8 @@ test.describe('binary nozzle', () => {
         const emitter = harness.requireEmitter()
         const frames = harness.stepFrames<[number, number, number, number]>(
           () => [
-            harness.particleFlightOf(emitter, inFlight).top,
-            harness.particleFlightOf(emitter, launching).top,
+            harness.measureParticleFlight(emitter, inFlight).top,
+            harness.measureParticleFlight(emitter, launching).top,
             harness.property(antenna, 'scaleY'),
             harness.property(antenna, 'yPercent'),
           ],
@@ -1953,7 +1953,7 @@ test.describe('gaze', () => {
     })
     const collapsed = await page.evaluate(() => ({
       antennaPx: window.parts.antenna.offsetWidth,
-      origin: window.mascotHarness.transformOriginOf(window.mascotHarness.requireLeanWrapper()),
+      origin: window.mascotHarness.readTransformOrigin(window.mascotHarness.requireLeanWrapper()),
     }))
     await page.evaluate(() => window.mascotHarness.applyStyle(window.parts.antenna, {display: 'block'}))
     await page.mouse.move(center.x + POINTER_REACH_PX, center.y)
@@ -1961,7 +1961,7 @@ test.describe('gaze', () => {
     const restored = await page.evaluate(() => ({
       antennaPx: window.parts.antenna.offsetWidth,
       inset: window.parts.antenna.offsetLeft,
-      origin: window.mascotHarness.transformOriginOf(window.mascotHarness.requireLeanWrapper()),
+      origin: window.mascotHarness.readTransformOrigin(window.mascotHarness.requireLeanWrapper()),
       lean: window.mascotHarness.property(window.parts.antenna.parentElement, 'rotation'),
     }))
     const pivotY = Number.parseFloat(restored.origin.split(' ')[1] ?? '')
@@ -1986,12 +1986,12 @@ test.describe('lifecycle', () => {
       const harness = window.mascotHarness
       harness.advanceBy(2.2)
       const emitter = harness.requireEmitter()
-      const anchorBefore = harness.particleFlightOf(emitter, 0)
+      const anchorBefore = harness.measureParticleFlight(emitter, 0)
       const timelineBefore = harness.repeatingTimeline()
       window.service.update({state: 'awake', working: true, follow: false})
       const during = harness.stepFrames(() => harness.property(emitter, 'scale'), 0.9)
       harness.advanceBy(1.4)
-      const anchorAfter = harness.particleFlightOf(emitter, 0)
+      const anchorAfter = harness.measureParticleFlight(emitter, 0)
       const sameTimeline = harness.repeatingTimeline() === timelineBefore
       const values = harness.stepFrames<[number, number]>(
         () => [harness.property(window.parts.antenna, 'scaleY'), harness.property(window.parts.eyes, 'scaleY')],
@@ -2089,7 +2089,7 @@ test.describe('lifecycle', () => {
         antennaScaleY: harness.property(antenna, 'scaleY'),
       })
       const writers = (): [number, number, number, number] => [
-        harness.activeWritersOf(head),
+        harness.countActiveWriters(head),
         harness.activeWritersOfProperty(eyes, 'scaleY'),
         harness.activeWritersOfProperty(eyes, 'scaleX'),
         harness.activeWritersOfProperty(eyes, 'yPercent'),
@@ -2570,7 +2570,7 @@ test.describe('registration', () => {
       const hosted = {
         emitters: harness.emitters().length,
         parentIsEffectHost: emitter?.parentElement === effectHost,
-        anchor: emitter === undefined ? undefined : harness.boxOf(emitter),
+        anchor: emitter === undefined ? undefined : harness.measureBox(emitter),
         stage: {width: parts.root.offsetWidth, height: parts.root.offsetHeight},
       }
       mounted.destroy()
@@ -2676,7 +2676,7 @@ test.describe('stream nozzle', () => {
 
   type Launch = {top: number; tipY: number}
 
-  const columnOf = (frames: readonly number[][], index: number): number[] =>
+  const extractColumn = (frames: readonly number[][], index: number): number[] =>
     frames.map((frame) => frame[index] ?? Number.NaN)
 
   const at = (values: readonly number[], index: number): number => values[index] ?? Number.NaN
@@ -2700,7 +2700,7 @@ test.describe('stream nozzle', () => {
           const indexes = Array.from({length: count}, (_, index) => index)
           const frames = harness.stepFrames<number[]>(
             () => [
-              ...indexes.map((index) => harness.particleFlightOf(emitter, index).top),
+              ...indexes.map((index) => harness.measureParticleFlight(emitter, index).top),
               harness.property(antenna, 'scaleY'),
               harness.property(antenna, 'yPercent'),
             ],
@@ -2716,13 +2716,13 @@ test.describe('stream nozzle', () => {
       )
 
       const stage: StageSize = sampled.stage
-      const factor = scaleFactorOf(sampled.antennaPx)
+      const factor = computeScaleFactor(sampled.antennaPx)
       const nominalStep = Math.abs(travelPerFrame(stream.travelPx, stream.durationS, sampled.antennaPx))
       const direction = Math.sign(stream.travelPx)
       const releaseFrames = Math.round(RELEASE_WINDOW_S * FRAMES_PER_SECOND) + 1
-      const scaleY = columnOf(sampled.frames, stream.particleCount)
-      const yPercent = columnOf(sampled.frames, stream.particleCount + 1)
-      const particles = Array.from({length: stream.particleCount}, (_, index) => columnOf(sampled.frames, index))
+      const scaleY = extractColumn(sampled.frames, stream.particleCount)
+      const yPercent = extractColumn(sampled.frames, stream.particleCount + 1)
+      const particles = Array.from({length: stream.particleCount}, (_, index) => extractColumn(sampled.frames, index))
       const releaseScaleY = scaleY.slice(0, releaseFrames)
       const inFlight = particles
         .map((tops) => tops.slice(0, releaseFrames))

@@ -42,7 +42,7 @@ import {
   type Turn,
 } from '../store/grouping.js'
 import {summaryLine, turnRollup, type TurnRollup} from '../store/turn-rollup.js'
-import {rowMarkOf} from '../tools/primitives/tool-row.js'
+import {resolveRowMark} from '../tools/primitives/tool-row.js'
 import {activeCallInParts} from '../store/active-call.js'
 import {nowTitle} from '../tools/primitives/now-title.js'
 import {createGrouping, type PageSessionConfig} from '../store/page-session.js'
@@ -190,7 +190,7 @@ function AssistantTurn(props: {
   )
   const liveAt = (index: number, part: ChatPart | undefined): boolean => {
     if (part === undefined || !runActive()) return false
-    if (part.type === 'tool-call') return rowMarkOf(part, turnParts.resultFor(part.id)) === 'run'
+    if (part.type === 'tool-call') return resolveRowMark(part, turnParts.resultFor(part.id)) === 'run'
     return index === lastPartIndex()
   }
   const partLive = (index: number): boolean => liveAt(index, turnParts.partAt(index))
@@ -222,7 +222,7 @@ function AssistantTurn(props: {
         const result = createMemo(() => (callId === undefined ? undefined : turnParts.resultFor(callId)))
         const live = createMemo(() => {
           const current = call()
-          return current !== null && rowMarkOf(current, result()) === 'run'
+          return current !== null && resolveRowMark(current, result()) === 'run'
         })
         const durationMs = createCallDuration(callId, ctx)
         return {
@@ -369,7 +369,7 @@ function AssistantTurn(props: {
   )
 }
 
-function promptTextOf(turn: Turn): string {
+function collectPromptText(turn: Turn): string {
   return turn.parts
     .filter(
       (part): part is Extract<ChatPart, {type: 'text'}> =>
@@ -383,7 +383,7 @@ function UserTurn(): JSX.Element {
   const config = useContext(ThreadConfigContext)
   const message = useMessage()
   const AttachmentCard = (): JSX.Element => <AttachmentByMime cards={config.attachmentCards()} />
-  const promptText = createMemo(() => promptTextOf(message.message()))
+  const promptText = createMemo(() => collectPromptText(message.message()))
   const timeLabel = createMemo(() => promptTimeLabel(message.message().messages[0]?.createdAt))
   return (
     <TurnFrame>

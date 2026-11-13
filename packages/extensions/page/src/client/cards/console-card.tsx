@@ -28,7 +28,7 @@ const ERROR_LEVELS: ReadonlySet<string> = new Set(['error', 'uncaught', 'unhandl
 
 type ConsoleLine = {level: string; ts: number; text: string}
 
-function linesOf(payload: unknown): readonly ConsoleLine[] | undefined {
+function readLines(payload: unknown): readonly ConsoleLine[] | undefined {
   const parsed = ConsolePayload.safeParse(payload)
   return parsed.success ? parsed.data.entries : undefined
 }
@@ -41,18 +41,18 @@ function isErrorLevel(level: string): boolean {
   return ERROR_LEVELS.has(level)
 }
 
-function textClassOf(level: string): string {
+function pickTextClass(level: string): string {
   return isErrorLevel(level) ? TEXT_DANGER : TEXT
 }
 
-function levelClassOf(level: string): string {
+function pickLevelClass(level: string): string {
   return isErrorLevel(level) ? LEVEL_DANGER : LEVEL_QUIET
 }
 
 function ConsoleCard(props: ToolCardProps): JSX.Element {
   const {meta, title} = cardHeader(props)
   const payload = () => cardPayload(props.result)
-  const lines = () => linesOf(payload())
+  const lines = () => readLines(payload())
   const errorMessage = () => cardErrorMessage(props.result)
   const failed = () => errorMessage() !== undefined || (lines() ?? []).some((entry) => isErrorLevel(entry.level))
   return (
@@ -83,8 +83,8 @@ function ConsoleCard(props: ToolCardProps): JSX.Element {
                     {(entry) => (
                       <li class={LIST_ROW_CLASS}>
                         <span class={TIME}>{TIME_FORMAT.format(entry.ts)}</span>
-                        <span class={levelClassOf(entry.level)}>{entry.level}</span>
-                        <span class={textClassOf(entry.level)}>{entry.text}</span>
+                        <span class={pickLevelClass(entry.level)}>{entry.level}</span>
+                        <span class={pickTextClass(entry.level)}>{entry.text}</span>
                       </li>
                     )}
                   </For>

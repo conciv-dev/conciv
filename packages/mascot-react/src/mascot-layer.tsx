@@ -6,7 +6,7 @@ import {useIsomorphicLayoutEffect} from './use-layout-effect.js'
 export type MascotLayerHostProps = MascotLayerProps & {layer: MascotPartName; fallback?: boolean}
 
 export function MascotLayer({layer, fallback, style, ref, ...rest}: MascotLayerHostProps): ReactElement {
-  const {partProps, claimOf} = useMascotContext()
+  const {partProps, readClaim} = useMascotContext()
   const part = partProps(layer)
   const element = useRef<HTMLSpanElement | null>(null)
   const setElement = useMemo(() => composeRefs(element, ref), [ref])
@@ -14,10 +14,10 @@ export function MascotLayer({layer, fallback, style, ref, ...rest}: MascotLayerH
   useIsomorphicLayoutEffect(() => {
     const node = element.current
     if (node === null) return
-    if (fallback === true && claimOf(layer) !== undefined) return
+    if (fallback === true && readClaim(layer) !== undefined) return
     part.ref(node)
     return () => part.release(node)
-  }, [claimOf, fallback, layer, part])
+  }, [readClaim, fallback, layer, part])
 
   return (
     <span

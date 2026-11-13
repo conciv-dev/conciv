@@ -16,12 +16,12 @@ export type HarnessInitIo = {
   ) => Promise<{code: number; output: string}>
 }
 
-function stateDirOf(cwd: string): string {
+function resolveStateDir(cwd: string): string {
   return join(cwd, '.conciv')
 }
 
-function projectOf(cwd: string): {cwd: string; stateDir: string} {
-  return {cwd, stateDir: stateDirOf(cwd)}
+function buildProject(cwd: string): {cwd: string; stateDir: string} {
+  return {cwd, stateDir: resolveStateDir(cwd)}
 }
 
 function writePlanFiles(ctx: InitContext, plan: HarnessInitPlan): void {
@@ -50,7 +50,7 @@ async function applyInit(
   io: HarnessInitIo,
 ): Promise<StepOutcome> {
   if (!consented().includes(init.harnessId)) return {status: 'skipped', detail: 'not selected'}
-  const plan = init.plan(projectOf(ctx.cwd))
+  const plan = init.plan(buildProject(ctx.cwd))
   writePlanFiles(ctx, plan)
   for (const command of plan.commands) {
     const failed = await runCommand(ctx, io, command)
@@ -61,7 +61,7 @@ async function applyInit(
 
 function serves(init: HarnessInit<HarnessId>, cwd: string, consented: () => HarnessId[], io: HarnessInitIo): boolean {
   if (!consented().includes(init.harnessId)) return false
-  return init.installed({...projectOf(cwd), home: io.home})
+  return init.installed({...buildProject(cwd), home: io.home})
 }
 
 export function harnessInitStep(
@@ -77,10 +77,10 @@ export function harnessInitStep(
     detect: async (ctx) => (serves(init, ctx.cwd, consented, io) ? 'present' : 'missing'),
     plan: async (ctx) => ({
       summary: init.planSummary,
-      wouldEdit: [relative(ctx.cwd, init.plan(projectOf(ctx.cwd)).root)],
+      wouldEdit: [relative(ctx.cwd, init.plan(buildProject(ctx.cwd)).root)],
     }),
     apply: (ctx) => applyInit(ctx, init, consented, io),
     verify: async (ctx) => serves(init, ctx.cwd, consented, io),
-    manualCard: (ctx) => init.manualCard(init.plan(projectOf(ctx.cwd)).root),
+    manualCard: (ctx) => init.manualCard(init.plan(buildProject(ctx.cwd)).root),
   }
 }

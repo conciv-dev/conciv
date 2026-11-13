@@ -22,19 +22,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
-function positionOf(modal: unknown): TriggerPosition {
+function parsePosition(modal: unknown): TriggerPosition {
   if (!isRecord(modal)) return DEFAULT_POSITION
   const parsed = PositionSchema.safeParse(modal.position)
   return parsed.success ? parsed.data : DEFAULT_POSITION
 }
 
-function launcherOf(launcher: unknown): Launcher {
+function parseLauncher(launcher: unknown): Launcher {
   if (launcher === false) return false
   if (launcher === 'native') return 'native'
   return 'mascot'
 }
 
-function hotkeysOf(quickTerminal: unknown): string[] | null {
+function parseHotkeys(quickTerminal: unknown): string[] | null {
   if (!isRecord(quickTerminal)) return null
   const hotkey = quickTerminal.hotkey
   if (Array.isArray(hotkey)) return hotkey.map(String)
@@ -43,11 +43,11 @@ function hotkeysOf(quickTerminal: unknown): string[] | null {
 
 const TransportSchema = z.enum(['auto', 'websocket', 'fetch']).default('auto').catch('auto')
 
-function transportOf(transport: unknown): ChatTransportPreference {
+function parseTransport(transport: unknown): ChatTransportPreference {
   return TransportSchema.parse(transport)
 }
 
-function configOf(raw: string): Record<string, unknown> {
+function parseConfig(raw: string): Record<string, unknown> {
   try {
     const parsed: unknown = JSON.parse(raw || '{}')
     return isRecord(parsed) ? parsed : {}
@@ -57,16 +57,16 @@ function configOf(raw: string): Record<string, unknown> {
 }
 
 export function parseConcivSettings(raw: string): ConcivSettings {
-  const cfg = configOf(raw)
+  const cfg = parseConfig(raw)
   const modal = cfg.modal
   const quickTerminal = cfg.quickTerminal
   return {
-    modal: {enabled: modal !== false, position: positionOf(modal)},
-    quickTerminal: {enabled: quickTerminal !== false, hotkeys: hotkeysOf(quickTerminal)},
+    modal: {enabled: modal !== false, position: parsePosition(modal)},
+    quickTerminal: {enabled: quickTerminal !== false, hotkeys: parseHotkeys(quickTerminal)},
     defaultOpen: cfg.defaultOpen === true,
-    launcher: launcherOf(cfg.launcher),
+    launcher: parseLauncher(cfg.launcher),
     fromHost: {defaultOpen: Object.hasOwn(cfg, 'defaultOpen'), launcher: Object.hasOwn(cfg, 'launcher')},
     surface: cfg.surface === 'dock' ? 'dock' : 'page',
-    transport: transportOf(cfg.transport),
+    transport: parseTransport(cfg.transport),
   }
 }

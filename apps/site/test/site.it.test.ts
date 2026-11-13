@@ -390,9 +390,9 @@ describe('robot fab', () => {
 
   const workingFab = (page: Page): Locator => page.getByRole('button', {name: 'Stop the robot thinking'})
 
-  const mascotOf = (fab: Locator): Locator => fab.locator('[data-scope="mascot"][data-part="root"]')
+  const locateMascot = (fab: Locator): Locator => fab.locator('[data-scope="mascot"][data-part="root"]')
 
-  const emitterOf = (fab: Locator): Locator => fab.locator('[data-scope="mascot"][data-part="effect"] > span')
+  const locateEmitter = (fab: Locator): Locator => fab.locator('[data-scope="mascot"][data-part="effect"] > span')
 
   test.describe('the landing robot fab rides the mascot compound api', () => {
     test('leaves no mascot or emitter behind when the landing page unmounts', async ({browser}) => {
@@ -402,7 +402,7 @@ describe('robot fab', () => {
       const fab = restingFab(page)
       await expectLocator(fab).toBeVisible({timeout: 20_000})
       await fab.click()
-      await expectLocator(emitterOf(workingFab(page))).toHaveCount(1)
+      await expectLocator(locateEmitter(workingFab(page))).toHaveCount(1)
 
       await page.getByRole('navigation').getByRole('link', {name: 'Docs', exact: true}).click()
       await expectLocator(page).toHaveURL(/\/docs(\?|$)/)
@@ -412,8 +412,8 @@ describe('robot fab', () => {
       await page.getByRole('link', {name: 'conciv', exact: true}).first().click()
       await expectLocator(page).toHaveURL(new RegExp(`${SITE_PORT}/(\\?|$)`))
       const remounted = restingFab(page)
-      await expectLocator(mascotOf(remounted)).toHaveCount(1)
-      await expectLocator(emitterOf(remounted)).toHaveCount(0)
+      await expectLocator(locateMascot(remounted)).toHaveCount(1)
+      await expectLocator(locateEmitter(remounted)).toHaveCount(0)
 
       await page.close()
     }, 60_000)

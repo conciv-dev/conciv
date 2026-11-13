@@ -60,7 +60,7 @@ function jsonSchemaOnly(schema: ReturnType<typeof ToolRuntime.definition>['input
   return {...schema}
 }
 
-function cancelOf(signal: AbortSignal): Effect.Effect<void> {
+function waitForCancel(signal: AbortSignal): Effect.Effect<void> {
   return Effect.callback<void>((resume) => {
     const settle = () => resume(Effect.void)
     if (signal.aborted) return settle()
@@ -76,7 +76,7 @@ function toolContext(request: ToolRequest): Tool.Context {
     messageId: undefined,
     id: Tool.CallId.make(request.toolCallId ?? randomUUID()),
     progress: () => Effect.void,
-    ...(request.signal === undefined ? {} : {cancel: cancelOf(request.signal)}),
+    ...(request.signal === undefined ? {} : {cancel: waitForCancel(request.signal)}),
   }
 }
 
@@ -160,7 +160,7 @@ function directCall(name: string, input: unknown, request: ToolRequest): Paramet
   }
 }
 
-function declaredCodeOf(error: unknown): string | null {
+function readDeclaredCode(error: unknown): string | null {
   if (!(error instanceof Error)) return null
   if (!('code' in error) || typeof error.code !== 'string' || error.code === '') return null
   return error.code
@@ -168,7 +168,7 @@ function declaredCodeOf(error: unknown): string | null {
 
 function withDeclaredCode(error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error)
-  const code = declaredCodeOf(error)
+  const code = readDeclaredCode(error)
   if (code === null || message.startsWith(`${code}: `)) return error instanceof Error ? error : new Error(message)
   const bare = message.startsWith(`${code}:`) ? message.slice(code.length + 1).trimStart() : message
   return new Error(`${code}: ${bare}`)

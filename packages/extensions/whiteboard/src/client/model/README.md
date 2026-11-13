@@ -6,7 +6,7 @@
 
 ## Interface
 
-- `createCommentsModel(room, apiBase, canvasOpen, onComposeSettled)` (`comments.tsx`): builds the model; returns accessors and actions such as `orderedThreads`, `threadOf`, `isUnread`, `markRead`, `markAllRead`, `openThread`, `closeThread`, `stepThread`, `movePin`, `detachAnchor`, `startCompose`, `cancelCompose`, `createComment`, `reply`, `resolve`, `deleteThread`, `removeComment`, `anchorRect`, `panToThread`, `registerPan`, `registerPin`
+- `createCommentsModel(room, apiBase, canvasOpen, onComposeSettled)` (`comments.tsx`): builds the model; returns accessors and actions such as `orderedThreads`, `collectThread`, `isUnread`, `markRead`, `markAllRead`, `openThread`, `closeThread`, `stepThread`, `movePin`, `detachAnchor`, `startCompose`, `cancelCompose`, `createComment`, `reply`, `resolve`, `deleteThread`, `removeComment`, `anchorRect`, `panToThread`, `registerPan`, `registerPin`
 - `CommentsProvider` (`comments.tsx`): context provider that also wraps children in the host `Suppress` component
 - `useComments()` (`comments.tsx`): context accessor
 - `CommentsModel`, `Comment`, `Pin`, `Participant`, `CommentSource`, `ComposeTarget`, `Rect` (`comments.tsx`): model and data types (`Comment`/`Pin` alias `CommentRow`/`PinRow` from `../../shared/rows.js`)

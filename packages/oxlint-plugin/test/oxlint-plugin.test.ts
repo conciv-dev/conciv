@@ -323,6 +323,24 @@ describe('vocabulary', () => {
     })
   })
 
+  describe('no-of-suffix', () => {
+    test('flags every declared name ending in Of, including types, members and parameters', async () => {
+      const findings = await lintFixture('of-suffix/violations.ts', 'conciv(no-of-suffix)')
+      expect(flaggedNames(findings).toSorted()).toEqual(
+        ['approvalAskOf', 'modelOf', 'ConfigOf', 'harnessOf', 'parentOf'].toSorted(),
+      )
+    })
+
+    test('leaves language built-ins, JSON Schema keywords and library calls alone', async () => {
+      expect(await lintFixture('of-suffix/allowed.ts', 'conciv(no-of-suffix)')).toEqual([])
+    })
+
+    test('exempts the files copied from opencode', async () => {
+      expect(await lintFixture('of-suffix/packages/plugin-host/src/copied.ts', 'conciv(no-of-suffix)')).toEqual([])
+      expect(await lintFixture('of-suffix/packages/plugin/src/copied.ts', 'conciv(no-of-suffix)')).toEqual([])
+    })
+  })
+
   describe('core-purity', () => {
     test('flags terminal and verdict vocabulary where the rule is enabled', async () => {
       const findings = await lintFixture('core-purity/impure.ts', 'conciv(core-purity)')

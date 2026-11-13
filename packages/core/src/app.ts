@@ -68,7 +68,7 @@ import {
 } from '@conciv/plugin-host'
 import {pushRoutes, type PushDeps} from './api/push.js'
 import {makeHubAdmission, type ChatContext, type PluginHost, type RpcDeps} from './api/rpc/mount.js'
-import {concivHome, drafts, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
+import {concivHome, drafts, readModel, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
 import {createSettingsStorage, settingsOnDisk} from './settings/settings-storage.js'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
@@ -487,7 +487,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       await recordNativeId(db, sessionId, harnessFor(sessionId).id, token)
     },
     chatBusy: async (sessionId) => (await planeRef.current?.live(sessionId)) === true,
-    model: async (sessionId) => modelOf(db, sessionId),
+    model: async (sessionId) => readModel(db, sessionId),
     onChatTurn: (listener) => runStartListeners.push(listener),
   }
   const serverHarness = (sessionId: SessionId): ServerHarness => makeServerHarness(harnessFor(sessionId), opts.cwd)
@@ -552,7 +552,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     })
     followUpOwedQueues(sessionId)
   }
-  const sessionModel = (sessionId: SessionId): string | null => modelOf(db, sessionId)
+  const sessionModel = (sessionId: SessionId): string | null => readModel(db, sessionId)
   const makeToolCtx = (sessionId: SessionId): ConcivToolContext => ({
     askUi: () => runtime.forSession(sessionId).asks.ui(),
   })

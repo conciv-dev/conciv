@@ -18,7 +18,7 @@ export function useSessionHarness(sessionId: Accessor<string>): Accessor<Harness
 export type Harnesses = {
   list: Accessor<HarnessMeta[]>
   switchable: Accessor<boolean>
-  nameOf: (harnessId: string) => string
+  resolveName: (harnessId: string) => string
 }
 
 export function useHarnesses(): Harnesses {
@@ -28,7 +28,7 @@ export function useHarnesses(): Harnesses {
   return {
     list,
     switchable: () => list().length > 1,
-    nameOf: (harnessId) => list().find((harness) => harness.id === harnessId)?.name ?? harnessId,
+    resolveName: (harnessId) => list().find((harness) => harness.id === harnessId)?.name ?? harnessId,
   }
 }
 

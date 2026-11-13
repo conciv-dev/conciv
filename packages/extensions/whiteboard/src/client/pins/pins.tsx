@@ -71,7 +71,7 @@ export function PinsLayer(): JSX.Element {
     setPrompt(null)
   }
 
-  const sceneOf = (cid: string, x: number, y: number): {x: number; y: number} => {
+  const resolveScene = (cid: string, x: number, y: number): {x: number; y: number} => {
     const dragged = drag()
     return dragged && dragged.cid === cid ? {x: dragged.x, y: dragged.y} : {x, y}
   }
@@ -79,20 +79,20 @@ export function PinsLayer(): JSX.Element {
   return (
     <Show when={model.viewport()}>
       {(view) => {
-        const screenOf = (cid: string, x: number, y: number): {x: number; y: number} => {
-          const scene = sceneOf(cid, x, y)
+        const resolveScreen = (cid: string, x: number, y: number): {x: number; y: number} => {
+          const scene = resolveScene(cid, x, y)
           return sceneToScreen(view(), scene.x, scene.y)
         }
         return (
           <>
             <For each={model.pins()}>
               {(pin) => {
-                const comment = (): Comment | undefined => model.rootOf(pin.cid)
+                const comment = (): Comment | undefined => model.findRoot(pin.cid)
                 const status = (): CommentStatus => {
                   const value = comment()?.status
                   return isStatus(value) ? value : 'open'
                 }
-                const pos = (): {x: number; y: number} => screenOf(pin.cid, pin.x, pin.y)
+                const pos = (): {x: number; y: number} => resolveScreen(pin.cid, pin.x, pin.y)
                 const anchorPos = (): {x: number; y: number} =>
                   sceneToScreen(view(), pin.anchorX ?? 0, pin.anchorY ?? 0)
                 let start: {grabDX: number; grabDY: number; ox: number; oy: number} | null = null

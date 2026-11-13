@@ -106,7 +106,7 @@ function unconfirmedOutcome(index: number, tool: string, error: unknown): Settle
   return {outcome: {index, tool, ok: false, error: message}, landed: 'played'}
 }
 
-function resultOf(record: QueueRecord): PageQueueResult {
+function buildResult(record: QueueRecord): PageQueueResult {
   const settled = record.settled.flatMap((entry) => (entry === undefined ? [] : [entry]))
   const ran = settled.filter((entry) => entry.landed === 'played')
   const status = settled.some((entry) => entry.landed === 'lost')
@@ -133,13 +133,13 @@ function fitted(
 }
 
 function cappedOutcome(outcome: PageQueueOutcome, share: number): PageQueueOutcome {
-  if (!outcome.ok) return outcome.error.length <= share ? outcome : {...outcome, error: headOf(outcome.error, share)}
+  if (!outcome.ok) return outcome.error.length <= share ? outcome : {...outcome, error: takeHead(outcome.error, share)}
   const body = JSON.stringify(outcome.result)
   if (body.length <= share) return outcome
-  return {...outcome, result: {truncated: true, length: body.length, head: headOf(body, share)}}
+  return {...outcome, result: {truncated: true, length: body.length, head: takeHead(body, share)}}
 }
 
-function headOf(text: string, length: number): string {
+function takeHead(text: string, length: number): string {
   return Array.from(text).slice(0, length).join('')
 }
 
@@ -225,7 +225,7 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
     })
     keep(record)
     void Promise.all(landed).then(async () => {
-      record.result = resultOf(record)
+      record.result = buildResult(record)
       settledAll.resolve(record.result)
       await setImmediate()
       announce(record)

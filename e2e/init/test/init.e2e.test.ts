@@ -126,7 +126,7 @@ const appShapes = new Map<string, AppShape>([
   ],
 ])
 
-function shapeOf(appName: string): AppShape {
+function requireShape(appName: string): AppShape {
   const shape = appShapes.get(appName)
   if (shape === undefined) throw new Error(`no plan shape for ${appName}`)
   return shape
@@ -213,7 +213,7 @@ describe('conciv init against consumer-app clones', () => {
   it('wires a stripped nextjs clone end to end', async () => {
     const cloneDir = strippedClone('nextjs')
     const outcome = await runInitCli(cloneDir, minimalTools())
-    const nextjsShape = shapeOf('nextjs')
+    const nextjsShape = requireShape('nextjs')
     expectCommonOutcome(cloneDir, outcome, 'Wired next.js')
     expectPlanPreview(outcome.output, nextjsShape.detection, nextjsShape.frameworkRow)
     expectAppliedDiff(outcome.output, 'next.config.ts', "import {withConciv} from '@conciv/it/plugin/nextjs'")
@@ -239,7 +239,7 @@ describe('conciv init against consumer-app clones', () => {
     'prints the plan for a %s clone and touches nothing with --dry-run',
     async (appName) => {
       const cloneDir = strippedClone(appName)
-      const shape = shapeOf(appName)
+      const shape = requireShape(appName)
       const outcome = await runInitCli(cloneDir, minimalTools(), ['--dry-run'])
       expect(outcome.code, outcome.output).toBe(0)
       expectPlanPreview(outcome.output, shape.detection, shape.frameworkRow)
