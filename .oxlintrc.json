@@ -397,7 +397,7 @@
     {
       "files": ["apps/conciv/**"],
       "rules": {
-        "conciv/test-file-budget": ["error", {"max": 14}]
+        "conciv/test-file-budget": ["error", {"max": 15}]
       }
     },
     {
