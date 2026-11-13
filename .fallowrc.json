@@ -104,6 +104,11 @@
         "maxCognitive": 30,
         "maxCrap": 400,
         "reason": "copied whole from opencode core/src/bus.ts: commitDurableEvent and publishAll keep opencode's shape"
+      },
+      {
+        "files": ["packages/plugin-host/src/util/flock.ts"],
+        "maxCognitive": 30,
+        "reason": "copied whole from opencode util/src/flock.ts: tryAcquireLockDir keeps opencode's shape"
       }
     ]
   },
@@ -235,8 +240,6 @@
   ],
   "entry": [
     "packages/plugin-host/src/core/database/**",
-    "packages/plugin-host/src/util/fs-util.ts",
-    "packages/plugin-host/src/util/hash.ts",
     "packages/brand-react/src/conciv-lockup.tsx",
     "packages/brand/src/brand-guidelines.mdx",
     "packages/ui-kit-chat/src/tools.tsx",
