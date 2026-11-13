@@ -265,7 +265,9 @@
         "toModelOutput",
         "Rpc",
         "Definition",
-        "make"
+        "make",
+        "Ref",
+        "Settings"
       ]
     },
     {
@@ -292,6 +294,10 @@
     "packages/plugin-host/src/schema/event-manifest.ts",
     "packages/plugin-host/src/schema/instruction-entry.ts",
     "packages/plugin-host/src/schema/plugin.ts",
+    "packages/plugin-host/src/core/model.ts",
+    "packages/plugin-host/src/plugin/effect/agent.ts",
+    "packages/plugin-host/src/plugin/effect/model.ts",
+    "packages/plugin-host/src/plugin/effect/skill.ts",
     "packages/plugin-host/test/core/fixture/*-worker.ts",
     "packages/brand-react/src/conciv-lockup.tsx",
     "packages/brand/src/brand-guidelines.mdx",
