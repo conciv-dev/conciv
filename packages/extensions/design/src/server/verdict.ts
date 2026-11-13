@@ -54,9 +54,16 @@ function requiredOf(root: DesignNode): Map<string, string> {
       const box = node.figma?.box ?? node.box
       const decoration = node.gate?.kind === 'decoration'
       const line = node.gate?.kind === 'line'
-      return decoration || (!line && (box.w <= 0 || box.h <= 0)) ? [] : [[node.id, placed({node, parent})] as const]
+      const empty = !line && (box.w <= 0 || box.h <= 0)
+      return decoration || empty || drawsNothing(node) ? [] : [[node.id, placed({node, parent})] as const]
     }),
   )
+}
+
+function drawsNothing(node: DesignNode): boolean {
+  if (node.kind !== 'box' || node.children.length === 0) return false
+  const strokes = node.figma?.fields.strokes
+  return node.paint === undefined && node.border === null && !(Array.isArray(strokes) && strokes.length > 0)
 }
 
 function placed(input: {node: DesignNode; parent: DesignNode | null}): string {

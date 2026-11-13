@@ -218,6 +218,20 @@ describe('a media query on the page', () => {
   })
 })
 
+describe('a Figma wrapper that draws nothing', () => {
+  it('is not required when the page merges it into its children', async () => {
+    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
+    await kit.goto('process-row')
+    await call('design_get', {
+      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=50-876',
+      document: JSON.parse(await readFile(fixture('process-row.json'), 'utf8')),
+      image: fixture('process-row.png'),
+    })
+    const checked = roundOf(await call('design_check', {}))
+    expect(checked.reasons.filter((reason) => reason.includes('required nodes'))).toEqual([])
+  })
+})
+
 describe('a page that drifts from the design', () => {
   it('is told where the drift starts when the Figma lines take space on the page', async () => {
     const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))

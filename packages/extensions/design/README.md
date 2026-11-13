@@ -114,7 +114,8 @@ src/
   counts` over what did render, a reason saying the page renders N of M nodes with the rest in `coverage.missing` (and by name in `coverage.gone`), and
   a round is written with verdict `unsettled` (its mapping is not kept). A settled check resets the count. The
   verdict is judged on the round the check wrote: `done` when `much + noticeably + pins = 0`, every required node renders
-  (decorations and zero-size nodes are not required, except a Figma line: it is drawn by its stroke, and it renders
+  (decorations, zero-size nodes and wrappers that draw nothing, a box with children and no fill or stroke whose children
+  are checked on their own, are not required, except a Figma line: it is drawn by its stroke, and it renders
   when an element pairs with it (the pairer gives a line its stroke weight as thickness, so a 1px element or an `<hr>`
   pairs), or when the element paired with its frame or with a sibling whose edge it lies on shows a border on that side,
   whatever its other sides),
