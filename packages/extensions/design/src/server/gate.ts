@@ -18,8 +18,9 @@ export function gateOf(input: {design: Design; reads: ReturnType<typeof readIds>
     const element = reads.of(id)[0]
     return element === undefined || !held.has(id) ? element : textOf(element)
   }
-  const drawn = (record: Record): boolean => first(record.id) !== undefined || bordered({record, byId, first})
   const grouped = Map.groupBy(records, (record) => record.parent ?? '')
+  const drawn = (record: Record): boolean =>
+    first(record.id) !== undefined || bordered({record, byId, first, siblings: grouped.get(record.parent ?? '') ?? []})
   const kidsOf = (id: string): Placed[] =>
     (grouped.get(id) ?? []).map((record) => {
       const element = first(record.id)
@@ -121,22 +122,27 @@ function bordered(input: {
   record: Record
   byId: Map<string, Record>
   first: (id: string) => LiveComponent | undefined
+  siblings: Record[]
 }): boolean {
   const {record} = input
   const frame = record.parent === null ? undefined : input.byId.get(record.parent)
   if (record.kind !== LINE_KIND || frame === undefined) return false
-  const side = lineSide({line: record.box, frame: frame.box})
-  const sides = input.first(frame.id)?.styles.border.sides ?? []
-  return sides.some((shown) => shown.side === side)
+  return [frame, ...input.siblings.filter((sibling) => sibling !== record)].some((holder) => {
+    const side = lineSide({line: record.box, frame: holder.box})
+    const sides = input.first(holder.id)?.styles.border.sides ?? []
+    return sides.some((shown) => shown.side === side)
+  })
 }
 
 function lineSide(input: {line: Box; frame: Box}): string | null {
   const {line, frame} = input
   const close = (a: number, b: number) => Math.abs(a - b) <= SAME_PX
-  if (line.h === 0 && close(line.y, frame.y + frame.h)) return 'bottom'
-  if (line.h === 0 && close(line.y, frame.y)) return 'top'
-  if (line.w === 0 && close(line.x, frame.x)) return 'left'
-  if (line.w === 0 && close(line.x, frame.x + frame.w)) return 'right'
+  const flat = line.h < 1
+  const upright = line.w < 1
+  if (flat && close(line.y, frame.y + frame.h)) return 'bottom'
+  if (flat && close(line.y, frame.y)) return 'top'
+  if (upright && close(line.x, frame.x)) return 'left'
+  if (upright && close(line.x, frame.x + frame.w)) return 'right'
   return null
 }
 

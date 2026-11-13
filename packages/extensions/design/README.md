@@ -105,7 +105,9 @@ src/
   a round is written with verdict `unsettled` (its mapping is not kept). A settled check resets the count. The
   verdict is judged on the round the check wrote: `done` when `much + noticeably + pins = 0`, every required node renders
   (decorations and zero-size nodes are not required, except a Figma line: it is drawn by its stroke, and it renders
-  when an element pairs with it or when the element paired with its frame shows a border on the side the line sits on, whatever its other sides),
+  when an element pairs with it (the pairer gives a line its stroke weight as thickness, so a 1px element or an `<hr>`
+  pairs), or when the element paired with its frame or with a sibling whose edge it lies on shows a border on that side,
+  whatever its other sides),
   nothing sticks out, nothing scrolls sideways and every reflow
   tag holds at 1024 and 768; `stalled` when `much` is above 0 and has not fallen for two rounds; else `not yet`. The
   reasons say which condition failed with the numbers. Pixels are reported, never judged. Each round also stores `progress`, which the replies leave

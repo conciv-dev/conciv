@@ -117,6 +117,31 @@ describe('a Figma line', () => {
       boxed.coverage.missing.includes('100:1422'),
     ]).toEqual(['not yet', true, true, false, false])
   })
+
+  it('counts as drawn by a sibling border on its edge or by its own 1px element', async () => {
+    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
+    await kit.goto('process-row')
+    await call('design_get', {
+      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=50-876',
+      document: JSON.parse(await readFile(fixture('process-row.json'), 'utf8')),
+      image: fixture('process-row.png'),
+    })
+    const bordered = roundOf(await call('design_check', {}))
+    await kit.goto('process-row-boxed')
+    const element = roundOf(await call('design_check', {}))
+    await kit.goto('input-field-rule')
+    await call('design_get', {
+      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1418',
+      document: JSON.parse(await readFile(fixture('input-field.json'), 'utf8')),
+      image: fixture('input-field.png'),
+    })
+    const ruled = roundOf(await call('design_check', {}))
+    expect([
+      bordered.coverage.missing.includes('50:883'),
+      element.coverage.missing.includes('50:883'),
+      ruled.coverage.missing.includes('100:1422'),
+    ]).toEqual([false, false, false])
+  })
 })
 
 describe('a Figma stroke drawn inside the box', () => {

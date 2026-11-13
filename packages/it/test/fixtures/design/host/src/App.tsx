@@ -48,6 +48,7 @@ const INPUT_LINES = {
   'input-field-outline': {...INPUT_LINE, borderBottom: '1px solid #333333'},
   'input-field-bare': {...INPUT_LINE, borderBottom: '1px solid #333333'},
   'input-field-shadow': {...INPUT_LINE, borderBottom: '1px solid #333333'},
+  'input-field-rule': {...INPUT_LINE, height: 'auto'},
 }
 const INPUT_FIELDS = {
   'input-field': INPUT_FIELD,
@@ -56,6 +57,7 @@ const INPUT_FIELDS = {
   'input-field-outline': {...INPUT_FIELD, border: 'none', outline: '1px solid #262626', outlineOffset: -1},
   'input-field-bare': {...INPUT_FIELD, border: 'none'},
   'input-field-shadow': {...INPUT_FIELD, border: 'none', boxShadow: 'inset 0 0 0 1px #262626'},
+  'input-field-rule': INPUT_FIELD,
 }
 const DISCOVERY_TEXT =
   'We begin by thoroughly understanding your business goals, target audience, and project requirements. We conduct in-depth research to gather insights and define project objectives, allowing us to develop a tailored strategy.'
@@ -97,7 +99,8 @@ export function App() {
     requested === 'input-field-box' ||
     requested === 'input-field-outline' ||
     requested === 'input-field-bare' ||
-    requested === 'input-field-shadow'
+    requested === 'input-field-shadow' ||
+    requested === 'input-field-rule'
   ) {
     return (
       <main data-conciv-key="iNfMnA">
@@ -112,6 +115,9 @@ export function App() {
             <span style={{fontSize: 16, lineHeight: '24px', color: '#656567'}} data-conciv-key="iNfPhA">
               Type here
             </span>
+            {requested === 'input-field-rule' ? (
+              <span style={{height: 1, background: '#333333'}} data-conciv-key="iNfRlA" />
+            ) : null}
           </span>
         </label>
       </main>

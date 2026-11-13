@@ -69,6 +69,10 @@ const SKIPPED_TAGS = new Set([
 
 const SOLID = 'solid'
 
+const LINE = 'LINE'
+
+const LineFieldsSchema = z.object({strokeWeight: z.number().catch(1)})
+
 const FillsSchema = z.array(z.object({type: z.string(), color: z.string().optional()}))
 
 const LEAF_SHAPES = new Set(['RECTANGLE', 'VECTOR', 'ELLIPSE'])
@@ -551,7 +555,17 @@ function matchOf(input: {
 }
 
 function boxOf(node: DesignNode): Box {
-  return node.figma?.box ?? node.box
+  const box = node.figma?.box ?? node.box
+  if (node.figma?.type !== LINE) return box
+  const weight = LineFieldsSchema.parse(node.figma.fields).strokeWeight
+  const flat = box.h < weight
+  const upright = box.w < weight
+  return {
+    x: upright ? box.x + box.w / 2 - weight / 2 : box.x,
+    y: flat ? box.y + box.h / 2 - weight / 2 : box.y,
+    w: upright ? weight : box.w,
+    h: flat ? weight : box.h,
+  }
 }
 
 function sameBox(input: {a: Box; b: Box}): boolean {
