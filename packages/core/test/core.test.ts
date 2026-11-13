@@ -124,7 +124,7 @@ import {
 } from '../src/engine-login.js'
 import {serveHono} from '@conciv/serve'
 import {Hono} from 'hono'
-import {exchangePrintedCode, loginThroughTerminal, requestPrintedCode} from '@conciv/harness-testkit'
+import {createTestHarness, exchangePrintedCode, loginThroughTerminal, requestPrintedCode} from '@conciv/harness-testkit'
 import {os} from '@orpc/server'
 import {createORPCClient} from '@orpc/client'
 import {RPCLink as FetchRpcLink} from '@orpc/client/fetch'
@@ -157,7 +157,7 @@ import {
   pluginInstructions,
   sessionSnapshot,
 } from '../src/runtime/permission-cards.js'
-import {bootMadeApp, chunkWithInlineMap, cleanupChunks, makeChatFixture} from './helpers.js'
+import {bootMadeApp, chunkWithInlineMap, cleanupChunks, makeChatFixture, requireClaude} from './helpers.js'
 
 const NO_CAPABILITIES = {
   resume: false,
@@ -2261,6 +2261,49 @@ describe('plugin host bus', () => {
     } finally {
       await served.stop()
     }
+  })
+
+  test('a plugin experimental.idle hook fires for a run that completes and not for one that fails or is stopped, while turnEnd fires for all three', async () => {
+    const stateRoot = tempDir()
+    const turnEnds: SessionId[] = []
+    const recorder = defineExtension({name: 'turn-ends'}).server(() => ({
+      context: {},
+      turnEnd: (sessionId) => void turnEnds.push(sessionId),
+    }))
+    const harness = createTestHarness(requireClaude())
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}}, {extensions: [recorder]})
+    onTestFinished(() => made.dispose())
+    const id = SessionId.parse('conciv_idle')
+    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    const idles: unknown[] = []
+    await made.pluginHost.runPromise(
+      PluginHooks.Service.use((hooks) =>
+        hooks.register('session', 'experimental.idle', (event) => Effect.sync(() => idles.push(event))),
+      ).pipe(Scope.provide(made.pluginHost.runSync(Scope.make()))),
+    )
+
+    expect(await made.plane.followUp(id, 'finish normally')).toEqual({kind: 'delivered'})
+    expect(idles).toEqual([{sessionId: id, background: []}])
+    expect(turnEnds).toEqual([id])
+
+    harness.script.scriptError('the harness could not launch')
+    expect(await made.plane.followUp(id, 'fail to launch')).toMatchObject({kind: 'failed'})
+    expect(idles).toHaveLength(1)
+    expect(turnEnds).toEqual([id, id])
+
+    harness.script.hold()
+    const started = Promise.withResolvers<void>()
+    const unlisten = made.runtime.forSession(id).stream.listen((chunk) => {
+      if (sessionRunEvent.parse(chunk) !== null) started.resolve()
+    })
+    onTestFinished(unlisten)
+    const following = made.plane.followUp(id, 'keep going until stopped')
+    await started.promise
+    await made.plane.stop(id)
+    harness.script.release()
+    expect(await following).toEqual({kind: 'stopped'})
+    expect(idles).toHaveLength(1)
+    expect(turnEnds).toEqual([id, id, id])
   })
 })
 

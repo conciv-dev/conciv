@@ -30,6 +30,7 @@ The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run tu
 - `turn.ts:turnHooks` - every hook resolves the adapter with `deps.harnessFor(sessionId)`; a native id is resumed only when the row's `harnessKind` is that adapter, otherwise the full history is replayed.
 - `index.ts:hydrate` - takes an optional `{limit, before}` window and returns that page plus `page`; `messageHarness` maps each assistant message id of the page to the harness that produced it: the `chat_runs.harness_id` of its run, else its import stamp. `pendingApprovals` and `lastRun` are never paged.
 - `turn.ts:turnHooks` - throws `the message is empty` for an empty user message.
+- `turn.ts:turnHooks.end` - passes the run's `RunLifecycle` from the chat server's end hook on to `deps.sessions.onRunEnd(sessionId, run)`, so the caller knows whether the run completed, failed or was aborted.
 - `turn.ts:turnHooks` - hands the harness the session row's `effort` as `HarnessChatDeps.effort`, or none when it is null (the CLI's default); `chat()` gets no `reasoning`, so the harness is the one place the effort reaches the CLI.
 - `code-mode.ts:chatToolSet` - a non-lazy tool result goes through `cappedValue` from `@conciv/contract`.
 

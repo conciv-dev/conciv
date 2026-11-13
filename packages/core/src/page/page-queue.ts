@@ -322,12 +322,16 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
   }
 }
 
+export function owesFollowUp(queues: PageQueues, sessionId: SessionId): boolean {
+  return queues.owedTurn(sessionId).some((record) => record.delivery === 'owed')
+}
+
 export async function startQueueFollowUp(
   queues: PageQueues,
   plane: Pick<ChatPlane, 'live' | 'followUp'>,
   sessionId: SessionId,
 ): Promise<void> {
-  if (!queues.owedTurn(sessionId).some((record) => record.delivery === 'owed') || (await plane.live(sessionId))) return
+  if (!owesFollowUp(queues, sessionId) || (await plane.live(sessionId))) return
   const owed = queues.owedTurn(sessionId).flatMap((record) => {
     const before: 'owed' | 'nextReply' = record.delivery === 'owed' ? 'owed' : 'nextReply'
     return queues.claim(record) ? [{record, before}] : []

@@ -1,6 +1,12 @@
 import {existsSync, readFileSync} from 'node:fs'
 import {readFile} from 'node:fs/promises'
-import {readApprovalAsk, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {
+  readApprovalAsk,
+  ChatEventType,
+  sessionRunEvent,
+  type ChatEvent,
+  type RunLifecycle,
+} from '@conciv/protocol/chat-event-types'
 import {tokenUsageToSnapshot, toTokenUsage, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {type ContentPart, type ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {Turn, TurnHooks} from '@conciv/ai/server'
@@ -29,7 +35,7 @@ export type SessionPort = {
   recordContextTokens: (sessionId: SessionId, contextTokens: number) => Promise<void>
   recordActivity: (sessionId: SessionId, title: string, at: number) => void
   onRunStart: (sessionId: SessionId) => Promise<void>
-  onRunEnd: (sessionId: SessionId) => Promise<void>
+  onRunEnd: (sessionId: SessionId, run: RunLifecycle) => Promise<void>
   publish: (sessionId: SessionId, chunk: ChatEvent) => void
 }
 
@@ -292,11 +298,11 @@ export function turnHooks(
     },
     started: (turn) =>
       deps.sessions.publish(SessionId.parse(turn.threadId), sessionRunEvent.create({runId: turn.runId})),
-    end: async (turn) => {
+    end: async (turn, run) => {
       const sessionId = SessionId.parse(turn.threadId)
       await context.transcripts.settle(sessionId)
       await recordContext(deps, sessionId)
-      await deps.sessions.onRunEnd(sessionId)
+      await deps.sessions.onRunEnd(sessionId, run)
     },
   }
 }

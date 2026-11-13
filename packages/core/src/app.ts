@@ -8,6 +8,7 @@ import {upgradeWebSocket} from '@conciv/serve'
 import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter} from '@conciv/harness'
 import {concivStateDir} from '@conciv/protocol/state-types'
+import type {RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {
@@ -65,6 +66,7 @@ import {
   PluginHooks,
   Rpc,
   SessionProjector,
+  SessionSchema,
   Skill,
   SkillInstructions,
   Tool,
@@ -84,7 +86,7 @@ import {outsideRefusal} from './api/outside-refusal.js'
 import {outsideRunCapabilities} from './api/outside-run.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
-import {pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
+import {owesFollowUp, pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
 import {
   answerPermission,
@@ -549,11 +551,23 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   )
   const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
   const turnEnds = mounted.flatMap((entry) => (entry.turnEnd ? [entry.turnEnd] : []))
-  const onRunEnd = async (sessionId: SessionId): Promise<void> => {
+  const onRunEnd = async (sessionId: SessionId, run: RunLifecycle): Promise<void> => {
     const settled = await Promise.allSettled(turnEnds.map((hook) => hook(sessionId)))
     settled.forEach((outcome) => {
       if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
     })
+    if (run.phase === 'completed' && !owesFollowUp(primitives.page.queues, sessionId)) {
+      await pluginHost
+        .runPromise(
+          PluginHooks.Service.use((hooks) =>
+            hooks.trigger('session', 'experimental.idle', {
+              sessionId: SessionSchema.Id.make(sessionId),
+              background: [],
+            }),
+          ),
+        )
+        .catch((error: unknown) => logError(`[core] the experimental.idle hook failed: ${String(error)}`))
+    }
     followUpOwedQueues(sessionId)
   }
   const sessionModel = (sessionId: SessionId): string | null => readModel(db, sessionId)

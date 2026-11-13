@@ -224,7 +224,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 
 - `session.hook` is plain `Hooks`: `ModelHookOptions` and `ModelHooks` are absent (providers are not ours).
 - `SessionHooks` has `experimental.idle` only; `fork`, `compaction`, `generate`, `title`, `experimental.model.resolve`, `model.request`, `http.request`, `http.response`, `experimental.ws.handshake`, `experimental.ws.send`, `experimental.ws.receive` and `retry` are not ours, with their event types.
-- `experimental.idle` does not run after a stopped or failed run, as in opencode; no second hook exists (ruling: whiteboard drafts from such a turn stay drafts).
+- `experimental.idle` runs when a run completes and no page-queue result is owed to the session (an owed result starts a follow-up turn, whose completion runs it instead); it does not run after a stopped or failed run, as in opencode; no second hook exists (ruling: whiteboard drafts from such a turn stay drafts).
 - `SessionDomain` has no `move` (not ours: one directory per engine).
 - The session list input has no `directory`, `project` or `subpath`, and the session create input no `location` (one project per engine).
 
