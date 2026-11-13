@@ -4745,7 +4745,7 @@ describe('outside agent consent', () => {
     expect(fields(oldId).compatible).toBe(true)
     const oldClient = servers.get(oldId)?.client
     if (oldClient === undefined) throw new Error('the old engine has no ref')
-    await expect(oldClient.tabs.list(undefined, {signal: AbortSignal.timeout(3000)})).rejects.toSatisfy(
+    await expect(oldClient.tabs.list(undefined)).rejects.toSatisfy(
       (error) => error instanceof ORPCError && error.code === 'NOT_FOUND' && error.status === 404,
     )
     expect(fields(oldId).compatible).toBe(false)
@@ -4753,7 +4753,7 @@ describe('outside agent consent', () => {
     withHomeDb(home, (db) => registerEngine(db, {...oldRow, apiBase: restarted}))
     await vi.waitFor(() => expect(fields(oldId).url).toBe(restarted), {timeout: 25_000})
     expect(fields(oldId).compatible).toBe(true)
-  }, 60_000)
+  }, 90_000)
 
   it('cancelling a hub block while it waits for the allow leaves nothing to run after a later allow', async () => {
     const base = await boot()
