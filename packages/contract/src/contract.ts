@@ -110,6 +110,7 @@ const ChatPendingApprovalSchema = z.object({
   toolName: z.string(),
   input: z.unknown(),
   runId: z.string().nullable(),
+  permission: z.object({always: z.boolean()}).optional(),
 })
 export type ChatPendingApproval = z.infer<typeof ChatPendingApprovalSchema>
 const ChatHistoryWindowSchema = z.object({

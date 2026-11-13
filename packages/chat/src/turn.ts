@@ -241,13 +241,8 @@ export function turnHooks(
           if (minted !== null) await deps.sessions.recordNativeId(sessionId, harness.id, minted)
           const ask = approvalAskOf(shaped)
           if (ask !== null) {
-            await context.approvals.asked(sessionId, {
-              approvalId: ask.approvalId,
-              toolCallId: ask.toolCallId,
-              title: ask.toolName,
-              input: ask.input,
-              runId: turn.runId,
-            })
+            const {toolName, ...asked} = ask
+            await context.approvals.asked(sessionId, {...asked, title: toolName, runId: turn.runId})
           }
           return [shaped]
         },

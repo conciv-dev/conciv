@@ -62,13 +62,9 @@ export type ChatSession = Omit<Chat, 'stop'> & {
   decide: (approvalId: string, approved: boolean, scope: ChatApprovalScope) => Promise<void>
 }
 
-function askOf(approval: ApprovalAsk): ApprovalAsk {
-  return {
-    approvalId: approval.approvalId,
-    toolCallId: approval.toolCallId,
-    toolName: approval.toolName,
-    input: approval.input,
-  }
+function askOf({approvalId, toolCallId, toolName, input, permission}: ApprovalAsk): ApprovalAsk {
+  const ask = {approvalId, toolCallId, toolName, input}
+  return permission === undefined ? ask : {...ask, permission}
 }
 
 function decisionText(title: string, approved: boolean, scope: ChatApprovalScope): string {
