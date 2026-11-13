@@ -10,6 +10,7 @@ import type {
   SessionInfo,
   SessionListInput,
   SessionSyntheticInput,
+  SessionUpdateInput,
 } from '@conciv/plugin'
 import type {ModelHooks} from './registration.js'
 
@@ -62,6 +63,8 @@ export type SessionDomain = {
     readonly sessionId: SessionId
     readonly model: Model.Ref
   }) => Effect.Effect<void, unknown>
+  readonly generate: undefined
+  readonly command: undefined
   readonly compact: (input: {
     readonly sessionId: SessionId
     readonly id?: string | undefined
@@ -72,6 +75,7 @@ export type SessionDomain = {
     readonly sessionId: SessionId
     readonly resume?: boolean | undefined
   }) => Effect.Effect<{readonly interrupted: boolean}, unknown>
+  readonly update: (input: SessionUpdateInput) => Effect.Effect<void, unknown>
   readonly wait: (input: SessionInput) => Effect.Effect<void, unknown>
   readonly instructions: {
     readonly entry: {

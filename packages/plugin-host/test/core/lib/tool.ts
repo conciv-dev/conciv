@@ -4,6 +4,7 @@ import {SessionMessage} from '../../../src/schema/session-message.js'
 import {Tool} from '../../../src/core/tool.js'
 import type {Context} from '../../../src/plugin/effect/plugin.js'
 import {Effect, type Scope} from 'effect'
+import {host} from '../plugin/host'
 
 export const toolIdentity = {
   agent: Agent.Id.make('build'),
@@ -18,11 +19,17 @@ export const registerToolPlugin = <R>(
     readonly id: string
     readonly effect: (context: Context) => Effect.Effect<void, never, R>
   },
+  overrides: Parameters<typeof host>[0] = {},
   hook?: Context['tool']['hook'],
 ): Effect.Effect<void, never, R | Tool.Interface | Scope.Scope> =>
   Effect.gen(function* () {
     const tools = yield* Tool.Service
-    yield* plugin.effect({
+    const context = host({
+      ...overrides,
+      session: {
+        ...overrides.session,
+        hook: overrides.session?.hook ?? (() => Effect.succeed({dispose: Effect.void})),
+      },
       tool: {
         transform: tools.transform,
         reload: tools.reload,
@@ -30,6 +37,7 @@ export const registerToolPlugin = <R>(
         hook: hook ?? (() => Effect.die('registerToolPlugin does not support tool hooks')),
       },
     })
+    yield* plugin.effect(context)
   })
 
 export interface ToolExecution {
