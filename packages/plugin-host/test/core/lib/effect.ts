@@ -14,7 +14,7 @@ export const refuseNetwork = (violations: string[]): typeof fetch =>
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
     if (loopback.has(new URL(url).hostname)) return fetch(input, init)
     const method = init?.method ?? (input instanceof Request ? input.method : 'GET')
-    const message = `test attempted network request: ${method} ${url} — provide an explicit HttpClient or disable the fetch`
+    const message = `test attempted network request: ${method} ${url}; provide an explicit HttpClient or disable the fetch`
     violations.push(message)
     return Promise.reject(new Error(message))
   })

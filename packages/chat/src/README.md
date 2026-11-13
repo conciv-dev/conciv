@@ -10,6 +10,7 @@ The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run tu
 - `index.ts:ChatPlane.routes` - a Hono app with `GET CHAT_WS_PATH` (WebSocket upgrade), `POST CHAT_SSE_PATH` (start events) and `GET CHAT_SSE_PATH` (resume; 400 `no resume offset` when there is none).
 - `index.ts:CodeTool` / `CodeRunner` (carries `capabilities`, the name and description of every sandboxed capability) / `ChatPlane` - exported types; also re-exports `AttachmentExpanders` and `SessionPort` from `turn.ts`.
 - `code-mode.ts:registryCapabilities` / `assistCapabilities` / `chatToolSet` - build `CodeCapability` lists and the code-mode and asking tool sets.
+- `code-mode.ts:toolDomainCapabilities` - appends a `@conciv/plugin-host` tool snapshot's code-mode tools to a capability list, named by their snapshot key; a tool whose name the list already has is left out and passed to `collided`. Each runs through the snapshot's code-mode `execute` on the given Effect runner, with the request's session, agent, tool call id and signal; it returns the tool's output, else its text content joined, else null.
 - `approvals.ts:createApprovalStore` - pending approvals and grants per thread over the `metadata` chat store; `ApprovalScope` is `'once' | 'session'`.
 - `approvals.ts:createUiChannel` - per-thread waiters for UI answers.
 - `stores.ts:runningThreadIds` / `clearThread` - list threads with a `running` chat run, delete a thread's rows.

@@ -41,9 +41,11 @@
     "@conciv/db": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/harness": "workspace:^",
+    "@conciv/plugin-host": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/tools": "workspace:^",
     "drizzle-orm": "catalog:",
+    "effect": "catalog:",
     "hono": "catalog:",
     "zod": "catalog:"
   },
