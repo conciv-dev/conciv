@@ -103,6 +103,22 @@ describe('plugin host follow', () => {
     ])
   })
 
+  test('stops following on stop and starts again on resume', () => {
+    const run = replay([
+      {type: 'started', endpoint: first, ...live},
+      {type: 'relist.requested', watchAttempt: 1, ...live},
+      {type: 'stopped'},
+      {type: 'list.succeeded', attempt: 2, listing: 'late', ...live},
+      {type: 'resumed', endpoint: first, ...live},
+    ])
+
+    expect(run.commands.slice(2)).toEqual([
+      [{type: 'unsubscribe-credentials'}, {type: 'cancel-watch'}, {type: 'cancel-list'}],
+      [],
+      [{type: 'subscribe-credentials'}, {type: 'start-watch', attempt: 3, endpoint: first}],
+    ])
+  })
+
   test('does not start following while the app quits, and drops a listing that lands during the quit', () => {
     const stopped = createHostState()
 

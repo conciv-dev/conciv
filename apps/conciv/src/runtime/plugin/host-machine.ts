@@ -31,6 +31,8 @@ export type HostState =
 
 export type HostEvent<Listing> =
   | {readonly type: 'started'; readonly endpoint: HostEndpoint | undefined; readonly quitting: boolean}
+  | {readonly type: 'resumed'; readonly endpoint: HostEndpoint | undefined; readonly quitting: boolean}
+  | {readonly type: 'stopped'}
   | {readonly type: 'endpoint.changed'; readonly endpoint: HostEndpoint | undefined; readonly quitting: boolean}
   | {readonly type: 'watch.ended'; readonly attempt: number; readonly quitting: boolean}
   | {readonly type: 'watch.retry-due'; readonly attempt: number; readonly quitting: boolean}
@@ -41,6 +43,7 @@ export type HostEvent<Listing> =
 
 export type HostCommand<Listing> =
   | {readonly type: 'subscribe-credentials'}
+  | {readonly type: 'unsubscribe-credentials'}
   | {readonly type: 'start-watch'; readonly attempt: number; readonly endpoint: HostEndpoint}
   | {readonly type: 'schedule-watch-retry'; readonly attempt: number; readonly delayMs: number}
   | {readonly type: 'cancel-watch'}
@@ -66,17 +69,32 @@ export function createHostState(): HostState {
 }
 
 export function transitionHost<Listing>(state: HostState, event: HostEvent<Listing>): HostTransition<Listing> {
-  if (event.type === 'started') {
-    if (state.status === 'following') return follow(state, event.endpoint, event.quitting)
+  switch (event.type) {
+    case 'resumed':
+      return transitionHost<Listing>(state, {...event, type: 'started'})
 
-    if (event.quitting) return unchanged(state)
+    case 'started':
+      if (state.status === 'following') return follow(state, event.endpoint, event.quitting)
 
-    return follow(
-      {...state, status: 'following', endpoint: undefined, watch: IDLE_WATCH, list: IDLE_LIST},
-      event.endpoint,
-      false,
-      [{type: 'subscribe-credentials'}],
-    )
+      if (event.quitting) return unchanged(state)
+
+      return follow(
+        {...state, status: 'following', endpoint: undefined, watch: IDLE_WATCH, list: IDLE_LIST},
+        event.endpoint,
+        false,
+        [{type: 'subscribe-credentials'}],
+      )
+
+    case 'stopped':
+      if (state.status === 'stopped') return unchanged(state)
+
+      return {
+        state: {
+          status: 'stopped',
+          nextAttempt: state.nextAttempt,
+        },
+        commands: [{type: 'unsubscribe-credentials'}, ...cancelled<Listing>(state)],
+      }
   }
 
   if (state.status !== 'following') return unchanged(state)
@@ -215,6 +233,13 @@ function settleList<Listing>(
     return list(state, state.endpoint, commands)
 
   return {state: {...state, list: IDLE_LIST}, commands}
+}
+
+function cancelled<Listing>(state: Following): HostCommand<Listing>[] {
+  return [
+    ...(state.watch.status === 'idle' ? [] : [{type: 'cancel-watch' as const}]),
+    ...(state.list.status === 'idle' ? [] : [{type: 'cancel-list' as const}]),
+  ]
 }
 
 function unchanged<Listing>(state: HostState): HostTransition<Listing> {
