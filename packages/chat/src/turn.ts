@@ -37,7 +37,7 @@ export type SystemPromptSources = {systemPromptFile?: string; systemPromptText?:
 
 export type InstructionReset = 'keep' | 'reset'
 
-export type PluginInstructions = {initial: string; update: string}
+export type PluginInstructions = {initial: string; update: string; told: () => Promise<void>}
 
 export type AttachmentExpanders = Record<string, (part: AttachmentDocumentPart) => Promise<readonly ContentPart[]>>
 
@@ -263,6 +263,7 @@ export function turnHooks(
         },
         chunk: async (chunk) => {
           const shaped = normalizedChunk(chunk, normalize)
+          if (chunk.type === ChatEventType.RUN_FINISHED) await (await instructions.promise).told()
           if (chunk.type === ChatEventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') {
             await recordContext(deps, sessionId)
           }

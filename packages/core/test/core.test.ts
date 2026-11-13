@@ -362,8 +362,22 @@ describe('chat plane', () => {
       {type: 'text', content: 'second'},
     ])
 
+    await addSkill('triage')
+    told.steps.push('failing')
+    expect(await resumed.followUp(skilled, 'dropped')).toMatchObject({kind: 'failed'})
+    expect(told.asked.at(-1)).toEqual([
+      {type: 'text', content: expect.stringContaining('<id>triage</id>')},
+      {type: 'text', content: 'dropped'},
+    ])
+    await resumed.followUp(skilled, 'resent')
+    expect(told.asked.at(-1)).toEqual([
+      {type: 'text', content: expect.stringContaining('<id>triage</id>')},
+      {type: 'text', content: 'resent'},
+    ])
+
     const registered = await plugin(projectTools, ['zeta', 'alpha'])
     await resumed.followUp(skilled, 'third')
+    expect(JSON.stringify(told.asked.at(-1))).not.toContain('triage')
     expect(told.systemPrompts.at(-1)).toEqual([noTools, preface])
     expect(told.asked.at(-1)).toEqual([
       {type: 'text', content: expect.stringContaining('This catalog supersedes the previous Code Mode tool catalog.')},
@@ -532,7 +546,7 @@ describe('chat plane', () => {
     expect(await announced).toBe('late-push-run')
   }, 10_000)
 
-  type CliStep = 'reply' | 'partial' | 'streaming' | 'tooling'
+  type CliStep = 'reply' | 'partial' | 'streaming' | 'tooling' | 'failing'
 
   type FakeCli = {
     steps: CliStep[]
@@ -568,6 +582,7 @@ describe('chat plane', () => {
           const heldOrAborted = () =>
             Promise.race([cli.gate, new Promise((settle) => signal?.addEventListener('abort', settle, {once: true}))])
           yield {type: ChatEventType.RUN_STARTED, ...run}
+          if (step === 'failing') throw new Error('the cli crashed')
           if (step === 'tooling') {
             yield* createToolCallChunks('Read', {file_path: 'a.ts'}, {parentMessageId: messageId})
             return await heldOrAborted()
@@ -641,7 +656,7 @@ describe('chat plane', () => {
       toolNames: new Set(),
       capabilities: () => [],
       attachmentExpanders: {},
-      pluginInstructions: async () => ({initial: '', update: ''}),
+      pluginInstructions: async () => ({initial: '', update: '', told: async () => undefined}),
       firstOutputTimeoutMs: 30_000,
       log: () => undefined,
       ...overrides,

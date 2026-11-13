@@ -85,7 +85,7 @@ function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typ
     toolNames: new Set(),
     capabilities: () => [],
     attachmentExpanders: {},
-    pluginInstructions: async () => ({initial: '', update: ''}),
+    pluginInstructions: async () => ({initial: '', update: '', told: async () => undefined}),
     log: () => undefined,
     ...overrides,
   })
@@ -577,9 +577,10 @@ describe('plugin instructions', () => {
   it('the initial text is one more system prompt and an empty one adds none, the change text goes once in front of the user words, and the code-mode inventory reaches the instructions in place of the library listing', async () => {
     const {root, db} = openDatabase()
     const sessionId = SessionId.parse('conciv_instructions')
+    const settled = async () => undefined
     const told = [
-      {initial: 'the skill list', update: 'a skill was added'},
-      {initial: '', update: ''},
+      {initial: 'the skill list', update: 'a skill was added', told: settled},
+      {initial: '', update: '', told: settled},
     ]
     const note: CodeCapability = {
       name: 'unit_note',
@@ -595,7 +596,7 @@ describe('plugin instructions', () => {
       capabilities: () => [note],
       pluginInstructions: async (_sessionId, _reset, inventory) => {
         inventories.push(inventory)
-        return told.shift() ?? {initial: '', update: ''}
+        return told.shift() ?? {initial: '', update: '', told: settled}
       },
     })
     const preface = expect.stringContaining('Use `console.log()` for debugging (logs are captured)')

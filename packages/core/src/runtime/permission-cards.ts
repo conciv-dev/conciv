@@ -21,6 +21,7 @@ import {
   Tool,
 } from '@conciv/plugin-host'
 import {Effect, Layer, Option, Schema} from 'effect'
+import {once} from 'es-toolkit'
 import {currentRow} from '../sessions/session-rows.js'
 
 const TITLE_LIMIT = 200
@@ -86,6 +87,14 @@ export function sessionSnapshot(
   })
 }
 
+function isMarker(value: unknown): value is Instructions.Unavailable | Instructions.Removed {
+  return value === Instructions.unavailable || value === Instructions.removed
+}
+
+function observedValues(read: Instructions.ReadResult) {
+  return Object.fromEntries(read.flatMap(({key, value}) => (isMarker(value) ? [] : [[key, value]])))
+}
+
 export function pluginInstructions(
   sessionId: SessionId,
   reset: 'keep' | 'reset',
@@ -94,24 +103,17 @@ export function pluginInstructions(
   return Effect.gen(function* () {
     const db = (yield* Database.Service).db
     const bus = yield* Bus.Service
+    const context = yield* Effect.context()
     const id = Session.Id.make(sessionId)
     const skills = yield* (yield* SkillInstructions.Service).load(yield* sessionRules(sessionId))
     const instructions = Instructions.combine([CodeModeInstructions.make(inventory), skills])
-    return yield* db
+    const {read, previewed, observation} = yield* db
       .transaction(() =>
         Effect.gen(function* () {
-          const previewed = yield* InstructionState.preview(
-            db,
-            id,
-            instructions,
-            yield* Instructions.read(instructions),
-          )
-          yield* InstructionState.commit(db, bus, instructions, yield* InstructionState.observe(db, instructions, id))
-          if (reset === 'reset') yield* InstructionState.advanceEpoch(db, id, yield* Bus.latestSequence(db, id))
-          return {
-            initial: Instructions.join(yield* InstructionState.initial(db, id, instructions)),
-            update: reset === 'reset' ? '' : previewed.update,
-          }
+          const read = yield* Instructions.read(instructions)
+          const previewed = yield* InstructionState.preview(db, id, instructions, read)
+          const observation = yield* InstructionState.observe(db, instructions, id)
+          return {read, previewed, observation}
         }),
       )
       .pipe(
@@ -119,6 +121,20 @@ export function pluginInstructions(
           error._tag === 'Instructions.InitializationBlocked' ? Effect.fail(error) : Effect.die(error),
         ),
       )
+    const commit = db.transaction(() =>
+      Effect.gen(function* () {
+        yield* InstructionState.commit(db, bus, instructions, observation)
+        if (reset === 'reset') yield* InstructionState.advanceEpoch(db, id, yield* Bus.latestSequence(db, id))
+      }),
+    )
+    return {
+      initial:
+        reset === 'reset'
+          ? Instructions.join(Instructions.renderInitial(instructions, observedValues(read)))
+          : Instructions.join(previewed.initial),
+      update: reset === 'reset' ? '' : previewed.update,
+      told: once(() => Effect.runPromiseWith(context)(commit.pipe(Effect.orDie))),
+    }
   })
 }
 
