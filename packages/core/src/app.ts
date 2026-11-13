@@ -557,7 +557,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       Layer.provideMerge(Layer.mergeAll(Rpc.layer, KV.layer)),
       Layer.provideMerge(Bus.configured()),
       Layer.provideMerge(
-        Layer.succeed(Location.Service, Location.Service.of(Schema.decodeSync(Location.Info)({directory: opts.cwd}))),
+        Layer.succeed(
+          Location.Service,
+          Location.Service.of(Schema.decodeSync(Location.Info)({directory: opts.cwd, project: {id: opts.cwd}})),
+        ),
       ),
       Layer.provideMerge(Database.layer({path: projectDatabaseFile(db)})),
     ),

@@ -5,6 +5,7 @@ import {Bus} from '../../src/core/bus.js'
 import {Database} from '../../src/core/database/database.js'
 import {Location} from '../../src/core/location.js'
 import {Rpc} from '../../src/core/rpc.js'
+import {Project} from '../../src/schema/project.js'
 import {AbsolutePath} from '../../src/schema/schema.js'
 import {tmpdirScoped} from './fixture/tmpdir'
 import {testEffect} from './lib/effect'
@@ -19,7 +20,10 @@ const database = Layer.unwrap(
   }),
 )
 
-const location = Layer.succeed(Location.Service, Location.Service.of({directory: AbsolutePath.make('/rpc-project')}))
+const location = Layer.succeed(
+  Location.Service,
+  Location.Service.of({directory: AbsolutePath.make('/rpc-project'), project: {id: Project.Id.make('/rpc-project')}}),
+)
 
 const it = testEffect(
   Rpc.layer.pipe(Layer.provideMerge(Bus.layer), Layer.provideMerge(location), Layer.provideMerge(database)),
