@@ -277,14 +277,14 @@ export function shipsPluginExperimental(plugin: PluginInfo): plugin is PluginInf
   )
 }
 
-export interface BridgePluginGui {
+export interface BridgePluginExperimental {
   readonly id: string
   readonly revision: string
   readonly code: string
   readonly options: PluginOptions
 }
 
-export interface BridgePluginGuis {
-  readonly plugins: readonly BridgePluginGui[]
+export interface BridgePluginExperimentals {
+  readonly plugins: readonly BridgePluginExperimental[]
   readonly reserved: readonly string[]
 }
