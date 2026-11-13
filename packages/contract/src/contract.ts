@@ -241,6 +241,22 @@ const noCodeMode = {NO_CODE_MODE: {message: 'code mode is unavailable on this en
 
 const noQueue = {NO_QUEUE: {message: 'no such queue on this tab'}}
 
+const pluginRpcFailed = {
+  PLUGIN_RPC: {
+    message: 'the plugin rpc call failed',
+    data: z.object({type: z.string(), message: z.string(), data: z.unknown().optional()}),
+  },
+}
+
+export const PluginRpcEventSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  created: z.number(),
+  data: z.record(z.string(), z.unknown()),
+  location: z.object({directory: z.string()}),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+})
+
 export const contract = {
   auth: {
     trust: oc
@@ -420,5 +436,14 @@ export const contract = {
     hubAgents: oc.output(eventIterator(HubAgentsSchema)),
     connectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),
     disconnectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),
+  },
+  plugin: {
+    call: oc
+      .errors(pluginRpcFailed)
+      .input(z.object({rpcId: z.string().min(1), method: z.string().min(1), input: z.unknown().optional()}))
+      .output(z.unknown()),
+    events: oc
+      .input(z.object({rpcId: z.string().min(1), types: z.array(z.string().min(1)).optional()}))
+      .output(eventIterator(PluginRpcEventSchema)),
   },
 }
