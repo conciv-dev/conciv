@@ -559,17 +559,21 @@ describe('dialog parts', () => {
     cleanupMounts()
   })
 
-  it('opens a dialog composed from the parts inside the shadow root and closes it from its close button', async () => {
+  it.each([
+    {mode: "Ark's default modal mode", modes: {}},
+    {mode: "the widget's non-modal, focus-trapping mode", modes: {modal: false, trapFocus: true}},
+  ])('opens stacked dialogs composed from the parts inside the shadow root in $mode', async ({modes}) => {
     const shadow = mountInShadow((root) => {
-      const [focus, setFocus] = createStore({on: 'nothing'})
+      const [seen, setSeen] = createStore({focus: 'nothing', saves: 0})
       const track = (name: string) => ({
-        onFocus: () => setFocus('on', name),
-        onBlur: () => setFocus('on', 'nothing'),
+        onFocus: () => setSeen('focus', name),
+        onBlur: () => setSeen('focus', 'nothing'),
       })
       return (
         <EnvironmentProvider value={() => root}>
-          <p>Focus is on {focus.on}</p>
-          <Dialog.Root>
+          <p>Focus is on {seen.focus}</p>
+          <p>Saves: {seen.saves}</p>
+          <Dialog.Root {...modes}>
             <Dialog.Trigger {...track('the opener')}>Open plugin settings</Dialog.Trigger>
             <Dialog.Portal>
               <Dialog.Layer>
@@ -582,7 +586,7 @@ describe('dialog parts', () => {
                     </Dialog.Header>
                     <Dialog.Body>
                       <p>Choose what the plugin may read.</p>
-                      <Dialog.Root>
+                      <Dialog.Root {...modes} closeOnInteractOutside={false}>
                         <Dialog.Trigger>Open plugin details</Dialog.Trigger>
                         <Dialog.Portal>
                           <Dialog.Layer>
@@ -597,7 +601,9 @@ describe('dialog parts', () => {
                       </Dialog.Root>
                     </Dialog.Body>
                     <Dialog.Footer>
-                      <button type="button">Save</button>
+                      <button type="button" onClick={() => setSeen('saves', (saves) => saves + 1)}>
+                        Save
+                      </button>
                     </Dialog.Footer>
                   </Dialog.Content>
                 </Dialog.Positioner>
@@ -607,24 +613,31 @@ describe('dialog parts', () => {
         </EnvironmentProvider>
       )
     })
-    shadow.host.setAttribute('role', 'region')
-    shadow.host.setAttribute('aria-label', 'Widget')
-    const widget = page.getByRole('region', {name: 'Widget'})
+    const kitStyles = new CSSStyleSheet()
+    kitStyles.replaceSync(
+      Array.from(document.styleSheets, (sheet) => Array.from(sheet.cssRules, (rule) => rule.cssText).join('')).join(''),
+    )
+    shadow.adoptedStyleSheets = [kitStyles]
+    const save = page.getByRole('button', {name: 'Save', includeHidden: true})
 
-    await userEvent.click(widget.getByRole('button', {name: 'Open plugin settings'}))
-    await expect.element(widget.getByRole('dialog', {name: 'Plugin settings'})).toBeVisible()
-    await expect.element(widget.getByText('Choose what the plugin may read.')).toBeVisible()
-    await expect.element(widget.getByText('Focus is on the close button')).toBeVisible()
+    await userEvent.click(page.getByRole('button', {name: 'Open plugin settings'}))
+    await expect.element(page.getByRole('dialog', {name: 'Plugin settings'})).toBeVisible()
+    await expect.element(page.getByText('Choose what the plugin may read.')).toBeVisible()
+    await expect.element(page.getByText('Focus is on the close button')).toBeVisible()
 
-    await userEvent.click(widget.getByRole('button', {name: 'Open plugin details'}))
-    await expect.element(widget.getByRole('dialog', {name: 'Plugin details'})).toBeVisible()
+    await userEvent.click(page.getByRole('button', {name: 'Open plugin details'}))
+    await expect.element(page.getByRole('dialog', {name: 'Plugin details'})).toBeVisible()
+    await userEvent.click(save, {force: true})
+    await expect.element(page.getByText('Saves: 0')).toBeVisible()
     await userEvent.keyboard('{Escape}')
-    await expect.element(widget.getByRole('dialog', {name: 'Plugin details'})).not.toBeInTheDocument()
-    await expect.element(widget.getByRole('dialog', {name: 'Plugin settings'})).toBeVisible()
+    await expect.element(page.getByRole('dialog', {name: 'Plugin details'})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('dialog', {name: 'Plugin settings'})).toBeVisible()
+    await userEvent.click(save)
+    await expect.element(page.getByText('Saves: 1')).toBeVisible()
 
-    await userEvent.click(widget.getByRole('button', {name: 'Close'}))
-    await expect.element(widget.getByRole('dialog')).not.toBeInTheDocument()
-    await expect.element(widget.getByText('Focus is on the opener')).toBeVisible()
+    await userEvent.click(page.getByRole('button', {name: 'Close'}))
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
+    await expect.element(page.getByText('Focus is on the opener')).toBeVisible()
   })
 })
 
