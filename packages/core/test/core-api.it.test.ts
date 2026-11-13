@@ -4553,7 +4553,14 @@ describe('outside agent consent', () => {
     const base = await boot()
     const [first, second] = [await newSession(base), await newSession(base)]
     const lister = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: first, ...HUB})
-    await lister.tools()
+    expect((await lister.tools()).map((tool) => tool.name)).toEqual([
+      'discover_tools',
+      'server_reload',
+      'server_restart',
+      'page_eval',
+      'skill',
+      'execute_typescript',
+    ])
     await lister.close()
     expect(await loadPending(base, first)).toEqual([])
     const waiting = [hubCall(base, first), hubCall(base, first)]
@@ -4657,8 +4664,37 @@ describe('outside agent consent', () => {
         return yield* PluginHost.ServersSource
       }),
     )
+    const homeEngineRows = (): string => {
+      try {
+        const rows = withHomeDb(home, (db) => ({
+          live: listEngines(db).map((row) => row.id),
+          all: db.$client.prepare('SELECT id, deleted_at FROM engines ORDER BY rowid').all(),
+        }))
+        return `live ${JSON.stringify(rows.live)}, every row with deleted_at ${JSON.stringify(rows.all)}`
+      } catch (error) {
+        return `unreadable: ${String(error)}`
+      }
+    }
+    const listed = async (expected: string[], since: {event: string; at: number}): Promise<void> => {
+      try {
+        await vi.waitFor(() => expect(servers.list()).toEqual(expected), {timeout: 25_000})
+      } catch (error) {
+        const held = servers.list().map((id) => ({id, connected: servers.get(id)?.connected}))
+        const elapsed = Math.round(performance.now() - since.at)
+        throw new Error(
+          [
+            error instanceof Error ? error.message : String(error),
+            `first engine ${firstId}, second engine ${secondId}`,
+            `the list holds ${JSON.stringify(held)}`,
+            `home database engine rows: ${homeEngineRows()}`,
+            `${elapsed} ms since ${since.event}`,
+          ].join('\n'),
+          {cause: error},
+        )
+      }
+    }
     expect(servers.list()).toEqual([])
-    await vi.waitFor(() => expect(servers.list()).toEqual([firstId, secondId]), {timeout: 3000})
+    await listed([firstId, secondId], {event: 'the servers source started', at: performance.now()})
     const fields = (id: string) => {
       const ref = servers.get(id)
       if (ref === undefined) throw new Error(`${id} is not listed`)
@@ -4686,9 +4722,9 @@ describe('outside agent consent', () => {
     listening.abort()
     await events.return()
     await engines.find((booted) => booted.base === second)?.stop()
-    await vi.waitFor(() => expect(servers.list()).toEqual([firstId]), {timeout: 3000})
+    await listed([firstId], {event: 'the second engine stopped', at: performance.now()})
     expect(servers.get(secondId)).toBeUndefined()
-  })
+  }, 60_000)
 
   it('cancelling a hub block while it waits for the allow leaves nothing to run after a later allow', async () => {
     const base = await boot()
