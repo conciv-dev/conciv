@@ -1,6 +1,6 @@
 import '../src/styles.css'
 import 'virtual:uno.css'
-import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe} from 'vitest'
+import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe, onTestFinished} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
 import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {makeBrowserRpcClient, makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
@@ -115,6 +115,7 @@ const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z
 describe('approval replay', () => {
   const core = bootedCore('approval-replay')
   const keep = keptPane()
+  const faults = trackedFaults()
 
   const permissionRequest = () => page.getByRole('group', {name: 'Permission request'})
   const approveButton = () => page.getByRole('button', {name: 'Approve'})
@@ -196,6 +197,30 @@ describe('approval replay', () => {
     await expect.element(permissionRequest(), {timeout: 15_000}).not.toBeInTheDocument()
     expect(await waiting).toContain('{\\"result\\":1')
     expect(await coreControl.hubExecute(sessionId, 'return 40 + 2')).toContain('42')
+  }, 120_000)
+
+  test('a card answered on one client and then on a client that missed the answer leaves both, with no error shown', async () => {
+    const sessionId = await newSession()
+    keep(await attachedPane(sessionId))
+    const waiting = coreControl.hubExecute(sessionId, 'return 7')
+    await expect.element(permissionRequest(), {timeout: 15_000}).toBeVisible()
+    await faults.install({kind: 'detached-sockets'})
+    const other = mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />)
+    onTestFinished(() => other.dispose())
+    await expect.element(permissionRequest().nth(1), {timeout: 15_000}).toBeVisible()
+
+    const decisions = ['chat', 'permissionDecision']
+    const served = await coreControl.rpcCallCount(decisions)
+    await approveButton().nth(0).click()
+    expect(await waiting).toContain('{\\"result\\":7')
+    await expect.element(permissionRequest().nth(1)).not.toBeInTheDocument()
+    await expect.element(permissionRequest()).toBeVisible()
+
+    await approveButton().click()
+    await expect.element(permissionRequest()).not.toBeInTheDocument()
+    await until(async () => (await coreControl.rpcCallCount(decisions)) === served + 2, {hangGuardMs: 15_000})
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+    expect(page.getByText('That permission request is no longer waiting for an answer.').query()).toBeNull()
   }, 120_000)
 
   describe('permission cards', () => {
