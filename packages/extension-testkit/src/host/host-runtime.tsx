@@ -14,7 +14,7 @@ import {
   createDocumentAttachmentAdapter,
 } from '@conciv/ui-kit-chat'
 import {Dialog, Popover} from '@conciv/ui-kit-system'
-import {makeHostGrab} from './grab.js'
+import {makeHostGrab} from '@conciv/plugin-testkit/host/grab'
 import {FixtureElement} from './fixture-element.js'
 import {startPageHost} from './page-host.js'
 

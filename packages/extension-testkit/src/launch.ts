@@ -1,7 +1,7 @@
 import {chromium, type BrowserContext, type Page} from 'playwright'
-import {pagePlaneWatchFor} from './page-plane.js'
-import {rpcObserverFor} from './rpc-observer.js'
-import {rpcSocketFor} from './rpc-socket.js'
+import {pagePlaneWatchFor} from '@conciv/plugin-testkit/page-plane'
+import {rpcObserverFor} from '@conciv/plugin-testkit/rpc-observer'
+import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
 
 export type LaunchedPage = {page: Page; context: BrowserContext; close: () => Promise<void>}
 

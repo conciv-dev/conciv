@@ -70,6 +70,7 @@
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/harness": "workspace:*",
     "@conciv/harness-testkit": "workspace:^",
+    "@conciv/plugin-testkit": "workspace:^",
     "@conciv/serve": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",

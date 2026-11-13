@@ -60,9 +60,9 @@
   "devDependencies": {
     "@conciv/db": "workspace:^",
     "@conciv/extension-page": "workspace:^",
-    "@conciv/extension-testkit": "workspace:^",
     "@conciv/extension-whiteboard": "workspace:*",
     "@conciv/harness-testkit": "workspace:^",
+    "@conciv/plugin-testkit": "workspace:^",
     "@conciv/storage-history": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
