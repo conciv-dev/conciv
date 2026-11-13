@@ -15,6 +15,7 @@ import {
 } from 'solid-js'
 import {Tooltip as Ark, useTooltip, useTooltipContext} from '@ark-ui/solid/tooltip'
 import {useEnvironmentContext} from '@ark-ui/solid/environment'
+import {ark} from '@ark-ui/solid/factory'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {Timer, TooltipGroup, useTooltipGroup, type TooltipGroupApi, type TooltipGroupMember} from './tooltip-group.js'
 import {popIn, sideFromPlacement} from './tooltip-motion.js'
@@ -173,6 +174,43 @@ function Root(props: RootProps) {
   )
 }
 
+type TriggerProps = ComponentProps<typeof Ark.Trigger>
+type TriggerElementProps = Parameters<NonNullable<TriggerProps['asChild']>>[0]
+type FocusHandler = ReturnType<TriggerElementProps>['onFocusIn']
+type FocusArgument = Parameters<JSX.EventHandler<HTMLElement, FocusEvent>>[0]
+
+function forwardFocus(handler: FocusHandler, event: FocusArgument): void {
+  if (typeof handler === 'function') {
+    handler(event)
+    return
+  }
+  handler?.[0](handler[1], event)
+}
+
+function withNativeFocus(triggerProps: TriggerElementProps): TriggerElementProps {
+  return (userProps) => {
+    const [focus, rest] = splitProps(triggerProps(userProps), ['onFocusIn', 'onFocusOut'])
+    return mergeProps(rest, {
+      'on:focusin': (event: FocusArgument) => forwardFocus(focus.onFocusIn, event),
+      'on:focusout': (event: FocusArgument) => forwardFocus(focus.onFocusOut, event),
+    })
+  }
+}
+
+function Trigger(props: TriggerProps) {
+  const [local, rest] = splitProps(props, ['asChild', 'ref'])
+  return (
+    <Ark.Trigger
+      {...rest}
+      asChild={(triggerProps) => {
+        const rebound = withNativeFocus(triggerProps)
+        if (local.asChild) return local.asChild(rebound)
+        return <ark.button {...rebound()} ref={local.ref} />
+      }}
+    />
+  )
+}
+
 function Positioner(props: ComponentProps<typeof Ark.Positioner>) {
   return (
     <Show when={useContext(MemberContext)} fallback={<Ark.Positioner {...props} />}>
@@ -210,4 +248,4 @@ function Content(props: ComponentProps<typeof Ark.Content>) {
   )
 }
 
-export const Tooltip = Object.assign({}, Ark, {Root, Positioner, Content, Group: TooltipGroup})
+export const Tooltip = Object.assign({}, Ark, {Root, Trigger, Positioner, Content, Group: TooltipGroup})

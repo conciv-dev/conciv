@@ -929,16 +929,6 @@ describe('tooltip icon button', () => {
     expect(trigger.id).not.toBe(button.element().id)
   })
 
-  it('opens the tooltip when the button takes keyboard focus', async () => {
-    mount()
-    const button = page.getByRole('button', {name: NAME})
-    await expect.element(button).toBeVisible()
-
-    await userEvent.tab()
-
-    await expect.element(page.getByRole('tooltip')).toBeVisible()
-  })
-
   it('hides the tooltip once the menu it opens is showing', async () => {
     mount()
     const button = page.getByRole('button', {name: NAME})
@@ -987,6 +977,55 @@ describe('tooltip icon button', () => {
     await button.click()
 
     await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
+  })
+})
+
+describe('tooltip in a shadow root', () => {
+  afterEach(() => {
+    cleanupMounts()
+  })
+
+  it('opens as keyboard focus moves between triggers inside the root, and closes on Escape or moving on', async () => {
+    mountInShadow((root) => (
+      <EnvironmentProvider value={() => root}>
+        <button type="button">Before</button>
+        <TooltipIconButton tooltip="Pin">
+          <span aria-hidden="true">P</span>
+        </TooltipIconButton>
+        <Tooltip.Root>
+          <Tooltip.Trigger
+            asChild={(triggerProps) => (
+              <span {...triggerProps()}>
+                <button type="button">Wrapped</button>
+              </span>
+            )}
+          />
+          <Tooltip.Positioner>
+            <Tooltip.Content>Wrapped tip</Tooltip.Content>
+          </Tooltip.Positioner>
+        </Tooltip.Root>
+        <button type="button">After</button>
+      </EnvironmentProvider>
+    ))
+    const pin = page.getByRole('button', {name: 'Pin'})
+    await expect.element(pin).toBeVisible()
+
+    await userEvent.tab()
+    await userEvent.tab()
+
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Pin')
+    expect(pin.element().matches(':focus-visible')).toBe(true)
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
+
+    await userEvent.tab()
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Wrapped tip')
+    expect(page.getByRole('button', {name: 'Wrapped'}).element().matches(':focus-visible')).toBe(true)
+
+    await userEvent.tab()
+    await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: 'After'})).toBeVisible()
   })
 })
 
