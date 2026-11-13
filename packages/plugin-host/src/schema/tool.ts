@@ -8,14 +8,14 @@ import type {SessionMessage} from './session-message.js'
 
 export type Metadata = Readonly<Record<string, any>>
 
-export const CallID = Schema.String.pipe(Schema.brand('Tool.CallID'))
-export type CallID = typeof CallID.Type
+export const CallId = Schema.String.pipe(Schema.brand('Tool.CallID'))
+export type CallId = typeof CallId.Type
 
 export interface Context {
-  readonly sessionID: Session.ID
-  readonly agent: Agent.ID
-  readonly messageID: SessionMessage.ID
-  readonly id: CallID
+  readonly sessionId: Session.Id
+  readonly agent: Agent.Id
+  readonly messageId: SessionMessage.Id
+  readonly id: CallId
   readonly progress: (update: Metadata) => Effect.Effect<void>
   readonly cancel?: Effect.Effect<void>
 }

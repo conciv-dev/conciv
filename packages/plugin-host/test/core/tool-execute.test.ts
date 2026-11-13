@@ -8,10 +8,10 @@ import type {Info} from '../../src/schema/tool.js'
 import {Effect, Schema} from 'effect'
 
 const context = {
-  sessionID: Session.ID.make('ses_execute'),
-  agent: Agent.ID.make('build'),
-  messageID: SessionMessage.ID.make('msg_execute'),
-  id: Tool.CallID.make('call_execute'),
+  sessionId: Session.Id.make('ses_execute'),
+  agent: Agent.Id.make('build'),
+  messageId: SessionMessage.Id.make('msg_execute'),
+  id: Tool.CallId.make('call_execute'),
   progress: () => Effect.void,
 }
 

@@ -15,12 +15,12 @@ import {testEffect} from './lib/effect'
 const registryLayer = Layer.provideMerge(Tool.layer, PluginHooks.layer)
 const it = testEffect(registryLayer)
 const identity = {
-  agent: Agent.ID.make('build'),
-  messageID: SessionMessage.ID.make('msg_registry'),
+  agent: Agent.Id.make('build'),
+  messageId: SessionMessage.Id.make('msg_registry'),
 }
-const sessionID = Session.ID.make('ses_registry')
+const sessionId = Session.Id.make('ses_registry')
 const call = (name: string, id = `call-${name}`): Parameters<Tool.Snapshot['execute']>[0] => ({
-  sessionID,
+  sessionId,
   ...identity,
   call: {type: 'tool-call', id, name, input: {text: name}},
 })
@@ -589,14 +589,14 @@ describe('Tool', () => {
       )
       expect(
         yield* executeTool(service, {
-          sessionID,
+          sessionId,
           ...identity,
           call: {type: 'tool-call', id: 'failed', name: 'failed', input: {}},
         }),
       ).toEqual({status: 'error', error: Tool.makeError({message: 'Denied'})})
       expect(
         yield* executeTool(service, {
-          sessionID,
+          sessionId,
           ...identity,
           call: {type: 'tool-call', id: 'missing', name: 'missing', input: {}},
         }),
@@ -624,7 +624,7 @@ describe('Tool', () => {
         yield* service.snapshot().pipe(
           Effect.flatMap((toolSet) =>
             toolSet.execute({
-              sessionID,
+              sessionId,
               ...identity,
               call: {type: 'tool-call', id: 'defect', name: 'defect', input: {}},
             }),
@@ -663,12 +663,12 @@ describe('Tool', () => {
         {codemode: false},
       )
       yield* executeTool(service, {
-        sessionID,
+        sessionId,
         ...identity,
         call: {type: 'tool-call', id: 'call-context', name: 'context', input: {}},
       })
       expect(contexts).toEqual([
-        {sessionID, ...identity, id: Tool.CallID.make('call-context'), progress: expect.any(Function)},
+        {sessionId, ...identity, id: Tool.CallId.make('call-context'), progress: expect.any(Function)},
       ])
     }),
   )
@@ -774,7 +774,7 @@ describe('Tool', () => {
 
       expect(
         yield* executeTool(service, {
-          sessionID,
+          sessionId,
           ...identity,
           call: {type: 'tool-call', id: 'transformed', name: 'transformed', input: {value: true}},
         }),
@@ -786,7 +786,7 @@ describe('Tool', () => {
       expect(executed).toEqual(['yes'])
       expect(
         yield* executeTool(service, {
-          sessionID,
+          sessionId,
           ...identity,
           call: {type: 'tool-call', id: 'invalid-input', name: 'transformed', input: {value: 'yes'}},
         }),
@@ -825,7 +825,7 @@ describe('Tool', () => {
       )
       expect(
         yield* executeTool(service, {
-          sessionID,
+          sessionId,
           ...identity,
           call: {type: 'tool-call', id: 'invalid-output', name: 'invalid_output', input: {}},
         }),
@@ -861,7 +861,7 @@ describe('Tool', () => {
       })
       expect(
         yield* snapshot.execute({
-          sessionID,
+          sessionId,
           ...identity,
           call: {type: 'tool-call', id: 'call-zod', name: 'zod', input: {count: '41'}},
         }),
