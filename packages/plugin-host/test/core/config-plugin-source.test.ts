@@ -1,6 +1,6 @@
 import {describe, expect} from 'vitest'
 import {NodeFileSystem} from '@effect/platform-node'
-import {Deferred, Effect, Fiber, Layer, Stream} from 'effect'
+import {Deferred, Effect, Fiber, Layer, Queue, Schedule, Stream} from 'effect'
 import {mkdir, mkdtemp, realpath, rm, utimes, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
@@ -69,6 +69,47 @@ describe('ConfigPluginSource', () => {
           yield* Effect.promise(() => writeFile(path.join(local, 'added.ts'), 'export {}\n'))
           expect(yield* Fiber.join(changes)).toEqual([undefined])
         }).pipe(Effect.provide(services(root, ['./local-plugin', 'some-package'])))
+      }),
+    5_000,
+  )
+  it.live(
+    'reports a plugins folder created after start, a plugin folder in it, its deletion and its recreation',
+    () =>
+      Effect.gen(function* () {
+        const root = yield* temporaryProject
+        const concivFolder = path.join(root, 'conciv')
+        const plugins = path.join(concivFolder, 'plugins')
+
+        yield* Effect.gen(function* () {
+          const source = yield* ConfigPluginSource.Service
+          const fs = yield* FSUtil.Service
+          const changes = yield* Queue.unbounded<void>()
+          yield* source.changes().pipe(
+            Stream.runForEach((change) => Queue.offer(changes, change)),
+            Effect.forkScoped({startImmediately: true}),
+          )
+          const untilSeen = (write: Effect.Effect<void, unknown>) =>
+            Effect.gen(function* () {
+              yield* Queue.clear(changes)
+              const writes = yield* write.pipe(Effect.repeat(Schedule.spaced('10 millis')), Effect.forkScoped)
+              return yield* Queue.take(changes).pipe(Effect.ensuring(Fiber.interrupt(writes)))
+            })
+          const recreatePlugins = Effect.suspend(() =>
+            fs.remove(concivFolder, {recursive: true, force: true}).pipe(Effect.andThen(fs.ensureDir(plugins))),
+          )
+
+          expect(yield* untilSeen(recreatePlugins)).toBeUndefined()
+
+          expect(
+            yield* untilSeen(Effect.suspend(() => fs.ensureDir(path.join(plugins, `alpha-${Math.random()}`)))),
+          ).toBeUndefined()
+
+          yield* Queue.clear(changes)
+          yield* fs.remove(concivFolder, {recursive: true, force: true})
+          expect(yield* Queue.take(changes)).toBeUndefined()
+
+          expect(yield* untilSeen(recreatePlugins)).toBeUndefined()
+        }).pipe(Effect.provide(services(root, [])))
       }),
     5_000,
   )
