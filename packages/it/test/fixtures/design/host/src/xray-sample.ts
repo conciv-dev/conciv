@@ -457,6 +457,8 @@ function layer(input: {
         sizing: {width: 'set', height: 'set'},
         border: {width: 0, style: 'none', color: '', side: 'top', sides: []},
         gradient: null,
+        shadows: [],
+        blur: {layer: 0, background: 0},
         media: {},
         path: `/${input.id}`,
         columns: null,

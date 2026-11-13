@@ -47,6 +47,10 @@ const xrayRpc = makeExtRpcClient<XrayRouter>(kit.apiBase, 'design')
 
 afterAll(() => kit.dispose())
 
+function fixture(file: string): string {
+  return fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
+}
+
 function blankPng(input: {width: number; height: number}): Uint8Array {
   const png = new PNG({width: input.width, height: input.height})
   png.data.fill(255)
@@ -106,7 +110,6 @@ describe('design_check on the cards page', () => {
 
 describe('a Figma line', () => {
   it('keeps the check from done while the page draws no line, and takes a visible border on that side as the line', async () => {
-    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
     await kit.goto('input-field')
     await call('design_get', {
       figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1418',
@@ -128,7 +131,6 @@ describe('a Figma line', () => {
   })
 
   it('counts as drawn by a sibling border on its edge or by its own 1px element', async () => {
-    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
     await kit.goto('process-row')
     await call('design_get', {
       figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=50-876',
@@ -155,7 +157,6 @@ describe('a Figma line', () => {
 
 describe('a Figma stroke drawn inside the box', () => {
   it('is told as inside, and an outline inset by its weight or an inset box-shadow draws it', async () => {
-    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
     const borderRows = async () =>
       roundOf(await call('design_check', {}))
         .rows.filter((row) => row.node === '100:1418' && row.property === 'border')
@@ -183,7 +184,6 @@ describe('a Figma stroke drawn inside the box', () => {
 
 describe('a text field', () => {
   it('shows its placeholder as the design text it stands for, in the placeholder colour', async () => {
-    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
     await kit.goto('input-field-input')
     await call('design_get', {
       figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1418',
@@ -256,7 +256,6 @@ describe('an idle page while files outside the page change', () => {
 
 describe('a Figma effect', () => {
   it('is carried into the design and flagged when the page leaves it out', async () => {
-    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
     const effectRows = async () =>
       roundOf(await call('design_check', {}))
         .rows.filter((row) => row.property === 'effect')
@@ -280,7 +279,6 @@ describe('a Figma effect', () => {
 
 describe('a Figma wrapper that draws nothing', () => {
   it('is not required when the page merges it into its children', async () => {
-    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
     await kit.goto('process-row')
     await call('design_get', {
       figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=50-876',
@@ -293,36 +291,38 @@ describe('a Figma wrapper that draws nothing', () => {
 })
 
 describe('a page that drifts from the design', () => {
-  it('is told where the drift starts when the Figma lines take space on the page', async () => {
-    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
+  it('is told where the drift starts when its 1px lines take space, and those lines match their crops', async () => {
     await kit.goto('process-column-flat')
-    await call('design_get', {
+    const got = await call('design_get', {
       figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1535',
       document: JSON.parse(await readFile(fixture('process-column.json'), 'utf8')),
       image: fixture('process-column.png'),
     })
-    const drift = async () =>
-      roundOf(await call('design_check', {}))
-        .rows.filter((row) => row.text.includes('drifts'))
-        .map((row) => row.text)
-    const flat = await drift()
+    const rows = async () => roundOf(await call('design_check', {})).rows
+    const told = (listed: Awaited<ReturnType<typeof rows>>, part: string) =>
+      listed.filter((row) => row.text.includes(part)).map((row) => row.text)
+    const flat = told(await rows(), 'drifts')
     await kit.goto('process-column')
-    const drifted = await drift()
+    const lined = await rows()
+    const drifted = told(lined, 'drifts')
     expect([
       flat,
       drifted.map((text) => text.split('; ')[0]),
       drifted.some((text) => text.includes('below Line [100:1615]')),
+      got.nodes.find((node) => node.id === '100:1615')?.asset,
+      told(lined, 'wrong image'),
     ]).toEqual([
       [],
       ['the page drifts from the design: Card [100:1675] sits 7 px lower on the page than in the frame'],
       true,
+      '/design/100-1615.png',
+      [],
     ])
   })
 })
 
 describe('a page between two frames', () => {
   it('is checked at its own breakpoints that fall between the frames', async () => {
-    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
     const document = async (file: string): Promise<unknown> => JSON.parse(await readFile(fixture(file), 'utf8'))
     await kit.goto('hero-gap')
     await call('design_get', {
@@ -356,7 +356,6 @@ describe('a page between two frames', () => {
 
 describe('a page that switches layouts between two frames', () => {
   it('is flagged when it keeps the narrow layout past the midpoint between the frames', async () => {
-    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
     const document = async (file: string): Promise<unknown> => JSON.parse(await readFile(fixture(file), 'utf8'))
     await kit.goto('contact-bar')
     await call('design_get', {
@@ -383,25 +382,8 @@ describe('a page that switches layouts between two frames', () => {
   })
 })
 
-describe('a Figma line drawn in CSS', () => {
-  it('is cropped from the frame render at its stroke and passes as a 1px box', async () => {
-    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
-    await kit.goto('process-column')
-    const got = await call('design_get', {
-      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1535',
-      document: JSON.parse(await readFile(fixture('process-column.json'), 'utf8')),
-      image: fixture('process-column.png'),
-    })
-    const imageRows = roundOf(await call('design_check', {}))
-      .rows.filter((row) => row.property === 'image')
-      .map((row) => row.text)
-    expect([got.nodes.find((node) => node.id === '100:1615')?.asset, imageRows]).toEqual(['/design/100-1615.png', []])
-  })
-})
-
 describe('an image node drawn as a box with its icon inside', () => {
   it('passes when the drawn element looks like the asset, whatever the file is named', async () => {
-    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
     await kit.goto('check-row')
     await call('design_get', {
       figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=83-30723',
@@ -424,7 +406,6 @@ describe('an image node drawn as a box with its icon inside', () => {
 
 describe('a Figma frame stroked on one side', () => {
   it('is told with its side weights, and a box stroked all round is flagged', async () => {
-    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
     const borderRows = async () =>
       roundOf(await call('design_check', {}))
         .rows.filter((row) => row.node === '50:880' && row.property === 'border')
@@ -450,7 +431,6 @@ describe('a Figma frame stroked on one side', () => {
 
 describe('a thin Figma bar', () => {
   it('pairs a 3px bar drawn at its design height', async () => {
-    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
     await kit.goto('range-slider')
     await call('design_get', {
       figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1449',

@@ -19,27 +19,41 @@ export function jumpRows(input: {
   const widely = readIds({root: at.root, live})
   const narrowNodes = new Map([...walk(root)].map(({node}) => [node.id, node]))
   return [...walk(wider.design.root)].flatMap(({node: wide}): GateRow[] => {
-    const wideWay = wide.layout?.direction
     const [element] = widely.of(wide.id)
-    if (wideWay === undefined || element === undefined) return []
-    const id = reads.nodeOf(element)
-    const node = id === null ? undefined : narrowNodes.get(id)
-    const way = node?.layout?.direction
-    const placed = element.children.filter((child) => child.bounds.w > 0 && child.bounds.h > 0)
-    if (node === undefined || way === undefined || way === wideWay || placed.length < 2 || element.axis !== way)
-      return []
-    const kind = node.gate?.kind ?? node.kind
-    const name = node.figma?.name ?? ''
-    return [
-      {
-        node: node.id,
-        ...reads.named(node.id),
-        kind,
-        name,
-        text: `${kind} ${name} [${node.id}] at ${width} wide: lays its children out in a ${way} as the ${own} px frame does, though ${width} is nearer the ${wider.width} px frame, which lays them out in a ${wideWay}; switch to the ${own} px layout below ${midpoint}`,
-        magnitude: 'reflow',
-        width,
-      },
-    ]
+    const node = element === undefined ? undefined : narrowNodes.get(reads.nodeOf(element) ?? '')
+    if (node === undefined || element === undefined || !keptNarrow({node, wide, element})) return []
+    return [jumpRow({node, wide, reads, own, width, wider: wider.width, midpoint})]
   })
+}
+
+function jumpRow(input: {
+  node: DesignNode
+  wide: DesignNode
+  reads: ReturnType<typeof readIds>
+  own: number
+  width: number
+  wider: number
+  midpoint: number
+}): GateRow {
+  const {node, wide, reads, own, width, midpoint} = input
+  const kind = node.gate?.kind ?? node.kind
+  const name = node.figma?.name ?? ''
+  return {
+    node: node.id,
+    ...reads.named(node.id),
+    kind,
+    name,
+    text: `${kind} ${name} [${node.id}] at ${width} wide: lays its children out in a ${node.layout?.direction} as the ${own} px frame does, though ${width} is nearer the ${input.wider} px frame, which lays them out in a ${wide.layout?.direction}; switch to the ${own} px layout below ${midpoint}`,
+    magnitude: 'reflow',
+    width,
+  }
+}
+
+function keptNarrow(input: {node: DesignNode; wide: DesignNode; element: LiveComponent}): boolean {
+  const {node, wide, element} = input
+  const way = node.layout?.direction
+  const wideWay = wide.layout?.direction
+  if (way === undefined || wideWay === undefined || way === wideWay) return false
+  const placed = element.children.filter((child) => child.bounds.w > 0 && child.bounds.h > 0)
+  return placed.length > 1 && element.axis === way
 }

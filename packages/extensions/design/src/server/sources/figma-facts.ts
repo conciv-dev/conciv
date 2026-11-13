@@ -1,4 +1,4 @@
-import type {z} from 'zod'
+import {z} from 'zod'
 import type {DesignNode} from '../../shared/defs.js'
 import {designConfig} from '../../shared/tolerances.js'
 import {figmaSchemas} from './figma-schema.js'
@@ -117,23 +117,24 @@ function stopsOf(stops: NonNullable<FigmaPaint['gradientStops']>): NonNullable<L
 function effectsOf(node: FigmaNode): {effects?: Record<string, unknown>[]} {
   const effects = (node.effects ?? []).flatMap((effect) => {
     const type = EFFECT_TYPES.get(effect.type)
-    if (effect.visible === false || type === undefined) return []
-    const blur = effect.radius ?? 0
-    if (!type.endsWith(SHADOW)) return [{type, blur}]
-    const color = effect.color ?? {r: 0, g: 0, b: 0}
-    return [
-      {
-        type,
-        color: colorHex(color),
-        opacity: color.a ?? 1,
-        x: effect.offset?.x ?? 0,
-        y: effect.offset?.y ?? 0,
-        blur,
-        spread: effect.spread ?? 0,
-      },
-    ]
+    return effect.visible === false || type === undefined ? [] : [effectOf({effect, type})]
   })
   return effects.length === 0 ? {} : {effects}
+}
+
+function effectOf(input: {effect: FigmaEffect; type: string}): Record<string, unknown> {
+  const {type} = input
+  const effect = ShadowSchema.parse(input.effect)
+  if (!type.endsWith(SHADOW)) return {type, blur: effect.radius}
+  return {
+    type,
+    color: colorHex(effect.color),
+    opacity: effect.color.a ?? 1,
+    x: effect.offset.x,
+    y: effect.offset.y,
+    blur: effect.radius,
+    spread: effect.spread,
+  }
 }
 
 function tokensOf(node: FigmaNode): {tokens?: Record<string, string>} {
@@ -189,6 +190,7 @@ function sizingOf(node: FigmaNode): Record<string, unknown> {
 
 type FigmaNode = z.infer<typeof figmaSchemas.node>
 type FigmaPaint = z.infer<typeof figmaSchemas.paint>
+type FigmaEffect = NonNullable<FigmaNode['effects']>[number]
 type Layer = z.infer<typeof figmaSchemas.layer>
 type Color = z.infer<typeof figmaSchemas.color>
 type Origin = {x: number; y: number; scale: number}
@@ -203,6 +205,12 @@ const TOKEN_FIELDS = {
   padding: ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'],
 }
 const SHADOW = 'shadow'
+const ShadowSchema = z.object({
+  color: figmaSchemas.color.default({r: 0, g: 0, b: 0}),
+  offset: figmaSchemas.point.default({x: 0, y: 0}),
+  radius: z.number().default(0),
+  spread: z.number().default(0),
+})
 const EFFECT_TYPES = new Map([
   ['DROP_SHADOW', 'drop-shadow'],
   ['INNER_SHADOW', 'inner-shadow'],
