@@ -15,6 +15,7 @@ Theme assets: the thread-side `--chat-*` CSS custom properties, the Shiki CSS-va
 
 - Each color token that differs between schemes is one `light-dark()` pair in `tokens.css`; the system half of the `--chat-*` namespace lives in `@conciv/ui-kit-system` tokens.
 - `code-theme.ts:codeTheme` registers the theme at most once (`registration.done`).
+- `tokens.css` styles inline code in `.prose-chat` with a transparent background and `--chat-code`; a file path the host confirmed (`code[data-inline-code-kind='path']`, set by `@conciv/solid-streamdown`) takes `light-dark(var(--chat-accent), var(--chat-mono-lift))` instead.
 
 ## Side Effects
 

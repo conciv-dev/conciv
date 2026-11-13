@@ -120,6 +120,10 @@
   font-size: 12px;
 }
 
+.prose-chat :not(pre) > code[data-inline-code-kind='path'] {
+  color: light-dark(var(--chat-accent), var(--chat-mono-lift));
+}
+
 /* Markdown code fences: shiki renders the shared css-variables theme, so token colors resolve from
    the --shiki-* set above and follow the resolved scheme. The fence surface stays flat so it reads as
    part of the message, not as a pasted block. A fence the highlighter leaves plain (a language it has no
