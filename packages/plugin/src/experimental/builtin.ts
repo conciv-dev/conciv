@@ -1,5 +1,5 @@
 import type {JSX} from 'solid-js'
-import type {Json} from '../storage.js'
+import type {Json} from './core.js'
 import {Registry} from './core.js'
 import type {MountedSession} from './host-apis.js'
 

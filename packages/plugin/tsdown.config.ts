@@ -2,8 +2,8 @@ import {defineConfig} from 'tsdown'
 
 export default defineConfig({
   entry: {
-    index: 'src/index.ts',
-    'rpc-entry': 'src/rpc-entry.ts',
+    'promise/index': 'src/promise/index.ts',
+    rpc: 'src/rpc.ts',
     host: 'src/host.ts',
     'experimental/index': 'src/experimental/index.ts',
     'experimental/vite': 'src/experimental/vite.ts',

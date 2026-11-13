@@ -1,12 +1,7 @@
-import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
-
-export interface RequestOptions {
-  readonly signal?: AbortSignal
-}
 
 export type ServerHarness = {
   id: string
@@ -28,5 +23,3 @@ export interface HarnessDomain {
   recordToken(sessionId: SessionId, token: HarnessSessionId): Promise<void>
   readonly mcpUrl: string | undefined
 }
-
-export type BundlerDomain = BundlerBridge
