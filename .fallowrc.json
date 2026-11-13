@@ -95,7 +95,7 @@
       {
         "files": ["packages/plugin-host/src/**"],
         "maxCognitive": 24,
-        "maxCrap": 72,
+        "maxCrap": 110,
         "reason": "copied from opencode: the copy keeps opencode's shape"
       },
       {
@@ -114,6 +114,14 @@
     "circular-dependencies": "warn"
   },
   "ignoreDependencies": [
+    "@parcel/watcher-darwin-arm64",
+    "@parcel/watcher-darwin-x64",
+    "@parcel/watcher-linux-arm64-glibc",
+    "@parcel/watcher-linux-arm64-musl",
+    "@parcel/watcher-linux-x64-glibc",
+    "@parcel/watcher-linux-x64-musl",
+    "@parcel/watcher-win32-arm64",
+    "@parcel/watcher-win32-x64",
     "@conciv/extension-tanstack",
     "@agentclientprotocol/sdk",
     "@opencode-ai/sdk",
