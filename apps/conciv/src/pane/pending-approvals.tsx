@@ -8,7 +8,7 @@ import {TURN_MEASURE_CLASS} from '@conciv/ui-kit-chat'
 const LIST = `relative flex flex-col gap-1.5 min-w-0 p-0 m-0 list-none self-stretch ${TURN_MEASURE_CLASS}`
 
 function askPart(ask: ApprovalAsk): ToolCallPart {
-  return {
+  const part: ToolCallPart = {
     type: 'tool-call',
     id: ask.toolCallId,
     name: ask.toolName,
@@ -16,6 +16,7 @@ function askPart(ask: ApprovalAsk): ToolCallPart {
     state: 'approval-requested',
     approval: {id: ask.approvalId, needsApproval: true},
   }
+  return ask.permission === undefined ? part : {...part, metadata: {permission: ask.permission}}
 }
 
 export function PendingApprovals(props: {asks: ApprovalAsk[]; ctx: ToolViewCtx}): JSX.Element {
