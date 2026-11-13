@@ -81,6 +81,9 @@ catalogs:
     '@solidjs/testing-library':
       specifier: ^0.8.10
       version: 0.8.10
+    '@standard-schema/spec':
+      specifier: 1.1.0
+      version: 1.1.0
     '@storybook/addon-docs':
       specifier: ^10.6.5
       version: 10.6.5
@@ -4355,6 +4358,9 @@ importers:
 
   packages/plugin-host:
     dependencies:
+      '@standard-schema/spec':
+        specifier: 'catalog:'
+        version: 1.1.0
       effect:
         specifier: 'catalog:'
         version: 4.1.0

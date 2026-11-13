@@ -202,6 +202,10 @@
       "exports": ["Info", "Ref", "define", "Cleanup", "Id", "Name"]
     },
     {
+      "file": "packages/plugin-host/src/**",
+      "exports": ["Id", "Interface"]
+    },
+    {
       "file": "packages/ui-kit-chat/src/tools/primitives/tool-fallback.tsx",
       "exports": ["*"]
     },

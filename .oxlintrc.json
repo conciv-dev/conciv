@@ -395,6 +395,12 @@
       }
     },
     {
+      "files": ["packages/plugin-host/src/**"],
+      "rules": {
+        "require-yield": "off"
+      }
+    },
+    {
       "files": ["packages/ui-kit-chat/**"],
       "rules": {
         "conciv/test-file-budget": ["error", {"max": 5}]
