@@ -1,4 +1,6 @@
-import {Option, Schema, SchemaGetter} from 'effect'
+import {DateTime, Option, Schema, SchemaGetter} from 'effect'
+
+export const PositiveInt = Schema.Int.check(Schema.isGreaterThan(0))
 
 export const AbsolutePath = Schema.String.pipe(
   Schema.brand('AbsolutePath'),
@@ -21,3 +23,10 @@ export const statics =
   <S extends object, M extends Record<string, unknown>>(methods: (schema: S) => M) =>
   (schema: S): S & M =>
     withStatics(schema, methods(schema))
+
+export const DateTimeUtcFromMillis = Schema.Finite.pipe(
+  Schema.decodeTo(Schema.DateTimeUtc, {
+    decode: SchemaGetter.transform((value) => DateTime.makeUnsafe(value)),
+    encode: SchemaGetter.transform((value) => DateTime.toEpochMillis(value)),
+  }),
+)

@@ -203,7 +203,7 @@
     },
     {
       "file": "packages/plugin-host/src/**",
-      "exports": ["Id", "Interface", "Options", "Service", "Tool", "layer"]
+      "exports": ["Id", "Interface", "Options", "Service", "Tool", "layer", "Event", "Info", "Request"]
     },
     {
       "file": "packages/ui-kit-chat/src/tools/primitives/tool-fallback.tsx",
@@ -216,7 +216,8 @@
   ],
   "entry": [
     "packages/plugin-host/src/core/location.ts",
-    "packages/plugin-host/src/schema/event.ts",
+    "packages/plugin-host/src/schema/permission-saved.ts",
+    "packages/plugin-host/src/schema/project.ts",
     "packages/brand-react/src/conciv-lockup.tsx",
     "packages/brand/src/brand-guidelines.mdx",
     "packages/ui-kit-chat/src/tools.tsx",

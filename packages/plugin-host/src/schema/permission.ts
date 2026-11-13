@@ -2,6 +2,7 @@ export * as Permission from './permission.js'
 
 import {Schema} from 'effect'
 import {optional} from './schema.js'
+import {ephemeral, inventory} from './event.js'
 import {ascending} from './identifier.js'
 import {SessionId} from './session-id.js'
 import {statics} from './schema.js'
@@ -40,6 +41,17 @@ export interface Request extends Schema.Schema.Type<typeof Request> {}
 
 export const Reply = Schema.Literals(['once', 'always', 'reject']).annotate({identifier: 'Permission.Reply'})
 export type Reply = typeof Reply.Type
+
+const Asked = ephemeral({type: 'permission.asked', schema: Request.fields})
+const Replied = ephemeral({
+  type: 'permission.replied',
+  schema: {
+    sessionId: SessionId,
+    requestId: Id,
+    reply: Reply,
+  },
+})
+export const Event = {Asked, Replied, Definitions: inventory(Asked, Replied)}
 
 export const Effect = Schema.Literals(['allow', 'deny', 'ask']).annotate({identifier: 'Permission.Effect'})
 export type Effect = typeof Effect.Type
