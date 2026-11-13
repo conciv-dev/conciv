@@ -5605,6 +5605,53 @@ describe('page action queue delivery', () => {
     expect(page.runIds().filter((runId) => runId !== 'queueing-run')).toHaveLength(1)
     expect((await page.tab.chat.hydrate({sessionId: page.sessionId})).activeRun).toBeNull()
   })
+
+  it('a user stop starts no follow-up turn: the owed result arrives with the agent next reply', async () => {
+    const harness = createFakeHarness()
+    const page = await engineWithTab(harness)
+    harness.script.hold()
+    const viewer = new AbortController()
+    onTestFinished(() => viewer.abort())
+    const send = (runId: string, content: string) =>
+      fetch(`${page.base}${CHAT_SSE_PATH}`, {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({
+          threadId: page.sessionId,
+          runId,
+          messages: [{id: `${runId}-user`, role: 'user', content}],
+          tools: [],
+          context: [],
+        }),
+        signal: viewer.signal,
+      })
+    const stopped = send('stopped-run', 'fill the form')
+    await page.seenChunk(() => page.runIds().includes('stopped-run'))
+    const handle = page.tab.registry.call({name: 'page_queue_async', input: {actions: ACTIONS}})
+    const onTab = await page.nextQueue()
+    const {queueId} = z.object({queueId: z.string()}).parse(await handle)
+    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    await page.finishedEvent(queueId)
+    await page.tab.chat.stop({sessionId: page.sessionId, runIds: ['stopped-run']})
+    await (await stopped).text()
+    expect(await page.tab.chat.hydrate({sessionId: page.sessionId})).toMatchObject({
+      activeRun: null,
+      lastRun: {runId: 'stopped-run', phase: 'aborted'},
+    })
+    const next = send('next-run', 'what happened?')
+    await page.seenChunk(() => page.runIds().includes('next-run'))
+    expect(
+      JSON.stringify(await executeOverMcp(page.base, {[CONCIV_SESSION_HEADER]: page.sessionId}, 'return 1')),
+    ).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
+    harness.script.release()
+    await (await next).text()
+    expect([...new Set(page.runIds())]).toEqual(['stopped-run', 'next-run'])
+    expect(await page.tab.chat.hydrate({sessionId: page.sessionId})).toMatchObject({
+      activeRun: null,
+      lastRun: {runId: 'next-run', phase: 'completed'},
+    })
+  })
 })
 
 describe('engine plugins', () => {
