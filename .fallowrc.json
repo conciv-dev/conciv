@@ -295,6 +295,7 @@
     "packages/plugin-host/src/core/plugin/instance.ts",
     "packages/plugin-host/src/core/plugin/internal.ts",
     "packages/plugin-host/src/core/plugin/promise.ts",
+    "packages/plugin-host/src/core/managed-policy.ts",
     "packages/plugin-host/test/core/fixture/*-worker.ts",
     "packages/brand-react/src/conciv-lockup.tsx",
     "packages/brand/src/brand-guidelines.mdx",
