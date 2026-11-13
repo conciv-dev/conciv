@@ -538,6 +538,17 @@ describe('chat plane', () => {
                 Effect.succeed({content: `${input.text.toUpperCase()} in ${context.sessionId}`}),
             })
             editor.add({
+              name: 'unit_double',
+              description: 'Double the count.',
+              input: z.object({
+                count: z
+                  .string()
+                  .transform(Number)
+                  .refine(async (count) => count > 0),
+              }),
+              execute: (input: {count: number}) => Effect.succeed({content: String(input.count * 2)}),
+            })
+            editor.add({
               name: 'unit_taken',
               description: 'A plugin copy.',
               input: z.object({}),
@@ -546,8 +557,8 @@ describe('chat plane', () => {
           })
           yield* hooks.register('tool', 'execute.before', (event) =>
             Effect.sync(() => {
-              seen.push(`before ${event.tool} ${event.messageId ?? 'without a message'}`)
-              event.input = {text: 'changed by a hook'}
+              seen.push(`before ${event.tool} ${event.messageId ?? 'without a message'} ${JSON.stringify(event.input)}`)
+              if (event.tool === 'unit_shout') event.input = {text: 'changed by a hook'}
             }),
           )
           yield* hooks.register('tool', 'execute.after', (event) =>
@@ -558,12 +569,23 @@ describe('chat plane', () => {
 
       const chat = await plane(cliHarness(fakeCli()), tempDir(), {capabilities})
       const runner = await chat.codeRunner(sessionId('plugin'), () => undefined)
-      expect(runner?.capabilities.map((capability) => capability.name)).toEqual(['unit_taken', 'unit_shout'])
+      expect(runner?.capabilities.map((capability) => capability.name)).toEqual([
+        'unit_taken',
+        'unit_shout',
+        'unit_double',
+      ])
       expect(uniq(collisions)).toEqual(['unit_taken'])
       await expect(runner?.run('return await external_unit_shout({text: "hi"})', 'parent')).resolves.toMatchObject({
         result: 'CHANGED BY A HOOK in conciv_plugin',
       })
-      expect(seen).toEqual(['before unit_shout without a message', 'after unit_shout completed'])
+      expect(seen).toEqual(['before unit_shout without a message {"text":"hi"}', 'after unit_shout completed'])
+      await expect(runner?.run('return await external_unit_double({count: "2"})', 'parent')).resolves.toMatchObject({
+        result: '4',
+      })
+      expect(seen.slice(2)).toEqual([
+        'before unit_double without a message {"count":"2"}',
+        'after unit_double completed',
+      ])
       await expect(runner?.run('return await external_unit_taken({})', 'parent')).resolves.toMatchObject({
         result: 'built in',
       })

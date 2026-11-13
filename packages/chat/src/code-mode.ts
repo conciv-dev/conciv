@@ -1,8 +1,8 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
-import {Effect, Schema} from 'effect'
+import {Effect} from 'effect'
 import {cappedValue} from '@conciv/contract'
-import {Agent, Session, Tool} from '@conciv/plugin-host'
+import {Agent, Session, Tool, ToolRuntime} from '@conciv/plugin-host'
 import {defineTool, type ChatTool} from '@conciv/protocol/chat-tool-types'
 import type {ToolRequest} from '@conciv/extension'
 import {type SandboxTool} from '@conciv/extension/registry'
@@ -54,15 +54,6 @@ export function assistCapabilities(tools: ConcivServerTool[]): CodeCapability[] 
 
 type EffectRun = <A, E>(effect: Effect.Effect<A, E>, signal: AbortSignal | undefined) => Promise<A>
 
-type CodeModeTools = NonNullable<Tool.Snapshot['codeMode']>['tools']
-
-type ToolInput = CodeModeTools extends ReadonlyMap<string, infer Info extends {input: unknown}> ? Info['input'] : never
-
-function capabilityInputSchema(input: ToolInput): SchemaInput {
-  if (Schema.isSchema(input)) return Schema.toStandardJSONSchemaV1(input)
-  return input
-}
-
 function cancelOf(signal: AbortSignal): Effect.Effect<void> {
   return Effect.callback<void>((resume) => {
     const settle = () => resume(Effect.void)
@@ -108,7 +99,7 @@ export function toolDomainCapabilities(
         name,
         description: tool.description,
         errors: [],
-        inputSchema: capabilityInputSchema(tool.input),
+        inputSchema: {...ToolRuntime.definition(tool).inputSchema},
         execute: async (input, request) =>
           resultValue(await run(codeMode.execute(name, input, toolContext(request)), request.signal)),
       })),
