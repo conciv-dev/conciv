@@ -106,6 +106,12 @@
     "unused-dev-dependencies": "warn",
     "circular-dependencies": "warn"
   },
+  "overrides": [
+    {
+      "files": ["packages/plugin-host/src/plugin/*.ts", "packages/plugin-host/src/util/*.ts"],
+      "rules": {"unused-files": "off"}
+    }
+  ],
   "ignoreDependencies": [
     "@parcel/watcher-darwin-arm64",
     "@parcel/watcher-darwin-x64",

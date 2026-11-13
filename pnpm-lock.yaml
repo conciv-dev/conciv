@@ -4400,6 +4400,9 @@ importers:
 
   packages/plugin-host:
     dependencies:
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../plugin
       '@parcel/watcher':
         specifier: 'catalog:'
         version: 2.5.1

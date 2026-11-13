@@ -37,6 +37,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/plugin": "workspace:^",
     "@parcel/watcher": "catalog:",
     "@standard-schema/spec": "catalog:",
     "effect": "catalog:",
