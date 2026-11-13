@@ -25,11 +25,11 @@ function visitWithAncestors(node, ancestors, visit) {
   eachChild(node, (child) => visitWithAncestors(child, nested, visit))
 }
 
-function parentOf(ancestors) {
+function readParent(ancestors) {
   return ancestors.at(-1)
 }
 
-function grandparentOf(ancestors) {
+function readGrandparent(ancestors) {
   return ancestors.at(-2)
 }
 
@@ -69,24 +69,24 @@ function jsxAttributeName(attribute) {
 }
 
 function isAttributeExpressionValue(node, ancestors) {
-  const container = parentOf(ancestors)
+  const container = readParent(ancestors)
   if (!isNode(container) || container.type !== 'JSXExpressionContainer') return false
   return container.expression === node
 }
 
 function isRefAttributeValue(node, ancestors) {
   if (!isAttributeExpressionValue(node, ancestors)) return false
-  return jsxAttributeName(grandparentOf(ancestors)) === REF_ATTRIBUTE
+  return jsxAttributeName(readGrandparent(ancestors)) === REF_ATTRIBUTE
 }
 
 function isHandlerAttributeValue(node, ancestors) {
   if (!isAttributeExpressionValue(node, ancestors)) return false
-  const name = jsxAttributeName(grandparentOf(ancestors))
+  const name = jsxAttributeName(readGrandparent(ancestors))
   return typeof name === 'string' && HANDLER_ATTRIBUTE.test(name)
 }
 
 function isCallCallee(node, ancestors) {
-  const parent = parentOf(ancestors)
+  const parent = readParent(ancestors)
   return isNode(parent) && parent.type === 'CallExpression' && parent.callee === node
 }
 
@@ -127,7 +127,7 @@ function analyzeGetterUsage(getterName, excluded, program) {
 }
 
 function isVariableDeclaratorInit(node, ancestors) {
-  const parent = parentOf(ancestors)
+  const parent = readParent(ancestors)
   return isNode(parent) && parent.type === 'VariableDeclarator' && parent.init === node
 }
 
@@ -138,7 +138,7 @@ function declaredFunctionDeclarationName(fn) {
 
 function declaredVariableName(fn, ancestors) {
   if (!isVariableDeclaratorInit(fn, ancestors)) return undefined
-  const declarator = parentOf(ancestors)
+  const declarator = readParent(ancestors)
   return isIdentifier(declarator.id) ? declarator.id : undefined
 }
 

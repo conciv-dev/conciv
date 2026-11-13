@@ -498,7 +498,7 @@ describe('routes', () => {
       const first = recordingHarness()
       const second = recordingHarness()
       const current = {harness: first.harness}
-      const dedicated = await startTerminalServer(first.harness, {harnessOf: () => current.harness})
+      const dedicated = await startTerminalServer(first.harness, {readHarness: () => current.harness})
       try {
         expect(await dedicated.rpc.open({sessionId})).toEqual({alive: true})
         current.harness = {...second.harness, id: 'test-tty-switched'}

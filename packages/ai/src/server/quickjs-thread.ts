@@ -91,7 +91,7 @@ export function openPool(log: Log): OpenPool {
 export async function closePool(open: OpenPool, log: Log, passes = CLOSE_PASSES): Promise<void> {
   open.closed.abort()
   const threads = open.pool.threads
-  await Promise.all([open.pool.destroy(), ...threads.map(exitOf)])
+  await Promise.all([open.pool.destroy(), ...threads.map(waitForExit)])
   const left = open.pool.threads
   if (left.length === 0) return
   const respawned = left.some((thread) => !threads.includes(thread))
@@ -177,10 +177,10 @@ function abortedWith(reason: unknown, deadlines: Deadlines, retired: Retired): E
 }
 
 async function exited(pool: Piscina, threads: Worker[]): Promise<void> {
-  await Promise.all(threads.filter((thread) => !pool.threads.includes(thread)).map(exitOf))
+  await Promise.all(threads.filter((thread) => !pool.threads.includes(thread)).map(waitForExit))
 }
 
-function exitOf(thread: Worker): Promise<void> {
+function waitForExit(thread: Worker): Promise<void> {
   if (thread.threadId === -1) return Promise.resolve()
   return new Promise((exit) => thread.once('exit', () => exit()))
 }

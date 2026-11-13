@@ -21,7 +21,7 @@ import {widgetCaller} from '../../lib/cors.js'
 import {listCommands} from '../../sessions/commands.js'
 import {session} from '../../runtime/session-context.js'
 import {chatRouter} from './chat.js'
-import {harnessMenuEntryOf, harnessMetaOf, sessionsRouter} from './sessions.js'
+import {buildHarnessMenuEntry, buildHarnessMeta, sessionsRouter} from './sessions.js'
 import {
   admitOutsideCall,
   makeHubAdmission,
@@ -122,7 +122,7 @@ function hubOrigin(context: RpcContext): boolean {
   return callTrace((header) => rpcHeader(context, header)).hub !== null
 }
 
-async function codeSessionOf(
+async function resolveCodeSession(
   deps: RpcDeps,
   sessionId: SessionId | undefined,
   call: CodeCall,
@@ -272,13 +272,13 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       get: os.tabs.get.handler(({input}) => deps.tabs.get(input.sessionId)),
     },
     code: {
-      describe: os.code.describe.handler(async (call) => (await codeSessionOf(deps, undefined, call)).describe()),
+      describe: os.code.describe.handler(async (call) => (await resolveCodeSession(deps, undefined, call)).describe()),
       execute: os.code.execute.handler(async ({input, ...call}) => {
-        const code = await codeSessionOf(deps, input.sessionId, call)
+        const code = await resolveCodeSession(deps, input.sessionId, call)
         return (await code.execute(input.typescriptCode)).result
       }),
       discover: os.code.discover.handler(async ({input, ...call}) => {
-        const code = await codeSessionOf(deps, input.sessionId, call)
+        const code = await resolveCodeSession(deps, input.sessionId, call)
         if (code.sandbox.discover === null) throw call.errors.NO_CODE_MODE({message: 'no tools to discover'})
         return code.discover(input.toolNames)
       }),
@@ -362,11 +362,11 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         return {
           models,
           defaultModel: harness.defaultModel ?? models[0]?.id ?? null,
-          harness: harnessMetaOf(harness),
+          harness: buildHarnessMeta(harness),
         }
       }),
       harnesses: os.meta.harnesses.handler(async () => ({
-        harnesses: await Promise.all(chat.harnesses.map(harnessMenuEntryOf)),
+        harnesses: await Promise.all(chat.harnesses.map(buildHarnessMenuEntry)),
         defaultHarness: chat.defaultHarness.id,
       })),
       commands: os.meta.commands.handler(({input, context}) =>

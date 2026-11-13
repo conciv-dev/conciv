@@ -69,14 +69,14 @@ type PickerRow = Bucket | PickerSession
 
 type SessionPage = {next: HarnessListCursor | null}
 
-function bucketOf(updatedAt: number, now: number): Bucket {
+function pickBucket(updatedAt: number, now: number): Bucket {
   if (updatedAt >= new Date(now).setHours(0, 0, 0, 0)) return 'Today'
   if (updatedAt >= new Date(now).setHours(-24, 0, 0, 0)) return 'Yesterday'
   return 'Earlier'
 }
 
 function pickerRows(list: PickerSession[], now: number): PickerRow[] {
-  const byBucket = groupBy(list, (session) => bucketOf(session.updatedAt, now))
+  const byBucket = groupBy(list, (session) => pickBucket(session.updatedAt, now))
   return BUCKETS.flatMap((name): PickerRow[] => {
     const sessions = byBucket[name]
     if (sessions === undefined) return []
@@ -86,26 +86,26 @@ function pickerRows(list: PickerSession[], now: number): PickerRow[] {
 
 function rowSize(row: PickerRow): number {
   if (typeof row === 'string') return HEADER_ROW_SIZE
-  return excerptOf(row) === null ? SESSION_ROW_SIZE : EXCERPT_ROW_SIZE
+  return readExcerpt(row) === null ? SESSION_ROW_SIZE : EXCERPT_ROW_SIZE
 }
 
 function rowKey(row: PickerRow): string {
   return typeof row === 'string' ? row : row.id
 }
 
-function excerptOf(session: PickerSession): string | null {
+function readExcerpt(session: PickerSession): string | null {
   return 'excerpt' in session ? session.excerpt : null
 }
 
-function projectOf(cwd: string): string {
+function formatProject(cwd: string): string {
   return cwd.split(/[\\/]/).findLast((segment) => segment !== '') ?? cwd
 }
 
-function matchedOf(session: PickerSession): string[] {
+function readMatched(session: PickerSession): string[] {
   return 'matched' in session ? session.matched : []
 }
 
-function previewOf(session: PickerSession | undefined) {
+function buildPreview(session: PickerSession | undefined) {
   if (session === undefined) return null
   const native = 'preview' in session ? session.preview : session.native
   if (!native) return null
@@ -113,16 +113,16 @@ function previewOf(session: PickerSession | undefined) {
     title: session.title,
     harness: native.harnessKind,
     nativeId: native.nativeId,
-    matched: matchedOf(session),
+    matched: readMatched(session),
   }
-  const elsewhere = elsewhereOf(session)
-  if (elsewhere === null) return {...shared, project: projectOf(native.cwd), cwd: null, resume: null}
+  const elsewhere = readElsewhere(session)
+  if (elsewhere === null) return {...shared, project: formatProject(native.cwd), cwd: null, resume: null}
   return {...shared, project: elsewhere.project, cwd: elsewhere.cwd, resume: elsewhere.resume}
 }
 
-function elsewhereOf(session: PickerSession | undefined): Elsewhere | null {
+function readElsewhere(session: PickerSession | undefined): Elsewhere | null {
   if (session === undefined || !('cwd' in session) || session.cwd === null) return null
-  return {cwd: session.cwd, project: projectOf(session.cwd), resume: session.resume}
+  return {cwd: session.cwd, project: formatProject(session.cwd), resume: session.resume}
 }
 
 export function SessionSelector(props: {
@@ -182,7 +182,7 @@ export function SessionSelector(props: {
   })
   const harnesses = useHarnesses()
   const harnessSuffix = (s: SessionMeta): string =>
-    harnesses.switchable() ? ` · ${harnesses.nameOf(s.harnessKind)}` : ''
+    harnesses.switchable() ? ` · ${harnesses.resolveName(s.harnessKind)}` : ''
   const sessionsLoaded = createMemo((): PickerSession[] =>
     uniqBy(list.data?.pages.flatMap((page) => page.sessions) ?? [], (session) => session.id),
   )
@@ -218,19 +218,19 @@ export function SessionSelector(props: {
   const triggerLabel = () => activeRow()?.title || 'New session'
   const canRename = () => activeRow() !== null
 
-  const sessionOf = (id: string | null) => sessionsLoaded().find((session) => session.id === id)
+  const findSession = (id: string | null) => sessionsLoaded().find((session) => session.id === id)
   const resumeCopies = createMemo(
     mapArray(sessionsLoaded, (session) => {
-      const command = elsewhereOf(session)?.resume
+      const command = readElsewhere(session)?.resume
       return command ? {id: session.id, copy: createResumeCopy(() => command, announce)} : null
     }),
   )
-  const resumeCopyOf = (id: string) => resumeCopies().find((entry) => entry?.id === id)?.copy
+  const findResumeCopy = (id: string) => resumeCopies().find((entry) => entry?.id === id)?.copy
 
   const select = (id: string) => {
     if (!id) return
-    const session = sessionOf(id)
-    const elsewhere = elsewhereOf(session)
+    const session = findSession(id)
+    const elsewhere = readElsewhere(session)
     if (elsewhere !== null) return openElsewhere(id, elsewhere)
     const switching = id !== activeId()
     props.onActivate(id)
@@ -238,8 +238,8 @@ export function SessionSelector(props: {
   }
 
   const openElsewhere = (id: string, elsewhere: Elsewhere) => {
-    const copy = resumeCopyOf(id)
-    if (copy === undefined) return announce(`${sessionOf(id)?.title ?? id} is in ${elsewhere.project}, open it there`)
+    const copy = findResumeCopy(id)
+    if (copy === undefined) return announce(`${findSession(id)?.title ?? id} is in ${elsewhere.project}, open it there`)
     copy.copy()
   }
 
@@ -275,7 +275,7 @@ export function SessionSelector(props: {
     if (value === null) return settle.cancel()
     settle.maybeExecute(value)
   }
-  const previewTarget = createMemo(() => previewOf(sessionOf(picker.previewed)), null, {equals: isEqual})
+  const previewTarget = createMemo(() => buildPreview(findSession(picker.previewed)), null, {equals: isEqual})
 
   const isPill = () => props.variant === 'pill'
   return (
@@ -290,7 +290,7 @@ export function SessionSelector(props: {
       inputValue={shownInput().text}
       onInputValueChange={typed}
       onHighlightChange={(details) => highlighted(details.highlightedValue)}
-      closeOnSelect={elsewhereOf(sessionOf(picker.highlighted)) === null}
+      closeOnSelect={readElsewhere(findSession(picker.highlighted)) === null}
       onOpenChange={(details) => {
         if (details.open) appData.invalidateSessions()
         if (!details.open) dismissPreview()
@@ -411,8 +411,8 @@ export function SessionSelector(props: {
             <VirtualList
               class="flex-1 min-h-0 overflow-y-auto overscroll-contain"
               rows={rows()}
-              sizeOf={rowSize}
-              keyOf={rowKey}
+              readSize={rowSize}
+              readKey={rowKey}
               more={list.hasNextPage}
               moreRowSize={MORE_ROW_SIZE}
               onReachMore={loadMore}
@@ -461,7 +461,7 @@ export function SessionSelector(props: {
                     <SessionOption
                       session={session()}
                       suffix={harnessSuffix(session())}
-                      copied={resumeCopyOf(session().id)?.announcement() ?? ''}
+                      copied={findResumeCopy(session().id)?.announcement() ?? ''}
                     />
                   )}
                 </Show>
@@ -497,8 +497,8 @@ function SessionSize(props: {sizeBytes: number | undefined}): JSX.Element {
 function SessionOption(props: {session: PickerSession; suffix: string; copied: string}): JSX.Element {
   const labelId = createUniqueId()
   const excerptId = createUniqueId()
-  const excerpt = () => excerptOf(props.session)
-  const elsewhere = () => elsewhereOf(props.session)
+  const excerpt = () => readExcerpt(props.session)
+  const elsewhere = () => readElsewhere(props.session)
   const [row, setRow] = createStore<{element: HTMLElement | undefined}>({element: undefined})
   return (
     <Combobox.Item
@@ -531,7 +531,7 @@ function SessionOption(props: {session: PickerSession; suffix: string; copied: s
       <div class="flex flex-1 flex-col gap-px min-w-0">
         <TruncatedText text={props.session.title}>
           <Combobox.ItemText>
-            <Highlight text={props.session.title} query={matchedOf(props.session)} ignoreCase matchAll exactMatch />
+            <Highlight text={props.session.title} query={readMatched(props.session)} ignoreCase matchAll exactMatch />
           </Combobox.ItemText>
         </TruncatedText>
         <Show when={excerpt()}>
@@ -540,7 +540,7 @@ function SessionOption(props: {session: PickerSession; suffix: string; copied: s
               id={excerptId}
               class="text-[0.75rem] text-chat-text-2 leading-4 max-h-12 overflow-hidden [mask-image:linear-gradient(to_bottom,#000_2.5rem,transparent_3rem)]"
             >
-              <Markdown content={text()} compact highlight={matchedOf(props.session)} />
+              <Markdown content={text()} compact highlight={readMatched(props.session)} />
             </div>
           )}
         </Show>

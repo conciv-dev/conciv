@@ -37,11 +37,11 @@ function firstLine(code: string): string {
   )
 }
 
-function logsOf(output: ExecuteResult | null): string[] {
+function readLogs(output: ExecuteResult | null): string[] {
   return output?.logs ?? []
 }
 
-function errorOf(output: ExecuteResult | null): ExecuteError | undefined {
+function readError(output: ExecuteResult | null): ExecuteError | undefined {
   return output?.error
 }
 
@@ -89,7 +89,7 @@ function ErrorBox(props: {error: ExecuteError}): JSX.Element {
   return <ErrorBlock label={props.error.name ?? 'Error'} message={errorMessage(props.error)} />
 }
 
-function codeOf(part: ToolCardProps['part']): string {
+function readCode(part: ToolCardProps['part']): string {
   return parseInput(ExecuteInputSchema, part)?.typescriptCode ?? ''
 }
 
@@ -103,8 +103,8 @@ function codeStatusText(settled: boolean, failed: boolean): string | undefined {
 }
 
 function runLogText(output: ExecuteResult | null): string {
-  const parts = [...logsOf(output)]
-  const error = errorOf(output)
+  const parts = [...readLogs(output)]
+  const error = readError(output)
   if (error) parts.push(errorMessage(error))
   return parts.join('\n')
 }
@@ -145,12 +145,12 @@ function FullOutput(props: {
   return (
     <div class="flex flex-col gap-2 min-w-0">
       <CodeBlock size="xs" file={{name: 'run.ts', lang: 'ts', contents: props.code}} />
-      <Show when={logsOf(props.output).length > 0}>
-        <ConsoleLogs logs={logsOf(props.output)} />
+      <Show when={readLogs(props.output).length > 0}>
+        <ConsoleLogs logs={readLogs(props.output)} />
       </Show>
       <RunResult output={props.output} />
       <Switch>
-        <Match when={errorOf(props.output)}>{(error) => <ErrorBox error={error()} />}</Match>
+        <Match when={readError(props.output)}>{(error) => <ErrorBox error={error()} />}</Match>
         <Match when={props.output === null && props.failed}>
           <ErrorBlock label="Error" message={transportErrorText(props.result)} />
         </Match>
@@ -160,7 +160,7 @@ function FullOutput(props: {
 }
 
 export function CodeRunCard(props: ToolCardProps): JSX.Element {
-  const code = (): string => codeOf(props.part)
+  const code = (): string => readCode(props.part)
   const output = (): ExecuteResult | null => parseOutput(props.result)
   const status = (): ToolStatus => toolStatus(props.part, props.result)
   const failed = (): boolean => isFailed(output(), status())

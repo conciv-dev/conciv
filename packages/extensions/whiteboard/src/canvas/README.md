@@ -18,7 +18,7 @@
 - `queueDrain` (`island.tsx`): each pending row id is handled at most once per mount (`draining` set). Kinds without a handler are ignored, including 'discard'
 - `drainPending` / `performCommit` / `performExport` (`island.tsx`): `db.canvasPending.delete(row.id)` always runs in `finally`, even on failure
 - `withStableIds` (`island.tsx`): skeletons without an id get `${rowId}-${index}`, and conversion uses `regenerateIds: false`
-- `skeletonsOf` (`island.tsx`): mermaid parsing uses `maxEdges: 500`
+- `buildSkeletons` (`island.tsx`): mermaid parsing uses `maxEdges: 500`
 - `exportReply` (`island.tsx`): throws when scope is 'live' or 'both' before the Excalidraw API attaches. A failed export is still answered with `{error: 'export render failed', reason}`
 - `collaboratorsFrom` (`island.tsx`): drops its own peer and cursors with `lastSeen` older than `CURSOR_STALE_MS` (15_000)
 - `performCommit` (`island.tsx`): draft rows are deleted only after the replay finishes. A pointerdown on the container skips the rest of the animation, and the remaining steps are written at once

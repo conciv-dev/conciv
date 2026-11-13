@@ -22,10 +22,10 @@ const buildSync = <Row extends object>(deps: {
   table: string
   loadRows: () => Promise<Row[]>
   parseRow: (row: unknown) => Row
-  keyOf: (row: Row) => string
+  readKey: (row: Row) => string
   onReady: (params: SyncParams<Row>) => void
 }): SyncConfig<Row, string> => {
-  const {feed, table, loadRows, parseRow, keyOf, onReady} = deps
+  const {feed, table, loadRows, parseRow, readKey, onReady} = deps
   return {
     rowUpdateMode: 'full',
     sync: (params) => {
@@ -37,7 +37,7 @@ const buildSync = <Row extends object>(deps: {
         if (message.type === 'delete') params.write({type: 'delete', key: message.key})
         if (message.type === 'upsert') {
           const row = parseRow(message.row)
-          params.write({type: params.collection.has(keyOf(row)) ? 'update' : 'insert', value: row})
+          params.write({type: params.collection.has(readKey(row)) ? 'update' : 'insert', value: row})
         }
         params.commit()
       }
@@ -107,7 +107,7 @@ export function whiteboardCollectionOptions<Row extends {id: string}, Insert ext
       table,
       loadRows: () => ops.list(),
       parseRow,
-      keyOf: (row) => row.id,
+      readKey: (row) => row.id,
       onReady: (params) => void (ctx = params),
     }),
     onInsert: async ({transaction}: InsertMutationFnParams<Row, string>) => {
@@ -185,7 +185,7 @@ export function whiteboardElementOptions(deps: {
       table,
       loadRows: () => client.elements.list({scope}),
       parseRow,
-      keyOf: (row) => row.elementId,
+      readKey: (row) => row.elementId,
       onReady: (params) => void (ctx = params),
     }),
     onDelete: async ({transaction}: DeleteMutationFnParams<ElementRow, string>) => {

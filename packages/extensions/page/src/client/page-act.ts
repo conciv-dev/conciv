@@ -212,7 +212,7 @@ function keyInit(binding: string): KeyboardEventInit {
   const name = parsed.key ?? parsed.code
   return {
     key: typedKey({name, shift: parsed.shift}),
-    code: parsed.code ?? codeOf(name),
+    code: parsed.code ?? resolveKeyCode(name),
     ctrlKey: parsed.ctrl,
     shiftKey: parsed.shift,
     altKey: parsed.alt,
@@ -230,7 +230,7 @@ function typedKey(options: {name: string; shift: boolean}): string {
   return name.toLowerCase()
 }
 
-function codeOf(key: string): string {
+function resolveKeyCode(key: string): string {
   const upper = key.toUpperCase()
   if (LETTERS.has(upper)) return `Key${upper}`
   if (DIGITS.has(key)) return `Digit${key}`

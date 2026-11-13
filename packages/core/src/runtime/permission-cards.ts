@@ -1,7 +1,7 @@
 import type {ChatPlane} from '@conciv/chat'
 import type {ConcivDb} from '@conciv/db'
 import {
-  approvalAskOf,
+  readApprovalAsk,
   approvalRequestedEvent,
   approvalSettledEvent,
   type ChatEvent,
@@ -67,7 +67,7 @@ export function sessionSnapshot(
   })
 }
 
-function titleOf(request: Permission.Request): string {
+function formatCardTitle(request: Permission.Request): string {
   const title = `${request.action} ${request.resources.join(', ')}`
   return title.length > TITLE_LIMIT ? `${title.slice(0, TITLE_LIMIT - 1)}…` : title
 }
@@ -77,7 +77,7 @@ async function showCard(cards: PermissionCards, request: Permission.Request): Pr
   const card = {
     approvalId: request.id,
     toolCallId: request.id,
-    title: titleOf(request),
+    title: formatCardTitle(request),
     input: request.metadata ?? {},
     permission: {always: (request.save?.length ?? 0) > 0},
   }
@@ -130,7 +130,7 @@ export function answerPermission(
   })
 }
 
-function replyOf(approved: boolean, scope: CardDecision['scope']): Permission.Reply {
+function toPermissionReply(approved: boolean, scope: CardDecision['scope']): Permission.Reply {
   if (!approved) return 'reject'
   return scope === 'session' ? 'always' : 'once'
 }
@@ -144,11 +144,15 @@ export async function decidePermissionCard(
   sessionId: SessionId,
   decision: CardDecision,
 ): Promise<{startsTurn: boolean} | null> {
-  const cards = (await deps.plane.catchUp(sessionId)).map(approvalAskOf)
+  const cards = (await deps.plane.catchUp(sessionId)).map(readApprovalAsk)
   const card = cards.find((ask) => ask?.approvalId === decision.approvalId)
   if (card?.permission === undefined)
     return deps.plane.decide(sessionId, decision.approvalId, decision.approved, decision.scope)
-  const outcome = await deps.answer(sessionId, decision.approvalId, replyOf(decision.approved, decision.scope))
+  const outcome = await deps.answer(
+    sessionId,
+    decision.approvalId,
+    toPermissionReply(decision.approved, decision.scope),
+  )
   if (outcome === 'gone') await dropCard(deps, sessionId, decision.approvalId)
   return outcome === 'replied' ? {startsTurn: false} : null
 }

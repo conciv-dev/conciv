@@ -8,7 +8,7 @@ Helpers shared by the harness adapters: the `HarnessAdapter` contract type, an A
 
 - `HarnessAdapter` (`contract.ts`): base fields `id`, `binName`, `displayName?`, `connect`, `chatConfig(deps)`, `models`, `defaultModel`, `tty.command(ctx)`, `resume.command({cwd, nativeId})` (the `{bin, args}` a person runs in that cwd to reopen a native session), plus unions keyed on capabilities.
 - `HarnessChatConfig` `{adapter: TextAdapter; modelOptions?; prepareMessages?}`; `defineHarness(adapter)` identity helper for type checking (`contract.ts`).
-- `acpChatConfig(name, commandOf, defaultModel)` (`acp.ts`): chatConfig that builds an `acp(...)` adapter with `permissions: 'interactive'` and sets `modelOptions.sessionId` when resuming.
+- `acpChatConfig(name, resolveCommand, defaultModel)` (`acp.ts`): chatConfig that builds an `acp(...)` adapter with `permissions: 'interactive'` and sets `modelOptions.sessionId` when resuming.
 - `unsupportedChatConfig(id, binName)` (`stub.ts`): TextAdapter that yields `RUN_STARTED` then `RUN_ERROR` "<binName> is not installed or not yet supported".
 - `defineStubHarness({id, binName, capabilities})` (`stub.ts`): `defineHarness` wrapper over `unsupportedChatConfig`; no non-test caller in `src`.
 - `containedPath(root, candidate)`, `transcriptPathWithin(history, cwd, sessionId)` (`contained-path.ts`).
@@ -34,7 +34,7 @@ Helpers shared by the harness adapters: the `HarnessAdapter` contract type, an A
 
 - Reads transcript files with fs/promises `stat`, `open`, `read` (`makeJsonlHandle`).
 - `realpathSync` calls (`containedPath`).
-- The adapter from `acpChatConfig` spawns `commandOf(model)` with interactive permissions (`acp.ts`).
+- The adapter from `acpChatConfig` spawns `resolveCommand(model)` with interactive permissions (`acp.ts`).
 
 ## Verification
 

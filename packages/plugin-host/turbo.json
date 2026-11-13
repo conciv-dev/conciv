@@ -1,0 +1,17 @@
+{
+  "$schema": "https://v2-10-3.turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "gen-migrations": {
+      "inputs": ["drizzle/**", "src/scripts/gen-migrations.ts"],
+      "outputs": ["src/core/database/migration.gen.ts"]
+    },
+    "build": {
+      "dependsOn": ["^build", "gen-migrations"],
+      "outputs": ["dist/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build", "gen-migrations"]
+    }
+  }
+}

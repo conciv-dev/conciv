@@ -3,7 +3,7 @@ import {isIdentifier, isNode, walk} from './ast-walk.js'
 const CAMEL_BOUNDARY = /(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])/
 const NON_ALPHANUMERIC = /[^A-Za-z0-9]+/
 
-function segmentsOf(name) {
+function splitSegments(name) {
   return name
     .split(NON_ALPHANUMERIC)
     .flatMap((part) => part.split(CAMEL_BOUNDARY))
@@ -32,7 +32,7 @@ function containsTerm(segments, term) {
 }
 
 function matchedTerm(name, terms) {
-  const segments = segmentsOf(name)
+  const segments = splitSegments(name)
   return terms.find((term) => containsTerm(segments, term.segments))
 }
 
@@ -106,34 +106,33 @@ function termAllowedAt(label, filename, allowedTermPaths) {
   return allowedTermPaths.some((entry) => entry.term === label && entry.paths.some((path) => filename.includes(path)))
 }
 
-function violationTerm(identifier, filename, terms, options) {
+function findViolationTerm(identifier, filename, terms, options) {
   if (options.allowedNames.includes(identifier.name)) return undefined
   const term = matchedTerm(identifier.name, terms)
   if (term === undefined) return undefined
   return termAllowedAt(term.label, filename, options.allowedTermPaths) ? undefined : term
 }
 
-function reportIdentifier(identifier, filename, terms, options, seen, context) {
+function reportIdentifier(identifier, filename, violation, seen, context) {
   if (seen.has(identifier.name)) return
-  const term = violationTerm(identifier, filename, terms, options)
-  if (term === undefined) return
+  const data = violation(identifier, filename)
+  if (data === undefined) return
   seen.add(identifier.name)
-  context.report({node: identifier, messageId: 'banned', data: {name: identifier.name, term: term.label}})
+  context.report({node: identifier, messageId: 'banned', data})
 }
 
-function visitDeclarations(program, filename, terms, options, context) {
+function visitDeclarations(program, filename, violation, context) {
   const seen = new Set()
   walk(program, (node) => {
     if (node.type === 'ImportDeclaration' || node.type === 'TSImportEqualsDeclaration') return 'skip'
     for (const identifier of declarationIdentifiers(node)) {
-      reportIdentifier(identifier, filename, terms, options, seen, context)
+      reportIdentifier(identifier, filename, violation, seen, context)
     }
     return undefined
   })
 }
 
-export function makeVocabularyRule(options) {
-  const terms = options.terms.map((label) => ({label, segments: segmentsOf(label)}))
+export function makeDeclarationRule(options) {
   return {
     meta: {
       type: 'problem',
@@ -145,9 +144,21 @@ export function makeVocabularyRule(options) {
         Program(program) {
           const filename = normalizedFilename(context)
           if (options.exemptFiles.some((path) => filename.includes(path))) return
-          visitDeclarations(program, filename, terms, options, context)
+          visitDeclarations(program, filename, options.violation, context)
         },
       }
     },
   }
+}
+
+export function makeVocabularyRule(options) {
+  const terms = options.terms.map((label) => ({label, segments: splitSegments(label)}))
+  return makeDeclarationRule({
+    exemptFiles: options.exemptFiles,
+    message: options.message,
+    violation: (identifier, filename) => {
+      const term = findViolationTerm(identifier, filename, terms, options)
+      return term === undefined ? undefined : {name: identifier.name, term: term.label}
+    },
+  })
 }

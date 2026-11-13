@@ -476,7 +476,7 @@ async function settleMotion(viewport: HTMLElement): Promise<void> {
   }
 }
 
-function percentileOf(sorted: ReadonlyArray<number>, fraction: number): number {
+function pickPercentile(sorted: ReadonlyArray<number>, fraction: number): number {
   if (sorted.length === 0) return 0
   return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * fraction))] ?? 0
 }
@@ -489,8 +489,8 @@ function summariseGaps(gaps: ReadonlyArray<number>): FrameGaps {
   const sorted = gaps.toSorted((left, right) => left - right)
   return {
     sampledMs: tenths(gaps.reduce((total, gap) => total + gap, 0)),
-    p50: tenths(percentileOf(sorted, 0.5)),
-    p95: tenths(percentileOf(sorted, 0.95)),
+    p50: tenths(pickPercentile(sorted, 0.5)),
+    p95: tenths(pickPercentile(sorted, 0.95)),
     max: tenths(sorted.at(-1) ?? 0),
     over33: gaps.filter((gap) => gap > JANK_FRAME_MS).length,
   }

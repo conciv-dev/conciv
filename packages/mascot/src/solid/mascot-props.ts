@@ -71,7 +71,7 @@ function splitTop(text: string, separator: string): string[] {
   return [...scanned.parts, text.slice(scanned.start)]
 }
 
-function declarationOf(text: string): Declaration[] {
+function parseDeclaration(text: string): Declaration[] {
   const [property, ...rest] = splitTop(text, ':')
   if (property === undefined || rest.length === 0) return []
   const value = rest.join(':').trim()
@@ -86,7 +86,7 @@ const objectDeclarations = (style: JSX.CSSProperties): Declaration[] =>
 
 function styleDeclarations(style: ConsumerStyle): Declaration[] {
   if (style === undefined) return []
-  if (typeof style === 'string') return splitTop(style, ';').flatMap(declarationOf)
+  if (typeof style === 'string') return splitTop(style, ';').flatMap(parseDeclaration)
   return objectDeclarations(style)
 }
 

@@ -30,12 +30,12 @@ const RunMetadataSchema = z.object({tanstack: z.object({run: z.object({id: z.str
 
 const ImportedMetadataSchema = z.object({conciv: z.object({harnessId: z.string()})})
 
-function runOf(message: ChatMessage): string | null {
+function readRun(message: ChatMessage): string | null {
   const parsed = RunMetadataSchema.safeParse(message.metadata)
   return parsed.success ? parsed.data.tanstack.run.id : null
 }
 
-function importedHarnessOf(message: ChatMessage): string | null {
+function readImportedHarness(message: ChatMessage): string | null {
   const parsed = ImportedMetadataSchema.safeParse(message.metadata)
   return parsed.success ? parsed.data.conciv.harnessId : null
 }
@@ -47,8 +47,8 @@ export function messageHarnesses(
   return Object.fromEntries(
     messages.flatMap((message): [string, string][] => {
       if (message.role !== 'assistant') return []
-      const run = runOf(message)
-      const harnessId = (run === null ? undefined : runHarness[run]) ?? importedHarnessOf(message)
+      const run = readRun(message)
+      const harnessId = (run === null ? undefined : runHarness[run]) ?? readImportedHarness(message)
       return harnessId === null ? [] : [[message.id, harnessId]]
     }),
   )
@@ -62,13 +62,13 @@ function stampedImport(message: ChatMessage, harnessId: string): ChatMessage {
 function sameTurn(previous: ChatMessage, message: ChatMessage): boolean {
   if (previous.id === message.id) return true
   if (previous.role !== 'assistant' || message.role !== 'assistant') return false
-  const run = runOf(message)
-  return run !== null && run === runOf(previous)
+  const run = readRun(message)
+  return run !== null && run === readRun(previous)
 }
 
 type ToolCallPart = Extract<ChatMessage['parts'][number], {type: 'tool-call'}>
 
-function cardOf(part: ToolCallPart, normalize: (name: string) => string): ToolCallPart {
+function normalizeCard(part: ToolCallPart, normalize: (name: string) => string): ToolCallPart {
   const named = {...part, name: normalize(part.name)}
   const metadata = ObservedMetadataSchema.safeParse('metadata' in part ? part.metadata : null)
   if (!metadata.success) return named
@@ -85,7 +85,7 @@ export function normalizedMessages(messages: ChatMessage[], normalize: (name: st
   }, [])
   return rejoined.map((message) => ({
     ...message,
-    parts: message.parts.map((part) => (part.type === 'tool-call' ? cardOf(part, normalize) : part)),
+    parts: message.parts.map((part) => (part.type === 'tool-call' ? normalizeCard(part, normalize) : part)),
   }))
 }
 
@@ -121,7 +121,7 @@ export function createTranscriptImporter(source: TranscriptSource): TranscriptIm
       return null
     }
   }
-  const anchorOf = async (sessionId: SessionId) =>
+  const loadAnchor = async (sessionId: SessionId) =>
     AnchorSchema.parse(await stores.metadata.get(TRANSCRIPT_NAMESPACE, anchorKey(sessionId)))
   const advance = async (sessionId: SessionId, transcript: ChatMessage[]): Promise<void> => {
     const tail = transcript.at(-1)
@@ -132,7 +132,7 @@ export function createTranscriptImporter(source: TranscriptSource): TranscriptIm
     sync: async (sessionId) => {
       const transcript = await read(sessionId)
       if (transcript === null) return
-      const anchor = await anchorOf(sessionId)
+      const anchor = await loadAnchor(sessionId)
       const anchored = anchor === null ? -1 : transcript.findIndex((message) => message.id === anchor.nativeId)
       const fresh = anchor !== null && anchored === -1 ? [] : transcript.slice(anchored + 1)
       const stored = await stores.messages.loadThread(sessionId)

@@ -123,7 +123,7 @@ const overBudget: WorkerReport = {
   ],
 }
 
-function reportOf(gzipKib: number): WorkerReport {
+function buildReport(gzipKib: number): WorkerReport {
   return {size: {name: WORKER_NAME, raw: gzipKib * 4096, gzip: gzipKib * 1024, files: 1}, chunks: []}
 }
 
@@ -132,15 +132,18 @@ test('the worker budget is Cloudflare 3 MiB, in bytes', () => {
 })
 
 test('workerIsOverBudget fires only past the limit', () => {
-  expect(workerIsOverBudget(reportOf(WORKER_LIMIT_KIB), WORKER_LIMIT_KIB)).toBe(false)
-  expect(workerIsOverBudget(reportOf(WORKER_LIMIT_KIB - 1), WORKER_LIMIT_KIB)).toBe(false)
+  expect(workerIsOverBudget(buildReport(WORKER_LIMIT_KIB), WORKER_LIMIT_KIB)).toBe(false)
+  expect(workerIsOverBudget(buildReport(WORKER_LIMIT_KIB - 1), WORKER_LIMIT_KIB)).toBe(false)
   expect(
     workerIsOverBudget(
-      {...reportOf(WORKER_LIMIT_KIB), size: {...reportOf(WORKER_LIMIT_KIB).size, gzip: WORKER_LIMIT_KIB * 1024 + 1}},
+      {
+        ...buildReport(WORKER_LIMIT_KIB),
+        size: {...buildReport(WORKER_LIMIT_KIB).size, gzip: WORKER_LIMIT_KIB * 1024 + 1},
+      },
       WORKER_LIMIT_KIB,
     ),
   ).toBe(true)
-  expect(workerIsOverBudget(reportOf(5190), WORKER_LIMIT_KIB)).toBe(true)
+  expect(workerIsOverBudget(buildReport(5190), WORKER_LIMIT_KIB)).toBe(true)
 })
 
 test('parseWorkerSize reads the real total, not an earlier line that looks like one', () => {

@@ -1,6 +1,8 @@
 export * as Database from './database.js'
 
 import {makeWithDefaults} from 'drizzle-orm/effect-sqlite-node'
+import {migrate} from 'drizzle-orm/sqlite-core/effect/session'
+import {migrations} from './migration.gen.js'
 import {sqliteLayer, supportsForeignKeyToggle, supportsTuningPragmas} from './sqlite.node.js'
 import {Context, Effect, Layer, Schema} from 'effect'
 import type {SqliteClient} from '@effect/sql-sqlite-node'
@@ -34,6 +36,7 @@ const databaseLayer = Layer.effect(
       yield* db.run('PRAGMA wal_checkpoint(PASSIVE)')
     }
     if (supportsForeignKeyToggle) yield* db.run('PRAGMA foreign_keys = ON')
+    yield* migrate(migrations, db._.session, {migrationsTable: '__plugin_host_migrations'})
 
     return {db}
   }).pipe(Effect.orDie),

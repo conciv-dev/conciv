@@ -21,7 +21,7 @@ const STRIPPED_TERMINATOR: Record<SplitEnv, Record<DeclarationKind, string>> = {
 }
 
 const TERMINATOR_NAMES = new Set(
-  Object.values(STRIPPED_TERMINATOR).flatMap((terminatorOf) => Object.values(terminatorOf)),
+  Object.values(STRIPPED_TERMINATOR).flatMap((terminators) => Object.values(terminators)),
 )
 
 const NODE_STRIPPED_PROPERTIES = new Set(['Component', 'Surface', 'views'])
@@ -41,11 +41,12 @@ function declarationKindOfBinding(name: string, path: NodePath, seen: Set<t.Node
   if (!binding || !binding.constant) return null
   const declaration = binding.path.node
   if (t.isImportSpecifier(declaration)) return declarationKindOfImport(declaration, binding.path.parent)
-  if (t.isVariableDeclarator(declaration) && declaration.init) return declarationKindOf(declaration.init, path, seen)
+  if (t.isVariableDeclarator(declaration) && declaration.init)
+    return resolveDeclarationKind(declaration.init, path, seen)
   return null
 }
 
-function declarationKindOf(node: t.Node, path: NodePath, seen: Set<t.Node>): DeclarationKind | null {
+function resolveDeclarationKind(node: t.Node, path: NodePath, seen: Set<t.Node>): DeclarationKind | null {
   if (seen.has(node)) return null
   seen.add(node)
   if (t.isIdentifier(node)) return declarationKindOfBinding(node.name, path, seen)
@@ -53,7 +54,7 @@ function declarationKindOf(node: t.Node, path: NodePath, seen: Set<t.Node>): Dec
   const callee = node.callee
   if (t.isIdentifier(callee)) return declarationKindOfBinding(callee.name, path, seen)
   if (t.isMemberExpression(callee) && t.isIdentifier(callee.property) && TERMINATOR_NAMES.has(callee.property.name))
-    return declarationKindOf(callee.object, path, seen)
+    return resolveDeclarationKind(callee.object, path, seen)
   return null
 }
 
@@ -91,7 +92,7 @@ function objectAssignConfigPath(path: NodePath<t.CallExpression>): NodePath<t.Ob
   if (!isObjectAssignCallee(path.node.callee)) return null
   const [target, config] = path.get('arguments')
   if (!target || !config || !config.isObjectExpression()) return null
-  if (declarationKindOf(target.node, path, new Set()) !== 'extension') return null
+  if (resolveDeclarationKind(target.node, path, new Set()) !== 'extension') return null
   return config
 }
 
@@ -117,7 +118,7 @@ function collapseTerminator(path: NodePath<t.CallExpression>, stripped: Record<D
   const name = terminatorName(path.node.callee)
   const object = terminatorObject(path.node.callee)
   if (name === null || object === null) return
-  const kind = declarationKindOf(object, path, new Set())
+  const kind = resolveDeclarationKind(object, path, new Set())
   if (kind === null || stripped[kind] !== name) return
   path.replaceWith(object)
 }

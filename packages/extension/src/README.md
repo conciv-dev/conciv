@@ -14,7 +14,7 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 - `TOOL_NAME_RULE` / `assertToolName` / `FORBIDDEN_TOOL_SEGMENTS` (`define-tool.ts`)
 - `defineAttachment` / `AttachmentBuilder` (`define-attachment.ts`): by MIME with .card and .server(expand)
 - `imageResult` (`image-result.ts`)
-- `collectClientTools` / `collectClientEffects` / `collectToolRenderers` / `collectAttachmentCards` / `captureModeOf` (`collect-client.ts`)
+- `collectClientTools` / `collectClientEffects` / `collectToolRenderers` / `collectAttachmentCards` / `resolveCaptureMode` (`collect-client.ts`)
 - `getExtensionApi` (`extension-api.ts`)
 - `useScope` (`use-scope.ts`): an `ExtensionScope` whose `settings` follow the engine over `settings.changes`; the stream closes on owner cleanup
 - `getHostApi` / `HostApiProvider` (`hooks.tsx`, re-exported by `host.ts`): useRpc, useScope (namespaced `settings` mirrored from the engine over `settings.changes`, stream closed on owner cleanup), useApiBase, useToast, useOpenEditor, useDialog, usePopover, useSessionId, useGrab, useComposerInsert, useComposerAttach, useNewSession, useViewLock, useLeaveView, useSlot, useConnect, useColorScheme
@@ -31,7 +31,7 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 - `ExtensionCommand` / `ExtensionCommandContext` (`types.ts`): `{name, description, run(context)}`; the widget lists it in the `/` menu and calls `run({sessionId})` on pick or when `/<name>` alone is sent
 - `createSettingsStore` (`settings-store.ts`): the `SettingsStore` surface (get, set, delete, all, onChange) over a lazily resolved `SettingsState`, shared by the engine and the client
 - `createClientSettings(rpc, namespace, signal?)` (`settings-client.ts`): `{global, project}` stores that follow `settings.changes`, answer reads from the latest snapshot after the first one, run each store's calls in order, and ignore a snapshot older than the one held
-- `ExtensionSlot` (`types.ts`): 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'; plus `ServerApi` (its `scope(namespace).settings` is the engine side of the settings contract, its `settings` reads the extension's own parsed settings), `ExtensionSettingsSchema`, `NoSettings`, `SettingsOf`, `SettingsReader`, `SettingsStore`, `Settings`, `SettingsRegistry` (declaration-merge it to type a namespace), `SettingsForNamespace`, `ExtensionScope`, `SettingsState` and the shared contract types
+- `ExtensionSlot` (`types.ts`): 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'; plus `ServerApi` (its `scope(namespace).settings` is the engine side of the settings contract, its `settings` reads the extension's own parsed settings), `ExtensionSettingsSchema`, `NoSettings`, `InferSettings`, `SettingsReader`, `SettingsStore`, `Settings`, `SettingsRegistry` (declaration-merge it to type a namespace), `SettingsForNamespace`, `ExtensionScope`, `SettingsState` and the shared contract types
 
 ## Invariants
 
@@ -50,7 +50,7 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 - `makeCompositeRpcRouter` (`rpc-mount.ts`): throws on an extension slug collision
 - `rpcHandlerOptions` (`rpc-mount.ts`): refuses a call with `UNAUTHORIZED` when the context's `socket` trust does not allow its path; merges the request headers over the context headers (a socket's context starts with its upgrade request's `user-agent`) and sets `clientVersion` from `x-conciv-version` when it is a semver string (zod; anything else leaves it unset), for the HTTP and the websocket handler alike
 - `use` (`host-context.ts`): a hook used without its host wiring throws
-- `collect-client.ts`: first registration wins by tool name or MIME; `captureModeOf` defaults mutating tools to 'after'
+- `collect-client.ts`: first registration wins by tool name or MIME; `resolveCaptureMode` defaults mutating tools to 'after'
 - `validateSource` (`catalog.ts`): error without `export default defineExtension(`
 
 ## Side Effects

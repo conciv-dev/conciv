@@ -110,7 +110,7 @@ type PermissionAsk = Omit<ApprovalAsked, 'runId' | 'permission'> & {permission: 
 export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   const startingFollowUps = new Set<SessionId>()
   const stores = drizzleChatStores(deps.db, {
-    harnessOf: (threadId) => deps.harnessFor(SessionId.parse(threadId)).id,
+    readHarness: (threadId) => deps.harnessFor(SessionId.parse(threadId)).id,
     saved: (threadId, messages, at) => {
       if (!isSessionId(threadId)) return
       try {
@@ -164,12 +164,12 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     )
     try {
       const admission = await approvals.admit(sessionId, approvalId)
-      if (admission !== 'ask') return refusalOf(admission, call.toolName)
+      if (admission !== 'ask') return buildRefusal(admission, call.toolName)
       const title = call.title ?? call.toolName
       await approvals.asked(sessionId, {approvalId, toolCallId: approvalId, title, input: call.input, runId: null})
       call.publish({...approvalRequestedEvent.create({approvalId, title, input: call.input}), timestamp: Date.now()})
       await decided
-      return refusalOf(await approvals.admit(sessionId, approvalId), call.toolName)
+      return buildRefusal(await approvals.admit(sessionId, approvalId), call.toolName)
     } finally {
       settled.abort()
     }
@@ -263,7 +263,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
         if ((await stores.runs.findActiveRun(sessionId)) !== null) return {kind: 'busy'}
         const runId = randomUUID()
         return await server.drive({threadId: sessionId, runId, kind: 'page-queue', input}, []).then(
-          async () => followUpOutcomeOf(await stores.runs.get(runId)),
+          async () => resolveFollowUpOutcome(await stores.runs.get(runId)),
           (error: unknown): FollowUpOutcome => {
             deps.log(`[chat] the page queue follow-up run ${runId} failed: ${String(error)}`)
             return {kind: 'failed', error: String(error)}
@@ -325,14 +325,14 @@ function codeTools(tools: readonly ChatTool[], capabilities: readonly CodeCapabi
 
 type EndedRun = Awaited<ReturnType<ReturnType<typeof drizzleChatStores>['runs']['get']>>
 
-function followUpOutcomeOf(ended: EndedRun): FollowUpOutcome {
+function resolveFollowUpOutcome(ended: EndedRun): FollowUpOutcome {
   if (ended === null) return {kind: 'failed', error: 'the follow-up run left no record'}
   if (ended.status === 'aborted' || ended.cancelRequested === true) return {kind: 'stopped'}
   if (ended.status === 'completed' || ended.status === 'interrupted') return {kind: 'delivered'}
   return {kind: 'failed', error: ended.error?.message ?? `the run ended ${ended.status}`}
 }
 
-function refusalOf(admission: Admission, toolName: string): CallRefusal | null {
+function buildRefusal(admission: Admission, toolName: string): CallRefusal | null {
   if (admission === 'allowed') return null
   if (admission === 'denied') return {reason: 'denied', message: OUTSIDE_DENIED}
   return {reason: 'asked', message: approvalNeeded(toolName).message}

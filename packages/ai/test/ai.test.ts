@@ -20,7 +20,7 @@ import {defineTool} from '@conciv/protocol/chat-tool-types'
 import {describe, expect, it, onTestFinished} from 'vitest'
 import {z} from 'zod'
 import {
-  approvalAskOf,
+  readApprovalAsk,
   type RunLifecycle,
   approvalRequestedEvent,
   ChatEventType,
@@ -72,7 +72,7 @@ describe('chat stores', () => {
 
     async function savedThread() {
       const db = chatDb()
-      const stores = drizzleChatStores(db, {harnessOf: () => 'test-harness'})
+      const stores = drizzleChatStores(db, {readHarness: () => 'test-harness'})
       await stores.messages.saveThread('paged', THREAD)
       return {db, messages: stores.messages}
     }
@@ -558,7 +558,7 @@ const watched = require('node:net').connect(data.socket, () => {
     firstOutputTimeoutMs = 30_000,
   ) {
     const server = await createChatServer({
-      stores: drizzleChatStores(db, {harnessOf: () => 'test-harness'}),
+      stores: drizzleChatStores(db, {readHarness: () => 'test-harness'}),
       sandbox: {dir: mkdtempSync(join(tmpdir(), 'conciv-ai-'))},
       hooks,
       codeModeResult: (value) => value,
@@ -806,7 +806,7 @@ const watched = require('node:net').connect(data.socket, () => {
 
   runPersistenceConformance(
     'conciv drizzle chat stores',
-    () => defineAIPersistence({stores: drizzleChatStores(chatDb(), {harnessOf: () => 'test-harness'})}),
+    () => defineAIPersistence({stores: drizzleChatStores(chatDb(), {readHarness: () => 'test-harness'})}),
     {
       skip: ['interrupts', 'activities', 'generationRuns', 'artifacts', 'blobs', 'log', 'sessions'],
       checks: ['messages.metadata', 'runs.listByThread.state'],
@@ -825,15 +825,16 @@ function processAlive(pid: number): boolean {
 
 describe('local sandbox', () => {
   it(
-    'forgets a finished run, so a destroy that names no cancelled run stops the live one',
+    'forgets a finished run, so a destroy that names no cancelled run stops the live one, even a child that outlives SIGTERM',
     {timeout: 15_000},
     async () => {
       const provider = localSandbox({dir: mkdtempSync(join(tmpdir(), 'conciv-local-sandbox-'))})
       const finished = await provider.create({})
       await (await finished.process.spawn('true')).wait()
       const live = await provider.create({})
-      const agent = await live.process.spawn('sleep 600')
+      const agent = await live.process.spawn(`(trap '' TERM; echo ready; exec sleep 600) & wait`)
       try {
+        expect((await agent.stdout[Symbol.asyncIterator]().next()).value).toBe('ready\n')
         await provider.destroy({id: live.id})
         expect(processAlive(-agent.pid)).toBe(false)
       } finally {
@@ -866,7 +867,7 @@ describe('events', () => {
   describe('conciv events keep their wire shape', () => {
     it('approval-requested makes the same card live and after a reload, permission member included', () => {
       const event = approvalRequestedEvent.create({approvalId: 'per_1', title: 'edit', permission: {always: true}})
-      const live = approvalAskOf({...event, timestamp: 1})
+      const live = readApprovalAsk({...event, timestamp: 1})
       const stored = live === null ? [] : [{...live, runId: null}]
       const session = createRoot(() =>
         createChatSession({

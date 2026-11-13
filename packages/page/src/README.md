@@ -10,7 +10,7 @@ The DOM side of the page plane. `startPagePlane` reads page queries from the eng
 - `index.ts:servePageQueries` - for each query that parses with `PageQuerySchema`, runs `driver.execute` and replies with `{requestId, outcome}`; `PageQuerySource` type.
 - `page-driver.ts:makeDomPageDriver({tools?, effects?, refs?})` - `PageDriver` with `execute(query, signal?)` (a queued action stops once `signal` aborts), `refs`, `dispose()`.
 - `page-tool-dispatcher.ts:makePageToolDispatcher` - dispatches a query to the client tool with the same `name`; `PageToolAnswer`, `PageToolDispatch`.
-- `page-snapshot.ts:buildSnapshot` / `addRef` / `describeElement` / `roleOf` / `accessibleNameOf` / `DOM_CAP` (20000) - accessibility-style snapshots and refs.
+- `page-snapshot.ts:buildSnapshot` / `addRef` / `describeElement` / `readRole` / `readAccessibleName` / `DOM_CAP` (20000) - accessibility-style snapshots and refs.
 - `select-deep.ts:selectDeep(selector)` - the elements a selector matches in the document, followed by those it matches in the page's open shadow roots (never the widget's own; `pageShadowRoot` in the same module decides which shadow roots count, and `isOurs` tells whether an element belongs to the widget).
 - `element-descriptor.ts:isSensitiveField` / `MASKED_VALUE` (`***`) / `elementDescriptor`.
 - `react-bridge.ts:installReactBridge` / `locate` / `describe` / `inspect` / `override` / `tree` / `find` / `rootFibers` / `elementByName` - React fiber inspection; also exported as the `reactBridge` namespace.

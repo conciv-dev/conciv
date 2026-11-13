@@ -25,7 +25,7 @@ const RESIZE_TRIGGER =
   'flex items-center justify-center w-4 shrink-0 cursor-col-resize [background:transparent] [border:none] p-0 rounded-[var(--chat-radius-sm)] focus-visible:[outline:0.125rem_solid_var(--chat-accent)]'
 const RESIZE_INDICATOR = 'w-1 h-8 rounded-[var(--chat-radius-pill)] [background:var(--chat-line)]'
 
-function splitOf(parameters: Record<string, unknown>): number[] {
+function readSplit(parameters: Record<string, unknown>): number[] {
   const value = parameters.cardSplit
   if (Array.isArray(value) && value.every((item) => typeof item === 'number')) return value
   return [100, 0]
@@ -35,7 +35,7 @@ const meta: Meta = {
   title: 'Extensions/Page/tool/SessionCard',
   decorators: [
     (Story, context) => {
-      const [size, setSize] = createSignal(splitOf(context.parameters))
+      const [size, setSize] = createSignal(readSplit(context.parameters))
       return (
         <div class={STAGE}>
           <Splitter.Root

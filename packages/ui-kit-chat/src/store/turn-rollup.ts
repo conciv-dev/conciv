@@ -28,7 +28,7 @@ const BashOutputSchema = z.object({
 
 type BashOutput = z.infer<typeof BashOutputSchema>
 
-function patchTextOf(part: ToolCallPart): string {
+function readPatchText(part: ToolCallPart): string {
   try {
     const input = JSON.parse(part.arguments || '{}')
     const value = input.patchText ?? input.patch ?? input.input ?? input.content
@@ -39,7 +39,7 @@ function patchTextOf(part: ToolCallPart): string {
 }
 
 function applyPatchInfo(part: ToolCallPart): FileEditInfo {
-  const patchText = patchTextOf(part)
+  const patchText = readPatchText(part)
   if (!patchText) return {files: [], added: 0, removed: 0}
   const files = [
     ...new Set(
@@ -81,7 +81,7 @@ function fileEditInfo(part: ToolCallPart): FileEditInfo {
   return {files: [input.file_path], added, removed}
 }
 
-function bashOutputOf(result: ToolResultPart | undefined): BashOutput {
+function parseBashOutput(result: ToolResultPart | undefined): BashOutput {
   if (!result || typeof result.content !== 'string') return {}
   try {
     const parsed = BashOutputSchema.safeParse(JSON.parse(result.content))
@@ -94,7 +94,7 @@ function bashOutputOf(result: ToolResultPart | undefined): BashOutput {
 function isFailedCall(part: ToolCallPart, result: ToolResultPart | undefined): boolean {
   if (toolStatus(part, result) === 'error') return true
   if (part.name !== 'Bash') return false
-  const exitCode = bashOutputOf(result).exitCode
+  const exitCode = parseBashOutput(result).exitCode
   return exitCode !== undefined && exitCode !== 0
 }
 
@@ -125,12 +125,12 @@ function failedFact(failed: number): string[] {
 
 const SIBILANT_ENDING = /(s|x|z|ch|sh)$/
 
-function pluralOf(label: string): string {
+function pluralize(label: string): string {
   return SIBILANT_ENDING.test(label) ? `${label}es` : `${label}s`
 }
 
 function toolTally(tools: Record<string, number>): string[] {
-  return Object.entries(tools).map(([label, count]) => countLabel(count, label, pluralOf(label)))
+  return Object.entries(tools).map(([label, count]) => countLabel(count, label, pluralize(label)))
 }
 
 function rollupFacts(rollup: TurnRollup): string[] {

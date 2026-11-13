@@ -75,7 +75,7 @@ function callCtx(
   }
 }
 
-function plainRecordOf(value: unknown): Record<string, unknown> | null {
+function readPlainRecord(value: unknown): Record<string, unknown> | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
   const prototype = Object.getPrototypeOf(value)
   if (prototype !== Object.prototype && prototype !== null) return null
@@ -150,7 +150,7 @@ export function makePageToolDispatcher(
     const ctx = callCtx(query, refs, consoleBuf, effects, slot, signal)
     try {
       const result = await tool.execute(query.input, capturingCtx(ctx, tool.capture, captures))
-      const record = plainRecordOf(result)
+      const record = readPlainRecord(result)
       if (!record || !isJsonSerializable(record)) fail(`${query.name} returned a non-serializable result`)
       if (tool.capture !== 'none' && query.queued === undefined) captures.take('after', slot.el)
       const bundle = await tryBuildCaptureBundle(captures.entries())

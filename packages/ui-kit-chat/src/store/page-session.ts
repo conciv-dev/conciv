@@ -4,7 +4,7 @@ import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
 import {
   defaultGrouper,
   isReplyText,
-  parentToolCallIdOf,
+  readParentToolCallId,
   PAGE_SESSION_GROUP_KEY,
   PAGE_SESSION_PATH,
   stickyGrouper,
@@ -46,7 +46,7 @@ function foldableParentIds(parts: ReadonlyArray<ChatPart>, actNames: ReadonlySet
     ).map(({call, index}) => [call.id, index]),
   )
   const actChildren = calls.flatMap(({call, index}) => {
-    const parent = parentToolCallIdOf(call)
+    const parent = readParentToolCallId(call)
     return actNames.has(call.name) && parent !== null ? [{parent, index}] : []
   })
   const unsplit = uniqBy(actChildren, ({parent}) => parent).filter(({parent, index: childIndex}) => {
@@ -68,7 +68,7 @@ function sessionMemberCall(
 
 function toolCallFolds(state: SessionState, config: PageSessionGrouperConfig, part: ToolCallPart): boolean {
   if (part.state === 'approval-requested') return false
-  const parent = parentToolCallIdOf(part)
+  const parent = readParentToolCallId(part)
   if (parent !== null && state.openCallIds.has(parent)) return true
   return part.name.startsWith(config.toolPrefix)
 }

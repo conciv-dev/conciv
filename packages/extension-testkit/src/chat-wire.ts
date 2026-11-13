@@ -41,7 +41,7 @@ function lastUserContent(input: z.infer<typeof RunAgentInputSchema>): ChatWirePa
   return input.messages.findLast((message) => message.role === 'user')?.content ?? []
 }
 
-function frameOf(transport: ChatTransport, raw: unknown): ChatTurnFrame | null {
+function parseFrame(transport: ChatTransport, raw: unknown): ChatTurnFrame | null {
   const parsed = RunAgentInputSchema.safeParse(raw)
   if (!parsed.success) return null
   return {
@@ -81,14 +81,14 @@ export function watchChatWire(page: Page): ChatWireWatch {
     socket.on('close', () => {
       sockets.closed += 1
     })
-    socket.on('framesent', (event) => record(frameOf('websocket', parsedJson(String(event.payload)))))
+    socket.on('framesent', (event) => record(parseFrame('websocket', parsedJson(String(event.payload)))))
   }
 
   const onRequest = (request: PageRequest): void => {
     if (request.method() !== 'POST') return
     if (!new URL(request.url()).pathname.endsWith(CHAT_SSE_PATH)) return
     const body = request.postData()
-    if (body !== null) record(frameOf('fetch', parsedJson(body)))
+    if (body !== null) record(parseFrame('fetch', parsedJson(body)))
   }
 
   page.on('websocket', onSocket)

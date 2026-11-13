@@ -60,17 +60,17 @@ function createClaimStore(): ClaimStore {
   return {subscribe, claims: () => claims, claimPart, claimEffect}
 }
 
-const partReadersOf = (connect: MascotConnect): Record<MascotPartName, () => MascotPartProps> => ({
+const buildPartReaders = (connect: MascotConnect): Record<MascotPartName, () => MascotPartProps> => ({
   head: connect.getHeadProps,
   eyes: connect.getEyesProps,
   antenna: connect.getAntennaProps,
 })
 
-const followOf = (claims: MascotClaims, part: MascotPartName): boolean | undefined => claims.parts[part]?.follow
+const readFollow = (claims: MascotClaims, part: MascotPartName): boolean | undefined => claims.parts[part]?.follow
 
 function resolveFollow(claims: MascotClaims, follow: MascotProps['follow']): FollowChannels {
   const base = followChannels(follow ?? true)
-  return {eyes: followOf(claims, 'eyes') ?? base.eyes, antenna: followOf(claims, 'antenna') ?? base.antenna}
+  return {eyes: readFollow(claims, 'eyes') ?? base.eyes, antenna: readFollow(claims, 'antenna') ?? base.antenna}
 }
 
 export function useMascotHost(props: MascotProps): MascotHost {
@@ -97,11 +97,11 @@ export function useMascotHost(props: MascotProps): MascotHost {
   const context = useMemo<MascotContextValue>(
     () => ({
       service,
-      partProps: (part) => partReadersOf(connect)[part](),
+      partProps: (part) => buildPartReaders(connect)[part](),
       effectHostProps: connect.getEffectHostProps,
       claimPart: store.claimPart,
       claimEffect: store.claimEffect,
-      claimOf: (part) => store.claims().parts[part],
+      readClaim: (part) => store.claims().parts[part],
       effectCount: () => store.claims().effects,
       curve: () => curve.current,
     }),

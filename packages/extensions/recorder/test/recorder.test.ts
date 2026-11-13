@@ -95,12 +95,12 @@ describe('capture', () => {
     return latest.id
   }
 
-  async function windowOf(): Promise<Awaited<ReturnType<ReturnType<typeof recorderRpc>['window']>>> {
+  async function fetchWindow(): Promise<Awaited<ReturnType<ReturnType<typeof recorderRpc>['window']>>> {
     return recorderRpc().window({clientId: await connectedClientId()})
   }
 
   async function windowJson(): Promise<string> {
-    return JSON.stringify((await windowOf()).events)
+    return JSON.stringify((await fetchWindow()).events)
   }
 
   async function flushIntoTheRing(): Promise<void> {
@@ -138,7 +138,7 @@ describe('capture', () => {
       await field.pressSequentially('sampling', {delay: 40})
       await field.press('Tab')
       await flushIntoTheRing()
-      const {events} = await windowOf()
+      const {events} = await fetchWindow()
       expect(JSON.stringify(events)).toContain('sampling')
       const inputEvents = events.filter((event) => JSON.stringify(event).includes('"text":"s'))
       expect(inputEvents.length).toBeLessThan(4)
@@ -147,7 +147,7 @@ describe('capture', () => {
     it('never captures conciv-marked light-DOM styles, so no multi-megabyte events', async () => {
       const label = await addMarker(api().page)
       await flushIntoTheRing()
-      const {events} = await windowOf()
+      const {events} = await fetchWindow()
       expect(JSON.stringify(events)).toContain(label)
       expect(JSON.stringify(events)).not.toContain('CONCIV_FONT_FIXTURE')
       const largest = Math.max(...events.map((event) => JSON.stringify(event).length))
@@ -590,14 +590,14 @@ describe('lazy capture', () => {
 describe('live routes', () => {
   const context = {context: {request: new Request('http://local')}}
 
-  async function nextOf<T>(stream: AsyncGenerator<T, void, unknown>): Promise<T> {
+  async function takeNext<T>(stream: AsyncGenerator<T, void, unknown>): Promise<T> {
     const next = await stream.next()
     if (next.done === true) throw new Error('the stream ended before its next value')
     return next.value
   }
 
-  async function firstOf<T>(stream: AsyncGenerator<T, void, unknown>): Promise<T> {
-    const value = await nextOf(stream)
+  async function takeFirst<T>(stream: AsyncGenerator<T, void, unknown>): Promise<T> {
+    const value = await takeNext(stream)
     await stream.return(undefined)
     return value
   }
@@ -609,7 +609,7 @@ describe('live routes', () => {
       const router = makeRecorderRouter(runtime)
       const first = await call(router.window, {clientId: 'c'}, context)
       runtime.rings.append('c', [{type: 3, data: {source: 2, type: 2, id: 1}, timestamp: 2000}])
-      const delta = await firstOf(await call(router.events, {cursor: first.cursor, clientId: 'c'}, context))
+      const delta = await takeFirst(await call(router.events, {cursor: first.cursor, clientId: 'c'}, context))
       expect(delta.events).toEqual([{type: 3, data: {source: 2, type: 2, id: 1}, timestamp: 2000}])
     })
 
@@ -617,11 +617,11 @@ describe('live routes', () => {
       const runtime = runtimeFixture()
       const router = makeRecorderRouter(runtime)
       const replay = await call(router.replay, {clientId: 'c'}, context)
-      expect((await nextOf(replay)).events).toEqual([])
+      expect((await takeNext(replay)).events).toEqual([])
       runtime.rings.append('c', [{type: 2, data: {node: {}}, timestamp: 1000}])
-      expect((await nextOf(replay)).events).toHaveLength(1)
+      expect((await takeNext(replay)).events).toHaveLength(1)
       runtime.rings.append('c', [{type: 3, data: {source: 2, type: 2, id: 1}, timestamp: 2000}])
-      expect((await nextOf(replay)).events).toHaveLength(2)
+      expect((await takeNext(replay)).events).toHaveLength(2)
       expect((await replay.next()).done).toBe(true)
     })
 
@@ -630,9 +630,9 @@ describe('live routes', () => {
       runtime.rings.append('c', [{type: 2, data: {node: {}}, timestamp: 1000}])
       const router = makeRecorderRouter(runtime)
       const live = await call(router.events, {cursor: 0, clientId: 'c'}, context)
-      await nextOf(live)
+      await takeNext(live)
       runtime.rings.append('c', [{type: 3, data: {source: 2, type: 2, id: 1}, timestamp: 2000}])
-      const sent = await nextOf(live)
+      const sent = await takeNext(live)
       expect(sent.events).toEqual([{type: 3, data: {source: 2, type: 2, id: 1}, timestamp: 2000}])
       await live.return(undefined)
       runtime.rings.append('c', [{type: 3, data: {source: 2, type: 2, id: 2}, timestamp: 3000}])
@@ -641,16 +641,16 @@ describe('live routes', () => {
         {cursor: 0, clientId: 'c'},
         {...context, lastEventId: String(sent.cursor)},
       )
-      expect((await firstOf(resumed)).events).toEqual([{type: 3, data: {source: 2, type: 2, id: 2}, timestamp: 3000}])
+      expect((await takeFirst(resumed)).events).toEqual([{type: 3, data: {source: 2, type: 2, id: 2}, timestamp: 3000}])
     })
 
     it('events after an equal-timestamp append are not swallowed by the cursor', async () => {
       const runtime = runtimeFixture()
       runtime.rings.append('c', [{type: 2, data: {node: {}}, timestamp: 1000}])
       const router = makeRecorderRouter(runtime)
-      const first = await firstOf(await call(router.events, {cursor: 0, clientId: 'c'}, context))
+      const first = await takeFirst(await call(router.events, {cursor: 0, clientId: 'c'}, context))
       runtime.rings.append('c', [{type: 3, data: {source: 2, type: 2, id: 7}, timestamp: 1000}])
-      const delta = await firstOf(await call(router.events, {cursor: first.cursor, clientId: 'c'}, context))
+      const delta = await takeFirst(await call(router.events, {cursor: first.cursor, clientId: 'c'}, context))
       expect(delta.events).toEqual([{type: 3, data: {source: 2, type: 2, id: 7}, timestamp: 1000}])
     })
 
@@ -667,7 +667,7 @@ describe('live routes', () => {
       const router = makeRecorderRouter(runtime)
       const pinned = await call(router.window, {clientId: 'mine'}, context)
       expect(pinned.events.map((event) => event.timestamp)).toEqual([1000, 2000])
-      const delta = await firstOf(await call(router.events, {cursor: 1, clientId: 'mine'}, context))
+      const delta = await takeFirst(await call(router.events, {cursor: 1, clientId: 'mine'}, context))
       expect(delta.events.map((event) => event.timestamp)).toEqual([2000])
       const saved = await call(router.recordings.save, {clientId: 'mine'}, context)
       if (!('recordingId' in saved)) throw new Error('expected recordingId')

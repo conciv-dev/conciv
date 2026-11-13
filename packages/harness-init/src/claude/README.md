@@ -20,7 +20,7 @@ Claude-specific init. It generates a local Claude plugin marketplace under `<sta
 - `copyMatches` returns false when no generated file lies inside the source root (`install-state.ts`).
 - `InstalledPluginsSchema`, `KnownMarketplacesSchema`, `MarketplaceEntrySchema` are zod-validated; a missing or invalid file counts as not installed.
 - The bridge walks up from `process.cwd()` to the first dir containing `CONCIV_STATE_DIR`; a missing endpoint file or empty `mcpUrl` returns JSON-RPC error `-32000` `conciv bridge: ...` for requests with an id, and nothing for notifications (`endpoint`, `failed` in `bridge.ts`).
-- Bridge timeout is `CONCIV_MCP_TIMEOUT_MS` when finite and > 0, else 180000 (`timeoutMs`); non-ok HTTP, empty bodies and non-JSON frames are errors; `text/event-stream` bodies are split into `data:` frames (`send`, `framesOf`, `eventsOf`).
+- Bridge timeout is `CONCIV_MCP_TIMEOUT_MS` when finite and > 0, else 180000 (`timeoutMs`); non-ok HTTP, empty bodies and non-JSON frames are errors; `text/event-stream` bodies are split into `data:` frames (`send`, `splitFrames`, `splitEvents`).
 - `shellQuoted` single-quote-escapes the root in the manual-install snippet (`init.ts`).
 
 ## Side Effects

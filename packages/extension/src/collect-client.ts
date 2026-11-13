@@ -10,7 +10,7 @@ export type ClientToolEntry = {
   execute: (input: unknown, ctx: ClientToolCtx) => Promise<unknown>
 }
 
-export function captureModeOf(meta: ToolMeta | undefined): ToolCaptureMode {
+export function resolveCaptureMode(meta: ToolMeta | undefined): ToolCaptureMode {
   if (meta?.capture !== undefined) return meta.capture
   return meta?.mutating === true ? 'after' : 'none'
 }
@@ -25,7 +25,7 @@ export function collectClientTools(builders: AnyExtension[]): ClientToolEntry[] 
       seen.add(tool.name)
       entries.push({
         name: tool.name,
-        capture: captureModeOf(tool.meta),
+        capture: resolveCaptureMode(tool.meta),
         execute,
       })
     }

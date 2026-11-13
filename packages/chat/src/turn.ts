@@ -1,6 +1,6 @@
 import {existsSync, readFileSync} from 'node:fs'
 import {readFile} from 'node:fs/promises'
-import {approvalAskOf, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {readApprovalAsk, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {tokenUsageToSnapshot, toTokenUsage, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {type ContentPart, type ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {Turn, TurnHooks} from '@conciv/ai/server'
@@ -53,7 +53,7 @@ export const COMPACT_FALLBACK_PROMPT =
 
 const TITLE_MAX_CHARS = 120
 
-export function systemTextOf(
+export function buildSystemText(
   sources: SystemPromptSources,
   mode: HarnessAdapter['capabilities']['systemPrompt'],
   log: TurnDeps['log'],
@@ -146,7 +146,7 @@ function fromLastUser(messages: ModelMessage[]): ModelMessage[] {
   )
 }
 
-function textOf(message: ModelMessage | undefined): string {
+function readText(message: ModelMessage | undefined): string {
   const content = message?.content
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
@@ -155,16 +155,16 @@ function textOf(message: ModelMessage | undefined): string {
 
 function isBlank(message: ModelMessage): boolean {
   const hasParts = Array.isArray(message.content) && message.content.some((part) => part.type !== 'text')
-  return !hasParts && textOf(message).trim() === ''
+  return !hasParts && readText(message).trim() === ''
 }
 
 export function firstUserTitle(messages: readonly ModelMessage[]): string {
-  return textOf(messages.find((message) => message.role === 'user'))
+  return readText(messages.find((message) => message.role === 'user'))
     .trim()
     .slice(0, TITLE_MAX_CHARS)
 }
 
-async function contextTokensOf(deps: TurnDeps, sessionId: SessionId): Promise<number | undefined> {
+async function countContextTokens(deps: TurnDeps, sessionId: SessionId): Promise<number | undefined> {
   const harness = deps.harnessFor(sessionId)
   const history = harness.history
   const row = deps.sessions.row(sessionId)
@@ -176,7 +176,7 @@ async function contextTokensOf(deps: TurnDeps, sessionId: SessionId): Promise<nu
 }
 
 async function recordContext(deps: TurnDeps, sessionId: SessionId): Promise<void> {
-  const contextTokens = await contextTokensOf(deps, sessionId)
+  const contextTokens = await countContextTokens(deps, sessionId)
   if (contextTokens !== undefined) await deps.sessions.recordContextTokens(sessionId, contextTokens)
 }
 
@@ -189,7 +189,7 @@ export function turnHooks(
     plan: (turn) => {
       const sessionId = SessionId.parse(turn.threadId)
       const harness = deps.harnessFor(sessionId)
-      const systemText = systemTextOf(deps.systemPrompt, harness.capabilities.systemPrompt, deps.log)
+      const systemText = buildSystemText(deps.systemPrompt, harness.capabilities.systemPrompt, deps.log)
       const row = deps.sessions.row(sessionId)
       const own = ownRow(harness, row)
       const model = own?.model ?? null
@@ -240,7 +240,7 @@ export function turnHooks(
           }
           const minted = mintedSessionId(shaped)
           if (minted !== null) await deps.sessions.recordNativeId(sessionId, harness.id, minted)
-          const ask = approvalAskOf(shaped)
+          const ask = readApprovalAsk(shaped)
           if (ask !== null) {
             const {toolName, ...asked} = ask
             await context.approvals.asked(sessionId, {...asked, title: toolName, runId: turn.runId})

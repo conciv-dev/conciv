@@ -139,7 +139,7 @@ export function presetPlacement(preset: TriggerPosition): Placement {
   return {kind: 'corner', corner: preset}
 }
 
-function jsonOf(raw: string): unknown {
+function parseJson(raw: string): unknown {
   try {
     return JSON.parse(raw)
   } catch {
@@ -150,6 +150,6 @@ function jsonOf(raw: string): unknown {
 export function parsePlacement(raw: string): Placement | undefined {
   const preset = PRESETS.find((candidate) => candidate === raw)
   if (preset) return presetPlacement(preset)
-  const parsed = PlacementSchema.safeParse(jsonOf(raw))
+  const parsed = PlacementSchema.safeParse(parseJson(raw))
   return parsed.success ? parsed.data : undefined
 }

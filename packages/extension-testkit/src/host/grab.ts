@@ -16,7 +16,7 @@ function parseSource(value: string): SourceParts {
   }
 }
 
-function sourceOf(element: Element): SourceParts | null {
+function readSource(element: Element): SourceParts | null {
   const value = element.getAttribute(SOURCE_ATTR)
   return value ? parseSource(value) : null
 }
@@ -27,7 +27,7 @@ function toElementSource(parts: SourceParts): ElementSource {
 
 function toGrab(element: Element): Grab {
   const box = element.getBoundingClientRect()
-  const parts = sourceOf(element)
+  const parts = readSource(element)
   const clone = element.cloneNode(true)
   const html = clone instanceof Element ? clone.outerHTML : ''
   return {

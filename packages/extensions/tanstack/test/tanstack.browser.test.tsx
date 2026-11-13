@@ -153,13 +153,13 @@ describe('router card', () => {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   }
 
-  function doneTitleOf(name: string): RegExp {
+  function matchDoneTitle(name: string): RegExp {
     const meta = metaByName.get(name)
     if (!meta?.label) throw new Error(`no label registered for ${name}`)
     return new RegExp(escapeRegExp(meta.label.done))
   }
 
-  function runningTitleOf(name: string): RegExp {
+  function matchRunningTitle(name: string): RegExp {
     const meta = metaByName.get(name)
     if (!meta?.label) throw new Error(`no label registered for ${name}`)
     return new RegExp(escapeRegExp(meta.label.running))
@@ -178,20 +178,20 @@ describe('router card', () => {
       state: 'error',
       ctx: catalogCtx,
     })
-    await page.getByRole('button', {name: doneTitleOf(name)}).click()
+    await page.getByRole('button', {name: matchDoneTitle(name)}).click()
     await expect.element(page.getByText(message)).toBeVisible()
   }
 
   describe('RouterStateCard (real browser)', () => {
     it('renders a loading affordance while the tool is running', async () => {
       mountToolCard(RouterStateCard, {name: 'tanstack_router_state', ctx: catalogCtx})
-      await expect.element(page.getByText(runningTitleOf('tanstack_router_state'))).toBeVisible()
+      await expect.element(page.getByText(matchRunningTitle('tanstack_router_state'))).toBeVisible()
     })
 
     it('shows the current route path and match count on success', async () => {
       mountToolCard(RouterStateCard, {name: 'tanstack_router_state', content: ROUTER_STATE, ctx: catalogCtx})
       await expect.element(page.getByText('/about · 2 matches')).toBeVisible()
-      await page.getByRole('button', {name: doneTitleOf('tanstack_router_state')}).click()
+      await page.getByRole('button', {name: matchDoneTitle('tanstack_router_state')}).click()
       await expect.element(page.getByText('__root__')).toBeVisible()
       await expect.element(page.getByText('success')).toBeVisible()
     })
@@ -204,13 +204,13 @@ describe('router card', () => {
   describe('RouteTreeCard (real browser)', () => {
     it('renders a loading affordance while the tool is running', async () => {
       mountToolCard(RouteTreeCard, {name: 'tanstack_route_tree', ctx: catalogCtx})
-      await expect.element(page.getByText(runningTitleOf('tanstack_route_tree'))).toBeVisible()
+      await expect.element(page.getByText(matchRunningTitle('tanstack_route_tree'))).toBeVisible()
     })
 
     it('shows the route ids on success', async () => {
       mountToolCard(RouteTreeCard, {name: 'tanstack_route_tree', content: ROUTE_TREE, ctx: catalogCtx})
       await expect.element(page.getByText('3 routes')).toBeVisible()
-      await page.getByRole('button', {name: doneTitleOf('tanstack_route_tree')}).click()
+      await page.getByRole('button', {name: matchDoneTitle('tanstack_route_tree')}).click()
       await expect.element(page.getByText('__root__')).toBeVisible()
       await expect.element(page.getByText('/about', {exact: true})).toBeVisible()
     })
@@ -247,13 +247,13 @@ describe('router card', () => {
   describe('QueryCacheCard (real browser)', () => {
     it('renders a loading affordance while the tool is running', async () => {
       mountToolCard(QueryCacheCard, {name: 'tanstack_query_cache', ctx: catalogCtx})
-      await expect.element(page.getByText(runningTitleOf('tanstack_query_cache'))).toBeVisible()
+      await expect.element(page.getByText(matchRunningTitle('tanstack_query_cache'))).toBeVisible()
     })
 
     it('shows the cached query keys and states on success', async () => {
       mountToolCard(QueryCacheCard, {name: 'tanstack_query_cache', content: QUERY_CACHE, ctx: catalogCtx})
       await expect.element(page.getByText('2 queries')).toBeVisible()
-      await page.getByRole('button', {name: doneTitleOf('tanstack_query_cache')}).click()
+      await page.getByRole('button', {name: matchDoneTitle('tanstack_query_cache')}).click()
       await expect.element(page.getByText('["spike","demo"]')).toBeVisible()
       await expect.element(page.getByText('fresh')).toBeVisible()
       await expect.element(page.getByText('stale')).toBeVisible()
@@ -269,13 +269,13 @@ describe('router card', () => {
   describe('LoaderDataCard (real browser)', () => {
     it('renders a loading affordance while the tool is running', async () => {
       mountToolCard(LoaderDataCard, {name: 'tanstack_loader_data', ctx: catalogCtx})
-      await expect.element(page.getByText(runningTitleOf('tanstack_loader_data'))).toBeVisible()
+      await expect.element(page.getByText(matchRunningTitle('tanstack_loader_data'))).toBeVisible()
     })
 
     it('shows the loader keys and truncation marker on success', async () => {
       mountToolCard(LoaderDataCard, {name: 'tanstack_loader_data', content: LOADER_DATA, ctx: catalogCtx})
       await expect.element(page.getByText('3 keys · /about')).toBeVisible()
-      await page.getByRole('button', {name: doneTitleOf('tanstack_loader_data')}).click()
+      await page.getByRole('button', {name: matchDoneTitle('tanstack_loader_data')}).click()
       await expect.element(page.getByText('server')).toBeVisible()
       await expect.element(page.getByText('deep')).toBeVisible()
       await expect.element(page.getByText('{…}')).toBeVisible()
@@ -292,7 +292,7 @@ describe('router card', () => {
         content: LOADER_DATA_WITH_ORDINARY_PREVIEW_FIELD,
         ctx: catalogCtx,
       })
-      await page.getByRole('button', {name: doneTitleOf('tanstack_loader_data')}).click()
+      await page.getByRole('button', {name: matchDoneTitle('tanstack_loader_data')}).click()
       await expect.element(page.getByText('author', {exact: true})).toBeVisible()
     })
   })
@@ -300,7 +300,7 @@ describe('router card', () => {
   describe('NavigateCard (real browser)', () => {
     it('renders a loading affordance while the action runs', async () => {
       mountToolCard(NavigateCard, {name: 'tanstack_navigate', args: {to: '/form'}, ctx: catalogCtx})
-      await expect.element(page.getByText(runningTitleOf('tanstack_navigate'))).toBeVisible()
+      await expect.element(page.getByText(matchRunningTitle('tanstack_navigate'))).toBeVisible()
     })
 
     it('confirms the target route on success', async () => {
@@ -323,7 +323,7 @@ describe('router card', () => {
   describe('RouterInvalidateCard (real browser)', () => {
     it('renders a loading affordance while the action runs', async () => {
       mountToolCard(RouterInvalidateCard, {name: 'tanstack_router_invalidate', ctx: catalogCtx})
-      await expect.element(page.getByText(runningTitleOf('tanstack_router_invalidate'))).toBeVisible()
+      await expect.element(page.getByText(matchRunningTitle('tanstack_router_invalidate'))).toBeVisible()
     })
 
     it('confirms invalidation on success', async () => {
@@ -358,7 +358,7 @@ describe('router card', () => {
         args: {key: '["spike","demo"]'},
         ctx: catalogCtx,
       })
-      await expect.element(page.getByText(runningTitleOf('tanstack_query_invalidate'))).toBeVisible()
+      await expect.element(page.getByText(matchRunningTitle('tanstack_query_invalidate'))).toBeVisible()
     })
 
     it('confirms the invalidated key on success', async () => {
@@ -418,13 +418,13 @@ describe('server card', () => {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   }
 
-  function doneTitleOf(name: string): RegExp {
+  function matchDoneTitle(name: string): RegExp {
     const meta = metaByName.get(name)
     if (!meta?.label) throw new Error(`no label registered for ${name}`)
     return new RegExp(escapeRegExp(meta.label.done))
   }
 
-  function runningTitleOf(name: string): RegExp {
+  function matchRunningTitle(name: string): RegExp {
     const meta = metaByName.get(name)
     if (!meta?.label) throw new Error(`no label registered for ${name}`)
     return new RegExp(escapeRegExp(meta.label.running))
@@ -462,13 +462,13 @@ describe('server card', () => {
   describe('BuildErrorsCard (real browser)', () => {
     it('renders a loading affordance while the tool is running', async () => {
       mountToolCard(BuildErrorsCard, {name: 'tanstack_build_errors', ctx: catalogCtx})
-      await expect.element(page.getByText(runningTitleOf('tanstack_build_errors'))).toBeVisible()
+      await expect.element(page.getByText(matchRunningTitle('tanstack_build_errors'))).toBeVisible()
     })
 
     it('lists the build error message and location on success', async () => {
       mountToolCard(BuildErrorsCard, {name: 'tanstack_build_errors', content: BUILD_ERRORS, ctx: catalogCtx})
       await expect.element(page.getByText('1 error')).toBeVisible()
-      await page.getByRole('button', {name: doneTitleOf('tanstack_build_errors')}).click()
+      await page.getByRole('button', {name: matchDoneTitle('tanstack_build_errors')}).click()
       await expect.element(page.getByText('/app/src/routes/about.tsx:12')).toBeVisible()
       await expect.element(page.getByText("Expected ';' but found '='")).toBeVisible()
     })
@@ -476,7 +476,7 @@ describe('server card', () => {
     it('shows a clean state when there are no build errors', async () => {
       mountToolCard(BuildErrorsCard, {name: 'tanstack_build_errors', content: JSON.stringify([]), ctx: catalogCtx})
       await expect.element(page.getByText('no errors')).toBeVisible()
-      await page.getByRole('button', {name: doneTitleOf('tanstack_build_errors')}).click()
+      await page.getByRole('button', {name: matchDoneTitle('tanstack_build_errors')}).click()
       await expect.element(page.getByText('No build errors')).toBeVisible()
     })
 
@@ -487,7 +487,7 @@ describe('server card', () => {
         state: 'error',
         ctx: catalogCtx,
       })
-      await page.getByRole('button', {name: doneTitleOf('tanstack_build_errors')}).click()
+      await page.getByRole('button', {name: matchDoneTitle('tanstack_build_errors')}).click()
       await expect.element(page.getByText('bundler bridge unavailable', {exact: true})).toBeVisible()
     })
   })
@@ -495,13 +495,13 @@ describe('server card', () => {
   describe('RouteManifestCard (real browser)', () => {
     it('renders a loading affordance while the tool is running', async () => {
       mountToolCard(RouteManifestCard, {name: 'tanstack_route_manifest', ctx: catalogCtx})
-      await expect.element(page.getByText(runningTitleOf('tanstack_route_manifest'))).toBeVisible()
+      await expect.element(page.getByText(matchRunningTitle('tanstack_route_manifest'))).toBeVisible()
     })
 
     it('lists the routes with kind and dynamic markers on success', async () => {
       mountToolCard(RouteManifestCard, {name: 'tanstack_route_manifest', content: ROUTE_MANIFEST, ctx: catalogCtx})
       await expect.element(page.getByText('3 routes')).toBeVisible()
-      await page.getByRole('button', {name: doneTitleOf('tanstack_route_manifest')}).click()
+      await page.getByRole('button', {name: matchDoneTitle('tanstack_route_manifest')}).click()
       await expect.element(page.getByText('/posts/$postId')).toBeVisible()
       await expect.element(page.getByText('layout')).toBeVisible()
       await expect.element(page.getByText('dynamic')).toBeVisible()
@@ -514,7 +514,7 @@ describe('server card', () => {
         state: 'error',
         ctx: catalogCtx,
       })
-      await page.getByRole('button', {name: doneTitleOf('tanstack_route_manifest')}).click()
+      await page.getByRole('button', {name: matchDoneTitle('tanstack_route_manifest')}).click()
       await expect.element(page.getByText('routeTree.gen not found', {exact: true})).toBeVisible()
     })
   })
@@ -522,13 +522,13 @@ describe('server card', () => {
   describe('ServerFnTraceCard (real browser)', () => {
     it('renders a loading affordance while the tool is running', async () => {
       mountToolCard(ServerFnTraceCard, {name: 'tanstack_server_fn_trace', ctx: catalogCtx})
-      await expect.element(page.getByText(runningTitleOf('tanstack_server_fn_trace'))).toBeVisible()
+      await expect.element(page.getByText(matchRunningTitle('tanstack_server_fn_trace'))).toBeVisible()
     })
 
     it('lists server-fn calls with name, file, duration and status on success', async () => {
       mountToolCard(ServerFnTraceCard, {name: 'tanstack_server_fn_trace', content: SERVER_FN_TRACES, ctx: catalogCtx})
       await expect.element(page.getByText('2 calls')).toBeVisible()
-      await page.getByRole('button', {name: doneTitleOf('tanstack_server_fn_trace')}).click()
+      await page.getByRole('button', {name: matchDoneTitle('tanstack_server_fn_trace')}).click()
       await expect.element(page.getByText('getGreeting_createServerFn_handler')).toBeVisible()
       await expect.element(page.getByText('/src/lib/server-fns.ts')).toBeVisible()
       await expect.element(page.getByText('4ms')).toBeVisible()
@@ -542,7 +542,7 @@ describe('server card', () => {
         ctx: catalogCtx,
       })
       await expect.element(page.getByText('no calls')).toBeVisible()
-      await page.getByRole('button', {name: doneTitleOf('tanstack_server_fn_trace')}).click()
+      await page.getByRole('button', {name: matchDoneTitle('tanstack_server_fn_trace')}).click()
       await expect.element(page.getByText('No server-fn calls')).toBeVisible()
     })
 
@@ -553,7 +553,7 @@ describe('server card', () => {
         state: 'error',
         ctx: catalogCtx,
       })
-      await page.getByRole('button', {name: doneTitleOf('tanstack_server_fn_trace')}).click()
+      await page.getByRole('button', {name: matchDoneTitle('tanstack_server_fn_trace')}).click()
       await expect.element(page.getByText('bundler bridge unavailable', {exact: true})).toBeVisible()
     })
   })

@@ -849,9 +849,6 @@ importers:
       '@conciv/extension':
         specifier: workspace:*
         version: link:../../../packages/extension
-      '@conciv/extension-design':
-        specifier: workspace:*
-        version: link:../../../packages/extensions/design
       '@conciv/extension-recorder':
         specifier: workspace:*
         version: link:../../../packages/extensions/recorder
@@ -4476,6 +4473,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
+      drizzle-kit:
+        specifier: 'catalog:'
+        version: 1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7))
       esbuild:
         specifier: 'catalog:'
         version: 0.28.2

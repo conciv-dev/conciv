@@ -72,7 +72,7 @@ type ShapeBuilder = (node: Element, context: ShapeContext) => ExcalidrawElementS
 
 const CONTAINERS = new Set(['g', 'svg'])
 
-const attrOf = (node: Element, name: string, fallback = '0'): number =>
+const readNumberAttribute = (node: Element, name: string, fallback = '0'): number =>
   parseFloat(node.getAttribute(name) ?? fallback) || 0
 
 function place(context: ShapeContext, x: number, y: number): Origin {
@@ -86,14 +86,14 @@ function nodeMatrix(node: Element, matrix: DOMMatrix): DOMMatrix {
 }
 
 function buildRect(node: Element, context: ShapeContext): ExcalidrawElementSkeleton[] {
-  const at = place(context, attrOf(node, 'x'), attrOf(node, 'y'))
+  const at = place(context, readNumberAttribute(node, 'x'), readNumberAttribute(node, 'y'))
   return [
     {
       type: 'rectangle',
       x: at.x,
       y: at.y,
-      width: attrOf(node, 'width') * context.matrix.a * context.scale,
-      height: attrOf(node, 'height') * context.matrix.d * context.scale,
+      width: readNumberAttribute(node, 'width') * context.matrix.a * context.scale,
+      height: readNumberAttribute(node, 'height') * context.matrix.d * context.scale,
       ...styleFields(node, context.scale, context.roughness),
     } as ExcalidrawElementSkeleton,
   ]
@@ -101,9 +101,9 @@ function buildRect(node: Element, context: ShapeContext): ExcalidrawElementSkele
 
 function buildEllipse(node: Element, context: ShapeContext): ExcalidrawElementSkeleton[] {
   const radiusAttr = node.tagName === 'circle' ? ['r', 'r'] : ['rx', 'ry']
-  const rx = attrOf(node, radiusAttr[0] ?? 'r')
-  const ry = attrOf(node, radiusAttr[1] ?? 'r')
-  const at = place(context, attrOf(node, 'cx') - rx, attrOf(node, 'cy') - ry)
+  const rx = readNumberAttribute(node, radiusAttr[0] ?? 'r')
+  const ry = readNumberAttribute(node, radiusAttr[1] ?? 'r')
+  const at = place(context, readNumberAttribute(node, 'cx') - rx, readNumberAttribute(node, 'cy') - ry)
   return [
     {
       type: 'ellipse',
@@ -118,7 +118,7 @@ function buildEllipse(node: Element, context: ShapeContext): ExcalidrawElementSk
 
 function buildText(node: Element, context: ShapeContext): ExcalidrawElementSkeleton[] {
   const fontSize = (parseFloat(getComputedStyle(node).fontSize) || 16) * context.scale
-  const at = place(context, attrOf(node, 'x'), attrOf(node, 'y'))
+  const at = place(context, readNumberAttribute(node, 'x'), readNumberAttribute(node, 'y'))
   return [
     {
       type: 'text',
@@ -132,8 +132,8 @@ function buildText(node: Element, context: ShapeContext): ExcalidrawElementSkele
 }
 
 function buildLine(node: Element, context: ShapeContext): ExcalidrawElementSkeleton[] {
-  const from = place(context, attrOf(node, 'x1'), attrOf(node, 'y1'))
-  const to = place(context, attrOf(node, 'x2'), attrOf(node, 'y2'))
+  const from = place(context, readNumberAttribute(node, 'x1'), readNumberAttribute(node, 'y1'))
+  const to = place(context, readNumberAttribute(node, 'x2'), readNumberAttribute(node, 'y2'))
   return [
     lineFromPoints(
       [

@@ -169,7 +169,7 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
     }
   }
 
-  function entryOf(tab: SessionId): TabEntry {
+  function ensureEntry(tab: SessionId): TabEntry {
     const existing = tabs.get(tab)
     if (existing !== undefined) return existing
     const created: TabEntry = {owner: null, greeted: false}
@@ -188,7 +188,7 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
     signal: AbortSignal | undefined,
     resent = false,
   ): Promise<Routed<Value>> {
-    const entry = entryOf(tab)
+    const entry = ensureEntry(tab)
     const kept = (entry.owner ??= findOwner(home, tab, headers))
     const owner = await kept.catch((error: unknown) => {
       forget(entry, kept)
@@ -233,7 +233,7 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
     const typescriptCode = input.typescriptCode
     const executed = await routed(
       tab,
-      (rpc, aborted) => rpc.code.execute({...sessionOf(tab), typescriptCode}, {signal: aborted}),
+      (rpc, aborted) => rpc.code.execute({...buildSessionInput(tab), typescriptCode}, {signal: aborted}),
       codeExecuteReply,
       signal,
     )
@@ -323,7 +323,7 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
     const toolNames = input.toolNames
     const discovered = await routed(
       tab,
-      (rpc, aborted) => rpc.code.discover({...sessionOf(tab), toolNames}, {signal: aborted}),
+      (rpc, aborted) => rpc.code.discover({...buildSessionInput(tab), toolNames}, {signal: aborted}),
       codeDiscoverReply,
       signal,
     )
@@ -470,7 +470,7 @@ function greeted(entry: TabEntry, owner: TabOwner, reply: Reply): Reply {
   return {...reply, content: [{type: 'text', text: owner.instructions}, ...reply.content]}
 }
 
-function sessionOf(tab: SessionId | undefined): {sessionId?: SessionId} {
+function buildSessionInput(tab: SessionId | undefined): {sessionId?: SessionId} {
   return tab === undefined ? {} : {sessionId: tab}
 }
 
