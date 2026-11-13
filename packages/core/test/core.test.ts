@@ -3003,11 +3003,26 @@ describe('plugin context keys provided by core', () => {
       providerId: 'listing-cli',
     })
 
+    const entries = (run: (service: InstructionEntry.Interface) => Effect.Effect<unknown, unknown>) =>
+      made.pluginHost.runPromise(InstructionEntry.Service.use(run))
+    await entries((service) => service.put({sessionId: SessionSchema.Id.make(sessionId), key: 'brief', value: 'gone'}))
+    await entries((service) => service.put({sessionId: SessionSchema.Id.make(second.id), key: 'brief', value: 'kept'}))
+    expect(await entries((service) => service.list(SessionSchema.Id.make(sessionId)))).toEqual([
+      {key: 'brief', value: 'gone'},
+    ])
+    expect(await entries((service) => service.list(SessionSchema.Id.make(second.id)))).toEqual([
+      {key: 'brief', value: 'kept'},
+    ])
+
     await key.run((sessions) => sessions.remove(sessionId))
     expect(await key.fail((sessions) => sessions.get(sessionId))).toMatchObject({
       _tag: 'Session.NotFoundError',
       sessionId,
     })
+    expect(await entries((service) => service.list(SessionSchema.Id.make(sessionId)))).toEqual([])
+    expect(await entries((service) => service.list(SessionSchema.Id.make(second.id)))).toEqual([
+      {key: 'brief', value: 'kept'},
+    ])
     expect(await key.fail((sessions) => sessions.remove(sessionId))).toMatchObject({_tag: 'Session.NotFoundError'})
     expect(heard.filter((event) => event.type === SessionEvent.Deleted.type)).toHaveLength(1)
     expect((await key.run((sessions) => sessions.list())).data.map((session) => session.id)).toEqual([second.id])

@@ -4,7 +4,8 @@ import type {ManagedRuntime} from 'effect'
 import type {ChatPlane} from '@conciv/chat'
 import {clearPageChanges, deleteSessionCaptures, drafts, markers, sessions, type ConcivDb} from '@conciv/db'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {Bus, SessionEvent, SessionSchema} from '@conciv/plugin-host'
+import {Bus, KV, SessionEvent, SessionSchema} from '@conciv/plugin-host'
+import {removeInstructionEntries} from '../runtime/instruction-entries.js'
 import {createRow, rowById, tombstoneRow} from './session-rows.js'
 import type {createSessionSearch} from './session-search.js'
 
@@ -13,7 +14,7 @@ type SessionRenaming = {db: ConcivDb; search: Pick<ReturnType<typeof createSessi
 type SessionDeletion = {
   db: ConcivDb
   plane: Pick<ChatPlane, 'clear'>
-  pluginHost: ManagedRuntime.ManagedRuntime<Bus.Interface, never>
+  pluginHost: ManagedRuntime.ManagedRuntime<Bus.Interface | KV.Interface, never>
 }
 
 export async function createChatSession(
@@ -63,6 +64,7 @@ export async function deleteSession(deletion: SessionDeletion, sessionId: Sessio
   await deletion.plane.clear(sessionId)
   await deleteSessionCaptures(deletion.db, sessionId)
   await clearPageChanges(deletion.db, sessionId)
+  await deletion.pluginHost.runPromise(KV.Service.use((kv) => removeInstructionEntries(kv, sessionId)))
   await deletion.pluginHost.runPromise(
     Bus.Service.use((bus) => bus.publish(SessionEvent.Deleted, {sessionID: SessionSchema.Id.make(sessionId)})),
   )

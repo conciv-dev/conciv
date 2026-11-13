@@ -10,7 +10,7 @@ import {
   type SessionId,
   type SessionRecord,
 } from '@conciv/protocol/chat-types'
-import {Agent, type Bus, Session, SessionErrors} from '@conciv/plugin-host'
+import {Agent, type Bus, type KV, Session, SessionErrors} from '@conciv/plugin-host'
 import type {ChatContext} from '../api/rpc/mount.js'
 import {listedSessionPage, searchedSessionPage, switchSessionEffort, switchSessionModel} from '../api/rpc/sessions.js'
 import {createChatSession, deleteSession, renameSession} from '../sessions/session-actions.js'
@@ -22,7 +22,7 @@ type SessionKeyDeps = {
   chat: ChatContext
   runtime: Pick<CoreRuntime, 'forSession'>
   search: Pick<ReturnType<typeof createSessionSearch>, 'retitle' | 'pages' | 'listed'>
-  pluginHost: ManagedRuntime.ManagedRuntime<Bus.Interface, never>
+  pluginHost: ManagedRuntime.ManagedRuntime<Bus.Interface | KV.Interface, never>
 }
 
 type SessionInfo = Effect.Success<ReturnType<Session.Interface['get']>>

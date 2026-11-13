@@ -27,6 +27,7 @@ import type {
   Agent,
   Bus,
   Database,
+  InstructionEntry,
   KV,
   Location,
   Permission,
@@ -48,6 +49,7 @@ export type PluginHost = ManagedRuntime.ManagedRuntime<
   | PluginHooks.Interface
   | Rpc.Interface
   | KV.Interface
+  | InstructionEntry.Interface
   | Skill.Interface
   | SkillInstructions.Interface
   | Bus.Interface
