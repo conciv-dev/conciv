@@ -47,7 +47,7 @@ export interface SessionInfo {
   subpath?: string
   /** Not implemented yet. Always undefined in this version. */
   metadata?: {[key: string]: Json}
-  permissions?: Array<{action: string; resource: string; effect: 'allow' | 'deny' | 'ask'}>
+  permissions?: Ruleset
   /** Not implemented yet. Always undefined in this version. */
   revert?: {
     messageId: string

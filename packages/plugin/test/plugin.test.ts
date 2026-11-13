@@ -217,7 +217,10 @@ describe('define', () => {
     expectTypeOf<Plugin.Context['session']['update']>().parameter(0).toHaveProperty('permissions')
     expectTypeOf<Plugin.Context['harness']['resumeToken']>().returns.toEqualTypeOf<Promise<HarnessSessionId | null>>()
     expectTypeOf<Plugin.Context['harness']['recordToken']>().parameter(1).toEqualTypeOf<HarnessSessionId>()
-    expectTypeOf<Plugin.Context['harness']['mcpUrl']>().toEqualTypeOf<string>()
+    expectTypeOf<Plugin.Context['harness']['mcpUrl']>().toEqualTypeOf<string | undefined>()
+    expectTypeOf<Awaited<ReturnType<Plugin.Context['permission']['get']>>['resources']>().toEqualTypeOf<
+      readonly string[]
+    >()
   })
 
   it('types the members conciv does not implement yet as possibly undefined', () => {

@@ -30,9 +30,10 @@ export interface HarnessDomain {
   recordToken(sessionId: SessionId, token: HarnessSessionId): Promise<void>
   /**
    * The engine's MCP endpoint under its agent-token base path, for a CLI the plugin starts itself
-   * (`HarnessConnectContext.mcpUrl`). Set by the engine once it listens; never null.
+   * (`HarnessConnectContext.mcpUrl`). Read it each time: undefined until the engine listens, which is after setup
+   * and before any RPC call reaches the plugin, and in a host that does not know its own address.
    */
-  readonly mcpUrl: string
+  readonly mcpUrl: string | undefined
 }
 
 /** Build diagnostics, module graph and config from the user's bundler. */

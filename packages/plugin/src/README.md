@@ -189,7 +189,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 
 - Absent, not ours: `aisdk`, `credential`, `integration`, `mcp`, `provider`, `reference`, `shell`, `vcs`, `websearch`, `worktree`, `experimental.terminal`, `experimental.artifact`. Also absent: top-level `generate` (deprecated in source; `experimental.generate` replaces it).
 - Added by ruling: `servers`, `harness`, `bundler`, `storage.directory`.
-- `harness` (conciv-only, no opencode counterpart) carries what the terminal plugin needs to run the session's CLI itself: `get(sessionId)` (the CLI and its terminal command), `resumeToken` / `recordToken` (the CLI's own session id, as the old `ServerApi.sessions` had them) and `mcpUrl` (the engine's MCP endpoint under its agent-token base path; the base path itself is not exposed). The session's model is `session.get(...).model`.
+- `harness` (conciv-only, no opencode counterpart) carries what the terminal plugin needs to run the session's CLI itself: `get(sessionId)` (the CLI and its terminal command), `resumeToken` / `recordToken` (the CLI's own session id, as the old `ServerApi.sessions` had them) and `mcpUrl` (the engine's MCP endpoint under its agent-token base path; the base path itself is not exposed). `mcpUrl` is `string | undefined`, read each time: the engine's port is known only after it listens (`packages/core/src/start.ts:223` runs `makeApp`, which sets plugins up, before `servePort` at `:227` and the port at `:233`), and that loopback address is the one the engine already gives the CLI (`start.ts:239`, `claudeConnectEndpointFile`); a host without a port (`makeApp` alone) has none. Today's terminal builds it per request from the browser's origin instead (`packages/extensions/terminal/src/server.ts:68-70`). The session's model is `session.get(...).model`.
 - `app` is `App | undefined`: the engine has no app version or channel to give.
 - `plugin.list`, `skill.list`, `model.list`, `model.default`: no `location` input (one project per engine); every domain method's request options are `{signal}` only (no `headers`, no `onActivity`).
 
@@ -292,7 +292,7 @@ Each is typed `| undefined` (or optional) and always undefined in this version.
 - session compact: input `id`, `delivery`; result (`SessionInboxCompaction`) `id`, `delivery`
 - session interrupt input: `resume`
 - `SessionIdle.background`
-- permission request: `resources`, `save`, `metadata`, `message`; permission reply input: `message`
+- permission request: `message`; permission reply input: `message`
 - `SessionDeleted.durable.seq`
 - app part `Context`: `commands`, `attention`
 - `System`: `save`, `openExternal`

@@ -39,11 +39,8 @@ export interface PermissionRequest {
   readonly id: string
   readonly sessionId: SessionId
   readonly action: string
-  /** Not implemented yet. Always undefined in this version. */
-  readonly resources: ReadonlyArray<string> | undefined
-  /** Not implemented yet. Always undefined in this version. */
+  readonly resources: ReadonlyArray<string>
   readonly save?: ReadonlyArray<string>
-  /** Not implemented yet. Always undefined in this version. */
   readonly metadata?: Readonly<Record<string, unknown>>
   readonly source?: Source
   /** Not implemented yet. Always undefined in this version. */
