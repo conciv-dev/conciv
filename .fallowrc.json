@@ -109,6 +109,12 @@
         "files": ["packages/plugin-host/src/util/flock.ts"],
         "maxCognitive": 30,
         "reason": "copied whole from opencode util/src/flock.ts: tryAcquireLockDir keeps opencode's shape"
+      },
+      {
+        "files": ["packages/plugin-host/src/codemode/tool-runtime.ts"],
+        "maxCognitive": 26,
+        "maxCrap": 110,
+        "reason": "copied from opencode codemode/src/tool-runtime.ts: rank keeps opencode's shape"
       }
     ]
   },
