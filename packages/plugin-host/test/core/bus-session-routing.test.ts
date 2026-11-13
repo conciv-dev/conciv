@@ -36,8 +36,8 @@ const it = testEffect(
 )
 
 const Done = Bus.ephemeral({type: 'test.routing.done', schema: {}})
-const owned = SessionId.make('ses_routing')
-const unknown = SessionId.make('ses_unknown')
+const owned = SessionId.make('conciv_routing')
+const unknown = SessionId.make('conciv_unknown')
 
 const watch = (bus: Bus.Interface, location?: Location.Interface) => {
   const collect = bus.subscribe().pipe(
