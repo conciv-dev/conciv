@@ -3,26 +3,26 @@ import type {Session} from '../../schema/session.js'
 export type SessionIdleBackground =
   | {
       readonly kind: 'shell'
-      readonly sessionId: Session.Id
-      readonly shellId: string
+      readonly sessionID: Session.ID
+      readonly shellID: string
       readonly command: string
     }
   | {
       readonly kind: 'subagent'
-      readonly sessionId: Session.Id
-      readonly childSessionId: Session.Id
+      readonly sessionID: Session.ID
+      readonly childSessionID: Session.ID
       readonly agent: string
       readonly description: string
     }
   | {
       readonly kind: 'image'
-      readonly sessionId: Session.Id
+      readonly sessionID: Session.ID
       readonly path: string
       readonly model: string
     }
 
 export interface SessionIdle {
-  readonly sessionId: Session.Id
+  readonly sessionID: Session.ID
   readonly background: ReadonlyArray<SessionIdleBackground>
 }
 

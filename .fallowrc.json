@@ -203,7 +203,7 @@
     },
     {
       "file": "packages/plugin-host/src/**",
-      "exports": ["Id", "Interface"]
+      "exports": ["ID", "Interface"]
     },
     {
       "file": "packages/ui-kit-chat/src/tools/primitives/tool-fallback.tsx",
