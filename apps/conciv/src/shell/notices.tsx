@@ -66,8 +66,9 @@ function noticeActions(options: NoticeOptions): readonly NoticeAction[] {
 }
 
 function noticeDuration(options: NoticeOptions, actions: readonly NoticeAction[]): number {
-  if (options.persist === true || options.loading === true || actions.length > 0) return Number.POSITIVE_INFINITY
-  return options.duration ?? FUSE_MS
+  if (options.persist === true || options.loading === true) return Number.POSITIVE_INFINITY
+  if (options.duration !== undefined) return options.duration
+  return actions.length > 0 ? Number.POSITIVE_INFINITY : FUSE_MS
 }
 
 function NoticeIconSlot(props: {type: string | undefined; icon: NoticeIcon | undefined}): JSX.Element {

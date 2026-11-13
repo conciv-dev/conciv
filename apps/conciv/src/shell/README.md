@@ -22,7 +22,7 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 
 ## Invariants
 
-- `notices.tsx:createNoticeStore`: at most 3 standing toasts (`STANDING_LIMIT`); toasts expire after 6 s (`FUSE_MS`), or after `duration`, unless `persist`, `loading` or an action is set
+- `notices.tsx:createNoticeStore`: at most 3 standing toasts (`STANDING_LIMIT`); a toast never expires while `persist` or `loading` is set; otherwise it expires after `duration` when one is given, with or without actions; with no `duration`, a toast with an action stays and one without expires after 6 s (`FUSE_MS`)
 - `notices.tsx:createNoticeStore`: a `key` dedupes a notice by toast id
 - `notices.tsx:createNoticeStore`: a single action renders inline through Ark's toast `action`; several ride the toast's `meta` and wrap to a row under the text; each runs its action and dismisses the notice
 - `notices.tsx:createNoticeStore`: a success notice with no icon shows the lucide `check`; a loading notice shows the kit `Loader` in the icon slot
