@@ -1,8 +1,12 @@
 import {expect} from 'vitest'
-import {Deferred, Effect, Exit, Fiber} from 'effect'
+import {Deferred, Effect, Exit, Fiber, Schema} from 'effect'
 import {Bus} from '../../src/core/bus.js'
 import {Plugin} from '../../src/core/plugin.js'
+import {PluginHooks} from '../../src/core/plugin/hooks.js'
+import {Rpc} from '../../src/core/rpc.js'
 import {Tool} from '../../src/core/tool.js'
+import {Agent} from '../../src/schema/agent.js'
+import {Session} from '../../src/schema/session.js'
 import {testEffect} from './lib/effect'
 import {PluginTestLayer} from './plugin/fixture'
 
@@ -10,6 +14,64 @@ const it = testEffect(PluginTestLayer)
 
 const get = (tools: Tool.Interface, name: string) =>
   tools.list().pipe(Effect.map((list) => list.find((tool) => tool.name === name)))
+
+it.live("removes a failed plugin's hooks and RPC handlers without affecting healthy plugins", () =>
+  Effect.gen(function* () {
+    const plugins = yield* Plugin.Service
+    const tools = yield* Tool.Service
+    const hooks = yield* PluginHooks.Service
+    const rpc = yield* Rpc.Service
+    const cleaned = yield* Deferred.make<void>()
+    const invoked: string[] = []
+    let fail = false
+    yield* plugins.activate(
+      ['broken', 'healthy'].map((id) => ({
+        id,
+        revision: '1',
+        effect: (ctx) =>
+          Effect.gen(function* () {
+            if (id === 'broken') yield* Effect.addFinalizer(() => Deferred.succeed(cleaned, undefined))
+            yield* ctx.tool.transform((editor) => {
+              editor.add({name: id, description: '', input: {}, execute: () => Effect.succeed({})})
+              if (id === 'broken' && fail) throw new Error('transform failed')
+            })
+            yield* ctx.tool.hook('execute.before', () => Effect.sync(() => void invoked.push(id)))
+            yield* ctx.rpc
+              .register(
+                Rpc.define({id, methods: {check: {input: Schema.Struct({}), output: Schema.String}}, events: {}}),
+                {check: () => Effect.succeed(id)},
+              )
+              .pipe(Effect.orDie)
+            if (id === 'broken') yield* Effect.addFinalizer(() => plugins.awaitActivation)
+          }),
+      })),
+    )
+    const trigger = hooks.trigger('tool', 'execute.before', {
+      tool: 'fixture',
+      sessionId: Session.Id.make('conciv_fixture'),
+      agent: Agent.Id.make('build'),
+      messageId: undefined,
+      id: Tool.CallId.make('call_fixture'),
+      input: {},
+    })
+    yield* trigger
+    expect(invoked).toEqual(['broken', 'healthy'])
+    expect(yield* rpc.call('broken', 'check', {})).toBe('broken')
+    expect(yield* rpc.call('healthy', 'check', {})).toBe('healthy')
+    expect((yield* tools.list()).map((tool) => tool.name)).toEqual(['broken', 'healthy'])
+
+    fail = true
+    yield* tools.reload()
+    yield* Deferred.await(cleaned).pipe(Effect.timeout('1 second'))
+    invoked.length = 0
+    yield* trigger
+    expect(invoked).toEqual(['healthy'])
+    expect(yield* rpc.call('broken', 'check', {}).pipe(Effect.flip)).toMatchObject({type: 'rpc.unavailable'})
+    expect(yield* rpc.call('healthy', 'check', {})).toBe('healthy')
+    expect((yield* tools.list()).map((tool) => tool.name)).toEqual(['healthy'])
+    expect((yield* plugins.list()).map((plugin) => plugin.state.status)).toEqual(['failed', 'active'])
+  }),
+)
 
 Array.of('reload', 'teardown').forEach((boundary) =>
   it.live(`does not join queued failed-plugin cleanup during ${boundary}`, () =>

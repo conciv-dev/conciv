@@ -237,7 +237,8 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 ### Model
 
 - `Model` keeps `Ref`, `Info`, `Capabilities`, `Variant`, `Cost` and `Type`; `ID`, `VariantID`, `Family`, `Settings`, `Overlays`, `Compatibility` and `Event` are not ported.
-- `Model.Info` has no `compatibility`, `package`, `settings`, `headers` or `body`, and `Model.Variant` no `settings`, `headers` or `body`: provider wire settings are not ours.
+- `Model.Info` has no `compatibility`, `package`, `settings`, `headers` or `body`: provider wire settings are not ours.
+- `Model.Variant` is the source's, with `Record<string, any>` typed `Record<string, unknown>`; conciv fills only `settings.effort` today, from the harness's efforts (`packages/core/src/runtime/harness-models.ts:15-18`).
 - `ModelEditor.provider` is absent: providers are not ours.
 
 ### Skill and servers
@@ -306,10 +307,9 @@ tag line `@remarks Not implemented yet. Always undefined in this version.`, and 
 - `model.transform`, `model.reload`
 - `permission.hook`
 - `session.generate`, `session.command`, `session.synthetic`
-- `location.project.id`, `location.project.canonical`
 - `Tool.ToolContext.messageId`, `messageId` in the tool hooks
 - `Model.Ref.providerId`, `Model.Ref.variant`
-- `Model.Info`: `providerId`, `canonical`, `type`, `family`, `capabilities`, `variants`, `time`, `cost`, `status`, `limit`
+- `Model.Info`: `canonical`, `type`, `family`
 - session info: `parentId`, `fork`, `projectId`, `outcome`, `time.created`, `time.busy`, `time.idle`, `time.viewed`, `time.archived`, `subpath`, `revert`
 - session list input: `order`, `parentId`, `archived`
 - session create input: `id`, `parentId`
