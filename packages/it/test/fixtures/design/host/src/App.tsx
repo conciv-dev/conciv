@@ -25,6 +25,7 @@ const TARGET_ALIASES = new Set([
   'process',
   'filters',
   'media-height',
+  'late-font',
 ])
 const LOOK_CLASSES: Record<string, string> = {webfont: 'webfont', container: 'webfont'}
 const CONTAINER_CSS =
@@ -78,6 +79,7 @@ const SLIDER_LAYER = {gridColumn: 1, gridRow: 1} as const
 const MEDIA_HEIGHT_CSS = '#root section { @media (width >= 40rem) { height: 120px; } }'
 const FIELD_BORDER = {borderColor: '#d64545', borderRadius: 0}
 const SLOW_FONT_CSS = "@import url('/slow-font.css');"
+const LATE_FONT_CSS = `${SLOW_FONT_CSS} @media (width < 900px) { #root { font-family: 'Slow Sans', monospace; } }`
 const SLOW_FONT_TEXT = 'The quarterly report lists every invoice that was paid late, with the customer and the days overdue.'
 const WRAP_TEXT = 'The quarterly report lists every invoice that was paid late, with the customer and the days overdue.'
 const TALL_LINE = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='1' height='360'/>"
@@ -320,6 +322,7 @@ export function App() {
       {requested === 'process' ? <section id="process" data-conciv-key="SE7-sA" /> : null}
       {requested === 'container' ? <style data-conciv-key="2WxtqQ">{CONTAINER_CSS}</style> : null}
       {requested === 'media-height' ? <style data-conciv-key="mDhTst">{MEDIA_HEIGHT_CSS}</style> : null}
+      {requested === 'late-font' ? <style data-conciv-key="lAtFst">{LATE_FONT_CSS}</style> : null}
       {requested === 'effects-cover' ? (
         <div
           data-conciv-effects=""

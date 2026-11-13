@@ -1,7 +1,9 @@
 export async function pageQueries(doc: Document): Promise<{queries: number[]; sheets: string}> {
-  const rem = Number.parseFloat(getComputedStyle(doc.documentElement).fontSize) || 0
-  const rules = [...doc.styleSheets, ...doc.adoptedStyleSheets].flatMap((sheet) => rulesOf(sheet))
-  const queries = [...new Set(rules.flatMap((rule) => widthsOf({rule, rem})))].toSorted((a, b) => a - b)
+  const view = doc.defaultView
+  if (view === null) return {queries: [], sheets: await digest('')}
+  const rem = Number.parseFloat(view.getComputedStyle(doc.documentElement).fontSize) || 0
+  const rules = [...doc.styleSheets, ...doc.adoptedStyleSheets].flatMap((sheet) => rulesOf({sheet, view}))
+  const queries = [...new Set(rules.flatMap((rule) => widthsOf({rule, rem, view})))].toSorted((a, b) => a - b)
   return {queries, sheets: await digest(rules.map((rule) => rule.cssText).join('\n'))}
 }
 
@@ -10,24 +12,29 @@ const WIDTH = 'width'
 const PX = 'px'
 const EM = 'em'
 
-function rulesOf(sheet: CSSStyleSheet | null): CSSRule[] {
+type PageWindow = Window & typeof globalThis
+
+function rulesOf(input: {sheet: CSSStyleSheet | null; view: PageWindow}): CSSRule[] {
+  const {sheet, view} = input
   if (sheet === null) return []
   try {
-    return [...sheet.cssRules].flatMap((rule) => [rule, ...nested(rule)])
+    return [...sheet.cssRules].flatMap((rule) => [rule, ...nested({rule, view})])
   } catch {
     return []
   }
 }
 
-function nested(rule: CSSRule): CSSRule[] {
-  if (rule instanceof CSSImportRule) return rulesOf(rule.styleSheet)
-  if (rule instanceof CSSGroupingRule) return [...rule.cssRules].flatMap((inner) => [inner, ...nested(inner)])
+function nested(input: {rule: CSSRule; view: PageWindow}): CSSRule[] {
+  const {rule, view} = input
+  if (rule instanceof view.CSSImportRule) return rulesOf({sheet: rule.styleSheet, view})
+  if (rule instanceof view.CSSGroupingRule)
+    return [...rule.cssRules].flatMap((inner) => [inner, ...nested({rule: inner, view})])
   return []
 }
 
-function widthsOf(input: {rule: CSSRule; rem: number}): number[] {
+function widthsOf(input: {rule: CSSRule; rem: number; view: PageWindow}): number[] {
   const {rule, rem} = input
-  if (!(rule instanceof CSSConditionRule)) return []
+  if (!(rule instanceof input.view.CSSConditionRule)) return []
   return rule.conditionText.split('(').flatMap((part) => {
     const feature = part.split(')')[0] ?? ''
     if (!feature.includes(WIDTH)) return []

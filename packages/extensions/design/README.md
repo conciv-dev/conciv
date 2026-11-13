@@ -94,7 +94,9 @@ src/
   mapping, and returns `{round, rows, reflow, coverage, counts, verdict, reasons}`. A row is `{node, key, kind, name, text, magnitude, property, expected, actual, delta}`;
   rows at `slightly` are counted, not listed. When the CSS rule that wins a row's property sits inside an `@media` rule
   (nested ones included), the row text ends with `set by @media (...)`; the measure returns that condition per CSS
-  property in `styles.media`. `@container` rules are not read. `reflow` holds one entry per width (1024, 768): `rootHeight,
+  property in `styles.media`. `@container` rules are not read. `reflow` holds one entry per width: the design width, each
+  width a `@media` rule on the page names and the width under it (read from the frame's own document, so the mirror
+  frame's rules count too), and the reflow tags' breakpoints: `rootHeight,
   sticksOut, overflowX, overlaps, tags` with `ok` and `why`. A page error, or a page that renders under half the nodes
   of the last settled round, answers `{unsettled: true, rendered, route, verdict: 'unsettled', reasons}`; its round is recorded with state
   `unsettled` and is never judged.

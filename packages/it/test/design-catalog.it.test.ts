@@ -186,6 +186,15 @@ describe('a text field', () => {
   })
 })
 
+describe('a media query on the page', () => {
+  it('adds its widths to the check', async () => {
+    await kit.goto('late-font')
+    await call('design_get', await cardsDesign(kit.targetsDir))
+    const checked = roundOf(await call('design_check', {}))
+    expect(checked.reflow.widths.map((entry) => entry.width)).toContain(899)
+  })
+})
+
 describe('an image node drawn as a box with its icon inside', () => {
   it('passes when the drawn element looks like the asset, whatever the file is named', async () => {
     const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
