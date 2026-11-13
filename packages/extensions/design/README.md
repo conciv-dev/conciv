@@ -39,6 +39,7 @@ src/
     renderers.ts       the elements that render a node: data-figma first, else the mapped keys
     gate.ts            the gate rows and their magnitude words, coverage and counts
     reflow.ts          sticks out, sideways scroll, overlaps and the reflow tag verdicts at one width
+    drift.ts           the page row for boxes that sit more than 4 px off their frame position, and where the drift grows
     verdict.ts         done, stalled or not yet with reasons
     measure.ts         the measurer: asks the widget's measure tool at a width and height
     raster.ts          pixel and box operations, compare and diff painting
@@ -99,7 +100,10 @@ src/
   property in `styles.media`. `@container` rules are not read. `reflow` holds one entry per width: the design width, each
   width a `@media` rule on the page names (top level, in `@layer` or nested inside a style rule) and the width under it (read from the frame's own document, so the mirror
   frame's rules count too), and the reflow tags' breakpoints: `rootHeight,
-  sticksOut, overflowX, overlaps, tags` with `ok` and `why`. A page error, or a page that renders under half the nodes
+  sticksOut, overflowX, overlaps, tags` with `ok` and `why`. A box (not a text) that sits more than 4 px lower or higher
+  on the page than in the frame, measured from the frame's top, gives one page row that blocks done: each element may be
+  within tolerance of its parent while the offsets add up down the page (a Figma line takes no space, a 1px element
+  does). The row names the box that drifted most and the siblings below which the drift grows. A page error, or a page that renders under half the nodes
   of the last settled round, answers `{unsettled: true, rendered, route, verdict: 'unsettled', reasons}`; its round is recorded with state
   `unsettled` and is never judged.
   An error the page throws answers `broken` with `thrown`, except the browser's `ResizeObserver loop completed with

@@ -29,6 +29,7 @@ import {imageRowsOf} from './image-rows.js'
 import {classifyDrift} from './catalog/drift.js'
 import {createTokenMap} from './catalog/token-map.js'
 import {pageHeightRows} from './page-height.js'
+import {driftRows} from './drift.js'
 import {ROUTE_HINT} from '../shared/route-hint.js'
 
 export function createRunner(input: {runtime: DesignRuntime; folder: Storage}): Runner {
@@ -356,13 +357,16 @@ async function listedRows(input: {
   const {gate} = paired
   const {record} = call
   const reads = readIds({root: paired.mapped.root, live: measured.live})
-  const tall = pageHeightRows({
-    root: design.root,
-    live: measured.live,
-    reads,
-    width: measured.width,
-    scrollHeight: measured.scrollHeight,
-  })
+  const tall = [
+    ...pageHeightRows({
+      root: design.root,
+      live: measured.live,
+      reads,
+      width: measured.width,
+      scrollHeight: measured.scrollHeight,
+    }),
+    ...driftRows({root: design.root, reads, width: measured.width}),
+  ]
   const images = await imageRowsOf({
     design,
     reads,

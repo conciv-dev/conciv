@@ -218,6 +218,34 @@ describe('a media query on the page', () => {
   })
 })
 
+describe('a page that drifts from the design', () => {
+  it('is told where the drift starts when the Figma lines take space on the page', async () => {
+    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
+    await kit.goto('process-column-flat')
+    await call('design_get', {
+      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1535',
+      document: JSON.parse(await readFile(fixture('process-column.json'), 'utf8')),
+      image: fixture('process-column.png'),
+    })
+    const drift = async () =>
+      roundOf(await call('design_check', {}))
+        .rows.filter((row) => row.text.includes('drifts'))
+        .map((row) => row.text)
+    const flat = await drift()
+    await kit.goto('process-column')
+    const drifted = await drift()
+    expect([
+      flat,
+      drifted.map((text) => text.split('; ')[0]),
+      drifted.some((text) => text.includes('below Line [100:1615]')),
+    ]).toEqual([
+      [],
+      ['the page drifts from the design: Card [100:1675] sits 7 px lower on the page than in the frame'],
+      true,
+    ])
+  })
+})
+
 describe('an image node drawn as a box with its icon inside', () => {
   it('passes when the drawn element looks like the asset, whatever the file is named', async () => {
     const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))

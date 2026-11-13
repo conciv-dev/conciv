@@ -77,6 +77,7 @@ const DISCOVERY_TEXT =
 const PLANNING_TEXT =
   'Based on the gathered information, we create a comprehensive project plan and strategy. This includes defining project milestones, timelines, deliverables, and resource allocation. We collaborate closely with you to align our strategy with your vision.'
 const SLIDER_LAYER = {gridColumn: 1, gridRow: 1} as const
+const COLUMN_CARDS = [292, 292, 334, 334, 340, 340, 334, 340]
 const MEDIA_HEIGHT_CSS = '#root section { @media (width >= 40rem) { height: 120px; } }'
 const FIELD_BORDER = {borderColor: '#d64545', borderRadius: 0}
 const SLOW_FONT_CSS = "@import url('/slow-font.css');"
@@ -152,6 +153,28 @@ export function App() {
         <ProcessCard number="01" heading="Discovery" text={DISCOVERY_TEXT} boxed={boxed} divided={false} />
         {boxed ? <span style={{width: 1, alignSelf: 'stretch', background: '#262626'}} data-conciv-key="pRlNeA" /> : null}
         <ProcessCard number="02" heading="Planning and Strategy" text={PLANNING_TEXT} boxed={boxed} divided={!boxed} />
+      </main>
+    )
+  }
+  if (requested === 'process-column' || requested === 'process-column-flat') {
+    const flat = requested === 'process-column-flat'
+    return (
+      <main style={{margin: -24, width: 358, display: 'flex', flexDirection: 'column', background: '#1a1a1a'}} data-conciv-key="pCmNaA">
+        {COLUMN_CARDS.map((height, index) => (
+          <>
+            {index === 0 ? null : (
+              <span
+                style={flat ? {height: 0, outline: '0.5px solid #262626'} : {height: 1, background: '#262626'}}
+                data-conciv-key="pClNeA"
+              />
+            )}
+            <div style={{height, boxSizing: 'border-box', padding: '40px 24px'}} data-conciv-key="pCcRdA">
+              <span style={{fontSize: 56, lineHeight: '56px', fontWeight: 600, color: '#d8ff99'}} data-conciv-key="pCnMbA">
+                {`0${index + 1}`}
+              </span>
+            </div>
+          </>
+        ))}
       </main>
     )
   }
