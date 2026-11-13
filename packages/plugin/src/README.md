@@ -308,7 +308,7 @@ tag line `@remarks Not implemented yet. Always undefined in this version.`, and 
 - `location.project.id`, `location.project.canonical`
 - `Tool.ToolContext.messageId`, `messageId` in the tool hooks
 - `Model.Ref.providerId`, `Model.Ref.variant`
-- `Model.Info`: `providerId`, `canonical`, `type`, `family`, `capabilities`, `variants`, `time`, `cost`, `status`, `limit`
+- `Model.Info`: `canonical`, `type`, `family`
 - session info: `parentId`, `fork`, `projectId`, `outcome`, `time.created`, `time.busy`, `time.idle`, `time.viewed`, `time.archived`, `subpath`, `metadata`, `revert`
 - session list input: `order`, `parentId`, `archived`
 - session create input: every field

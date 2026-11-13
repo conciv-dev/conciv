@@ -30,8 +30,7 @@ export interface Cost {
 export interface Info {
   id: string
   modelId: string
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  providerId: string | undefined
+  providerId: string
   /** @remarks Not implemented yet. Always undefined in this version. */
   canonical?: string
   /** @remarks Not implemented yet. Always undefined in this version. */
@@ -39,17 +38,11 @@ export interface Info {
   /** @remarks Not implemented yet. Always undefined in this version. */
   family?: string
   name: string
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  capabilities: Capabilities | undefined
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  variants: Array<Variant> | undefined
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  time: {released: number} | undefined
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  cost: Array<Cost> | undefined
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  status: 'alpha' | 'beta' | 'deprecated' | 'active' | undefined
+  capabilities: Capabilities
+  variants: Array<Variant>
+  time: {released: number}
+  cost: Array<Cost>
+  status: 'alpha' | 'beta' | 'deprecated' | 'active'
   enabled: boolean
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  limit: {context: number; input?: number; output: number} | undefined
+  limit: {context: number; input?: number; output: number}
 }
