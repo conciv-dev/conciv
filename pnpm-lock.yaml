@@ -309,6 +309,9 @@ catalogs:
     get-port:
       specifier: ^7.2.0
       version: 7.2.0
+    glob:
+      specifier: 13.0.5
+      version: 13.0.5
     gsap:
       specifier: ^3.15.0
       version: 3.15.0
@@ -4376,6 +4379,9 @@ importers:
       effect:
         specifier: 'catalog:'
         version: 4.1.0
+      glob:
+        specifier: 'catalog:'
+        version: 13.0.5
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -15149,6 +15155,10 @@ packages:
     resolution: {integrity: sha512-DfXN8DfhJ7NH3Oe7cFmu3NCu1wKbkReJ8TorzSAFbSKrlNaQSKfIzqYqVY8zlbs2NLBbWpRiU52GX2PbaBVNkg==}
     deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
     hasBin: true
+
+  glob@13.0.5:
+    resolution: {integrity: sha512-BzXxZg24Ibra1pbQ/zE7Kys4Ua1ks7Bn6pKLkVPZ9FZe4JQS6/Q7ef3LG1H+k7lUf5l4T3PLSyYyYJVYUvfgTw==}
+    engines: {node: 20 || >=22}
 
   glob@13.0.6:
     resolution: {integrity: sha512-Wjlyrolmm8uDpm/ogGyXZXb1Z+Ca2B8NbJwqBVg0axK9GbBeoS7yGV6vjXnYdGm6X53iehEuxxbyiKp8QmN4Vw==}
@@ -28692,6 +28702,12 @@ snapshots:
       minipass: 7.1.3
       package-json-from-dist: 1.0.1
       path-scurry: 1.11.1
+
+  glob@13.0.5:
+    dependencies:
+      minimatch: 10.2.6
+      minipass: 7.1.3
+      path-scurry: 2.0.2
 
   glob@13.0.6:
     dependencies:

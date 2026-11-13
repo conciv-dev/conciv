@@ -42,6 +42,7 @@
     "@standard-schema/spec": "catalog:",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
+    "glob": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
