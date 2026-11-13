@@ -1,8 +1,9 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
-import {Effect} from 'effect'
+import {Cause, Effect, Exit, Option, Result, Schema} from 'effect'
+import {approvalDenied} from '@conciv/ai/server'
 import {cappedValue} from '@conciv/contract'
-import {Agent, Session, Tool, ToolRuntime} from '@conciv/plugin-host'
+import {Agent, Permission, Session, Tool, ToolRuntime} from '@conciv/plugin-host'
 import {defineTool, type ChatTool} from '@conciv/protocol/chat-tool-types'
 import type {ToolRequest} from '@conciv/extension'
 import {type SandboxTool} from '@conciv/extension/registry'
@@ -52,7 +53,7 @@ export function assistCapabilities(tools: ConcivServerTool[]): CodeCapability[] 
   }))
 }
 
-type EffectRun = <A, E>(effect: Effect.Effect<A, E>, signal: AbortSignal | undefined) => Promise<A>
+type EffectRun = <A, E>(effect: Effect.Effect<A, E>, signal: AbortSignal | undefined) => Promise<Exit.Exit<A, E>>
 
 function jsonSchemaOnly(schema: ReturnType<typeof ToolRuntime.definition>['inputSchema']): SchemaInput {
   return {...schema}
@@ -70,12 +71,33 @@ function cancelOf(signal: AbortSignal): Effect.Effect<void> {
 function toolContext(request: ToolRequest): Tool.Context {
   return {
     sessionId: Session.Id.make(request.sessionId),
-    agent: Agent.Id.make(request.agentId),
+    agent: Agent.defaultId,
     messageId: undefined,
     id: Tool.CallId.make(request.toolCallId ?? randomUUID()),
     progress: () => Effect.void,
     ...(request.signal === undefined ? {} : {cancel: cancelOf(request.signal)}),
   }
+}
+
+const isDeclined = Schema.is(Permission.DeclinedError)
+
+function refusal(name: string, cause: Cause.Cause<Tool.Error>): unknown {
+  const defect = Cause.findDefect(cause)
+  if (Result.isSuccess(defect)) return isDeclined(defect.success) ? approvalDenied(name) : defect.success
+  const failure = Cause.findErrorOption(cause)
+  if (Option.isSome(failure)) return new Error(failure.value.message)
+  return Cause.squash(cause)
+}
+
+async function runTool(
+  name: string,
+  run: EffectRun,
+  effect: Effect.Effect<Tool.NormalizedResult, Tool.Error>,
+  signal: AbortSignal | undefined,
+): Promise<unknown> {
+  const exit = await run(effect, signal)
+  if (Exit.isFailure(exit)) throw refusal(name, exit.cause)
+  return resultValue(exit.value)
 }
 
 function resultValue(result: Tool.NormalizedResult): unknown {
@@ -104,8 +126,8 @@ export function toolDomainCapabilities(
         description: tool.description,
         errors: [],
         inputSchema: jsonSchemaOnly(ToolRuntime.definition(tool).inputSchema),
-        execute: async (input, request) =>
-          resultValue(await run(codeMode.execute(name, input, toolContext(request)), request.signal)),
+        execute: (input, request) =>
+          runTool(name, run, codeMode.execute(name, input, toolContext(request)), request.signal),
       })),
   ]
 }

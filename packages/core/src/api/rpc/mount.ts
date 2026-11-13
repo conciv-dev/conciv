@@ -23,10 +23,26 @@ import type {McpVars} from '../mcp.js'
 import type {createTabs} from '../tabs.js'
 import type {PageQueues} from '../../page/page-queue.js'
 import type {ManagedRuntime} from 'effect'
-import type {Bus, Database, KV, Location, PluginHooks, Rpc, Tool} from '@conciv/plugin-host'
+import type {
+  Agent,
+  Bus,
+  Database,
+  KV,
+  Location,
+  Permission,
+  PermissionSaved,
+  PluginHooks,
+  Rpc,
+  Tool,
+} from '@conciv/plugin-host'
+import type {PermissionAnswer} from '../../runtime/permission-cards.js'
 
 export type PluginHost = ManagedRuntime.ManagedRuntime<
   | Tool.Interface
+  | Permission.Interface
+  | Agent.Interface
+  | PermissionSaved.Interface
+  | Permission.SessionsInterface
   | PluginHooks.Interface
   | Rpc.Interface
   | KV.Interface
@@ -63,6 +79,7 @@ export type RpcDeps = {
   tabs: ReturnType<typeof createTabs>
   queues: Pick<PageQueues, 'wait'>
   pluginHost: PluginHost
+  answerPermission: PermissionAnswer
 }
 
 export const os: Implementer<typeof contract, RpcContext, RpcContext> = implement(contract).$context<RpcContext>()

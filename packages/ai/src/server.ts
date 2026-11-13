@@ -1,4 +1,4 @@
-export {approvalNeeded, createChatServer, toolApprovalId} from './server/chat-server.js'
+export {approvalDenied, approvalNeeded, createChatServer, toolApprovalId} from './server/chat-server.js'
 export {quickJSThreadDriver} from './server/quickjs-thread.js'
 export {childCardChunks} from './server/child-cards.js'
 export {imageToolProvisioner} from './server/image-tool-results.js'

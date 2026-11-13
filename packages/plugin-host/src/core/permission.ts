@@ -234,7 +234,7 @@ export const layer = Layer.effect(
             return item
           }
           if (pending.has(request.id))
-            return yield* Effect.die(new globalThis.Error(`Duplicate pending permission ID: ${request.id}`))
+            return yield* Effect.die(new Error(`Duplicate pending permission ID: ${request.id}`))
           pending.set(request.id, item)
           yield* bus
             .publish(Permission.Event.Asked, request)

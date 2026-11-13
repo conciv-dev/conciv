@@ -54,7 +54,18 @@ import {
 import {eq} from 'drizzle-orm'
 import {Layer, ManagedRuntime, Schema} from 'effect'
 import {memoize} from 'es-toolkit'
-import {Bus, Database, KV, Location, PluginHooks, Rpc, Tool} from '@conciv/plugin-host'
+import {
+  Agent,
+  Bus,
+  Database,
+  KV,
+  Location,
+  Permission,
+  PermissionSaved,
+  PluginHooks,
+  Rpc,
+  Tool,
+} from '@conciv/plugin-host'
 import {pushRoutes, type PushDeps} from './api/push.js'
 import {makeHubAdmission, type ChatContext, type PluginHost, type RpcDeps} from './api/rpc/mount.js'
 import {concivHome, drafts, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
@@ -72,6 +83,7 @@ import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
 import {pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
+import {answerPermission, followPermissionCards, permissionSessions} from './runtime/permission-cards.js'
 import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
@@ -552,7 +564,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   registerExtensionTools(registry, mounted)
 
   const pluginHost: PluginHost = ManagedRuntime.make(
-    Tool.layer.pipe(
+    Layer.mergeAll(Tool.layer, Permission.layer).pipe(
+      Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(db))),
       Layer.provideMerge(PluginHooks.layer),
       Layer.provideMerge(Layer.mergeAll(Rpc.layer, KV.layer)),
       Layer.provideMerge(Bus.configured()),
@@ -573,7 +586,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     toolDomainCapabilities(
       capabilities,
       pluginHost.runSync(Tool.Service.use((tools) => tools.snapshot())),
-      (effect, signal) => pluginHost.runPromise(effect, {signal}),
+      (effect, signal) => pluginHost.runPromiseExit(effect, {signal}),
       reportToolCollision,
     )
 
@@ -617,6 +630,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     log: logError,
   })
   planeRef.current = plane
+  await pluginHost.runPromise(
+    followPermissionCards({plane, publish: (sessionId, chunk) => stream.publish(sessionId, chunk), log: logError}),
+  )
   const chatDeps: ChatContext = {
     defaultHarness: harness,
     harnesses,
@@ -704,6 +720,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     admitOutside,
     hub,
     assist: (sessionId) => concivSandboxTools(makeToolCtx(sessionId)),
+    answerPermission: (sessionId, requestId, reply) =>
+      pluginHost.runPromise(answerPermission(sessionId, requestId, reply)),
     auth: makeAuthRouter({
       codes: makeCodeStore({now: Date.now, print: opts.print ?? ((text) => console.log(text))}),
       trust,
