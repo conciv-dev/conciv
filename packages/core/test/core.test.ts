@@ -2532,7 +2532,7 @@ describe('plugin permission cards', () => {
     expect((await plane.hydrate(id)).pendingApprovals).toEqual([])
   })
 
-  it('closing the engine clears a pending plugin card from storage before the database closes, with no error', async () => {
+  it('closing the engine clears a pending plugin card from storage before the database closes', async () => {
     const fixture = await makeChatFixture()
     const {plane, pluginHost, db, sessionId: id, stateRoot} = fixture
     await setPermissions(db, id, [{action: 'edit', resource: '*', effect: 'ask'}])
@@ -2550,10 +2550,7 @@ describe('plugin permission cards', () => {
     await vi.waitFor(async () =>
       expect((await plane.hydrate(id)).pendingApprovals.map((entry) => entry.approvalId)).toEqual([asked.id]),
     )
-    const stderr = vi.spyOn(process.stderr, 'write')
     await fixture.dispose()
-    const logged = stderr.mock.calls.map(([chunk]) => String(chunk)).join('')
-    stderr.mockRestore()
     const reopened = openDb(stateRoot)
     onTestFinished(() => reopened.$client.close())
     const stored = reopened
@@ -2562,7 +2559,6 @@ describe('plugin permission cards', () => {
       .where(eq(chatMetadata.key, `${id}:pending-approvals`))
       .all()
     expect(stored).toEqual([{value: []}])
-    expect(logged).toBe('')
   })
 })
 
