@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {PluginInfo} from '../plugin.js'
+import type {PluginInfo} from '../client/promise/generated/types.js'
 import type {Cleanup} from './core.js'
 import type {Declarations, Stores} from './declarations.js'
 
@@ -217,13 +217,21 @@ type BundlePlugin = {
 
 const BundleDefinition = z.object({
   stores: z
-    .record(z.string(), z.object({scope: z.enum(['global', 'project', 'session']), schema: z.instanceof(z.ZodObject)}))
+    .record(z.string(), z.object({scope: z.enum(['global', 'project', 'session']), schema: z.custom(isStandardSchema)}))
     .optional(),
   setup: z.custom((value) => typeof value === 'function').optional(),
 })
 
 function matchesPlugin(plugin: unknown): plugin is BundlePlugin {
   return BundleDefinition.safeParse(plugin).success
+}
+
+const StandardProps = z.object({validate: z.custom((validate) => typeof validate === 'function')})
+
+function isStandardSchema(value: unknown) {
+  if (typeof value !== 'object' && typeof value !== 'function') return false
+  if (value === null) return false
+  return StandardProps.safeParse(Reflect.get(value, '~standard')).success
 }
 
 /**

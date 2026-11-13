@@ -1,7 +1,3 @@
-import type {RequestOptions} from './domains.js'
-import type {PublicRef} from './location.js'
-import type {Transform} from './registration.js'
-
 export interface Ref {
   readonly id: string
   /** @remarks Not implemented yet. Always undefined in this version. */
@@ -56,31 +52,4 @@ export interface Info {
   enabled: boolean
   /** @remarks Not implemented yet. Always undefined in this version. */
   limit: {context: number; input?: number; output: number} | undefined
-}
-
-export interface ModelListInput {
-  readonly types?: ReadonlyArray<'chat' | 'decision' | 'image' | (string & {})> | undefined
-}
-
-export interface ModelEditor {
-  list(providerId?: string): readonly Info[]
-  get(providerId: string, modelId: string): Info | undefined
-  update(providerId: string, modelId: string, update: (model: Info) => void): void
-  remove(providerId: string, modelId: string): void
-  readonly default: {
-    get(): {providerId: string; modelId: string} | undefined
-    set(providerId: string, modelId: string): void
-  }
-}
-
-export interface ModelDomain {
-  readonly list: (
-    input?: ModelListInput,
-    requestOptions?: RequestOptions,
-  ) => Promise<{location: PublicRef; data: Array<Info>}>
-  readonly default: (requestOptions?: RequestOptions) => Promise<{location: PublicRef; data: Info | null}>
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly transform: Transform<ModelEditor> | undefined
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly reload: (() => Promise<void>) | undefined
 }

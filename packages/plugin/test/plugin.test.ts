@@ -11,10 +11,28 @@ import {build} from 'vite'
 import * as Zod from 'zod'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import type {StandardSchemaV1} from '@standard-schema/spec'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
-import {Agent, Plugin, Rpc, Tool} from '../src/index.js'
-import type {Transform} from '../src/registration.js'
-import type {ServerRef} from '../src/servers.js'
+import {
+  Agent,
+  Plugin,
+  Rpc,
+  Tool,
+  type AgentEditor,
+  type Hooks,
+  type Registration,
+  type Rule,
+  type Ruleset,
+  type RpcApi,
+  type RpcCallOptions,
+  type RpcClient,
+  type RpcDomain,
+  type RpcEventPayload,
+  type RpcHandlers,
+  type ToolContext,
+  type Transform,
+} from '../src/promise/index.js'
+import type {ServerRef} from '../src/experimental/index.js'
 import type {Accessor} from 'solid-js'
 import * as Experimental from '../src/experimental/index.js'
 import {
@@ -28,8 +46,22 @@ import {
   type PluginModule,
 } from '../src/experimental/host.js'
 import {experimental} from '../src/experimental/vite.js'
-import * as RpcEntry from '../src/rpc-entry.js'
+import * as RpcEntry from '../src/rpc.js'
 import * as Host from '../src/host.js'
+
+type Count = {count: number}
+
+const isCount = (value: unknown): value is Count => z.object({count: z.number()}).safeParse(value).success
+
+const CountSchema: StandardSchemaV1<Count, Count> = {
+  '~standard': {
+    version: 1,
+    vendor: 'test',
+    validate: (value) => (isCount(value) ? {value} : {issues: [{message: 'not a count'}]}),
+  },
+}
+
+const CountJsonSchema = {type: 'object', properties: {count: {type: 'number'}}, required: ['count']}
 
 describe('define', () => {
   it('returns the same plugin object', () => {
@@ -70,27 +102,22 @@ describe('define', () => {
     expectTypeOf(plugin).toEqualTypeOf<Plugin.Plugin>()
   })
 
-  it('types a tool call context with an always undefined messageId', () => {
-    expectTypeOf<Tool.ToolContext['messageId']>().toEqualTypeOf<string | undefined>()
-    expectTypeOf<Tool.ToolContext['sessionId']>().toEqualTypeOf<SessionId>()
-    expectTypeOf<Plugin.Context['bundler']>().toEqualTypeOf<BundlerBridge | undefined>()
-  })
-
-  it('types the members the ported plugins need as always defined', () => {
-    expectTypeOf<Plugin.Context['agent']['transform']>().toEqualTypeOf<Transform<Agent.AgentEditor>>()
+  it('exports what the engine host builds the context from, defines what the ported plugins need, and leaves what conciv does not implement yet possibly undefined', () => {
+    expectTypeOf<Plugin.Context['agent']['transform']>().toEqualTypeOf<Transform<AgentEditor>>()
     expectTypeOf<Plugin.Context['event']['subscribe']>().toBeFunction()
     expectTypeOf<undefined>().not.toExtend<Plugin.Context['permission']['assert']>()
     expectTypeOf<undefined>().not.toExtend<Plugin.Context['session']['synthetic']>()
     expectTypeOf<Plugin.Context['session']['update']>().parameter(0).toHaveProperty('permissions')
+    expectTypeOf<Registration['dispose']>().toEqualTypeOf<() => Promise<void>>()
+    expectTypeOf<ReturnType<Hooks<{readonly ping: {readonly count: number}}>>>().toEqualTypeOf<Promise<Registration>>()
+    expectTypeOf<Agent.Info['permissions']>().toEqualTypeOf<Ruleset>()
+    expectTypeOf<Ruleset[number]>().toEqualTypeOf<Rule>()
     expectTypeOf<Plugin.Context['harness']['resumeToken']>().returns.toEqualTypeOf<Promise<HarnessSessionId | null>>()
     expectTypeOf<Plugin.Context['harness']['recordToken']>().parameter(1).toEqualTypeOf<HarnessSessionId>()
     expectTypeOf<Plugin.Context['harness']['mcpUrl']>().toEqualTypeOf<string | undefined>()
     expectTypeOf<Awaited<ReturnType<Plugin.Context['permission']['get']>>['resources']>().toEqualTypeOf<
       readonly string[]
     >()
-  })
-
-  it('types the members conciv does not implement yet as possibly undefined', () => {
     expectTypeOf<Plugin.Context['app']>().toExtend<undefined | object>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['app']>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['experimental']['generate']>()
@@ -102,10 +129,33 @@ describe('define', () => {
     expectTypeOf<undefined>().toExtend<Plugin.Context['location']['project']['canonical']>()
   })
 
-  it('types execute input from the input schema and output from the output schema', () => {
-    type SumTool = Tool.Info<z.ZodObject<{left: z.ZodNumber}>, z.ZodObject<{sum: z.ZodNumber}>>
-    expectTypeOf<Parameters<SumTool['execute']>[0]>().toEqualTypeOf<{left: number}>()
-    expectTypeOf<NonNullable<Awaited<ReturnType<SumTool['execute']>>['output']>>().toEqualTypeOf<{sum: number}>()
+  it("types execute's input as the input schema's output and its output as the output schema's input from zod, any Standard Schema or a raw JSON Schema, as opencode does", () => {
+    const Limit = z.object({limit: z.string().transform(Number)})
+    type LimitTool = Tool.Info<typeof Limit, typeof Limit>
+    expectTypeOf<Parameters<LimitTool['execute']>[0]>().toEqualTypeOf<{limit: number}>()
+    expectTypeOf<NonNullable<Awaited<ReturnType<LimitTool['execute']>>['output']>>().toEqualTypeOf<{limit: string}>()
+    type CountTool = Tool.Info<typeof CountSchema, typeof CountSchema>
+    expectTypeOf<Parameters<CountTool['execute']>[0]>().toEqualTypeOf<Count>()
+    expectTypeOf<NonNullable<Awaited<ReturnType<CountTool['execute']>>['output']>>().toEqualTypeOf<Count>()
+    type JsonTool = Tool.Info<typeof CountJsonSchema, typeof CountJsonSchema>
+    expectTypeOf<Parameters<JsonTool['execute']>[0]>().toEqualTypeOf<unknown>()
+    expectTypeOf<Awaited<ReturnType<JsonTool['execute']>>['output']>().toEqualTypeOf<any>()
+  })
+
+  it("gives a tool's execute the call's abort signal", () => {
+    const tool: Tool.Info = {
+      name: 'wait',
+      input: CountJsonSchema,
+      output: CountJsonSchema,
+      description: 'Wait for a count',
+      execute: async (_input, context) => ({output: context.signal.aborted}),
+    }
+    expectTypeOf<Parameters<Tool.Info['execute']>[1]['signal']>().toEqualTypeOf<AbortSignal>()
+    expectTypeOf<ToolContext['messageId']>().toEqualTypeOf<string | undefined>()
+    expectTypeOf<ToolContext['sessionId']>().toEqualTypeOf<SessionId>()
+    expectTypeOf<Plugin.Context['bundler']>().toEqualTypeOf<BundlerBridge | undefined>()
+    expectTypeOf<ToolContext>().toEqualTypeOf<Tool.Context>()
+    expect(tool.name).toBe('wait')
   })
 })
 
@@ -123,11 +173,7 @@ describe('Rpc', () => {
   })
 
   it('define returns its argument', () => {
-    const definition = {
-      id: 'acme',
-      methods: {ping: {input: z.object({}), output: z.object({ok: z.boolean()})}},
-      events: {},
-    }
+    const definition = {id: 'acme', methods: {ping: {input: z.object({}), output: z.object({})}}, events: {}}
     expect(Rpc.define(definition)).toBe(definition)
   })
 
@@ -149,7 +195,7 @@ describe('Rpc', () => {
   })
 
   it('types handlers, the error factory, the client and event payloads from the definition', () => {
-    type Handlers = Rpc.RpcHandlers<typeof Acme>
+    type Handlers = RpcHandlers<typeof Acme>
     type Search = typeof Acme.methods.search
     expectTypeOf<Parameters<Handlers['search']>[0]>().toEqualTypeOf<{query: string; limit: number}>()
     expectTypeOf<Rpc.ErrorName<Search>>().toEqualTypeOf<'not_found'>()
@@ -161,16 +207,39 @@ describe('Rpc', () => {
       readonly message: string
       readonly data: {query: string}
     }>()
-    type Client = Rpc.RpcClient<typeof Acme>
+    type Client = RpcClient<typeof Acme>
     expectTypeOf<Parameters<Client['search']>>().toEqualTypeOf<
-      [input: {query: string; limit?: number | undefined}, options?: Rpc.RpcCallOptions]
+      [input: {query: string; limit?: number | undefined}, options?: RpcCallOptions]
     >()
     expectTypeOf<Awaited<ReturnType<Client['search']>>>().toEqualTypeOf<{hits: string[]}>()
-    expectTypeOf<Rpc.RpcEventPayload<typeof Acme>['type']>().toEqualTypeOf<'rpc.acme.indexed'>()
-    expectTypeOf<Rpc.RpcEventPayload<typeof Acme>['data']>().toEqualTypeOf<{count: number}>()
+    expectTypeOf<RpcEventPayload<typeof Acme>['type']>().toEqualTypeOf<'rpc.acme.indexed'>()
+    expectTypeOf<RpcEventPayload<typeof Acme>['data']>().toEqualTypeOf<{count: number}>()
     expectTypeOf<Rpc.EventInput<typeof Acme>>().toEqualTypeOf<[name: 'indexed', data: {count: number}]>()
-    expectTypeOf<Plugin.Context['rpc']>().toEqualTypeOf<Rpc.RpcDomain>()
-    expectTypeOf<ServerRef['client']['rpc']>().toEqualTypeOf<Rpc.RpcApi>()
+    expectTypeOf<Plugin.Context['rpc']>().toEqualTypeOf<RpcDomain>()
+    expectTypeOf<ServerRef['client']['rpc']>().toEqualTypeOf<RpcApi>()
+  })
+
+  it('types a contract from any Standard Schema or a raw JSON Schema, as opencode does', () => {
+    const Counter = Rpc.define({
+      id: 'counter',
+      methods: {bump: {input: CountSchema, output: CountSchema, errors: {full: CountSchema}}},
+      events: {bumped: {schema: CountSchema}},
+    })
+    expectTypeOf<Parameters<RpcHandlers<typeof Counter>['bump']>[0]>().toEqualTypeOf<Count>()
+    expectTypeOf<Awaited<ReturnType<RpcClient<typeof Counter>['bump']>>>().toEqualTypeOf<Count>()
+    expectTypeOf<Rpc.MethodError<typeof Counter.methods.bump>['data']>().toEqualTypeOf<Count>()
+    expectTypeOf<RpcEventPayload<typeof Counter>['data']>().toEqualTypeOf<Count>()
+    const Raw = Rpc.define({
+      id: 'raw',
+      methods: {bump: {input: CountJsonSchema, output: CountJsonSchema, errors: {full: CountJsonSchema}}},
+      events: {bumped: {schema: {type: 'object', properties: {count: {type: 'number'}}}}},
+    })
+    expectTypeOf<Parameters<RpcHandlers<typeof Raw>['bump']>[0]>().toEqualTypeOf<unknown>()
+    expectTypeOf<Awaited<ReturnType<RpcClient<typeof Raw>['bump']>>>().toEqualTypeOf<unknown>()
+    expectTypeOf<RpcEventPayload<typeof Raw>['data']>().toEqualTypeOf<Readonly<Record<string, unknown>>>()
+    expectTypeOf<Rpc.EventInput<typeof Raw>>().toEqualTypeOf<
+      [name: 'bumped', data: Readonly<Record<string, unknown>>]
+    >()
   })
 })
 
@@ -299,7 +368,11 @@ describe('experimental', () => {
   const Tree = Contract.define<{open(path: string): void}, 'fixture.tree'>('fixture.tree')
   const View = z.object({open: z.boolean()})
   const Consumer = App.define({
-    stores: {view: Store.global(View, {open: false}), draft: Store.session(View, {open: true})},
+    stores: {
+      view: Store.global(View, {open: false}),
+      draft: Store.session(View, {open: true}),
+      counter: Store.global(CountSchema, {count: 0}),
+    },
   })
   const Nested = App.define({
     stores: {prefs: Store.global(z.object({items: z.array(z.object({shown: z.boolean()}))}), {items: []})},
@@ -372,6 +445,7 @@ describe('experimental', () => {
       // @ts-expect-error the implementation must match the contract
       ctx.provide(Tree, {close: () => undefined})
       expectTypeOf(ctx.stores.view.value).toEqualTypeOf<{readonly open: boolean}>()
+      expectTypeOf(ctx.stores.counter.value).toEqualTypeOf<{readonly count: number}>()
       expectTypeOf<ReturnType<typeof ctx.stores.draft>['value']>().toEqualTypeOf<{readonly open: boolean} | undefined>()
       expectTypeOf(ctx.desktop).toEqualTypeOf<Experimental.Desktop | undefined>()
       // @ts-expect-error no store named missing
@@ -718,6 +792,7 @@ describe('host', () => {
         {Contract: Experimental.Contract, Plugin: Experimental.Plugin, Store: Experimental.Store},
       ],
       ['zod', {z}],
+      ['counter', {CountSchema}],
     ])
 
     const evaluate = (code: string) =>
@@ -746,12 +821,33 @@ describe('host', () => {
       expect(bundle.setup).toBeTypeOf('function')
     })
 
+    it('read a store declared with any Standard Schema', () => {
+      const bundle = evaluate(`
+        const sdk = require("@conciv/plugin/experimental")
+        const {CountSchema} = require("counter")
+        exports.default = sdk.Plugin.define({ stores: { count: sdk.Store.global(CountSchema, { count: 0 }) }, setup() {} })
+      `)
+
+      expect(bundle.definition.stores?.count?.schema).toBe(CountSchema)
+    })
+
     it("accept a bundler's default mode, where the plugin is the module itself", () => {
       expect(evaluate('module.exports = { setup() {} }').setup).toBeTypeOf('function')
     })
 
     it.each([
       ['a store without a schema', 'stores: { count: { scope: "global", initial: 0 } }', 'schema'],
+      [
+        'a store whose schema is not a schema',
+        'stores: { count: { scope: "global", schema: {}, initial: 0 } }',
+        'schema',
+      ],
+      ['a schema without validate', 'stores: { count: { scope: "global", schema: {"~standard": {}} } }', 'schema'],
+      [
+        'a schema whose validate is no function',
+        'stores: { count: { scope: "global", schema: {"~standard": {validate: 1}} } }',
+        'schema',
+      ],
       ['a setup that is not a function', 'setup: true', 'setup'],
     ])('reject a plugin with %s', (_, field, named) => {
       const evaluated = () => evaluate(`exports.default = { ${field} }`)
@@ -792,6 +888,39 @@ describe('host', () => {
       expect(seen.window).toBe(false)
       expect(seen.name).toBe('[inert module node:fs]')
     })
+  })
+})
+
+describe('published declarations', () => {
+  type Declaration = {readonly name: string; readonly text: string}
+  const dist = path.join(import.meta.dirname, '../dist')
+  const read = (names: readonly string[]) =>
+    Promise.all(names.map(async (name) => ({name, text: await readFile(path.join(dist, name), 'utf8')})))
+  const imports = ({name, text}: Declaration) =>
+    Array.from(text.matchAll(/(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g), (match) => ({name, module: match[1] ?? ''}))
+  const closure = async (names: readonly string[], seen: readonly Declaration[] = []): Promise<Declaration[]> => {
+    const fresh = [...new Set(names)].filter((name) => !seen.some((declaration) => declaration.name === name))
+    if (fresh.length === 0) return [...seen]
+    const declarations = await read(fresh)
+    const relative = declarations.flatMap(imports).filter(({module}) => module.startsWith('.'))
+    const next = relative.map(({name, module}) => path.join(path.dirname(name), module.replace(/\.js$/, '.d.ts')))
+    return closure(next, [...seen, ...declarations])
+  }
+  const leaks = (declarations: readonly Declaration[], banned: RegExp) =>
+    declarations.flatMap(imports).filter(({module}) => banned.test(module))
+
+  it('never import zod', async () => {
+    const names = (await readdir(dist, {recursive: true})).filter((name) => name.endsWith('.d.ts'))
+
+    expect(names.length).toBeGreaterThan(0)
+    expect(leaks(await read(names), /^zod(\/|$)/)).toEqual([])
+  })
+
+  it('of the engine, RPC and host entries never reach solid-js or vite', async () => {
+    const declarations = await closure(['promise/index.d.ts', 'rpc.d.ts', 'host.d.ts'])
+
+    expect(declarations.map(({name}) => name)).toContain('promise/plugin.d.ts')
+    expect(leaks(declarations, /^(solid-js|vite)(\/|$)/)).toEqual([])
   })
 })
 

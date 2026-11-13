@@ -1,14 +1,97 @@
 import type {SessionId} from '@conciv/protocol/chat-types'
-import type {RequestOptions} from './domains.js'
-import type {PublicRef} from './location.js'
-import type {Ref} from './model.js'
-import type {Ruleset} from './permission.js'
-import type {Hooks} from './registration.js'
-import type {Json} from './storage.js'
+import type {Json} from '../../../experimental/core.js'
+import type {PublicRef} from '../../../schema/location.js'
+import type {DurableEnvelope, PayloadBase} from '../../../schema/event.js'
+import type {Ref} from '../../../schema/model.js'
+import type {Ruleset, Source} from '../../../schema/permission.js'
+
+export interface GenerateUsage {
+  input?: number
+  output?: number
+}
+
+export type GenerateNative = {[key: string]: Json}
+
+export interface GenerateTextInput {
+  readonly prompt: string
+  readonly model?: Ref | null | undefined
+}
+
+export interface GenerateImageInput {
+  readonly model: Ref
+  readonly prompt: string
+  readonly images?: ReadonlyArray<{readonly data: string; readonly mime: string; readonly name?: string}> | undefined
+  readonly n?: number | undefined
+  readonly aspect?: `${number}${':'}${number}` | undefined
+  readonly resolution?: ('1K' | '2K' | '4K' | (string & {})) | undefined
+}
+
+export interface GenerateImageResult {
+  images: Array<{type: 'image'; data: string; mime: string; name?: string}>
+  cost?: number
+  tokens?: GenerateUsage
+  native?: GenerateNative
+}
+
+export interface GenerateDecisionsInput {
+  readonly model: Ref
+  readonly input: ReadonlyArray<
+    | {readonly type: 'text'; readonly text: string}
+    | {readonly type: 'json'; readonly value: Json}
+    | {readonly type: 'file'; readonly data: string; readonly mime: string; readonly name?: string}
+  >
+  readonly questions: ReadonlyArray<
+    | {
+        readonly type: 'predicate'
+        readonly name: string
+        readonly instructions: string
+        readonly criteria?: {readonly true?: string; readonly false?: string}
+      }
+    | {
+        readonly type: 'choice'
+        readonly name: string
+        readonly instructions: string
+        readonly choices: ReadonlyArray<{readonly value: string | boolean; readonly description?: string}>
+      }
+    | {
+        readonly type: 'score'
+        readonly name: string
+        readonly instructions: string
+        readonly levels: ReadonlyArray<{readonly label: string; readonly description?: string}>
+      }
+  >
+}
+
+export type GenerateChoiceValue = string | boolean
+
+export type GenerateDecisionAnswer =
+  | {type: 'predicate'; name: string; probability: number}
+  | {
+      type: 'choice'
+      name: string
+      choice: GenerateChoiceValue
+      probabilities: Array<{value: GenerateChoiceValue; probability: number}>
+      confidence: number
+    }
+  | {
+      type: 'score'
+      name: string
+      score: number
+      probabilities: Array<{value: number; label: string; probability: number}>
+      confidence: number
+    }
+  | {type: 'error'; name: string; reason: string; message?: string}
+
+export interface GenerateDecisionResult {
+  answers: Array<GenerateDecisionAnswer>
+  cost?: number
+  tokens?: GenerateUsage
+  native?: GenerateNative
+}
 
 export type SessionInboxDelivery = 'steer' | 'queue'
 
-export interface TokenUsage {
+export interface TokenUsageInfo {
   input: number
   output: number
   reasoning: number
@@ -26,7 +109,7 @@ export interface SessionInfo {
   agent?: string
   model?: Ref
   cost: number
-  tokens: TokenUsage
+  tokens: TokenUsageInfo
   /** @remarks Not implemented yet. Always undefined in this version. */
   outcome?: 'succeeded' | 'failed' | 'interrupted'
   time: {
@@ -163,97 +246,72 @@ export interface InstructionEntryInfo {
   value: Json
 }
 
-type SessionInput = {readonly sessionId: SessionId}
+export type PluginSource =
+  | {readonly type: 'builtin'}
+  | {
+      readonly type: 'package'
+      readonly target: string
+      readonly version?: string
+      readonly outdated?: true
+      readonly updating?: true
+    }
+  | {readonly type: 'local'; readonly path: string}
+  | {readonly type: 'sdk'}
 
-export type SessionIdleBackground =
-  | {
-      readonly kind: 'shell'
-      readonly sessionId: SessionId
-      readonly shellId: string
-      readonly command: string
-    }
-  | {
-      readonly kind: 'subagent'
-      readonly sessionId: SessionId
-      readonly childSessionId: SessionId
-      readonly agent: string
-      readonly description: string
-    }
-  | {
-      readonly kind: 'image'
-      readonly sessionId: SessionId
-      readonly path: string
-      readonly model: string
-    }
+export interface PluginFeatures {
+  readonly server?: true
+  readonly rpc?: true
+  readonly experimental?: true
+}
 
-export interface SessionIdle {
+export type PluginState =
+  | {readonly status: 'active'}
+  | {readonly status: 'failed'; readonly error: string; readonly ref?: string}
+
+export interface PluginInfo {
+  readonly id?: string
+  readonly source: PluginSource
+  readonly features: PluginFeatures
+  readonly state: PluginState
+}
+
+export interface PermissionRequest {
+  readonly id: string
   readonly sessionId: SessionId
+  readonly action: string
+  readonly resources: ReadonlyArray<string>
+  readonly save?: ReadonlyArray<string>
+  readonly metadata?: Readonly<Record<string, unknown>>
+  readonly source?: Source
   /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly background: ReadonlyArray<SessionIdleBackground> | undefined
+  readonly message?: string
 }
 
-export interface SessionHooks {
-  readonly 'experimental.idle': SessionIdle
+export interface PermissionReplyInput {
+  readonly sessionId: SessionId
+  readonly requestId: string
+  readonly decision: 'once' | 'always' | 'reject'
+  /** @remarks Not implemented yet. Always undefined in this version. */
+  readonly message?: string | undefined
 }
 
-export interface SessionDomain {
-  readonly list: (
-    input?: SessionListInput,
-    requestOptions?: RequestOptions,
-  ) => Promise<{data: Array<SessionInfo>; cursor: {previous?: string | null; next?: string | null}}>
-  readonly create: (input?: SessionCreateInput, requestOptions?: RequestOptions) => Promise<SessionInfo>
-  readonly get: (input: SessionInput, requestOptions?: RequestOptions) => Promise<SessionInfo>
-  readonly remove: (input: SessionInput, requestOptions?: RequestOptions) => Promise<void>
-  readonly switchAgent: (
-    input: {readonly sessionId: SessionId; readonly agent: string},
-    requestOptions?: RequestOptions,
-  ) => Promise<void>
-  readonly switchModel: (
-    input: {readonly sessionId: SessionId; readonly model: Ref},
-    requestOptions?: RequestOptions,
-  ) => Promise<void>
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly generate:
-    | ((
-        input: {readonly sessionId: SessionId; readonly prompt: string},
-        requestOptions?: RequestOptions,
-      ) => Promise<{text: string; tokens: TokenUsage; cost: number}>)
-    | undefined
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly command: ((input: SessionCommandInput, requestOptions?: RequestOptions) => Promise<void>) | undefined
-  readonly compact: (
-    input: {
-      readonly sessionId: SessionId
-      /** @remarks Not implemented yet. Always undefined in this version. */
-      readonly id?: string | undefined
-      /** @remarks Not implemented yet. Always undefined in this version. */
-      readonly delivery?: SessionInboxDelivery | undefined
-    },
-    requestOptions?: RequestOptions,
-  ) => Promise<SessionInboxCompaction>
-  readonly synthetic: (input: SessionSyntheticInput, requestOptions?: RequestOptions) => Promise<SessionInboxSynthetic>
-  readonly interrupt: (
-    input: {
-      readonly sessionId: SessionId
-      /** @remarks Not implemented yet. Always undefined in this version. */
-      readonly resume?: boolean | undefined
-    },
-    requestOptions?: RequestOptions,
-  ) => Promise<{interrupted: boolean}>
-  readonly update: (input: SessionUpdateInput, requestOptions?: RequestOptions) => Promise<void>
-  readonly wait: (input: SessionInput, requestOptions?: RequestOptions) => Promise<void>
-  readonly instructions: {
-    readonly entry: {
-      readonly list: (input: SessionInput, requestOptions?: RequestOptions) => Promise<Array<InstructionEntryInfo>>
-      readonly put: (
-        input: {readonly sessionId: SessionId; readonly key: string; readonly value: Json},
-        requestOptions?: RequestOptions,
-      ) => Promise<void>
-      readonly remove: (
-        input: {readonly sessionId: SessionId; readonly key: string},
-        requestOptions?: RequestOptions,
-      ) => Promise<void>
-    }
-  }
-  readonly hook: Hooks<SessionHooks>
+export interface ModelListInput {
+  readonly types?: ReadonlyArray<'chat' | 'decision' | 'image' | (string & {})> | undefined
 }
+
+export type SessionDeleted = Omit<PayloadBase, 'type' | 'data'> & {
+  readonly type: 'session.deleted'
+  readonly durable: DurableEnvelope
+  readonly data: {readonly sessionId: SessionId}
+}
+
+type V2EventRpc = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown> | undefined
+  type: `rpc.${string}`
+  location: PublicRef
+  data: Record<string, unknown>
+}
+
+export type EventSubscribeOutput = SessionDeleted | V2EventRpc

@@ -1,9 +1,4 @@
-import type {RpcClient} from '@conciv/contract'
-import type {RpcApi} from './rpc.js'
-
-export type ConcivClient = RpcClient & {
-  readonly rpc: RpcApi
-}
+import type {ConcivClient} from '../client/promise/index.js'
 
 export interface ServerRef {
   readonly id: string
