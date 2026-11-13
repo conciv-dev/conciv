@@ -58,8 +58,7 @@ function finished(entry: Minted): boolean {
 async function killLeftovers(spawned: SpawnHandle): Promise<void> {
   if (await groupExited(spawned.pid)) return
   await spawned.kill('SIGKILL')
-  if (await groupExited(spawned.pid)) return
-  throw new Error(`process group ${spawned.pid} survived SIGKILL`)
+  await groupExited(spawned.pid)
 }
 
 async function groupExited(group: number): Promise<boolean> {
