@@ -7,6 +7,7 @@ import {Database} from '../../src/core/database/database.js'
 import {Location} from '../../src/core/location.js'
 import {SessionTable} from '../../src/core/session/sql.js'
 import type {Event} from '../../src/schema/event.js'
+import {ProjectId} from '../../src/schema/project-id.js'
 import {AbsolutePath} from '../../src/schema/schema.js'
 import {SessionEvent} from '../../src/schema/session-event.js'
 import {SessionId} from '../../src/schema/session-id.js'
@@ -25,8 +26,12 @@ const databaseLayer = Layer.unwrap(
   }),
 )
 
-const engine = Location.Service.of({directory: AbsolutePath.make('project'), workspaceId: WorkspaceId.make('wrk_test')})
-const elsewhere = Location.Service.of({directory: AbsolutePath.make('elsewhere')})
+const engine = Location.Service.of({
+  directory: AbsolutePath.make('project'),
+  workspaceId: WorkspaceId.make('wrk_test'),
+  project: {id: ProjectId.global},
+})
+const elsewhere = Location.Service.of({directory: AbsolutePath.make('elsewhere'), project: {id: ProjectId.global}})
 
 const it = testEffect(
   Bus.configured({persist: true}).pipe(

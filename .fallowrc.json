@@ -224,7 +224,14 @@
         "durable",
         "ephemeral",
         "versionedType",
-        "configured"
+        "configured",
+        "Agent",
+        "Color",
+        "Location",
+        "Name",
+        "NotFoundError",
+        "PermissionSaved",
+        "makeNotFoundError"
       ]
     },
     {
@@ -238,9 +245,7 @@
   ],
   "entry": [
     "packages/plugin-host/src/core/database/**",
-    "packages/plugin-host/src/core/location.ts",
-    "packages/plugin-host/src/core/agent.ts",
-    "packages/plugin-host/src/core/permission/saved.ts",
+    "packages/plugin-host/src/core/permission.ts",
     "packages/brand-react/src/conciv-lockup.tsx",
     "packages/brand/src/brand-guidelines.mdx",
     "packages/ui-kit-chat/src/tools.tsx",

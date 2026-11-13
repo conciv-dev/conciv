@@ -8,6 +8,7 @@ import {SessionEvent} from '../../src/schema/session-event.js'
 import {Database} from '../../src/core/database/database.js'
 import {EventSequenceTable, EventTable} from '../../src/core/event/sql.js'
 import {Location} from '../../src/core/location.js'
+import {ProjectId} from '../../src/schema/project-id.js'
 import {AbsolutePath} from '../../src/schema/schema.js'
 import {WorkspaceId} from '../../src/schema/workspace-id.js'
 import {eq} from 'drizzle-orm'
@@ -27,7 +28,11 @@ const databaseLayer = Layer.unwrap(
 
 const locationLayer = Layer.succeed(
   Location.Service,
-  Location.Service.of({directory: AbsolutePath.make('project'), workspaceId: WorkspaceId.make('wrk_test')}),
+  Location.Service.of({
+    directory: AbsolutePath.make('project'),
+    workspaceId: WorkspaceId.make('wrk_test'),
+    project: {id: ProjectId.global},
+  }),
 )
 const Message = Bus.ephemeral({
   type: 'test.message',
