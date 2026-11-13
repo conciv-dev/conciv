@@ -17,7 +17,7 @@ import {RefreshButton} from '../shell/refresh-button.js'
 import {ContextTracker} from '../pane/context-tracker.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {SessionPillPending, UsagePending} from '../shell/pending.js'
-import {NoticeContextProvider, NoticeSurface} from '../shell/notice-context.js'
+import {NoticeSurface} from '../shell/notice-context.js'
 import {EngineStaleNotice, EngineUnreachableNotice} from '../shell/engine-notice.js'
 import {QuickSearchSchema, quickPaneIds, quickSearchFor} from '../lib/quick-search.js'
 import {openPipTarget} from '../shell/pip.js'
@@ -222,125 +222,123 @@ function QuickLayer(): JSX.Element {
   onCleanup(() => restoreFocus?.focus())
 
   return (
-    <NoticeContextProvider>
-      <section
-        class={qtShellClass()}
-        data-conciv-qt
-        data-conciv-suppressed={suppressed()}
-        style={{height: `${resize.size()}px`}}
-        role="dialog"
-        aria-label="conciv quick terminal"
+    <section
+      class={qtShellClass()}
+      data-conciv-qt
+      data-conciv-suppressed={suppressed()}
+      style={{height: `${resize.size()}px`}}
+      role="dialog"
+      aria-label="conciv quick terminal"
+    >
+      <NoticeSurface />
+      <EngineStaleNotice />
+      <EngineUnreachableNotice />
+      <QuickTerminalHeader
+        splitShortcut={splitBinding()}
+        onPip={() => {
+          const id = paneIds()[focusedIndex()]
+          if (!id) return
+          if (openPipTarget()) {
+            void router.navigate({to: '/pip/$sessionId', params: {sessionId: id}})
+            return
+          }
+          void router.navigate({
+            to: '/panel/$sessionId',
+            params: {sessionId: id},
+            search: {popOut: 'lost', open: true},
+            replace: true,
+          })
+        }}
+        onSplit={() => addFreshPane()}
+        onClose={() => router.history.back()}
+      />
+      <div
+        class="flex flex-1 min-h-0 overflow-x-auto"
+        ref={(el) => {
+          rowEl = el
+        }}
       >
-        <NoticeSurface />
-        <EngineStaleNotice />
-        <EngineUnreachableNotice />
-        <QuickTerminalHeader
-          splitShortcut={splitBinding()}
-          onPip={() => {
-            const id = paneIds()[focusedIndex()]
-            if (!id) return
-            if (openPipTarget()) {
-              void router.navigate({to: '/pip/$sessionId', params: {sessionId: id}})
-              return
-            }
-            void router.navigate({
-              to: '/panel/$sessionId',
-              params: {sessionId: id},
-              search: {popOut: 'lost', open: true},
-              replace: true,
-            })
-          }}
-          onSplit={() => addFreshPane()}
-          onClose={() => router.history.back()}
-        />
-        <div
-          class="flex flex-1 min-h-0 overflow-x-auto"
-          ref={(el) => {
-            rowEl = el
-          }}
+        <Show
+          when={paneIds().length > 0}
+          fallback={
+            <div
+              class="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-chat-text-2 text-[0.8125rem]"
+              role="status"
+            >
+              <p>{paneStartFailed() ? ADD_PANE_FAILED_MESSAGE : 'Starting a pane…'}</p>
+              <Show when={paneStartFailed()}>
+                <Button variant="outline-danger" onClick={retryPaneStart} disabled={paneStartPending()}>
+                  Retry
+                </Button>
+              </Show>
+            </div>
+          }
         >
-          <Show
-            when={paneIds().length > 0}
-            fallback={
-              <div
-                class="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-chat-text-2 text-[0.8125rem]"
-                role="status"
-              >
-                <p>{paneStartFailed() ? ADD_PANE_FAILED_MESSAGE : 'Starting a pane…'}</p>
-                <Show when={paneStartFailed()}>
-                  <Button variant="outline-danger" onClick={retryPaneStart} disabled={paneStartPending()}>
-                    Retry
-                  </Button>
+          <For each={paneIds()}>
+            {(id, index) => (
+              <>
+                <Show when={index() > 0}>
+                  <div
+                    class="flex-[0_0_0.4375rem] cursor-col-resize relative before:bg-chat-line before:content-[''] before:transition-[background-color] before:duration-[120ms] before:ease-chat before:inset-x-[0.1875rem] before:inset-y-0 before:absolute hover:before:bg-chat-accent-line"
+                    aria-hidden="true"
+                    onPointerDown={onGutterDown}
+                  />
                 </Show>
-              </div>
-            }
-          >
-            <For each={paneIds()}>
-              {(id, index) => (
-                <>
-                  <Show when={index() > 0}>
-                    <div
-                      class="flex-[0_0_0.4375rem] cursor-col-resize relative before:bg-chat-line before:content-[''] before:transition-[background-color] before:duration-[120ms] before:ease-chat before:inset-x-[0.1875rem] before:inset-y-0 before:absolute hover:before:bg-chat-accent-line"
-                      aria-hidden="true"
-                      onPointerDown={onGutterDown}
-                    />
-                  </Show>
-                  <PaneProvider sessionId={id} onNewSession={addFreshPane}>
-                    <div
-                      data-conciv-qt-pane
-                      class={`flex flex-1 flex-col min-h-0 min-w-55 transition-opacity duration-[160ms] ease-chat relative ${focusedIndex() === index() ? "before:content-[''] before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-chat-accent before:opacity-90" : 'opacity-[0.62]'}`}
-                      onPointerDown={() => focusPane(index())}
-                      onFocusIn={() => {
-                        if (focusedIndex() !== index()) focusPane(index())
-                      }}
-                    >
-                      <div class="text-xs text-chat-text-3 leading-none font-chat-mono px-3 py-2 border-b border-b-chat-line-soft flex shrink-0 gap-2 items-center">
-                        <Suspense fallback={<SessionPillPending variant="bar" />}>
-                          <SessionSelector
-                            variant="bar"
-                            activeId={() => id}
-                            onActivate={(next) => activatePane(index(), next)}
-                            onNewSession={addFreshPane}
-                          />
-                        </Suspense>
-                        <Suspense fallback={<UsagePending />}>
-                          <PaneUsage sessionId={id} />
-                        </Suspense>
-                        <span class="flex-1" />
-                        <RefreshButton class={PANE_ACTION} />
-                        <TooltipIconButton
-                          tooltip="Close pane"
-                          class={PANE_ACTION}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            closePane(index())
-                          }}
-                        >
-                          <X size={14} aria-hidden="true" />
-                        </TooltipIconButton>
-                      </div>
-                      <Show when={{sessionId: id, generation: generation()}} keyed>
-                        {(paneKey) => <ChatPane sessionId={paneKey.sessionId} />}
-                      </Show>
+                <PaneProvider sessionId={id} onNewSession={addFreshPane}>
+                  <div
+                    data-conciv-qt-pane
+                    class={`flex flex-1 flex-col min-h-0 min-w-55 transition-opacity duration-[160ms] ease-chat relative ${focusedIndex() === index() ? "before:content-[''] before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-chat-accent before:opacity-90" : 'opacity-[0.62]'}`}
+                    onPointerDown={() => focusPane(index())}
+                    onFocusIn={() => {
+                      if (focusedIndex() !== index()) focusPane(index())
+                    }}
+                  >
+                    <div class="text-xs text-chat-text-3 leading-none font-chat-mono px-3 py-2 border-b border-b-chat-line-soft flex shrink-0 gap-2 items-center">
+                      <Suspense fallback={<SessionPillPending variant="bar" />}>
+                        <SessionSelector
+                          variant="bar"
+                          activeId={() => id}
+                          onActivate={(next) => activatePane(index(), next)}
+                          onNewSession={addFreshPane}
+                        />
+                      </Suspense>
+                      <Suspense fallback={<UsagePending />}>
+                        <PaneUsage sessionId={id} />
+                      </Suspense>
+                      <span class="flex-1" />
+                      <RefreshButton class={PANE_ACTION} />
+                      <TooltipIconButton
+                        tooltip="Close pane"
+                        class={PANE_ACTION}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          closePane(index())
+                        }}
+                      >
+                        <X size={14} aria-hidden="true" />
+                      </TooltipIconButton>
                     </div>
-                  </PaneProvider>
-                </>
-              )}
-            </For>
-          </Show>
-        </div>
-        <div
-          class="rounded-full bg-chat-line-2 h-2 w-11.5 cursor-ns-resize bottom-[0.3125rem] left-1/2 absolute z-[2] focus-visible:outline-none focus-visible:bg-chat-accent hover:bg-chat-text-3 -translate-x-1/2"
-          role="separator"
-          aria-orientation="horizontal"
-          aria-label="Resize quick terminal height"
-          aria-valuemin={200}
-          aria-valuenow={Math.round(resize.size())}
-          tabindex={0}
-          onPointerDown={resize.onPointerDown}
-          onKeyDown={resize.onKeyDown}
-        />
-      </section>
-    </NoticeContextProvider>
+                    <Show when={{sessionId: id, generation: generation()}} keyed>
+                      {(paneKey) => <ChatPane sessionId={paneKey.sessionId} />}
+                    </Show>
+                  </div>
+                </PaneProvider>
+              </>
+            )}
+          </For>
+        </Show>
+      </div>
+      <div
+        class="rounded-full bg-chat-line-2 h-2 w-11.5 cursor-ns-resize bottom-[0.3125rem] left-1/2 absolute z-[2] focus-visible:outline-none focus-visible:bg-chat-accent hover:bg-chat-text-3 -translate-x-1/2"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Resize quick terminal height"
+        aria-valuemin={200}
+        aria-valuenow={Math.round(resize.size())}
+        tabindex={0}
+        onPointerDown={resize.onPointerDown}
+        onKeyDown={resize.onKeyDown}
+      />
+    </section>
   )
 }

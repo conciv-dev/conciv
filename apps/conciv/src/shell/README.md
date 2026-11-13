@@ -7,8 +7,8 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 ## Interface
 
 - `ShellFab`, `FabRobot` (`fab.tsx`, `fab-robot.tsx`): launcher button controlling `#conciv-chat-panel`; the robot's binary digits avoid the open panel's frame (`avoid`), going around its nearer free side
-- `createNoticeStore()`, `NoticeStore`, `Notify`, `NoticeTone` (`notices.tsx`): toaster with `notify`, `remove`, `Toaster`
-- `NoticeContextProvider`, `useNotices`, `NoticeSurface`, `useEngineNotices` (`notice-context.tsx`)
+- `createNoticeStore()`, `NoticeStore`, `Notify`, `NoticeOptions`, `NoticeHandle`, `NoticeIcon`, `NoticeTone` (`notices.tsx`): toaster with `notify` (message, optional description, lucide icon, duration, loading state, one `action` or several `actions`; returns a handle whose `dismiss` removes that notice), `remove`, `Toaster`
+- `NoticeContextProvider`, `useNotices`, `NoticeSurface`, `useEngineNotices` (`notice-context.tsx`): one store, provided in `routes/__root.tsx`; the panel, quick terminal and picture-in-picture layouts each draw the surface
 - `EngineStaleNotice`, `EngineUnreachableNotice` (`engine-notice.tsx`): standing danger notices driven by `meta.engine` and reachability
 - `EngineOutdatedNotice` (`engine-notice.tsx`, mounted in the panel): fetches `${apiBase}/health` once and shows a standing notice naming the widget version and asking to update the @conciv packages to it when the `x-conciv-version` response header is missing or semver-older than the `@conciv/app` version; a newer engine shows nothing
 - `openPipWindow(opts)`, `openPipTarget()`, `PipWindow` (`pip.ts`): popup window `conciv-pip` with a shadow root and the app styles
@@ -22,8 +22,10 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 
 ## Invariants
 
-- `notices.tsx:createNoticeStore`: at most 3 standing toasts (`STANDING_LIMIT`); toasts expire after 6 s (`FUSE_MS`) unless `persist` or an `action` is set
+- `notices.tsx:createNoticeStore`: at most 3 standing toasts (`STANDING_LIMIT`); toasts expire after 6 s (`FUSE_MS`), or after `duration`, unless `persist`, `loading` or an action is set
 - `notices.tsx:createNoticeStore`: a `key` dedupes a notice by toast id
+- `notices.tsx:createNoticeStore`: a single action renders inline through Ark's toast `action`; several ride the toast's `meta` and wrap to a row under the text; each runs its action and dismisses the notice
+- `notices.tsx:createNoticeStore`: a success notice with no icon shows the lucide `check`; a loading notice shows the kit `Loader` in the icon slot
 - `notice-context.tsx:useNotices`: throws outside `NoticeContextProvider`
 - `engine-notice.tsx:EngineStaleNotice`: one standing notice per engine `fingerprint`; cleared when the engine reports not stale
 - `engine-notice.tsx:EngineUnreachableNotice`: shown only while `sustainedOffline()`; Retry re-runs the login check, then calls `resetBrowserRpcConnection` and `router.invalidate()`

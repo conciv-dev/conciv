@@ -49,6 +49,7 @@ import {makeLayerStack} from '../shell/dialogs.js'
 import {ShellFab} from '../shell/fab.js'
 import {EngineLoginDialog, engineConnected, engineLocked} from '../app/engine-login.js'
 import {EffectsSurface} from '../shell/effects-surface.js'
+import {NoticeContextProvider} from '../shell/notice-context.js'
 import {createDraggablePosition, type PanelFrame} from '../lib/draggable-position.js'
 import {createElementSize} from '@solid-primitives/resize-observer'
 import {toRawHotkey} from '../lib/hotkey.js'
@@ -205,31 +206,33 @@ function AppRoot() {
       <QueryClientProvider client={app.queryClient}>
         <AppContext.Provider value={value}>
           <EngineReachabilityContext.Provider value={reachability}>
-            <HostApiProvider
-              rpc={app.rpc}
-              apiBase={app.apiBase}
-              toast={showToast}
-              openEditor={(file, line) =>
-                void app.rpc.editor
-                  .open({file, line})
-                  .catch(() => showToast(`could not open ${file} in the editor`, 'error'))
-              }
-              registerLayer={(isOpen, hides) => layers.register(isOpen, hides)}
-              dialog={layers.track(Dialog)}
-              popover={Object.assign({}, Popover, {Root: layers.track(Popover.Root)})}
-              sessionId={activeSession}
-              colorScheme={colorScheme}
-            >
-              <RootChrome
-                fab={fab}
-                activeSession={activeSession}
-                politeMessage={politeMessage}
-                assertiveMessage={assertiveMessage}
-              />
-              <Show when={app.login === undefined || engineConnected(app.login.status())}>
-                <EffectsSurface instances={app.instances} />
-              </Show>
-            </HostApiProvider>
+            <NoticeContextProvider>
+              <HostApiProvider
+                rpc={app.rpc}
+                apiBase={app.apiBase}
+                toast={showToast}
+                openEditor={(file, line) =>
+                  void app.rpc.editor
+                    .open({file, line})
+                    .catch(() => showToast(`could not open ${file} in the editor`, 'error'))
+                }
+                registerLayer={(isOpen, hides) => layers.register(isOpen, hides)}
+                dialog={layers.track(Dialog)}
+                popover={Object.assign({}, Popover, {Root: layers.track(Popover.Root)})}
+                sessionId={activeSession}
+                colorScheme={colorScheme}
+              >
+                <RootChrome
+                  fab={fab}
+                  activeSession={activeSession}
+                  politeMessage={politeMessage}
+                  assertiveMessage={assertiveMessage}
+                />
+                <Show when={app.login === undefined || engineConnected(app.login.status())}>
+                  <EffectsSurface instances={app.instances} />
+                </Show>
+              </HostApiProvider>
+            </NoticeContextProvider>
           </EngineReachabilityContext.Provider>
         </AppContext.Provider>
       </QueryClientProvider>
