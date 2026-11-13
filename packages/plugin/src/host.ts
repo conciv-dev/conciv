@@ -94,7 +94,12 @@ async function importModule(specifier: string) {
   }).runInThisContext()
   if (typeof imported !== 'object' || imported === null) return imported
   const exports: unknown = Reflect.get(imported, 'module.exports')
-  if (exports !== Reflect.get(imported, 'default') || typeof exports !== 'object' || exports === null) return imported
+  if (
+    exports !== Reflect.get(imported, 'default') ||
+    (typeof exports !== 'object' && typeof exports !== 'function') ||
+    exports === null
+  )
+    return imported
   return Object.assign({}, imported, exports)
 }
 
