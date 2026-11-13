@@ -38,6 +38,7 @@
   },
   "dependencies": {
     "@conciv/db": "workspace:^",
+    "@conciv/plugin": "workspace:^",
     "@effect/sql-sqlite-node": "catalog:",
     "@parcel/watcher": "catalog:",
     "@standard-schema/spec": "catalog:",
