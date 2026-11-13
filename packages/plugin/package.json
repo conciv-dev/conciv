@@ -63,6 +63,7 @@
   "dependencies": {
     "@conciv/contract": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@standard-schema/spec": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

@@ -1,18 +1,19 @@
-import type {z} from 'zod'
+import type {StandardSchemaV1} from '@standard-schema/spec'
 import type {PayloadBase} from './event.js'
 import type {Ref} from './location.js'
+import type {ValueSchema} from './tool.js'
 
-export type ErrorMap = Readonly<Record<string, z.ZodType>> & {
+export type ErrorMap = Readonly<Record<string, ValueSchema>> & {
   readonly [Name in `rpc.${string}`]?: never
 }
 
 export interface Method {
-  readonly input: z.ZodType
-  readonly output: z.ZodType
+  readonly input: ValueSchema
+  readonly output: ValueSchema
   readonly errors?: ErrorMap
 }
 
-export type PortableValueSchema = z.ZodType
+export type PortableValueSchema = StandardSchemaV1<unknown, unknown>
 
 export interface PortableMethod extends Method {
   readonly input: PortableValueSchema
@@ -23,8 +24,8 @@ export interface PortableMethod extends Method {
 }
 
 type EventDataObject = Readonly<Record<string, unknown>>
-type EventValueSchema = z.ZodType<EventDataObject>
-type PortableEventValueSchema = z.ZodType<EventDataObject>
+type EventValueSchema = StandardSchemaV1<unknown, EventDataObject>
+type PortableEventValueSchema = StandardSchemaV1<unknown, EventDataObject>
 
 export interface EventDefinition {
   readonly schema: EventValueSchema
@@ -50,11 +51,11 @@ export function define<const D extends Definition>(definition: D) {
   return definition
 }
 
-export type Input<S extends z.ZodType> = z.input<S>
+export type Input<S extends ValueSchema> = S extends StandardSchemaV1 ? StandardSchemaV1.InferInput<S> : unknown
 
-export type Output<S extends z.ZodType> = z.output<S>
+export type Output<S extends ValueSchema> = S extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<S> : unknown
 
-export type HandlerOutput<S extends z.ZodType> = Input<S>
+export type HandlerOutput<S extends ValueSchema> = Input<S>
 
 type MethodErrors<M extends Method> = M extends {
   readonly errors: infer Errors extends ErrorMap

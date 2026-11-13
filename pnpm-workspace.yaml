@@ -61,6 +61,7 @@ catalog:
   '@solid-primitives/resize-observer': '^2.2.0'
   '@solid-primitives/timer': '^1.4.4'
   '@solidjs/testing-library': '^0.8.10'
+  '@standard-schema/spec': 1.1.0
   '@storybook/addon-docs': '^10.6.5'
   '@tailwindcss/typography': '^0.5.20'
   '@tailwindcss/vite': '^4.3.3'

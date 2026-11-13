@@ -1,4 +1,4 @@
-import type {z} from 'zod'
+import type {StandardSchemaV1} from '@standard-schema/spec'
 import type {ConcivClient} from '../client/promise/index.js'
 
 export type Json = string | number | boolean | null | readonly Json[] | {readonly [key: string]: Json}
@@ -183,12 +183,14 @@ export interface BaseContext {
  */
 export type StoreFrom = string
 
-export type StoreType<S extends z.ZodObject> = ReadonlyDeep<z.output<S>>
+export type StoreType<S extends StoreSchema> = ReadonlyDeep<StandardSchemaV1.InferOutput<S>>
+
+type StoreSchema = StandardSchemaV1<unknown, object>
 
 type ReadonlyDeep<T> = T extends object ? {readonly [K in keyof T]: ReadonlyDeep<T[K]>} : T
 
 export interface StoreDeclaration<
-  S extends z.ZodObject = z.ZodObject,
+  S extends StoreSchema = StoreSchema,
   Scope extends 'global' | 'project' | 'session' = 'global' | 'project' | 'session',
 > {
   readonly scope: Scope
@@ -215,11 +217,11 @@ export const Store: {
    * One value for every project. The host loads every global store before setup, so `ctx.stores.name.value` is never
    * undefined. A load that fails fails the plugin's setup.
    *
-   * @param schema - Decodes the stored JSON; a zod object schema.
+   * @param schema - Decodes the stored JSON; an object schema.
    * @param initial - The value before anything is stored.
    * @param from - Older homes to import the value from once.
    */
-  global<S extends z.ZodObject>(
+  global<S extends StoreSchema>(
     schema: S,
     initial: NoInfer<StoreType<S>>,
     from?: StoreFrom | readonly StoreFrom[],
@@ -229,11 +231,11 @@ export const Store: {
    * loads every project store before setup, so `ctx.stores.name.value` is never undefined. A load that fails fails the
    * plugin's setup.
    *
-   * @param schema - Decodes the stored JSON; a zod object schema.
+   * @param schema - Decodes the stored JSON; an object schema.
    * @param initial - The value before anything is stored.
    * @param from - Older homes to import the value from once.
    */
-  project<S extends z.ZodObject>(
+  project<S extends StoreSchema>(
     schema: S,
     initial: NoInfer<StoreType<S>>,
     from?: StoreFrom | readonly StoreFrom[],
@@ -242,11 +244,11 @@ export const Store: {
    * One value per session. The host starts loading it when the session mounts, before its regions render;
    * `ctx.stores.name(session).value` is undefined until then.
    *
-   * @param schema - Decodes the stored JSON; a zod object schema.
+   * @param schema - Decodes the stored JSON; an object schema.
    * @param initial - The value before anything is stored.
    * @param from - Older homes to import the value from once.
    */
-  session<S extends z.ZodObject>(
+  session<S extends StoreSchema>(
     schema: S,
     initial: NoInfer<StoreType<S>>,
     from?: StoreFrom | readonly StoreFrom[],

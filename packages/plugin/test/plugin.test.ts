@@ -11,6 +11,7 @@ import {build} from 'vite'
 import * as Zod from 'zod'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import type {StandardSchemaV1} from '@standard-schema/spec'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {
   Agent,
@@ -47,6 +48,18 @@ import {
 import {experimental} from '../src/experimental/vite.js'
 import * as RpcEntry from '../src/rpc.js'
 import * as Host from '../src/host.js'
+
+type Count = {count: number}
+
+const isCount = (value: unknown): value is Count => z.object({count: z.number()}).safeParse(value).success
+
+const CountSchema: StandardSchemaV1<Count, Count> = {
+  '~standard': {
+    version: 1,
+    vendor: 'test',
+    validate: (value) => (isCount(value) ? {value} : {issues: [{message: 'not a count'}]}),
+  },
+}
 
 describe('define', () => {
   it('returns the same plugin object', () => {
@@ -131,6 +144,12 @@ describe('define', () => {
     expectTypeOf<Parameters<SumTool['execute']>[0]>().toEqualTypeOf<{left: number}>()
     expectTypeOf<NonNullable<Awaited<ReturnType<SumTool['execute']>>['output']>>().toEqualTypeOf<{sum: number}>()
   })
+
+  it('types a tool from any Standard Schema, not only zod', () => {
+    type CountTool = Tool.Info<typeof CountSchema, typeof CountSchema>
+    expectTypeOf<Parameters<CountTool['execute']>[0]>().toEqualTypeOf<Count>()
+    expectTypeOf<NonNullable<Awaited<ReturnType<CountTool['execute']>>['output']>>().toEqualTypeOf<Count>()
+  })
 })
 
 describe('Rpc', () => {
@@ -195,6 +214,18 @@ describe('Rpc', () => {
     expectTypeOf<Rpc.EventInput<typeof Acme>>().toEqualTypeOf<[name: 'indexed', data: {count: number}]>()
     expectTypeOf<Plugin.Context['rpc']>().toEqualTypeOf<RpcDomain>()
     expectTypeOf<ServerRef['client']['rpc']>().toEqualTypeOf<RpcApi>()
+  })
+
+  it('types a contract from any Standard Schema, not only zod', () => {
+    const Counter = Rpc.define({
+      id: 'counter',
+      methods: {bump: {input: CountSchema, output: CountSchema, errors: {full: CountSchema}}},
+      events: {bumped: {schema: CountSchema}},
+    })
+    expectTypeOf<Parameters<RpcHandlers<typeof Counter>['bump']>[0]>().toEqualTypeOf<Count>()
+    expectTypeOf<Awaited<ReturnType<RpcClient<typeof Counter>['bump']>>>().toEqualTypeOf<Count>()
+    expectTypeOf<Rpc.MethodError<typeof Counter.methods.bump>['data']>().toEqualTypeOf<Count>()
+    expectTypeOf<RpcEventPayload<typeof Counter>['data']>().toEqualTypeOf<Count>()
   })
 })
 
@@ -323,7 +354,11 @@ describe('experimental', () => {
   const Tree = Contract.define<{open(path: string): void}, 'fixture.tree'>('fixture.tree')
   const View = z.object({open: z.boolean()})
   const Consumer = App.define({
-    stores: {view: Store.global(View, {open: false}), draft: Store.session(View, {open: true})},
+    stores: {
+      view: Store.global(View, {open: false}),
+      draft: Store.session(View, {open: true}),
+      counter: Store.global(CountSchema, {count: 0}),
+    },
   })
   const Nested = App.define({
     stores: {prefs: Store.global(z.object({items: z.array(z.object({shown: z.boolean()}))}), {items: []})},
@@ -396,6 +431,7 @@ describe('experimental', () => {
       // @ts-expect-error the implementation must match the contract
       ctx.provide(Tree, {close: () => undefined})
       expectTypeOf(ctx.stores.view.value).toEqualTypeOf<{readonly open: boolean}>()
+      expectTypeOf(ctx.stores.counter.value).toEqualTypeOf<{readonly count: number}>()
       expectTypeOf<ReturnType<typeof ctx.stores.draft>['value']>().toEqualTypeOf<{readonly open: boolean} | undefined>()
       expectTypeOf(ctx.desktop).toEqualTypeOf<Experimental.Desktop | undefined>()
       // @ts-expect-error no store named missing
@@ -742,6 +778,7 @@ describe('host', () => {
         {Contract: Experimental.Contract, Plugin: Experimental.Plugin, Store: Experimental.Store},
       ],
       ['zod', {z}],
+      ['counter', {CountSchema}],
     ])
 
     const evaluate = (code: string) =>
@@ -770,12 +807,27 @@ describe('host', () => {
       expect(bundle.setup).toBeTypeOf('function')
     })
 
+    it('read a store declared with any Standard Schema', () => {
+      const bundle = evaluate(`
+        const sdk = require("@conciv/plugin/experimental")
+        const {CountSchema} = require("counter")
+        exports.default = sdk.Plugin.define({ stores: { count: sdk.Store.global(CountSchema, { count: 0 }) }, setup() {} })
+      `)
+
+      expect(bundle.definition.stores?.count?.schema).toBe(CountSchema)
+    })
+
     it("accept a bundler's default mode, where the plugin is the module itself", () => {
       expect(evaluate('module.exports = { setup() {} }').setup).toBeTypeOf('function')
     })
 
     it.each([
       ['a store without a schema', 'stores: { count: { scope: "global", initial: 0 } }', 'schema'],
+      [
+        'a store whose schema is not a schema',
+        'stores: { count: { scope: "global", schema: {}, initial: 0 } }',
+        'schema',
+      ],
       ['a setup that is not a function', 'setup: true', 'setup'],
     ])('reject a plugin with %s', (_, field, named) => {
       const evaluated = () => evaluate(`exports.default = { ${field} }`)

@@ -1,6 +1,6 @@
 import type {JSX} from 'solid-js'
 import type {Store} from 'solid-js/store'
-import type {z} from 'zod'
+import type {StandardSchemaV1} from '@standard-schema/spec'
 import type {Ref as LocationRef} from '../schema/location.js'
 import type {ConcivClient} from '../client/promise/index.js'
 import type {Persisted, StoreFrom, StoreType} from './core.js'
@@ -316,7 +316,7 @@ export type StorageScope =
       readonly session: SessionRef
     }
 
-export interface StoreOptions<S extends z.ZodObject> {
+export interface StoreOptions<S extends StandardSchemaV1<unknown, object>> {
   readonly schema: S
   readonly initial: StoreType<S>
   readonly scope?: StorageScope
@@ -332,7 +332,7 @@ export interface Storage {
    * @param key - The store's key in your namespace.
    * @param options - Its schema, initial value, scope and older homes.
    */
-  store<S extends z.ZodObject>(key: string, options: StoreOptions<S>): Persisted<StoreType<S>>
+  store<S extends StandardSchemaV1<unknown, object>>(key: string, options: StoreOptions<S>): Persisted<StoreType<S>>
   /**
    * Window-local state that survives plugin reloads, but not a page reload. The first open of a key creates it; later
    * opens return the same store and ignore `initial`.

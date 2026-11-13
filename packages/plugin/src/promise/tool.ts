@@ -1,5 +1,4 @@
 import type {SessionId} from '@conciv/protocol/chat-types'
-import type {z} from 'zod'
 import type * as Tool from '../schema/tool.js'
 import type {Hooks, Transform} from './registration.js'
 
@@ -12,8 +11,8 @@ export interface ToolContext extends Omit<Tool.Context, 'progress'> {
 }
 
 export type Info<
-  Input extends z.ZodType = z.ZodType,
-  Output extends z.ZodType | undefined = z.ZodType | undefined,
+  Input extends Tool.ValueSchema = Tool.ValueSchema,
+  Output extends Tool.ValueSchema | undefined = Tool.ValueSchema | undefined,
 > = Omit<Tool.Info<Input, Output>, 'execute'> & {
   execute(input: Parameters<Tool.Info<Input, Output>['execute']>[0], context: ToolContext): Promise<Tool.Result<Output>>
 }
@@ -24,7 +23,7 @@ export interface ToolEditor {
   list(): readonly (Info & {readonly id: string})[]
   get(id: string): (Info & {readonly id: string}) | undefined
   namespace(namespace: Tool.Namespace): void
-  add<Input extends z.ZodType, Output extends z.ZodType | undefined>(tool: Info<Input, Output>): void
+  add<Input extends Tool.ValueSchema, Output extends Tool.ValueSchema | undefined>(tool: Info<Input, Output>): void
   update(id: string, update: (tool: Mutable<Info>) => void): void
   remove(id: string): void
 }

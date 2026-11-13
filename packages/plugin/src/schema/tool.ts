@@ -1,3 +1,4 @@
+import type {StandardSchemaV1} from '@standard-schema/spec'
 import {z} from 'zod'
 import type {SessionId} from '@conciv/protocol/chat-types'
 
@@ -36,8 +37,14 @@ export type Options = BaseOptions &
       }
   )
 
-type InputValue<Schema> = Schema extends z.ZodType ? z.output<Schema> : unknown
-type OutputValue<Schema> = Schema extends undefined ? never : Schema extends z.ZodType ? z.input<Schema> : unknown
+export type ValueSchema<A = unknown> = StandardSchemaV1<unknown, A>
+
+type InputValue<Schema> = Schema extends StandardSchemaV1<unknown, infer A> ? A : unknown
+type OutputValue<Schema> = Schema extends undefined
+  ? never
+  : Schema extends StandardSchemaV1<infer A, unknown>
+    ? A
+    : unknown
 
 const ErrorSchema = z
   .object({
@@ -64,13 +71,16 @@ export interface FileContent {
 
 export type Content = TextContent | FileContent
 
-export interface Result<Output extends z.ZodType | undefined = z.ZodType | undefined> {
+export interface Result<Output extends ValueSchema | undefined = ValueSchema | undefined> {
   readonly output?: OutputValue<Output>
   readonly content?: string | readonly Content[]
   readonly metadata?: Metadata
 }
 
-export type Info<Input extends z.ZodType = z.ZodType, Output extends z.ZodType | undefined = z.ZodType | undefined> = {
+export type Info<
+  Input extends ValueSchema = ValueSchema,
+  Output extends ValueSchema | undefined = ValueSchema | undefined,
+> = {
   readonly name: string
   readonly input: Input
   readonly description: string
