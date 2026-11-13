@@ -1,5 +1,6 @@
 import {createSignal, Show, splitProps, type JSX} from 'solid-js'
 import {createTimer} from '@solid-primitives/timer'
+import Ban from 'lucide-solid/icons/ban'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
@@ -61,8 +62,8 @@ const REMEMBER = {
 const DECIDED = `${BUTTON_SHAPE} [background:transparent] [border:1px_solid_transparent]`
 
 const DECISION_CHIP = {
-  approved: {label: 'Approved', class: `${DECIDED} text-chat-text-2`, glyph: undefined},
-  denied: {label: 'Denied', class: `${DECIDED} ${OUTCOME_TONE.error.text}`, glyph: '⊘'},
+  approved: {label: 'Approved', class: `${DECIDED} text-chat-text-2`},
+  denied: {label: 'Denied', class: `${DECIDED} ${OUTCOME_TONE.error.text}`},
 } as const
 
 function Block(props: {target: string; explanation?: string; expiresAt?: number}): JSX.Element {
@@ -111,8 +112,8 @@ function Block(props: {target: string; explanation?: string; expiresAt?: number}
                   <Show when={decision()}>
                     {(settled) => (
                       <span class={DECISION_CHIP[settled()].class}>
-                        <Show when={DECISION_CHIP[settled()].glyph}>
-                          {(glyph) => <span aria-hidden="true">{glyph()}</span>}
+                        <Show when={settled() === 'denied'}>
+                          <Ban size={12} class="shrink-0" aria-hidden="true" />
                         </Show>
                         <span>{DECISION_CHIP[settled()].label}</span>
                       </span>
