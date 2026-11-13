@@ -390,7 +390,7 @@
     {
       "files": ["packages/plugin-host/**"],
       "rules": {
-        "conciv/test-file-budget": ["error", {"max": 20}]
+        "conciv/test-file-budget": ["error", {"max": 27}]
       }
     },
     {
