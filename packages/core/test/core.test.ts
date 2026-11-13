@@ -62,7 +62,7 @@ import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId, SessionId} from 
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
 import {eq} from 'drizzle-orm'
 import {Bus, PluginHooks, Rpc, SessionEvent, Tool} from '@conciv/plugin-host'
-import {Rpc as PluginRpc} from '@conciv/plugin/rpc'
+import {makeRpc, Rpc as PluginRpc} from '@conciv/plugin'
 import {Effect, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {isEqual, uniq} from 'es-toolkit'
 import getPort from 'get-port'
@@ -2148,7 +2148,7 @@ describe('plugin rpc over the socket', () => {
       )
       const {plugin} = client.rpc
       const opened = Promise.withResolvers<void>()
-      const api = PluginRpc.makeRpc(plugin.call, async (input, options) => {
+      const api = makeRpc(plugin.call, async (input, options) => {
         const events = await plugin.events(input, options)
         opened.resolve()
         return events
