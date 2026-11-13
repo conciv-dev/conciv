@@ -113,7 +113,7 @@ export const Keyboard: Story = {
     await userEvent.tab()
     await expect(country).toHaveFocus()
     await userEvent.keyboard('{Enter}')
-    await expect(page.getByRole('option', {name: 'Portugal'})).toBeVisible()
+    await waitFor(() => expect(page.getByRole('listbox', {name: 'Country'})).toHaveFocus())
     await userEvent.keyboard('{ArrowDown}')
     await userEvent.keyboard('{Enter}')
     await waitFor(() => expect(country).toHaveTextContent('Norway'))
