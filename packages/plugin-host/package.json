@@ -45,6 +45,7 @@
     "@npmcli/config": "catalog:",
     "@parcel/watcher": "catalog:",
     "@standard-schema/spec": "catalog:",
+    "detect-libc": "catalog:",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "esbuild": "catalog:",

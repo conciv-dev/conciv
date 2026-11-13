@@ -1,6 +1,6 @@
 import {describe, expect} from 'vitest'
 import {NodeFileSystem} from '@effect/platform-node'
-import {Deferred, Effect, Fiber, Layer, Stream} from 'effect'
+import {Deferred, Effect, Fiber, Layer, Queue, Schedule, Stream} from 'effect'
 import {mkdir, mkdtemp, realpath, rm, utimes, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
@@ -76,6 +76,59 @@ describe('ConfigPluginSource', () => {
           yield* Effect.promise(() => writeFile(path.join(local, 'added.ts'), 'export {}\n'))
           expect(yield* Fiber.join(changes)).toEqual([undefined])
         }).pipe(Effect.provide(services(root, ['./local-plugin', 'some-package'])))
+      }),
+    5_000,
+  )
+  it.live(
+    'reports a plugins folder created after start, a plugin folder in it, its deletion and its recreation',
+    () =>
+      Effect.gen(function* () {
+        const root = yield* temporaryProject
+        const concivFolder = path.join(root, 'conciv')
+        const plugins = path.join(concivFolder, 'plugins')
+
+        yield* Effect.gen(function* () {
+          const source = yield* ConfigPluginSource.Service
+          const fs = yield* FSUtil.Service
+          const changes = yield* Queue.unbounded<void>()
+          yield* source.changes().pipe(
+            Stream.runForEach((change) => Queue.offer(changes, change)),
+            Effect.forkScoped({startImmediately: true}),
+          )
+          const folderTargets = source
+            .operations()
+            .pipe(Effect.map((operations) => operations.map(({target}) => target)))
+          const untilState = (expected: readonly string[]) =>
+            Queue.take(changes).pipe(
+              Effect.andThen(folderTargets),
+              Effect.repeat({until: (targets) => targets.join('\n') === expected.join('\n')}),
+            )
+          const untilSeen = (write: Effect.Effect<void, unknown>, expected: readonly string[]) =>
+            Effect.gen(function* () {
+              yield* Queue.clear(changes)
+              const writes = yield* write.pipe(Effect.repeat(Schedule.spaced('10 millis')), Effect.forkScoped)
+              return yield* untilState(expected).pipe(Effect.ensuring(Fiber.interrupt(writes)))
+            })
+          const recreatePlugins = Effect.suspend(() =>
+            fs.remove(concivFolder, {recursive: true, force: true}).pipe(Effect.andThen(fs.ensureDir(plugins))),
+          )
+          const alpha = path.join(plugins, 'alpha')
+          const writeAlpha = Effect.promise(() =>
+            mkdir(alpha, {recursive: true}).then(() => writeFile(path.join(alpha, 'index.ts'), 'export default {}\n')),
+          )
+
+          expect(yield* untilSeen(recreatePlugins, [])).toEqual([])
+
+          expect(yield* untilSeen(writeAlpha, [alpha])).toEqual([alpha])
+
+          yield* Queue.clear(changes)
+          yield* fs.remove(concivFolder, {recursive: true, force: true})
+          expect(yield* untilState([])).toEqual([])
+
+          yield* Queue.clear(changes)
+          yield* fs.ensureDir(plugins)
+          expect(yield* untilState([])).toEqual([])
+        }).pipe(Effect.provide(services(root, [])))
       }),
     5_000,
   )

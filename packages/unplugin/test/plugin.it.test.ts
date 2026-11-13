@@ -30,8 +30,8 @@ import type {BundlerDiagnostic} from '@conciv/protocol/bundler-types'
 import type {ExtensionPackage} from '@conciv/protocol/config-types'
 import {readTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
-import {rpcObserverFor} from '@conciv/extension-testkit/rpc-observer'
-import {rpcSocketFor} from '@conciv/extension-testkit/rpc-socket'
+import {rpcObserverFor} from '@conciv/plugin-testkit/rpc-observer'
+import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
 import {installConcivBinShim} from '../src/core/bin-shim.js'
 import {makeEngineBooter} from '../src/core/boot.js'
 import {generateExtensionsEntrySource, writeExtensionsEntry} from '../src/core/extensions-entry.js'
@@ -427,7 +427,7 @@ describe('extensions module', () => {
 describe('source picks on a real host', () => {
   const dirs = devServers()
   const servers: ViteDevServer[] = []
-  const grabModule = fileURLToPath(import.meta.resolve('@conciv/extension-testkit/host/grab'))
+  const grabModule = fileURLToPath(import.meta.resolve('@conciv/plugin-testkit/host/grab'))
   const home = process.cwd()
   let browser: Browser
 

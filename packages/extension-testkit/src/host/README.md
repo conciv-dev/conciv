@@ -2,7 +2,7 @@
 
 ## Overview
 
-Browser page for the test host. It mounts the extension under test (from a virtual module) inside a wired `HostApiProvider` with a composer, surface, view tabs, an attachment form and a fixture DOM, and includes a click-based grab implementation.
+Browser page for the test host. It mounts the extension under test (from a virtual module) inside a wired `HostApiProvider` with a composer, surface, view tabs, an attachment form and a fixture DOM, and picks elements through the click-based grab from `@conciv/plugin-testkit/host/grab`.
 
 ## Interface
 
@@ -13,13 +13,10 @@ Browser page for the test host. It mounts the extension under test (from a virtu
 - `MountedViews` / `MountedComposerSlot` / `AttachFixtureForm` (`host-runtime.tsx`); `MountedViews` renders the active view's `actions` above its `Component`, as the panel header does
 - `testkit:attach` CustomEvent (`host-runtime.tsx`): detail {name, type, text} attaches a File
 - `FixtureElement` (`fixture-element.tsx`): 'Comment target', 'Add marker' and 'Fixture input' controls
-- `makeHostGrab(doc)` / `makeImageHostGrab(dataUrl)` (`grab.ts`)
 - `virtual:conciv-extension-under-test` (`virtual-extension.d.ts`): default export typed `AnyExtension`
 
 ## Invariants
 
-- `makeHostGrab` (`grab.ts`): only elements with or inside `[data-tsd-source]` can be picked; `cancel` resolves the pending pick with null
-- `parseSource` (`grab.ts`): `filePath:line:column` split on the last two colons
 - `startPageHost` (`page-host.ts`): an empty `conciv-session` serves no page plane
 - `startHost` (`host-runtime.tsx`): `testkit:attach` events failing the zod `attachDetail` schema are ignored; an empty `conciv-session` gives sessionId null
 - `applyWidth` (`host-runtime.tsx`): composer width clamped to [80, 1600]
@@ -32,7 +29,6 @@ Browser page for the test host. It mounts the extension under test (from a virtu
 - `startHost` (`host-runtime.tsx`): appends a `div[data-conciv-root].dark` and a fixture root to document.body; listens for `testkit:attach`
 - `openEditor` (`host-runtime.tsx`): calls `rpc.editor.open`
 - `showToast` / `showAttachment` / `showCardAttachment` (`host-runtime.tsx`): append elements to body
-- `makeHostGrab` (`grab.ts`): capture-phase document click listener
 
 ## Verification
 

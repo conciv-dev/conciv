@@ -1,6 +1,6 @@
 import {expect, test as baseTest, describe, it, test} from 'vitest'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
-import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
+import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {appendDraft, makeDraftStorage, type ServerDraft} from '../src/pane/draft-storage.js'
 import {createSession, seedDraft, proxyTo, type ProxyCore} from './helpers.node.js'
 import type {Grab} from '@conciv/grab'

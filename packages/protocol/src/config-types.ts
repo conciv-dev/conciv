@@ -62,9 +62,12 @@ const PolicyStatementSchema = z.object({
   effect: z.enum(['allow', 'deny']),
 })
 
+const PluginEntrySchema = z.union([z.string(), z.tuple([z.string(), z.record(z.string(), z.unknown())])])
+
 export const ConcivConfigSchema = z.object({
   enabled: z.boolean().optional(),
   extensions: z.array(ExtensionPackageSchema).readonly().optional(),
+  plugins: z.array(PluginEntrySchema).readonly().optional(),
   policies: z.array(PolicyStatementSchema).readonly().optional(),
   widgetUrl: z.string().optional(),
   widget: z.union([WidgetConfigSchema, z.literal(false)]).optional(),

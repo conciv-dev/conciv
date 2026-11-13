@@ -66,6 +66,7 @@ import {
 } from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
+import {ConcivConfigSchema} from '@conciv/protocol/config-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
 import {eq} from 'drizzle-orm'
 import {
@@ -743,6 +744,14 @@ describe('config', () => {
     expect(resolveConfig({harness: 'claude'}, '/root')).toMatchObject(fromEnv)
     process.env = {...saved, CONCIV_CLAUDE_PATH: 'old-claude', CONCIV_CLAUDE_SESSION_ID: 'old-sess'}
     expect(resolveConfig({}, '/root')).toMatchObject({harnessBin: 'old-claude', harnessSessionId: 'old-sess'})
+  })
+
+  it('reads the plugins list from JSON with both entry forms and a remove entry, and resolveConfig keeps it', () => {
+    const plugins = ['./local-plugin', ['@acme/plugin', {level: 2, tags: ['a']}], '-@acme/old']
+    const parsed = ConcivConfigSchema.parse(JSON.parse(JSON.stringify({plugins})))
+    expect(parsed.plugins).toEqual(plugins)
+    expect(resolveConfig(parsed, '/root').plugins).toEqual(plugins)
+    expect(resolveConfig({}, '/root').plugins).toEqual([])
   })
 })
 

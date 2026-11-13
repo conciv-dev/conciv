@@ -4,7 +4,7 @@ import type {PluginOptions} from '@conciv/plugin'
 import {ConfigPlugin} from '../../../schema/config/plugin.js'
 import {FSUtil} from '../../../util/fs-util.js'
 import * as Host from '@conciv/plugin/host'
-import {Context, Effect, Layer, Option, PubSub, Scope, Stream} from 'effect'
+import {Context, Effect, FiberMap, Layer, Option, PubSub, Scope, Semaphore, Stream} from 'effect'
 import path from 'path'
 import {fileURLToPath, pathToFileURL} from 'url'
 import {Watcher} from '../../filesystem/watcher.js'
@@ -42,6 +42,42 @@ export const layer = Layer.effect(
     const configuredChanges = yield* PubSub.unbounded<void>()
     const watched = new Set<string>()
     const concivDirectory = path.join(location.directory, 'conciv')
+    const watchUpdates = yield* PubSub.unbounded<Watcher.Update>()
+    const reloads = yield* PubSub.sliding<void>(1)
+    const requestReload = PubSub.publish(reloads, undefined).pipe(Effect.asVoid)
+    const reloadLock = Semaphore.makeUnsafe(1)
+    const watches = yield* FiberMap.make<string>()
+    const reconcile = Effect.fn('ConfigPluginSource.reconcileWatches')(function* () {
+      const plan = watchPlan(location.directory, concivDirectory, yield* fs.isDir(concivDirectory))
+      for (const key of Array.from(watches, ([key]) => key)) {
+        if (!plan.has(key)) yield* FiberMap.remove(watches, key)
+      }
+      for (const [key, target] of plan) {
+        yield* watcher
+          .subscribe(target, requestReload)
+          .pipe(
+            Effect.flatMap(
+              Stream.runForEach((update) => PubSub.publish(watchUpdates, update).pipe(Effect.andThen(requestReload))),
+            ),
+            FiberMap.run(watches, key, {onlyIfMissing: true, startImmediately: true}),
+          )
+      }
+    })
+    const reload = Effect.fn('ConfigPluginSource.reload')(
+      function* () {
+        yield* reconcile()
+      },
+      (effect) => reloadLock.withPermit(effect),
+    )
+
+    const pendingReloads = yield* PubSub.subscribe(reloads)
+    yield* Stream.fromSubscription(pendingReloads).pipe(
+      Stream.debounce('100 millis'),
+      Stream.runForEach(() =>
+        reload().pipe(Effect.catchCause((cause) => Effect.logError('failed to reload plugin watches', {cause}))),
+      ),
+      Effect.forkScoped({startImmediately: true}),
+    )
 
     const watchConfiguredSources = Effect.fn('ConfigPluginSource.watchConfiguredSources')(function* (
       operations: readonly Operation[],
@@ -65,6 +101,8 @@ export const layer = Layer.effect(
       }
     })
 
+    yield* reloadLock.withPermit(reconcile())
+
     return Service.of({
       operations: Effect.fn('ConfigPluginSource.operations')(function* () {
         const operations = yield* scan(fs, location, concivDirectory, plugins)
@@ -73,14 +111,12 @@ export const layer = Layer.effect(
       }),
       changes: () =>
         Stream.merge(
-          Stream.merge(
-            Stream.unwrap(
-              watcher.subscribe({path: concivDirectory, type: 'directory', ignore: FSUtil.ignoreGlobs}),
-            ).pipe(Stream.filter((update) => isDirectorySource(concivDirectory, update.path))),
-            Stream.unwrap(
-              watcher.subscribe({path: location.directory, type: 'entries', names: [path.basename(concivDirectory)]}),
+          Stream.fromPubSub(watchUpdates).pipe(
+            Stream.filter(
+              (update) => update.path === concivDirectory || isDirectorySource(concivDirectory, update.path),
             ),
-          ).pipe(Stream.map(() => undefined)),
+            Stream.map(() => undefined),
+          ),
           Stream.fromPubSub(configuredChanges),
         ),
     })
@@ -94,6 +130,13 @@ export const empty = Layer.succeed(
     changes: () => Stream.never,
   }),
 )
+
+function watchPlan(root: string, concivDirectory: string, present: boolean) {
+  const directory: Watcher.WatchInput = {path: concivDirectory, type: 'directory', ignore: FSUtil.ignoreGlobs}
+  const entries: Watcher.WatchInput = {path: root, type: 'entries', names: [path.basename(concivDirectory)]}
+  const targets = present ? [directory, entries] : [entries]
+  return new Map(targets.map((target) => [JSON.stringify(target), target]))
+}
 
 function isDirectorySource(concivDirectory: string, file: string) {
   return PluginSourceDirectory.names.some((name) => FSUtil.contains(path.join(concivDirectory, name), file))
