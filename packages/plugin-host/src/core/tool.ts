@@ -234,7 +234,7 @@ export const layer = Layer.effect(
                 }),
             definitions: Array.from(direct)
               .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
-              .map(([name]) => data.definitions.get(name)!),
+              .flatMap(([name]) => data.definitions.get(name) ?? []),
             execute: Effect.fnUntraced(function* (input: Parameters<Snapshot['execute']>[0]) {
               const context: Tool.Context = {
                 sessionId: input.sessionId,
