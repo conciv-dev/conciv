@@ -1,23 +1,15 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "c463efe2-d267-423e-8f5c-5772ee425b28",
-  "prevIds": ["e7858b2d-2279-4797-a8fd-8bd31156209f"],
+  "id": "14ac958a-062b-42a2-96cf-1d14656814c9",
+  "prevIds": ["6c6fbf72-43f6-41a3-861f-a4079fbdeefa"],
   "ddl": [
     {
-      "name": "event_sequence",
+      "name": "instruction_blob",
       "entityType": "tables"
     },
     {
-      "name": "event",
-      "entityType": "tables"
-    },
-    {
-      "name": "kv",
-      "entityType": "tables"
-    },
-    {
-      "name": "permission",
+      "name": "instruction_state",
       "entityType": "tables"
     },
     {
@@ -73,8 +65,8 @@
       "entityType": "tables"
     },
     {
-      "table": "event_sequence",
-      "name": "aggregate_id",
+      "table": "instruction_blob",
+      "name": "hash",
       "type": "text",
       "notNull": false,
       "autoincrement": false,
@@ -83,128 +75,18 @@
       "entityType": "columns"
     },
     {
-      "table": "event_sequence",
-      "name": "seq",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "event_sequence",
-      "name": "owner_id",
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "event",
-      "name": "id",
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "event",
-      "name": "aggregate_id",
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "event",
-      "name": "seq",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "event",
-      "name": "created",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "0",
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "event",
-      "name": "type",
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "event",
-      "name": "data",
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "kv",
-      "name": "key",
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "kv",
+      "table": "instruction_blob",
       "name": "value",
       "type": "text",
-      "notNull": true,
+      "notNull": false,
       "autoincrement": false,
       "default": null,
       "generated": null,
       "entityType": "columns"
     },
     {
-      "table": "kv",
-      "name": "time_created",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "kv",
-      "name": "time_updated",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "permission",
-      "name": "id",
+      "table": "instruction_state",
+      "name": "session_id",
       "type": "text",
       "notNull": false,
       "autoincrement": false,
@@ -213,38 +95,8 @@
       "entityType": "columns"
     },
     {
-      "table": "permission",
-      "name": "project_id",
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "permission",
-      "name": "action",
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "permission",
-      "name": "resource",
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "permission",
-      "name": "time_created",
+      "table": "instruction_state",
+      "name": "epoch_start",
       "type": "integer",
       "notNull": true,
       "autoincrement": false,
@@ -253,9 +105,29 @@
       "entityType": "columns"
     },
     {
-      "table": "permission",
-      "name": "time_updated",
+      "table": "instruction_state",
+      "name": "through_seq",
       "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "instruction_state",
+      "name": "initial_values",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "instruction_state",
+      "name": "current_values",
+      "type": "text",
       "notNull": true,
       "autoincrement": false,
       "default": null,
@@ -1063,68 +935,6 @@
       "entityType": "columns"
     },
     {
-      "table": "event",
-      "name": "event_aggregate_seq_idx",
-      "columns": [
-        {
-          "value": "aggregate_id",
-          "isExpression": false
-        },
-        {
-          "value": "seq",
-          "isExpression": false
-        }
-      ],
-      "isUnique": true,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
-      "table": "event",
-      "name": "event_aggregate_type_seq_idx",
-      "columns": [
-        {
-          "value": "aggregate_id",
-          "isExpression": false
-        },
-        {
-          "value": "type",
-          "isExpression": false
-        },
-        {
-          "value": "seq",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
-      "table": "permission",
-      "name": "permission_project_action_resource_idx",
-      "columns": [
-        {
-          "value": "project_id",
-          "isExpression": false
-        },
-        {
-          "value": "action",
-          "isExpression": false
-        },
-        {
-          "value": "resource",
-          "isExpression": false
-        }
-      ],
-      "isUnique": true,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
       "table": "page_changes",
       "name": "page_changes_session_id_idx",
       "columns": [
@@ -1243,11 +1053,11 @@
       "entityType": "indexes"
     },
     {
-      "table": "event",
-      "name": "fk_event_aggregate_id_event_sequence_aggregate_id_fk",
-      "columns": ["aggregate_id"],
-      "tableTo": "event_sequence",
-      "columnsTo": ["aggregate_id"],
+      "table": "instruction_state",
+      "name": "fk_instruction_state_session_id_sessions_id_fk",
+      "columns": ["session_id"],
+      "tableTo": "sessions",
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -1275,30 +1085,16 @@
       "entityType": "pks"
     },
     {
-      "table": "event_sequence",
-      "name": "event_sequence_pk",
-      "columns": ["aggregate_id"],
+      "table": "instruction_blob",
+      "name": "instruction_blob_pk",
+      "columns": ["hash"],
       "nameExplicit": false,
       "entityType": "pks"
     },
     {
-      "table": "event",
-      "name": "event_pk",
-      "columns": ["id"],
-      "nameExplicit": false,
-      "entityType": "pks"
-    },
-    {
-      "table": "kv",
-      "name": "kv_pk",
-      "columns": ["key"],
-      "nameExplicit": false,
-      "entityType": "pks"
-    },
-    {
-      "table": "permission",
-      "name": "permission_pk",
-      "columns": ["id"],
+      "table": "instruction_state",
+      "name": "instruction_state_pk",
+      "columns": ["session_id"],
       "nameExplicit": false,
       "entityType": "pks"
     },

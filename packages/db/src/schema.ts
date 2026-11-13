@@ -88,34 +88,6 @@ export const pageChanges = sqliteTable(
   (table) => [index('page_changes_session_id_idx').on(table.sessionId)],
 )
 
-export const KVTable = sqliteTable('kv', {
-  key: text().primaryKey(),
-  value: text({mode: 'json'}).$type<Schema.Json>().notNull(),
-  time_created: integer()
-    .notNull()
-    .$default(() => Date.now()),
-  time_updated: integer()
-    .notNull()
-    .$onUpdate(() => Date.now()),
-})
-
-export const PermissionTable = sqliteTable(
-  'permission',
-  {
-    id: text().$type<string & Brand.Brand<'PermissionSaved.ID'>>().primaryKey(),
-    project_id: text().$type<string & Brand.Brand<'Project.ID'>>().notNull(),
-    action: text().notNull(),
-    resource: text().notNull(),
-    time_created: integer()
-      .notNull()
-      .$default(() => Date.now()),
-    time_updated: integer()
-      .notNull()
-      .$onUpdate(() => Date.now()),
-  },
-  (table) => [uniqueIndex('permission_project_action_resource_idx').on(table.project_id, table.action, table.resource)],
-)
-
 export const InstructionBlobTable = sqliteTable('instruction_blob', {
   hash: text().$type<string & Brand.Brand<'Instruction.Hash'>>().primaryKey(),
   value: text({mode: 'json'}).$type<Schema.Json>(),
