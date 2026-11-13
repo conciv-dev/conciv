@@ -64,6 +64,9 @@ export function host(overrides: Overrides = {}): Plugin.Context {
       set: () => Effect.die('unused storage.set'),
       remove: () => Effect.die('unused storage.remove'),
       scan: () => Effect.die('unused storage.scan'),
+      get directory(): string {
+        throw new Error('unused storage.directory')
+      },
     },
     tool: overrides.tool ?? {
       transform: () => Effect.die('unused tool.transform'),

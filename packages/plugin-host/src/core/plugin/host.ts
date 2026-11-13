@@ -1,5 +1,7 @@
 export * as PluginHost from './host.js'
 
+import {mkdirSync} from 'node:fs'
+import path from 'node:path'
 import * as Plugin from '../../plugin/effect/plugin.js'
 import {EventManifest} from '../../schema/event-manifest.js'
 import type {Event} from '../../schema/event.js'
@@ -19,6 +21,7 @@ import {Skill} from '../skill.js'
 import {Tool} from '../tool.js'
 import {Permission} from '../permission.js'
 import {PluginHooks} from './hooks.js'
+import {Global} from '../../util/global.js'
 import type {Interface} from '../plugin.js'
 
 const mutable = <T>(value: T) => value as DeepMutable<T>
@@ -55,6 +58,7 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
   const harness = yield* HarnessSource
   const bundler = yield* BundlerSource
   const extensionSlugs = yield* ExtensionSlugs
+  const global = yield* Global.Service
   const locationInfo = (current: Location.Interface = location) =>
     Location.Info.make({
       directory: current.directory,
@@ -162,7 +166,7 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
           })
         }),
     },
-    storage: storage(kv, pluginId),
+    storage: storage(kv, pluginId, global.state),
     tool: {
       transform: tools.transform,
       reload: tools.reload,
@@ -231,12 +235,21 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
   return context
 })
 
-export function storage(kv: KV.Interface, pluginId: string): Plugin.Context['storage'] {
-  const namespace = `plugin:${pluginId
+export function storage(kv: KV.Interface, pluginId: string, stateRoot: string): Plugin.Context['storage'] {
+  const encoded = pluginId
     .split('')
     .map((value) => value.charCodeAt(0).toString(16).padStart(4, '0'))
-    .join('')}:`
+    .join('')
+  const namespace = `plugin:${encoded}:`
+  const directory = path.join(stateRoot, 'plugin-storage', encoded)
+  let made = false
   return {
+    get directory() {
+      if (made) return directory
+      mkdirSync(directory, {recursive: true})
+      made = true
+      return directory
+    },
     get: (key) => kv.get(namespace + key),
     set: (key, value) => kv.set(namespace + key, value),
     remove: (key) => kv.remove(namespace + key),
