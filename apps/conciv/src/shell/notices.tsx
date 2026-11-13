@@ -41,6 +41,7 @@ const TOAST_TYPE: Record<NoticeTone, string> = {info: 'info', success: 'success'
 
 const NOTICE =
   'w-full flex items-center gap-2 text-[0.75rem] leading-[1.4] font-medium font-chat px-2.5 py-2 border rounded-chat-surface-md shadow-chat-lg [word-break:break-word] anim-msg'
+const LEAD = 'flex-1 min-w-0 flex items-start gap-2'
 const ICON_SLOT = 'shrink-0 flex items-center h-1lh'
 const ICON = 'size-3.5 block'
 const DESCRIPTION = 'font-normal text-chat-text-3'
@@ -144,28 +145,30 @@ export function createNoticeStore(): NoticeStore {
               style={{position: 'relative'}}
               role={toast().type === 'error' ? 'alert' : 'status'}
             >
-              <NoticeIconSlot type={toast().type} icon={extras()?.icon} />
-              <div class="flex-1 min-w-0">
-                <Toast.Title>{toast().title}</Toast.Title>
-                <Show when={toast().description}>
-                  {(description) => <Toast.Description class={DESCRIPTION}>{description()}</Toast.Description>}
-                </Show>
-                <Show when={extras()?.actions.length}>
-                  <div class={ACTION_ROW}>
-                    <For each={extras()?.actions}>
-                      {(action) => (
-                        <Toast.ActionTrigger
-                          onClick={() => action.run()}
-                          asChild={(triggerProps) => (
-                            <Button variant="link" size="bare" class={ACTION} {...triggerProps()}>
-                              {action.label}
-                            </Button>
-                          )}
-                        />
-                      )}
-                    </For>
-                  </div>
-                </Show>
+              <div class={LEAD}>
+                <NoticeIconSlot type={toast().type} icon={extras()?.icon} />
+                <div class="flex-1 min-w-0">
+                  <Toast.Title>{toast().title}</Toast.Title>
+                  <Show when={toast().description}>
+                    {(description) => <Toast.Description class={DESCRIPTION}>{description()}</Toast.Description>}
+                  </Show>
+                  <Show when={extras()?.actions.length}>
+                    <div class={ACTION_ROW}>
+                      <For each={extras()?.actions}>
+                        {(action) => (
+                          <Toast.ActionTrigger
+                            onClick={() => action.run()}
+                            asChild={(triggerProps) => (
+                              <Button variant="link" size="bare" class={ACTION} {...triggerProps()}>
+                                {action.label}
+                              </Button>
+                            )}
+                          />
+                        )}
+                      </For>
+                    </div>
+                  </Show>
+                </div>
               </div>
               <Show when={toast().action}>
                 {(action) => (
