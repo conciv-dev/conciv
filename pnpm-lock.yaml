@@ -297,6 +297,9 @@ catalogs:
     eslint-plugin-solid:
       specifier: 0.18.1
       version: 0.18.1
+    fast-check:
+      specifier: 4.9.0
+      version: 4.9.0
     get-port:
       specifier: ^7.2.0
       version: 7.2.0
@@ -4368,6 +4371,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
+      fast-check:
+        specifier: 'catalog:'
+        version: 4.9.0
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
@@ -14740,6 +14746,10 @@ packages:
     engines: {node: '>=22'}
     hasBin: true
 
+  fast-check@4.9.0:
+    resolution: {integrity: sha512-7ms6T7SybUev/PQITciI0yLM2pOSFy5zpG8Ty7tQofcVaQUvrMXp6CBwqF6fThLCLOrfBtuHAtwq6Yu4XPCllg==}
+    engines: {node: '>=12.17.0'}
+
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
 
@@ -17188,6 +17198,9 @@ packages:
   punycode@2.3.1:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
+
+  pure-rand@8.4.2:
+    resolution: {integrity: sha512-vvuOGgcuPJAirlHvuQw1TrOiw7ptaIXXmIbNuiNOY6lNGJJH49PQ1Kj4nd783nPdQhQdicgOjVI2yI/9BD6/Ng==}
 
   pwacompat@2.0.17:
     resolution: {integrity: sha512-6Du7IZdIy7cHiv7AhtDy4X2QRM8IAD5DII69mt5qWibC2d15ZU8DmBG1WdZKekG11cChSu4zkSUGPF9sweOl6w==}
@@ -28296,6 +28309,10 @@ snapshots:
     transitivePeerDependencies:
       - tsrs
 
+  fast-check@4.9.0:
+    dependencies:
+      pure-rand: 8.4.2
+
   fast-deep-equal@3.1.3: {}
 
   fast-fifo@1.3.2: {}
@@ -31264,6 +31281,8 @@ snapshots:
       sade: 1.8.1
 
   punycode@2.3.1: {}
+
+  pure-rand@8.4.2: {}
 
   pwacompat@2.0.17: {}
 
