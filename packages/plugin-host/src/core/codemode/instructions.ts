@@ -11,7 +11,7 @@ The tools listed below${hasMoreTools ? ', and `search`,' : ''} cannot be called 
 
 ${
   hasMoreTools
-    ? `The catalog is partial. Before calling a tool that is not listed below, find it with the global \`search(...)\` function. Do not guess tool names. Each result's \`path\` is the complete call expression: write it out as code, for example \`await ${toolExpression('ns.tool_name')}({ ... })\`. Do not use it as a key such as \`tools[path]\`.
+    ? `The catalog is partial. Before calling a tool that is not listed below, find it with the global \`search(...)\` function. Do not guess tool names. Each result's \`path\` is the complete call expression: write it out as code, for example \`await ${toolExpression('ns.tool_name')}({ ... })\`.
 
 - ${searchSignature}`
     : 'The catalog is complete. Do not guess tool names.'
@@ -19,7 +19,7 @@ ${
 
 ## Code Mode tools (call only inside \`${executeToolName}\`)`
 
-const searchNote = `You can also look up tools that aren't listed with the global \`search(...)\` function inside \`${executeToolName}\`. Before calling a tool that is not listed, find it this way. Do not guess tool names. Each result's \`path\` is the complete call expression: write it out as code, for example \`await ${toolExpression('ns.tool_name')}({ ... })\`. Do not use it as a key such as \`tools[path]\`.
+const searchNote = `You can also look up tools that aren't listed with the global \`search(...)\` function inside \`${executeToolName}\`. Before calling a tool that is not listed, find it this way. Do not guess tool names. Each result's \`path\` is the complete call expression: write it out as code, for example \`await ${toolExpression('ns.tool_name')}({ ... })\`.
 
 - ${searchSignature}`
 
