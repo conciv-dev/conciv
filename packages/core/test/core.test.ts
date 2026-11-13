@@ -2685,7 +2685,7 @@ describe('plugin context keys provided by core', () => {
         chatConfig: () => ({adapter: fakeText()}),
         capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
       })
-    const filled = (model: HarnessModel) => {
+    const filled = (model: HarnessModel, variants: {id: string; settings: {effort: string}}[]) => {
       const defaults = Model.Info.default(
         Model.Info.fields.providerId.make('listing-cli'),
         Model.Info.fields.id.make(model.id),
@@ -2693,9 +2693,11 @@ describe('plugin context keys provided by core', () => {
       return {
         ...defaults,
         name: model.name,
-        limit: {...defaults.limit, context: model.contextWindow ?? defaults.limit.context},
+        limit: {context: model.contextWindow ?? defaults.limit.context, output: 0},
+        variants,
       }
     }
+    const sonnetVariants = [{id: 'low', settings: {effort: 'low'}}]
     const db = openDb(root)
     const id = SessionId.parse('conciv_entries')
     const other = SessionId.parse('conciv_entries_other')
@@ -2802,10 +2804,13 @@ describe('plugin context keys provided by core', () => {
 
     const models = (run: (service: Model.Interface) => Effect.Effect<unknown>) =>
       host.runPromise(Model.Service.use(run))
-    expect(await models((service) => service.available())).toEqual([filled(OPUS), filled(SONNET)])
-    expect(await models((service) => service.available(['chat', 'chat']))).toEqual([filled(OPUS), filled(SONNET)])
+    expect(await models((service) => service.available())).toEqual([filled(OPUS, []), filled(SONNET, sonnetVariants)])
+    expect(await models((service) => service.available(['chat', 'chat']))).toEqual([
+      filled(OPUS, []),
+      filled(SONNET, sonnetVariants),
+    ])
     expect(await models((service) => service.available(['image']))).toEqual([])
-    expect(await models((service) => service.default())).toEqual(filled(SONNET))
+    expect(await models((service) => service.default())).toEqual(filled(SONNET, sonnetVariants))
     const empty = (run: (service: Model.Interface) => Effect.Effect<unknown>) =>
       Effect.runPromise(Model.Service.use(run).pipe(Effect.provide(provideHarnessModels(listingHarness([])))))
     expect(await empty((service) => service.available())).toEqual([])

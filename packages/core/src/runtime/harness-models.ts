@@ -11,7 +11,11 @@ function harnessModelInfo(harnessId: string, model: HarnessModel): Model.Info {
     ...defaults,
     name: model.name,
     enabled: model.disabled !== true,
-    limit: {...defaults.limit, context: model.contextWindow ?? defaults.limit.context},
+    limit: {context: model.contextWindow ?? defaults.limit.context, output: 0},
+    variants: (model.efforts ?? []).map((effort) => ({
+      id: Model.Info.fields.variants.value.fields.id.make(effort),
+      settings: {effort},
+    })),
   }
 }
 
