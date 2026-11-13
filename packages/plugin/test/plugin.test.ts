@@ -12,7 +12,7 @@ import * as Zod from 'zod'
 import {z} from 'zod'
 import {makeRpcClient} from '@conciv/contract'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
-import {SessionId} from '@conciv/protocol/chat-types'
+import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {Scope} from '../src/experimental/scope.js'
 import {Agent, Plugin, Rpc, Tool} from '../src/index.js'
 import type {Registration, Transform} from '../src/registration.js'
@@ -120,7 +120,12 @@ function recordingContext(calls: string[]): Plugin.Context {
       list: () => [builtin.id],
       get: (id) => (id === builtin.id ? builtin : undefined),
     },
-    harness: {get: () => ({id: 'claude'})},
+    harness: {
+      get: () => ({id: 'claude'}),
+      resumeToken: async () => null,
+      recordToken: async (sessionId, token) => void calls.push(`record ${sessionId} ${token}`),
+      mcpUrl: 'http://127.0.0.1:4000/t/token/api/mcp',
+    },
     bundler: undefined,
   }
 }
@@ -210,6 +215,9 @@ describe('define', () => {
     expectTypeOf<undefined>().not.toExtend<Plugin.Context['permission']['assert']>()
     expectTypeOf<undefined>().not.toExtend<Plugin.Context['session']['synthetic']>()
     expectTypeOf<Plugin.Context['session']['update']>().parameter(0).toHaveProperty('permissions')
+    expectTypeOf<Plugin.Context['harness']['resumeToken']>().returns.toEqualTypeOf<Promise<HarnessSessionId | null>>()
+    expectTypeOf<Plugin.Context['harness']['recordToken']>().parameter(1).toEqualTypeOf<HarnessSessionId>()
+    expectTypeOf<Plugin.Context['harness']['mcpUrl']>().toEqualTypeOf<string>()
   })
 
   it('types the members conciv does not implement yet as possibly undefined', () => {

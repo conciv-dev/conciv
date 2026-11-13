@@ -19,6 +19,20 @@ export type ServerHarness = {
 /** Which CLI runs a session, and its terminal command. */
 export interface HarnessDomain {
   get(sessionId: SessionId): ServerHarness
+  /**
+   * The CLI's own session id for a conciv session: what the CLI resumes from. Recorded by the engine when a chat
+   * turn or `recordToken` starts the CLI session.
+   *
+   * @returns Null until the session has started a CLI session.
+   */
+  resumeToken(sessionId: SessionId): Promise<HarnessSessionId | null>
+  /** Records the CLI session id a plugin started for a conciv session, so chat turns and later reads resume it. */
+  recordToken(sessionId: SessionId, token: HarnessSessionId): Promise<void>
+  /**
+   * The engine's MCP endpoint under its agent-token base path, for a CLI the plugin starts itself
+   * (`HarnessConnectContext.mcpUrl`). Set by the engine once it listens; never null.
+   */
+  readonly mcpUrl: string
 }
 
 /** Build diagnostics, module graph and config from the user's bundler. */

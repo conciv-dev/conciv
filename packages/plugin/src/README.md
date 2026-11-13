@@ -189,6 +189,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 
 - Absent, not ours: `aisdk`, `credential`, `integration`, `mcp`, `provider`, `reference`, `shell`, `vcs`, `websearch`, `worktree`, `experimental.terminal`, `experimental.artifact`. Also absent: top-level `generate` (deprecated in source; `experimental.generate` replaces it).
 - Added by ruling: `servers`, `harness`, `bundler`, `storage.directory`.
+- `harness` (conciv-only, no opencode counterpart) carries what the terminal plugin needs to run the session's CLI itself: `get(sessionId)` (the CLI and its terminal command), `resumeToken` / `recordToken` (the CLI's own session id, as the old `ServerApi.sessions` had them) and `mcpUrl` (the engine's MCP endpoint under its agent-token base path; the base path itself is not exposed). The session's model is `session.get(...).model`.
 - `app` is `App | undefined`: the engine has no app version or channel to give.
 - `plugin.list`, `skill.list`, `model.list`, `model.default`: no `location` input (one project per engine); every domain method's request options are `{signal}` only (no `headers`, no `onActivity`).
 
