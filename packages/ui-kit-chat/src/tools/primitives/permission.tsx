@@ -7,12 +7,17 @@ import {parseInput} from './tool-util.js'
 
 const CommandInputSchema = z.object({command: z.string().min(1)})
 
+const PermissionMetadataSchema = z.object({permission: z.object({always: z.boolean()})})
+
+type PermissionMemory = 'session' | 'project'
+
 export type PermissionDecision = 'approved' | 'denied' | undefined
 
 type PermissionContextValue = {
   pending: Accessor<boolean>
   decision: Accessor<PermissionDecision>
   rememberable: Accessor<boolean>
+  remembers: Accessor<PermissionMemory>
   approve: () => void
   approveForSession: () => void
   reject: () => void
@@ -40,7 +45,9 @@ function Root(props: {part: ToolCallPart; ctx: ToolViewCtx; children: JSX.Elemen
     props.part.state === 'approval-requested' &&
     approval() !== undefined &&
     Boolean(props.ctx.respondApproval)
-  const rememberable = () => parseInput(CommandInputSchema, props.part) !== undefined
+  const permission = () => PermissionMetadataSchema.safeParse(props.part.metadata).data?.permission
+  const rememberable = () => permission()?.always ?? parseInput(CommandInputSchema, props.part) !== undefined
+  const remembers = (): PermissionMemory => (permission() === undefined ? 'session' : 'project')
   const decide = (approved: boolean, scope: PermissionScope) => {
     const id = approval()?.id
     if (!id) return
@@ -53,6 +60,7 @@ function Root(props: {part: ToolCallPart; ctx: ToolViewCtx; children: JSX.Elemen
         pending,
         decision,
         rememberable,
+        remembers,
         approve: () => decide(true, 'once'),
         approveForSession: () => decide(true, 'session'),
         reject: () => decide(false, 'once'),
