@@ -409,6 +409,16 @@ describe('chat plane', () => {
     ).resolves.toMatchObject({result: 'measure {"declination":"north"}'})
 
     await addSkill('deploy')
+    told.steps.push('failing')
+    await resumed.compact(skilled)
+    expect(told.systemPrompts.at(-1)?.[0]).toMatch(listed('deploy', 'review'))
+    await resumed.followUp(skilled, 'after a failed compact')
+    expect(told.systemPrompts.at(-1)).toEqual([noTools, preface])
+    expect(told.asked.at(-1)).toEqual([
+      {type: 'text', content: expect.stringContaining('<id>deploy</id>')},
+      {type: 'text', content: 'after a failed compact'},
+    ])
+
     await resumed.compact(skilled)
     expect(told.systemPrompts.at(-1)).toEqual([
       expect.stringMatching(/- sky \(1 tool\) \/\/ Sky readings[\s\S]*- tools \(2 tools\) \/\/ Project utilities/),
