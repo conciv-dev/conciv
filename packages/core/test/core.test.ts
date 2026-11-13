@@ -626,9 +626,10 @@ describe('editor symbolicate', () => {
 })
 
 describe('engine boot writes .conciv/mcp-endpoint.json', () => {
-  it('start records the MCP endpoint a headless stdio bridge reads, and the endpoint answers', async () => {
+  it('start records the MCP endpoint a headless stdio bridge reads, the endpoint answers, and repeat opens launch the editor once', async () => {
     const root = tempDir()
-    const engine = await bootEngine(root)
+    const launched: unknown[] = []
+    const engine = await bootEngine(root, {launchEditor: (...call) => launched.push(call)})
     try {
       const file = join(statePaths(root).dir, 'mcp-endpoint.json')
       const {mcpUrl} = z.object({mcpUrl: z.string()}).parse(JSON.parse(readFileSync(file, 'utf8')))
@@ -642,6 +643,20 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
       })
       expect(response.status).toBe(200)
       await response.body?.cancel()
+      const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+      const {sessionId} = await makeRpcClient(base).sessions.create(undefined)
+      const rpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+      const open = (column?: number) => rpc.editor.open({file: 'src/a.ts', line: 3, column})
+      await open(9)
+      await open(9)
+      expect(launched).toEqual([['src/a.ts', 3, 9]])
+      await open(4)
+      await open()
+      expect(launched).toEqual([
+        ['src/a.ts', 3, 9],
+        ['src/a.ts', 3, 4],
+        ['src/a.ts', 3, undefined],
+      ])
     } finally {
       await engine.stop()
     }
