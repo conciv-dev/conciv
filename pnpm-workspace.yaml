@@ -48,6 +48,7 @@ catalog:
   '@bomb.sh/router': ^0.8.0
   '@bramus/specificity': ^2.4.3
   '@clack/prompts': '^1.8.1'
+  '@effect/platform-node': 4.1.0
   '@hono/node-server': '^2.1.5'
   '@iconify-json/ph': '^1.2.2'
   '@orama/orama': 3.1.18
