@@ -7,14 +7,30 @@ import type {RegistryCallGate} from '@conciv/extension/registry'
 import {resolveHarnessModels} from '@conciv/harness'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers} from '@conciv/db'
-import type {Router} from '@orpc/server'
-import {cappedText, safeStringify, type contract, type RegistryCallErrorName} from '@conciv/contract'
+import {EventPublisher, type Router} from '@orpc/server'
+import {Effect, Fiber, Result, Stream} from 'effect'
+import {Bus, Rpc} from '@conciv/plugin-host'
+import {
+  cappedText,
+  PluginRpcEventSchema,
+  safeStringify,
+  type contract,
+  type RegistryCallErrorName,
+} from '@conciv/contract'
 import {widgetCaller} from '../../lib/cors.js'
 import {listCommands} from '../../sessions/commands.js'
 import {session} from '../../runtime/session-context.js'
 import {chatRouter} from './chat.js'
 import {harnessMenuEntryOf, harnessMetaOf, sessionsRouter} from './sessions.js'
-import {admitOutsideCall, makeHubAdmission, makeSessionOs, makeToolCallOs, os, type RpcDeps} from './mount.js'
+import {
+  admitOutsideCall,
+  makeHubAdmission,
+  makeSessionOs,
+  makeToolCallOs,
+  os,
+  type PluginHost,
+  type RpcDeps,
+} from './mount.js'
 import type {SessionScope} from '../../runtime/scope-types.js'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {callTrace} from '../call-trace.js'
@@ -120,6 +136,47 @@ async function codeSessionOf(deps: RpcDeps, sessionId: SessionId | undefined, ca
   return code
 }
 
+type PluginEventsInput = {rpcId: string; types?: string[] | undefined}
+
+async function* pluginEvents(host: PluginHost, input: PluginEventsInput, signal: AbortSignal | undefined) {
+  const publisher = new EventPublisher<{event: unknown}>()
+  const prefix = `rpc.${input.rpcId}.`
+  const subscription = Effect.gen(function* () {
+    const bus = yield* Bus.Service
+    const [first, ...rest] = (input.types ?? []).map((name) => Rpc.eventDefinition(`rpc.${input.rpcId}.${name}`))
+    const events =
+      first === undefined
+        ? bus.subscribe().pipe(Stream.filter((event) => event.type.startsWith(prefix)))
+        : bus.subscribe([first, ...rest])
+    yield* Stream.runForEach(events, (event) => Effect.sync(() => publisher.publish('event', event)))
+  })
+  const delivered = publisher.subscribe('event', {signal})
+  const fiber = host.runFork(subscription)
+  try {
+    for await (const event of delivered) yield PluginRpcEventSchema.parse(event)
+  } finally {
+    await Effect.runPromise(Fiber.interrupt(fiber))
+  }
+}
+
+async function pluginCall(
+  host: PluginHost,
+  input: {rpcId: string; method: string; input?: unknown},
+  signal?: AbortSignal,
+) {
+  return host.runPromise(
+    Rpc.Service.use((rpc) => rpc.call(input.rpcId, input.method, input.input)).pipe(
+      Effect.catchDefect((defect) =>
+        Effect.logError('rpc call failed', {rpc: input.rpcId, method: input.method, defect}).pipe(
+          Effect.andThen(Effect.fail({type: 'rpc.internal', message: 'RPC call failed'})),
+        ),
+      ),
+      Effect.result,
+    ),
+    {signal},
+  )
+}
+
 export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext> {
   const chat = deps.chat
   const db = chat.db
@@ -184,6 +241,14 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
           throw registryCallError(error, errors)
         })
       }),
+    },
+    plugin: {
+      call: os.plugin.call.handler(async ({input, errors, signal}) => {
+        const outcome = await pluginCall(deps.pluginHost, input, signal)
+        if (Result.isSuccess(outcome)) return outcome.success
+        throw errors.PLUGIN_RPC({message: outcome.failure.message, data: outcome.failure})
+      }),
+      events: os.plugin.events.handler(({input, signal}) => pluginEvents(deps.pluginHost, input, signal)),
     },
     captures: {
       list: os.captures.list.handler(({input}) => deps.runtime.forSession(input.sessionId).captures.list()),

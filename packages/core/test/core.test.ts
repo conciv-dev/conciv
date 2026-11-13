@@ -61,8 +61,8 @@ import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
 import {eq} from 'drizzle-orm'
-import {Bus, PluginHooks, SessionEvent, Tool} from '@conciv/plugin-host'
-import {Effect, Layer, ManagedRuntime, Scope} from 'effect'
+import {Bus, PluginHooks, Rpc, SessionEvent, Tool} from '@conciv/plugin-host'
+import {Effect, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {isEqual, uniq} from 'es-toolkit'
 import getPort from 'get-port'
 import {WSContext, defineWebSocketHelper} from 'hono/ws'
@@ -2087,6 +2087,83 @@ describe('plugin host bus', () => {
         expect.objectContaining({data: {sessionID: sessionId}}),
       ])
     } finally {
+      await served.stop()
+    }
+  })
+})
+
+describe('plugin rpc over the socket', () => {
+  const Acme = Rpc.define({
+    id: 'acme',
+    methods: {
+      search: {
+        input: Schema.Struct({query: Schema.String}),
+        output: Schema.Struct({hits: Schema.Array(Schema.String)}),
+        errors: {limited: Schema.Struct({retryAfter: Schema.Number})},
+      },
+      explode: {input: Schema.Undefined, output: Schema.String},
+      malformed: {input: Schema.Undefined, output: Schema.String.check(Schema.isMinLength(3))},
+    },
+    events: {indexed: {schema: Schema.Struct({count: Schema.Number})}},
+  })
+
+  test('a registered contract answers a socket client, every failure keeps its text, and an event reaches two subscribers', async () => {
+    const served = await serveCore(tempDir(), [], {})
+    const client = makeBrowserRpcClient(served.origin)
+    const connection = browserRpcConnection(served.origin)
+    const host = served.made.pluginHost
+    try {
+      expect(await connection.trust.requestTrustWithToken(served.made.agentToken)).toBe(true)
+      const registration = await host.runPromise(
+        Rpc.Service.use((rpc) =>
+          rpc.register(Acme, {
+            search: (input, context) =>
+              input.query === 'slow'
+                ? Effect.fail(context.error('limited', 'try later', {retryAfter: 5}))
+                : Effect.succeed({hits: [input.query]}),
+            explode: () => Effect.die(new Error('handler defect')),
+            malformed: () => Effect.succeed('ab'),
+          }),
+        ).pipe(Scope.provide(host.runSync(Scope.make()))),
+      )
+      const {plugin} = client.rpc
+      expect(await plugin.call({rpcId: 'acme', method: 'search', input: {query: 'docs'}})).toEqual({hits: ['docs']})
+
+      const inProcess = (rpcId: string, method: string, input: unknown) =>
+        host.runPromise(Rpc.Service.use((rpc) => rpc.call(rpcId, method, input)).pipe(Effect.flip))
+      const failures: [string, string, unknown, string][] = [
+        ['nobody', 'search', {query: 'docs'}, 'rpc.unavailable'],
+        ['acme', 'missing', undefined, 'rpc.method_not_found'],
+        ['acme', 'search', {query: 1}, 'rpc.invalid_input'],
+        ['acme', 'explode', undefined, 'rpc.internal'],
+        ['acme', 'malformed', undefined, 'rpc.invalid_output'],
+      ]
+      for (const [rpcId, method, input, type] of failures) {
+        const expected = await inProcess(rpcId, method, input)
+        expect(expected.type).toBe(type)
+        await expect(plugin.call({rpcId, method, input})).rejects.toMatchObject({code: 'PLUGIN_RPC', data: expected})
+      }
+      await expect(plugin.call({rpcId: 'acme', method: 'search', input: {query: 'slow'}})).rejects.toMatchObject({
+        code: 'PLUGIN_RPC',
+        data: {type: 'limited', message: 'try later', data: {retryAfter: 5}},
+      })
+
+      const typed = await plugin.events({rpcId: 'acme', types: ['indexed']})
+      const all = await plugin.events({rpcId: 'acme'})
+      const heard = Promise.all([typed.next(), all.next()])
+      const settled = {done: false}
+      void heard.then(() => (settled.done = true))
+      while (!settled.done) {
+        await host.runPromise(registration.events.emit('indexed', {count: 3}))
+        await setImmediate()
+      }
+      const indexed = {done: false, value: expect.objectContaining({type: 'rpc.acme.indexed', data: {count: 3}})}
+      expect(await heard).toEqual([indexed, indexed])
+      await typed.return()
+      await all.return()
+    } finally {
+      connection.release()
+      client.close()
       await served.stop()
     }
   })
