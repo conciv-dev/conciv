@@ -111,6 +111,7 @@ export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): 
     harnessSessionId: undefined,
     systemPrompt: '',
     hubAccess: 'session',
+    plugins: [],
   }
   const made = await makeApp({
     print: env.print,
