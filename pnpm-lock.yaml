@@ -324,6 +324,9 @@ catalogs:
     defu:
       specifier: 6.1.7
       version: 6.1.7
+    detect-libc:
+      specifier: 1.0.3
+      version: 1.0.3
     devframe:
       specifier: 1.2.6
       version: 1.2.6
@@ -4430,6 +4433,9 @@ importers:
       '@standard-schema/spec':
         specifier: 'catalog:'
         version: 1.1.0
+      detect-libc:
+        specifier: 'catalog:'
+        version: 1.0.3
       drizzle-orm:
         specifier: 'catalog:'
         version: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
