@@ -40,7 +40,7 @@ export function SegmentField(props: FieldProps & {options: readonly Option[]}): 
         onValueChange={(details) => {
           if (details.value) field().handleChange(details.value)
         }}
-        onFocusOut={() => field().handleBlur()}
+        on:focusout={() => field().handleBlur()}
       >
         <SegmentGroup.Indicator class={SEGMENT_INDICATOR} />
         <For each={local.options}>
@@ -106,7 +106,7 @@ export function SkinField(props: FieldProps & {skins: readonly SkinName[]; shown
           const next = local.skins.find((name) => name === details.value)
           if (next) field().handleChange(next)
         }}
-        onFocusOut={() => field().handleBlur()}
+        on:focusout={() => field().handleBlur()}
       >
         <For each={local.skins}>
           {(name) => (
@@ -180,7 +180,7 @@ export function SwitchField(props: FieldProps): JSX.Element {
         checked={field().state.value}
         readOnly={Boolean(local.lock)}
         onCheckedChange={(details) => field().handleChange(details.checked)}
-        onFocusOut={() => field().handleBlur()}
+        on:focusout={() => field().handleBlur()}
       >
         <Switch.Control>
           <Switch.Thumb />
