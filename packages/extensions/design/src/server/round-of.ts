@@ -1,3 +1,4 @@
+import {isNull, omitBy} from 'es-toolkit'
 import {RoundSchema, type Round} from '../shared/defs.js'
 import type {storeTables} from './runs/store-tables.js'
 
@@ -137,16 +138,8 @@ function gateRowOf(row: RowRow): Record<string, unknown> {
   } = row
   return {
     ...rest,
-    ...(property === null ? {} : {property}),
-    ...(expected === null ? {} : {expected}),
-    ...(actual === null ? {} : {actual}),
     delta,
-    ...(width === null ? {} : {width}),
-    ...(token === null ? {} : {token}),
-    ...(component === null ? {} : {component}),
-    ...(specifier === null ? {} : {specifier}),
-    ...(kitToken === null ? {} : {kitToken}),
-    ...(designToken === null ? {} : {designToken}),
+    ...omitBy({property, expected, actual, width, token, component, specifier, kitToken, designToken}, isNull),
   }
 }
 

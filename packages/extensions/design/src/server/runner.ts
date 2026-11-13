@@ -57,6 +57,8 @@ async function run(input: {runtime: DesignRuntime; folder: Storage; call: Call})
   const built = idTreeOf({live: measured.live, sheets: measured.sheets, mapping: held.stored, previous: held.ids})
   const round = await store.nextRound(record.id)
   const blank = measured.pageError !== undefined || measured.live.children.length === 0
+  const reasonAt = (rendered: number) =>
+    unsettledReason({measured, rendered, settled: history.settled, route: record.route})
   const early = (state: {unsettled: string | null; rendered: number; root: IdNode}) =>
     store.writeCheck({
       id: record.id,
@@ -70,11 +72,7 @@ async function run(input: {runtime: DesignRuntime; folder: Storage; call: Call})
     })
   if (blank && count < TOLERANCES.stallRounds) {
     await store.writeUnsettledCount({id: record.id, count})
-    await early({
-      unsettled: unsettledReason({measured, rendered: 0, settled: history.settled, route: record.route}),
-      rendered: 0,
-      root: built.root,
-    })
+    await early({unsettled: reasonAt(0), rendered: 0, root: built.root})
     return {unsettled: true, rendered: 0, ...facts}
   }
   if (previous !== undefined && previous === history.last && previous.tree === built.hash) {
@@ -83,12 +81,7 @@ async function run(input: {runtime: DesignRuntime; folder: Storage; call: Call})
     return {...shown(previous), unchanged: true}
   }
   const paired = await pairedOf({runtime, held, measured, round, built, settled: history.settled})
-  const unsettled = unsettledReason({
-    measured,
-    rendered: paired.coverage.rendered,
-    settled: history.settled,
-    route: record.route,
-  })
+  const unsettled = reasonAt(paired.coverage.rendered)
   await store.writeUnsettledCount({id: record.id, count: unsettled === null ? 0 : count})
   if (unsettled !== null && count < TOLERANCES.stallRounds) {
     await early({unsettled, rendered: paired.coverage.rendered, root: paired.mapped.root})

@@ -89,8 +89,8 @@ export function createStore(input: {
     return own === null ? runs.latest() : {sessionId: found.session, run: own}
   }
 
-  function moved(input: {found: TargetRow; run: number; session: string}): TargetRow {
-    const {found, run, session} = input
+  function moved(move: {found: TargetRow; run: number; session: string}): TargetRow {
+    const {found, run, session} = move
     return orm.transaction((tx) => {
       const there = tx
         .select()

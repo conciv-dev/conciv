@@ -162,15 +162,20 @@ function xraySwitch() {
 }
 
 async function measureStep(input: MeasureInput, ctx: ClientToolCtx): Promise<MeasureResult> {
-  const size = {width: input.width ?? innerWidth, height: input.height ?? innerHeight}
+  const size = askedSize(input)
   const pageError = overlayError()
-  const doc = input.widget === 'shown' ? document : mirrorDocument(await mirrorAt({size, fresh: input.fresh}))
+  const live = input.widget === 'shown'
+  const doc = live ? document : mirrorDocument(await mirrorAt({size, fresh: input.fresh}))
   const measured = await frozen({
     doc,
-    run: () => (doc === document ? measureLive({size, widget: input.widget}) : measureMirrorDoc({doc, size})),
+    run: () => (live ? measureLive({size, widget: input.widget}) : measureMirrorDoc({doc, size})),
   })
   const queried = {...measured, ...(await pageQueries(doc)), ...thrownOf(ctx.consoleEntries())}
   return pageError === null ? queried : {...queried, pageError}
+}
+
+function askedSize(input: {width?: number | undefined; height?: number | undefined}): Size {
+  return {width: input.width ?? innerWidth, height: input.height ?? innerHeight}
 }
 
 function routeStep(input: RouteInput): {initiated: true} {
