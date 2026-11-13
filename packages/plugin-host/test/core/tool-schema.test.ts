@@ -16,7 +16,7 @@ setFlagsFromString('--expose-gc')
 const collectGarbage: () => void = runInNewContext('gc')
 
 const context = {
-  sessionId: Session.Id.make('ses_tool_schema'),
+  sessionId: Session.Id.make('conciv_tool_schema'),
   agent: Agent.Id.make('build'),
   messageId: SessionMessage.Id.make('msg_tool_schema'),
   id: Tool.CallId.make('call_tool_schema'),

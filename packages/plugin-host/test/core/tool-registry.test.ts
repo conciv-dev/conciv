@@ -18,7 +18,7 @@ const identity = {
   agent: Agent.Id.make('build'),
   messageId: SessionMessage.Id.make('msg_registry'),
 }
-const sessionId = Session.Id.make('ses_registry')
+const sessionId = Session.Id.make('conciv_registry')
 const call = (name: string, id = `call-${name}`): Parameters<Tool.Snapshot['execute']>[0] => ({
   sessionId,
   ...identity,
