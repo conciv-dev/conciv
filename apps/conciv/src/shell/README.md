@@ -27,7 +27,7 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 - `notices.tsx:createNoticeStore`: a single action renders inline through Ark's toast `action`; several ride the toast's `meta` and wrap to a row under the text; each runs its action and dismisses the notice
 - `notices.tsx:createNoticeStore`: a success notice with no icon shows the lucide `check`; a loading notice shows the kit `Loader` in the icon slot
 - `notice-context.tsx:useNotices`: throws outside `NoticeContextProvider`
-- `engine-notice.tsx:EngineStaleNotice`: one standing notice per engine `fingerprint`; cleared when the engine reports not stale
+- `engine-notice.tsx:EngineStaleNotice`: one standing notice per engine `fingerprint`; cleared when the engine reports not stale and when the component unmounts
 - `engine-notice.tsx:EngineUnreachableNotice`: shown only while `sustainedOffline()`; Retry re-runs the login check, then calls `resetBrowserRpcConnection` and `router.invalidate()`
 - `default-error-component.tsx:defaultErrorComponent`: runs its Retry when it mounts on a refused (`UNAUTHORIZED`) error while the engine already trusts this browser, and on a trust flip from untrusted or revoked to trusted while it is shown
 - `rpc-error-message.ts:classifyRpcError`: reachability errors map to the transport message, otherwise the error message or the generic one

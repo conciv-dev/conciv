@@ -40,6 +40,7 @@ export function EngineStaleNotice(): JSX.Element {
     notices.remove(standing.fingerprint)
     standing.fingerprint = null
   }
+  onCleanup(clear)
   createEffect(() => {
     const reading = engine.data
     if (reading === undefined) return

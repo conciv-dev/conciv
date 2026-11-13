@@ -1394,6 +1394,28 @@ describe('engine staleness', () => {
 
     await expect.element(staleNotice(), {timeout: 8000}).not.toBeInTheDocument()
   }, 30_000)
+
+  test('the stale notice leaves with the quick terminal that raised it', async () => {
+    const staleNotice = () => page.getByText(/Engine is running outdated code/)
+    await coreControl.setStaleness(staleness(true, 'stamp-quick'))
+    const sessionId = await createSession(coreRpc(core()))
+    harness.mountShell(['/', `/quick?panes=${sessionId}&focus=0`])
+    await expect.element(staleNotice(), {timeout: 8000}).toBeVisible()
+
+    vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout']})
+    try {
+      await page.getByRole('button', {name: 'Close quick terminal'}).click()
+      await expect.element(page.getByRole('dialog', {name: 'conciv quick terminal'})).not.toBeInTheDocument()
+      vi.advanceTimersByTime(5 * 60_000)
+    } finally {
+      vi.useRealTimers()
+    }
+
+    await coreControl.setStaleness(staleness(false, 'stamp-fresh'))
+    await page.getByRole('button', {name: 'Open conciv chat'}).click()
+    await expect.element(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+    await expect.element(staleNotice()).not.toBeInTheDocument()
+  }, 30_000)
 })
 
 describe('engine version', () => {
