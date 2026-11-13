@@ -152,6 +152,7 @@ export type ChatFixture = {
   sessionId: SessionId
   stateRoot: string
   runtime: MadeApp['runtime']
+  pluginHost: MadeApp['pluginHost']
   dispose: () => Promise<void>
 }
 
@@ -168,6 +169,7 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
     sessionId,
     stateRoot,
     runtime: made.runtime,
+    pluginHost: made.pluginHost,
     dispose: made.dispose,
   }
 }

@@ -2464,6 +2464,72 @@ describe('plugin permission cards', () => {
     expect((await restarted.plane.hydrate(id)).pendingApprovals.map((entry) => entry.toolName)).toEqual(['unit_kept'])
     expect(logged).toEqual([])
   })
+
+  it('a plugin tool asking from inside execute_typescript stops asking when its run is stopped, and a late approval runs nothing and clears the card', async () => {
+    const fixture = await makeChatFixture()
+    const {plane, runtime, pluginHost, sessionId: id} = fixture
+    const clients = new AbortController()
+    onTestFinished(async () => {
+      clients.abort()
+      await fixture.dispose()
+    })
+    const written: string[] = []
+    const scope = pluginHost.runSync(Scope.make())
+    await pluginHost.runPromise(
+      Effect.gen(function* () {
+        const tools = yield* Tool.Service
+        const permission = yield* Permission.Service
+        yield* tools.transform((editor) => {
+          editor.add({
+            name: 'unit_write_notes',
+            description: 'Write a notes file.',
+            input: z.object({file: z.string()}),
+            execute: (input: {file: string}, context) =>
+              permission
+                .assert({
+                  ...Permission.invocation(context),
+                  action: 'edit',
+                  resources: [input.file],
+                  metadata: {file: input.file},
+                })
+                .pipe(
+                  Effect.orDie,
+                  Effect.andThen(
+                    Effect.sync(() => {
+                      written.push(input.file)
+                      return {content: `wrote ${input.file}`}
+                    }),
+                  ),
+                ),
+          })
+        })
+      }).pipe(Scope.provide(scope)),
+    )
+    const answer = (sessionId: SessionId, requestId: string, reply: Permission.Reply) =>
+      pluginHost.runPromise(answerPermission(sessionId, requestId, reply))
+    const publish = (sessionId: SessionId, chunk: ChatEvent) => runtime.forSession(sessionId).stream.publish(chunk)
+    await setPermissions(fixture.db, id, [{action: 'edit', resource: '*', effect: 'ask'}])
+    const events = runtime.forSession(id).stream.events(clients.signal)
+    fixture.harness.script.scriptToolCall('execute_typescript', {
+      typescriptCode: "return await external_unit_write_notes({file: 'notes.md'})",
+    })
+
+    const running = plane.followUp(id, 'write the notes')
+    const shown = await readNextEvent(events, readApprovalAsk)
+    expect(shown).toMatchObject({toolName: 'edit notes.md', input: {file: 'notes.md'}})
+    await plane.stop(id)
+    await running
+    expect(
+      await decidePermissionCard({plane, answer, publish}, id, {
+        approvalId: shown.approvalId,
+        approved: true,
+        scope: 'once',
+      }),
+    ).toBeNull()
+    expect(written).toEqual([])
+    expect(await readNextEvent(events, readApprovalSettled)).toBe(shown.approvalId)
+    expect((await plane.hydrate(id)).pendingApprovals).toEqual([])
+  })
 })
 
 describe('direct tools on the MCP surface', () => {
