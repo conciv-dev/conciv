@@ -159,7 +159,7 @@
     "@solidjs/testing-library",
     "cytoscape"
   ],
-  "ignoreUnresolvedImports": ["collections/*"],
+  "ignoreUnresolvedImports": ["collections/*", "./location.js"],
   "publicPackages": [
     "@conciv/harness-init",
     "@conciv/core",
@@ -203,7 +203,23 @@
     },
     {
       "file": "packages/plugin-host/src/**",
-      "exports": ["ID", "Interface", "Options", "Service", "Tool", "layer"]
+      "exports": [
+        "ID",
+        "Interface",
+        "Options",
+        "Service",
+        "Tool",
+        "layer",
+        "Delta",
+        "Hash",
+        "Key",
+        "Removed",
+        "Source",
+        "Values",
+        "removed",
+        "Event",
+        "Id"
+      ]
     },
     {
       "file": "packages/ui-kit-chat/src/tools/primitives/tool-fallback.tsx",

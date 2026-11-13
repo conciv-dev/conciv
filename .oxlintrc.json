@@ -391,11 +391,11 @@
     {
       "files": ["packages/plugin-host/**"],
       "rules": {
-        "conciv/test-file-budget": ["error", {"max": 6}]
+        "conciv/test-file-budget": ["error", {"max": 7}]
       }
     },
     {
-      "files": ["packages/plugin-host/src/**"],
+      "files": ["packages/plugin-host/src/**", "packages/plugin-host/test/**"],
       "rules": {
         "require-yield": "off"
       }
