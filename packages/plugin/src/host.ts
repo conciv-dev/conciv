@@ -131,7 +131,8 @@ function resolvePackage(specifier: string) {
 
 function resolveExisting(specifier: string) {
   const resolved = import.meta.resolve(specifier)
-  if (resolved.startsWith('file:')) statSync(new URL(resolved))
+  if (resolved.startsWith('file:') && !statSync(new URL(resolved)).isFile())
+    throw Object.assign(new Error(`Cannot find module file ${resolved}`), {code: 'ERR_MODULE_NOT_FOUND'})
   return resolved
 }
 

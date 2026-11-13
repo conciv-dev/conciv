@@ -537,6 +537,14 @@ describe('host', () => {
       })
     })
 
+    it('falls back to the root file when a package without exports has a server directory', async () => {
+      await using plugin = await fixture(
+        {'package.json': JSON.stringify({name}), 'index.js': source, 'server/handler.js': source},
+        true,
+      )
+      expect(Host.resolve(plugin.target).server).toBe(plugin.url('index.js'))
+    })
+
     it('resolves local conventional entrypoints with package.json but no exports', async () => {
       await using plugin = await fixture({
         'package.json': JSON.stringify({name, type: 'module'}),
