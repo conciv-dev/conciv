@@ -100,7 +100,7 @@ describe('Bus Session routing', () => {
       expect(deleted.atElsewhere).toEqual([])
       expect(deleted.everywhere).toEqual([deleted.event])
 
-      yield* db.delete(SessionTable).where(eq(SessionTable.id, owned)).run()
+      yield* db.update(SessionTable).set({deletedAt: 1}).where(eq(SessionTable.id, owned)).run()
       const after = yield* step(bus, bus.publish(SessionEvent.Renamed, {sessionID: owned, title: 'after'}))
       expect(after.atEngine).toEqual([])
       expect(after.atElsewhere).toEqual([])
