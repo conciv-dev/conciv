@@ -753,6 +753,22 @@ describe('config', () => {
     expect(resolveConfig(parsed, '/root').plugins).toEqual(plugins)
     expect(resolveConfig({}, '/root').plugins).toEqual([])
   })
+
+  it('refuses a plugin option value that is not JSON, naming the plugin, and keeps nested JSON options as given', () => {
+    const nested = [
+      '@acme/nested',
+      {name: 'a', level: 2, on: true, off: null, list: [1, 'b', [false]], deep: {x: {y: null}}},
+    ]
+    expect(ConcivConfigSchema.parse({plugins: [nested]}).plugins).toEqual([nested])
+    const refused = ConcivConfigSchema.safeParse({plugins: [nested, ['@acme/hooks', {onLoad: () => 'loaded'}]]})
+    expect(refused.error?.issues.map((issue) => ({path: issue.path, message: issue.message}))).toEqual([
+      {
+        path: ['plugins', 1],
+        message:
+          'plugin "@acme/hooks": the entry must be [name, options] and every option value must be JSON (a string, number, boolean, null, array or object)',
+      },
+    ])
+  })
 })
 
 describe('local state files', () => {

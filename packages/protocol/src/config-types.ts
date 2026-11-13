@@ -62,7 +62,12 @@ const PolicyStatementSchema = z.object({
   effect: z.enum(['allow', 'deny']),
 })
 
-const PluginEntrySchema = z.union([z.string(), z.tuple([z.string(), z.record(z.string(), z.unknown())])])
+const PluginEntrySchema = z.union([z.string(), z.tuple([z.string(), z.record(z.string(), z.json())])], {
+  error: (issue) =>
+    Array.isArray(issue.input) && typeof issue.input[0] === 'string'
+      ? `plugin "${issue.input[0]}": the entry must be [name, options] and every option value must be JSON (a string, number, boolean, null, array or object)`
+      : undefined,
+})
 
 export const ConcivConfigSchema = z.object({
   enabled: z.boolean().optional(),
