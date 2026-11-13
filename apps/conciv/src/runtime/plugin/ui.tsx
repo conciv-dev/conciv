@@ -59,6 +59,8 @@ const MENU_ITEM = `${LIST_PANEL_ITEM} data-[highlighted]:bg-chat-fill-strong dat
 
 const MUTED_ICON = 'shrink-0 text-chat-text-3'
 
+const MENU_CONTENT = 'w-max max-w-[calc(100vw-32px)]'
+
 export const ui: Ui = {
   Icon,
   Button: (props) => (
@@ -147,7 +149,7 @@ export const ui: Ui = {
         />
       </Show>
       <Menu.Positioner>
-        <Menu.Content>
+        <Menu.Content class={MENU_CONTENT}>
           <For each={props.items}>
             {(entry) => {
               if (entry.type === 'separator') return <Menu.Separator />
@@ -186,7 +188,9 @@ export const ui: Ui = {
         <Icon name="chevron-right" class={`ms-auto ${MUTED_ICON}`} />
       </Menu.TriggerItem>
       <Menu.Positioner>
-        <Menu.Content aria-label={props.label}>{props.children}</Menu.Content>
+        <Menu.Content class={MENU_CONTENT} aria-label={props.label}>
+          {props.children}
+        </Menu.Content>
       </Menu.Positioner>
     </Menu.Root>
   ),
