@@ -271,6 +271,7 @@
   ],
   "entry": [
     "packages/plugin-host/src/core/location.ts",
+    "packages/plugin-host/src/core/skill/instructions.ts",
     "packages/plugin-host/src/core/database/**",
     "packages/plugin-host/src/core/permission.ts",
     "packages/brand-react/src/conciv-lockup.tsx",

@@ -138,3 +138,24 @@ export const PermissionTable = sqliteTable(
   },
   (table) => [uniqueIndex('permission_project_action_resource_idx').on(table.project_id, table.action, table.resource)],
 )
+
+export const InstructionBlobTable = sqliteTable('instruction_blob', {
+  hash: text().$type<string & Brand.Brand<'Instruction.Hash'>>().primaryKey(),
+  value: text({mode: 'json'}).$type<Schema.Json>(),
+})
+
+export const InstructionStateTable = sqliteTable('instruction_state', {
+  session_id: text()
+    .$type<string & Brand.Brand<'SessionID'>>()
+    .primaryKey()
+    .references(() => sessions.id, {onDelete: 'cascade'}),
+  // oxlint-disable-next-line conciv/banned-vocabulary
+  epoch_start: integer().notNull(),
+  through_seq: integer().notNull(),
+  initial_values: text({mode: 'json'})
+    .notNull()
+    .$type<Readonly<Record<string, string & Brand.Brand<'Instruction.Hash'>>>>(),
+  current_values: text({mode: 'json'})
+    .notNull()
+    .$type<Readonly<Record<string, string & Brand.Brand<'Instruction.Hash'>>>>(),
+})

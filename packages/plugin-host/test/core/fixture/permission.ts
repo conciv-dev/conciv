@@ -24,7 +24,7 @@ const sessionsLayer = Layer.effect(
   }),
 )
 
-const databaseLayer = Layer.unwrap(
+export const databaseLayer = Layer.unwrap(
   Effect.gen(function* () {
     const tmp = yield* tmpdirScoped()
     const db = openDb(tmp.path)

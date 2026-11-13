@@ -1,1 +1,1 @@
-export {sessions as SessionTable} from '@conciv/db'
+export {sessions as SessionTable, InstructionBlobTable, InstructionStateTable} from '@conciv/db'

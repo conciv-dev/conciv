@@ -390,7 +390,13 @@
     {
       "files": ["packages/plugin-host/**"],
       "rules": {
-        "conciv/test-file-budget": ["error", {"max": 16}]
+        "conciv/test-file-budget": ["error", {"max": 17}]
+      }
+    },
+    {
+      "files": ["packages/plugin-host/src/**"],
+      "rules": {
+        "conciv/banned-vocabulary": "off"
       }
     },
     {

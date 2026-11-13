@@ -2,6 +2,7 @@ import {describe, expect} from 'vitest'
 import {NodeFileSystem} from '@effect/platform-node'
 import {Deferred, Effect, Fiber, Layer, Stream} from 'effect'
 import {FSUtil} from '../../src/util/fs-util.js'
+import {Agent} from '../../src/core/agent.js'
 import {Bus} from '../../src/core/bus.js'
 import {AbsolutePath} from '../../src/schema/schema.js'
 import {Skill} from '../../src/core/skill.js'
@@ -111,6 +112,19 @@ describe('Skill', () => {
       yield* skill.transform((editor) => editor.add(info('review', 'Visible')))
       expect(yield* Deferred.await(updated).pipe(Effect.timeout('1 second'))).toEqual([info('review', 'Visible')])
       yield* Fiber.interrupt(fiber)
+    }),
+  )
+
+  it.effect('filters values by agent permissions', () =>
+    Effect.gen(function* () {
+      const agents = yield* Agent.Service
+      yield* agents.transform((editor) =>
+        editor.update(Agent.Id.make('reviewer'), (agent) => {
+          agent.permissions.push({action: 'skill', resource: 'deploy', effect: 'deny'})
+        }),
+      )
+      const agent = yield* agents.get(Agent.Id.make('reviewer'))
+      expect(Skill.available([info('deploy', 'Deploy')], agent!.permissions)).toEqual([])
     }),
   )
 
