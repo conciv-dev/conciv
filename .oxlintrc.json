@@ -406,7 +406,7 @@
     {
       "files": ["apps/conciv/**"],
       "rules": {
-        "conciv/test-file-budget": ["error", {"max": 15}]
+        "conciv/test-file-budget": ["error", {"max": 16}]
       }
     },
     {
