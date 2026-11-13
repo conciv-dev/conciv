@@ -247,9 +247,7 @@
         "apps/examples/tanstack-start/src/**",
         "packages/page/test/**",
         "packages/extensions/page/test/fixtures/**",
-        "packages/extensions/page/test/page.browser.test.ts",
-        "packages/extensions/design/test/fixtures/host/**",
-        "packages/extensions/design/test/fixtures/provenance/**"
+        "packages/extensions/page/test/page.browser.test.ts"
       ],
       "rules": {
         "solid/jsx-no-duplicate-props": "off",
@@ -435,8 +433,6 @@
     "**/test-results",
     "packages/unplugin/test/fixtures/**",
     "packages/extensions/tanstack/test/fixtures/**",
-    "packages/extensions/design/test/fixtures/host/**",
-    "packages/extensions/design/test/fixtures/provenance/**",
     "packages/cli/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",
     "e2e/*/src",
