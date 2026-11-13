@@ -1,4 +1,5 @@
-import {join} from 'node:path'
+import {mkdirSync, writeFileSync} from 'node:fs'
+import {dirname, isAbsolute, join, relative, resolve, sep} from 'node:path'
 import {
   createFakeHarness,
   createTestkit,
@@ -13,11 +14,13 @@ import type {SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 import type {EngineStaleness} from '@conciv/contract'
 import {concivStateDir} from '@conciv/protocol/state-types'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
 
 export type CoreKit = Kit & {
   harness: FakeHarness
   forSession: (id: SessionId) => SessionScope
   home: string
+  writeProjectFile: (path: string, content: string) => void
 }
 
 export type AlternateHarness = {
@@ -42,6 +45,8 @@ export async function bootCoreKit(opts: {
   allowedOrigins?: string[]
   staleness?: () => EngineStaleness
   nativePageDir?: string
+  plugins?: NonNullable<ConcivConfig['plugins']>
+  files?: Readonly<Record<string, string>>
 }): Promise<CoreKit> {
   const harness = createFakeHarness({
     id: opts.id,
@@ -55,7 +60,8 @@ export async function bootCoreKit(opts: {
   })
   const captured: {runtime?: CoreRuntime} = {}
   const kit = await createTestkit(harness, async (env) => {
-    const {fetch, dispose, runtime, agentToken} = await makeApp({
+    for (const [path, content] of Object.entries(opts.files ?? {})) writeInside(env.cwd, path, content)
+    const {fetch, dispose, runtime, agentToken, startPlugins} = await makeApp({
       print: env.print,
       cfg: {
         enabled: true,
@@ -67,7 +73,7 @@ export async function bootCoreKit(opts: {
         harnessSessionId: undefined,
         systemPrompt: '',
         hubAccess: 'session',
-        plugins: [],
+        plugins: opts.plugins ?? [],
         policies: [],
       },
       cwd: env.cwd,
@@ -81,6 +87,7 @@ export async function bootCoreKit(opts: {
       home: kitHome(env.stateRoot),
     })
     captured.runtime = runtime
+    await startPlugins()
     return {
       fetch,
       dispose,
@@ -94,7 +101,18 @@ export async function bootCoreKit(opts: {
     harness,
     forSession: runtime.forSession,
     home: kitHome(kit.stateRoot),
+    writeProjectFile: (path, content) => writeInside(kit.stateRoot, path, content),
   }
+}
+
+function writeInside(root: string, path: string, content: string): void {
+  const target = resolve(root, path)
+  const inside = relative(root, target)
+  if (inside === '' || inside === '..' || inside.startsWith(`..${sep}`) || isAbsolute(inside)) {
+    throw new Error(`the project file ${path} resolves outside the project root ${root}`)
+  }
+  mkdirSync(dirname(target), {recursive: true})
+  writeFileSync(target, content)
 }
 
 function kitHome(stateRoot: string): string {
