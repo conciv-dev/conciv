@@ -154,15 +154,15 @@ describe('catalog component rows', () => {
 
   it('reads the component rows of the running run from lost_components', async () => {
     await componentRows({on: kit, page: 'drift-hand'})
-    const [{run: runId} = {run: 0}] = z.array(z.object({run: z.number()})).parse(
-      await kit.rpc.db
-        .read({
-          from: 'design_stored_runs',
-          where: `session == "${kit.session}" && status == "running"`,
-          select: fields('run'),
-        })
-        .then((page) => page.results),
-    )
+    const runIds = z
+      .array(z.object({run: z.number()}))
+      .parse(
+        await kit.rpc.db
+          .read({from: 'design_stored_runs', where: `session == "${kit.session}"`, select: fields('run')})
+          .then((page) => page.results),
+      )
+      .map((row) => row.run)
+    const runId = Math.max(0, ...runIds)
     const {results: rows} = await kit.rpc.db.read({
       from: 'design_lost_components',
       where: `component == "Chip" && run == ${runId}`,
