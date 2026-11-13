@@ -179,7 +179,7 @@ export function approvalNeeded(name: string): Error {
   )
 }
 
-function approvalDenied(name: string): Error {
+export function approvalDenied(name: string): Error {
   return new Error(`The user denied running tool "${name}". Do not retry it; continue without it.`)
 }
 

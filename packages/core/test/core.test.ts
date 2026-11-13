@@ -2052,7 +2052,7 @@ describe('plugin permission cards', () => {
     const [readEnv] = toolDomainCapabilities(
       [],
       host.runSync(Tool.Service.use((tools) => tools.snapshot())),
-      (effect, signal) => host.runPromise(effect, {signal}),
+      (effect, signal) => host.runPromiseExit(effect, {signal}),
       () => undefined,
     )
     const call = (sessionId: SessionId, file: string) =>

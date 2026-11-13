@@ -573,7 +573,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     toolDomainCapabilities(
       capabilities,
       pluginHost.runSync(Tool.Service.use((tools) => tools.snapshot())),
-      (effect, signal) => pluginHost.runPromise(effect, {signal}),
+      (effect, signal) => pluginHost.runPromiseExit(effect, {signal}),
       reportToolCollision,
     )
 

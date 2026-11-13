@@ -8,9 +8,9 @@ import {openDb, type ConcivDb} from '@conciv/db'
 import {defineHarness} from '@conciv/harness'
 import {approvalAskOf, approvalRequestedEvent} from '@conciv/protocol/chat-event-types'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {Effect, Layer, ManagedRuntime, Scope} from 'effect'
+import {Effect, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {z} from 'zod'
-import {PluginHooks, Tool} from '@conciv/plugin-host'
+import {Agent, Bus, Database, Location, Permission, PermissionSaved, PluginHooks, Tool} from '@conciv/plugin-host'
 import {createChatPlane, toolDomainCapabilities, type CodeCapability} from '../src/index.js'
 
 const model = fakeText()
@@ -162,7 +162,7 @@ describe('plugin tools in code mode', () => {
       toolDomainCapabilities(
         [builtin],
         host.runSync(Tool.Service.use((tools) => tools.snapshot())),
-        (effect, signal) => host.runPromise(effect, {signal}),
+        (effect, signal) => host.runPromiseExit(effect, {signal}),
         (name) => collisions.push(name),
       )
     expect(capabilities()).toEqual([builtin])
@@ -241,5 +241,84 @@ describe('plugin tools in code mode', () => {
     await expect(runner?.run('return await external_unit_taken({})', 'parent')).resolves.toMatchObject({
       result: 'built in',
     })
+  })
+})
+
+describe('refusal text', () => {
+  const isAsked = Schema.is(Schema.Struct({id: Permission.Id, action: Schema.String}))
+
+  it('a declined call says the user denied the tool, and a blocked or corrected call says its own message', async () => {
+    const {root, db} = openDatabase()
+    const sessions = Layer.succeed(
+      Permission.PermissionSessions,
+      Permission.PermissionSessions.of({
+        get: () =>
+          Effect.succeed({
+            agent: Agent.defaultId,
+            permissions: [
+              {action: 'refused', resource: '*', effect: 'deny'},
+              {action: 'asked', resource: '*', effect: 'ask'},
+              {action: 'corrected', resource: '*', effect: 'ask'},
+            ],
+          }),
+      }),
+    )
+    const host = ManagedRuntime.make(
+      Layer.mergeAll(Tool.layer, Permission.layer).pipe(
+        Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, sessions)),
+        Layer.provideMerge(PluginHooks.layer),
+        Layer.provideMerge(Bus.configured()),
+        Layer.provideMerge(
+          Layer.succeed(
+            Location.Service,
+            Location.Service.of(Schema.decodeSync(Location.Info)({directory: root, project: {id: root}})),
+          ),
+        ),
+        Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),
+      ),
+    )
+    onTestFinished(() => host.dispose())
+    await host.context()
+    const scope = host.runSync(Scope.make())
+    await host.runPromise(
+      Effect.gen(function* () {
+        const tools = yield* Tool.Service
+        const permission = yield* Permission.Service
+        const bus = yield* Bus.Service
+        yield* bus.listen((event) => {
+          if (event.type !== Permission.Event.Asked.type || !isAsked(event.data)) return Effect.void
+          const message = event.data.action === 'corrected' ? {message: 'read the example file instead'} : {}
+          return permission.reply({requestId: event.data.id, reply: 'reject', ...message}).pipe(Effect.ignore)
+        })
+        yield* tools.transform((editor) => {
+          editor.add({
+            name: 'unit_guarded',
+            description: 'Assert a permission.',
+            input: z.object({action: z.string()}),
+            execute: (input: {action: string}, context) =>
+              permission
+                .assert({...Permission.invocation(context), action: input.action, resources: ['src/.env']})
+                .pipe(Effect.orDie, Effect.as({content: 'ran'})),
+          })
+        })
+      }).pipe(Scope.provide(scope)),
+    )
+    const [guarded] = toolDomainCapabilities(
+      [],
+      host.runSync(Tool.Service.use((tools) => tools.snapshot())),
+      (effect, signal) => host.runPromiseExit(effect, {signal}),
+      () => undefined,
+    )
+    const call = (action: string) =>
+      guarded?.execute(
+        {action},
+        {sessionId: SessionId.parse('conciv_refusal'), agentId: 'conciv_refusal', model: null, toolCallId: action},
+      )
+
+    await expect(call('asked')).rejects.toThrow(
+      'The user denied running tool "unit_guarded". Do not retry it; continue without it.',
+    )
+    await expect(call('refused')).rejects.toThrow('Permission denied: refused')
+    await expect(call('corrected')).rejects.toThrow('read the example file instead')
   })
 })
