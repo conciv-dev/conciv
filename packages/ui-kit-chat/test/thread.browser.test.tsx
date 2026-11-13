@@ -8,7 +8,7 @@ import type {ChatPart, ToolCallPart, ChatMessage} from '@conciv/protocol/chat-me
 import type {ToolCardEntry, ToolCardProps, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {Activity} from '../src/styled/activity.js'
 import {
-  catalogOf,
+  makeCatalog,
   ctxWith,
   mountView,
   RunSettledIndicator,
@@ -202,13 +202,13 @@ describe('message if has text', () => {
     return {type: 'text', content: 'explain this'}
   }
 
-  function turnOf(parts: ChatPart[]): Turn {
+  function buildTurn(parts: ChatPart[]): Turn {
     return {key: 'turn-1', role: 'user', parts, messages: [], before: undefined, start: 0, end: 0}
   }
 
   function Host(props: ParentProps<{parts: ChatPart[]}>): JSX.Element {
     const chat = createChat({threadId: 'message-if-has-text', connection: storyConnection(untrack(() => undefined))})
-    const turn = untrack(() => turnOf(props.parts))
+    const turn = untrack(() => buildTurn(props.parts))
     return (
       <ChatProvider chat={chat}>
         <MessageProvider
@@ -255,11 +255,11 @@ describe('nested group rendering', () => {
   const INNER_KEY: GroupKey = 'group-inner'
   const MYSTERY_KEY: GroupKey = 'group-mystery'
 
-  function grouperByText(pathOf: (content: string) => readonly GroupKey[] | null): Grouper {
+  function grouperByText(readPath: (content: string) => readonly GroupKey[] | null): Grouper {
     return (parts) =>
       parts.map((part) => {
         if (part.type !== 'text') return null
-        return pathOf(part.content)
+        return readPath(part.content)
       })
   }
 
@@ -641,7 +641,7 @@ describe('standalone card replaced in place', () => {
       })
       return (
         <ChatProvider chat={value}>
-          <ToolProvider value={ctxWith(catalogOf({}))}>
+          <ToolProvider value={ctxWith(makeCatalog({}))}>
             <Thread>
               <Thread.Viewport>
                 <Thread.Messages tools={entries} />
@@ -683,7 +683,7 @@ describe('standalone tool outside chain', () => {
     })
     return (
       <ChatProvider chat={chat}>
-        <ToolProvider value={ctxWith(catalogOf({}))}>
+        <ToolProvider value={ctxWith(makeCatalog({}))}>
           <button type="button" onClick={() => void chat.sendMessage('ask me')}>
             ask
           </button>
@@ -843,7 +843,7 @@ describe('thread session log', () => {
     onMount(() => chat.setMessages(props.messages))
     return (
       <ChatProvider chat={chat}>
-        <ToolProvider value={ctxWith(catalogOf({}))}>
+        <ToolProvider value={ctxWith(makeCatalog({}))}>
           <Thread>
             <Thread.Viewport>
               <Thread.Messages />
@@ -1004,7 +1004,7 @@ describe('thread session log', () => {
         <button type="button" onClick={driveFromOutside}>
           outside agent drives the tab
         </button>
-        <ToolProvider value={ctxWith(catalogOf({}))}>
+        <ToolProvider value={ctxWith(makeCatalog({}))}>
           <div class="flex flex-col h-200 w-110 [background:var(--chat-bg)]">
             <Thread>
               <Thread.Viewport>
@@ -1065,11 +1065,11 @@ describe('thread session log', () => {
     const firstTextRow = firstTextLocator.element()
     const triggerRow = triggerLocator.element()
     const answerRow = answerLocator.element()
-    const indexOf = (descendant: Element): number =>
+    const findRowIndex = (descendant: Element): number =>
       contentRows.findIndex((row) => row === descendant || row.contains(descendant))
-    const firstTextIndex = indexOf(firstTextRow)
-    const triggerIndex = indexOf(triggerRow)
-    const answerIndex = indexOf(answerRow)
+    const firstTextIndex = findRowIndex(firstTextRow)
+    const triggerIndex = findRowIndex(triggerRow)
+    const answerIndex = findRowIndex(answerRow)
 
     expect(firstTextIndex).toBeGreaterThanOrEqual(0)
     expect(triggerIndex).toBeGreaterThan(firstTextIndex)
@@ -1173,7 +1173,10 @@ describe('trace permission block', () => {
   type Decision = {id: string; approved: boolean; scope: PermissionScope | undefined}
 
   function ctxRecording(decisions: Decision[]): ToolViewCtx {
-    return {...ctxWith(catalogOf({})), respondApproval: (id, approved, scope) => decisions.push({id, approved, scope})}
+    return {
+      ...ctxWith(makeCatalog({})),
+      respondApproval: (id, approved, scope) => decisions.push({id, approved, scope}),
+    }
   }
 
   it('approves through the Approve button', async () => {
@@ -1425,7 +1428,7 @@ describe('virtual scroll', () => {
     windowErrors.length = 0
   })
 
-  function answerOf(index: number): string {
+  function buildAnswer(index: number): string {
     const shape = index % 4
     if (shape === 0) return `answer ${index}\n\nOne short line about the change.`
     if (shape === 1) {
@@ -1440,7 +1443,7 @@ describe('virtual scroll', () => {
   }
 
   function assistantParts(index: number): ChatMessage['parts'] {
-    if (index % 4 !== 3) return [{type: 'text', content: answerOf(index)}]
+    if (index % 4 !== 3) return [{type: 'text', content: buildAnswer(index)}]
     return [
       {type: 'text', content: `answer ${index}\n\nReading the file first.`},
       {
@@ -1457,7 +1460,7 @@ describe('virtual scroll', () => {
         content: `export function run(step: number): number {\n  return step * ${index}\n}\n`.repeat(4),
         state: 'complete',
       },
-      {type: 'text', content: answerOf(index)},
+      {type: 'text', content: buildAnswer(index)},
     ]
   }
 
@@ -1488,7 +1491,7 @@ describe('virtual scroll', () => {
       return (
         <div class="flex flex-col h-[520px] w-[560px]">
           <ChatProvider chat={chat}>
-            <ToolProvider value={ctxWith(catalogOf({}))}>
+            <ToolProvider value={ctxWith(makeCatalog({}))}>
               <Thread>
                 <Thread.Viewport>
                   <Thread.Messages />

@@ -2,7 +2,7 @@ function isAstNode(value) {
   return typeof value?.type === 'string'
 }
 
-function typeArgumentsOf(node) {
+function readTypeArguments(node) {
   const holder = node.typeArguments ?? node.typeParameters
   if (!holder) return []
   return holder.params ?? []
@@ -10,14 +10,14 @@ function typeArgumentsOf(node) {
 
 function isPromiseOfBoolean(node) {
   if (node.typeName?.name !== 'Promise') return false
-  return typeArgumentsOf(node).some(isBooleanType)
+  return readTypeArguments(node).some(isBooleanType)
 }
 
 function isBooleanUnion(node) {
-  return typesOf(node).some(isBooleanType)
+  return readTypes(node).some(isBooleanType)
 }
 
-function typesOf(node) {
+function readTypes(node) {
   return node.types ?? []
 }
 
@@ -34,13 +34,13 @@ function isBooleanType(node) {
   return check(node)
 }
 
-function returnTypeOf(node) {
+function readReturnType(node) {
   return node.returnType?.typeAnnotation
 }
 
 function isBooleanReturningFunctionType(node) {
   if (node.type !== 'TSFunctionType') return false
-  return isBooleanType(returnTypeOf(node))
+  return isBooleanType(readReturnType(node))
 }
 
 function searchList(items) {

@@ -39,7 +39,7 @@ function statFailure(path: string, error: unknown): TranscriptFailure {
   return transcriptFailure(reason, `${path}: ${String(error)}`)
 }
 
-async function statOf(path: string): Promise<Stats | TranscriptFailure> {
+async function readStat(path: string): Promise<Stats | TranscriptFailure> {
   try {
     return await stat(path)
   } catch (error) {
@@ -69,7 +69,7 @@ function completeLines(buffer: Buffer): {text: string; bytes: number} {
   return {text: buffer.toString('utf8', 0, lastBreak + 1), bytes: lastBreak + 1}
 }
 
-function headOf(path: string): string | TranscriptFailure {
+function loadHead(path: string): string | TranscriptFailure {
   try {
     return readHead(path)
   } catch (error) {
@@ -77,14 +77,14 @@ function headOf(path: string): string | TranscriptFailure {
   }
 }
 
-function revisionOf(info: Stats): TranscriptRevision {
+function buildRevision(info: Stats): TranscriptRevision {
   return {rev: `${info.size}:${info.mtimeMs}`, changedAt: info.mtimeMs}
 }
 
 export function makeJsonlHandle<State>(source: JsonlSource<State>): TranscriptHandle {
   const state = {closed: false, path: '', offset: 0, verified: false, fold: source.parser.empty()}
 
-  const pathOf = async (): Promise<string | TranscriptFailure> => {
+  const ensurePath = async (): Promise<string | TranscriptFailure> => {
     if (state.path) return state.path
     const found = await source
       .resolvePath()
@@ -98,16 +98,16 @@ export function makeJsonlHandle<State>(source: JsonlSource<State>): TranscriptHa
 
   const located = async (): Promise<{path: string; info: Stats} | TranscriptFailure> => {
     if (state.closed) return transcriptFailure('unreadable', 'transcript handle closed')
-    const path = await pathOf()
+    const path = await ensurePath()
     if (typeof path !== 'string') return path
-    const info = await statOf(path)
+    const info = await readStat(path)
     if ('ok' in info) return info
     return {path, info}
   }
 
   const verify = (path: string): TranscriptFailure | null => {
     if (state.verified || !source.verifyHead) return null
-    const head = headOf(path)
+    const head = loadHead(path)
     if (typeof head !== 'string') return head
     const problem = source.verifyHead(head)
     if (problem) return problem
@@ -121,7 +121,7 @@ export function makeJsonlHandle<State>(source: JsonlSource<State>): TranscriptHa
       if ('ok' in found) return found
       const problem = verify(found.path)
       if (problem) return problem
-      return revisionOf(found.info)
+      return buildRevision(found.info)
     },
     async read(): Promise<TranscriptChunk | TranscriptFailure> {
       const found = await located()
@@ -141,7 +141,7 @@ export function makeJsonlHandle<State>(source: JsonlSource<State>): TranscriptHa
         return offset + Buffer.byteLength(line) + 1
       }, state.offset)
       state.offset += complete.bytes
-      return {ok: true, ...revisionOf(found.info), messages: source.parser.messages(state.fold), replaced}
+      return {ok: true, ...buildRevision(found.info), messages: source.parser.messages(state.fold), replaced}
     },
     close(): void {
       state.closed = true

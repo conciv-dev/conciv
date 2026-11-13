@@ -7,7 +7,7 @@ import {InlineShell, parseInput, parseResultPayload, toolStatus} from '@conciv/u
 const InputSchema = z.object({file: z.string(), component: z.string()})
 const OutputSchema = z.object({found: z.boolean()}).loose()
 
-function locationOf(component: string, found: boolean): string {
+function formatLocation(component: string, found: boolean): string {
   return found ? component : `${component} not found`
 }
 
@@ -19,7 +19,7 @@ function foundFlag(result: ToolResultPart | undefined): boolean | undefined {
 function elementValue(part: ToolCallPart, result: ToolResultPart | undefined): string {
   const component = parseInput(InputSchema, part)?.component ?? ''
   if (component === '') return ''
-  return locationOf(component, foundFlag(result) !== false)
+  return formatLocation(component, foundFlag(result) !== false)
 }
 
 export function ElementReferenceCard(props: ToolCardProps): JSX.Element {

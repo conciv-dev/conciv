@@ -222,7 +222,7 @@ describe('chat plane', () => {
     const next = await plane(cliHarness(fakeCli()), root)
     const {lastRun} = await next.hydrate(id)
     expect(lastRun).toMatchObject({runId: 'durable-2', phase: 'aborted', finishedAt: expect.any(Number)})
-    expect(textsOf(await next.history(id))).toEqual([
+    expect(collectTexts(await next.history(id))).toEqual([
       'finished turn',
       'partial reply',
       'interrupted turn',
@@ -250,8 +250,8 @@ describe('chat plane', () => {
     const newest = await chat.hydrate(id, {limit: 2})
     const readsForNewest = native.reads
     const older = await chat.hydrate(id, {limit: 2, before: newest.page?.truncated === true ? newest.page.cursor : ''})
-    expect(textsOf(newest.messages)).toEqual(['question 2', 'answer 2'])
-    expect(textsOf(older.messages)).toEqual(['question 1', 'answer 1'])
+    expect(collectTexts(newest.messages)).toEqual(['question 2', 'answer 2'])
+    expect(collectTexts(older.messages)).toEqual(['question 1', 'answer 1'])
     expect(readsForNewest).toBe(1)
     expect(native.reads).toBe(readsForNewest)
   })
@@ -266,7 +266,7 @@ describe('chat plane', () => {
     )
     await chat.stop(id)
     expect(streamedText(seen)).toBe(STREAMED_TEXT)
-    expect(textsOf((await chat.hydrate(id)).messages)).toEqual(['keep talking', STREAMED_TEXT])
+    expect(collectTexts((await chat.hydrate(id)).messages)).toEqual(['keep talking', STREAMED_TEXT])
     await readUntil(await startTurn(chat, id, 'stopped-tool', 'run the tool'), ChatEventType.TOOL_CALL_END)
     await chat.stop(id)
     const stopped = partTypes(await chat.history(id))
@@ -484,7 +484,7 @@ describe('chat plane', () => {
     return messages.map((message) => message.parts.map((part) => part.type))
   }
 
-  function textsOf(messages: ChatMessage[]): string[] {
+  function collectTexts(messages: ChatMessage[]): string[] {
     return messages.map((message) =>
       message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(''),
     )
@@ -709,7 +709,7 @@ describe('page bus and the session scope', () => {
   const SESSION_A = SessionId.parse('conciv_ambient_a')
   const SESSION_B = SessionId.parse('conciv_ambient_b')
 
-  function requestIdOf(frame: unknown): string | null {
+  function readRequestId(frame: unknown): string | null {
     if (typeof frame !== 'object' || frame === null || !('requestId' in frame)) return null
     return typeof frame.requestId === 'string' ? frame.requestId : null
   }
@@ -761,7 +761,7 @@ describe('page bus and the session scope', () => {
     return makePageQueues({bus, journal: makeJournal(db), syncMs})
   }
 
-  function finishedOf(queues: PageQueues): (queueId: string) => Promise<void> {
+  function trackFinished(queues: PageQueues): (queueId: string) => Promise<void> {
     const seen = new Map<string, PromiseWithResolvers<void>>()
     const of = (queueId: string): PromiseWithResolvers<void> => {
       const known = seen.get(queueId)
@@ -852,7 +852,7 @@ describe('page bus and the session scope', () => {
     const bus = makePageBus(2000)
     const queued = queueingTab(bus)
     const queues = pageQueues(bus, 20)
-    const finished = finishedOf(queues)
+    const finished = trackFinished(queues)
     const checks = ['#first', '#second'].map((selector) => ({tool: 'page_check', selector}))
     const progress = await queues.play(SESSION_A, {...queueStart(checks), toolCallId: 'call-1'})
     const queueId = queued[0]?.queue.id ?? ''
@@ -871,7 +871,7 @@ describe('page bus and the session scope', () => {
     const bus = makePageBus(2000)
     const queued = queueingTab(bus)
     const queues = pageQueues(bus)
-    const finished = finishedOf(queues)
+    const finished = trackFinished(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
     const started: string[] = []
     for (const index of Array.from({length: 1000}, (_, at) => at)) {
@@ -895,7 +895,7 @@ describe('page bus and the session scope', () => {
     const tab = arrivingTab(bus)
     const queued = tab.queued
     const queues = pageQueues(bus)
-    const finished = finishedOf(queues)
+    const finished = trackFinished(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
     const earlier = await queues.start(SESSION_A, queueStart(check))
     const later = await Promise.race([queues.start(SESSION_A, queueStart(check)), setImmediate(null)])
@@ -920,7 +920,7 @@ describe('page bus and the session scope', () => {
     const tab = arrivingTab(bus)
     const queued = tab.queued
     const queues = pageQueues(bus)
-    const finished = finishedOf(queues)
+    const finished = trackFinished(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
     const earlier = await queues.start(SESSION_A, queueStart(check))
     const played = queues.play(SESSION_A, queueStart(check))
@@ -946,7 +946,7 @@ describe('page bus and the session scope', () => {
       })
     })
     const queues = pageQueues(bus)
-    const finished = finishedOf(queues)
+    const finished = trackFinished(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
     const starts = await Promise.allSettled(
       Array.from({length: 1001}, () => queues.start(SESSION_A, queueStart(check))),
@@ -965,7 +965,7 @@ describe('page bus and the session scope', () => {
     const bus = makePageBus(2000)
     const queued = queueingTab(bus)
     const queues = pageQueues(bus)
-    const finished = finishedOf(queues)
+    const finished = trackFinished(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
     const played = async (outside: boolean): Promise<string> => {
       const {queueId} = await queues.start(SESSION_A, {...queueStart(check), outside})
@@ -1015,7 +1015,7 @@ describe('page bus and the session scope', () => {
       })
     })
     const queues = pageQueues(bus)
-    const finished = finishedOf(queues)
+    const finished = trackFinished(queues)
     const played = async (): Promise<string> => {
       const {queueId} = await queues.start(fixture.sessionId, {
         agentId: fixture.sessionId,
@@ -1176,7 +1176,7 @@ describe('page bus and the session scope', () => {
       {mutating: true},
     )
     await setImmediate()
-    const clickId = requestIdOf(frames[0]) ?? ''
+    const clickId = readRequestId(frames[0]) ?? ''
     const {queueId} = await queues.start(SESSION_A, queueStart([{tool: 'page_check', selector: '#agree'}]))
     await setImmediate()
     expect(frames).toHaveLength(1)
@@ -1191,7 +1191,7 @@ describe('page bus and the session scope', () => {
     const first = queueingTab(bus, () => ({focusedAt: focusedAt.first, visible: true}))
     const second = queueingTab(bus, () => ({focusedAt: focusedAt.second, visible: true}))
     const queues = pageQueues(bus)
-    const finished = finishedOf(queues)
+    const finished = trackFinished(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
     const earlier = await queues.start(SESSION_A, queueStart(check))
     focusedAt.second = 3
@@ -1213,7 +1213,7 @@ describe('page bus and the session scope', () => {
       queueMicrotask(() => bus.resolve(SESSION_A, parsed.data.requestId, {ok: true, result: {}}))
     })
     const queues = pageQueues(bus)
-    const finished = finishedOf(queues)
+    const finished = trackFinished(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
     const earlier = await queues.start(SESSION_A, queueStart(check))
     const later = queues.start(SESSION_A, queueStart(check))
@@ -1232,7 +1232,7 @@ describe('page bus and the session scope', () => {
     const bus = makePageBus(2000)
     const queued = queueingTab(bus)
     const queues = pageQueues(bus)
-    const finished = finishedOf(queues)
+    const finished = trackFinished(queues)
     const {queueId} = await queues.start(SESSION_A, queueStart([{tool: 'page_check', selector: '#agree'}]))
     const caller = new AbortController()
     const waiting = queues.wait(SESSION_A, queueId, 60_000, caller.signal)
@@ -1253,7 +1253,7 @@ describe('page bus and the session scope', () => {
     await expect(answered).rejects.toMatchObject({
       error: {code: 'no-widget', message: 'browser tab b1 closed before it replied'},
     })
-    const requestId = frames.map(requestIdOf).find((found) => found !== null)
+    const requestId = frames.map(readRequestId).find((found) => found !== null)
     expect(bus.resolve(SESSION_A, requestId ?? '', {ok: true, result: {clicked: 'yes'}})).toBe(false)
   })
 
@@ -1261,7 +1261,7 @@ describe('page bus and the session scope', () => {
     const frames: unknown[] = []
     bus.subscribe(SESSION_A, (frame) => {
       frames.push(frame)
-      const requestId = requestIdOf(frame)
+      const requestId = readRequestId(frame)
       if (requestId !== null) queueMicrotask(() => bus.resolve(SESSION_A, requestId, {ok: true, result}))
     })
     return frames
@@ -1308,7 +1308,7 @@ describe('page bus and the session scope', () => {
     bus.subscribe(SESSION_A, (frame) => frames.push(frame))
     const reading = bus.ask(SESSION_A, {name: 'page_route', input: {}, agentId: SESSION_A}, {mutating: false})
     await expect(reading).rejects.toMatchObject({error: {code: 'timeout'}})
-    expect(frames.map(requestIdOf).filter((found) => found !== null)).toHaveLength(1)
+    expect(frames.map(readRequestId).filter((found) => found !== null)).toHaveLength(1)
     const changing = bus.ask(SESSION_A, {name: 'page_click', input: {}, agentId: SESSION_A}, {mutating: true})
     await expect(changing).rejects.toMatchObject({error: {code: 'timeout'}})
   })
@@ -1337,7 +1337,7 @@ describe('page bus and the session scope', () => {
     const answered = bus.ask(SESSION_A, route, {mutating: false}, waiting.signal)
     waiting.abort()
     await expect(answered).rejects.toMatchObject({name: 'AbortError'})
-    const requestId = frames.map(requestIdOf).find((found) => found !== null)
+    const requestId = frames.map(readRequestId).find((found) => found !== null)
     expect(bus.resolve(SESSION_A, requestId ?? '', {ok: true, result: {}})).toBe(false)
     const lostTab = new AbortController()
     const reading = bus.ask(SESSION_A, route, {mutating: false}, lostTab.signal)
@@ -1350,7 +1350,7 @@ describe('page bus and the session scope', () => {
       name: 'AbortError',
     })
     expect(returned).toHaveLength(0)
-    expect(frames.map(requestIdOf).filter((found) => found !== null)).toHaveLength(2)
+    expect(frames.map(readRequestId).filter((found) => found !== null)).toHaveLength(2)
   })
 
   it('two page queue follow-ups asked for at once start one run', async () => {
@@ -1389,7 +1389,7 @@ describe('page bus and the session scope', () => {
       const {plane, db} = fixture
       const runtime = makeCoreRuntime({primitives, plane, db, model: () => null, staleness: () => fresh})
       const unsubscribe = primitives.page.bus.subscribe(SESSION_A, (frame) => {
-        const requestId = requestIdOf(frame)
+        const requestId = readRequestId(frame)
         if (requestId === null) return
         queueMicrotask(() => primitives.page.bus.resolve(SESSION_A, requestId, {ok: true, result: {clicked: 'a'}}))
       })

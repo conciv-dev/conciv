@@ -43,7 +43,7 @@ type SharedFields = {
 }
 
 function fixtureHistory(rows: FixtureSession[], transcripts: TranscriptHold): HarnessHistory {
-  const metaOf = (row: FixtureSession, cwd: string): HarnessSessionMeta => ({
+  const buildMeta = (row: FixtureSession, cwd: string): HarnessSessionMeta => ({
     ...omit(row, ['text', 'messages']),
     cwd: row.cwd ?? cwd,
   })
@@ -61,8 +61,8 @@ function fixtureHistory(rows: FixtureSession[], transcripts: TranscriptHold): Ha
   return {
     list: (scope, page) => {
       const listed = rows.flatMap((row) => {
-        if ('cwd' in scope) return listedIn(row, scope.cwd) ? [metaOf(row, scope.cwd)] : []
-        return row.cwd === undefined ? [] : [metaOf(row, row.cwd)]
+        if ('cwd' in scope) return listedIn(row, scope.cwd) ? [buildMeta(row, scope.cwd)] : []
+        return row.cwd === undefined ? [] : [buildMeta(row, row.cwd)]
       })
       const paged = pageAfter(listed, page, (meta) => ({updatedAt: meta.updatedAt, id: meta.id}))
       return Promise.resolve({sessions: paged.items, next: paged.next})
@@ -76,7 +76,7 @@ function fixtureHistory(rows: FixtureSession[], transcripts: TranscriptHold): Ha
     },
     meta: (cwd, sessionId) => {
       const row = rows.find((candidate) => candidate.id === sessionId)
-      return Promise.resolve(row === undefined ? null : metaOf(row, cwd))
+      return Promise.resolve(row === undefined ? null : buildMeta(row, cwd))
     },
     observe: () => ({
       revision: () => Promise.resolve({ok: false as const, reason: 'missing' as const, detail: 'fixture history'}),

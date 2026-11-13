@@ -59,22 +59,22 @@ function selectorish(node: SerializedNode): string {
 
 export function createNodeIndex(): NodeIndex {
   const byId = new Map<number, SerializedNode>()
-  const parentOf = new Map<number, number>()
+  const parentByNode = new Map<number, number>()
 
   const walk = (node: SerializedNode, parentId?: number): void => {
     byId.set(node.id, node)
-    if (parentId !== undefined) parentOf.set(node.id, parentId)
+    if (parentId !== undefined) parentByNode.set(node.id, parentId)
     for (const child of node.childNodes ?? []) walk(child, node.id)
   }
 
   const forget = (node: SerializedNode): void => {
     for (const child of node.childNodes ?? []) forget(child)
-    parentOf.delete(node.id)
+    parentByNode.delete(node.id)
     byId.delete(node.id)
   }
 
   const detach = (id: number): void => {
-    const parentId = parentOf.get(id)
+    const parentId = parentByNode.get(id)
     const parent = parentId === undefined ? undefined : byId.get(parentId)
     if (parent) parent.childNodes = (parent.childNodes ?? []).filter((child) => child.id !== id)
   }
@@ -108,14 +108,14 @@ export function createNodeIndex(): NodeIndex {
       const node = byId.get(removal.id)
       detach(removal.id)
       if (node) forget(node)
-      if (!node) parentOf.delete(removal.id)
+      if (!node) parentByNode.delete(removal.id)
     }
   }
 
   return {
     applyFullSnapshot(root) {
       byId.clear()
-      parentOf.clear()
+      parentByNode.clear()
       const parsed = serializedNode.safeParse(root)
       if (parsed.success) walk(parsed.data)
     },

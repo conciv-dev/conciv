@@ -100,7 +100,7 @@ function millis(ms: number | null | undefined, seconds: number | null | undefine
 
 const EnvelopeSchema = z.object({type: z.string(), payload: z.unknown().optional()}).loose()
 
-function payloadOf(line: string): unknown {
+function parsePayload(line: string): unknown {
   try {
     const parsed = EnvelopeSchema.safeParse(JSON.parse(line))
     return parsed.success ? parsed.data.payload : null
@@ -270,7 +270,7 @@ function emptySpine(sessionId: string): CodexSpine {
 function lineEvent(line: string): SpineEvent | null {
   const trimmed = line.trim()
   if (!trimmed) return null
-  const payload = payloadOf(trimmed)
+  const payload = parsePayload(trimmed)
   return payload ? spineEvent(payload) : null
 }
 
@@ -288,7 +288,7 @@ function contextTokensFromTranscript(raw: string): number | undefined {
   for (const line of raw.split('\n')) {
     const trimmed = line.trim()
     if (!trimmed) continue
-    const parsed = TokenCountPayloadSchema.safeParse(payloadOf(trimmed))
+    const parsed = TokenCountPayloadSchema.safeParse(parsePayload(trimmed))
     if (parsed.success && parsed.data.info) total = parsed.data.info.total_token_usage.total_tokens
   }
   return total

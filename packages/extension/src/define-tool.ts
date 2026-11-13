@@ -113,17 +113,17 @@ export type ToolBuilder<
   render: (card: ToolCard) => ToolBuilder<Name, Schema, Output, Errors, Binding, Ctx>
 }
 
-type ToolNameOf<Tool> = Tool extends {name: infer Name extends string} ? (string extends Name ? never : Name) : never
+type InferToolName<Tool> = Tool extends {name: infer Name extends string} ? (string extends Name ? never : Name) : never
 
-type ToolInputSchemaOf<Tool> = Tool extends {inputSchema: infer Schema extends z.ZodType} ? Schema : z.ZodNever
+type InferToolInputSchema<Tool> = Tool extends {inputSchema: infer Schema extends z.ZodType} ? Schema : z.ZodNever
 
-type ToolOutputSchemaOf<Tool> = Tool extends {outputSchema?: infer Schema}
+type InferToolOutputSchema<Tool> = Tool extends {outputSchema?: infer Schema}
   ? NonNullable<Schema> extends z.ZodType
     ? NonNullable<Schema>
     : z.ZodUnknown
   : z.ZodUnknown
 
-type ToolErrorsOf<Tool> = Tool extends {errors?: infer Errors}
+type InferToolErrors<Tool> = Tool extends {errors?: infer Errors}
   ? NonNullable<Errors> extends ToolErrors
     ? NonNullable<Errors>
     : Record<never, never>
@@ -131,7 +131,7 @@ type ToolErrorsOf<Tool> = Tool extends {errors?: infer Errors}
 
 export type ProjectedToolBinding = ToolBinding | 'unknown'
 
-type ToolBindingOf<Tool> = Tool extends {binding?: infer Binding}
+type InferToolBinding<Tool> = Tool extends {binding?: infer Binding}
   ? [Extract<Binding, ToolBinding>] extends [never]
     ? 'unknown'
     : Extract<Binding, ToolBinding>
@@ -151,13 +151,13 @@ export type RegisteredTool<
 
 export type ToolNameProblem<Message extends string> = {toolNameProblem: Message}
 
-type ToolNamesIn<Tools extends readonly unknown[]> = ToolNameOf<Tools[number]>
+type ToolNamesIn<Tools extends readonly unknown[]> = InferToolName<Tools[number]>
 
 type DuplicateToolName<Tools extends readonly unknown[]> = Tools extends readonly [infer Head, ...infer Rest]
-  ? [ToolNameOf<Head>] extends [never]
+  ? [InferToolName<Head>] extends [never]
     ? DuplicateToolName<Rest>
-    : [ToolNameOf<Head>] extends [ToolNamesIn<Rest>]
-      ? ToolNameOf<Head>
+    : [InferToolName<Head>] extends [ToolNamesIn<Rest>]
+      ? InferToolName<Head>
       : DuplicateToolName<Rest>
   : never
 
@@ -214,11 +214,11 @@ type ToolTupleProblem<Tools extends readonly unknown[]> =
 
 export type RegisteredTools<Tools extends readonly unknown[]> = [ToolTupleProblem<Tools>] extends [never]
   ? {
-      [Tool in Tools[number] as ToolNameOf<Tool>]: RegisteredTool<
-        ToolInputSchemaOf<Tool>,
-        ToolOutputSchemaOf<Tool>,
-        ToolErrorsOf<Tool>,
-        ToolBindingOf<Tool>
+      [Tool in Tools[number] as InferToolName<Tool>]: RegisteredTool<
+        InferToolInputSchema<Tool>,
+        InferToolOutputSchema<Tool>,
+        InferToolErrors<Tool>,
+        InferToolBinding<Tool>
       >
     }
   : ToolTupleProblem<Tools>

@@ -64,7 +64,7 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
   for (const [key, value] of Object.entries(concivEnv)) {
     if (process.env[key] === undefined) process.env[key] = value
   }
-  const generated = writeExtensionsEntry(process.cwd(), clientEntriesOf(options))
+  const generated = writeExtensionsEntry(process.cwd(), listClientEntries(options))
   const baseTurbopack = base.turbopack ?? {}
   const turbopack: TurbopackConfig = {
     ...baseTurbopack,
@@ -97,7 +97,7 @@ export async function register(): Promise<void> {
   const root = process.cwd()
   try {
     const {watchExtensionsDir} = await import('./extensions-watch.js')
-    watchExtensionsDir(root, clientEntriesOf(options))
+    watchExtensionsDir(root, listClientEntries(options))
   } catch (error) {
     console.error('conciv: failed to start extensions watcher', error)
   }
@@ -119,6 +119,6 @@ function parseJson(text: string): unknown {
   }
 }
 
-function clientEntriesOf(options: ConcivConfig): string[] {
+function listClientEntries(options: ConcivConfig): string[] {
   return (options.extensions ?? []).map((extension) => extension.client)
 }

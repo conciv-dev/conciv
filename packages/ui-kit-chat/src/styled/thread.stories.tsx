@@ -153,7 +153,7 @@ function ShiftApp(): JSX.Element {
   )
 }
 
-function assistantMessageOf(node: HTMLElement): HTMLElement {
+function findAssistantMessage(node: HTMLElement): HTMLElement {
   const container = node.closest<HTMLElement>('[data-role="assistant"]')
   if (!container) throw new Error('assistant message container not found')
   return container
@@ -165,8 +165,8 @@ export const PreviousTurnActionsRevealOnHover: Story = {
     const c = within(canvasElement)
     const older = await waitFor(() => c.getByText('First reply, older.'))
     const latest = await waitFor(() => c.getByText('Second reply, latest.'))
-    const olderCopy = within(assistantMessageOf(older)).getByRole('button', {name: 'Copy'})
-    const latestCopy = within(assistantMessageOf(latest)).getByRole('button', {name: 'Copy'})
+    const olderCopy = within(findAssistantMessage(older)).getByRole('button', {name: 'Copy'})
+    const latestCopy = within(findAssistantMessage(latest)).getByRole('button', {name: 'Copy'})
 
     await userEvent.unhover(older)
     await waitFor(() => expect(olderCopy).not.toBeVisible())

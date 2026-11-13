@@ -954,7 +954,7 @@ test.describe('native widget', () => {
     },
   }
 
-  function grabPayloadOf(draft: DraftRow): GrabPayload | null {
+  function findGrabPayload(draft: DraftRow): GrabPayload | null {
     const attachment = draft.attachments.find((candidate) => candidate.contentType === GRAB_MIME)
     if (!attachment) return null
     return parseGrabPayload(Buffer.from(attachment.data, 'base64').toString('utf8'))
@@ -1052,7 +1052,7 @@ test.describe('native widget', () => {
       await expect(panel(page).getByText('PaymentCardCell')).toBeVisible({timeout: 30_000})
       await expect(grabPreview(page)).toHaveAttribute('src', IMAGE_DATA_URL)
       await untilPanelDraft(kit, sessionId, (draft) => {
-        const payload = grabPayloadOf(draft)
+        const payload = findGrabPayload(draft)
         return payload !== null && payload.text.includes('[view]') && payload.text.includes('PaymentCardCell')
       })
     })

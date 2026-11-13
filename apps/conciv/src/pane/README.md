@@ -31,7 +31,7 @@ The chat pane for one session: transcript, composer with attachments and element
 - `chat-pane.tsx:ChatPane`: keyed on the session's chat instance, so a reopened chat remounts the pane; a failed history load shows `Couldn’t load this conversation` with Retry, which calls `liveSessions.reopen(sessionId)`; while the reopened chat loads the alert stays up as a disabled `Retrying…`
 - `older-messages.tsx:OlderMessages`: one older page loads at a time; nothing loads once `chat.hasOlderMessages()` is false or after a failure until Retry
 - `chat-pane.tsx:threadDividers`: dividers before the first loaded message (the `New session` line) show only once no older page is left
-- `chat-pane.tsx:renderTurnPrefix`: an assistant turn carries its harness name only once the session's replies (hydrated `harnessOf(messageId)`, else the current harness) span more than one harness
+- `chat-pane.tsx:renderTurnPrefix`: an assistant turn carries its harness name only once the session's replies (hydrated `readHarness(messageId)`, else the current harness) span more than one harness
 - `draft-storage.ts:makeDraftStorage`: the composer renders at once with an empty draft; `restore` reads `rpc.drafts.get` and hands the row to `restoreDraft` (text and selection only into an untouched composer, attachments merged by id); a composer the user emptied before the read lands gets nothing restored and its cleared draft is written at once; no write reaches the server before that restore settles, then the latest typed draft is written; writes are debounced by 300 ms (`WRITE_DELAY_MS`); clearing a non-empty draft persists the cleared draft immediately
 - `queue-strip.tsx:QueueStrip`: shows at most 3 queued messages (`VISIBLE_LIMIT`), the rest as an overflow count
 

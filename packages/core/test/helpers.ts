@@ -54,7 +54,7 @@ const SnapshotSchema = z.object({type: z.literal(ChatEventType.MESSAGES_SNAPSHOT
 type SnapshotMessage = z.infer<typeof MessageSchema>
 export type SnapshotView = z.infer<typeof SnapshotSchema>
 
-function textOf(message: SnapshotMessage): string {
+function readText(message: SnapshotMessage): string {
   return message.parts
     .filter((part) => part.type === 'text')
     .map((part) => part.content ?? '')
@@ -68,7 +68,7 @@ export function asSnapshot(chunk: ChatEvent): SnapshotView {
 }
 
 export function userTexts(snapshot: SnapshotView): string[] {
-  return snapshot.messages.filter((message) => message.role === 'user').map(textOf)
+  return snapshot.messages.filter((message) => message.role === 'user').map(readText)
 }
 
 export async function runTurn(kit: Kit, input: string | ChatMessage, session: string): Promise<RunEvents> {

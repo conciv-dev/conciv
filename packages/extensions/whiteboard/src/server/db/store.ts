@@ -8,7 +8,7 @@ import {migrate} from 'drizzle-orm/libsql/migrator'
 import type {CommentRow, CursorEvent, ElementRow, PendingRow, PinRow, ReadRow, ReplyRow} from '../../shared/rows.js'
 import {canvasDraftElements, canvasElements, canvasPending, canvasReplies, comments, pins, reads} from './schema.js'
 
-type RowOf = {
+type TableRows = {
   canvasElements: ElementRow
   canvasDraftElements: ElementRow
   canvasPending: PendingRow
@@ -18,8 +18,11 @@ type RowOf = {
   reads: ReadRow
 }
 export type WhiteboardChange = {
-  [K in keyof RowOf]: {table: K; room: string} & ({type: 'upsert'; row: RowOf[K]} | {type: 'delete'; key: string})
-}[keyof RowOf]
+  [K in keyof TableRows]: {table: K; room: string} & (
+    | {type: 'upsert'; row: TableRows[K]}
+    | {type: 'delete'; key: string}
+  )
+}[keyof TableRows]
 export type WhiteboardEvent = WhiteboardChange | {table: 'cursor'; room: string; cursor: CursorEvent}
 export type ElementScope = 'live' | 'draft'
 export type ElementUpsert = {ok: true; row: ElementRow} | {ok: false; current: ElementRow}

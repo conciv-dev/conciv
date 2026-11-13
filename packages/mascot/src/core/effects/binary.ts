@@ -131,7 +131,7 @@ function createRiseTimeline(digits: HTMLElement[], factor: number, nozzle: Emitt
   return timeline
 }
 
-const curvePathOf = (path: EmitterPoint[], nozzle: EmitterPoint): CurvePath => ({
+const buildCurvePath = (path: EmitterPoint[], nozzle: EmitterPoint): CurvePath => ({
   path,
   curviness: 0,
   autoRotate: BINARY_EMITTER_TANGENT_OFFSET_DEG,
@@ -156,7 +156,7 @@ const curveFade = (): gsap.TweenVars => ({
 })
 
 const planFlights = (riders: Rider[], nozzle: EmitterPoint): CurveFlight[] =>
-  riders.map((rider) => ({element: rider.element, motionPath: curvePathOf(rider.path, nozzle)}))
+  riders.map((rider) => ({element: rider.element, motionPath: buildCurvePath(rider.path, nozzle)}))
 
 function createCurveRun(flights: CurveFlight[]): CurveRun {
   gsap.set(
@@ -186,7 +186,7 @@ function readRoom(context: EffectContext, factor: number, avoid: BinaryPlan['avo
   }
 }
 
-function detourOf(reading: RoomReading): EmitterPoint[] | undefined {
+function planDetour(reading: RoomReading): EmitterPoint[] | undefined {
   const start = {x: reading.tip.x + BINARY_EMITTER_DIGIT_LEFT_PX, y: reading.tip.y + BINARY_EMITTER_DIGIT_TOP_PX}
   return detourAround(start, reading.bounds, reading.obstacle, DETOUR_FOOTPRINT)
 }
@@ -201,7 +201,7 @@ const risePath = (factor: number): EmitterPoint[] => [
 
 function planRiders(context: EffectContext, factor: number, plan: BinaryPlan, elements: HTMLElement[]): Rider[] {
   const reading = readRoom(context, factor, plan.avoid)
-  const detour = plan.avoid === undefined ? undefined : detourOf(reading)
+  const detour = plan.avoid === undefined ? undefined : planDetour(reading)
   if (detour !== undefined) {
     const path = scaledPath(detour, factor)
     return elements.map((element) => ({element, path}))

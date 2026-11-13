@@ -26,7 +26,7 @@ import {
 import type {EffectHandle, EffectMount} from '../effects/effect.js'
 import type {EmitterAnchor} from '../path.js'
 import type {MascotSkin} from '../skin.js'
-import {type AntennaLayout, antennaTipOf, hostOriginInRoot, measureAntennaLayout} from '../tip-anchor.js'
+import {type AntennaLayout, computeAntennaTip, hostOriginInRoot, measureAntennaLayout} from '../tip-anchor.js'
 
 export type ActivityParts = {stage: HTMLElement; head: HTMLElement; antenna: HTMLElement; eyes: HTMLElement}
 
@@ -208,9 +208,9 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     return measured
   }
 
-  const antennaTip = (): EmitterAnchor => antennaTipOf(antenna, antennaLayout())
+  const antennaTip = (): EmitterAnchor => computeAntennaTip(antenna, antennaLayout())
 
-  const tipWithinHostOf = (entry: EffectEntry, tip: EmitterAnchor): EmitterAnchor => {
+  const computeTipWithinHost = (entry: EffectEntry, tip: EmitterAnchor): EmitterAnchor => {
     const origin = entry.hostOrigin ?? hostOriginInRoot(entry.host ?? stage)
     entry.hostOrigin = origin
     return {x: tip.x - origin.x, y: tip.y - origin.y}
@@ -223,14 +223,14 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
       const anchor = entry.handle?.anchor
       if (anchor === undefined) return
       tip = tip ?? antennaTip()
-      anchor(tipWithinHostOf(entry, tip))
+      anchor(computeTipWithinHost(entry, tip))
     })
   }
 
   const anchorEntry = (entry: EffectEntry) => {
     const anchor = entry.handle?.anchor
     if (session === undefined || anchor === undefined) return
-    anchor(tipWithinHostOf(entry, antennaTip()))
+    anchor(computeTipWithinHost(entry, antennaTip()))
   }
 
   const bakeLayout = () => {

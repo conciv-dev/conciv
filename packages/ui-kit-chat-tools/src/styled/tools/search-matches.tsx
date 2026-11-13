@@ -71,7 +71,7 @@ export function shortenPath(path: string): string {
   return `…/${segments.slice(-3).join('/')}`
 }
 
-function languageOf(file: string): string | undefined {
+function detectLanguage(file: string): string | undefined {
   const extension = file.split('.').pop()
   return extension && extension !== file ? extension : undefined
 }
@@ -82,7 +82,7 @@ function Snippet(props: {file: string; snippet: string}): JSX.Element {
       <CodeBlock
         size="xs"
         chrome="line"
-        file={{name: props.file, lang: languageOf(props.file), contents: props.snippet.trim()}}
+        file={{name: props.file, lang: detectLanguage(props.file), contents: props.snippet.trim()}}
       />
     </div>
   )

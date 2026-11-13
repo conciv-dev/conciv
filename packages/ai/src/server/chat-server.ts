@@ -39,8 +39,8 @@ import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import {imageToolProvisioner} from './image-tool-results.js'
 import {childCards} from './child-cards.js'
 import {compactionStamp} from './compaction-stamp.js'
-import {codeModeTools, loadIsolateDriver, secretRefusalOf, stoppedWith} from './code-mode.js'
-import {createDelivery, endsTheRun, terminalPhaseOf, type ChatDelivery, type Turn} from './delivery.js'
+import {codeModeTools, loadIsolateDriver, readSecretRefusal, stoppedWith} from './code-mode.js'
+import {createDelivery, endsTheRun, readTerminalPhase, type ChatDelivery, type Turn} from './delivery.js'
 import {guardedAdapter} from './run-guard.js'
 import {localSandbox} from './local-sandbox.js'
 import {toolHistory} from './tool-history.js'
@@ -127,7 +127,7 @@ const PHASE_BY_STATUS: Record<RunRecord['status'], RunPhase> = {
   aborted: 'aborted',
 }
 
-function lifecycleOf(record: RunRecord): RunLifecycle {
+function buildLifecycle(record: RunRecord): RunLifecycle {
   const stopping = record.status === 'running' && record.cancelRequested === true
   return {
     runId: record.runId,
@@ -201,7 +201,7 @@ function gatedTools(tools: readonly ChatTool[], approvals: () => Approvals): Cha
   })
 }
 
-function discoveryOf(tool: ChatTool | null): CodeDiscovery | null {
+function buildDiscovery(tool: ChatTool | null): CodeDiscovery | null {
   const execute = tool?.execute
   if (tool === null || !execute) return null
   return {description: tool.description, run: (toolNames) => Promise.resolve(execute({toolNames}))}
@@ -226,7 +226,7 @@ async function sweepAbandonedRuns(runs: ChatStores['runs'], hooks: TurnHooks): P
   for (const record of await runs.listRunning()) {
     await runs.update(record.runId, {status: 'aborted', finishedAt: now})
     const turn: Turn = {threadId: record.threadId, runId: record.runId, kind: 'chat'}
-    await hooks.end(turn, lifecycleOf({...record, status: 'aborted', finishedAt: now}))
+    await hooks.end(turn, buildLifecycle({...record, status: 'aborted', finishedAt: now}))
   }
 }
 
@@ -356,7 +356,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
 
   const recordLifecycle = async (runId: string): Promise<RunLifecycle | null> => {
     const record = await stores.runs.get(runId)
-    return record === null ? null : lifecycleOf(record)
+    return record === null ? null : buildLifecycle(record)
   }
 
   const terminalChunk = async (runId: string, phase: RunPhase, error: string | null): Promise<ChatEvent> => {
@@ -372,12 +372,12 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     })
   }
 
-  const liveRunsOf = (threadId: string, except?: string): [string, LiveRun][] =>
+  const filterLiveRuns = (threadId: string, except?: string): [string, LiveRun][] =>
     [...live.entries()].filter(([runId, entry]) => entry.threadId === threadId && runId !== except)
 
   const endRuns = async (threadId: string, except?: string): Promise<void> => {
     const cancels = await Promise.allSettled(
-      liveRunsOf(threadId, except).map(async ([runId, entry]) => {
+      filterLiveRuns(threadId, except).map(async ([runId, entry]) => {
         try {
           await requestRunCancel(stores.runs, runId)
         } finally {
@@ -395,7 +395,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   }
 
   const endThreadRuns = async (threadId: string): Promise<void> => {
-    const running = liveRunsOf(threadId)
+    const running = filterLiveRuns(threadId)
     const interrupted = endRuns(threadId).finally(() => {
       for (const [, entry] of running) entry.controller.abort(RUN_CANCEL_REASON)
     })
@@ -453,7 +453,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
           if (lifecycle === null) return shaped
           return [...shaped, lifecycleChunk(lifecycle)]
         }
-        const phase = terminalPhaseOf(chunk)
+        const phase = readTerminalPhase(chunk)
         if (phase === null) return shaped
         const error = chunk.type === EventType.RUN_ERROR ? chunk.message : null
         failure.message = error
@@ -578,23 +578,23 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       const disposed = await Promise.allSettled([driver?.dispose()])
       throwRejected([...ended, ...disposed], 'conciv: ending the live runs failed')
     },
-    driving: (threadId) => liveRunsOf(threadId).length > 0,
+    driving: (threadId) => filterLiveRuns(threadId).length > 0,
     settled: async (threadId) => {
-      await Promise.all(liveRunsOf(threadId).map(([, entry]) => entry.settled.promise))
+      await Promise.all(filterLiveRuns(threadId).map(([, entry]) => entry.settled.promise))
     },
     hydrate: async (threadId, window = {}) => {
-      const stopping = liveRunsOf(threadId).filter(([, entry]) => entry.controller.signal.aborted)
+      const stopping = filterLiveRuns(threadId).filter(([, entry]) => entry.controller.signal.aborted)
       await Promise.all(stopping.map(([, entry]) => entry.settled.promise))
       await savingShown(threadId, async () => undefined)
       const response = await reconstructChat(persistence, new Request(threadUrl(threadId, window)))
       const thread = ReconstructedSchema.parse(await response.json())
       const latest = (await stores.runs.listByThread(threadId)).at(-1)
-      return {...thread, lastRun: latest === undefined ? null : lifecycleOf(latest)}
+      return {...thread, lastRun: latest === undefined ? null : buildLifecycle(latest)}
     },
     record: async (threadId, chunks) => {
       const processor = new StreamProcessor({})
       for (const chunk of chunks) followRun(processor, chunk)
-      await Promise.all(liveRunsOf(threadId).map(([, entry]) => entry.settled.promise))
+      await Promise.all(filterLiveRuns(threadId).map(([, entry]) => entry.settled.promise))
       await savingShown(threadId, () => saveShown(stores.messages, threadId, processor, (message) => message))
     },
     codeRunner: (codeMode) => {
@@ -606,11 +606,11 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       return {
         run: async (code, emit, signal) => {
           const result: unknown = await execute({typescriptCode: code}, {emitCustomEvent: emit, abortSignal: signal})
-          const refusal = secretRefusalOf(result)
+          const refusal = readSecretRefusal(result)
           if (refusal !== null) throw new Error(refusal)
           return result
         },
-        discover: discoveryOf(coded.discover),
+        discover: buildDiscovery(coded.discover),
       }
     },
   }

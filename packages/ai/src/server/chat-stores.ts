@@ -53,7 +53,7 @@ const metadataAt = (namespace: string, key: string) =>
   and(eq(chatMetadata.namespace, namespace), eq(chatMetadata.key, key))
 
 type StoreOptions = {
-  harnessOf: (threadId: string) => string
+  readHarness: (threadId: string) => string
   saved?: (threadId: string, messages: readonly ModelMessage[], at: number) => void
 }
 
@@ -155,7 +155,7 @@ export function drizzleChatStores(db: NodeSQLiteDatabase, opts: StoreOptions): C
       createOrResume: async ({runId, threadId, startedAt, status}) => {
         await db
           .insert(chatRuns)
-          .values({runId, threadId, harnessId: opts.harnessOf(threadId), status: status ?? 'running', startedAt})
+          .values({runId, threadId, harnessId: opts.readHarness(threadId), status: status ?? 'running', startedAt})
           .onConflictDoNothing({target: chatRuns.runId})
         const stored = await get(runId)
         if (stored === null) throw new Error(`run ${runId} was not stored`)

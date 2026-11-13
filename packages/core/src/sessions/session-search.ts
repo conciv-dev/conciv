@@ -130,15 +130,15 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       const titles = await rowTitles(deps.db, source.harness.id, metas)
       const states = keyBy(await statesOwned(), (row) => row.id)
       const listed = metas.map((meta): Listed => {
-        const id = documentIdOf(source.harness.id, meta.id)
+        const id = formatDocumentId(source.harness.id, meta.id)
         const cwd = folder ?? meta.cwd
         return {source, meta, cwd, title: titles.get(meta.id) ?? meta.derivedTitle, current: states[id]}
       })
-      const listedIds = listed.map(({meta}) => documentIdOf(source.harness.id, meta.id))
+      const listedIds = listed.map(({meta}) => formatDocumentId(source.harness.id, meta.id))
       const gone = difference(Object.keys(states), listedIds)
       await running.index.remove({ids: gone}, {signal})
       const retitled = listed.filter((entry) => !sameListing(entry.current, entry))
-      await running.index.list({listings: retitled.map(listingOf)}, {signal})
+      await running.index.list({listings: retitled.map(buildListing)}, {signal})
       const indexedIds = (await statesOwned()).map((row) => row.id)
       const mismatched = xor(indexedIds, listedIds)
       if (mismatched.length > 0) {
@@ -167,7 +167,7 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
 
   const readInto = async (running: Running, entry: Listed, now: number): Promise<boolean> => {
     const current = entry.current
-    const text = await entry.source.history.messages(entry.cwd, entry.meta.id).then(textOf, (error: unknown) => {
+    const text = await entry.source.history.messages(entry.cwd, entry.meta.id).then(readText, (error: unknown) => {
       if (current === undefined || current.read || current.readAt === 0) {
         logError(
           `[core] reading the ${entry.source.harness.id} session ${entry.meta.id} for search failed, it is found by its title until a later search reads it: ${String(error)}`,
@@ -176,13 +176,13 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       return null
     })
     await running.index.read(
-      {listing: listingOf(entry), text, readAt: now, readUpdatedAt: entry.meta.updatedAt},
+      {listing: buildListing(entry), text, readAt: now, readUpdatedAt: entry.meta.updatedAt},
       {signal: running.stopped.signal},
     )
     return text !== null
   }
 
-  const hitsOf = async (
+  const searchHits = async (
     running: Running,
     term: string,
     after: HarnessListCursor | null,
@@ -234,7 +234,7 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
         return indexed.map(({harness}) => ({harnessKind: harness.id, page: {sessions: [], next: null}}))
       if (everywhere && !state.scopes.some((scope) => 'everywhere' in scope)) state.scopes.push({everywhere: true})
       refresh()
-      const found = await hitsOf(state.running, term, page.after, page.limit, everywhere)
+      const found = await searchHits(state.running, term, page.after, page.limit, everywhere)
       const paged = pageAfter(found, page, (hit) => ({
         updatedAt: hit.meta.updatedAt,
         id: hit.meta.id,
@@ -251,7 +251,7 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
     async retitle(harnessKind, nativeId, title) {
       if (state.running === null) return
       await state.running.index.rename(
-        {id: documentIdOf(harnessKind, nativeId), title},
+        {id: formatDocumentId(harnessKind, nativeId), title},
         {signal: state.running.stopped.signal},
       )
     },
@@ -336,9 +336,9 @@ function sameListing(current: IndexState | undefined, entry: Listed): boolean {
   )
 }
 
-function listingOf(entry: Listed): Listing {
+function buildListing(entry: Listed): Listing {
   return {
-    id: documentIdOf(entry.source.harness.id, entry.meta.id),
+    id: formatDocumentId(entry.source.harness.id, entry.meta.id),
     harness: entry.source.harness.id,
     cwd: entry.cwd,
     title: entry.title,
@@ -347,7 +347,7 @@ function listingOf(entry: Listed): Listing {
   }
 }
 
-function textOf(messages: ChatMessage[]): string {
+function readText(messages: ChatMessage[]): string {
   return messages
     .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])))
     .join('\n')
@@ -358,6 +358,6 @@ function typoTolerance(term: string): number {
   return words.every((word) => word.length >= TYPO_MIN_LENGTH) ? 1 : 0
 }
 
-function documentIdOf(harnessKind: string, nativeId: string): string {
+function formatDocumentId(harnessKind: string, nativeId: string): string {
   return `${harnessKind}:${nativeId}`
 }

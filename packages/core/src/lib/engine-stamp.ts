@@ -15,7 +15,7 @@ const UNREADABLE = 'unreadable'
 
 const FINGERPRINT_CHARS = 12
 
-function digestOf(path: string): string {
+function computeDigest(path: string): string {
   try {
     return createHash('sha256').update(readFileSync(path)).digest('hex')
   } catch {
@@ -23,16 +23,16 @@ function digestOf(path: string): string {
   }
 }
 
-function fingerprintOf(digests: string[]): string {
+function computeFingerprint(digests: string[]): string {
   return createHash('sha256').update(digests.join('\n')).digest('hex').slice(0, FINGERPRINT_CHARS)
 }
 
 export function makeStalenessProbe(modules: TrackedModule[]): () => EngineStaleness {
-  const loaded = modules.map((module) => ({...module, digest: digestOf(module.path)}))
+  const loaded = modules.map((module) => ({...module, digest: computeDigest(module.path)}))
   const tracked = loaded.map((entry) => entry.label)
   const bootedAt = Date.now()
   return () => {
-    const current = loaded.map((entry) => ({label: entry.label, was: entry.digest, now: digestOf(entry.path)}))
+    const current = loaded.map((entry) => ({label: entry.label, was: entry.digest, now: computeDigest(entry.path)}))
     const changed = current
       .filter((entry) => entry.now !== entry.was)
       .map((entry) => entry.label)
@@ -42,7 +42,7 @@ export function makeStalenessProbe(modules: TrackedModule[]): () => EngineStalen
       changed,
       tracked,
       bootedAt,
-      fingerprint: fingerprintOf(current.map((entry) => entry.now)),
+      fingerprint: computeFingerprint(current.map((entry) => entry.now)),
     }
   }
 }

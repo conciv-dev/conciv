@@ -25,7 +25,7 @@ export function userFailure(message: string, extra: {hint?: string; code?: strin
   return Object.assign(new Error(message), {concivFailure: {kind: 'user', message, ...extra}})
 }
 
-export function failureOf(error: unknown): EnvelopeError {
+export function readFailure(error: unknown): EnvelopeError {
   const tagged = TaggedSchema.safeParse(error)
   if (tagged.success) return tagged.data.concivFailure
   const thrown = ThrownSchema.safeParse(error)

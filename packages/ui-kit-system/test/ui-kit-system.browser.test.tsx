@@ -835,7 +835,7 @@ describe('tooltip icon button', () => {
     ))
   }
 
-  function tooltipTriggerOf(button: Element): HTMLElement {
+  function findTooltipTrigger(button: Element): HTMLElement {
     const trigger = button.closest('[data-scope="tooltip"][data-part="trigger"]')
     if (!(trigger instanceof HTMLElement)) throw new Error('the button is not wrapped by a tooltip trigger')
     return trigger
@@ -847,7 +847,7 @@ describe('tooltip icon button', () => {
     await expect.element(button).toBeVisible()
     await expect.element(button).toHaveAttribute('data-scope', 'menu')
 
-    const trigger = tooltipTriggerOf(button.element())
+    const trigger = findTooltipTrigger(button.element())
     expect(trigger.getAttribute('data-scope')).toBe('tooltip')
     expect(trigger.getAttribute('data-part')).toBe('trigger')
     expect(trigger.id).not.toBe('')

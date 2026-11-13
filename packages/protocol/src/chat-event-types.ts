@@ -51,7 +51,7 @@ const ApprovalAskSchema = z.object({
 
 export type ApprovalAsk = z.infer<typeof ApprovalAskSchema>
 
-export function approvalAskOf(event: ChatEvent): ApprovalAsk | null {
+export function readApprovalAsk(event: ChatEvent): ApprovalAsk | null {
   const value = approvalRequestedEvent.parse(event)
   if (value === null) return null
   const {approvalId, title, toolCallId, permission, ...detail} = value
@@ -66,7 +66,7 @@ export function approvalAskOf(event: ChatEvent): ApprovalAsk | null {
 
 export const approvalSettledEvent = defineChatEvent('approval-settled', z.object({approvalId: z.string().min(1)}))
 
-export function approvalSettledOf(event: ChatEvent): string | null {
+export function readApprovalSettled(event: ChatEvent): string | null {
   return approvalSettledEvent.parse(event)?.approvalId ?? null
 }
 

@@ -22,7 +22,7 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 export async function lintDiagnostics(configFile: string, target: string): Promise<Record<string, unknown>[]> {
   const cwd = await workspace
   const result = await runFile(oxlintBin, ['-c', configFile, '-f', 'json', target], {cwd}).catch((error: unknown) => ({
-    stdout: stdoutOf(error),
+    stdout: readStdout(error),
   }))
   const parsed: unknown = JSON.parse(result.stdout)
   if (!isRecord(parsed) || !Array.isArray(parsed.diagnostics)) {
@@ -43,7 +43,7 @@ export async function lintFix(configFile: string, fixture: string): Promise<stri
   return fixed
 }
 
-function stdoutOf(value: unknown): string {
+function readStdout(value: unknown): string {
   if (isRecord(value) && typeof value.stdout === 'string') return value.stdout
   throw new Error(`oxlint produced no stdout: ${String(value)}`)
 }

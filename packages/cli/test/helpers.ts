@@ -168,12 +168,12 @@ export function recorderPrompts(events: string[]): PlanPrompts {
   }
 }
 
-export function stepsOf(result: InitResult): LedgerEntry[] {
+export function readSteps(result: InitResult): LedgerEntry[] {
   return result.outcome === 'completed' ? result.steps : []
 }
 
 export function statusById(result: InitResult): Record<string, string> {
-  return Object.fromEntries(stepsOf(result).map((entry) => [entry.id, entry.status]))
+  return Object.fromEntries(readSteps(result).map((entry) => [entry.id, entry.status]))
 }
 
 function claudePluginsDir(home: string): string {

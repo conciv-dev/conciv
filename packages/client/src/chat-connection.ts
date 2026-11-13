@@ -11,8 +11,8 @@ import {
   runLifecycleEvent,
   sessionRunEvent,
   type RunLifecycle,
-  approvalAskOf,
-  approvalSettledOf,
+  readApprovalAsk,
+  readApprovalSettled,
   type ApprovalAsk,
 } from '@conciv/protocol/chat-event-types'
 import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
@@ -225,9 +225,9 @@ async function* watching(
 function notice(chunk: ChatEvent, options: ChatConnectionOptions): void {
   const lifecycle = runLifecycleEvent.parse(chunk)
   if (lifecycle) options.onLifecycle?.(lifecycle)
-  const ask = approvalAskOf(chunk)
+  const ask = readApprovalAsk(chunk)
   if (ask) options.onApprovalAsk?.(ask)
-  const settled = approvalSettledOf(chunk)
+  const settled = readApprovalSettled(chunk)
   if (settled) options.onApprovalSettled?.(settled)
   if (chunk.type === ChatEventType.RUN_ERROR) options.onRunError?.()
 }

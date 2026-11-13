@@ -27,7 +27,7 @@ import {
   childCallsFor,
   groupEntryFor,
   groupParts,
-  parentToolCallIdOf,
+  readParentToolCallId,
   type GroupEntry,
   type GroupNode,
   type GroupNodeGroup,
@@ -229,7 +229,7 @@ function stepIndices(turn: Turn, indices: readonly number[]): number[] {
   return indices.filter((index) => {
     const part = turn.parts[index]
     const call = asToolCall(part)
-    if (call) return parentToolCallIdOf(call) === null
+    if (call) return readParentToolCallId(call) === null
     return asThinking(part) !== null
   })
 }

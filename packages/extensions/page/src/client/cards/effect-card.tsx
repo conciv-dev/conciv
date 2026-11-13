@@ -21,7 +21,7 @@ const STATE = 'text-[length:var(--chat-text-xs)] flex-none [color:var(--chat-tex
 
 type EffectRow = {name: string; description: string | undefined; enabled: boolean}
 
-function toneOf(enabled: boolean): StatusDotTone {
+function pickTone(enabled: boolean): StatusDotTone {
   return enabled ? 'success' : 'idle'
 }
 
@@ -29,7 +29,7 @@ function stateLabel(enabled: boolean): string {
   return enabled ? 'on' : 'off'
 }
 
-function rowsOf(payload: unknown): readonly EffectRow[] | undefined {
+function readRows(payload: unknown): readonly EffectRow[] | undefined {
   const single = SingleEffect.safeParse(payload)
   if (single.success) return [{name: single.data.effect, description: undefined, enabled: single.data.enabled}]
   const list = EffectList.safeParse(payload)
@@ -44,7 +44,7 @@ function rowsOf(payload: unknown): readonly EffectRow[] | undefined {
 function EffectRowView(props: {row: EffectRow}): JSX.Element {
   return (
     <p class={ROW}>
-      <StatusDot tone={toneOf(props.row.enabled)} />
+      <StatusDot tone={pickTone(props.row.enabled)} />
       <span class={NAME}>{props.row.name}</span>
       <Show when={props.row.description}>{(description) => <span class={DESCRIPTION}>{description()}</span>}</Show>
       <span class={STATE}>{stateLabel(props.row.enabled)}</span>
@@ -55,7 +55,7 @@ function EffectRowView(props: {row: EffectRow}): JSX.Element {
 function EffectCard(props: ToolCardProps): JSX.Element {
   const {meta, title} = cardHeader(props)
   const payload = () => cardPayload(props.result)
-  const rows = () => rowsOf(payload())
+  const rows = () => readRows(payload())
   const errorMessage = () => cardErrorMessage(props.result)
   const chipSkip = () => (rows() === undefined ? undefined : EFFECT_NAME_KEYS)
   return (

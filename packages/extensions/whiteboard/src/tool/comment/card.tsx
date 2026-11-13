@@ -3,7 +3,7 @@ import {z} from 'zod'
 import MessageSquare from 'lucide-solid/icons/message-square'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {ErrorBlock, parseInput, parseResultMedia, resultText, ToolCard} from '@conciv/ui-kit-chat/tools'
-import {clockTime, failureOf, MonoLine, OpTag, type FieldTone} from '../card-util.js'
+import {clockTime, parseFailure, MonoLine, OpTag, type FieldTone} from '../card-util.js'
 
 const TextPartSchema = z.object({type: z.literal('text'), text: z.string()}).loose()
 
@@ -42,12 +42,12 @@ const DetailSchema = z
 
 const DESTRUCTIVE = new Set(['resolve', 'delete'])
 
-function opOf(name: string): string {
+function readOperation(name: string): string {
   if (name === 'pin_set_state') return 'pin'
   return name.startsWith('comment_') ? name.slice('comment_'.length) : name
 }
 
-function textOf(parts: unknown): string {
+function readText(parts: unknown): string {
   if (!Array.isArray(parts)) return ''
   return parts
     .flatMap((entry) => {
@@ -58,7 +58,7 @@ function textOf(parts: unknown): string {
 }
 
 function textPreview(part: ToolCardProps['part']): string {
-  return textOf(parseInput(PartsInput, part)?.parts)
+  return readText(parseInput(PartsInput, part)?.parts)
 }
 
 type Detail = z.infer<typeof DetailSchema>
@@ -96,7 +96,7 @@ function authorLabel(row: CommentRowData): string {
   return row.authorKind ?? 'human'
 }
 
-function anchorOf(row: CommentRowData): string | undefined {
+function readAnchor(row: CommentRowData): string | undefined {
   return row.anchorComponent ?? row.anchorFile ?? undefined
 }
 
@@ -125,8 +125,8 @@ function ThreadRows(props: {rows: CommentRowData[]}): JSX.Element {
                 <Show when={row.createdAt}>{(ts) => <span class={THREAD_TIME}>{clockTime(ts())}</span>}</Show>
                 <Show when={row.status}>{(status) => <span class={THREAD_STATUS}>{status()}</span>}</Show>
               </div>
-              <Show when={textOf(row.parts)}>{(text) => <p class={THREAD_TEXT}>{text()}</p>}</Show>
-              <Show when={anchorOf(row)}>{(target) => <p class={THREAD_TARGET}>{target()}</p>}</Show>
+              <Show when={readText(row.parts)}>{(text) => <p class={THREAD_TEXT}>{text()}</p>}</Show>
+              <Show when={readAnchor(row)}>{(target) => <p class={THREAD_TARGET}>{target()}</p>}</Show>
             </div>
           )}
         </For>
@@ -136,7 +136,7 @@ function ThreadRows(props: {rows: CommentRowData[]}): JSX.Element {
 }
 
 export function CommentOpCard(props: ToolCardProps): JSX.Element {
-  const op = () => opOf(props.part.name)
+  const op = () => readOperation(props.part.name)
   const media = () => parseResultMedia(props.result)
   const detail = () => {
     const parsed = DetailSchema.safeParse(media().json)
@@ -144,7 +144,7 @@ export function CommentOpCard(props: ToolCardProps): JSX.Element {
   }
   const failure = () => {
     if (props.result?.state === 'error') return {error: resultText(props.result) || 'the tool call failed'}
-    return failureOf(media().json)
+    return parseFailure(media().json)
   }
   const preview = () => textPreview(props.part)
   const tone = (): FieldTone | undefined => (DESTRUCTIVE.has(op()) ? 'danger' : undefined)

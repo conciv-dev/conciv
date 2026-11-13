@@ -18,7 +18,7 @@ function basename(path: string | undefined): string {
   return parts[parts.length - 1] ?? path
 }
 
-function diffOf(input: z.infer<typeof EditInput> | undefined): FileEditDiff | undefined {
+function buildDiff(input: z.infer<typeof EditInput> | undefined): FileEditDiff | undefined {
   if (!input) return undefined
   const oldText = input.old_string ?? ''
   const newText = input.new_string ?? input.content ?? ''
@@ -54,7 +54,7 @@ function Root(props: {part: ToolCallPart; result: ToolResultPart | undefined; ch
   const path = () => input()?.file_path
   const name = () => basename(path())
   const verb = () => (props.part.name === 'Write' ? 'Wrote' : 'Edited')
-  const diff = createMemo(() => diffOf(input()))
+  const diff = createMemo(() => buildDiff(input()))
   const meta = () => {
     const value = diff()
     return value ? `+${lineCount(value.newText)} −${lineCount(value.oldText)}` : undefined

@@ -47,7 +47,7 @@ function frameLocation(frame: {fileName?: string; line?: number} | undefined): s
   return locationLabel(frame.fileName, frame.line)
 }
 
-function sourceOf(payload: unknown): {component: string | undefined; location: string | undefined} {
+function readSource(payload: unknown): {component: string | undefined; location: string | undefined} {
   const parsed = SourcePayload.safeParse(payload)
   if (!parsed.success) return {component: undefined, location: undefined}
   const attribute = parsed.data.source
@@ -67,7 +67,7 @@ function renderChips(report: TrackReportView): Array<{name: string; value: strin
   return report.components.map((entry) => ({name: entry.component, value: renderLabel(entry.renders)}))
 }
 
-function trackOf(payload: unknown): TrackReportView | undefined {
+function readTrack(payload: unknown): TrackReportView | undefined {
   const parsed = TrackPayload.safeParse(payload)
   if (!parsed.success) return undefined
   return {components: parsed.data.components, note: parsed.data.note}
@@ -76,8 +76,8 @@ function trackOf(payload: unknown): TrackReportView | undefined {
 export function ReactCard(props: ToolCardProps): JSX.Element {
   const {meta, title} = cardHeader(props)
   const payload = () => cardPayload(props.result)
-  const descriptor = () => sourceOf(payload())
-  const track = () => trackOf(payload())
+  const descriptor = () => readSource(payload())
+  const track = () => readTrack(payload())
   const errorMessage = () => cardErrorMessage(props.result)
   return (
     <CardShell

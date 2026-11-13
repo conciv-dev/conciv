@@ -136,7 +136,7 @@ function watchDocument(doc: Document): void {
   doc.defaultView?.addEventListener('resize', bumpLayout, {passive: true})
 }
 
-function watchLayoutOf(at: CursorAt): void {
+function watchLayout(at: CursorAt): void {
   watchDocument(document)
   if (at.zone !== 'page') return
   for (const frame of at.frames) {
@@ -169,7 +169,7 @@ export function dropCursor(id: string): void {
   request()
 }
 
-function sampleOf(at: CursorAt): Sample {
+function buildSample(at: CursorAt): Sample {
   return {at, located: null, layout: -1}
 }
 
@@ -193,11 +193,11 @@ export function aimCursor(options: {id: string; at: CursorAt; look: CursorLook})
   const {id, at, look} = options
   const arrival = Promise.withResolvers<void>()
   const shown = placed.get(id)?.last
-  const from = shown && !reducedMotion() ? sampleOf(windowAt(shown)) : sampleOf(at)
+  const from = shown && !reducedMotion() ? buildSample(windowAt(shown)) : buildSample(at)
   settleAim(id)
-  aims.set(id, {from, to: sampleOf(at), t: from.at === at ? 1 : 0, last: 0, arrived: arrival.resolve})
+  aims.set(id, {from, to: buildSample(at), t: from.at === at ? 1 : 0, last: 0, arrived: arrival.resolve})
   aimed.set(id, look)
-  watchLayoutOf(at)
+  watchLayout(at)
   pass.dirty = true
   request()
   if (cannotAnimate()) arrival.resolve()
@@ -284,7 +284,7 @@ function locateSample(options: {sample: Sample; layout: number}): Located | null
   return sample.located
 }
 
-function pointOf(located: Located | null): Point | null {
+function readPoint(located: Located | null): Point | null {
   return located?.visible ? located.point : null
 }
 
@@ -292,8 +292,8 @@ type Frame = {point: Point | null; settled: boolean}
 
 function glide(options: {aim: Aim; now: number; layout: number}): Frame {
   const {aim, now, layout} = options
-  const from = pointOf(locateSample({sample: aim.from, layout}))
-  const to = pointOf(locateSample({sample: aim.to, layout}))
+  const from = readPoint(locateSample({sample: aim.from, layout}))
+  const to = readPoint(locateSample({sample: aim.to, layout}))
   if (!to) {
     aim.arrived()
     return {point: null, settled: aim.t >= 1}
@@ -311,7 +311,7 @@ function glide(options: {aim: Aim; now: number; layout: number}): Frame {
   return {point: to, settled: true}
 }
 
-function frameOf(options: {id: string; at: number; layout: number}): Frame {
+function computeFrame(options: {id: string; at: number; layout: number}): Frame {
   const {id, at, layout} = options
   const aim = aims.get(id)
   return aim ? glide({aim, now: at, layout}) : {point: null, settled: true}
@@ -366,7 +366,7 @@ function placeCursors(): void {
   pass.seenLayout = layout
   const at = performance.now()
   const frames = [...placed].map(([id, entry]) => {
-    const frame = frameOf({id, at, layout})
+    const frame = computeFrame({id, at, layout})
     if (!frame.settled) pass.dirty = true
     return {entry, frame}
   })
