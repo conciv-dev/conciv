@@ -854,6 +854,30 @@ describe('Bus', () => {
     }),
   )
 
+  it.effect('replay decodes synchronized transformed values before projection', () =>
+    Effect.gen(function* () {
+      const bus = yield* Bus.Service
+      const aggregateId = Session.Id.make('conciv_bus')
+      const received = new Array<typeof SessionEvent.InstructionsUpdated.Type>()
+      yield* bus.project(SessionEvent.InstructionsUpdated, (event) =>
+        Effect.sync(() => {
+          received.push(event)
+        }),
+      )
+
+      yield* bus.replay({
+        id: Event.Id.create(),
+        created: 0,
+        type: Bus.versionedType(SessionEvent.InstructionsUpdated.type, 2),
+        seq: 0,
+        aggregateID: aggregateId,
+        data: {sessionID: aggregateId, delta: {'core/context': '0'.repeat(64)}},
+      })
+
+      expect(received[0]?.created).toBe(0)
+    }),
+  )
+
   it.effect('dispatches durable projectors by exact event version', () =>
     Effect.gen(function* () {
       const bus = yield* Bus.Service
