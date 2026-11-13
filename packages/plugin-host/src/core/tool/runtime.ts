@@ -1,4 +1,4 @@
-import {emptyInputJsonSchema, makeToolFailure, type ToolDefinition} from '../../ai/effect.js'
+import {emptyInputJsonSchema, type ToolDefinition} from '../../ai/effect.js'
 import {isRecord} from '../../util/record.js'
 import {Tool} from '../../schema/tool.js'
 import type {StandardJSONSchemaV1, StandardSchemaV1} from '@standard-schema/spec'
@@ -277,8 +277,3 @@ export const effectiveName = (tool: Pick<Tool.Info, 'name' | 'options'>) =>
   tool.options?.namespace === undefined
     ? normalizedName(tool)
     : `${tool.options.namespace.replaceAll('.', '_')}_${normalizedName(tool)}`
-
-export const toolFailure = (message: string) => (error: unknown) =>
-  error instanceof globalThis.Error && Schema.is(Tool.Error)(error) && error.name === 'ToolFailure'
-    ? error
-    : makeToolFailure({message, error})
