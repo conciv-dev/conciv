@@ -18,6 +18,7 @@ export function figmaFacts(input: {
     ...(mode === null ? {} : {layout: layoutOf(node)}),
     ...sizingOf(node),
     ...placementFields(node),
+    ...effectsOf(node),
     ...(marks.image ? {image: true} : {}),
     ...(marks.crop ? {crop: true} : {}),
     ...(stack.length === 0 ? {} : {stack}),
@@ -113,6 +114,28 @@ function stopsOf(stops: NonNullable<FigmaPaint['gradientStops']>): NonNullable<L
   }))
 }
 
+function effectsOf(node: FigmaNode): {effects?: Record<string, unknown>[]} {
+  const effects = (node.effects ?? []).flatMap((effect) => {
+    const type = EFFECT_TYPES.get(effect.type)
+    if (effect.visible === false || type === undefined) return []
+    const blur = effect.radius ?? 0
+    if (!type.endsWith(SHADOW)) return [{type, blur}]
+    const color = effect.color ?? {r: 0, g: 0, b: 0}
+    return [
+      {
+        type,
+        color: colorHex(color),
+        opacity: color.a ?? 1,
+        x: effect.offset?.x ?? 0,
+        y: effect.offset?.y ?? 0,
+        blur,
+        spread: effect.spread ?? 0,
+      },
+    ]
+  })
+  return effects.length === 0 ? {} : {effects}
+}
+
 function tokensOf(node: FigmaNode): {tokens?: Record<string, string>} {
   const bound = node.boundVariables ?? {}
   const found = Object.entries(TOKEN_FIELDS).flatMap(([field, keys]) => {
@@ -179,6 +202,13 @@ const TOKEN_FIELDS = {
   gap: ['itemSpacing', 'counterAxisSpacing'],
   padding: ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'],
 }
+const SHADOW = 'shadow'
+const EFFECT_TYPES = new Map([
+  ['DROP_SHADOW', 'drop-shadow'],
+  ['INNER_SHADOW', 'inner-shadow'],
+  ['LAYER_BLUR', 'layer-blur'],
+  ['BACKGROUND_BLUR', 'background-blur'],
+])
 const FLOWS = new Set(['HORIZONTAL', 'VERTICAL', 'GRID'])
 const REGULAR_WEIGHT = 400
 const NORMAL = 'NORMAL'

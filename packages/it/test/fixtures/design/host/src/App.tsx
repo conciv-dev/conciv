@@ -231,6 +231,26 @@ export function App() {
       </main>
     )
   }
+  if (requested === 'logo-tile' || requested === 'logo-tile-flat') {
+    return (
+      <main style={{margin: -24, padding: 0, background: '#1a1a1a'}} data-conciv-key="lTmNaA">
+        <div
+          style={{
+            display: 'grid',
+            placeItems: 'center',
+            width: 50.23,
+            height: 50,
+            borderRadius: 7,
+            background: '#9eff00',
+            boxShadow: requested === 'logo-tile' ? 'inset 0 0 14px 6px rgba(255, 255, 255, 0.5)' : 'none',
+          }}
+          data-conciv-key="lTtLeA"
+        >
+          <img src="/design/100-1684.png" alt="" style={{width: 26.67, height: 30}} data-conciv-key="lTiMgA" />
+        </div>
+      </main>
+    )
+  }
   if (requested === 'range-slider') {
     return (
       <main style={{margin: -24, paddingTop: 5.67, background: '#141414'}} data-conciv-key="rSmNaA">

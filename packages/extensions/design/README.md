@@ -81,7 +81,9 @@ src/
   align after the expected stroke. An empty input or textarea measures its placeholder as its text, in the
   `::placeholder` colour (not the colour of typed text), so a real form control pairs with the design text it stands for. An asset node passes when its element shows that file, or shows
   any image or paints a CSS shape (a fill, border or gradient) and its capture matches the asset by pixels; an element that paints
-  nothing fails as a wrong image. A Figma line cropped from the frame render takes its stroke weight, so a 1px line drawn as a 1px box
+  nothing fails as a wrong image. Figma effects come with the node as `effects` (inner-shadow, drop-shadow with x, y,
+  blur, spread, color and opacity; layer-blur and background-blur with blur); an element that draws no matching
+  box-shadow, text-shadow, filter blur or backdrop-filter blur gives a `wrong effect` paint row. A Figma line cropped from the frame render takes its stroke weight, so a 1px line drawn as a 1px box
   matches it.
 - A run builds one page, so its targets share one route. `design_get` takes `route`, the path of that page (`/pricing`,
   with a query when the page needs one), and moves every target of the run there, the frames of that call and the
@@ -117,7 +119,7 @@ src/
   counts` over what did render, a reason saying the page renders N of M nodes with the rest in `coverage.missing` (and by name in `coverage.gone`), and
   a round is written with verdict `unsettled` (its mapping is not kept). A settled check resets the count. The
   verdict is judged on the round the check wrote: `done` when `much + noticeably + pins = 0`, every required node renders
-  (decorations, zero-size nodes and wrappers that draw nothing, a box with children and no fill or stroke whose children
+  (decorations, zero-size nodes and wrappers that draw nothing, a box with children and no fill, stroke or effect whose children
   are checked on their own, are not required, except a Figma line: it is drawn by its stroke, and it renders
   when an element pairs with it (the pairer gives a line its stroke weight as thickness, so a 1px element or an `<hr>`
   pairs), or when the element paired with its frame or with a sibling whose edge it lies on shows a border on that side,

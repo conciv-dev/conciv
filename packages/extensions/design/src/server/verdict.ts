@@ -62,8 +62,9 @@ function requiredOf(root: DesignNode): Map<string, string> {
 
 function drawsNothing(node: DesignNode): boolean {
   if (node.kind !== 'box' || node.children.length === 0) return false
-  const strokes = node.figma?.fields.strokes
-  return node.paint === undefined && node.border === null && !(Array.isArray(strokes) && strokes.length > 0)
+  const {strokes, effects} = node.figma?.fields ?? {}
+  const listed = (value: unknown): boolean => Array.isArray(value) && value.length > 0
+  return node.paint === undefined && node.border === null && !listed(strokes) && !listed(effects)
 }
 
 function placed(input: {node: DesignNode; parent: DesignNode | null}): string {

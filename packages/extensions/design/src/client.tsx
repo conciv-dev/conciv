@@ -92,6 +92,7 @@ const BORDER_SIDES = ['top', 'right', 'bottom', 'left'] as const
 const HIDDEN_LINES = new Set(['none', 'hidden'])
 const INSET = 'inset'
 const NONE = 'none'
+const BLUR_CALL = 'blur('
 const SOLID = 'solid'
 const PX_UNIT = 'px'
 const REACT_FIBER = '__reactFiber'
@@ -896,6 +897,8 @@ function readStyles(input: {
     sizing: {width: ownSizing({...input, property: 'width'}), height: ownSizing({...input, property: 'height'})},
     border: readBorder(style),
     gradient: gradientStops(style.backgroundImage),
+    shadows: [...shadowsOf(style.boxShadow), ...shadowsOf(style.textShadow)],
+    blur: {layer: blurOf(style.filter), background: blurOf(style.backdropFilter)},
     opacity: Number(style.opacity),
     image: imageSource({element: input.element, image: style.backgroundImage}),
     media: mediaOf(input),
@@ -1010,6 +1013,21 @@ function readBorder(style: CSSStyleDeclaration): LiveBorder {
 function outlineLines(style: CSSStyleDeclaration): StrokeLine[] {
   const outline = readLine({style, prefix: 'outline'})
   return shows(outline) ? BORDER_SIDES.map((side) => ({...outline, side})) : []
+}
+
+function shadowsOf(value: string): LiveStyles['shadows'] {
+  if (value === '' || value === NONE) return []
+  return cssList.comma(value).map((shadow) => {
+    const tokens = cssList.space(shadow)
+    const [x = 0, y = 0, blur = 0, spread = 0] = tokens.filter(pxLength).map(Number.parseFloat)
+    const color = tokens.find((token) => token !== INSET && !pxLength(token)) ?? ''
+    return {inset: tokens.includes(INSET), x, y, blur, spread, color: toHex(color)}
+  })
+}
+
+function blurOf(value: string): number {
+  const blur = cssList.space(value).find((token) => token.startsWith(BLUR_CALL))
+  return blur === undefined ? 0 : Number.parseFloat(blur.slice(BLUR_CALL.length)) || 0
 }
 
 function shadowLines(style: CSSStyleDeclaration): StrokeLine[] {

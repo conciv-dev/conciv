@@ -23,6 +23,7 @@ import {mappingOf} from './mapping.js'
 import {gateOf} from './gate.js'
 import {reflowAt} from './reflow.js'
 import {widthsOf} from './widths.js'
+import {effectRows} from './effect-rows.js'
 import {verdictOf} from './verdict.js'
 import {progressOf} from './progress.js'
 import {imageRowsOf} from './image-rows.js'
@@ -366,6 +367,7 @@ async function listedRows(input: {
       scrollHeight: measured.scrollHeight,
     }),
     ...driftRows({root: design.root, reads, width: measured.width}),
+    ...effectRows({root: design.root, reads}),
   ]
   const images = await imageRowsOf({
     design,

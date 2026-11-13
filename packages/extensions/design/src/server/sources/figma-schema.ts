@@ -15,6 +15,14 @@ const PaintSchema = z.looseObject({
   gradientStops: z.array(z.looseObject({color: ColorSchema, position: z.number()})).optional(),
   gradientHandlePositions: z.array(PointSchema).optional(),
 })
+const EffectSchema = z.looseObject({
+  type: z.string(),
+  visible: z.boolean().optional(),
+  color: ColorSchema.optional(),
+  offset: PointSchema.optional(),
+  radius: z.number().optional(),
+  spread: z.number().optional(),
+})
 const LayerSchema = z.object({
   type: z.string(),
   blend: z.string(),
@@ -55,6 +63,7 @@ const FigmaNodeSchema = z.looseObject({
     .optional(),
   fills: z.array(PaintSchema).optional(),
   strokes: z.array(PaintSchema).optional(),
+  effects: z.array(EffectSchema).optional(),
   strokeWeight: z.number().optional(),
   strokeAlign: z.string().optional(),
   individualStrokeWeights: z

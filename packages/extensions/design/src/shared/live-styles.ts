@@ -29,6 +29,23 @@ export const LiveStylesSchema = z.object({
       .describe('every visible side with its width; an outline draws all four'),
   }),
   gradient: z.object({from: z.string(), to: z.string()}).nullable().default(null),
+  shadows: z
+    .array(
+      z.object({
+        inset: z.boolean(),
+        x: z.number(),
+        y: z.number(),
+        blur: z.number(),
+        spread: z.number(),
+        color: z.string(),
+      }),
+    )
+    .default([])
+    .describe('every box-shadow and text-shadow, in px'),
+  blur: z
+    .object({layer: z.number(), background: z.number()})
+    .default({layer: 0, background: 0})
+    .describe('the px radius of blur() in filter and in backdrop-filter'),
   opacity: z.number().optional(),
   image: z.string().optional().describe('the src of an img, else the url of the background image'),
   media: z

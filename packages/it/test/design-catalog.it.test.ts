@@ -254,6 +254,30 @@ describe('an idle page while files outside the page change', () => {
   })
 })
 
+describe('a Figma effect', () => {
+  it('is carried into the design and flagged when the page leaves it out', async () => {
+    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
+    const effectRows = async () =>
+      roundOf(await call('design_check', {}))
+        .rows.filter((row) => row.property === 'effect')
+        .map((row) => row.text)
+    await kit.goto('logo-tile')
+    const got = await call('design_get', {
+      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1683',
+      document: JSON.parse(await readFile(fixture('logo-tile.json'), 'utf8')),
+      image: fixture('logo-tile.png'),
+    })
+    const glowing = await effectRows()
+    await kit.goto('logo-tile-flat')
+    const flat = await effectRows()
+    expect([got.nodes.find((node) => node.id === '100:1683')?.effects, glowing, flat]).toEqual([
+      [{type: 'inner-shadow', color: '#ffffff', opacity: 0.5, x: 0, y: 0, blur: 14, spread: 6}],
+      [],
+      ['wrong effect at [100:1683]: inner shadow 0 0 14px 6px #ffffff at 50% expected, none found'],
+    ])
+  })
+})
+
 describe('a Figma wrapper that draws nothing', () => {
   it('is not required when the page merges it into its children', async () => {
     const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
