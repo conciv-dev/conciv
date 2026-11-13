@@ -26,7 +26,7 @@ import {
 import {isPageVerbError} from './page-errors.js'
 import {isRegistryBranch, walkRegistryProcedures, type RegistryWalkEntry} from './registry-walk.js'
 import type {
-  CtxOf,
+  InferToolContext,
   ServerToolRegistryAccess,
   ServerToolPageAccess,
   ToolMiddleware,
@@ -163,11 +163,11 @@ export type SandboxTool = ToolSignature & {
 
 export type ToolCatalog = {list: () => ToolCatalogEntry[]; get: (name: string) => ToolSignature}
 
-type RegistrySelf = {call: ToolRegistry['call']; mutatingOf: (name: string) => boolean}
+type RegistrySelf = {call: ToolRegistry['call']; isMutating: (name: string) => boolean}
 
 export type ToolRegistry = {
   router: ExtensionToolRouter
-  register: <Tool extends AnyToolBuilder>(tool: Tool, ...registration: ToolRegistration<CtxOf<Tool>>) => void
+  register: <Tool extends AnyToolBuilder>(tool: Tool, ...registration: ToolRegistration<InferToolContext<Tool>>) => void
   has: (name: string) => boolean
   call: (name: string, input: unknown, options: RegistryCallContext) => Promise<unknown>
   catalog: ToolCatalog
@@ -195,12 +195,12 @@ export function createToolRegistry(
   })
   const self: RegistrySelf = {
     call,
-    mutatingOf: (name) => (has(name) ? toolSignature(walked(), name, false).mutating : false),
+    isMutating: (name) => (has(name) ? toolSignature(walked(), name, false).mutating : false),
   }
   const engineView = viewFor(anyPageConnected)
   return {
     router,
-    register: (tool: AnyToolBuilder, registration: ToolRegistrationOf) =>
+    register: (tool: AnyToolBuilder, registration: ToolRegistrationEntry) =>
       registerTool(router, tool, pageCaller, self, registration, owners),
     has,
     call,
@@ -288,7 +288,7 @@ function registerTool(
   tool: AnyToolBuilder,
   pageCaller: RegistryPageCaller | undefined,
   self: RegistrySelf,
-  registration: ToolRegistrationOf,
+  registration: ToolRegistrationEntry,
   owners: Map<string, string>,
 ): void {
   assertToolName(tool.name)
@@ -342,7 +342,7 @@ const registryBase = os
 
 type ToolErrorConstructors = ORPCErrorConstructorMap<ToolErrors>
 
-type ToolRegistrationOf = {owner: string; context?: unknown; middleware?: ToolMiddleware}
+type ToolRegistrationEntry = {owner: string; context?: unknown; middleware?: ToolMiddleware}
 
 const passThrough: ToolMiddleware = ({next}) => next()
 
@@ -360,7 +360,7 @@ function compileTool(
   tool: RegistryTool,
   pageCaller: RegistryPageCaller | undefined,
   self: RegistrySelf,
-  registration: ToolRegistrationOf,
+  registration: ToolRegistrationEntry,
 ): AnyRouter {
   const context = registration.context
   const meta: RegistryToolMeta = {
@@ -409,13 +409,13 @@ function compileTool(
 function pageAccess(
   pageCaller: RegistryPageCaller | undefined,
   request: ToolRequest,
-  mutatingOf: (name: string) => boolean,
+  isMutating: (name: string) => boolean,
 ): ServerToolPageAccess {
   return {
     call: (name, input) =>
       pageCaller === undefined
         ? Promise.reject(new Error(`${name}: no widget connected`))
-        : pageCaller({name, mutating: mutatingOf(name)}, input, request),
+        : pageCaller({name, mutating: isMutating(name)}, input, request),
   }
 }
 
@@ -440,7 +440,7 @@ async function runServerTool(
       input,
       context,
       request,
-      pageAccess(pageCaller, request, self.mutatingOf),
+      pageAccess(pageCaller, request, self.isMutating),
       toolsAccess(self, request),
     )
   } catch (error) {
@@ -553,7 +553,7 @@ function catalogEntries(entries: RegistryWalkEntry[], pageConnected: boolean): T
   })
 }
 
-function signatureOf(entry: RegistryWalkEntry, listed: ToolCatalogEntry): ToolSignature {
+function buildSignature(entry: RegistryWalkEntry, listed: ToolCatalogEntry): ToolSignature {
   const meta = readToolMeta(entry)
   return {
     ...listed,
@@ -572,7 +572,7 @@ function toolSignature(walked: RegistryWalkEntry[], name: string, pageConnected:
   const entry = walked[index]
   const listed = catalogEntries(walked, pageConnected)[index]
   if (entry === undefined || listed === undefined) throw new Error(`unknown tool "${name}"`)
-  return signatureOf(entry, listed)
+  return buildSignature(entry, listed)
 }
 
 function isObjectSchema(schema: unknown): schema is z.ZodObject<z.ZodRawShape> {
@@ -590,7 +590,7 @@ function sandboxToolList(
     if (base === undefined) throw new Error('the catalog drifted from the registry walk')
     if (!isObjectSchema(entry.inputSchema)) throw new Error(`tool "${base.name}" input: not an object schema`)
     return {
-      ...signatureOf(entry, base),
+      ...buildSignature(entry, base),
       schema: entry.inputSchema,
       run: (input, request) => callTool(router, base.name, input, {request}),
     }

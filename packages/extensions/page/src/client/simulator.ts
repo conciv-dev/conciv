@@ -341,7 +341,7 @@ function ripple(agent: string): void {
   pressCursor({id: agent})
 }
 
-function centerOf(element: Element): Point {
+function measureCenter(element: Element): Point {
   const rect = element.getBoundingClientRect()
   return {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2}
 }
@@ -358,7 +358,7 @@ function hitAt(options: {element: Element; point: Point}): Element | null {
 function isReachable(element: Element): boolean {
   const view = element.ownerDocument.defaultView
   if (!view) return true
-  const point = centerOf(element)
+  const point = measureCenter(element)
   if (point.x < 0 || point.y < 0 || point.x > view.innerWidth || point.y > view.innerHeight) return false
   const hit = hitAt({element, point})
   return hit !== null && element.contains(hit)
@@ -373,7 +373,7 @@ function moveTo(options: {element: Element; agent: string}): {point: Point; arri
   scrollIntoViewIfNeeded(element)
   const frame = element.ownerDocument.defaultView?.frameElement
   if (frame) scrollIntoViewIfNeeded(frame)
-  const point = centerOf(element)
+  const point = measureCenter(element)
   return {point, arrived: aimCursor({id: agent, at: pageAt({target: element, point}), look: CursorLook.AGENT})}
 }
 

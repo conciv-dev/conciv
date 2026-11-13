@@ -19,7 +19,7 @@ import {exchangePrintedCode, loginThroughTerminal} from '@conciv/harness-testkit
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {stdioTransport} from '@tanstack/ai-mcp/stdio'
 import {CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER, TabOpenSchema} from '@conciv/protocol/chat-types'
-import {approvalAskOf, type ChatEvent, ChatEventType, pageQueueEvent} from '@conciv/protocol/chat-event-types'
+import {readApprovalAsk, type ChatEvent, ChatEventType, pageQueueEvent} from '@conciv/protocol/chat-event-types'
 import {PageQuerySchema} from '@conciv/protocol/page-types'
 import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PageServingFrame} from '@conciv/protocol/push-types'
@@ -79,7 +79,7 @@ import {
   recorderPrompts,
   statusById,
   stepContext,
-  stepsOf,
+  readSteps,
 } from './helpers.js'
 
 describe('cli', () => {
@@ -887,7 +887,7 @@ describe('cli', () => {
       )
     }
 
-    function packageNameOf(specifier: string): {name: string; subpath: string} {
+    function splitPackageName(specifier: string): {name: string; subpath: string} {
       const parts = specifier.split('/')
       const name = specifier.startsWith('@') ? parts.slice(0, 2).join('/') : parts.slice(0, 1).join('/')
       return {name, subpath: specifier.slice(name.length + 1)}
@@ -899,7 +899,7 @@ describe('cli', () => {
 
     function resolvedFrom(file: string, specifier: string, workspaces: Record<string, string>): string | undefined {
       if (specifier.startsWith('.')) return existingFile(resolvePath(dirname(file), specifier))
-      const {name, subpath} = packageNameOf(specifier)
+      const {name, subpath} = splitPackageName(specifier)
       const packageDir = workspaces[name]
       if (packageDir === undefined) return undefined
       return existingFile(exportedFile(packageDir, subpath))
@@ -1024,15 +1024,15 @@ describe('cli', () => {
         ])
         expect(printed.join('\n')).not.toContain(code)
         const linkedToken = await exchangePrintedCode(origin, code)
-        const statusOf = async (scope: string) =>
+        const fetchStatus = async (scope: string) =>
           (await fetch(`${origin}${scope}/rpc/meta/engine`, {method: 'POST'})).status
-        expect(await statusOf(`/t/${linkedToken}`)).not.toBe(401)
+        expect(await fetchStatus(`/t/${linkedToken}`)).not.toBe(401)
         await expect(makeRpcClient(`${origin}/t/${linkedToken}`).auth.issueCode()).rejects.toMatchObject({
           code: 'FORBIDDEN',
         })
         expect((await fetch(`${origin}/rpc/auth/issueCode`, {method: 'POST'})).status).toBe(401)
         const token = await loginThroughTerminal(origin, () => printed.join('\n'))
-        const call = async () => statusOf(`/t/${token}`)
+        const call = async () => fetchStatus(`/t/${token}`)
         expect(await call()).not.toBe(401)
         const {sessionId} = await makeRpcClient(`${origin}/t/${token}`).sessions.create(undefined)
         const serving: PageServingFrame = {channel: 'page-serving', serving: true}
@@ -1056,7 +1056,7 @@ describe('cli', () => {
             .code
         const closed = Promise.all([closedCode(browser), closedCode(framed)])
         runRevoke({all: true, cwd: project.nested})
-        expect([await call(), await statusOf(`/t/${linkedToken}`)]).toEqual([401, 401])
+        expect([await call(), await fetchStatus(`/t/${linkedToken}`)]).toEqual([401, 401])
         expect([...(await closed), agent.readyState]).toEqual([1008, 1008, WebSocket.OPEN])
         agent.close()
       } finally {
@@ -1124,7 +1124,7 @@ describe('cli', () => {
     try {
       const events = await page.chat.events({sessionId}, {signal})
       for await (const chunk of events) {
-        const ask = approvalAskOf(chunk)
+        const ask = readApprovalAsk(chunk)
         if (ask !== null) throw new Error(`the CLI asked "${ask.toolName}" instead of refusing the call`)
       }
       return null
@@ -1494,7 +1494,7 @@ describe('cli', () => {
       },
     )
 
-    async function frontOf(home: string, engine: {root: string; base: string}) {
+    async function startFront(home: string, engine: {root: string; base: string}) {
       const upstream = new URL(engine.base)
       const mode = {dropCalls: false, holdWaits: false}
       const front = createHttpServer(async (request, response) => {
@@ -1548,7 +1548,7 @@ describe('cli', () => {
       const {home, mcp} = fakeClaude()
       expect(mcp('connect', 'claude')).toMatchObject({status: 0})
       const older = await engineWithTab(home, {hubAccess: 'open'})
-      const front = await frontOf(home, older)
+      const front = await startFront(home, older)
       const newer = await engineWithTab(home, {hubAccess: 'open'})
       const client = await hub(home)
       const survivor = await engineWithTab(home).catch(async (error: unknown) => {
@@ -1569,11 +1569,11 @@ describe('cli', () => {
         const onTab = async (engine: {sessionId: string}, typescriptCode: string) =>
           ReplySchema.parse(await client.callTool('execute_typescript', {typescriptCode, tab: engine.sessionId}))
             .content
-        const instructionsOf = async (engine: {base: string; sessionId: string}) =>
+        const fetchInstructions = async (engine: {base: string; sessionId: string}) =>
           TabOpenSchema.parse(await makeRpcClient(engine.base).tabs.get({sessionId: engine.sessionId})).instructions
         for (const engine of [newer, older]) {
           const [lead, ...rest] = await onTab(engine, route)
-          expect(lead).toEqual({type: 'text', text: await instructionsOf(engine)})
+          expect(lead).toEqual({type: 'text', text: await fetchInstructions(engine)})
           expect(lead?.text).toContain(`the instructions of ${engine.root}`)
           expect(JSON.stringify(rest)).toContain(`"pathname\\":\\"${engine.root}`)
         }
@@ -1865,7 +1865,7 @@ describe('cli', () => {
 
       it('a tasks/get whose engine accepts the poll but never answers stays working, and completes once the engine answers again', async () => {
         const {home, engine, play} = await queueTab()
-        const front = await frontOf(home, engine)
+        const front = await startFront(home, engine)
         const client = rawHub(home)
         try {
           const task = TaskSchema.parse(await client.execute(QUEUE, engine.sessionId))
@@ -2135,10 +2135,10 @@ describe('cli', () => {
           await once(arrivals, 'queued')
           return queueAt(index)
         }
-        const finishedOf = async (queueId: string): Promise<void> => {
+        const waitForFinished = async (queueId: string): Promise<void> => {
           if (finishedIds.has(queueId)) return
           await once(arrivals, 'finished')
-          return finishedOf(queueId)
+          return waitForFinished(queueId)
         }
         const playInCall = async (index: number) => {
           const queue = await queueAt(index)
@@ -2147,7 +2147,7 @@ describe('cli', () => {
           }
           return queue.id
         }
-        const play = async (index: number) => finishedOf(await playInCall(index))
+        const play = async (index: number) => waitForFinished(await playInCall(index))
         return {home, engine: {...engine, engine: {...engine.engine, stop}}, play, playInCall, accepted}
       }
 
@@ -2287,7 +2287,7 @@ describe('cli', () => {
       return parsed.map(closureEntryDir)
     }
 
-    function manifestOf(dir: string): Manifest {
+    function readManifest(dir: string): Manifest {
       const raw: unknown = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
       if (typeof raw !== 'object' || raw === null || !('name' in raw) || typeof raw.name !== 'string') {
         throw new Error(`invalid manifest at ${dir}`)
@@ -2300,7 +2300,7 @@ describe('cli', () => {
     }
 
     test('the CLI production closure carries harness-init but never an extension, the harness or an agent sdk', () => {
-      const manifests = prodClosureDirs().map(manifestOf)
+      const manifests = prodClosureDirs().map(readManifest)
       const names = manifests.map((manifest) => manifest.name)
       expect(names).toContain('@conciv/harness-init')
       expect(names.filter((name) => name.startsWith('@conciv/extension'))).toEqual([])
@@ -3111,9 +3111,9 @@ describe('init', () => {
       return JSON.parse(readFileSync(join(cwd, '.conciv', 'harnesses.json'), 'utf8'))
     }
 
-    const plansOf = (events: string[]) => events.filter((event) => event.startsWith('plan:'))
+    const filterPlans = (events: string[]) => events.filter((event) => event.startsWith('plan:'))
 
-    const settlesOf = (events: string[]) => events.filter((event) => event.startsWith('settle:'))
+    const filterSettles = (events: string[]) => events.filter((event) => event.startsWith('settle:'))
 
     function planLine(plan: string, title: string): string {
       const line = plan.split('\n').find((row) => row.includes(title))
@@ -3175,7 +3175,7 @@ describe('init', () => {
         expect(run.events).toContain('intro:conciv init')
         expect(run.events).toContain('spin-stop:Detected: vite (vite.config.ts) · pnpm · harnesses: claude')
         expect(run.events).not.toContain('selections')
-        const plans = plansOf(run.events)
+        const plans = filterPlans(run.events)
         expect(plans).toHaveLength(1)
         expect(plans[0]).toContain('Install @conciv/it')
         expect(plans[0]).toContain('package.json')
@@ -3206,7 +3206,7 @@ describe('init', () => {
         expect(run.events).toContain('step:Installing @conciv/it with pnpm…')
         expect(run.events).toContain('step:Wiring vite.config.ts…')
         expect(run.events).toContain('step:Installing the conciv claude plugin…')
-        expect(settlesOf(run.events)).toEqual([
+        expect(filterSettles(run.events)).toEqual([
           'settle:done:Installed @conciv/it',
           'settle:done:Wired vite.config.ts',
           'settle:done:Wrote the conciv section to AGENTS.md',
@@ -3302,7 +3302,7 @@ describe('init', () => {
         const firstPlanAt = run.events.findIndex((event) => event.startsWith('plan:'))
         expect(firstPlanAt).toBeGreaterThan(selectionsAt)
         expect(firstPlanAt).toBeLessThan(run.events.indexOf('confirmRun'))
-        const plans = plansOf(run.events)
+        const plans = filterPlans(run.events)
         expect(plans).toHaveLength(1)
         expect(plans[0]).not.toContain('Wire the vite config')
         expect(plans[0]).toContain('○ claude (not selected)')
@@ -3319,7 +3319,7 @@ describe('init', () => {
       it('reports already on the second run for every step the first run completed', async () => {
         const run = initFixture()
         const first = await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
-        const doneIds = stepsOf(first)
+        const doneIds = readSteps(first)
           .filter((entry) => entry.status === 'done')
           .map((entry) => entry.id)
         expect(doneIds.length).toBeGreaterThan(0)
@@ -3330,7 +3330,7 @@ describe('init', () => {
         }
         expect(run.added).toEqual(['@conciv/it'])
         expect(run.spawned).toHaveLength(4)
-        const plans = plansOf(run.events)
+        const plans = filterPlans(run.events)
         expect(plans[1]).toContain('already wired')
         expect(run.events).toContain('settle:already:Install @conciv/it — already wired')
         expect(run.events).toContain('success:5 already wired')
@@ -3380,7 +3380,7 @@ describe('init', () => {
         )
         expect(result.outcome).toBe('planned')
         expect(result.outcome === 'planned' ? result.plan : '').toContain('Install @conciv/it')
-        const plans = plansOf(run.events)
+        const plans = filterPlans(run.events)
         expect(plans).toHaveLength(1)
         expect(plans[0]).toContain('Install @conciv/it')
         expect(run.events).toContain('outro:Dry run — nothing changed.')
@@ -3412,7 +3412,7 @@ describe('init', () => {
         })
         expect(run.events).toContain('error:Non-interactive terminal — re-run with --yes or --dry-run')
         expect(run.events.some((event) => event.startsWith('failure:'))).toBe(true)
-        expect(plansOf(run.events)).toEqual([])
+        expect(filterPlans(run.events)).toEqual([])
         expect(run.added).toEqual([])
         expect(run.spawned).toEqual([])
       })
@@ -3499,7 +3499,7 @@ describe('init', () => {
         const run = initFixture({configFixture: null, vite: false})
         const result = await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
         expect(run.events).toContain('spin-stop:Detected: unknown · pnpm · harnesses: claude')
-        expect(plansOf(run.events)[0]).toContain('manual — prints instructions')
+        expect(filterPlans(run.events)[0]).toContain('manual — prints instructions')
         expect(statusById(result).framework).toBe('manual')
         expect(run.events.some((event) => event.startsWith('note:Wire conciv with Vite:'))).toBe(true)
       })
@@ -3527,7 +3527,7 @@ describe('init', () => {
         const run = initFixture({claude: false})
         const result = await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
         expect(run.events).toContain('spin-stop:Detected: vite (vite.config.ts) · pnpm · harnesses: none found')
-        expect(plansOf(run.events)[0]).toContain('Harnesses: none found')
+        expect(filterPlans(run.events)[0]).toContain('Harnesses: none found')
         expect(statusById(result).agents).toBe('done')
         expect(statusById(result).claude).toBe('skipped')
         expect(readFileSync(join(run.cwd, 'AGENTS.md'), 'utf8')).toContain('conciv tools')
@@ -3599,7 +3599,7 @@ describe('init', () => {
         )
         expect(result).toEqual({outcome: 'cancelled', reason: 'cancelled — nothing changed'})
         expect(run.events).toContain('cancel:Nothing changed.')
-        expect(plansOf(run.events)).toHaveLength(1)
+        expect(filterPlans(run.events)).toHaveLength(1)
         expect(existsSync(join(run.cwd, '.conciv'))).toBe(false)
         expect(run.added).toEqual([])
         expect(run.spawned).toEqual([])

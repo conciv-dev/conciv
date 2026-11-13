@@ -184,14 +184,14 @@ function ttyApp(upgradeWebSocket: UpgradeWebSocket) {
     upgradeWebSocket((c) => {
       const {tty} = c.var.terminal
       const url = new URL(c.req.url)
-      const sessionOf = () => {
+      const findSession = () => {
         const parsed = SessionId.safeParse(url.searchParams.get('session'))
         return parsed.success ? tty.get(parsed.data) : undefined
       }
       let detach: (() => void) | null = null
       return {
         onOpen(_event, ws) {
-          const session = sessionOf()
+          const session = findSession()
           if (!session) {
             ws.close(4404, 'no terminal for session')
             return
@@ -206,7 +206,7 @@ function ttyApp(upgradeWebSocket: UpgradeWebSocket) {
           detach = session.attach(sink)
         },
         onMessage(event) {
-          const session = sessionOf()
+          const session = findSession()
           if (!session) return
           const text = typeof event.data === 'string' ? event.data : ''
           if (text && !applyControl(session, parseControl(text), text)) session.write(text)

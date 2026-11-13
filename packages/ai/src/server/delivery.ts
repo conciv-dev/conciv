@@ -60,14 +60,14 @@ function socketLike(sink: SocketSink, handlers: {message: SocketHandler[]; close
 
 async function* noStream(): AsyncGenerator<ChatEvent> {}
 
-export function terminalPhaseOf(chunk: ChatEvent): RunPhase | null {
+export function readTerminalPhase(chunk: ChatEvent): RunPhase | null {
   if (chunk.type === EventType.RUN_ERROR) return 'failed'
   if (chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') return 'completed'
   return null
 }
 
 export function endsTheRun(chunk: ChatEvent): boolean {
-  if (terminalPhaseOf(chunk) !== null) return true
+  if (readTerminalPhase(chunk) !== null) return true
   const lifecycle = runLifecycleEvent.parse(chunk)
   return lifecycle !== null && isRunPhaseTerminal(lifecycle.phase)
 }

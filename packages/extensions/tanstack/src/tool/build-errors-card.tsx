@@ -15,7 +15,7 @@ const AppErrorSchema = z
 
 const AppErrorsSchema = z.array(AppErrorSchema)
 
-function locationOf(source: {file: string; line: number} | null | undefined): string | null {
+function formatLocation(source: {file: string; line: number} | null | undefined): string | null {
   if (!source) return null
   return `${source.file}:${source.line}`
 }
@@ -23,7 +23,7 @@ function locationOf(source: {file: string; line: number} | null | undefined): st
 function parseErrors(result: ToolCardProps['result']): BuildError[] | null {
   const parsed = AppErrorsSchema.safeParse(parseResultPayload(result))
   if (!parsed.success) return null
-  return parsed.data.map((error) => ({message: error.message, where: locationOf(error.source)}))
+  return parsed.data.map((error) => ({message: error.message, where: formatLocation(error.source)}))
 }
 
 export function BuildErrorsCard(props: ToolCardProps): JSX.Element {

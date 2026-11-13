@@ -29,7 +29,7 @@ export const toolsRoute = route(
 
 function catalogRoutes(catalog: readonly ToolCommandSignature[]): AnyRoute[] {
   const [grouped, single] = partition(catalog, (signature) => signature.name.includes('_'))
-  const groups = Object.entries(groupBy(grouped, groupOf)).map(([group, signatures]) =>
+  const groups = Object.entries(groupBy(grouped, readGroup)).map(([group, signatures]) =>
     toolGroupRoute({
       name: group,
       description: `the ${group} tools the running dev server serves; run --help for every capability`,
@@ -43,7 +43,7 @@ function catalogRoutes(catalog: readonly ToolCommandSignature[]): AnyRoute[] {
 
 function reactView(grouped: readonly ToolCommandSignature[]): AnyRoute[] {
   const signatures = grouped.filter(
-    (signature) => groupOf(signature) === PAGE_GROUP && signature.category === REACT_CATEGORY,
+    (signature) => readGroup(signature) === PAGE_GROUP && signature.category === REACT_CATEGORY,
   )
   if (signatures.length === 0) return []
   return [
@@ -65,7 +65,7 @@ function singleCommand(signature: ToolCommandSignature): AnyRoute {
   })
 }
 
-function groupOf(signature: ToolCommandSignature): string {
+function readGroup(signature: ToolCommandSignature): string {
   return signature.name.slice(0, signature.name.indexOf('_'))
 }
 

@@ -1,0 +1,17 @@
+export function approvalAskOf(event: {ask: string}): string {
+  return event.ask
+}
+
+const modelOf = (row: {model: string}) => row.model
+
+export type ConfigOf<Schema> = {schema: Schema}
+
+interface Session {
+  harnessOf: (threadId: string) => string
+}
+
+export function readHarness(session: Session, parentOf: string): string {
+  return session.harnessOf(parentOf) + modelOf({model: 'm'})
+}
+
+export {modelOf}

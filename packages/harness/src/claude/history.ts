@@ -122,7 +122,7 @@ function partsFrom(content: unknown): ChatPart[] {
   return content.flatMap(blockParts)
 }
 
-function textOf(parts: ChatPart[]): string {
+function readText(parts: ChatPart[]): string {
   return parts
     .filter((p) => p.type === 'text')
     .map((p) => ('content' in p ? p.content : ''))
@@ -130,7 +130,7 @@ function textOf(parts: ChatPart[]): string {
 }
 
 function isInternal(parts: ChatPart[]): boolean {
-  const text = textOf(parts)
+  const text = readText(parts)
   return INTERNAL_MARKERS.some((m) => text.includes(m))
 }
 
@@ -151,7 +151,7 @@ function isFromMachinery(record: TranscriptRecord): boolean {
 function humanMessageParts(record: TranscriptRecord, parts: ChatPart[]): ChatPart[] | null {
   if (isFromMachinery(record)) return null
   const spoken = parts.filter((p) => p.type !== 'tool-result')
-  if (spoken.length === 0 || isInternal(spoken) || isSyntheticText(textOf(spoken))) return null
+  if (spoken.length === 0 || isInternal(spoken) || isSyntheticText(readText(spoken))) return null
   return spoken
 }
 

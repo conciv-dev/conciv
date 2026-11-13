@@ -143,7 +143,7 @@ export type ExtensionSettingsSchema = z.ZodObject<Record<string, z.ZodDefault>>
 
 export type NoSettings = z.ZodObject<Record<never, never>>
 
-export type SettingsOf<Schema extends ExtensionSettingsSchema> = z.output<Schema>
+export type InferSettings<Schema extends ExtensionSettingsSchema> = z.output<Schema>
 
 export type SettingsReader<Value extends object> = {
   all: () => Promise<Value>
@@ -185,7 +185,7 @@ export type ServerResult<Context> = {
   dispose?: () => void | Promise<void>
 }
 
-export type ConfigOf<Schema> = [Schema] extends [z.ZodNever] ? Record<never, never> : z.output<Schema>
+export type InferConfig<Schema> = [Schema] extends [z.ZodNever] ? Record<never, never> : z.output<Schema>
 
 export type ExtensionPromptContext = {cwd: string}
 
@@ -212,6 +212,6 @@ export type ExtensionAttachment = {mime: string; __card?: Component<AttachmentCa
 
 export type AttachmentCardEntry = {mime: string; render: Component<AttachmentCardProps>}
 
-export type CtxOf<Tool> = Tool extends {__ctx?: infer Ctx} ? Ctx : unknown
+export type InferToolContext<Tool> = Tool extends {__ctx?: infer Ctx} ? Ctx : unknown
 
-export type RequiredContext<Tools extends readonly unknown[]> = UnionToIntersection<CtxOf<Tools[number]>>
+export type RequiredContext<Tools extends readonly unknown[]> = UnionToIntersection<InferToolContext<Tools[number]>>

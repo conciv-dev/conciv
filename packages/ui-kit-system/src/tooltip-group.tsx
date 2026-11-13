@@ -32,7 +32,7 @@ import {
   type TooltipSide,
 } from './tooltip-motion.js'
 import {createFrameLoop, prefersReducedMotion, type Spring} from './motion.js'
-import {activeElementIn, isHTMLElement, isShadowRoot, viewOf} from './realm.js'
+import {activeElementIn, isHTMLElement, isShadowRoot, resolveView} from './realm.js'
 
 export type TooltipGroupMember = {
   id: string
@@ -146,9 +146,9 @@ function liveGeometry(options: {
   settled: TooltipGeometry
 }): TooltipGeometry {
   if (options.label.getAnimations().length === 0) return options.settled
-  const style = viewOf(options.label).getComputedStyle(options.label)
+  const style = resolveView(options.label).getComputedStyle(options.label)
   const [x = '0', y = '0'] = style.translate.split(' ')
-  const arrowStyle = options.arrow ? viewOf(options.arrow).getComputedStyle(options.arrow) : undefined
+  const arrowStyle = options.arrow ? resolveView(options.arrow).getComputedStyle(options.arrow) : undefined
   const arrowAt = alongX(options.settled.side) ? arrowStyle?.left : arrowStyle?.top
   return {
     ...options.settled,
@@ -171,7 +171,7 @@ function arrowFrame(geometry: TooltipGeometry): Keyframe {
 
 type Origin = {left: number; top: number}
 
-function originOf(probe: HTMLElement | undefined): Origin {
+function measureOrigin(probe: HTMLElement | undefined): Origin {
   const rect = probe?.getBoundingClientRect()
   return {left: rect?.left ?? 0, top: rect?.top ?? 0}
 }
@@ -279,7 +279,7 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
   const revive = (): void => {
     const element = box()
     if (!element || element.getAnimations().length === 0) return
-    const opacity = viewOf(element).getComputedStyle(element).opacity
+    const opacity = resolveView(element).getComputedStyle(element).opacity
     cancelAnimations(element)
     if (prefersReducedMotion()) return
     element.animate([{opacity}, {opacity: '1'}], {duration: REVIVE_DURATION, easing: EASE_OUT})
@@ -356,9 +356,9 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
       gap: options.member.gap(),
       width: options.width,
       height: options.height,
-      viewport: {width: viewOf(options.trigger).innerWidth, height: viewOf(options.trigger).innerHeight},
+      viewport: {width: resolveView(options.trigger).innerWidth, height: resolveView(options.trigger).innerHeight},
     })
-    const origin = originOf(probe())
+    const origin = measureOrigin(probe())
     return {...viewportGeometry, x: viewportGeometry.x - origin.left, y: viewportGeometry.y - origin.top}
   }
 
@@ -385,7 +385,7 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
     const boxElement = box()
     if (!labelElement?.isConnected || !boxElement) return resetLean(boxElement)
     const side = state.geometry.side
-    const [x = '0', y = '0'] = viewOf(labelElement).getComputedStyle(labelElement).translate.split(' ')
+    const [x = '0', y = '0'] = resolveView(labelElement).getComputedStyle(labelElement).translate.split(' ')
     const position = pixels(alongX(side) ? x : y)
     const gliding = labelElement.getAnimations().length > 0
     const speed = gliding && lean.position !== undefined ? (position - lean.position) / seconds : 0
@@ -482,7 +482,7 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
   }
 
   function Label(): JSX.Element {
-    const view = viewOf(state.active?.trigger())
+    const view = resolveView(state.active?.trigger())
     makeEventListener(
       view,
       'keydown',
@@ -556,7 +556,7 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
         <Label />
       </Show>
       <Show when={config.fuse && !prefersReducedMotion() && state.arming} keyed>
-        {(arming) => <Fuse arming={arming} origin={originOf(probe())} />}
+        {(arming) => <Fuse arming={arming} origin={measureOrigin(probe())} />}
       </Show>
       <Show when={cooling()}>
         <Timer

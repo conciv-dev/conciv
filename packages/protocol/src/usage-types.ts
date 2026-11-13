@@ -41,7 +41,7 @@ const ProviderUsageSchema = z
   })
   .catch({modelUsage: {}})
 
-function promptTokensOf(entry: ModelUsageEntry): number {
+function countPromptTokens(entry: ModelUsageEntry): number {
   return entry.inputTokens + entry.cacheReadInputTokens + entry.cacheCreationInputTokens
 }
 
@@ -49,7 +49,7 @@ function modelUsageWindow(modelUsage: Record<string, ModelUsageEntry | undefined
   const own = model === undefined ? undefined : modelUsage[model]
   if (own !== undefined) return own.contextWindow
   const entries = Object.values(modelUsage).filter((entry) => entry !== undefined)
-  return entries.toSorted((left, right) => promptTokensOf(right) - promptTokensOf(left))[0]?.contextWindow
+  return entries.toSorted((left, right) => countPromptTokens(right) - countPromptTokens(left))[0]?.contextWindow
 }
 
 export function tokenUsageToSnapshot(usage: TokenUsage, sessionModel?: string): UsageSnapshot {

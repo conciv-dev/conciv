@@ -12,7 +12,7 @@ Source of `@conciv/db`: the drizzle SQLite schema, `openDb` (opens `conciv.db` o
 - `chat-tables.ts` tables: `chatRuns` (`chat_runs`, PK `run_id`; indexes `chat_runs_status_detached`, `chat_runs_thread_started`), `chatMessages` (`chat_messages`, one row per message: PK `thread_id, position`, plus `message_id`, `role`, `message_json`; index `thread_id, message_id`), `chatMetadata` (`chat_metadata`, composite PK namespace + key). `@conciv/ai/server` re-exports them for `drizzleChatStores`.
 - `capture-queries.ts:writeToolCapture`, `capture-queries.ts:sessionCaptures`, `capture-queries.ts:deleteSessionCaptures`.
 - `page-change-queries.ts:appendPageChange`, `page-change-queries.ts:pageChangesFor`, `page-change-queries.ts:clearPageChanges`, type `PageChangeEntry`.
-- `run-queries.ts:modelOf`, `run-queries.ts:runMessagesFor`.
+- `run-queries.ts:readModel`, `run-queries.ts:runMessagesFor`.
 - `run-migrations.ts:importLegacyRuns`, `run-migrations.ts:markRunningRunsDetached`.
 - `chat-thread-import.ts:importLegacyThreads`, `chat-thread-import.ts:TRANSCRIPT_NAMESPACE` (`conciv.transcript`), `chat-thread-import.ts:anchorKey`, `chat-thread-import.ts:pendingFromKey`.
 - `home-schema.ts` tables (home db): `engines` (`id`, `pid`, `root`, `apiBase`, `deletedAt`), `hubConnections` (`hub_connections`: `harness`, `connectedAt`), `hubRevocations` (`hub_revocations`: autoincrement `generation`, one row per disconnect), `hubOperations` (`hub_operations`: `harness`, `pid`, `startedAt`, the lease on a harness's CLI config).

@@ -43,8 +43,8 @@ type GroupProps = {
 
 export function Group(props: GroupProps): JSX.Element {
   const titleId = createUniqueId()
-  const noteOf = useContext(SettingNote)
-  const note = () => props.keys?.map((key) => noteOf(key)).find((text) => text !== undefined)
+  const readNote = useContext(SettingNote)
+  const note = () => props.keys?.map((key) => readNote(key)).find((text) => text !== undefined)
   return (
     <section class={`${SECTION} ${props.danger ? SECTION_DANGER : ''}`} aria-labelledby={titleId}>
       <div class={SECTION_HEAD}>
@@ -110,7 +110,7 @@ type SettingRowProps = {
 export function SettingRow(props: SettingRowProps): JSX.Element {
   const [local] = splitProps(props, ['label', 'hint', 'lock', 'layout', 'children'])
   const field = useFieldContext<unknown>()
-  const noteOf = useContext(SettingNote)
+  const readNote = useContext(SettingNote)
   const error = () => {
     const first = field().state.meta.errors.at(0)
     return first === undefined || first === null ? undefined : String(first)
@@ -121,7 +121,7 @@ export function SettingRow(props: SettingRowProps): JSX.Element {
       invalid={error() !== undefined}
       readOnly={Boolean(local.lock)}
     >
-      <RowText label={local.label} hint={local.hint} lock={local.lock} note={noteOf(field().name)} error={error()} />
+      <RowText label={local.label} hint={local.hint} lock={local.lock} note={readNote(field().name)} error={error()} />
       {local.children}
     </Field.Root>
   )

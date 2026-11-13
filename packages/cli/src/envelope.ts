@@ -1,5 +1,5 @@
 import {description, name, toggle} from '@bomb.sh/router'
-import {failureOf, type EnvelopeError} from './failure.js'
+import {readFailure, type EnvelopeError} from './failure.js'
 
 export type CliOutcome = {report: 'json'; data: unknown} | {report: 'none'; code: number}
 
@@ -17,6 +17,6 @@ export async function writeOutcome(pending: Promise<CliOutcome>): Promise<number
     process.stdout.write(`${JSON.stringify({ok: true, data: outcome.data})}\n`)
     return 0
   } catch (error) {
-    return writeFailure(failureOf(error))
+    return writeFailure(readFailure(error))
   }
 }

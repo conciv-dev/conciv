@@ -377,7 +377,7 @@ function GroupBody(props: {
   )
 }
 
-function toolEntriesOf(tools: PartsComponents['tools']): ReadonlyArray<ToolCardEntry> | undefined {
+function readToolEntries(tools: PartsComponents['tools']): ReadonlyArray<ToolCardEntry> | undefined {
   if (!tools || 'Override' in tools) return undefined
   return tools.entries
 }
@@ -394,7 +394,8 @@ function GroupedParts(props: {components?: GroupedComponents; grouping?: Groupin
   const ctx = useToolCtx()
   const components = (): GroupedComponents => props.components ?? {}
   const grouper = () => props.grouping?.grouper ?? defaultGrouper
-  const groupContext = (): GroupByContext => props.grouping?.context ?? {toolEntries: toolEntriesOf(components().tools)}
+  const groupContext = (): GroupByContext =>
+    props.grouping?.context ?? {toolEntries: readToolEntries(components().tools)}
   const nodes = createMemo(() => groupParts(message.message().parts, grouper(), groupContext()))
   const groupRenders = (group: GroupNodeGroup): boolean =>
     group.indices.some((index) => partRenders(message.message().parts[index], components()))

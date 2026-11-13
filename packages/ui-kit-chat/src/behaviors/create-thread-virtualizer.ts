@@ -420,11 +420,11 @@ function wheelReachesEnd(event: WheelEvent, thread: HTMLElement): boolean {
 
 function wheelPixels(event: WheelEvent, thread: HTMLElement): number {
   if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) return event.deltaY * thread.clientHeight
-  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) return event.deltaY * lineHeightOf(thread)
+  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) return event.deltaY * measureLineHeight(thread)
   return event.deltaY
 }
 
-function lineHeightOf(element: HTMLElement): number {
+function measureLineHeight(element: HTMLElement): number {
   const style = getComputedStyle(element)
   return Number.parseFloat(style.lineHeight) || Number.parseFloat(style.fontSize)
 }

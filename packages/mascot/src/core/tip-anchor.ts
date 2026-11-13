@@ -87,12 +87,12 @@ export function antennaTipFromLayout(layout: AntennaLayout, transform: LayerTran
   }
 }
 
-export function antennaTipOf(antenna: HTMLElement, layout: AntennaLayout): EmitterAnchor {
+export function computeAntennaTip(antenna: HTMLElement, layout: AntennaLayout): EmitterAnchor {
   return antennaTipFromLayout(layout, readLayerTransform(antenna, layout.width, layout.height))
 }
 
 export function antennaTipInRoot(antenna: HTMLElement, skin: MascotSkin): EmitterAnchor {
-  return antennaTipOf(antenna, measureAntennaLayout(antenna, skin))
+  return computeAntennaTip(antenna, measureAntennaLayout(antenna, skin))
 }
 
 export function tipWithinHost(tip: EmitterAnchor, host: HTMLElement): EmitterAnchor {

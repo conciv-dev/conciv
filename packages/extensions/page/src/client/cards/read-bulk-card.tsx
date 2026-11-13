@@ -35,17 +35,17 @@ function matchLabel(count: number): string {
   return `${COUNT_FORMAT.format(count)} ${COUNT_PLURAL.select(count) === 'one' ? 'match' : 'matches'}`
 }
 
-function htmlOf(payload: unknown): string | undefined {
+function readHtml(payload: unknown): string | undefined {
   const parsed = HtmlPayload.safeParse(payload)
   return parsed.success ? parsed.data.html : undefined
 }
 
-function nodesOf(payload: unknown): readonly A11yNode[] | undefined {
+function readNodes(payload: unknown): readonly A11yNode[] | undefined {
   const parsed = NodesPayload.safeParse(payload)
   return parsed.success ? parsed.data.nodes : undefined
 }
 
-function matchesOf(payload: unknown): {count: number; elements: readonly unknown[]} | undefined {
+function readMatches(payload: unknown): {count: number; elements: readonly unknown[]} | undefined {
   const parsed = MatchesPayload.safeParse(payload)
   return parsed.success ? parsed.data : undefined
 }
@@ -53,9 +53,9 @@ function matchesOf(payload: unknown): {count: number; elements: readonly unknown
 export function ReadBulkCard(props: ToolCardProps): JSX.Element {
   const {meta, title} = cardHeader(props)
   const payload = () => cardPayload(props.result)
-  const markup = () => htmlOf(payload())
-  const nodes = () => nodesOf(payload())
-  const matches = () => matchesOf(payload())
+  const markup = () => readHtml(payload())
+  const nodes = () => readNodes(payload())
+  const matches = () => readMatches(payload())
   const errorMessage = () => cardErrorMessage(props.result)
   return (
     <CardShell

@@ -200,7 +200,7 @@ export function ThreadPopover(): JSX.Element {
   const [composerEl, setComposerEl] = createSignal<HTMLElement>()
   return (
     <Popover.Root
-      open={!!model.rootOf(model.openCid() ?? '')}
+      open={!!model.findRoot(model.openCid() ?? '')}
       onOpenChange={(detail) => detail.open || model.closeThread()}
       modal={false}
       positioning={{placement: 'right-start', gutter: 8, getAnchorRect: model.anchorRect}}
@@ -243,14 +243,16 @@ export function ThreadPopover(): JSX.Element {
           <ScrollArea.Root class="flex-1 min-h-0">
             <ScrollArea.Viewport class="size-full [outline:none]">
               <ScrollArea.Content>
-                <For each={model.threadOf(model.openCid() ?? '')}>{(comment) => <CommentRow comment={comment} />}</For>
+                <For each={model.collectThread(model.openCid() ?? '')}>
+                  {(comment) => <CommentRow comment={comment} />}
+                </For>
               </ScrollArea.Content>
             </ScrollArea.Viewport>
             <ScrollArea.Scrollbar>
               <ScrollArea.Thumb />
             </ScrollArea.Scrollbar>
           </ScrollArea.Root>
-          <Show when={model.rootOf(model.openCid() ?? '')}>
+          <Show when={model.findRoot(model.openCid() ?? '')}>
             <ThreadComposer onReady={(api) => setComposerEl(api.element)} />
           </Show>
         </Popover.Content>

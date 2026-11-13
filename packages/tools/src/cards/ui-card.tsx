@@ -288,10 +288,10 @@ function SelectField(props: {
 function Form(props: {spec: UiInput; disabled: boolean; onAnswer: (value: UiAnswerValue) => void}): JSX.Element {
   const fields = (): UiFormField[] => props.spec.fields ?? []
   const [values, setValues] = createStore<Record<string, string>>({})
-  const valueOf = (field: UiFormField): string => values[field.name] ?? defaultValue(field)
+  const readFieldValue = (field: UiFormField): string => values[field.name] ?? defaultValue(field)
   const submit = (event: Event) => {
     event.preventDefault()
-    props.onAnswer(Object.fromEntries(fields().map((field) => [field.name, valueOf(field)])))
+    props.onAnswer(Object.fromEntries(fields().map((field) => [field.name, readFieldValue(field)])))
   }
   return (
     <form class="flex flex-col gap-2.5" onSubmit={submit}>
@@ -303,14 +303,14 @@ function Form(props: {spec: UiInput; disabled: boolean; onAnswer: (value: UiAnsw
               <TextField
                 label={field.label}
                 disabled={props.disabled}
-                value={valueOf(field)}
+                value={readFieldValue(field)}
                 onInput={(event) => setValues(field.name, event.currentTarget.value)}
               />
             }
           >
             <SelectField
               field={field}
-              value={valueOf(field)}
+              value={readFieldValue(field)}
               disabled={props.disabled}
               onChange={(value) => setValues(field.name, value)}
             />

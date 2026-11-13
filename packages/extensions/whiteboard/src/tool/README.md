@@ -7,7 +7,7 @@ client.ts wraps each canvas, comment, element and anchor tool definition with de
 ## Interface
 
 - `whiteboardToolClients` (`client.ts`): 22 client tools: canvas_* defs rendered with canvasOpCard, comment/pin defs with commentOpCard, elementReferenceDef with elementReferenceCard, anchorResolveDef with anchorResolveCard
-- `FailureDetailSchema` / `failureOf` (`card-util.tsx`): zod schema {error, reason?} and a parser returning the parsed detail or null
+- `FailureDetailSchema` / `parseFailure` (`card-util.tsx`): zod schema {error, reason?} and a parser returning the parsed detail or null
 - `FieldRow` / `FieldRows` / `Field` / `FieldTone` (`card-util.tsx`): label/value row components with default or danger tone
 - `OpTag` (`card-util.tsx`): uppercase operation label component
 - `MonoLine` (`card-util.tsx`): single truncated monospace text line component

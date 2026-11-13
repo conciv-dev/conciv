@@ -43,13 +43,13 @@ function parentAcrossShadow(element: Element): Element | null {
   return root instanceof ShadowRoot ? root.host : null
 }
 
-function ancestorsOf(element: Element): Element[] {
+function collectAncestors(element: Element): Element[] {
   const parent = parentAcrossShadow(element)
-  return parent ? [parent, ...ancestorsOf(parent)] : []
+  return parent ? [parent, ...collectAncestors(parent)] : []
 }
 
 function themeRoots(mountHost: Element | undefined): Element[] {
-  if (mountHost) return ancestorsOf(mountHost)
+  if (mountHost) return collectAncestors(mountHost)
   return [document.body, document.documentElement].filter((element): element is HTMLElement => element !== null)
 }
 

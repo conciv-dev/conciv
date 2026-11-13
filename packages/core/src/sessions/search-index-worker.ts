@@ -131,13 +131,13 @@ const router: SearchIndexRouter = {
     await upsertMultiple(
       index,
       input.listings.map((listing) => {
-        const {body, read, readAt, readUpdatedAt} = currentOf(listing.id) ?? NOTHING_READ
+        const {body, read, readAt, readUpdatedAt} = readCurrent(listing.id) ?? NOTHING_READ
         return IndexedSchema.parse({...listing, body, read, readAt, readUpdatedAt})
       }),
     )
   }),
   read: os.input(ReadInputSchema).handler(async ({input}) => {
-    const current = currentOf(input.listing.id) ?? {...input.listing, ...NOTHING_READ}
+    const current = readCurrent(input.listing.id) ?? {...input.listing, ...NOTHING_READ}
     await upsert(
       index,
       IndexedSchema.parse({
@@ -151,7 +151,7 @@ const router: SearchIndexRouter = {
     )
   }),
   rename: os.input(RenameInputSchema).handler(async ({input}) => {
-    const current = currentOf(input.id)
+    const current = readCurrent(input.id)
     if (current === undefined) return
     await upsert(index, {...current, title: input.title})
   }),
@@ -162,7 +162,7 @@ const router: SearchIndexRouter = {
         properties: ['title', 'body'],
         tolerance: input.tolerance,
         threshold: 0,
-        where: whereOf(input.cwd, updatedAt),
+        where: buildWhere(input.cwd, updatedAt),
         sortBy: {property: 'updatedAt', order: 'DESC'},
         limit,
       })
@@ -183,7 +183,7 @@ const router: SearchIndexRouter = {
         title: document.title,
         updatedAt: document.updatedAt,
         sizeBytes: document.sizeBytes,
-        ...excerptOf(document, queryTokens, input.tolerance),
+        ...buildExcerpt(document, queryTokens, input.tolerance),
       }
     })
   }),
@@ -194,16 +194,16 @@ const handler = new RPCHandler(router)
 handler.upgrade(port)
 port.start()
 
-function whereOf(cwd: string | null, updatedAt: {eq: number} | {lte: number} | undefined) {
+function buildWhere(cwd: string | null, updatedAt: {eq: number} | {lte: number} | undefined) {
   return {...(cwd === null ? {} : {cwd: {eq: cwd}}), ...(updatedAt === undefined ? {} : {updatedAt})}
 }
 
-function currentOf(id: string): z.infer<typeof IndexedSchema> | undefined {
+function readCurrent(id: string): z.infer<typeof IndexedSchema> | undefined {
   const found = getByID(index, id)
   return found === undefined ? undefined : IndexedSchema.parse({...found, id})
 }
 
-function excerptOf(
+function buildExcerpt(
   document: {title: string; body: string},
   queryTokens: string[],
   tolerance: number,

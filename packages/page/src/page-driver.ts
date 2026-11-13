@@ -16,7 +16,7 @@ export type PageDriver = {
   dispose: () => void
 }
 
-function pageErrorOf(error: unknown): PageError {
+function normalizePageError(error: unknown): PageError {
   if (!isPageFailure(error)) {
     return {code: 'handler-error', message: error instanceof Error ? error.message : String(error)}
   }
@@ -39,7 +39,7 @@ export function makeDomPageDriver(
       if (answer.capture === undefined) return {ok: true, result: answer.result}
       return {ok: true, result: answer.result, capture: answer.capture}
     } catch (error) {
-      return {ok: false, error: pageErrorOf(error)}
+      return {ok: false, error: normalizePageError(error)}
     }
   }
 

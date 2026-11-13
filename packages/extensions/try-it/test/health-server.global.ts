@@ -15,13 +15,13 @@ const TOKEN_PREFIX = '/t/'
 
 type Ledger = {armed: Set<string>; probes: Map<string, number>}
 
-function tokenOf(url: string, prefix: string, suffix: string): string | null {
+function readToken(url: string, prefix: string, suffix: string): string | null {
   if (!url.startsWith(prefix) || !url.endsWith(suffix)) return null
   return url.slice(prefix.length, url.length - suffix.length)
 }
 
 function arm(url: string, ledger: Ledger, response: ServerResponse): boolean {
-  const token = tokenOf(url, ARM_PREFIX, '')
+  const token = readToken(url, ARM_PREFIX, '')
   if (token === null) return false
   ledger.armed.add(token)
   response.writeHead(204)
@@ -30,7 +30,7 @@ function arm(url: string, ledger: Ledger, response: ServerResponse): boolean {
 }
 
 function report(url: string, ledger: Ledger, response: ServerResponse): boolean {
-  const token = tokenOf(url, PROBES_PREFIX, '')
+  const token = readToken(url, PROBES_PREFIX, '')
   if (token === null) return false
   response.writeHead(200, {'content-type': 'application/json'})
   response.end(JSON.stringify({probes: ledger.probes.get(token) ?? 0}))
@@ -38,7 +38,7 @@ function report(url: string, ledger: Ledger, response: ServerResponse): boolean 
 }
 
 function health(url: string, ledger: Ledger, response: ServerResponse): boolean {
-  const token = tokenOf(url, TOKEN_PREFIX, HEALTH_SUFFIX)
+  const token = readToken(url, TOKEN_PREFIX, HEALTH_SUFFIX)
   if (token === null) return false
   ledger.probes.set(token, (ledger.probes.get(token) ?? 0) + 1)
   if (!ledger.armed.has(token)) return false

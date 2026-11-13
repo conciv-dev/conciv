@@ -2,7 +2,7 @@ import {mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {expect, test} from '@playwright/test'
-import {assertLockNotDrifted, closureOf, workspacePackages, type PackageInfo} from '@conciv/vitest-config/pack'
+import {assertLockNotDrifted, collectClosure, workspacePackages, type PackageInfo} from '@conciv/vitest-config/pack'
 
 test('the pack closure follows a workspace dependency whose name carries no scope', () => {
   const packages = new Map<string, PackageInfo>([
@@ -11,7 +11,7 @@ test('the pack closure follows a workspace dependency whose name carries no scop
     ['@conciv/core', {dir: '/repo/packages/core', version: '1.0.0', deps: {}}],
     ['@conciv/unrelated', {dir: '/repo/packages/unrelated', version: '1.0.0', deps: {}}],
   ])
-  expect(closureOf(packages, ['@conciv/it'])).toEqual(['@conciv/core', '@conciv/it', 'conciv'])
+  expect(collectClosure(packages, ['@conciv/it'])).toEqual(['@conciv/core', '@conciv/it', 'conciv'])
 })
 
 test('workspace packages come from pnpm workspace state, not from a scanned directory', () => {

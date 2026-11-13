@@ -8,7 +8,7 @@ export function handler(run: Handler) {
   return <R extends AnyRoute>(route: R): R & {run: Handler} => ({...route, run})
 }
 
-export function handlerOf(definition: AnyRoute): Handler | null {
+export function readHandler(definition: AnyRoute): Handler | null {
   const run: unknown = Reflect.get(definition, 'run')
   return isHandler(run) ? run : null
 }

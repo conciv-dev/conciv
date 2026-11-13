@@ -48,7 +48,7 @@ export function rpcHandlerOptions(): StandardRPCHandlerOptions<RpcContext> {
           context: {
             ...options.context,
             headers: {...options.context.headers, ...options.request.headers},
-            clientVersion: clientVersionOf(options.request.headers),
+            clientVersion: readClientVersion(options.request.headers),
           },
         }),
     ],
@@ -63,7 +63,7 @@ export function rpcHandlerOptions(): StandardRPCHandlerOptions<RpcContext> {
   }
 }
 
-function clientVersionOf(headers: RpcHeaders): string | undefined {
+function readClientVersion(headers: RpcHeaders): string | undefined {
   const value = headers[CONCIV_VERSION_HEADER]
   return ClientVersionSchema.parse(Array.isArray(value) ? value[0] : value)
 }

@@ -144,7 +144,7 @@ describe('call tool', () => {
     })
   }
 
-  async function failureOf(apiBase: string): Promise<unknown> {
+  async function captureFailure(apiBase: string): Promise<unknown> {
     const runTypescript = makeRunTypescript(apiBase, 'session', {deadlineMs: 150, label: 'stage_probe'})
     return runTypescript('return 1').then(
       () => new Error('runTypescript resolved instead of failing'),
@@ -155,7 +155,7 @@ describe('call tool', () => {
   it('a tools/list failure past the deadline is not reported as the execute stage', async () => {
     const server = await startMcpServerHanging('tools/list', 400)
     try {
-      const failure = await failureOf(server.apiBase)
+      const failure = await captureFailure(server.apiBase)
       expect(failure).toBeInstanceOf(Error)
       expect(String(failure)).not.toContain('waiting on the MCP execute')
       expect(String(failure)).toContain(hangMessage('tools/list'))
@@ -167,7 +167,7 @@ describe('call tool', () => {
   it('a tools/list that succeeds past the deadline is not reported as the execute stage', async () => {
     const server = await startMcpServerHanging('tools/list', 400, 'success')
     try {
-      const failure = await failureOf(server.apiBase)
+      const failure = await captureFailure(server.apiBase)
       expect(failure).toBeInstanceOf(Error)
       expect(String(failure)).not.toContain('waiting on the MCP execute')
       expect(String(failure)).toContain('tools/list')
@@ -179,7 +179,7 @@ describe('call tool', () => {
   it('an execute that outlives the deadline is reported as the execute stage', async () => {
     const server = await startMcpServerHanging('tools/call', 2_000)
     try {
-      const failure = await failureOf(server.apiBase)
+      const failure = await captureFailure(server.apiBase)
       expect(String(failure)).toContain('runTypescript(stage_probe) exceeded 150ms waiting on the MCP execute')
     } finally {
       await server.stop()

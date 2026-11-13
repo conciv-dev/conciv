@@ -21,13 +21,13 @@ import type {
   TranscriptTailOptions,
 } from '@conciv/protocol/harness-types'
 import {resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
-import {clearPageChanges, deleteSessionCaptures, drafts, markers, modelOf, sessions} from '@conciv/db'
+import {clearPageChanges, deleteSessionCaptures, drafts, markers, readModel, sessions} from '@conciv/db'
 import {
   createRow,
   ensureRow,
   listSessionMetas,
   openNativeRow,
-  sessionMetaOf,
+  buildSessionMeta,
   resolveRow,
   restoreRow,
   rowById,
@@ -38,7 +38,7 @@ import {
 import {logError} from '../../lib/debug.js'
 import {os, type ChatContext, type RpcDeps} from './mount.js'
 
-async function nativePageOf(
+async function loadNativePage(
   chat: ChatContext,
   harness: HarnessAdapter,
   page: HarnessListPage,
@@ -55,7 +55,7 @@ async function nativePageOf(
   }
 }
 
-async function nativeMetaOf(chat: ChatContext, row: SessionRecord): Promise<HarnessSessionMeta | undefined> {
+async function loadNativeMeta(chat: ChatContext, row: SessionRecord): Promise<HarnessSessionMeta | undefined> {
   const nativeId = row.harnessSessionId
   const history = chat.harnesses.find((harness) => harness.id === row.harnessKind)?.history
   if (nativeId === null || history === undefined) return undefined
@@ -67,7 +67,7 @@ async function nativeMetaOf(chat: ChatContext, row: SessionRecord): Promise<Harn
   }
 }
 
-async function transcriptTailOf(
+async function loadTranscriptTail(
   chat: ChatContext,
   harnessKind: string,
   nativeId: HarnessSessionId,
@@ -87,7 +87,7 @@ async function transcriptTailOf(
 }
 
 async function listedPages(chat: ChatContext, page: HarnessListPage): Promise<NativePage[]> {
-  const pages = await Promise.all(chat.harnesses.map((harness) => nativePageOf(chat, harness, page)))
+  const pages = await Promise.all(chat.harnesses.map((harness) => loadNativePage(chat, harness, page)))
   return pages.filter((native) => native !== null)
 }
 
@@ -96,34 +96,34 @@ type ListedHit = Omit<SessionHit, 'resume'>
 export async function rpcSessionMeta(chat: ChatContext, sessionId: SessionId): Promise<SessionMeta | null> {
   const row = await rowById(chat.db, sessionId)
   if (!row) return null
-  const context = {db: chat.db, running: await chat.plane.running(), model: (id: SessionId) => modelOf(chat.db, id)}
-  return sessionMetaOf(context, {row, native: await nativeMetaOf(chat, row)})
+  const context = {db: chat.db, running: await chat.plane.running(), model: (id: SessionId) => readModel(chat.db, id)}
+  return buildSessionMeta(context, {row, native: await loadNativeMeta(chat, row)})
 }
 
 async function sessionPage(
   chat: ChatContext,
   input: {includeHidden?: boolean; cursor?: HarnessListCursor | null; limit: number},
   search: string | null,
-  nativePagesOf: (page: HarnessListPage) => Promise<NativePage[]>,
+  loadNativePages: (page: HarnessListPage) => Promise<NativePage[]>,
   returned: ListedHit[] = [],
 ): Promise<{sessions: ListedHit[]; next: HarnessListCursor | null}> {
   const page: HarnessListPage = {after: input.cursor ?? null, limit: input.limit - returned.length}
   const listed = await listSessionMetas({
     db: chat.db,
     cwd: chat.cwd,
-    nativePages: await nativePagesOf(page),
+    nativePages: await loadNativePages(page),
     page,
     search,
     running: await chat.plane.running(),
-    model: (sessionId) => modelOf(chat.db, sessionId),
+    model: (sessionId) => readModel(chat.db, sessionId),
     includeHidden: input.includeHidden ?? false,
   })
   const counted = uniqBy([...returned, ...listed.sessions], (session) => session.id)
   if (counted.length >= input.limit || listed.next === null) return {sessions: counted, next: listed.next}
-  return sessionPage(chat, {...input, cursor: listed.next}, search, nativePagesOf, counted)
+  return sessionPage(chat, {...input, cursor: listed.next}, search, loadNativePages, counted)
 }
 
-function resumeOf(chat: ChatContext, hit: ListedHit): string | null {
+function formatResume(chat: ChatContext, hit: ListedHit): string | null {
   const resume = chat.harnesses.find((harness) => harness.id === hit.harnessKind)?.resume
   if (hit.cwd === null || hit.native === null || resume === undefined) return null
   const {bin, args} = resume.command({cwd: hit.cwd, nativeId: hit.native.nativeId})
@@ -148,7 +148,7 @@ function cleanTitle(title: string): string {
     .slice(0, 120)
 }
 
-export function harnessMetaOf(harness: HarnessAdapter): HarnessMeta {
+export function buildHarnessMeta(harness: HarnessAdapter): HarnessMeta {
   return {
     id: harness.id,
     name: harness.displayName ?? harness.id,
@@ -156,18 +156,18 @@ export function harnessMetaOf(harness: HarnessAdapter): HarnessMeta {
   }
 }
 
-export async function harnessMenuEntryOf(harness: HarnessAdapter): Promise<HarnessMenuEntry> {
+export async function buildHarnessMenuEntry(harness: HarnessAdapter): Promise<HarnessMenuEntry> {
   try {
     const models = await resolveHarnessModels(harness)
     return {
-      ...harnessMetaOf(harness),
+      ...buildHarnessMeta(harness),
       models,
       defaultModel: harness.defaultModel ?? models[0]?.id ?? null,
       modelsFailed: false,
     }
   } catch (error) {
     logError(`[core] listing the ${harness.id} models failed: ${String(error)}`)
-    return {...harnessMetaOf(harness), models: [], defaultModel: harness.defaultModel ?? null, modelsFailed: true}
+    return {...buildHarnessMeta(harness), models: [], defaultModel: harness.defaultModel ?? null, modelsFailed: true}
   }
 }
 
@@ -230,7 +230,7 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       const page = await sessionPage(chat, input, input.term, (cursorPage) =>
         search.pages(input.term, cursorPage, input.everywhere),
       )
-      return {...page, sessions: page.sessions.map((hit) => ({...hit, resume: resumeOf(chat, hit)}))}
+      return {...page, sessions: page.sessions.map((hit) => ({...hit, resume: formatResume(chat, hit)}))}
     }),
     get: os.sessions.get.handler(async ({input, errors}) => {
       const meta = await rpcSessionMeta(chat, input.sessionId)
@@ -238,7 +238,7 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       return meta
     }),
     preview: os.sessions.preview.handler(async ({input, errors, signal}) => {
-      const page = await transcriptTailOf(chat, input.harness, input.nativeId, input.cwd ?? chat.cwd, {
+      const page = await loadTranscriptTail(chat, input.harness, input.nativeId, input.cwd ?? chat.cwd, {
         limit: input.limit,
         before: input.before,
         signal,

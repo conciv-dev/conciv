@@ -52,7 +52,7 @@ type ShortcutRowProps = {
   scope: SettingsScope
 }
 
-function overridesOf(field: AnyFieldApi): Preferences['commandShortcuts'] {
+function readOverrides(field: AnyFieldApi): Preferences['commandShortcuts'] {
   const value: unknown = field.state.value
   if (typeof value !== 'object' || value === null) return {}
   return value
@@ -63,8 +63,8 @@ function ShortcutRow(props: ShortcutRowProps): JSX.Element {
   const [state, setState] = createStore<{draft: string | null}>({draft: null})
   let name: HTMLButtonElement | undefined
   const lock = () => preferences.shortcutLock(props.entry.command)
-  const noteOf = useContext(SettingNote)
-  const note = () => noteOf('commandShortcuts', props.entry.command)
+  const readNote = useContext(SettingNote)
+  const note = () => readNote('commandShortcuts', props.entry.command)
   const hotkey = () => preferences.shortcut(props.entry.command, props.scope).at(0)
   const clashWith = (candidate: string) => {
     const wanted = normalizeHotkey(candidate)
@@ -75,7 +75,7 @@ function ShortcutRow(props: ShortcutRowProps): JSX.Element {
     )
   }
   const save = (value: string | null, moveFrom?: ShortcutEntry) => {
-    const next = {...overridesOf(props.field), [props.entry.command]: value === null ? [] : [value]}
+    const next = {...readOverrides(props.field), [props.entry.command]: value === null ? [] : [value]}
     props.field.handleChange(moveFrom ? {...next, [moveFrom.command]: []} : next)
     setState('draft', null)
     name?.focus()

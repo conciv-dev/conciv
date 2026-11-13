@@ -16,7 +16,7 @@ const UNSTAMPED_PATHS = ['?raw', '/dist/', '/build/']
 
 const SOLID_SINGLETONS = ['solid-js', 'solid-js/web', 'solid-js/store', '@tanstack/solid-router', '@ark-ui/solid']
 
-function packageNameOf(id: string): string {
+function readPackageName(id: string): string {
   const segments = id.split('/')
   return id.startsWith('@') ? segments.slice(0, 2).join('/') : (segments[0] ?? id)
 }
@@ -24,7 +24,7 @@ function packageNameOf(id: string): string {
 function resolvableFrom(id: string, root: string): boolean {
   let dir = root
   while (true) {
-    if (existsSync(join(dir, 'node_modules', packageNameOf(id), 'package.json'))) return true
+    if (existsSync(join(dir, 'node_modules', readPackageName(id), 'package.json'))) return true
     const parent = dirname(dir)
     if (parent === dir) return false
     dir = parent

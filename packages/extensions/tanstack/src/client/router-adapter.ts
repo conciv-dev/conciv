@@ -138,7 +138,7 @@ function mapMatch(match: unknown): RouteMatch {
   }
 }
 
-function locationOf(router: TanstackRouter): RouterLocation {
+function readLocation(router: TanstackRouter): RouterLocation {
   const location = unknownRecord(router.state.location)
   return {
     pathname: stringValue(location.pathname),
@@ -149,7 +149,7 @@ function locationOf(router: TanstackRouter): RouterLocation {
 
 export function readRouterState(): RouterCurrent {
   const router = requireRouter()
-  return {location: locationOf(router), matches: router.state.matches.map(mapMatch)}
+  return {location: readLocation(router), matches: router.state.matches.map(mapMatch)}
 }
 
 export function readDetect(): FrameworkInfo {
@@ -182,7 +182,7 @@ export function readDataEntries(): {entries: CacheEntry[]} {
   return {entries: router.state.matches.map(matchToCacheEntry)}
 }
 
-function childrenOf(value: unknown): unknown[] {
+function listChildren(value: unknown): unknown[] {
   if (Array.isArray(value)) return value
   if (isObject(value)) return Object.values(value)
   return []
@@ -213,7 +213,7 @@ function mapRoute(route: unknown, depth: number): RouteNode {
     hasLoader: Boolean(options.loader),
     children: [],
   }
-  const children = childrenOf(route.children)
+  const children = listChildren(route.children)
   if (depth >= MAX_TREE_DEPTH) {
     if (children.length > 0) node.truncated = children.length
     return node
@@ -222,7 +222,7 @@ function mapRoute(route: unknown, depth: number): RouteNode {
   return node
 }
 
-function rootRouteOf(router: TanstackRouter): unknown {
+function findRootRoute(router: TanstackRouter): unknown {
   if (isObject(router.routeTree)) return router.routeTree
   const byId = router.routesById
   const rootNode = isObject(byId) ? byId['__root__'] : undefined
@@ -231,7 +231,7 @@ function rootRouteOf(router: TanstackRouter): unknown {
 
 export function readRouteTree(): RouteNode {
   const router = requireRouter()
-  const root = rootRouteOf(router)
+  const root = findRootRoute(router)
   if (!root) throw new Error('TanStack router not found on page')
   return mapRoute(root, 0)
 }

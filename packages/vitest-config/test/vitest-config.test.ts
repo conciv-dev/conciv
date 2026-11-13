@@ -761,7 +761,7 @@ describe('packed fixture lock drift', () => {
     ].join('\n')
   }
 
-  function driftOf(committed: string[], produced: string[]): string | undefined {
+  function checkDrift(committed: string[], produced: string[]): string | undefined {
     const root = mkdtempSync(join(tmpdir(), 'packed-lock-'))
     const lockPath = join(root, 'fixture-lock.yaml')
     writeFileSync(lockPath, lockText(committed))
@@ -777,7 +777,7 @@ describe('packed fixture lock drift', () => {
   }
 
   test('a renamed packed conciv package is drift that names both packages', () => {
-    const message = driftOf(
+    const message = checkDrift(
       [packedEntry('@conciv/core', '0.0.22'), packedEntry('@conciv/plugin', '0.0.22')],
       [packedEntry('@conciv/core', '0.0.22'), packedEntry('@conciv/unplugin', '0.0.22')],
     )
@@ -788,7 +788,7 @@ describe('packed fixture lock drift', () => {
 
   test('the same packed conciv packages built to other tarballs are not drift', () => {
     expect(
-      driftOf(
+      checkDrift(
         [packedEntry('@conciv/core', '0.0.22'), packedEntry('@conciv/plugin', '0.0.22')],
         [packedEntry('@conciv/core', '0.0.23'), packedEntry('@conciv/plugin', '0.0.23')],
       ),

@@ -58,11 +58,11 @@ export type ChatSession = Omit<Chat, 'stop'> & {
   runInProgress: Accessor<boolean>
   loadFailed: Accessor<boolean>
   pendingApprovals: Accessor<ApprovalAsk[]>
-  harnessOf: (messageId: string) => string | undefined
+  readHarness: (messageId: string) => string | undefined
   decide: (approvalId: string, approved: boolean, scope: ChatApprovalScope) => Promise<void>
 }
 
-function askOf({approvalId, toolCallId, toolName, input, permission}: ApprovalAsk): ApprovalAsk {
+function buildAsk({approvalId, toolCallId, toolName, input, permission}: ApprovalAsk): ApprovalAsk {
   const ask = {approvalId, toolCallId, toolName, input}
   return permission === undefined ? ask : {...ask, permission}
 }
@@ -135,7 +135,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     },
     onHydrated: (hydration) => {
       setRunSource((current) => newerRun(current, hydration))
-      setServed('pending', reconcile(hydration.pendingApprovals.map(askOf), {key: 'approvalId'}))
+      setServed('pending', reconcile(hydration.pendingApprovals.map(buildAsk), {key: 'approvalId'}))
       setServed('harnesses', hydration.messageHarness)
     },
     onRunError: () => {
@@ -234,7 +234,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     runInProgress,
     loadFailed,
     pendingApprovals: () => served.pending,
-    harnessOf: (messageId) => served.harnesses[messageId],
+    readHarness: (messageId) => served.harnesses[messageId],
     decide,
   }
 }

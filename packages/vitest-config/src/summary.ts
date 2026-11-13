@@ -87,21 +87,21 @@ function findFiles(roots: string[], fileName: string): string[] {
   return found.toSorted()
 }
 
-function statusOf(result: Record<string, unknown>): string {
+function readStatus(result: Record<string, unknown>): string {
   return asString(result.status)
 }
 
-function countOf(cases: CaseResult[], status: CaseStatus): number {
+function countStatus(cases: CaseResult[], status: CaseStatus): number {
   return cases.filter((entry) => entry.status === status).length
 }
 
 function summaryOfCases(name: string, cases: CaseResult[], timeMs: number): PackageSummary {
   return {
     name,
-    passed: countOf(cases, 'passed'),
-    failed: countOf(cases, 'failed'),
-    flaky: countOf(cases, 'flaky'),
-    skipped: countOf(cases, 'skipped'),
+    passed: countStatus(cases, 'passed'),
+    failed: countStatus(cases, 'failed'),
+    flaky: countStatus(cases, 'flaky'),
+    skipped: countStatus(cases, 'skipped'),
     timeMs,
     cases,
     coverage: null,
@@ -112,15 +112,15 @@ function emptySummary(name: string): PackageSummary {
   return summaryOfCases(name, [], 0)
 }
 
-function failuresOf(summary: PackageSummary): Failure[] {
+function collectFailures(summary: PackageSummary): Failure[] {
   return summary.cases
     .filter((entry) => entry.status === 'failed')
     .map((entry) => ({test: entry.title, message: entry.message}))
 }
 
 function vitestCaseStatus(result: Record<string, unknown>): CaseStatus {
-  if (statusOf(result) === 'failed') return 'failed'
-  return statusOf(result) === 'passed' ? 'passed' : 'skipped'
+  if (readStatus(result) === 'failed') return 'failed'
+  return readStatus(result) === 'passed' ? 'passed' : 'skipped'
 }
 
 function vitestCase(result: Record<string, unknown>): CaseResult {
@@ -137,7 +137,7 @@ function vitestCase(result: Record<string, unknown>): CaseResult {
 
 function crashedWithoutAssertions(file: Record<string, unknown>): boolean {
   return (
-    statusOf(file) === 'failed' && toRecords(file.assertionResults).every((result) => statusOf(result) !== 'failed')
+    readStatus(file) === 'failed' && toRecords(file.assertionResults).every((result) => readStatus(result) !== 'failed')
   )
 }
 
@@ -206,7 +206,7 @@ function playwrightCase(titles: string[], spec: Record<string, unknown>, test: R
     project: asString(test.projectName),
     result: {
       title: [...titles, asString(spec.title)].filter((part) => part !== '').join(' › '),
-      status: PLAYWRIGHT_STATUS[statusOf(test)] ?? 'skipped',
+      status: PLAYWRIGHT_STATUS[readStatus(test)] ?? 'skipped',
       durationMs: results.reduce((total, result) => total + asNumber(result.duration), 0),
       retries: Math.max(0, results.length - 1),
       message: stripVTControlCharacters(messages.join('\n')),
@@ -426,7 +426,7 @@ function failureBody(message: string): string {
 }
 
 function failureSection(summary: PackageSummary): string[] {
-  return failuresOf(summary).map(
+  return collectFailures(summary).map(
     (failure) =>
       `<details>\n<summary>❌ <code>${inlineText(summary.name)}</code> ${inlineText(failure.test)}</summary>\n\n${fencedBlock(failureBody(failure.message))}\n\n</details>`,
   )

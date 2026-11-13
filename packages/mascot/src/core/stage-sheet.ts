@@ -4,7 +4,7 @@ type StageRoot = Document | ShadowRoot
 
 const sheets = new WeakMap<Document, CSSStyleSheet>()
 
-const stageRootOf = (element: HTMLElement): StageRoot | undefined => {
+const findStageRoot = (element: HTMLElement): StageRoot | undefined => {
   const root = element.getRootNode()
   if (root instanceof ShadowRoot) return root
   if (root instanceof Document) return root
@@ -23,7 +23,7 @@ function sheetFor(owner: Document): CSSStyleSheet | undefined {
 }
 
 export function installStageSize(element: HTMLElement): void {
-  const root = stageRootOf(element)
+  const root = findStageRoot(element)
   if (root === undefined) return
   const sheet = sheetFor(element.ownerDocument)
   if (sheet === undefined || root.adoptedStyleSheets.includes(sheet)) return

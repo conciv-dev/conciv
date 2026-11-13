@@ -116,22 +116,22 @@ describe.skipIf(inFirefox)('page tools', () => {
   const counter = () => page.getByRole('status')
   const formState = () => page.getByText(/^subscribed:/)
 
-  const declaredOutputOf = (verb: string) => {
+  const findDeclaredOutput = (verb: string) => {
     const tool = PAGE_TOOL_DEFS.find((candidate) => candidate.name === `${PAGE_TOOL_PREFIX}${verb}`)
     const output = tool?.outputSchema
     if (!output) throw new Error(`no page tool declares an output for page_${verb}`)
     return output
   }
 
-  const resultOf = async (verb: string, input: Record<string, unknown> = {}): Promise<Record<string, unknown>> => {
+  const runForResult = async (verb: string, input: Record<string, unknown> = {}): Promise<Record<string, unknown>> => {
     const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}${verb}`, input})
     if (!outcome.ok) throw new Error(`expected a result for ${verb}, got ${outcome.error.code}`)
     const result = {...outcome.result}
-    expect(declaredOutputOf(verb).parse(result)).toEqual(result)
+    expect(findDeclaredOutput(verb).parse(result)).toEqual(result)
     return result
   }
 
-  const failureOf = async (verb: string, input: Record<string, unknown> = {}): Promise<PageError> => {
+  const runForFailure = async (verb: string, input: Record<string, unknown> = {}): Promise<PageError> => {
     const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}${verb}`, input})
     if (outcome.ok) throw new Error(`expected a failure for ${verb}, got a result`)
     return outcome.error
@@ -178,135 +178,139 @@ describe.skipIf(inFirefox)('page tools', () => {
         {input: {}, message: 'no target: pass ref, selector, or name'},
       ]
       for (const {input, message} of missing) {
-        expect(await failureOf('click', input)).toEqual({code: 'invalid-args', message})
+        expect(await runForFailure('click', input)).toEqual({code: 'invalid-args', message})
       }
     })
   })
 
   describe('dom verbs', () => {
     it('clicks through React handlers', async () => {
-      expect(await resultOf('click', {selector: '[data-fixture="leaf"]'})).toEqual({ok: true})
+      expect(await runForResult('click', {selector: '[data-fixture="leaf"]'})).toEqual({ok: true})
       await expect.element(leaf()).toMatchTextContent(':1:')
     })
 
     it('fills form fields with native events and masks a password value in the results', async () => {
-      expect(await resultOf('fill', {selector: '#field', value: 'typed'})).toEqual({ok: true, value: 'typed'})
-      expect(await resultOf('value', {selector: '#field'})).toEqual({value: 'typed'})
-      expect(await failureOf('fill', {selector: '#prose', value: 'x'})).toEqual({
+      expect(await runForResult('fill', {selector: '#field', value: 'typed'})).toEqual({ok: true, value: 'typed'})
+      expect(await runForResult('value', {selector: '#field'})).toEqual({value: 'typed'})
+      expect(await runForFailure('fill', {selector: '#prose', value: 'x'})).toEqual({
         code: 'invalid-args',
         message: 'That element is not a text field.',
       })
-      expect(await resultOf('fill', {selector: '#secret', value: 'hunter2'})).toEqual({ok: true, value: '***'})
-      expect(await resultOf('value', {selector: '#secret'})).toEqual({value: '***'})
+      expect(await runForResult('fill', {selector: '#secret', value: 'hunter2'})).toEqual({ok: true, value: '***'})
+      expect(await runForResult('value', {selector: '#secret'})).toEqual({value: '***'})
     })
 
     it('drives React-controlled checkboxes and radios so component state follows', async () => {
-      expect(await resultOf('check', {selector: '#subscribe'})).toEqual({ok: true, checked: true})
+      expect(await runForResult('check', {selector: '#subscribe'})).toEqual({ok: true, checked: true})
       await expect.element(formState()).toMatchTextContent('subscribed: true')
 
-      expect(await resultOf('check', {selector: '#subscribe'})).toEqual({ok: true, checked: true})
+      expect(await runForResult('check', {selector: '#subscribe'})).toEqual({ok: true, checked: true})
       await expect.element(formState()).toMatchTextContent('subscribed: true')
 
-      expect(await resultOf('uncheck', {selector: '#subscribe'})).toEqual({ok: true, checked: false})
+      expect(await runForResult('uncheck', {selector: '#subscribe'})).toEqual({ok: true, checked: false})
       await expect.element(formState()).toMatchTextContent('subscribed: false')
 
-      expect(await resultOf('check', {selector: '#plan-pro'})).toEqual({ok: true, checked: true})
+      expect(await runForResult('check', {selector: '#plan-pro'})).toEqual({ok: true, checked: true})
       await expect.element(formState()).toMatchTextContent('plan: pro')
 
-      expect(await failureOf('uncheck', {selector: '#plan-pro'})).toEqual({
+      expect(await runForFailure('uncheck', {selector: '#plan-pro'})).toEqual({
         code: 'invalid-args',
         message: 'A radio is unchecked by checking another one.',
       })
       await expect.element(formState()).toMatchTextContent('plan: pro')
 
-      expect(await resultOf('check', {selector: '#plan-free'})).toEqual({ok: true, checked: true})
+      expect(await runForResult('check', {selector: '#plan-free'})).toEqual({ok: true, checked: true})
       await expect.element(formState()).toMatchTextContent('plan: free')
     })
 
     it('mutates attributes, classes, styles, text, and structure', async () => {
-      await resultOf('setattr', {selector: '#prose', attribute: 'data-mark', value: 'on'})
+      await runForResult('setattr', {selector: '#prose', attribute: 'data-mark', value: 'on'})
       expect(document.querySelector('#prose')?.getAttribute('data-mark')).toBe('on')
-      expect((await failureOf('setattr', {selector: '#prose', value: 'on'})).code).toBe('invalid-args')
-      await resultOf('removeattr', {selector: '#prose', attribute: 'data-mark'})
+      expect((await runForFailure('setattr', {selector: '#prose', value: 'on'})).code).toBe('invalid-args')
+      await runForResult('removeattr', {selector: '#prose', attribute: 'data-mark'})
       expect(document.querySelector('#prose')?.hasAttribute('data-mark')).toBe(false)
-      await resultOf('addclass', {selector: '#prose', class: 'hot'})
+      await runForResult('addclass', {selector: '#prose', class: 'hot'})
       expect(document.querySelector('#prose')?.classList.contains('hot')).toBe(true)
-      await resultOf('settext', {selector: '#prose', text: 'rewritten'})
+      await runForResult('settext', {selector: '#prose', text: 'rewritten'})
       expect(document.querySelector('#prose')?.textContent).toBe('rewritten')
-      await resultOf('insert', {selector: '#prose', html: '<em id="added">x</em>', position: 'after'})
+      await runForResult('insert', {selector: '#prose', html: '<em id="added">x</em>', position: 'after'})
       expect(document.querySelector('#added')).not.toBeNull()
-      await resultOf('remove', {selector: '#added'})
+      await runForResult('remove', {selector: '#added'})
       expect(document.querySelector('#added')).toBeNull()
     })
 
     it('reports route, existence, and query matches', async () => {
       document.title = 'Settings'
-      expect(await resultOf('route')).toMatchObject({pathname: location.pathname, title: 'Settings', state: 'visible'})
-      expect(await resultOf('exists', {selector: '#frm'})).toEqual({exists: true, count: 1})
-      const query = await resultOf('query', {selector: 'input'})
+      expect(await runForResult('route')).toMatchObject({
+        pathname: location.pathname,
+        title: 'Settings',
+        state: 'visible',
+      })
+      expect(await runForResult('exists', {selector: '#frm'})).toEqual({exists: true, count: 1})
+      const query = await runForResult('query', {selector: 'input'})
       expect(query.count).toBe(8)
     })
 
     it('waits for visibility and times out with an explanation', async () => {
-      expect(await resultOf('wait', {selector: '#prose', state: 'visible', timeout: 500})).toEqual({
+      expect(await runForResult('wait', {selector: '#prose', state: 'visible', timeout: 500})).toEqual({
         ok: true,
         state: 'visible',
       })
-      expect(await failureOf('wait', {selector: '#missing', state: 'visible', timeout: 150})).toEqual({
+      expect(await runForFailure('wait', {selector: '#missing', state: 'visible', timeout: 150})).toEqual({
         code: 'handler-error',
         message: 'wait timed out for #missing (visible)',
       })
     })
 
     it('returns the value of a bare expression and still runs a statement body', async () => {
-      expect(await resultOf('eval', {code: '2 + 3'})).toEqual({result: 5})
-      expect(await resultOf('eval', {code: 'document.querySelector("#frm").tagName'})).toEqual({result: 'FORM'})
-      expect(await resultOf('eval', {code: 'const a = 1; return a + 1'})).toEqual({result: 2})
-      const element = await resultOf('eval', {code: 'return document.querySelector("#frm")'})
+      expect(await runForResult('eval', {code: '2 + 3'})).toEqual({result: 5})
+      expect(await runForResult('eval', {code: 'document.querySelector("#frm").tagName'})).toEqual({result: 'FORM'})
+      expect(await runForResult('eval', {code: 'const a = 1; return a + 1'})).toEqual({result: 2})
+      const element = await runForResult('eval', {code: 'return document.querySelector("#frm")'})
       expect(element.result).toMatchObject({tagName: 'form'})
     })
 
     it('injects css stylesheets', async () => {
-      expect(await resultOf('css', {text: '#prose{letter-spacing:3px}'})).toEqual({ok: true})
+      expect(await runForResult('css', {text: '#prose{letter-spacing:3px}'})).toEqual({ok: true})
       expect(document.querySelector('style[data-vibe-css]')?.textContent).toContain('letter-spacing')
     })
   })
 
   describe('react verbs through the dispatcher', () => {
     it('inspects a component and navigates into its props by path', async () => {
-      const full = await resultOf('inspect', {name: 'Leaf'})
+      const full = await runForResult('inspect', {name: 'Leaf'})
       expect(full.component).toBe('Leaf')
-      const byPath = await resultOf('inspect', {name: 'Leaf', path: 'props.label'})
+      const byPath = await runForResult('inspect', {name: 'Leaf', path: 'props.label'})
       expect(byPath.value).toBe('A')
-      expect(await failureOf('inspect', {name: 'Leaf', path: 'props.missing.deep'})).toEqual({
+      expect(await runForFailure('inspect', {name: 'Leaf', path: 'props.missing.deep'})).toEqual({
         code: 'invalid-args',
         message: 'path not found: props.missing.deep',
       })
     })
 
     it('overrides props and validates its inputs', async () => {
-      expect((await failureOf('override', {name: 'Counter'})).code).toBe('invalid-args')
-      expect(await failureOf('override', {name: 'Counter', target: 'state', json: '{nope'})).toEqual({
+      expect((await runForFailure('override', {name: 'Counter'})).code).toBe('invalid-args')
+      expect(await runForFailure('override', {name: 'Counter', target: 'state', json: '{nope'})).toEqual({
         code: 'invalid-args',
         message: '--json is not valid JSON: {nope',
       })
-      const set = await resultOf('override', {name: 'Counter', target: 'state', path: 'value', json: '77'})
+      const set = await runForResult('override', {name: 'Counter', target: 'state', path: 'value', json: '77'})
       expect(set.ok).toBe(true)
       await expect.element(counter()).toMatchTextContent('77')
     })
 
     it('tracks renders between start and stop', async () => {
-      await resultOf('track', {action: 'start'})
-      await resultOf('click', {name: 'Leaf'})
+      await runForResult('track', {action: 'start'})
+      await runForResult('click', {name: 'Leaf'})
       await expect.element(leaf()).toMatchTextContent(':2:')
-      const report = await resultOf('track', {action: 'report'})
+      const report = await runForResult('track', {action: 'report'})
       const components = Array.isArray(report.components) ? report.components : []
       expect(
         components.some(
           (entry) => typeof entry === 'object' && entry !== null && 'component' in entry && entry.component === 'Leaf',
         ),
       ).toBe(true)
-      const stopped = await resultOf('track', {action: 'stop'})
+      const stopped = await runForResult('track', {action: 'stop'})
       expect(stopped.tracking).toBe(false)
     })
   })
@@ -318,35 +322,35 @@ describe.skipIf(inFirefox)('page tools', () => {
         const el = event.target
         if (el instanceof HTMLSelectElement) changes.push(el.value)
       })
-      expect(await resultOf('select', {selector: '#sel', value: 'b'})).toEqual({ok: true, value: 'b'})
+      expect(await runForResult('select', {selector: '#sel', value: 'b'})).toEqual({ok: true, value: 'b'})
       expect(changes).toEqual(['b'])
-      expect(await resultOf('value', {selector: '#sel'})).toEqual({value: 'b'})
-      expect(await resultOf('select', {selector: '#sel', value: 'Full Stack'})).toEqual({ok: true, value: 'fs'})
-      expect(await failureOf('select', {selector: '#sel', value: 'fullstack'})).toEqual({
+      expect(await runForResult('value', {selector: '#sel'})).toEqual({value: 'b'})
+      expect(await runForResult('select', {selector: '#sel', value: 'Full Stack'})).toEqual({ok: true, value: 'fs'})
+      expect(await runForFailure('select', {selector: '#sel', value: 'fullstack'})).toEqual({
         code: 'invalid-args',
         message: 'No option "fullstack"; options: a "A", b "B", fs "Full Stack".',
       })
-      expect(await resultOf('value', {selector: '#sel'})).toEqual({value: 'fs'})
+      expect(await runForResult('value', {selector: '#sel'})).toEqual({value: 'fs'})
     })
 
     it('fails instead of reporting ok when a field or box refuses the change', async () => {
       document.querySelector('#stuck')?.addEventListener('click', (event) => event.preventDefault())
-      expect(await failureOf('fill', {selector: '#qty', value: 'many'})).toEqual({
+      expect(await runForFailure('fill', {selector: '#qty', value: 'many'})).toEqual({
         code: 'invalid-args',
         message: 'The field rejected "many" and stayed empty.',
       })
       const pin = Object.assign(document.createElement('input'), {id: 'pin', type: 'password'})
       pin.addEventListener('input', () => (pin.value = ''))
       container.appendChild(pin)
-      const refused = await failureOf('fill', {selector: '#pin', value: 'hunter2-secret'})
+      const refused = await runForFailure('fill', {selector: '#pin', value: 'hunter2-secret'})
       pin.remove()
       expect(refused).toEqual({code: 'invalid-args', message: 'The field rejected *** and stayed empty.'})
       expect(JSON.stringify(refused)).not.toContain('hunter2-secret')
-      expect(await failureOf('check', {selector: '#locked'})).toEqual({
+      expect(await runForFailure('check', {selector: '#locked'})).toEqual({
         code: 'invalid-args',
         message: 'That element is disabled.',
       })
-      expect(await failureOf('check', {selector: '#stuck'})).toEqual({
+      expect(await runForFailure('check', {selector: '#stuck'})).toEqual({
         code: 'invalid-args',
         message: 'The box is still unchecked; the page prevented the change.',
       })
@@ -358,7 +362,7 @@ describe.skipIf(inFirefox)('page tools', () => {
         event.preventDefault()
         submitted.push('submitted')
       })
-      expect(await resultOf('submit', {selector: '#inner'})).toEqual({ok: true})
+      expect(await runForResult('submit', {selector: '#inner'})).toEqual({ok: true})
       expect(submitted).toEqual(['submitted'])
     })
 
@@ -384,8 +388,8 @@ describe.skipIf(inFirefox)('page tools', () => {
         document.querySelector<HTMLInputElement>('#field')?.removeEventListener('keyup', onFieldKeyUp)
       })
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
-      for (const key of ['Mod+k', ' ', 'a']) expect(await resultOf('press', {key})).toEqual({ok: true})
-      expect(await resultOf('press', {selector: '#field', key: 'Enter'})).toEqual({ok: true})
+      for (const key of ['Mod+k', ' ', 'a']) expect(await runForResult('press', {key})).toEqual({ok: true})
+      expect(await runForResult('press', {selector: '#field', key: 'Enter'})).toEqual({ok: true})
       await expect.element(page.getByText('opened palette, played, archived, searched')).toBeVisible()
     })
 
@@ -406,26 +410,26 @@ describe.skipIf(inFirefox)('page tools', () => {
       const inShadow = shadowButton('in the shadow', 'data-web-component')
       inShadow.addEventListener('click', () => (inShadow.textContent = 'clicked in the shadow'))
       shadowButton('widget button', 'data-conciv-root')
-      expect(await resultOf('exists', {selector: '#in-the-shadow'})).toEqual({exists: true, count: 1})
-      expect(await resultOf('click', {selector: '#in-the-shadow'})).toEqual({ok: true})
-      const snapshot = await resultOf('snapshot')
+      expect(await runForResult('exists', {selector: '#in-the-shadow'})).toEqual({exists: true, count: 1})
+      expect(await runForResult('click', {selector: '#in-the-shadow'})).toEqual({ok: true})
+      const snapshot = await runForResult('snapshot')
       const names = (Array.isArray(snapshot.nodes) ? snapshot.nodes : []).flatMap((node) =>
         typeof node === 'object' && node !== null && 'name' in node ? [node.name] : [],
       )
       expect(names).toContain('clicked in the shadow')
       expect(names).not.toContain('widget button')
-      expect(await resultOf('exists', {selector: '#widget-button'})).toEqual({exists: false, count: 0})
+      expect(await runForResult('exists', {selector: '#widget-button'})).toEqual({exists: false, count: 0})
       const inPage = Object.assign(document.createElement('button'), {name: 'save', textContent: 'save in the page'})
       container.appendChild(inPage)
       onTestFinished(() => inPage.remove())
-      expect(await resultOf('query', {selector: 'button[name="save"]'})).toMatchObject({count: 2})
+      expect(await runForResult('query', {selector: 'button[name="save"]'})).toMatchObject({count: 2})
     })
 
     it('hovers with bubbling mouseover and mouseenter', async () => {
       const seen: string[] = []
       document.querySelector('#hovbtn')?.addEventListener('mouseover', () => seen.push('over'))
       document.querySelector('#hovbtn')?.addEventListener('mouseenter', () => seen.push('enter'))
-      expect(await resultOf('hover', {selector: '#hovbtn'})).toEqual({ok: true})
+      expect(await runForResult('hover', {selector: '#hovbtn'})).toEqual({ok: true})
       expect(seen).toEqual(['over', 'enter'])
     })
 
@@ -437,7 +441,7 @@ describe.skipIf(inFirefox)('page tools', () => {
       landmark.textContent = 'down here'
       document.body.append(spacer, landmark)
       expect(window.scrollY).toBe(0)
-      expect(await resultOf('scroll', {selector: '#far-down'})).toEqual({ok: true})
+      expect(await runForResult('scroll', {selector: '#far-down'})).toEqual({ok: true})
       await expect.element(page.getByText('down here')).toBeInViewport()
       window.scrollTo(0, 0)
       spacer.remove()
@@ -445,7 +449,9 @@ describe.skipIf(inFirefox)('page tools', () => {
     })
 
     it('replaces inner HTML with sethtml', async () => {
-      expect(await resultOf('sethtml', {selector: '#htmlhost', html: '<em id="fresh">new</em>'})).toEqual({ok: true})
+      expect(await runForResult('sethtml', {selector: '#htmlhost', html: '<em id="fresh">new</em>'})).toEqual({
+        ok: true,
+      })
       expect(document.querySelector('#htmlhost')?.innerHTML).toBe('<em id="fresh">new</em>')
     })
   })
@@ -489,31 +495,34 @@ describe.skipIf(inFirefox)('page tools', () => {
       microtaskBox.addEventListener('change', () => queueMicrotask(() => (microtaskBox.checked = false)))
       microtaskPlan.addEventListener('change', () => queueMicrotask(() => (microtaskPlan.value = 'free')))
 
-      expect(await failureOf('fill', {selector: '#microtask-name', value: 'Ada'})).toEqual({
+      expect(await runForFailure('fill', {selector: '#microtask-name', value: 'Ada'})).toEqual({
         code: 'invalid-args',
         message: 'The field rejected "Ada" and stayed empty.',
       })
       await expect.element(page.getByRole('textbox', {name: 'Microtask name'})).toHaveValue('')
 
-      expect(await failureOf('fill', {selector: '#task-name', value: 'Ada'})).toEqual({
+      expect(await runForFailure('fill', {selector: '#task-name', value: 'Ada'})).toEqual({
         code: 'invalid-args',
         message: 'The field rejected "Ada" and stayed empty.',
       })
       await expect.element(page.getByRole('textbox', {name: 'Task name'})).toHaveValue('')
 
-      expect(await failureOf('check', {selector: '#microtask-box'})).toEqual({
+      expect(await runForFailure('check', {selector: '#microtask-box'})).toEqual({
         code: 'invalid-args',
         message: 'The box is still unchecked; the page prevented the change.',
       })
       await expect.element(page.getByRole('checkbox', {name: 'Microtask box'})).not.toBeChecked()
 
-      expect(await resultOf('select', {selector: '#microtask-plan', value: 'pro'})).toEqual({ok: true, value: 'free'})
+      expect(await runForResult('select', {selector: '#microtask-plan', value: 'pro'})).toEqual({
+        ok: true,
+        value: 'free',
+      })
       await expect.element(page.getByRole('combobox', {name: 'Microtask plan'})).toHaveValue('free')
 
-      expect(await resultOf('fill', {selector: '#plain-name', value: 'Ada'})).toEqual({ok: true, value: 'Ada'})
+      expect(await runForResult('fill', {selector: '#plain-name', value: 'Ada'})).toEqual({ok: true, value: 'Ada'})
       await expect.element(page.getByRole('textbox', {name: 'Plain name'})).toHaveValue('Ada')
 
-      expect(await resultOf('check', {selector: '#plain-box'})).toEqual({ok: true, checked: true})
+      expect(await runForResult('check', {selector: '#plain-box'})).toEqual({ok: true, checked: true})
       await expect.element(page.getByRole('checkbox', {name: 'Plain box'})).toBeChecked()
     })
   })
@@ -532,12 +541,15 @@ describe.skipIf(inFirefox)('page tools', () => {
         <div id="notes" contenteditable="true" role="textbox" aria-label="Notes"><p id="notes-line">old note</p></div>
         <div id="plain" contenteditable="plaintext-only" role="textbox" aria-label="Plain notes">old</div>
       `)
-      expect(await resultOf('fill', {selector: '#notes-line', value: 'Hello editor'})).toEqual({
+      expect(await runForResult('fill', {selector: '#notes-line', value: 'Hello editor'})).toEqual({
         ok: true,
         value: 'Hello editor',
       })
       await expect.element(page.getByRole('textbox', {name: 'Notes'})).toMatchTextContent(/^Hello editor$/)
-      expect(await resultOf('fill', {selector: '#plain', value: 'Plain text'})).toEqual({ok: true, value: 'Plain text'})
+      expect(await runForResult('fill', {selector: '#plain', value: 'Plain text'})).toEqual({
+        ok: true,
+        value: 'Plain text',
+      })
       await expect.element(page.getByRole('textbox', {name: 'Plain notes'})).toMatchTextContent(/^Plain text$/)
     })
 
@@ -548,7 +560,7 @@ describe.skipIf(inFirefox)('page tools', () => {
       host.querySelector('#guarded')?.addEventListener('beforeinput', (event) => {
         if (!event.isTrusted) event.preventDefault()
       })
-      expect(await resultOf('fill', {selector: '#guarded', value: 'Typed anyway'})).toEqual({
+      expect(await runForResult('fill', {selector: '#guarded', value: 'Typed anyway'})).toEqual({
         ok: true,
         value: 'Typed anyway',
       })
@@ -561,8 +573,8 @@ describe.skipIf(inFirefox)('page tools', () => {
         <div id="aria-frozen" contenteditable="true" aria-readonly="true" role="textbox" aria-label="Aria frozen">fixed</div>
       `)
       const readOnly = {code: 'invalid-args', message: 'That field is read-only.'}
-      expect(await failureOf('fill', {selector: '#frozen', value: 'x'})).toEqual(readOnly)
-      expect(await failureOf('fill', {selector: '#aria-frozen', value: 'x'})).toEqual(readOnly)
+      expect(await runForFailure('fill', {selector: '#frozen', value: 'x'})).toEqual(readOnly)
+      expect(await runForFailure('fill', {selector: '#aria-frozen', value: 'x'})).toEqual(readOnly)
       await expect.element(page.getByRole('textbox', {name: 'Frozen'})).toMatchTextContent(/^fixed$/)
       await expect.element(page.getByRole('textbox', {name: 'Aria frozen'})).toMatchTextContent(/^fixed$/)
     })
@@ -579,12 +591,12 @@ describe.skipIf(inFirefox)('page tools', () => {
           if (editor.textContent !== original) editor.textContent = original
         })
       }
-      expect(await failureOf('fill', {selector: '#stubborn', value: 'Ada'})).toEqual({
+      expect(await runForFailure('fill', {selector: '#stubborn', value: 'Ada'})).toEqual({
         code: 'invalid-args',
         message: 'The editor rejected "Ada"; its text does not match it.',
       })
       await expect.element(page.getByRole('textbox', {name: 'Stubborn'})).toMatchTextContent(/^locked$/)
-      const refused = await failureOf('fill', {selector: '#stubborn-card', value: '4242424242424242'})
+      const refused = await runForFailure('fill', {selector: '#stubborn-card', value: '4242424242424242'})
       expect(refused).toEqual({code: 'invalid-args', message: 'The editor rejected ***; its text does not match it.'})
       expect(JSON.stringify(refused)).not.toContain('4242')
     })
@@ -598,8 +610,8 @@ describe.skipIf(inFirefox)('page tools', () => {
         code: 'invalid-args',
         message: 'That is a code editor (CodeMirror or Monaco); fill cannot type into it.',
       }
-      expect(await failureOf('fill', {selector: '#cm', value: 'x'})).toEqual(codeEditor)
-      expect(await failureOf('fill', {selector: '#monaco', value: 'x'})).toEqual(codeEditor)
+      expect(await runForFailure('fill', {selector: '#cm', value: 'x'})).toEqual(codeEditor)
+      expect(await runForFailure('fill', {selector: '#monaco', value: 'x'})).toEqual(codeEditor)
       await expect.element(page.getByRole('textbox', {name: 'Code'})).toMatchTextContent(/^let a = 1$/)
     })
 
@@ -612,7 +624,7 @@ describe.skipIf(inFirefox)('page tools', () => {
         editorProps: {attributes: {id: 'tiptap', role: 'textbox', 'aria-label': 'Composer'}},
       })
       onTestFinished(() => editor.destroy())
-      expect(await resultOf('fill', {selector: '#tiptap', value: 'Hello Tiptap'})).toEqual({
+      expect(await runForResult('fill', {selector: '#tiptap', value: 'Hello Tiptap'})).toEqual({
         ok: true,
         value: 'Hello Tiptap',
       })
@@ -643,15 +655,15 @@ describe.skipIf(inFirefox)('page tools', () => {
         if (clicks) clicks.textContent = `${Number.parseInt(clicks.textContent ?? '0', 10) + 1} far clicks`
       })
 
-      expect(await resultOf('fill', {selector: '#far-name', value: 'Ada'})).toEqual({ok: true, value: 'Ada'})
+      expect(await runForResult('fill', {selector: '#far-name', value: 'Ada'})).toEqual({ok: true, value: 'Ada'})
       await expect.element(page.getByRole('textbox', {name: 'Far name'})).toHaveValue('Ada')
       await expect.element(page.getByRole('textbox', {name: 'Far name'})).toBeInViewport()
 
-      expect(await resultOf('check', {selector: '#far-box'})).toEqual({ok: true, checked: true})
+      expect(await runForResult('check', {selector: '#far-box'})).toEqual({ok: true, checked: true})
       await expect.element(page.getByRole('checkbox', {name: 'Far box'})).toBeChecked()
       await expect.element(page.getByRole('checkbox', {name: 'Far box'})).toBeInViewport()
 
-      expect(await resultOf('click', {selector: '#far-button'})).toEqual({ok: true})
+      expect(await runForResult('click', {selector: '#far-button'})).toEqual({ok: true})
       await expect.element(page.getByText('1 far clicks')).toBeVisible()
       await expect.element(page.getByRole('button', {name: 'Far button'})).toBeInViewport()
     })
@@ -678,14 +690,14 @@ describe.skipIf(inFirefox)('page tools', () => {
       </form>
     `
       container.appendChild(host)
-      const username = refOfRole(await resultOf('snapshot', {selector: '#login-host'}), 'textbox')
+      const username = refOfRole(await runForResult('snapshot', {selector: '#login-host'}), 'textbox')
       expect(username).not.toBe('')
-      expect(await resultOf('fill', {ref: username, value: 'demo'})).toEqual({ok: true, value: 'demo'})
+      expect(await runForResult('fill', {ref: username, value: 'demo'})).toEqual({ok: true, value: 'demo'})
       host.innerHTML = `
       <nav><a href="#/a">Dashboard</a><a href="#/b">Orders</a><a href="#/c">Invoices</a><a href="#/d">Reviews</a></nav>
     `
-      await resultOf('snapshot', {selector: '#login-host'})
-      expect(await failureOf('fill', {ref: username, value: 'demo'})).toEqual({
+      await runForResult('snapshot', {selector: '#login-host'})
+      expect(await runForFailure('fill', {ref: username, value: 'demo'})).toEqual({
         code: 'invalid-args',
         message: `stale ref ${username}; re-run page snapshot`,
       })
@@ -727,7 +739,7 @@ describe.skipIf(inFirefox)('page tools', () => {
 
       const reloaded = nextLoad(frame)
       const result = await reload.execute({}, ctxOver(framed))
-      expect(declaredOutputOf('reload').parse(result)).toEqual({ok: true, initiated: true})
+      expect(findDeclaredOutput('reload').parse(result)).toEqual({ok: true, initiated: true})
 
       await reloaded
       const after = frame.contentDocument
@@ -745,7 +757,7 @@ describe.skipIf(inFirefox)('page tools', () => {
       warnings: z.array(z.string()).optional(),
     })
 
-    const screenshotOf = async (input: {exclude?: string[]} = {}) => {
+    const runScreenshot = async (input: {exclude?: string[]} = {}) => {
       const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}screenshot`, input})
       if (!outcome.ok) throw new Error(`expected a screenshot, got ${outcome.error.code}: ${outcome.error.message}`)
       return CapturedShape.parse(outcome.result)
@@ -776,7 +788,7 @@ describe.skipIf(inFirefox)('page tools', () => {
     }
 
     it('captures the visible viewport as a webp the size of the window', async () => {
-      const shot = await screenshotOf()
+      const shot = await runScreenshot()
       expect({width: shot.width, height: shot.height}).toEqual({width: window.innerWidth, height: window.innerHeight})
       expect(atob(shot.image).slice(8, 12)).toBe('WEBP')
       const bitmap = await decoded(shot.image)
@@ -785,16 +797,16 @@ describe.skipIf(inFirefox)('page tools', () => {
 
     it('leaves the conciv widget host, effects surface and grab toast out of the capture', async () => {
       const plain = coverViewport()
-      const covered = centrePixel(await decoded((await screenshotOf()).image))
+      const covered = centrePixel(await decoded((await runScreenshot()).image))
       plain.remove()
       const widget = coverViewport('data-conciv-root')
-      const widgetExcluded = centrePixel(await decoded((await screenshotOf()).image))
+      const widgetExcluded = centrePixel(await decoded((await runScreenshot()).image))
       widget.remove()
       const effects = coverViewport('data-conciv-effects')
-      const effectsExcluded = centrePixel(await decoded((await screenshotOf()).image))
+      const effectsExcluded = centrePixel(await decoded((await runScreenshot()).image))
       effects.remove()
       coverViewport('data-conciv-toast')
-      const toastExcluded = centrePixel(await decoded((await screenshotOf()).image))
+      const toastExcluded = centrePixel(await decoded((await runScreenshot()).image))
       expect(isRed(covered)).toBe(true)
       expect({widget: isRed(widgetExcluded), effects: isRed(effectsExcluded), toast: isRed(toastExcluded)}).toEqual({
         widget: false,
@@ -805,7 +817,7 @@ describe.skipIf(inFirefox)('page tools', () => {
 
     it('leaves out host-page elements the caller names and warns about a selector it cannot read', async () => {
       coverViewport('data-host-devtools')
-      const shot = await screenshotOf({exclude: ['[data-host-devtools]', '[[not a selector']})
+      const shot = await runScreenshot({exclude: ['[data-host-devtools]', '[[not a selector']})
       expect({excluded: !isRed(centrePixel(await decoded(shot.image))), warnings: shot.warnings}).toEqual({
         excluded: true,
         warnings: ['ignored invalid selector: [[not a selector'],
@@ -830,7 +842,7 @@ describe.skipIf(inFirefox)('page tools', () => {
     }
 
     it('reports the hmr tool as not applied when no update lands in time', async () => {
-      expect(await resultOf('hmr', {timeout: 50})).toMatchObject({applied: false})
+      expect(await runForResult('hmr', {timeout: 50})).toMatchObject({applied: false})
     })
 
     it('reports no hot surface as unsupported', async () => {

@@ -47,13 +47,13 @@ export function createHubConnections(home: string, run: Run = runFile) {
   return {
     list,
     generation: (): number | null => {
-      const current = generationOf(home)
+      const current = readGeneration(home)
       return current.ok ? current.generation : null
     },
     connect: async (harness: InitHarnessId, command: string[]): Promise<HubOutcome> => {
       const hub = initContributions[harness].hub
       if (hub === undefined) return {ok: false, message: `${harness} cannot connect to the conciv hub`}
-      const current = generationOf(home)
+      const current = readGeneration(home)
       if (!current.ok) return current
       const install = (leased: LeasedRun) =>
         installHub(hub, hub.add(command, {CONCIV_HOME: home}), leased, () =>
@@ -122,7 +122,7 @@ async function underLease(
   change: (leased: LeasedRun) => Promise<HubOutcome>,
 ): Promise<HubOutcome | typeof BUSY> {
   const operation = {harness, pid: process.pid, childPid: null, startedAt: Date.now()}
-  const taken = leaseOf(home, operation)
+  const taken = takeLease(home, operation)
   if (!taken.ok) return taken.outcome
   const started =
     (bin: string | undefined) =>
@@ -150,7 +150,7 @@ function release(home: string, operation: HubOperation): void {
   }
 }
 
-function leaseOf(home: string, operation: HubOperation): {ok: true} | {ok: false; outcome: HubOutcome | typeof BUSY} {
+function takeLease(home: string, operation: HubOperation): {ok: true} | {ok: false; outcome: HubOutcome | typeof BUSY} {
   try {
     if (withHomeDb(home, (db) => takeHubOperation(db, operation, staleFor(operation.startedAt)))) return {ok: true}
     return {ok: false, outcome: BUSY}
@@ -207,7 +207,7 @@ function runFile(argv: string[], options: RunOptions): Promise<RunOutcome> {
   })
 }
 
-function generationOf(home: string): {ok: true; generation: number} | {ok: false; message: string} {
+function readGeneration(home: string): {ok: true; generation: number} | {ok: false; message: string} {
   try {
     return {ok: true, generation: readHomeDb(home, lastHubRevocation) ?? 0}
   } catch (error) {

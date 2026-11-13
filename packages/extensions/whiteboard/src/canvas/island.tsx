@@ -25,7 +25,7 @@ const asJson = (element: ExcalidrawElement): JsonValue => element as unknown as 
 const withStableIds = (skeletons: ExcalidrawElementSkeleton[], rowId: string): ExcalidrawElementSkeleton[] =>
   skeletons.map((skeleton, index) => (skeleton.id ? skeleton : {...skeleton, id: `${rowId}-${index}`}))
 
-async function skeletonsOf(row: PendingRow): Promise<ExcalidrawElementSkeleton[]> {
+async function buildSkeletons(row: PendingRow): Promise<ExcalidrawElementSkeleton[]> {
   if (row.kind === 'mermaid') {
     const {parseMermaidToExcalidraw} = await import('@excalidraw/mermaid-to-excalidraw')
     const {source} = row.payload as unknown as {source: string}
@@ -124,7 +124,7 @@ export function Island(props: {
   const draining = new Set<string>()
   const drainPending = async (row: PendingRow): Promise<void> => {
     try {
-      const drawn = convertToExcalidrawElements(await skeletonsOf(row), {regenerateIds: false})
+      const drawn = convertToExcalidrawElements(await buildSkeletons(row), {regenerateIds: false})
       const rows = drawn.map((element: ExcalidrawElement) => ({
         room: props.room,
         elementId: element.id,
