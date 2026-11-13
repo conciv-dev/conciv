@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import type {Hooks, Transform} from './registration.js'
+import type {Hooks, Transform} from '../promise/registration.js'
 
 export type Metadata = Readonly<Record<string, unknown>>
 

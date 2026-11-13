@@ -21,12 +21,12 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/promise/index.d.ts",
+      "import": "./dist/promise/index.js"
     },
     "./rpc": {
-      "types": "./dist/rpc-entry.d.ts",
-      "import": "./dist/rpc-entry.js"
+      "types": "./dist/rpc.d.ts",
+      "import": "./dist/rpc.js"
     },
     "./host": {
       "types": "./dist/host.d.ts",

@@ -1,6 +1,6 @@
-import type {RequestOptions} from './domains.js'
-import type {Ref} from './model.js'
-import type {Json} from './storage.js'
+import type {RequestOptions} from '../../../promise/harness.js'
+import type {Ref} from '../../../schema/model.js'
+import type {Json} from '../../../storage.js'
 
 export interface GenerateUsage {
   input?: number

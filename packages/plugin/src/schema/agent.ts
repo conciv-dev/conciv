@@ -1,5 +1,5 @@
-import type {Rule, Ruleset} from './permission.js'
-import type {Transform} from './registration.js'
+import type {Rule, Ruleset} from '../permission.js'
+import type {Transform} from '../promise/registration.js'
 
 export type Id = string
 

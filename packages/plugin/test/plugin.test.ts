@@ -12,9 +12,9 @@ import * as Zod from 'zod'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
-import {Agent, Plugin, Rpc, Tool} from '../src/index.js'
-import type {Transform} from '../src/registration.js'
-import type {ServerRef} from '../src/servers.js'
+import {Agent, Plugin, Rpc, Tool} from '../src/promise/index.js'
+import type {Transform} from '../src/promise/registration.js'
+import type {ServerRef} from '../src/client/promise/index.js'
 import type {Accessor} from 'solid-js'
 import * as Experimental from '../src/experimental/index.js'
 import {
@@ -28,7 +28,7 @@ import {
   type PluginModule,
 } from '../src/experimental/host.js'
 import {experimental} from '../src/experimental/vite.js'
-import * as RpcEntry from '../src/rpc-entry.js'
+import * as RpcEntry from '../src/rpc.js'
 import * as Host from '../src/host.js'
 
 describe('define', () => {

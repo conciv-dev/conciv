@@ -1,6 +1,6 @@
-import type {RequestOptions} from './domains.js'
+import type {RequestOptions} from '../promise/harness.js'
 import type {PublicRef} from './location.js'
-import type {Transform} from './registration.js'
+import type {Transform} from '../promise/registration.js'
 
 export interface Ref {
   readonly id: string

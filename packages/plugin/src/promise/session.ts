@@ -1,10 +1,10 @@
 import type {SessionId} from '@conciv/protocol/chat-types'
-import type {RequestOptions} from './domains.js'
-import type {PublicRef} from './location.js'
-import type {Ref} from './model.js'
-import type {Ruleset} from './permission.js'
+import type {RequestOptions} from './harness.js'
+import type {PublicRef} from '../schema/location.js'
+import type {Ref} from '../schema/model.js'
+import type {Ruleset} from '../permission.js'
 import type {Hooks} from './registration.js'
-import type {Json} from './storage.js'
+import type {Json} from '../storage.js'
 
 export type SessionInboxDelivery = 'steer' | 'queue'
 

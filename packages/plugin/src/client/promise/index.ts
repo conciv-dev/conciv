@@ -1,5 +1,5 @@
 import type {RpcClient} from '@conciv/contract'
-import type {RpcApi} from './rpc.js'
+import type {RpcApi} from '../../schema/rpc.js'
 
 export type ConcivClient = RpcClient & {
   readonly rpc: RpcApi

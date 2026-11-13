@@ -1,13 +1,13 @@
 import type {JSX} from 'solid-js'
 import type {Store} from 'solid-js/store'
 import type {z} from 'zod'
-import type {Ref as LocationRef} from '../location.js'
-import type {ServerRef} from '../servers.js'
+import type {Ref as LocationRef} from '../schema/location.js'
+import type {ServerRef} from '../client/promise/index.js'
 import type {Persisted, StoreFrom, StoreType} from './core.js'
 import type {IconName} from './icon-name.js'
 import type {Link} from './registries.js'
 
-export type {ServerRef, Servers} from '../servers.js'
+export type {ServerRef, Servers} from '../client/promise/index.js'
 
 export interface SessionRef {
   readonly key: string

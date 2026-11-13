@@ -1,5 +1,5 @@
 import type {z} from 'zod'
-import type {ConcivClient} from '../servers.js'
+import type {ConcivClient} from '../client/promise/index.js'
 import type {PluginOptions} from '../options.js'
 
 export type {Json} from '../storage.js'

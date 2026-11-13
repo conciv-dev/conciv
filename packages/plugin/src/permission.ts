@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import {SessionId} from '@conciv/protocol/chat-types'
-import type {RequestOptions} from './domains.js'
-import type {Hooks} from './registration.js'
+import type {RequestOptions} from './promise/harness.js'
+import type {Hooks} from './promise/registration.js'
 
 const Source = z.union([
   z.object({
