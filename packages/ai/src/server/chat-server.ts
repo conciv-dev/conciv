@@ -132,11 +132,15 @@ const PHASE_BY_STATUS: Record<RunRecord['status'], RunPhase> = {
   aborted: 'aborted',
 }
 
+function endedPhase(phase: RunPhase, cancelRequested: boolean | undefined): RunPhase {
+  return phase === 'completed' && cancelRequested === true ? 'aborted' : phase
+}
+
 function buildLifecycle(record: RunRecord): RunLifecycle {
   const stopping = record.status === 'running' && record.cancelRequested === true
   return {
     runId: record.runId,
-    phase: stopping ? 'stopping' : PHASE_BY_STATUS[record.status],
+    phase: stopping ? 'stopping' : endedPhase(PHASE_BY_STATUS[record.status], record.cancelRequested),
     startedAt: record.startedAt,
     finishedAt: record.finishedAt ?? null,
     serverNow: Date.now(),
@@ -371,7 +375,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     const now = Date.now()
     return lifecycleChunk({
       runId,
-      phase: phase === 'completed' && record?.cancelRequested === true ? 'aborted' : phase,
+      phase: endedPhase(phase, record?.cancelRequested),
       startedAt: record?.startedAt ?? now,
       finishedAt: now,
       serverNow: now,

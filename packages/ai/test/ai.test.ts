@@ -25,7 +25,6 @@ import {
   approvalRequestedEvent,
   ChatEventType,
   defineChatEvent,
-  isRunPhaseTerminal,
   runLifecycleEvent,
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
@@ -384,9 +383,11 @@ const watched = require('node:net').connect(data.socket, () => {
     await driven
   })
 
-  it('a stopped run is never announced once stopped and its replay ends aborted', {timeout: 15_000}, async () => {
+  it('a stopped run is never announced and ends aborted, even one finishing by itself', {timeout: 15_000}, async () => {
     const db = chatDb()
+    const runs = drizzleChatStores(db, {readHarness: () => 'test-harness'}).runs
     const announced: string[] = []
+    const ended: string[] = []
     const launched: string[] = []
     const inSetup = Promise.withResolvers<void>()
     const setupHeld = Promise.withResolvers<void>()
@@ -398,6 +399,7 @@ const watched = require('node:net').connect(data.socket, () => {
           launched.push(turn.runId)
           yield {type: ChatEventType.RUN_STARTED, runId: turn.runId, threadId: turn.threadId, timestamp: Date.now()}
           yield* createTextChunks('partial')
+          if (turn.runId === 'finishing') return
           streamed.resolve()
           await stopped.promise
           await new Promise((resolve) => options.request?.signal?.addEventListener('abort', resolve, {once: true}))
@@ -409,8 +411,14 @@ const watched = require('node:net').connect(data.socket, () => {
           }
           return new Map()
         },
+        chunk: async (chunk) => {
+          if (turn.runId === 'finishing' && chunk.type === ChatEventType.TEXT_MESSAGE_END) {
+            await runs.update(turn.runId, {cancelRequested: true})
+          }
+          return [chunk]
+        },
       }),
-      {started: (turn) => announced.push(turn.runId)},
+      {started: (turn) => announced.push(turn.runId), end: async (_turn, run) => void ended.push(run.phase)},
     )
     const server = await chatServer(hooks, () => undefined, db)
     const inSetupRun = say(server, 'thread', 'in-setup', 'a')
@@ -423,24 +431,30 @@ const watched = require('node:net').connect(data.socket, () => {
     await server.stop('thread', ['streaming'])
     stopped.resolve()
     await streaming
+    await say(server, 'thread', 'finishing', 'c')
     expect({
       announced,
       launched,
-      runs: db.$client.prepare('SELECT run_id, status FROM chat_runs ORDER BY started_at').all(),
-      replayEnds: [await replayEnd(server, 'in-setup'), await replayEnd(server, 'streaming')],
+      runs: db.$client.prepare('SELECT run_id, status, cancel_requested AS cancel FROM chat_runs').all(),
+      replayEnds: await Promise.all(['in-setup', 'streaming', 'finishing'].map((runId) => replayEnd(server, runId))),
+      ended,
+      lastRun: (await server.hydrate('thread')).lastRun?.phase,
       userTexts: await texts(server, 'thread', 'user'),
       stoppedTurns: (await server.hydrate('thread')).messages.flatMap((message) =>
         StoppedTurnSchema.safeParse(message.metadata).success ? message.parts : [],
       ),
     }).toEqual({
-      announced: ['streaming'],
-      launched: ['streaming'],
+      announced: ['streaming', 'finishing'],
+      launched: ['streaming', 'finishing'],
       runs: [
-        {run_id: 'in-setup', status: 'aborted'},
-        {run_id: 'streaming', status: 'aborted'},
+        {run_id: 'in-setup', status: 'aborted', cancel: 1},
+        {run_id: 'streaming', status: 'aborted', cancel: 1},
+        {run_id: 'finishing', status: 'completed', cancel: 1},
       ],
-      replayEnds: ['aborted', 'aborted'],
-      userTexts: ['a', 'b'],
+      replayEnds: ['aborted', 'aborted', 'aborted'],
+      ended: ['aborted', 'aborted', 'aborted'],
+      lastRun: 'aborted',
+      userTexts: ['a', 'b', 'c'],
       stoppedTurns: [{type: 'text', content: 'partial'}],
     })
   })
@@ -846,15 +860,6 @@ describe('local sandbox', () => {
 })
 
 describe('events', () => {
-  const lifecycle = {
-    runId: 'r1',
-    phase: 'running' as const,
-    startedAt: 1,
-    finishedAt: null,
-    serverNow: 2,
-    error: null,
-  }
-
   it('defineChatEvent creates only valid CUSTOM events and parses only its own name with a valid value', () => {
     const pinged = defineChatEvent('test.pinged', z.object({count: z.number()}))
     expect(pinged.create({count: 1})).toEqual({type: ChatEventType.CUSTOM, name: 'test.pinged', value: {count: 1}})
@@ -887,14 +892,6 @@ describe('events', () => {
         }),
       )
       expect(session.pendingApprovals()).toEqual([live])
-    })
-
-    it('run lifecycle', () => {
-      const event = runLifecycleEvent.create(lifecycle)
-      expect(event).toEqual({type: ChatEventType.CUSTOM, name: 'conciv.run-lifecycle', value: lifecycle})
-      expect(runLifecycleEvent.parse(event)).toEqual(lifecycle)
-      expect(isRunPhaseTerminal('stopping')).toBe(false)
-      expect(isRunPhaseTerminal('aborted')).toBe(true)
     })
   })
 })

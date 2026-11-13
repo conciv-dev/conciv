@@ -32,7 +32,7 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 - `chat-server.ts:gatedTools` - a tool runs only when its approval is `true`; `false` throws the denied error, and a missing approval emits `APPROVAL_REQUESTED_EVENT` then throws `approvalNeeded`.
 - `chat-server.ts:run` (`conciv-steer` middleware) - starting a run ends every other live run on the same thread.
 - `chat-server.ts:planned` - an exception from `hooks.plan` becomes a `failed-launch` adapter that emits RUN_ERROR.
-- `chat-server.ts:terminalChunk` - a `completed` phase is reported as `aborted` when the record has `cancelRequested`.
+- `chat-server.ts:endedPhase` - a `completed` phase is reported as `aborted` when the record has `cancelRequested` (the user stopped the run while it was finishing by itself); `terminalChunk` and `buildLifecycle` both use it, so the terminal chunk, `hydrate`'s `lastRun` and `hooks.end` agree.
 - `chat-server.ts` `onStart`: `hooks.started` (the run announcement) is skipped once the run's controller is aborted; `@tanstack/ai` calls `onStart` after setup even for a cancelled run.
 - `chat-server.ts:endedWithItsRecord` - a run stream that ends without a terminal chunk (a stopped run) is closed with its recorded terminal run-lifecycle chunk, so a replay or join of a stopped run reads its `aborted` end; no `RUN_FINISHED` is added, because the run's owner reads the same log and a late `RUN_FINISHED` would settle the owner's next turn.
 - `chat-server.ts:stop` - cancels only the thread's active run, and only if it is in `runIds` when given.
