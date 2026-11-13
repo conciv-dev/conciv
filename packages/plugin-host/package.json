@@ -38,6 +38,7 @@
   },
   "dependencies": {
     "@conciv/db": "workspace:^",
+    "@conciv/plugin": "workspace:^",
     "@effect/sql-sqlite-node": "catalog:",
     "@standard-schema/spec": "catalog:",
     "drizzle-orm": "catalog:",

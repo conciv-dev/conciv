@@ -4367,6 +4367,9 @@ importers:
       '@conciv/db':
         specifier: workspace:^
         version: link:../db
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../plugin
       '@effect/sql-sqlite-node':
         specifier: 'catalog:'
         version: 4.1.0(effect@4.1.0)
