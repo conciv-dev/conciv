@@ -21,6 +21,7 @@ import {createNameVariantHinter} from '../../extensions/design/src/server/catalo
 import {CatalogSchemas} from '../../extensions/design/src/shared/catalog-defs.js'
 import {bootDesignHost} from './fixtures/design/boot.js'
 import {figmaFrame} from './fixtures/design/figma-frame.js'
+import {cardsDesign} from './fixtures/design/cards.js'
 
 const HOST_ROOT = fileURLToPath(new URL('fixtures/design/host/', import.meta.url))
 const PLUGIN_ROOT = fileURLToPath(new URL('fixtures/design/plugin-only/', import.meta.url))
@@ -48,6 +49,20 @@ function roundOf(checked: Checked): Exclude<Checked, {unsettled: true} | {compil
     throw new Error(`no round: ${JSON.stringify(checked)}`)
   return checked
 }
+
+describe('design_check on the cards page', () => {
+  it('gives each row the design value and the page value, in the check and in the status', async () => {
+    await kit.goto('target')
+    await call('design_get', await cardsDesign(kit.targetsDir))
+    const told = (rows: ReturnType<typeof roundOf>['rows']) =>
+      rows
+        .filter((row) => ['much', 'noticeably', 'paint'].includes(row.magnitude))
+        .map((row) => `${row.node} ${row.kind}: ${String(row.expected)} expected, ${String(row.actual)} found`)
+    const checked = told(roundOf(await call('design_check', {})).rows)
+    expect([checked.length > 0, checked.filter((line) => line.includes('undefined'))]).toEqual([true, []])
+    expect(told((await call('design_status', {})).rows)).toEqual(checked)
+  })
+})
 
 describe('catalog component rows', () => {
   const NAMED_LINK = 'https://www.figma.com/design/ItFixtureKey/x?node-id=10-1'
