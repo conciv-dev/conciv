@@ -3,6 +3,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
 import type {EngineStaleness} from '@conciv/contract'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {
   CHAT_SSE_PATH,
   CONCIV_CLIENT_HEADER,
@@ -32,6 +33,8 @@ export type BootCoreInput = {
   models?: HarnessModel[]
   alternates?: AlternateHarness[]
   allowedOrigins?: string[]
+  plugins?: NonNullable<ConcivConfig['plugins']>
+  files?: Record<string, string>
 }
 
 export type BootCoreResult = {base: string; wsBase: string; origin: string; bootMs: number}
@@ -146,6 +149,8 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
     allowedOrigins: input.allowedOrigins,
     staleness: () => state.staleness.value,
     resumeBin: input.resumeBin,
+    plugins: input.plugins,
+    files: input.files,
   })
   holdTranscriptsWhen(kit, input.holdTranscripts)
   state.kit = kit
@@ -172,6 +177,10 @@ const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
     kit.harness.transcripts.release()
     await kit.cleanup()
   }
+}
+
+const writeProjectFile: BrowserCommand<[string, string]> = (ctx, path, content): void => {
+  requireKit(ctx).writeProjectFile(path, content)
 }
 
 const pushSocketsOpened: BrowserCommand<[]> = (ctx): number => requirePush(ctx).opened()
@@ -576,6 +585,7 @@ export const coreCommands = {
   hoverButton,
   bootCore,
   closeCore,
+  writeProjectFile,
   pushSocketsOpened,
   pushSocketsLive,
   printedCode,
