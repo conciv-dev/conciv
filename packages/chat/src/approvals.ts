@@ -22,6 +22,7 @@ const PendingSchema = z.array(
     title: z.string(),
     input: z.unknown(),
     runId: z.string().nullable(),
+    permission: z.object({always: z.boolean()}).optional(),
   }),
 )
 
@@ -44,6 +45,7 @@ export type ApprovalAsked = {
   title: string
   input: unknown
   runId: string | null
+  permission?: {always: boolean}
 }
 
 export type ApprovalDecision = {startsTurn: boolean}
@@ -52,6 +54,8 @@ export type Admission = 'allowed' | 'ask' | 'denied'
 
 export type ApprovalStore = {
   asked: (threadId: string, ask: ApprovalAsked) => Promise<void>
+  remove: (threadId: string, approvalId: string) => Promise<void>
+  removeWhere: (threadId: string, test: (entry: ApprovalAsked) => boolean) => Promise<void>
   pending: (threadId: string) => Promise<ChatPendingApproval[]>
   decide: (
     threadId: string,
@@ -115,6 +119,12 @@ export function createApprovalStore(
         outsideAllowedGeneration: null,
       },
     )
+  const removeWhere = async (threadId: string, test: (entry: ApprovalAsked) => boolean): Promise<void> => {
+    const pending = await pendingOf(threadId)
+    const kept = pending.filter((entry) => !test(entry))
+    if (kept.length === pending.length) return
+    await metadata.set(APPROVALS_NAMESPACE, pendingKey(threadId), kept)
+  }
   const writeGrants = (threadId: string, grants: Grants): Promise<void> =>
     metadata.set(APPROVALS_NAMESPACE, grantsKey(threadId), grants)
   const clearCoveredCards = async (): Promise<void> => {
@@ -183,14 +193,9 @@ export function createApprovalStore(
       if (pending.some((entry) => entry.approvalId === ask.approvalId)) return
       await metadata.set(APPROVALS_NAMESPACE, pendingKey(threadId), [...pending, ask])
     },
-    pending: async (threadId) =>
-      (await pendingOf(threadId)).map((entry) => ({
-        approvalId: entry.approvalId,
-        toolCallId: entry.toolCallId,
-        toolName: entry.title,
-        input: entry.input,
-        runId: entry.runId,
-      })),
+    remove: (threadId, approvalId) => removeWhere(threadId, (entry) => entry.approvalId === approvalId),
+    removeWhere,
+    pending: async (threadId) => (await pendingOf(threadId)).map(({title, ...entry}) => ({...entry, toolName: title})),
     decide: async (threadId, approvalId, approved, scope) => {
       const decision = await record(threadId, approvalId, approved, scope)
       if (decision !== null) decisions.emit(decisionKey(threadId, approvalId))
