@@ -2,12 +2,17 @@ import {z} from 'zod'
 import type {RpcClient, SettingsScope, SettingsSnapshot} from '@conciv/contract'
 import {pluginEnabled, type EnableState} from '@conciv/plugin/experimental/host'
 
-const WHERE: {readonly scope: SettingsScope; readonly namespace: string} = {scope: 'global', namespace: 'plugins'}
+const WHERE: {readonly scope: SettingsScope; readonly namespace: string} = {scope: 'global', namespace: 'plugin-enable'}
 
-const EnableRowsSchema = z.record(z.string().min(1), z.boolean())
+const EnableRowSchema = z.object({id: z.string().min(1), enabled: z.boolean()})
 
 function readEnableState(snapshot: SettingsSnapshot): readonly EnableState[] {
-  return Object.entries(EnableRowsSchema.parse(snapshot.value)).map(([id, enabled]) => ({id, enabled}))
+  return Object.entries(snapshot.value).flatMap(([id, enabled]) => {
+    const row = EnableRowSchema.safeParse({id, enabled})
+    if (row.success) return [row.data]
+    console.error(`[plugins] dropped the stored enable state of ${id}`, row.error)
+    return []
+  })
 }
 
 export function createManager(rpc: RpcClient, builtins: readonly string[]) {

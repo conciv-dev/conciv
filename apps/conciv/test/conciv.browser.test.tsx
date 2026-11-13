@@ -1,6 +1,6 @@
 import '../src/styles.css'
 import 'virtual:uno.css'
-import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe} from 'vitest'
+import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe, onTestFinished} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
 import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {makeBrowserRpcClient, makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
@@ -5413,7 +5413,7 @@ describe('plugin enable state', () => {
 
     const follower = createManager(coreRpc(coreBase()), [])
     const followed: (readonly EnableState[])[] = []
-    const unfollow = follower.on((state) => followed.push(state))
+    onTestFinished(follower.on((state) => followed.push(state)))
     await expect.poll(() => followed.at(-1)).toEqual([])
 
     await store.setEnabled('x', false)
@@ -5433,6 +5433,16 @@ describe('plugin enable state', () => {
     expect(await reloaded.read()).toEqual([{id: 'x', enabled: false}])
     expect(await reloaded.enabled('x')).toBe(false)
     await expect.poll(() => followed.at(-1)).toEqual([{id: 'x', enabled: false}])
-    unfollow()
+
+    await coreRpc(coreBase()).settings.set({scope: 'global', namespace: 'plugin-enable', key: 'bad', value: 'yes'})
+    expect(await store.read()).toEqual([{id: 'x', enabled: false}])
+    expect(await store.enabled('bad')).toBe(true)
+    await store.setEnabled('y', false)
+    await expect
+      .poll(() => followed.at(-1))
+      .toEqual([
+        {id: 'x', enabled: false},
+        {id: 'y', enabled: false},
+      ])
   })
 })
