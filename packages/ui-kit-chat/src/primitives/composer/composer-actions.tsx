@@ -156,6 +156,7 @@ function OverflowGroup(props: {action: RegisteredAction}): JSX.Element {
     <For each={local.action.menuContent()}>
       {(entry) => (
         <Menu.Item
+          {...entry.attributes}
           value={entry.key}
           disabled={local.action.disabled() || (entry.disabled?.() ?? false)}
           onSelect={() => entry.onSelect()}
@@ -223,7 +224,7 @@ export type ComposerActionsActionButtonProps = {
 }
 
 function ActionButton(props: ComposerActionsActionButtonProps): JSX.Element {
-  const [local] = splitProps(props, [
+  const [local, rest] = splitProps(props, [
     'priority',
     'visible',
     'tooltip',
@@ -237,7 +238,13 @@ function ActionButton(props: ComposerActionsActionButtonProps): JSX.Element {
   const pairing = useContext(PairingContext)
   const disabled = (): boolean => pairing?.disabled() === true || local.disabled?.() === true
   const entries: ActionMenuEntry[] = [
-    {key: createUniqueId(), label: () => local.tooltip, icon: () => local.children, onSelect: () => local.onClick()},
+    {
+      key: createUniqueId(),
+      label: () => local.tooltip,
+      icon: () => local.children,
+      onSelect: () => local.onClick(),
+      attributes: rest,
+    },
   ]
   const inline = usePlacement({
     priority: () => local.priority ?? 0,
@@ -249,6 +256,7 @@ function ActionButton(props: ComposerActionsActionButtonProps): JSX.Element {
   return (
     <Show when={inline()}>
       <TooltipIconButton
+        {...rest}
         tooltip={local.tooltip}
         variant={local.variant}
         class={local.class ?? ACTION_CLASS}

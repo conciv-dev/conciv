@@ -6,7 +6,8 @@ import {INPUT_FRAME} from './input-frame.js'
 const ROOT = 'flex flex-col gap-1'
 const LABEL = 'text-[0.75rem] text-chat-text-2 font-chat'
 const INPUT =
-  'flex-1 w-full min-w-0 bg-transparent [border:none] px-2.5 py-2 text-inherit [font:inherit] focus-visible:outline-none placeholder:text-chat-text-3 read-only:cursor-default'
+  'flex-1 w-full min-w-0 bg-transparent [border:none] px-2.5 text-inherit [font:inherit] focus-visible:outline-none placeholder:text-chat-text-3 read-only:cursor-default'
+const INPUT_PADDING = {filled: 'py-2', outline: 'py-0'}
 const MONO = 'font-chat-mono text-[0.75rem]'
 const ADDON =
   'flex items-center gap-1.5 shrink-0 px-2.5 text-chat-text-3 font-chat-mono text-[0.75rem] whitespace-nowrap [border-inline-end:1px_solid_var(--chat-line-soft)]'
@@ -20,15 +21,17 @@ type TextFieldProps = JSX.InputHTMLAttributes<HTMLInputElement> & {
   addonEnd?: JSX.Element
   action?: JSX.Element
   mono?: boolean
+  variant?: keyof typeof INPUT_FRAME
 }
 
 export function TextField(props: TextFieldProps): JSX.Element {
-  const [local, rest] = splitProps(props, ['label', 'class', 'addonStart', 'addonEnd', 'action', 'mono'])
+  const [local, rest] = splitProps(props, ['label', 'class', 'addonStart', 'addonEnd', 'action', 'mono', 'variant'])
   const field = useFieldContext()
+  const variant = () => local.variant ?? 'filled'
   const frame = (): JSX.Element => (
-    <div class={INPUT_FRAME}>
+    <div class={INPUT_FRAME[variant()]}>
       <Show when={local.addonStart}>{(addon) => <span class={ADDON}>{addon()}</span>}</Show>
-      <Field.Input class={`${INPUT}  ${local.mono ? MONO : ''}`} {...rest} />
+      <Field.Input class={`${INPUT}  ${INPUT_PADDING[variant()]}  ${local.mono ? MONO : ''}`} {...rest} />
       <Show when={local.addonEnd}>{(addon) => <span class={SUFFIX}>{addon()}</span>}</Show>
       <Show when={local.action}>{(action) => <span class={END}>{action()}</span>}</Show>
     </div>

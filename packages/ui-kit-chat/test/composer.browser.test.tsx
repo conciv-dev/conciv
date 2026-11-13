@@ -569,17 +569,31 @@ describe('composer actions', () => {
   const compactItem = () => page.getByRole('menuitem', {name: 'Compress the conversation'})
   const status = () => page.getByRole('status')
 
-  it('keeps every action inline and hides the overflow trigger when the row is wide', async () => {
+  it('keeps every action inline when the row is wide, then only the pinned one once it narrows', async () => {
+    const [width, setWidth] = createSignal(WIDE_PX)
     mountView(() => (
-      <Fixture width={WIDE_PX}>
+      <Fixture width={width()}>
         <StandardActions />
+        <ComposerActions.ActionButton priority={18} tooltip="Design x-ray" onClick={() => {}} data-conciv-key="3_HY4A">
+          <Glyph />
+        </ComposerActions.ActionButton>
       </Fixture>
     ))
 
+    await expect.element(page.getByRole('button', {name: 'Design x-ray'})).toHaveAttribute('data-conciv-key', '3_HY4A')
     await expect.element(grabButton()).toBeVisible()
     await expect.element(newSessionButton()).toBeVisible()
     await expect.element(compactButton()).toBeVisible()
     await expect.element(trigger()).not.toBeInTheDocument()
+
+    setWidth(NO_SLOT_PX)
+
+    await expect.element(grabButton()).toBeVisible()
+    await expect.element(newSessionButton()).not.toBeInTheDocument()
+    await userEvent.click(trigger())
+    await expect
+      .element(page.getByRole('menuitem', {name: 'Design x-ray'}))
+      .toHaveAttribute('data-conciv-key', '3_HY4A')
   })
 
   it('keeps every auto action in the overflow menu when the host caps inline auto actions at zero', async () => {
@@ -641,19 +655,6 @@ describe('composer actions', () => {
 
     await expect.element(status()).toHaveTextContent('idle compact')
     await expect.element(compactItem()).not.toBeInTheDocument()
-  })
-
-  it('keeps a pinned action inline while every auto action collapses', async () => {
-    mountView(() => (
-      <Fixture width={NO_SLOT_PX}>
-        <GrabAction />
-        <NewSessionAction />
-      </Fixture>
-    ))
-
-    await expect.element(trigger()).toBeVisible()
-    await expect.element(grabButton()).toBeVisible()
-    await expect.element(newSessionButton()).not.toBeInTheDocument()
   })
 
   it('charges the leading region against the fit budget', async () => {
