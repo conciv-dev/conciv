@@ -148,27 +148,9 @@ export interface Context extends BaseContext {
    * ```
    */
   readonly tabs: Tabs
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * System notifications and sounds that follow the user's notification settings, for when they look elsewhere.
-   *
-   * @example
-   * ```ts
-   * void ctx.attention?.notify({ title: "Tests done", session: { server: session.server.id, id: session.id } })
-   * ```
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly attention: Attention | undefined
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Runs published plugin commands and the app's own.
-   *
-   * @example
-   * ```ts
-   * if (!ctx.commands?.run("terminal.toggle")) ctx.toast.show({ title: "No terminal" })
-   * ```
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly commands: Commands | undefined
   /**
    * Routes local links to the plugins that handle them.

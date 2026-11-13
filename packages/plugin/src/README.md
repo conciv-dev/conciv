@@ -4,7 +4,8 @@ The SDK is a port of opencode's plugin package (opencode at commit `a1aa513`; ev
 to its `packages/` folder). Names and shapes are opencode's except for the lines under "Differences from opencode".
 The source keeps opencode's JSDoc only where a block carries at least one tag (`@param`, `@returns`, `@example`,
 `@remarks` ...) above a declaration or member: those blocks stay whole, prose-only doc blocks are not kept
-(`conciv/no-comments` with `keepDocComments`).
+(`conciv/no-comments` with `keepDocComments`). A member marked as not implemented (below) carries only its `@remarks`
+line.
 
 ## Entries
 

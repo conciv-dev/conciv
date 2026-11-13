@@ -180,26 +180,14 @@ export type ServerState = 'stopped' | 'starting' | 'auth' | 'ready' | 'failed' |
 export interface ServerEntry {
   readonly id: string
   readonly name: string
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Short badge after the name, e.g. "SSH".
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly label?: string
   readonly state: ServerState
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * False keeps the entry out of the app's server list.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly listed?: boolean
   readonly http?: {
     readonly url: string
-    /**
-     * @remarks Not implemented yet. Always undefined in this version.
-     *
-     * The HTTP basic password.
-     */
+    /** @remarks Not implemented yet. Always undefined in this version. */
     readonly password?: string
   }
   /**
@@ -210,24 +198,12 @@ export interface ServerEntry {
    */
   reconnect?(signal: AbortSignal): Promise<{
     readonly url: string
-    /**
-     * @remarks Not implemented yet. Always undefined in this version.
-     *
-     * The new HTTP basic password.
-     */
+    /** @remarks Not implemented yet. Always undefined in this version. */
     readonly password?: string
   }>
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Called before opening a server that is not ready. Resolves true once it is.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   connect?(): Promise<boolean>
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Runs before the host forgets the server.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   remove?(): Promise<void>
   /**
    * Covers the routed session or draft while the entry is not ready; the route stays mounted underneath.
@@ -236,22 +212,14 @@ export interface ServerEntry {
    * @param input - The routed tab.
    */
   cover?(input: {
-    /**
-     * @remarks Not implemented yet. Always undefined in this version.
-     *
-     * The routed tab's key.
-     */
+    /** @remarks Not implemented yet. Always undefined in this version. */
     readonly tab: string | undefined
   }): JSX.Element
 }
 
 export interface Server {
   readonly ready: boolean
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Sources list in ascending order. Defaults to 0.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly order?: number
   readonly entries: readonly ServerEntry[]
 }

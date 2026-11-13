@@ -12,13 +12,7 @@ export type PayloadBase = {
 
 export interface DurableEnvelope {
   readonly aggregateId: string
-  /**
-   * Position in one aggregate's durable log. Values originate from the durable
-   * event envelope and synced markers;
-   * `after` cursors accept only values that came from those sources.
-   *
-   * @remarks Not implemented yet. Always undefined in this version.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly seq: number | undefined
   readonly version: number
 }

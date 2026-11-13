@@ -51,11 +51,7 @@ export interface Context {
   readonly agent: AgentDomain
   readonly event: EventDomain
   readonly experimental: {
-    /**
-     * Stateless generation with a model and a prompt: no session, history or tools.
-     *
-     * @remarks Not implemented yet. Always undefined in this version.
-     */
+    /** @remarks Not implemented yet. Always undefined in this version. */
     readonly generate: ExperimentalGenerateApi | undefined
   }
   readonly model: ModelDomain

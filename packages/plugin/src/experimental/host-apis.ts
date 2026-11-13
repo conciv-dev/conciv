@@ -110,12 +110,7 @@ export interface Composer {
    * screen.composer.insert(`Explain ${path}`)
    */
   insert(text: string): void
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Replaces the prompt's text, mentions included, and moves the cursor to the end. Attachments and attached parts
-   * stay. Before the session's draft loads, it waits and applies in call order.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly setText: ((text: string) => void) | undefined
   model(): ComposerModel | undefined
   /**
@@ -140,14 +135,7 @@ export interface Composer {
    * @param part - The part to attach.
    */
   attach(part: ComposerFile | ComposerNote | ComposerQuote): void
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Whether the composer takes quotes now. Reactive.
-   *
-   * @example
-   * if (screen.composer.quotable?.()) screen.composer.attach(quote)
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly quotable: (() => boolean) | undefined
   /**
    * Moves focus to the prompt, at its cursor. With the `commentId` of an attached quote, opens that quote's comment
@@ -158,12 +146,7 @@ export interface Composer {
    * @param options - Optional placement beside the quote's source. Omit to anchor to its composer tile.
    */
   focus(commentId?: string, options?: ComposerFocusOptions): void
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Changes an attached part. Files, notes and quotes alike; a note or a quote takes only `comment`. Before the
-   * session's draft loads, it waits and applies in call order.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly update:
     | ((
         id: string,
@@ -173,28 +156,16 @@ export interface Composer {
         },
       ) => void)
     | undefined
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Removes an attached part, by its `commentId`. Before the session's draft loads, it waits and applies in call order.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly detach: ((id: string) => void) | undefined
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Whether keyboard focus is in the prompt now. Not reactive: read it where you act, such as in `Command.run`.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly focused: (() => boolean) | undefined
 }
 
 export interface MountedSession extends SessionRef {
   readonly visit: object
   readonly directory: string
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * The session runs in the project root rather than a worktree. Reactive.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly local: boolean | undefined
 }
 
@@ -219,11 +190,7 @@ export interface OpenOptions {
 }
 
 export interface Layout {
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Viewport under 768px. Reactive.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly narrow: (() => boolean) | undefined
   ready(): boolean
   /**
@@ -273,11 +240,7 @@ export interface Layout {
    * @param session - Any session.
    */
   stored(session: SessionRef): readonly string[]
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Scroll offsets the host stores per session and key.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly scroll:
     | {
         /**
@@ -398,22 +361,9 @@ export interface System {
    * @param text - The text to copy.
    */
   copy(text: string): Promise<void>
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Saves a file: a download on the web.
-   *
-   * @param file - The suggested name and the content.
-   * @returns Always true on the web.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly save: ((file: {readonly name: string; readonly content: string}) => Promise<boolean>) | undefined
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Opens a URL in a new browser tab. For links inside the app, use `Links.open`.
-   *
-   * @param url - The URL to open.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly openExternal: ((url: string) => void) | undefined
 }
 
@@ -436,24 +386,11 @@ export interface Desktop {
       readonly column?: number
     },
   ): Promise<void>
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Shows a path in the system file manager; resolves false when it could not.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly reveal: ((path: string) => Promise<boolean>) | undefined
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Whether an app is installed.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly installed: ((app: string) => Promise<boolean>) | undefined
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Asks the user for files or folders with the system's open dialog. Resolves with the absolute paths the user
-   * picked, in the order the dialog reports them; empty when the user cancelled. Rejects when the dialog cannot open.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly pick: ((options?: PickOptions) => Promise<readonly string[]>) | undefined
 }
 
@@ -520,12 +457,7 @@ export interface Links {
    * @returns False when no handler matches.
    */
   open(link: Link): boolean
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Whether a link's target exists, so text that names it can be styled as a link. Asks the LinkHandler `open` would
-   * use. Resolves false when no handler matches, the handler has no `exists`, or the target does not exist.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly exists: ((link: Link) => boolean | Promise<boolean>) | undefined
 }
 
@@ -555,46 +487,13 @@ export interface Dialogs {
     },
   ): DialogHandle
   active(): boolean
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Asks the user to confirm an action, in the app's own confirmation dialog. Opens as `open` does, with the same
-   * lifetime: it waits for the app interface, and closes with the owner that asked, else with the plugin.
-   *
-   * @param options - The question and its buttons.
-   * @returns True only when the user chose the confirm button. False when they chose cancel, pressed Escape or clicked
-   *   outside, when another dialog replaced it, and when it closed or never opened because its owner or plugin went
-   *   away.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly confirm: ((options: ConfirmOptions) => Promise<boolean>) | undefined
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Tells the user something they must acknowledge, in a dialog with one button. Opens and closes as `confirm` does.
-   *
-   * @param options - What the dialog says.
-   * @returns Resolves once the dialog closes, however it closes.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly alert: ((options: AlertOptions) => Promise<void>) | undefined
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Asks the user for a line of text, in the app's own dialog. Enter submits. Opens and closes as `confirm` does.
-   *
-   * @param options - The question, the field and its button.
-   * @returns The text the user submits, which is never empty: the submit button and Enter do nothing while the field
-   *   is empty. Undefined when the user cancels, dismisses the dialog, or it closes with its owner.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly prompt: ((options: PromptOptions) => Promise<string | undefined>) | undefined
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Asks the user to pick one option from a searchable list, in the app's own dialog. Opens and closes as `confirm`
-   * does.
-   *
-   * @param options - The title, the search field and the options.
-   * @returns The picked option's `value`; undefined when the user dismisses the dialog or it closes with its owner.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly select: (<T>(options: SelectOptions<T>) => Promise<T | undefined>) | undefined
 }
 
@@ -744,12 +643,7 @@ export interface Tabs {
    * @param key - The tab's `ShellTab.key`.
    */
   focus(key: string): void
-  /**
-   * @remarks Not implemented yet. Always undefined in this version.
-   *
-   * Moves an open tab to a place in the strip, from 0, clamped to the strip. Does nothing when no open tab has the
-   * key.
-   */
+  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly move: ((key: string, index: number) => void) | undefined
   /**
    * Closes an open tab, as the user does. Does nothing when no open tab has the key.
