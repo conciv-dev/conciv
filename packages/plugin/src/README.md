@@ -323,7 +323,6 @@ tag line `@remarks Not implemented yet. Always undefined in this version.`, and 
 - `Tabs.move`
 - `Links.exists`
 - `Ui.Dialog`: size `fit`
-- `Ui.TextInput`: size `large`
 - `Server.order`; `ServerEntry`: `label`, `listed`, `http.password`, `connect`, `remove`; `cover`'s `tab`; `reconnect`'s `password`
 
 ## Not available yet

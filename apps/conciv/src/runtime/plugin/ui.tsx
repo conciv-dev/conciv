@@ -250,6 +250,7 @@ export const ui: Ui = {
   TextInput: (props) => (
     <TextField
       type={props.type ?? 'text'}
+      size={props.size === 'large' ? 'lg' : 'md'}
       value={props.value}
       placeholder={props.placeholder}
       aria-label={props.label}
