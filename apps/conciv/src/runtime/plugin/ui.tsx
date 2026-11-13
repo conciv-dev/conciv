@@ -25,12 +25,15 @@ const iconSize = {small: 'size-3.5', normal: 'size-4', large: 'size-5'}
 
 const loaderSize: Record<'small' | 'normal' | 'large', LoaderSize> = {small: 'sm', normal: 'md', large: 'lg'}
 
-const buttonVariant: Record<'neutral' | 'contrast' | 'ghost' | 'ghost-muted' | 'danger', ButtonVariant> = {
-  neutral: 'outline',
-  contrast: 'solid',
-  ghost: 'ghost',
-  'ghost-muted': 'plain',
-  danger: 'danger',
+const buttonVariant: Record<
+  'neutral' | 'contrast' | 'ghost' | 'ghost-muted' | 'danger',
+  {variant: ButtonVariant; class: string}
+> = {
+  neutral: {variant: 'outline', class: ''},
+  contrast: {variant: 'solid', class: ''},
+  ghost: {variant: 'plain', class: 'text-chat-text hover:bg-chat-fill-strong'},
+  'ghost-muted': {variant: 'ghost', class: ''},
+  danger: {variant: 'danger', class: ''},
 }
 
 const buttonSize: Record<'small' | 'normal' | 'large', ButtonSize> = {small: 'sm', normal: 'md', large: 'md'}
@@ -51,12 +54,12 @@ export const ui: Ui = {
   Button: (props) => (
     <Button
       type={props.type ?? 'button'}
-      variant={buttonVariant[props.variant ?? 'neutral']}
+      variant={buttonVariant[props.variant ?? 'neutral'].variant}
       size={buttonSize[props.size ?? 'normal']}
       disabled={props.disabled || props.busy}
       aria-busy={props.busy || undefined}
       autofocus={props.autofocus}
-      class={props.class}
+      class={`${buttonVariant[props.variant ?? 'neutral'].class} ${props.class ?? ''}`}
       onClick={(event: MouseEvent) => props.onClick?.(event)}
     >
       <Show
@@ -75,13 +78,13 @@ export const ui: Ui = {
   IconButton: (props) => (
     <Button
       type="button"
-      variant={buttonVariant[props.variant ?? 'ghost-muted']}
+      variant={buttonVariant[props.variant ?? 'ghost-muted'].variant}
       size="icon"
       disabled={props.disabled || props.busy}
       aria-label={props.label}
       aria-pressed={props.pressed}
       aria-busy={props.busy || undefined}
-      class={props.class}
+      class={`${buttonVariant[props.variant ?? 'ghost-muted'].class} ${props.class ?? ''}`}
       onClick={(event: MouseEvent) => props.onClick?.(event)}
     >
       <Show when={props.busy} fallback={<Icon name={props.icon} />}>
@@ -113,7 +116,7 @@ export const ui: Ui = {
             asChild={(triggerProps) => (
               <Button
                 {...triggerProps()}
-                variant="plain"
+                variant={buttonVariant['ghost-muted'].variant}
                 size="icon"
                 disabled={props.disabled}
                 aria-label={props.label}
