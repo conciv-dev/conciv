@@ -22,5 +22,7 @@ export const Info = Schema.Struct({
   workspaceId: optional(WorkspaceId),
   project: Schema.Struct({
     id: ProjectId,
+    directory: AbsolutePath,
+    canonical: AbsolutePath,
   }),
 }).annotate({identifier: 'Location.Info'})

@@ -31,7 +31,7 @@ const locationLayer = Layer.succeed(
   Location.Service.of({
     directory: AbsolutePath.make('project'),
     workspaceId: WorkspaceId.make('wrk_test'),
-    project: {id: ProjectId.global},
+    project: {id: ProjectId.global, directory: AbsolutePath.make('project'), canonical: AbsolutePath.make('project')},
   }),
 )
 const Message = Bus.ephemeral({

@@ -29,9 +29,12 @@ const databaseLayer = Layer.unwrap(
 const engine = Location.Service.of({
   directory: AbsolutePath.make('project'),
   workspaceId: WorkspaceId.make('wrk_test'),
-  project: {id: ProjectId.global},
+  project: {id: ProjectId.global, directory: AbsolutePath.make('project'), canonical: AbsolutePath.make('project')},
 })
-const elsewhere = Location.Service.of({directory: AbsolutePath.make('elsewhere'), project: {id: ProjectId.global}})
+const elsewhere = Location.Service.of({
+  directory: AbsolutePath.make('elsewhere'),
+  project: {id: ProjectId.global, directory: AbsolutePath.make('elsewhere'), canonical: AbsolutePath.make('elsewhere')},
+})
 
 const it = testEffect(
   Bus.configured({persist: true}).pipe(
