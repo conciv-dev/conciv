@@ -13,7 +13,14 @@ import {
   MAX_ATTACHMENT_RAW_BYTES,
 } from '../src/chat-types.js'
 import {defineFrameworkAdapter, type FrameworkClientCore, type FrameworkServerCore} from '../src/framework-types.js'
-import {ChatEventType, type RunStatus} from '../src/chat-event-types.js'
+import {
+  approvalAskOf,
+  approvalRequestedEvent,
+  approvalSettledEvent,
+  approvalSettledOf,
+  ChatEventType,
+  type RunStatus,
+} from '../src/chat-event-types.js'
 import {
   decodeEntities,
   isDangerousTag,
@@ -676,6 +683,48 @@ describe('terminal types', () => {
       expect(TtyServerControlSchema.parse({type: 'exit', code: 0})).toEqual({type: 'exit', code: 0})
       expect(TtyServerControlSchema.parse({type: 'busy', busy: true})).toEqual({type: 'busy', busy: true})
       expect(TtyServerControlSchema.parse({type: 'error', message: 'boom'})).toEqual({type: 'error', message: 'boom'})
+    })
+  })
+})
+
+describe('chat event types', () => {
+  describe('permission cards travel as approval events', () => {
+    it('an asked permission keeps its member, a plain ask has none, and a settle names the approval', () => {
+      const permissionAsk = approvalAskOf({
+        ...approvalRequestedEvent.create({
+          approvalId: 'per_1',
+          toolCallId: 'per_1',
+          title: 'edit src/a.ts',
+          input: {filepath: 'src/a.ts'},
+          permission: {always: true},
+        }),
+        timestamp: 1,
+      })
+      expect(permissionAsk).toEqual({
+        approvalId: 'per_1',
+        toolCallId: 'per_1',
+        toolName: 'edit src/a.ts',
+        input: {filepath: 'src/a.ts'},
+        permission: {always: true},
+      })
+
+      const plainAsk = approvalAskOf({
+        ...approvalRequestedEvent.create({approvalId: 'claude-code:command:ls', title: 'Bash: ls', command: 'ls'}),
+        timestamp: 1,
+      })
+      expect(plainAsk).toEqual({
+        approvalId: 'claude-code:command:ls',
+        toolCallId: 'claude-code:command:ls',
+        toolName: 'Bash: ls',
+        input: {command: 'ls'},
+      })
+
+      const settled = approvalSettledEvent.create({approvalId: 'per_1'})
+      expect(settled).toEqual({type: ChatEventType.CUSTOM, name: 'approval-settled', value: {approvalId: 'per_1'}})
+      expect(approvalSettledOf({...settled, timestamp: 2})).toBe('per_1')
+      expect(approvalSettledOf({...approvalRequestedEvent.create({approvalId: 'a', title: 't'}), timestamp: 3})).toBe(
+        null,
+      )
     })
   })
 })
