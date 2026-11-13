@@ -36,6 +36,7 @@ export type ChatSessionCallbacks = {
   onHydrated: (hydration: ChatSessionHydration) => void
   onRunError: () => void
   onApprovalAsk: (ask: ApprovalAsk) => void
+  onApprovalSettled: (approvalId: string) => void
   joinsRun: (runId: string) => Promise<boolean>
 }
 
@@ -128,6 +129,9 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     pending: [],
     harnesses: {},
   })
+  const withdraw = (approvalId: string): void => {
+    setServed('pending', (pending) => pending.filter((waiting) => waiting.approvalId !== approvalId))
+  }
   const connection = options.connect({
     onLifecycle: (lifecycle) => {
       setRunSource({lifecycle, receivedAt: Date.now()})
@@ -146,6 +150,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
         pending.some((waiting) => waiting.approvalId === ask.approvalId) ? pending : [...pending, ask],
       )
     },
+    onApprovalSettled: (approvalId) => withdraw(approvalId),
     joinsRun: (runId) =>
       joinedRun(runId).catch((error: unknown) => {
         options.onError?.(asError(error))
@@ -217,8 +222,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   const stop = (): Promise<void> => stopRun().catch((error: unknown) => options.onError?.(asError(error)))
   const decide = async (approvalId: string, approved: boolean, scope: ChatApprovalScope): Promise<void> => {
     const ask = served.pending.find((waiting) => waiting.approvalId === approvalId)
-    const decision = await options.decide(approvalId, approved, scope)
-    setServed('pending', (pending) => pending.filter((waiting) => waiting.approvalId !== approvalId))
+    const decision = await options.decide(approvalId, approved, scope).finally(() => withdraw(approvalId))
     if (!decision.startsTurn || ask === undefined) return
     await chat.sendMessage(decisionText(ask.toolName, approved, scope))
   }

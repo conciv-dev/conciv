@@ -1,10 +1,12 @@
 import {createSignal, Show, splitProps, type JSX} from 'solid-js'
 import {createTimer} from '@solid-primitives/timer'
+import Ban from 'lucide-solid/icons/ban'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {Button} from '@conciv/ui-kit-system'
 import {Permission, usePermission} from '../../tools/primitives/permission.js'
+import {OUTCOME_TONE} from '../../tools/primitives/tool-presentation.js'
 import {FOCUS} from '../classes.js'
 import {TRACE_INDENT, TRACE_MICROLABEL} from './trace-row.js'
 
@@ -52,9 +54,17 @@ function ExpiryChip(props: {expiresAt: number}): JSX.Element {
 
 const DECISION_MESSAGE = {approved: 'Approved the request', denied: 'Denied the request'} as const
 
-const DECISION_CHIP = {approved: 'Approved', denied: 'Denied'} as const
+const REMEMBER = {
+  session: {label: 'Allow for session', title: 'Allows this exact command for the rest of the session'},
+  project: {label: 'Always allow', title: 'Allows this in this project from now on'},
+} as const
 
-const DECIDED = `${BUTTON_SHAPE} [background:transparent] [border:1px_solid_transparent] text-chat-text-2`
+const DECIDED = `${BUTTON_SHAPE} [background:transparent] [border:1px_solid_transparent]`
+
+const DECISION_CHIP = {
+  approved: {label: 'Approved', class: `${DECIDED} text-chat-text-2`},
+  denied: {label: 'Denied', class: `${DECIDED} ${OUTCOME_TONE.error.text}`},
+} as const
 
 function Block(props: {target: string; explanation?: string; expiresAt?: number}): JSX.Element {
   const [local] = splitProps(props, ['target', 'explanation', 'expiresAt'])
@@ -99,7 +109,16 @@ function Block(props: {target: string; explanation?: string; expiresAt?: number}
               <Show
                 when={permission.pending()}
                 fallback={
-                  <Show when={decision()}>{(settled) => <span class={DECIDED}>{DECISION_CHIP[settled()]}</span>}</Show>
+                  <Show when={decision()}>
+                    {(settled) => (
+                      <span class={DECISION_CHIP[settled()].class}>
+                        <Show when={settled() === 'denied'}>
+                          <Ban size={12} class="shrink-0" aria-hidden="true" />
+                        </Show>
+                        <span>{DECISION_CHIP[settled()].label}</span>
+                      </span>
+                    )}
+                  </Show>
                 }
               >
                 <Button variant="plain" size="none" class={APPROVE} onClick={permission.approve}>
@@ -113,10 +132,10 @@ function Block(props: {target: string; explanation?: string; expiresAt?: number}
                     variant="plain"
                     size="none"
                     class={SESSION}
-                    title="Allows this exact command for the rest of the session"
+                    title={REMEMBER[permission.remembers()].title}
                     onClick={permission.approveForSession}
                   >
-                    Allow for session
+                    {REMEMBER[permission.remembers()].label}
                   </Button>
                 </Show>
                 <Button variant="plain" size="none" class={DENY} onClick={permission.reject}>

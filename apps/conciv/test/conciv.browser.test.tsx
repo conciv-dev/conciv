@@ -88,6 +88,8 @@ import {
 import type {ComposerInputHandle} from '../src/pane/composer-input-adapter.jsx'
 import {createTextChunks, createToolCallChunks, createToolResultChunk, storyConnection} from '@conciv/ai/testkit'
 import {createToolDurations} from '../src/pane/tool-durations.js'
+import {PendingApprovals} from '../src/pane/pending-approvals.js'
+import {makeToolViewCtx} from '../src/pane/tool-view-ctx.js'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
 import {ChatEventType, type ChatEvent, type RunClockSource, type RunLifecycle} from '@conciv/protocol/chat-event-types'
@@ -195,6 +197,98 @@ describe('approval replay', () => {
     expect(await waiting).toContain('{\\"result\\":1')
     expect(await coreControl.hubExecute(sessionId, 'return 40 + 2')).toContain('42')
   }, 120_000)
+
+  describe('permission cards', () => {
+    const disposers: Array<() => void> = []
+    afterEach(() => disposers.splice(0).forEach((dispose) => dispose()))
+
+    const quietConnection: ChatSessionConnection = {
+      subscribe: async function* (signal) {
+        await new Promise<void>((resolve) => signal?.addEventListener('abort', () => resolve(), {once: true}))
+        yield* []
+      },
+      send: () => Promise.resolve(),
+      refresh: () => Promise.resolve({messages: [], messageHarness: {}, lastRun: null, pendingApprovals: []}),
+      close: () => undefined,
+    }
+
+    const permissionAsk = (approvalId: string, toolName: string, input: unknown, always: boolean) => ({
+      approvalId,
+      toolCallId: approvalId,
+      toolName,
+      input,
+      permission: {always},
+    })
+
+    test('the second button saves for the project, and a card leaves once answered, refused as gone, or settled elsewhere', async () => {
+      const announced: ChatSessionCallbacks[] = []
+      const answers: Array<{approvalId: string; approved: boolean; scope: string}> = []
+      const replies: Array<PromiseWithResolvers<{startsTurn: boolean}>> = []
+      const session = createRoot((dispose) => {
+        disposers.push(dispose)
+        return createChatSession({
+          sessionId: 'permission-cards',
+          connect: (callbacks) => {
+            announced.push(callbacks)
+            return quietConnection
+          },
+          stop: () => Promise.resolve(),
+          decide: (approvalId, approved, scope) => {
+            answers.push({approvalId, approved, scope})
+            const reply = Promise.withResolvers<{startsTurn: boolean}>()
+            replies.push(reply)
+            return reply.promise
+          },
+        })
+      })
+      const ctx = makeToolViewCtx({
+        harnessId: () => 'claude',
+        catalog: INERT_TOOL_CTX.catalog,
+        sendMessage: () => undefined,
+        decide: session.decide,
+        onError: () => undefined,
+        addResult: INERT_TOOL_CTX.addResult,
+        durationFor: () => undefined,
+        captureFor: () => undefined,
+      })
+      render(() => <PendingApprovals asks={session.pendingApprovals()} ctx={ctx} />)
+      const callbacks = announced[0]
+      const card = (target: string) => page.getByRole('group', {name: 'Permission request'}).filter({hasText: target})
+      const alwaysAllow = (target: string) => card(target).getByRole('button', {name: 'Always allow'})
+
+      callbacks?.onApprovalAsk(permissionAsk('edit-ask', 'edit src/app.ts', {filepath: 'src/app.ts'}, true))
+      callbacks?.onApprovalAsk(permissionAsk('push-ask', 'bash git push', {command: 'git push'}, false))
+      callbacks?.onApprovalAsk(permissionAsk('env-ask', 'read .env', {filepath: '.env'}, true))
+
+      await expect.element(alwaysAllow('edit src/app.ts')).toBeVisible()
+      await expect
+        .element(alwaysAllow('edit src/app.ts'))
+        .toHaveAccessibleDescription('Allows this in this project from now on')
+      await expect.element(card('bash git push').getByRole('button', {name: 'Approve'})).toBeVisible()
+      await expect.element(card('bash git push').getByRole('button', {name: 'Always allow'})).not.toBeInTheDocument()
+      await expect
+        .element(card('bash git push').getByRole('button', {name: 'Allow for session'}))
+        .not.toBeInTheDocument()
+      await expect.element(alwaysAllow('read .env')).toBeVisible()
+
+      callbacks?.onApprovalSettled('env-ask')
+      await expect.element(card('read .env')).not.toBeInTheDocument()
+      await expect.element(card('edit src/app.ts')).toBeVisible()
+
+      await alwaysAllow('edit src/app.ts').click()
+      await expect.element(card('edit src/app.ts').getByText('Approved', {exact: true})).toBeVisible()
+      expect(answers).toEqual([{approvalId: 'edit-ask', approved: true, scope: 'session'}])
+      replies[0]?.resolve({startsTurn: false})
+      await expect.element(card('edit src/app.ts')).not.toBeInTheDocument()
+
+      await card('bash git push').getByRole('button', {name: 'Deny'}).click()
+      await expect.element(card('bash git push').getByText('Denied', {exact: true})).toBeVisible()
+      expect(answers.at(-1)).toEqual({approvalId: 'push-ask', approved: false, scope: 'once'})
+      replies[1]?.reject(new Error('UNKNOWN_REQUEST'))
+      await expect.element(card('bash git push')).not.toBeInTheDocument()
+      await expect.element(page.getByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
+    }, 30_000)
+  })
 })
 
 describe('attachment widget', () => {

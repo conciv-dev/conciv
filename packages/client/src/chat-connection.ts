@@ -12,6 +12,7 @@ import {
   sessionRunEvent,
   type RunLifecycle,
   readApprovalAsk,
+  readApprovalSettled,
   type ApprovalAsk,
 } from '@conciv/protocol/chat-event-types'
 import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
@@ -36,6 +37,7 @@ export type ChatConnectionOptions = {
   onTransport?: (transport: ChatTransport) => void
   onHydrated?: (hydration: ChatHydration) => void
   onApprovalAsk?: (ask: ApprovalAsk) => void
+  onApprovalSettled?: (approvalId: string) => void
   onRunError?: () => void
   joinsRun?: (runId: string) => Promise<boolean>
 }
@@ -225,6 +227,8 @@ function notice(chunk: ChatEvent, options: ChatConnectionOptions): void {
   if (lifecycle) options.onLifecycle?.(lifecycle)
   const ask = readApprovalAsk(chunk)
   if (ask) options.onApprovalAsk?.(ask)
+  const settled = readApprovalSettled(chunk)
+  if (settled) options.onApprovalSettled?.(settled)
   if (chunk.type === ChatEventType.RUN_ERROR) options.onRunError?.()
 }
 
