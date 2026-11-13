@@ -12,7 +12,6 @@ import * as Zod from 'zod'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
-import {Scope} from '../src/experimental/scope.js'
 import {Agent, Plugin, Rpc, Tool} from '../src/index.js'
 import type {Transform} from '../src/registration.js'
 import type {ServerRef} from '../src/servers.js'
@@ -24,6 +23,7 @@ import {
   pluginIdAvailable,
   pluginSharedModules,
   pluginWindowModules,
+  Scope,
   type InertModule,
   type PluginModule,
 } from '../src/experimental/host.js'
@@ -180,6 +180,8 @@ describe('toolError', () => {
     const error = Tool.toolError({message: 'boom', error: cause, metadata: {code: 1}})
     expect(Tool.isToolError(error)).toBe(true)
     expect(error).toEqual({_tag: 'Tool.Error', message: 'boom', error: cause, metadata: {code: 1}})
+    const stray: {message: string; _tag: string} = {message: 'boom', _tag: 'Other'}
+    expect(Tool.isToolError(Tool.toolError(stray))).toBe(true)
   })
 
   it('rejects a plain Error', () => {

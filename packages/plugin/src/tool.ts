@@ -130,7 +130,7 @@ export interface ToolDomain {
 }
 
 export function toolError(input: Omit<Error, '_tag'>): Error {
-  return {_tag: 'Tool.Error', ...input}
+  return {...input, _tag: 'Tool.Error'}
 }
 
 export function isToolError(value: unknown): value is Error {

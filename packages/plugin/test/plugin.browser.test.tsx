@@ -4,10 +4,16 @@ import {createStore} from 'solid-js/store'
 import {describe, expect, it} from 'vitest'
 import {page} from 'vitest/browser'
 import {makeRpcClient} from '@conciv/contract'
-import type {Context} from '../src/experimental/context.js'
-import type {Sessions} from '../src/experimental/host-apis.js'
-import {bindPlugin, createKeyed, createLatest, createVisitState, usePlugin} from '../src/experimental/index.js'
-import {PluginContext} from '../src/experimental/internal.js'
+import {PluginContext} from '../src/experimental/host.js'
+import {
+  bindPlugin,
+  createKeyed,
+  createLatest,
+  createVisitState,
+  usePlugin,
+  type Context,
+  type Sessions,
+} from '../src/experimental/index.js'
 import type {ServerRef} from '../src/servers.js'
 
 function unused(): never {
