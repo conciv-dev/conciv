@@ -275,6 +275,8 @@
     "packages/plugin-host/src/core/skill/instructions.ts",
     "packages/plugin-host/src/core/database/**",
     "packages/plugin-host/src/core/permission.ts",
+    "packages/plugin-host/src/plugin/effect/rpc.ts",
+    "packages/plugin-host/src/core/schema.ts",
     "packages/brand-react/src/conciv-lockup.tsx",
     "packages/brand/src/brand-guidelines.mdx",
     "packages/ui-kit-chat/src/tools.tsx",
