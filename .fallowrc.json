@@ -215,6 +215,7 @@
     }
   ],
   "entry": [
+    "packages/plugin-host/src/core/database/**",
     "packages/brand-react/src/conciv-lockup.tsx",
     "packages/brand/src/brand-guidelines.mdx",
     "packages/ui-kit-chat/src/tools.tsx",

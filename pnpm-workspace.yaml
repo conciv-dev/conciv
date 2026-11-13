@@ -14,6 +14,7 @@ syncInjectedDepsAfterScripts:
 # it can resolve two different @orpc releases and split the pair. Single-sourcing the
 # version here means every manifest's "catalog:" resolves to the same exact release.
 catalog:
+  '@effect/sql-sqlite-node': 4.1.0
   '@modelcontextprotocol/sdk': ^1.32.2
   '@orpc/client': 1.16.1
   '@orpc/contract': 1.16.1
