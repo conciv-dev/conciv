@@ -18,7 +18,6 @@
     "@conciv/cli": "workspace:*",
     "@conciv/embed": "workspace:*",
     "@conciv/extension": "workspace:*",
-    "@conciv/extension-design": "workspace:*",
     "@conciv/extension-recorder": "workspace:*",
     "@conciv/extension-tanstack": "workspace:*",
     "@conciv/extension-terminal": "workspace:*",

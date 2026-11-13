@@ -42,8 +42,9 @@ async function atRoot() {
   await assertWorkspaceRoot(cwd)
   const run = (file: string, args: string[]) => execa(file, args, {cwd, stdio: 'inherit'})
   const turbo = (...tasks: string[]) => run('pnpm', ['exec', 'turbo', 'run', ...tasks])
+  const turboPublished = (...tasks: string[]) => turbo(...tasks, ...PUBLIC_PACKAGES.map((name) => `--filter=${name}`))
   const changeset = (...args: string[]) => run('pnpm', ['exec', 'changeset', ...args])
-  return {cwd, run, turbo, changeset}
+  return {cwd, run, turbo, turboPublished, changeset}
 }
 
 const version = defineCommand({
@@ -109,19 +110,19 @@ const checkTypecheckCoverage = defineCommand({
 const check = defineCommand({
   meta: {name: 'check', description: 'Validate every package: build + publint + attw'},
   async run() {
-    const {turbo} = await atRoot()
-    await turbo('build', 'publint', 'attw')
+    const {turboPublished} = await atRoot()
+    await turboPublished('build', 'publint', 'attw')
   },
 })
 
 const release = defineCommand({
   meta: {name: 'release', description: 'Build, validate, then publish to npm via changesets'},
   async run() {
-    const {cwd, turbo, changeset} = await atRoot()
+    const {cwd, turboPublished, changeset} = await atRoot()
     await assertPublicSet(cwd)
     await assertPublicDepsPublic(cwd)
     await assertVersioned(cwd)
-    await turbo('build', 'publint', 'attw')
+    await turboPublished('build', 'publint', 'attw')
     await changeset('publish')
   },
 })
@@ -131,11 +132,11 @@ const snapshot = defineCommand({
   args: {tag: {type: 'positional', default: 'beta', description: 'npm dist-tag, e.g. beta'}},
   async run({args}) {
     assertValidTag(args.tag)
-    const {cwd, turbo, changeset} = await atRoot()
+    const {cwd, turboPublished, changeset} = await atRoot()
     await assertPublicSet(cwd)
     await assertPublicDepsPublic(cwd)
     await changeset('version', '--snapshot', args.tag)
-    await turbo('build', 'publint', 'attw')
+    await turboPublished('build', 'publint', 'attw')
     await changeset('publish', '--tag', args.tag)
   },
 })
