@@ -97,7 +97,7 @@ const VersionedMessage = Bus.durable({
 })
 
 const DurableMessage = SessionEvent.Renamed
-const durableData = (sessionId: Session.ID, text: string) => ({
+const durableData = (sessionId: Session.Id, text: string) => ({
   sessionID: sessionId,
   title: text,
 })
@@ -592,7 +592,7 @@ describe('Bus', () => {
   it.effect('replays durable aggregate events after a sequence and tails new events', () =>
     Effect.gen(function* () {
       const bus = yield* Bus.Service
-      const aggregateId = Session.ID.create()
+      const aggregateId = Session.Id.create()
       yield* bus.publish(DurableMessage, durableData(aggregateId, 'zero'))
       yield* bus.publish(DurableMessage, durableData(aggregateId, 'one'))
       const fiber = yield* tail(bus, {aggregateID: aggregateId, after: 0}).pipe(
@@ -614,7 +614,7 @@ describe('Bus', () => {
   it.effect('catches durable aggregate events published during replay handoff', () =>
     Effect.gen(function* () {
       const bus = yield* Bus.Service
-      const aggregateId = Session.ID.create()
+      const aggregateId = Session.Id.create()
       yield* bus.publish(DurableMessage, durableData(aggregateId, 'zero'))
       const fiber = yield* tail(bus, {aggregateID: aggregateId}).pipe(
         Stream.take(2),
@@ -646,7 +646,7 @@ describe('Bus', () => {
 
       yield* Effect.gen(function* () {
         const bus = yield* Bus.Service
-        const aggregateId = Session.ID.create()
+        const aggregateId = Session.Id.create()
         const fiber = yield* tail(bus, {aggregateID: aggregateId}).pipe(
           Stream.take(1),
           Stream.runCollect,
@@ -668,7 +668,7 @@ describe('Bus', () => {
   it.effect('coalesces durable aggregate wakes while draining every committed event', () =>
     Effect.gen(function* () {
       const bus = yield* Bus.Service
-      const aggregateId = Session.ID.create()
+      const aggregateId = Session.Id.create()
       const count = 64
       const fiber = yield* tail(bus, {aggregateID: aggregateId}).pipe(
         Stream.take(count),
@@ -690,7 +690,7 @@ describe('Bus', () => {
   it.effect('omits live-only events from durable aggregate streams', () =>
     Effect.gen(function* () {
       const bus = yield* Bus.Service
-      const aggregateId = Session.ID.create()
+      const aggregateId = Session.Id.create()
       const fiber = yield* tail(bus, {aggregateID: aggregateId}).pipe(
         Stream.take(1),
         Stream.runCollect,
@@ -733,7 +733,7 @@ describe('Bus', () => {
           received.push(event)
         }),
       )
-      const aggregateId = Session.ID.create()
+      const aggregateId = Session.Id.create()
 
       yield* bus.replay({
         id: Event.Id.create(),
@@ -753,7 +753,7 @@ describe('Bus', () => {
     Effect.gen(function* () {
       const bus = yield* Bus.Service
       const {db} = yield* Database.Service
-      const aggregateId = Session.ID.create()
+      const aggregateId = Session.Id.create()
 
       yield* bus.replay({
         id: Event.Id.create(),
@@ -781,8 +781,8 @@ describe('Bus', () => {
       Effect.gen(function* () {
         const bus = yield* Bus.Service
         const {db} = yield* Database.Service
-        const envelopeAggregateId = Session.ID.create()
-        const payloadAggregateId = Session.ID.create()
+        const envelopeAggregateId = Session.Id.create()
+        const payloadAggregateId = Session.Id.create()
         const received = new Array<Event.Payload>()
         yield* bus.publish(DurableMessage, durableData(payloadAggregateId, 'seed'))
         yield* bus.project(DurableMessage, (event) =>
@@ -824,7 +824,7 @@ describe('Bus', () => {
   it.effect('replay defects on sequence mismatch', () =>
     Effect.gen(function* () {
       const bus = yield* Bus.Service
-      const aggregateId = Session.ID.create()
+      const aggregateId = Session.Id.create()
 
       yield* bus.replay({
         id: Event.Id.create(),
@@ -852,7 +852,7 @@ describe('Bus', () => {
   it.effect('dispatches durable projectors by exact event version', () =>
     Effect.gen(function* () {
       const bus = yield* Bus.Service
-      const aggregateId = Session.ID.create()
+      const aggregateId = Session.Id.create()
       const received = new Array<typeof VersionedMessageV2.Type>()
       yield* bus.project(VersionedMessageV2, (event) =>
         Effect.sync(() => {
@@ -890,7 +890,7 @@ describe('Bus', () => {
     Effect.gen(function* () {
       const bus = yield* Bus.Service
       const received = new Array<Event.Payload>()
-      const aggregateId = Session.ID.create()
+      const aggregateId = Session.Id.create()
       yield* bus.publish(DurableMessage, durableData(aggregateId, 'seed'))
       yield* bus.claim(aggregateId, 'owner-a')
       yield* bus.project(DurableMessage, (event) =>
@@ -918,7 +918,7 @@ describe('Bus', () => {
   it.effect('strict owner fences exact replay', () =>
     Effect.gen(function* () {
       const bus = yield* Bus.Service
-      const aggregateId = Session.ID.create()
+      const aggregateId = Session.Id.create()
       const id = Event.Id.create()
       const replayed = {
         id,
@@ -940,7 +940,7 @@ describe('Bus', () => {
     Effect.gen(function* () {
       const bus = yield* Bus.Service
       const {db} = yield* Database.Service
-      const aggregateId = Session.ID.create()
+      const aggregateId = Session.Id.create()
       const published = yield* bus.publish(DurableMessage, durableData(aggregateId, 'owned'))
       const replayed = {
         id: published.id,
@@ -974,7 +974,7 @@ describe('Bus', () => {
     Effect.gen(function* () {
       const bus = yield* Bus.Service
       const {db} = yield* Database.Service
-      const aggregateId = Session.ID.create()
+      const aggregateId = Session.Id.create()
 
       yield* bus.replay(
         {
@@ -1002,7 +1002,7 @@ describe('Bus', () => {
     Effect.gen(function* () {
       const bus = yield* Bus.Service
       const {db} = yield* Database.Service
-      const aggregateId = Session.ID.create()
+      const aggregateId = Session.Id.create()
       yield* bus.publish(DurableMessage, durableData(aggregateId, 'local'))
 
       yield* bus.replay(
@@ -1048,7 +1048,7 @@ describe('Bus', () => {
   it.effect('strict replay rejects an owner conflict instead of silently skipping it', () =>
     Effect.gen(function* () {
       const bus = yield* Bus.Service
-      const aggregateId = Session.ID.create()
+      const aggregateId = Session.Id.create()
       yield* bus.replay(
         {
           id: Event.Id.create(),
@@ -1083,7 +1083,7 @@ describe('Bus', () => {
     Effect.gen(function* () {
       const bus = yield* Bus.Service
       const received = new Array<Event.Payload>()
-      const aggregateId = Session.ID.create()
+      const aggregateId = Session.Id.create()
       yield* bus.listen((event) => Effect.sync(() => received.push(event)))
       const replayed = {
         id: Event.Id.create(),
@@ -1105,7 +1105,7 @@ describe('Bus', () => {
     Effect.gen(function* () {
       const bus = yield* Bus.Service
       const received = new Array<Event.Payload>()
-      const aggregateId = Session.ID.create()
+      const aggregateId = Session.Id.create()
       const replayed = {
         id: Event.Id.create(),
         created: 0,
@@ -1129,7 +1129,7 @@ describe('Bus', () => {
   it.effect('rejects an event ID reused at another aggregate position', () =>
     Effect.gen(function* () {
       const bus = yield* Bus.Service
-      const aggregateId = Session.ID.create()
+      const aggregateId = Session.Id.create()
       const id = Event.Id.create()
       yield* bus.replay({
         id,
@@ -1159,7 +1159,7 @@ describe('Bus', () => {
     Effect.gen(function* () {
       const bus = yield* Bus.Service
       const {db} = yield* Database.Service
-      const aggregateId = Session.ID.create()
+      const aggregateId = Session.Id.create()
       const received = new Array<Event.Payload>()
       yield* bus.listen((event) => Effect.sync(() => received.push(event)))
 
@@ -1228,7 +1228,7 @@ describe('Bus', () => {
     Effect.gen(function* () {
       const bus = yield* Bus.Service
       const received = new Array<Event.Payload>()
-      const aggregateId = Session.ID.create()
+      const aggregateId = Session.Id.create()
       yield* bus.publish(DurableMessage, durableData(aggregateId, 'seed'))
       yield* bus.remove(aggregateId)
       yield* bus.project(DurableMessage, (event) =>
@@ -1253,7 +1253,7 @@ describe('Bus', () => {
   it.effect('log without follow replays events and completes with a synced marker', () =>
     Effect.gen(function* () {
       const bus = yield* Bus.Service
-      const aggregateId = Session.ID.create()
+      const aggregateId = Session.Id.create()
       yield* bus.publish(DurableMessage, durableData(aggregateId, 'zero'))
       yield* bus.publish(DurableMessage, durableData(aggregateId, 'one'))
 
@@ -1271,7 +1271,7 @@ describe('Bus', () => {
   it.effect('log synced marker omits seq for an empty log and keeps the cursor otherwise', () =>
     Effect.gen(function* () {
       const bus = yield* Bus.Service
-      const aggregateId = Session.ID.create()
+      const aggregateId = Session.Id.create()
 
       const empty = yield* Stream.runCollect(bus.log({aggregateID: aggregateId}))
       yield* bus.publish(DurableMessage, durableData(aggregateId, 'zero'))
@@ -1286,7 +1286,7 @@ describe('Bus', () => {
   it.effect('log with follow emits the synced marker at the replay-to-live boundary', () =>
     Effect.gen(function* () {
       const bus = yield* Bus.Service
-      const aggregateId = Session.ID.create()
+      const aggregateId = Session.Id.create()
       yield* bus.publish(DurableMessage, durableData(aggregateId, 'zero'))
       const fiber = yield* bus
         .log({aggregateID: aggregateId, follow: true})
@@ -1310,7 +1310,7 @@ describe('Bus', () => {
 
       yield* Effect.gen(function* () {
         const bus = yield* Bus.Service
-        const aggregateId = Session.ID.create()
+        const aggregateId = Session.Id.create()
         yield* bus.publish(DurableMessage, durableData(aggregateId, 'zero'))
         yield* bus.publish(DurableMessage, durableData(aggregateId, 'one'))
         yield* bus.publish(DurableMessage, durableData(aggregateId, 'two'))
@@ -1350,7 +1350,7 @@ describe('Bus', () => {
 
       yield* Effect.gen(function* () {
         const bus = yield* Bus.Service
-        const aggregateId = Session.ID.create()
+        const aggregateId = Session.Id.create()
         yield* bus.publish(DurableMessage, durableData(aggregateId, 'zero'))
         const fiber = yield* bus
           .log({aggregateID: aggregateId, follow: true})

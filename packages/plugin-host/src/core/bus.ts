@@ -12,7 +12,7 @@ import {isDeepStrictEqual} from 'node:util'
 import {Durable} from '../schema/durable-event-manifest.js'
 import {SessionEvent} from '../schema/session-event.js'
 import {SessionLegacy} from '../schema/session-legacy.js'
-import type {SessionID} from '../schema/session-id.js'
+import type {SessionId} from '../schema/session-id.js'
 
 export type Subscriber<D extends Event.Definition = Event.Definition> = (event: Event.Payload<D>) => Effect.Effect<void>
 export type Unsubscribe = Effect.Effect<void>
@@ -191,14 +191,14 @@ export function configured(options?: Options) {
       const {db} = yield* Database.Service
       const logReadPageSize = options?.logReadPageSize ?? 512
       const persist = options?.persist ?? false
-      const sessions = new Map<SessionID, Location.Ref>()
+      const sessions = new Map<SessionId, Location.Ref>()
       const routes = new WeakMap<Event.Payload, readonly Location.Ref[]>()
 
       const isSessionEvent = (event: Event.Payload): event is SessionEvent.Event =>
         Object.hasOwn(SessionEvent.All.cases, event.type)
 
       const prepareRoutes = Effect.fnUntraced(function* (events: readonly Event.Payload[]) {
-        const updates = new Map<SessionID, Location.Ref | undefined>()
+        const updates = new Map<SessionId, Location.Ref | undefined>()
         const resolved = new Map<Event.Payload, readonly Location.Ref[]>()
         for (const event of events) {
           if (!isSessionEvent(event)) continue
@@ -645,7 +645,7 @@ export function configured(options?: Options) {
             }),
           )
           .pipe(
-            Effect.tap(() => Effect.sync(() => sessions.delete(aggregateId as SessionID))),
+            Effect.tap(() => Effect.sync(() => sessions.delete(aggregateId as SessionId))),
             Effect.orDie,
           )
       }
