@@ -137,9 +137,9 @@ export interface ToolDomain {
   readonly hook: Hooks<ToolHooks>
 }
 
-export function toolError(message: string, metadata?: Metadata): Error {
-  if (metadata === undefined) return {_tag: 'Tool.Error', message}
-  return {_tag: 'Tool.Error', message, metadata}
+/** Builds a `Tool.Error` from the same input as opencode's `new Tool.Error({message, error, metadata})`. */
+export function toolError(input: Omit<Error, '_tag'>): Error {
+  return {_tag: 'Tool.Error', ...input}
 }
 
 export function isToolError(value: unknown): value is Error {

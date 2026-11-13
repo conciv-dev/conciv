@@ -175,10 +175,11 @@ describe('Rpc', () => {
 })
 
 describe('toolError', () => {
-  it('builds a value isToolError accepts', () => {
-    const error = Tool.toolError('boom', {code: 1})
+  it('builds a value isToolError accepts that keeps its cause and metadata', () => {
+    const cause = new Error('invalid url')
+    const error = Tool.toolError({message: 'boom', error: cause, metadata: {code: 1}})
     expect(Tool.isToolError(error)).toBe(true)
-    expect(error).toMatchObject({message: 'boom', metadata: {code: 1}})
+    expect(error).toEqual({_tag: 'Tool.Error', message: 'boom', error: cause, metadata: {code: 1}})
   })
 
   it('rejects a plain Error', () => {
