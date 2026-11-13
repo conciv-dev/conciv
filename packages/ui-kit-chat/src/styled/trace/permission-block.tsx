@@ -54,6 +54,11 @@ const DECISION_MESSAGE = {approved: 'Approved the request', denied: 'Denied the 
 
 const DECISION_CHIP = {approved: 'Approved', denied: 'Denied'} as const
 
+const REMEMBER = {
+  session: {label: 'Allow for session', title: 'Allows this exact command for the rest of the session'},
+  project: {label: 'Always allow', title: 'Allows this in this project from now on'},
+} as const
+
 const DECIDED = `${BUTTON_SHAPE} [background:transparent] [border:1px_solid_transparent] text-chat-text-2`
 
 function Block(props: {target: string; explanation?: string; expiresAt?: number}): JSX.Element {
@@ -113,10 +118,10 @@ function Block(props: {target: string; explanation?: string; expiresAt?: number}
                     variant="plain"
                     size="none"
                     class={SESSION}
-                    title="Allows this exact command for the rest of the session"
+                    title={REMEMBER[permission.remembers()].title}
                     onClick={permission.approveForSession}
                   >
-                    Allow for session
+                    {REMEMBER[permission.remembers()].label}
                   </Button>
                 </Show>
                 <Button variant="plain" size="none" class={DENY} onClick={permission.reject}>
