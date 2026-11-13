@@ -17,7 +17,7 @@ import {
   InstructionState,
   KV,
   Permission,
-  Session,
+  SessionSchema,
   SkillInstructions,
   Tool,
 } from '@conciv/plugin-host'
@@ -74,7 +74,7 @@ function sessionRules(
   sessionId: SessionId,
 ): Effect.Effect<Permission.Ruleset, never, Agent.Interface | Permission.SessionsInterface> {
   return Effect.gen(function* () {
-    const session = yield* (yield* Permission.PermissionSessions).get(Session.Id.make(sessionId))
+    const session = yield* (yield* Permission.PermissionSessions).get(SessionSchema.Id.make(sessionId))
     const agent = yield* (yield* Agent.Service).select(session?.agent)
     return Permission.merge(agent.info?.permissions ?? [], session?.permissions ?? [])
   })
@@ -96,7 +96,7 @@ export function pluginInstructions(
   return Effect.gen(function* () {
     const db = (yield* Database.Service).db
     const bus = yield* Bus.Service
-    const id = Session.Id.make(sessionId)
+    const id = SessionSchema.Id.make(sessionId)
     const skills = yield* (yield* SkillInstructions.Service).load(yield* sessionRules(sessionId))
     const entries = yield* loadInstructionEntries(yield* KV.Service, id)
     const instructions = Instructions.combine([CodeModeInstructions.make(inventory), skills, entries])

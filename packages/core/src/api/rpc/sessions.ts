@@ -37,7 +37,7 @@ import {
 } from '../../sessions/session-rows.js'
 import {logError} from '../../lib/debug.js'
 import {os, type ChatContext, type RpcDeps} from './mount.js'
-import {Bus, Session, SessionEvent} from '@conciv/plugin-host'
+import {Bus, SessionSchema, SessionEvent} from '@conciv/plugin-host'
 
 async function loadNativePage(
   chat: ChatContext,
@@ -287,7 +287,9 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       await deleteSessionCaptures(db, input.sessionId)
       await clearPageChanges(db, input.sessionId)
       await deps.pluginHost.runPromise(
-        Bus.Service.use((bus) => bus.publish(SessionEvent.Deleted, {sessionID: Session.Id.make(input.sessionId)})),
+        Bus.Service.use((bus) =>
+          bus.publish(SessionEvent.Deleted, {sessionID: SessionSchema.Id.make(input.sessionId)}),
+        ),
       )
       return {ok: true as const}
     }),

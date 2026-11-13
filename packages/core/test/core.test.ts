@@ -85,7 +85,7 @@ import {
   PluginHooks,
   PluginHost,
   Rpc,
-  Session,
+  SessionSchema,
   SessionEvent,
   SessionProjector,
   Skill,
@@ -2641,26 +2641,28 @@ describe('plugin context keys provided by core', () => {
       host.runPromise(InstructionEntry.Service.use(run))
     const instructions = () => host.runPromise(pluginInstructions(id, 'keep', {tools: []}))
 
-    await entries((service) => service.put({sessionId: Session.Id.make(id), key: 'notes', value: {done: false}}))
-    await entries((service) => service.put({sessionId: Session.Id.make(id), key: 'brief', value: 'ship it'}))
-    expect(await entries((service) => service.list(Session.Id.make(id)))).toEqual([
+    await entries((service) => service.put({sessionId: SessionSchema.Id.make(id), key: 'notes', value: {done: false}}))
+    await entries((service) => service.put({sessionId: SessionSchema.Id.make(id), key: 'brief', value: 'ship it'}))
+    expect(await entries((service) => service.list(SessionSchema.Id.make(id)))).toEqual([
       {key: 'brief', value: 'ship it'},
       {key: 'notes', value: {done: false}},
     ])
-    expect(await entries((service) => service.list(Session.Id.make(other)))).toEqual([])
+    expect(await entries((service) => service.list(SessionSchema.Id.make(other)))).toEqual([])
 
     const first = await instructions()
     expect(first.initial).toContain('<context key="brief">\nship it\n</context>')
     expect(first.initial).toContain('<context key="notes">\n{\n  "done": false\n}\n</context>')
 
-    await entries((service) => service.remove({sessionId: Session.Id.make(id), key: 'notes'}))
-    expect(await entries((service) => service.list(Session.Id.make(id)))).toEqual([{key: 'brief', value: 'ship it'}])
+    await entries((service) => service.remove({sessionId: SessionSchema.Id.make(id), key: 'notes'}))
+    expect(await entries((service) => service.list(SessionSchema.Id.make(id)))).toEqual([
+      {key: 'brief', value: 'ship it'},
+    ])
     expect((await instructions()).update).toContain('The context under "notes" no longer applies. Disregard it.')
 
     const refused = await host.runPromise(
       InstructionEntry.Service.use((service) =>
         service.put({
-          sessionId: Session.Id.make(id),
+          sessionId: SessionSchema.Id.make(id),
           key: 'huge',
           value: 'x'.repeat(InstructionEntrySchema.MaxValueBytes + 1),
         }),
@@ -2670,7 +2672,9 @@ describe('plugin context keys provided by core', () => {
       _tag: 'InstructionEntryValueTooLargeError',
       maxBytes: InstructionEntrySchema.MaxValueBytes,
     })
-    expect(await entries((service) => service.list(Session.Id.make(id)))).toEqual([{key: 'brief', value: 'ship it'}])
+    expect(await entries((service) => service.list(SessionSchema.Id.make(id)))).toEqual([
+      {key: 'brief', value: 'ship it'},
+    ])
 
     const harness = await host.runPromise(PluginHost.HarnessSource)
     expect(harness.mcpUrl).toBeUndefined()
