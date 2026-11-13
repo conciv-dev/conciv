@@ -71,7 +71,7 @@ async function run(input: {runtime: DesignRuntime; folder: Storage; call: Call})
   if (blank && count < TOLERANCES.stallRounds) {
     await store.writeUnsettledCount({id: record.id, count})
     await early({
-      unsettled: unsettledReason({measured, rendered: 0, settled: history.settled}),
+      unsettled: unsettledReason({measured, rendered: 0, settled: history.settled, route: record.route}),
       rendered: 0,
       root: built.root,
     })
@@ -83,7 +83,12 @@ async function run(input: {runtime: DesignRuntime; folder: Storage; call: Call})
     return {...shown(previous), unchanged: true}
   }
   const paired = await pairedOf({runtime, held, measured, round, built, settled: history.settled})
-  const unsettled = unsettledReason({measured, rendered: paired.coverage.rendered, settled: history.settled})
+  const unsettled = unsettledReason({
+    measured,
+    rendered: paired.coverage.rendered,
+    settled: history.settled,
+    route: record.route,
+  })
   await store.writeUnsettledCount({id: record.id, count: unsettled === null ? 0 : count})
   if (unsettled !== null && count < TOLERANCES.stallRounds) {
     await early({unsettled, rendered: paired.coverage.rendered, root: paired.mapped.root})
@@ -390,9 +395,15 @@ async function drifted(input: {
   return classifyDrift({rows: input.rows, relation, tokens, scheme: input.scheme})
 }
 
-function unsettledReason(input: {measured: Measured; rendered: number; settled: Round | undefined}): string | null {
+function unsettledReason(input: {
+  measured: Measured
+  rendered: number
+  settled: Round | undefined
+  route: string | undefined
+}): string | null {
   const {measured, rendered, settled} = input
   if (measured.pageError !== undefined) return `The page shows an error: ${measured.pageError}`
+  if (rendered === 0 && input.route !== undefined) return `The page at ${measured.route} rendered no design nodes.`
   if (rendered === 0) return `The page at ${measured.route} rendered no design nodes. ${ROUTE_HINT}`
   if (settled === undefined || rendered >= settled.coverage.rendered / 2) return null
   return `The page rendered ${rendered} design nodes, under half the ${settled.coverage.rendered} of round ${settled.round}.`

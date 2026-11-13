@@ -71,6 +71,17 @@ describe('design_check on the cards page', () => {
     const opened = roundOf(await call('design_check', {}))
     expect(opened.rows.map((row) => row.text)).toEqual(closed.rows.map((row) => row.text))
   })
+
+  it('names the route it measured and sends the agent to no other route when the design names its route', async () => {
+    await kit.goto('target')
+    await call('design_get', {...(await cardsDesign(kit.targetsDir)), route: '/?variant=empty'})
+    const checked = await call('design_check', {})
+    const reasons = 'reasons' in checked ? checked.reasons : []
+    expect([
+      reasons.some((line) => line.includes('/?variant=empty')),
+      reasons.filter((line) => line.includes('route set to')),
+    ]).toEqual([true, []])
+  })
 })
 
 describe('a check in a new run of the same project', () => {

@@ -84,7 +84,7 @@ export function createDiffer(input: {
     })
     if ('thrown' in measured) return brokenOne({record, error: measured.thrown, by: 'runtime'})
     if (!('round' in measured))
-      return {...measured, verdict: 'unsettled' as const, reasons: [unsettledReason(measured)]}
+      return {...measured, verdict: 'unsettled' as const, reasons: [unsettledReason({measured, route: record.route})]}
     const {verdict, reasons} = verdictOf({design: await store.design(record.id), rounds: await store.rounds(record.id)})
     const late = measured.fontsLoading === undefined ? [] : [fontsLine(measured.fontsLoading)]
     const lead = verdict === 'done' ? [] : lowCoverage({coverage: measured.coverage, route: record.route})
@@ -429,16 +429,21 @@ function only(input: {checked: Extract<Checked, {rows: unknown}>; nodes: string[
   return {...input.checked, rows: input.checked.rows.filter((row) => wanted.has(row.node))}
 }
 
-function unsettledReason(measured: Exclude<RoundReply, {round: number} | {thrown: unknown}>): string {
+function unsettledReason(input: {
+  measured: Exclude<RoundReply, {round: number} | {thrown: unknown}>
+  route: string | undefined
+}): string {
+  const {measured} = input
   if (measured.error !== undefined) return `The page shows an error, so nothing was measured: ${measured.error}`
   const told = `The page at ${measured.route} rendered ${measured.rendered} design nodes, too few to measure; no round was written. If the next check is unsettled too, it returns the coverage and the rows of what did render.`
-  return measured.rendered === 0 ? `${told} ${ROUTE_HINT}` : told
+  return measured.rendered === 0 && input.route === undefined ? `${told} ${ROUTE_HINT}` : told
 }
 
 function lowCoverage(input: {coverage: {nodes: number; rendered: number}; route: string | undefined}): string[] {
   const {nodes, rendered} = input.coverage
   if (rendered >= nodes - rendered) return []
-  return [`The page at ${input.route ?? 'the tab route'} renders ${rendered} of ${nodes} design nodes. ${ROUTE_HINT}`]
+  if (input.route !== undefined) return [`The page at ${input.route} renders ${rendered} of ${nodes} design nodes.`]
+  return [`The page at the tab route renders ${rendered} of ${nodes} design nodes. ${ROUTE_HINT}`]
 }
 
 function fontsLine(waited: number): string {

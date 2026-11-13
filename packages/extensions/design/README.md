@@ -80,8 +80,9 @@ src/
   measures the target's route: when the tab is on another one, it opens the tab there first (through the client tool
   `design_route`) and waits until the tab reports that route. A route without a query matches the tab's pathname whatever its query; a route with
   one matches the pathname and the query. A target with no route is measured where the tab is. A check that finds no
-  design node says which route it measured and that `design_get` with `route` points the target at another page; so does
-  a check that is not done while more design nodes are missing than rendered, in its first reason after the page rows.
+  design node says which route it measured, and so does a check that is not done while more design nodes are missing
+  than rendered, in its first reason after the page rows. Only for a target with no route do they add that
+  `design_get` with `route` points the target at another page; a target with a route was measured on its own page.
 - `design_check({nodes?})` waits for the last save to settle, measures the page at the design width, updates the
   mapping, and returns `{round, rows, reflow, coverage, counts, verdict, reasons}`. A row is `{node, key, kind, name, text, magnitude, property, expected, actual, delta}`;
   rows at `slightly` are counted, not listed. `reflow` holds one entry per width (1024, 768): `rootHeight,
