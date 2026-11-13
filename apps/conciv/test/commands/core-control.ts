@@ -48,7 +48,7 @@ export type PointerHover = {name: string; moves: PointerMove[]; settleMs: number
 export type FaultSpec =
   | {kind: 'fail'; path: string[]; status?: number}
   | {kind: 'abort'; path?: string[]}
-  | {kind: 'truncate'; path: string[]}
+  | {kind: 'garble'; path: string[]}
   | {kind: 'gate'; path?: string[]}
   | {kind: 'chat-refused'; status?: number}
   | {kind: 'offline'}
@@ -490,10 +490,10 @@ function statusOptions(status: number | undefined): {status?: number} {
 function brokenRpcCalls(
   testkit: CoreTestkit,
   ctx: BrowserCommandContext,
-  spec: Extract<FaultSpec, {kind: 'abort' | 'fail' | 'truncate'}>,
+  spec: Extract<FaultSpec, {kind: 'abort' | 'fail' | 'garble'}>,
 ): ReturnType<CoreTestkit['abortRpcCalls']> {
   if (spec.kind === 'abort') return testkit.abortRpcCalls(ctx.page, pathOptions(spec.path))
-  if (spec.kind === 'truncate') return testkit.truncateRpcReplies(ctx.page, {path: spec.path})
+  if (spec.kind === 'garble') return testkit.garbleRpcReplies(ctx.page, {path: spec.path})
   return testkit.failRpcCalls(ctx.page, {path: spec.path, ...statusOptions(spec.status)})
 }
 

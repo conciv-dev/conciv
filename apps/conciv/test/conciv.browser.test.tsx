@@ -5634,7 +5634,7 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
     expect(onlyRevision(rebuilt)).not.toBe(onlyRevision(listed))
 
     const listings = await servedSince(LISTED)
-    const truncated = await faults.install({kind: 'truncate', path: EXPERIMENTAL})
+    const garbled = await faults.install({kind: 'garble', path: EXPERIMENTAL})
     await coreControl.writeProjectFile(PANE_BUNDLE, bundle('third'))
     await listings(1)
     await coreControl.writeProjectFile(TAKEN_BUNDLE, bundle('third'))
@@ -5642,7 +5642,7 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
     expect(pushes.items).toHaveLength(2)
     expect(await first.pluginExperimentals()).toEqual({plugins: rebuilt.plugins, reserved: ['conciv']})
     await coreControl.writeProjectFile(PANE_BUNDLE, bundle('fourth'))
-    await coreControl.releaseFault(truncated)
+    await coreControl.releaseFault(garbled)
     const recovered = await pushes.nth(3)
     expect(recovered).toEqual(pane('fourth'))
     expect(votes.items).not.toContain(false)
