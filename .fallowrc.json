@@ -167,6 +167,7 @@
     "@conciv/mascot-react",
     "@conciv/unplugin",
     "@conciv/plugin",
+    "@conciv/plugin-host",
     "@conciv/preact",
     "@conciv/protocol",
     "@conciv/react",
