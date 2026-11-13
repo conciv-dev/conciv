@@ -22,6 +22,7 @@ export interface ResolvedConcivConfig {
   systemPrompt: string
   hubAccess: HubAccess
   plugins: NonNullable<ConcivConfig['plugins']>
+  policies: NonNullable<ConcivConfig['policies']>
 }
 
 function declaredValue(candidates: (string | undefined)[]): string | undefined {
@@ -68,5 +69,6 @@ export function resolveConfig(options: ConcivConfig, root: string): ResolvedConc
     systemPrompt: resolveSystemPrompt(options.systemPrompt),
     hubAccess: options.hubAccess ?? 'open',
     plugins: options.plugins ?? [],
+    policies: options.policies ?? [],
   }
 }

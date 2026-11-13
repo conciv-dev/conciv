@@ -83,7 +83,7 @@ import {
   type McpClient,
   type McpTool,
 } from '@conciv/harness-testkit'
-import {Rpc as PluginRpc} from '@conciv/plugin'
+import {Plugin, Rpc as PluginRpc} from '@conciv/plugin'
 import {PluginHost} from '@conciv/plugin-host'
 import {claude} from '@conciv/harness/claude'
 import {codex as codexHarness} from '@conciv/harness/codex'
@@ -5607,5 +5607,176 @@ describe('page action queue delivery', () => {
     await page.followUpFinished(['queueing-run'])
     expect(page.runIds().filter((runId) => runId !== 'queueing-run')).toHaveLength(1)
     expect((await page.tab.chat.hydrate({sessionId: page.sessionId})).activeRun).toBeNull()
+  })
+})
+
+describe('engine plugins', () => {
+  const SEER = `import {appendFileSync} from 'node:fs'
+import {join} from 'node:path'
+
+const Seer = {id: 'seer', methods: {seen: {input: {type: 'object'}, output: {type: 'object'}}}, events: {}}
+
+export default {
+  id: 'seer',
+  async setup(ctx) {
+    const mcpUrl = ctx.harness.mcpUrl
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'seer_echo',
+        description: 'Says what the seer saw',
+        input: {type: 'object', properties: {}},
+        execute: async () => ({content: 'seer-was-here'}),
+      })
+    })
+    await ctx.rpc.register(Seer, {
+      seen: async () => ({
+        mcpUrl,
+        app: ctx.app,
+        directory: ctx.location.directory,
+        servers: ctx.servers.list(),
+        plugins: (await ctx.plugin.list()).data,
+      }),
+    })
+    return () => appendFileSync(join(ctx.location.directory, 'cleanups.log'), 'seer\\n')
+  },
+}
+`
+  const configured = (id: string) => `import {appendFileSync} from 'node:fs'
+import {join} from 'node:path'
+
+export default {
+  id: '${id}',
+  async setup(ctx) {
+    const definition = {id: '${id}', methods: {options: {input: {type: 'object'}, output: {type: 'object'}}}, events: {}}
+    await ctx.rpc.register(definition, {options: async () => ctx.options})
+    return () => appendFileSync(join(ctx.location.directory, 'cleanups.log'), '${id}\\n')
+  },
+}
+`
+  const BROKEN = `export default {
+  id: 'broken',
+  async setup() {
+    throw new Error('broken on purpose')
+  },
+}
+`
+  const Embedded = PluginRpc.define({
+    id: 'embedded',
+    methods: {ping: {input: z.object({}), output: z.string()}},
+    events: {},
+  })
+
+  function projectWithPlugins(): string {
+    const root = tempDir('conciv-plugins-')
+    mkdirSync(join(root, 'conciv', 'plugins'), {recursive: true})
+    writeFileSync(join(root, 'conciv', 'plugins', 'seer.ts'), SEER)
+    writeFileSync(join(root, 'conciv', 'plugins', 'broken.ts'), BROKEN)
+    for (const id of ['configured', 'removed', 'denied']) {
+      mkdirSync(join(root, id))
+      writeFileSync(join(root, id, 'index.ts'), configured(id))
+    }
+    return root
+  }
+
+  function bootWithPlugins(home: string, root: string): Promise<Engine> {
+    const embedded = Plugin.define({
+      id: 'embedded',
+      async setup(ctx) {
+        await ctx.rpc.register(Embedded, {ping: async () => 'pong'})
+        return () => writeFileSync(join(root, 'cleanups.log'), 'embedded\n', {flag: 'a'})
+      },
+    })
+    return start({
+      options: {
+        stateRoot: root,
+        hubAccess: 'session',
+        plugins: [['./configured', {greeting: 'hi'}], './removed', '-removed', './denied'],
+        policies: [{action: 'plugin.use', resource: join(root, 'denied'), effect: 'deny'}],
+      },
+      root,
+      launchEditor: () => {},
+      harness: createFakeHarness(),
+      homeDir: home,
+      plugins: [embedded],
+    })
+  }
+
+  const call = (base: string, rpcId: string, method: string) =>
+    makeRpcClient(base).plugin.call({rpcId, method, input: {}}, {signal: AbortSignal.timeout(5000)})
+
+  it('an engine loads its project, configured and embedded plugins once it listens, lists a failing one, cleans up on stop and loads them again', async () => {
+    const [home, root] = [tempDir('conciv-home-'), projectWithPlugins()]
+    const engine = await bootWithPlugins(home, root)
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const stopped = {current: false}
+    onTestFinished(async () => {
+      if (!stopped.current) await engine.stop()
+    })
+    const id = z.object({id: z.string()}).parse(await (await fetch(`http://127.0.0.1:${engine.port}/health`)).json()).id
+
+    const seen = z
+      .object({
+        mcpUrl: z.string(),
+        app: z.object({name: z.string()}),
+        directory: z.string(),
+        servers: z.array(z.string()),
+        plugins: z.array(
+          z.object({
+            id: z.string(),
+            source: z.object({type: z.string()}).loose(),
+            state: z.object({status: z.string(), error: z.string().optional()}),
+          }),
+        ),
+      })
+      .parse(await call(base, 'seer', 'seen'))
+    expect(seen.mcpUrl).toBe(`${base}/api/mcp`)
+    expect(seen.app.name).toBe('conciv')
+    expect(seen.directory).toBe(root)
+    expect(seen.plugins.map((plugin) => plugin.id).toSorted()).toEqual([
+      'broken',
+      'conciv.tool.skill',
+      'configured',
+      'embedded',
+      'seer',
+    ])
+    expect(seen.plugins.find((plugin) => plugin.id === 'seer')).toEqual({
+      id: 'seer',
+      source: {type: 'local', path: join(root, 'conciv', 'plugins', 'seer.ts')},
+      state: {status: 'active'},
+    })
+    expect(seen.plugins.find((plugin) => plugin.id === 'configured')?.state).toEqual({status: 'active'})
+    expect(seen.plugins.find((plugin) => plugin.id === 'embedded')?.state).toEqual({status: 'active'})
+    expect(seen.plugins.find((plugin) => plugin.id === 'broken')?.state).toEqual({
+      status: 'failed',
+      error: expect.stringContaining('broken on purpose'),
+    })
+
+    await vi.waitFor(
+      async () =>
+        expect(z.object({servers: z.array(z.string())}).parse(await call(base, 'seer', 'seen')).servers).toEqual([id]),
+      {timeout: 3000},
+    )
+    expect(await call(base, 'configured', 'options')).toEqual({greeting: 'hi'})
+    expect(await call(base, 'embedded', 'ping')).toBe('pong')
+    await expect(call(base, 'removed', 'options')).rejects.toMatchObject({data: {type: 'rpc.unavailable'}})
+    await expect(call(base, 'denied', 'options')).rejects.toMatchObject({data: {type: 'rpc.unavailable'}})
+
+    const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    expect(
+      JSON.stringify(
+        await executeOverMcp(base, {[CONCIV_SESSION_HEADER]: sessionId}, 'return await external_seer_echo({})'),
+      ),
+    ).toContain('seer-was-here')
+
+    stopped.current = true
+    await engine.stop()
+    expect(readFileSync(join(root, 'cleanups.log'), 'utf8')).toBe('configured\nseer\nembedded\n')
+
+    const again = await bootWithPlugins(home, root)
+    onTestFinished(() => again.stop())
+    const againBase = `http://127.0.0.1:${again.port}/t/${again.agentToken}`
+    expect(z.object({mcpUrl: z.string()}).parse(await call(againBase, 'seer', 'seen')).mcpUrl).toBe(
+      `${againBase}/api/mcp`,
+    )
   })
 })

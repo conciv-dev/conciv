@@ -5,6 +5,7 @@ import {checkEngines, concivHome, registerEngine, retireEngine, withHomeDb, type
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {HarnessAdapter} from '@conciv/harness'
+import type {Plugin} from '@conciv/plugin'
 import type {AnyExtension, ExtensionPromptContext} from '@conciv/extension'
 import {makeApp, withBuiltinExtensions, type MakeAppOpts} from './app.js'
 import {agentPath} from './engine-login.js'
@@ -40,6 +41,7 @@ export type StartOpts = {
   extensions?: AnyExtension[]
   extensionConfig?: Record<string, unknown>
   harness?: HarnessAdapter
+  plugins?: readonly Plugin.Plugin[]
   nativePageDir?: string
   devEndpointDir?: string
   homeDir?: string
@@ -219,8 +221,10 @@ export async function start(opts: StartOpts): Promise<Engine> {
     onShutdown: opts.onShutdown,
     nativePageDir: opts.nativePageDir,
     nativeUrl,
+    tokenScopedBase,
+    plugins: opts.plugins,
   }
-  const {fetch: fetchHandler, dispose, extensionContexts, trustBrowser} = await makeApp(appOpts)
+  const {fetch: fetchHandler, dispose, extensionContexts, trustBrowser, startPlugins} = await makeApp(appOpts)
 
   let serving: Served
   try {
@@ -261,6 +265,14 @@ export async function start(opts: StartOpts): Promise<Engine> {
     } catch (error) {
       console.error('conciv: failed to remove the dev endpoint file', error)
     }
+  }
+  try {
+    await startPlugins()
+  } catch (error) {
+    clearEndpoint()
+    retire()
+    await cleanupAfterFailedStart([close, dispose])
+    throw error
   }
   return {
     port,

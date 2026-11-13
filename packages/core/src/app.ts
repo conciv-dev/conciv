@@ -53,24 +53,9 @@ import {
   type SessionPort,
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
-import {Layer, ManagedRuntime, Schema} from 'effect'
 import {memoize} from 'es-toolkit'
-import {
-  Agent,
-  Bus,
-  Database,
-  KV,
-  Location,
-  Permission,
-  PermissionSaved,
-  PluginHooks,
-  Rpc,
-  SessionProjector,
-  SessionSchema,
-  Skill,
-  SkillInstructions,
-  Tool,
-} from '@conciv/plugin-host'
+import {PluginHooks, SessionSchema} from '@conciv/plugin-host'
+import type {Plugin} from '@conciv/plugin'
 import {pushRoutes, type PushDeps} from './api/push.js'
 import {makeHubAdmission, type ChatContext, type PluginHost, type RpcDeps} from './api/rpc/mount.js'
 import {concivHome, drafts, readModel, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
@@ -91,10 +76,10 @@ import {makeCoreRuntime} from './runtime/core-runtime.js'
 import {
   answerPermission,
   followPermissionCards,
-  permissionSessions,
   pluginInstructions,
   sessionSnapshot,
 } from './runtime/permission-cards.js'
+import {makePluginRuntime} from './runtime/plugin-runtime.js'
 import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
@@ -160,6 +145,10 @@ export type MakeAppOpts = {
   nativePageDir?: string
 
   nativeUrl?: () => string | undefined
+
+  tokenScopedBase?: () => string | undefined
+
+  plugins?: readonly Plugin.Plugin[]
 
   staleness?: () => EngineStaleness
 
@@ -413,6 +402,7 @@ export type MadeApp = {
   extensionContexts: Record<string, unknown>
   runtime: CoreRuntime
   pluginHost: PluginHost
+  startPlugins: () => Promise<void>
 }
 
 function makeServerHarness(harness: HarnessAdapter, cwd: string): ServerHarness {
@@ -587,26 +577,27 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   registerExtensionTools(registry, mounted)
 
-  const pluginHost: PluginHost = ManagedRuntime.make(
-    Layer.mergeAll(Tool.layer, Permission.layer, SkillInstructions.layer, SessionProjector.layer).pipe(
-      Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(db), Skill.layer)),
-      Layer.provideMerge(PluginHooks.layer),
-      Layer.provideMerge(Layer.mergeAll(Rpc.layer, KV.layer)),
-      Layer.provideMerge(Bus.configured()),
-      Layer.provideMerge(
-        Layer.succeed(
-          Location.Service,
-          Location.Service.of(
-            Schema.decodeSync(Location.Info)({
-              directory: opts.cwd,
-              project: {id: opts.cwd, directory: opts.cwd, canonical: opts.cwd},
-            }),
-          ),
-        ),
-      ),
-      Layer.provideMerge(Database.layer({path: projectDatabaseFile(db)})),
-    ),
-  )
+  const engineId = opts.engineId ?? randomUUID()
+  const plugins = makePluginRuntime({
+    db,
+    databaseFile: projectDatabaseFile(db),
+    cwd: opts.cwd,
+    home: concivHome({homeDir: opts.home, env: process.env}),
+    fallbackRoots: join(stateDir, 'plugin-host'),
+    engineId,
+    config: opts.cfg,
+    plugins: opts.plugins ?? [],
+    harness,
+    harnessSource: {
+      harness: serverHarness,
+      sessions: serverSessions,
+      tokenScopedBase: opts.tokenScopedBase ?? (() => undefined),
+    },
+    bundler: opts.bridge,
+    extensionSlugs: mounted.map((entry) => slug(entry.extensionName)),
+    sessions: () => ({chat: chatDeps, runtime, search, pluginHost}),
+  })
+  const pluginHost: PluginHost = plugins.runtime
   await pluginHost.context()
   const reportToolCollision = memoize((name: string) =>
     logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`),
@@ -766,7 +757,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     }),
   }
   const rpc = makeRpcRouter(rpcDeps)
-  const engineId = opts.engineId ?? randomUUID()
   const admittedOs = os.$context<RpcContext>().use(makeHubAdmission(rpcDeps))
 
   const compositeRpc = makeCompositeRpcRouter(
@@ -814,6 +804,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const dispose = (): Promise<void> =>
     runInOrder(
       [
+        plugins.closeRpc,
+        plugins.closePlugins,
+        plugins.closePermissions,
         () => plane.endAllRuns(),
         ...disposers,
         search.dispose,
@@ -850,6 +843,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     extensionContexts,
     runtime,
     pluginHost,
+    startPlugins: plugins.startPlugins,
   }
 }
 

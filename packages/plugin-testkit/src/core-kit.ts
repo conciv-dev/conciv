@@ -68,6 +68,7 @@ export async function bootCoreKit(opts: {
         systemPrompt: '',
         hubAccess: 'session',
         plugins: [],
+        policies: [],
       },
       cwd: env.cwd,
       openInEditor: () => {},

@@ -20,6 +20,7 @@ export async function bootClientKit(opts: {extensions?: AnyExtension[]} = {}): P
         systemPrompt: '',
         hubAccess: 'session',
         plugins: [],
+        policies: [],
       },
       cwd: env.cwd,
       openInEditor: () => {},
