@@ -155,7 +155,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - A resolved specifier must be a regular file; anything else is a miss, so the next candidate is tried (a package without `exports` that has a `server/` directory gives its root `index.js` as `server`). Source runs on Bun, where the resolver finds the file; on Node, which conciv runs on, the same code returns the directory and loading fails later (opencode `util/src/runtime/import.node.ts:32`).
 - The manifest is read with zod (`name`, `exports`, both unknown); a `package.json` that is not a JSON object counts as missing. Error codes are read with zod instead of `"code" in error`; `host.ts` and `util/runtime/import.node.ts` each keep their own guard, as source inlines one in each.
 - The source's `//` comments are dropped; `packageID` is `packageId`.
-- `experimental/host.ts` ports `Entry` (`windowEntry` only; no `mainEntry`; `stores` is `Declarations.stores`, no `BuiltinStoreDeclaration`), `compose`, `EnableState`, `pluginEnabled`, `pluginIdAvailable` (reserved namespace `conciv`), `Installed` (no `tui`, no `unsupported`) and `shipsPluginGui` as `shipsPluginExperimental`, reading `features.experimental`. It re-exports `Scope`, `pluginSharedModules`, `pluginWindowModules` and `PluginModule` from `modules.ts` and, as source does, `DrawerContext`, `LifetimeContext`, `liveAccessor`, `PanelContext` and `PluginContext` from `internal.ts`. `runsOn` is absent (no `os`); `Bridge`, `BridgeLayout`, `BridgeMessage`, `BridgeMenubarItem`, `BridgePluginGui`, `BridgePluginGuis` are absent (Electron bridge, no desktop main process). The file's header comment is dropped.
+- `experimental/host.ts` ports `Entry` (`windowEntry` only; no `mainEntry`; `stores` is `Declarations.stores`, no `BuiltinStoreDeclaration`), `compose`, `EnableState`, `pluginEnabled`, `pluginIdAvailable` (reserved namespace `conciv`), `Installed` (no `tui`, no `unsupported`) and `shipsPluginGui` as `shipsPluginExperimental`, reading `features.experimental`. It re-exports `Scope`, `pluginSharedModules`, `pluginWindowModules` and `PluginModule` from `modules.ts` and, as source does, `DrawerContext`, `LifetimeContext`, `liveAccessor`, `PanelContext` and `PluginContext` from `internal.ts`. `runsOn` is absent (no `os`); `BridgePluginExperimental` and `BridgePluginExperimentals` are ported as plain data (the plugin browser parts to run: id, revision, code, options, and the reserved ids), which the browser host's plugin-experimental machine reads and conciv's widget gets from its engine; `Bridge`, `BridgeLayout`, `BridgeMessage` and `BridgeMenubarItem` are absent (Electron bridge, no desktop main process). The file's header comment is dropped.
 
 ### Evaluating a bundle (`experimental/host.ts`, `experimental/modules.ts`)
 
@@ -273,7 +273,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - `MountedSession` keeps `visit` and `directory`; `local` is declared, not implemented; `background` and `BackgroundTask` are absent (subagents run inside the CLI); `listedProject` is absent (no sidebar; audit row `layout.sidebar.opened`); `project` is not available yet.
 - `Layout`: `side` and `sidebar` are absent: conciv has no side region (`apps/conciv/src/pane/status-bar.tsx:48`, a panel replaces the chat; `apps/conciv/src/routes/panel-height.ts:8`). This settles the audit's UNSURE `layout.side.width` row and drops `side.menu` with `MenuItem`. `project` is absent (one directory per engine).
 - `Desktop`: no `os`, no `zoom`; `launch(path, position?)` takes a `{line, column?}` position in place of source's `app?` argument, backed by the engine's open-in-editor (`packages/contract/src/contract.ts:410`, `editor.open`).
-- `StorageScope` keeps source's `{server, directory?}` scope; a conciv server is an engine, which runs in one project.
+- `StorageScope` keeps source's `{server, directory?}` scope; a conciv server is an engine, which runs in one project. It adds `'project'` (the repo the engine runs in), so `Storage.store` opens a declared `project` store with its own scope.
 - `System.save` and `openExternal` JSDoc describe the web only (download, new tab).
 - `Tabs.focus` is declared: the quick pane `focus` search param backs it (`apps/conciv/src/lib/quick-search.ts:15`), which settles the audit's UNSURE row; `Tabs.close` is declared by the spec table although the audit says "concept fits".
 - `Ui` keeps every source component and prop type; examples use literal text in place of `ctx.t`, and conciv icon names.
@@ -326,6 +326,8 @@ tag line `@remarks Not implemented yet. Always undefined in this version.`, and 
 - `MountedSession.local`
 - `Tabs.move`
 - `Links.exists`
+- `Ui.Dialog`: size `fit`
+- `Ui.TextInput`: size `large`
 - `Server.order`; `ServerEntry`: `label`, `listed`, `http.password`, `connect`, `remove`; `cover`'s `tab`; `reconnect`'s `password`
 
 ## Not available yet

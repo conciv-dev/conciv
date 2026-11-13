@@ -298,6 +298,7 @@ export interface Layout {
 
 export type StorageScope =
   | 'global'
+  | 'project'
   | {
       readonly server: string
       readonly directory?: string

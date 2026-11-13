@@ -109,6 +109,8 @@ import {concivExtensionsToolDef, concivUiToolDef} from '@conciv/tools/defs'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS} from '@conciv/tools/builtins'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
+import {pluginEnabled, type EnableState} from '@conciv/plugin/experimental/host'
+import {createManager} from '../src/runtime/plugin/manager.js'
 
 const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
@@ -5483,3 +5485,49 @@ function pickerRouter(entry: string, view: () => JSX.Element) {
   })
   return createRouter({routeTree: root, history: createMemoryHistory({initialEntries: [entry]})})
 }
+
+describe('plugin enable state', () => {
+  const coreBase = bootedCore('plugin-enable-state')
+
+  test('a plugin disabled through one store reads back disabled, in a fresh store and in a following one', async () => {
+    const store = createManager(coreRpc(coreBase()), [])
+    const fresh = await store.read()
+    expect(fresh).toEqual([])
+    expect(pluginEnabled({id: 'x', builtin: false}, fresh)).toBe(true)
+    expect(await store.enabled('y')).toBe(true)
+
+    const follower = createManager(coreRpc(coreBase()), [])
+    const followed: (readonly EnableState[])[] = []
+    onTestFinished(follower.on((state) => followed.push(state)))
+    await expect.poll(() => followed.at(-1)).toEqual([])
+
+    await store.setEnabled('x', false)
+    const disabled = await store.read()
+    expect(disabled).toEqual([{id: 'x', enabled: false}])
+    expect(pluginEnabled({id: 'x', builtin: false}, disabled)).toBe(false)
+    expect(pluginEnabled({id: 'y', builtin: false}, disabled)).toBe(true)
+    expect(await store.enabled('x')).toBe(false)
+    await expect.poll(() => followed.at(-1)).toEqual([{id: 'x', enabled: false}])
+
+    await store.setEnabled('x', true)
+    expect(await store.read()).toEqual([{id: 'x', enabled: true}])
+    await expect.poll(() => followed.at(-1)).toEqual([{id: 'x', enabled: true}])
+
+    await store.setEnabled('x', false)
+    const reloaded = createManager(coreRpc(coreBase()), [])
+    expect(await reloaded.read()).toEqual([{id: 'x', enabled: false}])
+    expect(await reloaded.enabled('x')).toBe(false)
+    await expect.poll(() => followed.at(-1)).toEqual([{id: 'x', enabled: false}])
+
+    await coreRpc(coreBase()).settings.set({scope: 'global', namespace: 'plugin-enable', key: 'bad', value: 'yes'})
+    expect(await store.read()).toEqual([{id: 'x', enabled: false}])
+    expect(await store.enabled('bad')).toBe(true)
+    await store.setEnabled('y', false)
+    await expect
+      .poll(() => followed.at(-1))
+      .toEqual([
+        {id: 'x', enabled: false},
+        {id: 'y', enabled: false},
+      ])
+  })
+})

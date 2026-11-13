@@ -97,7 +97,7 @@ const SettingsSnapshotSchema = z.object({
 export type SettingsSnapshot = z.infer<typeof SettingsSnapshotSchema>
 
 const SettingsInput = z.object({scope: SettingsScopeSchema, namespace: SettingsNamespaceSchema})
-const SettingsKeyInput = SettingsInput.extend({key: z.string().max(200)})
+const SettingsKeyInput = SettingsInput.extend({key: z.string().max(512)})
 const ChatPendingInterruptSchema = z.object({
   id: z.string(),
   reason: z.string(),
@@ -175,7 +175,11 @@ export const ToolCommandSignatureSchema = z.object({
 
 export type ToolCommandSignature = z.infer<typeof ToolCommandSignatureSchema>
 
-export const EditorOpenInputSchema = z.object({file: z.string(), line: z.number().int().min(1).optional()})
+export const EditorOpenInputSchema = z.object({
+  file: z.string(),
+  line: z.number().int().min(1).optional(),
+  column: z.number().int().min(1).optional(),
+})
 
 export const EngineStalenessSchema = z.object({
   stale: z.boolean(),

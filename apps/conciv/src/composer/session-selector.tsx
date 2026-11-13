@@ -347,7 +347,7 @@ export function SessionSelector(props: {
                 unmountOnExit
                 class="flex shrink-0 size-7 items-center justify-center"
               >
-                <Loader.Root size="sm" class="p-0 gap-0" translations={{value: () => SEARCHING_LABEL}}>
+                <Loader.Root size="sm" bare translations={{value: () => SEARCHING_LABEL}}>
                   <Loader.Indicator class="size-4 text-chat-text-3" />
                 </Loader.Root>
               </Presence>

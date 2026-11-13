@@ -16,15 +16,13 @@ import Keyboard from 'lucide-solid/icons/keyboard'
 import Shield from 'lucide-solid/icons/shield'
 import ChevronLeft from 'lucide-solid/icons/chevron-left'
 import Puzzle from 'lucide-solid/icons/puzzle'
-import {MICRO} from '../settings/settings-ui.js'
+import {MICRO, SettingsHeader} from '../settings/settings-ui.js'
 import {extensionSettingsPage} from '../settings/extension-fields.js'
 import type {SettingsTabId} from '../settings/last-tab.js'
 import type {SettingsScope} from '@conciv/contract'
 import {settingsSearchSchema} from '../settings/settings-search-schemas.js'
 
 const PAGE = 'flex flex-1 flex-col min-h-0'
-const HEADER = 'flex h-13 shrink-0 items-center gap-1.5 px-2 [border-block-end:1px_solid_var(--chat-line-soft)]'
-const TITLE = 'flex-1 m-0 font-chat-display text-[0.9375rem] font-semibold text-chat-text-hi leading-[1.25]'
 const BACK = 'size-9 shrink-0'
 const SCOPE = 'min-h-11 px-1.5'
 const SPLIT = 'flex flex-1 min-h-0 flex-col @lg:[--settings-rail:wide] data-[orientation=vertical]:flex-row'
@@ -131,23 +129,27 @@ function SettingsLayout(): JSX.Element {
     })
   return (
     <div class={PAGE}>
-      <header class={HEADER}>
-        <TooltipIconButton tooltip="Back to chat" side="bottom" class={BACK} onClick={close}>
-          <ChevronLeft class="size-4" strokeWidth={1.5} aria-hidden="true" />
-        </TooltipIconButton>
-        <h2 class={TITLE}>Settings</h2>
-        <Switch.Root
-          class={SCOPE}
-          checked={search().scope === 'global'}
-          onCheckedChange={(details) => changeScope(details.checked ? 'global' : 'project')}
-        >
-          <Switch.Label>All projects</Switch.Label>
-          <Switch.Control>
-            <Switch.Thumb />
-          </Switch.Control>
-          <Switch.HiddenInput />
-        </Switch.Root>
-      </header>
+      <SettingsHeader
+        title="Settings"
+        leading={
+          <TooltipIconButton tooltip="Back to chat" side="bottom" class={BACK} onClick={close}>
+            <ChevronLeft class="size-4" strokeWidth={1.5} aria-hidden="true" />
+          </TooltipIconButton>
+        }
+        actions={
+          <Switch.Root
+            class={SCOPE}
+            checked={search().scope === 'global'}
+            onCheckedChange={(details) => changeScope(details.checked ? 'global' : 'project')}
+          >
+            <Switch.Label>All projects</Switch.Label>
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+            <Switch.HiddenInput />
+          </Switch.Root>
+        }
+      />
       <Tabs.Root
         ref={(element: HTMLDivElement) => {
           split = element

@@ -9,6 +9,7 @@ import type {Duplex} from 'node:stream'
 import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
 import type {HarnessListCursor} from '@conciv/protocol/harness-types'
 import contractManifest from '../package.json' with {type: 'json'}
+import {contract} from '../src/contract.js'
 
 describe('client', () => {
   describe('makeRpcClient', () => {
@@ -142,6 +143,16 @@ describe('rows', () => {
       expect(draft.selectionEnd).toBe(2)
       expect(draft.attachments).toEqual([])
     })
+  })
+})
+
+describe('settings input', () => {
+  it('a settings key may be 512 characters and no longer', async () => {
+    const schema = contract.settings.set['~orpc'].inputSchema
+    const issues = async (key: string) =>
+      (await schema?.['~standard'].validate({scope: 'global', namespace: 'plugins', key, value: 1}))?.issues
+    expect(await issues('k'.repeat(512))).toBeUndefined()
+    expect(await issues('k'.repeat(513))).toHaveLength(1)
   })
 })
 

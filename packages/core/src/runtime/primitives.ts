@@ -18,7 +18,7 @@ export type SessionPrimitivesDeps = {
   root: string
   storeCapture: CaptureSink
   bundler: () => BundlerBridge | undefined
-  openInEditor: (file: string, line?: number) => void
+  openInEditor: (file: string, line?: number, column?: number) => void
   listTabs: () => Promise<TabsListing>
 }
 

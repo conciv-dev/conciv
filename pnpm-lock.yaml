@@ -114,6 +114,9 @@ catalogs:
     '@solid-primitives/resize-observer':
       specifier: ^2.2.0
       version: 2.2.0
+    '@solid-primitives/storage':
+      specifier: ^4.4.0
+      version: 4.4.0
     '@solid-primitives/timer':
       specifier: ^1.4.4
       version: 1.4.4
@@ -646,6 +649,9 @@ importers:
       '@conciv/page':
         specifier: workspace:^
         version: link:../../packages/page
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../../packages/plugin
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../packages/protocol
@@ -688,6 +694,12 @@ importers:
       '@solid-primitives/resize-observer':
         specifier: 'catalog:'
         version: 2.2.0(solid-js@1.9.17)
+      '@solid-primitives/storage':
+        specifier: 'catalog:'
+        version: 4.4.0(solid-js@1.9.17)
+      '@standard-schema/spec':
+        specifier: 'catalog:'
+        version: 1.1.0
       '@tanstack/hotkeys':
         specifier: 'catalog:'
         version: 0.18.0
@@ -11267,6 +11279,18 @@ packages:
     resolution: {integrity: sha512-LgtVaVBtB7EbmS4+M0b8xY5Iq6pUWXBsIC4VgtrFKDGDdyCaDt88sHk0fUlx1Enxm/XZnZyLXJABRoa39RjJqA==}
     peerDependencies:
       solid-js: ^1.6.12
+
+  '@solid-primitives/storage@4.4.0':
+    resolution: {integrity: sha512-+u0dpTqrUG7h+IMfmGLCx7vx2Q0Eon6paBgzcWhEP/dauElpGU3ElpZZOZgw8YKR1+J4X4ENiAL0na3VH8RWMg==}
+    peerDependencies:
+      '@tauri-apps/plugin-store': '*'
+      solid-js: ^1.6.12
+      solid-start: '*'
+    peerDependenciesMeta:
+      '@tauri-apps/plugin-store':
+        optional: true
+      solid-start:
+        optional: true
 
   '@solid-primitives/timer@1.4.4':
     resolution: {integrity: sha512-Ayjyb3+v1hyU92vuLUN0tVHq2mmTCPGxSDLGJMsDydRqx9ZfJIc9xj6cxK4XvdY3pif3ps2mIv52pjgToybEpQ==}
@@ -24645,6 +24669,11 @@ snapshots:
       solid-js: 1.9.17
 
   '@solid-primitives/static-store@0.1.4(solid-js@1.9.17)':
+    dependencies:
+      '@solid-primitives/utils': 6.4.1(solid-js@1.9.17)
+      solid-js: 1.9.17
+
+  '@solid-primitives/storage@4.4.0(solid-js@1.9.17)':
     dependencies:
       '@solid-primitives/utils': 6.4.1(solid-js@1.9.17)
       solid-js: 1.9.17

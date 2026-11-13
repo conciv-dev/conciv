@@ -809,13 +809,18 @@ describe('cli', () => {
       })
 
       it('tools open reaches the editor opener over rpc', async () => {
-        const opened: Array<{file: string; line?: number}> = []
+        const opened: Array<{file: string; line?: number; column?: number}> = []
         await bootCli(cleanups, {
-          openInEditor: (file, line) => opened.push({file, ...(line === undefined ? {} : {line})}),
+          openInEditor: (file, line, column) =>
+            opened.push({file, ...(line === undefined ? {} : {line}), ...(column === undefined ? {} : {column})}),
         })
         expect(await runCli(cliMain, ['tools', 'open', 'src/thing.ts', '--line', '7'])).toBe(0)
         expect(opened).toEqual([{file: 'src/thing.ts', line: 7}])
         expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true}})
+        expect(await runCli(cliMain, ['tools', 'open', 'src/thing.ts', '--line', '7', '--column', '3'])).toBe(0)
+        expect(opened.at(-1)).toEqual({file: 'src/thing.ts', line: 7, column: 3})
+        expect(await runCli(cliMain, ['tools', 'open', 'src/thing.ts', '--column', '3'])).toBe(0)
+        expect(opened.at(-1)).toEqual({file: 'src/thing.ts'})
       })
 
       it('open without its required positional is a user error, not a raw citty stack', async () => {
