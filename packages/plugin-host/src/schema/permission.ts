@@ -5,7 +5,7 @@ import {Schema} from 'effect'
 export const Source = Schema.Union([
   Schema.Struct({
     type: Schema.Literal('tool'),
-    messageId: Schema.String,
+    messageId: Schema.UndefinedOr(Schema.String),
     id: Schema.String,
   }),
 ]).annotate({identifier: 'Permission.Source'})
