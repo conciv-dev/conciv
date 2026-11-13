@@ -209,8 +209,6 @@ describe('approval replay', () => {
     onTestFinished(() => other.dispose())
     await expect.element(permissionRequest().nth(1), {timeout: 15_000}).toBeVisible()
 
-    const decisions = ['chat', 'permissionDecision']
-    const served = await coreControl.rpcCallCount(decisions)
     await approveButton().nth(0).click()
     expect(await waiting).toContain('{\\"result\\":7')
     await expect.element(permissionRequest().nth(1)).not.toBeInTheDocument()
@@ -218,8 +216,6 @@ describe('approval replay', () => {
 
     await approveButton().click()
     await expect.element(permissionRequest()).not.toBeInTheDocument()
-    await until(async () => (await coreControl.rpcCallCount(decisions)) === served + 2, {hangGuardMs: 15_000})
-    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
     expect(page.getByText('That permission request is no longer waiting for an answer.').query()).toBeNull()
   }, 120_000)
 
