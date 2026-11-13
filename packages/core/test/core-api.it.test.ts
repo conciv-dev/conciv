@@ -84,6 +84,7 @@ import {
   type McpTool,
 } from '@conciv/harness-testkit'
 import {Plugin, Rpc as PluginRpc} from '@conciv/plugin'
+import {evaluatePluginBundle} from '@conciv/plugin/experimental/host'
 import {PluginHost} from '@conciv/plugin-host'
 import {claude} from '@conciv/harness/claude'
 import {codex as codexHarness} from '@conciv/harness/codex'
@@ -5778,5 +5779,69 @@ export default {
     expect(z.object({mcpUrl: z.string()}).parse(await call(againBase, 'seer', 'seen')).mcpUrl).toBe(
       `${againBase}/api/mcp`,
     )
+  })
+})
+
+describe('engine plugin bundles', () => {
+  const server = (id: string) => `export default {id: '${id}', async setup() {}}
+`
+  const bundle = (label: string) => `module.exports = {default: {setup() { return () => '${label}' }}}
+`
+
+  it('an engine lists its configured plugins with their browser parts, serves each bundle by id and announces a rebuilt one', async () => {
+    const root = tempDir('conciv-bundles-')
+    for (const id of ['pane', 'plain']) {
+      mkdirSync(join(root, id))
+      writeFileSync(join(root, id, 'index.ts'), server(id))
+    }
+    writeFileSync(join(root, 'pane', 'plugin-experimental.js'), bundle('first'))
+    const engine = await start({
+      options: {stateRoot: root, plugins: [['./pane', {greeting: 'hi'}], './plain']},
+      root,
+      launchEditor: () => {},
+      harness: createFakeHarness(),
+      homeDir: tempDir('conciv-home-'),
+    })
+    onTestFinished(() => engine.stop())
+    const rpc = makeRpcClient(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}`)
+    const options = {signal: AbortSignal.timeout(5000)}
+
+    const listed = await rpc.plugin.list(undefined, options)
+    expect(listed.location).toEqual({directory: root})
+    expect(listed.data.find((plugin) => plugin.id === 'pane')).toEqual({
+      id: 'pane',
+      source: {type: 'local', path: join(root, 'pane')},
+      features: {server: true, experimental: true},
+      state: {status: 'active'},
+    })
+    expect(listed.data.find((plugin) => plugin.id === 'plain')?.features).toEqual({server: true})
+
+    const first = await rpc.plugin.experimental({id: 'pane'}, options)
+    expect(first.location).toEqual({directory: root})
+    expect(first.data.code).toBe(bundle('first'))
+    expect(first.data.options).toEqual({greeting: 'hi'})
+    expect(first.data.revision).toMatch(/^[0-9a-f]{64}$/)
+    expect(typeof evaluatePluginBundle(first.data.code, {require: () => ({})}).setup).toBe('function')
+
+    for (const id of ['nobody', 'plain']) {
+      await expect(rpc.plugin.experimental({id}, options)).rejects.toMatchObject({
+        code: 'PLUGIN_NOT_FOUND',
+        status: 404,
+        data: {pluginId: id, message: `No active plugin with a ./plugin-experimental bundle: ${id}`},
+      })
+    }
+
+    const changes = await rpc.plugin.changes(undefined, options)
+    const rebuilt = async (label: string) => {
+      writeFileSync(join(root, 'pane', 'plugin-experimental.js'), bundle(label))
+      expect((await changes.next()).value).toEqual({})
+      return (await rpc.plugin.experimental({id: 'pane'}, options)).data
+    }
+    const second = await rebuilt('second')
+    expect(second.code).toBe(bundle('second'))
+    expect(second.revision).not.toBe(first.data.revision)
+    const third = await rebuilt('third')
+    expect(third.code).toBe(bundle('third'))
+    expect(third.revision).not.toBe(second.revision)
   })
 })

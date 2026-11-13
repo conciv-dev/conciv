@@ -31,6 +31,7 @@ import type {
   Location,
   Permission,
   PermissionSaved,
+  Plugin,
   PluginHooks,
   Rpc,
   Skill,
@@ -52,6 +53,7 @@ export type PluginHost = ManagedRuntime.ManagedRuntime<
   | SkillInstructions.Interface
   | Bus.Interface
   | Location.Interface
+  | Plugin.Interface
   | Database.Interface,
   never
 >
