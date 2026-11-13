@@ -117,6 +117,10 @@
     {
       "files": ["packages/plugin-host/src/plugin/*.ts", "packages/plugin-host/src/util/*.ts"],
       "rules": {"unused-files": "off"}
+    },
+    {
+      "files": ["packages/plugin-host/src/core/config/plugin/source.ts"],
+      "rules": {"unresolved-imports": "off"}
     }
   ],
   "ignoreDependencies": [
