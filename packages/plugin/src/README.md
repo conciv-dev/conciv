@@ -267,7 +267,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - `MountedSession` keeps `visit` and `directory`; `local` is declared, not implemented; `background` and `BackgroundTask` are absent (subagents run inside the CLI); `listedProject` is absent (no sidebar; audit row `layout.sidebar.opened`); `project` is not available yet.
 - `Layout`: `side` and `sidebar` are absent: conciv has no side region (`apps/conciv/src/pane/status-bar.tsx:48`, a panel replaces the chat; `apps/conciv/src/routes/panel-height.ts:8`). This settles the audit's UNSURE `layout.side.width` row and drops `side.menu` with `MenuItem`. `project` is absent (one directory per engine).
 - `Desktop`: no `os`, no `zoom`; `launch(path, position?)` takes a `{line, column?}` position in place of source's `app?` argument, backed by the engine's open-in-editor (`packages/contract/src/contract.ts:410`, `editor.open`).
-- `StorageScope` keeps source's `{server, directory?}` scope; a conciv server is an engine, which runs in one project.
+- `StorageScope` keeps source's `{server, directory?}` scope; a conciv server is an engine, which runs in one project. It adds `'project'` (the repo the engine runs in), so `Storage.store` opens a declared `project` store with its own scope.
 - `System.save` and `openExternal` JSDoc describe the web only (download, new tab).
 - `Tabs.focus` is declared: the quick pane `focus` search param backs it (`apps/conciv/src/lib/quick-search.ts:15`), which settles the audit's UNSURE row; `Tabs.close` is declared by the spec table although the audit says "concept fits".
 - `Ui` keeps every source component and prop type; examples use literal text in place of `ctx.t`, and conciv icon names.
