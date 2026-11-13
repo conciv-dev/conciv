@@ -343,8 +343,8 @@ describe('chat plane', () => {
     const [catalog, ...rest] = told.systemPrompts.at(-1) ?? []
     expect(catalog).toContain('## Code Mode tools (call only inside `execute_typescript`)')
     expect(catalog).toContain('The catalog is complete.')
-    expect(catalog).toContain('external_unit_echo(input: {')
-    expect(catalog).toContain('external_unit_secret(input: {')
+    expect(catalog).toContain('external_unit_echo({\n  text: string;\n}): Promise<unknown> // Echo the text back.')
+    expect(catalog).toContain('external_unit_secret({\n  apiKey: string;\n}): Promise<unknown> // Echo the text back.')
     expect(rest).toEqual([preface])
     expect(rest.join('')).not.toContain('external_unit_echo')
     expect(told.tools.at(-1)).toContain('execute_typescript')
@@ -380,7 +380,7 @@ describe('chat plane', () => {
     await resumed.followUp(skilled, 'fourth')
     const [added] = z.array(z.object({content: z.string()})).parse(told.asked.at(-1))
     expect(added?.content).toMatch(
-      /^The Code Mode tool catalog has changed\.\n\nNew tools are available:\n- sky \(1 tool\) \/\/ Sky readings\n  - external_sky_measure\(input: \{/,
+      /^The Code Mode tool catalog has changed\.\n\nNew tools are available:\n- sky \(1 tool\) \/\/ Sky readings\n  - external_sky_measure\(\{\n  declination: string;\n\}\): Promise<string \| null>/,
     )
     expect(added?.content).not.toContain('supersedes')
     expect(added?.content).not.toContain('external_tools_alpha')
