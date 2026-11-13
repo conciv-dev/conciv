@@ -22,7 +22,7 @@ import {clearThread, metadataKeysEndingWith, runningThreadIds} from './stores.js
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
 import {firstUserTitle, turnHooks, type TurnDeps} from './turn.js'
 
-export {assistCapabilities, registryCapabilities, type CodeCapability} from './code-mode.js'
+export {assistCapabilities, registryCapabilities, toolDomainCapabilities, type CodeCapability} from './code-mode.js'
 export type {AttachmentExpanders, SessionPort} from './turn.js'
 
 const FIRST_OUTPUT_TIMEOUT_MS = 30_000
