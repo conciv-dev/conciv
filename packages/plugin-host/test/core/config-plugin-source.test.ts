@@ -88,27 +88,39 @@ describe('ConfigPluginSource', () => {
             Stream.runForEach((change) => Queue.offer(changes, change)),
             Effect.forkScoped({startImmediately: true}),
           )
-          const untilSeen = (write: Effect.Effect<void, unknown>) =>
+          const folderTargets = source
+            .operations()
+            .pipe(Effect.map((operations) => operations.map(({target}) => target)))
+          const untilState = (expected: readonly string[]) =>
+            Queue.take(changes).pipe(
+              Effect.andThen(folderTargets),
+              Effect.repeat({until: (targets) => targets.join('\n') === expected.join('\n')}),
+            )
+          const untilSeen = (write: Effect.Effect<void, unknown>, expected: readonly string[]) =>
             Effect.gen(function* () {
               yield* Queue.clear(changes)
               const writes = yield* write.pipe(Effect.repeat(Schedule.spaced('10 millis')), Effect.forkScoped)
-              return yield* Queue.take(changes).pipe(Effect.ensuring(Fiber.interrupt(writes)))
+              return yield* untilState(expected).pipe(Effect.ensuring(Fiber.interrupt(writes)))
             })
           const recreatePlugins = Effect.suspend(() =>
             fs.remove(concivFolder, {recursive: true, force: true}).pipe(Effect.andThen(fs.ensureDir(plugins))),
           )
+          const alpha = path.join(plugins, 'alpha')
+          const writeAlpha = Effect.promise(() =>
+            mkdir(alpha, {recursive: true}).then(() => writeFile(path.join(alpha, 'index.ts'), 'export default {}\n')),
+          )
 
-          expect(yield* untilSeen(recreatePlugins)).toBeUndefined()
+          expect(yield* untilSeen(recreatePlugins, [])).toEqual([])
 
-          expect(
-            yield* untilSeen(Effect.suspend(() => fs.ensureDir(path.join(plugins, `alpha-${Math.random()}`)))),
-          ).toBeUndefined()
+          expect(yield* untilSeen(writeAlpha, [alpha])).toEqual([alpha])
 
           yield* Queue.clear(changes)
           yield* fs.remove(concivFolder, {recursive: true, force: true})
-          expect(yield* Queue.take(changes)).toBeUndefined()
+          expect(yield* untilState([])).toEqual([])
 
-          expect(yield* untilSeen(recreatePlugins)).toBeUndefined()
+          yield* Queue.clear(changes)
+          yield* fs.ensureDir(plugins)
+          expect(yield* untilState([])).toEqual([])
         }).pipe(Effect.provide(services(root, [])))
       }),
     5_000,
