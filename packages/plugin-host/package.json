@@ -37,7 +37,10 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/db": "workspace:^",
+    "@effect/sql-sqlite-node": "catalog:",
     "@standard-schema/spec": "catalog:",
+    "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "zod": "catalog:"
   },
