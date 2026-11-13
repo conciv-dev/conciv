@@ -246,6 +246,7 @@ type LiveRun = {
   controller: AbortController
   ending: AbortController
   settled: PromiseWithResolvers<void>
+  stopping: boolean
 }
 
 type RunMessages = {full: ModelMessage[]}
@@ -389,6 +390,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   const endRuns = async (threadId: string, except?: string): Promise<void> => {
     const cancels = await Promise.allSettled(
       filterLiveRuns(threadId, except).map(async ([runId, entry]) => {
+        entry.stopping = true
         try {
           await requestRunCancel(stores.runs, runId)
         } finally {
@@ -500,6 +502,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       controller,
       ending: new AbortController(),
       settled: Promise.withResolvers(),
+      stopping: false,
     }
     live.set(turn.runId, entry)
     const plan = planned(hooks, turn)
@@ -588,8 +591,14 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       if (active === null) return false
       if (runIds !== undefined && !runIds.includes(active.runId)) return false
       if (active.cancelRequested === true) return false
-      await requestRunCancel(stores.runs, active.runId)
-      live.get(active.runId)?.controller.abort(RUN_CANCEL_REASON)
+      const entry = live.get(active.runId)
+      if (entry?.stopping === true) return false
+      if (entry !== undefined) entry.stopping = true
+      try {
+        await requestRunCancel(stores.runs, active.runId)
+      } finally {
+        entry?.controller.abort(RUN_CANCEL_REASON)
+      }
       return true
     },
     endRuns: endThreadRuns,
