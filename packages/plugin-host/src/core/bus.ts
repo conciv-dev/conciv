@@ -744,7 +744,7 @@ export function configured(options?: Options) {
               if (!Durable.get(event.type)?.durable) return []
               return [
                 decodeSerializedEvent({
-                  id: Event.Id.make(event.id),
+                  id: event.id,
                   created: event.created,
                   aggregateID: event.aggregate_id,
                   seq: event.seq,
