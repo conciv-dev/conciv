@@ -151,18 +151,22 @@ function enclosingNamespaces(namespaces: CodeModeSnapshot['namespaces'], path: s
 }
 
 function codeModeCapabilities(codeMode: CodeModeSnapshot, run: EffectRun): CodeCapability[] {
-  return [...codeMode.tools].map(([name, tool]) => ({
-    name,
-    path: qualifiedName(tool),
-    namespaces: enclosingNamespaces(codeMode.namespaces, qualifiedName(tool)),
-    ...(tool.options?.pinned === true ? {pinned: true} : {}),
-    description: tool.description,
-    errors: [],
-    inputSchema: jsonSchemaOnly(ToolRuntime.definition(tool).inputSchema),
-    outputSchema: pluginOutput(ToolRuntime.definition(tool).outputSchema),
-    execute: (input, request) =>
-      runTool(name, run, codeMode.execute(name, input, toolContext(request)), request.signal),
-  }))
+  return [...codeMode.tools].map(([name, tool]) => {
+    const path = qualifiedName(tool)
+    const definition = ToolRuntime.definition(tool)
+    return {
+      name: CodeMode.capabilityName(path),
+      path,
+      namespaces: enclosingNamespaces(codeMode.namespaces, path),
+      ...(tool.options?.pinned === true ? {pinned: true} : {}),
+      description: tool.description,
+      errors: [],
+      inputSchema: jsonSchemaOnly(definition.inputSchema),
+      outputSchema: pluginOutput(definition.outputSchema),
+      execute: (input, request) =>
+        runTool(name, run, codeMode.execute(name, input, toolContext(request)), request.signal),
+    }
+  })
 }
 
 function pluginOutput(schema: ReturnType<typeof ToolRuntime.definition>['outputSchema']): SchemaInput {
