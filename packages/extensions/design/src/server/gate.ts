@@ -18,6 +18,7 @@ export function gateOf(input: {design: Design; reads: ReturnType<typeof readIds>
     const element = reads.of(id)[0]
     return element === undefined || !held.has(id) ? element : textOf(element)
   }
+  const drawn = (record: Record): boolean => first(record.id) !== undefined || bordered({record, byId, first})
   const grouped = Map.groupBy(records, (record) => record.parent ?? '')
   const kidsOf = (id: string): Placed[] =>
     (grouped.get(id) ?? []).map((record) => {
@@ -68,8 +69,8 @@ export function gateOf(input: {design: Design; reads: ReturnType<typeof readIds>
   const coverage: Coverage = {
     nodes: records.length,
     mapped: records.filter((record) => reads.mapped(record.id)).length,
-    rendered: records.filter((record) => first(record.id) !== undefined).length,
-    missing: records.filter((record) => first(record.id) === undefined).map((record) => record.id),
+    rendered: records.filter(drawn).length,
+    missing: records.filter((record) => !drawn(record)).map((record) => record.id),
     notRendered: records
       .filter((record) => reads.mapped(record.id) && first(record.id) === undefined)
       .map((record) => record.id),
@@ -107,6 +108,29 @@ type Record = {
   direction?: 'row' | 'column'
 }
 
+function bordered(input: {
+  record: Record
+  byId: Map<string, Record>
+  first: (id: string) => LiveComponent | undefined
+}): boolean {
+  const {record} = input
+  const frame = record.parent === null ? undefined : input.byId.get(record.parent)
+  if (record.kind !== LINE_KIND || frame === undefined) return false
+  const border = input.first(frame.id)?.styles.border
+  return border !== undefined && border.width > 0 && border.side === lineSide({line: record.box, frame: frame.box})
+}
+
+function lineSide(input: {line: Box; frame: Box}): string | null {
+  const {line, frame} = input
+  const near = (a: number, b: number) => Math.abs(a - b) <= SAME_PX
+  if (line.h === 0 && near(line.y, frame.y + frame.h)) return 'bottom'
+  if (line.h === 0 && near(line.y, frame.y)) return 'top'
+  if (line.w === 0 && near(line.x, frame.x)) return 'left'
+  if (line.w === 0 && near(line.x, frame.x + frame.w)) return 'right'
+  return null
+}
+
+const LINE_KIND = 'line'
 const FAR_PX = 24
 const CONTAINER_TOLERANCE = 0.08
 const LEAF_TOLERANCE = 0.2

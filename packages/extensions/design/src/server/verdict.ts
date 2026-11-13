@@ -53,7 +53,8 @@ function requiredOf(root: DesignNode): Map<string, string> {
     [...walk(root)].flatMap(({node, parent}) => {
       const box = node.figma?.box ?? node.box
       const decoration = node.gate?.kind === 'decoration'
-      return decoration || box.w <= 0 || box.h <= 0 ? [] : [[node.id, placed({node, parent})] as const]
+      const line = node.gate?.kind === 'line'
+      return decoration || (!line && (box.w <= 0 || box.h <= 0)) ? [] : [[node.id, placed({node, parent})] as const]
     }),
   )
 }

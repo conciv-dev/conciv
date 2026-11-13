@@ -28,6 +28,18 @@ const TARGET_ALIASES = new Set([
 const LOOK_CLASSES: Record<string, string> = {webfont: 'webfont', container: 'webfont'}
 const CONTAINER_CSS =
   '#root { container-type: inline-size; } @container (min-width: 600px) { .toolbar { padding-bottom: 12px; } }'
+const INPUT_FIELD = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 16,
+  width: 348,
+  boxSizing: 'border-box',
+  padding: '20px 30px',
+  borderRadius: 6,
+  border: '1px solid #262626',
+  background: '#242424',
+} as const
+const INPUT_LINE = {display: 'flex', flexDirection: 'column', gap: 6, height: 30, boxSizing: 'border-box'} as const
 const FIELD_BORDER = {borderColor: '#d64545', borderRadius: 0}
 const SLOW_FONT_CSS = "@import url('/slow-font.css');"
 const SLOW_FONT_TEXT = 'The quarterly report lists every invoice that was paid late, with the customer and the days overdue.'
@@ -53,6 +65,25 @@ export function App() {
     return (
       <main className="picture" data-conciv-key="pIcTmn">
         <img className="picture-image" src={new URLSearchParams(location.search).get('src') ?? ''} alt="" data-conciv-key="pIcTim" />
+      </main>
+    )
+  }
+  if (requested === 'input-field' || requested === 'input-field-line') {
+    return (
+      <main data-conciv-key="iNfMnA">
+        <label style={INPUT_FIELD} data-conciv-key="iNfLbA">
+          <span style={{fontSize: 18, lineHeight: '27px', color: '#ffffff'}} data-conciv-key="iNfTtA">
+            Full Name
+          </span>
+          <span
+            style={requested === 'input-field' ? INPUT_LINE : {...INPUT_LINE, borderBottom: '1px solid #333333'}}
+            data-conciv-key="iNfSbA"
+          >
+            <span style={{fontSize: 16, lineHeight: '24px', color: '#656567'}} data-conciv-key="iNfPhA">
+              Type here
+            </span>
+          </span>
+        </label>
       </main>
     )
   }

@@ -84,6 +84,27 @@ describe('design_check on the cards page', () => {
   })
 })
 
+describe('a Figma line', () => {
+  it('keeps the check from done while the page draws no line, and takes a border on that side as the line', async () => {
+    const fixture = (file: string) => fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
+    await kit.goto('input-field')
+    await call('design_get', {
+      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1418',
+      document: JSON.parse(await readFile(fixture('input-field.json'), 'utf8')),
+      image: fixture('input-field.png'),
+    })
+    const bare = roundOf(await call('design_check', {}))
+    await kit.goto('input-field-line')
+    const lined = roundOf(await call('design_check', {}))
+    expect([
+      bare.verdict,
+      bare.coverage.missing.includes('100:1422'),
+      bare.reasons.some((reason) => reason.includes('100:1422')),
+      lined.coverage.missing.includes('100:1422'),
+    ]).toEqual(['not yet', true, true, false])
+  })
+})
+
 describe('a check in a new run of the same project', () => {
   it('numbers its rounds from 1, with no round of the run before', async () => {
     const stateRoot = await mkdtemp(join(tmpdir(), 'conciv-design-runs-state-'))
