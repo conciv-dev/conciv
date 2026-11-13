@@ -285,7 +285,8 @@
         "Model",
         "State",
         "Plugin",
-        "Snapshot"
+        "Snapshot",
+        "Entry"
       ]
     },
     {
