@@ -2642,12 +2642,13 @@ describe('panel escape', () => {
   test('Escape closes an image viewer, stops a running turn, is ignored once while stopping, then closes the panel', async () => {
     const rpc = coreRpc(coreBase())
     const sessionId = await createSession(rpc)
+    await coreControl.holdTurn()
+    const turn = await sendTurn(coreBase(), sessionId, 'start a long turn')
+    await turn.awaitReply()
     await seedDraft(rpc, sessionId, {
       text: 'draft kept while stopping',
       attachments: [{id: 'image-1', type: 'image', name: 'pixel.png', contentType: 'image/png', data: PNG_PIXEL}],
     })
-    await coreControl.holdTurn()
-    const turn = await sendTurn(coreBase(), sessionId, 'start a long turn')
     harness.mountShell(`/panel/${sessionId}?open=true`)
 
     await expect.element(thumbnail(), {timeout: 8000}).toBeVisible()
