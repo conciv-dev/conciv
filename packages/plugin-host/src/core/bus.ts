@@ -210,13 +210,15 @@ export function configured(options?: Options) {
           const owner = id
           let ref = updates.has(owner) ? updates.get(owner) : sessions.get(owner)
           if (!ref && !updates.has(owner)) {
-            const row = yield* db
-              .select({id: SessionTable.id})
-              .from(SessionTable)
-              .where(and(eq(SessionTable.id, owner), isNull(SessionTable.deletedAt)))
-              .get()
-              .pipe(Effect.orDie)
-            ref = row && engine ? {directory: engine.directory, workspaceId: engine.workspaceId} : undefined
+            if (engine) {
+              const row = yield* db
+                .select({id: SessionTable.id})
+                .from(SessionTable)
+                .where(and(eq(SessionTable.id, owner), isNull(SessionTable.deletedAt)))
+                .get()
+                .pipe(Effect.orDie)
+              ref = row ? {directory: engine.directory, workspaceId: engine.workspaceId} : undefined
+            }
             updates.set(owner, ref)
           }
           resolved.set(event, event.location ? [event.location] : ref ? [ref] : [])

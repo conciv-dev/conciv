@@ -43,6 +43,8 @@ const it = testEffect(
   ),
 )
 
+const withoutEngine = testEffect(Bus.layer.pipe(Layer.provideMerge(Database.layer())))
+
 const Done = Bus.ephemeral({type: 'test.routing.done', schema: {}})
 const owned = SessionId.make('conciv_routing')
 const unknown = SessionId.make('conciv_unknown')
@@ -113,6 +115,17 @@ describe('Bus Session routing', () => {
       expect(after.atEngine).toEqual([])
       expect(after.atElsewhere).toEqual([])
       expect(after.everywhere).toEqual([after.event])
+    }),
+  )
+
+  withoutEngine.effect('delivers a session event with no owner when no engine location exists', () =>
+    Effect.gen(function* () {
+      const bus = yield* Bus.Service
+      const everywhere = yield* watch(bus)
+      const renamed = yield* bus.publish(SessionEvent.Renamed, {sessionID: unknown, title: 'no engine'})
+      yield* bus.publish(Done, {})
+      expect(renamed).not.toHaveProperty('location')
+      expect(yield* Fiber.join(everywhere)).toEqual([renamed])
     }),
   )
 })
