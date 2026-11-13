@@ -1921,7 +1921,7 @@ describe('settings storage', () => {
     }
   }, 30_000)
 
-  test('saved settings survive a restart, a corrupt file starts empty, and a namespace outside the folder is refused', async () => {
+  test('saved settings survive a restart, a corrupt file starts empty, and a namespace outside the folder or a key over 512 characters is refused', async () => {
     const [root, home] = [tempDir(), tempDir()]
     const folder = join(root, '.conciv', 'settings')
     mkdirSync(folder, {recursive: true})
@@ -1949,6 +1949,9 @@ describe('settings storage', () => {
       expect(
         await engine.rpc.settings.set({scope: 'project', namespace: 'release..prefs', key: 'on', value: true}),
       ).toMatchObject({value: {on: true}})
+      const longest = {...broken, key: 'k'.repeat(512), value: 1}
+      expect(await engine.rpc.settings.set(longest)).toMatchObject({value: {[longest.key]: 1}})
+      await expect(engine.rpc.settings.set({...longest, key: 'k'.repeat(513)})).rejects.toMatchObject(refusal(/512/))
       await expect(engine.rpc.settings.all({scope: 'project', namespace: 'acme/editor'})).rejects.toMatchObject(
         refusal(/settings folder/),
       )
