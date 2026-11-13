@@ -48,6 +48,7 @@ export type PointerHover = {name: string; moves: PointerMove[]; settleMs: number
 export type FaultSpec =
   | {kind: 'fail'; path: string[]; status?: number}
   | {kind: 'abort'; path?: string[]}
+  | {kind: 'truncate'; path: string[]}
   | {kind: 'gate'; path?: string[]}
   | {kind: 'chat-refused'; status?: number}
   | {kind: 'offline'}
@@ -504,6 +505,9 @@ async function createFault(ctx: BrowserCommandContext, handle: string, spec: Fau
   if (spec.kind === 'pre-version-engine') return trackedFault(handle, spec.kind, await preVersionEngine(ctx))
   if (spec.kind === 'chat-refused') {
     return trackedFault(handle, spec.kind, await testkit.failChatTurns(ctx.page, statusOptions(spec.status)))
+  }
+  if (spec.kind === 'truncate') {
+    return trackedFault(handle, spec.kind, await testkit.truncateRpcReplies(ctx.page, {path: spec.path}))
   }
   return trackedFault(handle, spec.kind, await brokenRpcCalls(testkit, ctx, spec))
 }

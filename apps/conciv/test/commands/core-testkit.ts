@@ -1,5 +1,5 @@
 export {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
-export {abortRpcCalls, failRpcCalls, gateRpcCalls} from '@conciv/plugin-testkit/rpc-fault'
+export {abortRpcCalls, failRpcCalls, gateRpcCalls, truncateRpcReplies} from '@conciv/plugin-testkit/rpc-fault'
 export {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
 export {rpcCallCursor} from '@conciv/plugin-testkit/rpc-counts'
 export {rpcObserverFor} from '@conciv/plugin-testkit/rpc-observer'

@@ -71,6 +71,16 @@ export function abortRpcCalls(page: Page, options: {path?: readonly string[]} = 
   return brokenWhile(page, pathMatcher(options.path), answered, (call) => call.cut())
 }
 
+export function truncateRpcReplies(page: Page, options: {path: readonly string[]}): Promise<RpcFaultInjector> {
+  const answered = (): Promise<void> =>
+    Promise.reject(new Error('a truncated rpc call never reaches the server, so it is never answered'))
+  return brokenWhile(page, pathMatcher(options.path), answered, (call) => {
+    call
+      .truncate()
+      .catch((error: unknown) => console.error('[extension-testkit] the truncated rpc reply failed', error))
+  })
+}
+
 export type RpcHold = {hold: () => void; release: () => void}
 
 export async function holdRpcCalls(page: Page): Promise<RpcHold> {

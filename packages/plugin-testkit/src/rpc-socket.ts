@@ -13,6 +13,7 @@ const NORMAL_CLOSE_CODE = 1000
 const APPLICATION_CLOSE_MIN = 3000
 const APPLICATION_CLOSE_MAX = 4999
 const FAILURE_BODY = {json: {}, meta: []}
+const TRUNCATED_BODY = {json: {}, meta: [[0, 'value']]}
 
 const serializer = new StandardRPCSerializer(new StandardRPCJsonSerializer())
 
@@ -22,6 +23,7 @@ export type RpcSocketCall = {
   path: readonly string[]
   forward: () => void
   reply: (status: number) => Promise<void>
+  truncate: () => Promise<void>
   cut: () => void
 }
 
@@ -157,16 +159,25 @@ async function sendOutbound(message: Message, socketId: string, outbound: Outbou
   const call: RpcSocketCall = {
     path,
     forward: outbound.forward,
-    reply: async (status) => {
-      const failure = await encodeResponseMessage(id, MessageType.RESPONSE, {status, headers: {}, body: FAILURE_BODY})
-      if (typeof failure !== 'string') throw new Error('the injected rpc failure frame encoded to binary')
-      outbound.emit({kind: 'response', requestId, status, served: false})
-      outbound.route.send(failure)
-    },
+    reply: (status) => injectReply(outbound, id, requestId, status, FAILURE_BODY),
+    truncate: () => injectReply(outbound, id, requestId, 200, TRUNCATED_BODY),
     cut: () => void outbound.route.close({code: CUT_CLOSE_CODE}),
   }
   if (outbound.state.rules.some((rule) => rule(call) === 'handled')) return
   outbound.forward()
+}
+
+async function injectReply(
+  outbound: Outbound,
+  id: string,
+  requestId: string,
+  status: number,
+  body: typeof FAILURE_BODY | typeof TRUNCATED_BODY,
+): Promise<void> {
+  const frame = await encodeResponseMessage(id, MessageType.RESPONSE, {status, headers: {}, body})
+  if (typeof frame !== 'string') throw new Error('the injected rpc reply frame encoded to binary')
+  outbound.emit({kind: 'response', requestId, status, served: false})
+  outbound.route.send(frame)
 }
 
 async function observeInbound(message: Message, socketId: string, emit: (event: RpcSocketEvent) => void) {
