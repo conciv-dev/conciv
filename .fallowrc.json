@@ -253,7 +253,11 @@
         "NotFoundError",
         "PermissionSaved",
         "makeNotFoundError",
-        "Editor"
+        "Editor",
+        "Skill",
+        "DirectorySource",
+        "UrlSource",
+        "EmbeddedSource"
       ]
     },
     {
