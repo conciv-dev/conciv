@@ -1,4 +1,4 @@
-import type {Permission} from '../../../src/schema/permission.js'
+import type {Permission} from '../../../src/core/permission.js'
 import {Tool} from '../../../src/core/tool.js'
 import {Effect} from 'effect'
 

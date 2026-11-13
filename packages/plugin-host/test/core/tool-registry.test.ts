@@ -1,6 +1,6 @@
 import {describe, expect} from 'vitest'
-import {Agent} from '../../src/schema/agent.js'
-import {Permission} from '../../src/schema/permission.js'
+import {Agent} from '../../src/core/agent.js'
+import {Permission} from '../../src/core/permission.js'
 import {PluginHooks} from '../../src/core/plugin/hooks.js'
 import {Session} from '../../src/schema/session.js'
 import {SessionMessage} from '../../src/schema/session-message.js'

@@ -231,7 +231,8 @@
         "Name",
         "NotFoundError",
         "PermissionSaved",
-        "makeNotFoundError"
+        "makeNotFoundError",
+        "Editor"
       ]
     },
     {
