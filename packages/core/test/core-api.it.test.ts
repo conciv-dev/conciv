@@ -5053,22 +5053,18 @@ describe('session activity recorded with its chat messages', () => {
     const client = new DatabaseSync(join(stateDir, 'conciv.db'))
     const fixup = migrations.findIndex((migration) => migration.name.endsWith('_session_activity_fixup'))
     migrateSync(migrations.slice(0, fixup), drizzle({client})._.session)
-    const row = {harnessKind: 'claude', origin: 'chat', cwd: stateRoot, createdAt: ROW_AT, updatedAt: ROW_AT} as const
-    const stale = drizzle({client})
-    stale
-      .insert(sessions)
-      .values([
-        {...row, id: SessionId.parse('conciv_stale'), title: null},
-        {...row, id: SessionId.parse('conciv_titled'), title: 'kept'},
-        {...row, id: SessionId.parse('conciv_quiet'), title: null},
-        {
-          ...row,
-          id: SessionId.parse('conciv_native'),
-          title: null,
-          harnessSessionId: HarnessSessionId.parse(randomUUID()),
-        },
-      ])
-      .run()
+    const insertSession = client.prepare(
+      "INSERT INTO sessions (id, harness_session_id, harness_kind, origin, title, cwd, created_at, updated_at) VALUES (?, ?, 'claude', 'chat', ?, ?, ?, ?)",
+    )
+    const staleRows = [
+      {id: 'conciv_stale', harnessSessionId: null, title: null},
+      {id: 'conciv_titled', harnessSessionId: null, title: 'kept'},
+      {id: 'conciv_quiet', harnessSessionId: null, title: null},
+      {id: 'conciv_native', harnessSessionId: randomUUID(), title: null},
+    ]
+    for (const {id, harnessSessionId, title} of staleRows) {
+      insertSession.run(id, harnessSessionId, title, stateRoot, ROW_AT, ROW_AT)
+    }
     const thread = (threadId: string) => [
       {role: 'user', content: [{type: 'text', content: '  fill the form '}], createdAt: '2026-10-30T08:00:00.000Z'},
       {role: 'assistant', content: 'done', createdAt: '2026-11-10T09:39:00.000Z'},
