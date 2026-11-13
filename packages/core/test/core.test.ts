@@ -44,7 +44,7 @@ import {
 } from '@conciv/contract'
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
-import {chatRuns, openDb, sessions as sessionTable, type ConcivDb} from '@conciv/db'
+import {chatMetadata, chatRuns, openDb, sessions as sessionTable, type ConcivDb} from '@conciv/db'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {
   createClientSettings,
@@ -68,7 +68,7 @@ import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {ConcivConfigSchema} from '@conciv/protocol/config-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
-import {eq} from 'drizzle-orm'
+import {eq, sql} from 'drizzle-orm'
 import {
   Agent,
   App,
@@ -2545,6 +2545,101 @@ describe('plugin permission cards', () => {
     expect((await restarted.plane.hydrate(id)).pendingApprovals.map((entry) => entry.toolName)).toEqual(['unit_kept'])
     expect(logged).toEqual([])
   })
+
+  it('a plugin tool asking from inside execute_typescript stops asking when its run is stopped, and a late approval runs nothing and clears the card', async () => {
+    const fixture = await makeChatFixture()
+    const {plane, runtime, pluginHost, sessionId: id} = fixture
+    const clients = new AbortController()
+    onTestFinished(async () => {
+      clients.abort()
+      await fixture.dispose()
+    })
+    const written: string[] = []
+    const scope = pluginHost.runSync(Scope.make())
+    await pluginHost.runPromise(
+      Effect.gen(function* () {
+        const tools = yield* Tool.Service
+        const permission = yield* Permission.Service
+        yield* tools.transform((editor) => {
+          editor.add({
+            name: 'unit_write_notes',
+            description: 'Write a notes file.',
+            input: z.object({file: z.string()}),
+            execute: (input: {file: string}, context) =>
+              permission
+                .assert({
+                  ...Permission.invocation(context),
+                  action: 'edit',
+                  resources: [input.file],
+                  metadata: {file: input.file},
+                })
+                .pipe(
+                  Effect.orDie,
+                  Effect.andThen(
+                    Effect.sync(() => {
+                      written.push(input.file)
+                      return {content: `wrote ${input.file}`}
+                    }),
+                  ),
+                ),
+          })
+        })
+      }).pipe(Scope.provide(scope)),
+    )
+    const answer = (sessionId: SessionId, requestId: string, reply: Permission.Reply) =>
+      pluginHost.runPromise(answerPermission(sessionId, requestId, reply))
+    const publish = (sessionId: SessionId, chunk: ChatEvent) => runtime.forSession(sessionId).stream.publish(chunk)
+    await setPermissions(fixture.db, id, [{action: 'edit', resource: '*', effect: 'ask'}])
+    const events = runtime.forSession(id).stream.events(clients.signal)
+    fixture.harness.script.scriptToolCall('execute_typescript', {
+      typescriptCode: "return await external_unit_write_notes({file: 'notes.md'})",
+    })
+
+    const running = plane.followUp(id, 'write the notes')
+    const shown = await readNextEvent(events, readApprovalAsk)
+    expect(shown).toMatchObject({toolName: 'edit notes.md', input: {file: 'notes.md'}})
+    await plane.stop(id)
+    await running
+    expect(
+      await decidePermissionCard({plane, answer, publish}, id, {
+        approvalId: shown.approvalId,
+        approved: true,
+        scope: 'once',
+      }),
+    ).toBeNull()
+    expect(written).toEqual([])
+    expect(await readNextEvent(events, readApprovalSettled)).toBe(shown.approvalId)
+    expect((await plane.hydrate(id)).pendingApprovals).toEqual([])
+  })
+
+  it('closing the engine clears a pending plugin card from storage before the database closes', async () => {
+    const fixture = await makeChatFixture()
+    const {plane, pluginHost, db, sessionId: id, stateRoot} = fixture
+    await setPermissions(db, id, [{action: 'edit', resource: '*', effect: 'ask'}])
+    const asked = await pluginHost.runPromise(
+      Effect.gen(function* () {
+        return yield* (yield* Permission.Service).ask({
+          sessionId: SessionSchema.Id.make(id),
+          action: 'edit',
+          resources: ['notes.md'],
+          metadata: {file: 'notes.md'},
+        })
+      }),
+    )
+    expect(asked.effect).toBe('ask')
+    await vi.waitFor(async () =>
+      expect((await plane.hydrate(id)).pendingApprovals.map((entry) => entry.approvalId)).toEqual([asked.id]),
+    )
+    await fixture.dispose()
+    const reopened = openDb(stateRoot)
+    onTestFinished(() => reopened.$client.close())
+    const stored = reopened
+      .select({value: chatMetadata.valueJson})
+      .from(chatMetadata)
+      .where(eq(chatMetadata.key, `${id}:pending-approvals`))
+      .all()
+    expect(stored).toEqual([{value: []}])
+  })
 })
 
 describe('direct tools on the MCP surface', () => {
@@ -2637,6 +2732,32 @@ describe('direct tools on the MCP surface', () => {
     expect((await listed()).toSorted()).toEqual(['unit_coded', 'unit_direct'])
     const shut = ToolCalled.parse(await post('tools/call', {name: 'unit_coded', arguments: {text: 'shut'}}))
     expect(shut.result.content.map((part) => part.text).join('')).toContain('coded shut')
+
+    const builtIn = open.filter((name) => name !== 'unit_direct')
+    const searchedCoded = async () =>
+      ToolCalled.parse(
+        await post('tools/call', {
+          name: 'execute_typescript',
+          arguments: {typescriptCode: 'return search({query: "unit_coded"})'},
+        }),
+      )
+        .result.content.map((part) => part.text)
+        .join('')
+    await made.chat.db
+      .update(sessionTable)
+      .set({permissions: sql`'{not json'`})
+      .where(eq(sessionTable.id, id))
+    expect(await listed()).toEqual(builtIn)
+    expect(await searchedCoded()).not.toContain('external_unit_coded')
+    const rpc = makeRpcClient(`${origin}/t/${made.agentToken}`)
+    expect((await rpc.sessions.list(undefined)).sessions.map((session) => session.id)).toContain(id)
+    expect(await rpc.sessions.get({sessionId: id})).toMatchObject({id})
+    await made.chat.db
+      .update(sessionTable)
+      .set({permissions: sql`'[{"action":"unit_coded"}]'`})
+      .where(eq(sessionTable.id, id))
+    expect(await listed()).toEqual(builtIn)
+    expect(await searchedCoded()).not.toContain('external_unit_coded')
   })
 })
 
