@@ -124,8 +124,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - `Location.response` (an Effect Schema builder for HTTP response bodies) is not ported: conciv's transport is oRPC.
 - `makeRpc` (`client/src/promise/rpc.ts`) is not ported: it builds the client over opencode's generated HTTP client; conciv's hosts build it over oRPC.
 - `.fallowrc.json` `ignoreExports` exempts the namespace member names repeated across `packages/plugin/src` modules (opencode's names) from fallow's duplicate-export check.
-- `conciv/banned-vocabulary` is off for `packages/plugin/src/**`: opencode's names use words the rule rejects.
-- `no-shadow` is off for `packages/plugin/src/**`: opencode's type parameter names (`Input` in `RpcArguments<Input, Options>`) repeat names the same module declares.
+- `conciv/banned-vocabulary` and `no-shadow` are off for `packages/plugin/src/**` because opencode's names are kept exactly: `banned-vocabulary` rejects `Composer.attach` (`experimental/host-apis.ts`, opencode `plugin/src/gui/host-apis.ts:639`), and `no-shadow` rejects the type parameter `Input` of `RpcArguments<Input, Options>` (opencode `client/src/promise/rpc.ts:12`), which shadows the `Input<S>` type (opencode `schema/src/rpc.ts:62`) that this port keeps in the same `rpc.ts` module.
 
 ### Finding a plugin's parts (`host.ts`, `experimental/host.ts`)
 
