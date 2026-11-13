@@ -2182,6 +2182,9 @@ importers:
       '@conciv/harness':
         specifier: workspace:^
         version: link:../harness
+      '@conciv/plugin-host':
+        specifier: workspace:^
+        version: link:../plugin-host
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -2191,6 +2194,9 @@ importers:
       drizzle-orm:
         specifier: 'catalog:'
         version: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.0
       hono:
         specifier: 'catalog:'
         version: 4.13.14
@@ -2417,6 +2423,9 @@ importers:
       '@conciv/harness-init':
         specifier: workspace:^
         version: link:../harness-init
+      '@conciv/plugin-host':
+        specifier: workspace:^
+        version: link:../plugin-host
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -2459,6 +2468,9 @@ importers:
       drizzle-orm:
         specifier: 'catalog:'
         version: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.0
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0

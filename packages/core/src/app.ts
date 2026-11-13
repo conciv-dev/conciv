@@ -45,12 +45,16 @@ import {
   assistCapabilities,
   createChatPlane,
   registryCapabilities,
+  toolDomainCapabilities,
   type AttachmentExpanders,
   type ChatPlane,
   type CodeCapability,
   type SessionPort,
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
+import {Layer, ManagedRuntime} from 'effect'
+import {memoize} from 'es-toolkit'
+import {PluginHooks, Tool} from '@conciv/plugin-host'
 import {pushRoutes, type PushDeps} from './api/push.js'
 import {makeHubAdmission, type ChatContext, type RpcDeps} from './api/rpc/mount.js'
 import {concivHome, drafts, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
@@ -546,13 +550,26 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   registerExtensionTools(registry, mounted)
 
-  const codeModeCapabilities = (sessionId: SessionId): CodeCapability[] => [
-    ...registryCapabilities(
-      registry.whenPageConnected(() => primitives.page.bus.connected(sessionId)).sandboxTools(),
-      scopedToolCall,
-    ),
-    ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
-  ]
+  const pluginHost = ManagedRuntime.make(Tool.layer.pipe(Layer.provideMerge(PluginHooks.layer)))
+  const reportToolCollision = memoize((name: string) =>
+    logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`),
+  )
+  const withPluginTools = (capabilities: CodeCapability[]): CodeCapability[] =>
+    toolDomainCapabilities(
+      capabilities,
+      pluginHost.runSync(Tool.Service.use((tools) => tools.snapshot())),
+      (effect, signal) => pluginHost.runPromise(effect, {signal}),
+      reportToolCollision,
+    )
+
+  const codeModeCapabilities = (sessionId: SessionId): CodeCapability[] =>
+    withPluginTools([
+      ...registryCapabilities(
+        registry.whenPageConnected(() => primitives.page.bus.connected(sessionId)).sandboxTools(),
+        scopedToolCall,
+      ),
+      ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
+    ])
 
   const toolList: ChatTool[] = mounted.flatMap((entry) =>
     entry.tools.map((tool) => ({name: tool.name, description: tool.description, extension: entry.extensionName})),
@@ -640,10 +657,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     startedQueues: (sessionId, toolCallIds) => primitives.page.queues.startedBy(sessionId, toolCallIds),
     admitCall: (sessionId, call) => plane.admitCall(sessionId, call),
     outsideCapabilities: (sessionId) =>
-      outsideRunCapabilities([
-        ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall),
-        ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
-      ]),
+      outsideRunCapabilities(
+        withPluginTools([
+          ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall),
+          ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
+        ]),
+      ),
     resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),
     admitOutside,
     hubRefusal: hub.refusal,
@@ -731,6 +750,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         settings.close,
         () => browsers.close(),
         () => db.$client.close(),
+        () => pluginHost.dispose(),
       ],
       'conciv: disposing the engine failed',
     )
