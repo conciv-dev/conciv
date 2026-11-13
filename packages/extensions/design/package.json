@@ -46,8 +46,7 @@
     "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "dev:xray": "vite --config vite.xray.config.ts",
-    "test": "vitest run"
+    "dev:xray": "vite --config vite.xray.config.ts"
   },
   "dependencies": {
     "@blazediff/core": "catalog:",
@@ -71,14 +70,9 @@
   },
   "devDependencies": {
     "@conciv/contract": "workspace:^",
-    "@conciv/extension-compiler": "workspace:^",
-    "@conciv/extension-testkit": "workspace:^",
-    "@conciv/harness-testkit": "workspace:^",
-    "@conciv/it": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/ui-kit-system": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
     "@iconify-json/ph": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/timer": "catalog:",
@@ -86,20 +80,12 @@
     "@types/culori": "catalog:",
     "@types/node": "catalog:",
     "@types/pngjs": "catalog:",
-    "@types/react": "catalog:",
-    "@types/react-dom": "catalog:",
     "@unocss/reset": "catalog:",
-    "@vitejs/plugin-react": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
-    "playwright": "catalog:",
-    "react": "catalog:",
-    "react-dom": "catalog:",
     "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",
     "vite": "catalog:",
-    "vite-plugin-solid": "catalog:",
-    "vitest": "catalog:"
+    "vite-plugin-solid": "catalog:"
   }
 }
