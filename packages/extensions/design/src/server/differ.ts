@@ -79,7 +79,7 @@ export function createDiffer(input: {
     const measured = await runner({
       record,
       page: opened,
-      since: edits.updated(),
+      edits,
       ...(asked.variants === undefined ? {} : {variants: asked.variants}),
     })
     if ('thrown' in measured) return brokenOne({record, error: measured.thrown, by: 'runtime'})

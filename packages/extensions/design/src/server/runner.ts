@@ -1,4 +1,5 @@
 import type {Storage} from 'unstorage'
+import {AsyncRetryer} from '@tanstack/pacer/async-retryer'
 import type {RawFrame, SourceLoc} from '@conciv/protocol/page-types'
 import {toolError} from '@conciv/extension'
 import type {
@@ -36,27 +37,18 @@ export function createRunner(input: {runtime: DesignRuntime; folder: Storage}): 
 
 async function run(input: {runtime: DesignRuntime; folder: Storage; call: Call}): Promise<RoundReply> {
   const {runtime, call} = input
-  const {store, measurer} = runtime
-  const {record, page} = call
+  const {store} = runtime
+  const {record} = call
   const held = await heldOf({store, id: record.id})
-  const {widget} = record
-  const oneWidth = widget === 'shown'
-  const measured = await measurer.measure({
-    page,
-    ...(oneWidth ? {} : {width: record.width}),
-    height: record.height,
-    widget,
-    fresh: true,
-  })
-  const thrown = await thrownError({measured, since: call.since, runtime})
+  const oneWidth = record.widget === 'shown'
+  const history = historyOf(held.rounds)
+  const {previous} = history
+  const {measured, built, widths, since} = await settledMeasures({runtime, call, held, history, oneWidth})
+  const thrown = await thrownError({measured, since, runtime})
   if (thrown !== null) return {thrown}
   const count = held.streak + 1
   const facts = factsOf(measured)
-  const history = historyOf(held.rounds)
-  const {previous} = history
-  const built = idTreeOf({live: measured.live, sheets: measured.sheets, mapping: held.stored, previous: held.ids})
   const round = await store.nextRound(record.id)
-  const blank = measured.pageError !== undefined || measured.live.children.length === 0
   const reasonAt = (rendered: number) =>
     unsettledReason({measured, rendered, settled: history.settled, route: record.route})
   const early = (state: {unsettled: string | null; rendered: number; root: IdNode}) =>
@@ -70,12 +62,12 @@ async function run(input: {runtime: DesignRuntime; folder: Storage; call: Call})
       ],
       ...(state.unsettled === null ? {} : {unsettled: state.unsettled}),
     })
-  if (blank && count < TOLERANCES.stallRounds) {
+  if (stillBlank({measured, held})) {
     await store.writeUnsettledCount({id: record.id, count})
     await early({unsettled: reasonAt(0), rendered: 0, root: built.root})
     return {unsettled: true, rendered: 0, ...facts}
   }
-  if (previous !== undefined && previous === history.last && previous.tree === built.hash) {
+  if (previous !== undefined && unchangedSince({history, built})) {
     await store.writeUnsettledCount({id: record.id, count: previous.unsettled === null ? 0 : count})
     await store.writeCheck({id: record.id, state: 'unchanged', sameAs: previous.round})
     return {...shown(previous), unchanged: true}
@@ -87,11 +79,110 @@ async function run(input: {runtime: DesignRuntime; folder: Storage; call: Call})
     await early({unsettled, rendered: paired.coverage.rendered, root: paired.mapped.root})
     return {unsettled: true, rendered: paired.coverage.rendered, ...facts}
   }
-  const reply = await measuredRound({...input, held, measured, history, built, round, paired, unsettled, oneWidth})
+  const reply = await measuredRound({
+    ...input,
+    held,
+    measured,
+    widths,
+    history,
+    built,
+    round,
+    paired,
+    unsettled,
+    oneWidth,
+  })
   return unsettled === null ? reply : {...reply, unsettled: true, rendered: paired.coverage.rendered, ...facts}
 }
 
 type Call = Parameters<Runner>[0]
+
+type WidthMeasure = {width: number; from: string[]; measured: Measured}
+
+type MeasuresInput = {runtime: DesignRuntime; call: Call; held: Held; history: History; oneWidth: boolean}
+
+type Measures = {measured: Measured; built: ReturnType<typeof idTreeOf>; widths: WidthMeasure[]; since: number}
+
+const MEASURE_ATTEMPTS = 3
+
+const EDITED_WHILE_MEASURING = 'the page kept changing while the check measured it; check again once the edits stop'
+
+async function settledMeasures(input: MeasuresInput): Promise<Measures> {
+  const retryer = new AsyncRetryer(() => measuresOf(input), {
+    backoff: 'fixed',
+    baseWait: 0,
+    maxAttempts: (self) =>
+      self.store.state.lastError === undefined || self.store.state.lastError.message === EDITED_WHILE_MEASURING
+        ? MEASURE_ATTEMPTS
+        : self.store.state.currentAttempt,
+    throwOnError: 'last',
+  })
+  const measures = await retryer.execute()
+  if (measures === undefined) throw new Error(EDITED_WHILE_MEASURING)
+  return measures
+}
+
+async function measuresOf(input: MeasuresInput): Promise<Measures> {
+  const {runtime, call, held, history, oneWidth} = input
+  const {record} = call
+  const since = call.edits.updated()
+  const measured = await runtime.measurer.measure({
+    page: call.page,
+    ...(oneWidth ? {} : {width: record.width}),
+    height: record.height,
+    widget: record.widget,
+    fresh: true,
+  })
+  const built = idTreeOf({live: measured.live, sheets: measured.sheets, mapping: held.stored, previous: held.ids})
+  const early = unchangedSince({history, built}) || stillBlank({measured, held})
+  const widths = early ? [] : await widthMeasures({runtime, call, held, measured, oneWidth})
+  if (call.edits.updated() === since) return {measured, built, widths, since}
+  await call.edits.quiet()
+  throw new Error(EDITED_WHILE_MEASURING)
+}
+
+async function widthMeasures(input: {
+  runtime: DesignRuntime
+  call: Call
+  held: Held
+  measured: Measured
+  oneWidth: boolean
+}): Promise<WidthMeasure[]> {
+  const {runtime, call, measured} = input
+  const {design} = input.held
+  const widths = input.oneWidth
+    ? [{width: measured.width, from: [WIDGET_SHOWN]}]
+    : widthsOf({design, styles: measured.queries, ...(call.variants === undefined ? {} : {variants: call.variants})})
+  const measures: WidthMeasure[] = []
+  for (const {width, from} of widths)
+    measures.push({
+      width,
+      from,
+      measured:
+        width === measured.width
+          ? measured
+          : await runtime.measurer.measure({
+              page: call.page,
+              width,
+              height: REFLOW_HEIGHT,
+              widget: call.record.widget,
+              fresh: false,
+            }),
+    })
+  return measures
+}
+
+function blankOf(measured: Measured): boolean {
+  return measured.pageError !== undefined || measured.live.children.length === 0
+}
+
+function stillBlank(input: {measured: Measured; held: Held}): boolean {
+  return blankOf(input.measured) && input.held.streak + 1 < TOLERANCES.stallRounds
+}
+
+function unchangedSince(input: {history: History; built: ReturnType<typeof idTreeOf>}): boolean {
+  const {previous, last} = input.history
+  return previous !== undefined && previous === last && previous.tree === input.built.hash
+}
 
 type Held = Awaited<ReturnType<typeof heldOf>>
 
@@ -154,6 +245,7 @@ async function measuredRound(input: {
   call: Call
   held: Held
   measured: Measured
+  widths: WidthMeasure[]
   history: History
   built: ReturnType<typeof idTreeOf>
   round: number
@@ -217,33 +309,19 @@ async function measuredRound(input: {
 }
 
 async function reflowOf(input: {
-  runtime: DesignRuntime
-  call: Call
   held: Held
   measured: Measured
+  widths: WidthMeasure[]
   mapping: Paired['mapped']['mapping']
-  oneWidth: boolean
 }) {
-  const {runtime, call, measured, mapping} = input
+  const {measured, mapping} = input
   const {design} = input.held
-  const widths = input.oneWidth
-    ? [{width: measured.width, from: [WIDGET_SHOWN]}]
-    : widthsOf({design, styles: measured.queries, ...(call.variants === undefined ? {} : {variants: call.variants})})
+  const widths = input.widths.map(({width, from}) => ({width, from}))
   const results = []
   const failures = []
   const waits = measured.fontsLoading === undefined ? [] : [measured.fontsLoading]
   const shots: Shot[] = []
-  for (const {width} of widths) {
-    const narrow =
-      width === measured.width
-        ? measured
-        : await runtime.measurer.measure({
-            page: call.page,
-            width,
-            height: REFLOW_HEIGHT,
-            widget: call.record.widget,
-            fresh: false,
-          })
+  for (const {width, measured: narrow} of input.widths) {
     if (narrow !== measured && narrow.fontsLoading !== undefined) waits.push(narrow.fontsLoading)
     const at = idTreeOf({live: narrow.live, sheets: narrow.sheets, mapping, previous: null})
     if (narrow !== measured)

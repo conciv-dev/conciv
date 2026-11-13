@@ -187,11 +187,24 @@ describe('a text field', () => {
 })
 
 describe('a media query on the page', () => {
-  it('adds its widths to the check', async () => {
+  it('adds its widths to the check, and an edit that lands while the check measures is in every width it reports', async () => {
+    const stylesFile = fileURLToPath(new URL('fixtures/design/host/src/styles.css', import.meta.url))
     await kit.goto('late-font')
     await call('design_get', await cardsDesign(kit.targetsDir))
-    const checked = roundOf(await call('design_check', {}))
-    expect(checked.reflow.widths.map((entry) => entry.width)).toContain(899)
+    const told = (checked: Checked) => roundOf(checked).rows.map((row) => row.text)
+    const reflowFont = kit.page.waitForRequest((request) => request.url().includes('/slow/fonts/'))
+    const styles = await readFile(stylesFile, 'utf8')
+    const during = call('design_check', {})
+    try {
+      await reflowFont
+      await writeFile(stylesFile, `${styles}\n#root section {\n  height: 600px !important;\n}\n`)
+      const checked = await during
+      expect(roundOf(checked).reflow.widths.map((entry) => entry.width)).toContain(899)
+      const after = told(await call('design_check', {}))
+      expect([after.some((text) => text.includes('box taller than the design')), told(checked)]).toEqual([true, after])
+    } finally {
+      await writeFile(stylesFile, styles)
+    }
   })
 })
 

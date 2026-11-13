@@ -660,7 +660,7 @@ export type Pairer = (input: {
 export type Runner = (input: {
   record: TargetRecord
   page: ServerToolPageAccess
-  since: number
+  edits: {quiet: () => Promise<void>; updated: () => number}
   variants?: number[]
 }) => Promise<RoundReply>
 
