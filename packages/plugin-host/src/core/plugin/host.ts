@@ -205,7 +205,7 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
         if (input.permissions !== undefined)
           yield* sessions.setPermissions({sessionId: input.sessionId, permissions: input.permissions})
       }),
-      synthetic: sessions.synthetic,
+      synthetic: undefined,
       interrupt: (input) =>
         sessions.interrupt(input.sessionId, {resume: input.resume}).pipe(Effect.map((interrupted) => ({interrupted}))),
       wait: (input) => sessions.wait(input.sessionId),

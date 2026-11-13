@@ -42,8 +42,8 @@ export type SessionIdleBackground =
 
 export interface SessionIdle {
   readonly sessionId: SessionId
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly background: ReadonlyArray<SessionIdleBackground> | undefined
+  /** @remarks Always empty: conciv keeps no background jobs; the CLI owns that work. */
+  readonly background: ReadonlyArray<SessionIdleBackground>
 }
 
 export interface SessionHooks {
@@ -85,7 +85,10 @@ export interface SessionDomain {
     },
     requestOptions?: RequestOptions,
   ) => Promise<SessionInboxCompaction>
-  readonly synthetic: (input: SessionSyntheticInput, requestOptions?: RequestOptions) => Promise<SessionInboxSynthetic>
+  /** @remarks Not implemented yet. Always undefined in this version. */
+  readonly synthetic:
+    | ((input: SessionSyntheticInput, requestOptions?: RequestOptions) => Promise<SessionInboxSynthetic>)
+    | undefined
   readonly interrupt: (
     input: {
       readonly sessionId: SessionId

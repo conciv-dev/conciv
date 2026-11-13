@@ -6,10 +6,8 @@ import type {
   SessionCreateInput,
   SessionInboxCompaction,
   SessionInboxDelivery,
-  SessionInboxSynthetic,
   SessionInfo,
   SessionListInput,
-  SessionSyntheticInput,
   SessionUpdateInput,
 } from '@conciv/plugin'
 import type {ModelHooks} from './registration.js'
@@ -70,7 +68,7 @@ export type SessionDomain = {
     readonly id?: string | undefined
     readonly delivery?: SessionInboxDelivery | undefined
   }) => Effect.Effect<SessionInboxCompaction, unknown>
-  readonly synthetic: (input: SessionSyntheticInput) => Effect.Effect<SessionInboxSynthetic, unknown>
+  readonly synthetic: undefined
   readonly interrupt: (input: {
     readonly sessionId: SessionId
     readonly resume?: boolean | undefined

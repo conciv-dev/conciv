@@ -72,6 +72,7 @@ import {
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
+import type {HarnessModel} from '@conciv/protocol/harness-types'
 import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {ConcivConfigSchema} from '@conciv/protocol/config-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
@@ -82,11 +83,13 @@ import {
   Bus,
   CodeModeCatalog,
   Database,
+  Global,
   InstructionEntry,
   InstructionEntrySchema,
   KV,
   Location,
   ManagedPolicy,
+  Model,
   Permission,
   PermissionSaved,
   PluginHooks,
@@ -115,6 +118,7 @@ import {statePaths} from '../src/lib/state-paths.js'
 import {makeJournal, makePageBus} from '../src/page/page-bus.js'
 import {makePageQueues, startQueueFollowUp, type PageQueues} from '../src/page/page-queue.js'
 import {makeCoreRuntime} from '../src/runtime/core-runtime.js'
+import {provideHarnessModels} from '../src/runtime/harness-models.js'
 import {makeSessionPrimitives} from '../src/runtime/primitives.js'
 import {runWithSession} from '../src/runtime/session-context.js'
 import {start, composeSystemPrompt} from '../src/start.js'
@@ -132,7 +136,7 @@ import {
 } from '../src/engine-login.js'
 import {serveHono} from '@conciv/serve'
 import {Hono} from 'hono'
-import {exchangePrintedCode, loginThroughTerminal, requestPrintedCode} from '@conciv/harness-testkit'
+import {createTestHarness, exchangePrintedCode, loginThroughTerminal, requestPrintedCode} from '@conciv/harness-testkit'
 import {os} from '@orpc/server'
 import {createORPCClient} from '@orpc/client'
 import {RPCLink as FetchRpcLink} from '@orpc/client/fetch'
@@ -155,6 +159,7 @@ import {
   provideBundlerSource,
   provideConfiguredPolicies,
   provideExtensionSlugs,
+  provideGlobalRoots,
   provideHarnessSource,
 } from '../src/runtime/plugin-sources.js'
 import {
@@ -165,7 +170,7 @@ import {
   pluginInstructions,
   sessionSnapshot,
 } from '../src/runtime/permission-cards.js'
-import {bootMadeApp, chunkWithInlineMap, cleanupChunks, makeChatFixture} from './helpers.js'
+import {bootMadeApp, chunkWithInlineMap, cleanupChunks, makeChatFixture, requireClaude} from './helpers.js'
 
 const NO_CAPABILITIES = {
   resume: false,
@@ -2422,6 +2427,49 @@ describe('plugin host bus', () => {
       await served.stop()
     }
   })
+
+  test('a plugin experimental.idle hook fires for a run that completes and not for one that fails or is stopped, while turnEnd fires for all three', async () => {
+    const stateRoot = tempDir()
+    const turnEnds: SessionId[] = []
+    const recorder = defineExtension({name: 'turn-ends'}).server(() => ({
+      context: {},
+      turnEnd: (sessionId) => void turnEnds.push(sessionId),
+    }))
+    const harness = createTestHarness(requireClaude())
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}}, {extensions: [recorder]})
+    onTestFinished(() => made.dispose())
+    const id = SessionId.parse('conciv_idle')
+    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    const idles: unknown[] = []
+    await made.pluginHost.runPromise(
+      PluginHooks.Service.use((hooks) =>
+        hooks.register('session', 'experimental.idle', (event) => Effect.sync(() => idles.push(event))),
+      ).pipe(Scope.provide(made.pluginHost.runSync(Scope.make()))),
+    )
+
+    expect(await made.plane.followUp(id, 'finish normally')).toEqual({kind: 'delivered'})
+    expect(idles).toEqual([{sessionId: id, background: []}])
+    expect(turnEnds).toEqual([id])
+
+    harness.script.scriptError('the harness could not launch')
+    expect(await made.plane.followUp(id, 'fail to launch')).toMatchObject({kind: 'failed'})
+    expect(idles).toHaveLength(1)
+    expect(turnEnds).toEqual([id, id])
+
+    harness.script.hold()
+    const started = Promise.withResolvers<void>()
+    const unlisten = made.runtime.forSession(id).stream.listen((chunk) => {
+      if (sessionRunEvent.parse(chunk) !== null) started.resolve()
+    })
+    onTestFinished(unlisten)
+    const following = made.plane.followUp(id, 'keep going until stopped')
+    await started.promise
+    await made.plane.stop(id)
+    harness.script.release()
+    expect(await following).toEqual({kind: 'stopped'})
+    expect(idles).toHaveLength(1)
+    expect(turnEnds).toEqual([id, id, id])
+  })
 })
 
 describe('plugin rpc over the socket', () => {
@@ -2962,8 +3010,40 @@ describe('direct tools on the MCP surface', () => {
 })
 
 describe('plugin context keys provided by core', () => {
-  it('instruction entries are kept per session, reach the plugin instructions and leave them on remove, an oversized value is refused, the harness source reads its MCP url lazily, and the bundler, extension slugs, app and configured policies are provided', async () => {
+  it('instruction entries are kept per session, reach the plugin instructions and leave them on remove, an oversized value is refused, the harness source reads its MCP url lazily, and the bundler, extension slugs, app and configured policies are provided, the model key answers from the harness models filled as opencode fills an unknown model, and the cache and state roots sit under the conciv home', async () => {
     const root = tempDir()
+    const home = join(root, 'home')
+    const OPUS = {id: 'opus', name: 'Opus 5.5', contextWindow: 1_000_000}
+    const SONNET = {
+      id: 'sonnet',
+      name: 'Sonnet 5.5',
+      description: 'balanced',
+      group: 'Claude',
+      efforts: ['low' as const],
+    }
+    const RETIRED = {id: 'retired', name: 'Retired', disabled: true}
+    const listingHarness = (models: HarnessModel[], defaultModel?: string) =>
+      defineHarness({
+        id: 'listing-cli',
+        binName: 'listing-cli',
+        models,
+        defaultModel,
+        chatConfig: () => ({adapter: fakeText()}),
+        capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
+      })
+    const filled = (model: HarnessModel, variants: {id: string; settings: {effort: string}}[]) => {
+      const defaults = Model.Info.default(
+        Model.Info.fields.providerId.make('listing-cli'),
+        Model.Info.fields.id.make(model.id),
+      )
+      return {
+        ...defaults,
+        name: model.name,
+        limit: {context: model.contextWindow ?? defaults.limit.context, output: 0},
+        variants,
+      }
+    }
+    const sonnetVariants = [{id: 'low', settings: {effort: 'low'}}]
     const db = openDb(root)
     const id = SessionId.parse('conciv_entries')
     const other = SessionId.parse('conciv_entries_other')
@@ -3000,6 +3080,8 @@ describe('plugin context keys provided by core', () => {
           {action: 'plugin.use', resource: 'blocked-*', effect: 'deny'},
           {action: 'integration.use', resource: 'plugin:legacy', effect: 'deny'},
         ]),
+        provideHarnessModels(listingHarness([OPUS, SONNET, RETIRED], 'sonnet')),
+        provideGlobalRoots(home),
       ).pipe(
         Layer.provideMerge(Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, permissionSessions(db))),
         Layer.provideMerge(Layer.mergeAll(Bus.configured(), KV.layer)),
@@ -3066,5 +3148,23 @@ describe('plugin context keys provided by core', () => {
     ])
     expect(ManagedPolicy.decision(policies, 'plugin.use', 'blocked-one')).toBe('deny')
     expect(ManagedPolicy.decision(policies, 'plugin.use', 'kept')).toBe('allow')
+
+    const models = (run: (service: Model.Interface) => Effect.Effect<unknown>) =>
+      host.runPromise(Model.Service.use(run))
+    expect(await models((service) => service.available())).toEqual([filled(OPUS, []), filled(SONNET, sonnetVariants)])
+    expect(await models((service) => service.available(['chat', 'chat']))).toEqual([
+      filled(OPUS, []),
+      filled(SONNET, sonnetVariants),
+    ])
+    expect(await models((service) => service.available(['image']))).toEqual([])
+    expect(await models((service) => service.default())).toEqual(filled(SONNET, sonnetVariants))
+    const empty = (run: (service: Model.Interface) => Effect.Effect<unknown>) =>
+      Effect.runPromise(Model.Service.use(run).pipe(Effect.provide(provideHarnessModels(listingHarness([])))))
+    expect(await empty((service) => service.available())).toEqual([])
+    expect(await empty((service) => service.default())).toBeUndefined()
+
+    const roots = await host.runPromise(Global.Service)
+    expect(roots).toEqual({cache: join(home, 'cache'), state: join(home, 'state')})
+    expect(existsSync(roots.cache) && existsSync(roots.state)).toBe(true)
   })
 })

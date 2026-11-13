@@ -86,7 +86,7 @@ export function host(overrides: Overrides = {}): Plugin.Context {
       command: undefined,
       compact: overrides.session?.compact ?? (() => Effect.die('unused session.compact')),
       update: overrides.session?.update ?? (() => Effect.die('unused session.update')),
-      synthetic: overrides.session?.synthetic ?? (() => Effect.die('unused session.synthetic')),
+      synthetic: undefined,
       interrupt: overrides.session?.interrupt ?? (() => Effect.die('unused session.interrupt')),
       wait: overrides.session?.wait ?? (() => Effect.die('unused session.wait')),
       instructions: overrides.session?.instructions ?? {

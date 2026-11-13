@@ -1571,13 +1571,23 @@ describe('api page tool capture', () => {
       expect(JSON.stringify(result)).not.toContain(SECRET)
     })
 
-    it('drops a session capture and its unreferenced css bundle when the session is deleted', async () => {
+    it('drops a session capture, its unreferenced css bundle, its draft and its page changes when the session is deleted', async () => {
       const {sessionId, call} = await capturing()
+      const asSession = makeRpcClient(kit().base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
       await call('page_fill', {selector: '#email', value: SECRET})
+      await kit().rpc.drafts.set({sessionId, text: 'an unsent draft', selectionStart: 0, selectionEnd: 0})
+      expect(await kit().rpc.drafts.get({sessionId})).toMatchObject({text: 'an unsent draft'})
+      expect(await asSession.page.changes(undefined)).toContainEqual(
+        expect.objectContaining({verb: 'page_fill', selector: '#email'}),
+      )
+
       await kit().rpc.sessions.delete({sessionId})
+
       const stored = await kit().rpc.captures.list({sessionId})
       expect(stored.captures).toEqual([])
       expect(stored.cssBundles).toEqual({})
+      expect(await kit().rpc.drafts.get({sessionId})).toBeNull()
+      expect(await asSession.page.changes(undefined)).toEqual([])
     })
   })
 })

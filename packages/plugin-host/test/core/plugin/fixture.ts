@@ -124,21 +124,6 @@ const sessionLayer = (directory: AbsolutePath) =>
         ),
       wait: (sessionId) => find(sessionId).pipe(Effect.asVoid),
       interrupt: () => Effect.succeed(false),
-      synthetic: (input) =>
-        find(input.sessionId).pipe(
-          Effect.map(() => ({
-            id: input.id ?? randomUUID(),
-            sessionId: input.sessionId,
-            time: {created: Date.now()},
-            type: 'synthetic' as const,
-            payload: {
-              text: input.text,
-              ...(input.description ? {description: input.description} : {}),
-              ...(input.metadata ? {metadata: {...input.metadata}} : {}),
-            },
-            delivery: input.delivery ?? 'steer',
-          })),
-        ),
     })
   })
 

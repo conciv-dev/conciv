@@ -402,7 +402,7 @@ export function fromPromise(plugin: Plugin.Plugin) {
             generate: undefined,
             command: undefined,
             compact: adaptMethod({}, host.session.compact),
-            synthetic: adaptMethod({}, host.session.synthetic),
+            synthetic: undefined,
             interrupt: adaptMethod({}, host.session.interrupt),
             update: adaptMethod({}, host.session.update),
             wait: adaptMethod({}, host.session.wait),
