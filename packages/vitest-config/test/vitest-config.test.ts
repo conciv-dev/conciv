@@ -10,6 +10,7 @@ import {
   E2E_SHARD_SIZING,
   e2ePackages,
   PACKAGE_GROUPS,
+  PACKAGES_OUT_OF_CI,
   PACKAGES_WITH_DEDICATED_JOBS,
   parseTimings,
   planE2eShards,
@@ -157,7 +158,7 @@ describe('shards', () => {
     expect(parseTimings('[]')).toEqual({})
   })
 
-  test('every real workspace package lands in a shard unless it owns a dedicated CI job', () => {
+  test('every real workspace package lands in a shard unless it owns a dedicated CI job or is out of CI', () => {
     const repoRoot = join(import.meta.dirname, '..', '..', '..')
     const planned = new Set(plannedPackages(repoRoot).map((entry) => entry.name))
     const onDisk = PACKAGE_GROUPS.flatMap((group) =>
@@ -166,7 +167,11 @@ describe('shards', () => {
         .map((entry) => JSON.parse(readFileSync(join(repoRoot, group, entry.name, 'package.json'), 'utf8')).name),
     )
     const unplanned = onDisk.filter(
-      (name) => typeof name === 'string' && !planned.has(name) && !PACKAGES_WITH_DEDICATED_JOBS.includes(name),
+      (name) =>
+        typeof name === 'string' &&
+        !planned.has(name) &&
+        !PACKAGES_WITH_DEDICATED_JOBS.includes(name) &&
+        !PACKAGES_OUT_OF_CI.includes(name),
     )
     expect(unplanned).toEqual([])
   })
@@ -175,6 +180,7 @@ describe('shards', () => {
     const planned = plannedPackages(join(import.meta.dirname, '..', '..', '..')).map((entry) => entry.name)
     expect(planned).toContain('@conciv/app')
     expect(planned).toContain('site')
+    expect(planned).not.toContain('@conciv/extension-design')
   })
 
   test('a package with a dedicated CI job is kept out of the shard matrix', () => {
