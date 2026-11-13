@@ -26,6 +26,7 @@ export namespace FSUtil {
     readonly isFile: (path: string) => Effect.Effect<boolean>
     readonly existsSafe: (path: string) => Effect.Effect<boolean>
     readonly readJson: (path: string) => Effect.Effect<unknown, Error>
+    readonly ensureDir: (path: string) => Effect.Effect<void, Error>
     readonly resolve: (path: string) => Effect.Effect<string>
     readonly scan: (pattern: string, options?: Glob.Options) => Effect.Effect<string[], Error>
   }
@@ -73,6 +74,15 @@ export namespace FSUtil {
         })
       })
 
+      const ensureDir = Effect.fn('FileSystem.ensureDir')(function* (path: string) {
+        yield* fs.makeDirectory(path, {recursive: true}).pipe(
+          Effect.catchIf(
+            (error) => error.reason._tag === 'AlreadyExists',
+            (error) => isDir(path).pipe(Effect.flatMap((exists) => (exists ? Effect.void : Effect.fail(error)))),
+          ),
+        )
+      })
+
       const scan = Effect.fn('FileSystem.scan')(function* (pattern: string, options?: Glob.Options) {
         return yield* Effect.tryPromise({
           try: () => Glob.scan(pattern, options),
@@ -87,6 +97,7 @@ export namespace FSUtil {
         isFile,
         resolve,
         readJson,
+        ensureDir,
         scan,
       })
     }),
