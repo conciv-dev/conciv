@@ -222,7 +222,9 @@
         "Definition",
         "durable",
         "ephemeral",
-        "versionedType"
+        "versionedType",
+        "Rpc",
+        "Location"
       ]
     },
     {
@@ -236,9 +238,7 @@
   ],
   "entry": [
     "packages/plugin-host/src/core/database/**",
-    "packages/plugin-host/src/core/location.ts",
-    "packages/plugin-host/src/plugin/effect/rpc.ts",
-    "packages/plugin-host/src/core/schema.ts",
+    "packages/plugin-host/src/core/rpc.ts",
     "packages/brand-react/src/conciv-lockup.tsx",
     "packages/brand/src/brand-guidelines.mdx",
     "packages/ui-kit-chat/src/tools.tsx",
