@@ -789,9 +789,6 @@ importers:
       '@conciv/extension':
         specifier: workspace:*
         version: link:../../../packages/extension
-      '@conciv/extension-design':
-        specifier: workspace:*
-        version: link:../../../packages/extensions/design
       '@conciv/extension-recorder':
         specifier: workspace:*
         version: link:../../../packages/extensions/recorder
