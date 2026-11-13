@@ -56,7 +56,7 @@ import {Layer, ManagedRuntime, Schema} from 'effect'
 import {memoize} from 'es-toolkit'
 import {Bus, Database, KV, Location, PluginHooks, Rpc, Tool} from '@conciv/plugin-host'
 import {pushRoutes, type PushDeps} from './api/push.js'
-import {makeHubAdmission, type ChatContext, type RpcDeps} from './api/rpc/mount.js'
+import {makeHubAdmission, type ChatContext, type PluginHost, type RpcDeps} from './api/rpc/mount.js'
 import {concivHome, drafts, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
 import {createSettingsStorage, settingsOnDisk} from './settings/settings-storage.js'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
@@ -388,6 +388,7 @@ export type MadeApp = {
   dispose: () => Promise<void>
   extensionContexts: Record<string, unknown>
   runtime: CoreRuntime
+  pluginHost: PluginHost
 }
 
 function makeServerHarness(harness: HarnessAdapter, cwd: string): ServerHarness {
@@ -550,7 +551,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   registerExtensionTools(registry, mounted)
 
-  const pluginHost = ManagedRuntime.make(
+  const pluginHost: PluginHost = ManagedRuntime.make(
     Tool.layer.pipe(
       Layer.provideMerge(PluginHooks.layer),
       Layer.provideMerge(Layer.mergeAll(Rpc.layer, KV.layer)),
@@ -688,6 +689,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       instructions: systemPromptText,
     }),
     queues: primitives.page.queues,
+    pluginHost,
     chat: chatDeps,
     search,
     settings,
@@ -790,6 +792,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     dispose,
     extensionContexts,
     runtime,
+    pluginHost,
   }
 }
 

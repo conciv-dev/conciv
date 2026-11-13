@@ -61,7 +61,7 @@ import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
 import {eq} from 'drizzle-orm'
-import {PluginHooks, Tool} from '@conciv/plugin-host'
+import {Bus, PluginHooks, SessionEvent, Tool} from '@conciv/plugin-host'
 import {Effect, Layer, ManagedRuntime, Scope} from 'effect'
 import {isEqual, uniq} from 'es-toolkit'
 import getPort from 'get-port'
@@ -2068,6 +2068,26 @@ describe('settings storage', () => {
       expect(existsSync(join(root, 'escape.json'))).toBe(false)
     } finally {
       await engine.stop()
+    }
+  })
+})
+
+describe('plugin host bus', () => {
+  test('deleting a session delivers one session.deleted event to a bus subscriber', async () => {
+    const served = await serveCore(tempDir(), [], {})
+    try {
+      const rpc = makeRpcClient(`${served.origin}/t/${served.made.agentToken}`)
+      const {sessionId} = await rpc.sessions.create(undefined)
+      const heard: {type: string; data: unknown}[] = []
+      await served.made.pluginHost.runPromise(
+        Bus.Service.use((bus) => bus.listen((event) => Effect.sync(() => heard.push(event)))),
+      )
+      await rpc.sessions.delete({sessionId})
+      expect(heard.filter((event) => event.type === SessionEvent.Deleted.type)).toEqual([
+        expect.objectContaining({data: {sessionID: sessionId}}),
+      ])
+    } finally {
+      await served.stop()
     }
   })
 })
