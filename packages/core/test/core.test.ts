@@ -257,7 +257,7 @@ describe('chat plane', () => {
     expect(capability?.description).toMatch(/^Do the unit thing\. Prefer small inputs\.\n\nReturns JSON matching: /)
   })
 
-  it('a turn falls back to systemPromptText and logs an unreadable systemPromptFile, a credential-shaped capability fails only its own run, plugin skills and the code-mode catalog reach the system prompt when the starting point resets and the user words in between, search finds a tool by its parameter, and with no isolate driver every tool reaches the model and the MCP listing directly with no catalog', async () => {
+  it('a turn falls back to systemPromptText and logs an unreadable systemPromptFile, a credential-shaped capability fails only its own run, plugin skills and the code-mode catalog reach the system prompt when the starting point resets and the user words in between, search finds a tool by its parameter, and with no isolate driver every tool reaches the model and the MCP listing directly with no catalog while an asking tool still needs approval', async () => {
     const root = tempDir()
     const cli = fakeCli()
     const log: string[] = []
@@ -483,6 +483,15 @@ describe('chat plane', () => {
       meta: {summary: 'Ping the text back'},
     }).server((input) => ({pinged: input.text}))
     registry.register(ping, {owner: 'unit'})
+    const risky = defineTool({
+      name: 'unit_risky',
+      description: 'Do a risky thing.',
+      inputSchema: z.object({target: z.string()}),
+      outputSchema: z.object({done: z.string()}),
+      meta: {summary: 'Do a risky thing'},
+      approval: 'ask',
+    }).server((input) => ({done: input.target}))
+    registry.register(risky, {owner: 'unit'})
     const pinged = registryCapabilities(
       registry.sandboxTools(),
       (name, input, request) => registry.call(name, input, {request}),
@@ -570,6 +579,13 @@ describe('chat plane', () => {
       '"measure {\\"declination\\":\\"north\\"}"',
     ])
     expect(await calledText('unit_ping', {text: 'pong'})).toEqual([expect.stringContaining('"pinged":"pong"')])
+    expect(mcpListed).toContain('unit_risky')
+    const refused = z
+      .object({result: z.object({content: z.array(z.object({text: z.string()})), isError: z.boolean().optional()})})
+      .parse(await rpc('tools/call', {name: 'unit_risky', arguments: {target: 'x'}})).result
+    expect(refused.isError).toBe(true)
+    expect(refused.content.map((part) => part.text).join('')).toMatch(/needs the user/)
+    expect((await withoutDriver.hydrate(codeless)).pendingApprovals.map((ask) => ask.toolName)).toEqual(['unit_risky'])
   })
 
   it('after a restart the finished and interrupted turns all show, and the interrupted run is aborted with a finish time', async () => {
