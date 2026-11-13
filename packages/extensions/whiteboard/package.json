@@ -70,6 +70,8 @@
     "@tanstack/pacer": "catalog:",
     "@tanstack/solid-db": "^0.2.28",
     "cytoscape": "3.34.4",
+    "cytoscape-cose-bilkent": "4.1.0",
+    "cytoscape-fcose": "2.2.0",
     "drizzle-orm": "^0.45.4",
     "es-toolkit": "catalog:",
     "lucide-solid": "catalog:",

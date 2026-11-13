@@ -178,7 +178,9 @@
     "bippy",
     "react-grab",
     "@solidjs/testing-library",
-    "cytoscape"
+    "cytoscape",
+    "cytoscape-cose-bilkent",
+    "cytoscape-fcose"
   ],
   "ignoreUnresolvedImports": ["collections/*"],
   "publicPackages": [
