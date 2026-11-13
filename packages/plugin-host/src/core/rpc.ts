@@ -185,7 +185,7 @@ function eventType<const D extends Rpc.Definition, const Name extends keyof D['e
   return `rpc.${definition.id}.${name}`
 }
 
-export function eventDefinition(type: `rpc.${string}`): Event.Definition {
+export function eventDefinition(type: `rpc.${string}`): Event.Definition & Schema.Codec<unknown, unknown> {
   const data = EventData
   return Schema.Struct({...fields, type: Schema.Literal(type), data}).pipe(
     statics(() => ({type, durability: 'ephemeral' as const, durable: undefined, data})),

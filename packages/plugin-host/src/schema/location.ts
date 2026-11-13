@@ -26,3 +26,7 @@ export const Info = Schema.Struct({
     canonical: AbsolutePath,
   }),
 }).annotate({identifier: 'Location.Info'})
+
+export function response<S extends Schema.Top>(data: S) {
+  return Schema.Struct({location: PublicRef, data})
+}
