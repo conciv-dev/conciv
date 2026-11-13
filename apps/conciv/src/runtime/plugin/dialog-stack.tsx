@@ -281,7 +281,7 @@ function init(container: () => HTMLElement | undefined, stack: () => HTMLElement
 }
 
 function isolate(fn: () => void) {
-  void new Promise<void>((resolve) => resolve(fn())).catch((cause: unknown) => console.error('[dialog]', cause))
+  void Promise.try(fn).catch((cause: unknown) => console.error('[dialog]', cause))
 }
 
 function captureFocus(root: Node): FocusReturn | undefined {

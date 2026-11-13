@@ -25,7 +25,10 @@ export function createLinkCheck(active: Accessor<boolean>, check: (href: string)
     if (effect.type === 'schedule.wake') return queueMicrotask(() => dispatch({type: 'wake', epoch: effect.epoch}))
 
     if (effect.type === 'check')
-      return answer(effect.id, new Promise<boolean>((resolve) => resolve(untrack(() => check(effect.href)))))
+      return answer(
+        effect.id,
+        Promise.try(() => untrack(() => check(effect.href))),
+      )
     const waiter = waiters.get(effect.id)
     waiters.delete(effect.id)
 

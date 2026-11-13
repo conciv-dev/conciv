@@ -52,7 +52,7 @@ export function PluginExperimentalLoader(props: {
 
       machine.state = next.state
       next.effects.forEach((effect) =>
-        new Promise<void>((resolve) => resolve(run(effect))).catch((cause: unknown) =>
+        Promise.try(() => run(effect)).catch((cause: unknown) =>
           console.error('[plugin] plugin experimental effect failed', cause),
         ),
       )
@@ -65,7 +65,7 @@ export function PluginExperimentalLoader(props: {
 
   const run = (effect: PluginExperimentalEffect) => {
     if (effect.type === 'fetch.initial')
-      return void new Promise<BridgePluginExperimentals>((resolve) => resolve(props.source.pluginExperimentals())).then(
+      return void Promise.try(() => props.source.pluginExperimentals()).then(
         (experimentals) => dispatch({type: 'initial.resolved', attempt: effect.attempt, experimentals}),
         (cause: unknown) => dispatch({type: 'initial.failed', attempt: effect.attempt, cause}),
       )

@@ -66,7 +66,7 @@ export function createStartupGate(input: {
       )
 
     if (effect.type === 'list.fetch')
-      return void new Promise<readonly Installed[]>((resolve) => resolve(installed?.list() ?? [])).then(
+      return void Promise.try(() => installed?.list() ?? []).then(
         (list) => dispatch({type: 'list.resolved', list}),
         (cause: unknown) => {
           console.error('[plugin] failed to load installed plugin list', cause)

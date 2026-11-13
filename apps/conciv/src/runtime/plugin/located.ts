@@ -22,9 +22,7 @@ export function createLocatedWrites() {
     setWritesState(next.state)
     next.effects.forEach((effect) => {
       if (effect.type === 'run')
-        return void new Promise<void>((resolve) => resolve(effect.run())).catch((cause: unknown) =>
-          console.error('[plugin]', cause),
-        )
+        return void Promise.try(effect.run).catch((cause: unknown) => console.error('[plugin]', cause))
 
       if (effect.type === 'drain')
         return batch(() => {

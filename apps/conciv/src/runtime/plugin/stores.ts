@@ -92,7 +92,7 @@ export function persistedHandle<T extends object>(input: {
 
       if (!effect.hydrated) return effect.writes.forEach(apply)
 
-      const applied = effect.writes.map((write) => new Promise<void>((resolve) => resolve(apply(write))))
+      const applied = effect.writes.map((write) => Promise.try(() => apply(write)))
       applied.forEach(
         (write) => void write.catch((cause: unknown) => console.error('[plugin storage] Queued write failed', cause)),
       )
@@ -141,7 +141,7 @@ export function deferredHandle<T>(store: Accessor<Persisted<T> | undefined>): Pe
 
         effect.writes.forEach(
           (write) =>
-            void new Promise<void>((resolve) => resolve(forward(effect.handle, write))).catch((cause: unknown) =>
+            void Promise.try(() => forward(effect.handle, write)).catch((cause: unknown) =>
               console.error('[plugin storage] Queued write failed', cause),
             ),
         )

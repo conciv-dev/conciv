@@ -2,7 +2,6 @@ import {
   evaluatePluginBundle,
   inertModule,
   mainOnlyModule,
-  type PluginBundle,
   type PluginModule,
   type Entry,
 } from '@conciv/plugin/experimental/host'
@@ -21,20 +20,18 @@ export async function pluginDefinition(id: string, code: string): Promise<Entry>
     await Promise.all(Object.entries(modules).map(async ([name, load]) => [name, await load()] as const)),
   )
 
-  const bundle = await new Promise<PluginBundle>((resolve) =>
-    resolve(
-      evaluatePluginBundle(code, {
-        require: (name) => {
-          const module = loaded.get(name)
+  const bundle = await Promise.try(() =>
+    evaluatePluginBundle(code, {
+      require: (name) => {
+        const module = loaded.get(name)
 
-          if (module) return module
+        if (module) return module
 
-          if (mainOnlyModule(name)) return inertModule(name)
+        if (mainOnlyModule(name)) return inertModule(name)
 
-          throw new Error(`A plugin's ./plugin-experimental bundle requires a module the app does not share: ${name}`)
-        },
-      }),
-    ),
+        throw new Error(`A plugin's ./plugin-experimental bundle requires a module the app does not share: ${name}`)
+      },
+    }),
   ).then(
     (value) => ({ok: true as const, value}),
     (cause: unknown) => ({ok: false as const, cause}),

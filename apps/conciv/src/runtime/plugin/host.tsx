@@ -59,8 +59,6 @@ import {
   transitionPluginHost,
   type PluginHostEffect,
   type PluginHostEvent,
-  type PluginHostState,
-  type PluginSetup,
 } from './instance-machine'
 import {createStartupGate, type InstalledSource} from './startup'
 import {createSessionStore, whenLoaded} from './stores'
@@ -390,12 +388,9 @@ function createHost(input: HostInput) {
 
     const next = transitionPluginHost(machine(), event)
 
-    void new Promise<PluginHostState<Instance>>((resolve) => resolve(setMachine(next.state))).catch((cause: unknown) =>
-      console.error('[plugin] host', cause),
-    )
+    void Promise.try(() => setMachine(next.state)).catch((cause: unknown) => console.error('[plugin] host', cause))
     next.effects.forEach(
-      (effect) =>
-        void new Promise<void>((resolve) => resolve(run(effect))).catch((cause: unknown) => crashed(effect, cause)),
+      (effect) => void Promise.try(() => run(effect)).catch((cause: unknown) => crashed(effect, cause)),
     )
     queue.shift()
     drain()
@@ -409,7 +404,7 @@ function createHost(input: HostInput) {
 
   const run = (effect: PluginHostEffect<Instance>) => {
     if (effect.type === 'load')
-      return void new Promise<{readonly default: PluginSetup}>((resolve) => resolve(effect.load())).then(
+      return void Promise.try(effect.load).then(
         (module) => dispatch({type: 'loaded', id: effect.id, attempt: effect.attempt, setup: module.default}),
         (cause: unknown) => dispatch({type: 'failed', id: effect.id, attempt: effect.attempt, cause}),
       )
@@ -433,7 +428,7 @@ function createHost(input: HostInput) {
       )
 
     if (effect.type === 'prepare')
-      return void new Promise<readonly void[]>((resolve) => resolve(effect.instance.prepare())).then(
+      return void Promise.try(effect.instance.prepare).then(
         () => dispatch({type: 'prepared', id: effect.id, attempt: effect.attempt}),
         (cause: unknown) => dispatch({type: 'failed', id: effect.id, attempt: effect.attempt, cause}),
       )
@@ -497,9 +492,7 @@ function createHost(input: HostInput) {
     const cleanups = new Set<Cleanup>()
 
     const release = (fn: Cleanup) =>
-      void new Promise<void>((resolve) => resolve(fn())).catch((cause: unknown) =>
-        console.error(`[plugin] ${plugin}`, cause),
-      )
+      void Promise.try(fn).catch((cause: unknown) => console.error(`[plugin] ${plugin}`, cause))
 
     const own = (fn: Cleanup): Cleanup => {
       if (controller.signal.aborted) {
