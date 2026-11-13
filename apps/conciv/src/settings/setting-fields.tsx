@@ -143,7 +143,7 @@ export function SelectField(props: FieldProps & {options: readonly Option[]}): J
           const next = details.value.at(0)
           if (next) field().handleChange(next)
         }}
-        onInteractOutside={() => field().handleBlur()}
+        on:focusout={() => field().handleBlur()}
       >
         <Select.Control>
           <Select.Trigger class={SELECT_TRIGGER}>
