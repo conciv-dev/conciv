@@ -55,7 +55,7 @@ export function define<const D extends Definition>(definition: D) {
   const reserved = Object.values(definition.methods)
     .flatMap((method) => Object.keys(method.errors ?? {}))
     .find((name) => name.startsWith('rpc.'))
-  if (reserved) throw new Error(`RPC error names starting with 'rpc.' are reserved: ${reserved}`)
+  if (reserved) throw new Error(`RPC error names starting with "rpc." are reserved: ${reserved}`)
   return definition
 }
 
