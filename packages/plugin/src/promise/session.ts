@@ -92,7 +92,6 @@ export interface SessionDomain {
   readonly interrupt: (
     input: {
       readonly sessionId: SessionId
-      /** @remarks Not implemented yet. Always undefined in this version. */
       readonly resume?: boolean | undefined
     },
     requestOptions?: RequestOptions,

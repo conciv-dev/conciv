@@ -232,6 +232,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - `SessionIdle.background` is always empty: conciv keeps no background jobs; the CLI owns that work.
 - `SessionDomain` has no `move` (not ours: one directory per engine).
 - The session list input has no `directory`, `project` or `subpath`, and the session create input no `location` (one project per engine).
+- `interrupt`'s `resume` is accepted and does nothing more than the stop: conciv has no steering inbox, so `resume` has nothing to wake.
 
 ### Model
 
@@ -309,12 +310,11 @@ tag line `@remarks Not implemented yet. Always undefined in this version.`, and 
 - `Tool.ToolContext.messageId`, `messageId` in the tool hooks
 - `Model.Ref.providerId`, `Model.Ref.variant`
 - `Model.Info`: `providerId`, `canonical`, `type`, `family`, `capabilities`, `variants`, `time`, `cost`, `status`, `limit`
-- session info: `parentId`, `fork`, `projectId`, `outcome`, `time.created`, `time.busy`, `time.idle`, `time.viewed`, `time.archived`, `subpath`, `metadata`, `revert`
+- session info: `parentId`, `fork`, `projectId`, `outcome`, `time.created`, `time.busy`, `time.idle`, `time.viewed`, `time.archived`, `subpath`, `revert`
 - session list input: `order`, `parentId`, `archived`
-- session create input: every field
-- session update input: `metadata`, `archived`
+- session create input: `id`, `parentId`
+- session update input: `archived`
 - session compact: input `id`, `delivery`; result (`SessionInboxCompaction`) `id`, `delivery`
-- session interrupt input: `resume`
 - permission request: `message`; permission reply input: `message`
 - `SessionDeleted.durable.seq`
 - app part `Context`: `commands`, `attention`

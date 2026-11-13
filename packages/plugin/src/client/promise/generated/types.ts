@@ -128,7 +128,6 @@ export interface SessionInfo {
   title?: string
   /** @remarks Not implemented yet. Always undefined in this version. */
   subpath?: string
-  /** @remarks Not implemented yet. Always undefined in this version. */
   metadata?: {[key: string]: Json}
   permissions?: Ruleset
   /** @remarks Not implemented yet. Always undefined in this version. */
@@ -165,22 +164,16 @@ export interface SessionCreateInput {
   readonly id?: string | null | undefined
   /** @remarks Not implemented yet. Always undefined in this version. */
   readonly parentId?: string | null | undefined
-  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly title?: string | null | undefined
-  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly agent?: string | null | undefined
-  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly model?: Ref | null | undefined
-  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly metadata?: {readonly [key: string]: Json} | null | undefined
-  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly permissions?: Ruleset | null | undefined
 }
 
 export interface SessionUpdateInput {
   readonly sessionId: SessionId
   readonly title?: string | undefined
-  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly metadata?: {readonly [key: string]: Json} | undefined
   readonly permissions?: Ruleset | undefined
   /** @remarks Not implemented yet. Always undefined in this version. */
