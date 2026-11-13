@@ -32,6 +32,7 @@ Contracts:
 - grab: [grab/README.md](./grab/README.md) - Element-grab types, `GrabApi` and the size-bounded attachment serializer.
 - extensions: [extensions/README.md](./extensions/README.md) - The nine built-in `@conciv/extension-*` packages.
 - extension-testkit: [extension-testkit/README.md](./extension-testkit/README.md) - Mounts an extension in a real browser against a real server.
+- plugin-testkit: [plugin-testkit/README.md](./plugin-testkit/README.md) - Boots the real engine and widget with the fake model chat for widget and plugin tests: core kit, wire observers and fault injectors.
 
 Browser widget:
 

@@ -21,6 +21,7 @@ export interface ResolvedConcivConfig {
   harnessSessionId: HarnessSessionId | undefined
   systemPrompt: string
   hubAccess: HubAccess
+  plugins: NonNullable<ConcivConfig['plugins']>
 }
 
 function declaredValue(candidates: (string | undefined)[]): string | undefined {
@@ -66,5 +67,6 @@ export function resolveConfig(options: ConcivConfig, root: string): ResolvedConc
     harnessSessionId: resolveHarnessSessionId([options.claudeSessionId, env.CONCIV_CLAUDE_SESSION_ID]),
     systemPrompt: resolveSystemPrompt(options.systemPrompt),
     hubAccess: options.hubAccess ?? 'open',
+    plugins: options.plugins ?? [],
   }
 }

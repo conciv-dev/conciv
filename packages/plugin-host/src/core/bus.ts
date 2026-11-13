@@ -3,7 +3,7 @@ export * as Bus from './bus.js'
 import {Cause, Clock, Context, Effect, Layer, Option, PubSub, Schema, Stream} from 'effect'
 import {Event} from '../schema/event.js'
 import type {EventLog} from '../schema/event-log.js'
-import {and, asc, eq, gt, lte, sql} from 'drizzle-orm'
+import {and, asc, eq, gt, isNull, lte, sql} from 'drizzle-orm'
 import {Database} from './database/database.js'
 import {EventSequenceTable, EventTable} from './event/sql.js'
 import type {Location} from '../schema/location.js'
@@ -213,7 +213,7 @@ export function configured(options?: Options) {
             const row = yield* db
               .select({id: SessionTable.id})
               .from(SessionTable)
-              .where(eq(SessionTable.id, owner))
+              .where(and(eq(SessionTable.id, owner), isNull(SessionTable.deletedAt)))
               .get()
               .pipe(Effect.orDie)
             ref = row && engine ? {directory: engine.directory, workspaceId: engine.workspaceId} : undefined

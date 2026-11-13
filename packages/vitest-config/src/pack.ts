@@ -196,7 +196,7 @@ export async function installPacked(options: PackedInstallOptions): Promise<void
     ...options.packages.map((pattern) => `  - '${pattern}'`),
     ...releaseAgeYaml(),
     'allowBuilds:',
-    ...Object.entries(options.allowBuilds).map(([name, allowed]) => `  ${name}: ${allowed}`),
+    ...Object.entries(options.allowBuilds).map(([name, allowed]) => `  '${name}': ${allowed}`),
     'overrides:',
     ...Object.entries(options.overrides).map(([name, value]) => `  '${name}': '${value}'`),
     '',

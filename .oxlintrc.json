@@ -314,7 +314,11 @@
       }
     },
     {
-      "files": ["packages/extensions/**/test/**", "packages/extension-testkit/**/test/**"],
+      "files": [
+        "packages/extensions/**/test/**",
+        "packages/extension-testkit/**/test/**",
+        "packages/plugin-testkit/**/test/**"
+      ],
       "rules": {
         "playwright/no-raw-locators": "error",
         "playwright/no-eval": "error",
@@ -324,7 +328,7 @@
       }
     },
     {
-      "files": ["packages/embed/test/**", "packages/extension-testkit/src/**"],
+      "files": ["packages/embed/test/**", "packages/extension-testkit/src/**", "packages/plugin-testkit/src/**"],
       "rules": {
         "playwright/prefer-web-first-assertions": "error"
       }
@@ -351,7 +355,11 @@
       }
     },
     {
-      "files": ["packages/harness-testkit/src/**", "packages/extension-testkit/src/**"],
+      "files": [
+        "packages/harness-testkit/src/**",
+        "packages/extension-testkit/src/**",
+        "packages/plugin-testkit/src/**"
+      ],
       "rules": {
         "conciv/no-predicate-waits": "error"
       }
@@ -389,7 +397,7 @@
     {
       "files": ["packages/plugin-host/**"],
       "rules": {
-        "conciv/test-file-budget": ["error", {"max": 31}]
+        "conciv/test-file-budget": ["error", {"max": 32}]
       }
     },
     {

@@ -14,7 +14,7 @@ import {
 } from '@conciv/harness-testkit'
 import {magicLink} from '@conciv/harness-testkit/login'
 import {launch, openObservedPage} from './launch.js'
-import {rpcObserverFor} from './rpc-observer.js'
+import {rpcObserverFor} from '@conciv/plugin-testkit/rpc-observer'
 import {settleTeardown, type TeardownStep} from './settle-teardown.js'
 
 export type HostEngine = {apiBase: string; session: string}
