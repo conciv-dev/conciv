@@ -33,7 +33,10 @@ const services = (root: string, plugins: readonly string[]) =>
         Layer.succeed(ConfigPluginSource.ConfiguredPlugins, plugins),
         Layer.succeed(
           Location.Service,
-          Location.Service.of({directory: AbsolutePath.make(root), project: {id: ProjectId.global}}),
+          Location.Service.of({
+            directory: AbsolutePath.make(root),
+            project: {id: ProjectId.global, directory: AbsolutePath.make(root), canonical: AbsolutePath.make(root)},
+          }),
         ),
       ),
     ),

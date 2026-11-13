@@ -1,6 +1,6 @@
 import {index, integer, primaryKey, sqliteTable, text, uniqueIndex} from 'drizzle-orm/sqlite-core'
 import type {Brand, Schema} from 'effect'
-import type {NavigationEntry, PermissionRule, ReasoningEffort} from '@conciv/protocol/chat-types'
+import type {NavigationEntry, PermissionRule, ReasoningEffort, SessionId} from '@conciv/protocol/chat-types'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import type {ElementCapture, ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 
@@ -95,7 +95,7 @@ export const InstructionBlobTable = sqliteTable('instruction_blob', {
 
 export const InstructionStateTable = sqliteTable('instruction_state', {
   session_id: text()
-    .$type<string & Brand.Brand<'SessionID'>>()
+    .$type<SessionId>()
     .primaryKey()
     .references(() => sessions.id, {onDelete: 'cascade'}),
   // oxlint-disable-next-line conciv/banned-vocabulary

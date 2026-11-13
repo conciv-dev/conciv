@@ -22,7 +22,14 @@ const database = Layer.unwrap(
 
 const location = Layer.succeed(
   Location.Service,
-  Location.Service.of({directory: AbsolutePath.make('/rpc-project'), project: {id: Project.Id.make('/rpc-project')}}),
+  Location.Service.of({
+    directory: AbsolutePath.make('/rpc-project'),
+    project: {
+      id: Project.Id.make('/rpc-project'),
+      directory: AbsolutePath.make('/rpc-project'),
+      canonical: AbsolutePath.make('/rpc-project'),
+    },
+  }),
 )
 
 const it = testEffect(

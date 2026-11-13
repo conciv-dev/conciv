@@ -23,6 +23,9 @@ export const Id = Schema.String.pipe(
 )
 export type Id = typeof Id.Type
 
+export const Package = Schema.String
+export type Package = typeof Package.Type
+
 export const Compaction = Schema.Union([
   Schema.Struct({type: Schema.Literal('summary')}),
   Schema.Struct({type: Schema.Literal('native')}),

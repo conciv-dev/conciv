@@ -1,6 +1,8 @@
+import {existsSync, readFileSync} from 'node:fs'
 import {registerHooks} from 'node:module'
 import path from 'node:path'
-import {fileURLToPath} from 'node:url'
+import {fileURLToPath, pathToFileURL} from 'node:url'
+import {transformSync} from 'esbuild'
 import {localSource} from './source.js'
 import {missingPackageTarget} from './source.package.js'
 import * as Host from '@conciv/plugin/host'
@@ -36,6 +38,8 @@ export async function prepareSource(entrypoint: string, track: (file: string, di
         try {
           return nextResolve(specifier, context)
         } catch (error) {
+          const typescript = typescriptSource(local)
+          if (typescript) return nextResolve(pathToFileURL(typescript).href, context)
           track(path.dirname(fileURLToPath(local)), true)
           throw error
         }
@@ -46,7 +50,33 @@ export async function prepareSource(entrypoint: string, track: (file: string, di
       track(file)
       return {...resolved, url: fresh(resolved.url)}
     },
+    load(url, context, nextLoad) {
+      if (!url.startsWith('file:') || new URL(url).searchParams.get('__opencode_reload') !== version)
+        return nextLoad(url, context)
+      const file = fileURLToPath(url)
+      const loader = typescriptLoaders[path.extname(file)]
+      if (!loader) return nextLoad(url, context)
+      const {code} = transformSync(readFileSync(file, 'utf8'), {
+        loader,
+        format: 'esm',
+        jsx: 'automatic',
+        sourcefile: file,
+      })
+      return {format: 'module', source: code, shortCircuit: true}
+    },
   })
   const specifier = fresh(entrypoint)
   return {version: specifier, load: () => Host.load(specifier), dispose: () => hook.deregister()}
+}
+
+const typescriptLoaders: Partial<Record<string, 'ts' | 'tsx'>> = {'.ts': 'ts', '.tsx': 'tsx'}
+
+const typescriptExtensions: Partial<Record<string, readonly string[]>> = {'.js': ['.ts', '.tsx'], '.jsx': ['.tsx']}
+
+function typescriptSource(local: URL) {
+  const file = fileURLToPath(local)
+  const extension = path.extname(file)
+  return (typescriptExtensions[extension] ?? [])
+    .map((candidate) => file.slice(0, -extension.length) + candidate)
+    .find((candidate) => existsSync(candidate))
 }

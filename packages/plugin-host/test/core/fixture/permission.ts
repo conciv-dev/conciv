@@ -37,7 +37,10 @@ export const databaseLayer = Layer.unwrap(
 
 const locationLayer = Layer.succeed(
   Location.Service,
-  Location.Service.of({directory: AbsolutePath.make('/project'), project: {id: ProjectId.global}}),
+  Location.Service.of({
+    directory: AbsolutePath.make('/project'),
+    project: {id: ProjectId.global, directory: AbsolutePath.make('/project'), canonical: AbsolutePath.make('/project')},
+  }),
 )
 
 export const permissionLayer = Permission.layer.pipe(

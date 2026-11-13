@@ -1,8 +1,13 @@
+import {existsSync} from 'node:fs'
+import {mkdtemp, rm} from 'node:fs/promises'
+import os from 'node:os'
+import {join} from 'node:path'
 import {describe, expect} from 'vitest'
 import {Effect, Layer} from 'effect'
 import {openDb} from '@conciv/db'
 import {Database} from '../../src/core/database/database.js'
 import {KV} from '../../src/core/kv.js'
+import {PluginHost} from '../../src/core/plugin/host.js'
 import {tmpdirScoped} from './fixture/tmpdir'
 import {testEffect} from './lib/effect'
 
@@ -89,5 +94,27 @@ describe('KV', () => {
       expect((yield* kv.scan({prefix, limit: -10})).entries).toHaveLength(1)
       expect((yield* kv.scan({prefix, limit: Number.NaN})).entries).toHaveLength(100)
     }),
+  )
+})
+
+describe('PluginHost.storage', () => {
+  it.effect('makes the plugin directory on first read and remembers it', () =>
+    Effect.acquireUseRelease(
+      Effect.promise(() => mkdtemp(join(os.tmpdir(), 'conciv-plugin-storage-'))),
+      (root) =>
+        Effect.gen(function* () {
+          const storage = PluginHost.storage(yield* KV.Service, 'kv', root)
+          const expected = join(root, 'plugin-storage', '006b0076')
+          expect(existsSync(join(root, 'plugin-storage'))).toBe(false)
+
+          expect(storage.directory).toBe(expected)
+          expect(existsSync(expected)).toBe(true)
+
+          yield* Effect.promise(() => rm(expected, {recursive: true}))
+          expect(storage.directory).toBe(expected)
+          expect(existsSync(expected)).toBe(false)
+        }),
+      (root) => Effect.promise(() => rm(root, {recursive: true, force: true})),
+    ),
   )
 })

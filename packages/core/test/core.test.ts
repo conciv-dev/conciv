@@ -260,7 +260,12 @@ describe('chat plane', () => {
         Layer.provideMerge(
           Layer.succeed(
             Location.Service,
-            Location.Service.of(Schema.decodeSync(Location.Info)({directory: root, project: {id: root}})),
+            Location.Service.of(
+              Schema.decodeSync(Location.Info)({
+                directory: root,
+                project: {id: root, directory: root, canonical: root},
+              }),
+            ),
           ),
         ),
         Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),
@@ -2314,7 +2319,12 @@ describe('plugin permission cards', () => {
         Layer.provideMerge(
           Layer.succeed(
             Location.Service,
-            Location.Service.of(Schema.decodeSync(Location.Info)({directory: stateRoot, project: {id: stateRoot}})),
+            Location.Service.of(
+              Schema.decodeSync(Location.Info)({
+                directory: stateRoot,
+                project: {id: stateRoot, directory: stateRoot, canonical: stateRoot},
+              }),
+            ),
           ),
         ),
         Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),

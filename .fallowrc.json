@@ -115,6 +115,12 @@
         "maxCognitive": 26,
         "maxCrap": 110,
         "reason": "copied from opencode codemode/src/tool-runtime.ts: rank keeps opencode's shape"
+      },
+      {
+        "files": ["packages/plugin-host/src/core/plugin/module.ts"],
+        "maxCyclomatic": 35,
+        "maxCrap": 250,
+        "reason": "copied from opencode core/src/plugin/module.ts: load keeps opencode's shape"
       }
     ]
   },
@@ -272,7 +278,14 @@
         "toModelOutput",
         "Rpc",
         "Definition",
-        "make"
+        "make",
+        "Ref",
+        "Settings",
+        "InstructionEntry",
+        "Model",
+        "State",
+        "Plugin",
+        "Snapshot"
       ]
     },
     {
@@ -292,6 +305,8 @@
     "packages/plugin-host/src/plugin/effect/rpc.ts",
     "packages/plugin-host/src/core/schema.ts",
     "packages/plugin-host/src/core/plugin/update.ts",
+    "packages/plugin-host/src/core/plugin/instance.ts",
+    "packages/plugin-host/src/core/plugin/internal.ts",
     "packages/plugin-host/test/core/fixture/*-worker.ts",
     "packages/brand-react/src/conciv-lockup.tsx",
     "packages/brand/src/brand-guidelines.mdx",
