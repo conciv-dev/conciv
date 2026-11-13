@@ -42,8 +42,8 @@ export type SessionIdleBackground =
 
 export interface SessionIdle {
   readonly sessionId: SessionId
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly background: ReadonlyArray<SessionIdleBackground> | undefined
+  /** @remarks Always empty: conciv keeps no background jobs; the CLI owns that work. */
+  readonly background: ReadonlyArray<SessionIdleBackground>
 }
 
 export interface SessionHooks {
