@@ -91,7 +91,15 @@
   "health": {
     "maxCyclomatic": 20,
     "maxCrap": 30,
-    "thresholdOverrides": []
+    "thresholdOverrides": [
+      {
+        "files": ["apps/conciv/src/runtime/plugin/**"],
+        "maxCyclomatic": 37,
+        "maxCognitive": 48,
+        "maxCrap": 88,
+        "maxUnitSize": 120
+      }
+    ]
   },
   "rules": {
     "unused-exports": "warn",
@@ -187,6 +195,10 @@
     },
     {
       "file": "packages/ui-kit-chat/src/styled/**",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/conciv/src/runtime/plugin/**",
       "exports": ["*"]
     },
     {

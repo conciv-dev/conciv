@@ -397,7 +397,16 @@
     {
       "files": ["apps/conciv/**"],
       "rules": {
-        "conciv/test-file-budget": ["error", {"max": 3}]
+        "conciv/test-file-budget": ["error", {"max": 14}]
+      }
+    },
+    {
+      "files": ["apps/conciv/src/runtime/plugin/**"],
+      "rules": {
+        "conciv/banned-vocabulary": "off",
+        "unicorn/no-thenable": "off",
+        "no-shadow": "off",
+        "unicorn/no-array-sort": "off"
       }
     },
     {

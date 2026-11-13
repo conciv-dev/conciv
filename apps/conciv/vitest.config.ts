@@ -60,7 +60,7 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'node',
-          include: ['test/**/*.test.ts'],
+          include: ['test/**/*.test.ts', 'src/runtime/plugin/**/*.test.ts'],
           exclude: ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx'],
           testTimeout: ciTest().testTimeout,
           hookTimeout: ciTest().hookTimeout,

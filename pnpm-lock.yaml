@@ -574,6 +574,9 @@ importers:
       '@conciv/page':
         specifier: workspace:^
         version: link:../../packages/page
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../../packages/plugin
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../packages/protocol

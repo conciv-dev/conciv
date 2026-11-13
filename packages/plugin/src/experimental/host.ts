@@ -1,4 +1,5 @@
 import {z} from 'zod'
+import type {PluginOptions} from '../options.js'
 import type {PluginInfo} from '../plugin.js'
 import type {Cleanup} from './core.js'
 import type {Declarations, Stores} from './declarations.js'
@@ -266,4 +267,16 @@ export function shipsPluginExperimental(plugin: PluginInfo): plugin is PluginInf
     plugin.state.status === 'active' &&
     !!plugin.features.experimental
   )
+}
+
+export interface BridgePluginGui {
+  readonly id: string
+  readonly revision: string
+  readonly code: string
+  readonly options: PluginOptions
+}
+
+export interface BridgePluginGuis {
+  readonly plugins: readonly BridgePluginGui[]
+  readonly reserved: readonly string[]
 }
