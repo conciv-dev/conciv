@@ -62,6 +62,7 @@ import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId, SessionId} from 
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
 import {eq} from 'drizzle-orm'
 import {Bus, PluginHooks, Rpc, SessionEvent, Tool} from '@conciv/plugin-host'
+import {Rpc as PluginRpc} from '@conciv/plugin/rpc'
 import {Effect, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {isEqual, uniq} from 'es-toolkit'
 import getPort from 'get-port'
@@ -2106,6 +2107,25 @@ describe('plugin rpc over the socket', () => {
     },
     events: {indexed: {schema: Schema.Struct({count: Schema.Number})}},
   })
+  const AcmeClient = PluginRpc.define({
+    id: 'acme',
+    methods: {
+      search: {
+        input: z.object({query: z.unknown()}),
+        output: z.object({hits: z.array(z.string())}),
+        errors: {limited: z.object({retryAfter: z.number()})},
+      },
+      missing: {input: z.undefined(), output: z.string()},
+      explode: {input: z.undefined(), output: z.string()},
+      malformed: {input: z.undefined(), output: z.string()},
+    },
+    events: {indexed: {schema: z.object({count: z.number()})}},
+  })
+  const Nobody = PluginRpc.define({
+    id: 'nobody',
+    methods: {search: {input: z.object({query: z.string()}), output: z.object({hits: z.array(z.string())})}},
+    events: {},
+  })
 
   test('a registered contract answers a socket client, every failure keeps its text, and an event reaches two subscribers', async () => {
     const served = await serveCore(tempDir(), [], {})
@@ -2127,25 +2147,28 @@ describe('plugin rpc over the socket', () => {
         ).pipe(Scope.provide(host.runSync(Scope.make()))),
       )
       const {plugin} = client.rpc
-      expect(await plugin.call({rpcId: 'acme', method: 'search', input: {query: 'docs'}})).toEqual({hits: ['docs']})
+      const api = PluginRpc.makeRpc(plugin.call, plugin.events)
+      const acme = api(AcmeClient)
+      expect(await acme.search({query: 'docs'})).toEqual({hits: ['docs']})
 
       const inProcess = (rpcId: string, method: string, input: unknown) =>
         host.runPromise(Rpc.Service.use((rpc) => rpc.call(rpcId, method, input)).pipe(Effect.flip))
-      const failures: [string, string, unknown, string][] = [
-        ['nobody', 'search', {query: 'docs'}, 'rpc.unavailable'],
-        ['acme', 'missing', undefined, 'rpc.method_not_found'],
-        ['acme', 'search', {query: 1}, 'rpc.invalid_input'],
-        ['acme', 'explode', undefined, 'rpc.internal'],
-        ['acme', 'malformed', undefined, 'rpc.invalid_output'],
+      const failures: [string, string, unknown, string, () => Promise<unknown>][] = [
+        ['nobody', 'search', {query: 'docs'}, 'rpc.unavailable', () => api(Nobody).search({query: 'docs'})],
+        ['acme', 'missing', undefined, 'rpc.method_not_found', () => acme.missing()],
+        ['acme', 'search', {query: 1}, 'rpc.invalid_input', () => acme.search({query: 1})],
+        ['acme', 'explode', undefined, 'rpc.internal', () => acme.explode()],
+        ['acme', 'malformed', undefined, 'rpc.invalid_output', () => acme.malformed()],
       ]
-      for (const [rpcId, method, input, type] of failures) {
+      for (const [rpcId, method, input, type, call] of failures) {
         const expected = await inProcess(rpcId, method, input)
         expect(expected.type).toBe(type)
-        await expect(plugin.call({rpcId, method, input})).rejects.toMatchObject({code: 'PLUGIN_RPC', data: expected})
+        await expect(call()).rejects.toStrictEqual({type, message: expected.message})
       }
-      await expect(plugin.call({rpcId: 'acme', method: 'search', input: {query: 'slow'}})).rejects.toMatchObject({
-        code: 'PLUGIN_RPC',
-        data: {type: 'limited', message: 'try later', data: {retryAfter: 5}},
+      await expect(acme.search({query: 'slow'})).rejects.toStrictEqual({
+        type: 'limited',
+        message: 'try later',
+        data: {retryAfter: 5},
       })
 
       const typed = await plugin.events({rpcId: 'acme', types: ['indexed']})

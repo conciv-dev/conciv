@@ -1,4 +1,5 @@
-import type {z} from 'zod'
+import type {RpcClient as ConcivRpcClient} from '@conciv/contract'
+import {z} from 'zod'
 import type {RequestOptions} from './domains.js'
 import type {ConcivEvent, PayloadBase} from './event.js'
 import type {Ref} from './location.js'
@@ -211,4 +212,92 @@ export type RpcEventPayload<
 
 export interface RpcApi<Options = RpcCallOptions> {
   <D extends PortableDefinition>(definition: D): RpcClient<D, Options>
+}
+
+const RpcError = z.object({
+  defined: z.literal(true),
+  code: z.literal('PLUGIN_RPC'),
+  data: z.object({type: z.string(), message: z.string(), data: z.unknown().optional()}),
+})
+
+export function makeRpc(
+  call: ConcivRpcClient['plugin']['call'],
+  subscribeEvents: ConcivRpcClient['plugin']['events'],
+): RpcApi {
+  return (definition) => {
+    const subscribe = (
+      name: string,
+      options?: Pick<RequestOptions, 'signal'>,
+    ): AsyncIterable<RpcEventPayload<PortableDefinition>> => {
+      if (!Object.hasOwn(definition.events, name)) throw new Error(`Unknown RPC event: ${definition.id}.${name}`)
+      const type = eventType(definition, name)
+      return {
+        [Symbol.asyncIterator]() {
+          const controller = new AbortController()
+          const signal = options?.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal
+          async function* read() {
+            try {
+              for await (const published of await subscribeEvents({rpcId: definition.id, types: [name]}, {signal})) {
+                if (signal.aborted) return
+                if (published.type !== type) continue
+                yield published as RpcEventPayload<PortableDefinition>
+              }
+            } catch (error) {
+              if (!signal.aborted) throw error
+            } finally {
+              controller.abort()
+            }
+          }
+          const iterator = read()
+          return {
+            next: () => iterator.next(),
+            return: () => {
+              controller.abort()
+              return iterator.return()
+            },
+          }
+        },
+      }
+    }
+    return Object.assign(
+      Object.fromEntries(
+        Object.keys(definition.methods).map((name) => [
+          name,
+          async (input: unknown, options?: RpcCallOptions) => {
+            try {
+              return await call({rpcId: definition.id, method: name, input}, {signal: options?.signal})
+            } catch (error) {
+              const failure = RpcError.safeParse(error)
+              if (!failure.success) throw error
+              const {type, message, data} = failure.data.data
+              throw data === undefined ? {type, message} : {type, message, data}
+            }
+          },
+        ]),
+      ),
+      {
+        events: {
+          subscribe,
+          on: (
+            name: string,
+            handler: (event: RpcEventPayload<PortableDefinition>) => Promise<void> | void,
+            options?: Pick<RequestOptions, 'signal'>,
+          ) => {
+            const controller = new AbortController()
+            const signal = options?.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal
+            const source = subscribe(name, {signal})
+            async function deliver() {
+              for await (const event of source) await handler(event)
+            }
+            void deliver().catch((error: unknown) => console.error(error))
+            return () => controller.abort()
+          },
+        },
+      },
+    ) as RpcClient<typeof definition>
+  }
+}
+
+function eventType(definition: PortableDefinition, name: string) {
+  return `rpc.${definition.id}.${name}` as const
 }
