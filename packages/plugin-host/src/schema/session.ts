@@ -1,6 +1,6 @@
 export * as Session from './session.js'
 
-import {SessionID} from './session-id.js'
+import {SessionId} from './session-id.js'
 
-export const ID = SessionID
-export type ID = SessionID
+export const Id = SessionId
+export type Id = SessionId

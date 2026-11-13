@@ -1,5 +1,5 @@
 export * as Tool from './tool.js'
-export {CallID, Content, Error, FileContent, TextContent, makeError} from '../schema/tool.js'
+export {CallId, Content, Error, FileContent, TextContent, makeError} from '../schema/tool.js'
 export type {Context, Metadata, Namespace, Options, Result} from '../schema/tool.js'
 
 import {makeToolDefinition, ToolDefinition, type ToolCall} from '../ai/effect.js'
@@ -62,9 +62,9 @@ export interface Snapshot {
     ) => Effect.Effect<NormalizedResult, Tool.Error>
   }
   readonly execute: (input: {
-    readonly sessionID: SessionSchema.ID
-    readonly agent: Agent.ID
-    readonly messageID: SessionMessage.ID
+    readonly sessionId: SessionSchema.Id
+    readonly agent: Agent.Id
+    readonly messageId: SessionMessage.Id
     readonly call: ToolCall
     readonly progress?: (update: Tool.Metadata) => Effect.Effect<void>
     readonly cancel?: Effect.Effect<void>
@@ -82,9 +82,9 @@ export const layer = Layer.effect(
     const beforeExecute = (name: string, input: unknown, context: Tool.Context) =>
       hooks.trigger('tool', 'execute.before', {
         tool: name,
-        sessionID: context.sessionID,
+        sessionId: context.sessionId,
         agent: context.agent,
-        messageID: context.messageID,
+        messageId: context.messageId,
         id: context.id,
         input,
       })
@@ -98,7 +98,7 @@ export const layer = Layer.effect(
       yield* Effect.annotateCurrentSpan({
         'gen_ai.tool.name': name,
         'gen_ai.tool.call.id': context.id,
-        'session.id': context.sessionID,
+        'session.id': context.sessionId,
         'gen_ai.agent.name': context.agent,
       })
       const execution = yield* execute(tool, input, context).pipe(
@@ -107,9 +107,9 @@ export const layer = Layer.effect(
       )
       const base = {
         tool: name,
-        sessionID: context.sessionID,
+        sessionId: context.sessionId,
         agent: context.agent,
-        messageID: context.messageID,
+        messageId: context.messageId,
         id: context.id,
         input,
       }
@@ -237,10 +237,10 @@ export const layer = Layer.effect(
               .map(([name]) => data.definitions.get(name)!),
             execute: Effect.fnUntraced(function* (input: Parameters<Snapshot['execute']>[0]) {
               const context: Tool.Context = {
-                sessionID: input.sessionID,
+                sessionId: input.sessionId,
                 agent: input.agent,
-                messageID: input.messageID,
-                id: Tool.CallID.make(input.call.id),
+                messageId: input.messageId,
+                id: Tool.CallId.make(input.call.id),
                 progress: input.progress ?? (() => Effect.void),
                 cancel: input.cancel,
               }
