@@ -594,12 +594,7 @@ async function componentTree(input: Walk): Promise<LiveComponent> {
     instance: instancePath(el),
     repeat: stampRepeat({el, repeated: input.repeated}),
     tag: el.tagName.toLowerCase(),
-    text:
-      placeheld({el, view})?.placeholder ??
-      nodes
-        .map((node) => node.textContent ?? '')
-        .join('')
-        .trim(),
+    text: shownText({el, view, nodes}),
     box,
     textBox: measureTextBox({nodes, view}),
     glyphs: measureGlyphs({el, view, size}),
@@ -820,9 +815,19 @@ function placeholderFields(input: {el: Element; view: PageWindow}): (HTMLInputEl
 }
 
 function placeheld(input: {el: Element; view: PageWindow}): HTMLInputElement | HTMLTextAreaElement | null {
+  const field = fieldOf(input)
+  return field?.value === '' && field.placeholder !== '' ? field : null
+}
+
+function fieldOf(input: {el: Element; view: PageWindow}): HTMLInputElement | HTMLTextAreaElement | null {
   const {el, view} = input
-  const field = el instanceof view.HTMLInputElement || el instanceof view.HTMLTextAreaElement ? el : null
-  return field !== null && field.value === '' && field.placeholder !== '' ? field : null
+  if (el instanceof view.HTMLInputElement || el instanceof view.HTMLTextAreaElement) return el
+  return null
+}
+
+function shownText(input: {el: Element; view: PageWindow; nodes: Text[]}): string {
+  const said = input.nodes.map((node) => node.textContent ?? '').join('')
+  return placeheld(input)?.placeholder ?? said.trim()
 }
 
 function placeholderGlyph(input: {field: HTMLInputElement | HTMLTextAreaElement}): Glyph[] {
