@@ -1,6 +1,8 @@
 const DIRECTIVE_RE =
   /^(?:\/|!|@ts-|@__PURE__|#__PURE__|@__NO_SIDE_EFFECTS__|#__NO_SIDE_EFFECTS__|eslint-|oxlint-|global\b|globals\b|exported\b|prettier-ignore|oxfmt-ignore|@vite-ignore|@jsxImportSource\b|webpack[A-Z]|v8 ignore|c8 ignore|istanbul ignore|@license|@preserve|sourceMappingURL|#\s*sourceMappingURL)/
 
+const TAG_LINE_RE = /^\s*\*?\s*@[A-Za-z]/
+
 const DECLARATIONS = new Set([
   'ExportNamedDeclaration',
   'ExportDefaultDeclaration',
@@ -59,7 +61,11 @@ export default {
 
 function isKept(comment, sourceCode, keepDocComments) {
   if (DIRECTIVE_RE.test(comment.value.trim())) return true
-  return keepDocComments && documentsDeclaration(comment, sourceCode)
+  return keepDocComments && hasTagLine(comment) && documentsDeclaration(comment, sourceCode)
+}
+
+function hasTagLine(comment) {
+  return comment.value.split('\n').some((line) => TAG_LINE_RE.test(line))
 }
 
 function documentsDeclaration(comment, sourceCode) {
