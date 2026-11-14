@@ -100,7 +100,8 @@ describe('page rpc', () => {
     '%s keeps its input and output schema, mutating and capture as an operation',
     (_name, definition, operation) => {
       expect(withoutTab(operation.input)).toEqual(exported(definition.inputSchema))
-      expect(exported(operation.output)).toEqual(exported(definition.outputSchema ?? z.null()))
+      if (operation.name !== 'screenshot')
+        expect(exported(operation.output)).toEqual(exported(definition.outputSchema ?? z.null()))
       expect([operation.mutating, operation.capture]).toEqual([definition.meta?.mutating, definition.meta?.capture])
     },
   )
@@ -832,6 +833,24 @@ describe('page connection', () => {
     await reply('conn_d', again.requestId, succeeded({result: 'Example'}))
     expect(await remembered).toEqual({ok: true, value: {result: 'Example'}})
     expect(await tabs('waiting', {})).toEqual({waiting: 0})
+
+    const shot = ask({type: 'screenshot'})
+    const onShot = await next('conn_d')
+    const image = {id: `file_${crypto.randomUUID()}`, name: 'screenshot.webp', mime: 'image/webp', data: 'UklGRg=='}
+    await tabs('reply', {
+      sessionId: session,
+      connectionId: 'conn_d',
+      requestId: onShot.requestId,
+      outcome: {type: 'success', result: {value: {width: 800, height: 600}, files: [image]}},
+    })
+    const saved = z
+      .object({
+        ok: z.literal(true),
+        value: z.object({width: z.number(), files: z.array(z.looseObject({path: z.string()}))}),
+      })
+      .parse(await shot)
+    expect(saved.value).toMatchObject({width: 800, files: [{id: image.id, mime: 'image/webp', bytes: 4}]})
+    expect(await readFile(saved.value.files[0]?.path ?? '', 'base64')).toBe('UklGRg==')
 
     const stranded = ask({type: 'wait', selector: 'body', timeout: 100})
     await next('conn_d')

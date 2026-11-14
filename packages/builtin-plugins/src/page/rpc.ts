@@ -33,6 +33,7 @@ export const Tab = z.object({
 export type Tab = z.infer<typeof Tab>
 export const State = z.object({tabs: z.array(Tab), focusedTabId: TabId.nullable()})
 export type State = z.infer<typeof State>
+const FileInfo = z.object({id: FileId, name: short, mime: short, bytes: z.number().int().min(0), path: z.string()})
 export const File = z.object({
   id: FileId,
   name: short,
@@ -61,8 +62,6 @@ const CssClass = z.string().describe('class name to add or remove')
 const ActionEnum = z
   .enum(['start', 'stop', 'report', 'enable', 'disable', 'toggle', 'list'])
   .describe('what to do: start, stop, report, enable, disable, toggle, list')
-const ImagePart = z.object({type: z.literal('image')}).loose()
-const ImageDetailPart = z.object({type: z.literal('text'), content: z.string()}).loose()
 const HOT_UPDATE_WAIT_MS = 5000
 const HotUpdateWaitSchema = z.object({
   supported: z.boolean(),
@@ -219,7 +218,12 @@ export const Operations = [
           'CSS selectors for host-page elements to leave out of the image, such as a devtools button; conciv UI is always left out, and a selector the page cannot read is skipped with a warning',
         ),
     },
-    z.array(z.union([ImagePart, ImageDetailPart])),
+    z.object({
+      width: z.number(),
+      height: z.number(),
+      warnings: z.array(z.string()).optional(),
+      files: z.array(FileInfo),
+    }),
     reading,
   ),
   operation(
