@@ -1,4 +1,4 @@
-import type {ChatPlane} from '@conciv/chat'
+import type {ChatPlane, ToolDomain} from '@conciv/chat'
 import type {ConcivDb} from '@conciv/db'
 import {
   readApprovalAsk,
@@ -85,19 +85,20 @@ export function permissionSessions(db: ConcivDb) {
 
 function sessionRules(
   sessionId: SessionId,
-): Effect.Effect<Permission.Ruleset, never, Agent.Interface | Permission.SessionsInterface> {
+): Effect.Effect<{agent: Agent.Id; rules: Permission.Ruleset}, never, Agent.Interface | Permission.SessionsInterface> {
   return Effect.gen(function* () {
     const session = yield* (yield* Permission.PermissionSessions).get(SessionSchema.Id.make(sessionId))
     const agent = yield* (yield* Agent.Service).select(session?.agent)
-    return Permission.merge(agent.info?.permissions ?? [], session?.permissions ?? [])
+    return {agent: agent.id, rules: Permission.merge(agent.info?.permissions ?? [], session?.permissions ?? [])}
   })
 }
 
-export function sessionSnapshot(
+export function sessionToolDomain(
   sessionId: SessionId,
-): Effect.Effect<Tool.Snapshot, never, Tool.Interface | Agent.Interface | Permission.SessionsInterface> {
+): Effect.Effect<ToolDomain, never, Tool.Interface | Agent.Interface | Permission.SessionsInterface> {
   return Effect.gen(function* () {
-    return yield* (yield* Tool.Service).snapshot(yield* sessionRules(sessionId))
+    const {agent, rules} = yield* sessionRules(sessionId)
+    return {snapshot: yield* (yield* Tool.Service).snapshot(rules), agent}
   })
 }
 
@@ -119,7 +120,7 @@ export function pluginInstructions(
     const bus = yield* Bus.Service
     const context = yield* Effect.context()
     const id = SessionSchema.Id.make(sessionId)
-    const skills = yield* (yield* SkillInstructions.Service).load(yield* sessionRules(sessionId))
+    const skills = yield* (yield* SkillInstructions.Service).load((yield* sessionRules(sessionId)).rules)
     const entries = yield* loadInstructionEntries(yield* KV.Service, id)
     const instructions = Instructions.combine([CodeModeInstructions.make(inventory), skills, entries])
     const {read, previewed, observation} = yield* db

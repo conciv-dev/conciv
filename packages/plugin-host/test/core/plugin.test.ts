@@ -2,7 +2,8 @@ import {expect} from 'vitest'
 import {mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {Deferred, Effect, Fiber, Logger, Stream} from 'effect'
+import {Deferred, Effect, Fiber, Logger, Schema, Stream} from 'effect'
+import {Tool as PluginTool} from '@conciv/plugin'
 import {Agent} from '../../src/core/agent.js'
 import {Bus} from '../../src/core/bus.js'
 import {Watcher} from '../../src/core/filesystem/watcher.js'
@@ -540,6 +541,50 @@ it.effect('normalizes Promise plugin API inputs through JSON', () =>
   }),
 )
 
+it.effect("a Promise plugin tool's toolError reaches the host as a Tool.Error with its message and metadata", () =>
+  Effect.gen(function* () {
+    const plugins = yield* Plugin.Service
+    const tools = yield* Tool.Service
+    yield* plugins.activate([
+      {
+        ...fromPromise({
+          id: 'promise-failure',
+          async setup(ctx) {
+            await ctx.tool.transform((editor) => {
+              editor.add({
+                name: 'promise_fail',
+                description: 'Fails with metadata.',
+                input: {type: 'object', properties: {}},
+                execute: async () => {
+                  throw PluginTool.toolError({message: 'the probe broke', metadata: {code: 'X_CODE'}})
+                },
+              })
+            })
+          },
+        }),
+        revision: '1',
+      },
+    ])
+    yield* plugins.awaitActivation
+    const tool = yield* get(tools, 'promise_fail')
+    if (!tool) return yield* Effect.die('promise_fail is not registered')
+    const failure = yield* tool
+      .execute(
+        {},
+        {
+          sessionId: SessionSchema.Id.make('conciv_plugin'),
+          agent: Agent.Id.make('build'),
+          messageId: undefined,
+          id: Tool.CallId.make('call_promise_fail'),
+          progress: () => Effect.void,
+        },
+      )
+      .pipe(Effect.flip)
+
+    expect(failure).toMatchObject({_tag: 'Tool.Error', message: 'the probe broke', metadata: {code: 'X_CODE'}})
+  }),
+)
+
 it.effect("creates child sessions from a plugin at the parent's location", () =>
   Effect.gen(function* () {
     const plugins = yield* Plugin.Service
@@ -631,6 +676,28 @@ it.effect('host event subscriptions deliver requested rpc types and ignore unkno
     expect(Array.from(yield* Fiber.join(fiber)).map((event) => [event.type, event.data])).toEqual([
       ['rpc.test.ping', {value: 1}],
     ])
+
+    const definition = (id: string) =>
+      Rpc.define({id, methods: {ping: {input: Schema.Undefined, output: Schema.String}}, events: {}})
+    const mounted = definition('page')
+    const plugins = yield* Plugin.Service
+    const pluginHost = (pluginId: string) =>
+      PluginHost.make(plugins, pluginId).pipe(Effect.provideService(PluginHost.ExtensionSlugs, ['page']))
+    const first = yield* pluginHost('first')
+    const second = yield* pluginHost('second')
+    const refusal = (context: typeof first) =>
+      context.rpc.register(mounted, {ping: () => Effect.succeed('mounted')}).pipe(Effect.flip)
+    expect(yield* refusal(first)).toEqual(
+      new Error('Plugin first cannot register RPC page: the extension page is mounted'),
+    )
+    expect(yield* refusal(second)).toEqual(
+      new Error('Plugin second cannot register RPC page: the extension page is mounted'),
+    )
+
+    yield* first.rpc.register(definition('first-echo'), {ping: () => Effect.succeed('from first')})
+    yield* second.rpc.register(definition('second-echo'), {ping: () => Effect.succeed('from second')})
+    expect(yield* first.rpc(definition('second-echo')).ping(undefined)).toBe('from second')
+    expect(yield* second.rpc(definition('first-echo')).ping(undefined)).toBe('from first')
   }),
 )
 

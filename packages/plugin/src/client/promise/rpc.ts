@@ -56,8 +56,8 @@ const RpcError = z.object({
 })
 
 export function makeRpc(
-  call: ConcivRpcClient['plugin']['call'],
-  subscribeEvents: ConcivRpcClient['plugin']['events'],
+  raw: ConcivRpcClient,
+  events: {subscribe(options?: Pick<RequestOptions, 'signal'>): AsyncIterable<EventSubscribeOutput>},
 ): RpcApi {
   return (definition) => {
     const subscribe = (
@@ -72,7 +72,7 @@ export function makeRpc(
           const signal = options?.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal
           async function* read() {
             try {
-              for await (const published of await subscribeEvents({rpcId: definition.id, types: [name]}, {signal})) {
+              for await (const published of events.subscribe({signal})) {
                 if (signal.aborted) return
                 if (published.type !== type) continue
                 yield published as RpcEventPayload<Rpc.PortableDefinition>
@@ -100,7 +100,7 @@ export function makeRpc(
           name,
           async (input: unknown, options?: RpcCallOptions) => {
             try {
-              return await call({rpcId: definition.id, method: name, input}, {signal: options?.signal})
+              return await raw.plugin.call({rpcId: definition.id, method: name, input}, {signal: options?.signal})
             } catch (error) {
               const failure = RpcError.safeParse(error)
               if (!failure.success) throw error

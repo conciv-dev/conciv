@@ -71,13 +71,13 @@ import {outsideRefusal} from './api/outside-refusal.js'
 import {outsideRunCapabilities} from './api/outside-run.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
-import {owesFollowUp, pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
+import {holdForNextReply, owesFollowUp, pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
 import {
   answerPermission,
   followPermissionCards,
   pluginInstructions,
-  sessionSnapshot,
+  sessionToolDomain,
 } from './runtime/permission-cards.js'
 import {makePluginRuntime} from './runtime/plugin-runtime.js'
 import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-types.js'
@@ -559,6 +559,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         )
         .catch((error: unknown) => logError(`[core] the experimental.idle hook failed: ${String(error)}`))
     }
+    if (run.phase === 'aborted') {
+      holdForNextReply(primitives.page.queues, sessionId)
+      return
+    }
     followUpOwedQueues(sessionId)
   }
   const sessionModel = (sessionId: SessionId): string | null => readModel(db, sessionId)
@@ -605,7 +609,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const withPluginTools = (sessionId: SessionId, capabilities: CodeCapability[]): CodeCapability[] =>
     toolDomainCapabilities(
       capabilities,
-      pluginHost.runSync(sessionSnapshot(sessionId)),
+      pluginHost.runSync(sessionToolDomain(sessionId)),
       (effect, signal) => pluginHost.runPromiseExit(effect, {signal}),
       reportToolCollision,
     )
