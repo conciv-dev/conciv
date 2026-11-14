@@ -253,6 +253,7 @@ export const EventEnvelopeSchema = z.object({
   id: z.string(),
   type: z.string(),
   created: z.number().optional(),
+  durable: z.object({aggregateID: z.string(), seq: z.number(), version: z.number()}).optional(),
   data: z.record(z.string(), z.unknown()),
   location: z.object({directory: z.string()}).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),

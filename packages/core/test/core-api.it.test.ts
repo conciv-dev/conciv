@@ -5898,7 +5898,12 @@ export default {
       location: {directory: root},
       data: {},
     }
-    const deleted = {...announced, type: 'session.deleted', data: {sessionID: sessionId}}
+    const deleted = {
+      ...announced,
+      type: 'session.deleted',
+      durable: {aggregateID: sessionId, seq: expect.any(Number), version: 2},
+      data: {sessionID: sessionId},
+    }
     expect(await everything.next()).toEqual({done: false, value: announced})
     expect(await everything.next()).toEqual({done: false, value: deleted})
     expect(await deletions.next()).toEqual({done: false, value: deleted})
