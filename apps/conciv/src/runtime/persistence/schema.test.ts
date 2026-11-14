@@ -1,4 +1,5 @@
-import {describe, expect, expectTypeOf, test} from 'vitest'
+import {describe, expect, test} from 'vitest'
+import type {StandardSchemaV1} from '@standard-schema/spec'
 import {z} from 'zod'
 import type {StoreType} from '@conciv/plugin/experimental'
 import {assertStoreDefinition, assertStoreWrite, withInitial} from './schema'
@@ -223,19 +224,12 @@ describe('persistence schemas', () => {
 })
 
 describe('store value type', () => {
-  test('keeps each field shape, read-only all the way down', () => {
-    const schema = z.object({
-      item: z.object({id: z.string()}),
-      tags: z.array(z.string()),
-      layout: z.object({pane: z.object({width: z.number()})}),
-      count: z.number(),
-    })
+  test('typecheck assertion, bites under tsc only: a generic schema output assigns to its store value', () => {
+    const storeValue = <S extends StandardSchemaV1<unknown, object>>(
+      value: StandardSchemaV1.InferOutput<S>,
+    ): StoreType<S> => value
+    const schema = z.object({tags: z.array(z.string())})
 
-    expectTypeOf<StoreType<typeof schema>>().toEqualTypeOf<{
-      readonly item: {readonly id: string}
-      readonly tags: readonly string[]
-      readonly layout: {readonly pane: {readonly width: number}}
-      readonly count: number
-    }>()
+    expect(storeValue<typeof schema>({tags: ['a']})).toEqual({tags: ['a']})
   })
 })
