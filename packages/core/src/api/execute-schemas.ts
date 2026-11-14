@@ -1,4 +1,5 @@
 import {z} from 'zod'
+import {ChatContentPartSchema} from '@conciv/protocol/chat-types'
 
 export const EXECUTE_TOOL_NAME = 'execute_typescript'
 
@@ -21,6 +22,7 @@ export const ExecuteResultSchema = z.object({
   result: z.unknown().optional(),
   logs: z.array(z.string()).optional(),
   error: ExecuteErrorSchema.optional(),
+  files: z.array(ChatContentPartSchema).optional(),
 })
 
 export type ExecuteResult = z.infer<typeof ExecuteResultSchema>

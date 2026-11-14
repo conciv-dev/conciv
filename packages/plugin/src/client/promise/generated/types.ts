@@ -1,7 +1,6 @@
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {Json} from '../../../experimental/core.js'
-import type {PublicRef} from '../../../schema/location.js'
-import type {DurableEnvelope, PayloadBase} from '../../../schema/event.js'
+import type {PublicRef, Ref as LocationRef} from '../../../schema/location.js'
 import type {Ref} from '../../../schema/model.js'
 import type {Ruleset, Source} from '../../../schema/permission.js'
 
@@ -113,8 +112,7 @@ export interface SessionInfo {
   /** @remarks Not implemented yet. Always undefined in this version. */
   outcome?: 'succeeded' | 'failed' | 'interrupted'
   time: {
-    /** @remarks Not implemented yet. Always undefined in this version. */
-    created: number | undefined
+    created: number
     updated: number
     /** @remarks Not implemented yet. Always undefined in this version. */
     busy?: number
@@ -292,10 +290,82 @@ export interface ModelListInput {
   readonly types?: ReadonlyArray<'chat' | 'decision' | 'image' | (string & {})> | undefined
 }
 
-export type SessionDeleted = Omit<PayloadBase, 'type' | 'data'> & {
-  readonly type: 'session.deleted'
-  readonly durable: DurableEnvelope
-  readonly data: {readonly sessionId: SessionId}
+type InstructionHash = string
+
+type PermissionReply = 'once' | 'always' | 'reject'
+
+type AgentUpdated = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'agent.updated'
+  location?: LocationRef
+  data: {}
+}
+
+type SkillUpdated = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'skill.updated'
+  location?: LocationRef
+  data: {}
+}
+
+type PluginUpdated = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'plugin.updated'
+  location?: LocationRef
+  data: {}
+}
+
+type PermissionAsked = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'permission.asked'
+  location?: LocationRef
+  data: {
+    id: string
+    sessionId: SessionId
+    action: string
+    resources: Array<string>
+    save?: Array<string>
+    metadata?: Record<string, unknown>
+    source?: Source
+    message?: string
+  }
+}
+
+type PermissionReplied = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'permission.replied'
+  location?: LocationRef
+  data: {sessionId: SessionId; requestId: string; reply: PermissionReply}
+}
+
+export type SessionDeleted = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'session.deleted'
+  durable: {aggregateID: string; seq: number; version: 2}
+  location?: LocationRef
+  data: {sessionID: SessionId}
+}
+
+type SessionInstructionsUpdated = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'session.instructions.updated'
+  durable: {aggregateID: string; seq: number; version: 2}
+  location?: LocationRef
+  data: {sessionID: SessionId; delta: {[key: string]: InstructionHash | 'removed'}; text?: string}
 }
 
 type V2EventRpc = {
@@ -307,4 +377,21 @@ type V2EventRpc = {
   data: Record<string, unknown>
 }
 
-export type EventSubscribeOutput = SessionDeleted | V2EventRpc
+type V2EventServerConnected = {
+  id: string
+  metadata?: Record<string, unknown> | undefined
+  location?: PublicRef | undefined
+  type: 'server.connected'
+  data: {}
+}
+
+export type EventSubscribeOutput =
+  | AgentUpdated
+  | SkillUpdated
+  | PluginUpdated
+  | PermissionAsked
+  | PermissionReplied
+  | SessionDeleted
+  | SessionInstructionsUpdated
+  | V2EventRpc
+  | V2EventServerConnected

@@ -44,6 +44,7 @@
     "@npmcli/arborist": "catalog:",
     "@npmcli/config": "catalog:",
     "@parcel/watcher": "catalog:",
+    "@silvia-odwyer/photon-node": "catalog:",
     "@standard-schema/spec": "catalog:",
     "detect-libc": "catalog:",
     "drizzle-orm": "catalog:",

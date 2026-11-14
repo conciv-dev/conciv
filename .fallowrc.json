@@ -117,6 +117,13 @@
         "reason": "copied from opencode codemode/src/tool-runtime.ts: rank keeps opencode's shape"
       },
       {
+        "files": ["packages/plugin-host/src/core/image/photon-normalize.ts"],
+        "maxCyclomatic": 25,
+        "maxCognitive": 30,
+        "maxCrap": 110,
+        "reason": "copied whole from opencode core/src/image/photon-normalize.ts: normalize keeps opencode's shape"
+      },
+      {
         "files": ["packages/plugin-host/src/core/plugin/module.ts"],
         "maxCyclomatic": 35,
         "maxCrap": 250,
@@ -127,6 +134,18 @@
         "maxCognitive": 18,
         "maxCrap": 50,
         "reason": "copied from opencode packages/plugin-browser/src/machine.ts: transitionConnection keeps opencode's shape, transitionAttached and transitionAttaching carry the several-tabs deviation"
+      },
+      {
+        "files": ["packages/plugin/src/client/shared-events.ts"],
+        "maxCrap": 32,
+        "reason": "copied from opencode packages/client/src/shared-events.ts: run keeps opencode's shape"
+      },
+      {
+        "files": ["packages/plugin-host/test/core/plugin/host.ts"],
+        "maxCyclomatic": 40,
+        "maxCognitive": 26,
+        "maxCrap": 46,
+        "reason": "copied from opencode packages/core/test/plugin/host.ts: host keeps opencode's shape"
       }
     ]
   },
@@ -239,7 +258,7 @@
     },
     {
       "file": "packages/plugin/src/**",
-      "exports": ["Info", "Ref", "define", "Cleanup", "Id", "Name", "PluginOptions"]
+      "exports": ["Info", "Ref", "define", "Cleanup", "Id", "Name", "PluginOptions", "make"]
     },
     {
       "file": "packages/plugin-host/src/**",
@@ -288,7 +307,14 @@
         "State",
         "Plugin",
         "Snapshot",
-        "Entry"
+        "Entry",
+        "define",
+        "Context",
+        "Data",
+        "Failure",
+        "Session",
+        "match",
+        "Content"
       ]
     },
     {

@@ -401,13 +401,19 @@
     {
       "files": ["packages/core/**"],
       "rules": {
-        "conciv/test-file-budget": ["error", {"max": 3}]
+        "conciv/test-file-budget": ["error", {"max": 4}]
       }
     },
     {
       "files": ["packages/plugin-host/**"],
       "rules": {
         "conciv/test-file-budget": ["error", {"max": 34}]
+      }
+    },
+    {
+      "files": ["packages/plugin/**"],
+      "rules": {
+        "conciv/test-file-budget": ["error", {"max": 3}]
       }
     },
     {
