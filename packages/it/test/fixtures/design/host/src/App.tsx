@@ -88,6 +88,9 @@ const NAVBAR_WRAPPED = {...NAVBAR_ROW, width: 1596, margin: '0 auto', padding: '
 const NAVBAR_LINKS = {display: 'flex', alignItems: 'center', gap: 30} as const
 const NAVBAR_TEXT = {fontFamily: 'Barlow', fontSize: 18, lineHeight: '27px', textDecoration: 'none'} as const
 const NAVBAR_LINK = {...NAVBAR_TEXT, display: 'block', fontWeight: 500, color: '#e6e6e6'} as const
+const NAVBAR_SMALL = {fontFamily: 'Barlow', fontSize: 14, lineHeight: '21px', fontWeight: 500, color: '#e6e6e6', textDecoration: 'none'} as const
+const NAVBAR_SMALL_BUTTON = {fontSize: 14, lineHeight: '21px', padding: '12px 18px', borderRadius: 6} as const
+const NAVBAR_SMALL_CURRENT = {...NAVBAR_SMALL, ...NAVBAR_SMALL_BUTTON, display: 'block', background: '#262626', fontWeight: 600, color: '#ffffff'} as const
 const NAVBAR_CURRENT = {
   ...NAVBAR_TEXT,
   display: 'block',
@@ -491,6 +494,30 @@ export function App() {
       </main>
     )
   }
+  if (requested === 'navbar-inline')
+    return (
+      <main style={{margin: -24, background: '#141414'}} data-conciv-key="nImNaA">
+        <header style={{boxShadow: 'inset 0 -1px 0 0 #262626'}} data-conciv-key="nIhDrA">
+          <nav style={{...NAVBAR_ROW, margin: '0 80px', padding: '20px 0'}} data-conciv-key="nInVaA">
+            <a href="#" style={{display: 'flex', width: 118.48}} data-conciv-key="nIlGoA">
+              <span style={{width: 40.19, aspectRatio: '1', borderRadius: 5, background: '#9eff00'}} data-conciv-key="nIlMkA" />
+            </a>
+            <ul style={{...NAVBAR_LINKS, gap: 24, margin: 0, padding: 0, listStyle: 'none'}} data-conciv-key="nIuLsA">
+              {NAVBAR_ITEMS.map((item) => (
+                <li key={item} data-conciv-key="nIlItA">
+                  <a href="#" style={item === 'Process' ? NAVBAR_SMALL_CURRENT : NAVBAR_SMALL} data-conciv-key="nIaLkA">
+                    {item}
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <a href="#" style={{...NAVBAR_CONTACT, ...NAVBAR_SMALL_BUTTON}} data-conciv-key="nIcTaA">
+              Contact Us
+            </a>
+          </nav>
+        </header>
+      </main>
+    )
   if (requested === 'range-slider') {
     return (
       <main style={{margin: -24, paddingTop: 5.67, background: '#141414'}} data-conciv-key="rSmNaA">

@@ -7,14 +7,23 @@ export function layoutVote(input: {node: DesignNode; element: Laid}): number {
   const {cssom} = element
   if (cssom === undefined) return 0
   const mode = node.figma?.mode ?? null
-  if (mode !== null && FLOWS.has(mode)) return flowVote({node, element, cssom, row: mode === HORIZONTAL})
+  if (mode !== null && FLOWS.has(mode))
+    return paddedInside({node, element}) ? 0 : flowVote({node, element, cssom, row: mode === HORIZONTAL})
   if (node.kind !== 'text') return 0
   return laidOut(cssom) && element.kids > 0 ? -WEIGHT : WEIGHT
 }
 
 type Styles = IdNode['cssom'][number]
 
-type Laid = {box: Box; kids: number; cssom: Styles | undefined; sole: {box: Box; cssom: Styles | undefined} | undefined}
+type Laid = {
+  box: Box
+  kids: number
+  cssom: Styles | undefined
+  sole: Sole | undefined
+  wrapper: {box: Box; sole: Sole} | undefined
+}
+
+type Sole = {box: Box; cssom: Styles | undefined}
 
 const WEIGHT = designConfig.tolerances.figmaPair.layoutRoleWeight
 
@@ -50,7 +59,12 @@ function flowRow(cssom: Styles): boolean | null {
   return flex ? cssom.flexDirection.startsWith(ROW) : true
 }
 
-function paddedFlow(input: {node: DesignNode; element: Laid}): boolean | null {
+function paddedInside(input: {node: DesignNode; element: Laid}): boolean {
+  const {wrapper} = input.element
+  return wrapper !== undefined && paddedFlow({node: input.node, element: wrapper}) !== null
+}
+
+function paddedFlow(input: {node: DesignNode; element: {box: Box; sole: Sole | undefined}}): boolean | null {
   const {sole, box} = input.element
   const padded = PaddedSchema.safeParse(input.node.figma?.fields.layout)
   if (sole === undefined || sole.cssom === undefined || !padded.success) return null

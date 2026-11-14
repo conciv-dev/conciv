@@ -302,19 +302,23 @@ describe('a Figma wrapper that draws nothing', () => {
   })
 
   it('pairs its frame with the element that spans it, each link with the element that draws it, and a padded link holds its text', async () => {
-    await kit.goto('navbar-wrapped')
-    await call('design_get', await sliced('navbar', '50-533'))
-    const links = ['50:548', '50:549', '50:551', '50:552', '50:553', '50:554']
-    const kept = (row: ReturnType<typeof roundOf>['rows'][number]) =>
-      row.node === '50:534'
-        ? row.magnitude !== 'pin'
-        : row.node === '50:550' || (links.includes(row.node) && row.magnitude === 'paint')
-    const rows = async (page: string) => {
+    const rows = async (page: string, [bar, current, ...links]: string[]) => {
       await kit.goto(page)
       const {rows: found} = roundOf(await call('design_check', {}))
+      const kept = (row: (typeof found)[number]) =>
+        row.node === bar
+          ? row.magnitude !== 'pin'
+          : row.node === current || (links.includes(row.node) && row.magnitude === 'paint')
       return found.filter((row) => kept(row) && row.property !== 'font family').map((row) => row.text)
     }
-    expect([await rows('navbar-wrapped'), await rows('navbar-list')]).toEqual([[], []])
+    await kit.goto('navbar-wrapped')
+    await call('design_get', await sliced('navbar', '50-533'))
+    const wide = ['50:534', '50:550', '50:548', '50:549', '50:551', '50:552', '50:553', '50:554']
+    const drawn = [await rows('navbar-wrapped', wide), await rows('navbar-list', wide)]
+    await kit.goto('navbar-inline')
+    await call('design_get', await sliced('navbar-1440', '100-1107'))
+    const laptop = ['100:1107', '100:1121', '100:1118', '100:1119', '100:1122', '100:1120', '100:1123', '100:1124']
+    expect([...drawn, await rows('navbar-inline', laptop)]).toEqual([[], [], []])
   })
 })
 

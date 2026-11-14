@@ -1,5 +1,5 @@
 import {formatHex, parse} from 'culori'
-import {groupBy, uniqBy} from 'es-toolkit'
+import {groupBy, keyBy, uniqBy} from 'es-toolkit'
 import {z} from 'zod'
 import type {Ballot, Box, DesignNode, IdNode, LiveComponent, Match, Pairer} from '../../shared/defs.js'
 import {box as shapes} from '../../shared/box.js'
@@ -22,6 +22,7 @@ type Element = {
   classes: string[]
   cssom: IdNode['cssom'][number] | undefined
   sole: {box: Box; cssom: IdNode['cssom'][number] | undefined} | undefined
+  wrapper: {box: Box; sole: {box: Box; cssom: IdNode['cssom'][number] | undefined}} | undefined
   chain: string[]
   ancestors: Set<string>
 }
@@ -133,7 +134,8 @@ function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
       const painted = paintedTwin({pick: won.pick, scored, byPath, node: entry.node})
       const outer =
         painted === won.pick.path ? outermostTwin({pick: won.pick, scored, byPath, node: entry.node}) : painted
-      const path = won.ordered ?? holdingTwin({vote, entry, pick: won.pick, scored, path: outer})
+      const held = won.ordered ?? holdingTwin({vote, entry, pick: won.pick, scored, path: outer})
+      const path = glyphHolder({vote, node: entry.node, path: held})
       const chosen = {...won.pick, path}
       paired({vote, node: entry.node.id, pick: chosen})
       votes.push(...ballotsOf({node: entry.node.id, scored, byPath, won: chosen.path}))
@@ -296,15 +298,24 @@ function elementsOf(root: IdNode): Element[] {
         classes: site.src.classes,
         cssom,
         sole: undefined,
+        wrapper: undefined,
         chain,
         ancestors: new Set(chain),
       },
     ]
   })
   const children = groupBy(elements, (element) => element.chain[0] ?? '')
+  const parents = keyBy(elements, (element) => element.path)
   return elements.map((element) => {
     const [only, ...rest] = children[element.path] ?? []
-    return rest.length === 0 && only !== undefined ? {...element, sole: {box: only.box, cssom: only.cssom}} : element
+    const parent = parents[element.chain[0] ?? '']
+    const alone = (children[element.chain[0] ?? ''] ?? []).length === 1
+    const own = {box: element.box, cssom: element.cssom}
+    return {
+      ...element,
+      sole: rest.length === 0 && only !== undefined ? {box: only.box, cssom: only.cssom} : undefined,
+      wrapper: alone && parent !== undefined ? {box: parent.box, sole: own} : undefined,
+    }
   })
 }
 
@@ -518,6 +529,22 @@ function holdingTwin(input: {vote: Vote; entry: Node; pick: Pick; scored: Scored
     )
     .toSorted((a, b) => (vote.byPath.get(b.path)?.chain.length ?? 0) - (vote.byPath.get(a.path)?.chain.length ?? 0))
   return holders[0]?.path ?? path
+}
+
+function glyphHolder(input: {vote: Vote; node: DesignNode; path: string}): string {
+  const {vote, node, path} = input
+  const said = normalized(vote.byPath.get(path)?.text ?? '')
+  if (node.kind !== 'text' || said === '') return path
+  const [inner] = vote.elements
+    .filter(
+      (element) =>
+        element.ancestors.has(path) &&
+        !vote.taken.has(element.path) &&
+        element.box.w * element.box.h > 0 &&
+        normalized(element.text) === said,
+    )
+    .toSorted((left, right) => right.chain.length - left.chain.length)
+  return inner?.path ?? path
 }
 
 function holdsAll(input: {vote: Vote; path: string; said: string[]}): boolean {
