@@ -12,9 +12,11 @@ import {PluginHost} from '../../src/core/plugin/host.js'
 import {PluginModule} from '../../src/core/plugin/module.js'
 import {Rpc} from '../../src/core/rpc.js'
 import {Session} from '../../src/core/session.js'
+import {Skill} from '../../src/core/skill.js'
 import {Tool} from '../../src/core/tool.js'
 import {fromPromise} from '../../src/plugin/promise/adapter.js'
 import {Session as SessionSchema} from '../../src/schema/session.js'
+import {Skill as SkillSchema} from '../../src/schema/skill.js'
 import {testEffect} from './lib/effect'
 import {PluginTestLayer} from './plugin/fixture'
 
@@ -229,6 +231,7 @@ it.effect('disables a plugin whose transform fails after setup without publishin
   Effect.gen(function* () {
     const plugins = yield* Plugin.Service
     const tools = yield* Tool.Service
+    const skills = yield* Skill.Service
     let cleaned = false
     yield* plugins.activate([
       {
@@ -247,6 +250,16 @@ it.effect('disables a plugin whose transform fails after setup without publishin
         effect: (ctx) =>
           Effect.gen(function* () {
             yield* Effect.addFinalizer(() => Effect.sync(() => void (cleaned = true)))
+            yield* ctx.skill.transform((editor) =>
+              editor.add(
+                Schema.decodeUnknownSync(SkillSchema.Info)({
+                  id: 'broken',
+                  name: 'Broken',
+                  path: '/broken/SKILL.md',
+                  content: 'partial',
+                }),
+              ),
+            )
             yield* ctx.tool.transform((editor) => {
               editor.add({name: 'shared', description: 'partial', input: {}, execute: () => Effect.succeed({})})
               throw new Error('replay failed')
@@ -273,6 +286,7 @@ it.effect('disables a plugin whose transform fails after setup without publishin
       ref: expect.stringMatching(/^err_/),
     })
     expect(yield* get(tools, 'shared')).toMatchObject({description: 'original'})
+    expect(yield* skills.get(SkillSchema.Id.make('broken'))).toBeUndefined()
     expect(yield* get(tools, 'healthy')).toBeDefined()
   }),
 )

@@ -6,7 +6,7 @@ Builds the per-session and engine-wide scope objects that join the tool registry
 
 ## Interface
 
-- `makeCoreRuntime(deps)` / `CoreRuntimeDeps` (`core-runtime.ts`): `CoreRuntime` with `forSession(id)` and `engine`; a session's `run.stop(runIds?)` stops the plane's live run and then interrupts that session's in-flight `experimental.idle` trigger (`deps.interruptIdle`, `app.ts`), answering `{ok: true, stopped}` with `stopped` true when it stopped a live run or interrupted an idle trigger (as opencode, whose interrupt answers true while the execution's idle hook still runs); the `runIds` filter applies to the live run only
+- `makeCoreRuntime(deps)` / `CoreRuntimeDeps` (`core-runtime.ts`): `CoreRuntime` with `forSession(id)` and `engine`; a session's `run.stop(runIds?)` stops the plane's live run and then interrupts that session's in-flight `experimental.idle` trigger (`deps.interruptIdle`, `app.ts`), answering `{ok: true, stopped}` with `stopped` true when it stopped a live run or interrupted an idle trigger (as opencode, whose interrupt answers true while the execution's idle hook still runs); the `runIds` filter applies to the live run only; a session's `run.compact()` interrupts that session's in-flight `experimental.idle` trigger the same way first, then runs the plane's `compact` (which stops the live run and waits for it in `hydrate`), so a compact sent while an idle hook waits on its own session does not hang
 - `makeSessionPrimitives` / `SessionPrimitives` (`primitives.ts`): {stream, page, registry}
 - `SessionScope` (`scope-types.ts`): {id, model, tools, page, stream, asks, captures, history, run}
 - `EngineScope` (`scope-types.ts`): {catalog, staleness, symbolicate, navigation: {get, set}}

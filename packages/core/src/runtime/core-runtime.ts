@@ -124,7 +124,10 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
         const interrupted = await deps.interruptIdle(id)
         return {ok: true, stopped: stopped || interrupted}
       },
-      compact: () => deps.plane.compact(id),
+      compact: async () => {
+        await deps.interruptIdle(id)
+        await deps.plane.compact(id)
+      },
       live: () => deps.plane.live(id),
       record: (chunks) => deps.plane.record(id, chunks),
     },
