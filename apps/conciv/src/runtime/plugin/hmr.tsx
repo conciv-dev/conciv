@@ -12,9 +12,11 @@ export default function PluginHotReload() {
       const current = host.definitions().find((item) => item.id === definition.id)
 
       if (!current || host.status(definition.id) === 'disabled') return
-      void changed(current, definition).then((value) => {
-        if (value) host.reload(definition.id, definition)
-      })
+      void changed(current, definition)
+        .then((value) => {
+          if (value) host.reload(definition.id, definition)
+        })
+        .catch((cause: unknown) => console.error(`[plugin] ${definition.id}`, cause))
     })
   })
 
