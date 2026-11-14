@@ -2,7 +2,7 @@ import {describe, it, expect} from 'vitest'
 import {createSignal, For, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
 import {page, userEvent} from 'vitest/browser'
-import {Streamdown, type HastElement} from '../src/streamdown.js'
+import {Streamdown, type HastElement, type HighlightCode} from '../src/streamdown.js'
 import '../src/styles.css'
 
 describe('highlighted fence stability', () => {
@@ -309,6 +309,39 @@ describe('fence view fallback', () => {
     throw new Error('the view failed')
   }
 
+  function InnerView(props: {code: string}): JSX.Element {
+    return <figure aria-label="Inner view">{props.code}</figure>
+  }
+
+  function tokens(code: string): HastElement {
+    const words = code.trim().split(' ')
+    return {
+      type: 'element',
+      tagName: 'pre',
+      properties: {},
+      children: [
+        {
+          type: 'element',
+          tagName: 'code',
+          properties: {},
+          children: words.map((word) => ({
+            type: 'element',
+            tagName: 'span',
+            properties: {},
+            children: [{type: 'text', value: word}],
+          })),
+        },
+      ],
+    }
+  }
+
+  const fenced: HighlightCode = (code, language) => {
+    if (language === 'ts') return tokens(code)
+    if (language === 'claimed') return {view: DecliningView, fallback: tokens(code)}
+    if (language === 'nested') return {view: DecliningView, fallback: InnerView}
+    return undefined
+  }
+
   describe('Streamdown fence view fallback', () => {
     it('shows the code once a view falls back or throws, and mounts the view again for new code', async () => {
       const [code, setCode] = createSignal('first block')
@@ -323,6 +356,15 @@ describe('fence view fallback', () => {
             <Streamdown highlightCode={(_, language) => (language === 'boom' ? ThrowingView : undefined)}>
               {['```boom', 'thrown block', '```'].join('\n')}
             </Streamdown>
+          </section>
+          <section aria-label="Claimed">
+            <Streamdown highlightCode={fenced}>{['```claimed', 'alphaToken betaToken', '```'].join('\n')}</Streamdown>
+          </section>
+          <section aria-label="Unclaimed">
+            <Streamdown highlightCode={fenced}>{['```ts', 'alphaToken betaToken', '```'].join('\n')}</Streamdown>
+          </section>
+          <section aria-label="Nested">
+            <Streamdown highlightCode={fenced}>{['```nested', 'inner block', '```'].join('\n')}</Streamdown>
           </section>
         </>
       ))
@@ -339,6 +381,18 @@ describe('fence view fallback', () => {
       await expect.element(declining.getByRole('button', {name: 'Show the code'})).toBeVisible()
 
       await expect.element(throwing.getByText('thrown block')).toBeVisible()
+
+      const claimed = page.getByRole('region', {name: 'Claimed'})
+      const unclaimed = page.getByRole('region', {name: 'Unclaimed'})
+      await expect.element(unclaimed.getByText('alphaToken', {exact: true})).toBeVisible()
+      await claimed.getByRole('button', {name: 'Show the code'}).click()
+      await expect.element(claimed.getByRole('figure', {name: 'Fence view'})).not.toBeInTheDocument()
+      await expect.element(claimed.getByText('alphaToken', {exact: true})).toBeVisible()
+      await expect.element(claimed.getByText('betaToken', {exact: true})).toBeVisible()
+
+      const nested = page.getByRole('region', {name: 'Nested'})
+      await nested.getByRole('button', {name: 'Show the code'}).click()
+      await expect.element(nested.getByRole('figure', {name: 'Inner view'}).getByText('inner block')).toBeVisible()
     })
   })
 })

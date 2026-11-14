@@ -191,6 +191,7 @@ export {
   MarkdownProvider,
   useMarkdown,
   type MarkdownCodeAction,
+  type MarkdownCodeBlock,
   type MarkdownCodeBlocks,
   type MarkdownProps,
 } from './styled/markdown.js'

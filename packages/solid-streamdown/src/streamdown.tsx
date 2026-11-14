@@ -38,7 +38,9 @@ import {
 
 export type FenceView = (props: {code: string; fallback: () => void}) => JSX.Element
 
-export type HighlightCode = (code: string, lang: string | undefined) => HastElement | FenceView | undefined
+export type FencedView = {view: FenceView; fallback: HastElement | FenceView | undefined}
+
+export type HighlightCode = (code: string, lang: string | undefined) => HastElement | FenceView | FencedView | undefined
 
 export type CaretVariant = 'block' | 'circle'
 
@@ -132,12 +134,33 @@ function highlightedFence(node: HastElement, path: string, walk: HastWalk): Mark
   const text = hastText(code)
   const language = codeLang(elementAttributes(code.properties).class)
   const result = walk.highlightCode(text, language)
-  if (typeof result === 'function') {
-    const fallback = hastNode(node, path, {...walk, highlightCode: undefined})
-    return [{key: `${path}:view`, type: 'view', code: text, language, view: result, fallback}]
-  }
   if (!result) return undefined
-  return hastNode(result, path, {...walk, highlightCode: undefined})
+  const unhighlighted = {...walk, highlightCode: undefined}
+  if (typeof result !== 'function' && !('view' in result)) return hastNode(result, path, unhighlighted)
+  const fence = {path, code: text, language}
+  return [fenceViewNode(fence, result, hastNode(node, path, unhighlighted), unhighlighted)]
+}
+
+type Fence = {path: string; code: string; language: string | undefined}
+
+function viewNode(fence: Fence, key: string, view: FenceView, fallback: MarkdownNode[]): MarkdownViewNode {
+  return {key: `${fence.path}:${key}`, type: 'view', code: fence.code, language: fence.language, view, fallback}
+}
+
+function fenceViewNode(fence: Fence, result: FenceView | FencedView, plain: MarkdownNode[], walk: HastWalk) {
+  if (typeof result === 'function') return viewNode(fence, 'view', result, plain)
+  return viewNode(fence, 'view', result.view, fencedFallback(fence, result.fallback, plain, walk))
+}
+
+function fencedFallback(
+  fence: Fence,
+  fallback: FencedView['fallback'],
+  plain: MarkdownNode[],
+  walk: HastWalk,
+): MarkdownNode[] {
+  if (!fallback) return plain
+  if (typeof fallback === 'function') return [viewNode(fence, 'fallback-view', fallback, plain)]
+  return hastNode(fallback, fence.path, walk)
 }
 
 function textNodes(node: HastText, path: string, walk: HastWalk): MarkdownNode[] {
