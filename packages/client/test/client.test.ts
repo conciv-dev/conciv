@@ -6,7 +6,13 @@ import {chatConnection, type ChatConnection, type ChatTransport} from '../src/ch
 import {bootClientKit, type ClientKit} from './helpers.js'
 import {createServer, type IncomingMessage, type Server} from 'node:http'
 import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
-import {type ChatEvent, ChatEventType, runLifecycleEvent, type RunLifecycle} from '@conciv/protocol/chat-event-types'
+import {
+  type ChatEvent,
+  ChatEventType,
+  idleFailedEvent,
+  runLifecycleEvent,
+  type RunLifecycle,
+} from '@conciv/protocol/chat-event-types'
 import {acquirePushChannel, livePushChannelCount, type PageQueryFrame} from '../src/push-channel.js'
 import {MutationObserver, QueryClient} from '@tanstack/solid-query'
 import {makeQueryUtils} from '../src/query-utils.js'
@@ -289,6 +295,11 @@ describe('chat connection', () => {
           ended('fails', 'failed', 'provider down'),
           {type: ChatEventType.RUN_ERROR, threadId, runId: 'fails', message: 'provider down'},
         ],
+        'idle-fails': [
+          ended('idle-fails', 'completed'),
+          idleFailedEvent.create({runId: 'idle-fails'}),
+          {type: ChatEventType.RUN_FINISHED, threadId, runId: 'idle-fails', finishReason: 'stop'},
+        ],
         stopped: [ended('stopped', 'aborted')],
         'stopped-after-a-tool-step': [
           {type: ChatEventType.RUN_FINISHED, threadId, runId: 'stopped-after-a-tool-step', finishReason: 'tool_calls'},
@@ -318,15 +329,17 @@ describe('chat connection', () => {
         expect({
           completes: await collectLast('completes'),
           fails: await collectLast('fails'),
+          idleFails: await collectLast('idle-fails'),
           stopped: await collectLast('stopped'),
           stoppedAfterAToolStep: await collectLast('stopped-after-a-tool-step'),
           runErrors,
         }).toEqual({
           completes: {finished: 'length'},
           fails: {error: 'provider down'},
+          idleFails: {finished: 'stop'},
           stopped: {finished: 'stop'},
           stoppedAfterAToolStep: {finished: 'stop'},
-          runErrors: ['run error'],
+          runErrors: ['run error', 'run error'],
         })
       } finally {
         await server.close()
