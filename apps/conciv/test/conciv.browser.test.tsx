@@ -6181,7 +6181,7 @@ describe('installed plugins in settings', () => {
 })
 
 describe('a fixture plugin driven like a user', () => {
-  const fixtureBundle = `const {Panel, Registry, Slot, Store, usePanel} = require('@conciv/plugin/experimental')
+  const fixtureBundle = `const {Panel, Registry, Slot, Store, useDrawer, usePanel} = require('@conciv/plugin/experimental')
 const {createComponent} = require('solid-js/web')
 const {createRenderEffect, createSignal} = require('solid-js')
 const {z} = require('zod')
@@ -6260,7 +6260,13 @@ module.exports = {default: {stores: {
     list: () => [{id: 'phone', title: 'Phone tab', pinned: true}],
     render: () => {
       const panel = usePanel()
-      return line(() => 'Placed in ' + panel.placement())
+      const drawer = useDrawer()
+      const pushed = Object.assign(document.createElement('p'), {textContent: 'The pushed view'})
+      return [
+        line(() => 'Placed in ' + panel.placement()),
+        button('Push a view', (event) => drawer?.open({title: 'Pushed', content: pushed, trigger: event.currentTarget})),
+        button('Close the drawer', () => drawer?.close()),
+      ]
     },
   })
   ctx.add(Slot, {
@@ -6594,9 +6600,25 @@ module.exports = {default: {stores: {
     await expect.element(count(1)).not.toBeVisible()
     expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:phone'))
 
+    await control('Push a view').click()
+    await expect.element(shown('The pushed view')).toBeVisible()
+    await expect.element(control('Go back')).toBeVisible()
+    await expect.element(shown('Placed in mobile')).not.toBeVisible()
+    await control('Go back').click()
+    await expect.element(shown('Placed in mobile')).toBeVisible()
+    await expect.element(shown('The pushed view')).not.toBeInTheDocument()
+    await expect.element(control('Push a view')).toHaveFocus()
+    await control('Close the drawer').click()
+    await expect.element(editor()).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}`)
+
+    await tab('Phone').click()
+    await expect.element(shown('Placed in mobile')).toBeVisible()
     await tab('Chat').click()
     await expect.element(editor()).toBeVisible()
     expect(harness.pathname()).toBe(`/panel/${sessionId}`)
+    await editor().click()
+    await expect.element(editor()).toHaveFocus()
     await tab('Count').click()
     await expect.element(count(1)).toBeVisible()
     await expect.element(editor()).not.toBeInTheDocument()
