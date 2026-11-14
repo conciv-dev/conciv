@@ -343,7 +343,7 @@ describe('a page that drifts from the design', () => {
 })
 
 describe('a page between two frames', () => {
-  it('is checked at its own breakpoints that fall between the frames', async () => {
+  it('is checked at its own breakpoints that fall between the frames, and centred text whose box hugs it sits where the frame has it', async () => {
     const document = async (file: string): Promise<unknown> => JSON.parse(await readFile(fixture(file), 'utf8'))
     await kit.goto('hero-gap')
     await call('design_get', {
@@ -361,9 +361,13 @@ describe('a page between two frames', () => {
     const broken = await between()
     await kit.goto('hero-gap-fit')
     const fitted = await between()
+    await kit.goto('hero-hug')
+    const placed = VariantsSchema.parse(await call('design_check', {})).variants.map((variant) =>
+      variant.rows.filter((row) => row.text.includes('further')).map((row) => row.text),
+    )
     const again = await call('design_get', {route: '/?variant=hero-gap-fit'})
     const widths = z.object({variants: z.array(z.object({viewport: z.object({width: z.number()})}))}).safeParse(again)
-    expect([broken, fitted, widths.data?.variants.map((variant) => variant.viewport.width)]).toEqual([
+    expect([broken, fitted, placed, widths.data?.variants.map((variant) => variant.viewport.width)]).toEqual([
       [
         [],
         [
@@ -372,6 +376,7 @@ describe('a page between two frames', () => {
           'text Paragraph [100:1482] at 600 wide: sticks out of the page; keep it inside the page width',
         ],
       ],
+      [[], []],
       [[], []],
       [1280, 358],
     ])

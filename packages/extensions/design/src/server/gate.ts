@@ -108,6 +108,7 @@ type Record = {
   box: Box
   parent: string | null
   leaf: boolean
+  anchor: number
   direction?: 'row' | 'column'
 }
 
@@ -169,6 +170,10 @@ const AXES = {
 const FLAT_KINDS = new Set(['text', 'line'])
 const LINES = 'lines'
 const SIZING = {expected: 'auto', actual: 'fixed'}
+const TextAlignSchema = z
+  .object({font: z.object({align: z.string().catch('')}).catch({align: ''})})
+  .catch({font: {align: ''}})
+const TEXT_ANCHORS: {[align: string]: number} = {CENTER: 0.5, RIGHT: 1}
 const FlowSchema = z.object({mode: z.enum(['HORIZONTAL', 'VERTICAL']), gap: z.number(), pad: z.array(z.number())})
 
 function heldTexts(input: {design: Design; reads: ReturnType<typeof readIds>}): Set<string> {
@@ -201,6 +206,7 @@ function recordsOf(root: DesignNode): Record[] {
         box,
         parent: gate.parent,
         leaf: gate.leaf,
+        anchor: gate.kind === 'text' ? (TEXT_ANCHORS[TextAlignSchema.parse(node.figma?.fields).font.align] ?? 0) : 0,
         ...(gate.direction === undefined ? {} : {direction: gate.direction}),
       },
     ]
@@ -445,8 +451,8 @@ function positionRows(input: {
 }): Row[] {
   const {label, r, d, box, parent, pd, siblings} = input
   const parentBox = rounded(pd.bounds)
-  const dl = box.x - parentBox.x
-  const rl = r.box.x - parent.box.x
+  const dl = Math.round(box.x + box.w * r.anchor - parentBox.x)
+  const rl = Math.round(r.box.x + r.box.w * r.anchor - parent.box.x)
   const dt = box.y - parentBox.y
   const rt = r.box.y - parent.box.y
   return [

@@ -90,6 +90,8 @@ const HERO_GAP_CSS = [
   '@media (width >= 600px) { .hero-gap { gap: 10px; padding: 100px 250px; } .hero-gap-heading, .hero-gap-text { width: 780px; } }',
 ].join(' ')
 const HERO_FIT_CSS = HERO_GAP_CSS.replace('width: 780px', 'width: 100%; max-width: 780px')
+const HERO_HUG_CSS = HERO_GAP_CSS.replace('width: 780px', 'width: fit-content')
+const HERO_CSS: Record<string, string> = {'hero-gap': HERO_GAP_CSS, 'hero-gap-fit': HERO_FIT_CSS, 'hero-hug': HERO_HUG_CSS}
 const CONTACT_ITEMS = ['hello@squareup.com', '+91 91813 23 2309', 'Somewhere in the World']
 const CONTACT_ICONS = ['/design/100-1516.png', '/design/100-1520.png', '/design/100-1524.png']
 function contactBarCss(input: {breakpoint: number; footer: string}): string {
@@ -295,10 +297,10 @@ export function App() {
       </main>
     )
   }
-  if (requested === 'hero-gap' || requested === 'hero-gap-fit') {
+  if (requested === 'hero-gap' || requested === 'hero-gap-fit' || requested === 'hero-hug') {
     return (
       <main style={{margin: -24, background: '#1a1a1a'}} data-conciv-key="hGmNaA">
-        <style data-conciv-key="hGsTyA">{requested === 'hero-gap' ? HERO_GAP_CSS : HERO_FIT_CSS}</style>
+        <style data-conciv-key="hGsTyA">{HERO_CSS[requested]}</style>
         <section className="hero-gap" data-conciv-key="hGsCnA">
           <h1 className="hero-gap-heading" data-conciv-key="hGhDgA">
             Process of Starting the Project
