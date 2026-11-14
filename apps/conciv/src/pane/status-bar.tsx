@@ -1,4 +1,4 @@
-import {Show, untrack, type Component, type JSX} from 'solid-js'
+import {Show, createMemo, untrack, type Component, type JSX} from 'solid-js'
 import {Key} from '@solid-primitives/keyed'
 import {Dynamic} from 'solid-js/web'
 import {TabsPrimitive as Tabs, TruncatedText} from '@conciv/ui-kit-system'
@@ -84,11 +84,12 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
           <Key each={props.views} by="id">
             {(view, index) => {
               const content = untrack(view).content
+              const locked = createMemo(() => props.disabled && view().id !== props.activeView)
               return (
                 <Tabs.Trigger
                   class={VIEW_BTN}
                   value={view().id}
-                  disabled={props.disabled && view().id !== props.activeView}
+                  disabled={locked()}
                   aria-label={content ? (view().missing ? view().label : undefined) : view().label}
                 >
                   <Show when={view().icon}>
