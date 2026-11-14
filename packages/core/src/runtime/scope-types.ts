@@ -20,7 +20,7 @@ export type SessionTools = {
   call: (
     name: string,
     input: unknown,
-    options?: {toolCallId?: string; signal?: AbortSignal; outside?: boolean; gate?: RegistryCallGate},
+    options?: {toolCallId?: string; signal?: AbortSignal; gate?: RegistryCallGate},
   ) => Promise<unknown>
   has: (name: string) => boolean
   catalog: ToolCatalog

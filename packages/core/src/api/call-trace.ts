@@ -2,7 +2,12 @@ import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {generateMessageId, type OutsideCallMetadataSchema} from '@conciv/protocol/chat-message-types'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
-import {CONCIV_CLIENT_HEADER, CONCIV_NAMED_TAB_HEADER, CONCIV_ORIGIN_HEADER} from '@conciv/protocol/chat-types'
+import {
+  CONCIV_CLIENT_HEADER,
+  CONCIV_NAMED_TAB_HEADER,
+  CONCIV_ORIGIN_HEADER,
+  type SessionId,
+} from '@conciv/protocol/chat-types'
 import {safeStringify} from '@conciv/contract'
 import {logError} from '../lib/debug.js'
 
@@ -13,6 +18,26 @@ const HubOriginSchema = z.object({
 })
 
 type HubOrigin = {client: string | null; namedTab: boolean}
+
+const KEPT_HUB_CALLS = 1000
+
+export type HubCalls = {
+  add: (sessionId: SessionId, callId: string) => void
+  has: (sessionId: SessionId, callId: string | undefined) => boolean
+}
+
+export function makeHubCalls(): HubCalls {
+  const calls = new Map<SessionId, Set<string>>()
+  return {
+    add: (sessionId, callId) => {
+      const kept = calls.get(sessionId) ?? new Set<string>()
+      kept.add(callId)
+      calls.set(sessionId, kept)
+      for (const old of [...kept].slice(0, Math.max(0, kept.size - KEPT_HUB_CALLS))) kept.delete(old)
+    },
+    has: (sessionId, callId) => callId !== undefined && calls.get(sessionId)?.has(callId) === true,
+  }
+}
 
 type CallMarker = z.infer<typeof OutsideCallMetadataSchema> | null
 

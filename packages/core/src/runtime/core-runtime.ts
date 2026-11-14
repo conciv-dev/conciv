@@ -76,13 +76,12 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
   const model = deps.model(id)
   const view = registry.whenPageConnected(() => page.bus.connected(id))
   const agentId: string = id
-  const requestFor = (options: {toolCallId?: string; signal?: AbortSignal; outside?: boolean} = {}): ToolRequest => ({
+  const requestFor = (options: {toolCallId?: string; signal?: AbortSignal} = {}): ToolRequest => ({
     sessionId: id,
     agentId,
     model,
     ...(options.toolCallId === undefined ? {} : {toolCallId: options.toolCallId}),
     ...(options.signal === undefined ? {} : {signal: options.signal}),
-    ...(options.outside === true ? {outside: true} : {}),
   })
   return {
     id,

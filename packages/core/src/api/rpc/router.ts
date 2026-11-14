@@ -258,6 +258,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         const assist = deps.assist(context.session.id).find((capability) => capability.name === input.name)
         if (assist === undefined && !context.session.tools.has(input.name)) throw errors.UNKNOWN_TOOL()
         const trace = callTrace((header) => rpcHeader(context, header))
+        if (trace.hub !== null) deps.code.hubCall(context.session.id, trace.callId)
         const gate: RegistryCallGate = async (run) => {
           await admitOutsideCall(deps, context, context.session, signal, path.join('.'))
           await refuseUnapproved(deps, input.name, input.input, {context, errors, signal})
@@ -269,7 +270,6 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
                 toolCallId: trace.callId,
                 signal,
                 gate,
-                outside: trace.hub !== null,
               })
             : gate(() => assist.execute(input.input))
         return call().catch((error: unknown) => {

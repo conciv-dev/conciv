@@ -22,6 +22,7 @@ import {ChatEventType, pageQueueEvent, type ChatEvent} from '@conciv/protocol/ch
 import {generateMessageId} from '@conciv/protocol/chat-message-types'
 import {queueNotice, RESULT_CAP_CHARS} from '@conciv/contract'
 import type {Journal, PageBus} from './page-bus.js'
+import type {HubCalls} from '../api/call-trace.js'
 import {logError} from '../lib/debug.js'
 
 type Landed = 'played' | 'stopped' | 'lost'
@@ -33,7 +34,6 @@ type Delivery = 'owed' | 'claimed' | 'nextReply' | 'delivered'
 export type QueueRecord = {
   queueId: string
   sessionId: SessionId
-  outside: boolean
   toolCallId: string | undefined
   tools: string[]
   settled: (Settled | undefined)[]
@@ -45,7 +45,6 @@ export type QueueRecord = {
 export type QueueStart = {
   agentId: string
   input: Record<string, unknown>
-  outside: boolean
   toolCallId: string | undefined
 }
 
@@ -58,7 +57,7 @@ export type PageQueues = {
     waitMs: number,
     signal?: AbortSignal,
   ) => Promise<PageQueueResult | PageQueueProgress>
-  undelivered: (sessionId: SessionId, outside: boolean) => PageQueueResult[]
+  undelivered: (sessionId: SessionId, hub: boolean) => PageQueueResult[]
   startedBy: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => PageQueueHandle[]
   claim: (record: QueueRecord) => boolean
   confirm: (record: QueueRecord, delivery: Exclude<Delivery, 'claimed'>) => void
@@ -152,7 +151,12 @@ function awaitsDelivery(record: QueueRecord): boolean {
   return (record.delivery === 'owed' || record.delivery === 'nextReply') && record.result !== null
 }
 
-export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: number}): PageQueues {
+export function makePageQueues(deps: {
+  bus: PageBus
+  journal: Journal
+  hubCalls: HubCalls
+  syncMs?: number
+}): PageQueues {
   const records = new Map<string, QueueRecord>()
   const listeners: Array<(record: QueueRecord) => void> = []
 
@@ -202,7 +206,6 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
     const record: QueueRecord = {
       queueId,
       sessionId,
-      outside: given.outside,
       toolCallId: given.toolCallId,
       tools: actions.map((action) => action.tool),
       settled: actions.map(() => undefined),
@@ -268,9 +271,11 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
     return wait(sessionId, queueId, deps.syncMs ?? PAGE_QUEUE_SYNC_MS, signal)
   }
 
-  function undelivered(sessionId: SessionId, outside: boolean): PageQueueResult[] {
+  const hubCalled = (record: QueueRecord): boolean => deps.hubCalls.has(record.sessionId, record.toolCallId)
+
+  function undelivered(sessionId: SessionId, hub: boolean): PageQueueResult[] {
     return [...records.values()].flatMap((record) => {
-      if (record.sessionId !== sessionId || record.outside !== outside || record.result === null) return []
+      if (record.sessionId !== sessionId || hubCalled(record) !== hub || record.result === null) return []
       return deliver(record) ? [record.result] : []
     })
   }
@@ -305,7 +310,7 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
 
   function owedTurn(sessionId: SessionId): QueueRecord[] {
     return [...records.values()].filter(
-      (record) => record.sessionId === sessionId && !record.outside && awaitsDelivery(record),
+      (record) => record.sessionId === sessionId && !hubCalled(record) && awaitsDelivery(record),
     )
   }
 
