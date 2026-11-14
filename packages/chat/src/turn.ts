@@ -158,7 +158,13 @@ function promptEvent(sessionId: SessionId, messageId: string, message: ModelMess
   const parts = contentParts(message.content)
   const text = parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('\n')
   const files = parts.flatMap(promptFile)
-  return {sessionId, messageId, prompt: {text, ...(files.length === 0 ? {} : {files})}, delivery: 'queue'}
+  return {
+    sessionId,
+    messageId,
+    prompt: {text, ...(files.length === 0 ? {} : {files})},
+    ...(message.metadata === undefined ? {} : {metadata: message.metadata}),
+    delivery: 'queue',
+  }
 }
 
 const DATA_URI = /^data:([^;,]+);base64,(.*)$/s
@@ -176,7 +182,7 @@ function attachmentPart(file: PromptFile): ContentPart {
 
 function promptedMessage(message: ModelMessage, event: SessionPrompt): ModelMessage {
   const text: ContentPart[] = event.prompt.text === '' ? [] : [{type: 'text', content: event.prompt.text}]
-  return {...message, content: [...text, ...(event.prompt.files ?? []).map(attachmentPart)]}
+  return {...message, content: [...text, ...(event.prompt.files ?? []).map(attachmentPart)], metadata: event.metadata}
 }
 
 function askedMessages(turn: Turn, messages: ModelMessage[], harness: HarnessAdapter): ModelMessage[] {

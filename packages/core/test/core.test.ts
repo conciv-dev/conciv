@@ -2859,12 +2859,12 @@ describe('session prompt hook', () => {
     ],
   }
 
-  async function sentPartForPart(wsBase: string, session: string) {
+  async function sentPartForPart(wsBase: string, session: string, message: ChatMessage = partForPart) {
     const abort = new AbortController()
     onTestFinished(() => abort.abort())
     const connection = webSocket(`${wsBase}${CHAT_WS_PATH}`)
     const chunks = connection.subscribe(abort.signal)
-    void connection.send([partForPart], {}, abort.signal, {threadId: session, runId: randomUUID()}).catch(() => {})
+    void connection.send([message], {}, abort.signal, {threadId: session, runId: randomUUID()}).catch(() => {})
     for await (const chunk of chunks) {
       if (chunk.type === ChatEventType.RUN_FINISHED || chunk.type === ChatEventType.RUN_ERROR) return chunk.type
     }
@@ -2897,6 +2897,33 @@ describe('session prompt hook', () => {
     expect(seen).toEqual(['first line\nsecond line'])
     expect((await kit.hydrate(session)).messages[0]?.parts).toEqual(partForPart.parts)
     expect(asked).toEqual([partForPart.parts])
+  })
+
+  test('a prompt hook sees the metadata the client sent and its change lands on the stored message', async () => {
+    const seen: unknown[] = []
+    const plugin = Plugin.define({
+      id: 'prompt-metadata',
+      async setup(ctx) {
+        await ctx.session.hook('prompt', (event) => {
+          seen.push(structuredClone(event.metadata))
+          if (event.metadata?.note === 'from the client') event.metadata = {...event.metadata, tagged: 'by the hook'}
+        })
+      },
+    })
+    const {kit} = await promptKit([plugin])
+    const session = await kit.session()
+    const sent: ChatMessage = {...partForPart, id: 'message-metadata', metadata: {note: 'from the client'}}
+    const untouched: ChatMessage = {...partForPart, id: 'message-untouched', metadata: {note: 'left alone'}}
+    const storedMetadata = async (id: string) =>
+      (await kit.hydrate(session)).messages.find((message) => message.id === id)?.metadata
+
+    expect(await sentPartForPart(kit.wsBase, session, sent)).toBe(ChatEventType.RUN_FINISHED)
+    expect(seen).toEqual([{note: 'from the client'}])
+    expect(await storedMetadata('message-metadata')).toEqual({note: 'from the client', tagged: 'by the hook'})
+
+    expect(await sentPartForPart(kit.wsBase, session, untouched)).toBe(ChatEventType.RUN_FINISHED)
+    expect(seen).toEqual([{note: 'from the client'}, {note: 'left alone'}])
+    expect(await storedMetadata('message-untouched')).toEqual({note: 'left alone'})
   })
 
   test('a throwing prompt hook stops the later hooks, fails the prompt and stores nothing for that message id', async () => {
