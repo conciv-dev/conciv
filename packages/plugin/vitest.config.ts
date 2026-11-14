@@ -27,7 +27,7 @@ export default defineConfig({
         test: {
           name: 'node',
           environment: 'node',
-          include: ['test/plugin.test.ts'],
+          include: ['test/plugin.test.ts', 'test/shared-events.test.ts'],
           testTimeout: ciTest().testTimeout,
           hookTimeout: ciTest().hookTimeout,
         },

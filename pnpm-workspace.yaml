@@ -74,6 +74,7 @@ catalog:
   '@playwright/test': '^1.64.1'
   '@shikijs/langs-precompiled': 4.5.0
   '@shikijs/magic-move': '^4.5.0'
+  '@silvia-odwyer/photon-node': 0.3.4
   '@solid-primitives/date': '^2.1.8'
   '@solid-primitives/event-listener': '^2.4.6'
   '@solid-primitives/keyed': '^1.5.3'

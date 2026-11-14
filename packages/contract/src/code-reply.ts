@@ -26,12 +26,20 @@ type PartsFit = {kept: CodeReplyContent[]; firstDropped: string | null; budget: 
 
 export function codeExecuteReply(executed: CodeExecuteResult): CodeReply {
   const notices = executed.finished.map(queueNoticePart)
+  const files = (executed.files ?? []).map(partContent)
   if (!executed.ok) {
     const logs = executed.logs.length === 0 ? {} : {logs: executed.logs}
     const text = cappedText(safeStringify({error: executed.error, ...logs}))
-    return {content: [...notices, {type: 'text', text}], isError: true}
+    return {content: [...notices, {type: 'text', text}, ...files], isError: true}
   }
-  return {content: [...notices, ...resultContent(executed.result, executed.logs)]}
+  return {content: [...notices, ...resultContent(executed.result, executed.logs), ...files]}
+}
+
+export function toolValueReply(value: unknown): CodeReply {
+  if (isContentParts(value)) return {content: cappedParts(value.map(partContent))}
+  return {
+    content: [{type: 'text', text: cappedText(safeStringify(withoutImages(value)))}, ...imageBlocks(imagesIn(value))],
+  }
 }
 
 export function codeDiscoverReply(discovered: CodeDiscoverResult): CodeReply {

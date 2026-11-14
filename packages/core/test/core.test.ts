@@ -13,7 +13,9 @@ import {once} from 'node:events'
 import {request as httpRequest} from 'node:http'
 import {createServer} from 'node:net'
 import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {createRequire} from 'node:module'
+import {dirname, join} from 'node:path'
+import {fileURLToPath} from 'node:url'
 import {text as bodyText} from 'node:stream/consumers'
 import {randomUUID} from 'node:crypto'
 import {setImmediate, setTimeout as wait} from 'node:timers/promises'
@@ -85,6 +87,7 @@ import {
   CodeModeCatalog,
   Database,
   Global,
+  Image,
   InstructionEntry,
   InstructionEntrySchema,
   KV,
@@ -104,7 +107,7 @@ import {
   SkillInstructions,
   Tool,
 } from '@conciv/plugin-host'
-import {makeRpc, Rpc as PluginRpc} from '@conciv/plugin'
+import {Conciv, Rpc as PluginRpc} from '@conciv/plugin'
 import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {isEqual} from 'es-toolkit'
 import getPort from 'get-port'
@@ -172,7 +175,7 @@ import {
   followPermissionCards,
   permissionSessions,
   pluginInstructions,
-  sessionSnapshot,
+  sessionToolDomain,
 } from '../src/runtime/permission-cards.js'
 import {bootMadeApp, chunkWithInlineMap, cleanupChunks, makeChatFixture, requireClaude} from './helpers.js'
 
@@ -277,7 +280,7 @@ describe('chat plane', () => {
       description: 'Echo the text back.',
       errors: [],
       inputSchema: z.object({text: z.string()}),
-      execute: async (input) => input,
+      execute: async (input) => ({value: input, files: []}),
     }
     const secret = {...echo, name: 'unit_secret', path: 'unit_secret', inputSchema: z.object({apiKey: z.string()})}
     const chat = await plane(cliHarness(cli), root, {
@@ -301,7 +304,9 @@ describe('chat plane', () => {
     await ensureRow(db, builtins, 'fake-cli', root)
     const host = ManagedRuntime.make(
       Layer.mergeAll(SkillInstructions.layer, SessionProjector.layer, Tool.layer).pipe(
-        Layer.provideMerge(Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, permissionSessions(db))),
+        Layer.provideMerge(
+          Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, Image.layer, permissionSessions(db)),
+        ),
         Layer.provideMerge(Layer.mergeAll(Bus.configured(), KV.layer)),
         Layer.provideMerge(
           Layer.succeed(
@@ -363,7 +368,7 @@ describe('chat plane', () => {
     const capabilities = (id: SessionId): CodeCapability[] =>
       toolDomainCapabilities(
         id === builtins ? [echo, secret] : [],
-        host.runSync(sessionSnapshot(id)),
+        host.runSync(sessionToolDomain(id)),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )
@@ -511,7 +516,7 @@ describe('chat plane', () => {
       capabilities: (id) =>
         toolDomainCapabilities(
           pinged,
-          host.runSync(sessionSnapshot(id)),
+          host.runSync(sessionToolDomain(id)),
           (effect, signal) => host.runPromiseExit(effect, {signal}),
           () => undefined,
         ),
@@ -2595,13 +2600,8 @@ describe('plugin rpc over the socket', () => {
           }),
         ).pipe(Scope.provide(host.runSync(Scope.make()))),
       )
-      const {plugin} = client.rpc
-      const opened = Promise.withResolvers<void>()
-      const api = makeRpc(plugin.call, async (input, options) => {
-        const events = await plugin.events(input, options)
-        opened.resolve()
-        return events
-      })
+      const conciv = Conciv.make(client.rpc)
+      const api = conciv.rpc
       const acme = api(AcmeClient)
       expect(await acme.search({query: 'docs'})).toEqual({hits: ['docs']})
 
@@ -2625,15 +2625,18 @@ describe('plugin rpc over the socket', () => {
         data: {retryAfter: 5},
       })
 
+      const connected = conciv.event.subscribe()[Symbol.asyncIterator]()
+      expect(await connected.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
       const typed = acme.events.subscribe('indexed')[Symbol.asyncIterator]()
       const typedNext = typed.next()
-      const all = await plugin.events({rpcId: 'acme'})
-      await opened.promise
+      const all = await client.rpc.event.subscribe({types: ['rpc.acme.indexed']})
+      expect(await all.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
       await host.runPromise(registration.events.emit('indexed', {count: 3}))
       const indexed = {done: false, value: expect.objectContaining({type: 'rpc.acme.indexed', data: {count: 3}})}
       expect(await Promise.all([typedNext, all.next()])).toEqual([indexed, indexed])
       await typed.return?.()
       await all.return()
+      await connected.return?.()
     } finally {
       connection.release()
       client.close()
@@ -2657,7 +2660,7 @@ describe('plugin permission cards', () => {
     const host = ManagedRuntime.make(
       Layer.mergeAll(Tool.layer, Permission.layer).pipe(
         Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(db))),
-        Layer.provideMerge(PluginHooks.layer),
+        Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, Image.layer)),
         Layer.provideMerge(Bus.configured()),
         Layer.provideMerge(
           Layer.succeed(
@@ -2715,7 +2718,7 @@ describe('plugin permission cards', () => {
     const buildCapabilities = (sessionId: SessionId) =>
       toolDomainCapabilities(
         [],
-        host.runSync(sessionSnapshot(sessionId)),
+        host.runSync(sessionToolDomain(sessionId)),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )
@@ -2748,11 +2751,11 @@ describe('plugin permission cards', () => {
     ])
 
     expect(await decide(id, shown.approvalId, true, 'session')).toEqual({startsTurn: false})
-    await expect(reading).resolves.toBe('read src/.env')
+    await expect(reading).resolves.toEqual({value: 'read src/.env', files: []})
     expect(await readNextEvent(second, readApprovalSettled)).toBe(shown.approvalId)
     expect((await plane.hydrate(id)).pendingApprovals).toEqual([])
     expect(await plane.decide(id, shown.approvalId, true, 'once')).toBeNull()
-    await expect(call(id, 'src/.env')).resolves.toBe('read src/.env')
+    await expect(call(id, 'src/.env')).resolves.toEqual({value: 'read src/.env', files: []})
 
     const foreign = call(other, 'other/.env')
     const otherAsk = await readNextEvent(runtime.forSession(other).stream.events(clients.signal), readApprovalAsk)
@@ -2762,7 +2765,7 @@ describe('plugin permission cards', () => {
     await expect(foreign).rejects.toThrow()
 
     await setPermissions(db, other, [{action: 'read', resource: '*', effect: 'allow'}])
-    await expect(call(other, 'other/.env')).resolves.toBe('read other/.env')
+    await expect(call(other, 'other/.env')).resolves.toEqual({value: 'read other/.env', files: []})
     await setPermissions(db, other, [{action: 'unit_read_env', resource: '*', effect: 'deny'}])
     expect(buildCapabilities(other)).toEqual([])
     expect(buildCapabilities(id).map((capability) => capability.name)).toEqual(['unit_read_env'])
@@ -3041,10 +3044,13 @@ describe('direct tools on the MCP surface', () => {
       errors: [],
       inputSchema: z.object({}),
       direct: true,
-      execute: async () => 'kept',
+      execute: async () => ({value: 'kept', files: []}),
     }
     const [kept] = outsideRunCapabilities([direct])
-    await expect(kept?.execute({}, {sessionId: id, agentId: id, model: null})).resolves.toBe('kept')
+    await expect(kept?.execute({}, {sessionId: id, agentId: id, model: null})).resolves.toEqual({
+      value: 'kept',
+      files: [],
+    })
 
     await setPermissions(made.chat.db, id, [{action: 'execute', resource: '*', effect: 'deny'}])
     expect((await listed()).toSorted()).toEqual(['unit_coded', 'unit_direct'])
@@ -3153,7 +3159,9 @@ describe('plugin context keys provided by core', () => {
         provideHarnessModels(listingHarness([OPUS, SONNET, RETIRED], 'sonnet')),
         provideGlobalRoots(home),
       ).pipe(
-        Layer.provideMerge(Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, permissionSessions(db))),
+        Layer.provideMerge(
+          Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, Image.layer, permissionSessions(db)),
+        ),
         Layer.provideMerge(Layer.mergeAll(Bus.configured(), KV.layer)),
         Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),
       ),
@@ -3232,6 +3240,22 @@ describe('plugin context keys provided by core', () => {
       Effect.runPromise(Model.Service.use(run).pipe(Effect.provide(provideHarnessModels(listingHarness([])))))
     expect(await empty((service) => service.available())).toEqual([])
     expect(await empty((service) => service.default())).toBeUndefined()
+    const listed = (
+      harnessModels: HarnessModel[],
+      defaultModel: string,
+      run: (service: Model.Interface) => Effect.Effect<unknown>,
+    ) =>
+      Effect.runPromise(
+        Model.Service.use(run).pipe(Effect.provide(provideHarnessModels(listingHarness(harnessModels, defaultModel)))),
+      )
+    expect(await listed([RETIRED, OPUS, SONNET], 'retired', (service) => service.default())).toEqual(filled(OPUS, []))
+    expect(await listed([RETIRED, OPUS, SONNET], 'retired', (service) => service.available())).toEqual([
+      filled(OPUS, []),
+      filled(SONNET, sonnetVariants),
+    ])
+    expect(await listed([RETIRED, SONNET, OPUS], 'unlisted', (service) => service.default())).toEqual(
+      filled(SONNET, sonnetVariants),
+    )
 
     const roots = await host.runPromise(Global.Service)
     expect(roots).toEqual({cache: join(home, 'cache'), state: join(home, 'state')})
@@ -3277,12 +3301,13 @@ describe('plugin context keys provided by core', () => {
       agent: 'build',
       cost: 0,
       tokens: {input: 0, output: 0, reasoning: 0, cache: {read: 0, write: 0}},
-      time: {created: undefined, updated: expect.any(Number)},
+      time: {created: expect.any(Number), updated: expect.any(Number)},
       title: 'Plan the port',
       metadata: {ticket: 7, tags: ['plugins']},
       permissions: [{action: 'bash', resource: '*', effect: 'deny'}],
       location: {directory: stateRoot},
     })
+    expect(created.time.created).toBeLessThanOrEqual(created.time.updated)
     expect(await key.run((sessions) => sessions.get(sessionId))).toEqual(created)
 
     await key.run((sessions) =>
@@ -3300,6 +3325,18 @@ describe('plugin context keys provided by core', () => {
     expect(second.model).toEqual({id: 'opus', providerId: 'listing-cli'})
     const listed = await key.run((sessions) => sessions.list())
     expect(listed.data.map((session) => session.id).toSorted()).toEqual([sessionId, second.id].toSorted())
+    expect(listed.data.find((session) => session.id === sessionId)?.time.created).toBe(created.time.created)
+    expect(await key.fail((sessions) => sessions.create({title: 'Planned', agent: 'plan', location}))).toMatchObject({
+      _tag: 'Session.AgentNotFoundError',
+      sessionId: expect.stringMatching(/^conciv_/),
+      agent: 'plan',
+    })
+    expect(
+      await key.fail((sessions) => sessions.create({model: {id: 'gone', providerId: 'listing-cli'}, location})),
+    ).toMatchObject({_tag: 'Session.NotFoundError', sessionId: expect.stringMatching(/^conciv_/)})
+    expect((await key.run((sessions) => sessions.list())).data.map((session) => session.id).toSorted()).toEqual(
+      [sessionId, second.id].toSorted(),
+    )
     const first = await key.run((sessions) => sessions.list({limit: 1}))
     expect(first.data).toHaveLength(1)
     expect(first.cursor.next).toEqual(expect.any(String))
@@ -3351,11 +3388,26 @@ describe('plugin context keys provided by core', () => {
       providerId: 'listing-cli',
     })
 
+    const entries = (run: (service: InstructionEntry.Interface) => Effect.Effect<unknown, unknown>) =>
+      made.pluginHost.runPromise(InstructionEntry.Service.use(run))
+    await entries((service) => service.put({sessionId: SessionSchema.Id.make(sessionId), key: 'brief', value: 'gone'}))
+    await entries((service) => service.put({sessionId: SessionSchema.Id.make(second.id), key: 'brief', value: 'kept'}))
+    expect(await entries((service) => service.list(SessionSchema.Id.make(sessionId)))).toEqual([
+      {key: 'brief', value: 'gone'},
+    ])
+    expect(await entries((service) => service.list(SessionSchema.Id.make(second.id)))).toEqual([
+      {key: 'brief', value: 'kept'},
+    ])
+
     await key.run((sessions) => sessions.remove(sessionId))
     expect(await key.fail((sessions) => sessions.get(sessionId))).toMatchObject({
       _tag: 'Session.NotFoundError',
       sessionId,
     })
+    expect(await entries((service) => service.list(SessionSchema.Id.make(sessionId)))).toEqual([])
+    expect(await entries((service) => service.list(SessionSchema.Id.make(second.id)))).toEqual([
+      {key: 'brief', value: 'kept'},
+    ])
     expect(await key.fail((sessions) => sessions.remove(sessionId))).toMatchObject({_tag: 'Session.NotFoundError'})
     expect(heard.filter((event) => event.type === SessionEvent.Deleted.type)).toHaveLength(1)
     expect((await key.run((sessions) => sessions.list())).data.map((session) => session.id)).toEqual([second.id])
@@ -3379,5 +3431,23 @@ describe('engine build keeps runtime packages external', () => {
         .filter((chunk) => chunk.source.includes('__dirname') && !definesDirname.test(chunk.source))
         .map((chunk) => chunk.name),
     ).toEqual([])
+  })
+
+  it('loads photon from its own package and spawns the resize worker the plugin host ships beside it', () => {
+    const hostDir = dirname(fileURLToPath(import.meta.resolve('@conciv/plugin-host')))
+    const hostChunks = readdirSync(hostDir)
+      .filter((name) => name.endsWith('.js'))
+      .map((name) => ({name, source: readFileSync(join(hostDir, name), 'utf8')}))
+    expect(hostChunks.some((chunk) => /import\(\s*["']@silvia-odwyer\/photon-node["']\s*\)/.test(chunk.source))).toBe(
+      true,
+    )
+    expect(hostChunks.filter((chunk) => chunk.source.includes('__wbindgen')).map((chunk) => chunk.name)).toEqual([])
+    const spawning = hostChunks.filter((chunk) =>
+      chunk.source.includes('new URL("./photon-worker.js", import.meta.url)'),
+    )
+    expect(spawning.length).toBe(1)
+    expect(existsSync(join(hostDir, 'photon-worker.js'))).toBe(true)
+    const wasm = createRequire(join(hostDir, 'index.js')).resolve('@silvia-odwyer/photon-node/photon_rs_bg.wasm')
+    expect(existsSync(wasm)).toBe(true)
   })
 })

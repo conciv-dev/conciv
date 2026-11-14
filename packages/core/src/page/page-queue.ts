@@ -326,6 +326,12 @@ export function owesFollowUp(queues: PageQueues, sessionId: SessionId): boolean 
   return queues.owedTurn(sessionId).some((record) => record.delivery === 'owed')
 }
 
+export function holdForNextReply(queues: PageQueues, sessionId: SessionId): void {
+  for (const record of queues.owedTurn(sessionId)) {
+    if (record.delivery === 'owed' && queues.claim(record)) queues.confirm(record, 'nextReply')
+  }
+}
+
 export async function startQueueFollowUp(
   queues: PageQueues,
   plane: Pick<ChatPlane, 'live' | 'followUp'>,

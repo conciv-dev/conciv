@@ -9,6 +9,7 @@ import {
   codeExecuteReply,
   queueNotice,
   safeStringify,
+  toolValueReply,
   type CodeDescriptions,
   type CodeDiscoverResult,
   type CodeExecuteResult,
@@ -184,7 +185,7 @@ async function runExecute(
 async function runDirect(tool: CodeTool, input: unknown, calls: CallPublisher): Promise<CodeReply> {
   calls.publish(calls.trace.start(calls.run, tool.name, input))
   const reply: CodeReply = await tool.run(input, calls.trace.callId, calls.signal).then(
-    (value) => ({content: [{type: 'text', text: cappedText(safeStringify(value))}]}),
+    (value) => toolValueReply(value),
     (error: unknown) => ({
       content: [{type: 'text', text: cappedText(safeStringify({error: {message: String(error)}}))}],
       isError: true,
@@ -328,9 +329,10 @@ type Delivery = Pick<CodeExecuteResult, 'queued' | 'finished'>
 
 function typedResult(result: ExecuteResult, declaredCodes: ReadonlySet<string>, delivery: Delivery): CodeExecuteResult {
   const logs = cappedLogs(result.logs ?? [])
-  if (result.success) return {ok: true, result: cappedValue(result.result), logs, ...delivery}
+  const files = result.files === undefined ? {} : {files: result.files}
+  if (result.success) return {ok: true, result: cappedValue(result.result), logs, ...files, ...delivery}
   const error = executeError(result, declaredCodes)
-  return {ok: false, error: {...error, message: cappedText(error.message)}, logs, ...delivery}
+  return {ok: false, error: {...error, message: cappedText(error.message)}, logs, ...files, ...delivery}
 }
 
 function cappedLogs(logs: string[]): string[] {
