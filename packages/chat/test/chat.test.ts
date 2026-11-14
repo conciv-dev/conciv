@@ -25,6 +25,8 @@ import {
 } from '@conciv/plugin-host'
 import {createChatPlane, toolDomainCapabilities, type CodeCapability} from '../src/index.js'
 
+const PIXEL_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+
 const model = fakeText()
 const answer = model.chatStream.bind(model)
 const asking = Object.assign(model, {
@@ -174,7 +176,7 @@ describe('plugin tools in code mode', () => {
       description: 'Built in.',
       errors: [],
       inputSchema: z.object({}),
-      execute: async () => 'built in',
+      execute: async () => ({value: 'built in', files: []}),
     }
     const collisions: string[] = []
     const capabilities = (): CodeCapability[] =>
@@ -197,7 +199,7 @@ describe('plugin tools in code mode', () => {
             description: 'Shout the text.',
             input: z.object({text: z.string()}),
             execute: (input: {text: string}, context) =>
-              Effect.succeed({content: `${input.text.toUpperCase()} in ${context.sessionId}`}),
+              Effect.succeed({content: `${input.text.toUpperCase()} in ${context.sessionId} as ${context.agent}`}),
           })
           editor.add({
             name: 'unit_double',
@@ -222,6 +224,19 @@ describe('plugin tools in code mode', () => {
             input: z.object({}),
             output: z.object({sent: z.boolean()}),
             execute: () => Effect.succeed({output: {sent: true}}),
+          })
+          editor.add({
+            name: 'unit_snap',
+            description: 'Snap the page.',
+            input: z.object({}),
+            execute: () =>
+              Effect.succeed({
+                content: [
+                  {type: 'text', text: 'untrusted page data'},
+                  {type: 'file', uri: `data:image/png;base64,${PIXEL_PNG}`, mime: 'image/png', name: 'page.png'},
+                  {type: 'file', uri: 'data:application/pdf;base64,JVBERi0=', mime: 'application/pdf'},
+                ],
+              }),
           })
           editor.add({
             name: 'unit_taken',
@@ -251,6 +266,7 @@ describe('plugin tools in code mode', () => {
       'unit_double',
       'unit_refuse',
       'unit_send',
+      'unit_snap',
     ])
     await expect(
       runner?.code?.run('return (await search({})).items.map((item) => item.signature)', 'parent'),
@@ -260,12 +276,13 @@ describe('plugin tools in code mode', () => {
         'external_unit_refuse(): Promise<string | null>',
         'external_unit_send(): Promise<{\n  sent: boolean;\n}>',
         'external_unit_shout({\n  text: string;\n}): Promise<string | null>',
+        'external_unit_snap(): Promise<string | null>',
         'external_unit_taken(): Promise<unknown>',
       ],
     })
     expect(new Set(collisions)).toEqual(new Set(['unit_taken']))
     await expect(runner?.code?.run('return await external_unit_shout({text: "hi"})', 'parent')).resolves.toMatchObject({
-      result: 'CHANGED BY A HOOK in conciv_plugin',
+      result: 'CHANGED BY A HOOK in conciv_plugin as build',
     })
     expect(seen).toEqual(['before unit_shout without a message {"text":"hi"}', 'after unit_shout completed'])
     await expect(runner?.code?.run('return await external_unit_double({count: "2"})', 'parent')).resolves.toMatchObject(
@@ -280,6 +297,37 @@ describe('plugin tools in code mode', () => {
     })
     await expect(runner?.code?.run('return await external_unit_taken({})', 'parent')).resolves.toMatchObject({
       result: 'built in',
+    })
+    const snapFiles = [
+      {type: 'image', source: {type: 'data', value: PIXEL_PNG, mimeType: 'image/png'}},
+      {type: 'text', content: 'Attached document or image follows.'},
+    ]
+    await expect(runner?.code?.run('return await external_unit_snap({})', 'parent')).resolves.toEqual({
+      success: true,
+      result: 'untrusted page data',
+      logs: [],
+      files: snapFiles,
+    })
+    await expect(
+      runner?.code?.run(
+        'await external_unit_snap({}); await external_unit_shout({text: "a"}); return "done"',
+        'parent',
+      ),
+    ).resolves.toMatchObject({success: true, result: 'done', files: snapFiles})
+    await expect(
+      runner?.code?.run(
+        'await external_unit_snap({}); await external_unit_snap({}); throw new Error("boom")',
+        'parent',
+      ),
+    ).resolves.toMatchObject({
+      success: false,
+      error: {message: expect.stringContaining('boom')},
+      files: [...snapFiles, ...snapFiles],
+    })
+    await expect(runner?.code?.run('return "no files"', 'parent')).resolves.toEqual({
+      success: true,
+      result: 'no files',
+      logs: [],
     })
   })
 
@@ -511,6 +559,19 @@ describe('direct tools', () => {
               }),
           })
           editor.add({
+            name: 'unit_direct_snap',
+            description: 'Snap the page directly.',
+            input: z.object({}),
+            options: {codemode: false},
+            execute: (_input, context) =>
+              Effect.succeed({
+                content: [
+                  {type: 'text', text: `untrusted page data for ${context.agent}`},
+                  {type: 'file', uri: `data:image/png;base64,${PIXEL_PNG}`, mime: 'image/png'},
+                ],
+              }),
+          })
+          editor.add({
             name: 'unit_coded',
             description: 'Echo the text in code mode.',
             input: z.object({text: z.string()}),
@@ -525,7 +586,7 @@ describe('direct tools', () => {
       description: 'Built in.',
       errors: [],
       inputSchema: z.object({}),
-      execute: async () => 'built in',
+      execute: async () => ({value: 'built in', files: []}),
     }
     const shared = SessionId.parse('conciv_direct')
     const closed = SessionId.parse('conciv_no_execute')
@@ -546,13 +607,18 @@ describe('direct tools', () => {
       {name: 'unit_builtin', direct: undefined},
       {name: 'unit_coded', direct: undefined},
       {name: 'unit_direct', direct: true},
+      {name: 'unit_direct_snap', direct: true},
     ])
     const {root, db} = openDatabase()
     const chat = await chatPlane(db, root, {capabilities})
     const runner = await chat.codeRunner(shared, () => undefined)
     expect(names(runner?.code?.capabilities)).toEqual(['unit_builtin', 'unit_coded'])
-    expect(names(runner?.direct)).toEqual(['unit_direct'])
+    expect(names(runner?.direct)).toEqual(['unit_direct', 'unit_direct_snap'])
     await expect(runner?.direct[0]?.run({text: 'hi'}, 'parent')).resolves.toBe('direct hi')
+    await expect(runner?.direct[1]?.run({}, 'parent')).resolves.toEqual([
+      {type: 'text', content: 'untrusted page data for build'},
+      {type: 'image', source: {type: 'data', value: PIXEL_PNG, mimeType: 'image/png'}},
+    ])
     expect(ran).toEqual(['unit_direct hi conciv_direct'])
 
     const offered: string[][] = []
@@ -575,10 +641,11 @@ describe('direct tools', () => {
     expect(capabilities(closed).map(({name, direct}) => ({name, direct}))).toEqual([
       {name: 'unit_coded', direct: true},
       {name: 'unit_direct', direct: true},
+      {name: 'unit_direct_snap', direct: true},
     ])
     const closedRunner = await chat.codeRunner(closed, () => undefined)
     expect(closedRunner?.code).toBeNull()
-    expect(names(closedRunner?.direct)).toEqual(['unit_coded', 'unit_direct'])
+    expect(names(closedRunner?.direct)).toEqual(['unit_coded', 'unit_direct', 'unit_direct_snap'])
     await expect(closedRunner?.direct[0]?.run({text: 'shut'}, 'parent')).resolves.toBe('coded shut')
   })
 })
@@ -598,7 +665,7 @@ describe('plugin instructions', () => {
       description: 'Note the text.',
       errors: [],
       inputSchema: z.object({text: z.string()}),
-      execute: async () => 'noted',
+      execute: async () => ({value: 'noted', files: []}),
     }
     const inventories: (CodeModeCatalog.Inventory | undefined)[] = []
     const chat = await chatPlane(db, root, {

@@ -1,8 +1,8 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {Cause, Effect, Exit, Option, Result, Schema} from 'effect'
-import {approvalDenied, describeSchemas} from '@conciv/ai/server'
-import {cappedValue} from '@conciv/contract'
+import {approvalDenied, CodeFilesCapability, describeSchemas} from '@conciv/ai/server'
+import {cappedValue, safeStringify} from '@conciv/contract'
 import {
   Agent,
   CodeMode,
@@ -14,6 +14,7 @@ import {
   ToolRuntime,
 } from '@conciv/plugin-host'
 import {defineTool, type ChatTool} from '@conciv/protocol/chat-tool-types'
+import type {ChatContentPart} from '@conciv/protocol/chat-types'
 import type {ToolRequest} from '@conciv/extension'
 import {type SandboxTool} from '@conciv/extension/registry'
 import type {ConcivServerTool} from '@conciv/tools'
@@ -33,8 +34,12 @@ export type CodeCapability = {
   errors: {code: string; message: string}[]
   inputSchema: SchemaInput
   outputSchema?: SchemaInput
-  execute: (input: unknown, request: ToolRequest) => Promise<unknown>
+  execute: (input: unknown, request: ToolRequest) => Promise<CapabilityResult>
 }
+
+export type CapabilityResult = {value: unknown; files: ChatContentPart[]}
+
+const ATTACHED_FILE_TEXT = 'Attached document or image follows.'
 
 const JsonSchemaObject = z.record(z.string(), z.unknown())
 
@@ -70,7 +75,7 @@ export function registryCapabilities(
     errors: tool.errors.map(({code, message}) => ({code, message})),
     inputSchema: tool.schema,
     ...registryOutput(tool.outputSchema),
-    execute: (input, request) => call(tool.name, input, request),
+    execute: async (input, request) => ({value: await call(tool.name, input, request), files: []}),
   }))
 }
 
@@ -86,7 +91,7 @@ export function assistCapabilities(tools: ConcivServerTool[]): CodeCapability[] 
     description: tool.description,
     errors: [],
     inputSchema: tool.inputSchema,
-    execute: (input) => tool.execute(input),
+    execute: async (input) => ({value: await tool.execute(input), files: []}),
   }))
 }
 
@@ -150,10 +155,20 @@ async function runTool(
   run: EffectRun,
   effect: Effect.Effect<Tool.NormalizedResult, Tool.Error>,
   signal: AbortSignal | undefined,
-): Promise<unknown> {
+): Promise<CapabilityResult> {
   const exit = await run(effect, signal)
   if (Exit.isFailure(exit)) throw refusal(name, exit.cause)
-  return resultValue(exit.value)
+  return {value: resultValue(exit.value), files: outputFiles(exit.value.content)}
+}
+
+function outputFiles(content: Tool.NormalizedResult['content']): ChatContentPart[] {
+  return content.flatMap((part): ChatContentPart[] => {
+    if (part.type !== 'file') return []
+    const prefix = `data:${part.mime};base64,`
+    if (!part.uri.startsWith(prefix)) return []
+    if (!part.mime.startsWith('image/')) return [{type: 'text', content: ATTACHED_FILE_TEXT}]
+    return [{type: 'image', source: {type: 'data', value: part.uri.slice(prefix.length), mimeType: part.mime}}]
+  })
 }
 
 function resultValue(result: Tool.NormalizedResult): unknown {
@@ -210,7 +225,12 @@ function directCapabilities(snapshot: Tool.Snapshot, run: EffectRun): CodeCapabi
     errors: [],
     inputSchema: jsonSchemaOnly(definition.inputSchema),
     execute: (input, request) =>
-      runTool(definition.name, run, snapshot.execute(directCall(definition.name, input, request)), request.signal),
+      runTool(
+        definition.name,
+        run,
+        snapshot.execute(directCall(definition.name, input, toolContext(request))),
+        request.signal,
+      ),
   }))
 }
 
@@ -231,8 +251,7 @@ export function toolDomainCapabilities(
   return [...offered, ...added.filter((capability) => !taken(capability))]
 }
 
-function directCall(name: string, input: unknown, request: ToolRequest): Parameters<Tool.Snapshot['execute']>[0] {
-  const context = toolContext(request)
+function directCall(name: string, input: unknown, context: Tool.Context): Parameters<Tool.Snapshot['execute']>[0] {
   return {
     sessionId: context.sessionId,
     agent: context.agent,
@@ -370,16 +389,23 @@ function chatTool(capability: CodeCapability, request: ToolRequest, lazy: boolea
     try {
       const toolCallId = context?.toolCallId
       const signal = context?.abortSignal
-      const value = await capability.execute(args, {
+      const {value, files} = await capability.execute(args, {
         ...request,
         ...(toolCallId === undefined ? {} : {toolCallId}),
         ...(signal === undefined ? {} : {signal}),
       })
-      return lazy ? value : cappedValue(value)
+      if (!lazy) return cappedValue(files.length === 0 ? value : [...valueParts(value), ...files])
+      context?.getOptional?.(CodeFilesCapability)?.(files)
+      return value
     } catch (error) {
       throw withDeclaredCode(error)
     }
   })
+}
+
+function valueParts(value: unknown): ChatContentPart[] {
+  if (value === null) return []
+  return [{type: 'text', content: typeof value === 'string' ? value : safeStringify(value)}]
 }
 
 export function chatToolSet(

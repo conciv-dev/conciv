@@ -328,9 +328,10 @@ type Delivery = Pick<CodeExecuteResult, 'queued' | 'finished'>
 
 function typedResult(result: ExecuteResult, declaredCodes: ReadonlySet<string>, delivery: Delivery): CodeExecuteResult {
   const logs = cappedLogs(result.logs ?? [])
-  if (result.success) return {ok: true, result: cappedValue(result.result), logs, ...delivery}
+  const files = result.files === undefined ? {} : {files: result.files}
+  if (result.success) return {ok: true, result: cappedValue(result.result), logs, ...files, ...delivery}
   const error = executeError(result, declaredCodes)
-  return {ok: false, error: {...error, message: cappedText(error.message)}, logs, ...delivery}
+  return {ok: false, error: {...error, message: cappedText(error.message)}, logs, ...files, ...delivery}
 }
 
 function cappedLogs(logs: string[]): string[] {
