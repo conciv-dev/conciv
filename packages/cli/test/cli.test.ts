@@ -18,7 +18,12 @@ import {start as startEngine} from '@conciv/core'
 import {exchangePrintedCode, loginThroughTerminal} from '@conciv/harness-testkit'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {stdioTransport} from '@tanstack/ai-mcp/stdio'
-import {CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER, TabOpenSchema} from '@conciv/protocol/chat-types'
+import {
+  CONCIV_CLIENT_HEADER,
+  CONCIV_ORIGIN_HEADER,
+  CONCIV_SESSION_HEADER,
+  TabOpenSchema,
+} from '@conciv/protocol/chat-types'
 import {readApprovalAsk, type ChatEvent, ChatEventType, pageQueueEvent} from '@conciv/protocol/chat-event-types'
 import {PageQuerySchema} from '@conciv/protocol/page-types'
 import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
@@ -1073,6 +1078,7 @@ describe('cli', () => {
     given: {
       shared?: {root: string; sessionId: string}
       extensions?: Parameters<typeof startEngine>[0]['extensions']
+      plugins?: Parameters<typeof startEngine>[0]['plugins']
       hubAccess?: 'session' | 'open'
       queued?: (queue: {id: string; replies: string[]}) => void
     } = {},
@@ -1089,6 +1095,7 @@ describe('cli', () => {
       launchEditor: () => {},
       homeDir: home,
       extensions: given.extensions,
+      plugins: given.plugins,
     })
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const sessionId = given.shared?.sessionId ?? (await makeRpcClient(base).sessions.create(undefined)).sessionId
@@ -1285,6 +1292,79 @@ describe('cli', () => {
         })
       } finally {
         await Promise.all([first.engine.stop(), second.engine.stop()])
+      }
+    })
+  })
+
+  describe('conciv plugin call', () => {
+    const Probe = {
+      id: 'probe',
+      methods: {
+        echo: {input: z.object({word: z.string()}), output: z.string()},
+        ping: {input: z.object({}), output: z.string()},
+        counted: {input: z.object({}).optional(), output: z.number()},
+      },
+      events: {},
+    }
+    const probe: NonNullable<Parameters<typeof startEngine>[0]['plugins']>[number] = {
+      id: 'probe',
+      async setup(ctx) {
+        const calls = {counted: 0}
+        await ctx.rpc.register(Probe, {
+          echo: async ({word}) => word,
+          ping: async () => 'pong',
+          counted: async () => {
+            calls.counted += 1
+            return calls.counted
+          },
+        })
+      },
+    }
+    const pluginCall = (cwd: string, home: string, args: string[]) =>
+      new Promise<{code: unknown; document: unknown}>((resolve) =>
+        execFile(process.execPath, [bin, 'plugin', 'call', ...args], {cwd, env: {CONCIV_HOME: home}}, (error, stdout) =>
+          resolve({code: error === null ? 0 : error.code, document: JSON.parse(stdout)}),
+        ),
+      )
+    const refused = (message: string | RegExp) => ({code: 1, document: {ok: false, error: {kind: 'user', message}}})
+
+    it('answers a plugin method from the project and from anywhere as the owner, prints engine errors, and refuses bad --data before any call', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const {engine, base, root} = await engineWithTab(home, {plugins: [probe]})
+      try {
+        expect(await pluginCall(root, home, ['probe', 'echo', '--data', '{"word":"hi"}'])).toEqual({
+          code: 0,
+          document: {ok: true, data: 'hi'},
+        })
+        expect(await pluginCall(elsewhere, home, ['probe', 'echo', '-d', '{"word":"anywhere"}'])).toEqual({
+          code: 0,
+          document: {ok: true, data: 'anywhere'},
+        })
+        const hub = makeRpcClient(base, {headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'terminal'}})
+        await expect(hub.plugin.call({rpcId: 'probe', method: 'ping', input: {}})).rejects.toMatchObject({
+          code: 'APPROVAL_DENIED',
+          message: "outside agents can't use plugin routes; use the plugin in the tab",
+        })
+        expect(await pluginCall(root, home, ['nope', 'ping', '--data', '{}'])).toMatchObject(
+          refused('RPC is unavailable: nope'),
+        )
+        expect(await pluginCall(root, home, ['probe', 'nope', '--data', '{}'])).toMatchObject(
+          refused('Unknown RPC method: probe.nope'),
+        )
+        expect(await pluginCall(root, home, ['probe', 'counted', '--data', '{nope'])).toMatchObject(
+          refused(/--data is not JSON/),
+        )
+        expect(await pluginCall(elsewhere, home, ['probe', 'counted', '--data', '{nope'])).toMatchObject(
+          refused(/--data is not JSON/),
+        )
+        expect(await pluginCall(root, home, ['probe', 'counted'])).toEqual({code: 0, document: {ok: true, data: 1}})
+        expect(await pluginCall(root, home, ['probe', 'ping'])).toMatchObject({
+          code: 1,
+          document: {ok: false, error: {kind: 'user', code: 'PLUGIN_RPC'}},
+        })
+      } finally {
+        await engine.stop()
       }
     })
   })
