@@ -55,6 +55,11 @@ without it the call carries no input. An unknown plugin, an unknown method or a 
 prints the engine's error and exits 1. It finds the dev server like `conciv tools` does, from the
 project or, from any other folder, the latest running one.
 
+The engine token is the one credential, so whoever holds it is the owner: this command reads the
+token the dev server wrote and calls as the owner, never as an outside agent. The engine refuses
+plugin calls, and listing plugins or reading their options, only to callers that announce
+themselves as outside, such as agents connected through `conciv mcp`.
+
 Docs: [conciv.dev](https://conciv.dev/docs/quick-start). Part of
 [conciv](https://github.com/conciv-dev/conciv).
 
