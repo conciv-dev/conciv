@@ -15,6 +15,7 @@ import {Highlight} from '@conciv/ui-kit-system'
 import {
   Streamdown,
   type FenceView,
+  type FencedView,
   type HastElement,
   type HighlightCode,
   type LocalFileExists,
@@ -268,7 +269,7 @@ function streamedPrefix(language: string, fenceText: string): HastElement | unde
   return highlightedWithTail(language, prefix, fenceText)
 }
 
-function codeBlock(fenceText: string, lang: string | undefined, streaming: boolean): ReturnType<HighlightCode> {
+function codeBlock(fenceText: string, lang: string | undefined, streaming: boolean): FencedView['fallback'] {
   backendReadyTick()
   const requested = fenceLanguage(lang)
   if (requested === 'mermaid') return streaming ? undefined : MermaidDiagram
@@ -419,7 +420,7 @@ function FullMarkdown(props: Omit<MarkdownProps, 'compact'>): JSX.Element {
   const highlightCode: HighlightCode = (code, lang) => {
     const language = fenceLanguage(lang)
     const content = props.streaming !== true && markdown?.codeBlocks?.current().render.has(language)
-    if (content) return codeBlockView(language)
+    if (content) return {view: codeBlockView(language), fallback: codeBlock(code, lang, false)}
     return codeBlock(code, lang, props.streaming === true)
   }
   return (

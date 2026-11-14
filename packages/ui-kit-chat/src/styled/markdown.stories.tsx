@@ -106,3 +106,34 @@ export const WithProvider: Story = {
     await expect(canvas.getByRole('status', {name: 'Opened file'})).toHaveTextContent('Opened src/sales.ts')
   },
 }
+
+const TS_FENCE = ['```ts', 'const total = orders.reduce((sum, order) => sum + order.price, 0)', '```'].join('\n')
+
+const decliningBlocks = {
+  current: () => ({render: new Set(['ts']), actions: new Set<string>()}),
+  render: () => undefined,
+  actions: () => [],
+}
+
+export const DeclinedClaimedFence: Story = {
+  render: () =>
+    frame(
+      <>
+        <MarkdownProvider codeBlocks={decliningBlocks}>
+          <section aria-label="Claimed and declined">
+            <Markdown content={TS_FENCE} />
+          </section>
+        </MarkdownProvider>
+        <section aria-label="Unclaimed">
+          <Markdown content={TS_FENCE} />
+        </section>
+      </>,
+    ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    const declined = within(canvas.getByRole('region', {name: 'Claimed and declined'}))
+    const unclaimed = within(canvas.getByRole('region', {name: 'Unclaimed'}))
+    await waitFor(() => expect(unclaimed.getByText('const')).toBeVisible())
+    await waitFor(() => expect(declined.getByText('const')).toBeVisible())
+  },
+}

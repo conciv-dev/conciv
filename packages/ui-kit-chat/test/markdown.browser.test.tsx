@@ -189,6 +189,38 @@ describe('markdown provider', () => {
     await expect.element(plain.getByRole('figure', {name: 'Chart'})).not.toBeInTheDocument()
     await expect.element(plain.getByRole('link', {name: 'src/existing.ts'})).not.toBeInTheDocument()
     expect(rendered).toEqual(['chart:sales by month', 'chart:declined chart'])
+
+    const decliningBlocks = {
+      current: () => ({render: new Set(['ts', 'mermaid']), actions: new Set<string>()}),
+      render: () => undefined,
+      actions: () => [],
+    }
+    mountView(() => (
+      <>
+        <MarkdownProvider codeBlocks={decliningBlocks}>
+          <section aria-label="Declined ts">
+            <Markdown content={['```ts', 'const total = 1', '```'].join('\n')} />
+          </section>
+          <section aria-label="Declined mermaid">
+            <Markdown
+              content={['```mermaid', 'flowchart LR', '  A[Save file] --> B[Watcher fires]', '```'].join('\n')}
+            />
+          </section>
+        </MarkdownProvider>
+        <section aria-label="Unclaimed ts">
+          <Markdown content={['```ts', 'const total = 1', '```'].join('\n')} />
+        </section>
+      </>
+    ))
+    await expect
+      .element(page.getByRole('region', {name: 'Unclaimed ts'}).getByText('const', {exact: true}))
+      .toBeVisible()
+    await expect
+      .element(page.getByRole('region', {name: 'Declined ts'}).getByText('const', {exact: true}))
+      .toBeVisible()
+    await expect
+      .element(page.getByRole('region', {name: 'Declined mermaid'}).getByText('Watcher fires', {exact: true}))
+      .toBeVisible()
   })
 })
 
