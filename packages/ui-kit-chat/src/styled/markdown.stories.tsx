@@ -48,6 +48,14 @@ const PROVIDED = [
   '```',
 ].join('\n')
 
+const CONTENT_OFF = [
+  'Below `codeBlocks={false}` the same fence stays code:',
+  '',
+  '```chart',
+  'sales by month',
+  '```',
+].join('\n')
+
 const chartBlocks = {
   current: () => ({render: new Set(['chart']), actions: new Set<string>()}),
   render: (target: HTMLElement, block: {code: string}) => {
@@ -69,7 +77,14 @@ function ProvidedDemo(): JSX.Element {
       localFileExists={(path) => path === 'src/sales.ts'}
       codeBlocks={chartBlocks}
     >
-      <Markdown content={PROVIDED} />
+      <section aria-label="Content on">
+        <Markdown content={PROVIDED} />
+      </section>
+      <MarkdownProvider codeBlocks={false}>
+        <section aria-label="Content off">
+          <Markdown content={CONTENT_OFF} />
+        </section>
+      </MarkdownProvider>
       <output aria-label="Opened file">{opened()}</output>
     </MarkdownProvider>,
   )
@@ -79,10 +94,14 @@ export const WithProvider: Story = {
   render: () => <ProvidedDemo />,
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
+    const contentOn = within(canvas.getByRole('region', {name: 'Content on'}))
+    const contentOff = within(canvas.getByRole('region', {name: 'Content off'}))
     await waitFor(() =>
-      expect(canvas.getByRole('figure', {name: 'Chart'})).toHaveTextContent('Chart of sales by month'),
+      expect(contentOn.getByRole('figure', {name: 'Chart'})).toHaveTextContent('Chart of sales by month'),
     )
-    await waitFor(() => expect(canvas.getByText('a chart the provider declines')).toBeVisible())
+    await waitFor(() => expect(contentOn.getByText('a chart the provider declines')).toBeVisible())
+    await waitFor(() => expect(contentOff.getByText('sales by month')).toBeVisible())
+    await expect(contentOff.queryByRole('figure', {name: 'Chart'})).toBeNull()
     await userEvent.click(canvas.getByRole('link', {name: 'src/sales.ts'}))
     await expect(canvas.getByRole('status', {name: 'Opened file'})).toHaveTextContent('Opened src/sales.ts')
   },
