@@ -285,19 +285,32 @@ describe('a Figma effect', () => {
 })
 
 describe('a Figma wrapper that draws nothing', () => {
-  it('is not required when the page merges it into its children, nor paired with part of one child', async () => {
+  it('is not required when the page merges it into its children, nor paired with part of one child, and a text breaks where the frame does', async () => {
     await kit.goto('process-row')
     await call('design_get', await sliced('process-row', '50-876'))
     const checked = roundOf(await call('design_check', {}))
     await kit.goto('process-grid')
     await call('design_get', await sliced('process-grid', '50-875'))
     const grid = roundOf(await call('design_check', {}))
+    await kit.goto('process-grid-early')
+    const early = roundOf(await call('design_check', {}))
     const told = (round: Checked, node: string) => round.rows.filter((row) => row.node === node).map((row) => row.text)
     expect([
       checked.reasons.filter((reason) => reason.includes('required nodes')),
       told(grid, '50:921'),
       ['50:922', '50:929'].filter((node) => grid.coverage.missing.includes(node)),
-    ]).toEqual([[], [], []])
+      [grid, early].map((round) => told(round, '50:919')),
+    ]).toEqual([
+      [],
+      [],
+      [],
+      [
+        [],
+        [
+          "text Paragraph [50:919] p.grid-text: breaks its lines where the frame does not: line 4 is 625px wide, the frame's is 695px",
+        ],
+      ],
+    ])
   })
 })
 

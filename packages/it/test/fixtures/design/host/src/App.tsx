@@ -97,6 +97,7 @@ const GRID_CSS = [
   '.grid-number { font-size: 150px; line-height: normal; font-weight: 600; color: #d8ff99; text-box: trim-both cap alphabetic; }',
   '.grid-title { margin: 0; flex: 1; padding: 0 0 26px 10px; border-bottom: 1px solid #262626; font-size: 30px; line-height: normal; font-weight: 500; }',
   ".grid-text { margin: 0; font-family: 'Inter'; font-size: 18px; line-height: 1.5; }",
+  '.grid-fit:nth-child(6) .grid-text { margin-right: -8px; }',
 ].join(' ')
 const COLUMN_CARDS = [292, 292, 334, 334, 340, 340, 334, 340]
 const COLUMN_LINES = ['100-1615', '100-1622', '100-1635', '100-1642', '100-1655', '100-1668', '100-2303']
@@ -286,13 +287,13 @@ export function App() {
       </main>
     )
   }
-  if (requested === 'process-grid') {
+  if (requested === 'process-grid' || requested === 'process-grid-early') {
     return (
       <>
         <style data-conciv-key="pGsTyA">{GRID_CSS}</style>
         <ol className="grid-steps" data-conciv-key="pGoLsA">
           {GRID_STEPS.map(([title, body], index) => (
-            <li key={title} className="grid-step" data-conciv-key="pGlIaA">
+            <li key={title} className={requested === 'process-grid' ? 'grid-step grid-fit' : 'grid-step'} data-conciv-key="pGlIaA">
               <div className="grid-head" data-conciv-key="pGhDaA">
                 <span className="grid-number" data-conciv-key="pGnMaA">{`0${index + 1}`}</span>
                 <h3 className="grid-title" data-conciv-key="pGtTaA">

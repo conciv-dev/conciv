@@ -1,15 +1,21 @@
 import {formatHex, interpolate, parse} from 'culori'
 import {partition} from 'es-toolkit'
 import {z} from 'zod'
-import type {Box, Counts, Coverage, Design, DesignNode, GateRow, LiveComponent} from '../shared/defs.js'
+import type {Box, Counts, Coverage, Design, DesignNode, GateRow, LiveComponent, Raster} from '../shared/defs.js'
 import {box as shapes} from '../shared/box.js'
 import {designConfig} from '../shared/tolerances.js'
 import {walk} from '../shared/tree.js'
 import type {readIds} from '../shared/id-tree.js'
 import {nodeLooks, type StrokeSides} from './node-look.js'
+import type {Wrap} from './wraps.js'
 import {wrapsOf} from './wraps.js'
 
-export function gateOf(input: {design: Design; reads: ReturnType<typeof readIds>; live: LiveComponent}): Gate {
+export function gateOf(input: {
+  design: Design
+  reads: ReturnType<typeof readIds>
+  live: LiveComponent
+  target: Raster | null
+}): Gate {
   const {reads} = input
   const records = recordsOf(input.design.root)
   const byId = new Map(records.map((record) => [record.id, record]))
@@ -26,7 +32,7 @@ export function gateOf(input: {design: Design; reads: ReturnType<typeof readIds>
       const element = first(record.id)
       return {record, box: element === undefined ? null : rounded(element.bounds)}
     })
-  const wraps = wrapsOf({design: input.design, first})
+  const wraps = wrapsOf({design: input.design, first, target: input.target})
   const explainer = (id: string | null, side: Side): string | null => {
     const record = id === null ? undefined : byId.get(id)
     if (record === undefined) return null
@@ -37,7 +43,9 @@ export function gateOf(input: {design: Design; reads: ReturnType<typeof readIds>
   const causes = (id: string): string =>
     wraps
       .filter(
-        (wrap) => explainer(byId.get(wrap.node)?.parent ?? null, wrap.lines > wrap.frame ? 'taller' : 'shorter') === id,
+        (wrap) =>
+          wrap.line === null &&
+          explainer(byId.get(wrap.node)?.parent ?? null, wrap.lines > wrap.frame ? 'taller' : 'shorter') === id,
       )
       .map((wrap) => `; ${byId.get(wrap.node)?.name ?? ''} [${wrap.node}] ${wrapped(wrap)}`)
       .join('')
@@ -52,9 +60,9 @@ export function gateOf(input: {design: Design; reads: ReturnType<typeof readIds>
         text: `${labelOf({record, element})}: ${wrapped(wrap)}`,
         magnitude: 'reflow',
         property: LINES,
-        expected: `${wrap.frame}`,
-        actual: `${wrap.lines}`,
-        delta: wrap.lines - wrap.frame,
+        expected: wrap.line === null ? `${wrap.frame}` : `${wrap.line.drawn}px`,
+        actual: wrap.line === null ? `${wrap.lines}` : `${wrap.line.page}px`,
+        delta: wrap.line === null ? wrap.lines - wrap.frame : wrap.line.page - wrap.line.drawn,
       },
     ]
   })
@@ -382,7 +390,9 @@ function labelOf(input: {record: Record; element: LiveComponent}): string {
   return `${r.kind} ${r.name} [${r.id}] ${d.tag}.${d.hints[0] ?? ''}`
 }
 
-function wrapped(wrap: {lines: number; frame: number}): string {
+function wrapped(wrap: Wrap): string {
+  if (wrap.line !== null)
+    return `breaks its lines where the frame does not: line ${wrap.line.index + 1} is ${wrap.line.page}px wide, the frame's is ${wrap.line.drawn}px`
   const noun = LINE_PLURAL.select(wrap.lines) === 'one' ? 'line' : 'lines'
   return `${wrap.lines > wrap.frame ? 'wraps to' : 'breaks into'} ${wrap.lines} ${noun}, the frame has ${wrap.frame}`
 }
