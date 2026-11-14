@@ -56,6 +56,7 @@ export function createPluginTabs(input: {
       id: key,
       label: region.entry(key)?.tab.title ?? key,
       content: () => <PluginTabTrigger value={key} />,
+      missing: region.entry(key)?.tab.missing,
     }))
   }
 

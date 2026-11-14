@@ -10,6 +10,7 @@ export type StatusBarView = {
   label: string
   icon?: Component<{class?: string}>
   content?: () => JSX.Element
+  missing?: boolean
 }
 
 export type StatusBarProps = {
@@ -88,7 +89,7 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
                   class={VIEW_BTN}
                   value={view().id}
                   disabled={props.disabled && view().id !== props.activeView}
-                  aria-label={view().label}
+                  aria-label={content ? (view().missing ? view().label : undefined) : view().label}
                 >
                   <Show when={view().icon}>
                     {(icon) => <Dynamic component={icon()} class="size-3" aria-hidden="true" />}
