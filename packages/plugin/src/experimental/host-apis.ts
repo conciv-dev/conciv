@@ -488,13 +488,9 @@ export interface Dialogs {
     },
   ): DialogHandle
   active(): boolean
-  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly confirm: ((options: ConfirmOptions) => Promise<boolean>) | undefined
-  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly alert: ((options: AlertOptions) => Promise<void>) | undefined
-  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly prompt: ((options: PromptOptions) => Promise<string | undefined>) | undefined
-  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly select: (<T>(options: SelectOptions<T>) => Promise<T | undefined>) | undefined
 }
 
