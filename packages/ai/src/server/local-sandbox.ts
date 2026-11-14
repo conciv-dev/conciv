@@ -18,6 +18,7 @@ export function localSandbox(config: {dir: string}): SandboxProvider {
     const tracked: SandboxHandle['process'] = {
       exec: (command, options) => handle.process.exec(command, options),
       spawn: async (command, options) => {
+        options?.signal?.throwIfAborted()
         const spawned = await handle.process.spawn(command, options)
         entry.spawned.push(spawned)
         return spawned

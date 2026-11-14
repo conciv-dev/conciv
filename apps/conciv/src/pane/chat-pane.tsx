@@ -248,11 +248,14 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     notices,
     refetchMarkers: () => markers.refetch(),
   })
+  const sendFromButton = (text: string): void => {
+    void messaging.onSend(text).catch(messaging.onSendError)
+  }
 
   const toolCtx = makeToolViewCtx({
     harnessId: () => harness()?.id ?? '',
     catalog,
-    sendMessage: (text) => void chat.sendMessage(text),
+    sendMessage: sendFromButton,
     decide: decidedThen(chat, appData.invalidateOutsideAccess),
     onError: () => notices.notify('That permission request is no longer waiting for an answer.', {tone: 'warn'}),
     addResult: (toolCallId, value) => messaging.uiReply.mutate({toolCallId, value}),
@@ -387,7 +390,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                   <OlderMessages sessionId={sessionId} chat={chat} />
                   <Show when={!chat.loadFailed()}>
                     <Thread.Welcome>
-                      <EmptyStateSlot onStarter={(starter) => void chat.sendMessage(starter)} instances={instances} />
+                      <EmptyStateSlot onStarter={sendFromButton} instances={instances} />
                     </Thread.Welcome>
                   </Show>
                   <Thread.Messages
@@ -490,6 +493,8 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
             value={{
               onSend: sendOrRunCommand,
               onSendError: messaging.onSendError,
+              onSteer: messaging.onSteer,
+              onSteerError: messaging.onSendError,
               onCancel: () => {
                 returnQueueToDraft(chat, {insert, addFile: attach})
                 void chat.stop()

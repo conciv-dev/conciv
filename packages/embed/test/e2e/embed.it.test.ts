@@ -31,6 +31,8 @@ import {
   browserBase,
   openLoggedIn,
   logInFromPanelNotice,
+  logInFromPanelNoticeWithCode,
+  requestLoginCode,
   serveWidgetHost,
 } from '../helpers.js'
 import {currentHref} from '@conciv/plugin-testkit/navigation-state'
@@ -51,6 +53,8 @@ import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {z} from 'zod'
 import {completeConnectHandshake} from '@conciv/plugin-testkit/connect-handshake'
 import {makeExtRpcClient} from '@conciv/extension'
+import {revokeBrowsers} from '@conciv/protocol/engine-trust'
+import {concivStateDir} from '@conciv/protocol/state-types'
 
 test.describe('embed boot', () => {
   const ASSISTANT_TEXT = 'Hello from conciv'
@@ -1465,6 +1469,13 @@ test.describe('rebind', () => {
   const ASSISTANT_TEXT = 'Rebound reply'
   const USER_TEXT = 'first message before the drift'
   const SECOND_USER_TEXT = 'second message after the drift'
+  const TYPED_TEXT = 'typed while logged out'
+  const RUNNING_TEXT = 'keep this run going'
+  const QUEUED_TEXT = 'steer toward this instead'
+  const STARTER_TEXT = 'Explain this page'
+  const LOGGED_OUT_SENTENCE = 'Log in to use conciv on this page.'
+  const REVOKED_SENTENCE = 'This browser is no longer authorized to use conciv.'
+  const STREAM_READ_FAILED = 'Stream response body read failed'
 
   let kit: EmbedKit
   let host: {base: string; close: () => Promise<void>}
@@ -1537,6 +1548,9 @@ test.describe('rebind', () => {
 
       await expect(chatLog(page).getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
       await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
+      const reboundPanel = page.getByRole('dialog', {name: 'conciv chat agent'})
+      await expect(reboundPanel.getByText('this connection is not trusted')).toHaveCount(0)
+      await expect(reboundPanel.getByRole('button', {name: 'Retry'})).toHaveCount(0)
 
       await sendChatMessage(page, SECOND_USER_TEXT)
       await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(2, {timeout: 30_000})
@@ -1547,6 +1561,116 @@ test.describe('rebind', () => {
       expect(await panelSession()).toBe(sessionBefore)
       expect(sessionBefore).not.toBeNull()
       expect(pageErrors).toEqual([])
+    })
+
+    test('an empty conversation that failed to load on the untrusted port loads by itself after login', async ({
+      page,
+    }) => {
+      test.setTimeout(240_000)
+      await openLoggedIn(page, kit, host.base)
+      await mountHandle(page, proxyA.base)
+      await openChatPanel(page)
+
+      await rebindHandle(page, proxyB.base)
+      await proxyA.close()
+      const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
+      const loginNotice = panel.getByRole('alert').filter({hasText: 'Log in to use conciv on this page.'})
+      const loadFailed = panel.getByText('Couldn’t load this conversation')
+      await expect(loginNotice).toBeVisible({timeout: 30_000})
+      await expect(loadFailed).toBeVisible({timeout: 30_000})
+
+      const composer = chatBox(page)
+      const loggedOutSend = panel.getByRole('button', {name: LOGGED_OUT_SENTENCE, exact: true})
+      const loggedOutRefusal = page.getByRole('status').filter({hasText: LOGGED_OUT_SENTENCE})
+      await composer.click()
+      await composer.pressSequentially(TYPED_TEXT)
+      await expect(composer).toHaveText(TYPED_TEXT)
+      await expect(loggedOutSend).toBeDisabled({timeout: 30_000})
+      await expect(loggedOutRefusal).toHaveCount(0)
+      await page.keyboard.press('Enter')
+      await expect(loggedOutRefusal.getByText(LOGGED_OUT_SENTENCE, {exact: true})).toBeVisible({timeout: 30_000})
+      await expect(composer).toHaveText(TYPED_TEXT)
+      await expect(loggedOutSend).toBeDisabled()
+      await expect(chatLog(page).getByText(TYPED_TEXT)).toHaveCount(0)
+      await expect(panel.getByText(STREAM_READ_FAILED)).toHaveCount(0)
+      await loggedOutRefusal.getByRole('button', {name: 'Dismiss'}).click()
+      await expect(loggedOutRefusal).toHaveCount(0)
+
+      await logInFromPanelNotice(page, kit, 'Log in to use conciv on this page.')
+      await expect(loginNotice).toBeHidden({timeout: 30_000})
+      await expect(loadFailed).toBeHidden({timeout: 30_000})
+      await expect(chatBox(page)).toBeVisible({timeout: 30_000})
+
+      const send = panel.getByRole('button', {name: 'Send message', exact: true})
+      await expect(send).toBeEnabled({timeout: 30_000})
+      await expect(composer).toHaveText(TYPED_TEXT)
+
+      const starter = panel.getByRole('button', {name: STARTER_TEXT})
+      const revokedNotice = panel.getByRole('alert').filter({hasText: REVOKED_SENTENCE})
+      const revokedRefusal = page.getByRole('status').filter({hasText: REVOKED_SENTENCE})
+      await expect(starter).toBeVisible({timeout: 30_000})
+      revokeBrowsers(concivStateDir(kit.stateRoot), 'all')
+      await expect(revokedNotice).toBeVisible({timeout: 30_000})
+      await expect(revokedRefusal).toHaveCount(0)
+      await starter.click()
+      await expect(revokedRefusal.getByText(REVOKED_SENTENCE, {exact: true})).toBeVisible({timeout: 30_000})
+      await expect(starter).toBeVisible()
+      await expect(composer).toHaveText(TYPED_TEXT)
+      await revokedRefusal.getByRole('button', {name: 'Dismiss'}).click()
+      await expect(revokedRefusal).toHaveCount(0)
+
+      await logInFromPanelNotice(page, kit, REVOKED_SENTENCE)
+      await expect(revokedNotice).toBeHidden({timeout: 30_000})
+      await starter.click()
+      await expect(chatLog(page).getByText(STARTER_TEXT)).toHaveCount(1, {timeout: 30_000})
+      await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
+
+      await expect(composer).toHaveText(TYPED_TEXT)
+      await composer.click()
+      await page.keyboard.press('Enter')
+      await expect(chatLog(page).getByText(TYPED_TEXT)).toHaveCount(1, {timeout: 30_000})
+      await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(2, {timeout: 30_000})
+      await expect(panel.getByText('Couldn’t load this conversation')).toHaveCount(0)
+      await expect(panel.getByText('this connection is not trusted')).toHaveCount(0)
+      await expect(panel.getByText(STREAM_READ_FAILED)).toHaveCount(0)
+      await expect(panel.getByRole('button', {name: 'Retry'})).toHaveCount(0)
+
+      const queued = panel.getByRole('listitem').filter({hasText: QUEUED_TEXT})
+      const steer = queued.getByRole('button', {name: 'Steer'})
+      const stop = panel.getByRole('button', {name: 'Stop generating'})
+      kit.harness.script.hold()
+      try {
+        await composer.click()
+        await composer.pressSequentially(RUNNING_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(stop).toBeVisible({timeout: 30_000})
+        await expect(chatLog(page).getByText(RUNNING_TEXT)).toHaveCount(1, {timeout: 30_000})
+        await composer.click()
+        await composer.pressSequentially(QUEUED_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(queued).toBeVisible({timeout: 30_000})
+
+        const steerLoginCode = await requestLoginCode(kit)
+        revokeBrowsers(concivStateDir(kit.stateRoot), 'all')
+        await expect(revokedNotice).toBeVisible({timeout: 30_000})
+        await expect(revokedRefusal).toHaveCount(0)
+        await steer.click()
+        await expect(revokedRefusal.getByText(REVOKED_SENTENCE, {exact: true})).toBeVisible({timeout: 30_000})
+        await expect(queued).toBeVisible()
+        await expect(steer).toBeEnabled()
+        await expect(stop).toBeVisible()
+        await expect(chatLog(page).getByText(QUEUED_TEXT)).toHaveCount(0)
+
+        await logInFromPanelNoticeWithCode(page, REVOKED_SENTENCE, steerLoginCode)
+        await expect(revokedNotice).toBeHidden({timeout: 30_000})
+        await steer.click()
+        await expect(queued).toBeHidden({timeout: 30_000})
+        await expect(chatLog(page).getByText(QUEUED_TEXT)).toHaveCount(1, {timeout: 30_000})
+      } finally {
+        kit.harness.script.release()
+      }
+      await expect(stop).toBeHidden({timeout: 30_000})
+      await expect(send).toBeVisible({timeout: 30_000})
     })
   })
 })

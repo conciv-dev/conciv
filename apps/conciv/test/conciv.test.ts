@@ -219,7 +219,7 @@ describe('quick search', () => {
 })
 
 describe('send checks', () => {
-  const ready = {busy: false, reachable: true}
+  const ready = {busy: false, reachable: true, locked: null}
 
   function parts(count: number): {content: {type: 'text'; content: string}[]} {
     return {content: Array.from({length: count}, () => ({type: 'text', content: 'x'}))}
@@ -236,7 +236,7 @@ describe('send checks', () => {
   })
 
   test('turns a send down while the conversation is being compressed', () => {
-    expect(checkSend('rename the widget package', {busy: true, reachable: true}).ok).toBe(false)
+    expect(checkSend('rename the widget package', {busy: true, reachable: true, locked: null}).ok).toBe(false)
   })
 
   test('says why it turned down too many attachments instead of dropping them', () => {
@@ -264,7 +264,7 @@ describe('send checks', () => {
   })
 
   test('says the engine is unreachable instead of swallowing the message', () => {
-    const verdict = checkSend('rename the widget package', {busy: false, reachable: false})
+    const verdict = checkSend('rename the widget package', {busy: false, reachable: false, locked: null})
     expect(verdict).toEqual({
       ok: false,
       message: 'conciv lost connection to the engine. Your message is still in the composer.',
