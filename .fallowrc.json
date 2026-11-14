@@ -280,7 +280,13 @@
         "State",
         "Plugin",
         "Snapshot",
-        "Entry"
+        "Entry",
+        "define",
+        "Context",
+        "Data",
+        "Failure",
+        "Session",
+        "match"
       ]
     },
     {
