@@ -35,6 +35,13 @@ export function codeExecuteReply(executed: CodeExecuteResult): CodeReply {
   return {content: [...notices, ...resultContent(executed.result, executed.logs), ...files]}
 }
 
+export function toolValueReply(value: unknown): CodeReply {
+  if (isContentParts(value)) return {content: cappedParts(value.map(partContent))}
+  return {
+    content: [{type: 'text', text: cappedText(safeStringify(withoutImages(value)))}, ...imageBlocks(imagesIn(value))],
+  }
+}
+
 export function codeDiscoverReply(discovered: CodeDiscoverResult): CodeReply {
   const notices = discovered.finished.map(queueNoticePart)
   return {content: [...notices, {type: 'text', text: cappedText(safeStringify(discovered.tools))}]}

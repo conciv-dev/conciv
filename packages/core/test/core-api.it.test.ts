@@ -5641,6 +5641,13 @@ export default {
         ],
       })
       tools.add({name: 'seer_shot', description: 'Shoots the page', input: {type: 'object', properties: {}}, execute: async () => shot()})
+      tools.add({
+        name: 'seer_direct_shot',
+        description: 'Shoots the page directly',
+        input: {type: 'object', properties: {}},
+        options: {codemode: false},
+        execute: async () => shot(),
+      })
     })
     await ctx.rpc.register(Seer, {
       seen: async () => ({
@@ -5839,6 +5846,10 @@ export default {
         ),
       )
       .toEqual(resized)
+    const mcp = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: sessionId})
+    onTestFinished(() => mcp.close())
+    const direct = (await mcp.tools()).find((entry) => entry.name === 'seer_direct_shot')
+    expect.soft(shotImages(await direct?.execute?.({}))).toEqual(resized)
 
     stopped.current = true
     await engine.stop()

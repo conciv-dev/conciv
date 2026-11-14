@@ -9,6 +9,7 @@ import {
   codeExecuteReply,
   queueNotice,
   safeStringify,
+  toolValueReply,
   type CodeDescriptions,
   type CodeDiscoverResult,
   type CodeExecuteResult,
@@ -184,7 +185,7 @@ async function runExecute(
 async function runDirect(tool: CodeTool, input: unknown, calls: CallPublisher): Promise<CodeReply> {
   calls.publish(calls.trace.start(calls.run, tool.name, input))
   const reply: CodeReply = await tool.run(input, calls.trace.callId, calls.signal).then(
-    (value) => ({content: [{type: 'text', text: cappedText(safeStringify(value))}]}),
+    (value) => toolValueReply(value),
     (error: unknown) => ({
       content: [{type: 'text', text: cappedText(safeStringify({error: {message: String(error)}}))}],
       isError: true,

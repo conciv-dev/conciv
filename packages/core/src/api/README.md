@@ -42,7 +42,7 @@ Hono sub-apps for the core server: an MCP endpoint that exposes the sandboxed Ty
 
 ## Side Effects
 
-- `runExecute` / `runDirect` (`mcp.ts`): `runExecute` replies through `codeExecuteReply`, which appends the run's `files` as MCP image blocks after the text. Both publish TOOL_CALL_START/ARGS/END/RESULT chat events to `scope.stream`
+- `runExecute` / `runDirect` (`mcp.ts`): `runExecute` replies through `codeExecuteReply`, which appends the run's `files` as MCP image blocks after the text; `runDirect` replies through `toolValueReply`, which maps a content-part list part by part (image parts become image blocks) and lifts images out of any other value. Both publish TOOL_CALL_START/ARGS/END/RESULT chat events to `scope.stream`
 - `mcp.ts`: `logError` when code mode is unavailable or execute fails outside the sandbox
 - `pushRoutes` (`push.ts`): sends WebSocket frames and aborts its AbortController on close or error
 - `makeNativePageApp` (`native-page.ts`): reads bundle files from disk
