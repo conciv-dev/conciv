@@ -4742,10 +4742,6 @@ export default {
     await expect(remote.rpc(Missing).ping(undefined, {signal: AbortSignal.timeout(3000)})).rejects.toMatchObject({
       type: 'rpc.unavailable',
     })
-    const listening = new AbortController()
-    const events = await remote.plugin.events({rpcId: 'missing'}, {signal: listening.signal})
-    listening.abort()
-    await events.return()
     expect(typeof remote).toBe('object')
     expect([Object.hasOwn(remote, 'tabs'), Object.hasOwn(remote, 'sessions'), Object.hasOwn(remote, 'rpc')]).toEqual([
       true,
@@ -4757,6 +4753,14 @@ export default {
       done: false,
       value: {id: expect.stringMatching(/^evt_/), type: 'server.connected', data: {}},
     })
+    const listening = new AbortController()
+    const missingNext = remote
+      .rpc(Missing)
+      .events.subscribe('pinged', {signal: listening.signal})
+      [Symbol.asyncIterator]()
+      .next()
+    listening.abort()
+    expect(await missingNext).toEqual({done: true, value: undefined})
     const Pinger = PluginRpc.define({
       id: 'pinger',
       methods: {ping: {input: z.object({}), output: z.object({})}},

@@ -7,17 +7,11 @@ import type {RegistryCallGate} from '@conciv/extension/registry'
 import {resolveHarnessModels} from '@conciv/harness'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers} from '@conciv/db'
-import {EventPublisher, type Router} from '@orpc/server'
-import {Effect, Fiber, Result, Stream} from 'effect'
-import {Bus, Event, Rpc} from '@conciv/plugin-host'
+import type {Router} from '@orpc/server'
+import {Effect, Result, Stream} from 'effect'
+import {Event, Rpc} from '@conciv/plugin-host'
 import {EventFeed} from '../../runtime/event-feed.js'
-import {
-  cappedText,
-  PluginRpcEventSchema,
-  safeStringify,
-  type contract,
-  type RegistryCallErrorName,
-} from '@conciv/contract'
+import {cappedText, safeStringify, type contract, type RegistryCallErrorName} from '@conciv/contract'
 import {widgetCaller} from '../../lib/cors.js'
 import {listCommands} from '../../sessions/commands.js'
 import {session} from '../../runtime/session-context.js'
@@ -141,39 +135,6 @@ async function resolveCodeSession(
   return code.sandbox
 }
 
-type PluginEventsInput = {rpcId: string; types?: string[] | undefined}
-
-async function pluginEvents(host: PluginHost, input: PluginEventsInput, signal: AbortSignal | undefined) {
-  const publisher = new EventPublisher<{event: unknown}>()
-  const prefix = `rpc.${input.rpcId}.`
-  const delivered = publisher.subscribe('event', {signal})
-  const fiber = await host.runPromise(
-    Effect.gen(function* () {
-      const bus = yield* Bus.Service
-      const [first, ...rest] = (input.types ?? []).map((name) => Rpc.eventDefinition(`rpc.${input.rpcId}.${name}`))
-      const events =
-        first === undefined
-          ? bus.subscribe().pipe(Stream.filter((event) => event.type.startsWith(prefix)))
-          : bus.subscribe([first, ...rest])
-      return yield* Effect.forkDetach(
-        Stream.runForEach(events, (event) => Effect.sync(() => publisher.publish('event', event))),
-        {startImmediately: true},
-      )
-    }),
-  )
-  const stop = () => Effect.runPromise(Fiber.interrupt(fiber))
-  signal?.addEventListener('abort', () => void stop(), {once: true})
-  return relay(delivered, stop)
-}
-
-async function* relay(delivered: AsyncIterable<unknown>, stop: () => Promise<void>) {
-  try {
-    for await (const event of delivered) yield PluginRpcEventSchema.parse(event)
-  } finally {
-    await stop()
-  }
-}
-
 async function eventStream(
   host: PluginHost,
   types: ReadonlyArray<string> | undefined,
@@ -291,7 +252,6 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         if (Result.isSuccess(outcome)) return outcome.success
         throw errors.PLUGIN_RPC({message: outcome.failure.message, data: outcome.failure})
       }),
-      events: os.plugin.events.handler(({input, signal}) => pluginEvents(deps.pluginHost, input, signal)),
     },
     event: {
       subscribe: os.event.subscribe.handler(({input, signal}) => eventStream(deps.pluginHost, input?.types, signal)),

@@ -2434,7 +2434,6 @@ describe('plugin rpc over the socket', () => {
           }),
         ).pipe(Scope.provide(host.runSync(Scope.make()))),
       )
-      const {plugin} = client.rpc
       const conciv = Conciv.make(client.rpc)
       const api = conciv.rpc
       const acme = api(AcmeClient)
@@ -2464,7 +2463,8 @@ describe('plugin rpc over the socket', () => {
       expect(await connected.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
       const typed = acme.events.subscribe('indexed')[Symbol.asyncIterator]()
       const typedNext = typed.next()
-      const all = await plugin.events({rpcId: 'acme'})
+      const all = await client.rpc.event.subscribe({types: ['rpc.acme.indexed']})
+      expect(await all.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
       await host.runPromise(registration.events.emit('indexed', {count: 3}))
       const indexed = {done: false, value: expect.objectContaining({type: 'rpc.acme.indexed', data: {count: 3}})}
       expect(await Promise.all([typedNext, all.next()])).toEqual([indexed, indexed])

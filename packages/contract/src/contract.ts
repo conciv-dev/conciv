@@ -259,8 +259,6 @@ export const EventEnvelopeSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 })
 
-export const PluginRpcEventSchema = EventEnvelopeSchema.required({created: true, location: true})
-
 export const contract = {
   auth: {
     trust: oc
@@ -446,9 +444,6 @@ export const contract = {
       .errors(pluginRpcFailed)
       .input(z.object({rpcId: z.string().min(1), method: z.string().min(1), input: z.unknown().optional()}))
       .output(z.unknown()),
-    events: oc
-      .input(z.object({rpcId: z.string().min(1), types: z.array(z.string().min(1)).optional()}))
-      .output(eventIterator(PluginRpcEventSchema)),
   },
   event: {
     subscribe: oc
