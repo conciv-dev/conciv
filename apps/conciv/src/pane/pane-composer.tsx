@@ -20,6 +20,7 @@ import {
   type ComposerTriggerSources,
   type SelectionOffsets,
 } from './composer-input-adapter.js'
+import {lockedMessage} from '../shell/engine-lock-messages.js'
 
 export type PaneComposerProps = {
   draftStorage: WebStorage
@@ -59,14 +60,20 @@ const MAX_INLINE_AUTO_ACTIONS = 0
 function ComposerSendControl(): JSX.Element {
   const composer = useComposer()
   const reachability = useEngineReachability()
+  const locked = () => lockedMessage(reachability.locked())
+  const sendLabel = (): string => {
+    const lockedLabel = locked()
+    if (lockedLabel !== null) return lockedLabel
+    return reachability.online() ? SEND_LABEL : ENGINE_UNREACHABLE_LABEL
+  }
   return (
     <Show
       when={composer.isRunning()}
       fallback={
         <ComposerPrimitive.Send
           class={`${TRAILING_BTN} ${composer.isEmpty() ? TRAILING_SEND_IDLE : TRAILING_SEND_ACTIVE}`}
-          disabled={!reachability.online()}
-          aria-label={reachability.online() ? SEND_LABEL : ENGINE_UNREACHABLE_LABEL}
+          disabled={!reachability.online() || locked() !== null}
+          aria-label={sendLabel()}
         >
           Send
           <span class={TRAILING_HINT} aria-hidden="true">

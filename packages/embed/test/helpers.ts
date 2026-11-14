@@ -277,7 +277,7 @@ export function chatBox(page: Page) {
 export async function logInFromPanelNotice(page: Page, kit: EmbedKit, notice: string): Promise<void> {
   const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
   await expect(panel.getByRole('alert').filter({hasText: notice})).toBeVisible({timeout: PANEL_TIMEOUT_MS})
-  await panel.getByRole('button', {name: 'Log in'}).click()
+  await panel.getByRole('button', {name: 'Log in', exact: true}).click()
   const firstDigit = page.getByRole('textbox', {name: 'Digit 1 of 6'})
   await expect(firstDigit).toBeVisible({timeout: PANEL_TIMEOUT_MS})
   await firstDigit.pressSequentially(await requestPrintedCode(kit.origin, kit.terminal))
