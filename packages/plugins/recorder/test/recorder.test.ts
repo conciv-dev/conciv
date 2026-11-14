@@ -119,6 +119,18 @@ async function toolFailure(pending: Promise<unknown>): Promise<string> {
   return ExecuteFailureSchema.parse(JSON.parse(failure.message)).error.message
 }
 
+const CodeResultSchema = z.object({result: z.string()})
+
+const ModelPartsSchema = z.array(
+  z.union([
+    z.object({type: z.literal('text'), content: z.string()}),
+    z.object({
+      type: z.literal('image'),
+      source: z.object({type: z.literal('data'), value: z.string(), mimeType: z.string()}),
+    }),
+  ]),
+)
+
 const RENDER_PAGE = {
   id: 1,
   type: 0,
@@ -319,7 +331,9 @@ describe('the recording tools', () => {
     expect(await useTool(kit, 'pull', {secondsBack: 60, keyframes: 2})).toBe('No recorded activity in this window.')
 
     await call(kit, 'flush', {clientId: 'render', events: renderStream(Date.now() - 2000)})
-    const pulled = z.string().parse(await useTool(kit, 'pull', {secondsBack: 60, keyframes: 2}))
+    const [answer, ...images] = ModelPartsSchema.parse(await useTool(kit, 'pull', {secondsBack: 60, keyframes: 2}))
+    if (answer?.type !== 'text') throw new Error('the model reply does not open with the log text')
+    const pulled = CodeResultSchema.parse(JSON.parse(answer.content)).result
     expect(pulled).toContain('[click]')
 
     const witnessed = WitnessSchema.parse(
@@ -342,6 +356,19 @@ describe('the recording tools', () => {
       expect(png.subarray(1, 4).toString()).toBe('PNG')
       expect(png.length).toBeGreaterThan(2000)
     }
+
+    expect(images).toEqual(
+      frames.flatMap((frame) =>
+        frame.type === 'file'
+          ? [
+              {
+                type: 'image',
+                source: {type: 'data', mimeType: 'image/png', value: pngBytes(frame.uri).toString('base64')},
+              },
+            ]
+          : [],
+      ),
+    )
   })
 })
 
