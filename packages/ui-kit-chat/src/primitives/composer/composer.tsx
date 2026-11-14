@@ -85,7 +85,10 @@ type SendOutcome = {failure: unknown; answered: boolean}
 
 function answeredLastUserMessage(messages: readonly ChatMessage[]): boolean {
   const lastUser = messages.findLastIndex((message) => message.role === 'user')
-  return lastUser >= 0 && messages.slice(lastUser + 1).some((message) => message.role === 'assistant')
+  return (
+    lastUser >= 0 &&
+    messages.slice(lastUser + 1).some((message) => message.role === 'assistant' && message.parts.length > 0)
+  )
 }
 
 function isAsyncGenerator(
