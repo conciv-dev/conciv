@@ -4,6 +4,7 @@ import {concivStateDir} from '@conciv/protocol/state-types'
 import {Whiteboard} from './rpc.js'
 import {createStore} from './server/db/store.js'
 import {whiteboardHandlers} from './server/rpc-handlers.js'
+import {register} from './tools.js'
 
 export default Plugin.define({
   id: 'whiteboard',
@@ -17,6 +18,7 @@ export default Plugin.define({
         console.error(`[whiteboard] change ${table} ${key} was not announced: ${String(error)}`)
       })
     })
+    await register(ctx.tool, store)
     return () => {
       stopAnnouncing()
       store.close()
