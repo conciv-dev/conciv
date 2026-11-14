@@ -23,7 +23,7 @@ import type {SettingsScope} from '@conciv/contract'
 import {settingsSearchSchema} from '../settings/settings-search-schemas.js'
 
 const PAGE = 'flex flex-1 flex-col min-h-0'
-const BACK = 'size-9 shrink-0'
+const BACK = 'size-8 shrink-0'
 const SCOPE = 'min-h-11 px-1.5'
 const SPLIT = 'flex flex-1 min-h-0 flex-col @lg:[--settings-rail:wide] data-[orientation=vertical]:flex-row'
 const RAIL =

@@ -23,7 +23,7 @@ import {QuickSearchSchema, quickPaneIds, quickSearchFor} from '../lib/quick-sear
 import {openPipTarget} from '../shell/pip.js'
 
 const CLOSE =
-  'bg-transparent [border:none] text-chat-text-2 text-[1.375rem] cursor-pointer inline-flex items-center justify-center size-9.5 rounded-chat-surface-sm trans-color-bg hover:text-chat-text hover:bg-chat-fill-strong'
+  'bg-transparent [border:none] text-chat-text-2 text-[1.375rem] cursor-pointer inline-flex items-center justify-center size-8 rounded-chat-surface-sm trans-color-bg hover:text-chat-text hover:bg-chat-fill-strong'
 
 const PANE_ACTION = 'text-chat-text-3 leading-none size-6'
 
