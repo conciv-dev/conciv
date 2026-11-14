@@ -1,5 +1,6 @@
 import type {RpcClient, SettingsScope} from '@conciv/contract'
 import type {AsyncStorage} from '@solid-primitives/storage'
+import type {StoreType} from '@conciv/plugin/experimental'
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import {onCleanup, type Accessor} from 'solid-js'
 import {createStore, type SetStoreFunction, type Store} from 'solid-js/store'
@@ -144,7 +145,7 @@ export function persisted<S extends StandardSchemaV1<unknown, object>>(
   initial: NoInfer<StandardSchemaV1.InferOutput<S>>,
   rpc: RpcClient,
   encode?: Encode<S>,
-): PersistedWithReady<StandardSchemaV1.InferOutput<S>> {
+): PersistedWithReady<StoreType<S>> {
   const config = target
   const name = config.key
   assertStoreDefinition(name, schema, initial, encode)
