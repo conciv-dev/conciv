@@ -86,7 +86,14 @@ type MarkdownElementNode = {
 }
 type MarkdownTextNode = {key: string; type: 'text'; text: string}
 type MarkdownWordNode = {key: string; type: 'word'; text: string; animate?: true}
-type MarkdownViewNode = {key: string; type: 'view'; code: string; view: FenceView; fallback: MarkdownNode[]}
+type MarkdownViewNode = {
+  key: string
+  type: 'view'
+  code: string
+  language: string | undefined
+  view: FenceView
+  fallback: MarkdownNode[]
+}
 type MarkdownNode = MarkdownElementNode | MarkdownTextNode | MarkdownWordNode | MarkdownViewNode
 
 type HastRoot = ReturnType<MarkdownProcessor['runSync']>
@@ -123,10 +130,11 @@ function highlightedFence(node: HastElement, path: string, walk: HastWalk): Mark
   const code = fenceCode(node)
   if (!code) return undefined
   const text = hastText(code)
-  const result = walk.highlightCode(text, codeLang(elementAttributes(code.properties).class))
+  const language = codeLang(elementAttributes(code.properties).class)
+  const result = walk.highlightCode(text, language)
   if (typeof result === 'function') {
     const fallback = hastNode(node, path, {...walk, highlightCode: undefined})
-    return [{key: `${path}:view`, type: 'view', code: text, view: result, fallback}]
+    return [{key: `${path}:view`, type: 'view', code: text, language, view: result, fallback}]
   }
   if (!result) return undefined
   return hastNode(result, path, {...walk, highlightCode: undefined})
@@ -255,8 +263,11 @@ function MarkdownView(props: {node: MarkdownViewNode}): JSX.Element {
   return (
     <Show when={declined.code !== props.node.code} fallback={plain()}>
       <ErrorBoundary
-        fallback={() => {
-          onMount(decline)
+        fallback={(error: unknown) => {
+          onMount(() => {
+            console.error(`[streamdown] ${props.node.language ?? 'plain'} fence view failed`, error)
+            decline()
+          })
           return null
         }}
       >
