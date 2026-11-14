@@ -1,31 +1,14 @@
-export type ElementSource = {
-  componentName: string | null
-  filePath: string
-  lineNumber: number | null
-}
+import type {ElementSource, Grab} from '@conciv/plugin/experimental/grab'
 
-export type ElementRect = {
-  x: number
-  y: number
-  width: number
-  height: number
-}
-
-export type DomPreview = {
-  kind: 'dom'
-  html: string
-  width: number
-  height: number
-}
-
-export type ImagePreview = {
-  kind: 'image'
-  dataUrl: string
-  width: number
-  height: number
-}
-
-export type GrabPreview = DomPreview | ImagePreview
+export type {
+  DomPreview,
+  ElementRect,
+  ElementSource,
+  Grab,
+  GrabFrame,
+  GrabPreview,
+  ImagePreview,
+} from '@conciv/plugin/experimental/grab'
 
 function whereLabel(source: ElementSource): string {
   if (source.filePath === '') return ''
@@ -40,32 +23,18 @@ export function sourceLabel(source: ElementSource): string {
   return `${source.componentName} at ${where}`
 }
 
-export type GrabFrame = {
-  fileName: string
-  line: number
-  column?: number
-}
-
 export type GrabSourceLoc = {
   file: string
   line: number
   column: number
 }
 
-export type StagedGrab = {
-  preview: GrabPreview
-  source: ElementSource | null
-  rect: ElementRect | null
-  snippet?: string
-  frames?: GrabFrame[]
-}
+export type StagedGrab = Omit<Grab, 'text'>
 
 export function composeGrabText(snippet: string, source: GrabSourceLoc | null, fallback: string): string {
   if (!source || !snippet) return fallback
   return `${snippet} at ${source.file}:${source.line}:${source.column}`
 }
-
-export type Grab = StagedGrab & {text: string}
 
 export type GrabApi = {
   pick: () => Promise<Grab | null>

@@ -3986,6 +3986,9 @@ importers:
 
   packages/grab:
     dependencies:
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../plugin
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -4302,6 +4305,9 @@ importers:
       '@conciv/grab':
         specifier: workspace:^
         version: link:../grab
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../plugin
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol

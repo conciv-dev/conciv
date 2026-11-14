@@ -40,6 +40,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/plugin": "workspace:^",
     "zod": "catalog:"
   },
   "devDependencies": {

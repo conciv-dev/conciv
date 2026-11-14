@@ -46,6 +46,8 @@ import {
   type PluginModule,
 } from '../src/experimental/host.js'
 import {experimental} from '../src/experimental/vite.js'
+import * as PageModule from '../src/experimental/page.js'
+import * as GrabModule from '../src/experimental/grab.js'
 import * as RpcEntry from '../src/rpc.js'
 import * as Host from '../src/host.js'
 
@@ -923,6 +925,26 @@ describe('published declarations', () => {
   })
 })
 
+describe('page and grab contracts', () => {
+  it('page provides the page and React tree contracts, grab its own, and both open a registry', () => {
+    const tokens = [
+      PageModule.Page,
+      PageModule.ReactTree,
+      PageModule.PageEffect,
+      GrabModule.GrabApi,
+      GrabModule.GrabPicker,
+    ]
+    expect(tokens.map((token) => `${token.kind} ${token.id}`)).toEqual([
+      'contract page',
+      'contract page.react',
+      'registry page.effect',
+      'contract grab',
+      'registry grab.picker',
+    ])
+    expect(pluginIdAvailable('page.react', [{id: 'page'}])).toBe(false)
+  })
+})
+
 describe('experimental() build', () => {
   const dirs: string[] = []
 
@@ -950,6 +972,8 @@ describe('experimental() build', () => {
     'solid-js': SolidJs,
     'solid-js/web': SolidWeb,
     'solid-js/store': SolidStore,
+    '@conciv/plugin/experimental/page': PageModule,
+    '@conciv/plugin/experimental/grab': GrabModule,
   }
   const real = new Map<string, object>([...Object.entries(provided), ['node:fs', NodeFs]])
 

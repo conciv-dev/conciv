@@ -47,6 +47,14 @@
     "./experimental/host": {
       "types": "./dist/experimental/host.d.ts",
       "import": "./dist/experimental/host.js"
+    },
+    "./experimental/page": {
+      "types": "./dist/experimental/page.d.ts",
+      "import": "./dist/experimental/page.js"
+    },
+    "./experimental/grab": {
+      "types": "./dist/experimental/grab.d.ts",
+      "import": "./dist/experimental/grab.js"
     }
   },
   "publishConfig": {
