@@ -557,7 +557,12 @@ export const RouteInputSchema = z.object({route: z.string().describe('the path t
 
 export const RouteResultSchema = z.object({initiated: z.literal(true)})
 
-export const ShotsInputSchema = z.object({width: Width, height: Width, nodes: z.array(screenshotNodeDef.inputSchema)})
+export const ShotsInputSchema = z.object({
+  width: Width,
+  height: Width,
+  nodes: z.array(screenshotNodeDef.inputSchema),
+  timeout: z.number().int().positive().optional(),
+})
 
 export const ShotsResultSchema = z.object({
   shots: z.array(z.object({shot: PageNodeShotSchema.nullable(), error: z.string().nullable()})),

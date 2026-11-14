@@ -111,7 +111,7 @@ async function shotsOf(input: {
       ),
     )
   return page
-    .call(shotsDef.name, {...mirror, nodes})
+    .call(shotsDef.name, {...mirror, nodes, timeout: designConfig.tolerances.measureTimeoutMs})
     .then((reply) => ShotsSchema.parse(reply).shots)
     .catch((error: unknown) => nodes.map(() => failed(error)))
 }
