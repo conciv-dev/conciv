@@ -187,7 +187,7 @@ export type StoreType<S extends StoreSchema> = ReadonlyDeep<StandardSchemaV1.Inf
 
 type StoreSchema = StandardSchemaV1<unknown, object>
 
-type ReadonlyDeep<T> = T extends object ? {readonly [K in keyof T]: ReadonlyDeep<T[K]>} : T
+type ReadonlyDeep<T> = {readonly [K in keyof T]: ReadonlyDeep<T[K]>}
 
 export interface StoreDeclaration<
   S extends StoreSchema = StoreSchema,

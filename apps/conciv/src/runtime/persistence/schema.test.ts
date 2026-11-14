@@ -1,5 +1,6 @@
-import {describe, expect, test} from 'vitest'
+import {describe, expect, expectTypeOf, test} from 'vitest'
 import {z} from 'zod'
+import type {StoreType} from '@conciv/plugin/experimental'
 import {assertStoreDefinition, assertStoreWrite, withInitial} from './schema'
 
 describe('persistence schemas', () => {
@@ -218,5 +219,23 @@ describe('persistence schemas', () => {
     expect(() => decode({amount: 12})).toThrow(
       new TypeError('The store remote has a schema that validates asynchronously'),
     )
+  })
+})
+
+describe('store value type', () => {
+  test('keeps each field shape, read-only all the way down', () => {
+    const schema = z.object({
+      item: z.object({id: z.string()}),
+      tags: z.array(z.string()),
+      layout: z.object({pane: z.object({width: z.number()})}),
+      count: z.number(),
+    })
+
+    expectTypeOf<StoreType<typeof schema>>().toEqualTypeOf<{
+      readonly item: {readonly id: string}
+      readonly tags: readonly string[]
+      readonly layout: {readonly pane: {readonly width: number}}
+      readonly count: number
+    }>()
   })
 })
