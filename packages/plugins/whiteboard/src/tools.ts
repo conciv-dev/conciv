@@ -5,8 +5,10 @@ import {canvasPending, canvasReplies, comments, pins} from './server/db/schema.j
 import type {Store} from './server/db/store.js'
 import {json, type JsonValue} from './shared/rows.js'
 import {draftToSvg, type DraftElement} from './tool/canvas/draft-svg.js'
+import {loadResolver} from './anchor/load-resolver.js'
 import {renderDraftPng} from './tool/canvas/preview.js'
 import {validateSvg} from './tool/canvas/svg-caps.js'
+import {enrichAnchor} from './tool/comment/anchor-enrich.js'
 
 const MAX_EDGES = 500
 const EDGE_PATTERN = /--+>|--+|-\.-+>|==+>|--[xo]/g
@@ -21,6 +23,8 @@ const NO_CANVAS_MESSAGE =
 const CANVAS_OPTIONS = {namespace: 'whiteboard.canvas', codemode: true}
 const COMMENT_OPTIONS = {namespace: 'whiteboard.comment', codemode: true}
 const PIN_OPTIONS = {namespace: 'whiteboard.pin', codemode: true}
+const ANCHOR_OPTIONS = {namespace: 'whiteboard.anchor', codemode: true}
+const ELEMENT_OPTIONS = {namespace: 'whiteboard.element', codemode: true}
 
 const Scope = z.enum(['live', 'draft'])
 const PendingOutput = z.object({pending: z.string()})
@@ -350,7 +354,7 @@ function draftElement(data: JsonValue): DraftElement {
   return DraftElementSchema.parse(typeof data === 'object' && data !== null && !Array.isArray(data) ? data : {})
 }
 
-function registerComments(tool: ToolDomain, store: Store) {
+function registerComments(tool: ToolDomain, store: Store, cwd: string) {
   return tool.transform((editor) => {
     editor.add({
       name: 'create',
@@ -371,6 +375,7 @@ function registerComments(tool: ToolDomain, store: Store) {
       output: z.object({cid: z.string()}),
       execute: async (input, {sessionId}) => {
         const now = Date.now()
+        const enriched = await enrichAnchor(cwd, input.anchor ?? null)
         await store.insertComment({
           id: crypto.randomUUID(),
           sessionId,
@@ -385,10 +390,10 @@ function registerComments(tool: ToolDomain, store: Store) {
           authorAvatar: null,
           status: 'open',
           kind: input.kind,
-          anchor: input.anchor ?? null,
-          anchorFile: null,
-          anchorComponent: null,
-          anchorHash: null,
+          anchor: json.nullable().parse(enriched.anchor ?? null),
+          anchorFile: enriched.file,
+          anchorComponent: enriched.component,
+          anchorHash: enriched.hash,
           createdAt: now,
           updatedAt: now,
           resolvedAt: null,
@@ -512,7 +517,75 @@ function registerComments(tool: ToolDomain, store: Store) {
   })
 }
 
-export async function register(tool: ToolDomain, store: Store) {
+const StoredAnchor = z.object({
+  source: z.object({
+    file: z.string(),
+    line: z.number(),
+    column: z.number(),
+    component: z.string().nullable(),
+    hash: z.string(),
+    salt: z.string(),
+    snippet: z.string(),
+    commit: z.string().nullable(),
+  }),
+  instance: z
+    .object({
+      selector: z.string().optional(),
+      rect: z.object({x: z.number(), y: z.number(), width: z.number(), height: z.number()}).optional(),
+      instanceKey: z.string().optional(),
+    })
+    .optional(),
+})
+
+function registerAnchors(tool: ToolDomain, store: Store, cwd: string) {
+  return tool.transform((editor) => {
+    editor.add({
+      name: 'resolve',
+      options: ANCHOR_OPTIONS,
+      description:
+        'Check whether a source-linked comment still points at its element: fresh, moved, drifted, orphaned or ambiguous. Fails COMMENT_NOT_FOUND.',
+      input: z.object({cid: z.string()}),
+      output: z.object({
+        status: z.enum(['fresh', 'moved', 'drifted', 'orphaned', 'ambiguous']),
+        anchor: z.unknown().optional(),
+        candidates: z.array(z.unknown()).optional(),
+        diff: z.object({before: z.string(), after: z.string()}).optional(),
+      }),
+      execute: async ({cid}, {sessionId}) => {
+        const row = await commentByCid(store, sessionId, cid)
+        const parsed = StoredAnchor.safeParse(row.anchor)
+        if (!parsed.success) return {output: {status: 'orphaned' as const}}
+        const resolver = await loadResolver(cwd)
+        const result = await resolver.resolve(parsed.data)
+        return {
+          output: {status: result.status, anchor: result.anchor, candidates: result.candidates, diff: result.diff},
+        }
+      },
+    })
+    editor.add({
+      name: 'reference',
+      options: ELEMENT_OPTIONS,
+      description:
+        'Locate a React component (or JSX tag) by name in a file, to anchor a comment to it without a pick. Answers found false when the component is not in the file.',
+      input: z.object({file: z.string(), component: z.string()}),
+      output: z
+        .object({
+          found: z.boolean(),
+          file: z.string().optional(),
+          line: z.number().optional(),
+          column: z.number().optional(),
+        })
+        .loose(),
+      execute: async ({file, component}) => {
+        const resolver = await loadResolver(cwd)
+        const target = await resolver.locate(file, component)
+        return {output: target ? {found: true, ...target} : {found: false}}
+      },
+    })
+  })
+}
+
+export async function register(tool: ToolDomain, store: Store, cwd: string) {
   await tool.transform((editor) =>
     editor.namespace({
       name: 'whiteboard',
@@ -521,5 +594,6 @@ export async function register(tool: ToolDomain, store: Store) {
     }),
   )
   await registerCanvas(tool, store)
-  await registerComments(tool, store)
+  await registerComments(tool, store, cwd)
+  await registerAnchors(tool, store, cwd)
 }

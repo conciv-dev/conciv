@@ -121,6 +121,14 @@
         "maxCyclomatic": 35,
         "maxCrap": 250,
         "reason": "copied from opencode core/src/plugin/module.ts: load keeps opencode's shape"
+      },
+      {
+        "files": [
+          "packages/plugins/whiteboard/src/anchor/resolver.ts",
+          "packages/plugins/whiteboard/src/anchor/oxc-capture.ts"
+        ],
+        "maxCognitive": 24,
+        "reason": "moved from @conciv/extension-whiteboard src/anchor: resolve and the oxc visitors keep the extension's shape until the extension is removed"
       }
     ]
   },

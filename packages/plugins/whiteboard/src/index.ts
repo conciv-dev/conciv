@@ -3,13 +3,15 @@ import {Plugin} from '@conciv/plugin'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {Whiteboard} from './rpc.js'
 import {createStore} from './server/db/store.js'
+import {startCommentEnrichment} from './server/enrich-worker.js'
 import {whiteboardHandlers} from './server/rpc-handlers.js'
 import {register} from './tools.js'
 
 export default Plugin.define({
   id: 'whiteboard',
   async setup(ctx) {
-    const store = await createStore(join(concivStateDir(ctx.location.directory), 'whiteboard'))
+    const directory = ctx.location.directory
+    const store = await createStore(join(concivStateDir(directory), 'whiteboard'))
     const registration = await ctx.rpc.register(Whiteboard, whiteboardHandlers(store))
     const stopAnnouncing = store.onEvent((event) => {
       if (event.table === 'cursor') return
@@ -18,8 +20,10 @@ export default Plugin.define({
         console.error(`[whiteboard] change ${table} ${key} was not announced: ${String(error)}`)
       })
     })
-    await register(ctx.tool, store)
+    const stopEnrichment = startCommentEnrichment(store, directory)
+    await register(ctx.tool, store, directory)
     return () => {
+      stopEnrichment()
       stopAnnouncing()
       store.close()
     }
