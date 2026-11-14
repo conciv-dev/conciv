@@ -1,4 +1,5 @@
-import {For, Show, type Component, type JSX} from 'solid-js'
+import {Show, type Component, type JSX} from 'solid-js'
+import {Key} from '@solid-primitives/keyed'
 import {Dynamic} from 'solid-js/web'
 import {TabsPrimitive as Tabs, TruncatedText} from '@conciv/ui-kit-system'
 import type {SessionStatus, SessionStatusKind} from '@conciv/ui-kit-chat'
@@ -74,24 +75,24 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
         ids={{trigger: viewTabId, content: viewTabPanelId}}
       >
         <Tabs.List class={VIEW_LIST}>
-          <For each={props.views}>
+          <Key each={props.views} by="id">
             {(view, index) => (
               <Tabs.Trigger
                 class={VIEW_BTN}
-                value={view.id}
-                disabled={props.disabled && view.id !== props.activeView}
-                aria-label={view.label}
+                value={view().id}
+                disabled={props.disabled && view().id !== props.activeView}
+                aria-label={view().label}
               >
-                <Show when={view.icon}>
+                <Show when={view().icon}>
                   {(icon) => <Dynamic component={icon()} class="size-3" aria-hidden="true" />}
                 </Show>
-                <TruncatedText class={VIEW_LABEL} text={view.label} />
+                <TruncatedText class={VIEW_LABEL} text={view().label} />
                 <span class={VIEW_HINT} aria-hidden="true">
                   {index() + 1}
                 </span>
               </Tabs.Trigger>
             )}
-          </For>
+          </Key>
           <Tabs.Indicator class={VIEW_INDICATOR} />
         </Tabs.List>
       </Tabs.Root>
