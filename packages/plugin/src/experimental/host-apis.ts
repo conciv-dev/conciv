@@ -99,10 +99,10 @@ export interface Composer {
    */
   text(): string
   /**
-   * Inserts plain text into the prompt as typing would, at the cursor the user last left in it, else at the end, and
-   * moves the cursor after it. Selected text is not replaced. The text is not parsed: `@path` stays text rather than a
-   * mention, and line breaks stay line breaks. Focus stays where it is; call `focus` to move it. Before the session's
-   * draft loads, it waits and applies in call order. Does nothing for empty text.
+   * Inserts plain text into the prompt as typing would, at the caret, replacing the selected text if there is one, and
+   * moves the caret after it. The text is not parsed: `@path` stays text rather than a mention, and line breaks stay
+   * line breaks. It takes focus: the prompt is focused after the insert. Before the session's draft loads, it waits and
+   * applies in call order. Does nothing for empty text.
    *
    * @param text - The text to insert.
    *
