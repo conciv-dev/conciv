@@ -23,6 +23,7 @@
   "dependencies": {
     "@conciv/plugin": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@jridgewell/trace-mapping": "0.3.31",
     "es-toolkit": "catalog:",
     "zod": "catalog:"
   },

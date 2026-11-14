@@ -2212,6 +2212,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@jridgewell/trace-mapping':
+        specifier: 0.3.31
+        version: 0.3.31
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0

@@ -688,6 +688,14 @@ const Received = z.object({
   requestId: z.string(),
   command: z.object({action: z.looseObject({type: z.string()}), agentId: z.string(), timeoutMs: z.number()}),
 })
+const SOURCE_MAP = Buffer.from(
+  JSON.stringify({version: 3, sources: ['app/page.tsx'], names: [], mappings: ';AAgBI'}),
+).toString('base64')
+const CHUNK = [
+  'render()',
+  'mount()',
+  ['//#', `sourceMappingURL=data:application/json;base64,${SOURCE_MAP}`].join(' '),
+].join('\n')
 const Asked = z.object({id: z.string(), sessionId: z.string(), action: z.string(), resources: z.array(z.string())})
 const Answer = z.union([
   z.object({ok: z.literal(true), value: z.unknown()}),
@@ -695,11 +703,11 @@ const Answer = z.union([
 ])
 
 describe('page connection', () => {
-  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, and deleting the session ends its tabs', async () => {
+  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, locate answers with the source file, and deleting the session ends its tabs', async () => {
     const kit = await bootCoreKit({
       id: 'page-connection',
       plugins: ['./page', './tabs'],
-      files: {'page/server.ts': ENGINE_FIXTURE, 'tabs/server.ts': TAB_FIXTURE},
+      files: {'page/server.ts': ENGINE_FIXTURE, 'tabs/server.ts': TAB_FIXTURE, 'chunk.js': CHUNK},
     })
     onTestFinished(() => kit.cleanup())
     const session = SessionId.parse(await kit.session())
@@ -833,6 +841,11 @@ describe('page connection', () => {
     await reply('conn_d', again.requestId, succeeded({result: 'Example'}))
     expect(await remembered).toEqual({ok: true, value: {result: 'Example'}})
     expect(await tabs('waiting', {})).toEqual({waiting: 0})
+
+    const locating = ask({type: 'locate', selector: 'h1'})
+    const onLocate = await next('conn_d')
+    await reply('conn_d', onLocate.requestId, succeeded({frames: [{fileName: 'chunk.js', line: 2, column: 1}]}))
+    expect(await locating).toMatchObject({ok: true, value: {source: {file: 'app/page.tsx', line: 17, column: 4}}})
 
     const shot = ask({type: 'screenshot'})
     const onShot = await next('conn_d')

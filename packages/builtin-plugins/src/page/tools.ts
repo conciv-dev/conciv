@@ -5,6 +5,7 @@ import {raise, type Connection} from './connection.js'
 import * as Files from './files.js'
 import {Operations, type File, type Operation, type Result} from './rpc.js'
 import * as PageSkill from './skill.js'
+import {symbolicateFrames} from './symbolicate.js'
 
 const PINNED: readonly string[] = [
   'click',
@@ -20,6 +21,16 @@ const PINNED: readonly string[] = [
 ]
 
 const JsonObject = z.record(z.string(), z.json())
+const Located = z.looseObject({
+  source: z.object({file: z.string(), line: z.number(), column: z.number()}).nullish(),
+  frames: z.array(z.unknown()).optional(),
+})
+const Frame = z.object({
+  fileName: z.string(),
+  line: z.number(),
+  column: z.number().optional(),
+  fn: z.string().optional(),
+})
 
 export async function register(
   ctx: Pick<Plugin.Context, 'tool' | 'skill' | 'location' | 'permission'>,
@@ -41,6 +52,7 @@ export async function register(
     const target = connection.target(tool.sessionId, action)
     const response = await target.request({agentId: tool.agent, signal: tool.signal})
     const output = decodeResult(operation, response)
+    if (action.type === 'locate') return exportResult(await located(output, ctx.location.directory), response.files)
     return exportResult(output, response.files)
   }
 
@@ -96,6 +108,17 @@ function files(value: unknown) {
 
 function fileInfo(file: File) {
   return {id: file.id, name: file.name, mime: file.mime, bytes: file.data.byteLength, path: ''}
+}
+
+async function located(output: unknown, root: string) {
+  const parsed = Located.safeParse(output)
+  if (!parsed.success || parsed.data.source) return output
+  const frames = (parsed.data.frames ?? []).flatMap((frame) => {
+    const decoded = Frame.safeParse(frame)
+    return decoded.success ? [decoded.data] : []
+  })
+  if (frames.length === 0) return output
+  return {...parsed.data, source: await symbolicateFrames(frames, root)}
 }
 
 async function exportResult(output: unknown, captured: readonly File[]): Promise<Tool.Result> {
