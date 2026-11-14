@@ -344,7 +344,11 @@ function codeTools(tools: readonly ChatTool[], capabilities: readonly CodeCapabi
         description: tool.description,
         inputSchema: capability.inputSchema,
         run: async (input, parentToolCallId, signal) =>
-          execute(input, {emitCustomEvent: emitter(parentToolCallId), abortSignal: signal}),
+          execute(input, {
+            toolCallId: parentToolCallId,
+            emitCustomEvent: emitter(parentToolCallId),
+            abortSignal: signal,
+          }),
       },
     ]
   })

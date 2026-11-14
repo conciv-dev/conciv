@@ -5820,6 +5820,13 @@ export default {
         options: {codemode: false},
         execute: async () => shot(),
       })
+      tools.add({
+        name: 'seer_direct_id',
+        description: 'Names its own call',
+        input: {type: 'object', properties: {}},
+        options: {codemode: false},
+        execute: async (_input, context) => ({content: 'called as ' + context.id}),
+      })
     })
     await ctx.rpc.register(Seer, {
       seen: async () => ({
@@ -6029,6 +6036,13 @@ export default {
     onTestFinished(() => mcp.close())
     const direct = (await mcp.tools()).find((entry) => entry.name === 'seer_direct_shot')
     expect.soft(shotImages(await direct?.execute?.({}))).toEqual(resized)
+    const named = (await mcp.tools()).find((entry) => entry.name === 'seer_direct_id')
+    const namedReply = JSON.stringify(await named?.execute?.({}))
+    const namedCards = (await makeRpcClient(base).chat.hydrate({sessionId})).messages.flatMap((message) =>
+      message.parts.flatMap((part) => (part.type === 'tool-call' && part.name === 'seer_direct_id' ? [part.id] : [])),
+    )
+    expect(namedCards).toHaveLength(1)
+    expect(namedReply).toContain(`called as ${namedCards[0]}`)
 
     const everything = await makeRpcClient(base).event.subscribe()
     const deletions = await makeRpcClient(base).event.subscribe({types: ['session.deleted']})
