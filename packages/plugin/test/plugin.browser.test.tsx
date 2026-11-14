@@ -60,7 +60,7 @@ function pluginContext(id: string, sessions: Sessions = {list: () => [], current
     sessions,
     screen: {current: unused},
     storage: {store: unused, memory: unused, remove: unused},
-    system: {copy: unused, save: undefined, openExternal: undefined},
+    system: {copy: unused, save: unused, openExternal: unused},
     desktop: undefined,
     dialogs: {
       open: unused,

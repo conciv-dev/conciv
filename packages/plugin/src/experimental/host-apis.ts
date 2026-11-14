@@ -363,10 +363,20 @@ export interface System {
    * @param text - The text to copy.
    */
   copy(text: string): Promise<void>
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly save: ((file: {readonly name: string; readonly content: string}) => Promise<boolean>) | undefined
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly openExternal: ((url: string) => void) | undefined
+  /**
+   * Saves a file as a download.
+   *
+   * @param file - The suggested name and the content.
+   * @returns Always true.
+   */
+  save(file: {readonly name: string; readonly content: string}): Promise<boolean>
+  /**
+   * Opens an http, https or mailto URL in a new browser tab; any other URL does nothing. For links inside the app, use
+   * `Links.open`.
+   *
+   * @param url - The URL to open.
+   */
+  openExternal(url: string): void
 }
 
 export interface Desktop {
