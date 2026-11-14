@@ -57,6 +57,12 @@ const entrySource = (entry: Entry): Instructions.List =>
     },
   })
 
+export function removeInstructionEntries(kv: KV.Interface, sessionId: string): Effect.Effect<void> {
+  return scanAll(kv, sessionPrefix(sessionId)).pipe(
+    Effect.flatMap((rows) => Effect.forEach(rows, (row) => kv.remove(row.key), {discard: true})),
+  )
+}
+
 export function loadInstructionEntries(kv: KV.Interface, sessionId: string): Effect.Effect<Instructions.List> {
   return readEntries(kv, sessionId).pipe(Effect.map((entries) => Instructions.combine(entries.map(entrySource))))
 }

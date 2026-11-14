@@ -145,6 +145,7 @@ function refusal(name: string, cause: Cause.Cause<Tool.Error>): unknown {
   const defect = Cause.findDefect(cause)
   if (Result.isSuccess(defect)) return isDeclined(defect.success) ? approvalDenied(name) : defect.success
   const failure = Cause.findErrorOption(cause)
+  if (Option.isSome(failure) && isDeclined(failure.value.error)) return approvalDenied(name)
   if (Option.isSome(failure)) {
     const {type, message} = toSessionError(failure.value)
     return Object.assign(new Error(message), {type})

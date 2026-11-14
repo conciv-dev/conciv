@@ -84,7 +84,7 @@ import {
   type McpClient,
   type McpTool,
 } from '@conciv/harness-testkit'
-import {Plugin, Rpc as PluginRpc} from '@conciv/plugin'
+import {Plugin, Rpc as PluginRpc, type RpcRegistration} from '@conciv/plugin'
 import {evaluatePluginBundle} from '@conciv/plugin/experimental/host'
 import {PluginHost} from '@conciv/plugin-host'
 import {claude} from '@conciv/harness/claude'
@@ -4558,7 +4558,14 @@ describe('outside agent consent', () => {
     const base = await boot()
     const [first, second] = [await newSession(base), await newSession(base)]
     const lister = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: first, ...HUB})
-    await lister.tools()
+    expect((await lister.tools()).map((tool) => tool.name)).toEqual([
+      'discover_tools',
+      'server_reload',
+      'server_restart',
+      'page_eval',
+      'skill',
+      'execute_typescript',
+    ])
     await lister.close()
     expect(await loadPending(base, first)).toEqual([])
     const waiting = [hubCall(base, first), hubCall(base, first)]
@@ -4651,7 +4658,32 @@ describe('outside agent consent', () => {
 
   it('a plugin in one engine lists every running engine with a client that reaches it, and loses an engine that stops', async () => {
     const home = tempDir('conciv-home-')
-    const [first, second] = [await boot('session', home), await boot('session', home)]
+    const pinging = tempDir('conciv-pinger-')
+    mkdirSync(join(pinging, 'conciv', 'plugins'), {recursive: true})
+    writeFileSync(
+      join(pinging, 'conciv', 'plugins', 'pinger.ts'),
+      `const Pinger = {
+  id: 'pinger',
+  methods: {ping: {input: {type: 'object'}, output: {type: 'object'}}},
+  events: {pinged: {schema: {type: 'object', properties: {count: {type: 'number'}}}}},
+}
+
+export default {
+  id: 'pinger',
+  async setup(ctx) {
+    const registration = ctx.rpc.register(Pinger, {
+      ping: async () => {
+        await (await registration).events.emit('pinged', {count: 1})
+        return {}
+      },
+    })
+    await registration
+  },
+}
+`,
+    )
+    const first = await boot('session', home)
+    const second = track(await bootAt(home, pinging))
     const healthId = async (base: string): Promise<string> =>
       z.object({id: z.string()}).parse(await (await fetch(`${new URL(base).origin}/health`)).json()).id
     const [firstId, secondId] = [await healthId(first), await healthId(second)]
@@ -4662,8 +4694,37 @@ describe('outside agent consent', () => {
         return yield* PluginHost.ServersSource
       }),
     )
+    const homeEngineRows = (): string => {
+      try {
+        const rows = withHomeDb(home, (db) => ({
+          live: listEngines(db).map((row) => row.id),
+          all: db.$client.prepare('SELECT id, deleted_at FROM engines ORDER BY rowid').all(),
+        }))
+        return `live ${JSON.stringify(rows.live)}, every row with deleted_at ${JSON.stringify(rows.all)}`
+      } catch (error) {
+        return `unreadable: ${String(error)}`
+      }
+    }
+    const listed = async (expected: string[], since: {event: string; at: number}): Promise<void> => {
+      try {
+        await vi.waitFor(() => expect(servers.list()).toEqual(expected), {timeout: 25_000})
+      } catch (error) {
+        const held = servers.list().map((id) => ({id, connected: servers.get(id)?.connected}))
+        const elapsed = Math.round(performance.now() - since.at)
+        throw new Error(
+          [
+            error instanceof Error ? error.message : String(error),
+            `first engine ${firstId}, second engine ${secondId}`,
+            `the list holds ${JSON.stringify(held)}`,
+            `home database engine rows: ${homeEngineRows()}`,
+            `${elapsed} ms since ${since.event}`,
+          ].join('\n'),
+          {cause: error},
+        )
+      }
+    }
     expect(servers.list()).toEqual([])
-    await vi.waitFor(() => expect(servers.list()).toEqual([firstId, secondId]), {timeout: 3000})
+    await listed([firstId, secondId], {event: 'the servers source started', at: performance.now()})
     const fields = (id: string) => {
       const ref = servers.get(id)
       if (ref === undefined) throw new Error(`${id} is not listed`)
@@ -4686,14 +4747,78 @@ describe('outside agent consent', () => {
     await expect(remote.rpc(Missing).ping(undefined, {signal: AbortSignal.timeout(3000)})).rejects.toMatchObject({
       type: 'rpc.unavailable',
     })
+    expect(typeof remote).toBe('object')
+    expect([Object.hasOwn(remote, 'tabs'), Object.hasOwn(remote, 'sessions'), Object.hasOwn(remote, 'rpc')]).toEqual([
+      true,
+      true,
+      true,
+    ])
+    const stream = remote.event.subscribe()[Symbol.asyncIterator]()
+    expect(await stream.next()).toEqual({
+      done: false,
+      value: {id: expect.stringMatching(/^evt_/), type: 'server.connected', data: {}},
+    })
     const listening = new AbortController()
-    const events = await remote.plugin.events({rpcId: 'missing'}, {signal: listening.signal})
+    const missingNext = remote
+      .rpc(Missing)
+      .events.subscribe('pinged', {signal: listening.signal})
+      [Symbol.asyncIterator]()
+      .next()
     listening.abort()
-    await events.return()
+    expect(await missingNext).toEqual({done: true, value: undefined})
+    const Pinger = PluginRpc.define({
+      id: 'pinger',
+      methods: {ping: {input: z.object({}), output: z.object({})}},
+      events: {pinged: {schema: z.object({count: z.number()})}},
+    })
+    const pinged = remote.rpc(Pinger).events.subscribe('pinged')[Symbol.asyncIterator]()
+    const firstPing = pinged.next()
+    expect(await remote.rpc(Pinger).ping({})).toEqual({})
+    expect(await firstPing).toEqual({
+      done: false,
+      value: {
+        id: expect.stringMatching(/^evt_/),
+        type: 'rpc.pinger.pinged',
+        created: expect.any(Number),
+        location: {directory: pinging},
+        data: {count: 1},
+      },
+    })
+    await pinged.return?.()
+    await stream.return?.()
     await engines.find((booted) => booted.base === second)?.stop()
-    await vi.waitFor(() => expect(servers.list()).toEqual([firstId]), {timeout: 3000})
+    await listed([firstId], {event: 'the second engine stopped', at: performance.now()})
     expect(servers.get(secondId)).toBeUndefined()
-  })
+    const oldId = 'engine-before-plugin-rpc'
+    const old = createServer((request, response) => {
+      if (request.url === '/health') {
+        response.writeHead(200, {'content-type': 'application/json'}).end(JSON.stringify({ok: true, id: oldId}))
+        return
+      }
+      response.writeHead(404).end()
+    })
+    old.listen(0, '127.0.0.1')
+    await once(old, 'listening')
+    onTestFinished(() => {
+      old.closeAllConnections()
+      old.close()
+    })
+    const oldOrigin = `http://127.0.0.1:${z.object({port: z.number()}).parse(old.address()).port}`
+    const oldRow = {id: oldId, pid: process.pid, root: tempDir('conciv-old-'), apiBase: `${oldOrigin}/t/before`}
+    withHomeDb(home, (db) => registerEngine(db, oldRow))
+    await listed([firstId, oldId], {event: 'the old engine registered', at: performance.now()})
+    expect(fields(oldId).compatible).toBe(true)
+    const oldClient = servers.get(oldId)?.client
+    if (oldClient === undefined) throw new Error('the old engine has no ref')
+    await expect(oldClient.tabs.list(undefined)).rejects.toSatisfy(
+      (error) => error instanceof ORPCError && error.code === 'NOT_FOUND' && error.status === 404,
+    )
+    expect(fields(oldId).compatible).toBe(false)
+    const restarted = `${oldOrigin}/t/after`
+    withHomeDb(home, (db) => registerEngine(db, {...oldRow, apiBase: restarted}))
+    await vi.waitFor(() => expect(fields(oldId).url).toBe(restarted), {timeout: 25_000})
+    expect(fields(oldId).compatible).toBe(true)
+  }, 90_000)
 
   it('cancelling a hub block while it waits for the allow leaves nothing to run after a later allow', async () => {
     const base = await boot()
@@ -5610,6 +5735,53 @@ describe('page action queue delivery', () => {
     expect(page.runIds().filter((runId) => runId !== 'queueing-run')).toHaveLength(1)
     expect((await page.tab.chat.hydrate({sessionId: page.sessionId})).activeRun).toBeNull()
   })
+
+  it('a user stop starts no follow-up turn: the owed result arrives with the agent next reply', async () => {
+    const harness = createFakeHarness()
+    const page = await engineWithTab(harness)
+    harness.script.hold()
+    const viewer = new AbortController()
+    onTestFinished(() => viewer.abort())
+    const send = (runId: string, content: string) =>
+      fetch(`${page.base}${CHAT_SSE_PATH}`, {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({
+          threadId: page.sessionId,
+          runId,
+          messages: [{id: `${runId}-user`, role: 'user', content}],
+          tools: [],
+          context: [],
+        }),
+        signal: viewer.signal,
+      })
+    const stopped = send('stopped-run', 'fill the form')
+    await page.seenChunk(() => page.runIds().includes('stopped-run'))
+    const handle = page.tab.registry.call({name: 'page_queue_async', input: {actions: ACTIONS}})
+    const onTab = await page.nextQueue()
+    const {queueId} = z.object({queueId: z.string()}).parse(await handle)
+    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    await page.finishedEvent(queueId)
+    await page.tab.chat.stop({sessionId: page.sessionId, runIds: ['stopped-run']})
+    await (await stopped).text()
+    expect(await page.tab.chat.hydrate({sessionId: page.sessionId})).toMatchObject({
+      activeRun: null,
+      lastRun: {runId: 'stopped-run', phase: 'aborted'},
+    })
+    const next = send('next-run', 'what happened?')
+    await page.seenChunk(() => page.runIds().includes('next-run'))
+    expect(
+      JSON.stringify(await executeOverMcp(page.base, {[CONCIV_SESSION_HEADER]: page.sessionId}, 'return 1')),
+    ).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
+    harness.script.release()
+    await (await next).text()
+    expect([...new Set(page.runIds())]).toEqual(['stopped-run', 'next-run'])
+    expect(await page.tab.chat.hydrate({sessionId: page.sessionId})).toMatchObject({
+      activeRun: null,
+      lastRun: {runId: 'next-run', phase: 'completed'},
+    })
+  })
 })
 
 describe('engine plugins', () => {
@@ -5683,8 +5855,8 @@ export default {
 `
   const Embedded = PluginRpc.define({
     id: 'embedded',
-    methods: {ping: {input: z.object({}), output: z.string()}},
-    events: {},
+    methods: {ping: {input: z.object({}), output: z.string()}, announce: {input: z.object({}), output: z.string()}},
+    events: {announced: {schema: z.object({})}},
   })
 
   function projectWithPlugins(): string {
@@ -5749,7 +5921,14 @@ export default {
     const embedded = Plugin.define({
       id: 'embedded',
       async setup(ctx) {
-        await ctx.rpc.register(Embedded, {ping: async () => 'pong'})
+        const registration: Promise<RpcRegistration<typeof Embedded>> = ctx.rpc.register(Embedded, {
+          ping: async () => 'pong',
+          announce: async () => {
+            await (await registration).events.emit('announced', {})
+            return 'announced'
+          },
+        })
+        await registration
         return () => writeFileSync(join(root, 'cleanups.log'), 'embedded\n', {flag: 'a'})
       },
     })
@@ -5851,6 +6030,38 @@ export default {
     const direct = (await mcp.tools()).find((entry) => entry.name === 'seer_direct_shot')
     expect.soft(shotImages(await direct?.execute?.({}))).toEqual(resized)
 
+    const everything = await makeRpcClient(base).event.subscribe()
+    const deletions = await makeRpcClient(base).event.subscribe({types: ['session.deleted']})
+    const connected = {done: false, value: {id: expect.stringMatching(/^evt_/), type: 'server.connected', data: {}}}
+    expect(await everything.next()).toEqual(connected)
+    expect(await deletions.next()).toEqual(connected)
+    expect(await call(base, 'embedded', 'announce')).toBe('announced')
+    await makeRpcClient(base).sessions.delete({sessionId})
+    const announced = {
+      id: expect.stringMatching(/^evt_/),
+      type: 'rpc.embedded.announced',
+      created: expect.any(Number),
+      location: {directory: root},
+      data: {},
+    }
+    const deleted = {
+      ...announced,
+      type: 'session.deleted',
+      durable: {aggregateID: sessionId, seq: expect.any(Number), version: 2},
+      data: {sessionID: sessionId},
+    }
+    expect(await everything.next()).toEqual({done: false, value: announced})
+    expect(await everything.next()).toEqual({done: false, value: deleted})
+    expect(await deletions.next()).toEqual({done: false, value: deleted})
+
+    const outside = makeRpcClient(base, {headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'terminal'}})
+    await expect(outside.event.subscribe()).rejects.toMatchObject({
+      code: 'APPROVAL_DENIED',
+      message: "outside agents can't read the engine's event stream",
+    })
+    await everything.return(undefined)
+    await deletions.return(undefined)
+
     stopped.current = true
     await engine.stop()
     expect(readFileSync(join(root, 'cleanups.log'), 'utf8')).toBe('configured\nseer\nembedded\n')
@@ -5913,7 +6124,11 @@ describe('engine plugin bundles', () => {
       })
     }
 
-    const changes = await rpc.plugin.changes(undefined, options)
+    const changes = await rpc.event.subscribe({types: ['plugin.updated']}, options)
+    expect(await changes.next()).toEqual({
+      done: false,
+      value: {id: expect.stringMatching(/^evt_/), type: 'server.connected', data: {}},
+    })
     const delivered: unknown[] = []
     const [secondArrival, thirdArrival] = [Promise.withResolvers<void>(), Promise.withResolvers<void>()]
     const arrivals = [secondArrival, thirdArrival]
@@ -5937,7 +6152,14 @@ describe('engine plugin bundles', () => {
     expect(third.revision).not.toBe(second.revision)
     await changes.return()
     const [ended] = await consumed
-    expect(delivered).toEqual([{}, {}])
+    const updated = {
+      id: expect.stringMatching(/^evt_/),
+      type: 'plugin.updated',
+      created: expect.any(Number),
+      location: {directory: root},
+      data: {},
+    }
+    expect(delivered).toEqual([updated, updated])
     expect(ended).toMatchObject({status: 'rejected', reason: {name: 'AbortError', message: 'Stream was cancelled'}})
   })
 })

@@ -107,7 +107,7 @@ import {
   SkillInstructions,
   Tool,
 } from '@conciv/plugin-host'
-import {makeRpc, Rpc as PluginRpc} from '@conciv/plugin'
+import {Conciv, Rpc as PluginRpc} from '@conciv/plugin'
 import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {isEqual} from 'es-toolkit'
 import getPort from 'get-port'
@@ -2600,13 +2600,8 @@ describe('plugin rpc over the socket', () => {
           }),
         ).pipe(Scope.provide(host.runSync(Scope.make()))),
       )
-      const {plugin} = client.rpc
-      const opened = Promise.withResolvers<void>()
-      const api = makeRpc(plugin.call, async (input, options) => {
-        const events = await plugin.events(input, options)
-        opened.resolve()
-        return events
-      })
+      const conciv = Conciv.make(client.rpc)
+      const api = conciv.rpc
       const acme = api(AcmeClient)
       expect(await acme.search({query: 'docs'})).toEqual({hits: ['docs']})
 
@@ -2630,15 +2625,18 @@ describe('plugin rpc over the socket', () => {
         data: {retryAfter: 5},
       })
 
+      const connected = conciv.event.subscribe()[Symbol.asyncIterator]()
+      expect(await connected.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
       const typed = acme.events.subscribe('indexed')[Symbol.asyncIterator]()
       const typedNext = typed.next()
-      const all = await plugin.events({rpcId: 'acme'})
-      await opened.promise
+      const all = await client.rpc.event.subscribe({types: ['rpc.acme.indexed']})
+      expect(await all.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
       await host.runPromise(registration.events.emit('indexed', {count: 3}))
       const indexed = {done: false, value: expect.objectContaining({type: 'rpc.acme.indexed', data: {count: 3}})}
       expect(await Promise.all([typedNext, all.next()])).toEqual([indexed, indexed])
       await typed.return?.()
       await all.return()
+      await connected.return?.()
     } finally {
       connection.release()
       client.close()
@@ -3242,6 +3240,22 @@ describe('plugin context keys provided by core', () => {
       Effect.runPromise(Model.Service.use(run).pipe(Effect.provide(provideHarnessModels(listingHarness([])))))
     expect(await empty((service) => service.available())).toEqual([])
     expect(await empty((service) => service.default())).toBeUndefined()
+    const listed = (
+      harnessModels: HarnessModel[],
+      defaultModel: string,
+      run: (service: Model.Interface) => Effect.Effect<unknown>,
+    ) =>
+      Effect.runPromise(
+        Model.Service.use(run).pipe(Effect.provide(provideHarnessModels(listingHarness(harnessModels, defaultModel)))),
+      )
+    expect(await listed([RETIRED, OPUS, SONNET], 'retired', (service) => service.default())).toEqual(filled(OPUS, []))
+    expect(await listed([RETIRED, OPUS, SONNET], 'retired', (service) => service.available())).toEqual([
+      filled(OPUS, []),
+      filled(SONNET, sonnetVariants),
+    ])
+    expect(await listed([RETIRED, SONNET, OPUS], 'unlisted', (service) => service.default())).toEqual(
+      filled(SONNET, sonnetVariants),
+    )
 
     const roots = await host.runPromise(Global.Service)
     expect(roots).toEqual({cache: join(home, 'cache'), state: join(home, 'state')})
@@ -3287,12 +3301,13 @@ describe('plugin context keys provided by core', () => {
       agent: 'build',
       cost: 0,
       tokens: {input: 0, output: 0, reasoning: 0, cache: {read: 0, write: 0}},
-      time: {created: undefined, updated: expect.any(Number)},
+      time: {created: expect.any(Number), updated: expect.any(Number)},
       title: 'Plan the port',
       metadata: {ticket: 7, tags: ['plugins']},
       permissions: [{action: 'bash', resource: '*', effect: 'deny'}],
       location: {directory: stateRoot},
     })
+    expect(created.time.created).toBeLessThanOrEqual(created.time.updated)
     expect(await key.run((sessions) => sessions.get(sessionId))).toEqual(created)
 
     await key.run((sessions) =>
@@ -3310,6 +3325,18 @@ describe('plugin context keys provided by core', () => {
     expect(second.model).toEqual({id: 'opus', providerId: 'listing-cli'})
     const listed = await key.run((sessions) => sessions.list())
     expect(listed.data.map((session) => session.id).toSorted()).toEqual([sessionId, second.id].toSorted())
+    expect(listed.data.find((session) => session.id === sessionId)?.time.created).toBe(created.time.created)
+    expect(await key.fail((sessions) => sessions.create({title: 'Planned', agent: 'plan', location}))).toMatchObject({
+      _tag: 'Session.AgentNotFoundError',
+      sessionId: expect.stringMatching(/^conciv_/),
+      agent: 'plan',
+    })
+    expect(
+      await key.fail((sessions) => sessions.create({model: {id: 'gone', providerId: 'listing-cli'}, location})),
+    ).toMatchObject({_tag: 'Session.NotFoundError', sessionId: expect.stringMatching(/^conciv_/)})
+    expect((await key.run((sessions) => sessions.list())).data.map((session) => session.id).toSorted()).toEqual(
+      [sessionId, second.id].toSorted(),
+    )
     const first = await key.run((sessions) => sessions.list({limit: 1}))
     expect(first.data).toHaveLength(1)
     expect(first.cursor.next).toEqual(expect.any(String))
@@ -3361,11 +3388,26 @@ describe('plugin context keys provided by core', () => {
       providerId: 'listing-cli',
     })
 
+    const entries = (run: (service: InstructionEntry.Interface) => Effect.Effect<unknown, unknown>) =>
+      made.pluginHost.runPromise(InstructionEntry.Service.use(run))
+    await entries((service) => service.put({sessionId: SessionSchema.Id.make(sessionId), key: 'brief', value: 'gone'}))
+    await entries((service) => service.put({sessionId: SessionSchema.Id.make(second.id), key: 'brief', value: 'kept'}))
+    expect(await entries((service) => service.list(SessionSchema.Id.make(sessionId)))).toEqual([
+      {key: 'brief', value: 'gone'},
+    ])
+    expect(await entries((service) => service.list(SessionSchema.Id.make(second.id)))).toEqual([
+      {key: 'brief', value: 'kept'},
+    ])
+
     await key.run((sessions) => sessions.remove(sessionId))
     expect(await key.fail((sessions) => sessions.get(sessionId))).toMatchObject({
       _tag: 'Session.NotFoundError',
       sessionId,
     })
+    expect(await entries((service) => service.list(SessionSchema.Id.make(sessionId)))).toEqual([])
+    expect(await entries((service) => service.list(SessionSchema.Id.make(second.id)))).toEqual([
+      {key: 'brief', value: 'kept'},
+    ])
     expect(await key.fail((sessions) => sessions.remove(sessionId))).toMatchObject({_tag: 'Session.NotFoundError'})
     expect(heard.filter((event) => event.type === SessionEvent.Deleted.type)).toHaveLength(1)
     expect((await key.run((sessions) => sessions.list())).data.map((session) => session.id)).toEqual([second.id])

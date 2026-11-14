@@ -414,7 +414,7 @@ describe('plugin tools in code mode', () => {
 describe('refusal text', () => {
   const isAsked = Schema.is(Schema.Struct({id: Permission.Id, action: Schema.String}))
 
-  it('a declined call says the user denied the tool, and a blocked or corrected call says its own message', async () => {
+  it('a declined call says the user denied the tool, also when a promise tool rethrew the decline, and a blocked or corrected call says its own message', async () => {
     const {root, db} = openDatabase()
     const sessions = Layer.succeed(
       Permission.PermissionSessions,
@@ -473,6 +473,24 @@ describe('refusal text', () => {
                 .pipe(Effect.orDie, Effect.as({content: 'ran'})),
           })
           editor.add({
+            name: 'unit_promised',
+            description: 'Assert a permission from a promise and wrap what it rejects with.',
+            input: z.object({action: z.string()}),
+            execute: (input: {action: string}, context) =>
+              Effect.tryPromise({
+                try: () =>
+                  host.runPromise(
+                    permission.assert({
+                      ...Permission.invocation(context),
+                      action: input.action,
+                      resources: ['src/.env'],
+                    }),
+                  ),
+                catch: (error) =>
+                  Tool.makeError({message: error instanceof Error ? error.message : String(error), error}),
+              }).pipe(Effect.as({content: 'ran'})),
+          })
+          editor.add({
             name: 'unit_wrapped',
             description: 'Assert a permission and wrap its failure.',
             input: z.object({action: z.string()}),
@@ -496,7 +514,7 @@ describe('refusal text', () => {
         })
       }).pipe(Scope.provide(scope)),
     )
-    const [guarded, wrapped] = toolDomainCapabilities(
+    const [guarded, promised, wrapped] = toolDomainCapabilities(
       [],
       {snapshot: host.runSync(Tool.Service.use((tools) => tools.snapshot())), agent: Agent.defaultId},
       (effect, signal) => host.runPromiseExit(effect, {signal}),
@@ -515,6 +533,14 @@ describe('refusal text', () => {
     )
     await expect(call('refused')).rejects.toThrow('Permission denied: refused')
     await expect(call('corrected')).rejects.toThrow('read the example file instead')
+    expect(promised?.name).toBe('unit_promised')
+    await expect(promised?.execute({action: 'asked'}, request('promised-asked'))).rejects.toThrow(
+      'The user denied running tool "unit_promised". Do not retry it; continue without it.',
+    )
+    await expect(promised?.execute({action: 'corrected'}, request('promised-corrected'))).rejects.toMatchObject({
+      type: 'permission.rejected',
+      message: 'read the example file instead',
+    })
     expect(wrapped?.name).toBe('unit_wrapped')
     await expect(wrapped?.execute({action: 'missing'}, request('wrapped-missing'))).rejects.toMatchObject({
       type: 'tool.execution',
@@ -742,7 +768,8 @@ describe('stopping a run', () => {
       settledYet = true
     })
     expect(await chat.stop(sessionId, ['another run'])).toEqual({ok: true, stopped: false})
-    expect(await chat.stop(sessionId)).toEqual({ok: true, stopped: true})
+    const together = await Promise.all([chat.stop(sessionId), chat.stop(sessionId)])
+    expect(together.map(({stopped}) => stopped).toSorted()).toEqual([false, true])
     expect(await chat.stop(sessionId)).toEqual({ok: true, stopped: false})
     expect(settledYet).toBe(false)
 

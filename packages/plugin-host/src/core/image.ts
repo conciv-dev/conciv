@@ -1,6 +1,7 @@
 export * as Image from './image.js'
 
 import {Context, Effect, Layer, Schema} from 'effect'
+import {FileSystem} from './filesystem.js'
 import {State} from './state.js'
 
 export const ResizerUnavailableError = Schema.TaggedStruct('Image.ResizerUnavailableError', {})
@@ -41,14 +42,6 @@ export const makeSizeError = (fields: Omit<typeof SizeError.Type, '_tag'>): Size
     {name: 'Image.SizeError'},
   )
 
-export type Content = {
-  readonly uri: string
-  readonly name?: string
-  readonly content: string
-  readonly encoding: 'base64'
-  readonly mime: string
-}
-
 export type Limits = {
   autoResize: boolean
   maxWidth: number
@@ -63,8 +56,11 @@ export type Editor = {
 export interface Interface extends State.Transformable<Editor> {
   readonly normalize: (
     resource: string,
-    content: Content,
-  ) => Effect.Effect<Content, ResizerUnavailableError | DecodeError | SizeError>
+    content: FileSystem.Content & {readonly encoding: 'base64'},
+  ) => Effect.Effect<
+    FileSystem.Content & {readonly encoding: 'base64'},
+    ResizerUnavailableError | DecodeError | SizeError
+  >
 }
 
 export const Service = Context.Service<Interface>('@opencode/Image')
@@ -95,7 +91,10 @@ export const layer = Layer.effect(
         catch: () => makeResizerUnavailableError(),
       }).pipe(Effect.flatMap((adapter) => adapter.make)),
     )
-    const normalize = Effect.fn('Image.normalize')(function* (resource: string, content: Content) {
+    const normalize = Effect.fn('Image.normalize')(function* (
+      resource: string,
+      content: FileSystem.Content & {readonly encoding: 'base64'},
+    ) {
       const normalize = yield* loadAdapter
       return yield* normalize(resource, content, state.get())
     })

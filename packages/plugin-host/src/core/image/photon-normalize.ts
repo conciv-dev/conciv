@@ -1,10 +1,11 @@
 export * as PhotonNormalize from './photon-normalize.js'
 
 import photonWasm from './photon-wasm.js'
-import type {Content as ImageContent, Limits} from '../image.js'
+import type {FileSystem} from '../filesystem.js'
+import type {Limits} from '../image.js'
 
 export type Photon = typeof import('@silvia-odwyer/photon-node')
-export type Content = ImageContent
+export type Content = FileSystem.Content & {readonly encoding: 'base64'}
 export type Size = {
   readonly width: number
   readonly height: number
