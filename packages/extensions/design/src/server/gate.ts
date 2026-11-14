@@ -190,9 +190,17 @@ function heldTexts(input: {design: Design; reads: ReturnType<typeof readIds>}): 
     [...walk(input.design.root)].flatMap(({node, parent}) => {
       const own = reads.of(node.id)[0]
       if (node.kind !== 'text' || parent === null || own === undefined || own.textBox === null) return []
-      return reads.of(parent.id)[0]?.path === own.path ? [node.id] : []
+      return reads.of(parent.id)[0]?.path === own.path || besideIcon(own) ? [node.id] : []
     }),
   )
+}
+
+function besideIcon(element: LiveComponent): boolean {
+  return element.children.length > 0 && element.children.every(textless)
+}
+
+function textless(element: LiveComponent): boolean {
+  return element.text === '' && element.children.every(textless)
 }
 
 function textOf(element: LiveComponent): LiveComponent {

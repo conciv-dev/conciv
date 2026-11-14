@@ -384,7 +384,8 @@ export function App() {
     requested === 'contact-bar' ||
     requested === 'contact-bar-fit' ||
     requested === 'contact-bar-stacked' ||
-    requested === 'contact-bar-picture'
+    requested === 'contact-bar-picture' ||
+    requested === 'contact-bar-linked'
   ) {
     return (
       <main style={{margin: -24, background: '#1a1a1a'}} data-conciv-key="cBmNaA">
@@ -392,7 +393,8 @@ export function App() {
         <footer className="contact-bar" data-conciv-key="cBfTrA">
           <div className="contact-bar-items" data-conciv-key="cBiTmA">
             {CONTACT_ITEMS.map((item, index) => (
-              <span className="contact-bar-item" key={item} data-conciv-key="cBbTnA">
+              <ContactCell linked={requested === 'contact-bar-linked'} key={item}>
+              <span className="contact-bar-item" data-conciv-key="cBbTnA">
                 {requested === 'contact-bar-picture' ? (
                   <picture data-conciv-key="cBpIcA">
                     <source srcSet="/late/design/4-30.svg" />
@@ -403,6 +405,7 @@ export function App() {
                 )}
                 {item}
               </span>
+              </ContactCell>
             ))}
           </div>
           <span className="contact-bar-copy" data-conciv-key="cBcPyA">
@@ -638,6 +641,10 @@ function FormThumb(props: {value: string}) {
       </span>
     </span>
   )
+}
+
+function ContactCell(props: {linked: boolean; children: React.ReactNode}) {
+  return props.linked ? <span style={{display: 'flex', flexDirection: 'column'}} data-conciv-key="cBlNkA">{props.children}</span> : props.children
 }
 
 function ContactForm(props: {flat: boolean; section: boolean; ruled: boolean}) {

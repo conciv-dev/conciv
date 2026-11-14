@@ -406,7 +406,7 @@ describe('a page between two frames', () => {
 })
 
 describe('a page that switches layouts between two frames', () => {
-  it('is flagged when it keeps the narrow layout past the midpoint, and an image row names the picture shown', async () => {
+  it('is flagged when it keeps the narrow layout past the midpoint, an image row names the picture shown, and a text beside an icon in its element sits where its glyphs are', async () => {
     await kit.goto('contact-bar')
     await call('design_get', {
       figma: [
@@ -416,25 +416,24 @@ describe('a page that switches layouts between two frames', () => {
       document: [await figmaDocument('contact-bar-390.json'), await figmaDocument('contact-bar-1440.json')],
       image: [fixture('contact-bar-390.png'), fixture('contact-bar-1440.png')],
     })
-    const jumped = async () =>
-      VariantsSchema.parse(await call('design_check', {})).variants.flatMap((variant) =>
-        variant.rows.filter((row) => row.text.includes('lays its children out')).map((row) => row.text),
-      )
-    const late = await jumped()
-    await kit.goto('contact-bar-fit')
-    const early = await jumped()
-    await kit.goto('contact-bar-stacked')
-    const stacked = await jumped()
-    await kit.goto('contact-bar-picture')
-    const pictured = VariantsSchema.parse(await call('design_check', {})).variants.flatMap((variant) =>
-      variant.rows.filter((row) => row.text.startsWith('wrong image')).map((row) => row.text),
-    )
-    expect([late, early, stacked, pictured]).toEqual([
+    const texts = async (page: string, kept: (text: string) => boolean) => {
+      await kit.goto(page)
+      const {variants} = VariantsSchema.parse(await call('design_check', {}))
+      return variants.flatMap((variant) => variant.rows.map((row) => row.text).filter(kept))
+    }
+    const jumped = (text: string) => text.includes('lays its children out')
+    const late = await texts('contact-bar', jumped)
+    const early = await texts('contact-bar-fit', jumped)
+    const stacked = await texts('contact-bar-stacked', jumped)
+    const linked = await texts('contact-bar-linked', (text) => text.includes('Text Button [') && text.includes('sits'))
+    const pictured = await texts('contact-bar-picture', (text) => text.startsWith('wrong image'))
+    expect([late, early, stacked, linked, pictured]).toEqual([
       [
         'frame Sub Container [100:1514] at 1199 wide: lays its children out in a column as the 358 px frame does, though 1199 is nearer the 1280 px frame, which lays them out in a row; switch to the 358 px layout below 819',
       ],
       [],
       late,
+      [],
       [
         'wrong image at [100:1158]: /design/100-1158.png expected, <img src=/late/design/4-30.svg>',
         'wrong image at [100:1162]: /design/100-1162.png expected, <img src=/late/design/4-30.svg>',
