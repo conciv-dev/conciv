@@ -1,7 +1,7 @@
 import {basename} from 'node:path'
 import {engineTooOld, makeRpcClient} from '@conciv/contract'
 import {checkEngines, listEngines, withHomeDb, type EngineRow} from '@conciv/db'
-import {makeRpc} from '@conciv/plugin'
+import {Conciv} from '@conciv/plugin'
 import {PluginHost} from '@conciv/plugin-host'
 import {Context, Effect, Latch, Layer, Ref, Semaphore, Stream} from 'effect'
 import {isEqual, memoize, uniqBy} from 'es-toolkit'
@@ -30,10 +30,7 @@ function connect(apiBase: string, tooOld: (apiBase: string) => void): ServerRef[
         }),
     ],
   })
-  const rpc = makeRpc(client.plugin.call, client.plugin.events)
-  return new Proxy(Object.assign(client, {rpc}), {
-    get: (target, key) => (key === 'rpc' ? rpc : Reflect.get(target, key)),
-  })
+  return Conciv.make(client)
 }
 
 async function checked(home: string): Promise<Snapshot> {

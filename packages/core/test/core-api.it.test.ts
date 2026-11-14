@@ -4653,7 +4653,32 @@ describe('outside agent consent', () => {
 
   it('a plugin in one engine lists every running engine with a client that reaches it, and loses an engine that stops', async () => {
     const home = tempDir('conciv-home-')
-    const [first, second] = [await boot('session', home), await boot('session', home)]
+    const pinging = tempDir('conciv-pinger-')
+    mkdirSync(join(pinging, 'conciv', 'plugins'), {recursive: true})
+    writeFileSync(
+      join(pinging, 'conciv', 'plugins', 'pinger.ts'),
+      `const Pinger = {
+  id: 'pinger',
+  methods: {ping: {input: {type: 'object'}, output: {type: 'object'}}},
+  events: {pinged: {schema: {type: 'object', properties: {count: {type: 'number'}}}}},
+}
+
+export default {
+  id: 'pinger',
+  async setup(ctx) {
+    const registration = ctx.rpc.register(Pinger, {
+      ping: async () => {
+        await (await registration).events.emit('pinged', {count: 1})
+        return {}
+      },
+    })
+    await registration
+  },
+}
+`,
+    )
+    const first = await boot('session', home)
+    const second = track(await bootAt(home, pinging))
     const healthId = async (base: string): Promise<string> =>
       z.object({id: z.string()}).parse(await (await fetch(`${new URL(base).origin}/health`)).json()).id
     const [firstId, secondId] = [await healthId(first), await healthId(second)]
@@ -4721,6 +4746,37 @@ describe('outside agent consent', () => {
     const events = await remote.plugin.events({rpcId: 'missing'}, {signal: listening.signal})
     listening.abort()
     await events.return()
+    expect(typeof remote).toBe('object')
+    expect([Object.hasOwn(remote, 'tabs'), Object.hasOwn(remote, 'sessions'), Object.hasOwn(remote, 'rpc')]).toEqual([
+      true,
+      true,
+      true,
+    ])
+    const stream = remote.event.subscribe()[Symbol.asyncIterator]()
+    expect(await stream.next()).toEqual({
+      done: false,
+      value: {id: expect.stringMatching(/^evt_/), type: 'server.connected', data: {}},
+    })
+    const Pinger = PluginRpc.define({
+      id: 'pinger',
+      methods: {ping: {input: z.object({}), output: z.object({})}},
+      events: {pinged: {schema: z.object({count: z.number()})}},
+    })
+    const pinged = remote.rpc(Pinger).events.subscribe('pinged')[Symbol.asyncIterator]()
+    const firstPing = pinged.next()
+    expect(await remote.rpc(Pinger).ping({})).toEqual({})
+    expect(await firstPing).toEqual({
+      done: false,
+      value: {
+        id: expect.stringMatching(/^evt_/),
+        type: 'rpc.pinger.pinged',
+        created: expect.any(Number),
+        location: {directory: pinging},
+        data: {count: 1},
+      },
+    })
+    await pinged.return?.()
+    await stream.return?.()
     await engines.find((booted) => booted.base === second)?.stop()
     await listed([firstId], {event: 'the second engine stopped', at: performance.now()})
     expect(servers.get(secondId)).toBeUndefined()

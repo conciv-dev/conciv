@@ -96,7 +96,7 @@ import {
   SkillInstructions,
   Tool,
 } from '@conciv/plugin-host'
-import {makeRpc, Rpc as PluginRpc} from '@conciv/plugin'
+import {Conciv, Rpc as PluginRpc} from '@conciv/plugin'
 import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {isEqual} from 'es-toolkit'
 import getPort from 'get-port'
@@ -2435,12 +2435,8 @@ describe('plugin rpc over the socket', () => {
         ).pipe(Scope.provide(host.runSync(Scope.make()))),
       )
       const {plugin} = client.rpc
-      const opened = Promise.withResolvers<void>()
-      const api = makeRpc(plugin.call, async (input, options) => {
-        const events = await plugin.events(input, options)
-        opened.resolve()
-        return events
-      })
+      const conciv = Conciv.make(client.rpc)
+      const api = conciv.rpc
       const acme = api(AcmeClient)
       expect(await acme.search({query: 'docs'})).toEqual({hits: ['docs']})
 
@@ -2464,15 +2460,17 @@ describe('plugin rpc over the socket', () => {
         data: {retryAfter: 5},
       })
 
+      const connected = conciv.event.subscribe()[Symbol.asyncIterator]()
+      expect(await connected.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
       const typed = acme.events.subscribe('indexed')[Symbol.asyncIterator]()
       const typedNext = typed.next()
       const all = await plugin.events({rpcId: 'acme'})
-      await opened.promise
       await host.runPromise(registration.events.emit('indexed', {count: 3}))
       const indexed = {done: false, value: expect.objectContaining({type: 'rpc.acme.indexed', data: {count: 3}})}
       expect(await Promise.all([typedNext, all.next()])).toEqual([indexed, indexed])
       await typed.return?.()
       await all.return()
+      await connected.return?.()
     } finally {
       connection.release()
       client.close()
