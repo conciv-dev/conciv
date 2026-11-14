@@ -13,7 +13,9 @@ import {once} from 'node:events'
 import {request as httpRequest} from 'node:http'
 import {createServer} from 'node:net'
 import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {createRequire} from 'node:module'
+import {dirname, join} from 'node:path'
+import {fileURLToPath} from 'node:url'
 import {text as bodyText} from 'node:stream/consumers'
 import {randomUUID} from 'node:crypto'
 import {setImmediate, setTimeout as wait} from 'node:timers/promises'
@@ -3379,5 +3381,23 @@ describe('engine build keeps runtime packages external', () => {
         .filter((chunk) => chunk.source.includes('__dirname') && !definesDirname.test(chunk.source))
         .map((chunk) => chunk.name),
     ).toEqual([])
+  })
+
+  it('loads photon from its own package and spawns the resize worker the plugin host ships beside it', () => {
+    const hostDir = dirname(fileURLToPath(import.meta.resolve('@conciv/plugin-host')))
+    const hostChunks = readdirSync(hostDir)
+      .filter((name) => name.endsWith('.js'))
+      .map((name) => ({name, source: readFileSync(join(hostDir, name), 'utf8')}))
+    expect(hostChunks.some((chunk) => /import\(\s*["']@silvia-odwyer\/photon-node["']\s*\)/.test(chunk.source))).toBe(
+      true,
+    )
+    expect(hostChunks.filter((chunk) => chunk.source.includes('__wbindgen')).map((chunk) => chunk.name)).toEqual([])
+    const spawning = hostChunks.filter((chunk) =>
+      chunk.source.includes('new URL("./photon-worker.js", import.meta.url)'),
+    )
+    expect(spawning.length).toBe(1)
+    expect(existsSync(join(hostDir, 'photon-worker.js'))).toBe(true)
+    const wasm = createRequire(join(hostDir, 'index.js')).resolve('@silvia-odwyer/photon-node/photon_rs_bg.wasm')
+    expect(existsSync(wasm)).toBe(true)
   })
 })
