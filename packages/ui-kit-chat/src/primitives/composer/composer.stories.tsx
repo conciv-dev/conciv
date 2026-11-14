@@ -46,10 +46,10 @@ function ComposerApp(): JSX.Element {
         </Thread.Viewport>
         <Composer.Root class="flex gap-2 items-end">
           <Composer.Input placeholder="Message…" class="flex-1" aria-label="Message" />
-          <Composer.Send class="text-chat-on-accent px-3 py-1.5 rounded-chat-surface-md bg-chat-accent disabled:opacity-40">
+          <Composer.Send class="text-[0.8125rem] text-chat-on-accent leading-5 px-3 py-1.5 rounded-chat-surface-md bg-chat-accent disabled:opacity-40">
             Send
           </Composer.Send>
-          <Composer.Cancel class="text-chat-text px-3 py-1.5 rounded-chat-surface-md bg-chat-fill-strong">
+          <Composer.Cancel class="text-[0.8125rem] text-chat-text leading-5 px-3 py-1.5 rounded-chat-surface-md bg-chat-fill-strong">
             Stop
           </Composer.Cancel>
         </Composer.Root>
@@ -91,10 +91,10 @@ function CancelApp(props: {onCancel: () => void}): JSX.Element {
       <ComposerHandlersProvider value={handlers}>
         <Composer.Root class="flex gap-2 items-end">
           <Composer.Input placeholder="Message…" class="flex-1" aria-label="Message" />
-          <Composer.Send class="text-chat-on-accent px-3 py-1.5 rounded-chat-surface-md bg-chat-accent disabled:opacity-40">
+          <Composer.Send class="text-[0.8125rem] text-chat-on-accent leading-5 px-3 py-1.5 rounded-chat-surface-md bg-chat-accent disabled:opacity-40">
             Send
           </Composer.Send>
-          <Composer.Cancel class="text-chat-text px-3 py-1.5 rounded-chat-surface-md bg-chat-fill-strong">
+          <Composer.Cancel class="text-[0.8125rem] text-chat-text leading-5 px-3 py-1.5 rounded-chat-surface-md bg-chat-fill-strong">
             Stop
           </Composer.Cancel>
         </Composer.Root>
