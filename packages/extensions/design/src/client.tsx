@@ -666,9 +666,9 @@ function stampRepeat(input: {el: Element; repeated: Set<string | null>}): string
   const siblings = [...(el.parentElement?.children ?? [])]
   if (key === null) return null
   if (!input.repeated.has(key)) return el.hasAttribute(KEY_ATTR) ? null : stampedAs({el, stamp: key})
-  const read = listKey(el)
   const kept = el.getAttribute(INSTANCE_ATTR)
-  if (read === null && kept !== null) return kept
+  if (kept !== null && kept !== key) return kept
+  const read = listKey(el)
   const above = el.parentElement?.closest(`[${KEY_ATTR}]`) ?? null
   const prefix = above === null ? '' : `${above.getAttribute(INSTANCE_ATTR) ?? above.getAttribute(KEY_ATTR) ?? ''}/`
   return stampedAs({el, stamp: `${prefix}${key}/${read ?? String(siblings.indexOf(el))}`})
