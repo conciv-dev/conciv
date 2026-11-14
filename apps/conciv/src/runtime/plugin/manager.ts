@@ -31,11 +31,12 @@ export function createManager(rpc: RpcClient, builtins: readonly string[]) {
       if (builtins.includes(id)) throw pluginError('builtin')
       await rpc.settings.set({...WHERE, key: id, value: enabled})
     },
-    on(listener: (state: readonly EnableState[]) => void) {
+    on(listener: (state: readonly EnableState[]) => void, failed?: (cause: unknown) => void) {
       const controller = new AbortController()
       follow(rpc, controller.signal, listener).catch((error: unknown) => {
         if (controller.signal.aborted) return
         console.error('[plugins] following the plugin enable state failed', error)
+        failed?.(error)
       })
       return () => controller.abort()
     },
@@ -46,4 +47,6 @@ async function follow(rpc: RpcClient, signal: AbortSignal, listener: (state: rea
   const stream = await rpc.settings.changes(WHERE, {signal})
 
   for await (const snapshot of stream) listener(readEnableState(snapshot))
+
+  throw new Error('the plugin enable state stream ended')
 }

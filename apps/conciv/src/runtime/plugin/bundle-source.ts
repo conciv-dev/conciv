@@ -280,10 +280,15 @@ export function createBundleSource(input: {readonly rpc: RpcClient; readonly api
 
   const loaded = Promise.withResolvers<readonly EnableState[]>()
 
-  const unfollowEnableState = enableStore.on((rows) => {
-    settle(rows)
-    loaded.resolve(rows)
-  })
+  loaded.promise.catch(() => undefined)
+
+  const unfollowEnableState = enableStore.on(
+    (rows) => {
+      settle(rows)
+      loaded.resolve(rows)
+    },
+    (cause) => loaded.reject(cause),
+  )
 
   const setEnabled = async (pluginId: string, value: boolean) => {
     if (!known(pluginId)) throw pluginError('notFound')
@@ -327,6 +332,7 @@ export function createBundleSource(input: {readonly rpc: RpcClient; readonly api
     },
     dispose: () => {
       unfollowEnableState()
+      loaded.reject(new Error('the plugin manager was disposed'))
       dispatch({type: 'stopped'})
     },
   }
