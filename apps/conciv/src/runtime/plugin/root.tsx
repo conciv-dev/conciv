@@ -19,6 +19,7 @@ const PluginsContext = createContext<{
   manager: () => PluginManager | undefined
   set: (plugins: readonly PluginExperimental[], reserved: readonly string[]) => void
   reserved: () => readonly string[]
+  reported: () => readonly string[] | undefined
 }>()
 
 const PluginHotReload = import.meta.env.DEV ? lazy(() => import('./hmr')) : undefined
@@ -33,6 +34,19 @@ export function usePluginManager() {
   const plugins = useContext(PluginsContext)
 
   return () => plugins?.manager()
+}
+
+export function usePluginsKnown() {
+  const plugins = useContext(PluginsContext)
+  const host = usePluginHost()
+
+  return createMemo(() => {
+    const reported = plugins ? plugins.reported() : []
+
+    if (reported === undefined) return 'pending'
+
+    return reported.some((id) => (host.status(id) ?? 'loading') === 'loading') ? 'pending' : 'known'
+  })
 }
 
 export function useHostApis() {
@@ -104,6 +118,15 @@ export function PluginRoot(props: ParentProps) {
           manager: () => bundle()?.manager,
           set: (plugins, reserved) => setLoaded({settled: true, plugins, reserved}),
           reserved: () => loaded().reserved,
+          reported: () => {
+            const status = login()?.status() ?? 'trusted'
+
+            if (status === 'checking') return undefined
+
+            if (status !== 'trusted') return []
+
+            return loaded().settled ? loaded().plugins.map((plugin) => plugin.definition.id) : undefined
+          },
         }}
       >
         <PluginHostProvider

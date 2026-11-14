@@ -5795,6 +5795,69 @@ ${pages}
   }, 60_000)
 })
 
+describe('a plugin settings page link while its plugin bundle is still being read', () => {
+  const coreBase = bootedCore('plugin-settings-pages-reading', {
+    plugins: ['./gamma'],
+    files: {
+      'gamma/index.ts': `export default {id: 'gamma', async setup() {}}
+`,
+      'gamma/plugin-experimental.js': `const {SettingsPage} = require('@conciv/plugin/experimental')
+module.exports = {default: {setup(ctx) {
+  ctx.add(SettingsPage, {id: 'prefs', title: 'Gamma prefs', render: () => Object.assign(document.createElement('p'), {textContent: 'Gamma prefs body'})})
+}}}
+`,
+    },
+  })
+  const harness = createShellHarness(coreBase)
+  const faults = trackedFaults()
+
+  afterEach(harness.dispose)
+
+  test('a cold link waits for the plugin to be read and set up, then lands on its page with no bounce', async () => {
+    await page.viewport(1000, 900)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const gammaPath = `/panel/${sessionId}/settings/plugins/${encodeURIComponent('gamma:prefs')}`
+    const reading = await faults.install({kind: 'gate', path: ['plugin', 'experimental']})
+
+    harness.mountShell(`${gammaPath}?open=true`)
+    await expect.element(page.getByRole('tab', {name: 'Plugins', exact: true}), {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('Gamma prefs body', {exact: true})).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(gammaPath)
+
+    await coreControl.releaseFault(reading)
+    await expect.element(page.getByText('Gamma prefs body', {exact: true}), {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByRole('tab', {name: 'Gamma prefs', exact: true, selected: true})).toBeVisible()
+    expect(harness.pathname()).toBe(gammaPath)
+  }, 60_000)
+})
+
+describe('plugin settings page links while plugins are not yet known', () => {
+  const coreBase = bootedCore('plugin-settings-pages-known')
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  test('with zero plugins an unknown page lands on General, and with the engine unreachable a page link lands on General', async () => {
+    await page.viewport(1000, 900)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const pagePath = (key: string) => `/panel/${sessionId}/settings/plugins/${encodeURIComponent(key)}?open=true`
+
+    harness.mountShell(pagePath('alpha:prefs'))
+    await expect.element(page.getByRole('heading', {name: 'Appearance'}), {timeout: 15_000}).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}/settings/general`)
+    harness.dispose()
+
+    harness.mountShell(pagePath('alpha:prefs'), [], {login: {apiBase: 'http://127.0.0.1:9'}})
+    await expect
+      .element(
+        page.getByRole('tabpanel', {name: 'General'}).getByText(/Loading settings…|settings could not be loaded/),
+        {timeout: 15_000},
+      )
+      .toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}/settings/general`)
+  }, 60_000)
+})
+
 type InstalledPush = Parameters<Parameters<InstalledSource['on']>[0]>[0]
 
 type InstalledRows = InstalledPush['list']

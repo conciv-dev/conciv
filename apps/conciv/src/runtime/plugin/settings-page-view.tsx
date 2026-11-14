@@ -1,6 +1,6 @@
 import {For, Show, createMemo} from 'solid-js'
 import {Navigate, getRouteApi} from '@tanstack/solid-router'
-import {usePluginHost} from './host'
+import {usePluginsKnown} from './root'
 import {panelKey} from './panel-keys'
 import {Contribution} from './render'
 import {createSettingsPages} from './settings-pages'
@@ -9,14 +9,14 @@ const pageRoute = getRouteApi('/panel/$sessionId_/settings/plugins/$page')
 
 export function PluginSettingsPages() {
   const params = pageRoute.useParams()
-  const host = usePluginHost()
+  const known = usePluginsKnown()
   const plugins = createSettingsPages()
   const item = createMemo(() =>
     plugins.pages().find((candidate) => panelKey(candidate.plugin, candidate.value.id) === params().page),
   )
 
   return (
-    <Show when={host.serversReady()}>
+    <Show when={known() === 'known'}>
       <Show
         when={item()}
         keyed
