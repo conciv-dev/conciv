@@ -1,4 +1,4 @@
-import {expect, test, type Locator, type Page} from '@playwright/test'
+import {expect, test, type Locator, type Page, type WebSocketRoute} from '@playwright/test'
 import {
   bootEmbedKit,
   type EmbedKit,
@@ -39,7 +39,7 @@ import {GRAB_MIME, parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-a
 import {watchChatWire} from '@conciv/plugin-testkit/chat-wire'
 import recorderServer, {type RecorderRouter} from '@conciv/extension-recorder/server'
 import type {SessionCaptures} from '@conciv/protocol/element-capture-types'
-import {SessionId} from '@conciv/protocol/chat-types'
+import {CHAT_WS_PATH, SessionId} from '@conciv/protocol/chat-types'
 import {holdRpcCalls, failRpcCalls, gateRpcCalls} from '@conciv/plugin-testkit/rpc-fault'
 import {fileURLToPath} from 'node:url'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
@@ -747,6 +747,87 @@ test.describe('forced drop', () => {
       } finally {
         suite.kit().harness.script.release()
         if (reopened) await reopened.close()
+      }
+    })
+
+    test('a queue lost while the pane shows another session is in the composer on the way back, and an answered message is never put back', async ({
+      page,
+    }) => {
+      test.setTimeout(240_000)
+      const ANSWERED_TEXT = 'answered before the cut'
+      const kit = suite.kit()
+      const away = await kit.rpc.sessions.create()
+      const awayTitle = `session away ${away.sessionId.slice(-12)}`
+      await kit.rpc.sessions.rename({sessionId: away.sessionId, title: awayTitle})
+      const refusing = {value: false}
+      const chatSockets: WebSocketRoute[] = []
+      await page.routeWebSocket(
+        (url) => url.pathname.endsWith(CHAT_WS_PATH),
+        (socket) => {
+          if (refusing.value) return socket.close()
+          chatSockets.push(socket)
+          socket.connectToServer()
+        },
+      )
+      const cutChatStream = async (): Promise<void> => {
+        refusing.value = true
+        await Promise.all(chatSockets.splice(0).map((socket) => socket.close()))
+      }
+      const sessionId = SessionId.parse(await openPanelOnNewSession(page, suite))
+      const title = `session under test ${sessionId.slice(-12)}`
+      const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
+      const composer = chatBox(page)
+      const stop = panel.getByRole('button', {name: 'Stop generating'})
+      const queued = panel.getByRole('listitem').filter({hasText: QUEUED_TEXT})
+      const gaveUp = /reconnect ceiling/
+      kit.harness.script.hold()
+      try {
+        await composer.click()
+        await composer.pressSequentially(RUNNING_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(stop).toBeVisible()
+        await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1)
+        await composer.click()
+        await composer.pressSequentially(QUEUED_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(queued).toBeVisible()
+
+        await switchToSessionByTitle(page, awayTitle)
+        await expect(chatLog(page).getByText(RUNNING_TEXT)).toHaveCount(0)
+        await cutChatStream()
+        await until(async () => (await kit.rpc.drafts.get({sessionId}))?.text.includes(QUEUED_TEXT) === true, {
+          hangGuardMs: 60_000,
+          intervalMs: 100,
+        })
+        refusing.value = false
+        kit.harness.script.release()
+
+        await switchToSessionByTitle(page, title)
+        await expect(composer).toHaveText(QUEUED_TEXT)
+        await expect(queued).toBeHidden()
+        await composer.click()
+        await page.keyboard.press('Enter')
+        await expect(chatLog(page).getByText(QUEUED_TEXT)).toHaveCount(1)
+        await expect(chatLog(page).getByText(RUNNING_TEXT)).toHaveCount(1)
+        await expect(stop).toBeHidden()
+        await expect(composer).toHaveText('')
+
+        kit.harness.script.hold()
+        await composer.click()
+        await composer.pressSequentially(ANSWERED_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(stop).toBeVisible()
+        await expect(chatLog(page).getByText(ANSWERED_TEXT)).toHaveCount(1)
+        await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(3)
+        await cutChatStream()
+        const gaveUpNotice = page
+          .getByRole('alert')
+          .filter({hasText: gaveUp, has: page.getByRole('button', {name: 'Dismiss'})})
+        await expect(gaveUpNotice).toBeVisible()
+        await expect(composer).toHaveText('')
+      } finally {
+        refusing.value = false
+        kit.harness.script.release()
       }
     })
   })
