@@ -272,9 +272,13 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
                 gate,
               })
             : gate(() => assist.execute(input.input))
-        return call().catch((error: unknown) => {
-          throw registryCallError(error, errors)
-        })
+        return call()
+          .catch((error: unknown) => {
+            throw registryCallError(error, errors)
+          })
+          .finally(() => {
+            if (trace.hub !== null) deps.code.hubReplied(context.session.id, new Set([trace.callId]))
+          })
       }),
     },
     plugin: {

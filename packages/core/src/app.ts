@@ -609,7 +609,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     },
     bundler: opts.bridge,
     extensionSlugs: mounted.map((entry) => slug(entry.extensionName)),
-    sessions: () => ({chat: chatDeps, runtime, search, pluginHost}),
+    sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: primitives.page.queues}),
   })
   const pluginHost: PluginHost = plugins.runtime
   await pluginHost.context()
@@ -702,7 +702,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     void scope.run
       .record(chunks)
       .catch((error: unknown) => logError(`[core] recording queue ${result.queueId} failed: ${String(error)}`))
-    if (!primitives.hubCalls.has(record.sessionId, record.toolCallId)) followUpOwedQueues(record.sessionId)
+    if (!primitives.page.queues.fromHub(record)) followUpOwedQueues(record.sessionId)
   })
 
   const admitOutside = async (
@@ -725,7 +725,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const search = createSessionSearch({db, cwd: chatDeps.cwd, harnesses: chatDeps.harnesses})
   const mcp: McpVars['mcp'] = {
     codeRunner: (sessionId, publish, capabilities) => plane.codeRunner(sessionId, publish, capabilities),
-    hubCall: (sessionId, callId) => primitives.hubCalls.add(sessionId, callId),
+    hubCall: (sessionId, callId) => primitives.page.queues.hubCall(sessionId, callId),
+    hubReplied: (sessionId, callIds) => primitives.page.queues.hubReplied(sessionId, callIds),
     finishedQueues: (sessionId, fromHub) => primitives.page.queues.undelivered(sessionId, fromHub),
     startedQueues: (sessionId, toolCallIds) => primitives.page.queues.startedBy(sessionId, toolCallIds),
     admitCall: (sessionId, call) => plane.admitCall(sessionId, call),

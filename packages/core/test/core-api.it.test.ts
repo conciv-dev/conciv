@@ -1,4 +1,6 @@
 import {until} from '@conciv/harness-testkit/until'
+import {makeJournal, makePageBus} from '../src/page/page-bus.js'
+import {makePageQueues} from '../src/page/page-queue.js'
 import {
   mkdtempSync,
   rmSync,
@@ -1146,6 +1148,7 @@ describe('api harness switching', () => {
       runtime: app.runtime,
       search,
       pluginHost: app.pluginHost,
+      queues: makePageQueues({bus: makePageBus(), journal: makeJournal(app.chat.db)}),
     }))
     const key = <Success, Failure>(use: (service: Session.Interface) => Effect.Effect<Success, Failure>) =>
       Effect.runPromise(Session.Service.use(use).pipe(Effect.provide(sessionKey)))
@@ -5590,18 +5593,61 @@ describe('page action queue delivery', () => {
     expect(JSON.stringify(await page.hub('return 1'))).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
   }, 5000)
 
-  it('a page_queue_async a hub caller starts through registry.call is outside work: its result leads the next hub reply', async () => {
+  it('a queue a hub request starts stays hub work after a fast finish, an aborted request and a thousand later hub calls', async () => {
     const page = await engineWithTab()
     const typed = makeRpcClient(page.base, {headers: {...HUB, [CONCIV_SESSION_HEADER]: page.sessionId}})
-    const {queueId} = z
-      .object({queueId: z.string()})
-      .parse(await typed.registry.call({name: 'page_queue_async', input: {actions: ACTIONS}}))
+    const playAll = async (onTab: QueuedOnTab): Promise<void> => {
+      await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+      await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    }
+    const nextHubReply = async (): Promise<string> => JSON.stringify(await page.hub('return 1'))
+    const notice = (queueId: string) => `queue ${queueId} finished: 2 played, 0 failed`
+
+    const calling = typed.registry.call({name: 'page_queue_async', input: {actions: ACTIONS}})
+    await playAll(await page.nextQueue())
+    const fast = z.object({queueId: z.string()}).parse(await calling).queueId
+    await page.finishedEvent(fast)
+    expect(await nextHubReply()).toContain(notice(fast))
+    expect(page.runIds()).toEqual([])
+
+    const caller = new AbortController()
+    const aborted = typed.code.execute(
+      {
+        sessionId: page.sessionId,
+        typescriptCode: `await external_page_queue_async({actions: ${JSON.stringify(ACTIONS)}}); ${played}`,
+      },
+      {signal: caller.signal},
+    )
+    const during = await page.nextQueue()
+    await playAll(during)
+    await page.finishedEvent(during.id)
+    const blocking = await page.nextQueue()
+    caller.abort()
+    await expect(aborted).rejects.toMatchObject({name: 'AbortError'})
+    await page.seenChunk(
+      (chunk) =>
+        chunk.type === ChatEventType.TOOL_CALL_RESULT &&
+        JSON.stringify(chunk.content).includes('Code execution was stopped'),
+    )
+    await playAll(blocking)
+    await page.finishedEvent(blocking.id)
+    const afterAbort = await nextHubReply()
+    expect(afterAbort).toContain(notice(during.id))
+    expect(afterAbort).toContain(notice(blocking.id))
+    expect(page.runIds()).toEqual([])
+
+    const long = parseHandle(await page.hub(queued())).queueId
     const onTab = await page.nextQueue()
-    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
-    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
-    await page.finishedEvent(queueId)
-    expect(JSON.stringify(await page.hub('return 1'))).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
-  }, 5000)
+    expect(
+      await page.hub(
+        "for (let call = 0; call < 1001; call += 1) await external_page_queue_async({actions: 'none'}).catch(() => null); return 'called'",
+      ),
+    ).toContain('called')
+    await playAll(onTab)
+    await page.finishedEvent(long)
+    expect(await nextHubReply()).toContain(notice(long))
+    expect(page.runIds()).toEqual([])
+  }, 20000)
 
   it('the next reply for that session carries the finished result once, and the reply after does not', async () => {
     const page = await engineWithTab()

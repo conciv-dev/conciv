@@ -123,7 +123,6 @@ import {withSavedModels} from '../src/lib/saved-models.js'
 import {statePaths} from '../src/lib/state-paths.js'
 import {makeJournal, makePageBus} from '../src/page/page-bus.js'
 import {makePageQueues, startQueueFollowUp, type PageQueues} from '../src/page/page-queue.js'
-import {makeHubCalls} from '../src/api/call-trace.js'
 import {makeCoreRuntime} from '../src/runtime/core-runtime.js'
 import {provideHarnessModels} from '../src/runtime/harness-models.js'
 import {makeSessionPrimitives} from '../src/runtime/primitives.js'
@@ -564,6 +563,7 @@ describe('chat plane', () => {
         c.set('mcp', {
           codeRunner: (id, publish, given) => withoutDriver.codeRunner(id, publish, given),
           hubCall: () => {},
+          hubReplied: () => {},
           finishedQueues: () => [],
           startedQueues: () => [],
           outsideCapabilities: () => [],
@@ -1209,9 +1209,9 @@ describe('page bus and the session scope', () => {
   function pageQueues(bus: ReturnType<typeof makePageBus>, syncMs?: number): PageQueues {
     const db = openDb(tempDir())
     onTestFinished(() => db.$client.close())
-    const hubCalls = makeHubCalls()
-    for (const callId of [HUB_CALL, 'call-1']) hubCalls.add(SESSION_A, callId)
-    return makePageQueues({bus, journal: makeJournal(db), syncMs, hubCalls})
+    const queues = makePageQueues({bus, journal: makeJournal(db), syncMs})
+    for (const callId of [HUB_CALL, 'call-1']) queues.hubCall(SESSION_A, callId)
+    return queues
   }
 
   function trackFinished(queues: PageQueues): (queueId: string) => Promise<void> {
@@ -1319,6 +1319,40 @@ describe('page bus and the session scope', () => {
       expect.objectContaining({queueId, status: 'finished', played: 2}),
     ])
     expect(queues.undelivered(SESSION_A, true)).toEqual([])
+  })
+
+  it('a hub call keeps the queues it started as hub work after it replies, until the session is deleted', async () => {
+    const bus = makePageBus(2000)
+    const tab = arrivingTab(bus)
+    const queues = pageQueues(bus)
+    const finished = trackFinished(queues)
+    const check = [{tool: 'page_check', selector: '#agree'}]
+    const playOut = async (index: number): Promise<void> => {
+      const frame = await tab.frame(index)
+      for (const reply of frame.queue.replies) bus.resolve(SESSION_A, reply, {ok: true, result: {}})
+    }
+    queues.hubCall(SESSION_A, 'hub-early')
+    const {queueId: early} = await queues.start(SESSION_A, {...queueStart(check), toolCallId: 'hub-early'})
+    await playOut(0)
+    await finished(early)
+    queues.hubReplied(SESSION_A, new Set(['hub-early']))
+    expect(queues.owedTurn(SESSION_A)).toEqual([])
+    expect(queues.undelivered(SESSION_A, true)).toEqual([expect.objectContaining({queueId: early})])
+    queues.hubCall(SESSION_A, 'hub-replied')
+    const {queueId: replied} = await queues.start(SESSION_A, {...queueStart(check), toolCallId: 'hub-replied'})
+    queues.hubReplied(SESSION_A, new Set(['hub-replied']))
+    queues.hubCall(SESSION_A, 'hub-running')
+    const {queueId: running} = await queues.start(SESSION_A, {...queueStart(check), toolCallId: 'hub-running'})
+    queues.release(SESSION_A)
+    await playOut(1)
+    await finished(replied)
+    await playOut(2)
+    await finished(running)
+    expect(queues.undelivered(SESSION_A, true)).toEqual([])
+    expect(queues.owedTurn(SESSION_A).map((record) => [record.queueId, record.result?.status])).toEqual([
+      [replied, 'finished'],
+      [running, 'finished'],
+    ])
   })
 
   it('undelivered results are never evicted: at 1000 owed a new queue is refused before it plays, and delivering one frees a place', async () => {
@@ -2435,7 +2469,14 @@ type MadeApp = Awaited<ReturnType<typeof bootMadeApp>>
 function sessionKey(made: MadeApp) {
   const search = createSessionSearch({db: made.chat.db, cwd: made.chat.cwd, harnesses: made.chat.harnesses})
   onTestFinished(() => search.dispose())
-  const layer = provideSessions(() => ({chat: made.chat, runtime: made.runtime, search, pluginHost: made.pluginHost}))
+  const queues = makePageQueues({bus: makePageBus(), journal: makeJournal(made.chat.db)})
+  const layer = provideSessions(() => ({
+    chat: made.chat,
+    runtime: made.runtime,
+    search,
+    pluginHost: made.pluginHost,
+    queues,
+  }))
   return {
     run: <Success, Failure>(use: (service: Session.Interface) => Effect.Effect<Success, Failure>) =>
       Effect.runPromise(Session.Service.use(use).pipe(Effect.provide(layer))),
