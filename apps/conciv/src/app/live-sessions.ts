@@ -63,6 +63,8 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
 
   const readRun = (sessionId: string): RunWatch => state.runs[sessionId] ?? IDLE_RUN
 
+  const retire = (sessionId: string, chat: ChatSession): void => setState('retired', {[sessionId]: chat})
+
   const start = (sessionId: string, lifecycle: RunLifecycle) => {
     const run = readRun(sessionId)
     if (lifecycle.runId === run.live || lifecycle.runId === run.settled) return
@@ -124,8 +126,9 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
     })
     const connection = browserRpcConnection(apiBase)
     const stopTrust = connection.trust.subscribe((status, previous) => {
-      if (status === 'trusted' && engineLocked(previous))
-        session.refresh().catch((error: unknown) => console.error('[conciv] re-hydrating the chat failed', error))
+      if (status !== 'trusted' || !engineLocked(previous)) return
+      if (session.loadFailed()) return retire(sessionId, session)
+      session.refresh().catch((error: unknown) => console.error('[conciv] re-hydrating the chat failed', error))
     })
     onCleanup(() => {
       stopTrust()
@@ -171,7 +174,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
     },
     reopen(sessionId) {
       const entry = findChat(sessionId)
-      if (entry) setState('retired', {[sessionId]: entry.chat()})
+      if (entry) retire(sessionId, entry.chat())
     },
     stop(sessionId) {
       void findChat(sessionId)?.chat().stop()
