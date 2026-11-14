@@ -11,7 +11,7 @@ import {
 } from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {Dynamic} from 'solid-js/web'
-import type {SendContent} from '@conciv/protocol/chat-message-types'
+import type {ChatMessage, SendContent} from '@conciv/protocol/chat-message-types'
 import {TextArea, type TextAreaProps} from '@conciv/ui-kit-system'
 import type {WebStorage} from '@conciv/storage-history'
 import {useChatContext, useComposer} from '../../store/chat-context.js'
@@ -79,6 +79,13 @@ async function sendContent(
 
 function sendFailure(error: unknown): unknown {
   return error ?? new Error('The message could not be sent')
+}
+
+type SendOutcome = {failure: unknown; answered: boolean}
+
+function answeredLastUserMessage(messages: readonly ChatMessage[]): boolean {
+  const lastUser = messages.findLastIndex((message) => message.role === 'user')
+  return lastUser >= 0 && messages.slice(lastUser + 1).some((message) => message.role === 'assistant')
 }
 
 function isAsyncGenerator(
@@ -294,15 +301,15 @@ function Root(props: FormProps): JSX.Element {
       setState('sendingAttachments', false)
     }
   }
-  const runSend = async (content: string | SendContent): Promise<unknown> => {
+  const runSend = async (content: string | SendContent): Promise<SendOutcome> => {
     const before = chat.error()
     try {
       await sendContent(handlers.onSend, (value) => chat.sendMessage(value), content)
     } catch (error) {
-      return sendFailure(error)
+      return {failure: sendFailure(error), answered: false}
     }
     const after = chat.error()
-    return after === before ? undefined : after
+    return {failure: after === before ? undefined : after, answered: answeredLastUserMessage(chat.messages())}
   }
   const deliverDraft = async (): Promise<void> => {
     const original = snapshotDraft()
@@ -310,10 +317,10 @@ function Root(props: FormProps): JSX.Element {
     const content = await completedContent(original)
     if (content === null) return
     clearDraft()
-    const failure = await runSend(content)
-    if (!failure) return
-    restoreDraft(original)
-    handlers.onSendError?.(failure)
+    const outcome = await runSend(content)
+    if (!outcome.failure) return
+    if (!outcome.answered) restoreDraft(original)
+    handlers.onSendError?.(outcome.failure)
   }
   const submit = async (event: SubmitEvent) => {
     event.preventDefault()
