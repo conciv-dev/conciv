@@ -437,6 +437,31 @@ describe('chat pane', () => {
 
   describe('the composer never waits on the server draft', () => {
     const DRAFT_GET_PATH = ['drafts', 'get']
+    const shell = createShellHarness(core)
+
+    afterEach(() => shell.dispose())
+
+    test('text typed just before a quick trip to settings is still in the composer on the way back and after a reload', async () => {
+      const {sessionId} = await newSession()
+      shell.mountShell(`/panel/${sessionId}?open=true`)
+      await expect.element(input()).toBeVisible()
+      const write = await faults.install({kind: 'gate', path: ['drafts', 'set']})
+      await userEvent.click(input())
+      await userEvent.keyboard('typed just before a quick trip')
+      await expect.element(input()).toHaveTextContent('typed just before a quick trip')
+
+      await userEvent.click(page.getByRole('link', {name: 'Settings'}))
+      await userEvent.click(page.getByRole('button', {name: 'Back to chat'}))
+
+      await expect.element(input()).toHaveTextContent('typed just before a quick trip')
+      await coreControl.awaitFaultPending(write, 1)
+      await coreControl.releaseFault(write)
+      await coreControl.awaitFaultAnswered(write)
+      shell.dispose()
+      shell.mountShell(`/panel/${sessionId}?open=true`)
+
+      await expect.element(input()).toHaveTextContent('typed just before a quick trip')
+    })
 
     test('a stalled draft read still renders a composer that accepts typing', async () => {
       const {sessionId} = await newSession()
