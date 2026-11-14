@@ -496,7 +496,7 @@ export const contract = {
   },
   plugin: {
     call: oc
-      .errors(pluginRpcFailed)
+      .errors({...pluginRpcFailed, ...approvalDenied})
       .input(z.object({rpcId: z.string().min(1), method: z.string().min(1), input: z.unknown().optional()}))
       .output(z.unknown()),
     list: oc.output(locationResponse(z.array(PluginInfoSchema))),
