@@ -6,6 +6,7 @@ import {usePluginAttachment} from '../runtime/plugin/attachment'
 import {usePluginHost} from '../runtime/plugin/host'
 import {createMountedSession} from '../runtime/plugin/mounted-session'
 import {isPluginView, panelKey} from '../runtime/plugin/panel-keys'
+import {PanelTrigger} from '../runtime/plugin/panel-trigger'
 import {createRegion, panelInput, RegionContent} from '../runtime/plugin/panels'
 import {PluginSlot} from '../runtime/plugin/render'
 
@@ -51,10 +52,37 @@ export function createPluginTabs(input: {
 
     if (!region) return []
 
-    return region.keys().map((key) => ({id: key, label: region.entry(key)?.tab.title ?? key}))
+    return region.keys().map((key) => ({
+      id: key,
+      label: region.entry(key)?.tab.title ?? key,
+      content: () => <PluginTabTrigger value={key} />,
+    }))
   }
 
   return {tabs, views}
+}
+
+function PluginTabTrigger(props: {value: string}) {
+  const attachment = usePluginAttachment()
+
+  return (
+    <Show when={attachment.shownRegion()?.entry(props.value)}>
+      {(entry) => (
+        <Show when={attachment.current()}>
+          {(session) => (
+            <PanelTrigger
+              value={props.value}
+              plugin={entry().plugin}
+              tab={entry().tab}
+              session={session()}
+              active={attachment.shownRegion()?.active() === props.value}
+              preview={false}
+            />
+          )}
+        </Show>
+      )}
+    </Show>
+  )
 }
 
 export function PluginPanelKeys() {
