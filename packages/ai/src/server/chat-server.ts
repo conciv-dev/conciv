@@ -529,7 +529,9 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     if (stored !== undefined) return messages.with(index, stored)
     const [converted] = convertMessagesToModelMessages([lastUser])
     if (converted === undefined) return messages
-    return messages.with(index, await untilAborted(plan.prompt(converted), signal))
+    const prompted = await untilAborted(plan.prompt(converted), signal)
+    if (prompted === converted) return messages
+    return messages.with(index, prompted)
   }
 
   function run(turn: Turn, messages: Array<ChatMessage | ModelMessage>, controller: AbortController) {

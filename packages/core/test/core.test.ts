@@ -20,6 +20,7 @@ import {text as bodyText} from 'node:stream/consumers'
 import {randomUUID} from 'node:crypto'
 import {setImmediate, setTimeout as wait} from 'node:timers/promises'
 import {describe, it, expect, afterEach, onTestFinished, test, vi} from 'vitest'
+import {webSocket} from '@conciv/ai/client'
 import {makeTextAdapter, quickJSThreadDriver} from '@conciv/ai/server'
 import {createToolCallChunks, fakeText} from '@conciv/ai/testkit'
 import {
@@ -77,7 +78,13 @@ import {
 } from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {HarnessModel} from '@conciv/protocol/harness-types'
-import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
+import {
+  CHAT_SSE_PATH,
+  CHAT_WS_PATH,
+  CONCIV_SESSION_HEADER,
+  HarnessSessionId,
+  SessionId,
+} from '@conciv/protocol/chat-types'
 import {ConcivConfigSchema} from '@conciv/protocol/config-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
 import {eq, sql} from 'drizzle-orm'
@@ -2776,6 +2783,60 @@ describe('session prompt hook', () => {
 
     expect(asked).toEqual([[{type: 'text', content: 'Prompt hook: Original'}]])
     expect(userTexts(await kit.hydrate(session))).toEqual(['Prompt hook: Original'])
+  })
+
+  const partForPart: ChatMessage = {
+    id: 'message-parts',
+    role: 'user',
+    parts: [
+      {type: 'text', content: 'first line'},
+      {type: 'text', content: 'second line'},
+      {
+        type: 'document',
+        source: {type: 'data', mimeType: 'text/plain', value: NOTE},
+        metadata: {modelOnly: false, label: 'note'},
+      },
+    ],
+  }
+
+  async function sentPartForPart(wsBase: string, session: string) {
+    const abort = new AbortController()
+    onTestFinished(() => abort.abort())
+    const connection = webSocket(`${wsBase}${CHAT_WS_PATH}`)
+    const chunks = connection.subscribe(abort.signal)
+    void connection.send([partForPart], {}, abort.signal, {threadId: session, runId: randomUUID()}).catch(() => {})
+    for await (const chunk of chunks) {
+      if (chunk.type === ChatEventType.RUN_FINISHED || chunk.type === ChatEventType.RUN_ERROR) return chunk.type
+    }
+    return 'closed'
+  }
+
+  test('stores and sends the user message part for part when no prompt hook is registered', async () => {
+    const {kit, asked} = await promptKit([])
+    const session = await kit.session()
+
+    expect(await sentPartForPart(kit.wsBase, session)).toBe(ChatEventType.RUN_FINISHED)
+    expect((await kit.hydrate(session)).messages[0]?.parts).toEqual(partForPart.parts)
+    expect(asked).toEqual([partForPart.parts])
+  })
+
+  test('stores and sends the user message part for part when no prompt hook changed it', async () => {
+    const seen: string[] = []
+    const plugin = Plugin.define({
+      id: 'prompt-reader',
+      async setup(ctx) {
+        await ctx.session.hook('prompt', (event) => {
+          seen.push(event.prompt.text)
+        })
+      },
+    })
+    const {kit, asked} = await promptKit([plugin])
+    const session = await kit.session()
+
+    expect(await sentPartForPart(kit.wsBase, session)).toBe(ChatEventType.RUN_FINISHED)
+    expect(seen).toEqual(['first line\nsecond line'])
+    expect((await kit.hydrate(session)).messages[0]?.parts).toEqual(partForPart.parts)
+    expect(asked).toEqual([partForPart.parts])
   })
 })
 

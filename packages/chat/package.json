@@ -47,6 +47,7 @@
     "@conciv/tools": "workspace:^",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
+    "es-toolkit": "catalog:",
     "hono": "catalog:",
     "zod": "catalog:"
   },

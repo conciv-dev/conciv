@@ -2257,6 +2257,9 @@ importers:
       effect:
         specifier: 'catalog:'
         version: 4.1.0
+      es-toolkit:
+        specifier: 'catalog:'
+        version: 1.53.0
       hono:
         specifier: 'catalog:'
         version: 4.13.14

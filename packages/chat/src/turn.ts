@@ -12,6 +12,7 @@ import {type ContentPart, type ModelMessage} from '@conciv/protocol/chat-message
 import type {Turn, TurnHooks} from '@conciv/ai/server'
 import type {AttachmentDocumentPart} from '@conciv/extension'
 import {transcriptPathWithin} from '@conciv/harness'
+import {isEqual} from 'es-toolkit'
 import {
   ChatContentPartSchema,
   isHarnessSessionId,
@@ -302,7 +303,10 @@ export function turnHooks(
         },
         prompt: async (message) => {
           if (turn.kind !== 'chat' || message.id === undefined) return message
-          return promptedMessage(message, await deps.prompt(promptEvent(sessionId, message.id, message)))
+          const event = promptEvent(sessionId, message.id, message)
+          const prompted = await deps.prompt(structuredClone(event))
+          if (isEqual(prompted, event)) return message
+          return promptedMessage(message, prompted)
         },
         expand: async (messages) => {
           const lastUser = messages.findLast((message) => message.role === 'user')
