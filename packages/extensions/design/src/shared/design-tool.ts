@@ -25,7 +25,6 @@ export function designTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(s
       category: DESIGN_EXTENSION_NAME,
       icon: 'read',
       label: {running: spec.running, done: spec.done},
-      hint: spec.summary,
       mutating: false,
       capture: 'none',
       keywords: spec.keywords,

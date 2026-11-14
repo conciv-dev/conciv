@@ -80,7 +80,7 @@ function roundOf(checked: Checked): Exclude<Checked, {unsettled: true} | {compil
 }
 
 describe('design_check on the cards page', () => {
-  it('gives each row the design value and the page value, in the check and in the status', async () => {
+  it('gives each row the design value and the page value in the check and the status, measures the page its code renders and not what the user opened, names the media query whose rule sets a value and adds its width, and names the route it measured', async () => {
     await kit.goto('target')
     await call('design_get', await cardsDesign(kit.targetsDir))
     const told = (rows: ReturnType<typeof roundOf>['rows']) =>
@@ -88,75 +88,64 @@ describe('design_check on the cards page', () => {
         .filter((row) => ['much', 'noticeably', 'paint'].includes(row.magnitude))
         .map((row) => `${row.node} ${row.kind}: ${String(row.expected)} expected, ${String(row.actual)} found`)
     const checked = told(roundOf(await call('design_check', {})).rows)
-    expect([checked.length > 0, checked.filter((line) => line.includes('undefined'))]).toEqual([true, []])
-    expect(told((await call('design_status', {})).rows)).toEqual(checked)
-  })
-
-  it('measures the page its code renders, not what the user opened in the tab', async () => {
+    const status = told((await call('design_status', {})).rows)
+    const once = (await kit.rpc.registry.catalog()).filter(
+      (tool) => tool.hint !== undefined && tool.hint === tool.summary,
+    )
+    const texts = async () => roundOf(await call('design_check', {})).rows.map((row) => row.text)
     await kit.goto('filters')
-    await call('design_get', await cardsDesign(kit.targetsDir))
-    const closed = roundOf(await call('design_check', {}))
+    const closed = await texts()
     await kit.page.getByText('Filters').click()
-    const opened = roundOf(await call('design_check', {}))
-    expect(opened.rows.map((row) => row.text)).toEqual(closed.rows.map((row) => row.text))
-  })
-
-  it('names the media query whose rule sets the measured value', async () => {
+    const opened = await texts()
     await kit.goto('media-height')
-    await call('design_get', await cardsDesign(kit.targetsDir))
-    const checked = roundOf(await call('design_check', {}))
-    expect(
-      checked.rows
-        .filter((row) => row.node === '1:2' && row.property === 'height' && !row.text.startsWith('the page is'))
-        .map((row) => row.text.includes('set by @media') && row.text.includes('40rem')),
-    ).toEqual([true])
-  })
-
-  it('names the route it measured and sends the agent to no other route when the design names its route', async () => {
+    const heights = roundOf(await call('design_check', {}))
+    const media = heights.rows
+      .filter((row) => row.node === '1:2' && row.property === 'height' && !row.text.startsWith('the page is'))
+      .map((row) => row.text.includes('set by @media') && row.text.includes('40rem'))
     await kit.goto('target')
     await call('design_get', {...(await cardsDesign(kit.targetsDir)), route: '/?variant=empty'})
-    const checked = await call('design_check', {})
-    const reasons = 'reasons' in checked ? checked.reasons : []
+    const routed = await call('design_check', {})
+    const reasons = 'reasons' in routed ? routed.reasons : []
     expect([
+      checked.length > 0,
+      checked.filter((line) => line.includes('undefined')),
+      status,
+      once,
+      opened,
+      media,
+      heights.reflow.widths.some((entry) => entry.width === 640),
       reasons.some((line) => line.includes('/?variant=empty')),
       reasons.filter((line) => line.includes('route set to')),
-    ]).toEqual([true, []])
+    ]).toEqual([true, [], checked, [], closed, [true], true, true, []])
   })
 })
 
 describe('a Figma line', () => {
-  it('keeps the check from done while the page draws no line, and takes a visible border on that side as the line', async () => {
+  it('keeps the check from done while the page draws no line, takes a visible border on that side, a sibling border on its edge or its own 1px element as the line, and the wrapper that draws nothing is not required', async () => {
+    const lineDrawn = async (page: string, node: string) => {
+      await kit.goto(page)
+      return !roundOf(await call('design_check', {})).coverage.missing.includes(node)
+    }
     await kit.goto('input-field')
     await call('design_get', await sliced('input-field', '100-1418'))
     const bare = roundOf(await call('design_check', {}))
-    await kit.goto('input-field-line')
-    const lined = roundOf(await call('design_check', {}))
-    await kit.goto('input-field-box')
-    const boxed = roundOf(await call('design_check', {}))
+    const drawn = [
+      await lineDrawn('input-field-line', '100:1422'),
+      await lineDrawn('input-field-box', '100:1422'),
+      await lineDrawn('input-field-rule', '100:1422'),
+    ]
+    await kit.goto('process-row')
+    await call('design_get', await sliced('process-row', '50-876'))
+    const bordered = roundOf(await call('design_check', {}))
     expect([
       bare.verdict,
       bare.coverage.missing.includes('100:1422'),
       bare.reasons.some((reason) => reason.includes('100:1422')),
-      lined.coverage.missing.includes('100:1422'),
-      boxed.coverage.missing.includes('100:1422'),
-    ]).toEqual(['not yet', true, true, false, false])
-  })
-
-  it('counts as drawn by a sibling border on its edge or by its own 1px element, and the wrapper that draws nothing is not required', async () => {
-    await kit.goto('process-row')
-    await call('design_get', await sliced('process-row', '50-876'))
-    const bordered = roundOf(await call('design_check', {}))
-    await kit.goto('process-row-boxed')
-    const element = roundOf(await call('design_check', {}))
-    await kit.goto('input-field-rule')
-    await call('design_get', await sliced('input-field', '100-1418'))
-    const ruled = roundOf(await call('design_check', {}))
-    expect([
+      drawn,
       bordered.reasons.filter((reason) => reason.includes('required nodes')),
       bordered.coverage.missing.includes('50:883'),
-      element.coverage.missing.includes('50:883'),
-      ruled.coverage.missing.includes('100:1422'),
-    ]).toEqual([[], false, false, false])
+      await lineDrawn('process-row-boxed', '50:883'),
+    ]).toEqual(['not yet', true, true, [true, true, true], [], false, true])
   })
 })
 
@@ -218,7 +207,7 @@ describe('a Figma stroke', () => {
 })
 
 describe('a media query on the page', () => {
-  it('adds its widths, nested ones too, and an edit that lands while the check measures is in every width', async () => {
+  it('adds its nested widths, and an edit that lands while the check measures is in every width', async () => {
     const stylesFile = fileURLToPath(new URL('fixtures/design/host/src/styles.css', import.meta.url))
     await kit.goto('late-font')
     await call('design_get', await cardsDesign(kit.targetsDir))
@@ -236,9 +225,6 @@ describe('a media query on the page', () => {
     } finally {
       await writeFile(stylesFile, styles)
     }
-    await kit.goto('media-height')
-    await call('design_get', await cardsDesign(kit.targetsDir))
-    expect(roundOf(await call('design_check', {})).reflow.widths.map((entry) => entry.width)).toContain(640)
   })
 })
 
@@ -313,24 +299,19 @@ describe('a Figma wrapper that draws nothing', () => {
       [[], [], ["breaks its lines where the frame does not: line 4 is 578px wide, the frame's is 695px"]],
     ])
   })
-})
 
-describe('a navbar', () => {
   it('pairs its frame with the element that spans it, each link with the element that draws it, and a padded link holds its text', async () => {
     await kit.goto('navbar-wrapped')
     await call('design_get', await sliced('navbar', '50-533'))
     const links = ['50:548', '50:549', '50:551', '50:552', '50:553', '50:554']
+    const kept = (row: ReturnType<typeof roundOf>['rows'][number]) =>
+      row.node === '50:534'
+        ? row.magnitude !== 'pin'
+        : row.node === '50:550' || (links.includes(row.node) && row.magnitude === 'paint')
     const rows = async (page: string) => {
       await kit.goto(page)
-      return roundOf(await call('design_check', {}))
-        .rows.filter(
-          (row) =>
-            (row.node === '50:534' && row.magnitude !== 'pin') ||
-            row.node === '50:550' ||
-            (links.includes(row.node) && row.magnitude === 'paint'),
-        )
-        .filter((row) => row.property !== 'font family')
-        .map((row) => row.text)
+      const {rows: found} = roundOf(await call('design_check', {}))
+      return found.filter((row) => kept(row) && row.property !== 'font family').map((row) => row.text)
     }
     expect([await rows('navbar-wrapped'), await rows('navbar-list')]).toEqual([[], []])
   })
@@ -499,9 +480,7 @@ describe('an image node drawn as a box with its icon inside', () => {
       ['/design/83-30210.png', '/design/83-30213.png', '/design/83-30216.png'],
     ])
   })
-})
 
-describe('a thin Figma bar', () => {
   it('pairs a 3px bar drawn at its design height', async () => {
     await kit.goto('range-slider')
     await call('design_get', await sliced('range-slider', '100-1449'))
@@ -794,8 +773,9 @@ describe('catalog component rows', () => {
       }, Promise.resolve([]))
     }
 
-    it('makes the roots of two kit components with no key nodes, paired and credited, and lists the one the page then draws by hand', async () => {
-      expect(await siteRounds(['site-kit', 'site-hand'])).toEqual([
+    it('makes the roots of two kit components with no key nodes, paired and credited, lists no row while the call site stands and its pairing moved to a sibling, and lists the one the page then draws by hand', async () => {
+      const [kitRound, moved, hand] = await siteRounds(['site-kit', 'site-moved', 'site-hand'])
+      expect([kitRound, moved?.rows, hand]).toEqual([
         {
           layers: [
             ['19:2', 'src/SitePage.tsx:7/0', 'Pill'],
@@ -803,6 +783,7 @@ describe('catalog component rows', () => {
           ],
           rows: [],
         },
+        [],
         {
           layers: [
             ['19:2', 'src/SitePage.tsx:16/0', 'Pill'],
@@ -821,14 +802,6 @@ describe('catalog component rows', () => {
       } finally {
         await writeFile(file, source)
       }
-    })
-
-    it('lists no row while the call site of a kit component stands and its pairing moved to a sibling, and the row once the call is gone', async () => {
-      expect((await siteRounds(['site-kit', 'site-moved', 'site-hand'])).map((round) => round.rows)).toEqual([
-        [],
-        [],
-        [BADGE_ROW],
-      ])
     })
   })
 
@@ -948,25 +921,21 @@ describe('a component row where the component can be used', () => {
     return listed.map((row) => [row.node, row.component, row.specifier, row.text])
   }
 
-  it('lists a kit instance drawn by hand in a file of the kit framework, with the import line that file writes', async () => {
-    expect(await rowsAt({component: 'Avatar', layer: 'Profile', source: `${CARD_SOURCE}:12:3`})).toEqual([
+  it('lists a kit instance drawn by hand in a file of the kit framework with the import line that file writes, and no row for a kit Button inside a project component that renders it', async () => {
+    expect([
+      await rowsAt({component: 'Avatar', layer: 'Profile', source: `${CARD_SOURCE}:12:3`}),
+      await rowsAt({component: 'Button', layer: 'Button', source: `${CARD_SOURCE}:12:3`}),
+    ]).toEqual([
       [
-        '20:2',
-        'Avatar',
-        '@conciv/ui-kit-system',
-        "Profile is drawn by hand; the design names `Avatar` (`import {Avatar} from '@conciv/ui-kit-system'`)",
+        [
+          '20:2',
+          'Avatar',
+          '@conciv/ui-kit-system',
+          "Profile is drawn by hand; the design names `Avatar` (`import {Avatar} from '@conciv/ui-kit-system'`)",
+        ],
       ],
+      [],
     ])
-  })
-
-  it('lists no row for a kit Button inside a project component that renders the kit Button', async () => {
-    expect(await rowsAt({component: 'Button', layer: 'Button', source: `${CARD_SOURCE}:12:3`})).toEqual([])
-  })
-
-  it('matches a stamp to a walked file in one form: a host path that shares the tail of an outside file is not that file', async () => {
-    const catalog = await catalogAt(HOST_ROOT)
-    const named = async (source: string) => (await catalog.componentOf(source))?.names[0] ?? null
-    expect([await named(`${CARD_SOURCE}:12:3`), await named('src/xray/card.tsx:12:3')]).toEqual(['Card', null])
   })
 
   async function builtKitHost(): Promise<string> {
@@ -1004,20 +973,18 @@ describe('a component row where the component can be used', () => {
     expect(listed.map((component) => component.names)).toEqual([['Chip']])
   })
 
-  it('lists the kit Chip the x-ray overlay imports from its built tools entry', async () => {
+  it('matches a stamp to a walked file in one form, lists the kit Chip the x-ray overlay imports from its built tools entry, and gives a module that imports no framework the framework its tsconfig jsx names', async () => {
     const catalog = await catalogAt(HOST_ROOT)
-    const tools = (await catalog.list({hidden: true})).filter(
-      (component) => component.specifier === '@conciv/ui-kit-chat/tools',
-    )
-    expect(tools.filter((component) => component.names.includes('Chip')).map((component) => component.names)).toEqual([
-      ['Chip'],
-    ])
-  })
-
-  it('gives a module that imports no framework the framework its tsconfig jsx setting names', async () => {
-    const catalog = await catalogAt(HOST_ROOT)
-    const page = (await catalog.list({hidden: true})).find((component) => component.names.includes('XrayPage'))
-    expect(page?.framework).toBe('react')
+    const named = async (source: string) => (await catalog.componentOf(source))?.names[0] ?? null
+    const listed = await catalog.list({hidden: true})
+    expect([
+      await named(`${CARD_SOURCE}:12:3`),
+      await named('src/xray/card.tsx:12:3'),
+      listed
+        .filter((component) => component.specifier === '@conciv/ui-kit-chat/tools' && component.names.includes('Chip'))
+        .map((component) => component.names),
+      listed.find((component) => component.names.includes('XrayPage'))?.framework,
+    ]).toEqual(['Card', null, [['Chip']], 'react'])
   })
 
   it('gives a module with no framework import and no tsconfig jsx the framework of the vite plugins that reached it', async () => {

@@ -289,7 +289,6 @@ function designDataTool<Shape extends z.ZodRawShape, Output extends z.ZodType = 
       category: 'design',
       icon: 'read',
       label: {running: spec.running, done: spec.done},
-      hint: spec.summary,
       mutating: spec.verb === 'write',
       capture: 'none',
       keywords: ['design', 'data', spec.verb],
