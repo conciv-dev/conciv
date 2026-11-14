@@ -93,6 +93,10 @@ function isField(el: Element): el is HTMLInputElement | HTMLSelectElement | HTML
 }
 
 function result(value: unknown, attached: File[] = []): Answer {
+  if ((JSON.stringify(value) ?? '').length > 512_000)
+    throw new Error(
+      'Browser result exceeds 512000 JSON characters. Request fewer entries, reduce snapshot depth, or return only selected fields from the evaluation script. Repeating the same request will not reduce its output.',
+    )
   return {value, files: attached}
 }
 

@@ -216,6 +216,26 @@ describe.skipIf(inFirefox)('page tools', () => {
       expect(element.result).toMatchObject({tagName: 'form'})
     })
 
+    it('refuses a result over 512000 JSON characters instead of returning it', async () => {
+      const crowd = document.createElement('div')
+      crowd.id = 'crowd'
+      crowd.append(
+        ...Array.from({length: 6000}, (_, index) => {
+          const button = document.createElement('button')
+          button.textContent = `crowded button ${index} with a label long enough to fill the snapshot quickly`
+          return button
+        }),
+      )
+      document.body.appendChild(crowd)
+      onTestFinished(() => crowd.remove())
+      expect(await runForFailure('snapshot', {selector: '#crowd'})).toEqual({
+        code: 'handler-error',
+        message:
+          'Browser result exceeds 512000 JSON characters. Request fewer entries, reduce snapshot depth, or return only selected fields from the evaluation script. Repeating the same request will not reduce its output.',
+      })
+      expect(await runForResult('snapshot', {selector: '#prose'})).toMatchObject({nodes: expect.any(Array)})
+    })
+
     it('injects css stylesheets', async () => {
       expect(await runForResult('css', {text: '#prose{letter-spacing:3px}'})).toEqual({ok: true})
       expect(document.querySelector('style[data-vibe-css]')?.textContent).toContain('letter-spacing')
