@@ -5703,16 +5703,15 @@ type InstalledRows = InstalledPush['list']
 function recordInstalled(source: InstalledSource) {
   const pushes = arrivals<InstalledPush>()
   onTestFinished(source.on((message) => pushes.add(message)))
-  const seen = {count: 0}
-  return async function next(accepts: (list: InstalledRows) => boolean): Promise<InstalledRows> {
-    seen.count += 1
-    const push = await pushes.nth(seen.count)
-    return accepts(push.list) ? push.list : next(accepts)
+  const taken = {count: 0}
+  return {
+    async next(expected: InstalledRows) {
+      taken.count += 1
+      expect((await pushes.nth(taken.count)).list).toEqual(expected)
+      expect(pushes.items).toHaveLength(taken.count)
+    },
+    done: () => expect(pushes.items).toHaveLength(taken.count),
   }
-}
-
-function rowEnabled(list: InstalledRows, id: string): boolean | undefined {
-  return list.find((item) => item.id === id)?.enabled
 }
 
 describe('installed plugins', () => {
@@ -5733,6 +5732,7 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
   })
   const faults = trackedFaults()
   const row = (id: string, enabled: boolean) => ({id, builtin: false, enabled, server: true})
+  const rows = (pane: boolean) => [row('pane', pane), {...row('broken', true), error: expect.stringMatching(/./)}]
   const notFound = {code: 'notFound', message: 'notFound'}
   const disabledPlugins = page.getByRole('status', {name: 'disabled plugins'})
 
@@ -5743,9 +5743,8 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
     onTestFinished(first.dispose)
     const firstInstalled = recordInstalled(first.manager)
 
-    const listed = await firstInstalled((list) => list.length > 0)
-    expect(listed).toEqual([row('pane', true), {...row('broken', true), error: expect.stringMatching(/./)}])
-    expect(await first.manager.list()).toEqual(listed)
+    await firstInstalled.next(rows(true))
+    expect(await first.manager.list()).toEqual(rows(true))
     const loaded = arrivals<readonly PluginExperimental[]>()
     const rendered = render(() => {
       const gate = createStartupGate({installed: first.manager, plugins: [], servers: false})
@@ -5765,37 +5764,52 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
     onTestFinished(rendered.unmount)
     expect((await loaded.nth(1)).map((plugin) => plugin.definition.id)).toEqual(['pane'])
     await expect.element(disabledPlugins).toHaveTextContent('none')
+    firstInstalled.done()
 
     await first.manager.disable('pane')
-    expect(rowEnabled(await firstInstalled((list) => rowEnabled(list, 'pane') === false), 'pane')).toBe(false)
+    await firstInstalled.next(rows(false))
     await expect.element(disabledPlugins).toHaveTextContent('pane')
     expect((await first.pluginExperimentals()).plugins.map((plugin) => plugin.id)).toEqual(['pane'])
     const engine = (await coreRpc(base).plugin.list()).data.find((plugin) => plugin.id === 'pane')
     expect(engine?.state.status).toBe('active')
+    firstInstalled.done()
 
+    const held = await faults.install({kind: 'gate', path: ['settings', 'changes']})
     const second = createBundleSource({rpc: coreRpc(base), apiBase: base})
     onTestFinished(second.dispose)
     const secondInstalled = recordInstalled(second.manager)
+    expect((await recordPushes(second).nth(1)).plugins.map((plugin) => plugin.id)).toEqual(['pane'])
+    await coreControl.releaseFault(held)
     expect(await second.manager.initial).toEqual([{id: 'pane', enabled: false}])
-    expect(rowEnabled(await secondInstalled((list) => rowEnabled(list, 'pane') !== undefined), 'pane')).toBe(false)
+    await secondInstalled.next(rows(false))
+    firstInstalled.done()
 
     await first.manager.enable('pane')
-    expect(rowEnabled(await firstInstalled((list) => rowEnabled(list, 'pane') === true), 'pane')).toBe(true)
+    await firstInstalled.next(rows(true))
+    await secondInstalled.next(rows(true))
     await expect.element(disabledPlugins).toHaveTextContent('none')
-    expect(rowEnabled(await secondInstalled((list) => rowEnabled(list, 'pane') === true), 'pane')).toBe(true)
+    firstInstalled.done()
+    secondInstalled.done()
 
     await second.manager.disable('pane')
-    expect(rowEnabled(await firstInstalled((list) => rowEnabled(list, 'pane') === false), 'pane')).toBe(false)
+    await secondInstalled.next(rows(false))
+    await firstInstalled.next(rows(false))
     await expect.element(disabledPlugins).toHaveTextContent('pane')
     await second.manager.enable('pane')
+    await secondInstalled.next(rows(true))
+    await firstInstalled.next(rows(true))
     await expect.element(disabledPlugins).toHaveTextContent('none')
+    secondInstalled.done()
 
     await first.manager.reload('pane')
-    expect(await firstInstalled(() => true)).toEqual(await first.manager.list())
+    await firstInstalled.next(rows(true))
 
     await expect(first.manager.disable('nobody')).rejects.toMatchObject(notFound)
     await expect(first.manager.enable('nobody')).rejects.toMatchObject(notFound)
     await expect(first.manager.reload('nobody')).rejects.toMatchObject(notFound)
     await expect(first.manager.disable('broken')).rejects.toMatchObject(notFound)
+    expect(await first.manager.list()).toEqual(rows(true))
+    firstInstalled.done()
+    secondInstalled.done()
   }, 90_000)
 })
