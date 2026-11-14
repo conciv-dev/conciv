@@ -93,15 +93,321 @@
     "maxCrap": 30,
     "thresholdOverrides": [
       {
-        "files": [
-          "apps/conciv/src/runtime/plugin/**",
-          "apps/conciv/src/runtime/persistence/**",
-          "apps/conciv/src/runtime/server/**"
-        ],
-        "maxCyclomatic": 37,
+        "files": ["apps/conciv/src/runtime/persistence/persist-machine.test.ts"],
+        "functions": ["describe(\"persist store machine\")"],
+        "maxUnitSize": 149,
+        "reason": "copied from opencode packages/app/src/runtime/persistence/persist-machine.test.ts: describe(\"persist store machine\") keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/persistence/persist-machine.ts"],
+        "functions": ["transitionPersistStore"],
+        "maxCyclomatic": 31,
         "maxCognitive": 51,
-        "maxCrap": 88,
-        "maxUnitSize": 120
+        "maxCrap": 35,
+        "maxUnitSize": 73,
+        "reason": "copied from opencode packages/app/src/runtime/persistence/persist-machine.ts: transitionPersistStore keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/persistence/persist.browser.test.ts"],
+        "functions": ["describe(\"persistStore\")"],
+        "maxUnitSize": 203,
+        "reason": "copied from opencode packages/app/src/runtime/persistence/persist.test.ts: describe(\"persistStore\") keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/persistence/persist.ts"],
+        "functions": ["persistStore"],
+        "maxUnitSize": 113,
+        "reason": "copied from opencode packages/app/src/runtime/persistence/persist.ts: persistStore keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/persistence/schema.test.ts"],
+        "functions": ["describe(\"persistence schemas\")"],
+        "maxUnitSize": 230,
+        "reason": "copied from opencode packages/app/src/runtime/persistence/schema.test.ts: describe(\"persistence schemas\") keeps the source's shape; conciv cases added under Night rulings 17, 52; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/persistence/storage.ts"],
+        "functions": ["persisted"],
+        "maxUnitSize": 79,
+        "reason": "copied from opencode packages/app/src/runtime/persistence/storage.ts: persisted keeps the source's shape; edited under Night rulings 17, 52; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/attach-machine.ts"],
+        "functions": ["transitionHostApiAttach"],
+        "maxCyclomatic": 22,
+        "maxCognitive": 29,
+        "maxUnitSize": 65,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/attach-machine.ts: transitionHostApiAttach keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/bundle-source.ts"],
+        "functions": ["createBundleSource"],
+        "maxUnitSize": 291,
+        "reason": "follows opencode packages/desktop/src/main/plugin/host.ts:186 createHost (resources, the copied machine driven by dispatch and perform, watch, list, bundle read, manager) with conciv substitutions inside; Day ruling 115"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/bundle-source.ts"],
+        "functions": ["perform"],
+        "maxCrap": 38,
+        "reason": "a copy with substitutions of opencode packages/desktop/src/main/plugin/host.ts:446 perform; Day ruling 115"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/composer-write-machine.test.ts"],
+        "functions": ["describe(\"composer write machine\")"],
+        "maxUnitSize": 95,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/composer-write-machine.test.ts: describe(\"composer write machine\") keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/dialog-stack-machine.ts"],
+        "functions": ["closeTarget"],
+        "maxCrap": 57,
+        "reason": "copied from opencode packages/ui/src/context/dialog-machine.ts: closeTarget keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/dialog-stack.tsx"],
+        "functions": ["<arrow>"],
+        "maxUnitSize": 81,
+        "reason": "copied from opencode packages/ui/src/context/dialog.tsx: the arrow at :177 inside node, inside mount keeps the source's shape; put onto the kit Dialog parts (plan task 4); Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/dialog-stack.tsx"],
+        "functions": ["init"],
+        "maxUnitSize": 211,
+        "reason": "copied from opencode packages/ui/src/context/dialog.tsx: init keeps the source's shape; put onto the kit Dialog parts (plan task 4); Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/dialog-stack.tsx"],
+        "functions": ["initialFocus"],
+        "maxCrap": 32,
+        "reason": "copied from opencode packages/ui/src/context/dialog.tsx: initialFocus keeps the source's shape; put onto the kit Dialog parts (plan task 4); Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/dialog-stack.tsx"],
+        "functions": ["mount"],
+        "maxUnitSize": 102,
+        "reason": "copied from opencode packages/ui/src/context/dialog.tsx: mount keeps the source's shape; put onto the kit Dialog parts (plan task 4); Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/dialog-stack.tsx"],
+        "functions": ["node"],
+        "maxUnitSize": 82,
+        "reason": "copied from opencode packages/ui/src/context/dialog.tsx: node, inside mount keeps the source's shape; put onto the kit Dialog parts (plan task 4); Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/dialog-stack.tsx"],
+        "functions": ["run"],
+        "maxCrap": 44,
+        "reason": "copied from opencode packages/ui/src/context/dialog.tsx: run keeps the source's shape; put onto the kit Dialog parts (plan task 4); Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/dialogs.tsx"],
+        "functions": ["PluginSelectDialog"],
+        "maxUnitSize": 106,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/dialogs.tsx: PluginSelectDialog keeps the source's shape; put onto the kit Dialog and TextField parts; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/extension-plugins.tsx"],
+        "functions": ["OwnServerPlugins"],
+        "maxUnitSize": 121,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/extension-plugins.tsx: OwnServerPlugins keeps the source's shape; edited under Night ruling 51, Day rulings 91, 92; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/extension-plugins.tsx"],
+        "functions": ["row"],
+        "maxUnitSize": 66,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/extension-plugins.tsx: row keeps the source's shape; edited under Night ruling 51, Day rulings 91, 92; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/host-apis.tsx"],
+        "functions": ["createHostApis"],
+        "maxUnitSize": 265,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/host-apis.tsx: createHostApis keeps the source's shape; edited under ruling A, Night rulings 22, 52, 67, Day ruling 82; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/host-apis.tsx"],
+        "functions": ["createPluginAttachment"],
+        "maxUnitSize": 259,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/host-apis.tsx: createPluginAttachment keeps the source's shape; edited under ruling A, Night rulings 22, 52, 67, Day ruling 82; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/host-layout-machine.ts"],
+        "functions": ["transitionMobileView"],
+        "maxCognitive": 20,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/host-layout-machine.ts: transitionMobileView keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/host-machine.test.ts"],
+        "functions": ["describe(\"plugin host follow\")"],
+        "maxUnitSize": 109,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/host-machine.test.ts: describe(\"plugin host follow\") keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/host-machine.ts"],
+        "functions": ["follow"],
+        "maxCrap": 50,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/host-machine.ts: follow keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/host-machine.ts"],
+        "functions": ["transitionHost"],
+        "maxCyclomatic": 32,
+        "maxCognitive": 39,
+        "maxCrap": 36,
+        "maxUnitSize": 97,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/host-machine.ts: transitionHost keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/host.tsx"],
+        "functions": ["createHost"],
+        "maxUnitSize": 591,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/host.tsx: createHost keeps the source's shape; edited under ruling A (installed source, unavailable client, links); Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/host.tsx"],
+        "functions": ["createInstance"],
+        "maxUnitSize": 191,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/host.tsx: createInstance keeps the source's shape; edited under ruling A (installed source, unavailable client, links); Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/host.tsx"],
+        "functions": ["dialogs"],
+        "maxUnitSize": 102,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/host.tsx: dialogs keeps the source's shape; edited under ruling A (installed source, unavailable client, links); Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/host.tsx"],
+        "functions": ["open"],
+        "maxUnitSize": 75,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/host.tsx: open, inside dialogs, inside createHost keeps the source's shape; edited under ruling A (installed source, unavailable client, links); Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/host.tsx"],
+        "functions": ["run"],
+        "maxCrap": 38,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/host.tsx: run keeps the source's shape; edited under ruling A (installed source, unavailable client, links); Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/instance-machine.ts"],
+        "functions": ["next"],
+        "maxCrap": 64,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/instance-machine.ts: next keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/instance-machine.ts"],
+        "functions": ["transitionPluginHost"],
+        "maxCyclomatic": 37,
+        "maxCognitive": 48,
+        "maxCrap": 42,
+        "maxUnitSize": 120,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/instance-machine.ts: transitionPluginHost keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/link-check-machine.ts"],
+        "functions": ["transitionLinkCheck"],
+        "maxCyclomatic": 21,
+        "maxCognitive": 24,
+        "maxUnitSize": 68,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/link-check-machine.ts: transitionLinkCheck keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/link-check.ts"],
+        "functions": ["createLinkCheck"],
+        "maxUnitSize": 65,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/link-check.ts: createLinkCheck keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/located-machine.ts"],
+        "functions": ["transitionLocatedWrites"],
+        "maxCognitive": 26,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/located-machine.ts: transitionLocatedWrites keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/machine.ts"],
+        "functions": ["preferences"],
+        "maxCognitive": 25,
+        "maxCrap": 89,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/machine.ts: preferences keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/mounted-session.ts"],
+        "functions": ["createMountedSession"],
+        "maxUnitSize": 206,
+        "reason": "follows opencode packages/app/src/runtime/plugin/mounted-session.ts:53 createMountedSession (the write queue, the frozen session object in its own root, the publish order) with conciv substitutions inside; Day ruling 115"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/panels.tsx"],
+        "functions": ["createRegion"],
+        "maxUnitSize": 141,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/panels.tsx: createRegion keeps the source's shape; edited under rulings A and C, Night ruling 49; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/panels.tsx"],
+        "functions": ["RegionContent"],
+        "maxUnitSize": 122,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/panels.tsx: RegionContent keeps the source's shape; edited under rulings A and C, Night ruling 49; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/plugin-experimental-machine.test.ts"],
+        "functions": ["describe(\"plugin experimental machine\")"],
+        "maxUnitSize": 153,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/plugin-experimental-machine.test.ts: describe(\"plugin experimental machine\") keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/plugin-experimental-machine.ts"],
+        "functions": ["transitionPluginExperimental"],
+        "maxCyclomatic": 24,
+        "maxCognitive": 29,
+        "maxUnitSize": 75,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/plugin-experimental-machine.ts: transitionPluginExperimental keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/plugins.tsx"],
+        "functions": ["PluginExperimentalLoader"],
+        "maxUnitSize": 88,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/plugins.tsx: PluginExperimentalLoader keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/render.tsx"],
+        "functions": ["createCodeBlocks"],
+        "maxUnitSize": 106,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/render.tsx: createCodeBlocks keeps the source's shape; edited under Night rulings 16, 67; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/root.tsx"],
+        "functions": ["PluginRoot"],
+        "maxUnitSize": 99,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/root.tsx: PluginRoot keeps the source's shape; edited under Night rulings 67, 79, Day rulings 82, 83; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/startup.ts"],
+        "functions": ["createStartupGate"],
+        "maxUnitSize": 84,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/startup.ts: createStartupGate keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/stores.ts"],
+        "functions": ["createSessionStore"],
+        "maxUnitSize": 69,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/stores.ts: createSessionStore keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/plugin/stores.ts"],
+        "functions": ["persistedHandle"],
+        "maxUnitSize": 66,
+        "reason": "copied from opencode packages/app/src/runtime/plugin/stores.ts: persistedHandle keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/server/plugin-machine.ts"],
+        "functions": ["transitionPluginServer"],
+        "maxCognitive": 19,
+        "reason": "copied from opencode packages/app/src/runtime/server/plugin-machine.ts: transitionPluginServer keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/server/plugin-machine.ts"],
+        "functions": ["updated"],
+        "maxCognitive": 16,
+        "maxCrap": 38,
+        "reason": "copied from opencode packages/app/src/runtime/server/plugin-machine.ts: updated keeps the source's shape; Day ruling 113"
       },
       {
         "files": ["packages/plugin-host/src/**"],
@@ -162,11 +468,7 @@
   },
   "overrides": [
     {
-      "files": [
-        "apps/conciv/src/runtime/plugin/**",
-        "apps/conciv/src/runtime/persistence/**",
-        "apps/conciv/src/runtime/server/**"
-      ],
+      "files": ["apps/conciv/src/runtime/plugin/mobile.tsx"],
       "rules": {"unused-files": "off"}
     }
   ],
@@ -272,16 +574,36 @@
       "exports": ["*"]
     },
     {
-      "file": "apps/conciv/src/runtime/plugin/**",
-      "exports": ["*"]
+      "file": "apps/conciv/src/runtime/plugin/host.tsx",
+      "exports": ["PluginInput"]
     },
     {
-      "file": "apps/conciv/src/runtime/persistence/**",
-      "exports": ["*"]
+      "file": "apps/conciv/src/runtime/plugin/dialog-stack.tsx",
+      "exports": ["FocusReturn", "useDialogLayer"]
     },
     {
-      "file": "apps/conciv/src/runtime/server/**",
-      "exports": ["*"]
+      "file": "apps/conciv/src/runtime/plugin/dialog-stack-machine.ts",
+      "exports": ["DIALOG_EXIT_MS"]
+    },
+    {
+      "file": "apps/conciv/src/runtime/plugin/host-apis.tsx",
+      "exports": ["usePluginAttachment"]
+    },
+    {
+      "file": "apps/conciv/src/runtime/plugin/host-machine.ts",
+      "exports": ["WATCH_RETRY_MS", "LIST_TIMEOUT_MS", "sameHostEndpoint"]
+    },
+    {
+      "file": "apps/conciv/src/runtime/plugin/panels.tsx",
+      "exports": ["MobilePanel"]
+    },
+    {
+      "file": "apps/conciv/src/runtime/plugin/root.tsx",
+      "exports": ["useHostApis"]
+    },
+    {
+      "file": "apps/conciv/src/runtime/plugin/stores.ts",
+      "exports": ["locatedHandle"]
     },
     {
       "file": "packages/plugin/src/**",
