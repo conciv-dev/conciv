@@ -269,14 +269,22 @@ function Root(props: FormProps): JSX.Element {
     attachments: [...state.attachments],
     quote: state.quote,
   })
-  const restoreDraft = (original: ComposerDraft) => {
+  const mergeAttachments = (original: ComposerDraft) => {
     setState('attachments', (current) => {
       const currentIds = new Set(current.map((value) => value.id))
       return [...current, ...original.attachments.filter((value) => !currentIds.has(value.id))]
     })
+  }
+  const restoreDraft = (original: ComposerDraft) => {
+    mergeAttachments(original)
     if (chat.view.draft !== '' || state.quote !== null) return
     chat.setView('draft', original.draft)
     setState({quote: original.quote})
+  }
+  const putBackUnansweredSend = (original: ComposerDraft) => {
+    mergeAttachments(original)
+    chat.setView('draft', [original.draft, chat.view.draft].filter((text) => text !== '').join('\n'))
+    setState('quote', (current) => current ?? original.quote)
   }
   const clearDraft = () => {
     chat.setView('draft', '')
@@ -322,7 +330,7 @@ function Root(props: FormProps): JSX.Element {
     clearDraft()
     const outcome = await runSend(content)
     if (!outcome.failure) return
-    if (!outcome.answered) restoreDraft(original)
+    if (!outcome.answered) putBackUnansweredSend(original)
     handlers.onSendError?.(outcome.failure)
   }
   const submit = async (event: SubmitEvent) => {
