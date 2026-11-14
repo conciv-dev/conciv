@@ -147,12 +147,11 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
   }
 
   const readEvents = async (client: ConcivClient, attempt: number, signal: AbortSignal) => {
-    for await (const event of client.event.subscribe({signal})) {
-      if (event.type === 'server.connected' || (event.type === 'plugin.updated' && !event.location))
+    for await (const event of client.event.subscribe({signal}))
+      if (event.type === 'plugin.updated' || event.type === 'server.connected') {
         pluginListListeners.forEach((listener) => listener())
-      if (event.type === 'plugin.updated' || event.type === 'server.connected')
         dispatch({type: 'relist.requested', watchAttempt: attempt, quitting: false})
-    }
+      }
   }
 
   const listPlugins = async (attempt: number, timeoutMs: number) => {
