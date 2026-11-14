@@ -195,7 +195,7 @@ describe('the tanstack plugin on a real Vite dev server', () => {
     await underBase
     const based = TracePayloadSchema.parse(await useTool(kit, 'server_fn_trace', {count: 1}))
     expect(based.traces.map((trace) => trace.id)).toEqual([BASEPATH_FN_ID])
-    expect(based.functions.find((fn) => fn.name === BASEPATH_FN.export)).toEqual({
+    expect(based.functions.find((serverFunction) => serverFunction.name === BASEPATH_FN.export)).toEqual({
       id: BASEPATH_FN_ID,
       name: BASEPATH_FN.export,
       route: null,
