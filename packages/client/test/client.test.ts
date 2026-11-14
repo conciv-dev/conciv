@@ -1,7 +1,7 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {ChatClient} from '@conciv/ai/testkit'
-import {makeRpcClient, type RpcClient, type SessionMeta} from '@conciv/contract'
+import {makeBrowserRpcClient, makeRpcClient, type RpcClient, type SessionMeta} from '@conciv/contract'
 import {chatConnection, type ChatConnection, type ChatTransport} from '../src/chat-connection.js'
 import {bootClientKit, type ClientKit} from './helpers.js'
 import {createServer, type IncomingMessage, type Server} from 'node:http'
@@ -11,7 +11,8 @@ import {acquirePushChannel, livePushChannelCount, type PageQueryFrame} from '../
 import {MutationObserver, QueryClient} from '@tanstack/solid-query'
 import {makeQueryUtils} from '../src/query-utils.js'
 import {ORPCError} from '@orpc/client'
-import {isReachabilityError} from '../src/reachability.js'
+import {onlineManager} from '@tanstack/query-core'
+import {isReachabilityError, setupEngineReachability} from '../src/reachability.js'
 
 describe('chat client', () => {
   let kit: ClientKit | undefined
@@ -757,5 +758,45 @@ describe('rpc reachability', () => {
     it('is true for a transport-level failure', () => {
       expect(isReachabilityError(new TypeError('fetch failed'))).toBe(true)
     })
+  })
+
+  describe('engine reachability across panels', () => {
+    let kit: ClientKit | undefined
+    afterEach(async () => {
+      await kit?.cleanup()
+      kit = undefined
+    })
+
+    it('a panel set up after an unreachable engine was disposed starts online and its queries run', async () => {
+      const offline = Promise.withResolvers<void>()
+      const unsubscribeOnline = onlineManager.subscribe((online) => {
+        if (!online) offline.resolve()
+      })
+      const unreachableBase = 'http://127.0.0.1:9'
+      const disposeUnreachable = setupEngineReachability(unreachableBase)
+      const unreachable = makeBrowserRpcClient(unreachableBase)
+      const call = unreachable.rpc.sessions.list().then(
+        () => 'answered',
+        () => 'refused',
+      )
+      await offline.promise
+      unsubscribeOnline()
+      expect(onlineManager.isOnline()).toBe(false)
+      unreachable.close()
+      disposeUnreachable()
+      expect(await call).toBe('refused')
+
+      kit = await bootClientKit()
+      const disposeReachable = setupEngineReachability(kit.base)
+      try {
+        expect(onlineManager.isOnline()).toBe(true)
+        const rpc = makeRpcClient(kit.base)
+        const {sessionId} = await rpc.sessions.create(undefined)
+        const {sessions} = await new QueryClient().fetchQuery(makeQueryUtils(rpc).sessions.list.queryOptions())
+        expect(sessions.map((meta: SessionMeta) => meta.id)).toContain(sessionId)
+      } finally {
+        disposeReachable()
+      }
+    }, 20_000)
   })
 })
