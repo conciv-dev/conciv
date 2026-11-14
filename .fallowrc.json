@@ -233,7 +233,7 @@
         "files": ["apps/conciv/src/runtime/plugin/host-layout-machine.ts"],
         "functions": ["transitionMobileView"],
         "maxCognitive": 20,
-        "reason": "copied from opencode packages/app/src/runtime/plugin/host-layout-machine.ts: transitionMobileView keeps the source's shape; Day ruling 113"
+        "reason": "copied from opencode packages/app/src/runtime/plugin/host-layout-machine.ts: transitionMobileView keeps the source's shape; Day ruling 113. The file and its copied test stay unread: the route is the state, DECIDED by Omri MV-1; removal awaits his word (Day ruling 118 Q3)"
       },
       {
         "files": ["apps/conciv/src/runtime/plugin/host-machine.test.ts"],
