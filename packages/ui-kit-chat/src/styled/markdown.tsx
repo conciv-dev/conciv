@@ -313,13 +313,13 @@ type MarkdownCodeBlockMatch = {
   readonly actions: ReadonlySet<string>
 }
 
-type MarkdownCodeAction = {
+export type MarkdownCodeAction = {
   readonly icon: string
   readonly title: string
   run(block: MarkdownCodeBlock): void
 }
 
-type MarkdownCodeBlocks = {
+export type MarkdownCodeBlocks = {
   readonly current: () => MarkdownCodeBlockMatch
   readonly render: (target: HTMLElement, block: MarkdownCodeBlock, fallback: () => void) => (() => void) | undefined
   readonly actions: (language: string) => readonly MarkdownCodeAction[]

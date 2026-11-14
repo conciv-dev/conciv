@@ -190,6 +190,8 @@ export {
   MarkdownHighlightProvider,
   MarkdownProvider,
   useMarkdown,
+  type MarkdownCodeAction,
+  type MarkdownCodeBlocks,
   type MarkdownProps,
 } from './styled/markdown.js'
 export {Reasoning, ReasoningText, type ReasoningProps} from './styled/reasoning.js'
