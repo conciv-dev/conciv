@@ -47,6 +47,7 @@ export async function bootCoreKit(opts: {
   nativePageDir?: string
   plugins?: NonNullable<ConcivConfig['plugins']>
   files?: Readonly<Record<string, string>>
+  stateRoot?: string
 }): Promise<CoreKit> {
   const harness = createFakeHarness({
     id: opts.id,
@@ -59,41 +60,45 @@ export async function bootCoreKit(opts: {
     resumeBin: opts.resumeBin,
   })
   const captured: {runtime?: CoreRuntime} = {}
-  const kit = await createTestkit(harness, async (env) => {
-    for (const [path, content] of Object.entries(opts.files ?? {})) writeInside(env.cwd, path, content)
-    const {fetch, dispose, runtime, agentToken, startPlugins} = await makeApp({
-      print: env.print,
-      cfg: {
-        enabled: true,
-        widgetUrl: undefined,
-        stateRoot: env.stateRoot,
-        harness: env.harness.id,
-        harnessBin: undefined,
-        sessionId: undefined,
-        harnessSessionId: undefined,
-        systemPrompt: '',
-        hubAccess: 'session',
-        plugins: opts.plugins ?? [],
-        policies: [],
-      },
-      cwd: env.cwd,
-      openInEditor: () => {},
-      harness: env.harness,
-      harnesses: (opts.alternates ?? []).map((alternate) => createFakeHarness(alternate)),
-      extensions: opts.extensions,
-      allowedOrigins: opts.allowedOrigins,
-      staleness: opts.staleness,
-      nativePageDir: opts.nativePageDir,
-      home: kitHome(env.stateRoot),
-    })
-    captured.runtime = runtime
-    await startPlugins()
-    return {
-      fetch,
-      dispose,
-      agentToken,
-    }
-  }).setup()
+  const kit = await createTestkit(
+    harness,
+    async (env) => {
+      for (const [path, content] of Object.entries(opts.files ?? {})) writeInside(env.cwd, path, content)
+      const {fetch, dispose, runtime, agentToken, startPlugins} = await makeApp({
+        print: env.print,
+        cfg: {
+          enabled: true,
+          widgetUrl: undefined,
+          stateRoot: env.stateRoot,
+          harness: env.harness.id,
+          harnessBin: undefined,
+          sessionId: undefined,
+          harnessSessionId: undefined,
+          systemPrompt: '',
+          hubAccess: 'session',
+          plugins: opts.plugins ?? [],
+          policies: [],
+        },
+        cwd: env.cwd,
+        openInEditor: () => {},
+        harness: env.harness,
+        harnesses: (opts.alternates ?? []).map((alternate) => createFakeHarness(alternate)),
+        extensions: opts.extensions,
+        allowedOrigins: opts.allowedOrigins,
+        staleness: opts.staleness,
+        nativePageDir: opts.nativePageDir,
+        home: kitHome(env.stateRoot),
+      })
+      captured.runtime = runtime
+      await startPlugins()
+      return {
+        fetch,
+        dispose,
+        agentToken,
+      }
+    },
+    {stateRoot: opts.stateRoot},
+  ).setup()
   const runtime = captured.runtime
   if (!runtime) throw new Error('the core kit booted without capturing the core runtime')
   return {
