@@ -27,6 +27,7 @@ import type {
   Agent,
   Bus,
   Database,
+  InstructionEntry,
   KV,
   Location,
   Permission,
@@ -39,6 +40,7 @@ import type {
   Tool,
 } from '@conciv/plugin-host'
 import type {PermissionAnswer} from '../../runtime/permission-cards.js'
+import type {EventFeed} from '../../runtime/event-feed.js'
 
 export type PluginHost = ManagedRuntime.ManagedRuntime<
   | Tool.Interface
@@ -49,12 +51,14 @@ export type PluginHost = ManagedRuntime.ManagedRuntime<
   | PluginHooks.Interface
   | Rpc.Interface
   | KV.Interface
+  | InstructionEntry.Interface
   | Skill.Interface
   | SkillInstructions.Interface
   | Bus.Interface
   | Location.Interface
   | Plugin.Interface
-  | Database.Interface,
+  | Database.Interface
+  | EventFeed.Interface,
   never
 >
 
@@ -151,6 +155,10 @@ const HUB_PROCEDURES = new Set(['meta.connectHub', 'meta.disconnectHub'])
 
 const OUTSIDE_HUB_REFUSAL = "outside agents can't connect or disconnect agents; do it in the tab"
 
+const EVENT_PROCEDURES = new Set(['event.subscribe'])
+
+const OUTSIDE_EVENT_REFUSAL = "outside agents can't read the engine's event stream"
+
 export function makeHubAdmission(deps: RpcDeps) {
   return plainOs.$context<RpcContext>().middleware(async ({context, next, signal, path}, input: unknown) => {
     const hub = callTrace((header) => rpcHeader(context, header)).hub
@@ -167,6 +175,7 @@ function refuseOutside(deps: RpcDeps, client: string | null, procedure: string):
   if (disconnected !== null) throw new ORPCError('APPROVAL_DENIED', {message: disconnected})
   if (DECIDING_PROCEDURES.has(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_DECISION_REFUSAL})
   if (HUB_PROCEDURES.has(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_HUB_REFUSAL})
+  if (EVENT_PROCEDURES.has(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_EVENT_REFUSAL})
 }
 
 async function admitHubCaller(

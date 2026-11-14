@@ -1,5 +1,7 @@
+import photon from '@silvia-odwyer/photon-node'
 import {describe, expect} from 'vitest'
 import {Agent} from '../../src/core/agent.js'
+import {Image} from '../../src/core/image.js'
 import {Permission} from '../../src/core/permission.js'
 import {PluginHooks} from '../../src/core/plugin/hooks.js'
 import {Session} from '../../src/schema/session.js'
@@ -12,7 +14,7 @@ import {Deferred, Effect, Exit, Fiber, Layer, Logger, Schema, SchemaGetter, Sche
 import {z} from 'zod'
 import {testEffect} from './lib/effect'
 
-const registryLayer = Layer.provideMerge(Tool.layer, PluginHooks.layer)
+const registryLayer = Layer.provideMerge(Tool.layer, Layer.mergeAll(PluginHooks.layer, Image.layer))
 const it = testEffect(registryLayer)
 const identity = {
   agent: Agent.Id.make('build'),
@@ -893,6 +895,85 @@ describe('Tool', () => {
       expect((yield* executeTool(service, call('echo'))).content).toEqual([{type: 'text', text: 'overlay'}])
       yield* Scope.close(overlay, Exit.void)
       expect((yield* executeTool(service, call('echo'))).content).toEqual([{type: 'text', text: 'base'}])
+    }),
+  )
+})
+
+const encodePng = (width: number, height: number, pixel: (index: number) => number): string => {
+  const raw = Uint8Array.from({length: width * height * 4}, (_, index) => (index % 4 === 3 ? 255 : pixel(index)))
+  const image = new photon.PhotonImage(raw, width, height)
+  const base64 = Buffer.from(image.get_bytes()).toString('base64')
+  image.free()
+  return base64
+}
+
+const dimensions = (uri: string): string => {
+  const image = photon.PhotonImage.new_from_byteslice(Buffer.from(uri.slice(uri.indexOf(',') + 1), 'base64'))
+  const size = `${image.get_width()}x${image.get_height()}`
+  image.free()
+  return size
+}
+
+describe('Tool image output', () => {
+  it.live('resizes, re-encodes, keeps and drops image parts as the source does', () =>
+    Effect.gen(function* () {
+      const service = yield* Tool.Service
+      const small = encodePng(4, 4, (index) => index * 16)
+      const large = encodePng(2400, 1200, (index) => Math.floor(index / 9600) % 256)
+      const noisy = encodePng(600, 600, (index) => (Math.imul(index, 2654435761) >>> 24) & 255)
+      const file = (name: string, base64: string): Tool.Content => ({
+        type: 'file',
+        uri: `data:image/png;base64,${base64}`,
+        mime: 'image/png',
+        name,
+      })
+      yield* transform(
+        service,
+        {
+          snapshot: {
+            name: 'snapshot',
+            description: 'Return images',
+            input: Schema.Struct({text: Schema.String}),
+            execute: ({text}) =>
+              Effect.succeed({
+                content: [
+                  file('small.png', small),
+                  file('large.png', large),
+                  file('noisy.png', noisy),
+                  file('corrupt.png', 'aW1hZ2U='),
+                  {type: 'text', text},
+                ],
+              }),
+          },
+        },
+        {codemode: false},
+      )
+
+      const resized = (yield* executeTool(service, call('snapshot'))).content ?? []
+      expect(resized.map((part) => (part.type === 'file' ? `${part.name} ${part.mime}` : part.text))).toEqual([
+        'small.png image/png',
+        'large.png image/jpeg',
+        'noisy.png image/jpeg',
+        'snapshot',
+        '[1 image omitted: could not be decoded.]',
+      ])
+      expect(resized[0]).toEqual(file('small.png', small))
+      expect(resized.flatMap((part) => (part.type === 'file' ? [dimensions(part.uri)] : []))).toEqual([
+        '4x4',
+        '2000x1000',
+        '600x600',
+      ])
+
+      const image = yield* Image.Service
+      yield* image.transform((editor) => editor.configure({autoResize: false}))
+      const limited = (yield* executeTool(service, call('snapshot'))).content ?? []
+      expect(limited.map((part) => (part.type === 'file' ? `${part.name} ${part.mime}` : part.text))).toEqual([
+        'small.png image/png',
+        'noisy.png image/png',
+        'snapshot',
+        '[1 image omitted: could not be decoded.]',
+        '[1 image omitted: could not be resized below the image size limit.]',
+      ])
     }),
   )
 })
