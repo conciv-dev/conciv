@@ -111,7 +111,7 @@ function SettingsLayout(): JSX.Element {
   const pluginList = useQuery(() => ({...appData.utils.plugin.list.queryOptions(), enabled: connected()}))
   const queryClient = useAppQueryClient()
   usePluginListChange(() => void queryClient.invalidateQueries({queryKey: appData.utils.plugin.list.key()}))
-  const pluginRows = createPluginRows(() => pluginList.data?.data ?? [])
+  const pluginRows = createPluginRows(() => (pluginList.isSuccess ? pluginList.data.data : []))
   const offeredPlugins = createMemo(() => offeredPluginTabs(pluginRows), [], {equals: isEqual})
   const pluginTabs = createMemo(() => offeredPlugins().map(builtin))
   const advancedTab = builtin(ADVANCED_TAB)
