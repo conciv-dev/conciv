@@ -87,7 +87,7 @@ function CardBody(props: AttachmentCardProps): JSX.Element {
   return (
     <div class="py-2 pe-2 ps-3 border border-chat-line rounded-chat-surface-md bg-chat-fill flex gap-2 min-w-55 items-center overflow-hidden">
       <RecorderNotice text={poster()} />
-      <Button size="sm" disabled={!ref()} onClick={() => setOpen(true)}>
+      <Button size="xs" disabled={!ref()} onClick={() => setOpen(true)}>
         Play
       </Button>
       {props.remove}
@@ -99,13 +99,13 @@ function CardBody(props: AttachmentCardProps): JSX.Element {
               <Button
                 class="ml-auto"
                 variant="ghost"
-                size="sm"
+                size="xs"
                 disabled={exportVideo.isPending}
                 onClick={() => void downloadVideo()}
               >
                 {exportVideo.isPending ? 'Exporting…' : 'Export video'}
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+              <Button variant="ghost" size="xs" onClick={() => setOpen(false)}>
                 Close
               </Button>
             </div>

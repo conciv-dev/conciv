@@ -38,12 +38,10 @@ const buttonVariant: Record<
 
 const buttonSize: Record<'small' | 'normal' | 'large', ButtonSize> = {small: 'sm', normal: 'md', large: 'lg'}
 
-const ICON_BUTTON_FRAME = 'font-chat focus-ring rounded-chat-surface-md'
-
-const iconButtonSize: Record<'small' | 'normal' | 'large', {size: ButtonSize; class: string}> = {
-  small: {size: 'none', class: `${ICON_BUTTON_FRAME} size-8`},
-  normal: {size: 'icon', class: ''},
-  large: {size: 'none', class: `${ICON_BUTTON_FRAME} size-11`},
+const iconButtonSize: Record<'small' | 'normal' | 'large', ButtonSize> = {
+  small: 'icon-sm',
+  normal: 'icon',
+  large: 'icon-lg',
 }
 
 const ICON_BUTTON_PRESSED = 'aria-pressed:bg-chat-fill-strong aria-pressed:text-chat-text'
@@ -91,12 +89,12 @@ export const ui: Ui = {
     <Button
       type="button"
       variant={buttonVariant[props.variant ?? 'ghost-muted'].variant}
-      size={iconButtonSize[props.size ?? 'normal'].size}
+      size={iconButtonSize[props.size ?? 'normal']}
       disabled={props.disabled || props.busy}
       aria-label={props.label}
       aria-pressed={props.pressed}
       aria-busy={props.busy || undefined}
-      class={`${buttonVariant[props.variant ?? 'ghost-muted'].class} ${iconButtonSize[props.size ?? 'normal'].class} ${ICON_BUTTON_PRESSED} ${props.class ?? ''}`}
+      class={`${buttonVariant[props.variant ?? 'ghost-muted'].class} ${ICON_BUTTON_PRESSED} ${props.class ?? ''}`}
       onClick={(event: MouseEvent) => props.onClick?.(event)}
     >
       <Show when={props.busy} fallback={<Icon name={props.icon} />}>

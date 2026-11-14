@@ -7,7 +7,7 @@ const ROOT = 'flex flex-col gap-1'
 const LABEL = 'text-[0.75rem] text-chat-text-2 font-chat'
 const INPUT =
   'flex-1 w-full min-w-0 bg-transparent [border:none] px-2.5 text-inherit [font:inherit] focus-visible:outline-none placeholder:text-chat-text-3 read-only:cursor-default'
-const INPUT_SIZE = {md: `${INPUT} py-2`, lg: `${INPUT} py-2.5`}
+const INPUT_SIZE = {md: `${INPUT} py-1.25`, lg: `${INPUT} py-1.75`}
 const MONO = 'font-chat-mono text-[0.75rem]'
 const ADDON =
   'flex items-center gap-1.5 shrink-0 px-2.5 text-chat-text-3 font-chat-mono text-[0.75rem] whitespace-nowrap [border-inline-end:1px_solid_var(--chat-line-soft)]'

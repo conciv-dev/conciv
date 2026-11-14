@@ -188,7 +188,7 @@ export function SettingsLoad(props: SettingsLoadProps): JSX.Element {
       <Match when={props.status === 'error'}>
         <div class={FAILED} role="alert">
           <p class="m-0">Your conciv settings could not be loaded.</p>
-          <Button variant="outline" size="sm" class="min-h-7" onClick={() => props.retry()}>
+          <Button variant="outline" size="sm" onClick={() => props.retry()}>
             Retry
           </Button>
         </div>

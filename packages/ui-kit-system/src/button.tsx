@@ -11,7 +11,7 @@ export type ButtonVariant =
   | 'panel'
   | 'link'
   | 'plain'
-export type ButtonSize = 'sm' | 'md' | 'lg' | 'icon' | 'bare' | 'none'
+export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg' | 'icon-xs' | 'icon-sm' | 'icon' | 'icon-lg' | 'bare' | 'none'
 
 const button = cva(
   'inline-flex items-center justify-center gap-1.5 cursor-pointer trans-btn [border-width:1px] [border-style:solid] disabled:opacity-50 disabled:cursor-not-allowed active:not-disabled:[transform:scale(0.97)]',
@@ -30,10 +30,14 @@ const button = cva(
         plain: 'border-transparent bg-transparent',
       },
       size: {
-        sm: 'font-chat focus-ring text-[0.6875rem] leading-4 rounded-chat-surface-sm py-0.5 px-2',
-        md: 'font-chat focus-ring text-[0.8125rem] leading-5 rounded-chat-surface-md py-2 px-3',
-        lg: 'font-chat focus-ring text-[0.8125rem] leading-5 rounded-chat-surface-md py-2.5 px-4',
-        icon: 'font-chat focus-ring rounded-chat-surface-md size-9.5',
+        xs: 'font-chat focus-ring text-[0.6875rem] leading-4 rounded-chat-surface-sm py-0.75 px-2',
+        sm: 'font-chat focus-ring text-[0.75rem] leading-5 rounded-chat-surface-sm py-0.75 px-2.5',
+        md: 'font-chat focus-ring text-[0.8125rem] leading-5 rounded-chat-surface-md py-1.25 px-3',
+        lg: 'font-chat focus-ring text-[0.8125rem] leading-5 rounded-chat-surface-md py-1.75 px-4',
+        'icon-xs': 'font-chat focus-ring rounded-chat-surface-sm size-6',
+        'icon-sm': 'font-chat focus-ring rounded-chat-surface-sm size-7',
+        icon: 'font-chat focus-ring rounded-chat-surface-md size-8',
+        'icon-lg': 'font-chat focus-ring rounded-chat-surface-md size-9',
         bare: 'font-chat focus-ring text-[0.75rem] p-0',
         none: '',
       },

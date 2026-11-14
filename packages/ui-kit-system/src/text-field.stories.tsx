@@ -2,6 +2,7 @@ import {createSignal, Show} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createStore} from 'solid-js/store'
+import X from 'lucide-solid/icons/x'
 import {Button} from './button.js'
 import {ClipboardCopyButton} from './clipboard-copy-button.js'
 import {FieldShell} from './field-shell.js'
@@ -144,6 +145,9 @@ export const Sizes: Story = {
       <div class="flex gap-2 items-center">
         <TextField placeholder="Medium beside a medium button" aria-label="Medium beside a button" class="flex-1" />
         <Button>Save</Button>
+        <Button variant="outline" size="icon" aria-label="Clear medium">
+          <X class="size-4" aria-hidden="true" />
+        </Button>
       </div>
       <div class="flex gap-2 items-center">
         <TextField
@@ -153,6 +157,9 @@ export const Sizes: Story = {
           class="flex-1"
         />
         <Button size="lg">Save</Button>
+        <Button variant="outline" size="icon-lg" aria-label="Clear large">
+          <X class="size-4" aria-hidden="true" />
+        </Button>
       </div>
     </div>
   ),

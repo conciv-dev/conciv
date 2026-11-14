@@ -397,7 +397,7 @@ export function SessionSelector(props: {
               role="status"
             >
               <span>Couldn't load sessions</span>
-              <Button variant="outline" size="sm" onClick={() => void list.refetch()}>
+              <Button variant="outline" size="xs" onClick={() => void list.refetch()}>
                 Retry
               </Button>
             </div>
@@ -438,7 +438,7 @@ export function SessionSelector(props: {
                     role="status"
                   >
                     <span>Couldn't load more sessions</span>
-                    <Button variant="outline" size="sm" onClick={() => void list.fetchNextPage()}>
+                    <Button variant="outline" size="xs" onClick={() => void list.fetchNextPage()}>
                       Retry
                     </Button>
                   </div>

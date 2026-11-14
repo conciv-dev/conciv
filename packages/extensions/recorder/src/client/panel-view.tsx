@@ -172,12 +172,12 @@ function RecorderPanel(): JSX.Element {
                       )}
                     </Show>
                     <div class="flex gap-2 items-center">
-                      <Button size="sm" disabled={!log.isSuccess} onClick={() => void sendToAgent()}>
+                      <Button size="xs" disabled={!log.isSuccess} onClick={() => void sendToAgent()}>
                         Send to agent
                       </Button>
                       <Button
                         variant="outline"
-                        size="sm"
+                        size="xs"
                         disabled={reset.isPending}
                         onClick={() => reset.mutate(undefined)}
                       >
@@ -185,7 +185,7 @@ function RecorderPanel(): JSX.Element {
                       </Button>
                       <Button
                         variant="outline"
-                        size="sm"
+                        size="xs"
                         disabled={exportVideo.isPending || save.isPending}
                         onClick={() => void downloadVideo()}
                       >

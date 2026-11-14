@@ -124,7 +124,7 @@ export function RecorderErrorNotice(props: {retry: () => void; text?: string}): 
   return (
     <div class="flex flex-col gap-2 items-start">
       <RecorderNotice text={props.text ?? 'Could not load the recording.'} />
-      <Button variant="outline" size="sm" onClick={() => props.retry()}>
+      <Button variant="outline" size="xs" onClick={() => props.retry()}>
         Retry
       </Button>
     </div>
