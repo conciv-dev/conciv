@@ -10,8 +10,8 @@ The chat pane for one session: transcript, composer with attachments and element
 - `PaneComposer`, `PaneComposerProps` (`pane-composer.tsx`): composer with attachment, send and stop buttons
 - `ComposerInputAdapter`, `ComposerInputHandle`, `SelectionOffsets` (`composer-input-adapter.tsx`)
 - `usePaneMessaging(deps)`, `PaneMessaging` (`use-pane-messaging.ts`): send, `chat.uiReply` and `sessions.compact` mutations
-- `checkSend(content, state)`, `MAX_CONTENT_PARTS` (`send-checks.ts`): pre-send validation verdict
 - `makeDraftStorage(appData, sessionId)`, `appendDraft(appData, sessionId, text)`, `PaneDraftStorage` (`draft-storage.ts`): composer draft storage backed by `AppData.readDraft`, `cachedDraft` and `saveDraft` (`data/app-data.ts`): the `drafts.get` query cache entry and a `drafts.set` mutation scoped to the session
+- `checkSend(content, state)`, `checkSendState(state)`, `MAX_CONTENT_PARTS` (`send-checks.ts`): pre-send validation verdict; `state` is `{busy, reachable, locked}`, `locked` being the `EngineLock` read from `useEngineReachability().locked()`
 - `makeGrabStaging(deps)`, `GrabStaging`, `ComposerGrabPort` (`grab-staging.ts`): stages page element grabs as composer attachments
 - `resolveGrabSource(grab, symbolicate)` (`grab-source-resolve.ts`)
 - `paneAttachments`, `returnQueueToDraft` (`pane-attachments.ts`): image and text attachment adapters; Stop takes the queued messages out of the queue and puts them back in the draft (text in order, images as attachments), unsent
@@ -25,8 +25,10 @@ The chat pane for one session: transcript, composer with attachments and element
 
 ## Invariants
 
-- `send-checks.ts:checkSend`: refuses empty content and sends while busy; more than `MAX_CONTENT_PARTS` (16) parts, a JSON payload over `WS_RPC_PAYLOAD_BUDGET_BYTES`, or an unreachable engine are refused with a warning and the message stays in the composer
-- `use-pane-messaging.ts:usePaneMessaging`: a failed `checkSend` verdict throws `sendRejection(verdict)` before any rpc call
+- `send-checks.ts:checkSend`: refuses empty content, then whatever `checkSendState` refuses, then more than `MAX_CONTENT_PARTS` (16) parts or a JSON payload over `WS_RPC_PAYLOAD_BUDGET_BYTES`, each with a warning while the message stays in the composer
+- `send-checks.ts:checkSendState`: refuses silently while a compaction runs; while the page is logged out or its login was revoked it refuses with the locked notice's own sentence (`lockedMessage` from `shell/engine-lock-messages.ts`); while the engine is unreachable it refuses with `conciv lost connection to the engine. Your message is still in the composer.`
+- `use-pane-messaging.ts:usePaneMessaging`: one gate for every send. A failed `checkSend` verdict throws `sendRejection(verdict)` before any rpc call; `onSteer` throws the `checkSendState` rejection before the kit's Steer resends a queued message. The pane wires the composer (Send and Enter), the empty-state starters and tool card replies (`chat-pane.tsx:sendFromButton`, which is `onSend` then `onSendError`) and Steer (`onSteer`, with `onSendError` as `onSteerError`) through it
+- `pane-composer.tsx:ComposerSendControl`: Send is disabled while the engine is unreachable or the page is locked; its accessible name is then the locked notice's sentence, else `conciv lost connection to the engine`
 - `refresh-coordinator.ts:makeRefreshCoordinator`: a refresh while one is running is ignored; a refresh on a chat whose history load failed reopens it (`liveSessions.reopen`) instead of re-fetching into the failed chat
 - `chat-pane.tsx:ChatPane`: keyed on the session's chat instance, so a reopened chat remounts the pane; a failed history load shows `Couldn’t load this conversation` with Retry, which calls `liveSessions.reopen(sessionId)`; while the reopened chat loads the alert stays up as a disabled `Retrying…`
 - `older-messages.tsx:OlderMessages`: one older page loads at a time; nothing loads once `chat.hasOlderMessages()` is false or after a failure until Retry

@@ -2561,7 +2561,9 @@ describe('pane composer stopping', () => {
       })
     })
     return (
-      <EngineReachabilityContext.Provider value={{online: () => true, sustainedOffline: () => false}}>
+      <EngineReachabilityContext.Provider
+        value={{online: () => true, sustainedOffline: () => false, locked: () => null}}
+      >
         <ChatProvider chat={stoppable}>
           <ComposerHandlersProvider value={{}}>
             <PaneComposer
@@ -2619,7 +2621,9 @@ describe('pane composer attachments', () => {
         connection: storyConnection({chunks: createTextChunks('done')}),
       })
     render(() => (
-      <EngineReachabilityContext.Provider value={{online: () => true, sustainedOffline: () => false}}>
+      <EngineReachabilityContext.Provider
+        value={{online: () => true, sustainedOffline: () => false, locked: () => null}}
+      >
         <ChatProvider chat={chat()}>
           <ComposerHandlersProvider value={{}}>
             <PaneComposer
@@ -3614,7 +3618,9 @@ describe('queue strip', () => {
       return create()
     })
     render(() => (
-      <EngineReachabilityContext.Provider value={{online: () => true, sustainedOffline: () => false}}>
+      <EngineReachabilityContext.Provider
+        value={{online: () => true, sustainedOffline: () => false, locked: () => null}}
+      >
         <ChatProvider chat={session}>
           <ComposerHandlersProvider value={{}}>
             <PaneComposer
