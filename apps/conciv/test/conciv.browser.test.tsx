@@ -6074,7 +6074,7 @@ module.exports = {default: {setup(ctx) {
   }, 60_000)
 })
 
-function engineReportedUnreachable(): Promise<void> {
+function engineTrustedOrUnreachable(): Promise<void> {
   const reported = Promise.withResolvers<void>()
   const listener = (event: Event) => {
     if (!(event instanceof CustomEvent) || !z.object({connected: z.literal(true)}).safeParse(event.detail).success)
@@ -6117,7 +6117,7 @@ describe('plugin settings page links while plugins are not yet known', () => {
     expect(harness.pathname()).toBe(`/panel/${sessionId}/settings/general`)
     harness.dispose()
 
-    const deadPort = engineReportedUnreachable()
+    const deadPort = engineTrustedOrUnreachable()
     harness.mountShell(pagePath('alpha:prefs'), [], {login: {apiBase: 'http://127.0.0.1:9'}})
     await deadPort
     await expect.element(lostConnection(), {timeout: 15_000}).toBeVisible()
@@ -6127,9 +6127,9 @@ describe('plugin settings page links while plugins are not yet known', () => {
     const origin = new URL(coreBase()).origin
     await logInOnce(harness, origin, `/panel/${sessionId}?open=true`)
     const offline = await faults.install({kind: 'offline'})
-    const unreachable = engineReportedUnreachable()
+    const trustChecked = engineTrustedOrUnreachable()
     harness.mountShell(pagePath('alpha:prefs'), [], {login: {apiBase: origin}})
-    await unreachable
+    await trustChecked
     await expect.element(lostConnection(), {timeout: 15_000}).toBeVisible()
     await coreControl.releaseFault(offline)
     expect(harness.pathname()).toBe(`/panel/${sessionId}/settings/plugins/${encodeURIComponent('alpha:prefs')}`)
@@ -6547,7 +6547,7 @@ module.exports = {default: {stores: {
     expect(harness.pathname()).toBe(`/panel/${sessionId}`)
     harness.dispose()
 
-    const deadPort = engineReportedUnreachable()
+    const deadPort = engineTrustedOrUnreachable()
     harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, [], {
       login: {apiBase: 'http://127.0.0.1:9'},
     })
@@ -6559,9 +6559,9 @@ module.exports = {default: {stores: {
     const origin = new URL(coreBase()).origin
     await logInOnce(harness, origin, `/panel/${sessionId}?open=true`)
     const offline = await faults.install({kind: 'offline'})
-    const unreachable = engineReportedUnreachable()
+    const trustChecked = engineTrustedOrUnreachable()
     harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, [], {login: {apiBase: origin}})
-    await unreachable
+    await trustChecked
     await expect.element(lostConnection(), {timeout: 15_000}).toBeVisible()
     await expect.element(tab('Chat')).toHaveAttribute('aria-selected', 'false')
     await coreControl.releaseFault(offline)
