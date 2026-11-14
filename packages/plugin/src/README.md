@@ -231,7 +231,8 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - `SessionHooks` has `experimental.idle` only; `fork`, `compaction`, `generate`, `title`, `experimental.model.resolve`, `model.request`, `http.request`, `http.response`, `experimental.ws.handshake`, `experimental.ws.send`, `experimental.ws.receive` and `retry` are not ours, with their event types.
 - `experimental.idle` runs when a run completes and no page-queue result is owed to the session (an owed result starts a follow-up turn, whose completion runs it instead); it does not run after a stopped or failed run, as in opencode; no second hook exists (ruling: whiteboard drafts from such a turn stay drafts).
 - `SessionIdle.background` is always empty: conciv keeps no background jobs; the CLI owns that work.
-- `session.create` fails with `Session.AgentNotFoundError` for an agent other than `build`, and with `Session.NotFoundError` for a model the session's harness does not list (or lists disabled, or without the given `variant`), as `switchAgent` and `switchModel` do; nothing is created. The source accepts both unchecked (`core/src/session/session.ts:290-310`) and fails at run time, which conciv has no place to do. The errors' `sessionId` is the id the call minted for the new session.
+- `session.create` fails with `Session.AgentNotFoundError` for an agent other than `build`, and with `Session.NotFoundError` for a model the session's harness does not list (or lists disabled, or without the given `variant`), as `switchAgent` and `switchModel` do; nothing is created. The source accepts both unchecked (`core/src/session/session.ts:290-310`) and fails at run time, which conciv has no place to do. The errors' `sessionId` is the supplied `id`, or the id the call minted for the new session.
+- `session.create`'s `id` is `string | undefined` (a `null` id is rejected, as the source). The Promise adapter decodes the `id` only, with the host's Session id schema, and passes the rest of the input through untouched, so a bad id fails the call before the session key's `create` runs; the source decodes its whole payload (`plugin/src/promise/adapter.ts:635` with `protocol/src/groups/session.ts:169`), and conciv has no schema for the rest. An `id` naming a live session returns that session unchanged, as the source (`core/src/session.ts:291-293`).
 - `SessionDomain` has no `move` (not ours: one directory per engine).
 - The session list input has no `directory`, `project` or `subpath`, and the session create input no `location` (one project per engine).
 - `interrupt`'s `resume` is accepted and does nothing more than the stop: conciv has no steering inbox, so `resume` has nothing to wake.
@@ -314,7 +315,7 @@ tag line `@remarks Not implemented yet. Always undefined in this version.`, and 
 - `Model.Info`: `canonical`, `type`, `family`
 - session info: `parentId`, `fork`, `projectId`, `outcome`, `time.busy`, `time.idle`, `time.viewed`, `time.archived`, `subpath`, `revert`
 - session list input: `order`, `parentId`, `archived`
-- session create input: `id`, `parentId`
+- session create input: `parentId`
 - session update input: `archived`
 - session compact: input `id`, `delivery`; result (`SessionInboxCompaction`) `id`, `delivery`
 - permission request: `message`; permission reply input: `message`

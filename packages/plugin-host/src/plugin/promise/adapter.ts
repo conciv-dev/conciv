@@ -80,6 +80,11 @@ const PermissionReplySchemas = {
     message: Schema.String.pipe(Schema.optional),
   }),
 }
+const SessionCreateSchemas = {
+  input: Schema.StructWithRest(Schema.Struct({id: Schema.optional(Session.Id)}), [
+    Schema.Record(Schema.String, Schema.Unknown),
+  ]),
+}
 const PluginListSchemas = {
   input: Schema.toType(LocationQuery),
   output: Location.response(Schema.Array(PluginSchema.Info)),
@@ -394,7 +399,7 @@ export function fromPromise(plugin: Plugin.Plugin) {
             hook: (name, callback) =>
               register(host.session.hook(name, (event) => Effect.promise(() => Promise.resolve(callback(event))))),
             list: adaptMethod({}, host.session.list),
-            create: adaptMethod({}, host.session.create),
+            create: adaptMethod(SessionCreateSchemas, host.session.create),
             get: adaptMethod({}, host.session.get),
             remove: adaptMethod({}, host.session.remove),
             switchAgent: adaptMethod({}, host.session.switchAgent),

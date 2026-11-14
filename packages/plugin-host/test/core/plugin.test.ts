@@ -521,7 +521,9 @@ it.live("retains Promise plugin groups for later registrations and ignores a dis
 it.effect('normalizes Promise plugin API inputs through JSON', () =>
   Effect.gen(function* () {
     const plugins = yield* Plugin.Service
+    const sessions = yield* Session.Service
     const created: boolean[] = []
+    const refused: unknown[] = []
     yield* plugins.activate([
       {
         ...fromPromise({
@@ -529,6 +531,13 @@ it.effect('normalizes Promise plugin API inputs through JSON', () =>
           async setup(ctx) {
             await ctx.session.create({title: 'Promise session', agent: undefined})
             created.push(true)
+            refused.push(
+              await ctx.session.create({id: 'conciv_has.dot'}).then(
+                () => 'created',
+                (error) => error,
+              ),
+            )
+            await ctx.session.create({id: 'conciv_promise_input', title: 'Supplied', metadata: {ticket: 7}})
           },
         }),
         revision: '1',
@@ -537,6 +546,14 @@ it.effect('normalizes Promise plugin API inputs through JSON', () =>
     yield* plugins.awaitActivation
 
     expect(created).toEqual([true])
+    expect(refused).toEqual([
+      expect.objectContaining({name: 'SchemaError', message: expect.stringContaining('["id"]')}),
+    ])
+    expect(yield* sessions.get(SessionSchema.Id.make('conciv_promise_input'))).toMatchObject({
+      id: 'conciv_promise_input',
+      title: 'Supplied',
+      metadata: {ticket: 7},
+    })
   }),
 )
 

@@ -164,7 +164,10 @@ export function provideSessions(started: () => SessionKeyDeps) {
       create: (input) =>
         Effect.gen(function* () {
           const {chat, search} = started()
-          const sessionId = newSessionId()
+          const supplied = input.id
+          const recorded = supplied === undefined ? null : yield* Effect.promise(() => rowById(chat.db, supplied))
+          if (recorded !== null && recorded.deletedAt === null) return sessionInfo(chat, recorded)
+          const sessionId = recorded === null ? (supplied ?? newSessionId()) : newSessionId()
           const choice = yield* createdModel(chat, input, sessionId)
           yield* Effect.promise(() =>
             createChatSession(chat.db, {harnessKind: chat.defaultHarness.id, cwd: chat.cwd}, sessionId),

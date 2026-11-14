@@ -3053,5 +3053,27 @@ describe('plugin context keys provided by core', () => {
     expect(await key.fail((sessions) => sessions.remove(sessionId))).toMatchObject({_tag: 'Session.NotFoundError'})
     expect(heard.filter((event) => event.type === SessionEvent.Deleted.type)).toHaveLength(1)
     expect((await key.run((sessions) => sessions.list())).data.map((session) => session.id)).toEqual([second.id])
+
+    const suppliedId = SessionSchema.Id.make('conciv_supplied_by_the_caller')
+    const supplied = await key.run((sessions) => sessions.create({id: suppliedId, title: 'Supplied', location}))
+    expect(supplied.id).toBe(suppliedId)
+    expect(
+      await key.run((sessions) =>
+        sessions.create({
+          id: suppliedId,
+          title: 'Overwritten',
+          model: {id: 'sonnet', providerId: 'listing-cli'},
+          metadata: {overwritten: true},
+          location,
+        }),
+      ),
+    ).toEqual(supplied)
+    expect(await key.run((sessions) => sessions.create({id: suppliedId, agent: 'plan', location}))).toEqual(supplied)
+    expect(await key.run((sessions) => sessions.get(suppliedId))).toEqual(supplied)
+    expect(
+      (await key.run((sessions) => sessions.list())).data
+        .map((session) => session.id)
+        .filter((id) => id === suppliedId),
+    ).toEqual([suppliedId])
   })
 })
