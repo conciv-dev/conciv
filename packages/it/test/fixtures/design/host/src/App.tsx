@@ -207,6 +207,13 @@ export function App() {
   }
   if (requested === 'contact-form' || requested === 'contact-form-flat' || requested === 'contact-section')
     return <ContactForm flat={requested !== 'contact-form'} section={requested === 'contact-section'} data-conciv-key="cFpGeA" />
+  if (requested === 'form-stroke')
+    return (
+      <main
+        style={{margin: -24, width: 358, height: 1070, background: '#1a1a1a', boxShadow: '0 -1px 0 0 #262626, 1px 0 0 0 #262626, -1px 0 0 0 #262626'}}
+        data-conciv-key="fSmNaA"
+      />
+    )
   if (requested === 'process-row' || requested === 'process-row-boxed') {
     const boxed = requested === 'process-row-boxed'
     return (

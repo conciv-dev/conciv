@@ -1052,12 +1052,13 @@ function shadowLines(style: CSSStyleDeclaration): StrokeLine[] {
     const tokens = cssList.space(shadow)
     const [x = 0, y = 0, blur = 0, spread = 0] = tokens.filter(pxLength).map(Number.parseFloat)
     const color = tokens.find((token) => token !== INSET && !pxLength(token))
-    if (!tokens.includes(INSET) || blur > 0 || color === undefined) return []
+    if (blur > 0 || color === undefined) return []
+    const inward = tokens.includes(INSET) ? 1 : -1
     const widths = {
-      top: spread + Math.max(0, y),
-      right: spread + Math.max(0, -x),
-      bottom: spread + Math.max(0, -y),
-      left: spread + Math.max(0, x),
+      top: spread + Math.max(0, inward * y),
+      right: spread + Math.max(0, -inward * x),
+      bottom: spread + Math.max(0, -inward * y),
+      left: spread + Math.max(0, inward * x),
     }
     return BORDER_SIDES.filter((side) => widths[side] > 0).map((side) => ({
       side,

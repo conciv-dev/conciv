@@ -151,38 +151,52 @@ describe('a Figma line', () => {
   })
 })
 
-describe('a Figma stroke drawn inside the box', () => {
-  it('is told as inside, and an outline inset by its weight or an inset box-shadow draws it', async () => {
-    const borderRows = async () =>
-      roundOf(await call('design_check', {}))
-        .rows.filter((row) => row.node === '100:1418' && row.property === 'border')
-        .map((row) => row.text)
+describe('a Figma stroke', () => {
+  it('is told with its alignment and sides, and an inset outline, an inset or outset box-shadow or a side border draws it', async () => {
+    const borderRows = async (node: string) => {
+      const checked = roundOf(await call('design_check', {}))
+      return checked.rows.filter((row) => row.node === node && row.property === 'border').map((row) => row.text)
+    }
     await kit.goto('input-field-bare')
-    const got = await call('design_get', await sliced('input-field', '100-1418'))
-    const bare = await borderRows()
+    const field = await call('design_get', await sliced('input-field', '100-1418'))
+    const bare = await borderRows('100:1418')
     await kit.goto('input-field-outline')
-    const outlined = await borderRows()
+    const outlined = await borderRows('100:1418')
     await kit.goto('input-field-shadow')
-    const shadowed = await borderRows()
-    expect([
-      got.nodes.find((node) => node.id === '100:1418')?.strokeAlign,
-      got.rules.some((rule) => rule.includes('outline-offset')),
-      bare,
-      outlined,
-      shadowed,
-    ]).toEqual(['INSIDE', true, ['wrong border at [100:1418]: 1px #262626 inside expected, none found'], [], []])
-  })
-})
-
-describe('a text field', () => {
-  it('shows its placeholder as the design text it stands for, in the placeholder colour', async () => {
+    const shadowed = await borderRows('100:1418')
     await kit.goto('input-field-input')
-    await call('design_get', await sliced('input-field', '100-1418'))
-    const checked = roundOf(await call('design_check', {}))
+    const typed = roundOf(await call('design_check', {}))
+    await kit.goto('process-row')
+    const row = await call('design_get', await sliced('process-row', '50-876'))
+    const underlined = await borderRows('50:880')
+    await kit.goto('process-row-boxed')
+    const boxed = await borderRows('50:880')
+    await kit.goto('form-stroke')
+    await call('design_get', await sliced('form-stroke', '100-1693'))
+    const outset = await borderRows('100:1693')
     expect([
-      checked.coverage.missing.includes('100:1421'),
-      checked.rows.filter((row) => row.node === '100:1421' && row.text.includes('text color')).map((row) => row.text),
-    ]).toEqual([false, []])
+      field.nodes.find((node) => node.id === '100:1418')?.strokeAlign,
+      field.rules.some((rule) => rule.includes('outline-offset')),
+      [bare, outlined, shadowed],
+      typed.coverage.missing.includes('100:1421'),
+      typed.rows.filter((found) => found.node === '100:1421' && found.text.includes('text color')),
+      row.nodes.find((node) => node.id === '50:880')?.individualStrokeWeights,
+      [underlined, boxed, outset],
+    ]).toEqual([
+      'INSIDE',
+      true,
+      [['wrong border at [100:1418]: 1px #262626 inside expected, none found'], [], []],
+      false,
+      [],
+      {top: 0, right: 0, bottom: 1, left: 0},
+      [
+        [],
+        [
+          'wrong border at [50:880]: 1px #262626 inside on bottom expected, 1px #262626 on top, right, bottom, left found',
+        ],
+        [],
+      ],
+    ])
   })
 })
 
@@ -413,27 +427,6 @@ describe('an image node drawn as a box with its icon inside', () => {
       [],
       ['wrong image at [119:119]: /design/119-119.png expected, an image /design/4-30.svg'],
       ['/design/83-30210.png', '/design/83-30213.png', '/design/83-30216.png'],
-    ])
-  })
-})
-
-describe('a Figma frame stroked on one side', () => {
-  it('is told with its side weights, and a box stroked all round is flagged', async () => {
-    const borderRows = async () =>
-      roundOf(await call('design_check', {}))
-        .rows.filter((row) => row.node === '50:880' && row.property === 'border')
-        .map((row) => row.text)
-    await kit.goto('process-row')
-    const got = await call('design_get', await sliced('process-row', '50-876'))
-    const underlined = await borderRows()
-    await kit.goto('process-row-boxed')
-    const boxed = await borderRows()
-    expect([got.nodes.find((node) => node.id === '50:880')?.individualStrokeWeights, underlined, boxed]).toEqual([
-      {top: 0, right: 0, bottom: 1, left: 0},
-      [],
-      [
-        'wrong border at [50:880]: 1px #262626 inside on bottom expected, 1px #262626 on top, right, bottom, left found',
-      ],
     ])
   })
 })
