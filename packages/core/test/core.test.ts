@@ -2882,6 +2882,22 @@ describe('plugin context keys provided by core', () => {
       Effect.runPromise(Model.Service.use(run).pipe(Effect.provide(provideHarnessModels(listingHarness([])))))
     expect(await empty((service) => service.available())).toEqual([])
     expect(await empty((service) => service.default())).toBeUndefined()
+    const listed = (
+      harnessModels: HarnessModel[],
+      defaultModel: string,
+      run: (service: Model.Interface) => Effect.Effect<unknown>,
+    ) =>
+      Effect.runPromise(
+        Model.Service.use(run).pipe(Effect.provide(provideHarnessModels(listingHarness(harnessModels, defaultModel)))),
+      )
+    expect(await listed([RETIRED, OPUS, SONNET], 'retired', (service) => service.default())).toEqual(filled(OPUS, []))
+    expect(await listed([RETIRED, OPUS, SONNET], 'retired', (service) => service.available())).toEqual([
+      filled(OPUS, []),
+      filled(SONNET, sonnetVariants),
+    ])
+    expect(await listed([RETIRED, SONNET, OPUS], 'unlisted', (service) => service.default())).toEqual(
+      filled(SONNET, sonnetVariants),
+    )
 
     const roots = await host.runPromise(Global.Service)
     expect(roots).toEqual({cache: join(home, 'cache'), state: join(home, 'state')})
