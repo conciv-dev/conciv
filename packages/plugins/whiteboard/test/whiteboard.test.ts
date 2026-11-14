@@ -4,7 +4,9 @@ import {fileURLToPath} from 'node:url'
 import {randomUUID} from 'node:crypto'
 import {describe, expect, it, onTestFinished} from 'vitest'
 import {z} from 'zod'
-import {makeDiscoverTools} from '@conciv/harness-testkit'
+import {makeDiscoverTools, makeRpcClient} from '@conciv/harness-testkit'
+import {readApprovalAsk} from '@conciv/protocol/chat-event-types'
+import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
@@ -13,8 +15,10 @@ const PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk
 
 const OFFERED_TOOLS = [
   'whiteboard_anchor_resolve',
+  'whiteboard_canvas_clear',
   'whiteboard_canvas_commit',
   'whiteboard_canvas_connect',
+  'whiteboard_canvas_delete',
   'whiteboard_canvas_diagram',
   'whiteboard_canvas_discard',
   'whiteboard_canvas_draw',
@@ -24,19 +28,14 @@ const OFFERED_TOOLS = [
   'whiteboard_canvas_svg',
   'whiteboard_canvas_update',
   'whiteboard_comment_create',
+  'whiteboard_comment_delete',
   'whiteboard_comment_list',
   'whiteboard_comment_move',
   'whiteboard_comment_read',
   'whiteboard_comment_reply',
+  'whiteboard_comment_resolve',
   'whiteboard_element_reference',
   'whiteboard_pin_set_state',
-]
-
-const UNPORTED_APPROVAL_TOOLS = [
-  'whiteboard_canvas_delete',
-  'whiteboard_canvas_clear',
-  'whiteboard_comment_resolve',
-  'whiteboard_comment_delete',
 ]
 
 const PinSchema = z.object({
@@ -122,6 +121,31 @@ function renderedToModel(result: unknown) {
     {type: 'text', content: JSON.stringify({result, logs: []})},
     {type: 'image', source: {type: 'data', mimeType: 'image/png', value: expect.any(String)}},
   ]
+}
+
+type Settled = {value: unknown} | {error: unknown}
+
+async function askedTool(
+  kit: CoreKit,
+  room: string,
+  name: string,
+  input: unknown,
+  decision: {approved: boolean; scope: 'once' | 'session'},
+): Promise<{toolName: string; settled: Settled}> {
+  const events = await kit.events(room)
+  const settled: Promise<Settled> = useTool(kit, name, input).then(
+    (value) => ({value}),
+    (error: unknown) => ({error}),
+  )
+  const asked = readApprovalAsk(await events.waitFor((event) => readApprovalAsk(event) !== null))
+  if (asked === null) throw new Error(`${name} raised no permission ask`)
+  const session = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: room}})
+  await session.chat.permissionDecision({approvalId: asked.approvalId, ...decision})
+  return {toolName: asked.toolName, settled: await settled}
+}
+
+function denial(name: string): string {
+  return `The user denied running tool "${name}". Do not retry it; continue without it.`
 }
 
 function useTool(kit: CoreKit, name: string, input: unknown = {}): Promise<unknown> {
@@ -218,7 +242,7 @@ function pinRow(cid: string) {
 }
 
 describe('the whiteboard plugin', () => {
-  it('is active, offers its eighteen tools under the whiteboard namespace and none of the four approval tools', async () => {
+  it('is active and offers its twenty-two tools under the whiteboard namespace', async () => {
     const {kit, room} = await boot()
 
     const plugin = (await kit.rpc.plugin.list()).data.find((entry) => entry.id === 'whiteboard')
@@ -230,9 +254,6 @@ describe('the whiteboard plugin', () => {
     expect(offered.errors).toBeUndefined()
     expect(offered.tools.map((tool) => tool.name).toSorted()).toEqual(OFFERED_TOOLS.map((name) => `external_${name}`))
     for (const tool of offered.tools) expect(tool.description, tool.name).not.toBe('')
-    const unported = await discover(UNPORTED_APPROVAL_TOOLS)
-    expect(unported.tools).toEqual([])
-    expect(unported.errors).toHaveLength(UNPORTED_APPROVAL_TOOLS.length)
   })
 })
 
@@ -436,7 +457,7 @@ describe('the whiteboard canvas tools', () => {
 })
 
 describe('the whiteboard comment tools', () => {
-  it('creates, replies to, reads, lists and moves comments and sets pin state', async () => {
+  it('creates, replies to, reads, lists and moves comments, sets pin state, and asks before deleting, clearing, resolving or removing', async () => {
     const {kit, room} = await boot()
     expect(
       await useTool(kit, 'comment_create', {
@@ -486,6 +507,39 @@ describe('the whiteboard comment tools', () => {
 
     await rejection(useTool(kit, 'comment_read', {cid: 'nonexistent'}))
     await rejection(useTool(kit, 'pin_set_state', {cid: 'nonexistent', pinState: 'locked'}))
+
+    await call(kit, 'elements.bulkUpsert', {
+      room,
+      scope: 'live',
+      rows: ['e1', 'e2', 'e3'].map((elementId) => ({elementId, data: {type: 'rectangle'}, version: 1})),
+    })
+    const denied = await askedTool(kit, room, 'canvas_delete', {elementId: 'e1'}, {approved: false, scope: 'once'})
+    expect(denied.toolName).toContain('whiteboard_canvas_delete')
+    expect(denied.settled).toEqual({
+      error: expect.objectContaining({
+        message: JSON.stringify({error: {message: denial('whiteboard_canvas_delete'), name: 'Error'}}),
+      }),
+    })
+    expect((await listElements(kit, room, 'live')).map((row) => row.elementId)).toEqual(['e1', 'e2', 'e3'])
+
+    const always = await askedTool(kit, room, 'canvas_delete', {elementId: 'e1'}, {approved: true, scope: 'session'})
+    expect(always.settled).toEqual({value: {deleted: 'e1'}})
+    expect(await useTool(kit, 'canvas_delete', {elementId: 'e2'})).toEqual({deleted: 'e2'})
+
+    const cleared = await askedTool(kit, room, 'canvas_clear', {}, {approved: true, scope: 'once'})
+    expect(cleared.toolName).toContain('whiteboard_canvas_clear')
+    expect(cleared.settled).toEqual({value: {cleared: 1}})
+    expect(await listElements(kit, room, 'live')).toEqual([])
+
+    const resolved = await askedTool(kit, room, 'comment_resolve', {cid: 'root'}, {approved: true, scope: 'once'})
+    expect(resolved.toolName).toContain('whiteboard_comment_resolve')
+    expect(resolved.settled).toEqual({value: {cid: 'root', status: 'resolved'}})
+
+    const removed = await askedTool(kit, room, 'comment_delete', {cid: 'root'}, {approved: true, scope: 'once'})
+    expect(removed.toolName).toContain('whiteboard_comment_delete')
+    expect(removed.settled).toEqual({value: {cid: 'root', deleted: true}})
+    expect(await call(kit, 'comments.list', {room})).toEqual([])
+    expect(await call(kit, 'pins.list', {room})).toEqual([])
   })
 
   it('raises each failure to the caller with its message', async () => {

@@ -7,6 +7,7 @@ import {createStore} from './server/db/store.js'
 import {startCommentEnrichment} from './server/enrich-worker.js'
 import {whiteboardHandlers} from './server/rpc-handlers.js'
 import {info} from './skill.js'
+import {CONFIRMATION_RULES} from './tool/refusal.js'
 import {register} from './tools.js'
 
 function databaseDirectory(location: Plugin.Context['location']): string {
@@ -27,7 +28,10 @@ export default Plugin.define({
       })
     })
     const stopEnrichment = startCommentEnrichment(store, directory)
-    await register(ctx.tool, store, directory)
+    await ctx.agent.transform((editor) =>
+      editor.list().forEach((agent) => agent.permissions.push(...CONFIRMATION_RULES)),
+    )
+    await register(ctx.tool, store, directory, ctx.permission)
     await ctx.skill.transform((editor) => editor.add(info))
     await ctx.session.hook('experimental.idle', async ({sessionId}) => {
       await autoCommitDraft(store, sessionId)
