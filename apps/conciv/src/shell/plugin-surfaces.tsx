@@ -109,6 +109,27 @@ export function PluginPanelKeys() {
     }
   }
 
+  const renamed = (
+    item: ReturnType<typeof providers>[number],
+    key: string,
+    view: MountedSession,
+    screen: SessionScreen,
+  ) => {
+    const normalize = item.value.normalize
+
+    if (!normalize) return false
+    try {
+      return (
+        panelKey(item.plugin, normalize(panelInput(() => view, screen, {id: key.slice(item.plugin.length + 1)}))) !==
+        key
+      )
+    } catch (cause) {
+      console.error(`[plugin] ${item.plugin} panel normalize failed`, cause)
+
+      return false
+    }
+  }
+
   onCleanup(
     panels.bind(({sessionId, key}) => {
       if (!untrack(host.ready)) return 'pending'
@@ -118,7 +139,10 @@ export function PluginPanelKeys() {
       const view = untrack(attachment.current)
       const screen = untrack(attachment.shownScreen)
 
-      if (view?.id !== sessionId || !screen || owners.some((item) => item.value.normalize)) return 'listed'
+      if (view?.id !== sessionId || !screen) return 'listed'
+      const normalizer = owners.find((item) => item.value.normalize)
+
+      if (normalizer && renamed(normalizer, key, view, screen)) return 'listed'
 
       return owners.some((item) => listed(item, key, view, screen)) ? 'listed' : 'unlisted'
     }),
