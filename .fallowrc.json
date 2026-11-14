@@ -594,7 +594,7 @@
     },
     {
       "file": "apps/conciv/src/runtime/plugin/mobile.tsx",
-      "exports": ["MobileEntry", "MobileViews"]
+      "exports": ["MobileEntry"]
     },
     {
       "file": "apps/conciv/src/runtime/plugin/root.tsx",
