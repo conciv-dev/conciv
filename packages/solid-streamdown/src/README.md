@@ -27,7 +27,7 @@ The `Streamdown` Solid component and its block splitter. Markdown is healed with
 
 ## Side Effects
 
-- `streamdown.tsx:Streamdown` - sets `data-local-links` on its root while `openLocalFile` is set (`styles.css` gives local links and confirmed paths a pointer, and the path an underline on hover).
+- `streamdown.tsx:Streamdown` - sets `data-local-links` on its root while `openLocalFile` is set (`styles.css` does not style local links or confirmed paths; a host styles them off `data-local-links`, `a[data-local-link]` and `code[data-inline-code-kind='path']`, as `@conciv/ui-kit-chat`'s `theme/tokens.css` does).
 - `streamdown.tsx:Streamdown` - sets the `--sd-caret` CSS variable on the root while animating; renders DOM text nodes per block.
 
 ## Verification

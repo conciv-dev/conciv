@@ -78,6 +78,7 @@
   --chat-glyph: light-dark(rgba(15, 18, 24, 0.28), #5f595d);
   --chat-target: light-dark(var(--chat-text-2), #ded8d4);
   --chat-code: light-dark(var(--chat-text-2), var(--chat-accent-hi));
+  --chat-code-path: light-dark(#2c47c8, #c3d4fd);
   --chat-summary: light-dark(var(--chat-text-2), #c4beba);
   --chat-microlabel: light-dark(var(--chat-text-3), #6b666b);
   --chat-faint: light-dark(var(--chat-text-3), #5f5a5f);
@@ -120,8 +121,27 @@
   font-size: 12px;
 }
 
+/* A file path the host confirmed: the check is asynchronous, so the path fades into its colour. When
+   the host opens files (`data-local-links` on the Streamdown root), the path and a local link take a
+   pointer and the path underlines on hover; a path inside a link reads as that link's label. */
 .prose-chat :not(pre) > code[data-inline-code-kind='path'] {
-  color: light-dark(var(--chat-accent), var(--chat-mono-lift));
+  color: var(--chat-code-path);
+  transition: color var(--chat-duration-fast) var(--chat-ease);
+}
+
+.prose-chat a[data-local-link],
+.prose-chat[data-local-links] :not(pre) > code[data-inline-code-kind='path']:not(a > code) {
+  cursor: pointer;
+}
+
+.prose-chat[data-local-links] :not(pre) > code[data-inline-code-kind='path']:not(a > code):hover {
+  text-decoration: underline;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prose-chat :not(pre) > code[data-inline-code-kind='path'] {
+    transition: none;
+  }
 }
 
 /* Markdown code fences: shiki renders the shared css-variables theme, so token colors resolve from
