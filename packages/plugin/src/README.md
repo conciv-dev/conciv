@@ -214,7 +214,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - Added by ruling: `servers`, `harness`, `bundler`, `storage.directory`.
 - `servers` (engine side, conciv-only: opencode's engine plugins have no `servers`) lists every running conciv engine on the machine; `get(id)` is `undefined` for an id not listed, and the same ref for the same id. Before the first health check after a plugin's first read, `list()` is empty.
 - `harness` (conciv-only, no opencode counterpart) carries what the terminal plugin needs to run the session's CLI itself: `get(sessionId)` (the CLI and its terminal command), `resumeToken` / `recordToken` (the CLI's own session id, as the old `ServerApi.sessions` had them) and `mcpUrl` (the engine's MCP endpoint under its agent-token base path; the base path itself is not exposed). `mcpUrl` is `string | undefined`, read each time: the engine's port is known only after it listens (`packages/core/src/start.ts:223` runs `makeApp`, which sets plugins up, before `servePort` at `:227` and the port at `:233`), and that loopback address is the one the engine already gives the CLI (`start.ts:239`, `claudeConnectEndpointFile`); a host without a port (`makeApp` alone) has none. Behaviour difference: today's terminal builds the address per request from the origin the browser called the engine on (`packages/extensions/terminal/src/server.ts:68-70`), so behind a proxy or tunnel the CLI now gets the engine's loopback address instead of the proxied one; the RPC handler context has no origin field, as opencode's `RpcCallContext` has none. The session's model is `session.get(...).model`.
-- `app` is `App | undefined`: the engine has no app version or channel to give.
+- `app` is typed `App | undefined` where the source types it `App`; the engine always sets it: `name` is `conciv`, `version` is the `@conciv/core` package version, `channel` is `unknown` (`packages/core/src/runtime/plugin-sources.ts`, `App.make`).
 - `plugin.list`, `skill.list`, `model.list`, `model.default`: no `location` input (one project per engine); every domain method's request options are `{signal}` only (no `headers`, no `onActivity`).
 
 ### Agent and events
@@ -246,6 +246,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 ### Model
 
 - `Model` keeps `Ref`, `Info`, `Capabilities`, `Variant`, `Cost` and `Type`; `ID`, `VariantID`, `Family`, `Settings`, `Overlays`, `Compatibility` and `Event` are not ported.
+- `Model.Ref.providerId` is the session's harness id (`claude`, `codex` ...), as `Model.Info.providerId` and `SessionInfo.model` are (a model's provider is the harness); it is typed `string | undefined` where the source requires it. `Model.Ref.variant` is the session's reasoning effort, absent when none is set (`packages/core/src/runtime/plugin-sessions.ts`). A `Model.Ref` whose `providerId` is not the session's harness answers not-found.
 - `Model.Info` has no `compatibility`, `package`, `settings`, `headers` or `body`: provider wire settings are not ours.
 - `Model.Variant` is the source's, with `Record<string, any>` typed `Record<string, unknown>`; conciv fills only `settings.effort` today, from the harness's efforts (`packages/core/src/runtime/harness-models.ts:15-18`).
 - `ModelEditor.provider` is absent: providers are not ours.
@@ -312,12 +313,11 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 Each is typed `| undefined` (or optional) and always undefined in this version. The source marks each with the JSDoc
 tag line `@remarks Not implemented yet. Always undefined in this version.`, and this list matches those lines.
 
-- `Context.app`, `Context.experimental.generate`
+- `Context.experimental.generate`
 - `model.transform`, `model.reload`
 - `permission.hook`
 - `session.generate`, `session.command`, `session.synthetic`
 - `Tool.ToolContext.messageId`, `messageId` in the tool hooks
-- `Model.Ref.providerId`, `Model.Ref.variant`
 - `Model.Info`: `canonical`, `type`, `family`
 - session info: `parentId`, `fork`, `projectId`, `outcome`, `time.busy`, `time.idle`, `time.viewed`, `time.archived`, `subpath`, `revert`
 - session list input: `order`, `parentId`, `archived`
