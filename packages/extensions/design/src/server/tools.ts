@@ -33,7 +33,7 @@ const SOURCES =
 const EXAMPLES =
   'Examples: what the element with conciv id VgfUgw should look like: {from: "fom", where: "id == \\"VgfUgw\\"", select: "{\\"node\\": node, \\"name\\": name, \\"fill\\": fill, \\"radius\\": radius, \\"font_family\\": font_family, \\"font_size\\": font_size, \\"asset\\": asset}"}; every node bound to one token: {from: "nodes", where: "token_fill == \\"color/brand/primary\\"", select: "{\\"node\\": node, \\"name\\": name, \\"fill\\": fill}"}; the paint rows of round 4 by kind: {from: "rows", where: "round == 4 && magnitude == \\"paint\\"", select: "{\\"kind\\": kind, \\"node\\": node, \\"text\\": text}", order: [{field: "kind", dir: "asc"}]}.'
 
-const QUERY_SUMMARY = `Reads one design source and returns {results, total, next} as JSON: from names the source, where is a CEL predicate over its fields (round == 3 && magnitude in ["much", "noticeably"], text.contains("Pro")), select a CEL expression per row (a map keeps its keys, a list or scalar is returned as is, a row it fails on gives null), order the fields to sort by (seq is the order rows were written), limit the most rows, cursor the next of an earlier page with the same order; ask only for what you need. ${EXAMPLES} ${SOURCES}`
+const QUERY_SUMMARY = `Reads one design source and returns {results, total, next} as JSON: from names the source, rows of the current run only unless the where names run (run >= 0 for every run), where is a CEL predicate over its fields (round == 3 && magnitude in ["much", "noticeably"], text.contains("Pro")), select a CEL expression per row (a map keeps its keys, a list or scalar is returned as is, a row it fails on gives null), order the fields to sort by (seq is the order rows were written), limit the most rows, cursor the next of an earlier page with the same order; ask only for what you need. ${EXAMPLES} ${SOURCES}`
 
 const WRITE_SUMMARY = `Writes one row into labels or notes: into names the source, values maps its fields to values; at is filled in. Every other source is written by the design tools only. ${SOURCES}`
 
@@ -152,7 +152,9 @@ export const SERVER_STEPS = [
       call: () => listed({input, ctx, session: request.sessionId}),
     }),
   ),
-  queryDef.server((input, ctx: DesignContext) => ctx.db.read(input)),
+  queryDef.server(async (input, ctx: DesignContext, request) =>
+    ctx.db.read(inRun({input, run: await ctx.design.runs.of(request.sessionId)})),
+  ),
   writeDef.server((input, ctx: DesignContext) => ctx.db.write(input)),
 ] as const satisfies readonly AnyToolBuilder[]
 
@@ -166,6 +168,23 @@ type DesignContext = {
 }
 
 type GetReply = Got | {variants: Got[]}
+
+type QueryInput = z.output<typeof queryDef.inputSchema>
+
+function inRun(asked: {input: QueryInput; run: number | null}): QueryInput {
+  const {input, run} = asked
+  if (run === null || namesRun(input.where ?? '')) return input
+  return {...input, where: input.where === undefined ? `run == ${run}` : `run == ${run} && (${input.where})`}
+}
+
+function namesRun(where: string): boolean {
+  const words = [...where].map((letter) => (WORD_LETTERS.includes(letter.toLowerCase()) ? letter : ' ')).join('')
+  return words.split(' ').includes(RUN_FIELD)
+}
+
+const WORD_LETTERS = 'abcdefghijklmnopqrstuvwxyz0123456789_'
+
+const RUN_FIELD = 'run'
 
 async function withCatalog(input: {reply: GetReply; ctx: DesignContext}): Promise<GetReply> {
   const {reply, ctx} = input

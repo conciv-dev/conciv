@@ -470,7 +470,14 @@ describe('a check in a new run of the same project', () => {
     }
     const second = await bootDesignHost({stateRoot, homeDir})
     try {
-      expect(await checks({on: second, pages: ['target']})).toEqual([1])
+      const runs = async (where?: string) => {
+        const read = await second.rpc.registry.call({
+          name: 'design_query',
+          input: {from: 'rounds', select: 'run', where},
+        })
+        return new Set(z.object({results: z.array(z.number())}).parse(read).results).size
+      }
+      expect([await checks({on: second, pages: ['target']}), await runs(), await runs('run > 0')]).toEqual([[1], 1, 2])
     } finally {
       await second.dispose()
       await Promise.all([stateRoot, homeDir].map((dir) => rm(dir, {recursive: true, force: true})))
