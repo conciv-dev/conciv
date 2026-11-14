@@ -1,5 +1,6 @@
 import {splitProps, type ComponentProps} from 'solid-js'
 import {Select as Ark} from '@ark-ui/solid/select'
+import {nativeFocusPart} from './native-focus.js'
 
 const TRIGGER =
   'flex items-center justify-between gap-2 w-full py-2 px-2.5 rounded-chat-surface-md bg-chat-sunken text-chat-text-hi text-[0.8125rem] leading-5 font-chat [border-width:1px] [border-style:solid] border-chat-line-2 cursor-pointer trans-border focus-ring data-[state=open]:border-chat-accent data-[invalid]:border-chat-danger data-[invalid]:[box-shadow:0_0_0_0.1875rem_color-mix(in_oklch,var(--chat-danger)_14%,transparent)] data-[readonly]:bg-chat-fill-soft data-[readonly]:text-chat-text-2 data-[readonly]:cursor-default data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed'
@@ -17,9 +18,11 @@ function Root(props: ComponentProps<typeof Ark.Root>) {
   )
 }
 
+const NativeTrigger = nativeFocusPart(Ark.Trigger, 'button')
+
 function Trigger(props: ComponentProps<typeof Ark.Trigger>) {
   const [local, rest] = splitProps(props, ['class'])
-  return <Ark.Trigger {...rest} class={`${TRIGGER}  ${local.class ?? ''}`} />
+  return <NativeTrigger {...rest} class={`${TRIGGER}  ${local.class ?? ''}`} />
 }
 
 function Content(props: ComponentProps<typeof Ark.Content>) {
