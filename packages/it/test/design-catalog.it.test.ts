@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto'
 import {mkdir, mkdtemp, readFile, rm, symlink, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
@@ -6,6 +7,8 @@ import {PNG} from 'pngjs'
 import {afterAll, afterEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {closeHomeDb, openHomeDb} from '@conciv/db'
+import {makeRpcClient} from '@conciv/contract'
+import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {makeExtRpcClient} from '@conciv/extension'
 import type {XrayRouter} from '@conciv/extension-design/server'
 import type {Design, DesignNode, IdNode} from '@conciv/extension-design/defs'
@@ -444,7 +447,7 @@ describe('a thin Figma bar', () => {
 })
 
 describe('a check in a new run of the same project', () => {
-  it('numbers its rounds from 1, with no round of the run before', async () => {
+  it('numbers its rounds from 1, and design_query reads the run its checks wrote when another session got the design', async () => {
     const stateRoot = await mkdtemp(join(tmpdir(), 'conciv-design-runs-state-'))
     const homeDir = await mkdtemp(join(tmpdir(), 'conciv-design-runs-home-'))
     const checks = (input: {on: Kit; pages: string[]}) =>
@@ -463,6 +466,7 @@ describe('a check in a new run of the same project', () => {
     }
     const second = await bootDesignHost({stateRoot, homeDir})
     try {
+      const agent = makeRpcClient(second.apiBase, {headers: {[CONCIV_SESSION_HEADER]: `conciv_${randomUUID()}`}})
       const runs = async (where?: string) => {
         const read = await second.rpc.registry.call({
           name: 'design_query',
@@ -470,6 +474,7 @@ describe('a check in a new run of the same project', () => {
         })
         return new Set(z.object({results: z.array(z.number())}).parse(read).results).size
       }
+      await agent.registry.call({name: 'design_get', input: await cardsDesign(second.targetsDir)})
       expect([await checks({on: second, pages: ['target']}), await runs(), await runs('run > 0')]).toEqual([[1], 1, 2])
     } finally {
       await second.dispose()

@@ -153,7 +153,7 @@ export const SERVER_STEPS = [
     }),
   ),
   queryDef.server(async (input, ctx: DesignContext, request) =>
-    ctx.db.read(inRun({input, run: await ctx.design.runs.of(request.sessionId)})),
+    ctx.db.read(inRun({input, run: await ctx.design.store.checkedRun(request.sessionId)})),
   ),
   writeDef.server((input, ctx: DesignContext) => ctx.db.write(input)),
 ] as const satisfies readonly AnyToolBuilder[]

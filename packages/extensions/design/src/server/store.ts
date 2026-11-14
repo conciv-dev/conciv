@@ -121,6 +121,18 @@ export function createStore(input: {
     return (await held()).map(recordOf)
   }
 
+  async function currentRecord(session: string): Promise<TargetRecord | null> {
+    const records = await list()
+    return records.filter((entry) => entry.session === session).at(-1) ?? records.at(-1) ?? null
+  }
+
+  async function checkedRun(session: string): Promise<number | null> {
+    const record = await currentRecord(session)
+    const found = record === null ? undefined : await target(record.id)
+    const open = found === undefined ? null : await openRun(found)
+    return open?.run ?? runs.of(session)
+  }
+
   async function writable(id: string): Promise<{run: number; row: TargetRow}> {
     const found = await target(id)
     if (found === undefined) throw toolError('no-target', {message: `no design ${id} is registered; call design_get`})
@@ -395,12 +407,12 @@ export function createStore(input: {
         .values(told.map((hint) => ({...hint, target_id: id, run_id: run, session: row.session, round})))
     },
     writeToolCall: async ({session, tool, round, input: given, reply, replyBytes, durationMs, error}) => {
-      const run = await runs.of(session)
+      const run = await checkedRun(session)
       if (run === null) return
       const [latest] = await orm
         .select({id: targets.target_id})
         .from(targets)
-        .where(and(eq(targets.run_id, run), eq(targets.session, session)))
+        .where(eq(targets.run_id, run))
         .orderBy(desc(targets.at))
         .limit(1)
       const [checked] = await orm
@@ -423,7 +435,7 @@ export function createStore(input: {
       })
     },
     runRound: async (session) => {
-      const run = await runs.of(session)
+      const run = await checkedRun(session)
       if (run === null) return null
       const [last] = await orm
         .select({round: max(rounds.round)})
@@ -532,10 +544,8 @@ export function createStore(input: {
     },
     round: async ({id, round}) => (await roundsOf({id, round})).at(-1) ?? null,
     rounds: (id) => roundsOf({id}),
-    current: async (session) => {
-      const records = await list()
-      return records.filter((entry) => entry.session === session).at(-1) ?? records.at(-1) ?? null
-    },
+    current: currentRecord,
+    checkedRun,
     variants: async (session) => {
       const all = await held()
       const last = all.filter((entry) => entry.session === session).at(-1) ?? all.at(-1)
