@@ -53,7 +53,7 @@ export type AttachmentOutcome = 'closed' | 'replaced' | 'unavailable'
 
 export type RequestSettlement =
   | {readonly ok: true; readonly result: Result}
-  | {readonly ok: false; readonly error: Tool.Error}
+  | {readonly ok: false; readonly error: Tool.Error; readonly tabClosed?: true}
 
 export type ConnectionEvent =
   | {
@@ -579,7 +579,7 @@ function failPending(attachment: Attachment): ConnectionEffect[] {
   return Array.from(attachment.pending.keys(), (requestId) => ({
     type: 'settle-request',
     requestId,
-    settlement: {ok: false, error: disconnectedAfterDispatch()},
+    settlement: {ok: false, error: disconnectedAfterDispatch(), tabClosed: true},
   }))
 }
 

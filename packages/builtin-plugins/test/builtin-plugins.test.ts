@@ -1,7 +1,12 @@
-import {describe, expect, it} from 'vitest'
+import {registerHooks} from 'node:module'
+import {readFile, rm} from 'node:fs/promises'
+import {basename, dirname, join} from 'node:path'
+import {fileURLToPath, pathToFileURL} from 'node:url'
+import {describe, expect, it, onTestFinished} from 'vitest'
 import {z} from 'zod'
 import {PAGE_TOOL_DEFS, pageVerbOfTool} from '@conciv/extension-page/defs'
 import {SessionId} from '@conciv/protocol/chat-types'
+import {bootCoreKit} from '@conciv/plugin-testkit/core-kit'
 import * as PageMachine from '../src/page/machine.js'
 import * as Page from '../src/page/rpc.js'
 import * as PageSkill from '../src/page/skill.js'
@@ -553,5 +558,274 @@ describe('page machine: disposal', () => {
     const late = PageMachine.transitionConnection(disposed, opening(disposed, 'conn_1'))
     expect(late.state).toBe(disposed)
     expect(late.effects).toEqual([])
+  })
+})
+
+const PAGE_SOURCE = fileURLToPath(new URL('../src/page/', import.meta.url))
+
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    const inPage = context.parentURL?.startsWith(pathToFileURL(PAGE_SOURCE).href) === true
+    if (!inPage || !specifier.startsWith('./') || !specifier.endsWith('.js')) return nextResolve(specifier, context)
+    return nextResolve(specifier.replace(/\.js$/u, '.ts'), context)
+  },
+})
+
+const ENGINE_FIXTURE = `export {default} from '${join(PAGE_SOURCE, 'index.ts')}'
+`
+
+const TAB_FIXTURE = `import {Definition} from '${join(PAGE_SOURCE, 'rpc.ts')}'
+
+const method = {input: {type: 'object'}, output: {type: 'object'}}
+const Tabs = {
+  id: 'page-tabs',
+  methods: {open: method, close: method, report: method, next: method, reply: method, cancels: method, permissions: method, tool: method},
+  events: {},
+}
+
+export default {
+  id: 'page-tabs',
+  async setup(ctx) {
+    const page = ctx.rpc(Definition)
+    const open = new Map()
+    const received = []
+    const cancelled = []
+    const arrived = new EventTarget()
+    const stop = new AbortController()
+    page.events.on('control', async (event) => {
+      const control = event.data
+      if (control.type === 'cancel') cancelled.push(control.requestId)
+      if (control.type === 'command') {
+        const tab = open.get(control.connectionId)
+        const command = await page.command({sessionId: tab.sessionId, connectionId: control.connectionId, requestId: control.requestId})
+        received.push({connectionId: control.connectionId, requestId: control.requestId, command})
+      }
+      arrived.dispatchEvent(new CustomEvent('control', {detail: control}))
+    }, {signal: stop.signal})
+    const until = async (found) => {
+      for (;;) {
+        const value = found()
+        if (value) return value
+        await new Promise((resolve) => arrived.addEventListener('control', resolve, {once: true}))
+      }
+    }
+    await ctx.rpc.register(Tabs, {
+      open: async ({sessionId, connectionId}) => {
+        const controller = new AbortController()
+        const ended = page.attach({sessionId, connectionId, version: 1}, {signal: controller.signal}).then(
+          (outcome) => ({outcome}),
+          (error) => ({error: error.message ?? String(error)}),
+        )
+        open.set(connectionId, {sessionId, controller, ended})
+        const attached = new Promise((resolve) =>
+          arrived.addEventListener('control', function listen(event) {
+            if (event.detail.type !== 'attached' || event.detail.connectionId !== connectionId) return
+            arrived.removeEventListener('control', listen)
+            resolve({attached: true})
+          }),
+        )
+        return Promise.race([attached, ended])
+      },
+      close: async ({connectionId}) => {
+        const tab = open.get(connectionId)
+        tab.controller.abort()
+        await tab.ended
+        return {closed: true}
+      },
+      report: async ({sessionId, connectionId, tab}) => {
+        await page.state({sessionId, connectionId, state: tab})
+        return {}
+      },
+      next: async ({connectionId}) => {
+        const found = await until(() => received.find((entry) => entry.connectionId === connectionId))
+        received.splice(received.indexOf(found), 1)
+        return found
+      },
+      reply: async ({sessionId, connectionId, requestId, outcome}) =>
+        page.result({sessionId, connectionId, requestId, outcome}).then(
+          () => ({}),
+          (error) => ({error: error.message}),
+        ),
+      cancels: async ({requestId}) => {
+        await until(() => cancelled.includes(requestId))
+        return {}
+      },
+      permissions: async ({sessionId}) => ({permissions: (await ctx.session.get({sessionId})).permissions ?? []}),
+      tool: async ({sessionId, name, input}, call) => {
+        const found = (await ctx.tool.list()).find((entry) => [entry.options?.namespace, entry.name].join('.') === 'page.' + name)
+        try {
+          const result = await found.execute(input, {sessionId, agent: 'build', messageId: undefined, id: 'call_' + crypto.randomUUID(), signal: call.signal, progress: async () => {}})
+          return {ok: true, value: result.output ?? null}
+        } catch (error) {
+          return {ok: false, message: error.message, metadata: error.metadata ?? null}
+        }
+      },
+    })
+    return () => stop.abort()
+  },
+}
+`
+
+const Received = z.object({
+  connectionId: z.string(),
+  requestId: z.string(),
+  command: z.object({action: z.looseObject({type: z.string()}), agentId: z.string(), timeoutMs: z.number()}),
+})
+const Answer = z.union([
+  z.object({ok: z.literal(true), value: z.unknown()}),
+  z.object({ok: z.literal(false), message: z.string(), metadata: z.unknown()}),
+])
+
+describe('page connection', () => {
+  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, and a call runs through the page tools', async () => {
+    const kit = await bootCoreKit({
+      id: 'page-connection',
+      plugins: ['./page', './tabs'],
+      files: {'page/server.ts': ENGINE_FIXTURE, 'tabs/server.ts': TAB_FIXTURE},
+    })
+    onTestFinished(() => kit.cleanup())
+    const session = SessionId.parse(await kit.session())
+    const call = (rpcId: string, method: string, input: Record<string, unknown>, signal?: AbortSignal) =>
+      kit.rpc.plugin
+        .call({rpcId, method, input}, {signal: signal ?? AbortSignal.timeout(15_000)})
+        .catch((error: unknown) => {
+          throw new Error(`${rpcId}.${method} failed`, {cause: error})
+        })
+    const tabs = (method: string, input: Record<string, unknown>) => call('page-tabs', method, input)
+    const ask = ({type, ...input}: Page.Action, signal?: AbortSignal) =>
+      call('page-tabs', 'tool', {sessionId: session, name: type, input}, signal).then((answer) => Answer.parse(answer))
+    const next = async (connectionId: string) => Received.parse(await tabs('next', {connectionId}))
+    const reply = (connectionId: string, requestId: string, outcome: Page.Outcome) =>
+      tabs('reply', {sessionId: session, connectionId, requestId, outcome})
+    const succeeded = (value: Page.Result['value']): Page.Outcome => ({type: 'success', result: {value, files: []}})
+    const routed = (href: string) => succeeded({pathname: href, search: '', href, title: 'Example', state: 'visible'})
+    const granted = async () =>
+      z
+        .object({permissions: z.array(z.object({action: z.string(), effect: z.string()}))})
+        .parse(await tabs('permissions', {sessionId: session}))
+        .permissions.filter((rule) => rule.action === 'page' && rule.effect === 'allow')
+
+    expect(await tabs('open', {sessionId: 'conciv_missing', connectionId: 'conn_x'})).toEqual({
+      error: 'Session not found.',
+    })
+    expect(await ask({type: 'route'})).toMatchObject({
+      ok: false,
+      message: expect.stringContaining('[page.disconnected]'),
+    })
+
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_a'})).toEqual({attached: true})
+    expect(await granted()).toHaveLength(1)
+    const second = `tab_${crypto.randomUUID()}`
+    await tabs('report', {sessionId: session, connectionId: 'conn_a', tab})
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_b'})).toEqual({attached: true})
+    await tabs('report', {sessionId: session, connectionId: 'conn_b', tab: {...tab, id: second, focused: false}})
+    expect(await ask({type: 'tabs.list'})).toEqual({
+      ok: true,
+      value: {tabs: [tab, {...tab, id: second, focused: false}], focusedTabId: tabId},
+    })
+
+    const focused = ask({type: 'route'})
+    const onA = await next('conn_a')
+    expect(onA.command).toEqual({
+      action: {type: 'route'},
+      agentId: 'build',
+      timeoutMs: 5000,
+    })
+    expect(await reply('conn_a', onA.requestId, {type: 'failure', code: 'timeout', message: 'forged'})).toEqual({
+      error: 'The page cannot report timeout; only the engine does.',
+    })
+    await reply('conn_a', onA.requestId, routed('/a'))
+    expect(await focused).toMatchObject({ok: true, value: {href: '/a'}})
+
+    const named = ask({type: 'text', tabId: second, selector: 'h1'})
+    const onB = await next('conn_b')
+    expect(onB.command.action).toEqual({type: 'text', tabId: second, selector: 'h1'})
+    await reply('conn_b', onB.requestId, succeeded({text: 'Hi'}))
+    expect(await named).toEqual({ok: true, value: {text: 'Hi'}})
+
+    const moved = ask({type: 'snapshot'})
+    const lost = await next('conn_a')
+    expect(await tabs('close', {connectionId: 'conn_a'})).toEqual({closed: true})
+    const resent = await next('conn_b')
+    expect(resent.requestId).not.toBe(lost.requestId)
+    await reply('conn_b', resent.requestId, succeeded({nodes: []}))
+    expect(await moved).toEqual({ok: true, value: {nodes: []}})
+    expect(await granted()).toHaveLength(1)
+
+    const waiting = ask({type: 'route'})
+    await next('conn_b')
+    await tabs('close', {connectionId: 'conn_b'})
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_c'})).toEqual({attached: true})
+    const returned = await next('conn_c')
+    await reply('conn_c', returned.requestId, routed('/c'))
+    expect(await waiting).toMatchObject({ok: true, value: {href: '/c'}})
+
+    const first = ask({type: 'click', selector: '#one'})
+    const firstOnC = await next('conn_c')
+    const queued = ask({type: 'click', selector: '#two'})
+    const reading = ask({type: 'route'})
+    const readFirst = await next('conn_c')
+    expect(readFirst.command.action).toEqual({type: 'route'})
+    await reply('conn_c', readFirst.requestId, routed('/c'))
+    expect(await reading).toMatchObject({ok: true, value: {href: '/c'}})
+    await reply('conn_c', firstOnC.requestId, succeeded({ok: true}))
+    expect(await first).toEqual({ok: true, value: {ok: true}})
+    const secondOnC = await next('conn_c')
+    expect(secondOnC.command.action).toEqual({type: 'click', selector: '#two'})
+
+    expect(await tabs('close', {connectionId: 'conn_c'})).toEqual({closed: true})
+    expect(await queued).toMatchObject({ok: false, message: expect.stringContaining('the action may already have run')})
+    expect(await granted()).toHaveLength(0)
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_d'})).toEqual({attached: true})
+    const afterChange = ask({type: 'route'})
+    const firstOnD = await next('conn_d')
+    expect(firstOnD.command.action).toEqual({type: 'route'})
+    await reply('conn_d', firstOnD.requestId, routed('/d'))
+    expect(await afterChange).toMatchObject({ok: true, value: {href: '/d'}})
+
+    const silent = ask({type: 'wait', selector: 'body', timeout: 100})
+    const unanswered = await next('conn_d')
+    expect(unanswered.command.timeoutMs).toBe(1100)
+    expect(await silent).toMatchObject({ok: false, message: expect.stringContaining('[page.timeout] page.wait')})
+    await tabs('cancels', {requestId: unanswered.requestId})
+
+    const abort = new AbortController()
+    const aborted = ask({type: 'route'}, abort.signal)
+    const dropped = await next('conn_d')
+    abort.abort()
+    await expect(aborted).rejects.toThrow()
+    await tabs('cancels', {requestId: dropped.requestId})
+
+    const stranded = ask({type: 'wait', selector: 'body', timeout: 100})
+    await next('conn_d')
+    await tabs('close', {connectionId: 'conn_d'})
+    expect(await stranded).toMatchObject({
+      ok: false,
+      message: expect.stringContaining('the action may already have run'),
+    })
+  })
+})
+
+describe('page tools', () => {
+  it('saved capture names never escape their directory or name a Windows device', async () => {
+    const file = (name: string): Page.File => ({
+      id: Page.FileId.parse(`file_${crypto.randomUUID()}`),
+      name,
+      mime: 'text/plain',
+      data: new TextEncoder().encode(name),
+    })
+    const PageFiles = await import('../src/page/files.js')
+    const saved = await PageFiles.save([file('..'), file('.'), file('CON.txt'), file('lpt1'), file('report.html')])
+    const first = saved[0]?.path ?? ''
+    onTestFinished(() => rm(dirname(dirname(first)), {recursive: true, force: true}))
+    expect(saved.map((capture) => basename(capture.path))).toEqual([
+      'capture',
+      'capture',
+      'capture',
+      'capture',
+      'report.html',
+    ])
+    expect(saved.map((capture) => capture.name)).toEqual(['..', '.', 'CON.txt', 'lpt1', 'report.html'])
+    expect(await readFile(first, 'utf8')).toBe('..')
   })
 })
