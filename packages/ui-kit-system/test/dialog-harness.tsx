@@ -2,8 +2,6 @@ import {render} from '@solidjs/testing-library'
 import {render as renderInShadow} from 'solid-js/web'
 import type {JSX} from 'solid-js'
 
-const LAYERING = '.fixed{position:fixed}.inset-0{inset:0}'
-
 const shadowDisposers: (() => void)[] = []
 const shadowHosts: HTMLElement[] = []
 
@@ -17,7 +15,9 @@ export function mountInShadow(view: (root: ShadowRoot) => JSX.Element, owner: Do
   shadowHosts.push(host)
   const root = host.attachShadow({mode: 'open'})
   const style = owner.createElement('style')
-  style.textContent = LAYERING
+  style.textContent = Array.from(document.styleSheets, (sheet) =>
+    Array.from(sheet.cssRules, (rule) => rule.cssText).join(''),
+  ).join('')
   root.appendChild(style)
   shadowDisposers.push(renderInShadow(() => view(root), root))
   return root
