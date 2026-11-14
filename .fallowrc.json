@@ -149,10 +149,6 @@
         "apps/conciv/src/runtime/server/**"
       ],
       "rules": {"unused-files": "off"}
-    },
-    {
-      "files": ["packages/plugin-host/src/plugin/**/*.ts", "packages/plugin-host/src/util/*.ts"],
-      "rules": {"unused-files": "off"}
     }
   ],
   "ignoreDependencies": [
