@@ -1,7 +1,7 @@
 import {isEqual, uniqBy} from 'es-toolkit'
 import {z} from 'zod'
-import {subscribeRpcReachability, type RpcClient} from '@conciv/contract'
-import {Conciv, type ConcivClient} from '@conciv/plugin'
+import {subscribeRpcReachability} from '@conciv/contract'
+import type {ConcivClient} from '@conciv/plugin'
 import {
   pluginEnabled,
   pluginIdAvailable,
@@ -61,11 +61,10 @@ export type PluginManager = InstalledSource & {
 
 export type BundleSource = PluginExperimentalSource & {readonly manager: PluginManager; readonly dispose: () => void}
 
-export function createBundleSource(input: {readonly rpc: RpcClient; readonly apiBase: string}): BundleSource {
+export function createBundleSource(input: {readonly client: ConcivClient; readonly apiBase: string}): BundleSource {
   const endpoint = {url: input.apiBase, authorization: undefined}
-  const client = Conciv.make(input.rpc)
   const local = builtins.map((definition) => definition.id)
-  const enableStore = createManager(input.rpc, local)
+  const enableStore = createManager(input.client, local)
   const plugins = new Map<string, BridgePluginExperimental>()
   const inventory: {reserved: readonly string[]; server: ReadonlySet<string>; unreadable: ReadonlyMap<string, string>} =
     {reserved: [], server: new Set(), unreadable: new Map()}
@@ -137,7 +136,7 @@ export function createBundleSource(input: {readonly rpc: RpcClient; readonly api
     resources.watch = controller
 
     if (!controller.signal.aborted && isCurrentHostWatch(machine.following, attempt))
-      await readEvents(client, attempt, controller.signal).catch(() => undefined)
+      await readEvents(input.client, attempt, controller.signal).catch(() => undefined)
 
     if (!controller.signal.aborted) dispatch({type: 'watch.ended', attempt, quitting: false})
   }
@@ -168,7 +167,7 @@ export function createBundleSource(input: {readonly rpc: RpcClient; readonly api
   }
 
   const readListing = async (signal: AbortSignal): Promise<Listing> => {
-    const listed = (await input.rpc.plugin.list(undefined, {signal})).data
+    const listed = (await input.client.plugin.list(undefined, {signal})).data
 
     const shipped = listed.filter(shipsPluginExperimental)
     const reserved = ReservedSchema.parse(
@@ -192,7 +191,7 @@ export function createBundleSource(input: {readonly rpc: RpcClient; readonly api
   const readPlugin = async (pluginId: string, unreadable: Map<string, string>, signal: AbortSignal) => {
     const previous = plugins.get(pluginId)
 
-    const bundle = await input.rpc.plugin
+    const bundle = await input.client.plugin
       .experimental({id: pluginId}, {signal})
       .then((result) => PluginExperimentalSchema.parse({id: pluginId, ...result.data}))
       .then(

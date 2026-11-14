@@ -115,6 +115,7 @@ import {concivExtensionsToolDef, concivUiToolDef} from '@conciv/tools/defs'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS} from '@conciv/tools/builtins'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
+import {Conciv} from '@conciv/plugin'
 import {pluginEnabled, type EnableState} from '@conciv/plugin/experimental/host'
 import {createManager} from '../src/runtime/plugin/manager.js'
 import {createBundleSource} from '../src/runtime/plugin/bundle-source.js'
@@ -5526,13 +5527,13 @@ describe('plugin enable state', () => {
   const coreBase = bootedCore('plugin-enable-state')
 
   test('a plugin disabled through one store reads back disabled, in a fresh store and in a following one', async () => {
-    const store = createManager(coreRpc(coreBase()), [])
+    const store = createManager(Conciv.make(coreRpc(coreBase())), [])
     const fresh = await store.read()
     expect(fresh).toEqual([])
     expect(pluginEnabled({id: 'x', builtin: false}, fresh)).toBe(true)
     expect(await store.enabled('y')).toBe(true)
 
-    const follower = createManager(coreRpc(coreBase()), [])
+    const follower = createManager(Conciv.make(coreRpc(coreBase())), [])
     const followed: (readonly EnableState[])[] = []
     onTestFinished(follower.on((state) => followed.push(state)))
     await expect.poll(() => followed.at(-1)).toEqual([])
@@ -5550,7 +5551,7 @@ describe('plugin enable state', () => {
     await expect.poll(() => followed.at(-1)).toEqual([{id: 'x', enabled: true}])
 
     await store.setEnabled('x', false)
-    const reloaded = createManager(coreRpc(coreBase()), [])
+    const reloaded = createManager(Conciv.make(coreRpc(coreBase())), [])
     expect(await reloaded.read()).toEqual([{id: 'x', enabled: false}])
     expect(await reloaded.enabled('x')).toBe(false)
     await expect.poll(() => followed.at(-1)).toEqual([{id: 'x', enabled: false}])
@@ -5600,6 +5601,10 @@ function storeNames(plugins: readonly PluginExperimental[]): string[][] {
   return plugins.map((plugin) => Object.keys(plugin.definition.stores ?? {}))
 }
 
+function bundleSource(base: string) {
+  return createBundleSource({client: Conciv.make(coreRpc(base)), apiBase: base})
+}
+
 function recordPushes(source: PluginExperimentalSource) {
   const pushes = arrivals<PluginExperimentalsPush>()
   onTestFinished(source.on((message) => pushes.add(message)))
@@ -5636,7 +5641,7 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
     const base = coreBase()
     const votes = arrivals<boolean>()
     onTestFinished(subscribeRpcReachability(base, (reachable) => votes.add(reachable)))
-    const first = createBundleSource({rpc: coreRpc(base), apiBase: base})
+    const first = bundleSource(base)
     onTestFinished(first.dispose)
     const pushes = recordPushes(first)
     const pane = (label: string) => ({
@@ -5687,7 +5692,7 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
     const reconnected = await pushes.nth(5)
     expect(reconnected).toEqual(pane('sixth'))
 
-    const second = createBundleSource({rpc: coreRpc(base), apiBase: base})
+    const second = bundleSource(base)
     onTestFinished(second.dispose)
     const secondPushes = recordPushes(second)
     expect(await secondPushes.nth(1)).toEqual(reconnected)
@@ -5761,7 +5766,7 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
   test('a plugin that never loaded is listed with its error, and disable, enable and reload act through the store', async () => {
     const base = coreBase()
     await faults.install({kind: 'garble', path: EXPERIMENTAL, input: {id: 'broken'}})
-    const first = createBundleSource({rpc: coreRpc(base), apiBase: base})
+    const first = bundleSource(base)
     onTestFinished(first.dispose)
     const firstInstalled = recordInstalled(first.manager)
 
@@ -5797,7 +5802,7 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
     firstInstalled.done()
 
     const held = await faults.install({kind: 'gate', path: ['settings', 'changes']})
-    const second = createBundleSource({rpc: coreRpc(base), apiBase: base})
+    const second = bundleSource(base)
     onTestFinished(second.dispose)
     const secondInstalled = recordInstalled(second.manager)
     expect((await recordPushes(second).nth(1)).plugins.map((plugin) => plugin.id)).toEqual(['pane'])
@@ -5835,7 +5840,7 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
     secondInstalled.done()
 
     const unloaded = await faults.install({kind: 'gate', path: ['settings', 'changes']})
-    const third = createBundleSource({rpc: coreRpc(base), apiBase: base})
+    const third = bundleSource(base)
     onTestFinished(third.dispose)
     const thirdInstalled = recordInstalled(third.manager)
     expect((await recordPushes(third).nth(1)).plugins.map((plugin) => plugin.id)).toEqual(['pane'])
@@ -5852,7 +5857,7 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
     thirdInstalled.done()
 
     const failing = await faults.install({kind: 'fail', path: ['settings', 'changes'], status: 500})
-    const fourth = createBundleSource({rpc: coreRpc(base), apiBase: base})
+    const fourth = bundleSource(base)
     onTestFinished(fourth.dispose)
     const fourthInstalled = recordInstalled(fourth.manager)
     expect((await recordPushes(fourth).nth(1)).plugins.map((plugin) => plugin.id)).toEqual(['pane'])
@@ -5862,7 +5867,7 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
     await coreControl.releaseFault(failing)
 
     const unanswered = await faults.install({kind: 'gate', path: ['settings', 'changes']})
-    const fifth = createBundleSource({rpc: coreRpc(base), apiBase: base})
+    const fifth = bundleSource(base)
     const fifthInstalled = recordInstalled(fifth.manager)
     expect((await recordPushes(fifth).nth(1)).plugins.map((plugin) => plugin.id)).toEqual(['pane'])
     fifth.dispose()

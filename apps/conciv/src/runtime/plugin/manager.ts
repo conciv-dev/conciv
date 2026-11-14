@@ -1,5 +1,6 @@
 import {z} from 'zod'
-import type {RpcClient, SettingsScope, SettingsSnapshot} from '@conciv/contract'
+import type {SettingsScope, SettingsSnapshot} from '@conciv/contract'
+import type {ConcivClient} from '@conciv/plugin'
 import {pluginEnabled, type EnableState} from '@conciv/plugin/experimental/host'
 
 const WHERE: {readonly scope: SettingsScope; readonly namespace: string} = {scope: 'global', namespace: 'plugin-enable'}
@@ -19,8 +20,8 @@ function readEnableState(snapshot: SettingsSnapshot): readonly EnableState[] {
   })
 }
 
-export function createManager(rpc: RpcClient, builtins: readonly string[]) {
-  const read = async () => readEnableState(await rpc.settings.all(WHERE))
+export function createManager(client: ConcivClient, builtins: readonly string[]) {
+  const read = async () => readEnableState(await client.settings.all(WHERE))
 
   return {
     read,
@@ -29,11 +30,11 @@ export function createManager(rpc: RpcClient, builtins: readonly string[]) {
     },
     async setEnabled(id: string, enabled: boolean) {
       if (builtins.includes(id)) throw pluginError('builtin')
-      await rpc.settings.set({...WHERE, key: id, value: enabled})
+      await client.settings.set({...WHERE, key: id, value: enabled})
     },
     on(listener: (state: readonly EnableState[]) => void, failed?: (cause: unknown) => void) {
       const controller = new AbortController()
-      follow(rpc, controller.signal, listener).catch((error: unknown) => {
+      follow(client, controller.signal, listener).catch((error: unknown) => {
         if (controller.signal.aborted) return
         console.error('[plugins] following the plugin enable state failed', error)
         failed?.(error)
@@ -43,8 +44,8 @@ export function createManager(rpc: RpcClient, builtins: readonly string[]) {
   }
 }
 
-async function follow(rpc: RpcClient, signal: AbortSignal, listener: (state: readonly EnableState[]) => void) {
-  const stream = await rpc.settings.changes(WHERE, {signal})
+async function follow(client: ConcivClient, signal: AbortSignal, listener: (state: readonly EnableState[]) => void) {
+  const stream = await client.settings.changes(WHERE, {signal})
 
   for await (const snapshot of stream) listener(readEnableState(snapshot))
 
