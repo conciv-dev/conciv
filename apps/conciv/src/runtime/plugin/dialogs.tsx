@@ -1,7 +1,16 @@
-import {Show} from 'solid-js'
+import {createMemo, For, Show} from 'solid-js'
 import {createStore} from 'solid-js/store'
-import type {AlertOptions, ConfirmOptions, PromptOptions} from '@conciv/plugin/experimental'
-import {Dialog, TextField} from '@conciv/ui-kit-system'
+import fuzzysort from 'fuzzysort'
+import type {AlertOptions, ConfirmOptions, PromptOptions, SelectOptions} from '@conciv/plugin/experimental'
+import {
+  createListCollection,
+  Dialog,
+  Highlight,
+  LIST_PANEL_GROUP_LABEL,
+  LIST_PANEL_MESSAGE,
+  Listbox,
+  TextField,
+} from '@conciv/ui-kit-system'
 import {ui} from './ui'
 
 const FOOTER = 'flex justify-end gap-2'
@@ -93,6 +102,113 @@ export function PluginPromptDialog(props: {options: PromptOptions; done: (value:
           </ui.Button>
         </Dialog.Footer>
       </form>
+    </Dialog.Content>
+  )
+}
+
+export function PluginSelectDialog<T>(props: {options: SelectOptions<T>; done: (value: T | undefined) => void}) {
+  const [store, setStore] = createStore({query: ''})
+
+  const rows = createMemo(() =>
+    props.options.options.map((option, index) => ({
+      key: String(index),
+      option,
+      title: option.title,
+      description: option.description ?? '',
+    })),
+  )
+
+  const results = createMemo(() => {
+    const query = store.query.trim()
+
+    if (!query) return rows()
+
+    return fuzzysort.go(query, rows(), {keys: ['title', 'description']}).map((result) => result.obj)
+  })
+
+  const collection = createMemo(() =>
+    createListCollection({
+      items: results(),
+      itemToValue: (row) => row.key,
+      itemToString: (row) => row.title,
+      groupBy: (row) => row.option.group ?? '',
+    }),
+  )
+
+  const current = rows().find((row) => row.option.value === props.options.current) ?? rows()[0]
+
+  return (
+    <Dialog.Content size="lg">
+      <Dialog.Title class="sr-only">{props.options.title}</Dialog.Title>
+      <Dialog.Body class="flex flex-col gap-2">
+        <Listbox.Root
+          collection={collection()}
+          value={[]}
+          defaultHighlightedValue={current?.key ?? null}
+          loopFocus
+          onSelect={(details) => {
+            const row = collection().find(details.value)
+
+            if (row) props.done(row.option.value)
+          }}
+        >
+          <Listbox.Context>
+            {(listbox) => (
+              <>
+                <Listbox.Label class="sr-only">{props.options.title}</Listbox.Label>
+                <TextField
+                  {...listbox().getInputProps({autoHighlight: true})}
+                  size="lg"
+                  value={store.query}
+                  placeholder={props.options.placeholder ?? 'Search'}
+                  aria-label={props.options.title}
+                  autofocus
+                  onInput={(event) => setStore('query', event.currentTarget.value)}
+                />
+                <Listbox.Content class="max-h-80 overflow-y-auto overscroll-contain">
+                  <For each={collection().group()}>
+                    {([group, items]) => (
+                      <Listbox.ItemGroup>
+                        <Show when={group}>
+                          <Listbox.ItemGroupLabel class={LIST_PANEL_GROUP_LABEL}>{group}</Listbox.ItemGroupLabel>
+                        </Show>
+                        <For each={items}>
+                          {(row) => (
+                            <Listbox.Item
+                              item={row}
+                              highlightOnHover
+                              data-active={listbox().highlightedValue === row.key ? '' : undefined}
+                              class="data-[active]:bg-chat-fill-strong"
+                            >
+                              <span class="flex min-w-0 flex-1 flex-col">
+                                <Listbox.ItemText class="truncate text-chat-text-hi" dir="auto">
+                                  <Highlight text={row.title} query={store.query.trim()} ignoreCase />
+                                </Listbox.ItemText>
+                                <Show when={row.description}>
+                                  {(description) => (
+                                    <span class="truncate text-chat-xs text-chat-text-2" dir="auto">
+                                      <Highlight text={description()} query={store.query.trim()} ignoreCase />
+                                    </span>
+                                  )}
+                                </Show>
+                              </span>
+                            </Listbox.Item>
+                          )}
+                        </For>
+                      </Listbox.ItemGroup>
+                    )}
+                  </For>
+                </Listbox.Content>
+                <Show when={collection().size === 0}>
+                  <p role="status" class={LIST_PANEL_MESSAGE}>
+                    No results found
+                  </p>
+                </Show>
+              </>
+            )}
+          </Listbox.Context>
+        </Listbox.Root>
+      </Dialog.Body>
     </Dialog.Content>
   )
 }
