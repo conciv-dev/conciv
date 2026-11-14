@@ -165,6 +165,7 @@ describe('a Figma stroke', () => {
     const bare = await texts('input-field-bare', border('100:1418'))
     const outlined = await texts('input-field-outline', border('100:1418'))
     const shadowed = await texts('input-field-shadow', border('100:1418'))
+    const ringed = await texts('input-field-after', border('100:1418'))
     await kit.goto('input-field-input')
     const typed = roundOf(await call('design_check', {}))
     await kit.goto('process-row')
@@ -180,7 +181,7 @@ describe('a Figma stroke', () => {
     expect([
       field.nodes.find((node) => node.id === '100:1418')?.strokeAlign,
       field.rules.some((rule) => rule.includes('outline-offset')),
-      [bare, outlined, shadowed],
+      [bare, outlined, shadowed, ringed],
       typed.coverage.missing.includes('100:1421'),
       typed.rows.filter((found) => found.node === '100:1421' && found.text.includes('text color')),
       row.nodes.find((node) => node.id === '50:880')?.individualStrokeWeights,
@@ -188,7 +189,7 @@ describe('a Figma stroke', () => {
     ]).toEqual([
       'INSIDE',
       true,
-      [['wrong border at [100:1418]: 1px #262626 inside expected, none found'], [], []],
+      [['wrong border at [100:1418]: 1px #262626 inside expected, none found'], [], [], []],
       false,
       [],
       {top: 0, right: 0, bottom: 1, left: 0},

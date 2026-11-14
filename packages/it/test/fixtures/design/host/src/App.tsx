@@ -51,6 +51,7 @@ const INPUT_LINES = {
   'input-field-shadow': {...INPUT_LINE, borderBottom: '1px solid #333333'},
   'input-field-rule': {...INPUT_LINE, height: 'auto'},
   'input-field-input': {...INPUT_LINE, borderBottom: '1px solid #333333'},
+  'input-field-after': {...INPUT_LINE, borderBottom: '1px solid #333333'},
 }
 const INPUT_FIELDS = {
   'input-field': INPUT_FIELD,
@@ -61,6 +62,7 @@ const INPUT_FIELDS = {
   'input-field-shadow': {...INPUT_FIELD, border: 'none', boxShadow: 'inset 0 0 0 1px #262626'},
   'input-field-rule': INPUT_FIELD,
   'input-field-input': INPUT_FIELD,
+  'input-field-after': {...INPUT_FIELD, border: 'none', position: 'relative'},
 }
 const PLACEHOLDER_INPUT = {
   height: 24,
@@ -72,6 +74,8 @@ const PLACEHOLDER_INPUT = {
   color: '#ffffff',
 } as const
 const PLACEHOLDER_CSS = '.typed-field::placeholder { color: #656567; }'
+const AFTER_RING_CSS =
+  ".after-ring::after { content: ''; pointer-events: none; position: absolute; inset: 0; border-radius: inherit; box-shadow: 0 0 #0000, inset 0 0 0 1px #262626, 0 0 #0000; }"
 const DISCOVERY_TEXT =
   'We begin by thoroughly understanding your business goals, target audience, and project requirements. We conduct in-depth research to gather insights and define project objectives, allowing us to develop a tailored strategy.'
 const PLANNING_TEXT =
@@ -233,11 +237,13 @@ export function App() {
     requested === 'input-field-bare' ||
     requested === 'input-field-shadow' ||
     requested === 'input-field-rule' ||
-    requested === 'input-field-input'
+    requested === 'input-field-input' ||
+    requested === 'input-field-after'
   ) {
     return (
       <main data-conciv-key="iNfMnA">
-        <label style={INPUT_FIELDS[requested]} data-conciv-key="iNfLbA">
+        <label className={requested === 'input-field-after' ? 'after-ring' : undefined} style={INPUT_FIELDS[requested]} data-conciv-key="iNfLbA">
+          {requested === 'input-field-after' ? <style data-conciv-key="iNfRgA">{AFTER_RING_CSS}</style> : null}
           <span style={{fontSize: 18, lineHeight: '27px', color: '#ffffff'}} data-conciv-key="iNfTtA">
             Full Name
           </span>

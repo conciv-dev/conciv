@@ -92,6 +92,11 @@ const CANVAS_FALLBACK = '#ffffff'
 const BORDER_SIDES = ['top', 'right', 'bottom', 'left'] as const
 const HIDDEN_LINES = new Set(['none', 'hidden'])
 const INSET = 'inset'
+const COVER_PSEUDOS = ['::before', '::after']
+const UNDRAWN_CONTENT = new Set(['none', 'normal'])
+const STATIC = 'static'
+const ABSOLUTE = 'absolute'
+const ZERO_PX = '0px'
 const NONE = 'none'
 const BLUR_CALL = 'blur('
 const SOLID = 'solid'
@@ -933,7 +938,7 @@ function readStyles(input: {
     flexDirection: style.flexDirection,
     overflowX: style.overflowX,
     sizing: {width: ownSizing({...input, property: 'width'}), height: ownSizing({...input, property: 'height'})},
-    border: readBorder(style),
+    border: readBorder({style, element: input.element}),
     gradient: gradientStops(style.backgroundImage),
     shadows: [...shadowsOf(style.boxShadow), ...shadowsOf(style.textShadow)],
     blur: {layer: blurOf(style.filter), background: blurOf(style.backdropFilter)},
@@ -1042,9 +1047,9 @@ function pxLength(value: string): boolean {
   )
 }
 
-function readBorder(style: CSSStyleDeclaration): LiveBorder {
-  const borders = BORDER_SIDES.map((side) => ({side, ...readLine({style, prefix: `border-${side}`})}))
-  const lines = [...borders.filter(shows), ...outlineLines(style), ...shadowLines(style)]
+function readBorder(input: {style: CSSStyleDeclaration; element: Element}): LiveBorder {
+  const borders = sideBorders(input.style)
+  const lines = [input.style, ...coveringPseudos(input)].flatMap(strokeLines)
   const widest = lines.reduce<StrokeLine | undefined>(
     (best, line) => (best === undefined || line.width > best.width ? line : best),
     undefined,
@@ -1054,6 +1059,28 @@ function readBorder(style: CSSStyleDeclaration): LiveBorder {
     return width > 0 ? [{side, width}] : []
   })
   return {...(widest ?? borders[0] ?? {side: 'top', width: 0, style: 'none', color: '#000000'}), sides}
+}
+
+function sideBorders(style: CSSStyleDeclaration): StrokeLine[] {
+  return BORDER_SIDES.map((side) => ({side, ...readLine({style, prefix: `border-${side}`})}))
+}
+
+function strokeLines(style: CSSStyleDeclaration): StrokeLine[] {
+  return [...sideBorders(style).filter(shows), ...outlineLines(style), ...shadowLines(style)]
+}
+
+function coveringPseudos(input: {style: CSSStyleDeclaration; element: Element}): CSSStyleDeclaration[] {
+  const view = input.element.ownerDocument.defaultView
+  if (view === null || input.style.position === STATIC) return []
+  return COVER_PSEUDOS.map((pseudo) => view.getComputedStyle(input.element, pseudo)).filter(covers)
+}
+
+function covers(style: CSSStyleDeclaration): boolean {
+  return (
+    !UNDRAWN_CONTENT.has(style.content) &&
+    style.position === ABSOLUTE &&
+    BORDER_SIDES.every((side) => style.getPropertyValue(side) === ZERO_PX)
+  )
 }
 
 function outlineLines(style: CSSStyleDeclaration): StrokeLine[] {
