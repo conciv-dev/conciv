@@ -6201,12 +6201,20 @@ module.exports = {default: {stores: {
     })
     return shown
   }
-  const asked = {declined: 0}
+  const asked = {declined: 0, drawn: 0}
   const askedLine = document.createElement('p')
   askedLine.textContent = 'Declined call asked: 0'
+  const drawnLine = document.createElement('p')
+  drawnLine.textContent = 'Drawn catalog call asked: 0'
   ctx.add(ToolCall, {
-    tools: ['fixture_probe'],
+    tools: ['fixture_probe', 'server_resolve'],
     render(props) {
+      if (props.tool === 'server_resolve') {
+        if (props.input.mode === 'decline') return undefined
+        asked.drawn += 1
+        drawnLine.textContent = 'Drawn catalog call asked: ' + asked.drawn
+        return Object.assign(document.createElement('p'), {textContent: 'Fixture resolved ' + props.result.output.id})
+      }
       if (props.input.mode !== 'decline') return Object.assign(document.createElement('p'), {textContent: 'Fixture drew ' + props.result.output.drawn})
       asked.declined += 1
       askedLine.textContent = 'Declined call asked: ' + asked.declined
@@ -6214,6 +6222,7 @@ module.exports = {default: {stores: {
     },
   })
   ctx.add(Slot, {at: 'window.bottom', render: () => askedLine})
+  ctx.add(Slot, {at: 'window.bottom', render: () => drawnLine})
   const dialog = (title, body) =>
     ctx.dialogs.open(() => createComponent(ctx.ui.Dialog, {title, get children() { return body() }}))
   const second = () => dialog('Fixture second dialog', () => 'The second dialog is on top')
@@ -6449,6 +6458,38 @@ module.exports = {default: {stores: {
     await expect.element(shown('Stored note: saved note'), {timeout: 15_000}).toBeVisible()
     await expect.element(shown('Visits: 1')).toBeVisible()
   }, 90_000)
+
+  test('its tool cards read the headline of the normal card, and a catalog that arrives late does not ask it again', async () => {
+    const base = coreBase()
+    const sessionId = await createSession(coreRpc(base))
+    await coreControl.scriptTurn({
+      toolCalls: [
+        {name: 'server_resolve', input: {spec: 'solid-js', mode: 'draw'}, result: {id: '/solid.js'}},
+        {name: 'server_resolve', input: {spec: 'solid-js', mode: 'decline'}, result: {id: '/solid.js'}},
+        {name: 'fixture_probe', input: {mode: 'draw'}, result: {drawn: 'the headline probe'}},
+        {name: 'fixture_probe', input: {mode: 'decline'}, result: {drawn: 'the declined headline probe'}},
+      ],
+      text: 'the headline probes are done',
+    })
+    onTestFinished(() => coreControl.clearScript())
+    await runTurn(base, sessionId, 'run the headline probes')
+
+    const catalogHeld = await faults.install({kind: 'gate', path: ['registry', 'catalog']})
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await coreControl.awaitFaultPending(catalogHeld, 1)
+    await expect.element(shown('Drawn catalog call asked: 1'), {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByRole('status', {name: 'Loading conversation'})).toBeVisible()
+
+    await coreControl.releaseFault(catalogHeld)
+    await expect
+      .element(shown('report where an import specifier resolves solid-js').nth(1), {timeout: 15_000})
+      .toBeVisible()
+    await expect.element(shown('Tool: server_resolve')).not.toBeInTheDocument()
+    await expect.element(shown('Fixture resolved /solid.js')).toBeVisible()
+    await expect.element(shown('Drawn catalog call asked: 1')).toBeVisible()
+    await expect.element(shown('Fixture drew the headline probe')).toBeVisible()
+    await expect.element(shown('Tool: fixture_probe').nth(1)).toBeVisible()
+  }, 60_000)
 
   test('its tab appears once the engine trusts the page, stays through a revoke and a lost connection, and loads again after trust drops before its enable state arrived', async () => {
     const origin = new URL(coreBase()).origin

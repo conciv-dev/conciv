@@ -1,24 +1,16 @@
-import {createMemo, Show, untrack, type Accessor, type JSX} from 'solid-js'
+import {children, createMemo, Show, untrack, type Accessor, type JSX} from 'solid-js'
+import {Dynamic} from 'solid-js/web'
 import {createStore} from 'solid-js/store'
 import {uniqBy} from 'es-toolkit'
 import {z} from 'zod'
-import Wrench from 'lucide-solid/icons/wrench'
-import {
-  CardShell,
-  cardHeader,
-  MUTATING_BADGE,
-  parseInput,
-  parseResultPayload,
-  resultText,
-  ToolCard,
-  toolStatus,
-} from '@conciv/ui-kit-chat/tools'
+import {MetaToolCard, parseInput, parseResultPayload, resultText, toolStatus} from '@conciv/ui-kit-chat/tools'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
-import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps, ToolUIComponent} from '@conciv/protocol/tool-view-types'
 import type {MountedSession} from '@conciv/plugin/experimental'
 import {ToolCall, type ToolCallProps} from '@conciv/plugin/experimental/builtin'
 import {usePluginHost} from '../runtime/plugin/host'
 import {Contribution} from '../runtime/plugin/render'
+import {toolFallbackCard} from './tool-fallback-card.js'
 
 const JsonValue = z.json()
 
@@ -35,36 +27,8 @@ function callResult(part: ToolCallPart, result: ToolResultPart | undefined): Too
   return {status: 'success', output: output.success ? output.data : resultText(result)}
 }
 
-function WrenchIcon(): JSX.Element {
-  return <Wrench size={14} />
-}
-
-function PluginCardShell(props: ToolCardProps & {children: JSX.Element}): JSX.Element {
-  const {meta, title} = cardHeader(props)
-
-  return (
-    <Show
-      when={meta()}
-      fallback={
-        <ToolCard Icon={WrenchIcon} title={`Tool: ${props.part.name}`} part={props.part} result={props.result}>
-          {props.children}
-        </ToolCard>
-      }
-    >
-      {(declared) => (
-        <CardShell
-          meta={declared()}
-          title={title()}
-          metaBadge={declared().mutating ? MUTATING_BADGE : undefined}
-          part={props.part}
-          result={props.result}
-          durationMs={props.durationMs}
-        >
-          {props.children}
-        </CardShell>
-      )}
-    </Show>
-  )
+function genericCard(card: ToolCardProps): ToolUIComponent {
+  return card.ctx.catalog.meta(card.part.name) ? MetaToolCard : toolFallbackCard.render
 }
 
 export function createPluginToolCards(session: Accessor<MountedSession | undefined>): Accessor<ToolCardEntry[]> {
@@ -109,8 +73,8 @@ export function createPluginToolCards(session: Accessor<MountedSession | undefin
       <Show when={untrack(session)} keyed>
         {(view) => (
           <Show when={claimant(card.part.name)} keyed>
-            {(item) => (
-              <PluginCardShell {...card}>
+            {(item) => {
+              const body = children(() => (
                 <Contribution plugin={item.plugin} failed={() => decline(id)}>
                   {() => {
                     const drawn = item.value.render(callProps(card, view))
@@ -120,8 +84,10 @@ export function createPluginToolCards(session: Accessor<MountedSession | undefin
                     return drawn
                   }}
                 </Contribution>
-              </PluginCardShell>
-            )}
+              ))
+
+              return <Dynamic component={genericCard(card)} {...card} body={body()} />
+            }}
           </Show>
         )}
       </Show>

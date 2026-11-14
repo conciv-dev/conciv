@@ -29,7 +29,7 @@ function ToolFallbackCard(props: ToolCardProps): JSX.Element {
           </ToolFallbackPrimitive.Root>
         }
       >
-        {body()}
+        <div class="flex flex-col gap-2">{body()}</div>
       </Show>
     </ToolCard>
   )
