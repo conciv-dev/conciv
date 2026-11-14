@@ -2097,7 +2097,12 @@ describe('rpc wire', () => {
         await early.waitForRunStart({runId: 'stopped-early'})
         await chatKit().rpc.chat.stop({sessionId: earlySession, runIds: ['stopped-early']})
         script().release()
-        await early.waitFor((chunk) => runLifecycleEvent.parse(chunk)?.phase === 'aborted')
+        const stopped = await early.done()
+        expect(stopped.all.map((chunk) => runLifecycleEvent.parse(chunk)?.phase)).toContain('aborted')
+        expect(stopped.all).toContainEqual(
+          expect.objectContaining({type: ChatEventType.RUN_FINISHED, runId: 'stopped-early', finishReason: 'stop'}),
+        )
+        expect(stopped.runs()).toBe(1)
         expect(await chatKit().hydrate(earlySession)).toMatchObject({
           activeRun: null,
           lastRun: {runId: 'stopped-early', phase: 'aborted'},
@@ -2613,6 +2618,10 @@ describe('rpc wire', () => {
         const second = await send(sessionId, 'resent', {runId: 'steer-second'})
         const first = await turn.done().finally(() => script().release())
         expect(first.all.some((chunk) => chunk.type === ChatEventType.RUN_FINISHED)).toBe(true)
+        const sent = await turn.waitFor(
+          (chunk) => chunk.type === ChatEventType.RUN_FINISHED && chunk.runId === 'steer-first',
+        )
+        expect(first.all.findLast((chunk) => chunk.type === ChatEventType.RUN_FINISHED)).not.toBe(sent)
         expect(collectEventRunIds(await second.done(), ChatEventType.RUN_STARTED)).toContain('steer-second')
       })
     })
