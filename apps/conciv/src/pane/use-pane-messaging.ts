@@ -97,7 +97,11 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
 
   const onSendError = (failure: unknown): void => {
     if (isSendRejection(failure)) {
-      if (failure.message) deps.notices.notify(failure.message, {tone: failure.tone === 'warn' ? 'warn' : 'info'})
+      const message = failure.message
+      if (!message) return
+      notifyUnlessOffline(deps.reachability.sustainedOffline() && deps.reachability.locked() === null, () =>
+        deps.notices.notify(message, {tone: failure.tone === 'warn' ? 'warn' : 'info'}),
+      )
       return
     }
     notifyUnlessOffline(deps.reachability.sustainedOffline(), () =>
