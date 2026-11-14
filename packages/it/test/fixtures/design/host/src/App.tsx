@@ -239,6 +239,12 @@ export function App() {
         data-conciv-key="fSmNaA"
       />
     )
+  if (requested === 'form-stroke-margin')
+    return (
+      <main style={{width: 358, height: 1066, marginBottom: 4, background: '#1a1a1a', boxShadow: FORM_STROKE}} data-conciv-key="fSmGnA">
+        <style data-conciv-key="fSmGsA">{'#root { display: block; padding: 0; }'}</style>
+      </main>
+    )
   if (requested === 'form-stroke-wrapped')
     return (
       <main style={{margin: -24, width: 358, boxShadow: 'inset 0 1px 0 0 #262626'}} data-conciv-key="fSwRaA">

@@ -520,7 +520,12 @@ export const MeasureResultSchema = z.object({
   limits: MirrorLimitsSchema.optional(),
   opinion: z.boolean().describe('takumi laid the mirror out as a second opinion'),
   overflowX: z.boolean().default(false).describe('the measured page scrolls sideways'),
-  scrollHeight: z.number().default(0).describe('the scroll height of the body of the measured document'),
+  scrollHeight: z
+    .number()
+    .default(0)
+    .describe(
+      'the height of the measured document: the body scroll height, or the lowest bottom margin edge when a margin collapses past the body',
+    ),
   queries: z.array(z.number()).default([]).describe('the widths the media and container queries of the page name'),
   sheets: z.string().default('').describe('sha256 of the page stylesheets'),
   framework: z.enum(['react', 'solid']).nullable().default(null).describe('react with a fiber, solid with vite ids'),

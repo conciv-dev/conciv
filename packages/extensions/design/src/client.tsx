@@ -221,12 +221,24 @@ async function measureLive(input: {size: Size; widget: Widget}): Promise<Measuri
     masks,
     opinion: false,
     overflowX: sidewaysScroll(document),
-    scrollHeight: document.body.scrollHeight,
+    scrollHeight: pageHeight(document),
     framework: pageFramework(),
     scheme: pageScheme(),
     ...(longest === null ? {} : {longestTask: longest}),
     ...(fontsLoading === null ? {} : {fontsLoading}),
   }
+}
+
+function pageHeight(doc: Document): number {
+  const view = doc.defaultView
+  if (view === null) return doc.body.scrollHeight
+  const edges = [...doc.body.querySelectorAll('*')].flatMap((element) => {
+    const style = view.getComputedStyle(element)
+    const margin = Number.parseFloat(style.marginBottom)
+    if (!(margin > 0) || style.position === 'fixed') return []
+    return [element.getBoundingClientRect().bottom + view.scrollY + margin]
+  })
+  return Math.round(Math.max(doc.body.scrollHeight, ...edges))
 }
 
 function watchLongTasks(): () => number | null {
@@ -262,7 +274,7 @@ async function measureMirrorDoc(input: {doc: Document; size: Size}): Promise<Mea
     limits: mirrorLimits(doc),
     opinion: opinion !== null,
     overflowX: sidewaysScroll(doc),
-    scrollHeight: doc.body.scrollHeight,
+    scrollHeight: pageHeight(doc),
     framework: pageFramework(),
     scheme: pageScheme(),
     ...(fontsLoading === null ? {} : {fontsLoading}),

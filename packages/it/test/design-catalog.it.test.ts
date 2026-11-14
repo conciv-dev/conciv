@@ -161,34 +161,33 @@ describe('a Figma line', () => {
 })
 
 describe('a Figma stroke', () => {
-  it('is told with its alignment and sides, and an inset outline, an inset or outset box-shadow or a side border draws it, on the element or a child in its box', async () => {
-    const borderRows = async (node: string) =>
-      roundOf(await call('design_check', {}))
-        .rows.filter((row) => row.node === node && row.property === 'border')
+  it('is told with its alignment and sides, an inset outline, an inset or outset box-shadow or a side border draws it, on the element or a child in its box, and a bottom margin counts in the page height', async () => {
+    const texts = async (page: string, kept: (row: ReturnType<typeof roundOf>['rows'][number]) => boolean) => {
+      await kit.goto(page)
+      return roundOf(await call('design_check', {}))
+        .rows.filter(kept)
         .map((row) => row.text)
+    }
+    const border = (node: string) => (row: {node: string; property?: string | null}) =>
+      row.node === node && row.property === 'border'
+    const height = (row: {text: string}) => row.text.startsWith('the page is')
     await kit.goto('input-field-bare')
     const field = await call('design_get', await sliced('input-field', '100-1418'))
-    const bare = await borderRows('100:1418')
-    await kit.goto('input-field-outline')
-    const outlined = await borderRows('100:1418')
-    await kit.goto('input-field-shadow')
-    const shadowed = await borderRows('100:1418')
+    const bare = await texts('input-field-bare', border('100:1418'))
+    const outlined = await texts('input-field-outline', border('100:1418'))
+    const shadowed = await texts('input-field-shadow', border('100:1418'))
     await kit.goto('input-field-input')
     const typed = roundOf(await call('design_check', {}))
     await kit.goto('process-row')
     const row = await call('design_get', await sliced('process-row', '50-876'))
-    const underlined = await borderRows('50:880')
-    await kit.goto('process-row-boxed')
-    const boxed = await borderRows('50:880')
+    const underlined = await texts('process-row', border('50:880'))
+    const boxed = await texts('process-row-boxed', border('50:880'))
     await kit.goto('form-stroke')
     await call('design_get', await sliced('form-stroke', '100-1693'))
-    const outset = await borderRows('100:1693')
-    await kit.goto('form-stroke-wrapped')
-    const wrapped = await borderRows('100:1693')
-    await kit.goto('form-stroke-short')
-    const short = roundOf(await call('design_check', {}))
-      .rows.filter((row) => row.text.startsWith('the page is'))
-      .map((row) => row.text)
+    const outset = await texts('form-stroke', border('100:1693'))
+    const wrapped = await texts('form-stroke-wrapped', border('100:1693'))
+    const short = await texts('form-stroke-short', height)
+    const margined = await texts('form-stroke-margin', height)
     expect([
       field.nodes.find((node) => node.id === '100:1418')?.strokeAlign,
       field.rules.some((rule) => rule.includes('outline-offset')),
@@ -196,7 +195,7 @@ describe('a Figma stroke', () => {
       typed.coverage.missing.includes('100:1421'),
       typed.rows.filter((found) => found.node === '100:1421' && found.text.includes('text color')),
       row.nodes.find((node) => node.id === '50:880')?.individualStrokeWeights,
-      [underlined, boxed, outset, wrapped, short],
+      [underlined, boxed, outset, wrapped, short, margined],
     ]).toEqual([
       'INSIDE',
       true,
@@ -212,6 +211,7 @@ describe('a Figma stroke', () => {
         [],
         [],
         ['the page is 1064 px tall, the frame is 1070'],
+        [],
       ],
     ])
   })
