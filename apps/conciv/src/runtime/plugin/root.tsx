@@ -4,7 +4,7 @@ import type {ConcivClient} from '@conciv/plugin'
 import {useRouteContext} from '@tanstack/solid-router'
 import {useApiBase} from '../../app/context'
 import {builtins} from './builtins'
-import {createBundleSource, type BundleSource} from './bundle-source'
+import {createBundleSource, type BundleSource, type PluginManager} from './bundle-source'
 import {PluginExperimentalLoader, type PluginExperimental, type PluginExperimentalSource} from './plugins'
 import {PluginHostProvider, usePluginHost} from './host'
 import type {InstalledSource} from './startup'
@@ -16,6 +16,7 @@ const HostApisContext = createContext<HostApis>()
 const PluginsContext = createContext<{
   source: () => PluginExperimentalSource | undefined
   client: () => ConcivClient | undefined
+  manager: () => PluginManager | undefined
   set: (plugins: readonly PluginExperimental[], reserved: readonly string[]) => void
   reserved: () => readonly string[]
 }>()
@@ -26,6 +27,12 @@ export function useReservedPlugins() {
   const plugins = useContext(PluginsContext)
 
   return () => plugins?.reserved() ?? []
+}
+
+export function usePluginManager() {
+  const plugins = useContext(PluginsContext)
+
+  return () => plugins?.manager()
 }
 
 export function useHostApis() {
@@ -94,6 +101,7 @@ export function PluginRoot(props: ParentProps) {
         value={{
           source: bundle,
           client: () => apis.engine.client,
+          manager: () => bundle()?.manager,
           set: (plugins, reserved) => setLoaded({settled: true, plugins, reserved}),
           reserved: () => loaded().reserved,
         }}
