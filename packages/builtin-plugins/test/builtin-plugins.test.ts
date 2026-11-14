@@ -579,7 +579,7 @@ const TAB_FIXTURE = `import {Definition} from '${join(PAGE_SOURCE, 'rpc.ts')}'
 const method = {input: {type: 'object'}, output: {type: 'object'}}
 const Tabs = {
   id: 'page-tabs',
-  methods: {open: method, close: method, report: method, next: method, reply: method, cancels: method, permissions: method, tool: method},
+  methods: {open: method, close: method, report: method, next: method, reply: method, cancels: method, permissions: method, tool: method, asked: method, waiting: method, decide: method},
   events: {},
 }
 
@@ -592,6 +592,15 @@ export default {
     const cancelled = []
     const arrived = new EventTarget()
     const stop = new AbortController()
+    const asks = []
+    const follow = async () => {
+      for await (const event of ctx.event.subscribe({types: ['permission.asked'], signal: stop.signal})) {
+        const {id, sessionId, action, resources} = event.data
+        asks.push({id, sessionId, action, resources})
+        arrived.dispatchEvent(new CustomEvent('control', {detail: {type: 'asked'}}))
+      }
+    }
+    follow().catch(() => {})
     page.events.on('control', async (event) => {
       const control = event.data
       if (control.type === 'cancel') cancelled.push(control.requestId)
@@ -651,6 +660,12 @@ export default {
         return {}
       },
       permissions: async ({sessionId}) => ({permissions: (await ctx.session.get({sessionId})).permissions ?? []}),
+      asked: async () => until(() => asks.shift()),
+      waiting: async () => ({waiting: asks.length}),
+      decide: async ({sessionId, requestId, decision}) => {
+        await ctx.permission.reply({sessionId, requestId, decision})
+        return {}
+      },
       tool: async ({sessionId, name, input}, call) => {
         const found = (await ctx.tool.list()).find((entry) => [entry.options?.namespace, entry.name].join('.') === 'page.' + name)
         try {
@@ -671,13 +686,14 @@ const Received = z.object({
   requestId: z.string(),
   command: z.object({action: z.looseObject({type: z.string()}), agentId: z.string(), timeoutMs: z.number()}),
 })
+const Asked = z.object({id: z.string(), sessionId: z.string(), action: z.string(), resources: z.array(z.string())})
 const Answer = z.union([
   z.object({ok: z.literal(true), value: z.unknown()}),
   z.object({ok: z.literal(false), message: z.string(), metadata: z.unknown()}),
 ])
 
 describe('page connection', () => {
-  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, and a call runs through the page tools', async () => {
+  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, and eval asks until the user always allows it', async () => {
     const kit = await bootCoreKit({
       id: 'page-connection',
       plugins: ['./page', './tabs'],
@@ -795,6 +811,26 @@ describe('page connection', () => {
     abort.abort()
     await expect(aborted).rejects.toThrow()
     await tabs('cancels', {requestId: dropped.requestId})
+
+    const decide = async (code: string, decision: string) => {
+      const asked = Asked.parse(await tabs('asked', {}))
+      expect(asked).toMatchObject({sessionId: session, action: 'page_eval', resources: [code]})
+      await tabs('decide', {sessionId: session, requestId: asked.id, decision})
+    }
+    const refused = ask({type: 'eval', code: 'document.cookie'})
+    await decide('document.cookie', 'reject')
+    expect(await refused).toMatchObject({ok: false})
+    const always = ask({type: 'eval', code: 'document.title'})
+    await decide('document.title', 'always')
+    const onEval = await next('conn_d')
+    expect(onEval.command.action).toEqual({type: 'eval', code: 'document.title'})
+    await reply('conn_d', onEval.requestId, succeeded({result: 'Example'}))
+    expect(await always).toEqual({ok: true, value: {result: 'Example'}})
+    const remembered = ask({type: 'eval', code: 'document.title'})
+    const again = await next('conn_d')
+    await reply('conn_d', again.requestId, succeeded({result: 'Example'}))
+    expect(await remembered).toEqual({ok: true, value: {result: 'Example'}})
+    expect(await tabs('waiting', {})).toEqual({waiting: 0})
 
     const stranded = ask({type: 'wait', selector: 'body', timeout: 100})
     await next('conn_d')

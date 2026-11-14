@@ -1,7 +1,7 @@
 import {once} from 'node:events'
 import {keyBy, Mutex, TimeoutError, withTimeout} from 'es-toolkit'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import type {Plugin, RpcRegistration, Tool} from '@conciv/plugin'
+import type {Plugin, Rule, RpcRegistration, Tool} from '@conciv/plugin'
 import {
   ACCESS,
   PERMISSION_SYNC_TIMEOUT_MS,
@@ -24,6 +24,8 @@ import {Definition, Operations, type Action, type Command, type Result, type Tab
 const DEFAULT_TIMEOUT_MS = 5000
 
 const TAB_RETURN_MS = 5000
+
+const EVAL_ASK: Rule = {action: 'page_eval', resource: '*', effect: 'ask'}
 
 const TRANSPORT_CODES = ['disconnected', 'timeout', 'tab_unavailable']
 
@@ -54,7 +56,9 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
   await ctx.agent.transform((editor) =>
     editor
       .list()
-      .forEach((agent) => agent.permissions.push(...ACCESS.map((rule) => ({...rule, effect: 'deny' as const})))),
+      .forEach((agent) =>
+        agent.permissions.push(...ACCESS.map((rule) => ({...rule, effect: 'deny' as const})), EVAL_ASK),
+      ),
   )
   const machine = {state: createConnectionState()}
   const attachments = new Map<number, PromiseWithResolvers<AttachmentOutcome>>()
