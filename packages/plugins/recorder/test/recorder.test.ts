@@ -1,8 +1,47 @@
+import {readdir} from 'node:fs/promises'
+import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {describe, expect, it, onTestFinished} from 'vitest'
+import {z} from 'zod'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
+
+const RrwebEventSchema = z.object({type: z.number(), data: z.unknown(), timestamp: z.number()})
+const EventWindowSchema = z.object({events: z.array(RrwebEventSchema), cursor: z.number()})
+const LogSchema = z.object({entries: z.array(z.object({ts: z.number(), kind: z.string(), detail: z.string()}))})
+const SavedSchema = z.object({recordingId: z.string()})
+const RpcFailureSchema = z.object({data: z.object({type: z.string()})})
+
+type RrwebEvent = z.infer<typeof RrwebEventSchema>
+
+function pageFixture(children: unknown[]): unknown {
+  return {
+    id: 1,
+    type: 0,
+    childNodes: [
+      {
+        id: 2,
+        type: 2,
+        tagName: 'html',
+        attributes: {},
+        childNodes: [{id: 3, type: 2, tagName: 'body', attributes: {}, childNodes: children}],
+      },
+    ],
+  }
+}
+
+function buttonFixture(id: number, textId: number, text: string): unknown {
+  return {id, type: 2, tagName: 'button', attributes: {}, childNodes: [{id: textId, type: 3, textContent: text}]}
+}
+
+function fixtureStream(base: number, label = 'Buy'): RrwebEvent[] {
+  return [
+    {type: 4, data: {href: 'http://localhost/app', width: 800, height: 600}, timestamp: base},
+    {type: 2, data: {node: pageFixture([buttonFixture(4, 5, label)])}, timestamp: base + 1},
+    {type: 3, data: {source: 2, type: 2, id: 4}, timestamp: base + 2},
+  ]
+}
 
 async function bootRecorder(): Promise<CoreKit> {
   const kit = await bootCoreKit({id: 'fake', plugins: [PACKAGE_DIR]})
@@ -10,10 +49,73 @@ async function bootRecorder(): Promise<CoreKit> {
   return kit
 }
 
+function call(kit: CoreKit, method: string, input: unknown = {}): Promise<unknown> {
+  return kit.rpc.plugin.call({rpcId: 'recorder', method, input}, {signal: AbortSignal.timeout(30_000)})
+}
+
+async function failureType(pending: Promise<unknown>): Promise<string> {
+  const failure = await pending.then(
+    () => new Error('the call answered instead of failing'),
+    (error: unknown) => error,
+  )
+  return RpcFailureSchema.parse(failure).data.type
+}
+
+async function filesNamed(root: string, name: string): Promise<string[]> {
+  const entries = await readdir(root, {recursive: true})
+  return entries.filter((entry) => entry.endsWith(name)).map((entry) => join(root, entry))
+}
+
 describe('the recorder plugin in a real engine', () => {
   it('is active', async () => {
     const kit = await bootRecorder()
     const plugin = (await kit.rpc.plugin.list()).data.find((entry) => entry.id === 'recorder')
     expect(plugin?.state).toEqual({status: 'active'})
+  })
+})
+
+describe('the recorder RPC', () => {
+  it('serves config defaults, round trips flush to window to log, pins reads and saves to a client id, keeps recordings in the plugin storage and resets', async () => {
+    const kit = await bootRecorder()
+
+    expect(await call(kit, 'config')).toEqual({masking: 'none', windowMinutes: 10, console: true})
+
+    const base = Date.now()
+    expect(await call(kit, 'flush', {clientId: 'mine', events: fixtureStream(base)})).toEqual({ok: true})
+    const mine = EventWindowSchema.parse(await call(kit, 'window', {clientId: 'mine'}))
+    expect(mine.events).toHaveLength(3)
+    expect(mine.cursor).toBeGreaterThan(0)
+
+    const log = LogSchema.parse(await call(kit, 'log', {clientId: 'mine'}))
+    expect(log.entries.map((entry) => entry.kind)).toEqual(['navigation', 'click'])
+    expect(log.entries[1]?.detail).toContain('Buy')
+
+    await call(kit, 'flush', {clientId: 'other', events: fixtureStream(base + 5000, 'Sell')})
+    const pinned = EventWindowSchema.parse(await call(kit, 'window', {clientId: 'mine'}))
+    expect(pinned.events.map((event) => event.timestamp)).toEqual([base, base + 1, base + 2])
+    expect(
+      z
+        .object({clients: z.array(z.object({id: z.string()}))})
+        .parse(await call(kit, 'clients'))
+        .clients.map((client) => client.id),
+    ).toEqual(['mine', 'other'])
+
+    const saved = SavedSchema.parse(await call(kit, 'recordings.save', {clientId: 'mine'}))
+    expect(await call(kit, 'recordings.get', {recordingId: saved.recordingId})).toEqual({events: mine.events})
+    const stored = await filesNamed(kit.stateRoot, `${saved.recordingId}.json`)
+    expect(stored).toHaveLength(1)
+    expect(stored[0]).toContain('plugin-storage')
+
+    expect(await call(kit, 'recordings.get', {recordingId: 'missing-recording'})).toEqual({expired: true})
+    expect(await call(kit, 'recordings.save', {clientId: 'nobody'})).toEqual({error: 'empty'})
+    expect(await failureType(call(kit, 'recordings.save', {clientId: ''}))).toBe('rpc.invalid_input')
+
+    const event = (timestamp: number) => ({type: 3, data: {}, timestamp})
+    expect(await call(kit, 'flush', {clientId: 'mine', events: [event(base + 3)]})).toEqual({ok: true})
+    const tooMany = Array.from({length: 5001}, (_, index) => event(index))
+    expect(await failureType(call(kit, 'flush', {clientId: 'mine', events: tooMany}))).toBe('rpc.invalid_input')
+
+    expect(await call(kit, 'reset')).toEqual({ok: true})
+    expect(EventWindowSchema.parse(await call(kit, 'window', {clientId: 'mine'})).events).toEqual([])
   })
 })
