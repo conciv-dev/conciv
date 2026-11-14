@@ -694,6 +694,62 @@ test.describe('forced drop', () => {
       expect(pageErrors).toEqual([])
     })
   })
+
+  test.describe('a queued message survives the chat stream giving up', () => {
+    const RUNNING_TEXT = 'keep this run going'
+    const QUEUED_TEXT = 'queued while the run goes'
+
+    test('the queued text is back in the composer, the answered message is not, and Enter sends the queued text once', async ({
+      page,
+    }) => {
+      test.setTimeout(180_000)
+      await openLoggedIn(page, suite.kit(), suite.host().base)
+      await page.getByRole('button', {name: 'Open conciv chat'}).click()
+      const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
+      const composer = chatBox(page)
+      await expect(composer).toBeVisible({timeout: MOUNT_TIMEOUT_MS})
+      const stop = panel.getByRole('button', {name: 'Stop generating'})
+      const queued = panel.getByRole('listitem').filter({hasText: QUEUED_TEXT})
+      const gaveUp = /reconnect ceiling/
+      const errorRow = panel
+        .getByRole('alert')
+        .filter({hasText: gaveUp, has: page.getByRole('button', {name: 'Retry'})})
+      let reopened: ProxyCore | null = null
+      suite.kit().harness.script.hold()
+      try {
+        await composer.click()
+        await composer.pressSequentially(RUNNING_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(stop).toBeVisible()
+        await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1)
+        await composer.click()
+        await composer.pressSequentially(QUEUED_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(queued).toBeVisible()
+
+        const port = suite.core().port
+        await suite.core().close()
+        await expect(page.getByText(gaveUp).first()).toBeVisible()
+        reopened = await proxyTo(suite.kit().base, {port})
+        suite.kit().harness.script.release()
+        await expect(errorRow).toBeVisible()
+
+        await expect(queued).toBeHidden()
+        await expect(composer).toHaveText(QUEUED_TEXT)
+        await expect(composer).not.toContainText(RUNNING_TEXT)
+
+        await composer.click()
+        await page.keyboard.press('Enter')
+        await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(2)
+        await expect(chatLog(page).getByText(QUEUED_TEXT)).toHaveCount(1)
+        await expect(chatLog(page).getByText(RUNNING_TEXT)).toHaveCount(1)
+        await expect(composer).toHaveText('')
+      } finally {
+        suite.kit().harness.script.release()
+        if (reopened) await reopened.close()
+      }
+    })
+  })
 })
 
 test.describe('host hotkey isolation', () => {
