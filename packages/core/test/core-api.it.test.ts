@@ -94,6 +94,7 @@ import {
   type ChatEvent,
   ChatEventType,
   pageQueueEvent,
+  runLifecycleEvent,
   sessionRunEvent,
 } from '@conciv/protocol/chat-event-types'
 import {webSocket} from '@conciv/ai/client'
@@ -2085,6 +2086,18 @@ describe('rpc wire', () => {
         script().release()
         expect((await finished(sessionId, 'right after', {runId: 'after-stop'})).text()).toBe('ok')
         expect((await chatKit().hydrate(sessionId)).lastRun).toMatchObject({runId: 'after-stop', phase: 'completed'})
+
+        const earlySession = await newSession()
+        script().hold()
+        const early = await send(earlySession, 'stop before any answer', {runId: 'stopped-early'})
+        await early.waitForRunStart({runId: 'stopped-early'})
+        await chatKit().rpc.chat.stop({sessionId: earlySession, runIds: ['stopped-early']})
+        script().release()
+        await early.waitFor((chunk) => runLifecycleEvent.parse(chunk)?.phase === 'aborted')
+        expect(await chatKit().hydrate(earlySession)).toMatchObject({
+          activeRun: null,
+          lastRun: {runId: 'stopped-early', phase: 'aborted'},
+        })
       })
 
       it('a stop that names only an earlier run leaves the next turn running', async () => {
