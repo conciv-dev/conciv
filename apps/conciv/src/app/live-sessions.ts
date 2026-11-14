@@ -5,7 +5,7 @@ import {createStore} from 'solid-js/store'
 import {browserRpcConnection, type RpcClient} from '@conciv/contract'
 import {isRunPhaseTerminal, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import type {AppData} from '../data/app-data.js'
-import {engineLocked} from './engine-login.js'
+import {becameTrusted} from './engine-login.js'
 
 export type PaneActivity = 'unmounted' | 'idle' | 'running'
 
@@ -124,7 +124,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
     })
     const connection = browserRpcConnection(apiBase)
     const stopTrust = connection.trust.subscribe((status, previous) => {
-      if (status === 'trusted' && engineLocked(previous))
+      if (becameTrusted(status, previous))
         session.refresh().catch((error: unknown) => console.error('[conciv] re-hydrating the chat failed', error))
     })
     onCleanup(() => {

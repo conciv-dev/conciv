@@ -51,6 +51,10 @@ export function engineConnected(status: TrustStatus): boolean {
   return status === 'trusted' || status === 'unreachable'
 }
 
+export function becameTrusted(status: TrustStatus, previous: TrustStatus): boolean {
+  return status === 'trusted' && previous !== 'trusted'
+}
+
 export function engineLocked(status: TrustStatus): boolean {
   return status === 'untrusted' || status === 'revoked'
 }
