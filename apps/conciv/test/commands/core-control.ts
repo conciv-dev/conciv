@@ -48,6 +48,7 @@ export type FaultSpec =
   | {kind: 'gate'; path?: string[]}
   | {kind: 'chat-refused'; status?: number}
   | {kind: 'offline'}
+  | {kind: 'late-close'}
   | {kind: 'detached-sockets'}
   | {kind: 'chat-gate'}
   | {kind: 'cut-on-release'; path: string[]}
@@ -378,6 +379,19 @@ async function takeEngineOffline(ctx: BrowserCommandContext): Promise<Injector> 
   }
 }
 
+async function holdEngineCloses(ctx: BrowserCommandContext): Promise<Injector> {
+  const rpcSocket = (await importTestkit(ctx)).rpcSocketFor(ctx.page)
+  await rpcSocket.installed
+  rpcSocket.holdCloses()
+  return {
+    repair: rpcSocket.releaseCloses,
+    dispose: () => {
+      rpcSocket.releaseCloses()
+      return Promise.resolve()
+    },
+  }
+}
+
 async function preVersionEngine(ctx: BrowserCommandContext): Promise<Injector> {
   const origin = requireKit(ctx).origin
   const matcher = (url: URL): boolean => url.origin === origin
@@ -492,6 +506,7 @@ async function createFault(ctx: BrowserCommandContext, handle: string, spec: Fau
   if (spec.kind === 'cut-on-release') return cutOnRelease(ctx, spec.path)
   if (spec.kind === 'detached-sockets') return trackedFault(handle, spec.kind, await detachEngineSockets(ctx))
   if (spec.kind === 'offline') return trackedFault(handle, spec.kind, await takeEngineOffline(ctx))
+  if (spec.kind === 'late-close') return trackedFault(handle, spec.kind, await holdEngineCloses(ctx))
   if (spec.kind === 'pre-version-engine') return trackedFault(handle, spec.kind, await preVersionEngine(ctx))
   if (spec.kind === 'chat-refused') {
     return trackedFault(handle, spec.kind, await testkit.failChatTurns(ctx.page, statusOptions(spec.status)))
