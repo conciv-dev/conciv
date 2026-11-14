@@ -9,6 +9,7 @@ export function idTreeOf(input: {
   mapping: Mapping
   previous: IdTree | null
   revote?: boolean
+  catalog?: string
 }): {
   root: IdNode
   changed: Set<string>
@@ -39,7 +40,7 @@ export function idTreeOf(input: {
   const root = {...built(ROOT_ID), children: tops.map(built)}
   const sites = [...drafts.values()].map((draft) => [draft.id, draft.dom, draft.cssom, draft.src])
   const hash = createHash('sha256')
-    .update(JSON.stringify({sheets: input.sheets, sites}))
+    .update(JSON.stringify({sheets: input.sheets, sites, catalog: input.catalog}))
     .digest('hex')
   return {root, changed, hash}
 }

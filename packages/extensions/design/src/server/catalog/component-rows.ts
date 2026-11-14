@@ -1,5 +1,5 @@
 import {dirname, relative, resolve} from 'node:path'
-import {dropRightWhile, groupBy, keyBy, once} from 'es-toolkit'
+import {dropRightWhile, groupBy, keyBy, omit, once} from 'es-toolkit'
 import {ResolverFactory} from 'oxc-resolver'
 import type {Catalog, CatalogConfig, Component, Hint, Hinter, Ranked} from '../../shared/catalog-defs.js'
 import type {ComponentRows, DesignNode, GateRow} from '../../shared/defs.js'
@@ -17,6 +17,8 @@ export function createComponentRows(input: {
   const {catalog, hinters, config, cwd} = input
   const resolvers = once(async () => (await viteEntries({cwd})).map((root) => new ResolverFactory(root.resolve)))
   return {
+    catalogKey: async () =>
+      JSON.stringify((await catalog.list({hidden: true})).map((component) => omit(component, ['previewError']))),
     rows: async ({design, reads, relation, earlier}) => {
       const ranked = await catalog.list({})
       if (!ranked.some((component) => component.tier === KIT)) return []

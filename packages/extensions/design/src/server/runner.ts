@@ -46,7 +46,8 @@ async function run(input: {runtime: DesignRuntime; folder: Storage; call: Call})
   const oneWidth = record.widget === 'shown'
   const history = historyOf(held.rounds)
   const {previous} = history
-  const {measured, built, widths, since} = await settledMeasures({runtime, call, held, history, oneWidth})
+  const catalog = await runtime.components.catalogKey()
+  const {measured, built, widths, since} = await settledMeasures({runtime, call, held, history, oneWidth, catalog})
   const thrown = await thrownError({measured, since, runtime})
   if (thrown !== null) return {thrown}
   const count = held.streak + 1
@@ -101,7 +102,14 @@ type Call = Parameters<Runner>[0]
 
 type WidthMeasure = {width: number; from: string[]; measured: Measured}
 
-type MeasuresInput = {runtime: DesignRuntime; call: Call; held: Held; history: History; oneWidth: boolean}
+type MeasuresInput = {
+  runtime: DesignRuntime
+  call: Call
+  held: Held
+  history: History
+  oneWidth: boolean
+  catalog: string
+}
 
 type Measures = {measured: Measured; built: ReturnType<typeof idTreeOf>; widths: WidthMeasure[]; since: number}
 
@@ -125,7 +133,7 @@ async function settledMeasures(input: MeasuresInput): Promise<Measures> {
 }
 
 async function measuresOf(input: MeasuresInput): Promise<Measures> {
-  const {runtime, call, held, history, oneWidth} = input
+  const {runtime, call, held, history, oneWidth, catalog} = input
   const {record} = call
   const since = call.edits.updated()
   const measured = await runtime.measurer.measure({
@@ -135,7 +143,13 @@ async function measuresOf(input: MeasuresInput): Promise<Measures> {
     widget: record.widget,
     fresh: true,
   })
-  const built = idTreeOf({live: measured.live, sheets: measured.sheets, mapping: held.stored, previous: held.ids})
+  const built = idTreeOf({
+    live: measured.live,
+    sheets: measured.sheets,
+    mapping: held.stored,
+    previous: held.ids,
+    catalog,
+  })
   const early = unchangedSince({history, built}) || stillBlank({measured, held})
   const widths = early ? [] : await widthMeasures({runtime, call, held, measured, oneWidth})
   if (call.edits.updated() === since) return {measured, built, widths, since}

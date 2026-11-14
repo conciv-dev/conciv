@@ -697,6 +697,7 @@ export type DesignRuntime = {
 }
 
 export type ComponentRows = {
+  catalogKey(): Promise<string>
   rows(input: {
     design: Design
     reads: Pick<ReturnType<typeof readIds>, 'mapped' | 'named' | 'getSRC' | 'sites'>

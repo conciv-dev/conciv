@@ -603,12 +603,6 @@ describe('catalog component rows', () => {
     )
   })
 
-  it('lists an instance of a component drawn by hand as one component row, its import line from the drawing file, and none when the named component renders the node', async () => {
-    expect([await componentRows({on: kit, page: 'drift-hand'}), await componentRows({on: kit, page: 'drift'})]).toEqual(
-      [[['10:2', 'Chip', './Chip.tsx', CHIP_ROW]], []],
-    )
-  })
-
   it('lists no component row for a do-not-use component, and one at any score for a preferred one', async () => {
     try {
       await call('design_components', {doNotUse: 'Chip', prefer: 'Table'})
@@ -619,6 +613,12 @@ describe('catalog component rows', () => {
       await call('design_components', {clear: 'Chip'})
       await call('design_components', {clear: 'Table'})
     }
+  })
+
+  it('lists an instance of a component drawn by hand as one component row, its import line from the drawing file, and none when the named component renders the node', async () => {
+    expect([await componentRows({on: kit, page: 'drift-hand'}), await componentRows({on: kit, page: 'drift'})]).toEqual(
+      [[['10:2', 'Chip', './Chip.tsx', CHIP_ROW]], []],
+    )
   })
 
   it('gives no hint to a node that shares no word with a component name, and a text that holds a component word as a whole word no row and no hint of 1', async () => {
