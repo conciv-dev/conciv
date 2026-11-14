@@ -151,7 +151,11 @@
   },
   "overrides": [
     {
-      "files": ["packages/builtin-plugins/src/page/rpc.ts"],
+      "files": [
+        "packages/builtin-plugins/src/page/rpc.ts",
+        "packages/builtin-plugins/src/page/machine.ts",
+        "packages/builtin-plugins/src/page/connection.ts"
+      ],
       "rules": {
         "conciv/banned-vocabulary": "off"
       }
