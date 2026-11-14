@@ -10,6 +10,7 @@ import type {
   ToolViewCtx,
 } from '@conciv/protocol/tool-view-types'
 import {ToolFallback} from './tool-fallback.js'
+import {findToolEntry} from '../primitives/define-toolkit.js'
 import {
   genericRowProjection,
   headerRowProjection,
@@ -39,7 +40,7 @@ export type CardBodyQuery = {
 }
 
 export function cardRendersEmbeddedBody(query: CardBodyQuery): boolean {
-  const entry = query.tools.find((candidate) => candidate.names.includes(query.part.name))
+  const entry = findToolEntry(query.tools, query.part, query.result)
   if (entry) return entry.hasEmbeddedBody(query.part, query.result, query.ctx)
   if (query.ctx.catalog.meta(query.part.name)) return metaToolHasEmbeddedBody(query.part, query.result, query.ctx)
   const fallback = query.fallback?.hasEmbeddedBody ?? toolFallbackHasEmbeddedBody
@@ -49,7 +50,7 @@ export function cardRendersEmbeddedBody(query: CardBodyQuery): boolean {
 export function ToolCallCard(props: ToolCallCardProps): JSX.Element {
   const declared = () => props.ctx.catalog.meta(props.part.name)
   const embedded = useEmbeddedCard()
-  const matched = () => matchedEntry(props.tools?.(), props.part.name)
+  const matched = () => findToolEntry(props.tools?.(), props.part, props.result)
   const ownsApproval = () => !embedded() && (matched() !== undefined || declared() !== undefined)
   const duration = (): number | undefined => props.durationMs
   return (
@@ -62,13 +63,9 @@ export function ToolCallCard(props: ToolCallCardProps): JSX.Element {
   )
 }
 
-function matchedEntry(tools: ToolCardEntry[] | undefined, name: string): ToolCardEntry | undefined {
-  return tools?.find((entry) => entry.names.includes(name))
-}
-
 function ToolCardView(props: ToolCallCardProps): JSX.Element {
   const render = (): ToolUIComponent => {
-    const card = matchedEntry(props.tools?.(), props.part.name)?.render
+    const card = findToolEntry(props.tools?.(), props.part, props.result)?.render
     if (card) return card
     if (props.ctx.catalog.meta(props.part.name)) return MetaToolCard
     return props.fallback?.render ?? ToolFallback

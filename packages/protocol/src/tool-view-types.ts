@@ -74,4 +74,5 @@ export type ToolCardEntry = ToolCardView & {
   names: string[]
   streamTitle?: string
   display?: 'standalone'
+  accepts?: (part: ToolCallPart, result: ToolResultPart | undefined) => boolean
 }
