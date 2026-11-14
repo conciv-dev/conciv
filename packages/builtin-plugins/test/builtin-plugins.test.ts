@@ -668,10 +668,10 @@ export default {
         await ctx.permission.reply({sessionId, requestId, decision})
         return {}
       },
-      tool: async ({sessionId, name, input}, call) => {
+      tool: async ({sessionId, name, input, id}, call) => {
         const found = (await ctx.tool.list()).find((entry) => [entry.options?.namespace, entry.name].join('.') === 'page.' + name)
         try {
-          const result = await found.execute(input, {sessionId, agent: 'build', messageId: undefined, id: 'call_' + crypto.randomUUID(), signal: call.signal, progress: async () => {}})
+          const result = await found.execute(input, {sessionId, agent: 'build', messageId: undefined, id: id ?? 'call_' + crypto.randomUUID(), signal: call.signal, progress: async () => {}})
           return {ok: true, value: result.output ?? null}
         } catch (error) {
           return {ok: false, message: error.message, metadata: error.metadata ?? null}
@@ -703,7 +703,7 @@ const Answer = z.union([
 ])
 
 describe('page connection', () => {
-  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, locate answers with the source file, a declared page error keeps its code, and deleting the session ends its tabs', async () => {
+  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, locate answers with the source file, a declared page error keeps its code, changing calls journal and captures keep their tool call, and deleting the session ends its tabs and drops its records', async () => {
     const kit = await bootCoreKit({
       id: 'page-connection',
       plugins: ['./page', './tabs'],
@@ -861,6 +861,39 @@ describe('page connection', () => {
       metadata: {code: 'UNKNOWN_EFFECT'},
     })
 
+    const page = (method: string) => call('experimental.page', method, {sessionId: session})
+    const descriptor = {tagName: 'H1', selectorPath: 'h1'}
+    const before = {kind: 'before' as const, ts: 1, descriptor}
+    const after = {kind: 'after' as const, ts: 2, descriptor, cssBundleId: 'css_1'}
+    const edited = call('page-tabs', 'tool', {
+      sessionId: session,
+      name: 'settext',
+      input: {selector: 'h1', text: 'Hello'},
+      id: 'call_settext',
+    })
+    const onEdit = await next('conn_d')
+    await reply('conn_d', onEdit.requestId, {
+      type: 'success',
+      result: {value: {ok: true}, files: [], capture: {before, after, cssBundles: [{hash: 'css_1', css: 'h1{}'}]}},
+    })
+    expect(await edited).toEqual({ok: true, value: {ok: true}})
+    expect(await page('changes')).toMatchObject([
+      {seq: 1, verb: 'page_click', selector: '#one', args: {}},
+      {seq: 2, verb: 'page_eval', args: {code: 'document.title'}},
+      {seq: 3, verb: 'page_eval', args: {code: 'document.title'}},
+      {seq: 4, verb: 'page_settext', selector: 'h1', args: {text: 'Hello'}},
+    ])
+    const captured = {
+      captures: [
+        {toolCallId: 'call_settext', kind: 'before', capture: before},
+        {toolCallId: 'call_settext', kind: 'after', capture: after},
+      ],
+      cssBundles: {css_1: 'h1{}'},
+    }
+    expect(await page('captures.list')).toEqual(captured)
+    expect(await page('clearChanges')).toEqual({ok: true})
+    expect(await page('changes')).toEqual([])
+
     const shot = ask({type: 'screenshot'})
     const onShot = await next('conn_d')
     const image = {id: `file_${crypto.randomUUID()}`, name: 'screenshot.webp', mime: 'image/webp', data: 'UklGRg=='}
@@ -889,8 +922,10 @@ describe('page connection', () => {
 
     expect(await tabs('open', {sessionId: session, connectionId: 'conn_e'})).toEqual({attached: true})
     const ending = tabs('ended', {connectionId: 'conn_e'})
+    expect(await page('captures.list')).toEqual(captured)
     await kit.rpc.sessions.delete({sessionId: session})
     expect(await ending).toEqual({outcome: 'closed'})
+    expect(await page('captures.list')).toEqual({captures: [], cssBundles: {}})
   })
 })
 

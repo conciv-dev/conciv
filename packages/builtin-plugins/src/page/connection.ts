@@ -19,6 +19,7 @@ import {
   type ConnectionEvent,
   type RequestSettlement,
 } from './machine.js'
+import * as Records from './records.js'
 import {Definition, Operations, type Action, type Command, type Result, type Tab} from './rpc.js'
 
 const DEFAULT_TIMEOUT_MS = 5000
@@ -52,7 +53,7 @@ function callTimeout(action: Action): number {
   return DEFAULT_TIMEOUT_MS
 }
 
-export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session' | 'location' | 'event'>) {
+export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session' | 'location' | 'event' | 'storage'>) {
   await ctx.agent.transform((editor) =>
     editor
       .list()
@@ -61,6 +62,7 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
       ),
   )
   const machine = {state: createConnectionState()}
+  const records = Records.fromStorage(ctx.storage)
   const attachments = new Map<number, PromiseWithResolvers<AttachmentOutcome>>()
   const requests = new Map<string, PromiseWithResolvers<RequestSettlement>>()
   const lanes = new Map<SessionId, Mutex>()
@@ -191,6 +193,12 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
         return call.error('unavailable', error instanceof Error ? error.message : String(error), {})
       }
     },
+    changes: (input) => records.changes(input.sessionId),
+    clearChanges: async (input) => {
+      await records.clear(input.sessionId)
+      return {ok: true as const}
+    },
+    'captures.list': (input) => records.captures(input.sessionId),
   })
   void watchDeletions()
   async function watchDeletions(): Promise<void> {
@@ -198,6 +206,7 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
     try {
       for await (const event of events) {
         lanes.delete(event.data.sessionID)
+        await records.forget(event.data.sessionID)
         await dispatch({type: 'session.deleted', sessionId: event.data.sessionID})
       }
     } catch (error) {
@@ -296,6 +305,7 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
 
   return {
     target,
+    records,
     tabs: (sessionId: SessionId): {tabs: Tab[]; focusedTabId: string | null} => selectTabs(machine.state, sessionId),
     dispose: async (): Promise<void> => {
       await dispatch({type: 'disposed'})

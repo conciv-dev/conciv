@@ -25,6 +25,7 @@ const DECLARED: Partial<Record<string, Record<string, string>>> = {
   effect: {UNKNOWN_EFFECT: 'no effect is registered under that name'},
 }
 const Raised = z.object({error: z.looseObject({code: z.string(), message: z.string()})})
+const Targeted = z.looseObject({type: z.string(), ref: z.string().optional(), selector: z.string().optional()})
 const Located = z.looseObject({
   source: z.object({file: z.string(), line: z.number(), column: z.number()}).nullish(),
   frames: z.array(z.unknown()).optional(),
@@ -58,6 +59,17 @@ export async function register(
       .request({agentId: tool.agent, signal: tool.signal})
       .catch((error: unknown) => Promise.reject(declared(operation.name, error)))
     const output = decodeResult(operation, response)
+    if (response.capture) await connection.records.capture(tool.sessionId, tool.id, response.capture)
+    if (operation.mutating) {
+      const {type: _type, ref, selector, ...args} = Targeted.parse(action)
+      await connection.records.append(tool.sessionId, {
+        ts: Date.now(),
+        verb: `page_${operation.name}`,
+        ...(ref === undefined ? {} : {ref}),
+        ...(selector === undefined ? {} : {selector}),
+        args,
+      })
+    }
     if (action.type === 'locate') return exportResult(await located(output, ctx.location.directory), response.files)
     return exportResult(output, response.files)
   }

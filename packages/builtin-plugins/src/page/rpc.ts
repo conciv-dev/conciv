@@ -1,9 +1,14 @@
 import {z} from 'zod'
 import {Rpc} from '@conciv/plugin/rpc'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {PageCaptureBundleSchema, type ToolCaptureMode} from '@conciv/protocol/element-capture-types'
+import {
+  PageCaptureBundleSchema,
+  SessionCapturesSchema,
+  type ToolCaptureMode,
+} from '@conciv/protocol/element-capture-types'
 import {
   PAGE_QUEUE_MAX_ACTIONS,
+  PageChangeEntrySchema,
   PageQueueHandleSchema,
   PageQueueProgressSchema,
   PageQueueResultSchema,
@@ -502,6 +507,9 @@ export const Definition = Rpc.define({
       output: z.object({applied: z.boolean(), waitedMs: z.number()}),
       errors,
     },
+    changes: {input: z.object({sessionId: SessionId}), output: z.array(PageChangeEntrySchema), errors},
+    clearChanges: {input: z.object({sessionId: SessionId}), output: OkResult, errors},
+    'captures.list': {input: z.object({sessionId: SessionId}), output: SessionCapturesSchema, errors},
   },
   events: {control: {schema: Control}},
 })
