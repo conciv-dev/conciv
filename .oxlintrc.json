@@ -401,6 +401,12 @@
       }
     },
     {
+      "files": ["packages/plugin/**"],
+      "rules": {
+        "conciv/test-file-budget": ["error", {"max": 3}]
+      }
+    },
+    {
       "files": ["packages/plugin-host/src/**"],
       "rules": {
         "conciv/banned-vocabulary": "off"

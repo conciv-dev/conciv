@@ -222,7 +222,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - `ConcivEvent` is opencode's `OpenCodeEvent` (`protocol/src/groups/event.ts:82`) cut to the events conciv emits: `session.deleted` (`schema/src/session-event.ts:182`, by ruling: the page plugin drops an attachment when its session is deleted) and the `rpc.*` event; every other server event is absent (conciv's session stream `sessions.changes` carries only an index `version`, `packages/contract/src/contract.ts:73`).
 - `server.connected` is absent (conciv's engine sends no connect frame), so `EventDomain`'s event type excludes nothing.
 - `SessionDeleted.durable` is `DurableEnvelope` (`schema/src/event.ts:34`): `aggregateID` is `aggregateId`, the branded `Seq` and `Version` are numbers; `seq` carries the not-implemented marker.
-- `SubscribeOptions` has no `onActivity` (request options are `{signal}` only).
+- `SubscribeOptions` has the source's `onActivity`, and `client/shared-events.ts` holds the source's `SharedEvents.make` in full; it is not yet wired into a client (the client builder comes in the next commits).
 
 ### Session
 
