@@ -36,6 +36,7 @@ import {
   type Persisted,
   type PluginOptions,
   type Registry,
+  type SelectOptions,
   type SessionRef,
   type SetupContext,
   type Token,
@@ -47,6 +48,7 @@ import {
   type PluginDialogEffect,
   type PluginDialogEvent,
 } from './dialog-machine'
+import {PluginAlertDialog, PluginConfirmDialog, PluginPromptDialog, PluginSelectDialog} from './dialogs'
 import {selectDisabled, selectHostReady, selectInstalled, selectServersReady} from './machine'
 import {
   createPluginHostState,
@@ -365,13 +367,29 @@ function createHost(input: HostInput) {
         return handle
       }
 
+      const ask = <T,>(fallback: T, content: (answer: (value: T) => void) => JSX.Element) =>
+        new Promise<T>((resolve) => {
+          open(
+            (handle) =>
+              content((value) => {
+                resolve(value)
+                handle.close()
+              }),
+            undefined,
+            () => resolve(fallback),
+          )
+        })
+
       return {
         open: (render, options) => open(render, options),
         active: () => !!dialog.active,
-        confirm: undefined,
-        alert: undefined,
-        prompt: undefined,
-        select: undefined,
+        confirm: (options) => ask(false, (answer) => <PluginConfirmDialog options={options} done={answer} />),
+        alert: (options) =>
+          ask(undefined, (answer) => <PluginAlertDialog options={options} done={() => answer(undefined)} />),
+        prompt: (options) =>
+          ask<string | undefined>(undefined, (answer) => <PluginPromptDialog options={options} done={answer} />),
+        select: <T,>(options: SelectOptions<T>) =>
+          ask<T | undefined>(undefined, (answer) => <PluginSelectDialog options={options} done={answer} />),
       }
     },
   } satisfies {readonly [K in keyof HostApis]: HostApiFactory<HostApis[K]>}
