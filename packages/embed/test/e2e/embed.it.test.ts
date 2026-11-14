@@ -1379,6 +1379,9 @@ test.describe('rebind', () => {
 
       await expect(chatLog(page).getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
       await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
+      const reboundPanel = page.getByRole('dialog', {name: 'conciv chat agent'})
+      await expect(reboundPanel.getByText('this connection is not trusted')).toHaveCount(0)
+      await expect(reboundPanel.getByRole('button', {name: 'Retry'})).toHaveCount(0)
 
       await sendChatMessage(page, SECOND_USER_TEXT)
       await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(2, {timeout: 30_000})
@@ -1389,6 +1392,28 @@ test.describe('rebind', () => {
       expect(await panelSession()).toBe(sessionBefore)
       expect(sessionBefore).not.toBeNull()
       expect(pageErrors).toEqual([])
+    })
+
+    test('an empty conversation that failed to load on the untrusted port loads by itself after login', async ({
+      page,
+    }) => {
+      test.setTimeout(240_000)
+      await openLoggedIn(page, kit, host.base)
+      await mountHandle(page, proxyA.base)
+      await openChatPanel(page)
+
+      await rebindHandle(page, proxyB.base)
+      await proxyA.close()
+      const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
+      const loginNotice = panel.getByRole('alert').filter({hasText: 'Log in to use conciv on this page.'})
+      const loadFailed = panel.getByText('Couldn’t load this conversation')
+      await expect(loginNotice).toBeVisible({timeout: 30_000})
+      await expect(loadFailed).toBeVisible({timeout: 30_000})
+
+      await logInFromPanelNotice(page, kit, 'Log in to use conciv on this page.')
+      await expect(loginNotice).toBeHidden({timeout: 30_000})
+      await expect(loadFailed).toBeHidden({timeout: 30_000})
+      await expect(chatBox(page)).toBeVisible({timeout: 30_000})
     })
   })
 })
