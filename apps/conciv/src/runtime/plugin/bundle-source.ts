@@ -78,6 +78,9 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
   const pluginListListeners = new Set<() => void>()
   const resources: Resources = {}
   const machine = {following: createHostState()}
+  const firstListing = Promise.withResolvers<void>()
+
+  firstListing.promise.catch(() => undefined)
 
   const dispatch = (event: HostEvent<Listing>) => {
     const next = transitionHost(machine.following, event)
@@ -129,9 +132,13 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
 
         return
       case 'apply-listing':
-        return applyPlugins(command.listing)
+        applyPlugins(command.listing)
+
+        return firstListing.resolve()
       case 'log-list-error':
-        return console.error('[plugin] plugin listing failed', command.cause)
+        console.error('[plugin] plugin listing failed', command.cause)
+
+        return firstListing.resolve()
     }
   }
 
@@ -314,7 +321,7 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
   dispatch({type: 'started', endpoint, quitting: false})
 
   return {
-    pluginExperimentals: () => Promise.resolve(pluginExperimentals()),
+    pluginExperimentals: () => firstListing.promise.then(pluginExperimentals),
     on(listener) {
       listeners.add(listener)
 
@@ -344,6 +351,7 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
     dispose: () => {
       unfollowEnableState()
       loaded.reject(new Error('the plugin manager was disposed'))
+      firstListing.reject(new Error('the plugin source was disposed before its first listing'))
       dispatch({type: 'stopped'})
     },
   }

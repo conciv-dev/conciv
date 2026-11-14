@@ -31,6 +31,7 @@ import { Route as PanelSessionIdSettingsViewsRouteImport } from './routes/panel.
 import { Route as PanelSessionIdSettingsAdvancedResetRouteImport } from './routes/panel.$sessionId_.settings.advanced.reset'
 import { Route as PanelSessionIdSettingsExtensionsNameRouteImport } from './routes/panel.$sessionId_.settings.extensions.$name'
 import { Route as PanelSessionIdSettingsPluginsIndexRouteImport } from './routes/panel.$sessionId_.settings.plugins.index'
+import { Route as PanelSessionIdSettingsPluginsPageRouteImport } from './routes/panel.$sessionId_.settings.plugins.$page'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -152,6 +153,12 @@ const PanelSessionIdSettingsPluginsIndexRoute =
     path: '/',
     getParentRoute: () => PanelSessionIdSettingsPluginsRoute,
   } as any)
+const PanelSessionIdSettingsPluginsPageRoute =
+  PanelSessionIdSettingsPluginsPageRouteImport.update({
+    id: '/$page',
+    path: '/$page',
+    getParentRoute: () => PanelSessionIdSettingsPluginsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -174,6 +181,7 @@ export interface FileRoutesByFullPath {
   '/panel/$sessionId/settings/': typeof PanelSessionIdSettingsIndexRoute
   '/panel/$sessionId/settings/advanced/reset': typeof PanelSessionIdSettingsAdvancedResetRoute
   '/panel/$sessionId/settings/extensions/$name': typeof PanelSessionIdSettingsExtensionsNameRoute
+  '/panel/$sessionId/settings/plugins/$page': typeof PanelSessionIdSettingsPluginsPageRoute
   '/panel/$sessionId/settings/plugins/': typeof PanelSessionIdSettingsPluginsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -194,6 +202,7 @@ export interface FileRoutesByTo {
   '/panel/$sessionId/settings': typeof PanelSessionIdSettingsIndexRoute
   '/panel/$sessionId/settings/advanced/reset': typeof PanelSessionIdSettingsAdvancedResetRoute
   '/panel/$sessionId/settings/extensions/$name': typeof PanelSessionIdSettingsExtensionsNameRoute
+  '/panel/$sessionId/settings/plugins/$page': typeof PanelSessionIdSettingsPluginsPageRoute
   '/panel/$sessionId/settings/plugins': typeof PanelSessionIdSettingsPluginsIndexRoute
 }
 export interface FileRoutesById {
@@ -219,6 +228,7 @@ export interface FileRoutesById {
   '/panel/$sessionId_/settings/': typeof PanelSessionIdSettingsIndexRoute
   '/panel/$sessionId_/settings/advanced/reset': typeof PanelSessionIdSettingsAdvancedResetRoute
   '/panel/$sessionId_/settings/extensions/$name': typeof PanelSessionIdSettingsExtensionsNameRoute
+  '/panel/$sessionId_/settings/plugins/$page': typeof PanelSessionIdSettingsPluginsPageRoute
   '/panel/$sessionId_/settings/plugins/': typeof PanelSessionIdSettingsPluginsIndexRoute
 }
 export interface FileRouteTypes {
@@ -244,6 +254,7 @@ export interface FileRouteTypes {
     | '/panel/$sessionId/settings/'
     | '/panel/$sessionId/settings/advanced/reset'
     | '/panel/$sessionId/settings/extensions/$name'
+    | '/panel/$sessionId/settings/plugins/$page'
     | '/panel/$sessionId/settings/plugins/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -264,6 +275,7 @@ export interface FileRouteTypes {
     | '/panel/$sessionId/settings'
     | '/panel/$sessionId/settings/advanced/reset'
     | '/panel/$sessionId/settings/extensions/$name'
+    | '/panel/$sessionId/settings/plugins/$page'
     | '/panel/$sessionId/settings/plugins'
   id:
     | '__root__'
@@ -288,6 +300,7 @@ export interface FileRouteTypes {
     | '/panel/$sessionId_/settings/'
     | '/panel/$sessionId_/settings/advanced/reset'
     | '/panel/$sessionId_/settings/extensions/$name'
+    | '/panel/$sessionId_/settings/plugins/$page'
     | '/panel/$sessionId_/settings/plugins/'
   fileRoutesById: FileRoutesById
 }
@@ -454,6 +467,13 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof PanelSessionIdSettingsPluginsIndexRouteImport
       parentRoute: typeof PanelSessionIdSettingsPluginsRoute
     }
+    '/panel/$sessionId_/settings/plugins/$page': {
+      id: '/panel/$sessionId_/settings/plugins/$page'
+      path: '/$page'
+      fullPath: '/panel/$sessionId/settings/plugins/$page'
+      preLoaderRoute: typeof PanelSessionIdSettingsPluginsPageRouteImport
+      parentRoute: typeof PanelSessionIdSettingsPluginsRoute
+    }
   }
 }
 
@@ -511,11 +531,14 @@ const PanelSessionIdSettingsAdvancedRouteWithChildren =
   )
 
 interface PanelSessionIdSettingsPluginsRouteChildren {
+  PanelSessionIdSettingsPluginsPageRoute: typeof PanelSessionIdSettingsPluginsPageRoute
   PanelSessionIdSettingsPluginsIndexRoute: typeof PanelSessionIdSettingsPluginsIndexRoute
 }
 
 const PanelSessionIdSettingsPluginsRouteChildren: PanelSessionIdSettingsPluginsRouteChildren =
   {
+    PanelSessionIdSettingsPluginsPageRoute:
+      PanelSessionIdSettingsPluginsPageRoute,
     PanelSessionIdSettingsPluginsIndexRoute:
       PanelSessionIdSettingsPluginsIndexRoute,
   }
