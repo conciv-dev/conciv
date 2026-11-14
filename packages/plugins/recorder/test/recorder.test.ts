@@ -3,6 +3,7 @@ import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {describe, expect, it, onTestFinished} from 'vitest'
 import {z} from 'zod'
+import {makeDiscoverTools} from '@conciv/harness-testkit'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
@@ -49,6 +50,8 @@ const AppendedEventSchema = z.object({
   data: z.strictObject({clientId: z.string(), cursor: z.number()}),
 })
 const RecorderEventSchema = z.union([ControlEventSchema, AppendedEventSchema])
+const StartedSchema = z.object({captureId: z.string(), startedAt: z.number()})
+const RecordingPartsSchema = z.array(z.object({type: z.string(), text: z.string().optional()}))
 
 async function bootRecorder(): Promise<CoreKit> {
   const kit = await bootCoreKit({id: 'fake', plugins: [PACKAGE_DIR]})
@@ -71,8 +74,18 @@ async function followEvents(kit: CoreKit): Promise<() => Promise<z.infer<typeof 
   }
 }
 
+function useTool(kit: CoreKit, name: 'start' | 'stop' | 'pull', input: unknown = {}): Promise<unknown> {
+  return kit.callTool(`recording_${name}`, input)
+}
+
 function call(kit: CoreKit, method: string, input: unknown = {}): Promise<unknown> {
   return kit.rpc.plugin.call({rpcId: 'recorder', method, input}, {signal: AbortSignal.timeout(30_000)})
+}
+
+function logText(value: unknown): string {
+  return RecordingPartsSchema.parse(value)
+    .flatMap((part) => (part.text === undefined ? [] : [part.text]))
+    .join('\n')
 }
 
 async function failureType(pending: Promise<unknown>): Promise<string> {
@@ -186,5 +199,44 @@ describe('the recorder viewer presence', () => {
     expect(await call(kit, 'presence', {viewerId: 'viewer-1', live: false})).toEqual({ok: true})
     expect(await nextEvent()).toEqual({type: 'rpc.recorder.control', data: {live: false}})
     expect(await call(kit, 'state')).toEqual({live: false})
+  })
+})
+
+describe('the recording tools', () => {
+  it('are offered as recording_start, recording_stop and recording_pull, answer an error without a page client, record what a flushing client sends between start and stop, and pull the last seconds', async () => {
+    const kit = await bootRecorder()
+
+    const discovered = await makeDiscoverTools(
+      kit.base,
+      await kit.session(),
+    )(['recording_start', 'recording_stop', 'recording_pull'])
+    expect(discovered.tools.map((tool) => tool.name)).toEqual([
+      'external_recording_start',
+      'external_recording_stop',
+      'external_recording_pull',
+    ])
+
+    expect(await useTool(kit, 'start')).toEqual({
+      error: 'no page client attached within 5s; the app page with the widget must be open to record',
+    })
+
+    const nextEvent = await followEvents(kit)
+    const starting = useTool(kit, 'start')
+    expect(await nextEvent()).toEqual({type: 'rpc.recorder.control', data: {live: true, snapshot: true, flush: true}})
+    await call(kit, 'flush', {clientId: 'page', events: fixtureStream(Date.now())})
+    const started = StartedSchema.parse(await starting)
+    expect(await nextEvent()).toMatchObject({type: 'rpc.recorder.appended'})
+
+    const stopped = logText(await useTool(kit, 'stop', {captureId: started.captureId, keyframes: 0}))
+    expect(stopped).toContain('[click]')
+    expect(stopped).toContain('Buy')
+    expect(await nextEvent()).toEqual({type: 'rpc.recorder.control', data: {flush: true, live: false}})
+
+    expect(await useTool(kit, 'stop', {captureId: 'not-a-capture', keyframes: 0})).toEqual({
+      error: 'no active capture not-a-capture',
+    })
+
+    const pulled = logText(await useTool(kit, 'pull', {secondsBack: 60, keyframes: 0}))
+    expect(pulled).toContain('Buy')
   })
 })

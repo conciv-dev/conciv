@@ -9,6 +9,7 @@ import {createRendererCache} from './server/renderer-cache.js'
 import {createClientRings} from './server/rings.js'
 import type {RecorderRuntime} from './server/runtime.js'
 import {recorderConfig} from './shared/protocol.js'
+import {register} from './tools.js'
 
 const RESET_SNAPSHOT_WAIT_MS = 1500
 
@@ -85,6 +86,7 @@ export default Plugin.define({
           console.error(`[recorder] a recorder event was not delivered: ${String(error)}`)
         })
     }
+    await register(ctx.tool, runtime)
     const registration = registerRpc(ctx.rpc, runtime, announce)
     await registration
     control.subscribe((message) => announce('control', message))
