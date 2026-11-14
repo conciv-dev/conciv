@@ -3,7 +3,7 @@ import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {describe, expect, it, onTestFinished} from 'vitest'
 import {z} from 'zod'
-import {makeDiscoverTools} from '@conciv/harness-testkit'
+import {connectMcpClient, makeDiscoverTools} from '@conciv/harness-testkit'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
@@ -56,6 +56,8 @@ const WITNESS = `export default {
   },
 }
 `
+
+const SESSION_HEADER = 'conciv-session-id'
 
 const ControlEventSchema = z.object({type: z.literal('rpc.recorder.control'), data: z.record(z.string(), z.boolean())})
 const AppendedEventSchema = z.object({
@@ -338,6 +340,20 @@ describe('the recording tools', () => {
       const png = pngBytes(frame.uri)
       expect(png.subarray(1, 4).toString()).toBe('PNG')
       expect(png.length).toBeGreaterThan(2000)
+    }
+  })
+})
+
+describe('the recorder skill', () => {
+  it('is loadable and names the three tools', async () => {
+    const kit = await bootRecorder()
+    const mcp = await connectMcpClient(`${kit.base}/api/mcp`, {[SESSION_HEADER]: await kit.session()})
+    onTestFinished(() => mcp.close())
+    const skill = (await mcp.tools()).find((tool) => tool.name === 'skill')
+    if (!skill) throw new Error('the skill tool is not on /api/mcp')
+    const loaded = JSON.stringify(await skill.execute({id: 'recorder'}))
+    for (const name of ['external_recording_start', 'external_recording_stop', 'external_recording_pull']) {
+      expect(loaded).toContain(name)
     }
   })
 })

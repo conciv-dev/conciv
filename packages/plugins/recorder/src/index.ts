@@ -9,6 +9,7 @@ import {createRendererCache} from './server/renderer-cache.js'
 import {createClientRings} from './server/rings.js'
 import type {RecorderRuntime} from './server/runtime.js'
 import {recorderConfig} from './shared/protocol.js'
+import {info} from './skill.js'
 import {register} from './tools.js'
 
 const RESET_SNAPSHOT_WAIT_MS = 1500
@@ -87,6 +88,7 @@ export default Plugin.define({
         })
     }
     await register(ctx.tool, runtime)
+    await ctx.skill.transform((editor) => editor.add(info))
     const registration = registerRpc(ctx.rpc, runtime, announce)
     await registration
     control.subscribe((message) => announce('control', message))
