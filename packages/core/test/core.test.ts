@@ -59,6 +59,7 @@ import {createToolRegistry} from '@conciv/extension/registry'
 import {type HarnessAdapter, defineHarness, resolveHarnessModels} from '@conciv/harness'
 import {
   ChatEventType,
+  idleFailedEvent,
   readApprovalAsk,
   readApprovalSettled,
   sessionRunEvent,
@@ -2298,9 +2299,19 @@ describe('plugin host bus', () => {
     const id = SessionId.parse('conciv_idle')
     await ensureRow(made.chat.db, id, harness.id, stateRoot)
     const idles: unknown[] = []
+    const laterIdles: unknown[] = []
+    const idleFailure: {message: string | null} = {message: null}
     await made.pluginHost.runPromise(
       PluginHooks.Service.use((hooks) =>
-        hooks.register('session', 'experimental.idle', (event) => Effect.sync(() => idles.push(event))),
+        Effect.all([
+          hooks.register('session', 'experimental.idle', (event) =>
+            Effect.suspend(() => {
+              idles.push(event)
+              return idleFailure.message === null ? Effect.void : Effect.die(new Error(idleFailure.message))
+            }),
+          ),
+          hooks.register('session', 'experimental.idle', (event) => Effect.sync(() => laterIdles.push(event))),
+        ]),
       ).pipe(Scope.provide(made.pluginHost.runSync(Scope.make()))),
     )
 
@@ -2326,6 +2337,31 @@ describe('plugin host bus', () => {
     expect(await following).toEqual({kind: 'stopped'})
     expect(idles).toHaveLength(1)
     expect(turnEnds).toEqual([id, id, id])
+
+    const published: ChatEvent[] = []
+    onTestFinished(made.runtime.forSession(id).stream.listen((chunk) => void published.push(chunk)))
+    idleFailure.message = 'judge unreachable'
+    harness.script.scriptTurn({text: 'the finished answer', toolCalls: []})
+    expect(await made.plane.followUp(id, 'answer, then the idle hook fails')).toEqual({kind: 'delivered'})
+    const failedIdle = await made.plane.hydrate(id)
+    expect(failedIdle.lastRun).toMatchObject({phase: 'completed', error: 'judge unreachable'})
+    expect(published.flatMap((chunk) => idleFailedEvent.parse(chunk) ?? [])).toEqual([
+      {runId: failedIdle.lastRun?.runId},
+    ])
+    expect(published.filter((chunk) => chunk.type === ChatEventType.RUN_ERROR)).toEqual([])
+    expect(failedIdle.messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      parts: expect.arrayContaining([{type: 'text', content: 'the finished answer'}]),
+    })
+    expect([idles.length, laterIdles.length]).toEqual([2, 1])
+
+    idleFailure.message = null
+    expect(await made.plane.followUp(id, 'answer, and the idle hook succeeds')).toEqual({kind: 'delivered'})
+    const succeededIdle = await made.plane.hydrate(id)
+    expect(succeededIdle.lastRun).toMatchObject({phase: 'completed', error: null})
+    expect(succeededIdle.lastRun?.runId).not.toBe(failedIdle.lastRun?.runId)
+    expect([idles.length, laterIdles.length]).toEqual([3, 2])
+    expect(published.flatMap((chunk) => idleFailedEvent.parse(chunk) ?? [])).toHaveLength(1)
   })
   test('the session key interrupts a live run, waits for it to end, answers false with nothing to stop even when asked to resume, and compacts a session on its harness', async () => {
     const stateRoot = tempDir()

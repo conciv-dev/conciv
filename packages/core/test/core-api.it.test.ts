@@ -4259,6 +4259,7 @@ function bootAt(
   root = tempDir('conciv-outside-'),
   hubAccess: HubAccess = 'session',
   harness = createFakeHarness(),
+  plugins: readonly Plugin.Plugin[] = [],
 ): Promise<Engine> {
   return start({
     options: {stateRoot: root, hubAccess},
@@ -4266,6 +4267,7 @@ function bootAt(
     launchEditor: () => {},
     harness,
     homeDir,
+    plugins,
   })
 }
 
@@ -5344,10 +5346,10 @@ describe('page action queue delivery', () => {
 
   type QueuedOnTab = {id: string; replies: string[]}
 
-  async function engineWithTab(harness = createFakeHarness()) {
+  async function engineWithTab(harness = createFakeHarness(), plugins: readonly Plugin.Plugin[] = []) {
     const home = tempDir('conciv-queue-home-')
     withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
-    const engine = await bootAt(home, tempDir('conciv-queue-'), 'open', harness)
+    const engine = await bootAt(home, tempDir('conciv-queue-'), 'open', harness, plugins)
     engines.push(engine)
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
@@ -5749,7 +5751,14 @@ describe('page action queue delivery', () => {
 
   it('an in-page queue that finishes while its run is live starts the follow-up turn once that run ends', async () => {
     const harness = createFakeHarness()
-    const page = await engineWithTab(harness)
+    const idled: string[] = []
+    const idleCounter = Plugin.define({
+      id: 'idle-counter',
+      async setup(ctx) {
+        await ctx.session.hook('experimental.idle', (event) => void idled.push(event.sessionId))
+      },
+    })
+    const page = await engineWithTab(harness, [idleCounter])
     harness.script.hold()
     const viewer = new AbortController()
     onTestFinished(() => viewer.abort())
@@ -5777,6 +5786,7 @@ describe('page action queue delivery', () => {
     await page.followUpFinished(['queueing-run'])
     expect(page.runIds().filter((runId) => runId !== 'queueing-run')).toHaveLength(1)
     expect((await page.tab.chat.hydrate({sessionId: page.sessionId})).activeRun).toBeNull()
+    expect(idled).toEqual([page.sessionId])
   })
 
   it('a user stop starts no follow-up turn: the owed result arrives with the agent next reply', async () => {

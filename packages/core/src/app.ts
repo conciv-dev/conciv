@@ -8,7 +8,7 @@ import {upgradeWebSocket} from '@conciv/serve'
 import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter} from '@conciv/harness'
 import {concivStateDir} from '@conciv/protocol/state-types'
-import type {RunLifecycle} from '@conciv/protocol/chat-event-types'
+import {idleFailedEvent, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {
@@ -541,6 +541,16 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   )
   const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
   const turnEnds = mounted.flatMap((entry) => (entry.turnEnd ? [entry.turnEnd] : []))
+  const idleFailed = async (sessionId: SessionId, runId: string, error: unknown): Promise<void> => {
+    logError(`[core] the experimental.idle hook failed: ${String(error)}`)
+    const message = error instanceof Error ? error.message : String(error)
+    await plane
+      .recordRunError(sessionId, runId, message)
+      .catch((recordError: unknown) =>
+        logError(`[core] recording the experimental.idle failure of run ${runId} failed: ${String(recordError)}`),
+      )
+    stream.publish(sessionId, idleFailedEvent.create({runId}))
+  }
   const onRunEnd = async (sessionId: SessionId, run: RunLifecycle): Promise<void> => {
     const settled = await Promise.allSettled(turnEnds.map((hook) => hook(sessionId)))
     settled.forEach((outcome) => {
@@ -556,7 +566,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
             }),
           ),
         )
-        .catch((error: unknown) => logError(`[core] the experimental.idle hook failed: ${String(error)}`))
+        .catch((error: unknown) => idleFailed(sessionId, run.runId, error))
     }
     if (run.phase === 'aborted') {
       holdForNextReply(primitives.page.queues, sessionId)

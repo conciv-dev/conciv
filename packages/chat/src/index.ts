@@ -84,6 +84,7 @@ export type ChatPlane = {
   record: (sessionId: SessionId, chunks: readonly ChatEvent[]) => Promise<void>
   driving: (sessionId: SessionId) => boolean
   settled: (sessionId: SessionId) => Promise<void>
+  recordRunError: (sessionId: SessionId, runId: string, message: string) => Promise<void>
   running: () => Promise<ReadonlySet<string>>
   decide: (
     sessionId: SessionId,
@@ -240,6 +241,11 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     record: (sessionId, chunks) => server.record(sessionId, chunks),
     driving: (sessionId) => server.driving(sessionId),
     settled: (sessionId) => server.settled(sessionId),
+    recordRunError: async (sessionId, runId, message) => {
+      const run = (await stores.runs.listByThread(sessionId)).find((stored) => stored.runId === runId)
+      if (run === undefined) throw new Error(`run ${runId} is not a run of session ${sessionId}`)
+      await stores.runs.update(runId, {error: {message}})
+    },
     running: () => runningThreadIds(deps.db),
     decide: (sessionId, approvalId, approved, scope) => approvals.decide(sessionId, approvalId, approved, scope),
     answerUi: (sessionId, toolCallId, value) => ui.answer(sessionId, toolCallId, value),
