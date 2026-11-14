@@ -9,11 +9,15 @@ import {whiteboardHandlers} from './server/rpc-handlers.js'
 import {info} from './skill.js'
 import {register} from './tools.js'
 
+function databaseDirectory(location: Plugin.Context['location']): string {
+  return join(concivStateDir(location.directory), 'whiteboard')
+}
+
 export default Plugin.define({
   id: 'whiteboard',
   async setup(ctx) {
     const directory = ctx.location.directory
-    const store = await createStore(join(concivStateDir(directory), 'whiteboard'))
+    const store = await createStore(databaseDirectory(ctx.location))
     const registration = await ctx.rpc.register(Whiteboard, whiteboardHandlers(store))
     const stopAnnouncing = store.onEvent((event) => {
       if (event.table === 'cursor') return
