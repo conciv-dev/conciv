@@ -26,6 +26,9 @@ import type {SettingsScope} from '@conciv/contract'
 import {settingsSearchSchema} from '../settings/settings-search-schemas.js'
 import {useAppData, useConnected} from '../app/context.js'
 import {createPluginRows, type PluginRows} from '../runtime/plugin/extension-plugins.js'
+import {createSettingsPages} from '../runtime/plugin/settings-pages.js'
+import {panelKey} from '../runtime/plugin/panel-keys.js'
+import {icons} from '../runtime/plugin/icons.js'
 
 const PAGE = 'flex flex-1 flex-col min-h-0'
 const BACK = 'size-8 shrink-0'
@@ -101,7 +104,7 @@ function SettingsLayout(): JSX.Element {
   )
   const builtin = (tab: BuiltinTab): SettingsTab => ({
     ...tab,
-    selected: matchRoute({from: Route.fullPath, to: `./${tab.id}`, fuzzy: true, includeSearch: false}),
+    selected: matchRoute({from: Route.fullPath, to: `./${tab.id}`, fuzzy: tab.id !== 'plugins', includeSearch: false}),
     open: () => void navigate({to: `./${tab.id}`}),
   })
   const mainTabs = MAIN_TABS.map(builtin)
@@ -130,7 +133,28 @@ function SettingsLayout(): JSX.Element {
           params: {sessionId: params().sessionId, name: extension.name},
         }),
     }))
-  const tabs = () => [...mainTabs, ...pluginTabs(), ...extensionTabs, advancedTab]
+  const settingsPages = createSettingsPages()
+  const pageTabs = createMemo(() =>
+    settingsPages.pages().map((item): SettingsTab => {
+      const page = panelKey(item.plugin, item.value.id)
+      return {
+        id: `plugins/${page}`,
+        label: item.value.title,
+        icon: item.value.icon ? icons[item.value.icon] : Puzzle,
+        selected: matchRoute({
+          to: '/panel/$sessionId/settings/plugins/$page',
+          params: {page},
+          includeSearch: false,
+        }),
+        open: () =>
+          void navigate({
+            to: '/panel/$sessionId/settings/plugins/$page',
+            params: {sessionId: params().sessionId, page},
+          }),
+      }
+    }),
+  )
+  const tabs = () => [...mainTabs, ...pluginTabs(), ...extensionTabs, ...pageTabs(), advancedTab]
   const orientation = () => (wide() || tabs().length > MAX_TOP_ROW_TABS ? 'vertical' : 'horizontal')
   const current = () => tabs().find((tab) => tab.selected())?.id ?? 'general'
   const select = (id: string) =>
@@ -180,7 +204,9 @@ function SettingsLayout(): JSX.Element {
       >
         <Tabs.List class={RAIL} aria-label="Settings sections">
           <Tabs.Indicator class={INDICATOR} />
-          <For each={[...mainTabs, ...pluginTabs(), ...extensionTabs]}>{(tab) => <TabTrigger tab={tab} />}</For>
+          <For each={[...mainTabs, ...pluginTabs(), ...extensionTabs, ...pageTabs()]}>
+            {(tab) => <TabTrigger tab={tab} />}
+          </For>
           <Show when={orientation() === 'vertical'}>
             <span class={SPACER} aria-hidden="true" />
           </Show>
