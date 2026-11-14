@@ -32,17 +32,16 @@ async function readUrl(url: string, root: string, fetchImpl: typeof fetch): Prom
   return readFileInRoot(clean, root)
 }
 
-async function loadSourceMap(chunkUrl: string, root: string, fetchImpl: typeof fetch): Promise<unknown> {
+async function loadSourceMap(chunkUrl: string, root: string, fetchImpl: typeof fetch): Promise<string> {
   const clean = normalizeUrl(chunkUrl)
   const js = await readUrl(chunkUrl, root, fetchImpl)
   const m = js.match(/\/\/[#@]\s*sourceMappingURL=([^\s'"]+)\s*$/m)
   if (m) {
     const u = (m[1] ?? '').trim()
-    if (u.startsWith('data:'))
-      return JSON.parse(Buffer.from(u.slice(u.indexOf('base64,') + 7), 'base64').toString('utf8'))
-    return JSON.parse(await readUrl(new URL(u, clean).href, root, fetchImpl))
+    if (u.startsWith('data:')) return Buffer.from(u.slice(u.indexOf('base64,') + 7), 'base64').toString('utf8')
+    return readUrl(new URL(u, clean).href, root, fetchImpl)
   }
-  return JSON.parse(await readUrl(clean + '.map', root, fetchImpl))
+  return readUrl(clean + '.map', root, fetchImpl)
 }
 
 async function symbolicateFrame(
@@ -52,7 +51,7 @@ async function symbolicateFrame(
 ): Promise<SourceLoc | null> {
   try {
     const map = await loadSourceMap(frame.fileName, root, fetchImpl)
-    const tm = new AnyMap(map as never)
+    const tm = new AnyMap(map)
     for (const col of [(frame.column ?? 1) - 1, frame.column ?? 0, 0]) {
       const pos = originalPositionFor(tm, {line: frame.line, column: Math.max(0, col)})
       if (pos.source) return {file: pos.source, line: pos.line ?? frame.line, column: pos.column ?? 0}
