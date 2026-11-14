@@ -230,8 +230,8 @@ export function App() {
       </main>
     )
   }
-  if (requested === 'contact-form' || requested === 'contact-form-flat' || requested === 'contact-section')
-    return <ContactForm flat={requested !== 'contact-form'} section={requested === 'contact-section'} data-conciv-key="cFpGeA" />
+  if (requested?.startsWith('contact-form') || requested === 'contact-section')
+    return <ContactForm flat={requested !== 'contact-form'} section={requested === 'contact-section'} ruled={requested === 'contact-form-ruled'} data-conciv-key="cFpGeA" />
   if (requested === 'form-stroke' || requested === 'form-stroke-short')
     return (
       <main
@@ -640,7 +640,7 @@ function FormThumb(props: {value: string}) {
   )
 }
 
-function ContactForm(props: {flat: boolean; section: boolean}) {
+function ContactForm(props: {flat: boolean; section: boolean; ruled: boolean}) {
   const form = (
       <form
         style={{
@@ -706,13 +706,23 @@ function ContactForm(props: {flat: boolean; section: boolean}) {
           <span style={FORM_LABEL} data-conciv-key="cFmLbA">
             Your Message
           </span>
-          <span style={{display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 34}} data-conciv-key="cFmBdA">
-            <span style={{display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6}} data-conciv-key="cFmInA">
-              <input placeholder="Type here" style={FORM_INPUT} data-conciv-key="cFmIpA" />
+          {props.ruled ? (
+            <span style={{position: 'relative', height: 64}} data-conciv-key="cFmRlA">
+              <textarea
+                placeholder="Type here"
+                style={{position: 'absolute', left: 0, right: 0, top: -5, height: 69, padding: 0, border: 0, resize: 'none', fontSize: 16, lineHeight: '34px', color: '#ffffff', background: 'linear-gradient(#333333 1px, transparent 1px) 0 34px / 100% 34px local'}}
+                data-conciv-key="cFmRtA"
+              />
+            </span>
+          ) : (
+            <span style={{display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 34}} data-conciv-key="cFmBdA">
+              <span style={{display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6}} data-conciv-key="cFmInA">
+                <input placeholder="Type here" style={FORM_INPUT} data-conciv-key="cFmIpA" />
+                <FormLine flat={props.flat} />
+              </span>
               <FormLine flat={props.flat} />
             </span>
-            <FormLine flat={props.flat} />
-          </span>
+          )}
         </label>
         <button
           type="submit"

@@ -373,6 +373,7 @@ function scoreOf(input: {vote: Vote; entry: Node; element: Element; anywhere?: b
   if (input.anywhere !== true && shapes.outsideWindow({a: box, b: flowed})) return []
   if (node.implied === true && !holdsChildren({node, box: placed})) return []
   if (element.kids === 0 && holdsText(node)) return []
+  if (thickerThanLine({node, box, element: element.box})) return []
   const anchor = anchorOf({node, vote})
   if (anchor !== null && !underAnchor({vote, element, anchor})) return []
   const image = pictured(node) && element.img ? PAIR.imageBonus : 0
@@ -381,6 +382,14 @@ function scoreOf(input: {vote: Vote; entry: Node; element: Element; anywhere?: b
   const src = kindOf({node, element}) + PAIR.nameWeight * namedAs({node, element})
   const cssom = layoutVote({node, element})
   return [{path: element.path, score: dom + src + cssom, layers: {dom, src, cssom}}]
+}
+
+function thickerThanLine(input: {node: DesignNode; box: Box; element: Box}): boolean {
+  const {node, box, element} = input
+  if (node.figma?.type !== LINE) return false
+  const flat = box.w > box.h
+  const across = flat ? element.h - box.h : element.w - box.w
+  return across > SAME_BOX_PX
 }
 
 function textualOf(input: {node: Node['node']; element: Element}): number {

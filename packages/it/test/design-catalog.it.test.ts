@@ -162,10 +162,10 @@ describe('a Figma line', () => {
 
 describe('a Figma stroke', () => {
   it('is told with its alignment and sides, and an inset outline, an inset or outset box-shadow or a side border draws it, on the element or a child in its box', async () => {
-    const borderRows = async (node: string) => {
-      const checked = roundOf(await call('design_check', {}))
-      return checked.rows.filter((row) => row.node === node && row.property === 'border').map((row) => row.text)
-    }
+    const borderRows = async (node: string) =>
+      roundOf(await call('design_check', {}))
+        .rows.filter((row) => row.node === node && row.property === 'border')
+        .map((row) => row.text)
     await kit.goto('input-field-bare')
     const field = await call('design_get', await sliced('input-field', '100-1418'))
     const bare = await borderRows('100:1418')
@@ -262,10 +262,7 @@ describe('an idle page while files outside the page change', () => {
       const checked = roundOf(await call('design_check', {}))
       writes.running = false
       await kit.page.goto('about:blank')
-      const unbound = await call('design_check', {}).then(
-        () => 'answered',
-        (error: unknown) => String(error),
-      )
+      const unbound = String(await call('design_check', {}).catch((error: unknown) => error))
       expect([checked.verdict.length > 0, writes.count > 1, unbound.includes('use_tab')]).toEqual([true, true, true])
     } finally {
       writes.running = false
@@ -317,7 +314,7 @@ describe('a Figma wrapper that draws nothing', () => {
 })
 
 describe('a page that drifts from the design', () => {
-  it('is told where the drift starts when its 1px lines take space, from 3 px, lines too thin to draw pair with no far line, and those lines match their crops', async () => {
+  it('is told where the drift starts when its 1px lines take space, from 3 px, lines too thin to draw pair with no far line, a line pairs with no tall box, and those lines match their crops', async () => {
     await kit.goto('process-column-flat')
     const got = await call('design_get', await sliced('process-column', '100-1535'))
     const rows = async () => roundOf(await call('design_check', {})).rows
@@ -336,11 +333,13 @@ describe('a page that drifts from the design', () => {
     const form = told(await rows(), 'drifts')
     await kit.goto('contact-form-flat')
     const formFlat = told(await rows(), 'drifts')
+    await kit.goto('contact-form-ruled')
+    const ruled = (await rows()).filter((row) => row.node === '100:1465').map((row) => row.text)
     await kit.goto('contact-section')
     await call('design_get', await sliced('contact-section', '100-1403'))
     const section = (await rows()).filter((row) => ['100:1415', '100:1416'].includes(row.node))
     expect([
-      [...flat, ...told(lined, 'wrong image'), ...screen, ...formFlat, ...section.map((row) => row.node)],
+      [...flat, ...told(lined, 'wrong image'), ...screen, ...formFlat, ...ruled, ...section.map((row) => row.node)],
       drifted.map((text) => text.split('; ')[0]),
       drifted.some((text) => text.includes('below Line [100:1615]')),
       got.nodes.find((node) => node.id === '100:1615')?.asset,
