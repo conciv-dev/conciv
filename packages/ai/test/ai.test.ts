@@ -33,10 +33,12 @@ import {UsageSnapshotSchema, contextUsedTokens, tokenUsageToSnapshot} from '@con
 import {createTextChunks, fakeText, storyConnection} from '../src/testkit.js'
 import {localSandbox} from '../src/server/local-sandbox.js'
 import type {FakeResponse, FakeResponseStep} from '@tanstack/ai/testing'
-import {mkdtempSync, readdirSync, readFileSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdtempSync, readdirSync, readFileSync, renameSync, watch, writeFileSync} from 'node:fs'
+import {readFile} from 'node:fs/promises'
+import {execFileSync} from 'node:child_process'
 import {tmpdir} from 'node:os'
 import {fileURLToPath} from 'node:url'
-import {join} from 'node:path'
+import {dirname, join} from 'node:path'
 import {createServer} from 'node:net'
 import {once} from 'node:events'
 import {parseSync} from 'oxc-parser'
@@ -246,7 +248,9 @@ const watched = require('node:net').connect(data.socket, () => {
       )
       writeFileSync(join(dir, 'claude'), FAKE_CLAUDE, {mode: 0o755})
       const gone = Promise.withResolvers<void>()
+      const connected = Promise.withResolvers<void>()
       const watcher = createServer((connection) => {
+        connected.resolve()
         connection.on('error', () => gone.resolve())
         connection.once('close', () => gone.resolve())
       })
@@ -266,13 +270,17 @@ const watched = require('node:net').connect(data.socket, () => {
         }),
         {end: async (_turn, run) => ended.resolve(run)},
       )
+      const sandbox = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
       return {
         db,
-        server: await chatServer(hooks, () => undefined, db, firstOutputTimeoutMs),
+        sandbox,
+        server: await chatServer(hooks, () => undefined, db, firstOutputTimeoutMs, sandbox),
         ended: ended.promise,
         answered: answered.promise,
         gone: gone.promise,
-        launches: () => readFileSync(files.launches, 'utf8').trim().split('\n').length,
+        connected: connected.promise,
+        launches: () =>
+          existsSync(files.launches) ? readFileSync(files.launches, 'utf8').split('\n').filter(Boolean).length : 0,
         open: () => writeFileSync(files.gate, ''),
       }
     }
@@ -339,6 +347,33 @@ const watched = require('node:net').connect(data.socket, () => {
           replayedText: ANSWER,
           replayedFinishes: 1,
           answers: [ANSWER],
+        })
+      },
+    )
+
+    it(
+      'a stop before the agent CLI is launched ends the run aborted and never launches it',
+      {timeout: 10_000},
+      async () => {
+        const agent = await cliAgent({silentMs: 600_000, afterSilence: 'answer'})
+        const runner = join(agent.sandbox, 'tanstack-claude-run-early.mjs')
+        const argv = join(agent.sandbox, 'tanstack-claude-argv-early.json')
+        execFileSync('mkfifo', [argv])
+        const driven = say(agent.server, 'early', 'early')
+        await Promise.race([untilExists(runner, true), agent.connected])
+        expect({runner: existsSync(runner), launches: agent.launches()}).toEqual({runner: true, launches: 0})
+        await agent.server.stop('early', ['early'])
+        await driven
+        const run = await agent.ended
+        const runnerRemoved = untilExists(runner, false)
+        const written = await readFile(argv, 'utf8')
+        writeFileSync(`${argv}.file`, written)
+        renameSync(`${argv}.file`, argv)
+        await Promise.race([runnerRemoved, agent.connected])
+        expect({argv: Array.isArray(JSON.parse(written)), phase: run.phase, launches: agent.launches()}).toEqual({
+          argv: true,
+          phase: 'aborted',
+          launches: 0,
         })
       },
     )
@@ -555,10 +590,11 @@ const watched = require('node:net').connect(data.socket, () => {
     log: (message: string) => void,
     db = chatDb(),
     firstOutputTimeoutMs = 30_000,
+    sandbox = mkdtempSync(join(tmpdir(), 'conciv-ai-')),
   ) {
     const server = await createChatServer({
       stores: drizzleChatStores(db, {readHarness: () => 'test-harness'}),
-      sandbox: {dir: mkdtempSync(join(tmpdir(), 'conciv-ai-'))},
+      sandbox: {dir: sandbox},
       hooks,
       codeModeResult: (value) => value,
       firstOutputTimeoutMs,
@@ -820,6 +856,16 @@ function processAlive(pid: number): boolean {
   } catch {
     return false
   }
+}
+
+function untilExists(path: string, present: boolean): Promise<void> {
+  const reached = Promise.withResolvers<void>()
+  const check = () => {
+    if (existsSync(path) === present) reached.resolve()
+  }
+  const watcher = watch(dirname(path), check)
+  check()
+  return reached.promise.finally(() => watcher.close())
 }
 
 describe('local sandbox', () => {
