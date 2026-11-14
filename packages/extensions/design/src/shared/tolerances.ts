@@ -116,6 +116,11 @@ export const designConfig = Object.assign(
       glyphNoise: 12,
       sectionGap: 64,
       regionGap: 32,
+      screens: [
+        {from: 0, height: 844},
+        {from: 768, height: 900},
+        {from: 1920, height: 1080},
+      ],
       widgetWait: 8000,
       widgetPoll: 250,
       figmaPair: {

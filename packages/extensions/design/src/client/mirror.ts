@@ -23,7 +23,12 @@ export async function loadMirror(input: {
 
 export function resizeMirror(input: {frame: HTMLIFrameElement; size: {width: number; height: number}}): void {
   input.frame.setAttribute('width', String(input.size.width))
-  input.frame.setAttribute('height', String(input.size.height))
+  input.frame.setAttribute('height', String(screenHeight(input.size)))
+}
+
+function screenHeight(size: {width: number; height: number}): number {
+  const screen = TOLERANCES.screens.findLast((entry) => entry.from <= size.width)
+  return Math.min(size.height, screen?.height ?? size.height)
 }
 
 const CAPTURE_ATTR = 'data-conciv-capture'

@@ -284,6 +284,8 @@ describe('a page that drifts from the design', () => {
     await kit.goto('process-column')
     const lined = await rows()
     const drifted = told(lined, 'drifts')
+    await kit.goto('process-column-screen')
+    const screen = told(await rows(), 'drifts')
     await kit.goto('contact-form')
     await call('design_get', await sliced('contact-form', '100-1416'))
     const form = told(await rows(), 'drifts')
@@ -295,6 +297,7 @@ describe('a page that drifts from the design', () => {
       drifted.some((text) => text.includes('below Line [100:1615]')),
       got.nodes.find((node) => node.id === '100:1615')?.asset,
       told(lined, 'wrong image'),
+      screen,
       form.map((text) => text.split('; ')[0]),
       formFlat,
     ]).toEqual([
@@ -302,6 +305,7 @@ describe('a page that drifts from the design', () => {
       ['the page drifts from the design: Card [100:1675] sits 7 px lower on the page than in the frame'],
       true,
       '/design/100-1615.png',
+      [],
       [],
       ['the page drifts from the design: Button [100:1466] sits 3 px lower on the page than in the frame'],
       [],

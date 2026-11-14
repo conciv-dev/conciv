@@ -216,8 +216,8 @@ export function App() {
       </main>
     )
   }
-  if (requested === 'process-column' || requested === 'process-column-flat') {
-    const flat = requested === 'process-column-flat'
+  if (requested === 'process-column' || requested === 'process-column-flat' || requested === 'process-column-screen') {
+    const flat = requested !== 'process-column'
     return (
       <main style={{margin: -24, width: 358, display: 'flex', flexDirection: 'column', background: '#1a1a1a'}} data-conciv-key="pCmNaA">
         {COLUMN_CARDS.map((height, index) => (
@@ -228,7 +228,10 @@ export function App() {
                 data-conciv-key="pClNeA"
               />
             )}
-            <div style={{height, boxSizing: 'border-box', padding: '40px 24px'}} data-conciv-key="pCcRdA">
+            <div
+              style={{height, minHeight: requested === 'process-column-screen' && index === 0 ? '12vh' : 0, boxSizing: 'border-box', padding: '40px 24px'}}
+              data-conciv-key="pCcRdA"
+            >
               <span style={{fontSize: 56, lineHeight: '56px', fontWeight: 600, color: '#d8ff99'}} data-conciv-key="pCnMbA">
                 {`0${index + 1}`}
               </span>
