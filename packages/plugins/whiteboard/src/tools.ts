@@ -1,4 +1,4 @@
-import type {ToolDomain} from '@conciv/plugin'
+import {Tool, type ToolDomain} from '@conciv/plugin'
 import {and, eq} from 'drizzle-orm'
 import {z} from 'zod'
 import {canvasPending, canvasReplies, comments, pins} from './server/db/schema.js'
@@ -50,10 +50,10 @@ const ExportReply = z.object({
   reason: z.string().optional(),
 })
 
-type Failure = {code?: string; message: string}
+type Failure = {code?: string; message: string; error?: unknown}
 
-function fail(failure: Failure): never {
-  throw new Error(failure.message)
+function fail({code, ...failure}: Failure): never {
+  throw Tool.toolError(code === undefined ? failure : {...failure, metadata: {code}})
 }
 
 function pause(): Promise<void> {
@@ -176,7 +176,7 @@ function registerCanvas(tool: ToolDomain, store: Store) {
         try {
           validateSvg(input.svg)
         } catch (error) {
-          return fail({code: 'INVALID_SVG', message: error instanceof Error ? error.message : String(error)})
+          return fail({code: 'INVALID_SVG', message: error instanceof Error ? error.message : String(error), error})
         }
         return drawIntoDraft(store, sessionId, 'svg', {
           svg: input.svg,
