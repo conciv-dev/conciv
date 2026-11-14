@@ -95,8 +95,9 @@ export type Info<
   readonly options?: Options
 }
 
-export function toolError(input: Omit<Error, '_tag'>): Error {
-  return {...input, _tag: 'Tool.Error'}
+export function toolError(input: Omit<Error, '_tag'>): Error & globalThis.Error {
+  const fields: Error = {...input, _tag: 'Tool.Error'}
+  return Object.assign(new globalThis.Error(input.message), fields, {name: 'Tool.Error'})
 }
 
 export function isToolError(value: unknown): value is Error {

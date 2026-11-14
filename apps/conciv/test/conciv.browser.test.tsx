@@ -1,6 +1,6 @@
 import '../src/styles.css'
 import 'virtual:uno.css'
-import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe} from 'vitest'
+import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe, onTestFinished} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
 import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {makeBrowserRpcClient, makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
@@ -115,6 +115,7 @@ const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z
 describe('approval replay', () => {
   const core = bootedCore('approval-replay')
   const keep = keptPane()
+  const faults = trackedFaults()
 
   const permissionRequest = () => page.getByRole('group', {name: 'Permission request'})
   const approveButton = () => page.getByRole('button', {name: 'Approve'})
@@ -196,6 +197,26 @@ describe('approval replay', () => {
     await expect.element(permissionRequest(), {timeout: 15_000}).not.toBeInTheDocument()
     expect(await waiting).toContain('{\\"result\\":1')
     expect(await coreControl.hubExecute(sessionId, 'return 40 + 2')).toContain('42')
+  }, 120_000)
+
+  test('a card answered on one client and then on a client that missed the answer leaves both, with no error shown', async () => {
+    const sessionId = await newSession()
+    keep(await attachedPane(sessionId))
+    const waiting = coreControl.hubExecute(sessionId, 'return 7')
+    await expect.element(permissionRequest(), {timeout: 15_000}).toBeVisible()
+    await faults.install({kind: 'detached-sockets'})
+    const other = mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />)
+    onTestFinished(() => other.dispose())
+    await expect.element(permissionRequest().nth(1), {timeout: 15_000}).toBeVisible()
+
+    await approveButton().nth(0).click()
+    expect(await waiting).toContain('{\\"result\\":7')
+    await expect.element(permissionRequest().nth(1)).not.toBeInTheDocument()
+    await expect.element(permissionRequest()).toBeVisible()
+
+    await approveButton().click()
+    await expect.element(permissionRequest()).not.toBeInTheDocument()
+    expect(page.getByText('That permission request is no longer waiting for an answer.').query()).toBeNull()
   }, 120_000)
 
   describe('permission cards', () => {
@@ -287,6 +308,70 @@ describe('approval replay', () => {
       replies[1]?.reject(new Error('UNKNOWN_REQUEST'))
       await expect.element(card('bash git push')).not.toBeInTheDocument()
       await expect.element(page.getByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
+    }, 30_000)
+
+    test('a hydrate read before a live ask or settle keeps the live card and does not bring back a settled one', async () => {
+      const announced: ChatSessionCallbacks[] = []
+      const reads: Array<PromiseWithResolvers<ChatSessionHydration>> = []
+      const session = createRoot((dispose) => {
+        disposers.push(dispose)
+        return createChatSession({
+          sessionId: 'permission-hydrate-order',
+          connect: (callbacks) => {
+            announced.push(callbacks)
+            return {
+              ...quietConnection,
+              refresh: async () => {
+                const read = Promise.withResolvers<ChatSessionHydration>()
+                reads.push(read)
+                const hydration = await read.promise
+                callbacks.onHydrated(hydration)
+                return hydration
+              },
+            }
+          },
+          stop: () => Promise.resolve(),
+          decide: () => Promise.resolve({startsTurn: false}),
+        })
+      })
+      const ctx = makeToolViewCtx({
+        harnessId: () => 'claude',
+        catalog: INERT_TOOL_CTX.catalog,
+        sendMessage: () => undefined,
+        decide: session.decide,
+        onError: () => undefined,
+        addResult: INERT_TOOL_CTX.addResult,
+        durationFor: () => undefined,
+        captureFor: () => undefined,
+      })
+      render(() => <PendingApprovals asks={session.pendingApprovals()} ctx={ctx} />)
+      const callbacks = announced[0]
+      const card = (target: string) => page.getByRole('group', {name: 'Permission request'}).filter({hasText: target})
+      const hydration = (pendingApprovals: ChatSessionHydration['pendingApprovals']): ChatSessionHydration => ({
+        messages: [],
+        messageHarness: {},
+        lastRun: null,
+        pendingApprovals,
+      })
+      const liveAsk = permissionAsk('live-ask', 'edit src/live.ts', {filepath: 'src/live.ts'}, false)
+      const settledAsk = permissionAsk('settled-ask', 'read old.env', {filepath: 'old.env'}, false)
+
+      const firstRefresh = session.refresh()
+      callbacks?.onApprovalAsk(liveAsk)
+      await expect.element(card('edit src/live.ts')).toBeVisible()
+      reads[0]?.resolve(hydration([]))
+      await firstRefresh
+      expect.soft(card('edit src/live.ts').query()).not.toBeNull()
+
+      callbacks?.onApprovalAsk(settledAsk)
+      await expect.element(card('read old.env')).toBeVisible()
+      const secondRefresh = session.refresh()
+      callbacks?.onApprovalSettled('settled-ask')
+      await expect.element(card('read old.env')).not.toBeInTheDocument()
+      reads[1]?.resolve(hydration([liveAsk, settledAsk]))
+      await secondRefresh
+      expect(card('read old.env').query()).toBeNull()
+      expect(card('edit src/live.ts').query()).not.toBeNull()
     }, 30_000)
   })
 })

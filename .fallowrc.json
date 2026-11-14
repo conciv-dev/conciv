@@ -117,6 +117,13 @@
         "reason": "copied from opencode codemode/src/tool-runtime.ts: rank keeps opencode's shape"
       },
       {
+        "files": ["packages/plugin-host/src/core/image/photon-normalize.ts"],
+        "maxCyclomatic": 25,
+        "maxCognitive": 30,
+        "maxCrap": 110,
+        "reason": "copied whole from opencode core/src/image/photon-normalize.ts: normalize keeps opencode's shape"
+      },
+      {
         "files": ["packages/plugin-host/src/core/plugin/module.ts"],
         "maxCyclomatic": 35,
         "maxCrap": 250,
@@ -201,7 +208,9 @@
     "bippy",
     "react-grab",
     "@solidjs/testing-library",
-    "cytoscape"
+    "cytoscape",
+    "cytoscape-cose-bilkent",
+    "cytoscape-fcose"
   ],
   "ignoreUnresolvedImports": ["collections/*"],
   "publicPackages": [
@@ -298,7 +307,8 @@
         "Data",
         "Failure",
         "Session",
-        "match"
+        "match",
+        "Content"
       ]
     },
     {

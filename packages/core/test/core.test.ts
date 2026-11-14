@@ -13,12 +13,14 @@ import {once} from 'node:events'
 import {request as httpRequest} from 'node:http'
 import {createServer} from 'node:net'
 import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {createRequire} from 'node:module'
+import {dirname, join} from 'node:path'
+import {fileURLToPath} from 'node:url'
 import {text as bodyText} from 'node:stream/consumers'
 import {randomUUID} from 'node:crypto'
 import {setImmediate, setTimeout as wait} from 'node:timers/promises'
 import {describe, it, expect, afterEach, onTestFinished, test, vi} from 'vitest'
-import {makeTextAdapter} from '@conciv/ai/server'
+import {makeTextAdapter, quickJSThreadDriver} from '@conciv/ai/server'
 import {createToolCallChunks, fakeText} from '@conciv/ai/testkit'
 import {
   createChatPlane,
@@ -44,7 +46,15 @@ import {
 } from '@conciv/contract'
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
-import {chatRuns, markers, openDb, sessions as sessionTable, type ConcivDb} from '@conciv/db'
+import {
+  chatMetadata,
+  chatRuns,
+  InstructionStateTable,
+  markers,
+  openDb,
+  sessions as sessionTable,
+  type ConcivDb,
+} from '@conciv/db'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {
   createClientSettings,
@@ -70,7 +80,7 @@ import type {HarnessModel} from '@conciv/protocol/harness-types'
 import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {ConcivConfigSchema} from '@conciv/protocol/config-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
-import {eq} from 'drizzle-orm'
+import {eq, sql} from 'drizzle-orm'
 import {
   Agent,
   App,
@@ -78,6 +88,7 @@ import {
   CodeModeCatalog,
   Database,
   Global,
+  Image,
   InstructionEntry,
   InstructionEntrySchema,
   KV,
@@ -119,6 +130,7 @@ import {runWithSession} from '../src/runtime/session-context.js'
 import {start, composeSystemPrompt} from '../src/start.js'
 import {makeApp} from '../src/app.js'
 import {outsideRunCapabilities} from '../src/api/outside-run.js'
+import mcpApp, {type McpVars} from '../src/api/mcp.js'
 import {
   CODE_LIFETIME_MS,
   OPEN_PATHS,
@@ -164,7 +176,7 @@ import {
   followPermissionCards,
   permissionSessions,
   pluginInstructions,
-  sessionSnapshot,
+  sessionToolDomain,
 } from '../src/runtime/permission-cards.js'
 import {bootMadeApp, chunkWithInlineMap, cleanupChunks, makeChatFixture, requireClaude} from './helpers.js'
 
@@ -250,11 +262,15 @@ describe('chat plane', () => {
     const schemas = {inputSchema: z.object({}), outputSchema: z.object({})}
     const tool = defineTool({name: 'unit_tool', description: 'unit', ...schemas, meta}).server(() => ({}))
     registry.register(tool, {owner: 'unit'})
-    const [capability] = registryCapabilities(registry.sandboxTools(), async () => null)
+    const [capability] = registryCapabilities(
+      registry.sandboxTools(),
+      async () => null,
+      () => undefined,
+    )
     expect(capability?.description).toMatch(/^Do the unit thing\. Prefer small inputs\.\n\nReturns JSON matching: /)
   })
 
-  it('a turn falls back to systemPromptText and logs an unreadable systemPromptFile, a credential-shaped capability fails only its own run, plugin skills and the code-mode catalog reach the system prompt when the starting point resets and the user words in between, and search finds a tool by its parameter', async () => {
+  it('a turn falls back to systemPromptText and logs an unreadable systemPromptFile, a credential-shaped capability fails only its own run, plugin skills and the code-mode catalog reach the system prompt when the starting point resets and the user words in between, search finds a tool by its parameter, and with no isolate driver every tool reaches the model and the MCP listing directly with no catalog while an asking tool still needs approval', async () => {
     const root = tempDir()
     const cli = fakeCli()
     const log: string[] = []
@@ -265,7 +281,7 @@ describe('chat plane', () => {
       description: 'Echo the text back.',
       errors: [],
       inputSchema: z.object({text: z.string()}),
-      execute: async (input) => input,
+      execute: async (input) => ({value: input, files: []}),
     }
     const secret = {...echo, name: 'unit_secret', path: 'unit_secret', inputSchema: z.object({apiKey: z.string()})}
     const chat = await plane(cliHarness(cli), root, {
@@ -289,7 +305,9 @@ describe('chat plane', () => {
     await ensureRow(db, builtins, 'fake-cli', root)
     const host = ManagedRuntime.make(
       Layer.mergeAll(SkillInstructions.layer, SessionProjector.layer, Tool.layer).pipe(
-        Layer.provideMerge(Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, permissionSessions(db))),
+        Layer.provideMerge(
+          Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, Image.layer, permissionSessions(db)),
+        ),
         Layer.provideMerge(Layer.mergeAll(Bus.configured(), KV.layer)),
         Layer.provideMerge(
           Layer.succeed(
@@ -351,14 +369,14 @@ describe('chat plane', () => {
     const capabilities = (id: SessionId): CodeCapability[] =>
       toolDomainCapabilities(
         id === builtins ? [echo, secret] : [],
-        host.runSync(sessionSnapshot(id)),
+        host.runSync(sessionToolDomain(id)),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )
     const told = fakeCli()
     const instructed = {
       capabilities,
-      pluginInstructions: (id: SessionId, reset: 'keep' | 'reset', inventory: CodeModeCatalog.Inventory) =>
+      pluginInstructions: (id: SessionId, reset: 'keep' | 'reset', inventory: CodeModeCatalog.Inventory | undefined) =>
         host.runPromise(pluginInstructions(id, reset, inventory)),
     }
     const fresh = await plane(cliHarness(told), root, instructed)
@@ -376,8 +394,8 @@ describe('chat plane', () => {
     const [catalog, ...rest] = told.systemPrompts.at(-1) ?? []
     expect(catalog).toContain('## Code Mode tools (call only inside `execute_typescript`)')
     expect(catalog).toContain('The catalog is complete.')
-    expect(catalog).toContain('external_unit_echo(input: {')
-    expect(catalog).toContain('external_unit_secret(input: {')
+    expect(catalog).toContain('external_unit_echo({\n  text: string;\n}): Promise<unknown> // Echo the text back.')
+    expect(catalog).toContain('external_unit_secret({\n  apiKey: string;\n}): Promise<unknown> // Echo the text back.')
     expect(rest).toEqual([preface])
     expect(rest.join('')).not.toContain('external_unit_echo')
     expect(told.tools.at(-1)).toContain('execute_typescript')
@@ -395,8 +413,22 @@ describe('chat plane', () => {
       {type: 'text', content: 'second'},
     ])
 
+    await addSkill('triage')
+    told.steps.push('failing')
+    expect(await resumed.followUp(skilled, 'dropped')).toMatchObject({kind: 'failed'})
+    expect(told.asked.at(-1)).toEqual([
+      {type: 'text', content: expect.stringContaining('<id>triage</id>')},
+      {type: 'text', content: 'dropped'},
+    ])
+    await resumed.followUp(skilled, 'resent')
+    expect(told.asked.at(-1)).toEqual([
+      {type: 'text', content: expect.stringContaining('<id>triage</id>')},
+      {type: 'text', content: 'resent'},
+    ])
+
     const registered = await plugin(projectTools, ['zeta', 'alpha'])
     await resumed.followUp(skilled, 'third')
+    expect(JSON.stringify(told.asked.at(-1))).not.toContain('triage')
     expect(told.systemPrompts.at(-1)).toEqual([noTools, preface])
     expect(told.asked.at(-1)).toEqual([
       {type: 'text', content: expect.stringContaining('This catalog supersedes the previous Code Mode tool catalog.')},
@@ -413,7 +445,7 @@ describe('chat plane', () => {
     await resumed.followUp(skilled, 'fourth')
     const [added] = z.array(z.object({content: z.string()})).parse(told.asked.at(-1))
     expect(added?.content).toMatch(
-      /^The Code Mode tool catalog has changed\.\n\nNew tools are available:\n- sky \(1 tool\) \/\/ Sky readings\n  - external_sky_measure\(input: \{/,
+      /^The Code Mode tool catalog has changed\.\n\nNew tools are available:\n- sky \(1 tool\) \/\/ Sky readings\n  - external_sky_measure\(\{\n  declination: string;\n\}\): Promise<string \| null>/,
     )
     expect(added?.content).not.toContain('supersedes')
     expect(added?.content).not.toContain('external_tools_alpha')
@@ -428,6 +460,16 @@ describe('chat plane', () => {
     ).resolves.toMatchObject({result: 'measure {"declination":"north"}'})
 
     await addSkill('deploy')
+    told.steps.push('failing')
+    await resumed.compact(skilled)
+    expect(told.systemPrompts.at(-1)?.[0]).toMatch(listed('deploy', 'review'))
+    await resumed.followUp(skilled, 'after a failed compact')
+    expect(told.systemPrompts.at(-1)).toEqual([noTools, preface])
+    expect(told.asked.at(-1)).toEqual([
+      {type: 'text', content: expect.stringContaining('<id>deploy</id>')},
+      {type: 'text', content: 'after a failed compact'},
+    ])
+
     await resumed.compact(skilled)
     expect(told.systemPrompts.at(-1)).toEqual([
       expect.stringMatching(/- sky \(1 tool\) \/\/ Sky readings[\s\S]*- tools \(2 tools\) \/\/ Project utilities/),
@@ -444,6 +486,121 @@ describe('chat plane', () => {
     await fresh.followUp(skilled, 'sixth')
     expect(told.systemPrompts.at(-1)?.[0]).toMatch(listed('deploy', 'lint', 'review'))
     expect(told.asked.at(-1)).toBe('sixth')
+
+    const codeless = sessionId('codeless')
+    await ensureRow(db, codeless, 'fake-cli', root)
+    const registry = createToolRegistry()
+    const ping = defineTool({
+      name: 'unit_ping',
+      description: 'Ping the text back.',
+      inputSchema: z.object({text: z.string()}),
+      outputSchema: z.object({pinged: z.string()}),
+      meta: {summary: 'Ping the text back'},
+    }).server((input) => ({pinged: input.text}))
+    registry.register(ping, {owner: 'unit'})
+    const risky = defineTool({
+      name: 'unit_risky',
+      description: 'Do a risky thing.',
+      inputSchema: z.object({target: z.string()}),
+      outputSchema: z.object({done: z.string()}),
+      meta: {summary: 'Do a risky thing'},
+      approval: 'ask',
+    }).server((input) => ({done: input.target}))
+    registry.register(risky, {owner: 'unit'})
+    const pinged = registryCapabilities(
+      registry.sandboxTools(),
+      (name, input, request) => registry.call(name, input, {request}),
+      () => 'unit',
+    )
+    const withoutDriver = await plane(cliHarness(told), root, {
+      ...instructed,
+      capabilities: (id) =>
+        toolDomainCapabilities(
+          pinged,
+          host.runSync(sessionToolDomain(id)),
+          (effect, signal) => host.runPromiseExit(effect, {signal}),
+          () => undefined,
+        ),
+      driver: null,
+    })
+    await withoutDriver.followUp(codeless, 'no sandbox')
+    expect(told.systemPrompts.at(-1)?.[0]).toMatch(listed('deploy', 'lint', 'review'))
+    expect(JSON.stringify(told.systemPrompts.at(-1))).not.toMatch(/Code Mode|external_|console\.log/)
+    expect(told.tools.at(-1)).toEqual(expect.arrayContaining(['unit_ping', 'sky_measure', 'tools_alpha', 'tools_zeta']))
+    expect(told.tools.at(-1)).not.toContain('execute_typescript')
+    expect(told.tools.at(-1)).not.toContain('discover_tools')
+    const instructionKeys = async (id: SessionId) => {
+      const [row] = await db.select().from(InstructionStateTable).where(eq(InstructionStateTable.session_id, id))
+      return Object.keys(row?.current_values ?? {})
+    }
+    expect(await instructionKeys(skilled)).toContain('core/codemode')
+    expect(await instructionKeys(codeless)).not.toContain('core/codemode')
+
+    const unchanged: EngineStaleness = {stale: false, changed: [], tracked: [], bootedAt: 0, fingerprint: 'test'}
+    const primitives = makeSessionPrimitives({
+      db,
+      root,
+      storeCapture: () => Promise.resolve(),
+      bundler: () => undefined,
+      openInEditor: () => {},
+      listTabs: async () => ({tabs: [], unreachable: []}),
+    })
+    const runtime = makeCoreRuntime({
+      primitives,
+      plane: withoutDriver,
+      db,
+      model: () => null,
+      staleness: () => unchanged,
+    })
+    const mcp = new Hono<{Variables: McpVars}>()
+      .use(async (c, next) => {
+        c.set('mcp', {
+          codeRunner: (id, publish, given, outside) => withoutDriver.codeRunner(id, publish, given, outside),
+          finishedQueues: () => [],
+          startedQueues: () => [],
+          outsideCapabilities: () => [],
+          admitCall: (id, call) => withoutDriver.admitCall(id, call),
+          resolveSession: async () => runtime.forSession(codeless),
+          admitOutside: async () => null,
+          hubRefusal: () => null,
+          staleness: () => unchanged,
+        })
+        await next()
+      })
+      .route('/', mcpApp)
+    const rpc = async (method: string, params: Record<string, unknown>) => {
+      const response = await mcp.request('http://127.0.0.1/', {
+        method: 'POST',
+        headers: {...JSON_TYPE, host: '127.0.0.1', accept: 'application/json, text/event-stream'},
+        body: JSON.stringify({jsonrpc: '2.0', id: 1, method, params}),
+      })
+      const text = await response.text()
+      const data = text.split('\n').find((line) => line.startsWith('data: '))
+      return JSON.parse(data === undefined ? text : data.slice('data: '.length))
+    }
+    const mcpListed = z
+      .object({result: z.object({tools: z.array(z.object({name: z.string()}))})})
+      .parse(await rpc('tools/list', {}))
+      .result.tools.map((tool) => tool.name)
+    expect(mcpListed).toEqual(expect.arrayContaining(['unit_ping', 'sky_measure', 'tools_alpha', 'tools_zeta']))
+    expect(mcpListed).not.toContain('execute_typescript')
+    expect(mcpListed).not.toContain('discover_tools')
+    const calledText = async (name: string, input: Record<string, unknown>) =>
+      z
+        .object({result: z.object({content: z.array(z.object({text: z.string()}))})})
+        .parse(await rpc('tools/call', {name, arguments: input}))
+        .result.content.map((part) => part.text)
+    expect(await calledText('sky_measure', {declination: 'north'})).toEqual([
+      '"measure {\\"declination\\":\\"north\\"}"',
+    ])
+    expect(await calledText('unit_ping', {text: 'pong'})).toEqual([expect.stringContaining('"pinged":"pong"')])
+    expect(mcpListed).toContain('unit_risky')
+    const refused = z
+      .object({result: z.object({content: z.array(z.object({text: z.string()})), isError: z.boolean().optional()})})
+      .parse(await rpc('tools/call', {name: 'unit_risky', arguments: {target: 'x'}})).result
+    expect(refused.isError).toBe(true)
+    expect(refused.content.map((part) => part.text).join('')).toMatch(/needs the user/)
+    expect((await withoutDriver.hydrate(codeless)).pendingApprovals.map((ask) => ask.toolName)).toEqual(['unit_risky'])
   })
 
   it('after a restart the finished and interrupted turns all show, and the interrupted run is aborted with a finish time', async () => {
@@ -565,7 +722,7 @@ describe('chat plane', () => {
     expect(await announced).toBe('late-push-run')
   }, 10_000)
 
-  type CliStep = 'reply' | 'partial' | 'streaming' | 'tooling'
+  type CliStep = 'reply' | 'partial' | 'streaming' | 'tooling' | 'failing'
 
   type FakeCli = {
     steps: CliStep[]
@@ -601,6 +758,7 @@ describe('chat plane', () => {
           const heldOrAborted = () =>
             Promise.race([cli.gate, new Promise((settle) => signal?.addEventListener('abort', settle, {once: true}))])
           yield {type: ChatEventType.RUN_STARTED, ...run}
+          if (step === 'failing') throw new Error('the cli crashed')
           if (step === 'tooling') {
             yield* createToolCallChunks('Read', {file_path: 'a.ts'}, {parentMessageId: messageId})
             return await heldOrAborted()
@@ -663,6 +821,7 @@ describe('chat plane', () => {
     overrides: Partial<Parameters<typeof createChatPlane>[0]> = {},
   ): Promise<ChatPlane> {
     const db = openDatabase(root)
+    const {driver = quickJSDriver(), ...given} = overrides
     return createChatPlane({
       db,
       hubAccess: 'session',
@@ -674,11 +833,18 @@ describe('chat plane', () => {
       toolNames: new Set(),
       capabilities: () => [],
       attachmentExpanders: {},
-      pluginInstructions: async () => ({initial: '', update: ''}),
+      pluginInstructions: async () => ({initial: '', update: '', told: async () => undefined}),
       firstOutputTimeoutMs: 30_000,
       log: () => undefined,
-      ...overrides,
+      driver,
+      ...given,
     })
+  }
+
+  function quickJSDriver() {
+    const driver = quickJSThreadDriver({timeout: 10_000, memoryLimit: 64, maxStackSize: 1024 * 1024}, () => undefined)
+    onTestFinished(() => driver.dispose())
+    return driver
   }
 
   const noUpgrade = defineWebSocketHelper(async () => undefined)
@@ -2530,7 +2696,7 @@ describe('plugin permission cards', () => {
     const host = ManagedRuntime.make(
       Layer.mergeAll(Tool.layer, Permission.layer).pipe(
         Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(db))),
-        Layer.provideMerge(PluginHooks.layer),
+        Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, Image.layer)),
         Layer.provideMerge(Bus.configured()),
         Layer.provideMerge(
           Layer.succeed(
@@ -2588,7 +2754,7 @@ describe('plugin permission cards', () => {
     const buildCapabilities = (sessionId: SessionId) =>
       toolDomainCapabilities(
         [],
-        host.runSync(sessionSnapshot(sessionId)),
+        host.runSync(sessionToolDomain(sessionId)),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )
@@ -2621,11 +2787,11 @@ describe('plugin permission cards', () => {
     ])
 
     expect(await decide(id, shown.approvalId, true, 'session')).toEqual({startsTurn: false})
-    await expect(reading).resolves.toBe('read src/.env')
+    await expect(reading).resolves.toEqual({value: 'read src/.env', files: []})
     expect(await readNextEvent(second, readApprovalSettled)).toBe(shown.approvalId)
     expect((await plane.hydrate(id)).pendingApprovals).toEqual([])
     expect(await plane.decide(id, shown.approvalId, true, 'once')).toBeNull()
-    await expect(call(id, 'src/.env')).resolves.toBe('read src/.env')
+    await expect(call(id, 'src/.env')).resolves.toEqual({value: 'read src/.env', files: []})
 
     const foreign = call(other, 'other/.env')
     const otherAsk = await readNextEvent(runtime.forSession(other).stream.events(clients.signal), readApprovalAsk)
@@ -2635,7 +2801,7 @@ describe('plugin permission cards', () => {
     await expect(foreign).rejects.toThrow()
 
     await setPermissions(db, other, [{action: 'read', resource: '*', effect: 'allow'}])
-    await expect(call(other, 'other/.env')).resolves.toBe('read other/.env')
+    await expect(call(other, 'other/.env')).resolves.toEqual({value: 'read other/.env', files: []})
     await setPermissions(db, other, [{action: 'unit_read_env', resource: '*', effect: 'deny'}])
     expect(buildCapabilities(other)).toEqual([])
     expect(buildCapabilities(id).map((capability) => capability.name)).toEqual(['unit_read_env'])
@@ -2670,6 +2836,101 @@ describe('plugin permission cards', () => {
     onTestFinished(() => restarted.dispose())
     expect((await restarted.plane.hydrate(id)).pendingApprovals.map((entry) => entry.toolName)).toEqual(['unit_kept'])
     expect(logged).toEqual([])
+  })
+
+  it('a plugin tool asking from inside execute_typescript stops asking when its run is stopped, and a late approval runs nothing and clears the card', async () => {
+    const fixture = await makeChatFixture()
+    const {plane, runtime, pluginHost, sessionId: id} = fixture
+    const clients = new AbortController()
+    onTestFinished(async () => {
+      clients.abort()
+      await fixture.dispose()
+    })
+    const written: string[] = []
+    const scope = pluginHost.runSync(Scope.make())
+    await pluginHost.runPromise(
+      Effect.gen(function* () {
+        const tools = yield* Tool.Service
+        const permission = yield* Permission.Service
+        yield* tools.transform((editor) => {
+          editor.add({
+            name: 'unit_write_notes',
+            description: 'Write a notes file.',
+            input: z.object({file: z.string()}),
+            execute: (input: {file: string}, context) =>
+              permission
+                .assert({
+                  ...Permission.invocation(context),
+                  action: 'edit',
+                  resources: [input.file],
+                  metadata: {file: input.file},
+                })
+                .pipe(
+                  Effect.orDie,
+                  Effect.andThen(
+                    Effect.sync(() => {
+                      written.push(input.file)
+                      return {content: `wrote ${input.file}`}
+                    }),
+                  ),
+                ),
+          })
+        })
+      }).pipe(Scope.provide(scope)),
+    )
+    const answer = (sessionId: SessionId, requestId: string, reply: Permission.Reply) =>
+      pluginHost.runPromise(answerPermission(sessionId, requestId, reply))
+    const publish = (sessionId: SessionId, chunk: ChatEvent) => runtime.forSession(sessionId).stream.publish(chunk)
+    await setPermissions(fixture.db, id, [{action: 'edit', resource: '*', effect: 'ask'}])
+    const events = runtime.forSession(id).stream.events(clients.signal)
+    fixture.harness.script.scriptToolCall('execute_typescript', {
+      typescriptCode: "return await external_unit_write_notes({file: 'notes.md'})",
+    })
+
+    const running = plane.followUp(id, 'write the notes')
+    const shown = await readNextEvent(events, readApprovalAsk)
+    expect(shown).toMatchObject({toolName: 'edit notes.md', input: {file: 'notes.md'}})
+    await plane.stop(id)
+    await running
+    expect(
+      await decidePermissionCard({plane, answer, publish}, id, {
+        approvalId: shown.approvalId,
+        approved: true,
+        scope: 'once',
+      }),
+    ).toBeNull()
+    expect(written).toEqual([])
+    expect(await readNextEvent(events, readApprovalSettled)).toBe(shown.approvalId)
+    expect((await plane.hydrate(id)).pendingApprovals).toEqual([])
+  })
+
+  it('closing the engine clears a pending plugin card from storage before the database closes', async () => {
+    const fixture = await makeChatFixture()
+    const {plane, pluginHost, db, sessionId: id, stateRoot} = fixture
+    await setPermissions(db, id, [{action: 'edit', resource: '*', effect: 'ask'}])
+    const asked = await pluginHost.runPromise(
+      Effect.gen(function* () {
+        return yield* (yield* Permission.Service).ask({
+          sessionId: SessionSchema.Id.make(id),
+          action: 'edit',
+          resources: ['notes.md'],
+          metadata: {file: 'notes.md'},
+        })
+      }),
+    )
+    expect(asked.effect).toBe('ask')
+    await vi.waitFor(async () =>
+      expect((await plane.hydrate(id)).pendingApprovals.map((entry) => entry.approvalId)).toEqual([asked.id]),
+    )
+    await fixture.dispose()
+    const reopened = openDb(stateRoot)
+    onTestFinished(() => reopened.$client.close())
+    const stored = reopened
+      .select({value: chatMetadata.valueJson})
+      .from(chatMetadata)
+      .where(eq(chatMetadata.key, `${id}:pending-approvals`))
+      .all()
+    expect(stored).toEqual([{value: []}])
   })
 })
 
@@ -2735,6 +2996,71 @@ describe('direct tools on the MCP surface', () => {
     expect(execute).toContain('Rules of the sandbox:')
     expect(execute).toContain('## Code Mode tools (call only inside `execute_typescript`)')
     expect(execute).not.toContain('More capabilities, by name only')
+    const bindings = ToolCalled.parse(
+      await post('tools/call', {
+        name: 'execute_typescript',
+        arguments: {typescriptCode: 'return Object.keys(globalThis).filter((key) => key.startsWith("external_"))'},
+      }),
+    )
+    const bound = z
+      .object({result: z.array(z.string())})
+      .parse(JSON.parse(bindings.result.content.map((part) => part.text).join('')))
+    expect(bound.result.toSorted()).toEqual([
+      'external_conciv_extensions',
+      'external_conciv_ui',
+      'external_open',
+      'external_page_addclass',
+      'external_page_attr',
+      'external_page_check',
+      'external_page_click',
+      'external_page_console',
+      'external_page_css',
+      'external_page_dom',
+      'external_page_effect',
+      'external_page_exists',
+      'external_page_fill',
+      'external_page_find',
+      'external_page_hmr',
+      'external_page_hover',
+      'external_page_insert',
+      'external_page_inspect',
+      'external_page_locate',
+      'external_page_override',
+      'external_page_press',
+      'external_page_query',
+      'external_page_queue',
+      'external_page_queue_async',
+      'external_page_reload',
+      'external_page_remove',
+      'external_page_removeattr',
+      'external_page_removeclass',
+      'external_page_route',
+      'external_page_screenshot',
+      'external_page_scroll',
+      'external_page_select',
+      'external_page_setattr',
+      'external_page_sethtml',
+      'external_page_setstyle',
+      'external_page_settext',
+      'external_page_snapshot',
+      'external_page_submit',
+      'external_page_text',
+      'external_page_track',
+      'external_page_tree',
+      'external_page_uncheck',
+      'external_page_value',
+      'external_page_wait',
+      'external_server_config',
+      'external_server_graph',
+      'external_server_resolve',
+      'external_server_transform',
+      'external_server_urls',
+      'external_tabs',
+      'external_unit_coded',
+    ])
+    expect(execute).toMatch(/^- page \(41 tools/m)
+    expect(execute).toMatch(/^- server \(5 tools/m)
+    expect(execute).toMatch(/^- conciv \(2 tools/m)
     const searched = ToolCalled.parse(
       await post('tools/call', {
         name: 'execute_typescript',
@@ -2754,15 +3080,44 @@ describe('direct tools on the MCP surface', () => {
       errors: [],
       inputSchema: z.object({}),
       direct: true,
-      execute: async () => 'kept',
+      execute: async () => ({value: 'kept', files: []}),
     }
     const [kept] = outsideRunCapabilities([direct])
-    await expect(kept?.execute({}, {sessionId: id, agentId: id, model: null})).resolves.toBe('kept')
+    await expect(kept?.execute({}, {sessionId: id, agentId: id, model: null})).resolves.toEqual({
+      value: 'kept',
+      files: [],
+    })
 
     await setPermissions(made.chat.db, id, [{action: 'execute', resource: '*', effect: 'deny'}])
     expect((await listed()).toSorted()).toEqual(['unit_coded', 'unit_direct'])
     const shut = ToolCalled.parse(await post('tools/call', {name: 'unit_coded', arguments: {text: 'shut'}}))
     expect(shut.result.content.map((part) => part.text).join('')).toContain('coded shut')
+
+    const builtIn = open.filter((name) => name !== 'unit_direct')
+    const searchedCoded = async () =>
+      ToolCalled.parse(
+        await post('tools/call', {
+          name: 'execute_typescript',
+          arguments: {typescriptCode: 'return search({query: "unit_coded"})'},
+        }),
+      )
+        .result.content.map((part) => part.text)
+        .join('')
+    await made.chat.db
+      .update(sessionTable)
+      .set({permissions: sql`'{not json'`})
+      .where(eq(sessionTable.id, id))
+    expect(await listed()).toEqual(builtIn)
+    expect(await searchedCoded()).not.toContain('external_unit_coded')
+    const rpc = makeRpcClient(`${origin}/t/${made.agentToken}`)
+    expect((await rpc.sessions.list(undefined)).sessions.map((session) => session.id)).toContain(id)
+    expect(await rpc.sessions.get({sessionId: id})).toMatchObject({id})
+    await made.chat.db
+      .update(sessionTable)
+      .set({permissions: sql`'[{"action":"unit_coded"}]'`})
+      .where(eq(sessionTable.id, id))
+    expect(await listed()).toEqual(builtIn)
+    expect(await searchedCoded()).not.toContain('external_unit_coded')
   })
 })
 
@@ -2840,7 +3195,9 @@ describe('plugin context keys provided by core', () => {
         provideHarnessModels(listingHarness([OPUS, SONNET, RETIRED], 'sonnet')),
         provideGlobalRoots(home),
       ).pipe(
-        Layer.provideMerge(Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, permissionSessions(db))),
+        Layer.provideMerge(
+          Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, Image.layer, permissionSessions(db)),
+        ),
         Layer.provideMerge(Layer.mergeAll(Bus.configured(), KV.layer)),
         Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),
       ),
@@ -2861,6 +3218,7 @@ describe('plugin context keys provided by core', () => {
     const first = await instructions()
     expect(first.initial).toContain('<context key="brief">\nship it\n</context>')
     expect(first.initial).toContain('<context key="notes">\n{\n  "done": false\n}\n</context>')
+    await first.told()
 
     await entries((service) => service.remove({sessionId: SessionSchema.Id.make(id), key: 'notes'}))
     expect(await entries((service) => service.list(SessionSchema.Id.make(id)))).toEqual([
@@ -3111,5 +3469,43 @@ describe('plugin context keys provided by core', () => {
         .map((session) => session.id)
         .filter((id) => id === suppliedId),
     ).toEqual([suppliedId])
+  })
+})
+
+describe('engine build keeps runtime packages external', () => {
+  const distDir = join(import.meta.dirname, '..', 'dist')
+  const chunks = readdirSync(distDir)
+    .filter((name) => name.endsWith('.js'))
+    .map((name) => ({name, source: readFileSync(join(distDir, name), 'utf8')}))
+  const definesDirname = /\b(?:const|let|var)\s+__dirname\b/
+
+  it('imports the code mode driver from @conciv/ai instead of inlining it, and no ESM chunk uses an undefined __dirname', () => {
+    expect(chunks.some((chunk) => /from\s*["']@conciv\/ai\/server["']/.test(chunk.source))).toBe(true)
+    expect(
+      chunks.filter((chunk) => chunk.source.includes('no usable isolate driver')).map((chunk) => chunk.name),
+    ).toEqual([])
+    expect(
+      chunks
+        .filter((chunk) => chunk.source.includes('__dirname') && !definesDirname.test(chunk.source))
+        .map((chunk) => chunk.name),
+    ).toEqual([])
+  })
+
+  it('loads photon from its own package and spawns the resize worker the plugin host ships beside it', () => {
+    const hostDir = dirname(fileURLToPath(import.meta.resolve('@conciv/plugin-host')))
+    const hostChunks = readdirSync(hostDir)
+      .filter((name) => name.endsWith('.js'))
+      .map((name) => ({name, source: readFileSync(join(hostDir, name), 'utf8')}))
+    expect(hostChunks.some((chunk) => /import\(\s*["']@silvia-odwyer\/photon-node["']\s*\)/.test(chunk.source))).toBe(
+      true,
+    )
+    expect(hostChunks.filter((chunk) => chunk.source.includes('__wbindgen')).map((chunk) => chunk.name)).toEqual([])
+    const spawning = hostChunks.filter((chunk) =>
+      chunk.source.includes('new URL("./photon-worker.js", import.meta.url)'),
+    )
+    expect(spawning.length).toBe(1)
+    expect(existsSync(join(hostDir, 'photon-worker.js'))).toBe(true)
+    const wasm = createRequire(join(hostDir, 'index.js')).resolve('@silvia-odwyer/photon-node/photon_rs_bg.wasm')
+    expect(existsSync(wasm)).toBe(true)
   })
 })

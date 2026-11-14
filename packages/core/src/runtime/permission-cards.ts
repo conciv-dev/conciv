@@ -1,4 +1,4 @@
-import type {ChatPlane} from '@conciv/chat'
+import type {ChatPlane, ToolDomain} from '@conciv/chat'
 import type {ConcivDb} from '@conciv/db'
 import {
   readApprovalAsk,
@@ -6,7 +6,7 @@ import {
   approvalSettledEvent,
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
-import {SessionId} from '@conciv/protocol/chat-types'
+import {SessionId, type PermissionRule} from '@conciv/protocol/chat-types'
 import {
   Agent,
   Bus,
@@ -22,7 +22,9 @@ import {
   Tool,
 } from '@conciv/plugin-host'
 import {Effect, Layer, Option, Schema} from 'effect'
-import {currentRow} from '../sessions/session-rows.js'
+import {once} from 'es-toolkit'
+import {logError} from '../lib/debug.js'
+import {storedSessionRules, type StoredRules} from '../sessions/session-rows.js'
 import {loadInstructionEntries} from './instruction-entries.js'
 
 const TITLE_LIMIT = 200
@@ -54,6 +56,17 @@ const isReplied = Schema.is(Permission.Event.Replied.data)
 
 const decodeRequestId = Schema.decodeUnknownOption(Permission.Id)
 
+const NO_PLUGIN_TOOLS: PermissionRule[] = [
+  {action: '*', resource: '*', effect: 'deny'},
+  {action: 'execute', resource: '*', effect: 'allow'},
+]
+
+function sessionPermissions(sessionId: SessionId, stored: StoredRules): PermissionRule[] {
+  if (stored.readable) return stored.rules ?? []
+  logError(`[core] session ${sessionId} has permission rules that cannot be read, so it is offered no plugin tools`)
+  return NO_PLUGIN_TOOLS
+}
+
 export function permissionSessions(db: ConcivDb) {
   return Layer.succeed(
     Permission.PermissionSessions,
@@ -62,9 +75,9 @@ export function permissionSessions(db: ConcivDb) {
         Effect.sync(() => {
           const parsed = SessionId.safeParse(sessionId)
           if (!parsed.success) return undefined
-          const row = currentRow(db, parsed.data)
-          if (row === null) return undefined
-          return {agent: Agent.defaultId, permissions: row.permissions ?? []}
+          const stored = storedSessionRules(db, parsed.data)
+          if (stored === null) return undefined
+          return {agent: Agent.defaultId, permissions: sessionPermissions(parsed.data, stored)}
         }),
     }),
   )
@@ -72,40 +85,71 @@ export function permissionSessions(db: ConcivDb) {
 
 function sessionRules(
   sessionId: SessionId,
-): Effect.Effect<Permission.Ruleset, never, Agent.Interface | Permission.SessionsInterface> {
+): Effect.Effect<{agent: Agent.Id; rules: Permission.Ruleset}, never, Agent.Interface | Permission.SessionsInterface> {
   return Effect.gen(function* () {
     const session = yield* (yield* Permission.PermissionSessions).get(SessionSchema.Id.make(sessionId))
     const agent = yield* (yield* Agent.Service).select(session?.agent)
-    return Permission.merge(agent.info?.permissions ?? [], session?.permissions ?? [])
+    return {agent: agent.id, rules: Permission.merge(agent.info?.permissions ?? [], session?.permissions ?? [])}
   })
 }
 
-export function sessionSnapshot(
+export function sessionToolDomain(
   sessionId: SessionId,
-): Effect.Effect<Tool.Snapshot, never, Tool.Interface | Agent.Interface | Permission.SessionsInterface> {
+): Effect.Effect<ToolDomain, never, Tool.Interface | Agent.Interface | Permission.SessionsInterface> {
   return Effect.gen(function* () {
-    return yield* (yield* Tool.Service).snapshot(yield* sessionRules(sessionId))
+    const {agent, rules} = yield* sessionRules(sessionId)
+    return {snapshot: yield* (yield* Tool.Service).snapshot(rules), agent}
   })
+}
+
+function isMarker(value: unknown): value is Instructions.Unavailable | Instructions.Removed {
+  return value === Instructions.unavailable || value === Instructions.removed
+}
+
+function observedValues(read: Instructions.ReadResult) {
+  return Object.fromEntries(read.flatMap(({key, value}) => (isMarker(value) ? [] : [[key, value]])))
 }
 
 export function pluginInstructions(
   sessionId: SessionId,
   reset: 'keep' | 'reset',
-  inventory: CodeModeCatalog.Inventory,
+  inventory: CodeModeCatalog.Inventory | undefined,
 ) {
   return Effect.gen(function* () {
     const db = (yield* Database.Service).db
     const bus = yield* Bus.Service
+    const context = yield* Effect.context()
     const id = SessionSchema.Id.make(sessionId)
-    const skills = yield* (yield* SkillInstructions.Service).load(yield* sessionRules(sessionId))
+    const skills = yield* (yield* SkillInstructions.Service).load((yield* sessionRules(sessionId)).rules)
     const entries = yield* loadInstructionEntries(yield* KV.Service, id)
     const instructions = Instructions.combine([CodeModeInstructions.make(inventory), skills, entries])
-    const previewed = yield* InstructionState.preview(db, id, instructions, yield* Instructions.read(instructions))
-    yield* InstructionState.commit(db, bus, instructions, yield* InstructionState.observe(db, instructions, id))
-    if (reset === 'reset') yield* InstructionState.advanceEpoch(db, id, yield* Bus.latestSequence(db, id))
+    const {read, previewed, observation} = yield* db
+      .transaction(() =>
+        Effect.gen(function* () {
+          const read = yield* Instructions.read(instructions)
+          const previewed = yield* InstructionState.preview(db, id, instructions, read)
+          const observation = yield* InstructionState.observe(db, instructions, id)
+          return {read, previewed, observation}
+        }),
+      )
+      .pipe(
+        Effect.catch((error) =>
+          error._tag === 'Instructions.InitializationBlocked' ? Effect.fail(error) : Effect.die(error),
+        ),
+      )
+    const commit = db.transaction(() =>
+      Effect.gen(function* () {
+        yield* InstructionState.commit(db, bus, instructions, observation)
+        if (reset === 'reset') yield* InstructionState.advanceEpoch(db, id, yield* Bus.latestSequence(db, id))
+      }),
+    )
     return {
-      initial: Instructions.join(yield* InstructionState.initial(db, id, instructions)),
+      initial:
+        reset === 'reset'
+          ? Instructions.join(Instructions.renderInitial(instructions, observedValues(read)))
+          : Instructions.join(previewed.initial),
       update: reset === 'reset' ? '' : previewed.update,
+      told: once(() => Effect.runPromiseWith(context)(commit.pipe(Effect.orDie))),
     }
   })
 }
@@ -144,8 +188,8 @@ export function followPermissionCards(cards: PermissionCards): Effect.Effect<Bus
   return Effect.gen(function* () {
     const bus = yield* Bus.Service
     return yield* bus.listen((event) =>
-      Effect.sync(() => {
-        void cardWork(cards, event.type, event.data)?.catch((error: unknown) =>
+      Effect.promise(async () => {
+        await cardWork(cards, event.type, event.data)?.catch((error: unknown) =>
           cards.log(`[core] the permission card for ${event.type} could not be updated: ${String(error)}`),
         )
       }),

@@ -68,6 +68,20 @@ function buildAsk({approvalId, toolCallId, toolName, input, permission}: Approva
   return permission === undefined ? ask : {...ask, permission}
 }
 
+type CardArrival = {kind: 'ask'; ask: ApprovalAsk} | {kind: 'settle'; approvalId: string}
+
+function withAsk(pending: ApprovalAsk[], ask: ApprovalAsk): ApprovalAsk[] {
+  return pending.some((waiting) => waiting.approvalId === ask.approvalId) ? pending : [...pending, ask]
+}
+
+function withoutCard(pending: ApprovalAsk[], approvalId: string): ApprovalAsk[] {
+  return pending.filter((waiting) => waiting.approvalId !== approvalId)
+}
+
+function arrived(pending: ApprovalAsk[], arrival: CardArrival): ApprovalAsk[] {
+  return arrival.kind === 'ask' ? withAsk(pending, arrival.ask) : withoutCard(pending, arrival.approvalId)
+}
+
 function decisionText(title: string, approved: boolean, scope: ChatApprovalScope): string {
   const action = title.replace(/^Approve /, '')
   if (!approved) return `Denied: ${action}`
@@ -129,34 +143,56 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     pending: [],
     harnesses: {},
   })
-  const withdraw = (approvalId: string): void => {
-    setServed('pending', (pending) => pending.filter((waiting) => waiting.approvalId !== approvalId))
+  const hydrating: CardArrival[][] = []
+  const arrive = (arrival: CardArrival): void => {
+    hydrating.forEach((arrivals) => arrivals.push(arrival))
+    setServed('pending', (pending) => arrived(pending, arrival))
   }
-  const connection = options.connect({
+  const withdraw = (approvalId: string): void => {
+    setServed('pending', (pending) => withoutCard(pending, approvalId))
+  }
+  const whileHydrating = async <Result>(read: () => Promise<Result>): Promise<Result> => {
+    const arrivals: CardArrival[] = []
+    hydrating.push(arrivals)
+    try {
+      return await read()
+    } finally {
+      hydrating.splice(hydrating.indexOf(arrivals), 1)
+    }
+  }
+  const connected = options.connect({
     onLifecycle: (lifecycle) => {
       setRunSource({lifecycle, receivedAt: Date.now()})
       if (lifecycle.phase === 'aborted' && lifecycle.runId === chat.runId() && chat.isLoading()) chat.stop()
     },
     onHydrated: (hydration) => {
       setRunSource((current) => newerRun(current, hydration))
-      setServed('pending', reconcile(hydration.pendingApprovals.map(buildAsk), {key: 'approvalId'}))
+      const arrivals = hydrating[0] ?? []
+      setServed(
+        'pending',
+        reconcile(arrivals.reduce(arrived, hydration.pendingApprovals.map(buildAsk)), {key: 'approvalId'}),
+      )
       setServed('harnesses', hydration.messageHarness)
     },
     onRunError: () => {
       void refresh().catch((error: unknown) => options.onError?.(asError(error)))
     },
-    onApprovalAsk: (ask) => {
-      setServed('pending', (pending) =>
-        pending.some((waiting) => waiting.approvalId === ask.approvalId) ? pending : [...pending, ask],
-      )
-    },
-    onApprovalSettled: (approvalId) => withdraw(approvalId),
+    onApprovalAsk: (ask) => arrive({kind: 'ask', ask}),
+    onApprovalSettled: (approvalId) => arrive({kind: 'settle', approvalId}),
     joinsRun: (runId) =>
       joinedRun(runId).catch((error: unknown) => {
         options.onError?.(asError(error))
         return false
       }),
   })
+  const hydrate = connected.hydrate
+  const connection: ChatSessionConnection = {
+    ...connected,
+    refresh: (before) => whileHydrating(() => connected.refresh(before)),
+    ...(hydrate === undefined
+      ? {}
+      : {hydrate: (threadId, hydrateOptions) => whileHydrating(() => hydrate(threadId, hydrateOptions))}),
+  }
   const reaching = async (hydration: ChatSessionHydration): Promise<ChatMessage[]> => {
     if (overlaps(chat.messages(), hydration) || hydration.page?.truncated !== true) return hydration.messages
     const older = await connection.refresh(hydration.page.cursor)

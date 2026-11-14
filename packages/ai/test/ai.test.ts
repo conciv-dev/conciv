@@ -9,9 +9,11 @@ import {
   claudeCode,
   createChatServer,
   drizzleChatStores,
+  loadIsolateDriver,
   makeTextAdapter,
   quickJSThreadDriver,
   toolApprovalId,
+  type CodeDriver,
   type Turn,
   type TurnHooks,
 } from '../src/server.js'
@@ -571,6 +573,7 @@ const watched = require('node:net').connect(data.socket, () => {
     log: (message: string) => void,
     db = chatDb(),
     firstOutputTimeoutMs = 30_000,
+    driver: CodeDriver | null = null,
   ) {
     const server = await createChatServer({
       stores: drizzleChatStores(db, {readHarness: () => 'test-harness'}),
@@ -579,6 +582,7 @@ const watched = require('node:net').connect(data.socket, () => {
       codeModeResult: (value) => value,
       firstOutputTimeoutMs,
       log,
+      driver,
     })
     onTestFinished(() => server.endAllRuns())
     return server
@@ -788,11 +792,15 @@ const watched = require('node:net').connect(data.socket, () => {
     it('the chat server runs every return 1 on the worker its driver booted, and endAllRuns frees it until the next run', async () => {
       const ours = workersFromHere()
       const logged: string[] = []
+      const log = (message: string) => logged.push(message)
       const server = await chatServer(
         turnHooks(() => {
           throw new Error('no turn runs here')
         }),
-        (message) => logged.push(message),
+        log,
+        chatDb(),
+        30_000,
+        await loadIsolateDriver(log),
       )
       const onQuickJS = logged.some((message) => message.includes('@tanstack/ai-isolate-node'))
       const echo = defineTool({
