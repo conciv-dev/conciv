@@ -66,6 +66,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/ai": "workspace:^",
     "@conciv/chat": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/db": "workspace:^",
@@ -100,7 +101,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/ai": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
