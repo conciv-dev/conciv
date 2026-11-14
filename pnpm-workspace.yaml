@@ -1,6 +1,7 @@
 packages:
   - packages/*
   - packages/extensions/*
+  - packages/plugins/*
   - apps/*
   - apps/examples/*
   - e2e/*
