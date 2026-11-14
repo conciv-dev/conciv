@@ -1,11 +1,10 @@
-import type {Tool} from '@conciv/plugin'
 import type {Keyframe, RecorderConfig, RrwebEvent} from '../shared/protocol.js'
 import type {ClientRings} from './rings.js'
 import type {CaptureControl} from './capture-control.js'
 import type {KeyframeRenderer} from './render.js'
 import type {RecordingStore} from './recordings.js'
 import {distill} from './distill.js'
-import {pickKeyframeTimestamps, recordingParts} from './format.js'
+import {pickKeyframeTimestamps, recordingParts, type RecordingResult} from './format.js'
 
 export type RecorderRuntime = {
   rings: ClientRings
@@ -19,7 +18,7 @@ export async function renderRecording(
   runtime: RecorderRuntime,
   events: RrwebEvent[],
   keyframeCount: number,
-): Promise<Tool.Content[]> {
+): Promise<RecordingResult> {
   const log = distill(events)
   const frames = await renderFrames(runtime, events, log, keyframeCount)
   return recordingParts(log, frames, keyframeCount > 0)
@@ -30,7 +29,7 @@ export async function pullWindow(
   fromTs: number,
   toTs: number,
   keyframeCount: number,
-): Promise<Tool.Content[]> {
+): Promise<RecordingResult> {
   const clientId = runtime.rings.clients().at(-1)?.id ?? null
   const events = clientId ? runtime.rings.window({fromTs, toTs}, clientId) : []
   const log = distill(events).filter((entry) => entry.ts >= fromTs)
