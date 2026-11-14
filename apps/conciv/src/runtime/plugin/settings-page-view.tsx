@@ -16,7 +16,7 @@ export function PluginSettingsPages() {
   )
 
   return (
-    <Show when={host.ready()}>
+    <Show when={host.serversReady()}>
       <Show
         when={item()}
         keyed
