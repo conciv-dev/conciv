@@ -326,6 +326,7 @@ tag line `@remarks Not implemented yet. Always undefined in this version.`, and 
 - `Composer`: `setText`, `quotable`, `update`, `detach`, `focused`
 - `MountedSession.local`
 - `Tabs.move`
+- `CodeBlockAction`: the host computes the actions for a block's language, and nothing draws them yet.
 - `Ui.Dialog`: size `fit`
 - `Server.order`; `ServerEntry`: `label`, `listed`, `http.password`, `connect`, `remove`; `cover`'s `tab`; `reconnect`'s `password`
 
