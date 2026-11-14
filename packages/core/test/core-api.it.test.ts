@@ -5065,7 +5065,7 @@ export default {
     expect(await hubRpc.chat.allowOutside({sessionId}).then(String, String)).toContain(refusal)
     await expect(hubRpc.plugin.call({rpcId: 'embedded', method: 'ping', input: {}})).rejects.toMatchObject({
       code: 'APPROVAL_DENIED',
-      message: "outside agents can't call plugin RPC methods; use the plugin in the tab",
+      message: "outside agents can't use plugin routes; use the plugin in the tab",
     })
     expect(await loadPending(base, sessionId)).toEqual([card])
     await own.chat.permissionDecision({approvalId: card?.approvalId ?? '', approved: false})
@@ -6150,12 +6150,19 @@ export default {
     })
     const pluginRefusal = {
       code: 'APPROVAL_DENIED',
-      message: "outside agents can't call plugin RPC methods; use the plugin in the tab",
+      message: "outside agents can't use plugin routes; use the plugin in the tab",
     }
     await expect(outside.plugin.call({rpcId: 'embedded', method: 'counted', input: {}})).rejects.toMatchObject(
       pluginRefusal,
     )
     expect(await call(base, 'embedded', 'counted')).toBe(1)
+    await expect(outside.plugin.list()).rejects.toMatchObject(pluginRefusal)
+    expect((await makeRpcClient(base).plugin.list()).data.map((plugin) => plugin.id)).toContain('embedded')
+    await expect(outside.plugin.experimental({id: 'configured'})).rejects.toMatchObject(pluginRefusal)
+    await expect(makeRpcClient(base).plugin.experimental({id: 'configured'})).rejects.toMatchObject({
+      code: 'PLUGIN_NOT_FOUND',
+      data: {pluginId: 'configured'},
+    })
     await everything.return(undefined)
     await deletions.return(undefined)
 
