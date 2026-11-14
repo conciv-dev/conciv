@@ -2,6 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {PAGE_TOOL_DEFS, pageVerbOfTool} from '@conciv/extension-page/defs'
 import * as Page from '../src/page/rpc.js'
+import * as PageSkill from '../src/page/skill.js'
 
 const tabId = `tab_${crypto.randomUUID()}`
 
@@ -101,5 +102,11 @@ describe('page rpc', () => {
     expect(Page.Operations.map((operation) => operation.name).toSorted()).toEqual(
       ['tabs.list', ...PAGE_TOOL_DEFS.map((definition) => pageVerbOfTool(definition.name))].toSorted(),
     )
+  })
+})
+
+describe('page skill', () => {
+  it('the built-in page skill uses a virtual skill:// URI', () => {
+    expect(PageSkill.info.path).toBe('skill://page/SKILL.md')
   })
 })
