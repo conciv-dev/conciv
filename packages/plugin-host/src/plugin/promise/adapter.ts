@@ -9,6 +9,7 @@ import {Permission} from '../../schema/permission.js'
 import {Plugin as PluginSchema} from '../../schema/plugin.js'
 import {Session} from '../../schema/session.js'
 import {Skill} from '../../schema/skill.js'
+import {InstructionEntry} from '../../schema/instruction-entry.js'
 import {PositiveInt} from '../../schema/schema.js'
 import {eventDefinition} from '../../core/rpc.js'
 import type {
@@ -95,6 +96,12 @@ const SessionSwitchAgentSchemas = passingUnknownKeys({sessionId: Session.Id, age
 const SessionSwitchModelSchemas = passingUnknownKeys({sessionId: Session.Id, model: Model.Ref})
 const SessionCompactSchemas = passingUnknownKeys({sessionId: Session.Id, id: Schema.optional(SessionMessage.Id)})
 const SessionInterruptSchemas = passingUnknownKeys({sessionId: Session.Id, resume: Schema.optional(Schema.Boolean)})
+const InstructionEntryPutSchemas = passingUnknownKeys({
+  sessionId: Session.Id,
+  key: InstructionEntry.Key,
+  value: Schema.Json,
+})
+const InstructionEntryRemoveSchemas = passingUnknownKeys({sessionId: Session.Id, key: InstructionEntry.Key})
 const SessionUpdateSchemas = passingUnknownKeys({
   sessionId: Session.Id,
   title: Schema.optional(Schema.String),
@@ -430,9 +437,9 @@ export function fromPromise(plugin: Plugin.Plugin) {
             wait: adaptMethod(SessionIdSchemas, host.session.wait),
             instructions: {
               entry: {
-                list: adaptMethod({}, host.session.instructions.entry.list),
-                put: adaptMethod({}, host.session.instructions.entry.put),
-                remove: adaptMethod({}, host.session.instructions.entry.remove),
+                list: adaptMethod(SessionIdSchemas, host.session.instructions.entry.list),
+                put: adaptMethod(InstructionEntryPutSchemas, host.session.instructions.entry.put),
+                remove: adaptMethod(InstructionEntryRemoveSchemas, host.session.instructions.entry.remove),
               },
             },
           },

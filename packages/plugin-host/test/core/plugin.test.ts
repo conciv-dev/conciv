@@ -527,6 +527,7 @@ it.effect('normalizes Promise plugin API inputs through JSON', () =>
     const refused: unknown[] = []
     const reads = new Map<string, unknown>()
     const writes = new Map<string, unknown>()
+    const entries = new Map<string, unknown>()
     const outcome = (call: Promise<unknown>) =>
       call.then(
         (value) => ({value}),
@@ -616,6 +617,19 @@ it.effect('normalizes Promise plugin API inputs through JSON', () =>
             writes.set('after the writes', await outcome(ctx.session.get(firstWithNote)))
             writes.set('remove with note', await outcome(ctx.session.remove(firstWithNote)))
             writes.set('after the remove', await outcome(ctx.session.get(firstWithNote)))
+            const entry = ctx.session.instructions.entry
+            // @ts-expect-error untyped JavaScript plugins can still pass any session id
+            entries.set('list bad id', await outcome(entry.list(notASession)))
+            // @ts-expect-error untyped JavaScript plugins can still pass any session id
+            entries.set('put bad id', await outcome(entry.put({...notASession, key: 'ticket', value: 7})))
+            // @ts-expect-error untyped JavaScript plugins can still leave the value out
+            entries.set('put without value', await outcome(entry.put({sessionId: supplied.id, key: 'ticket'})))
+            // @ts-expect-error untyped JavaScript plugins can still pass any session id
+            entries.set('remove bad id', await outcome(entry.remove({...notASession, key: 'ticket'})))
+            entries.set('put with note', await outcome(entry.put({...withNote, key: 'ticket', value: 7})))
+            entries.set('list with note', await outcome(entry.list(withNote)))
+            entries.set('remove with note', await outcome(entry.remove({...withNote, key: 'ticket'})))
+            entries.set('after the remove', await outcome(entry.list(withNote)))
           },
         }),
         revision: '1',
@@ -665,6 +679,16 @@ it.effect('normalizes Promise plugin API inputs through JSON', () =>
       },
       'remove with note': {value: undefined},
       'after the remove': {error: expect.objectContaining({name: 'Session.NotFoundError'})},
+    })
+    expect(Object.fromEntries(entries)).toEqual({
+      'list bad id': refusal('sessionId'),
+      'put bad id': refusal('sessionId'),
+      'put without value': refusal('value'),
+      'remove bad id': refusal('sessionId'),
+      'put with note': {value: undefined},
+      'list with note': {value: [{key: 'ticket', value: 7}]},
+      'remove with note': {value: undefined},
+      'after the remove': {value: []},
     })
     expect(yield* sessions.get(SessionSchema.Id.make('conciv_promise_input'))).toMatchObject({
       id: 'conciv_promise_input',
