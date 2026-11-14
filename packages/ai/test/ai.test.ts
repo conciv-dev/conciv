@@ -203,8 +203,17 @@ const data = JSON.parse(fs.readFileSync(require('node:path').join(__dirname, 'cl
 fs.appendFileSync(data.launches, process.pid + '\\n')
 const watched = require('node:net').connect(data.socket, () => {
   watched.unref()
+  if (data.startsOn === 'connect') process.stdout.write(data.init)
+  if (data.startsOn === 'gate') {
+    const opened = setInterval(() => {
+      if (!fs.existsSync(data.gate)) return
+      clearInterval(opened)
+      process.stdout.write(data.init + data.answer + data.result)
+    }, 20)
+    return
+  }
   setTimeout(() => {
-    process.stdout.write(data.init)
+    if (data.startsOn !== 'connect') process.stdout.write(data.init)
     if (data.afterSilence === 'answer') process.stdout.write(data.answer + data.result)
     if (data.afterSilence === 'answer') return
     if (data.afterSilence === 'hang') process.stdout.write(data.answer)
@@ -218,8 +227,9 @@ const watched = require('node:net').connect(data.socket, () => {
 `
 
     async function cliAgent(
-      behaviour: {silentMs: number; afterSilence: 'answer' | 'gate' | 'hang'},
+      behaviour: {silentMs: number; afterSilence: 'answer' | 'gate' | 'hang'; startsOn?: 'connect' | 'gate'},
       firstOutputTimeoutMs?: number,
+      startTimeoutMs?: number,
     ) {
       const dir = mkdtempSync(join(tmpdir(), 'conciv-fake-claude-'))
       const files = {launches: join(dir, 'launches'), gate: join(dir, 'gate'), socket: join(dir, 'agent.sock')}
@@ -274,7 +284,7 @@ const watched = require('node:net').connect(data.socket, () => {
       return {
         db,
         sandbox,
-        server: await chatServer(hooks, () => undefined, db, firstOutputTimeoutMs, sandbox),
+        server: await chatServer(hooks, () => undefined, db, firstOutputTimeoutMs, sandbox, startTimeoutMs),
         ended: ended.promise,
         answered: answered.promise,
         gone: gone.promise,
@@ -297,7 +307,7 @@ const watched = require('node:net').connect(data.socket, () => {
     })
 
     it('an agent silent past the first-output timeout fails with it and is gone', {timeout: 10_000}, async () => {
-      const agent = await cliAgent({silentMs: 600_000, afterSilence: 'answer'}, 5_000)
+      const agent = await cliAgent({silentMs: 600_000, afterSilence: 'answer', startsOn: 'connect'}, 5_000)
       await say(agent.server, 'silent', 'silent')
       const run = await agent.ended
       await agent.gone
@@ -305,6 +315,20 @@ const watched = require('node:net').connect(data.socket, () => {
         error: 'the agent produced no output within 5s',
         launches: 1,
       })
+    })
+
+    it('an agent slow to start that then speaks at once is not failed for silence', {timeout: 10_000}, async () => {
+      const agent = await cliAgent({silentMs: 0, afterSilence: 'answer', startsOn: 'gate'}, 300)
+      const driven = say(agent.server, 'slow-boot', 'slow-boot')
+      await Promise.race([agent.connected, agent.ended])
+      agent.open()
+      await driven
+      const run = await agent.ended
+      expect({
+        run: {phase: run.phase, error: run.error},
+        launches: agent.launches(),
+        answers: await texts(agent.server, 'slow-boot', 'assistant'),
+      }).toEqual({run: {phase: 'completed', error: null}, launches: 1, answers: [ANSWER]})
     })
 
     it(
@@ -542,6 +566,26 @@ const watched = require('node:net').connect(data.socket, () => {
     expect({calls: seen.calls, phase: run.phase}).toEqual({calls: 2, phase: 'completed'})
   })
 
+  it('an agent that never starts fails with the start limit', {timeout: 10_000}, async () => {
+    const ended = Promise.withResolvers<RunLifecycle>()
+    const hooks = turnHooks(
+      () => ({
+        adapter: makeTextAdapter('never-starts', async function* (options) {
+          await new Promise((resolve) => options.request?.signal?.addEventListener('abort', resolve, {once: true}))
+          yield* []
+        }),
+      }),
+      {end: async (_turn, run) => ended.resolve(run)},
+    )
+    const server = await chatServer(hooks, () => undefined, chatDb(), 30_000, undefined, 1_000)
+    await say(server, 'thread', 'never-started')
+    const run = await ended.promise
+    expect({phase: run.phase, error: run.error}).toEqual({
+      phase: 'failed',
+      error: 'the agent did not start within 1s',
+    })
+  })
+
   function scriptedModel(responses: FakeResponseStep[]) {
     const model = fakeText()
     model.setResponses(responses)
@@ -591,12 +635,14 @@ const watched = require('node:net').connect(data.socket, () => {
     db = chatDb(),
     firstOutputTimeoutMs = 30_000,
     sandbox = mkdtempSync(join(tmpdir(), 'conciv-ai-')),
+    startTimeoutMs = 30_000,
   ) {
     const server = await createChatServer({
       stores: drizzleChatStores(db, {readHarness: () => 'test-harness'}),
       sandbox: {dir: sandbox},
       hooks,
       codeModeResult: (value) => value,
+      startTimeoutMs,
       firstOutputTimeoutMs,
       log,
     })
