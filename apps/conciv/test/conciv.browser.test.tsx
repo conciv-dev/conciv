@@ -6293,4 +6293,53 @@ module.exports = {default: {setup(ctx) {
     await expect.element(editor()).toBeVisible()
     expect(harness.pathname()).toBe(`/panel/${sessionId}`)
   }, 60_000)
+
+  const tabPath = (sessionId: string, key: string) => `/panel/${sessionId}/${encodeURIComponent(key)}`
+
+  test('a cold link to its tab shows the tab, and a cold link to its old tab key ends on the renamed tab', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`)
+    await expect.element(control('Write a plain note'), {timeout: 15_000}).toBeVisible()
+    await expect.element(tab('Fixture tools')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:tools'))
+    harness.dispose()
+
+    harness.mountShell(`${tabPath(sessionId, 'fixture:old')}?open=true`)
+    await expect.element(openedContent(), {timeout: 15_000}).toBeVisible()
+    await expect.element(tab('Opened tab')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:opened'))
+  }, 60_000)
+
+  test('a cold link to its tab while its bundle is still being read waits, then shows the tab', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const reading = await faults.install({kind: 'gate', path: ['plugin', 'experimental']})
+
+    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`)
+    await coreControl.awaitFaultPending(reading, 1)
+    await expect.element(tab('Chat'), {timeout: 15_000}).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:tools'))
+
+    await coreControl.releaseFault(reading)
+    await expect.element(control('Write a plain note'), {timeout: 15_000}).toBeVisible()
+    await expect.element(tab('Fixture tools')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:tools'))
+  }, 60_000)
+
+  test('a cold link to a tab no panel lists, or to its tab with the engine unreachable, ends on the chat', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`${tabPath(sessionId, 'fixture:missing')}?open=true`)
+    await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
+    await expect.element(tab('Chat')).toHaveAttribute('aria-selected', 'true')
+    await expect.element(editor()).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}`)
+    harness.dispose()
+
+    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, [], {
+      login: {apiBase: 'http://127.0.0.1:9'},
+    })
+    await expect.element(tab('Chat'), {timeout: 15_000}).toHaveAttribute('aria-selected', 'true')
+    await expect.element(editor()).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}`)
+  }, 60_000)
 })
