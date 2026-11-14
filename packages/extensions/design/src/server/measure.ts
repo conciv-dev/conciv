@@ -1,6 +1,7 @@
 import {z} from 'zod'
 import {AsyncRetryer} from '@tanstack/pacer/async-retryer'
-import {isPageVerbError} from '@conciv/extension'
+import {isPageVerbError, toolError} from '@conciv/extension'
+import {DESIGN_ERRORS} from '../shared/errors.js'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {PAGE_PING_TOOL} from '@conciv/protocol/page-types'
 import {captureDef, PageCaptureSchema} from '@conciv/extension-page/defs'
@@ -68,6 +69,8 @@ const ROOT_STYLES = {
   media: {},
 } as const
 
+const NO_TAB = DESIGN_ERRORS['no-tab'].message
+
 async function widgetConnected(input: {page: ServerToolPageAccess; tolerances: Tolerances}): Promise<void> {
   const {page, tolerances} = input
   const retryer = new AsyncRetryer(() => pingWidget(page), {
@@ -94,15 +97,19 @@ async function askMeasure(input: {
   timeout: number
 }): Promise<MeasureReply> {
   const {page, width, height, timeout} = input
-  return MeasureReplySchema.parse(
-    await page.call(measureDef.name, {
+  const reply = await page
+    .call(measureDef.name, {
       ...(width === undefined ? {} : {width}),
       ...(height === undefined ? {} : {height}),
       ...(input.widget === undefined ? {} : {widget: input.widget}),
       ...(input.fresh === undefined ? {} : {fresh: input.fresh}),
       timeout,
-    }),
-  )
+    })
+    .catch((error: unknown) => {
+      if (isPageVerbError(error) && error.code === 'no-widget') throw toolError('no-tab', {message: NO_TAB})
+      throw error
+    })
+  return MeasureReplySchema.parse(reply)
 }
 
 async function captured(input: {

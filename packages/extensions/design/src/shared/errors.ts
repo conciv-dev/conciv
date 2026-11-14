@@ -14,4 +14,8 @@ export const DESIGN_ERRORS = {
   'figma-request': {message: 'Figma did not answer the request'},
   'figma-token': {message: 'Figma refused the token', data: z.object({hint: z.string()})},
   'no-component': {message: 'no component by that name in the catalog'},
+  'no-tab': {
+    message:
+      'no conciv tab answered for this session: bind the tab that shows the page with use_tab (external_tabs, then external_use_tab with its id) and call again',
+  },
 } satisfies ToolErrors

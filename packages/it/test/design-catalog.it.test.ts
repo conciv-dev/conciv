@@ -199,7 +199,7 @@ describe('a text field', () => {
 })
 
 describe('a media query on the page', () => {
-  it('adds its widths to the check, and an edit that lands while the check measures is in every width it reports', async () => {
+  it('adds its widths, nested ones too, and an edit that lands while the check measures is in every width', async () => {
     const stylesFile = fileURLToPath(new URL('fixtures/design/host/src/styles.css', import.meta.url))
     await kit.goto('late-font')
     await call('design_get', await cardsDesign(kit.targetsDir))
@@ -217,18 +217,14 @@ describe('a media query on the page', () => {
     } finally {
       await writeFile(stylesFile, styles)
     }
-  })
-
-  it('adds the width of an @media nested inside a style rule', async () => {
     await kit.goto('media-height')
     await call('design_get', await cardsDesign(kit.targetsDir))
-    const checked = roundOf(await call('design_check', {}))
-    expect(checked.reflow.widths.map((entry) => entry.width)).toContain(640)
+    expect(roundOf(await call('design_check', {})).reflow.widths.map((entry) => entry.width)).toContain(640)
   })
 })
 
 describe('an idle page while files outside the page change', () => {
-  it('is measured once, as a database the tools write beside it changes', async () => {
+  it('is measured once as a database beside it changes, and with no tab the check says to bind one', async () => {
     const stateDir = fileURLToPath(new URL('fixtures/design/host/.conciv-idle/', import.meta.url))
     await mkdir(stateDir, {recursive: true})
     const stateFile = join(stateDir, 'state.db')
@@ -245,11 +241,18 @@ describe('an idle page while files outside the page change', () => {
     })()
     try {
       const checked = roundOf(await call('design_check', {}))
-      expect([checked.verdict.length > 0, writes.count > 1]).toEqual([true, true])
+      writes.running = false
+      await kit.page.goto('about:blank')
+      const unbound = await call('design_check', {}).then(
+        () => 'answered',
+        (error: unknown) => String(error),
+      )
+      expect([checked.verdict.length > 0, writes.count > 1, unbound.includes('use_tab')]).toEqual([true, true, true])
     } finally {
       writes.running = false
       await writing
       await rm(stateDir, {recursive: true, force: true})
+      await kit.goto('target')
     }
   })
 })

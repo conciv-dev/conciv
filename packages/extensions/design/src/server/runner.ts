@@ -117,7 +117,7 @@ async function settledMeasures(input: MeasuresInput): Promise<Measures> {
       self.store.state.lastError === undefined || self.store.state.lastError.message === EDITED_WHILE_MEASURING
         ? MEASURE_ATTEMPTS
         : self.store.state.currentAttempt,
-    throwOnError: 'last',
+    throwOnError: true,
   })
   const measures = await retryer.execute()
   if (measures === undefined) throw new Error(EDITED_WHILE_MEASURING)
