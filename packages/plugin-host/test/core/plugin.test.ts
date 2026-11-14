@@ -538,7 +538,11 @@ it.effect('normalizes Promise plugin API inputs through JSON', () =>
                 (error) => error,
               ),
             )
-            await ctx.session.create({id: 'conciv_promise_input', title: 'Supplied', metadata: {ticket: 7}})
+            await ctx.session.create({
+              id: 'conciv_promise_input',
+              title: 'Supplied',
+              metadata: {ticket: 7, ratio: Number.NaN},
+            })
           },
         }),
         revision: '1',
@@ -553,7 +557,7 @@ it.effect('normalizes Promise plugin API inputs through JSON', () =>
     expect(yield* sessions.get(SessionSchema.Id.make('conciv_promise_input'))).toMatchObject({
       id: 'conciv_promise_input',
       title: 'Supplied',
-      metadata: {ticket: 7},
+      metadata: {ticket: 7, ratio: null},
     })
   }),
 )
