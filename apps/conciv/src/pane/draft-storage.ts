@@ -3,6 +3,7 @@ import type {DraftRow} from '@conciv/contract'
 import type {WebStorage} from '@conciv/storage-history'
 import type {AppData} from '../data/app-data.js'
 import type {SelectionOffsets} from './composer-input-adapter.js'
+import type {DraftSink} from './pane-attachments.js'
 
 const PersistedAttachmentSchema = z.object({
   id: z.string(),
@@ -67,6 +68,19 @@ export async function appendDraft(appData: AppData, sessionId: string, text: str
     selectionEnd: nextText.length,
     attachments: row?.attachments ?? [],
   })
+}
+
+export function draftCacheSink(appData: AppData, sessionId: string): DraftSink {
+  let written = Promise.resolve()
+  const keep = (write: () => Promise<void>): void => {
+    written = written
+      .then(write)
+      .catch((error: unknown) => console.error('[conciv] could not keep the queued message as a draft', error))
+  }
+  return {
+    insert: (text) => keep(() => appendDraft(appData, sessionId, text)),
+    addFile: () => {},
+  }
 }
 
 export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraftStorage {

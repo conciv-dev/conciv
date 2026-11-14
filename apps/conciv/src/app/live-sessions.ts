@@ -6,6 +6,7 @@ import {browserRpcConnection, type RpcClient} from '@conciv/contract'
 import {isRunPhaseTerminal, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import type {AppData} from '../data/app-data.js'
 import {returnQueueToDraft, type DraftSink, type QueueOwner} from '../pane/pane-attachments.js'
+import {draftCacheSink} from '../pane/draft-storage.js'
 import {engineLocked} from './engine-login.js'
 
 export type PaneActivity = 'unmounted' | 'idle' | 'running'
@@ -92,6 +93,12 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
     if (lastRun.runId === readRun(sessionId).live) finish(sessionId, lastRun, false)
   }
 
+  const returnLostQueue = (sessionId: string, session: ChatSession): void => {
+    const listener = state.lostQueueListeners[sessionId]
+    if (listener) return listener(session)
+    returnQueueToDraft(session, draftCacheSink(deps.appData, sessionId))
+  }
+
   const liveChat = (sessionId: string, dispose: () => void): LiveChat => {
     const chat = createMemo(
       on(
@@ -114,7 +121,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
       sessionId,
       onError: () => {
         if (reopened && session.loadFailed()) deps.announce('conciv could not load this conversation. Try again.')
-        state.lostQueueListeners[sessionId]?.(session)
+        returnLostQueue(sessionId, session)
       },
       connection: {
         transport,
