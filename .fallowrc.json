@@ -179,7 +179,7 @@
         "files": ["apps/conciv/src/runtime/plugin/dialog-stack.tsx"],
         "functions": ["initialFocus"],
         "maxCrap": 32,
-        "reason": "copied from opencode packages/ui/src/context/dialog.tsx: initialFocus keeps the source's shape; put onto the kit Dialog parts (plan task 4); Day ruling 113"
+        "reason": "copied from opencode packages/ui/src/overlays/dialog/dialog.tsx:144 (the onOpenAutoFocus handler's target choice): initialFocus keeps the source's shape; put onto the kit Dialog parts (plan task 4); Day ruling 113"
       },
       {
         "files": ["apps/conciv/src/runtime/plugin/dialog-stack.tsx"],
@@ -239,13 +239,13 @@
         "files": ["apps/conciv/src/runtime/plugin/host-machine.test.ts"],
         "functions": ["describe(\"plugin host follow\")"],
         "maxUnitSize": 109,
-        "reason": "copied from opencode packages/app/src/runtime/plugin/host-machine.test.ts: describe(\"plugin host follow\") keeps the source's shape; Day ruling 113"
+        "reason": "copied from opencode packages/desktop/src/main/plugin/host-machine.test.ts: describe(\"plugin host follow\") keeps the source's shape; Day ruling 113"
       },
       {
         "files": ["apps/conciv/src/runtime/plugin/host-machine.ts"],
         "functions": ["follow"],
         "maxCrap": 50,
-        "reason": "copied from opencode packages/app/src/runtime/plugin/host-machine.ts: follow keeps the source's shape; Day ruling 113"
+        "reason": "copied from opencode packages/desktop/src/main/plugin/host-machine.ts: follow keeps the source's shape; Day ruling 113"
       },
       {
         "files": ["apps/conciv/src/runtime/plugin/host-machine.ts"],
@@ -254,7 +254,7 @@
         "maxCognitive": 39,
         "maxCrap": 36,
         "maxUnitSize": 97,
-        "reason": "copied from opencode packages/app/src/runtime/plugin/host-machine.ts: transitionHost keeps the source's shape; Day ruling 113"
+        "reason": "copied from opencode packages/desktop/src/main/plugin/host-machine.ts: transitionHost keeps the source's shape; Day ruling 113"
       },
       {
         "files": ["apps/conciv/src/runtime/plugin/host.tsx"],
@@ -350,7 +350,7 @@
         "files": ["apps/conciv/src/runtime/plugin/plugin-experimental-machine.test.ts"],
         "functions": ["describe(\"plugin experimental machine\")"],
         "maxUnitSize": 153,
-        "reason": "copied from opencode packages/app/src/runtime/plugin/plugin-experimental-machine.test.ts: describe(\"plugin experimental machine\") keeps the source's shape; Day ruling 113"
+        "reason": "copied from opencode packages/app/src/runtime/plugin/plugin-gui-machine.test.ts describe(\"plugin GUI machine\"), renamed: describe(\"plugin experimental machine\") keeps the source's shape; Day ruling 113"
       },
       {
         "files": ["apps/conciv/src/runtime/plugin/plugin-experimental-machine.ts"],
@@ -358,13 +358,13 @@
         "maxCyclomatic": 24,
         "maxCognitive": 29,
         "maxUnitSize": 75,
-        "reason": "copied from opencode packages/app/src/runtime/plugin/plugin-experimental-machine.ts: transitionPluginExperimental keeps the source's shape; Day ruling 113"
+        "reason": "copied from opencode packages/app/src/runtime/plugin/plugin-gui-machine.ts transitionPluginGui, renamed: transitionPluginExperimental keeps the source's shape; Day ruling 113"
       },
       {
         "files": ["apps/conciv/src/runtime/plugin/plugins.tsx"],
         "functions": ["PluginExperimentalLoader"],
         "maxUnitSize": 88,
-        "reason": "copied from opencode packages/app/src/runtime/plugin/plugins.tsx: PluginExperimentalLoader keeps the source's shape; Day ruling 113"
+        "reason": "copied from opencode packages/app/src/runtime/plugin/plugins.tsx PluginGuiLoader, renamed: PluginExperimentalLoader keeps the source's shape; Day ruling 113"
       },
       {
         "files": ["apps/conciv/src/runtime/plugin/render.tsx"],
