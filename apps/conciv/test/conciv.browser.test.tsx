@@ -3,7 +3,14 @@ import 'virtual:uno.css'
 import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
 import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
-import {makeBrowserRpcClient, makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
+import {
+  browserRpcConnection,
+  makeBrowserRpcClient,
+  makeRpcClient,
+  subscribeRpcReachability,
+  type RpcClient,
+  type EngineStaleness,
+} from '@conciv/contract'
 import appManifest from '../package.json' with {type: 'json'}
 import {until} from '@conciv/harness-testkit/until'
 import {formatForDisplay} from '@tanstack/solid-hotkeys'
@@ -4048,6 +4055,85 @@ describe('engine login', () => {
     await expect.element(page.getByText(/couldn.t reach the engine/), {timeout: 8000}).toBeVisible()
     await expect.element(dialog()).not.toBeInTheDocument()
   }, 30_000)
+
+  describe('the login follows the connection', () => {
+    const watchConnection = () => {
+      const connection = browserRpcConnection(origin())
+      const seen: string[] = []
+      const stopTrust = connection.trust.subscribe((status) => seen.push(status))
+      const stopReachability = subscribeRpcReachability(origin(), (reachable) =>
+        seen.push(reachable ? 'socket open' : 'socket closed'),
+      )
+      return {
+        seen,
+        status: connection.trust.status,
+        stop: () => {
+          stopTrust()
+          stopReachability()
+          connection.release()
+        },
+      }
+    }
+
+    const unreachableUntilReleased = async (watch: ReturnType<typeof watchConnection>): Promise<void> => {
+      const offline = await faults.install({kind: 'offline'})
+      harness.mountShell('/', [], {login: {apiBase: origin()}})
+      await expect.poll(() => watch.seen).toContain('socket closed')
+      await expect.poll(() => watch.status(), {timeout: 8000}).toBe('unreachable')
+      await opener().click()
+      await expect
+        .element(page.getByRole('alert').filter({hasText: /couldn.t reach the engine/}), {timeout: 8000})
+        .toBeVisible()
+      await coreControl.releaseFault(offline)
+      await expect.poll(() => watch.seen, {timeout: 8000}).toContain('socket open')
+    }
+
+    test('a logged-in page whose engine was down at mount reaches the chat once the engine is back, with no reload and no Retry', async () => {
+      const minted = await makeRpcClient(origin()).auth.exchange({code: await coreControl.requestCode()})
+      if (!('token' in minted)) throw new Error(`the engine refused the test code: ${minted.refused}`)
+      localStorage.setItem(storageKey(), minted.token)
+      const watch = watchConnection()
+      try {
+        await unreachableUntilReleased(watch)
+        await expect.poll(() => watch.status(), {timeout: 8000}).toBe('trusted')
+        await expect.element(editor(), {timeout: 8000}).toBeVisible()
+      } finally {
+        watch.stop()
+      }
+    }, 30_000)
+
+    test('a logged-out page whose engine was down at mount asks to log in once the engine is back', async () => {
+      const watch = watchConnection()
+      try {
+        await unreachableUntilReleased(watch)
+        await expect.poll(() => watch.status(), {timeout: 8000}).toBe('untrusted')
+        await expect.element(loginNotice(), {timeout: 8000}).toBeVisible()
+      } finally {
+        watch.stop()
+      }
+    }, 30_000)
+
+    test('logging in again after a revoke whose close arrives late sends the code request and the exchange on the reopened socket', async () => {
+      const lateClose = await faults.install({kind: 'late-close'})
+      harness.mountShell('/', [], {login: {apiBase: origin()}})
+      await unlock()
+      await expect.poll(() => coreControl.pushSocketsLive()).toBeGreaterThan(0)
+      const codeRequest = await faults.install({kind: 'gate', path: ['auth', 'requestCode']})
+      await coreControl.revokeBrowsers()
+      await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
+      await reloginNotice().getByRole('button', {name: 'Log in'}).click()
+      await expect.element(dialog()).toBeVisible()
+      await coreControl.awaitFaultPending(codeRequest, 1)
+      await coreControl.releaseFault(lateClose)
+      await coreControl.awaitFaultPending(codeRequest, 2)
+      await coreControl.releaseFault(codeRequest)
+      await coreControl.awaitFaultAnswered(codeRequest)
+      await userEvent.type(firstDigit(), await coreControl.requestCode())
+      await expect.element(dialog()).not.toBeInTheDocument()
+      await expect.element(reloginNotice()).not.toBeInTheDocument()
+      await expect.element(editor()).toHaveFocus()
+    }, 30_000)
+  })
 })
 
 describe('session picker after login', () => {
