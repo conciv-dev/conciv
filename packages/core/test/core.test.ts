@@ -108,7 +108,7 @@ import {
   SkillInstructions,
   Tool,
 } from '@conciv/plugin-host'
-import {Conciv, Rpc as PluginRpc} from '@conciv/plugin'
+import {Conciv, Plugin, Rpc as PluginRpc} from '@conciv/plugin'
 import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {isEqual} from 'es-toolkit'
 import getPort from 'get-port'
@@ -143,7 +143,13 @@ import {
 } from '../src/engine-login.js'
 import {serveHono} from '@conciv/serve'
 import {Hono} from 'hono'
-import {createTestHarness, exchangePrintedCode, loginThroughTerminal, requestPrintedCode} from '@conciv/harness-testkit'
+import {
+  createTestHarness,
+  createTestkit,
+  exchangePrintedCode,
+  loginThroughTerminal,
+  requestPrintedCode,
+} from '@conciv/harness-testkit'
 import {os} from '@orpc/server'
 import {createORPCClient} from '@orpc/client'
 import {RPCLink as FetchRpcLink} from '@orpc/client/fetch'
@@ -835,6 +841,7 @@ describe('chat plane', () => {
       toolNames: new Set(),
       capabilities: () => [],
       attachmentExpanders: {},
+      prompt: async (event) => event,
       pluginInstructions: async () => ({initial: '', update: '', told: async () => undefined}),
       firstOutputTimeoutMs: 30_000,
       log: () => undefined,
@@ -2584,6 +2591,150 @@ describe('plugin host bus', () => {
     expect(
       await key.fail((sessions) => sessions.compact({sessionId: SessionSchema.Id.make('conciv_no_such_session')})),
     ).toMatchObject({_tag: 'Session.NotFoundError', sessionId: 'conciv_no_such_session'})
+  })
+})
+
+describe('session prompt hook', () => {
+  const NOTE = Buffer.from('a note the user attached').toString('base64')
+
+  function askedHarness(asked: unknown[]): HarnessAdapter {
+    return defineHarness({
+      id: 'asked-cli',
+      binName: 'true',
+      chatConfig: () => ({
+        adapter: makeTextAdapter('asked-cli', async function* (options) {
+          asked.push(options.messages.findLast((message) => message.role === 'user')?.content)
+          const run = {threadId: options.threadId ?? '', runId: options.runId ?? ''}
+          const messageId = `${run.runId}-a`
+          yield {type: ChatEventType.RUN_STARTED, ...run}
+          yield {type: ChatEventType.TEXT_MESSAGE_START, messageId, role: 'assistant'}
+          yield {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId, delta: 'answered'}
+          yield {type: ChatEventType.TEXT_MESSAGE_END, messageId}
+          yield {type: ChatEventType.RUN_FINISHED, ...run}
+        }),
+      }),
+      capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
+    })
+  }
+
+  async function promptKit(plugins: Plugin.Plugin[], started = true) {
+    const asked: unknown[] = []
+    const booted: MadeApp[] = []
+    const kit = await createTestkit(askedHarness(asked), async (env) => {
+      const made = await bootMadeApp(env, {plugins})
+      booted.push(made)
+      return made
+    }).setup()
+    onTestFinished(() => kit.cleanup())
+    const made = booted[0]
+    if (made === undefined) throw new Error('the prompt kit booted no app')
+    if (started) await made.startPlugins()
+    return {kit, made, asked}
+  }
+
+  const userTexts = (thread: {messages: ChatMessage[]}) =>
+    thread.messages
+      .filter((message) => message.role === 'user')
+      .map((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(''))
+
+  const noted = (text: string) => ({
+    role: 'user',
+    content: [
+      {type: 'text', content: text},
+      {type: 'document', source: {type: 'data', mimeType: 'text/plain', value: NOTE}},
+    ],
+  })
+
+  test('acquires Location only for new prompt preparation and persists before waking', async () => {
+    const calls: string[] = []
+    const plugin = Plugin.define({
+      id: 'prompt-context',
+      async setup(ctx) {
+        await ctx.session.hook('prompt', (event) => {
+          calls.push(event.prompt.text)
+          event.prompt.text += ' with context'
+        })
+      },
+    })
+    const {kit, asked} = await promptKit([plugin])
+    const session = await kit.session()
+
+    const first = await (await kit.turn(noted('Original'), {session, messageId: 'message-original'})).done()
+
+    expect(first.errors()).toEqual([])
+    expect(calls).toEqual(['Original'])
+    expect(asked).toEqual([
+      [
+        {type: 'text', content: 'Original with context'},
+        expect.objectContaining({type: 'document', source: {type: 'data', mimeType: 'text/plain', value: NOTE}}),
+      ],
+    ])
+    const stored = await kit.hydrate(session)
+    expect(userTexts(stored)).toEqual(['Original with context'])
+    expect(stored.messages[0]?.parts).toContainEqual(
+      expect.objectContaining({type: 'document', source: {type: 'data', mimeType: 'text/plain', value: NOTE}}),
+    )
+
+    await (await kit.turn(noted('Original'), {session, messageId: 'message-original'})).done()
+    expect(calls).toEqual(['Original'])
+    expect(userTexts(await kit.hydrate(session))).toEqual(['Original with context'])
+  })
+
+  test('keeps preparation interruptible without admitting input or committing a staged revert', async () => {
+    const entered = Promise.withResolvers<void>()
+    const plugin = Plugin.define({
+      id: 'prompt-forever',
+      async setup(ctx) {
+        await ctx.session.hook('prompt', () => {
+          entered.resolve()
+          return new Promise<void>(() => {})
+        })
+      },
+    })
+    const {kit, made, asked} = await promptKit([plugin])
+    const session = await kit.session()
+    const runId = randomUUID()
+
+    const turn = await kit.turn('Never admitted', {session, runId})
+    await entered.promise
+    await kit.rpc.chat.stop({sessionId: session, runIds: [runId]})
+    const ended = await turn.done()
+
+    expect(ended.errors()).toHaveLength(1)
+    expect(asked).toEqual([])
+    const stored = await kit.hydrate(session)
+    expect(stored.messages).toEqual([])
+    expect(stored.lastRun).toBeNull()
+    expect(made.plane.driving(SessionId.parse(session))).toBe(false)
+  })
+
+  test('runs prompt hooks from a cold Location before admitting a prompt', async () => {
+    const entered = Promise.withResolvers<void>()
+    const ready = Promise.withResolvers<void>()
+    const plugin = Plugin.define({
+      id: 'prompt-cold',
+      async setup(ctx) {
+        entered.resolve()
+        await ready.promise
+        await ctx.session.hook('prompt', (event) => {
+          event.prompt.text = `Prompt hook: ${event.prompt.text}`
+        })
+      },
+    })
+    const {kit, made, asked} = await promptKit([plugin], false)
+    const session = await kit.session()
+    const activating = made.startPlugins()
+    await entered.promise
+
+    const turn = await kit.turn('Original', {session})
+    await setImmediate()
+    expect(asked).toEqual([])
+    ready.resolve()
+    await activating
+    expect((await turn.done()).errors()).toEqual([])
+
+    expect(asked).toEqual([[{type: 'text', content: 'Prompt hook: Original'}]])
+    expect(userTexts(await kit.hydrate(session))).toEqual(['Prompt hook: Original'])
   })
 })
 

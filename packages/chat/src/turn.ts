@@ -12,9 +12,15 @@ import {type ContentPart, type ModelMessage} from '@conciv/protocol/chat-message
 import type {Turn, TurnHooks} from '@conciv/ai/server'
 import type {AttachmentDocumentPart} from '@conciv/extension'
 import {transcriptPathWithin} from '@conciv/harness'
-import {isHarnessSessionId, SessionId, type HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
+import {
+  ChatContentPartSchema,
+  isHarnessSessionId,
+  SessionId,
+  type HarnessSessionId,
+  type ReasoningEffort,
+} from '@conciv/protocol/chat-types'
 import type {HarnessAdapter} from '@conciv/harness'
-import type {CodeModeCatalog} from '@conciv/plugin-host'
+import type {CodeModeCatalog, PluginHooks} from '@conciv/plugin-host'
 import type {ApprovalStore, UiChannel} from './approvals.js'
 import {chatToolSet, type CodeCapability} from './code-mode.js'
 import {normalizedChunk, toolNameNormalizer, type TranscriptImporter} from './transcript.js'
@@ -45,6 +51,10 @@ export type InstructionReset = 'keep' | 'reset'
 
 export type PluginInstructions = {initial: string; update: string; told: () => Promise<void>}
 
+export type SessionPrompt = PluginHooks.Domains['session']['prompt']
+
+type PromptFile = NonNullable<SessionPrompt['prompt']['files']>[number]
+
 export type AttachmentExpanders = Record<string, (part: AttachmentDocumentPart) => Promise<readonly ContentPart[]>>
 
 export type TurnDeps = {
@@ -56,6 +66,7 @@ export type TurnDeps = {
   toolNames: ReadonlySet<string>
   capabilities: (sessionId: SessionId) => CodeCapability[]
   attachmentExpanders: AttachmentExpanders
+  prompt: (event: SessionPrompt) => Promise<SessionPrompt>
   pluginInstructions: (
     sessionId: SessionId,
     reset: InstructionReset,
@@ -134,6 +145,37 @@ async function expandedMessage(message: ModelMessage, deps: TurnDeps): Promise<M
   if (!Array.isArray(message.content)) return message
   const parts = await Promise.all(message.content.map((part) => expandedPart(part, deps.attachmentExpanders, deps.log)))
   return {...message, content: parts.flat()}
+}
+
+function promptFile(part: ContentPart): PromptFile[] {
+  if (part.type !== 'image' && part.type !== 'document') return []
+  if (part.source.type === 'data') return [{uri: `data:${part.source.mimeType};base64,${part.source.value}`}]
+  return [{uri: part.source.value}]
+}
+
+function promptEvent(sessionId: SessionId, messageId: string, message: ModelMessage): SessionPrompt {
+  const parts = contentParts(message.content)
+  const text = parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('\n')
+  const files = parts.flatMap(promptFile)
+  return {sessionId, messageId, prompt: {text, ...(files.length === 0 ? {} : {files})}, delivery: 'queue'}
+}
+
+const DATA_URI = /^data:([^;,]+);base64,(.*)$/s
+
+function attachmentPart(file: PromptFile): ContentPart {
+  const [, mimeType, value] = DATA_URI.exec(file.uri) ?? []
+  if (mimeType === undefined || value === undefined)
+    throw new Error(`Unsupported attachment URI: ${file.uri.slice(0, 64)}`)
+  const part: ContentPart = mimeType.startsWith('image/')
+    ? {type: 'image', source: {type: 'data', mimeType, value}}
+    : {type: 'document', source: {type: 'data', mimeType, value}}
+  if (!ChatContentPartSchema.safeParse(part).success) throw new Error(`Invalid attachment data: ${mimeType}`)
+  return part
+}
+
+function promptedMessage(message: ModelMessage, event: SessionPrompt): ModelMessage {
+  const text: ContentPart[] = event.prompt.text === '' ? [] : [{type: 'text', content: event.prompt.text}]
+  return {...message, content: [...text, ...(event.prompt.files ?? []).map(attachmentPart)]}
 }
 
 function askedMessages(turn: Turn, messages: ModelMessage[], harness: HarnessAdapter): ModelMessage[] {
@@ -257,6 +299,10 @@ export function turnHooks(
           const approvals = await context.approvals.forRun(sessionId)
           instructions.resolve(deps.pluginInstructions(sessionId, reset, toolSet.inventory))
           return approvals
+        },
+        prompt: async (message) => {
+          if (turn.kind !== 'chat' || message.id === undefined) return message
+          return promptedMessage(message, await deps.prompt(promptEvent(sessionId, message.id, message)))
         },
         expand: async (messages) => {
           const lastUser = messages.findLast((message) => message.role === 'user')

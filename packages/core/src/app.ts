@@ -664,6 +664,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     toolNames: new Set([...toolList.map((tool) => tool.name), ...concivSandboxToolNames()]),
     capabilities: codeModeCapabilities,
     attachmentExpanders,
+    prompt: plugins.prompt,
     pluginInstructions: (sessionId, reset, inventory) =>
       pluginHost.runPromise(pluginInstructions(sessionId, reset, inventory)),
     firstOutputTimeoutMs: opts.firstChunkTimeoutMs,

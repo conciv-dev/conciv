@@ -3,6 +3,7 @@ import type {Effect} from 'effect'
 import type {
   InstructionEntryInfo,
   Model,
+  PromptInput,
   SessionCreateInput,
   SessionInboxCompaction,
   SessionInboxDelivery,
@@ -41,7 +42,16 @@ export interface SessionIdle {
   readonly background: ReadonlyArray<SessionIdleBackground>
 }
 
+export interface SessionPrompt {
+  readonly sessionId: Session.Id
+  readonly messageId: string
+  prompt: PromptInput
+  metadata?: Record<string, unknown>
+  delivery: SessionInboxDelivery
+}
+
 export interface SessionHooks {
+  readonly prompt: SessionPrompt
   readonly 'experimental.idle': SessionIdle
 }
 
