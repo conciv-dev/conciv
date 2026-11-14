@@ -2571,6 +2571,17 @@ describe('plugin host bus', () => {
     expect(await made.plane.followUp(id, 'answer, and the idle hook fires again')).toEqual({kind: 'delivered'})
     expect([idles.length, laterIdles.length]).toEqual([5, 4])
 
+    const compacting = waitsOnItsOwnSession()
+    await compacting.registered
+    const waitingThenCompacted = made.plane.followUp(id, 'answer, then the idle hook waits while a compact is sent')
+    await compacting.entered
+    await compacting.unregister()
+    expect(await made.runtime.forSession(id).run.compact()).toBeUndefined()
+    expect(await waitingThenCompacted).toEqual({kind: 'delivered'})
+    const compactedBoundaries = await made.chat.db.select().from(markers).where(eq(markers.sessionId, id))
+    expect(compactedBoundaries.filter((marker) => marker.kind === 'compact')).toHaveLength(1)
+    expect(published.flatMap((chunk) => idleFailedEvent.parse(chunk) ?? [])).toHaveLength(1)
+
     const closing = waitsOnItsOwnSession()
     await closing.registered
     const waitingAtClose = made.plane.followUp(id, 'answer, then the idle hook waits until the engine closes')
