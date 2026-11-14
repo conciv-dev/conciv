@@ -97,7 +97,7 @@ src/
   `design_get` with `route` points the target at another page; a target with a route was measured on its own page.
 - `design_check({nodes?})` waits for the last save to settle, measures the page at the design width and every reflow
   width before it writes anything, and measures them all again (up to 3 times) when an edit to a file in the page's module graph reached the dev server while
-  it measured (a database or other file the page does not import does not count), so a reply never mixes the page from before an edit with the page after it. It then updates the
+  it measured (a database or other file the page does not import does not count), so a reply never mixes the page from before an edit with the page after it. When no conciv tab answers for the session, the check fails with `no-tab`, which says to bind the tab with `use_tab`. It then updates the
   mapping, and returns `{round, rows, reflow, coverage, counts, verdict, reasons}`. A row is `{node, key, kind, name, text, magnitude, property, expected, actual, delta}`;
   rows at `slightly` are counted, not listed. When the CSS rule that wins a row's property sits inside an `@media` rule
   (nested ones included), the row text ends with `set by @media (...)`; the measure returns that condition per CSS
@@ -106,7 +106,7 @@ src/
   frame's rules count too), and the reflow tags' breakpoints; with several frames, a frame keeps its own width and the page's
   query widths between it and the next wider frame, checked against its own nodes for what sticks out or scrolls sideways; above the midpoint
   between the two frames, a container the wider frame lays out the other way (row against column) must not already lay
-  its children out as the narrower frame does, matched through the elements the wider frame's last check mapped: `rootHeight,
+  its children out as the narrower frame does (read from how its placed children sit, not from how its own parent places it), matched through the elements the wider frame's last check mapped: `rootHeight,
   sticksOut, overflowX, overlaps, tags` with `ok` and `why`. A box (not a text) that sits more than 4 px lower or higher
   on the page than in the frame, measured from the frame's top, gives one page row that blocks done: each element may be
   within tolerance of its parent while the offsets add up down the page (a Figma line takes no space, a 1px element
