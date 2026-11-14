@@ -82,7 +82,7 @@
     "@conciv/tools": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",
     "@effect/platform-node": "catalog:",
-    "@jridgewell/trace-mapping": "0.3.31",
+    "@jridgewell/trace-mapping": "catalog:",
     "@orama/orama": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",

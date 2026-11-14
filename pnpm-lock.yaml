@@ -33,6 +33,9 @@ catalogs:
     '@iconify-json/ph':
       specifier: ^1.2.2
       version: 1.2.2
+    '@jridgewell/trace-mapping':
+      specifier: 0.3.31
+      version: 0.3.31
     '@modelcontextprotocol/sdk':
       specifier: ^1.32.2
       version: 1.32.2
@@ -2213,7 +2216,7 @@ importers:
         specifier: workspace:^
         version: link:../protocol
       '@jridgewell/trace-mapping':
-        specifier: 0.3.31
+        specifier: 'catalog:'
         version: 0.3.31
       es-toolkit:
         specifier: 'catalog:'
@@ -2557,7 +2560,7 @@ importers:
         specifier: 'catalog:'
         version: 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
       '@jridgewell/trace-mapping':
-        specifier: 0.3.31
+        specifier: 'catalog:'
         version: 0.3.31
       '@orama/orama':
         specifier: 'catalog:'
