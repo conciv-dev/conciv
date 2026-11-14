@@ -62,6 +62,9 @@ import {PanelChromeContext} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
 import {applySchemeClass, applySkinClass, createHostTheme, themeClasses} from '../lib/color-scheme.js'
 import {createPreferences} from '../settings/create-preferences.js'
+import {DialogProvider} from '../runtime/plugin/dialog-stack.js'
+import {PluginAttachment, PluginRoot} from '../runtime/plugin/root.js'
+import {PluginOverlay, PluginPanelKeys} from '../shell/plugin-surfaces.js'
 import '../styles.css'
 import 'virtual:uno.css'
 
@@ -207,31 +210,39 @@ function AppRoot() {
         <AppContext.Provider value={value}>
           <EngineReachabilityContext.Provider value={reachability}>
             <NoticeContextProvider>
-              <HostApiProvider
-                rpc={app.rpc}
-                apiBase={app.apiBase}
-                toast={showToast}
-                openEditor={(file, line) =>
-                  void app.rpc.editor
-                    .open({file, line})
-                    .catch(() => showToast(`could not open ${file} in the editor`, 'error'))
-                }
-                registerLayer={(isOpen, hides) => layers.register(isOpen, hides)}
-                dialog={layers.track(Dialog)}
-                popover={Object.assign({}, Popover, {Root: layers.track(Popover.Root)})}
-                sessionId={activeSession}
-                colorScheme={colorScheme}
-              >
-                <RootChrome
-                  fab={fab}
-                  activeSession={activeSession}
-                  politeMessage={politeMessage}
-                  assertiveMessage={assertiveMessage}
-                />
-                <Show when={app.login === undefined || engineConnected(app.login.status())}>
-                  <EffectsSurface instances={app.instances} />
-                </Show>
-              </HostApiProvider>
+              <DialogProvider>
+                <PluginRoot>
+                  <PluginAttachment>
+                    <PluginPanelKeys />
+                    <HostApiProvider
+                      rpc={app.rpc}
+                      apiBase={app.apiBase}
+                      toast={showToast}
+                      openEditor={(file, line) =>
+                        void app.rpc.editor
+                          .open({file, line})
+                          .catch(() => showToast(`could not open ${file} in the editor`, 'error'))
+                      }
+                      registerLayer={(isOpen, hides) => layers.register(isOpen, hides)}
+                      dialog={layers.track(Dialog)}
+                      popover={Object.assign({}, Popover, {Root: layers.track(Popover.Root)})}
+                      sessionId={activeSession}
+                      colorScheme={colorScheme}
+                    >
+                      <RootChrome
+                        fab={fab}
+                        activeSession={activeSession}
+                        politeMessage={politeMessage}
+                        assertiveMessage={assertiveMessage}
+                      />
+                      <Show when={app.login === undefined || engineConnected(app.login.status())}>
+                        <EffectsSurface instances={app.instances} />
+                      </Show>
+                      <PluginOverlay />
+                    </HostApiProvider>
+                  </PluginAttachment>
+                </PluginRoot>
+              </DialogProvider>
             </NoticeContextProvider>
           </EngineReachabilityContext.Provider>
         </AppContext.Provider>

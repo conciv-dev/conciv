@@ -10,6 +10,7 @@ import {RefreshButton} from '../shell/refresh-button.js'
 import {openPipWindow, type PipWindow} from '../shell/pip.js'
 import {NoticeSurface} from '../shell/notice-context.js'
 import {EngineStaleNotice, EngineUnreachableNotice} from '../shell/engine-notice.js'
+import {PluginSession} from '../shell/plugin-surfaces.js'
 
 const PIP_ACTION = 'text-chat-text-2 leading-none size-8 hover:text-chat-text hover:bg-chat-fill-strong'
 const POPPED_OUT =
@@ -67,6 +68,7 @@ function PipSession(): JSX.Element {
               <Show when={paneKey()} keyed>
                 {(key) => (
                   <PaneProvider sessionId={key.sessionId}>
+                    <PluginSession sessionId={key.sessionId} />
                     <div class="flex flex-col h-full min-h-0 bg-chat-panel text-chat-text font-chat text-[0.875rem] leading-[1.45]">
                       <NoticeSurface />
                       <EngineStaleNotice />

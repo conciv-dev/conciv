@@ -1,0 +1,150 @@
+import {createMemo, createSignal, lazy, onCleanup, Show, Suspense, untrack, type ParentProps} from 'solid-js'
+import type {Entry} from '@conciv/plugin/experimental/host'
+import type {ConcivClient} from '@conciv/plugin'
+import {useRouteContext} from '@tanstack/solid-router'
+import {useApiBase} from '../../app/context'
+import {builtins} from './builtins'
+import {createBundleSource, type BundleSource} from './bundle-source'
+import {PluginExperimentalLoader, type PluginExperimental, type PluginExperimentalSource} from './plugins'
+import {PluginHostProvider, usePluginHost} from './host'
+import type {InstalledSource} from './startup'
+import {createPluginAttachment, createHostApis, PluginAttachmentProvider, type HostApis} from './host-apis'
+import {createContext, useContext} from 'solid-js'
+
+const HostApisContext = createContext<HostApis>()
+
+const PluginsContext = createContext<{
+  source: () => PluginExperimentalSource | undefined
+  client: () => ConcivClient | undefined
+  set: (plugins: readonly PluginExperimental[], reserved: readonly string[]) => void
+  reserved: () => readonly string[]
+}>()
+
+const PluginHotReload = import.meta.env.DEV ? lazy(() => import('./hmr')) : undefined
+
+export function useReservedPlugins() {
+  const plugins = useContext(PluginsContext)
+
+  return () => plugins?.reserved() ?? []
+}
+
+export function useHostApis() {
+  const value = useContext(HostApisContext)
+
+  if (!value) throw new Error('Host APIs are unavailable')
+
+  return value
+}
+
+export function PluginRoot(props: ParentProps) {
+  const apis = createHostApis()
+  const apiBase = untrack(useApiBase())
+  const login = useRouteContext({strict: false, select: (context) => context.login})
+  const trusted = createMemo(() => {
+    const engine = login()
+
+    return engine === undefined || engine.status() === 'trusted'
+  })
+  const first = Promise.withResolvers<BundleSource>()
+  const listeners = new Set<Parameters<InstalledSource['on']>[0]>()
+
+  first.promise.catch(() => undefined)
+
+  const bundle = createMemo(() => {
+    if (!trusted()) return
+
+    const created = createBundleSource({client: apis.engine.client, apiBase})
+
+    first.resolve(created)
+    onCleanup(created.manager.on((message) => listeners.forEach((listener) => listener(message))))
+    onCleanup(created.dispose)
+
+    return created
+  })
+
+  const installed: InstalledSource = {
+    initial: first.promise.then((created) => created.manager.initial),
+    list: async () => (untrack(bundle) ?? (await first.promise)).manager.list(),
+    on(listener) {
+      listeners.add(listener)
+
+      return () => listeners.delete(listener)
+    },
+  }
+
+  const [loaded, setLoaded] = createSignal<{
+    settled: boolean
+    plugins: readonly PluginExperimental[]
+    reserved: readonly string[]
+  }>({settled: false, plugins: [], reserved: []})
+
+  const definitions = createMemo<readonly Entry[]>(
+    () => [...builtins, ...loaded().plugins.map((plugin) => plugin.definition)],
+    [],
+    {
+      equals: (a, b) => a.length === b.length && a.every((definition, index) => definition === b[index]),
+    },
+  )
+
+  const builtinIds = new Set(builtins.map((builtin) => builtin.id))
+
+  return (
+    <HostApisContext.Provider value={apis}>
+      <PluginsContext.Provider
+        value={{
+          source: bundle,
+          client: () => apis.engine.client,
+          set: (plugins, reserved) => setLoaded({settled: true, plugins, reserved}),
+          reserved: () => loaded().reserved,
+        }}
+      >
+        <PluginHostProvider
+          definitions={definitions}
+          installed={installed}
+          builtins={builtinIds}
+          apis={apis.apis}
+          whenMounted={apis.whenMounted}
+          plugin={(id) => loaded().plugins.find((plugin) => plugin.definition.id === id)}
+          unavailableClient={apis.unavailableClient}
+        >
+          {PluginHotReload && (
+            <Suspense>
+              <PluginHotReload />
+            </Suspense>
+          )}
+          {props.children}
+        </PluginHostProvider>
+      </PluginsContext.Provider>
+    </HostApisContext.Provider>
+  )
+}
+
+export function PluginAttachment(props: ParentProps) {
+  const host = usePluginHost()
+  const attachment = createPluginAttachment(useHostApis())
+  const plugins = useContext(PluginsContext)
+
+  return (
+    <PluginAttachmentProvider value={attachment}>
+      <Show when={plugins?.source()} keyed>
+        {(source) => (
+          <PluginExperimentalLoader
+            source={source}
+            client={plugins?.client ?? (() => undefined)}
+            onChange={(loaded, reserved) => plugins?.set(loaded, reserved)}
+          />
+        )}
+      </Show>
+      <Show when={host.ready()}>
+        <MountedInterface attach={attachment.attach} />
+      </Show>
+      {props.children}
+    </PluginAttachmentProvider>
+  )
+}
+
+function MountedInterface(props: {attach: () => () => void}) {
+  onCleanup(props.attach())
+
+  return null
+}

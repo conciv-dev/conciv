@@ -460,6 +460,7 @@
         "apps/conciv/src/runtime/plugin/machine.ts",
         "apps/conciv/src/runtime/plugin/manager.ts",
         "apps/conciv/src/runtime/plugin/mounted-session.ts",
+        "apps/conciv/src/runtime/plugin/root.tsx",
         "apps/conciv/src/runtime/plugin/session-store-machine.test.ts",
         "apps/conciv/src/runtime/plugin/session-store-machine.ts",
         "apps/conciv/src/runtime/plugin/startup.ts"

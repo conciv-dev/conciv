@@ -7,6 +7,7 @@ The chat pane for one session: transcript, composer with attachments and element
 ## Interface
 
 - `ChatPane({sessionId, viewTab?})` (`chat-pane.tsx`): the pane for one session
+- `createPaneSession`, `SessionHeaderSlot`, `SessionStatusSlot`, `SessionLinks`, `SessionComposerBinding` (`plugin-session-parts.tsx`): the chat pane's plugin parts: the `session.header` and `session.status` slots, the markdown link and code block provider (always mounted, so nothing remounts when the session object arrives), and the composer binding the mounted session writes through
 - `PaneComposer`, `PaneComposerProps` (`pane-composer.tsx`): composer with attachment, send and stop buttons
 - `ComposerInputAdapter`, `ComposerInputHandle`, `SelectionOffsets` (`composer-input-adapter.tsx`)
 - `usePaneMessaging(deps)`, `PaneMessaging` (`use-pane-messaging.ts`): send, `chat.uiReply` and `sessions.compact` mutations

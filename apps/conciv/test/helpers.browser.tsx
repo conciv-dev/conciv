@@ -35,12 +35,14 @@ import {createInstances} from '../src/extension/create-instances.js'
 import {makeGrabStaging} from '../src/pane/grab-staging.js'
 import {makeRefreshCoordinator} from '../src/pane/refresh-coordinator.js'
 import {NoticeContextProvider, NoticeSurface} from '../src/shell/notice-context.js'
-import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
+import {RouterProvider, createMemoryHistory, createRootRoute, createRouter} from '@tanstack/solid-router'
 import {createConcivRouter, disposeConcivRouter} from '../src/router.js'
 import {createEngineLogin, engineConnected, startEngineLogin} from '../src/app/engine-login.js'
 import {afterAll, afterEach, beforeAll, expect} from 'vitest'
 import {VIRTUALIZE_THRESHOLD} from '@conciv/ui-kit-chat'
 import {ChatPane} from '../src/pane/chat-pane.js'
+import {DialogProvider} from '../src/runtime/plugin/dialog-stack.js'
+import {PluginAttachment, PluginRoot} from '../src/runtime/plugin/root.js'
 import {GRAB_FILE_NAME, GRAB_MIME, grabToPayload} from '@conciv/grab/grab-attachment'
 import type {WebStorage} from '@conciv/storage-history'
 
@@ -314,30 +316,41 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     reachability: makeEngineReachability(),
     dispose: disposeReachability,
   }))
-  const mounted = render(() => (
+  const tree = () => (
     <QueryClientProvider client={queryClient}>
       <AppContext.Provider value={app}>
         <EngineReachabilityContext.Provider value={reachabilityRoot.reachability}>
           <NoticeContextProvider>
-            <PaneContext.Provider value={pane}>
-              <HostApiProvider
-                rpc={rpc}
-                apiBase={() => options.base}
-                toast={(message) => app.announce(message)}
-                dialog={app.layers.track(Dialog)}
-              >
-                <div class="flex flex-col h-150" style={{width: `${width()}px`}}>
-                  {view(pane)}
-                  <NoticeSurface />
-                </div>
-                <AnnounceLog entries={announced} />
-              </HostApiProvider>
-            </PaneContext.Provider>
+            <DialogProvider>
+              <PluginRoot>
+                <PluginAttachment>
+                  <PaneContext.Provider value={pane}>
+                    <HostApiProvider
+                      rpc={rpc}
+                      apiBase={() => options.base}
+                      toast={(message) => app.announce(message)}
+                      dialog={app.layers.track(Dialog)}
+                    >
+                      <div class="flex flex-col h-150" style={{width: `${width()}px`}}>
+                        {view(pane)}
+                        <NoticeSurface />
+                      </div>
+                      <AnnounceLog entries={announced} />
+                    </HostApiProvider>
+                  </PaneContext.Provider>
+                </PluginAttachment>
+              </PluginRoot>
+            </DialogProvider>
           </NoticeContextProvider>
         </EngineReachabilityContext.Provider>
       </AppContext.Provider>
     </QueryClientProvider>
-  ))
+  )
+  const router = createRouter({
+    routeTree: createRootRoute({component: tree}),
+    history: createMemoryHistory({initialEntries: ['/']}),
+  })
+  const mounted = render(() => <RouterProvider router={router} />)
   return {
     dispose: () => {
       mounted.unmount()

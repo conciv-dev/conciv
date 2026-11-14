@@ -14,6 +14,7 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 - `openPipWindow(opts)`, `openPipTarget()`, `PipWindow` (`pip.ts`): popup window `conciv-pip` with a shadow root and the app styles
 - `makeLayerStack()`, `LayerStack` (`dialogs.ts`): tracks open dialogs and whether any hides the page
 - `EffectsSurface({instances})` (`effects-surface.tsx`): portals extension effects into a fixed shadow host on `document.body`
+- `createPluginTabs`, `PluginPanelKeys`, `PluginOverlay`, `PluginWindowBottom`, `PluginSession`, `PluginRegion`, `PluginTabContent` (`plugin-surfaces.tsx`): where the routes draw the plugin host: route-backed panel tabs and their status bar entries, the `$view` guard's panel key lookup, the `page.overlay` and `window.bottom` slots, the mounted session of the quick and picture-in-picture panes, and the pane region with its tab content
 - `ErrorScreen`, `defaultErrorComponent`, `EmptyStateSlot`, `RefreshButton` (`error-screen.tsx`, `default-error-component.tsx`, `empty-state.tsx`, `refresh-button.tsx`)
 - `PendingPane`, `SessionPillPending`, `UsagePending`, `ComposerActionsPending` (`pending.tsx`)
 - `classifyRpcError(error, transportMessage, genericMessage)` (`rpc-error-message.ts`)

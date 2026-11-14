@@ -21,6 +21,7 @@ import {NoticeSurface} from '../shell/notice-context.js'
 import {EngineStaleNotice, EngineUnreachableNotice} from '../shell/engine-notice.js'
 import {QuickSearchSchema, quickPaneIds, quickSearchFor} from '../lib/quick-search.js'
 import {openPipTarget} from '../shell/pip.js'
+import {PluginSession} from '../shell/plugin-surfaces.js'
 
 const CLOSE =
   'bg-transparent [border:none] text-chat-text-2 text-[1.375rem] cursor-pointer inline-flex items-center justify-center size-8 rounded-chat-surface-sm trans-color-bg hover:text-chat-text hover:bg-chat-fill-strong'
@@ -285,6 +286,9 @@ function QuickLayer(): JSX.Element {
                   />
                 </Show>
                 <PaneProvider sessionId={id} onNewSession={addFreshPane}>
+                  <Show when={focusedIndex() === index()}>
+                    <PluginSession sessionId={id} />
+                  </Show>
                   <div
                     data-conciv-qt-pane
                     class={`flex flex-1 flex-col min-h-0 min-w-55 transition-opacity duration-[160ms] ease-chat relative ${focusedIndex() === index() ? "before:content-[''] before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-chat-accent before:opacity-90" : 'opacity-[0.62]'}`}

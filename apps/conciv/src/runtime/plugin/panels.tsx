@@ -311,7 +311,7 @@ function dom(entry: RegionEntry | undefined) {
   return entry && {panel: viewTabPanelId(entry.key), tab: viewTabId(entry.key)}
 }
 
-function panelInput<T extends object>(view: Accessor<MountedSession>, screen: SessionScreen, fields: T) {
+export function panelInput<T extends object>(view: Accessor<MountedSession>, screen: SessionScreen, fields: T) {
   return mergeProps(
     {
       get session() {

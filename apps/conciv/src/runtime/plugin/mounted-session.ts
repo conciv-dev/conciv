@@ -1,7 +1,7 @@
 import {
   batch,
-  createMemo,
   createEffect,
+  createMemo,
   createRenderEffect,
   createResource,
   createRoot,
@@ -15,8 +15,8 @@ import {
 import type {Composer, MountedSession, SessionScreen} from '@conciv/plugin/experimental'
 import {useQuery} from '@conciv/client'
 import {useAppData, useConnected} from '../../app/context'
-import type {ComposerInputHandle} from '../../pane/composer-input-adapter'
 import {usePluginAttachment} from './attachment'
+import type {ComposerBinding} from './host-apis'
 import {
   createComposerWriteState,
   transitionComposerWrite,
@@ -33,39 +33,60 @@ type ComposerTarget = {
   readonly insert: (text: string) => void
 }
 
-type MountedSessionInput = {
-  readonly id: Accessor<string>
-  readonly composer: {readonly text: Accessor<string>; readonly setText: (value: string) => void}
-  readonly input: Accessor<ComposerInputHandle | undefined>
+type ComposerSlot = {
+  readonly target: ComposerTarget
+  readonly draft: PromiseWithResolvers<unknown>
+  readonly ready: Accessor<boolean>
 }
 
-export function createMountedSession(session: MountedSessionInput) {
+export function createMountedSession(session: {readonly id: Accessor<string>}) {
   const appData = useAppData()
   const connection = useConnected()
   const attachment = usePluginAttachment()
   const engine = attachment.engine
   const listed = useQuery(() => ({...appData.utils.tabs.list.queryOptions(), enabled: connection()}))
-  const [prompt, setPrompt] = createSignal<{quotable: Accessor<boolean>; focus: () => void; focused: () => boolean}>()
+  const owner = getOwner()
+  const [binding, setBinding] = createSignal<ComposerBinding>()
+  const bound = createMemo(() => binding() !== undefined)
+
+  const bindingFor = () => {
+    const value = untrack(binding)
+
+    if (!value) throw new Error('The composer is not shown')
+
+    return value
+  }
 
   const insertAtCaret = (text: string) => {
-    const handle = session.input()
+    const handle = bindingFor().input()
 
     if (!handle) throw new Error('The composer input is not ready')
     handle.insert(text)
   }
 
-  const composer = createMemo(() => {
-    const target: ComposerTarget = {
-      sessionId: session.id(),
-      text: session.composer.text,
-      setText: session.composer.setText,
-      insert: insertAtCaret,
-    }
-    const draft = Promise.withResolvers<void>()
+  const createSlot = (sessionId: string): ComposerSlot => {
+    const draft = Promise.withResolvers<unknown>()
     const [loaded] = createResource(() => draft.promise)
 
-    return {target, ready: () => loaded.state === 'ready', draft}
-  })
+    return {
+      target: {
+        sessionId,
+        text: () => binding()?.composer.text() ?? '',
+        setText: (value) => bindingFor().composer.setText(value),
+        insert: insertAtCaret,
+      },
+      draft,
+      ready: () => loaded.state === 'ready',
+    }
+  }
+
+  const composer = createMemo(
+    on([session.id, bound], ([sessionId, isBound], _, previous?: ComposerSlot) =>
+      previous && isBound && previous.target.sessionId === sessionId
+        ? previous
+        : createRoot(() => createSlot(sessionId), owner),
+    ),
+  )
 
   const writes = {state: createComposerWriteState<ComposerTarget>()}
   const queue: ComposerWriteEvent<ComposerTarget>[] = []
@@ -97,8 +118,14 @@ export function createMountedSession(session: MountedSessionInput) {
     drainWrites()
   }
 
+  const apply = (target: ComposerTarget, change: (draft: ComposerTarget) => void) => {
+    if (untrack(binding) || untrack(composer).target.sessionId !== target.sessionId) return change(target)
+
+    write(change)
+  }
+
   const runWrite = (effect: ComposerWriteEffect<ComposerTarget>) => {
-    if (effect.type === 'apply') return effect.write(effect.target)
+    if (effect.type === 'apply') return apply(effect.target, effect.write)
 
     if (effect.type === 'drain') return dispatchWrite({type: 'drain.next', target: effect.target})
 
@@ -138,7 +165,7 @@ export function createMountedSession(session: MountedSessionInput) {
     attach: (part) => console.error('[plugin] Composer.attach is not implemented yet', part.type),
     quotable: undefined,
     focus(commentId) {
-      if (commentId === undefined) return prompt()?.focus()
+      if (commentId === undefined) return binding()?.prompt.focus()
     },
     update: undefined,
     detach: undefined,
@@ -166,7 +193,6 @@ export function createMountedSession(session: MountedSessionInput) {
 
   const screen: SessionScreen = Object.freeze({composer: composerRef})
 
-  const owner = getOwner()
   const root: ObjectRoot = {}
 
   onCleanup(() => root.dispose?.())
@@ -197,18 +223,25 @@ export function createMountedSession(session: MountedSessionInput) {
       if (view) attachment.preload(view)
     }),
   )
+  const binder = {
+    sessionId: session.id,
+    bind(value: ComposerBinding) {
+      setBinding(() => value)
+
+      return () => {
+        if (untrack(binding) === value) setBinding(undefined)
+      }
+    },
+    bindDraft: (ready: Promise<unknown>) => untrack(composer).draft.resolve(ready),
+  }
+
   createEffect(() =>
     batch(() => {
       onCleanup(attachment.screen(screen))
       onCleanup(attachment.mount(mounted))
+      onCleanup(attachment.bindComposer(binder))
     }),
   )
 
-  return {
-    screen,
-    view: mounted,
-    bindPrompt: (value: {quotable: Accessor<boolean>; focus: () => void; focused: () => boolean}) =>
-      setPrompt(() => value),
-    bindDraft: (ready: Promise<void>) => untrack(composer).draft.resolve(ready),
-  }
+  return {screen, view: mounted}
 }

@@ -21,6 +21,7 @@ import {
 import {
   CodeBlock,
   CodeBlockAction,
+  LinkHandler,
   Slot,
   type CodeBlockProps,
   type MountedSession,
@@ -74,18 +75,29 @@ export function PluginSlot<At extends keyof SlotMap>(props: {at: At; input: Slot
   )
 }
 
-export function PluginLinks(props: ParentProps<{session: MountedSession; active?: boolean}>) {
+export function PluginLinks(props: ParentProps<{session: MountedSession | undefined; active?: boolean}>) {
   const host = usePluginHost()
+  const handled = createMemo(() => props.session !== undefined && host.items(LinkHandler).length > 0)
 
   const localFileExists = createLinkCheck(
     () => props.active !== false,
-    (href) => host.links.exists({href, session: props.session}),
+    (href) => {
+      const session = props.session
+
+      return session ? host.links.exists({href, session}) : false
+    },
   )
+
+  const openLocalFile = (href: string) => {
+    const session = props.session
+
+    if (session) host.links.open({href, session})
+  }
 
   const Links = (inner: ParentProps<{codeBlocks: MarkdownCodeBlocks | false}>) => (
     <MarkdownProvider
-      openLocalFile={(href) => void host.links.open({href, session: props.session})}
-      localFileExists={localFileExists}
+      openLocalFile={handled() ? openLocalFile : undefined}
+      localFileExists={handled() ? localFileExists : undefined}
       codeBlocks={inner.codeBlocks}
     >
       {inner.children}
@@ -97,8 +109,15 @@ export function PluginLinks(props: ParentProps<{session: MountedSession; active?
   return <Links codeBlocks={codeBlocks}>{props.children}</Links>
 }
 
+const NO_CODE_BLOCKS = {
+  renderers: new Map<string, Item<CodeBlock>>(),
+  items: [],
+  render: new Set<string>(),
+  actions: new Set<string>(),
+}
+
 function createCodeBlocks(
-  session: () => MountedSession,
+  session: () => MountedSession | undefined,
   Provider: Component<ParentProps<{codeBlocks: false}>>,
 ): MarkdownCodeBlocks {
   const host = usePluginHost()
@@ -107,6 +126,7 @@ function createCodeBlocks(
 
   const current = createMemo(
     () => {
+      if (!session()) return NO_CODE_BLOCKS
       const renderers = new Map<string, Item<CodeBlock>>()
       host.items(CodeBlock).forEach((item) =>
         item.value.languages.forEach((language) => {
@@ -134,11 +154,11 @@ function createCodeBlocks(
     },
   )
 
-  const input = (block: MarkdownCodeBlock): CodeBlockProps => ({
+  const input = (block: MarkdownCodeBlock, view: MountedSession): CodeBlockProps => ({
     code: block.code,
     language: block.language,
     get session() {
-      return session()
+      return session() ?? view
     },
   })
 
@@ -154,10 +174,14 @@ function createCodeBlocks(
       get title() {
         return item.value.title
       },
-      run: (block) =>
-        void Promise.try(() => item.value.run(input(block))).catch((cause: unknown) =>
+      run: (block) => {
+        const view = untrack(session)
+
+        if (!view) return
+        void Promise.try(() => item.value.run(input(block, view))).catch((cause: unknown) =>
           console.error(`[plugin] ${item.plugin}`, cause),
-        ),
+        )
+      },
     }
 
     wrapped.set(item, next)
@@ -169,8 +193,9 @@ function createCodeBlocks(
     current,
     render(target, block, fallback) {
       const item = untrack(current).renderers.get(block.language)
+      const view = untrack(session)
 
-      if (!item) return
+      if (!item || !view) return
 
       return runWithOwner(owner, () =>
         render(
@@ -178,11 +203,11 @@ function createCodeBlocks(
             <Provider codeBlocks={false}>
               <Contribution plugin={item.plugin} failed={fallback}>
                 {() => {
-                  const view = item.value.render(input(block))
+                  const drawn = item.value.render(input(block, view))
 
-                  if (view === undefined || view === null) queueMicrotask(fallback)
+                  if (drawn === undefined || drawn === null) queueMicrotask(fallback)
 
-                  return view
+                  return drawn
                 }}
               </Contribution>
             </Provider>

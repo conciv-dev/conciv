@@ -35,9 +35,19 @@ import type {
   ToastOptions,
 } from '@conciv/plugin/experimental'
 import appManifest from '../../../package.json' with {type: 'json'}
-import {useApiBase, useAppData, useAppQueryClient, useConnected, useHostTheme, useRpc} from '../../app/context'
+import {
+  useApiBase,
+  useAppData,
+  useAppQueryClient,
+  useConnected,
+  useHostTheme,
+  useInstances,
+  useRpc,
+} from '../../app/context'
+import {collectViews} from '../../extension/extension-views'
 import {createMediaQuery} from '../../lib/media-query'
 import {quickPaneIds, quickSearchFor} from '../../lib/quick-search'
+import type {ComposerInputHandle} from '../../pane/composer-input-adapter'
 import {appendDraft} from '../../pane/draft-storage'
 import {engineOlderThanWidget, engineVersionQueryOptions} from '../../shell/engine-notice'
 import {useNotices} from '../../shell/notice-context'
@@ -60,6 +70,7 @@ import {
 import {usePluginHost, type HostApiFactories} from './host'
 import {icons} from './icons'
 import {createLocatedWrites} from './located'
+import {isPluginView} from './panel-keys'
 import type {Region} from './panels'
 import {deferredHandle, globalStoreTarget, persistedHandle, storeImports, storeName} from './stores'
 import {ui} from './ui'
@@ -79,6 +90,18 @@ type Attached = {
   path: Accessor<string>
   servers: Accessor<readonly string[]>
   server: (id: string) => ServerRef | undefined
+}
+
+export type ComposerBinding = {
+  readonly composer: {readonly text: Accessor<string>; readonly setText: (value: string) => void}
+  readonly input: Accessor<ComposerInputHandle | undefined>
+  readonly prompt: {readonly quotable: Accessor<boolean>; readonly focus: () => void; readonly focused: () => boolean}
+}
+
+type ComposerBinder = {
+  readonly sessionId: Accessor<string>
+  readonly bind: (binding: ComposerBinding) => () => void
+  readonly bindDraft: (ready: Promise<unknown>) => void
 }
 
 const TOAST_TONE: Record<NonNullable<ToastOptions['variant']>, NoticeTone> = {
@@ -385,10 +408,12 @@ export function createPluginAttachment(apis: HostApis) {
   const connection = useConnected()
   const theme = useHostTheme()
   const router = useRouter()
+  const instances = useInstances()
   const route = useRoutedSessions()
   const engine = apis.engine
   const [screen, setScreen] = createSignal<SessionScreen>()
   const [routedView, setRoutedView] = createSignal<Accessor<MountedSession | undefined>>()
+  const [composer, setComposer] = createSignal<ComposerBinder>()
   const refs = new Map<string, SessionRef>()
   const owner = getOwner()
 
@@ -568,9 +593,26 @@ export function createPluginAttachment(apis: HostApis) {
     },
   }
 
+  const recheckPluginView = () => {
+    const location = router.state.location
+    const views = router
+      .matchRoutes(location.pathname, location.search)
+      .flatMap((match) => (match.routeId === '/panel/$sessionId/$view' ? [match.params.view] : []))
+    const extensionViews = collectViews(instances)
+
+    if (!views.some((view) => isPluginView(view, extensionViews))) return
+    void router.invalidate().catch((cause: unknown) => console.error('[plugin] Route check failed', cause))
+  }
+
   return {
     engine,
-    attach: () => apis.attach(mounted),
+    attach: () => {
+      const detach = apis.attach(mounted)
+
+      recheckPluginView()
+
+      return detach
+    },
     current,
     mobile: {
       current: mobileView,
@@ -587,8 +629,19 @@ export function createPluginAttachment(apis: HostApis) {
         if (screen() === value) setScreen(undefined)
       }
     },
+    shownRegion: region,
+    shownScreen: screen,
+    composer,
+    bindComposer(value: ComposerBinder) {
+      setComposer(() => value)
+
+      return () => {
+        if (composer() === value) setComposer(undefined)
+      }
+    },
     region(value: Region) {
       setRegion(() => value)
+      recheckPluginView()
 
       return () => {
         if (region() === value) setRegion(undefined)
