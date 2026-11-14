@@ -5866,7 +5866,11 @@ export default {
 `
   const Embedded = PluginRpc.define({
     id: 'embedded',
-    methods: {ping: {input: z.object({}), output: z.string()}, announce: {input: z.object({}), output: z.string()}},
+    methods: {
+      ping: {input: z.object({}), output: z.string()},
+      announce: {input: z.object({}), output: z.string()},
+      deleted: {input: z.object({}), output: z.string()},
+    },
     events: {announced: {schema: z.object({})}},
   })
 
@@ -5886,11 +5890,17 @@ export default {
     const embedded = Plugin.define({
       id: 'embedded',
       async setup(ctx) {
+        const deletedSessions = ctx.event.subscribe({types: ['session.deleted']})
+        const firstDeletion = deletedSessions[Symbol.asyncIterator]().next()
         const registration: Promise<RpcRegistration<typeof Embedded>> = ctx.rpc.register(Embedded, {
           ping: async () => 'pong',
           announce: async () => {
             await (await registration).events.emit('announced', {})
             return 'announced'
+          },
+          deleted: async () => {
+            const result = await firstDeletion
+            return result.done ? 'closed' : result.value.data.sessionID
           },
         })
         await registration
@@ -5985,7 +5995,9 @@ export default {
     expect(await everything.next()).toEqual(connected)
     expect(await deletions.next()).toEqual(connected)
     expect(await call(base, 'embedded', 'announce')).toBe('announced')
+    const pluginReadDeletion = call(base, 'embedded', 'deleted')
     await makeRpcClient(base).sessions.delete({sessionId})
+    expect(await pluginReadDeletion).toBe(sessionId)
     const announced = {
       id: expect.stringMatching(/^evt_/),
       type: 'rpc.embedded.announced',
