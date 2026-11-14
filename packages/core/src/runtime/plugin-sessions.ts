@@ -258,7 +258,9 @@ export function provideSessions(started: () => SessionKeyDeps) {
       wait: (sessionId) =>
         found(sessionId).pipe(Effect.andThen(() => Effect.promise(() => started().chat.plane.settled(sessionId)))),
       interrupt: (sessionId) =>
-        Effect.promise(() => started().chat.plane.stop(sessionId)).pipe(Effect.map(({stopped}) => stopped)),
+        Effect.promise(() => started().runtime.forSession(sessionId).run.stop()).pipe(
+          Effect.map(({stopped}) => stopped),
+        ),
     }),
   )
 }

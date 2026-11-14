@@ -110,7 +110,7 @@ import {
 } from '@conciv/plugin-host'
 import {Conciv, Rpc as PluginRpc} from '@conciv/plugin'
 import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
-import {isEqual} from 'es-toolkit'
+import {isEqual, once as onceOnly} from 'es-toolkit'
 import getPort from 'get-port'
 import {WSContext, defineWebSocketHelper} from 'hono/ws'
 import {z} from 'zod'
@@ -551,6 +551,7 @@ describe('chat plane', () => {
       db,
       model: () => null,
       staleness: () => unchanged,
+      interruptIdle: async () => false,
     })
     const mcp = new Hono<{Variables: McpVars}>()
       .use(async (c, next) => {
@@ -1829,7 +1830,14 @@ describe('page bus and the session scope', () => {
       }).client()
       primitives.registry.register(clicker, {owner: 'a fixture'})
       const {plane, db} = fixture
-      const runtime = makeCoreRuntime({primitives, plane, db, model: () => null, staleness: () => fresh})
+      const runtime = makeCoreRuntime({
+        primitives,
+        plane,
+        db,
+        model: () => null,
+        staleness: () => fresh,
+        interruptIdle: async () => false,
+      })
       const unsubscribe = primitives.page.bus.subscribe(SESSION_A, (frame) => {
         const requestId = readRequestId(frame)
         if (requestId === null) return
@@ -2461,7 +2469,8 @@ describe('plugin host bus', () => {
     }))
     const harness = createTestHarness(requireClaude())
     const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}}, {extensions: [recorder]})
-    onTestFinished(() => made.dispose())
+    const dispose = onceOnly(() => made.dispose())
+    onTestFinished(dispose)
     const id = SessionId.parse('conciv_idle')
     await ensureRow(made.chat.db, id, harness.id, stateRoot)
     const idles: unknown[] = []
@@ -2528,6 +2537,46 @@ describe('plugin host bus', () => {
     expect(succeededIdle.lastRun?.runId).not.toBe(failedIdle.lastRun?.runId)
     expect([idles.length, laterIdles.length]).toEqual([3, 2])
     expect(published.flatMap((chunk) => idleFailedEvent.parse(chunk) ?? [])).toHaveLength(1)
+
+    const key = sessionKey(made)
+    const waitsOnItsOwnSession = () => {
+      const entered = Promise.withResolvers<void>()
+      const registration = made.pluginHost.runSync(Scope.make())
+      const registered = made.pluginHost.runPromise(
+        PluginHooks.Service.use((hooks) =>
+          hooks.register('session', 'experimental.idle', (event) =>
+            Effect.sync(() => entered.resolve()).pipe(
+              Effect.andThen(Effect.promise(() => key.run((sessions) => sessions.wait(event.sessionId)))),
+            ),
+          ),
+        ).pipe(Scope.provide(registration)),
+      )
+      return {
+        entered: entered.promise,
+        registered,
+        unregister: () => Effect.runPromise(Scope.close(registration, Exit.void)),
+      }
+    }
+    const selfWait = waitsOnItsOwnSession()
+    await selfWait.registered
+    const waiting = made.plane.followUp(id, 'answer, then the idle hook waits on its own session')
+    await selfWait.entered
+    expect(await made.runtime.forSession(id).run.stop()).toEqual({ok: true, stopped: true})
+    expect(await waiting).toEqual({kind: 'delivered'})
+    const stoppedIdle = await made.plane.hydrate(id)
+    expect(stoppedIdle.lastRun).toMatchObject({phase: 'completed', error: null})
+    expect(published.flatMap((chunk) => idleFailedEvent.parse(chunk) ?? [])).toHaveLength(1)
+    expect([idles.length, laterIdles.length]).toEqual([4, 3])
+    await selfWait.unregister()
+    expect(await made.plane.followUp(id, 'answer, and the idle hook fires again')).toEqual({kind: 'delivered'})
+    expect([idles.length, laterIdles.length]).toEqual([5, 4])
+
+    const closing = waitsOnItsOwnSession()
+    await closing.registered
+    const waitingAtClose = made.plane.followUp(id, 'answer, then the idle hook waits until the engine closes')
+    await closing.entered
+    await dispose()
+    expect(await waitingAtClose).toEqual({kind: 'delivered'})
   })
   test('the session key interrupts a live run, waits for it to end, answers false with nothing to stop even when asked to resume, and compacts a session on its harness', async () => {
     const stateRoot = tempDir()
