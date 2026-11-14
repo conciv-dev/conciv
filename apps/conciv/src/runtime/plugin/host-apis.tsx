@@ -387,7 +387,7 @@ export function createPluginAttachment(apis: HostApis) {
   const route = useRoutedSessions()
   const engine = apis.engine
   const [screen, setScreen] = createSignal<SessionScreen>()
-  const [routedView, setRoutedView] = createSignal<Accessor<MountedSession>>()
+  const [routedView, setRoutedView] = createSignal<Accessor<MountedSession | undefined>>()
   const refs = new Map<string, SessionRef>()
   const owner = getOwner()
 
@@ -549,6 +549,7 @@ export function createPluginAttachment(apis: HostApis) {
   }
 
   return {
+    engine,
     attach: () => apis.attach(mounted),
     current,
     mobile: {
@@ -566,7 +567,7 @@ export function createPluginAttachment(apis: HostApis) {
         if (screen() === value) setScreen(undefined)
       }
     },
-    mount(view: Accessor<MountedSession>) {
+    mount(view: Accessor<MountedSession | undefined>) {
       setRoutedView(() => view)
 
       return () => {

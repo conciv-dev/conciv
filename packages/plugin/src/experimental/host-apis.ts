@@ -110,8 +110,17 @@ export interface Composer {
    * screen.composer.insert(`Explain ${path}`)
    */
   insert(text: string): void
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly setText: ((text: string) => void) | undefined
+  /**
+   * Replaces the prompt's text with plain text, as the user clearing it and typing would. The text is not parsed:
+   * `@path` stays text rather than a mention, and line breaks stay line breaks. Attachments stay. Focus stays where it
+   * is. Before the session's draft loads, it waits and applies in call order.
+   *
+   * @param text - The prompt's new text.
+   *
+   * @example
+   * screen.composer.setText("")
+   */
+  setText(text: string): void
   model(): ComposerModel | undefined
   /**
    * Selects the model for the routed session's next prompts, as picking it in the model picker does. Without
@@ -131,6 +140,8 @@ export interface Composer {
   /**
    * Attaches a file, a note or a quote to the next prompt. Focus stays where it is; call `focus` to move it. Before
    * the session's draft loads, it waits and applies in call order.
+   *
+   * @remarks Not implemented yet. Logs and attaches nothing in this version, for every part type.
    *
    * @param part - The part to attach.
    */

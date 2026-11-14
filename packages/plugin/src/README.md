@@ -273,7 +273,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - `Context` members by `docs/specs/plugins-ctx-audit.md` Table 1 and the spec's "Host APIs on ctx" table: `layout`, `sessions`, `screen`, `storage`, `servers`, `tabs`, `links`, `ui`, `toast`, `appearance`, `router`, `app`, `keybinds` implemented; `desktop` is `Desktop | undefined` as in source; `dialogs` is implemented with `open` and `active` (audit: have it) while `confirm`, `alert`, `prompt` and `select` are `T | undefined`; `system` is implemented (`copy` by ruling; `save` and `openExternal` as the source's web bodies); `commands` and `attention` are `T | undefined` as whole members; absent: `main`, `t`, `plural`, `embeds`, `locale`, `workspaces` (with `Embeds`, `EmbedProps`, `Locale`, `Workspaces`).
 - `ServerRef` and `Servers` are declared in `promise/servers.ts` (source: `gui/host-apis.ts`) and re-exported by `host-apis.ts`, so the engine part's types need no Solid; the browser source adds no members beyond `data` (see Not available yet).
 - `SessionRef.location` is `Location.Ref` (opencode's `LocationRef`).
-- `Composer`: `text` and `focus` are implemented by the spec table ("`ctx.screen` (`composer.attach`, `composer.focus`, text)") where the audit says "concept fits"; `attach` takes `file`, `note` and `quote` (the audit's UNSURE quote row is settled by the spec's Attachments section). `commentID` is `commentId`, `ComposerModel.providerID` / `modelID` are `providerId` / `modelId`. Mentions of subagent sessions are dropped from the JSDoc (subagents run inside the CLI).
+- `Composer`: `text` and `focus` are implemented by the spec table ("`ctx.screen` (`composer.attach`, `composer.focus`, text)") where the audit says "concept fits"; `insert` and `setText` are implemented on conciv's composer (`setText` was declared, not implemented, until it was lifted by ruling). `insert` goes through the prompt field's own insert at the caret, which focuses the prompt and replaces a selection, where the JSDoc keeps the source's "Selected text is not replaced. Focus stays where it is". `attach` keeps the source's type, taking `file`, `note` and `quote` (the audit's UNSURE quote row is settled by the spec's Attachments section), but is not implemented for any of them: it logs `[plugin] Composer.attach is not implemented yet` with the part's `type` and attaches nothing. `model` returns undefined and `setModel` and `setVariant` return false: conciv's model picker is not reached from the plugin API yet. `focus` with a `commentId` does nothing (no quotes are attached). `commentID` is `commentId`, `ComposerModel.providerID` / `modelID` are `providerId` / `modelId`. Mentions of subagent sessions are dropped from the JSDoc (subagents run inside the CLI).
 - `SessionScreen` has `composer` only: `file` (`Files`, `FileState`, `FileContent`, `FileNode`, `LineRange`) and `comment` (`Comments`, `Comment`) are not ours (audit rows `screen.file.*`, `screen.comment.*`).
 - `MountedSession` keeps `visit` and `directory`; `local` is declared, not implemented; `background` and `BackgroundTask` are absent (subagents run inside the CLI); `listedProject` is absent (no sidebar; audit row `layout.sidebar.opened`); `project` is not available yet.
 - `Layout`: `side` and `sidebar` are absent: conciv has no side region (`apps/conciv/src/pane/status-bar.tsx:48`, a panel replaces the chat; `apps/conciv/src/routes/panel-height.ts:8`). This settles the audit's UNSURE `layout.side.width` row and drops `side.menu` with `MenuItem`. `project` is absent (one directory per engine).
@@ -327,12 +327,15 @@ tag line `@remarks Not implemented yet. Always undefined in this version.`, and 
 - `Dialogs`: `confirm`, `alert`, `prompt`, `select`
 - `Desktop`: `reveal`, `installed`, `pick`
 - `Layout`: `narrow`, `scroll`
-- `Composer`: `setText`, `quotable`, `update`, `detach`, `focused`
+- `Composer`: `quotable`, `update`, `detach`, `focused`
 - `MountedSession.local`
 - `Tabs.move`
 - `Links.exists`
 - `Ui.Dialog`: size `fit`
 - `Server.order`; `ServerEntry`: `label`, `listed`, `http.password`, `connect`, `remove`; `cover`'s `tab`; `reconnect`'s `password`
+
+Declared with the source's type but not implemented, so a call does nothing: `Composer.attach` (logged, for `file`,
+`note` and `quote` alike), `Composer.model` (undefined), `Composer.setModel` and `Composer.setVariant` (false).
 
 ## Not available yet
 
