@@ -5070,7 +5070,7 @@ export default {
     }
   })
 
-  it('an allowed outside agent still cannot answer permission requests: its decision and allow are refused and the card stays', async () => {
+  it('an allowed outside agent still cannot answer permission requests or call plugin RPC methods: its decision, allow and plugin call are refused and the card stays', async () => {
     const base = await boot()
     const sessionId = await newSession(base)
     const allowed = hubCall(base, sessionId)
@@ -5086,6 +5086,10 @@ export default {
     const refusal = "outside agents can't answer permission requests; decide it in the tab"
     expect(await hubRpc.chat.permissionDecision(decision).then(String, String)).toContain(refusal)
     expect(await hubRpc.chat.allowOutside({sessionId}).then(String, String)).toContain(refusal)
+    await expect(hubRpc.plugin.call({rpcId: 'embedded', method: 'ping', input: {}})).rejects.toMatchObject({
+      code: 'APPROVAL_DENIED',
+      message: "outside agents can't call plugin RPC methods; use the plugin in the tab",
+    })
     expect(await loadPending(base, sessionId)).toEqual([card])
     await own.chat.permissionDecision({approvalId: card?.approvalId ?? '', approved: false})
     await waiting
@@ -5999,6 +6003,7 @@ export default {
       ping: {input: z.object({}), output: z.string()},
       announce: {input: z.object({}), output: z.string()},
       deleted: {input: z.object({}), output: z.string()},
+      counted: {input: z.object({}), output: z.number()},
     },
     events: {announced: {schema: z.object({})}},
   })
@@ -6067,6 +6072,7 @@ export default {
       async setup(ctx) {
         const deletedSessions = ctx.event.subscribe({types: ['session.deleted']})
         const firstDeletion = deletedSessions[Symbol.asyncIterator]().next()
+        const calls = {counted: 0}
         const registration: Promise<RpcRegistration<typeof Embedded>> = ctx.rpc.register(Embedded, {
           ping: async () => 'pong',
           announce: async () => {
@@ -6076,6 +6082,10 @@ export default {
           deleted: async () => {
             const result = await firstDeletion
             return result.done ? 'closed' : result.value.data.sessionID
+          },
+          counted: async () => {
+            calls.counted += 1
+            return calls.counted
           },
         })
         await registration
@@ -6218,6 +6228,14 @@ export default {
       code: 'APPROVAL_DENIED',
       message: "outside agents can't read the engine's event stream",
     })
+    const pluginRefusal = {
+      code: 'APPROVAL_DENIED',
+      message: "outside agents can't call plugin RPC methods; use the plugin in the tab",
+    }
+    await expect(outside.plugin.call({rpcId: 'embedded', method: 'counted', input: {}})).rejects.toMatchObject(
+      pluginRefusal,
+    )
+    expect(await call(base, 'embedded', 'counted')).toBe(1)
     await everything.return(undefined)
     await deletions.return(undefined)
 
