@@ -15,9 +15,9 @@ const NotFoundSchema = z.object({code: z.literal('notFound')})
 const STATUS = 'text-chat-xs text-chat-text-2'
 const FAILURE = 'm-0 font-chat-mono text-chat-xs text-chat-danger whitespace-pre-wrap break-words'
 
-export type PluginRows = ReturnType<typeof createPluginRows>
+type PluginRows = ReturnType<typeof createPluginRows>
 
-export function createPluginRows(plugins: () => readonly PluginInfo[]) {
+function createPluginRows(plugins: () => readonly PluginInfo[]) {
   const host = usePluginHost()
   const reserved = useReservedPlugins()
 

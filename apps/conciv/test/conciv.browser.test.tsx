@@ -5254,10 +5254,10 @@ describe('settings page', () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     const settingsPath = (name: string) => `/panel/${sessionId}/settings/${name}`
     harness.mountShell(`/panel/${sessionId}/settings/general?open=true`, [])
-    await expect.element(sections(), {timeout: 8000}).toHaveAttribute('aria-orientation', 'horizontal')
+    await expect.element(sections(), {timeout: 8000}).toHaveAttribute('aria-orientation', 'vertical')
     await expect.element(tab('Advanced')).toBeVisible()
     await tab('General').click()
-    await userEvent.keyboard('{ArrowRight}')
+    await userEvent.keyboard('{ArrowDown}')
     await expect.element(tab('Views')).toHaveAttribute('aria-selected', 'true')
     await userEvent.keyboard('{Shift>}{Tab}{/Shift}')
     await expect.element(allProjects()).toHaveFocus()
@@ -5277,7 +5277,7 @@ describe('settings page', () => {
     await expect.element(widthHandle()).toHaveFocus()
     await userEvent.keyboard('{ArrowRight}{ArrowRight}')
     await expect.element(widthHandle()).toHaveAttribute('aria-valuenow', '500')
-    await expect.element(sections()).toHaveAttribute('aria-orientation', 'horizontal')
+    await expect.element(sections()).toHaveAttribute('aria-orientation', 'vertical')
     harness.dispose()
     harness.mountShell(`/panel/${sessionId}?open=true`, [settingsProbe])
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
@@ -5295,15 +5295,16 @@ describe('settings page', () => {
       General: 'general',
       Views: 'views',
       Shortcuts: 'shortcuts',
+      Plugins: 'plugins',
       'Settings probe': 'extensions/settings-probe',
       Advanced: 'advanced',
     }
-    for (const name of ['Views', 'Shortcuts', 'Settings probe', 'Advanced']) {
+    for (const name of ['Views', 'Shortcuts', 'Plugins', 'Settings probe', 'Advanced']) {
       await tab(name).click()
       await expect.element(tab(name)).toHaveAttribute('aria-selected', 'true')
       expect(harness.pathname()).toBe(settingsPath(tabPaths[name] ?? ''))
     }
-    for (const name of ['Settings probe', 'Shortcuts', 'Views', 'General']) {
+    for (const name of ['Settings probe', 'Plugins', 'Shortcuts', 'Views', 'General']) {
       await userEvent.keyboard('{ArrowUp}')
       await expect.element(tab(name)).toHaveFocus()
       await expect.element(tab(name)).toHaveAttribute('aria-selected', 'true')
@@ -6170,7 +6171,6 @@ describe('installed plugins in settings', () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`, [])
     await expect.element(tab('General'), {timeout: 8000}).toBeVisible()
-    await expect.element(tab('Plugins')).not.toBeInTheDocument()
     await expect.element(lateRow()).not.toBeInTheDocument()
 
     await coreControl.writeProjectFile('conciv/plugins/late.ts', "export default {id: 'late', async setup() {}}\n")
