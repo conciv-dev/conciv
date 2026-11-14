@@ -218,7 +218,14 @@ type BundlePlugin = {
 
 const BundleDefinition = z.object({
   stores: z
-    .record(z.string(), z.object({scope: z.enum(['global', 'project', 'session']), schema: z.custom(isStandardSchema)}))
+    .record(
+      z.string(),
+      z.object({
+        scope: z.enum(['global', 'project', 'session']),
+        schema: z.custom(isStandardSchema),
+        encode: z.custom((encode) => typeof encode === 'function').optional(),
+      }),
+    )
     .optional(),
   setup: z.custom((value) => typeof value === 'function').optional(),
 })

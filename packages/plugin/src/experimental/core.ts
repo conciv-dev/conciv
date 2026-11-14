@@ -197,6 +197,7 @@ export interface StoreDeclaration<
   readonly schema: S
   readonly initial: StoreType<S>
   readonly from?: StoreFrom | readonly StoreFrom[]
+  encode?(value: StandardSchemaV1.InferOutput<S>): StandardSchemaV1.InferInput<S>
 }
 
 /**

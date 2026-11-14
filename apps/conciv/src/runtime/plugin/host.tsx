@@ -630,11 +630,12 @@ function createHost(input: HostInput) {
         const storage = typed.storage
 
         const loaded = windowStores(definition).flatMap(([name, declaration]) => {
-          assertStoreDefinition(storeName(plugin, name), declaration.schema, declaration.initial)
+          assertStoreDefinition(storeName(plugin, name), declaration.schema, declaration.initial, declaration.encode)
           const options = {
             schema: declaration.schema,
             initial: declaration.initial,
             from: declaration.from,
+            encode: declaration.encode,
           }
 
           if (declaration.scope === 'global' || declaration.scope === 'project') {
