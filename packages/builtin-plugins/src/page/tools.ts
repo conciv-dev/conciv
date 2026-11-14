@@ -21,6 +21,10 @@ const PINNED: readonly string[] = [
 ]
 
 const JsonObject = z.record(z.string(), z.json())
+const DECLARED: Partial<Record<string, Record<string, string>>> = {
+  effect: {UNKNOWN_EFFECT: 'no effect is registered under that name'},
+}
+const Raised = z.object({error: z.looseObject({code: z.string(), message: z.string()})})
 const Located = z.looseObject({
   source: z.object({file: z.string(), line: z.number(), column: z.number()}).nullish(),
   frames: z.array(z.unknown()).optional(),
@@ -50,7 +54,9 @@ export async function register(
       })
     if (action.type === 'tabs.list') return exportResult(connection.tabs(tool.sessionId), [])
     const target = connection.target(tool.sessionId, action)
-    const response = await target.request({agentId: tool.agent, signal: tool.signal})
+    const response = await target
+      .request({agentId: tool.agent, signal: tool.signal})
+      .catch((error: unknown) => Promise.reject(declared(operation.name, error)))
     const output = decodeResult(operation, response)
     if (action.type === 'locate') return exportResult(await located(output, ctx.location.directory), response.files)
     return exportResult(output, response.files)
@@ -80,6 +86,17 @@ export async function register(
       })
     })
   })
+}
+
+function declared(name: string, error: unknown) {
+  const raised = Raised.safeParse(error)
+  if (!raised.success) return error
+  const code = raised.data.error.code
+  const message = DECLARED[name]?.[code]
+  if (!message) return error
+  return raise(
+    Tool.toolError({message: raised.data.error.message || message, error: raised.data.error, metadata: {code}}),
+  )
 }
 
 function decodeResult(operation: Operation, result: Result) {

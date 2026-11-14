@@ -703,7 +703,7 @@ const Answer = z.union([
 ])
 
 describe('page connection', () => {
-  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, locate answers with the source file, and deleting the session ends its tabs', async () => {
+  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, locate answers with the source file, a declared page error keeps its code, and deleting the session ends its tabs', async () => {
     const kit = await bootCoreKit({
       id: 'page-connection',
       plugins: ['./page', './tabs'],
@@ -846,6 +846,20 @@ describe('page connection', () => {
     const onLocate = await next('conn_d')
     await reply('conn_d', onLocate.requestId, succeeded({frames: [{fileName: 'chunk.js', line: 2, column: 1}]}))
     expect(await locating).toMatchObject({ok: true, value: {source: {file: 'app/page.tsx', line: 17, column: 4}}})
+
+    const effecting = ask({type: 'effect', action: 'enable', effect: 'confetti'})
+    const onEffect = await next('conn_d')
+    await reply('conn_d', onEffect.requestId, {
+      type: 'failure',
+      code: 'raised',
+      message: 'effect failed',
+      raised: {code: 'UNKNOWN_EFFECT', message: ''},
+    })
+    expect(await effecting).toEqual({
+      ok: false,
+      message: 'no effect is registered under that name',
+      metadata: {code: 'UNKNOWN_EFFECT'},
+    })
 
     const shot = ask({type: 'screenshot'})
     const onShot = await next('conn_d')
