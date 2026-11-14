@@ -527,7 +527,7 @@ function rounded(box: Box): Box {
 
 type Look = ReturnType<typeof nodeLooks>[number]
 
-type Seen = {look: Look; element: LiveComponent; under: string}
+type Seen = {look: Look; element: LiveComponent; boxed: LiveComponent[]; under: string}
 
 type Compared = {kind: PaintKind; expected: string; found: string; token: string | null; delta?: number}
 
@@ -556,6 +556,10 @@ function lookRows(input: {
 }): GateRow[] {
   const {reads} = input
   const parents = new Map([...walk(input.live)].map(({node, parent}) => [node, parent]))
+  const soleParent = (element: LiveComponent): LiveComponent | undefined => {
+    const parent = parents.get(element) ?? undefined
+    return parent !== undefined && soleChild(parent) === element ? parent : undefined
+  }
   const behind = (element: LiveComponent | null | undefined): string => {
     if (element === null || element === undefined) return WHITE
     return opaque(element.styles.background) ? element.styles.background : behind(parents.get(element))
@@ -563,7 +567,9 @@ function lookRows(input: {
   return nodeLooks(input.design).flatMap((look) => {
     const element = reads.of(look.node)[0]
     if (element === undefined) return []
-    const seen = {look, element, under: behind(input.held.has(look.node) ? element : parents.get(element))}
+    const boxed = [...sameBox({element, next: soleChild}), ...sameBox({element, next: soleParent})]
+    const under = behind(input.held.has(look.node) ? element : parents.get(element))
+    const seen = {look, element, boxed, under}
     return compared(seen).map((found) => ({
       node: look.node,
       ...reads.named(look.node),
@@ -650,19 +656,44 @@ function radiusRows(seen: Seen): Compared[] {
 
 function borderRows(seen: Seen): Compared[] {
   const {look, element} = seen
-  if (look.stroke === null) return []
+  const {stroke} = look
+  if (stroke === null) return []
   const {border} = element.styles
   const wanted = look.strokeSides === null ? null : sidesDrawn(look.strokeSides)
   const weight = look.strokeSides === null ? (look.stroke_weight ?? 1) : Math.max(...Object.values(look.strokeSides))
-  const found = border.sides.map((side) => side.side)
   const where = (sides: string[]) => (wanted === null ? '' : ` on ${sides.join(', ')}`)
   const shown =
-    border.style === 'none' || border.width === 0 ? 'none' : `${border.width}px ${border.color}${where(found)}`
-  const sameSides = wanted === null || wanted.join() === found.join()
-  const same = sameSides && border.width === weight && near({a: border.color, b: look.stroke})
-  const drawn = look.strokeAlign === null ? '' : ` ${look.strokeAlign}`
-  const expected = `${weight}px ${look.stroke}${drawn}${where(wanted ?? [])}`
-  return same ? [] : [{kind: 'border', expected, found: shown, token: look.token_stroke}]
+    border.style === 'none' || border.width === 0
+      ? 'none'
+      : `${border.width}px ${border.color}${where(border.sides.map((side) => side.side))}`
+  const draws = (one: LiveComponent): boolean => {
+    const drawn = one.styles.border
+    const sameSides = wanted === null || wanted.join() === drawn.sides.map((side) => side.side).join()
+    return sameSides && drawn.width === weight && near({a: drawn.color, b: stroke})
+  }
+  const aligned = look.strokeAlign === null ? '' : ` ${look.strokeAlign}`
+  const expected = `${weight}px ${stroke}${aligned}${where(wanted ?? [])}`
+  return [element, ...seen.boxed].some(draws)
+    ? []
+    : [{kind: 'border', expected, found: shown, token: look.token_stroke}]
+}
+
+function soleChild(element: LiveComponent): LiveComponent | undefined {
+  const [only, ...rest] = element.children
+  return only === undefined || rest.length > 0 ? undefined : only
+}
+
+function sameBox(input: {
+  element: LiveComponent
+  next: (element: LiveComponent) => LiveComponent | undefined
+}): LiveComponent[] {
+  const {element} = input
+  const next = input.next(element)
+  if (next === undefined) return []
+  const a = rounded(element.bounds)
+  const b = rounded(next.bounds)
+  const same = Math.abs(a.x - b.x) + Math.abs(a.y - b.y) + Math.abs(a.w - b.w) + Math.abs(a.h - b.h) <= PX
+  return same ? [next, ...sameBox({element: next, next: input.next})] : []
 }
 
 function sidesDrawn(sides: StrokeSides): string[] {

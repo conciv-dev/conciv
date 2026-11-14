@@ -155,7 +155,7 @@ describe('a Figma line', () => {
 })
 
 describe('a Figma stroke', () => {
-  it('is told with its alignment and sides, and an inset outline, an inset or outset box-shadow or a side border draws it', async () => {
+  it('is told with its alignment and sides, and an inset outline, an inset or outset box-shadow or a side border draws it, on the element or a child in its box', async () => {
     const borderRows = async (node: string) => {
       const checked = roundOf(await call('design_check', {}))
       return checked.rows.filter((row) => row.node === node && row.property === 'border').map((row) => row.text)
@@ -177,6 +177,8 @@ describe('a Figma stroke', () => {
     await kit.goto('form-stroke')
     await call('design_get', await sliced('form-stroke', '100-1693'))
     const outset = await borderRows('100:1693')
+    await kit.goto('form-stroke-wrapped')
+    const wrapped = await borderRows('100:1693')
     expect([
       field.nodes.find((node) => node.id === '100:1418')?.strokeAlign,
       field.rules.some((rule) => rule.includes('outline-offset')),
@@ -184,7 +186,7 @@ describe('a Figma stroke', () => {
       typed.coverage.missing.includes('100:1421'),
       typed.rows.filter((found) => found.node === '100:1421' && found.text.includes('text color')),
       row.nodes.find((node) => node.id === '50:880')?.individualStrokeWeights,
-      [underlined, boxed, outset],
+      [underlined, boxed, outset, wrapped],
     ]).toEqual([
       'INSIDE',
       true,
@@ -197,6 +199,7 @@ describe('a Figma stroke', () => {
         [
           'wrong border at [50:880]: 1px #262626 inside on bottom expected, 1px #262626 on top, right, bottom, left found',
         ],
+        [],
         [],
       ],
     ])

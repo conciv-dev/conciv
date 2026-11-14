@@ -77,6 +77,7 @@ const DISCOVERY_TEXT =
 const PLANNING_TEXT =
   'Based on the gathered information, we create a comprehensive project plan and strategy. This includes defining project milestones, timelines, deliverables, and resource allocation. We collaborate closely with you to align our strategy with your vision.'
 const SLIDER_LAYER = {gridColumn: 1, gridRow: 1} as const
+const FORM_STROKE = '0 -1px 0 0 #262626, 1px 0 0 0 #262626, -1px 0 0 0 #262626'
 const COLUMN_CARDS = [292, 292, 334, 334, 340, 340, 334, 340]
 const COLUMN_LINES = ['100-1615', '100-1622', '100-1635', '100-1642', '100-1655', '100-1668', '100-2303']
 const MEDIA_HEIGHT_CSS = '#root section { @media (width >= 40rem) { height: 120px; } }'
@@ -209,11 +210,12 @@ export function App() {
   if (requested === 'contact-form' || requested === 'contact-form-flat' || requested === 'contact-section')
     return <ContactForm flat={requested !== 'contact-form'} section={requested === 'contact-section'} data-conciv-key="cFpGeA" />
   if (requested === 'form-stroke')
+    return <main style={{margin: -24, width: 358, height: 1070, background: '#1a1a1a', boxShadow: FORM_STROKE}} data-conciv-key="fSmNaA" />
+  if (requested === 'form-stroke-wrapped')
     return (
-      <main
-        style={{margin: -24, width: 358, height: 1070, background: '#1a1a1a', boxShadow: '0 -1px 0 0 #262626, 1px 0 0 0 #262626, -1px 0 0 0 #262626'}}
-        data-conciv-key="fSmNaA"
-      />
+      <main style={{margin: -24, width: 358, boxShadow: 'inset 0 1px 0 0 #262626'}} data-conciv-key="fSwRaA">
+        <form style={{height: 1070, background: '#1a1a1a', boxShadow: FORM_STROKE}} data-conciv-key="fSwFmA" />
+      </main>
     )
   if (requested === 'process-row' || requested === 'process-row-boxed') {
     const boxed = requested === 'process-row-boxed'
