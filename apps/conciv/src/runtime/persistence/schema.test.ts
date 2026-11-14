@@ -41,6 +41,19 @@ describe('persistence schemas', () => {
     expect(decode({amount: 'invalid', items: ['saved']})).toEqual({amount: 7, items: ['saved']})
   })
 
+  test('initial merging preserves field codecs and replaces arrays rather than merging indexes', () => {
+    const current = z.object({
+      amount: z.codec(z.string(), z.number(), {decode: Number, encode: String}),
+      items: z.array(z.string()),
+    })
+    const encode = (value: z.output<typeof current>) => z.encode(current, value)
+
+    const decode = withInitial('codec', current, {amount: 7, items: ['initial']}, encode)
+    expect(decode({amount: '12', items: []})).toEqual({amount: 12, items: []})
+    expect(decode({amount: 'invalid', items: ['saved']})).toEqual({amount: 7, items: ['saved']})
+    expect(encode(decode({}))).toEqual({amount: '7', items: ['initial']})
+  })
+
   test('defaults missing and invalid fields without discarding valid siblings', () => {
     const decode = withInitial('fields', z.object({enabled: z.boolean(), label: z.string(), amount: z.number()}), {
       enabled: true,

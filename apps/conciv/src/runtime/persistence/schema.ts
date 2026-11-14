@@ -3,25 +3,35 @@ import {isPlainObject, omit, uniq} from 'es-toolkit'
 
 type Path = readonly PropertyKey[]
 
-export function withInitial<S extends StandardSchemaV1<unknown, object>>(
-  name: string,
-  schema: S,
-  initial: StandardSchemaV1.InferOutput<S>,
-) {
-  const validate = (value: unknown) => {
+export type Encode<S extends StandardSchemaV1> = (
+  value: StandardSchemaV1.InferOutput<S>,
+) => StandardSchemaV1.InferInput<S>
+
+function syncValidate<S extends StandardSchemaV1<unknown, object>>(name: string, schema: S) {
+  return (value: unknown) => {
     const result = schema['~standard'].validate(value)
 
     if (result instanceof Promise) throw new TypeError(`The store ${name} has a schema that validates asynchronously`)
 
     return result
   }
+}
+
+export function withInitial<S extends StandardSchemaV1<unknown, object>>(
+  name: string,
+  schema: S,
+  initial: StandardSchemaV1.InferOutput<S>,
+  encode?: Encode<S>,
+) {
+  const validate = syncValidate(name, schema)
+  const defaults = encode ? encode(initial) : initial
 
   return (stored: unknown): StandardSchemaV1.InferOutput<S> => {
-    const merged = merge(initial, stored)
+    const merged = merge(defaults, stored)
     const result = validate(merged)
 
     if (!result.issues) return result.value
-    const recovered = recover(merged, initial, result.issues)
+    const recovered = recover(merged, defaults, result.issues)
 
     if (recovered === undefined) return initial
     const retried = validate(recovered.value)
