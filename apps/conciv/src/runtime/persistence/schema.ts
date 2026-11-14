@@ -1,5 +1,5 @@
 import type {StandardSchemaV1} from '@standard-schema/spec'
-import {isEqual, isPlainObject, omit, uniq} from 'es-toolkit'
+import {isEqual, isPlainObject, mapValues, omit, omitBy, uniq} from 'es-toolkit'
 
 type Path = readonly PropertyKey[]
 
@@ -74,7 +74,19 @@ function readBack<S extends StandardSchemaV1<unknown, object>>(
 
   if (read.issues) throw readBackError(refused, issuePath(read.issues[0]))
 
-  if (!isEqual(read.value, value)) throw readBackError(refused, differingPath(value, read.value))
+  const expected = withoutUndefinedFields(value)
+  const actual = withoutUndefinedFields(read.value)
+
+  if (!isEqual(actual, expected)) throw readBackError(refused, differingPath(expected, actual))
+}
+
+function withoutUndefinedFields(value: unknown): unknown {
+  if (!isPlainObject(value)) return value
+
+  return mapValues(
+    omitBy(value, (field) => field === undefined),
+    withoutUndefinedFields,
+  )
 }
 
 function readBackError(refused: string, path: Path) {

@@ -150,6 +150,28 @@ describe('persistence schemas', () => {
     ).toThrow(new TypeError('The store plugin.acme.remote has a schema that validates asynchronously'))
   })
 
+  test('a store whose initial holds an undefined optional field is accepted when defined', () => {
+    const labelled = z.object({
+      label: z.string(),
+      variant: z.string().optional(),
+      style: z.object({tone: z.string().optional()}),
+    })
+    const shouted = z.object({label: z.string().transform((label) => `${label}!`), variant: z.string().optional()})
+
+    expect(() =>
+      assertStoreDefinition('plugin.acme.labelled', labelled, {
+        label: 'x',
+        variant: undefined,
+        style: {tone: undefined},
+      }),
+    ).not.toThrow()
+    expect(() => assertStoreDefinition('plugin.acme.shouted', shouted, {label: 'x', variant: undefined})).toThrow(
+      new Error(
+        'The store plugin.acme.shouted is refused: it does not read back what it writes at label; a converting schema needs an encode',
+      ),
+    )
+  })
+
   test('a write the store would not read back is refused when the definition could not show it', () => {
     const amount = z.codec(z.string(), z.number(), {decode: Number, encode: String})
     const records = z.object({amounts: z.record(z.string(), amount)})
