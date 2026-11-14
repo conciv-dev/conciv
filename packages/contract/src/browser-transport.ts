@@ -355,6 +355,7 @@ function makeEngineTrust(key: string, state: TrustState, link: ClientLink<RpcCli
       trustWith(token)
       return true
     }
+    if (state.status === 'trusted' && state.token !== token) return false
     if (readStoredToken(key) === token) writeStoredToken(key, undefined)
     if (state.token === token) state.token = undefined
     setStatus(state, refusedStatus(token))
