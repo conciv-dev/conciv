@@ -594,6 +594,7 @@ describe('chat pane', () => {
     await userEvent.click(input())
     await userEvent.keyboard('{Enter}')
     await expect.element(input()).toHaveTextContent(typed)
+    await expect.element(refusals).not.toBeInTheDocument()
 
     setConnection({online: true, sustainedOffline: false})
     await expect.element(page.getByRole('button', {name: 'Send message', exact: true})).toBeEnabled()
