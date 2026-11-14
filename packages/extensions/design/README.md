@@ -81,8 +81,10 @@ src/
   it draws beyond the design passes when a flush parent draws that side too. A border row names the
   align after the expected stroke. An empty input or textarea measures its placeholder as its text, in the
   `::placeholder` colour (not the colour of typed text), so a real form control pairs with the design text it stands for. An asset node passes when its element shows that file, or shows
-  any image or paints a CSS shape (a fill, border or gradient) and its capture matches the asset by pixels; an element that paints
-  nothing fails as a wrong image. Figma effects come with the node as `effects` (inner-shadow, drop-shadow with x, y,
+  any image or paints a CSS shape (a fill, border or gradient) and its capture matches the asset by pixels, or, when the
+  capture does not, its box on the page screenshot matches the asset laid over it within `screenImageShare` (a capture
+  of the element alone misdraws blend modes over the page behind it, a border-box gradient and a turned line); an
+  element that paints nothing fails as a wrong image. Figma effects come with the node as `effects` (inner-shadow, drop-shadow with x, y,
   blur, spread, color and opacity; layer-blur and background-blur with blur); an element that draws no matching
   box-shadow, text-shadow, filter blur or backdrop-filter blur gives a `wrong effect` paint row. A frame, group or instance whose descendants are only vectors exports as one asset, but a child that paints its own fill or stroke (a button around an icon) stops that, so a row of buttons gives one asset per button, never one image for the row. A Figma line cropped from the frame render takes its stroke weight, so a 1px line drawn as a 1px box
   matches it.

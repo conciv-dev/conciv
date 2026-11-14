@@ -406,6 +406,7 @@ async function listedRows(input: {
     reads,
     page: call.page,
     mirror: measured.sources.includes('mirror') ? {width: record.width, height: record.height} : null,
+    screen: measured.raster,
     folder: input.folder,
   })
   const listed = [...tall, ...gate.rows, ...images.rows, ...failures]

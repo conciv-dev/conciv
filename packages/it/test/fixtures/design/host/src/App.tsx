@@ -81,6 +81,13 @@ const DISCOVERY_TEXT =
 const PLANNING_TEXT =
   'Based on the gathered information, we create a comprehensive project plan and strategy. This includes defining project milestones, timelines, deliverables, and resource allocation. We collaborate closely with you to align our strategy with your vision.'
 const SLIDER_LAYER = {gridColumn: 1, gridRow: 1} as const
+const SOCIAL_BUTTON = {
+  display: 'flex',
+  padding: 19,
+  borderRadius: 8,
+  border: '1px solid transparent',
+  background: 'linear-gradient(#242424, rgba(36, 36, 36, 0)) padding-box, linear-gradient(#2e2e2e, rgba(46, 46, 46, 0)) border-box',
+} as const
 const NAVBAR_ITEMS = ['Home', 'Services', 'Work', 'Process', 'About', 'Careers']
 const NAVBAR_ROW = {display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center'} as const
 const NAVBAR_PADDED = {...NAVBAR_ROW, padding: '20px 162px'} as const
@@ -302,12 +309,33 @@ export function App() {
         <form style={{height: 1070, background: '#1a1a1a', boxShadow: FORM_STROKE}} data-conciv-key="fSwFmA" />
       </main>
     )
-  if (requested === 'process-row' || requested === 'process-row-boxed') {
-    const boxed = requested === 'process-row-boxed'
+  if (requested === 'social-buttons')
+    return (
+      <main style={{margin: -24, display: 'flex', gap: 14, background: '#141414'}} data-conciv-key="sBmNaA">
+        {['facebook', 'twitter', 'linkedin'].map((icon) => (
+          <a key={icon} href="#" style={SOCIAL_BUTTON} data-conciv-key="sBbTnA">
+            <img src={`/design/${icon}.svg`} alt="" style={{display: 'block', width: 24, height: 24}} data-conciv-key="sBiCnA" />
+          </a>
+        ))}
+      </main>
+    )
+  if (requested === 'process-row' || requested === 'process-row-boxed' || requested === 'process-row-turned') {
+    const boxed = requested !== 'process-row'
     return (
       <main style={{margin: -24, display: 'flex', alignItems: 'flex-start', background: '#1a1a1a'}} data-conciv-key="pRmNaA">
         <ProcessCard number="01" heading="Discovery" text={DISCOVERY_TEXT} boxed={boxed} divided={false} />
-        {boxed ? <span style={{width: 1, alignSelf: 'stretch', background: '#262626'}} data-conciv-key="pRlNeA" /> : null}
+        {requested === 'process-row-boxed' ? <span style={{width: 1, alignSelf: 'stretch', background: '#262626'}} data-conciv-key="pRlNeA" /> : null}
+        {requested === 'process-row-turned' ? (
+          <span style={{width: 1, alignSelf: 'stretch', display: 'flex', alignItems: 'center', justifyContent: 'center', containerType: 'size'}} data-conciv-key="pRtUrA">
+            <span style={{width: '100cqh', flex: 'none', transform: 'rotate(90deg)'}} data-conciv-key="pRtRnA">
+              <span style={{display: 'block', position: 'relative', height: 0, width: '100%'}} data-conciv-key="pRtLnA">
+                <span style={{position: 'absolute', inset: '-1px 0 0 0'}} data-conciv-key="pRtInA">
+                  <img src="/design/line.svg" alt="" style={{display: 'block', width: '100%', height: '100%', maxWidth: 'none'}} data-conciv-key="pRtImA" />
+                </span>
+              </span>
+            </span>
+          </span>
+        ) : null}
         <ProcessCard number="02" heading="Planning and Strategy" text={PLANNING_TEXT} boxed={boxed} divided={!boxed} />
       </main>
     )

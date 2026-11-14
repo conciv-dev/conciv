@@ -294,11 +294,9 @@ describe('a Figma wrapper that draws nothing', () => {
     const told = (round: ReturnType<typeof roundOf>, node: string) =>
       round.rows.filter((row) => row.node === node).map((row) => row.text)
     expect([
-      told(grid, '50:921'),
-      ['50:922', '50:929'].filter((node) => grid.coverage.missing.includes(node)),
+      [...told(grid, '50:921'), ...['50:922', '50:929'].filter((node) => grid.coverage.missing.includes(node))],
       [grid, early, balanced].map((round) => told(round, '50:919').map((text) => text.split('p.grid-text: ')[1])),
     ]).toEqual([
-      [],
       [],
       [[], [], ["breaks its lines where the frame does not: line 4 is 578px wide, the frame's is 695px"]],
     ])
@@ -468,23 +466,25 @@ describe('a page that switches layouts between two frames', () => {
 })
 
 describe('an image node drawn as a box with its icon inside', () => {
-  it('passes when the drawn element looks like the asset, whatever the file is named or however slowly it loads, and each button keeps its icon', async () => {
+  it('passes when the drawn element looks like the asset, whatever the file is named or however slowly it loads, drawn in CSS around its icon or turned, and each button keeps its icon', async () => {
     await kit.goto('check-row')
     await call('design_get', await sliced('check-row', '83-30723'))
-    const imageRows = async () => checkedTexts((row) => row.property === 'image')
-    const drawn = await imageRows()
-    await kit.goto('check-row-stalled')
-    const stalled = await imageRows()
-    await kit.goto('check-row-wrong')
-    const wrong = await imageRows()
+    const imageRows = async (page?: string) => {
+      if (page !== undefined) await kit.goto(page)
+      return checkedTexts((row) => row.property === 'image')
+    }
+    const drawn = [...(await imageRows()), ...(await imageRows('check-row-stalled'))]
+    const wrong = await imageRows('check-row-wrong')
+    await kit.goto('social-buttons')
     const buttons = await call('design_get', await sliced('social-buttons', '83-30209'))
+    const drawnAround = await imageRows()
+    await kit.goto('process-row-turned')
+    await call('design_get', await sliced('process-row', '50-876'))
     expect([
-      drawn,
-      stalled,
+      [...drawn, ...drawnAround, ...(await imageRows())],
       wrong,
       buttons.nodes.flatMap((node) => (node.asset === undefined ? [] : [node.asset])),
     ]).toEqual([
-      [],
       [],
       ['wrong image at [119:119]: /design/119-119.png expected, an image /design/4-30.svg'],
       ['/design/83-30210.png', '/design/83-30213.png', '/design/83-30216.png'],

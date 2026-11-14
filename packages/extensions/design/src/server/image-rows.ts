@@ -5,7 +5,7 @@ import type {Storage} from 'unstorage'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {PageNodeShotSchema, screenshotNodeDef, type PageNodeShot} from '@conciv/extension-page/defs'
 import {z} from 'zod'
-import type {Design, GateRow, LiveComponent} from '../shared/defs.js'
+import type {Box, Design, GateRow, LiveComponent, Raster} from '../shared/defs.js'
 import {DESIGN_TOOLS} from '../shared/design-tools.js'
 import type {readIds} from '../shared/id-tree.js'
 import {designConfig} from '../shared/tolerances.js'
@@ -18,6 +18,7 @@ export async function imageRowsOf(input: {
   reads: ReturnType<typeof readIds>
   page: ServerToolPageAccess
   mirror: {width: number; height: number} | null
+  screen: Raster
   folder: Storage
 }): Promise<{rows: GateRow[]; ratios: {node: string; ratio: number}[]}> {
   const {reads} = input
@@ -47,7 +48,7 @@ export async function imageRowsOf(input: {
       const shown = element.styles.image ?? ''
       if (await showsAsset({shown, asset, box, pictures})) return []
       const told = `${expected}, ${foundIn(element)}`
-      if (foundIn(element) === NONE) return [{row: row(told), node: look.node, shot: null}]
+      if (foundIn(element) === NONE) return [{row: row(told), node: look.node, shot: null, box: element.box, asset}]
       const shot = {
         selector: named.selector,
         width: side(look.w),
@@ -55,23 +56,28 @@ export async function imageRowsOf(input: {
         scale: 1,
         reference: asset,
       }
-      return [{row: row(told), node: look.node, shot}]
+      return [{row: row(told), node: look.node, shot, box: element.box, asset}]
     }),
   )
   const checked = looked.flat()
   const asked = checked.flatMap((entry) => (entry.shot === null ? [] : [entry.shot]))
   const shots = await shotsOf({page: input.page, mirror: input.mirror, nodes: asked})
-  const found = checked.map((entry) => {
-    if (entry.shot === null) return {row: entry.row, ratio: null}
-    const taken = shots[asked.indexOf(entry.shot)] ?? {shot: null, error: 'no capture came back'}
-    if (taken.shot === null)
-      return {row: {...entry.row, text: `could not capture [${entry.node}]: ${taken.error ?? 'no image'}`}, ratio: null}
-    const ratio = ratioOf(taken.shot)
-    return {
-      row: ratio === null || ratio > GATE ? entry.row : null,
-      ratio: ratio === null ? null : {node: entry.node, ratio},
-    }
-  })
+  const found = await Promise.all(
+    checked.map(async (entry) => {
+      if (entry.shot === null) return {row: entry.row, ratio: null}
+      const taken = shots[asked.indexOf(entry.shot)] ?? {shot: null, error: 'no capture came back'}
+      if (taken.shot === null)
+        return {
+          row: {...entry.row, text: `could not capture [${entry.node}]: ${taken.error ?? 'no image'}`},
+          ratio: null,
+        }
+      const ratio = await shareOf({captured: ratioOf(taken.shot), entry, screen: input.screen, pictures})
+      return {
+        row: ratio === null || ratio > GATE ? entry.row : null,
+        ratio: ratio === null ? null : {node: entry.node, ratio},
+      }
+    }),
+  )
   return {
     rows: found.flatMap((entry) => (entry.row === null ? [] : [entry.row])),
     ratios: found.flatMap((entry) => (entry.ratio === null ? [] : [entry.ratio])),
@@ -80,10 +86,11 @@ export async function imageRowsOf(input: {
 
 type NodeShot = z.input<typeof screenshotNodeDef.inputSchema>
 
-type Checked = {row: GateRow; node: string; shot: NodeShot | null}
+type Checked = {row: GateRow; node: string; shot: NodeShot | null; box: Box; asset: string}
 
 const IMAGE = 'image'
 const GATE = designConfig.tolerances.segmentImageShare
+const SCREEN_GATE = designConfig.tolerances.screenImageShare
 const [, , , , shotsDef] = DESIGN_TOOLS
 const ShotsSchema = shotsDef.outputSchema ?? z.never()
 
@@ -125,6 +132,54 @@ function ratioOf(shot: PageNodeShot): number | null {
   const reference = createRaster(Buffer.from(shot.reference, 'base64'))
   const ink = createRaster(Buffer.from(shot.mask, 'base64')).pixels()
   const {mask} = live.compare({other: reference, comparator: 'pixelmatch'})
+  const painted = mask.reduce<{seen: number; wrong: number}>(
+    (sums, wrong, index) => {
+      if (wrong === 0 && (ink[index * CHANNELS + ALPHA] ?? 0) === 0) return sums
+      return {seen: sums.seen + 1, wrong: sums.wrong + wrong}
+    },
+    {seen: 0, wrong: 0},
+  )
+  return painted.seen === 0 ? 0 : painted.wrong / painted.seen
+}
+
+async function shareOf(input: {
+  captured: number | null
+  entry: Checked
+  screen: Raster
+  pictures: ReturnType<typeof createPictures>
+}): Promise<number | null> {
+  const {captured, entry} = input
+  if (captured !== null && captured <= GATE) return captured
+  const onScreen = await overScreen({
+    screen: input.screen,
+    box: entry.box,
+    asset: entry.asset,
+    pictures: input.pictures,
+  })
+  return onScreen !== null && onScreen <= SCREEN_GATE ? onScreen : captured
+}
+
+async function overScreen(input: {
+  screen: Raster
+  box: Box
+  asset: string
+  pictures: ReturnType<typeof createPictures>
+}): Promise<number | null> {
+  const live = input.screen.crop({box: input.box})
+  if (live.width === 0 || live.height === 0) return null
+  const reference = await input.pictures.raster({path: input.asset, width: live.width, height: live.height})
+  if (reference === null) return null
+  const ink = reference.pixels()
+  const base = live.pixels()
+  const laid = base.map((value, index) => {
+    if (index % CHANNELS === ALPHA) return OPAQUE
+    const alpha = (ink[index - (index % CHANNELS) + ALPHA] ?? 0) / OPAQUE
+    return Math.round((ink[index] ?? 0) * alpha + value * (1 - alpha))
+  })
+  const {mask} = live.compare({
+    other: createRaster({pixels: laid, width: live.width, height: live.height}),
+    comparator: 'pixelmatch',
+  })
   const painted = mask.reduce<{seen: number; wrong: number}>(
     (sums, wrong, index) => {
       if (wrong === 0 && (ink[index * CHANNELS + ALPHA] ?? 0) === 0) return sums
@@ -179,3 +234,4 @@ const PAGE_BASE = 'http://page/'
 
 const CHANNELS = 4
 const ALPHA = 3
+const OPAQUE = 255

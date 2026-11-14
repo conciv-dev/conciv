@@ -8,7 +8,7 @@ import {createRaster} from './raster.js'
 export function createPictures(folder: Storage): Pictures {
   const decoded = new Map<string, Promise<Raster | null>>()
   const read = new Map<string, Promise<Picture | null>>()
-  return {same}
+  return {same, raster: rasterOf}
 
   async function same(input: {shown: string; expected: string; box: Box}): Promise<boolean> {
     const width = Math.max(1, Math.round(input.box.w * TOLERANCES.assetScale))
@@ -37,7 +37,10 @@ export function createPictures(folder: Storage): Pictures {
   }
 }
 
-type Pictures = {same: (input: {shown: string; expected: string; box: Box}) => Promise<boolean>}
+type Pictures = {
+  same: (input: {shown: string; expected: string; box: Box}) => Promise<boolean>
+  raster: (input: {path: string; width: number; height: number}) => Promise<Raster | null>
+}
 
 type Picture = {hash: string; bytes: Uint8Array}
 
