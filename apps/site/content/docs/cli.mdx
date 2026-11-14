@@ -65,9 +65,12 @@ Ask the dev server about itself: `config`, `urls`, `resolve`, `graph`, `transfor
 `restart`.
 
 ```bash
-conciv tools server resolve @/components/Button
+conciv tools server resolve @/components/Button --importer src/routes/index.tsx
 conciv tools server graph src/routes/index.tsx
 ```
+
+An alias from tsconfig `paths` (`@/...`) resolves only with `--importer`; a package import (`#/...`) does not
+need one.
 
 ### `open`
 
