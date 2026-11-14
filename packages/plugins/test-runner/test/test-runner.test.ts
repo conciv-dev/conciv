@@ -93,8 +93,8 @@ async function unavailableError(pending: Promise<unknown>): Promise<string> {
   return UnavailableSchema.parse(failure).data.data.error
 }
 
-function useTool(kit: CoreKit, input: {action: 'list' | 'run' | 'status'; pattern?: string}): Promise<unknown> {
-  return kit.callTool('test_runner_test_runner', input)
+function useTool(kit: CoreKit, name: 'list' | 'run' | 'status', input: {pattern?: string} = {}): Promise<unknown> {
+  return kit.callTool(`test_runner_${name}`, input)
 }
 
 async function scratchDirectory(prefix: string): Promise<string> {
@@ -185,10 +185,17 @@ describe('the test-runner plugin on a vitest project', () => {
       tests: [],
     })
 
-    const discovered = await makeDiscoverTools(kit.base, await kit.session())(['test_runner_test_runner'])
-    expect(discovered.tools.map((tool) => tool.name)).toEqual(['external_test_runner_test_runner'])
+    const discovered = await makeDiscoverTools(
+      kit.base,
+      await kit.session(),
+    )(['test_runner_list', 'test_runner_run', 'test_runner_status'])
+    expect(discovered.tools.map((tool) => tool.name)).toEqual([
+      'external_test_runner_list',
+      'external_test_runner_run',
+      'external_test_runner_status',
+    ])
 
-    const listed = ListSchema.parse(await useTool(kit, {action: 'list'}))
+    const listed = ListSchema.parse(await useTool(kit, 'list'))
     expect(listed.files.map((file) => file.relPath).toSorted()).toEqual([
       'blocked.test.ts',
       'fail.test.ts',
@@ -205,7 +212,7 @@ describe('the test-runner plugin on a vitest project', () => {
     expect(progress.testsWhileRunning).toBeGreaterThan(0)
     expect(new Set(progress.sharedTitleIds).size).toBe(2)
 
-    const pattern = RunResultSchema.parse(await useTool(kit, {action: 'run', pattern: 'pass'}))
+    const pattern = RunResultSchema.parse(await useTool(kit, 'run', {pattern: 'pass'}))
     expect(pattern.summary).toMatchObject({passed: 3, failed: 0})
     expect(pattern.tests.map((test) => test.name).toSorted()).toEqual([
       'one plus one',
@@ -213,7 +220,7 @@ describe('the test-runner plugin on a vitest project', () => {
       'shares a title',
     ])
 
-    expect(RunResultSchema.parse(await useTool(kit, {action: 'status'}))).toEqual(pattern)
+    expect(RunResultSchema.parse(await useTool(kit, 'status'))).toEqual(pattern)
 
     const rpcScratch = await scratchDirectory('conciv-test-runner-rpc-stop-')
     await withChildEnvironment({CONCIV_FIXTURE_BLOCKED_FILE: join(rpcScratch, STARTED)}, async () => {
@@ -258,7 +265,7 @@ describe('the test-runner plugin on a playwright project', () => {
     expect(await unavailableError(call(kit, 'run', {}))).toContain('playwright unavailable')
 
     installDependencies(kit)
-    const listed = ListSchema.parse(await useTool(kit, {action: 'list'}))
+    const listed = ListSchema.parse(await useTool(kit, 'list'))
     expect(listed.files.map((file) => file.relPath).toSorted()).toEqual([
       'blocked.spec.ts',
       'browser.spec.ts',
@@ -280,7 +287,7 @@ describe('the test-runner plugin on a playwright project', () => {
     expect(all.failures[0]?.file).toContain('fail.spec.ts')
     expect(progress.types).toEqual(expect.arrayContaining(['run-start', 'test', 'run-end']))
 
-    const pattern = RunResultSchema.parse(await useTool(kit, {action: 'run', pattern: 'pass'}))
+    const pattern = RunResultSchema.parse(await useTool(kit, 'run', {pattern: 'pass'}))
     expect(pattern.summary).toMatchObject({passed: 2, failed: 0})
 
     const scratch = await scratchDirectory('conciv-playwright-stop-')

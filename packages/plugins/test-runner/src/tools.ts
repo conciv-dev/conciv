@@ -4,15 +4,7 @@ import type {TestRunnerManager} from './runner/contract.js'
 import {TestRunResultSchema} from './shared/events.js'
 import {ListResultSchema} from './rpc.js'
 
-const TestInput = z.object({action: z.enum(['list', 'run', 'status']), pattern: z.string().optional()})
-
-const TestOutputSchema = z.union([ListResultSchema, TestRunResultSchema])
-
-function answer(manager: TestRunnerManager, action: z.infer<typeof TestInput>['action'], pattern?: string) {
-  if (action === 'list') return manager.list()
-  if (action === 'run') return manager.run({patterns: pattern ? [pattern] : undefined})
-  return Promise.resolve(manager.status())
-}
+const options = {namespace: 'test_runner', codemode: true}
 
 export function register(tool: ToolDomain, manager: TestRunnerManager) {
   return tool.transform((editor) => {
@@ -21,12 +13,28 @@ export function register(tool: ToolDomain, manager: TestRunnerManager) {
       description: "The project's test runner: list the test files, run them or a pattern, read the last result.",
     })
     editor.add({
-      name: 'test_runner',
-      description: 'Drive the live test runner: list tests, run a pattern, or check status.',
-      input: TestInput,
-      output: TestOutputSchema,
-      options: {namespace: 'test_runner', codemode: true},
-      execute: async ({action, pattern}) => ({output: await answer(manager, action, pattern)}),
+      name: 'list',
+      description: 'List the test files without running them.',
+      input: z.object({}),
+      output: ListResultSchema,
+      options,
+      execute: async () => ({output: await manager.list()}),
+    })
+    editor.add({
+      name: 'run',
+      description: 'Run every test, or only the test files whose path matches the pattern, and wait for the result.',
+      input: z.object({pattern: z.string().optional()}),
+      output: TestRunResultSchema,
+      options,
+      execute: async ({pattern}) => ({output: await manager.run({patterns: pattern ? [pattern] : undefined})}),
+    })
+    editor.add({
+      name: 'status',
+      description: 'Read the result of the last finished run without starting one.',
+      input: z.object({}),
+      output: TestRunResultSchema,
+      options,
+      execute: async () => ({output: manager.status()}),
     })
   })
 }
