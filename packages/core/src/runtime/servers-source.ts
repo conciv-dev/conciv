@@ -1,10 +1,10 @@
 import {basename} from 'node:path'
-import {makeRpcClient} from '@conciv/contract'
+import {engineTooOld, makeRpcClient} from '@conciv/contract'
 import {checkEngines, listEngines, withHomeDb, type EngineRow} from '@conciv/db'
-import {makeRpc} from '@conciv/plugin'
+import {Conciv} from '@conciv/plugin'
 import {PluginHost} from '@conciv/plugin-host'
 import {Context, Effect, Latch, Layer, Ref, Semaphore, Stream} from 'effect'
-import {memoize} from 'es-toolkit'
+import {isEqual, memoize, uniqBy} from 'es-toolkit'
 import {logError} from '../lib/debug.js'
 import {homeDbReads} from '../lib/home-db-watch.js'
 
@@ -20,12 +20,17 @@ type Snapshot = {rows: ReadonlyArray<EngineRow>; reached: ReadonlyArray<string>}
 
 type ServersSourceInput = {home: string; engineId: string}
 
-function connect(apiBase: string): ServerRef['client'] {
-  const client = makeRpcClient(apiBase)
-  const rpc = makeRpc(client.plugin.call, client.plugin.events)
-  return new Proxy(Object.assign(client, {rpc}), {
-    get: (target, key) => (key === 'rpc' ? rpc : Reflect.get(target, key)),
+function connect(apiBase: string, tooOld: (apiBase: string) => void): ServerRef['client'] {
+  const client = makeRpcClient(apiBase, {
+    interceptors: [
+      ({next}) =>
+        next().catch((error: unknown) => {
+          if (engineTooOld(error)) tooOld(apiBase)
+          throw error
+        }),
+    ],
   })
+  return Conciv.make(client)
 }
 
 async function checked(home: string): Promise<Snapshot> {
@@ -60,6 +65,7 @@ function makeServerRef(
   current: () => Snapshot,
   engineId: string,
   clientAt: (apiBase: string) => ServerRef['client'],
+  incompatible: () => ReadonlyArray<EngineRow>,
 ): ServerRef {
   const row = (): EngineRow => current().rows.find((candidate) => candidate.id === first.id) ?? first
   return {
@@ -75,7 +81,9 @@ function makeServerRef(
     },
     local: true,
     builtin: first.id === engineId,
-    compatible: true,
+    get compatible() {
+      return !incompatible().some((marked) => isEqual(marked, row()))
+    },
     get connected() {
       return current().reached.includes(first.id)
     },
@@ -108,10 +116,19 @@ export function provideServersSource(input: ServersSourceInput) {
         Latch.openUnsafe(read)
         return current().rows
       }
-      const clientAt = memoize(connect)
-      const serverRef = memoize((first: EngineRow) => makeServerRef(first, current, input.engineId, clientAt), {
-        getCacheKey: (row) => row.id,
-      })
+      const incompatible = yield* Ref.make<ReadonlyArray<EngineRow>>([])
+      const markTooOld = (apiBase: string): void =>
+        Effect.runSync(
+          Ref.update(incompatible, (marked) =>
+            uniqBy([...current().rows.filter((row) => row.apiBase === apiBase), ...marked], (row) => row.id),
+          ),
+        )
+      const clientAt = memoize((apiBase: string) => connect(apiBase, markTooOld))
+      const serverRef = memoize(
+        (first: EngineRow) =>
+          makeServerRef(first, current, input.engineId, clientAt, () => Ref.getUnsafe(incompatible)),
+        {getCacheKey: (row) => row.id},
+      )
       return PluginHost.ServersSource.of({
         list: () => listed().map((row) => row.id),
         get: (id) => {

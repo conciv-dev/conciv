@@ -215,7 +215,7 @@ describe('Rpc', () => {
     expectTypeOf<RpcEventPayload<typeof Acme>['data']>().toEqualTypeOf<{count: number}>()
     expectTypeOf<Rpc.EventInput<typeof Acme>>().toEqualTypeOf<[name: 'indexed', data: {count: number}]>()
     expectTypeOf<Plugin.Context['rpc']>().toEqualTypeOf<RpcDomain>()
-    expectTypeOf<ServerRef['client']['rpc']>().toEqualTypeOf<RpcApi>()
+    expectTypeOf<ServerRef['client']['rpc']>().toEqualTypeOf<RpcApi & {call: ServerRef['client']['plugin']['call']}>()
   })
 
   it('types a contract from any Standard Schema or a raw JSON Schema, as opencode does', () => {

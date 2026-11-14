@@ -128,6 +128,18 @@
         "maxCyclomatic": 35,
         "maxCrap": 250,
         "reason": "copied from opencode core/src/plugin/module.ts: load keeps opencode's shape"
+      },
+      {
+        "files": ["packages/plugin/src/client/shared-events.ts"],
+        "maxCrap": 32,
+        "reason": "copied from opencode packages/client/src/shared-events.ts: run keeps opencode's shape"
+      },
+      {
+        "files": ["packages/plugin-host/test/core/plugin/host.ts"],
+        "maxCyclomatic": 40,
+        "maxCognitive": 26,
+        "maxCrap": 46,
+        "reason": "copied from opencode packages/core/test/plugin/host.ts: host keeps opencode's shape"
       }
     ]
   },
@@ -240,7 +252,7 @@
     },
     {
       "file": "packages/plugin/src/**",
-      "exports": ["Info", "Ref", "define", "Cleanup", "Id", "Name", "PluginOptions"]
+      "exports": ["Info", "Ref", "define", "Cleanup", "Id", "Name", "PluginOptions", "make"]
     },
     {
       "file": "packages/plugin-host/src/**",

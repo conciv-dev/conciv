@@ -71,7 +71,7 @@ import {outsideRefusal} from './api/outside-refusal.js'
 import {outsideRunCapabilities} from './api/outside-run.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
-import {owesFollowUp, pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
+import {holdForNextReply, owesFollowUp, pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
 import {
   answerPermission,
@@ -558,6 +558,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
           ),
         )
         .catch((error: unknown) => logError(`[core] the experimental.idle hook failed: ${String(error)}`))
+    }
+    if (run.phase === 'aborted') {
+      holdForNextReply(primitives.page.queues, sessionId)
+      return
     }
     followUpOwedQueues(sessionId)
   }

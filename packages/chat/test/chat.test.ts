@@ -768,7 +768,8 @@ describe('stopping a run', () => {
       settledYet = true
     })
     expect(await chat.stop(sessionId, ['another run'])).toEqual({ok: true, stopped: false})
-    expect(await chat.stop(sessionId)).toEqual({ok: true, stopped: true})
+    const together = await Promise.all([chat.stop(sessionId), chat.stop(sessionId)])
+    expect(together.map(({stopped}) => stopped).toSorted()).toEqual([false, true])
     expect(await chat.stop(sessionId)).toEqual({ok: true, stopped: false})
     expect(settledYet).toBe(false)
 

@@ -35,6 +35,7 @@ import {once} from 'es-toolkit'
 import type {PluginHost} from '../api/rpc/mount.js'
 import type {ResolvedConcivConfig} from '../config.js'
 import {logError} from '../lib/debug.js'
+import {EventFeed} from './event-feed.js'
 import {provideHarnessModels} from './harness-models.js'
 import {provideInstructionEntries} from './instruction-entries.js'
 import {permissionSessions} from './permission-cards.js'
@@ -104,7 +105,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
     ),
     Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(input.db), Skill.layer)),
     Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, Image.layer)),
-    Layer.provideMerge(Layer.mergeAll(Rpc.layer, KV.layer)),
+    Layer.provideMerge(Layer.mergeAll(Rpc.layer, KV.layer, EventFeed.layer)),
     Layer.provideMerge(Bus.configured()),
     Layer.provideMerge(
       Layer.mergeAll(
