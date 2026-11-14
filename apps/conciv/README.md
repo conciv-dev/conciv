@@ -37,9 +37,9 @@ unit-tests pure parsers plus the router-restore path (vitest browser project).
 
 `pnpm --filter @conciv/app test:perf` runs `test-perf.mjs`. It checks out `git merge-base HEAD origin/main` into a
 scratch worktree beside the repo, installs and builds it, copies this branch's perf test, helpers, `test/commands/` and
-`vitest.config.ts` into it, and runs the `perf` project there (Chromium and Firefox), which writes main's median p95 per
-case and browser to a file. It then builds and runs the `perf` project on the branch against that file, and removes the
-scratch worktree (also on failure, Ctrl-C or SIGTERM). Each case runs its scenario `PERF_SAMPLES` times, each on a fresh
+`vitest.config.ts` into it, and builds the branch. Only then does it measure, back to back: the `perf` project on main
+(Chromium and Firefox), which writes main's median p95 per case and browser to a file, then the `perf` project on the
+branch against that file. It removes the scratch worktree at the end (also on failure, Ctrl-C or SIGTERM). Each case runs its scenario `PERF_SAMPLES` times, each on a fresh
 session and pane; every sample is printed and must keep its sampled window and its count of frames over 33 ms; the
 median p95 passes when it is at most 20 ms or at most main's median plus `PERF_MAIN_TOLERANCE_MS`. `PERF_SAMPLES = 5`
 and `PERF_MAIN_TOLERANCE_MS = 1.5` come from this machine's measured spread on 2026-11-14 and must be re-measured, not

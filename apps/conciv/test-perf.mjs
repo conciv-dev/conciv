@@ -89,10 +89,9 @@ async function abort(scratch, signal) {
   process.exit(128 + constants.signals[signal])
 }
 
-async function measureMain(base, scratch) {
-  const appPath = relative(git(['rev-parse', '--show-toplevel']), APP_DIR)
-  const scratchApp = join(scratch.checkout, appPath)
-  console.info(`test:perf: measuring the merge base ${base} in ${scratch.checkout}`)
+async function prepareMain(base, scratch) {
+  const scratchApp = join(scratch.checkout, relative(git(['rev-parse', '--show-toplevel']), APP_DIR))
+  console.info(`test:perf: preparing the merge base ${base} in ${scratch.checkout}`)
   await mustRun('creating the scratch checkout', 'git', ['worktree', 'add', '--detach', scratch.checkout, base], {
     cwd: APP_DIR,
   })
@@ -101,6 +100,10 @@ async function measureMain(base, scratch) {
   })
   await mustRun('building the merge base', 'pnpm', BUILD_ARGS, {cwd: scratch.checkout})
   for (const path of BRANCH_TEST_FILES) cpSync(join(APP_DIR, path), join(scratchApp, path), {recursive: true})
+  return scratchApp
+}
+
+async function measureMain(scratchApp, scratch) {
   const measured = await run('measuring the merge base', 'pnpm', PERF_ARGS, {
     cwd: scratchApp,
     env: {CONCIV_PERF_RECORD: scratch.medians},
@@ -131,14 +134,14 @@ async function main() {
   process.once('SIGINT', () => abort(scratch, 'SIGINT'))
   process.once('SIGTERM', () => abort(scratch, 'SIGTERM'))
   try {
-    await measureMain(base, scratch)
+    const scratchApp = await prepareMain(base, scratch)
+    await mustRun('building the branch', 'pnpm', BUILD_ARGS, {cwd: APP_DIR})
+    await measureMain(scratchApp, scratch)
   } catch (error) {
     removeScratch(scratch)
-    throw new Error(`${error.message}\nNo branch run happened: there is no baseline from main.`, {cause: error})
+    throw new Error(`${error.message}\nNo branch run happened.`, {cause: error})
   }
-  removeCheckout(scratch)
   try {
-    await mustRun('building the branch', 'pnpm', BUILD_ARGS, {cwd: APP_DIR})
     const branch = await run('the branch perf run', 'pnpm', PERF_ARGS, {
       cwd: APP_DIR,
       env: {CONCIV_PERF_BASELINE: scratch.medians},
