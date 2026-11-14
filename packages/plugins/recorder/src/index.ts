@@ -91,6 +91,11 @@ export default Plugin.define({
     await ctx.skill.transform((editor) => editor.add(info))
     const registration = registerRpc(ctx.rpc, runtime, announce)
     await registration
-    control.subscribe((message) => announce('control', message))
+    const unsubscribe = control.subscribe((message) => announce('control', message))
+    return async () => {
+      unsubscribe()
+      control.dispose()
+      await rendererCache.dispose()
+    }
   },
 })
