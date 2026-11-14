@@ -459,8 +459,14 @@ export interface Links {
    * @returns False when no handler matches.
    */
   open(link: Link): boolean
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly exists: ((link: Link) => boolean | Promise<boolean>) | undefined
+  /**
+   * Whether a link's target exists, so text that names it can be styled as a link. Asks the LinkHandler `open` would
+   * use. Untracked: calling it inside an effect does not subscribe that effect.
+   *
+   * @param link - The candidate link.
+   * @returns False when no handler matches, the handler has no `exists`, or the target does not exist.
+   */
+  exists(link: Link): boolean | Promise<boolean>
 }
 
 export interface DialogHandle {

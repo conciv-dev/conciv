@@ -565,7 +565,7 @@ describe('experimental', () => {
     expectTypeOf<undefined>().toExtend<Experimental.Layout['scroll']>()
     expectTypeOf<undefined>().toExtend<Experimental.Composer['setText']>()
     expectTypeOf<undefined>().toExtend<Experimental.Tabs['move']>()
-    expectTypeOf<undefined>().toExtend<Experimental.Links['exists']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.Links['exists']>()
   })
 })
 

@@ -78,7 +78,7 @@ function pluginContext(id: string, sessions: Sessions = {list: () => [], current
     tabs: {list: unused, open: unused, focus: unused, move: undefined, close: unused},
     attention: undefined,
     commands: undefined,
-    links: {open: unused, exists: undefined},
+    links: {open: unused, exists: unused},
     ui: {
       Icon: unused,
       Button: unused,
