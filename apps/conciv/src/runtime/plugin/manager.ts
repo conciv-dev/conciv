@@ -4,6 +4,10 @@ import {pluginEnabled, type EnableState} from '@conciv/plugin/experimental/host'
 
 const WHERE: {readonly scope: SettingsScope; readonly namespace: string} = {scope: 'global', namespace: 'plugin-enable'}
 
+export function pluginError(code: 'notFound' | 'builtin') {
+  return Object.assign(new Error(code), {code})
+}
+
 const EnableRowSchema = z.object({id: z.string().min(1), enabled: z.boolean()})
 
 function readEnableState(snapshot: SettingsSnapshot): readonly EnableState[] {
@@ -24,7 +28,7 @@ export function createManager(rpc: RpcClient, builtins: readonly string[]) {
       return pluginEnabled({id, builtin: builtins.includes(id)}, await read())
     },
     async setEnabled(id: string, enabled: boolean) {
-      if (builtins.includes(id)) throw new Error(`the built-in plugin ${id} always runs`)
+      if (builtins.includes(id)) throw pluginError('builtin')
       await rpc.settings.set({...WHERE, key: id, value: enabled})
     },
     on(listener: (state: readonly EnableState[]) => void) {

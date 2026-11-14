@@ -1,14 +1,20 @@
+import {isEqual, uniqBy} from 'es-toolkit'
 import {z} from 'zod'
 import {subscribeRpcReachability, type RpcClient} from '@conciv/contract'
 import {
+  pluginEnabled,
   pluginIdAvailable,
   shipsPluginExperimental,
   type BridgePluginExperimental,
   type BridgePluginExperimentals,
+  type EnableState,
+  type Installed,
 } from '@conciv/plugin/experimental/host'
 import {builtins} from './builtins'
 import {createHostState, isCurrentHostWatch, transitionHost, type HostCommand, type HostEvent} from './host-machine'
+import {createManager, pluginError} from './manager'
 import type {PluginExperimentalSource} from './plugins'
+import type {InstalledSource} from './startup'
 
 const text = (maximum: number) => z.string().min(1).max(maximum)
 
@@ -23,9 +29,15 @@ const PluginExperimentalSchema = z.object({
 
 const ReservedSchema = z.array(id)
 
+type Parts = {
+  readonly server: ReadonlySet<string>
+  readonly unreadable: ReadonlyMap<string, string>
+}
+
 type Listing = {
   readonly plugins: ReadonlyMap<string, BridgePluginExperimental>
   readonly reserved: readonly string[]
+  readonly parts: Parts
 }
 
 type Resources = {
@@ -38,13 +50,26 @@ type Resources = {
 
 type PluginExperimentalsMessage = Parameters<Parameters<PluginExperimentalSource['on']>[0]>[0]
 
-export type BundleSource = PluginExperimentalSource & {readonly dispose: () => void}
+type InstalledMessage = Parameters<Parameters<InstalledSource['on']>[0]>[0]
+
+export type PluginManager = InstalledSource & {
+  readonly enable: (id: string) => Promise<void>
+  readonly disable: (id: string) => Promise<void>
+  readonly reload: (id: string) => Promise<void>
+}
+
+export type BundleSource = PluginExperimentalSource & {readonly manager: PluginManager; readonly dispose: () => void}
 
 export function createBundleSource(input: {readonly rpc: RpcClient; readonly apiBase: string}): BundleSource {
   const endpoint = {url: input.apiBase, authorization: undefined}
+  const local = builtins.map((definition) => definition.id)
+  const enableStore = createManager(input.rpc, local)
   const plugins = new Map<string, BridgePluginExperimental>()
-  const inventory: {reserved: readonly string[]} = {reserved: []}
+  const inventory: {reserved: readonly string[]; server: ReadonlySet<string>; unreadable: ReadonlyMap<string, string>} =
+    {reserved: [], server: new Set(), unreadable: new Map()}
+  const enableState: {rows: readonly EnableState[]} = {rows: []}
   const listeners = new Set<(message: PluginExperimentalsMessage) => void>()
+  const installedListeners = new Set<(message: InstalledMessage) => void>()
   const resources: Resources = {}
   const machine = {following: createHostState()}
 
@@ -150,14 +175,21 @@ export function createBundleSource(input: {readonly rpc: RpcClient; readonly api
       shipped.flatMap((plugin) => (pluginIdAvailable(plugin.id, builtins) ? [] : [plugin.id])),
     )
 
+    const parts = {
+      server: new Set(shipped.flatMap((plugin) => (plugin.features.server ? [plugin.id] : []))),
+      unreadable: new Map<string, string>(),
+    }
+
     const read = await Promise.all(
-      shipped.filter((plugin) => !reserved.includes(plugin.id)).map((plugin) => readPlugin(plugin.id, signal)),
+      shipped
+        .filter((plugin) => !reserved.includes(plugin.id))
+        .map((plugin) => readPlugin(plugin.id, parts.unreadable, signal)),
     )
 
-    return {plugins: new Map(read.flatMap((entry) => (entry ? [entry] : []))), reserved}
+    return {plugins: new Map(read.flatMap((entry) => (entry ? [entry] : []))), reserved, parts}
   }
 
-  const readPlugin = async (pluginId: string, signal: AbortSignal) => {
+  const readPlugin = async (pluginId: string, unreadable: Map<string, string>, signal: AbortSignal) => {
     const previous = plugins.get(pluginId)
 
     const bundle = await input.rpc.plugin
@@ -168,6 +200,8 @@ export function createBundleSource(input: {readonly rpc: RpcClient; readonly api
         (cause: unknown) => {
           if (signal.aborted) return
           console.error('[plugin] plugin bundle read failed', pluginId, cause)
+
+          if (!previous) unreadable.set(pluginId, cause instanceof Error ? cause.message : String(cause))
         },
       )
 
@@ -183,11 +217,20 @@ export function createBundleSource(input: {readonly rpc: RpcClient; readonly api
 
     const changes = [...next.plugins].filter(([pluginId, plugin]) => plugins.get(pluginId) !== plugin)
 
-    if (removed.length === 0 && changes.length === 0 && next.reserved.join('\n') === inventory.reserved.join('\n'))
+    if (
+      removed.length === 0 &&
+      changes.length === 0 &&
+      next.reserved.join('\n') === inventory.reserved.join('\n') &&
+      [...next.parts.server].join('\n') === [...inventory.server].join('\n') &&
+      [...next.parts.unreadable].join('\n') === [...inventory.unreadable].join('\n')
+    )
       return
     removed.forEach((pluginId) => plugins.delete(pluginId))
     changes.forEach(([pluginId, plugin]) => plugins.set(pluginId, plugin))
     inventory.reserved = next.reserved
+    inventory.server = next.parts.server
+    inventory.unreadable = next.parts.unreadable
+    changed()
     const message: PluginExperimentalsMessage = {type: 'pluginExperimentals', ...pluginExperimentals()}
     listeners.forEach((listener) => listener(message))
   }
@@ -196,6 +239,56 @@ export function createBundleSource(input: {readonly rpc: RpcClient; readonly api
     plugins: [...plugins.values()],
     reserved: inventory.reserved,
   })
+
+  const enabled = (pluginId: string) =>
+    pluginEnabled({id: pluginId, builtin: local.includes(pluginId)}, enableState.rows)
+
+  const known = (pluginId: string) => local.includes(pluginId) || plugins.has(pluginId)
+
+  const installed = (): readonly Installed[] => [
+    ...local.map((pluginId) => ({id: pluginId, builtin: true, enabled: enabled(pluginId)})),
+
+    ...[...plugins.keys()].map((pluginId) => ({
+      id: pluginId,
+      builtin: false,
+      enabled: enabled(pluginId),
+      server: inventory.server.has(pluginId),
+    })),
+
+    ...[...inventory.unreadable].map(([pluginId, error]) => ({
+      id: pluginId,
+      builtin: false,
+      enabled: enabled(pluginId),
+      server: inventory.server.has(pluginId),
+      error,
+    })),
+  ]
+
+  const changed = () => {
+    const message: InstalledMessage = {type: 'installed', list: installed()}
+    installedListeners.forEach((listener) => listener(message))
+  }
+
+  const settle = (rows: readonly EnableState[]) => {
+    const before = installed()
+    enableState.rows = rows
+
+    if (!isEqual(before, installed())) changed()
+  }
+
+  const loaded = Promise.withResolvers<readonly EnableState[]>()
+
+  const unfollowEnableState = enableStore.on((rows) => {
+    settle(rows)
+    loaded.resolve(enableState.rows)
+  })
+
+  const setEnabled = async (pluginId: string, value: boolean) => {
+    if (!known(pluginId)) throw pluginError('notFound')
+
+    await enableStore.setEnabled(pluginId, value)
+    enableState.rows = uniqBy([{id: pluginId, enabled: value}, ...enableState.rows], (row) => row.id)
+  }
 
   dispatch({type: 'started', endpoint, quitting: false})
 
@@ -206,6 +299,31 @@ export function createBundleSource(input: {readonly rpc: RpcClient; readonly api
 
       return () => listeners.delete(listener)
     },
-    dispose: () => dispatch({type: 'stopped'}),
+    manager: {
+      initial: loaded.promise,
+      list: () => loaded.promise.then(installed),
+      on(listener) {
+        installedListeners.add(listener)
+
+        return () => installedListeners.delete(listener)
+      },
+      async enable(pluginId) {
+        await setEnabled(pluginId, true)
+        changed()
+      },
+      async disable(pluginId) {
+        await setEnabled(pluginId, false)
+        changed()
+      },
+      async reload(pluginId) {
+        if (!known(pluginId)) throw pluginError('notFound')
+
+        changed()
+      },
+    },
+    dispose: () => {
+      unfollowEnableState()
+      dispatch({type: 'stopped'})
+    },
   }
 }

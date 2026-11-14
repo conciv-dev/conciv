@@ -118,6 +118,8 @@ import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
 import {pluginEnabled, type EnableState} from '@conciv/plugin/experimental/host'
 import {createManager} from '../src/runtime/plugin/manager.js'
 import {createBundleSource} from '../src/runtime/plugin/bundle-source.js'
+import {createStartupGate, type InstalledSource} from '../src/runtime/plugin/startup.js'
+import {selectDisabled} from '../src/runtime/plugin/machine.js'
 import {
   PluginExperimentalLoader,
   type PluginExperimental,
@@ -5691,5 +5693,109 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
     const reevaluated = await loaded.nth(2)
     expect(reevaluated.plugins.map((plugin) => plugin.definition.id)).toEqual(['pane'])
     expect(storeNames(reevaluated.plugins)).toEqual([['eighth']])
+  }, 90_000)
+})
+
+type InstalledPush = Parameters<Parameters<InstalledSource['on']>[0]>[0]
+
+type InstalledRows = InstalledPush['list']
+
+function recordInstalled(source: InstalledSource) {
+  const pushes = arrivals<InstalledPush>()
+  onTestFinished(source.on((message) => pushes.add(message)))
+  const seen = {count: 0}
+  return async function next(accepts: (list: InstalledRows) => boolean): Promise<InstalledRows> {
+    seen.count += 1
+    const push = await pushes.nth(seen.count)
+    return accepts(push.list) ? push.list : next(accepts)
+  }
+}
+
+function rowEnabled(list: InstalledRows, id: string): boolean | undefined {
+  return list.find((item) => item.id === id)?.enabled
+}
+
+describe('installed plugins', () => {
+  const EXPERIMENTAL = ['plugin', 'experimental']
+  const server = (id: string) => `export default {id: '${id}', async setup() {}}
+`
+  const bundle = (label: string) => `const {z} = require('zod')
+module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.string()}}, setup() {}}}
+`
+  const coreBase = bootedCore('installed-plugins', {
+    plugins: ['./pane', './broken'],
+    files: {
+      'pane/index.ts': server('pane'),
+      'pane/plugin-experimental.js': bundle('pane'),
+      'broken/index.ts': server('broken'),
+      'broken/plugin-experimental.js': bundle('broken'),
+    },
+  })
+  const faults = trackedFaults()
+  const row = (id: string, enabled: boolean) => ({id, builtin: false, enabled, server: true})
+  const notFound = {code: 'notFound', message: 'notFound'}
+  const disabledPlugins = page.getByRole('status', {name: 'disabled plugins'})
+
+  test('a plugin that never loaded is listed with its error, and disable, enable and reload act through the store', async () => {
+    const base = coreBase()
+    await faults.install({kind: 'garble', path: EXPERIMENTAL, input: {id: 'broken'}})
+    const first = createBundleSource({rpc: coreRpc(base), apiBase: base})
+    onTestFinished(first.dispose)
+    const firstInstalled = recordInstalled(first.manager)
+
+    const listed = await firstInstalled((list) => list.length > 0)
+    expect(listed).toEqual([row('pane', true), {...row('broken', true), error: expect.stringMatching(/./)}])
+    expect(await first.manager.list()).toEqual(listed)
+    const loaded = arrivals<readonly PluginExperimental[]>()
+    const rendered = render(() => {
+      const gate = createStartupGate({installed: first.manager, plugins: [], servers: false})
+      return (
+        <>
+          <PluginExperimentalLoader
+            source={first}
+            client={() => undefined}
+            onChange={(plugins) => loaded.add(plugins)}
+          />
+          <output aria-label="disabled plugins">
+            {[...(selectDisabled(gate.state(), ['pane', 'broken'], new Set()) ?? [])].join(' ') || 'none'}
+          </output>
+        </>
+      )
+    })
+    onTestFinished(rendered.unmount)
+    expect((await loaded.nth(1)).map((plugin) => plugin.definition.id)).toEqual(['pane'])
+    await expect.element(disabledPlugins).toHaveTextContent('none')
+
+    await first.manager.disable('pane')
+    expect(rowEnabled(await firstInstalled((list) => rowEnabled(list, 'pane') === false), 'pane')).toBe(false)
+    await expect.element(disabledPlugins).toHaveTextContent('pane')
+    expect((await first.pluginExperimentals()).plugins.map((plugin) => plugin.id)).toEqual(['pane'])
+    const engine = (await coreRpc(base).plugin.list()).data.find((plugin) => plugin.id === 'pane')
+    expect(engine?.state.status).toBe('active')
+
+    const second = createBundleSource({rpc: coreRpc(base), apiBase: base})
+    onTestFinished(second.dispose)
+    const secondInstalled = recordInstalled(second.manager)
+    expect(await second.manager.initial).toEqual([{id: 'pane', enabled: false}])
+    expect(rowEnabled(await secondInstalled((list) => rowEnabled(list, 'pane') !== undefined), 'pane')).toBe(false)
+
+    await first.manager.enable('pane')
+    expect(rowEnabled(await firstInstalled((list) => rowEnabled(list, 'pane') === true), 'pane')).toBe(true)
+    await expect.element(disabledPlugins).toHaveTextContent('none')
+    expect(rowEnabled(await secondInstalled((list) => rowEnabled(list, 'pane') === true), 'pane')).toBe(true)
+
+    await second.manager.disable('pane')
+    expect(rowEnabled(await firstInstalled((list) => rowEnabled(list, 'pane') === false), 'pane')).toBe(false)
+    await expect.element(disabledPlugins).toHaveTextContent('pane')
+    await second.manager.enable('pane')
+    await expect.element(disabledPlugins).toHaveTextContent('none')
+
+    await first.manager.reload('pane')
+    expect(await firstInstalled(() => true)).toEqual(await first.manager.list())
+
+    await expect(first.manager.disable('nobody')).rejects.toMatchObject(notFound)
+    await expect(first.manager.enable('nobody')).rejects.toMatchObject(notFound)
+    await expect(first.manager.reload('nobody')).rejects.toMatchObject(notFound)
+    await expect(first.manager.disable('broken')).rejects.toMatchObject(notFound)
   }, 90_000)
 })
