@@ -674,7 +674,6 @@ export type Runner = (input: {
   page: ServerToolPageAccess
   edits: {quiet: () => Promise<void>; updated: () => number}
   variants?: number[]
-  wider?: {id: string; width: number}
 }) => Promise<RoundReply>
 
 export type Differ = {

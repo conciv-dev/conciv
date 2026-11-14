@@ -81,7 +81,6 @@ export function createDiffer(input: {
     session: string
     nodes: string[] | undefined
     variants?: number[]
-    wider?: TargetRecord
   }) => {
     const {record, nodes} = asked
     const opened = tab(asked.session)
@@ -91,7 +90,6 @@ export function createDiffer(input: {
       page: opened,
       edits,
       ...(asked.variants === undefined ? {} : {variants: asked.variants}),
-      ...(asked.wider === undefined ? {} : {wider: {id: asked.wider.id, width: asked.wider.width}}),
     })
     if ('thrown' in measured) return brokenOne({record, error: measured.thrown, by: 'runtime'})
     if (!('round' in measured))
@@ -144,22 +142,21 @@ export function createDiffer(input: {
       edited: edits.updated(),
     })
     if (compile === null && threw) await reloaded(tab(session))
-    const one = (record: TargetRecord, variants?: number[], wider?: TargetRecord) =>
+    const one = (record: TargetRecord, variants?: number[]) =>
       compile === null
         ? checkedOne({
             record,
             session,
             nodes,
             ...(variants === undefined ? {} : {variants}),
-            ...(wider === undefined ? {} : {wider}),
           })
         : brokenOne({record, error: compile, by: 'compile'})
     if (single !== null) return one(single)
     const widths = records.map((record) => record.width)
     const variants = []
-    for (const [index, record] of records.entries())
+    for (const record of records)
       variants.push({
-        ...(await one(record, widths, records[index - 1])),
+        ...(await one(record, widths)),
         target: record.id,
         width: record.width,
       })

@@ -421,7 +421,7 @@ describe('a page between two frames', () => {
 })
 
 describe('a page that switches layouts between two frames', () => {
-  it('is flagged when it keeps the narrow layout past the midpoint, an image row names the picture shown, a text beside an icon in its element sits where its glyphs are, and two checks at once give the same rows', async () => {
+  it('is not told to switch at a width no frame shows, an image row names the picture shown, a text beside an icon in its element sits where its glyphs are, and two checks at once give the same rows', async () => {
     await kit.goto('contact-bar')
     await call('design_get', {
       figma: [
@@ -440,18 +440,12 @@ describe('a page that switches layouts between two frames', () => {
       return variants.flatMap((variant) => variant.rows.map((row) => row.text).filter(kept))
     }
     const jumped = (text: string) => text.includes('lays its children out')
-    const late = await texts('contact-bar', jumped)
-    const early = await texts('contact-bar-fit', jumped)
-    const stacked = await texts('contact-bar-stacked', jumped)
+    const between = await texts('contact-bar', jumped)
     const linked = await texts('contact-bar-linked', (text) => text.includes('Text Button [') && text.includes('sits'))
     const pictured = await texts('contact-bar-picture', (text) => text.startsWith('wrong image'))
-    expect([told(together[1]), late, early, stacked, linked, pictured]).toEqual([
+    expect([told(together[1]), between, linked, pictured]).toEqual([
       told(together[0]),
-      [
-        'frame Sub Container [100:1514] at 1199 wide: lays its children out in a column as the 358 px frame does, though 1199 is nearer the 1280 px frame, which lays them out in a row; switch to the 358 px layout below 819',
-      ],
       [],
-      late,
       [],
       [
         'wrong image at [100:1158]: /design/100-1158.png expected, <img src=/late/design/4-30.svg>',

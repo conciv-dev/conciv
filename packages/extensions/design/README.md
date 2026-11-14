@@ -107,10 +107,8 @@ src/
   property in `styles.media`. `@container` rules are not read. `reflow` holds one entry per width: the design width, each
   width a `@media` rule on the page names (top level, in `@layer` or nested inside a style rule) and the width under it (read from the frame's own document, so the mirror
   frame's rules count too), and the reflow tags' breakpoints; with several frames, a frame keeps its own width and the page's
-  query widths between it and the next wider frame, checked against its own nodes for what sticks out or scrolls sideways; above the midpoint
-  between the two frames, a container the wider frame lays out the other way (row against column) must not already lay
-  its children out as the narrower frame does (read from how its placed children sit, not from how its own parent places it), matched through the elements the wider frame's last check mapped: `rootHeight,
-  sticksOut, overflowX, overlaps, tags` with `ok` and `why`. A box (not a text) that sits more than 4 px lower or higher
+  query widths between it and the next wider frame, checked against its own nodes for what sticks out or scrolls sideways:
+  `rootHeight, sticksOut, overflowX, overlaps, tags` with `ok` and `why`. A box (not a text) that sits more than 4 px lower or higher
   on the page than in the frame, measured from the frame's top, gives one page row that blocks done: each element may be
   within tolerance of its parent while the offsets add up down the page (a Figma line takes no space, a 1px element
   does). The row names the box that drifted most and the siblings below which the drift grows. A page error, or a page that renders under half the nodes

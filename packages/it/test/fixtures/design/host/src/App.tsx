@@ -162,17 +162,14 @@ const HERO_HUG_CSS = HERO_GAP_CSS.replace('width: 780px', 'width: fit-content')
 const HERO_CSS: Record<string, string> = {'hero-gap': HERO_GAP_CSS, 'hero-gap-fit': HERO_FIT_CSS, 'hero-hug': HERO_HUG_CSS}
 const CONTACT_ITEMS = ['hello@squareup.com', '+91 91813 23 2309', 'Somewhere in the World']
 const CONTACT_ICONS = ['/design/100-1516.png', '/design/100-1520.png', '/design/100-1524.png']
-function contactBarCss(input: {breakpoint: number; footer: string}): string {
-  const {breakpoint, footer} = input
-  return [
-    '.contact-bar { display: flex; flex-direction: column; gap: 20px; color: #e6e6e6; font-size: 18px; }',
-    '.contact-bar-items { display: flex; flex-direction: column; }',
-    '.contact-bar-item { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 20px 0; box-shadow: inset 0 0 0 1px #262626; }',
-    '.contact-bar-icon { width: 24px; height: 24px; background: #9eff00; }',
-    '.contact-bar-copy { color: #98989a; font-size: 16px; text-align: center; }',
-    `@media (width >= ${breakpoint}px) { .contact-bar { flex-direction: ${footer}; justify-content: space-between; align-items: center; } .contact-bar-items { flex-direction: row; gap: 22px; } .contact-bar-item { padding: 6px 0; gap: 6px; font-size: 16px; } .contact-bar-copy { font-size: 14px; } }`,
-  ].join(' ')
-}
+const CONTACT_BAR_CSS = [
+  '.contact-bar { display: flex; flex-direction: column; gap: 20px; color: #e6e6e6; font-size: 18px; }',
+  '.contact-bar-items { display: flex; flex-direction: column; }',
+  '.contact-bar-item { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 20px 0; box-shadow: inset 0 0 0 1px #262626; }',
+  '.contact-bar-icon { width: 24px; height: 24px; background: #9eff00; }',
+  '.contact-bar-copy { color: #98989a; font-size: 16px; text-align: center; }',
+  '@media (width >= 1200px) { .contact-bar { flex-direction: row; justify-content: space-between; align-items: center; } .contact-bar-items { flex-direction: row; gap: 22px; } .contact-bar-item { padding: 6px 0; gap: 6px; font-size: 16px; } .contact-bar-copy { font-size: 14px; } }',
+].join(' ')
 const FORM_FIELD = {
   display: 'flex',
   flexDirection: 'column',
@@ -469,14 +466,12 @@ export function App() {
   }
   if (
     requested === 'contact-bar' ||
-    requested === 'contact-bar-fit' ||
-    requested === 'contact-bar-stacked' ||
     requested === 'contact-bar-picture' ||
     requested === 'contact-bar-linked'
   ) {
     return (
       <main style={{margin: -24, background: '#1a1a1a'}} data-conciv-key="cBmNaA">
-        <style data-conciv-key="cBsTyA">{contactBarCss({breakpoint: requested === 'contact-bar-fit' ? 700 : 1200, footer: requested === 'contact-bar-stacked' ? 'column' : 'row'})}</style>
+        <style data-conciv-key="cBsTyA">{CONTACT_BAR_CSS}</style>
         <footer className="contact-bar" data-conciv-key="cBfTrA">
           <div className="contact-bar-items" data-conciv-key="cBiTmA">
             {CONTACT_ITEMS.map((item, index) => (
