@@ -323,6 +323,23 @@ describe.skipIf(inFirefox)('page tools', () => {
       ).toEqual({code: 'invalid-args', message: 'That element is not a text field.'})
       expect(await runForResult('value', {selector: '#field'})).toEqual({value: 'second pass'})
       await expect.element(formState()).toMatchTextContent('subscribed: true')
+      const later = Object.assign(document.createElement('input'), {id: 'later', type: 'text'})
+      container.appendChild(later)
+      onTestFinished(() => later.remove())
+      const stop = new AbortController()
+      document.querySelector('#field')?.addEventListener('input', () => stop.abort(new Error('the turn was stopped')), {
+        once: true,
+      })
+      const fields = [
+        {selector: '#field', type: 'text', value: 'before the stop'},
+        {selector: '#later', type: 'text', value: 'after the stop'},
+      ]
+      expect(readFailure(await driver.execute(command('fill_form', {fields}), stop.signal), 'fill_form')).toEqual({
+        code: 'handler-error',
+        message: 'the turn was stopped',
+      })
+      expect(await runForResult('value', {selector: '#field'})).toEqual({value: 'before the stop'})
+      expect(await runForResult('value', {selector: '#later'})).toEqual({value: ''})
     })
 
     it('fails instead of reporting ok when a field or box refuses the change', async () => {

@@ -147,8 +147,13 @@ async function selectOn(input: Locator, call: Call, value: string): Promise<Page
 
 type FormField = Extract<Action, {readonly type: 'fill_form'}>['fields'][number]
 
-async function fillForm(fields: readonly FormField[], call: Call): Promise<PageResult> {
+async function fillForm(
+  fields: readonly FormField[],
+  call: Call,
+  signal: AbortSignal | undefined,
+): Promise<PageResult> {
   for (const field of fields) {
+    signal?.throwIfAborted()
     if (field.type === 'text') await fillOn(field, call, field.value)
     if (field.type === 'select') await selectOn(field, call, field.value)
     if (field.type === 'check') await setCheckedOn(field, call, field.checked)
@@ -215,7 +220,12 @@ async function shot(input: {exclude?: string[]}): Promise<Answer> {
   return result(value, [file])
 }
 
-function perform(action: Action, call: Call, effects: () => readonly PageEffect[]): Answer | Promise<Answer> {
+function perform(
+  action: Action,
+  call: Call,
+  effects: () => readonly PageEffect[],
+  signal: AbortSignal | undefined,
+): Answer | Promise<Answer> {
   switch (action.type) {
     case 'route':
       return touching(() => ({
@@ -364,7 +374,7 @@ function perform(action: Action, call: Call, effects: () => readonly PageEffect[
     case 'fill':
       return acting(call, () => fillOn(action, call, action.value))
     case 'fill_form':
-      return acting(call, () => fillForm(action.fields, call))
+      return acting(call, () => fillForm(action.fields, call, signal))
     case 'select':
       return acting(call, () => selectOn(action, call, action.value))
     case 'check':
@@ -610,7 +620,7 @@ export function makePageOperations(ctx: Pick<BaseContext, 'list'>): PageOperatio
     const captures = makeCaptureCollector(action.type)
     const call = callCtx(command.agentId, refs, consoleBuf, slot)
     try {
-      const answer = await perform(action, capturingCall(call, mode, captures), effects)
+      const answer = await perform(action, capturingCall(call, mode, captures), effects, signal)
       const record = readPlainRecord(answer.value)
       if (!record || !isJsonSerializable(record)) fail(`${action.type} returned a non-serializable result`)
       if (mode !== 'none') captures.take('after', slot.el)
