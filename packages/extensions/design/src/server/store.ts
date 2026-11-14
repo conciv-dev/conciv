@@ -1,4 +1,4 @@
-import {and, asc, desc, eq, inArray, isNull, lt, max, sql, type SQL} from 'drizzle-orm'
+import {and, asc, desc, eq, getTableColumns, inArray, isNull, lt, max, sql, type SQL} from 'drizzle-orm'
 import {keyBy, omit, uniqBy} from 'es-toolkit'
 import type {SQLiteColumn} from 'drizzle-orm/sqlite-core'
 import {toolError} from '@conciv/extension'
@@ -108,9 +108,9 @@ export function createStore(input: {
     })
   }
 
-  async function held(session?: string): Promise<TargetRow[]> {
+  async function held(session?: string): Promise<HeldRow[]> {
     const latest = await orm
-      .select()
+      .select(omit(getTableColumns(targets), HEAVY_COLUMNS))
       .from(targets)
       .where(await ofProject())
       .orderBy(desc(targets.run_id))
@@ -581,6 +581,10 @@ type Keyed = {run_id: SQLiteColumn; target_id: SQLiteColumn}
 
 type TargetRow = DesignDb['tables']['targets']['$inferSelect']
 
+const HEAVY_COLUMNS = ['design', 'image'] as const
+
+type HeldRow = Omit<TargetRow, (typeof HEAVY_COLUMNS)[number]>
+
 type Tables = DesignDb['tables']
 
 type RowRow = Tables['rows']['$inferSelect']
@@ -734,7 +738,7 @@ function namesIn(found: TargetRow): Map<string, string> {
   return new Map([...walk(found.design.root)].map(({node}) => [node.id, node.figma?.name ?? '']))
 }
 
-function recordOf(row: TargetRow): TargetRecord {
+function recordOf(row: HeldRow): TargetRecord {
   return {
     id: row.target_id,
     session: row.session,
