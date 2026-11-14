@@ -9,6 +9,7 @@ import {
   AttachmentUI,
   useChatContext,
   useComposer,
+  useComposerContext,
   type AttachmentAdapter,
 } from '@conciv/ui-kit-chat'
 import {TooltipIconButtonSlot} from '@conciv/ui-kit-system'
@@ -46,7 +47,7 @@ const GUTTER =
 const TRAILING_BTN =
   'flex-none inline-flex items-center justify-center gap-[6px] select-none self-center h-[22px] px-2 rounded-[var(--chat-radius-chip)] [border:none] cursor-pointer [font-family:var(--chat-mono)] text-[9.5px] font-bold tracking-[0.12em] uppercase [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] disabled:cursor-default'
 const TRAILING_SEND_ACTIVE = 'bg-chat-accent text-chat-on-accent hover:[background:var(--chat-accent-hi)]'
-const TRAILING_SEND_IDLE = '[background:var(--chat-fill-strong)] text-chat-text-2'
+const TRAILING_SEND_IDLE = '[background:var(--chat-fill-strong)] text-chat-text-2 disabled:opacity-40'
 const TRAILING_STOP = '[background:var(--chat-fill-strong)] text-chat-text-hi hover:[background:var(--chat-fill)]'
 const TRAILING_HINT = '[font-family:var(--chat-mono)] text-[9px] tracking-normal opacity-65'
 
@@ -59,8 +60,11 @@ const MAX_INLINE_AUTO_ACTIONS = 0
 
 function ComposerSendControl(): JSX.Element {
   const composer = useComposer()
+  const context = useComposerContext()
   const reachability = useEngineReachability()
   const locked = () => lockedMessage(reachability.locked())
+  const blocked = () => !reachability.online() || locked() !== null
+  const idle = () => composer.isEmpty() || composer.isStopping() || blocked() || context.sendingAttachments()
   const sendLabel = (): string => {
     const lockedLabel = locked()
     if (lockedLabel !== null) return lockedLabel
@@ -71,8 +75,8 @@ function ComposerSendControl(): JSX.Element {
       when={composer.isRunning()}
       fallback={
         <ComposerPrimitive.Send
-          class={`${TRAILING_BTN} ${composer.isEmpty() ? TRAILING_SEND_IDLE : TRAILING_SEND_ACTIVE}`}
-          disabled={!reachability.online() || locked() !== null}
+          class={`${TRAILING_BTN} ${idle() ? TRAILING_SEND_IDLE : TRAILING_SEND_ACTIVE}`}
+          disabled={blocked()}
           aria-label={sendLabel()}
         >
           Send
