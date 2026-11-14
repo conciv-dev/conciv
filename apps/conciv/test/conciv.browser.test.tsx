@@ -5725,7 +5725,7 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
 
 describe('plugin settings pages', () => {
   const settingsBundle = (pages: string) => `const {SettingsPage} = require('@conciv/plugin/experimental')
-const text = (value) => () => document.createTextNode(value)
+const text = (value) => () => Object.assign(document.createElement('p'), {textContent: value})
 module.exports = {default: {setup(ctx) {
 ${pages}
 }}}
