@@ -1,5 +1,6 @@
 import {existsSync} from 'node:fs'
-import {chmod, readdir, writeFile} from 'node:fs/promises'
+import {chmod, mkdtemp, readdir, rm, writeFile} from 'node:fs/promises'
+import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {describe, expect, it, onTestFinished} from 'vitest'
@@ -85,8 +86,10 @@ const WitnessSchema = z.object({
   ),
 })
 
-async function bootRecorder(): Promise<CoreKit> {
-  const kit = await bootCoreKit({id: 'fake', plugins: ['./witness', PACKAGE_DIR], files: {'witness/index.ts': WITNESS}})
+const RECORDER_KIT = {id: 'fake', plugins: ['./witness', PACKAGE_DIR], files: {'witness/index.ts': WITNESS}}
+
+async function bootRecorder(stateRoot?: string): Promise<CoreKit> {
+  const kit = await bootCoreKit(stateRoot ? {...RECORDER_KIT, stateRoot} : RECORDER_KIT)
   onTestFinished(() => kit.cleanup())
   return kit
 }
@@ -207,7 +210,7 @@ describe('the recorder plugin in a real engine', () => {
 })
 
 describe('the recorder RPC', () => {
-  it('serves config defaults, round trips flush to window to log, pins reads and saves to a client id, keeps recordings in the project .conciv/recorder/recordings within the size cap and the newest 50, reads a corrupt file as expired, reports an unwritable folder, sweeps stray partial files on start and resets', async () => {
+  it('serves config defaults, round trips flush to window to log, pins reads and saves to a client id, keeps recordings in the project .conciv/recorder/recordings within the size cap and the newest 50, reads a corrupt file as expired, reports an unwritable folder, sweeps stray partial files on start, resets, and serves a saved recording after the engine reopens the same project', async () => {
     const kit = await bootRecorder()
 
     expect(await call(kit, 'config')).toEqual({masking: 'none', windowMinutes: 10, console: true})
@@ -308,6 +311,16 @@ describe('the recorder RPC', () => {
 
     expect(await call(kit, 'reset')).toEqual({ok: true})
     expect(EventWindowSchema.parse(await call(kit, 'window', {clientId: 'mine'})).events).toEqual([])
+
+    const folder = await mkdtemp(join(tmpdir(), 'conciv-recorder-reopen-'))
+    onTestFinished(() => rm(folder, {recursive: true, force: true}))
+    const first = await bootCoreKit({...RECORDER_KIT, stateRoot: folder})
+    const reopenEvents = fixtureStream(Date.now())
+    expect(await call(first, 'flush', {clientId: 'reopen', events: reopenEvents})).toEqual({ok: true})
+    const reopened = SavedSchema.parse(await call(first, 'recordings.save', {clientId: 'reopen'}))
+    await first.cleanup()
+    const second = await bootRecorder(folder)
+    expect(await call(second, 'recordings.get', {recordingId: reopened.recordingId})).toEqual({events: reopenEvents})
   })
 })
 
