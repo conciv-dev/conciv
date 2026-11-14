@@ -18,6 +18,10 @@ const OK: {ok: true} = {ok: true}
 
 const EXPIRED: {expired: true} = {expired: true}
 
+function recordingsDirectory(projectDirectory: string): string {
+  return join(projectDirectory, '.conciv', 'recorder', 'recordings')
+}
+
 type Announce = (...event: Rpc.EventInput<typeof Recorder>) => void
 
 function registerRpc(rpc: Plugin.Context['rpc'], runtime: RecorderRuntime, announce: Announce) {
@@ -69,7 +73,7 @@ export default Plugin.define({
     const rings = createClientRings({windowMs: config.windowMinutes * 60_000})
     const control = createCaptureControl(rings)
     const rendererCache = createRendererCache(createChromiumRenderer)
-    const recordings = createRecordingStore(join(ctx.storage.directory, 'recordings'))
+    const recordings = createRecordingStore(recordingsDirectory(ctx.location.directory))
     recordings.sweep().catch((error: unknown) => {
       console.error(`[recorder] sweeping old recordings failed: ${String(error)}`)
     })

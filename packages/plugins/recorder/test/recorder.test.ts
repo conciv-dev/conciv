@@ -181,6 +181,10 @@ async function failureType(pending: Promise<unknown>): Promise<string> {
   return RpcFailureSchema.parse(failure).data.type
 }
 
+function recordingsDirectory(kit: CoreKit): string {
+  return join(kit.stateRoot, '.conciv', 'recorder', 'recordings')
+}
+
 async function filesNamed(root: string, name: string): Promise<string[]> {
   const entries = await readdir(root, {recursive: true})
   return entries.filter((entry) => entry.endsWith(name)).map((entry) => join(root, entry))
@@ -195,7 +199,7 @@ describe('the recorder plugin in a real engine', () => {
 })
 
 describe('the recorder RPC', () => {
-  it('serves config defaults, round trips flush to window to log, pins reads and saves to a client id, keeps recordings in the plugin storage and resets', async () => {
+  it('serves config defaults, round trips flush to window to log, pins reads and saves to a client id, keeps recordings in the project .conciv/recorder/recordings and resets', async () => {
     const kit = await bootRecorder()
 
     expect(await call(kit, 'config')).toEqual({masking: 'none', windowMinutes: 10, console: true})
@@ -223,8 +227,7 @@ describe('the recorder RPC', () => {
     const saved = SavedSchema.parse(await call(kit, 'recordings.save', {clientId: 'mine'}))
     expect(await call(kit, 'recordings.get', {recordingId: saved.recordingId})).toEqual({events: mine.events})
     const stored = await filesNamed(kit.stateRoot, `${saved.recordingId}.json`)
-    expect(stored).toHaveLength(1)
-    expect(stored[0]).toContain('plugin-storage')
+    expect(stored).toEqual([join(recordingsDirectory(kit), `${saved.recordingId}.json`)])
 
     expect(await call(kit, 'recordings.get', {recordingId: 'missing-recording'})).toEqual({expired: true})
     expect(await call(kit, 'recordings.save', {clientId: 'nobody'})).toEqual({error: 'empty'})
