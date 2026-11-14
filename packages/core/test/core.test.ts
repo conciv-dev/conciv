@@ -1781,11 +1781,10 @@ describe('browser rpc over one websocket', () => {
       await expect(first.rpc.sessions.list(undefined)).rejects.toMatchObject({status: 401})
       first.close()
       await expect(second.rpc.sessions.list(undefined)).rejects.toMatchObject({status: 401})
-      await observer.trust.requestTrust()
       const login = browserRpcConnection(served.origin)
       expect(await login.trust.requestTrustWithToken(served.made.agentToken)).toBe(true)
       login.release()
-      expect(heard).toEqual(['untrusted', 'trusted'])
+      expect(heard).toEqual(['trusted'])
       expect(await second.rpc.sessions.list(undefined)).toMatchObject({sessions: []})
     } finally {
       stopObserving()

@@ -466,7 +466,7 @@ function socketConnection(key: string, state: TrustState): ConnectionEntry {
   }
   const trust = makeEngineTrust(key, state, link)
   socket.addEventListener('open', () => {
-    if (state.status === 'checking' || state.status === 'unreachable') void trust.requestTrust()
+    if (state.status === 'unreachable') void trust.requestTrust()
   })
   return {
     link,
