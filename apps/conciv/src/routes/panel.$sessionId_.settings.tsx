@@ -24,7 +24,8 @@ import {extensionSettingsPage} from '../settings/extension-fields.js'
 import type {SettingsTabId} from '../settings/last-tab.js'
 import type {SettingsScope} from '@conciv/contract'
 import {settingsSearchSchema} from '../settings/settings-search-schemas.js'
-import {useAppData, useConnected} from '../app/context.js'
+import {useAppData, useAppQueryClient, useConnected} from '../app/context.js'
+import {usePluginListChange} from '../runtime/plugin/root.js'
 import {createPluginRows, type PluginRows} from '../runtime/plugin/extension-plugins.js'
 
 const PAGE = 'flex flex-1 flex-col min-h-0'
@@ -108,6 +109,8 @@ function SettingsLayout(): JSX.Element {
   const appData = useAppData()
   const connected = useConnected()
   const pluginList = useQuery(() => ({...appData.utils.plugin.list.queryOptions(), enabled: connected()}))
+  const queryClient = useAppQueryClient()
+  usePluginListChange(() => void queryClient.invalidateQueries({queryKey: appData.utils.plugin.list.key()}))
   const pluginRows = createPluginRows(() => pluginList.data?.data ?? [])
   const offeredPlugins = createMemo(() => offeredPluginTabs(pluginRows), [], {equals: isEqual})
   const pluginTabs = createMemo(() => offeredPlugins().map(builtin))

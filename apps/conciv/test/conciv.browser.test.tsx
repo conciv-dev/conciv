@@ -5880,3 +5880,28 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
     fifthInstalled.done()
   }, 90_000)
 })
+
+describe('installed plugins in settings', () => {
+  const coreBase = bootedCore('installed-plugins-settings')
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  const tab = (name: string) => page.getByRole('tab', {name, exact: true})
+  const lateRow = () => page.getByText('late', {exact: true})
+
+  test('an engine-only plugin added while the list is open appears in it and offers the Plugins tab', async () => {
+    await page.viewport(1000, 900)
+    localStorage.removeItem('conciv:settings-tab')
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`, [])
+    await expect.element(tab('General'), {timeout: 8000}).toBeVisible()
+    await expect.element(tab('Plugins')).not.toBeInTheDocument()
+    await expect.element(lateRow()).not.toBeInTheDocument()
+
+    await coreControl.writeProjectFile('conciv/plugins/late.ts', "export default {id: 'late', async setup() {}}\n")
+
+    await expect.element(lateRow(), {timeout: 15_000}).toBeVisible()
+    await expect.element(tab('Plugins')).toHaveAttribute('aria-selected', 'true')
+  }, 60_000)
+})

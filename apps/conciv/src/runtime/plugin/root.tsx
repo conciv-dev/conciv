@@ -17,6 +17,7 @@ const PluginsContext = createContext<{
   source: () => PluginExperimentalSource | undefined
   client: () => ConcivClient | undefined
   manager: () => PluginManager | undefined
+  onPluginListChange: (listener: () => void) => () => void
   set: (plugins: readonly PluginExperimental[], reserved: readonly string[]) => void
   reserved: () => readonly string[]
 }>()
@@ -33,6 +34,12 @@ export function usePluginManager() {
   const plugins = useContext(PluginsContext)
 
   return () => plugins?.manager()
+}
+
+export function usePluginListChange(listener: () => void) {
+  const plugins = useContext(PluginsContext)
+
+  onCleanup(plugins?.onPluginListChange(listener) ?? (() => undefined))
 }
 
 export function useHostApis() {
@@ -54,6 +61,7 @@ export function PluginRoot(props: ParentProps) {
   })
   const first = Promise.withResolvers<BundleSource>()
   const listeners = new Set<Parameters<InstalledSource['on']>[0]>()
+  const pluginListListeners = new Set<() => void>()
 
   first.promise.catch(() => undefined)
 
@@ -64,6 +72,7 @@ export function PluginRoot(props: ParentProps) {
 
     first.resolve(created)
     onCleanup(created.manager.on((message) => listeners.forEach((listener) => listener(message))))
+    onCleanup(created.onPluginListChange(() => pluginListListeners.forEach((listener) => listener())))
     onCleanup(created.dispose)
 
     return created
@@ -102,6 +111,11 @@ export function PluginRoot(props: ParentProps) {
           source: bundle,
           client: () => apis.engine.client,
           manager: () => bundle()?.manager,
+          onPluginListChange(listener) {
+            pluginListListeners.add(listener)
+
+            return () => pluginListListeners.delete(listener)
+          },
           set: (plugins, reserved) => setLoaded({settled: true, plugins, reserved}),
           reserved: () => loaded().reserved,
         }}
