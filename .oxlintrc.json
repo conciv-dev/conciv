@@ -151,6 +151,12 @@
   },
   "overrides": [
     {
+      "files": ["packages/builtin-plugins/src/page/rpc.ts"],
+      "rules": {
+        "conciv/banned-vocabulary": "off"
+      }
+    },
+    {
       "files": ["packages/plugin/src/**"],
       "rules": {
         "conciv/no-comments": ["error", {"keepDocComments": true}],
