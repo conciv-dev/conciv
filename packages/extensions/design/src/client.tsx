@@ -341,9 +341,13 @@ async function browserLoaded(input: {src?: string; width?: number; height?: numb
   const image = await imageAt(input.src)
   return pngUrl({
     source: image,
-    width: image.naturalWidth || Math.max(1, Math.round(input.width ?? 1)),
-    height: image.naturalHeight || Math.max(1, Math.round(input.height ?? 1)),
+    width: drawnSize({natural: image.naturalWidth, asked: input.width}),
+    height: drawnSize({natural: image.naturalHeight, asked: input.height}),
   })
+}
+
+function drawnSize(input: {natural: number; asked?: number}): number {
+  return input.natural || Math.max(1, Math.round(input.asked ?? 1))
 }
 
 function pageScheme(): MeasureResult['scheme'] {
