@@ -5,7 +5,7 @@ import {onCleanup, type Accessor} from 'solid-js'
 import {createStore, type SetStoreFunction, type Store} from 'solid-js/store'
 import {persistStore} from './persist'
 import {canWriteBackHydration} from './persist-machine'
-import {withInitial} from './schema'
+import {assertStoreDefinition, assertStoreWrite, withInitial, type Encode} from './schema'
 import {settingsStorage, settingsSync} from './settings-storage'
 
 type InitType = Promise<string | null> | string | null
@@ -143,10 +143,12 @@ export function persisted<S extends StandardSchemaV1<unknown, object>>(
   schema: S,
   initial: NoInfer<StandardSchemaV1.InferOutput<S>>,
   rpc: RpcClient,
+  encode?: Encode<S>,
 ): PersistedWithReady<StandardSchemaV1.InferOutput<S>> {
   const config = target
   const name = config.key
-  const restore = withInitial(name, schema, initial)
+  assertStoreDefinition(name, schema, initial, encode)
+  const restore = withInitial(name, schema, initial, encode)
 
   const decode = (raw: string) => {
     const value = decodeJson(raw)
@@ -154,7 +156,7 @@ export function persisted<S extends StandardSchemaV1<unknown, object>>(
     if (value !== undefined) return {value: restore(value.value)}
   }
 
-  const serialize = (value: StandardSchemaV1.InferOutput<S>) => JSON.stringify(value)
+  const serialize = (value: StandardSchemaV1.InferOutput<S>) => JSON.stringify(encode ? encode(value) : value)
 
   const normalize = (raw: string) => {
     const value = decode(raw)
@@ -162,7 +164,7 @@ export function persisted<S extends StandardSchemaV1<unknown, object>>(
     if (value !== undefined) return serialize(value.value)
   }
 
-  const store = createStore<StandardSchemaV1.InferOutput<S>>(restore(initial))
+  const store = createStore<StandardSchemaV1.InferOutput<S>>(restore(encode ? encode(initial) : initial))
   const canCommit = () => canWriteBackHydration(persist.state())
 
   const current = settingsStorage(rpc, config)
@@ -206,6 +208,10 @@ export function persisted<S extends StandardSchemaV1<unknown, object>>(
     storage,
     serialize,
     deserialize: (raw) => restore(JSON.parse(raw)),
+    write: async (value, serialized) => {
+      assertStoreWrite(name, schema, value, encode)
+      await storage.setItem(name, serialized)
+    },
     sync: channel ? settingsSync(rpc, config, channel.signal) : undefined,
   })
 

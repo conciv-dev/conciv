@@ -61,7 +61,8 @@ import {
   type PluginHostEvent,
 } from './instance-machine'
 import {createStartupGate, type InstalledSource} from './startup'
-import {createSessionStore, whenLoaded} from './stores'
+import {assertStoreDefinition} from '../persistence/schema'
+import {createSessionStore, storeName, whenLoaded} from './stores'
 
 type Contribution = {key: string; registry: string; plugin: string; value: Accessor<unknown>}
 
@@ -629,6 +630,7 @@ function createHost(input: HostInput) {
         const storage = typed.storage
 
         const loaded = windowStores(definition).flatMap(([name, declaration]) => {
+          assertStoreDefinition(storeName(plugin, name), declaration.schema, declaration.initial)
           const options = {
             schema: declaration.schema,
             initial: declaration.initial,

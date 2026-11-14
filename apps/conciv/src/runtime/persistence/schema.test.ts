@@ -1,6 +1,6 @@
 import {describe, expect, test} from 'vitest'
 import {z} from 'zod'
-import {withInitial} from './schema'
+import {assertStoreDefinition, assertStoreWrite, withInitial} from './schema'
 
 describe('persistence schemas', () => {
   test('initial state supplies nested defaults without hiding valid siblings', () => {
@@ -114,6 +114,76 @@ describe('persistence schemas', () => {
     })
 
     expect(decode({amount: 12, label: 'saved', removed: true})).toEqual({amount: 7, label: 'default'})
+  })
+
+  test('a store that would not read back its initial value is refused when defined', () => {
+    const amount = z.codec(z.string(), z.number(), {decode: Number, encode: String})
+    const amounts = z.object({amount, items: z.array(z.string())})
+    const labels = z.object({label: z.string().transform((label) => `${label}!`)})
+
+    expect(() => assertStoreDefinition('plugin.acme.amounts', amounts, {amount: 7, items: []})).toThrow(
+      new Error(
+        'The store plugin.acme.amounts is refused: it does not read back what it writes at amount; a converting schema needs an encode',
+      ),
+    )
+    expect(() => assertStoreDefinition('plugin.acme.labels', labels, {label: 'saved'})).toThrow(
+      new Error(
+        'The store plugin.acme.labels is refused: it does not read back what it writes at label; a converting schema needs an encode',
+      ),
+    )
+    expect(() =>
+      assertStoreDefinition('plugin.acme.plain', z.object({label: z.string()}), {label: 'saved'}),
+    ).not.toThrow()
+    expect(() =>
+      assertStoreDefinition('plugin.acme.encoded', amounts, {amount: 7, items: []}, (value) =>
+        z.encode(amounts, value),
+      ),
+    ).not.toThrow()
+    expect(() =>
+      assertStoreDefinition(
+        'plugin.acme.remote',
+        z.object({amount: z.number()}).refine(async () => true),
+        {
+          amount: 7,
+        },
+      ),
+    ).toThrow(new TypeError('The store plugin.acme.remote has a schema that validates asynchronously'))
+  })
+
+  test('a write the store would not read back is refused when the definition could not show it', () => {
+    const amount = z.codec(z.string(), z.number(), {decode: Number, encode: String})
+    const records = z.object({amounts: z.record(z.string(), amount)})
+    const optional = z.object({amount: amount.optional()})
+    const lists = z.object({amounts: z.array(amount)})
+    const doubled = z.object({count: z.number().transform((count) => count * 2)})
+
+    expect(() => assertStoreDefinition('plugin.acme.records', records, {amounts: {}})).not.toThrow()
+    expect(() => assertStoreWrite('plugin.acme.records', records, {amounts: {saved: 12}})).toThrow(
+      new Error(
+        'The store plugin.acme.records refused a write: it does not read back what it writes at amounts.saved; a converting schema needs an encode',
+      ),
+    )
+    expect(() => assertStoreDefinition('plugin.acme.optional', optional, {})).not.toThrow()
+    expect(() => assertStoreWrite('plugin.acme.optional', optional, {amount: 12})).toThrow(
+      new Error(
+        'The store plugin.acme.optional refused a write: it does not read back what it writes at amount; a converting schema needs an encode',
+      ),
+    )
+    expect(() => assertStoreDefinition('plugin.acme.lists', lists, {amounts: []})).not.toThrow()
+    expect(() => assertStoreWrite('plugin.acme.lists', lists, {amounts: [12]})).toThrow(
+      new Error(
+        'The store plugin.acme.lists refused a write: it does not read back what it writes at amounts.0; a converting schema needs an encode',
+      ),
+    )
+    expect(() => assertStoreDefinition('plugin.acme.doubled', doubled, {count: 0})).not.toThrow()
+    expect(() => assertStoreWrite('plugin.acme.doubled', doubled, {count: 3})).toThrow(
+      new Error(
+        'The store plugin.acme.doubled refused a write: it does not read back what it writes at count; a converting schema needs an encode',
+      ),
+    )
+    expect(() =>
+      assertStoreWrite('plugin.acme.lists', lists, {amounts: [12]}, (value) => z.encode(lists, value)),
+    ).not.toThrow()
   })
 
   test('a schema that validates asynchronously throws a TypeError naming the store', () => {

@@ -1,5 +1,5 @@
 import type {StandardSchemaV1} from '@standard-schema/spec'
-import {isPlainObject, omit, uniq} from 'es-toolkit'
+import {isEqual, isPlainObject, omit, uniq} from 'es-toolkit'
 
 type Path = readonly PropertyKey[]
 
@@ -40,6 +40,58 @@ export function withInitial<S extends StandardSchemaV1<unknown, object>>(
   }
 }
 
+export function assertStoreDefinition<S extends StandardSchemaV1<unknown, object>>(
+  name: string,
+  schema: S,
+  initial: StandardSchemaV1.InferOutput<S>,
+  encode?: Encode<S>,
+) {
+  const refused = `The store ${name} is refused`
+  const validate = syncValidate(name, schema)
+  const read = validate(encode ? encode(initial) : initial)
+
+  if (read.issues) throw readBackError(refused, issuePath(read.issues[0]))
+  readBack(validate, read.value, refused, encode)
+}
+
+export function assertStoreWrite<S extends StandardSchemaV1<unknown, object>>(
+  name: string,
+  schema: S,
+  value: StandardSchemaV1.InferOutput<S>,
+  encode?: Encode<S>,
+) {
+  readBack(syncValidate(name, schema), value, `The store ${name} refused a write`, encode)
+}
+
+function readBack<S extends StandardSchemaV1<unknown, object>>(
+  validate: ReturnType<typeof syncValidate<S>>,
+  value: StandardSchemaV1.InferOutput<S>,
+  refused: string,
+  encode: Encode<S> | undefined,
+) {
+  const written: unknown = JSON.parse(JSON.stringify(encode ? encode(value) : value))
+  const read = validate(written)
+
+  if (read.issues) throw readBackError(refused, issuePath(read.issues[0]))
+
+  if (!isEqual(read.value, value)) throw readBackError(refused, differingPath(value, read.value))
+}
+
+function readBackError(refused: string, path: Path) {
+  const field = path.length > 0 ? path.map(String).join('.') : 'the root'
+
+  return new Error(`${refused}: it does not read back what it writes at ${field}; a converting schema needs an encode`)
+}
+
+function differingPath(left: unknown, right: unknown): Path {
+  if (!isPlainObject(left) || !isPlainObject(right)) return []
+  const key = uniq([...Object.keys(left), ...Object.keys(right)]).find(
+    (key) => !isEqual(ownField(left, key), ownField(right, key)),
+  )
+
+  return key === undefined ? [] : [key, ...differingPath(ownField(left, key), ownField(right, key))]
+}
+
 function merge(initial: unknown, value: unknown): unknown {
   if (value === undefined) return initial
 
@@ -67,8 +119,8 @@ function recover(
   return {value: outermost.reduce((recovered, path) => replaceAt(recovered, initial, path), value)}
 }
 
-function issuePath(issue: StandardSchemaV1.Issue): Path {
-  return (issue.path ?? []).map((segment) => (typeof segment === 'object' ? segment.key : segment))
+function issuePath(issue: StandardSchemaV1.Issue | undefined): Path {
+  return (issue?.path ?? []).map((segment) => (typeof segment === 'object' ? segment.key : segment))
 }
 
 function recoveryPath(value: unknown, path: Path): Path | undefined {
