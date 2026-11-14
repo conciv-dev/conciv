@@ -123,7 +123,7 @@
 
 /* A file path the host confirmed: the check is asynchronous, so the path fades into its colour. When
    the host opens files (`data-local-links` on the Streamdown root), the path and a local link take a
-   pointer and the path underlines on hover; a path inside a link reads as that link's label. */
+   pointer, the path underlines on hover and shows the kit's focus ring on keyboard focus; a path inside a link reads as that link's label. */
 .prose-chat :not(pre) > code[data-inline-code-kind='path'] {
   color: var(--chat-code-path);
   transition: color var(--chat-duration-fast) var(--chat-ease);
@@ -138,6 +138,11 @@
   text-decoration: underline;
   text-decoration-color: color-mix(in oklch, var(--chat-code-path) 40%, transparent);
   text-underline-offset: 2px;
+}
+
+.prose-chat[data-local-links] :not(pre) > code[data-inline-code-kind='path']:not(a > code):focus-visible {
+  outline: var(--chat-focus);
+  outline-offset: 0.125rem;
 }
 
 @media (prefers-reduced-motion: reduce) {
