@@ -106,9 +106,9 @@ describe('page rpc', () => {
     },
   )
 
-  it('the operations are the page tools plus tabs.list', () => {
+  it('the operations are the page tools plus tabs.list and fill_form', () => {
     expect(Page.Operations.map((operation) => operation.name).toSorted()).toEqual(
-      ['tabs.list', ...PAGE_TOOL_DEFS.map((definition) => pageVerbOfTool(definition.name))].toSorted(),
+      ['tabs.list', 'fill_form', ...PAGE_TOOL_DEFS.map((definition) => pageVerbOfTool(definition.name))].toSorted(),
     )
   })
 })
