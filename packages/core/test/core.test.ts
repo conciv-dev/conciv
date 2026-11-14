@@ -1784,7 +1784,7 @@ describe('browser rpc over one websocket', () => {
       const login = browserRpcConnection(served.origin)
       expect(await login.trust.requestTrustWithToken(served.made.agentToken)).toBe(true)
       login.release()
-      expect(heard).toEqual(['trusted'])
+      expect(heard).toEqual(['untrusted', 'trusted'])
       expect(await second.rpc.sessions.list(undefined)).toMatchObject({sessions: []})
     } finally {
       stopObserving()

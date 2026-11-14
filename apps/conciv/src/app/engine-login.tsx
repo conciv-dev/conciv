@@ -35,7 +35,7 @@ function trustStatus(trust: EngineTrust): Accessor<TrustStatus> {
 
 export function createEngineLogin(options: {apiBase: Accessor<string>; tokenSource?: EngineTokenSource}): EngineLogin {
   const trust = createMemo(() => {
-    const connection = browserRpcConnection(options.apiBase())
+    const connection = browserRpcConnection(options.apiBase(), options.tokenSource)
     onCleanup(connection.release)
     return connection.trust
   })
@@ -43,7 +43,7 @@ export function createEngineLogin(options: {apiBase: Accessor<string>; tokenSour
   return {
     trust,
     status: () => status()(),
-    requestTrust: () => trust().requestTrust(options.tokenSource),
+    requestTrust: () => trust().requestTrust(),
   }
 }
 
@@ -74,7 +74,7 @@ export async function startEngineLogin(login: EngineLogin): Promise<boolean> {
 async function resolveEngineLogin(login: EngineLogin): Promise<boolean> {
   const code = readMagicLinkCode()
   const trust = login.trust()
-  if (await trust.requestTrust()) return true
+  if (await trust.requestTrust({storedOnly: true})) return true
   if (trust.status() === 'unreachable') return false
   if (code !== undefined && (await exchangeMagicLink(trust, code))) return true
   return login.requestTrust()
