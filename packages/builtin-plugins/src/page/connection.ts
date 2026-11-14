@@ -1,7 +1,8 @@
 import {once} from 'node:events'
 import {keyBy, Mutex, TimeoutError, withTimeout} from 'es-toolkit'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import type {Plugin, Rule, RpcRegistration, Tool} from '@conciv/plugin'
+import {PAGE_QUEUE_REFUSED} from '@conciv/protocol/page-types'
+import {Tool, type Plugin, type Rule, type RpcRegistration} from '@conciv/plugin'
 import {
   ACCESS,
   PERMISSION_SYNC_TIMEOUT_MS,
@@ -26,6 +27,8 @@ const DEFAULT_TIMEOUT_MS = 5000
 
 const TAB_RETURN_MS = 5000
 
+const QUEUED_ACTION_MS = 7000
+
 const EVAL_ASK: Rule = {action: 'page_eval', resource: '*', effect: 'ask'}
 
 const TRANSPORT_CODES = ['disconnected', 'timeout', 'tab_unavailable']
@@ -40,6 +43,11 @@ export type Connection = Awaited<ReturnType<typeof make>>
 
 export function raise(error: Tool.Error): Error {
   return Object.assign(new Error(error.message, {cause: error.error}), error)
+}
+
+function refused(error: Tool.Error): RequestSettlement {
+  const message = `the page refused the queue, so this action did not run: ${error.message}`
+  return {ok: false, error: Tool.toolError({message, error: {code: PAGE_QUEUE_REFUSED, message}})}
 }
 
 function whenAborted(signal: AbortSignal | undefined): Promise<'aborted'> {
@@ -303,8 +311,54 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
     }
   }
 
+  function playQueue(
+    sessionId: SessionId,
+    play: {
+      readonly action: Action
+      readonly agentId: string
+      readonly queueId: string
+      readonly actions: readonly Action[]
+    },
+  ): Promise<RequestSettlement>[] {
+    const selected = selectTarget(machine.state, sessionId, play.action)
+    if (!selected.ok) throw raise(selected.error)
+    const of = play.actions.length
+    const played = play.actions.map(() => Promise.withResolvers<RequestSettlement>())
+    const queued = (index: number) => ({id: play.queueId, index, of})
+    const send = (action: Action, index: number, timeoutMs: number) =>
+      request(
+        sessionId,
+        selected.connectionId,
+        {action, agentId: play.agentId, timeoutMs, queued: queued(index)},
+        undefined,
+      )
+    const run = async () => {
+      const serial = lane(sessionId)
+      await serial.acquire()
+      try {
+        const acceptance = await send(play.action, -1, DEFAULT_TIMEOUT_MS)
+        for (const [index, action] of play.actions.entries())
+          played[index]?.resolve(
+            acceptance.ok ? await send(action, index, QUEUED_ACTION_MS) : refused(acceptance.error),
+          )
+      } finally {
+        serial.release()
+      }
+    }
+    void run().catch((error: unknown) =>
+      played.forEach((each) =>
+        each.resolve({
+          ok: false,
+          error: Tool.toolError({message: `The queue could not be played: ${String(error)}`, error}),
+        }),
+      ),
+    )
+    return played.map((each) => each.promise)
+  }
+
   return {
     target,
+    playQueue,
     records,
     tabs: (sessionId: SessionId): {tabs: Tab[]; focusedTabId: string | null} => selectTabs(machine.state, sessionId),
     dispose: async (): Promise<void> => {

@@ -486,6 +486,10 @@ export const Command = z.object({
   timeoutMs: z.number().int().positive().describe("the call's own timeout: its input timeout plus a second, else 5 s"),
   inspect: z.boolean().optional(),
   target: Target.optional(),
+  queued: z
+    .object({id: z.string().min(1), index: z.number().int().min(-1), of: z.number().int().min(0)})
+    .optional()
+    .describe('the queue this command plays in: index -1 is its acceptance, 0 to of - 1 its actions'),
 })
 export type Command = z.infer<typeof Command>
 export const Result = z.object({value: z.json(), files: z.array(File), capture: PageCaptureBundleSchema.optional()})
