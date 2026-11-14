@@ -57,7 +57,9 @@ function paddedFlow(input: {node: DesignNode; element: Laid}): boolean | null {
   const {pad} = padded.data
   const inner = sole.box
   const inset = [inner.y - box.y, box.x + box.w - inner.x - inner.w, box.y + box.h - inner.y - inner.h, inner.x - box.x]
+  const atPad = inset.map((side, index) => Math.abs(side - (pad[index] ?? 0)) <= SAME_PX)
   const fits =
-    pad.some((side) => side > 0) && inset.every((side, index) => Math.abs(side - (pad[index] ?? 0)) <= SAME_PX)
+    inset.some((side, index) => side > SAME_PX && atPad[index] === true) &&
+    inset.every((side, index) => atPad[index] === true || Math.abs(side) <= SAME_PX)
   return fits ? flowRow(sole.cssom) : null
 }

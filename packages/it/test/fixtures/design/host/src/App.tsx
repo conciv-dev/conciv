@@ -77,6 +77,32 @@ const DISCOVERY_TEXT =
 const PLANNING_TEXT =
   'Based on the gathered information, we create a comprehensive project plan and strategy. This includes defining project milestones, timelines, deliverables, and resource allocation. We collaborate closely with you to align our strategy with your vision.'
 const SLIDER_LAYER = {gridColumn: 1, gridRow: 1} as const
+const NAVBAR_ITEMS = ['Home', 'Services', 'Work', 'Process', 'About', 'Careers']
+const NAVBAR_ROW = {display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center'} as const
+const NAVBAR_PADDED = {...NAVBAR_ROW, padding: '20px 162px'} as const
+const NAVBAR_WRAPPED = {...NAVBAR_ROW, width: 1596, margin: '0 auto', padding: '20px 0'} as const
+const NAVBAR_LINKS = {display: 'flex', alignItems: 'center', gap: 30} as const
+const NAVBAR_TEXT = {fontFamily: 'Barlow', fontSize: 18, lineHeight: '27px', textDecoration: 'none'} as const
+const NAVBAR_LINK = {...NAVBAR_TEXT, display: 'block', fontWeight: 500, color: '#e6e6e6'} as const
+const NAVBAR_CURRENT = {
+  ...NAVBAR_TEXT,
+  display: 'block',
+  padding: '14px 24px',
+  borderRadius: 8,
+  background: '#262626',
+  fontWeight: 600,
+  color: '#ffffff',
+} as const
+const NAVBAR_CONTACT = {
+  ...NAVBAR_TEXT,
+  justifySelf: 'end',
+  padding: '16px 24px',
+  borderRadius: 8,
+  background: '#9eff00',
+  fontWeight: 500,
+  color: '#262626',
+} as const
+
 const FORM_STROKE = '0 -1px 0 0 #262626, 1px 0 0 0 #262626, -1px 0 0 0 #262626'
 const GRID_STEPS = [
   ["Discovery", "We begin by thoroughly understanding your business goals, target audience, and project requirements. We conduct in-depth research to gather insights and define project objectives, allowing us to develop a tailored strategy."],
@@ -428,6 +454,36 @@ export function App() {
       </main>
     )
   }
+  if (requested === 'navbar-list' || requested === 'navbar-wrapped') {
+    const wrapped = requested === 'navbar-wrapped'
+    return (
+      <main style={{margin: -24, minHeight: 200, background: '#141414'}} data-conciv-key="nBmNaA">
+        <header style={{boxShadow: 'inset 0 -1px 0 0 #262626'}} data-conciv-key="nBhDrA">
+          <div style={wrapped ? NAVBAR_WRAPPED : NAVBAR_PADDED} data-conciv-key="nBwRpA">
+            <a href="#" style={{display: 'flex', gap: 10, width: 177.72}} data-conciv-key="nBlGoA">
+              <span style={{width: 60.28, aspectRatio: '1', borderRadius: 9.38, background: '#9eff00'}} data-conciv-key="nBlMkA" />
+            </a>
+            <nav style={wrapped ? NAVBAR_LINKS : {}} data-conciv-key="nBnVaA">
+              {wrapped ? (
+                NAVBAR_ITEMS.map((item) => <NavbarLink key={item} item={item} />)
+              ) : (
+                <ul style={{...NAVBAR_LINKS, margin: 0, padding: 0, listStyle: 'none'}} data-conciv-key="nBuLsA">
+                  {NAVBAR_ITEMS.map((item) => (
+                    <li key={item} data-conciv-key="nBlItA">
+                      <NavbarLink item={item} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </nav>
+            <a href="#" style={NAVBAR_CONTACT} data-conciv-key="nBcTaA">
+              Contact Us
+            </a>
+          </div>
+        </header>
+      </main>
+    )
+  }
   if (requested === 'range-slider') {
     return (
       <main style={{margin: -24, paddingTop: 5.67, background: '#141414'}} data-conciv-key="rSmNaA">
@@ -776,6 +832,19 @@ function ContactForm(props: {flat: boolean; section: boolean; ruled: boolean}) {
         form
       )}
 </main>
+  )
+}
+
+function NavbarLink(props: {item: string}) {
+  return (
+    <a
+      href="#"
+      className="font-medium"
+      style={props.item === 'Process' ? NAVBAR_CURRENT : NAVBAR_LINK}
+      data-conciv-key="nBaLkA"
+    >
+      {props.item}
+    </a>
   )
 }
 

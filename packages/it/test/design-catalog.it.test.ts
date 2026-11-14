@@ -315,6 +315,27 @@ describe('a Figma wrapper that draws nothing', () => {
   })
 })
 
+describe('a navbar', () => {
+  it('pairs its frame with the element that spans it', async () => {
+    await kit.goto('navbar-wrapped')
+    await call('design_get', await sliced('navbar', '50-533'))
+    const links = ['50:548', '50:549', '50:551', '50:552', '50:553', '50:554']
+    const rows = async (page: string) => {
+      await kit.goto(page)
+      return roundOf(await call('design_check', {}))
+        .rows.filter(
+          (row) =>
+            (row.node === '50:534' && row.magnitude !== 'pin') ||
+            row.node === '50:550' ||
+            (links.includes(row.node) && row.magnitude === 'paint'),
+        )
+        .filter((row) => row.property !== 'font family')
+        .map((row) => row.text)
+    }
+    expect(await rows('navbar-wrapped')).toEqual([])
+  })
+})
+
 describe('a page that drifts from the design', () => {
   it('is told where the drift starts when its 1px lines take space, from 3 px, lines too thin to draw pair with no far line, a line pairs with no tall box, and those lines match their crops', async () => {
     await kit.goto('process-column-flat')
