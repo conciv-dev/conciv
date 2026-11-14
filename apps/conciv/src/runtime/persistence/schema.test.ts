@@ -82,6 +82,18 @@ describe('persistence schemas', () => {
     })
   })
 
+  test('a record entry named like an Object.prototype member is dropped alone when it fails', () => {
+    const decode = withInitial('named', z.object({label: z.string(), flags: z.record(z.string(), z.boolean())}), {
+      label: 'default',
+      flags: {},
+    })
+
+    expect(decode({label: 'saved', flags: {valid: true, constructor: 'bad', toString: 'bad'}})).toEqual({
+      label: 'saved',
+      flags: {valid: true},
+    })
+  })
+
   test('a root-level issue gives the whole initial value', () => {
     const decode = withInitial('strict', z.strictObject({amount: z.number(), label: z.string()}), {
       amount: 7,

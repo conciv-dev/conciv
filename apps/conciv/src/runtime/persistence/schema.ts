@@ -36,7 +36,10 @@ function merge(initial: unknown, value: unknown): unknown {
   if (!isPlainObject(initial) || !isPlainObject(value)) return value
 
   return Object.fromEntries(
-    uniq([...Object.keys(initial), ...Object.keys(value)]).map((key) => [key, merge(initial[key], value[key])]),
+    uniq([...Object.keys(initial), ...Object.keys(value)]).map((key) => [
+      key,
+      merge(ownField(initial, key), ownField(value, key)),
+    ]),
   )
 }
 
@@ -77,11 +80,15 @@ function replaceAt(value: unknown, initial: unknown, path: Path): unknown {
   const [key, ...rest] = path
 
   if (key === undefined || !isPlainObject(value)) return value
-  const defaults = isPlainObject(initial) ? initial[key] : undefined
+  const defaults = isPlainObject(initial) ? ownField(initial, key) : undefined
 
   if (rest.length > 0) return {...value, [key]: replaceAt(value[key], defaults, rest)}
 
   if (defaults === undefined) return omit(value, [String(key)])
 
   return {...value, [key]: defaults}
+}
+
+function ownField(value: Record<PropertyKey, unknown>, key: PropertyKey) {
+  return Object.hasOwn(value, key) ? value[key] : undefined
 }
