@@ -809,7 +809,7 @@ describe('cli', () => {
         })
       })
 
-      it('runs every command the agent guide teaches exactly as the guide spells it', async () => {
+      it('runs every command the agent guide teaches exactly as the guide spells it, except the design commands: this engine has no design extension', async () => {
         const placeholders: Record<string, string> = {
           '<selector>': '#a',
           '<ComponentName>': 'Header',
@@ -817,10 +817,16 @@ describe('cli', () => {
           '<file>': 'src/a.ts',
           '<url>': '/src/a.ts',
         }
-        const taught = CONCIV_COMMAND_GUIDE.split('`')
+        const everyTaught = CONCIV_COMMAND_GUIDE.split('`')
           .filter((span, index) => index % 2 === 1 && span.startsWith(`${CONCIV_BIN} tools `))
           .map((span) => span.slice(CONCIV_BIN.length + 1))
-          .filter((command) => !command.startsWith('tools design '))
+        const needsDesignExtension = everyTaught.filter((command) => command.startsWith('tools design '))
+        expect(needsDesignExtension).toEqual([
+          'tools design target <image> --route <route> --width <px>',
+          'tools design diff',
+          'tools design status',
+        ])
+        const taught = everyTaught.filter((command) => !needsDesignExtension.includes(command))
         expect(taught).toEqual(expect.arrayContaining(['tools page snapshot', 'tools page console']))
         await bootCli(cleanups, {bridge: restartCapableBridge()})
         const outcomes: Array<{command: string; reached: boolean; document: unknown}> = []
