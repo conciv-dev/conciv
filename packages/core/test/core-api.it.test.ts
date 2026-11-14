@@ -22,7 +22,19 @@ import {DatabaseSync} from 'node:sqlite'
 import {crc32, deflateSync} from 'node:zlib'
 import {tmpdir} from 'node:os'
 import {basename, join, dirname} from 'node:path'
-import {afterAll, beforeAll, describe, expect, it, afterEach, onTestFinished, test, vi, beforeEach} from 'vitest'
+import {
+  afterAll,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  afterEach,
+  onTestFailed,
+  onTestFinished,
+  test,
+  vi,
+  beforeEach,
+} from 'vitest'
 import {createMCPClient, imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
 import {foldChatEvents} from '@conciv/ai/testkit'
 import {
@@ -4746,7 +4758,43 @@ export default {
 }
 `,
     )
-    const first = await boot('session', home)
+    const relaying = tempDir('conciv-relay-')
+    mkdirSync(join(relaying, 'conciv', 'plugins'), {recursive: true})
+    writeFileSync(
+      join(relaying, 'conciv', 'plugins', 'relay.ts'),
+      `const Relay = {id: 'relay', methods: {relay: {input: {type: 'object'}, output: {type: 'object'}}}, events: {}}
+const Pinger = {
+  id: 'pinger',
+  methods: {ping: {input: {type: 'object'}, output: {type: 'object'}}},
+  events: {pinged: {schema: {type: 'object', properties: {count: {type: 'number'}}}}},
+}
+
+export default {
+  id: 'relay',
+  async setup(ctx) {
+    await ctx.rpc.register(Relay, {
+      relay: async ({id}) => {
+        const server = ctx.servers.get(id)
+        if (server === undefined) return {listed: ctx.servers.list()}
+        const stream = server.client.event.subscribe()[Symbol.asyncIterator]()
+        const connected = await stream.next()
+        const answer = await server.client.rpc(Pinger).ping({})
+        const pinged = async () => {
+          const next = await stream.next()
+          if (next.done || next.value.type === 'rpc.pinger.pinged') return next.value
+          return pinged()
+        }
+        const event = await pinged()
+        await stream.return()
+        return {connected: connected.value.type, answer, event}
+      },
+    })
+  },
+}
+`,
+    )
+    connectedHome(home)
+    const first = track(await bootAt(home, relaying))
     const second = track(await bootAt(home, pinging))
     const healthId = async (base: string): Promise<string> =>
       z.object({id: z.string()}).parse(await (await fetch(`${new URL(base).origin}/health`)).json()).id
@@ -4850,6 +4898,26 @@ export default {
     })
     await pinged.return?.()
     await stream.return?.()
+    const relay = () =>
+      makeRpcClient(first).plugin.call(
+        {rpcId: 'relay', method: 'relay', input: {id: secondId}},
+        {signal: AbortSignal.timeout(5000)},
+      )
+    await vi.waitFor(
+      async () =>
+        expect(await relay()).toEqual({
+          connected: 'server.connected',
+          answer: {},
+          event: {
+            id: expect.stringMatching(/^evt_/),
+            type: 'rpc.pinger.pinged',
+            created: expect.any(Number),
+            location: {directory: pinging},
+            data: {count: 1},
+          },
+        }),
+      {timeout: 25_000},
+    )
     await engines.find((booted) => booted.base === second)?.stop()
     await listed([firstId], {event: 'the second engine stopped', at: performance.now()})
     expect(servers.get(secondId)).toBeUndefined()
@@ -5864,7 +5932,13 @@ describe('engine plugins', () => {
   const SEER = `import {appendFileSync, readFileSync} from 'node:fs'
 import {join} from 'node:path'
 
-const Seer = {id: 'seer', methods: {seen: {input: {type: 'object'}, output: {type: 'object'}}}, events: {}}
+const LOOK = 'first look'
+
+const Seer = {
+  id: 'seer',
+  methods: {seen: {input: {type: 'object'}, output: {type: 'object'}}, look: {input: {type: 'object'}, output: {type: 'string'}}},
+  events: {loaded: {schema: {type: 'object', properties: {look: {type: 'string'}}}}},
+}
 
 export default {
   id: 'seer',
@@ -5897,7 +5971,16 @@ export default {
         execute: async () => shot(),
       })
     })
-    await ctx.rpc.register(Seer, {
+    await ctx.skill.transform((skills) => {
+      skills.add({
+        id: 'seer-look',
+        name: 'seer-look',
+        description: 'How the seer looks',
+        path: join(ctx.location.directory, 'seer-look', 'SKILL.md'),
+        content: 'Look twice.',
+      })
+    })
+    const registration = await ctx.rpc.register(Seer, {
       seen: async () => ({
         mcpUrl,
         app: ctx.app,
@@ -5905,7 +5988,9 @@ export default {
         servers: ctx.servers.list(),
         plugins: (await ctx.plugin.list()).data,
       }),
+      look: async () => LOOK,
     })
+    await registration.events.emit('loaded', {look: LOOK})
     return () => appendFileSync(join(ctx.location.directory, 'cleanups.log'), 'seer\\n')
   },
 }
@@ -5998,10 +6083,16 @@ export default {
         return image.success ? [{mimeType: image.data.source.mimeType, ...jpegSize(image.data.source.value)}] : []
       })
 
-  function bootWithPlugins(home: string, root: string): Promise<Engine> {
+  function bootWithPlugins(
+    home: string,
+    root: string,
+    harness: FakeHarness = createFakeHarness(),
+    idled: string[] = [],
+  ): Promise<Engine> {
     const embedded = Plugin.define({
       id: 'embedded',
       async setup(ctx) {
+        await ctx.session.hook('experimental.idle', (event) => void idled.push(event.sessionId))
         const deletedSessions = ctx.event.subscribe({types: ['session.deleted']})
         const firstDeletion = deletedSessions[Symbol.asyncIterator]().next()
         const calls = {counted: 0}
@@ -6033,7 +6124,7 @@ export default {
       },
       root,
       launchEditor: () => {},
-      harness: createFakeHarness(),
+      harness,
       homeDir: home,
       plugins: [embedded],
     })
@@ -6044,7 +6135,23 @@ export default {
 
   it('an engine loads its project, configured and embedded plugins once it listens, lists a failing one, cleans up on stop and loads them again', async () => {
     const [home, root] = [tempDir('conciv-home-'), projectWithPlugins()]
-    const engine = await bootWithPlugins(home, root)
+    const prompts: Array<{sessionId: string; systemPrompts: string[]; tools: string[]}> = []
+    const fake = createFakeHarness()
+    const harness: FakeHarness = {
+      ...fake,
+      chatConfig: (deps: HarnessChatDeps) => ({
+        adapter: makeTextAdapter(fake.id, async function* (options) {
+          prompts.push({
+            sessionId: deps.sessionId,
+            systemPrompts: [...(options.systemPrompts ?? [])].map(String),
+            tools: (options.tools ?? []).map((tool) => tool.name),
+          })
+          yield* fake.script.chatStream(deps, options)
+        }),
+      }),
+    }
+    const idled: string[] = []
+    const engine = await bootWithPlugins(home, root, harness, idled)
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const stopped = {current: false}
     onTestFinished(async () => {
@@ -6122,12 +6229,25 @@ export default {
     const direct = (await mcp.tools()).find((entry) => entry.name === 'seer_direct_shot')
     expect.soft(shotImages(await direct?.execute?.({}))).toEqual(resized)
 
+    const origin = `http://127.0.0.1:${engine.port}`
+    const login = browserRpcConnection(origin)
+    onTestFinished(() => login.release())
+    expect(await login.trust.requestTrustWithToken(engine.agentToken)).toBe(true)
+    const widget = makeBrowserRpcClient(origin)
+    onTestFinished(() => widget.close())
+    const overSocket = (rpcId: string, method: string) =>
+      widget.rpc.plugin.call({rpcId, method, input: {}}, {signal: AbortSignal.timeout(5000)})
+    expect(await overSocket('embedded', 'ping')).toBe('pong')
+    expect(await overSocket('seer', 'look')).toBe('first look')
+
     const everything = await makeRpcClient(base).event.subscribe()
     const deletions = await makeRpcClient(base).event.subscribe({types: ['session.deleted']})
+    const socketEvents = await widget.rpc.event.subscribe()
     const connected = {done: false, value: {id: expect.stringMatching(/^evt_/), type: 'server.connected', data: {}}}
     expect(await everything.next()).toEqual(connected)
     expect(await deletions.next()).toEqual(connected)
-    expect(await call(base, 'embedded', 'announce')).toBe('announced')
+    expect(await socketEvents.next()).toEqual(connected)
+    expect(await overSocket('embedded', 'announce')).toBe('announced')
     const pluginReadDeletion = call(base, 'embedded', 'deleted')
     await makeRpcClient(base).sessions.delete({sessionId})
     expect(await pluginReadDeletion).toBe(sessionId)
@@ -6147,6 +6267,9 @@ export default {
     expect(await everything.next()).toEqual({done: false, value: announced})
     expect(await everything.next()).toEqual({done: false, value: deleted})
     expect(await deletions.next()).toEqual({done: false, value: deleted})
+    expect(await socketEvents.next()).toEqual({done: false, value: announced})
+    expect(await socketEvents.next()).toEqual({done: false, value: deleted})
+    await socketEvents.return(undefined)
 
     const outside = makeRpcClient(base, {headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'terminal'}})
     await expect(outside.event.subscribe()).rejects.toMatchObject({
@@ -6171,9 +6294,79 @@ export default {
     await everything.return(undefined)
     await deletions.return(undefined)
 
+    const looking = (await widget.rpc.sessions.create(undefined)).sessionId
+    const sessionClient = (session: string) => makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: session}})
+    const turn = (session: string, runId: string) =>
+      fetch(`${base}${CHAT_SSE_PATH}`, {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({
+          threadId: session,
+          runId,
+          messages: [{id: `${runId}-user`, role: 'user', content: 'look around'}],
+          tools: [],
+          context: [],
+        }),
+      })
+    await (await turn(looking, 'looked-run')).text()
+    expect((await sessionClient(looking).chat.hydrate({sessionId: looking})).lastRun).toMatchObject({
+      runId: 'looked-run',
+      phase: 'completed',
+    })
+    expect(prompts).toEqual([
+      {sessionId: looking, systemPrompts: expect.any(Array), tools: expect.arrayContaining(['seer_direct_shot'])},
+    ])
+    const prompted = prompts.flatMap((prompt) => prompt.systemPrompts).join('\n')
+    expect(prompted).toContain('<id>seer-look</id>')
+    expect(prompted).toContain('external_seer_echo')
+    expect(idled).toEqual([looking])
+
+    const held = (await widget.rpc.sessions.create(undefined)).sessionId
+    const heldEvents = await sessionClient(held).chat.events({sessionId: held})
+    harness.script.hold()
+    const stopping = turn(held, 'stopped-run')
+    for await (const chunk of heldEvents) if (sessionRunEvent.parse(chunk)?.runId === 'stopped-run') break
+    await sessionClient(held).chat.stop({sessionId: held, runIds: ['stopped-run']})
+    harness.script.release()
+    await (await stopping).text()
+    expect((await sessionClient(held).chat.hydrate({sessionId: held})).lastRun).toMatchObject({
+      runId: 'stopped-run',
+      phase: 'aborted',
+    })
+    expect(idled).toEqual([looking])
+    await (await turn(held, 'after-stop-run')).text()
+    expect(idled).toEqual([looking, held])
+
+    const reloads = await widget.rpc.event.subscribe()
+    expect(await reloads.next()).toEqual(connected)
+    const reloading = {arrived: false, seen: new Array<string>()}
+    onTestFailed(() => {
+      if (reloading.arrived) return
+      const cleanups = readFileSync(join(root, 'cleanups.log'), 'utf8')
+      throw new Error(
+        `the edited seer never published rpc.seer.loaded; events since the edit: ${JSON.stringify(reloading.seen)}; cleanups: ${JSON.stringify(cleanups)}`,
+      )
+    })
+    writeFileSync(
+      join(root, 'conciv', 'plugins', 'seer.ts'),
+      SEER.replace("const LOOK = 'first look'", "const LOOK = 'second look'"),
+    )
+    const reloaded = async (): Promise<unknown> => {
+      const next = await reloads.next()
+      if (next.done === true) return next
+      reloading.seen.push(next.value.type)
+      if (next.value.type === 'rpc.seer.loaded') return next.value.data
+      return reloaded()
+    }
+    expect(await reloaded()).toEqual({look: 'second look'})
+    reloading.arrived = true
+    expect(readFileSync(join(root, 'cleanups.log'), 'utf8')).toBe('configured\nseer\n')
+    expect(await overSocket('seer', 'look')).toBe('second look')
+    await reloads.return(undefined)
+
     stopped.current = true
     await engine.stop()
-    expect(readFileSync(join(root, 'cleanups.log'), 'utf8')).toBe('configured\nseer\nembedded\n')
+    expect(readFileSync(join(root, 'cleanups.log'), 'utf8')).toBe('configured\nseer\nconfigured\nseer\nembedded\n')
 
     const again = await bootWithPlugins(home, root)
     onTestFinished(() => again.stop())
