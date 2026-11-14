@@ -6044,3 +6044,118 @@ describe('installed plugins in settings', () => {
     await expect.element(tab('Plugins')).toHaveAttribute('aria-selected', 'true')
   }, 60_000)
 })
+
+describe('a fixture plugin driven like a user', () => {
+  const fixtureBundle = `const {Panel, Slot} = require('@conciv/plugin/experimental')
+const {createComponent} = require('solid-js/web')
+module.exports = {default: {setup(ctx) {
+  const button = (label, onClick) => createComponent(ctx.ui.Button, {onClick, children: label})
+  const dialog = (title, body) =>
+    ctx.dialogs.open(() => createComponent(ctx.ui.Dialog, {title, get children() { return body() }}))
+  const second = () => dialog('Fixture second dialog', () => 'The second dialog is on top')
+  const first = () => dialog('Fixture dialog', () => button('Open the second dialog', second))
+  const tools = {id: 'tools', title: 'Fixture tools', pinned: true}
+  const opened = {id: 'opened', title: 'Opened tab'}
+  ctx.add(Panel, {
+    id: 'tools',
+    region: 'pane',
+    list: () => [tools],
+    render: (props) => [
+      button('Open the fixture dialog', first),
+      button('Write a plain note', () => props.screen.composer.insert('plain note')),
+      button('Open the listed tab', () => ctx.layout.open('fixture:opened', props.session)),
+      button('Open the old tab', () => ctx.layout.open('fixture:old', props.session)),
+      button('Open an unlisted tab', () => ctx.layout.open('fixture:missing', props.session)),
+    ],
+  })
+  ctx.add(Panel, {
+    id: 'opened',
+    region: 'pane',
+    list: (input) => (input.open.includes('opened') ? [opened] : []),
+    normalize: (input) => (input.id === 'old' ? 'opened' : input.id),
+    render: () => document.createTextNode('The opened tab content'),
+  })
+  ctx.add(Slot, {
+    at: 'window.bottom',
+    render: () => button('Write a held note', () => ctx.screen.current()?.composer.insert(' held note')),
+  })
+}}}
+`
+  const coreBase = bootedCore('plugin-fixture-journey', {
+    plugins: ['./fixture'],
+    files: {
+      'fixture/index.ts': `export default {id: 'fixture', async setup() {}}
+`,
+      'fixture/plugin-experimental.js': fixtureBundle,
+    },
+  })
+  const harness = createShellHarness(coreBase)
+  const faults = trackedFaults()
+
+  afterEach(harness.dispose)
+
+  const tab = (name: string) => page.getByRole('tab', {name, exact: true})
+  const control = (name: string) => page.getByRole('button', {name, exact: true})
+  const dialog = (name: string) => page.getByRole('dialog', {name, exact: true})
+  const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const openedContent = () => page.getByText('The opened tab content', {exact: true})
+
+  test('its dialogs stack and return focus, its composer writes wait for the chat, its opened and renamed tabs show and an unlisted tab goes back to the chat', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
+    await tab('Fixture tools').click()
+    await expect.element(tab('Fixture tools')).toHaveAttribute('aria-selected', 'true')
+
+    await control('Open the fixture dialog').click()
+    await expect.element(dialog('Fixture dialog')).toBeVisible()
+    await expect.element(dialog('Fixture dialog')).toHaveFocus()
+
+    await control('Open the second dialog').click()
+    await expect.element(dialog('Fixture second dialog')).toBeVisible()
+    await expect.element(dialog('Fixture second dialog')).toHaveFocus()
+    await expect.element(page.getByText('The second dialog is on top', {exact: true})).toBeVisible()
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(dialog('Fixture second dialog')).not.toBeInTheDocument()
+    await expect.element(dialog('Fixture dialog')).toBeVisible()
+
+    await dialog('Fixture dialog').getByRole('button', {name: 'Close'}).click()
+    await expect.element(dialog('Fixture dialog')).not.toBeInTheDocument()
+    await expect.element(control('Open the fixture dialog')).toHaveFocus()
+
+    await control('Write a plain note').click()
+    await tab('Chat').click()
+    await expect.element(editor()).toHaveTextContent('plain note')
+
+    const restore = await faults.install({kind: 'gate', path: ['drafts', 'get']})
+    await tab('Fixture tools').click()
+    await expect.element(control('Write a plain note')).toBeVisible()
+    await tab('Chat').click()
+    await coreControl.awaitFaultPending(restore, 1)
+    await control('Write a held note').click()
+    await tab('Fixture tools').click()
+    await expect.element(control('Write a plain note')).toBeVisible()
+    await coreControl.releaseFault(restore)
+    await tab('Chat').click()
+    await expect.element(editor()).toHaveTextContent('held note')
+
+    await tab('Fixture tools').click()
+    await control('Open the listed tab').click()
+    await expect.element(openedContent()).toBeVisible()
+    await expect.element(tab('Opened tab')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(`/panel/${sessionId}/${encodeURIComponent('fixture:opened')}`)
+
+    await tab('Fixture tools').click()
+    await control('Open the old tab').click()
+    await expect.element(openedContent()).toBeVisible()
+    await expect.element(tab('Opened tab')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(`/panel/${sessionId}/${encodeURIComponent('fixture:opened')}`)
+
+    await tab('Fixture tools').click()
+    await control('Open an unlisted tab').click()
+    await expect.element(tab('Chat')).toHaveAttribute('aria-selected', 'true')
+    await expect.element(editor()).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}`)
+  }, 60_000)
+})
