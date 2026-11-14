@@ -288,6 +288,7 @@ export function createBundleSource(input: {readonly rpc: RpcClient; readonly api
   const setEnabled = async (pluginId: string, value: boolean) => {
     if (!known(pluginId)) throw pluginError('notFound')
 
+    await loaded.promise
     const previous = enableState.rows
     enableState.rows = uniqBy([{id: pluginId, enabled: value}, ...(previous ?? [])], (row) => row.id)
     changed()
