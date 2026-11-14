@@ -81,6 +81,8 @@ function readBack<S extends StandardSchemaV1<unknown, object>>(
 }
 
 function withoutUndefinedFields(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withoutUndefinedFields)
+
   if (!isPlainObject(value)) return value
 
   return mapValues(
