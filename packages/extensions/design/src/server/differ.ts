@@ -103,6 +103,9 @@ export function createDiffer(input: {
   const gotOne = async ({input: query, session, page: access}: Parameters<Differ['get']>[0]) => {
     const links = linksOf(query.figma)
     if (links.length > 1) return {variants: await variantsGot({runtime, query, links, session, page: access})}
+    const set = await store.variants(session)
+    if (links.length === 0 && query.image === undefined && set.length > 1)
+      return {variants: await ruled({runtime, records: set})}
     const one = {
       ...query,
       figma: links[0],
@@ -110,7 +113,6 @@ export function createDiffer(input: {
       document: at({list: query.document, index: 0}),
     }
     const current = await store.current(session)
-    const set = await store.variants(session)
     const known = [...(current === null ? [] : [current]), ...set].find((record) =>
       sameRef({record, query: one, cwd: runtime.cwd}),
     )
@@ -364,6 +366,11 @@ async function variantsGot(input: {
     records.push(known ?? (await registered({runtime, query: one, session, page: input.page})))
   }
   await runtime.store.group(records.map((record) => record.id))
+  return ruled({runtime, records})
+}
+
+async function ruled(input: {runtime: DesignRuntime; records: TargetRecord[]}): Promise<Got[]> {
+  const {runtime, records} = input
   const got = await Promise.all(records.map((record) => stored({runtime, record})))
   return got.map((design) => ({
     ...design,

@@ -337,7 +337,9 @@ describe('a page between two frames', () => {
     const broken = await between()
     await kit.goto('hero-gap-fit')
     const fitted = await between()
-    expect([broken, fitted]).toEqual([
+    const again = await call('design_get', {route: '/?variant=hero-gap-fit'})
+    const widths = z.object({variants: z.array(z.object({viewport: z.object({width: z.number()})}))}).safeParse(again)
+    expect([broken, fitted, widths.data?.variants.map((variant) => variant.viewport.width)]).toEqual([
       [
         [],
         [
@@ -347,6 +349,7 @@ describe('a page between two frames', () => {
         ],
       ],
       [[], []],
+      [1280, 358],
     ])
   })
 })
