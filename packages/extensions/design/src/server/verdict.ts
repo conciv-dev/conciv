@@ -127,7 +127,7 @@ function reasonsOf(input: {round: Round; required: Map<string, string>}): string
 const MISSING_SHOWN = 10
 
 const WRAP_RULE =
-  'When a text wraps to more lines than the frame, tighten its letter-spacing until it breaks where the frame breaks; never shrink the font.'
+  'When a text breaks its lines unlike the frame, match its box width, font family, size, weight and letter-spacing to the design; never bend letter-spacing, width or the font off the design to move a word, because a break that differs by under a quarter em at the line end is the browser measuring the font unlike Figma and is not told.'
 
 const IMPLIED = 'implied group'
 

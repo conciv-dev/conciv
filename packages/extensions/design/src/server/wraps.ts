@@ -20,34 +20,47 @@ export function wrapsOf(input: {
     const rows = linesOf(element.glyphs.flatMap((glyph) => glyph.boxes))
     const lines = rows.length
     if (frame <= 0 || lines <= 0) return []
+    const ends =
+      input.target === null
+        ? null
+        : lineEnds({look, lineHeight: look.line_height, rows: rows.slice(0, frame), target: input.target})
+    const tolerance = look.font_size ?? look.line_height
+    if (ends !== null && metricBreak({ends, width: look.w, tolerance})) return []
     if (lines !== frame) return [{node: look.node, lines, frame, line: null}]
-    if (input.target === null) return []
-    const line = brokenLine({look, lineHeight: look.line_height, rows, target: input.target})
+    const line = ends === null ? null : brokenLine({ends, tolerance})
     return line === null ? [] : [{node: look.node, lines, frame, line}]
   })
 }
 
 const TEXT = 'TEXT'
 
-function brokenLine(input: {
-  look: Box & {font_size: number | null}
-  lineHeight: number
-  rows: Box[]
-  target: Raster
-}): {index: number; page: number; drawn: number} | null {
+const EDGE_EM = 0.25
+
+type LineEnd = {page: number; drawn: number}
+
+function lineEnds(input: {look: Box; lineHeight: number; rows: Box[]; target: Raster}): LineEnd[] | null {
   const {look, lineHeight, rows} = input
-  const bands = rows.map((row, index) => ({x: look.x, y: look.y + index * lineHeight, w: look.w, h: lineHeight}))
+  const bands = rows.map((_row, index) => ({x: look.x, y: look.y + index * lineHeight, w: look.w, h: lineHeight}))
   const inked = bands.map((band) => ({band, ink: input.target.trim(band)}))
   if (inked.some(({band, ink}) => ink.h >= band.h)) return null
-  const tolerance = look.font_size ?? lineHeight
-  const gaps = rows.map((row, at) => row.w - (inked[at]?.ink.w ?? row.w))
+  return rows.map((row, index) => ({page: row.w, drawn: inked[index]?.ink.w ?? row.w}))
+}
+
+function metricBreak(input: {ends: LineEnd[]; width: number; tolerance: number}): boolean {
+  const {width, tolerance} = input
+  const first = input.ends.find((end) => Math.abs(end.page - end.drawn) > tolerance)
+  return first !== undefined && Math.max(first.page, first.drawn) > width - tolerance * EDGE_EM
+}
+
+function brokenLine(input: {ends: LineEnd[]; tolerance: number}): {index: number; page: number; drawn: number} | null {
+  const {ends, tolerance} = input
+  const gaps = ends.map((end) => end.page - end.drawn)
   const index = gaps.findIndex((gap, at) => {
     const next = gaps[at + 1] ?? 0
     return Math.abs(gap) > tolerance && Math.abs(next) > tolerance && Math.sign(gap) !== Math.sign(next)
   })
-  const row = rows[index]
-  const drawn = inked[index]?.ink.w
-  return row === undefined || drawn === undefined ? null : {index, page: Math.round(row.w), drawn}
+  const end = ends[index]
+  return end === undefined ? null : {index, page: Math.round(end.page), drawn: end.drawn}
 }
 
 function linesOf(boxes: Box[]): Box[] {

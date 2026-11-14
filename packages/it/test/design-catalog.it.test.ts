@@ -293,22 +293,24 @@ describe('a Figma effect', () => {
 })
 
 describe('a Figma wrapper that draws nothing', () => {
-  it('is not paired with part of one child when the page leaves it out, and a text inside breaks its lines where the frame does', async () => {
+  it('is not paired with part of one child when the page leaves it out, and a text inside is told a line break only when the break is not the text metrics at the line end', async () => {
     await kit.goto('process-grid')
     await call('design_get', await sliced('process-grid', '50-875'))
     const grid = roundOf(await call('design_check', {}))
     await kit.goto('process-grid-early')
     const early = roundOf(await call('design_check', {}))
+    await kit.goto('process-grid-balanced')
+    const balanced = roundOf(await call('design_check', {}))
     const told = (round: ReturnType<typeof roundOf>, node: string) =>
       round.rows.filter((row) => row.node === node).map((row) => row.text)
     expect([
       told(grid, '50:921'),
       ['50:922', '50:929'].filter((node) => grid.coverage.missing.includes(node)),
-      [grid, early].map((round) => told(round, '50:919').map((text) => text.split('p.grid-text: ')[1])),
+      [grid, early, balanced].map((round) => told(round, '50:919').map((text) => text.split('p.grid-text: ')[1])),
     ]).toEqual([
       [],
       [],
-      [[], ["breaks its lines where the frame does not: line 4 is 625px wide, the frame's is 695px"]],
+      [[], [], ["breaks its lines where the frame does not: line 4 is 578px wide, the frame's is 695px"]],
     ])
   })
 })
