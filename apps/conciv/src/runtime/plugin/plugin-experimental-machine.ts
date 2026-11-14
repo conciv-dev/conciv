@@ -92,7 +92,7 @@ export function transitionPluginExperimental(
         {type: 'publish', plugins: [], reserved: []},
         {
           type: 'log',
-          cause: event.type === 'timeout' ? new Error('Main did not list plugin experimentals') : event.cause,
+          cause: event.type === 'timeout' ? new Error('The engine did not list plugin experimentals') : event.cause,
         },
       ],
     }
