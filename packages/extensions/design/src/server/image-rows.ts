@@ -45,10 +45,9 @@ export async function imageRowsOf(input: {
       const expected = `wrong image at [${look.node}]: ${asset} expected${background ? ' as the background' : ''}`
       const box = smaller({a: {w: look.w, h: look.h}, b: element.box})
       const shown = element.styles.image ?? ''
-      const sameFile = await showsAsset({shown, asset, box, pictures})
-      const told = sameFile ? expected : `${expected}, ${foundIn(element)}`
-      if (!sameFile && foundIn(element) === NONE) return [{row: row(told), node: look.node, shot: null}]
-      if (sameFile && background) return []
+      if (await showsAsset({shown, asset, box, pictures})) return []
+      const told = `${expected}, ${foundIn(element)}`
+      if (foundIn(element) === NONE) return [{row: row(told), node: look.node, shot: null}]
       const shot = {
         selector: named.selector,
         width: side(look.w),
