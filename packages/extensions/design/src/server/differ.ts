@@ -47,6 +47,15 @@ export function createDiffer(input: {
     call: (name, query) => page.ask({sessionId: SessionId.parse(session), name, input: query}),
   })
   const edits = watchEdits({bundler: input.bundler, cwd: runtime.cwd})
+  const checks = {running: Promise.resolve()}
+  const alone = <Result>(task: () => Promise<Result>): Promise<Result> => {
+    const run = checks.running.then(task)
+    checks.running = run.then(
+      () => undefined,
+      () => undefined,
+    )
+    return run
+  }
   const brokenOne = async (asked: {record: TargetRecord; error: CompileError; by: BrokenBy}) => {
     const {record, error, by} = asked
     const [design, rounds, round] = await Promise.all([
@@ -124,44 +133,45 @@ export function createDiffer(input: {
     const record = await registered({runtime, query: one, session, page: access})
     return stored({runtime, record})
   }
+  const checked = async ({nodes, session}: Parameters<Differ['check']>[0]) => {
+    await edits.quiet()
+    const compile = await edits.compiled()
+    const records = await store.variants(session)
+    const single = records.length < 2 ? await currentTarget({runtime, session}) : null
+    const threw = await threwBeforeEdit({
+      runtime,
+      records: single === null ? records : [single],
+      edited: edits.updated(),
+    })
+    if (compile === null && threw) await reloaded(tab(session))
+    const one = (record: TargetRecord, variants?: number[], wider?: TargetRecord) =>
+      compile === null
+        ? checkedOne({
+            record,
+            session,
+            nodes,
+            ...(variants === undefined ? {} : {variants}),
+            ...(wider === undefined ? {} : {wider}),
+          })
+        : brokenOne({record, error: compile, by: 'compile'})
+    if (single !== null) return one(single)
+    const widths = records.map((record) => record.width)
+    const variants = []
+    for (const [index, record] of records.entries())
+      variants.push({
+        ...(await one(record, widths, records[index - 1])),
+        target: record.id,
+        width: record.width,
+      })
+    return {...judgedAll(variants), variants}
+  }
   return {
     get: async (asked) => {
       const got = await gotOne(asked)
       if (asked.input.route !== undefined) await store.reroute({session: asked.session, route: asked.input.route})
       return got
     },
-    check: async ({nodes, session}) => {
-      await edits.quiet()
-      const compile = await edits.compiled()
-      const records = await store.variants(session)
-      const single = records.length < 2 ? await currentTarget({runtime, session}) : null
-      const threw = await threwBeforeEdit({
-        runtime,
-        records: single === null ? records : [single],
-        edited: edits.updated(),
-      })
-      if (compile === null && threw) await reloaded(tab(session))
-      const one = (record: TargetRecord, variants?: number[], wider?: TargetRecord) =>
-        compile === null
-          ? checkedOne({
-              record,
-              session,
-              nodes,
-              ...(variants === undefined ? {} : {variants}),
-              ...(wider === undefined ? {} : {wider}),
-            })
-          : brokenOne({record, error: compile, by: 'compile'})
-      if (single !== null) return one(single)
-      const widths = records.map((record) => record.width)
-      const variants = []
-      for (const [index, record] of records.entries())
-        variants.push({
-          ...(await one(record, widths, records[index - 1])),
-          target: record.id,
-          width: record.width,
-        })
-      return {...judgedAll(variants), variants}
-    },
+    check: (asked) => alone(() => checked(asked)),
     status: async ({session}) => {
       const records = await store.variants(session)
       if (records.length < 2) return statusOne(await currentTarget({runtime, session}))
