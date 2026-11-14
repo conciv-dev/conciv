@@ -19,6 +19,7 @@ import {open, writeFile} from 'node:fs/promises'
 import {execFileSync} from 'node:child_process'
 import {createServer, request as httpRequest} from 'node:http'
 import {DatabaseSync} from 'node:sqlite'
+import {crc32, deflateSync} from 'node:zlib'
 import {tmpdir} from 'node:os'
 import {basename, join, dirname} from 'node:path'
 import {afterAll, beforeAll, describe, expect, it, afterEach, onTestFinished, test, vi, beforeEach} from 'vitest'
@@ -5612,7 +5613,7 @@ describe('page action queue delivery', () => {
 })
 
 describe('engine plugins', () => {
-  const SEER = `import {appendFileSync} from 'node:fs'
+  const SEER = `import {appendFileSync, readFileSync} from 'node:fs'
 import {join} from 'node:path'
 
 const Seer = {id: 'seer', methods: {seen: {input: {type: 'object'}, output: {type: 'object'}}}, events: {}}
@@ -5627,6 +5628,25 @@ export default {
         description: 'Says what the seer saw',
         input: {type: 'object', properties: {}},
         execute: async () => ({content: 'seer-was-here'}),
+      })
+      const shot = () => ({
+        content: [
+          {type: 'text', text: 'shot taken'},
+          {
+            type: 'file',
+            uri: 'data:image/png;base64,' + readFileSync(join(ctx.location.directory, 'shot.png')).toString('base64'),
+            mime: 'image/png',
+            name: 'shot.png',
+          },
+        ],
+      })
+      tools.add({name: 'seer_shot', description: 'Shoots the page', input: {type: 'object', properties: {}}, execute: async () => shot()})
+      tools.add({
+        name: 'seer_direct_shot',
+        description: 'Shoots the page directly',
+        input: {type: 'object', properties: {}},
+        options: {codemode: false},
+        execute: async () => shot(),
       })
     })
     await ctx.rpc.register(Seer, {
@@ -5672,12 +5692,58 @@ export default {
     mkdirSync(join(root, 'conciv', 'plugins'), {recursive: true})
     writeFileSync(join(root, 'conciv', 'plugins', 'seer.ts'), SEER)
     writeFileSync(join(root, 'conciv', 'plugins', 'broken.ts'), BROKEN)
+    writeFileSync(join(root, 'shot.png'), gradientPng(2400, 1200))
     for (const id of ['configured', 'removed', 'denied']) {
       mkdirSync(join(root, id))
       writeFileSync(join(root, id, 'index.ts'), configured(id))
     }
     return root
   }
+
+  function pngChunk(type: string, data: Buffer): Buffer {
+    const body = Buffer.concat([Buffer.from(type, 'latin1'), data])
+    const length = Buffer.alloc(4)
+    length.writeUInt32BE(data.length)
+    const checksum = Buffer.alloc(4)
+    checksum.writeUInt32BE(crc32(body))
+    return Buffer.concat([length, body, checksum])
+  }
+
+  function gradientPng(width: number, height: number): Buffer {
+    const header = Buffer.alloc(13)
+    header.writeUInt32BE(width, 0)
+    header.writeUInt32BE(height, 4)
+    header.set([8, 2, 0, 0, 0], 8)
+    const row = (y: number) =>
+      Buffer.from([0, ...Array.from({length: width}, (_, x) => [x % 256, y % 256, (x + y) % 256]).flat()])
+    const pixels = Buffer.concat(Array.from({length: height}, (_, y) => row(y)))
+    return Buffer.concat([
+      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+      pngChunk('IHDR', header),
+      pngChunk('IDAT', deflateSync(pixels)),
+      pngChunk('IEND', Buffer.alloc(0)),
+    ])
+  }
+
+  function jpegSize(base64: string): {width: number; height: number} {
+    const bytes = Buffer.from(base64, 'base64')
+    const frame = bytes.findIndex((byte, index) => byte === 0xff && bytes[index + 1] === 0xc0)
+    return {width: bytes.readUInt16BE(frame + 7), height: bytes.readUInt16BE(frame + 5)}
+  }
+
+  const ShotImageSchema = z.object({
+    type: z.literal('image'),
+    source: z.object({type: z.literal('data'), value: z.string(), mimeType: z.string()}),
+  })
+
+  const shotImages = (parts: unknown) =>
+    z
+      .array(z.object({type: z.string()}).loose())
+      .parse(parts)
+      .flatMap((part) => {
+        const image = ShotImageSchema.safeParse(part)
+        return image.success ? [{mimeType: image.data.source.mimeType, ...jpegSize(image.data.source.value)}] : []
+      })
 
   function bootWithPlugins(home: string, root: string): Promise<Engine> {
     const embedded = Plugin.define({
@@ -5768,6 +5834,22 @@ export default {
         await executeOverMcp(base, {[CONCIV_SESSION_HEADER]: sessionId}, 'return await external_seer_echo({})'),
       ),
     ).toContain('seer-was-here')
+    const resized = [{mimeType: 'image/jpeg', width: 2000, height: 1000}]
+    expect
+      .soft(
+        shotImages(
+          await executeOverMcp(
+            base,
+            {[CONCIV_SESSION_HEADER]: sessionId},
+            'await external_seer_shot({}); return "done"',
+          ),
+        ),
+      )
+      .toEqual(resized)
+    const mcp = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: sessionId})
+    onTestFinished(() => mcp.close())
+    const direct = (await mcp.tools()).find((entry) => entry.name === 'seer_direct_shot')
+    expect.soft(shotImages(await direct?.execute?.({}))).toEqual(resized)
 
     stopped.current = true
     await engine.stop()

@@ -17,6 +17,7 @@ import {
   Permission,
   PermissionSaved,
   Plugin,
+  Image,
   PluginHooks,
   PluginPromise,
   PluginSupervisor,
@@ -102,7 +103,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
       ),
     ),
     Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(input.db), Skill.layer)),
-    Layer.provideMerge(PluginHooks.layer),
+    Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, Image.layer)),
     Layer.provideMerge(Layer.mergeAll(Rpc.layer, KV.layer)),
     Layer.provideMerge(Bus.configured()),
     Layer.provideMerge(

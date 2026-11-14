@@ -87,6 +87,7 @@ import {
   CodeModeCatalog,
   Database,
   Global,
+  Image,
   InstructionEntry,
   InstructionEntrySchema,
   KV,
@@ -174,7 +175,7 @@ import {
   followPermissionCards,
   permissionSessions,
   pluginInstructions,
-  sessionSnapshot,
+  sessionToolDomain,
 } from '../src/runtime/permission-cards.js'
 import {bootMadeApp, chunkWithInlineMap, cleanupChunks, makeChatFixture, requireClaude} from './helpers.js'
 
@@ -279,7 +280,7 @@ describe('chat plane', () => {
       description: 'Echo the text back.',
       errors: [],
       inputSchema: z.object({text: z.string()}),
-      execute: async (input) => input,
+      execute: async (input) => ({value: input, files: []}),
     }
     const secret = {...echo, name: 'unit_secret', path: 'unit_secret', inputSchema: z.object({apiKey: z.string()})}
     const chat = await plane(cliHarness(cli), root, {
@@ -303,7 +304,9 @@ describe('chat plane', () => {
     await ensureRow(db, builtins, 'fake-cli', root)
     const host = ManagedRuntime.make(
       Layer.mergeAll(SkillInstructions.layer, SessionProjector.layer, Tool.layer).pipe(
-        Layer.provideMerge(Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, permissionSessions(db))),
+        Layer.provideMerge(
+          Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, Image.layer, permissionSessions(db)),
+        ),
         Layer.provideMerge(Layer.mergeAll(Bus.configured(), KV.layer)),
         Layer.provideMerge(
           Layer.succeed(
@@ -365,7 +368,7 @@ describe('chat plane', () => {
     const capabilities = (id: SessionId): CodeCapability[] =>
       toolDomainCapabilities(
         id === builtins ? [echo, secret] : [],
-        host.runSync(sessionSnapshot(id)),
+        host.runSync(sessionToolDomain(id)),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )
@@ -513,7 +516,7 @@ describe('chat plane', () => {
       capabilities: (id) =>
         toolDomainCapabilities(
           pinged,
-          host.runSync(sessionSnapshot(id)),
+          host.runSync(sessionToolDomain(id)),
           (effect, signal) => host.runPromiseExit(effect, {signal}),
           () => undefined,
         ),
@@ -2659,7 +2662,7 @@ describe('plugin permission cards', () => {
     const host = ManagedRuntime.make(
       Layer.mergeAll(Tool.layer, Permission.layer).pipe(
         Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(db))),
-        Layer.provideMerge(PluginHooks.layer),
+        Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, Image.layer)),
         Layer.provideMerge(Bus.configured()),
         Layer.provideMerge(
           Layer.succeed(
@@ -2717,7 +2720,7 @@ describe('plugin permission cards', () => {
     const buildCapabilities = (sessionId: SessionId) =>
       toolDomainCapabilities(
         [],
-        host.runSync(sessionSnapshot(sessionId)),
+        host.runSync(sessionToolDomain(sessionId)),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )
@@ -2750,11 +2753,11 @@ describe('plugin permission cards', () => {
     ])
 
     expect(await decide(id, shown.approvalId, true, 'session')).toEqual({startsTurn: false})
-    await expect(reading).resolves.toBe('read src/.env')
+    await expect(reading).resolves.toEqual({value: 'read src/.env', files: []})
     expect(await readNextEvent(second, readApprovalSettled)).toBe(shown.approvalId)
     expect((await plane.hydrate(id)).pendingApprovals).toEqual([])
     expect(await plane.decide(id, shown.approvalId, true, 'once')).toBeNull()
-    await expect(call(id, 'src/.env')).resolves.toBe('read src/.env')
+    await expect(call(id, 'src/.env')).resolves.toEqual({value: 'read src/.env', files: []})
 
     const foreign = call(other, 'other/.env')
     const otherAsk = await readNextEvent(runtime.forSession(other).stream.events(clients.signal), readApprovalAsk)
@@ -2764,7 +2767,7 @@ describe('plugin permission cards', () => {
     await expect(foreign).rejects.toThrow()
 
     await setPermissions(db, other, [{action: 'read', resource: '*', effect: 'allow'}])
-    await expect(call(other, 'other/.env')).resolves.toBe('read other/.env')
+    await expect(call(other, 'other/.env')).resolves.toEqual({value: 'read other/.env', files: []})
     await setPermissions(db, other, [{action: 'unit_read_env', resource: '*', effect: 'deny'}])
     expect(buildCapabilities(other)).toEqual([])
     expect(buildCapabilities(id).map((capability) => capability.name)).toEqual(['unit_read_env'])
@@ -3043,10 +3046,13 @@ describe('direct tools on the MCP surface', () => {
       errors: [],
       inputSchema: z.object({}),
       direct: true,
-      execute: async () => 'kept',
+      execute: async () => ({value: 'kept', files: []}),
     }
     const [kept] = outsideRunCapabilities([direct])
-    await expect(kept?.execute({}, {sessionId: id, agentId: id, model: null})).resolves.toBe('kept')
+    await expect(kept?.execute({}, {sessionId: id, agentId: id, model: null})).resolves.toEqual({
+      value: 'kept',
+      files: [],
+    })
 
     await setPermissions(made.chat.db, id, [{action: 'execute', resource: '*', effect: 'deny'}])
     expect((await listed()).toSorted()).toEqual(['unit_coded', 'unit_direct'])
@@ -3155,7 +3161,9 @@ describe('plugin context keys provided by core', () => {
         provideHarnessModels(listingHarness([OPUS, SONNET, RETIRED], 'sonnet')),
         provideGlobalRoots(home),
       ).pipe(
-        Layer.provideMerge(Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, permissionSessions(db))),
+        Layer.provideMerge(
+          Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, Image.layer, permissionSessions(db)),
+        ),
         Layer.provideMerge(Layer.mergeAll(Bus.configured(), KV.layer)),
         Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),
       ),

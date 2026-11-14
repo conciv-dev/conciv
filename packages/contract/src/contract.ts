@@ -4,6 +4,7 @@ import {z} from 'zod'
 import {type ChatEvent, RunLifecycleSchema} from '@conciv/protocol/chat-event-types'
 import {
   ChatCommandsSchema,
+  ChatContentPartSchema,
   ChatHarnessesSchema,
   ChatHistorySchema,
   ChatModelsSchema,
@@ -215,6 +216,7 @@ const CodeSessionInput = z.object({sessionId: SessionId.optional()})
 
 const CodeDelivery = {
   logs: z.array(z.string()),
+  files: z.array(ChatContentPartSchema).optional(),
   queued: z.array(PageQueueHandleSchema),
   finished: z.array(PageQueueResultSchema),
 }
