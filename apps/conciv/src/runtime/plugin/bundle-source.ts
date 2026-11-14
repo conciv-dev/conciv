@@ -59,7 +59,11 @@ export type PluginManager = InstalledSource & {
   readonly reload: (id: string) => Promise<void>
 }
 
-export type BundleSource = PluginExperimentalSource & {readonly manager: PluginManager; readonly dispose: () => void}
+export type BundleSource = PluginExperimentalSource & {
+  readonly manager: PluginManager
+  readonly onPluginListChange: (listener: () => void) => () => void
+  readonly dispose: () => void
+}
 
 export function createBundleSource(input: {readonly client: ConcivClient; readonly apiBase: string}): BundleSource {
   const endpoint = {url: input.apiBase, authorization: undefined}
@@ -71,6 +75,7 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
   const enableState: {rows: readonly EnableState[] | undefined} = {rows: undefined}
   const listeners = new Set<(message: PluginExperimentalsMessage) => void>()
   const installedListeners = new Set<(message: InstalledMessage) => void>()
+  const pluginListListeners = new Set<() => void>()
   const resources: Resources = {}
   const machine = {following: createHostState()}
 
@@ -142,9 +147,12 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
   }
 
   const readEvents = async (client: ConcivClient, attempt: number, signal: AbortSignal) => {
-    for await (const event of client.event.subscribe({signal}))
+    for await (const event of client.event.subscribe({signal})) {
+      if (event.type === 'server.connected' || (event.type === 'plugin.updated' && !event.location))
+        pluginListListeners.forEach((listener) => listener())
       if (event.type === 'plugin.updated' || event.type === 'server.connected')
         dispatch({type: 'relist.requested', watchAttempt: attempt, quitting: false})
+    }
   }
 
   const listPlugins = async (attempt: number, timeoutMs: number) => {
@@ -312,6 +320,11 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
       listeners.add(listener)
 
       return () => listeners.delete(listener)
+    },
+    onPluginListChange(listener) {
+      pluginListListeners.add(listener)
+
+      return () => pluginListListeners.delete(listener)
     },
     manager: {
       initial: loaded.promise,
