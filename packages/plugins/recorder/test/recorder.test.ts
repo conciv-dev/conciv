@@ -43,10 +43,32 @@ function fixtureStream(base: number, label = 'Buy'): RrwebEvent[] {
   ]
 }
 
+const ControlEventSchema = z.object({type: z.literal('rpc.recorder.control'), data: z.record(z.string(), z.boolean())})
+const AppendedEventSchema = z.object({
+  type: z.literal('rpc.recorder.appended'),
+  data: z.strictObject({clientId: z.string(), cursor: z.number()}),
+})
+const RecorderEventSchema = z.union([ControlEventSchema, AppendedEventSchema])
+
 async function bootRecorder(): Promise<CoreKit> {
   const kit = await bootCoreKit({id: 'fake', plugins: [PACKAGE_DIR]})
   onTestFinished(() => kit.cleanup())
   return kit
+}
+
+async function followEvents(kit: CoreKit): Promise<() => Promise<z.infer<typeof RecorderEventSchema>>> {
+  const following = new AbortController()
+  onTestFinished(() => following.abort())
+  const stream = await kit.rpc.plugin.events(
+    {rpcId: 'recorder', types: ['control', 'appended']},
+    {signal: following.signal},
+  )
+  const iterator = stream[Symbol.asyncIterator]()
+  return async () => {
+    const next = await iterator.next()
+    if (next.done) throw new Error('the recorder event stream ended')
+    return RecorderEventSchema.parse(next.value)
+  }
 }
 
 function call(kit: CoreKit, method: string, input: unknown = {}): Promise<unknown> {
@@ -117,5 +139,35 @@ describe('the recorder RPC', () => {
 
     expect(await call(kit, 'reset')).toEqual({ok: true})
     expect(EventWindowSchema.parse(await call(kit, 'window', {clientId: 'mine'})).events).toEqual([])
+  })
+})
+
+describe('the recorder RPC events', () => {
+  it('answers the live state, announces each flush with its client id and cursor only, serves the missed deltas with since, and asks for a snapshot on reset', async () => {
+    const kit = await bootRecorder()
+    expect(await call(kit, 'state')).toEqual({live: false})
+    const nextEvent = await followEvents(kit)
+
+    const base = Date.now()
+    await call(kit, 'flush', {clientId: 'mine', events: fixtureStream(base)})
+    const first = await nextEvent()
+    const head = EventWindowSchema.parse(await call(kit, 'window', {clientId: 'mine'})).cursor
+    expect(first).toEqual({type: 'rpc.recorder.appended', data: {clientId: 'mine', cursor: head}})
+
+    expect(EventWindowSchema.parse(await call(kit, 'since', {clientId: 'mine', cursor: 0}))).toEqual({
+      events: fixtureStream(base),
+      cursor: head,
+    })
+
+    const sameTimestamp = {type: 3, data: {source: 2, type: 2, id: 4}, timestamp: base + 2}
+    await call(kit, 'flush', {clientId: 'mine', events: [sameTimestamp]})
+    const second = await nextEvent()
+    expect(second.type).toBe('rpc.recorder.appended')
+    const delta = EventWindowSchema.parse(await call(kit, 'since', {clientId: 'mine', cursor: head}))
+    expect(delta.events).toEqual([sameTimestamp])
+    expect(second.data).toEqual({clientId: 'mine', cursor: delta.cursor})
+
+    expect(await call(kit, 'reset')).toEqual({ok: true})
+    expect(await nextEvent()).toEqual({type: 'rpc.recorder.control', data: {snapshot: true, flush: true}})
   })
 })

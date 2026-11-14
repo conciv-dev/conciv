@@ -1,6 +1,12 @@
 import {Rpc} from '@conciv/plugin/rpc'
 import {z} from 'zod'
-import {MAX_FLUSH_BYTES, RrwebEventSchema, jsonByteLength, recorderConfig} from './shared/protocol.js'
+import {
+  MAX_FLUSH_BYTES,
+  RecorderControlSchema,
+  RrwebEventSchema,
+  jsonByteLength,
+  recorderConfig,
+} from './shared/protocol.js'
 
 const ClientId = z.string().min(1).max(128)
 
@@ -38,10 +44,15 @@ export const Recorder = Rpc.define({
     clients: {input: NoInput, output: z.object({clients: z.array(z.object({id: z.string(), lastSeen: z.number()}))})},
     flush: {input: FlushInput, output: OkOutput},
     window: {input: RangeInput, output: EventWindow},
+    since: {input: z.object({clientId: ClientId, cursor: z.number().int().nonnegative()}), output: EventWindow},
+    state: {input: NoInput, output: z.object({live: z.boolean()})},
     reset: {input: NoInput, output: OkOutput},
     log: {input: RangeInput, output: z.object({entries: z.array(ActionLogEntrySchema)})},
     'recordings.save': {input: RangeInput, output: SaveOutput},
     'recordings.get': {input: z.object({recordingId: z.string()}), output: RecordingOutput},
   },
-  events: {},
+  events: {
+    control: {schema: RecorderControlSchema},
+    appended: {schema: z.object({clientId: z.string(), cursor: z.number()})},
+  },
 })
