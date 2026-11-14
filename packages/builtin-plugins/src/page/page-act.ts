@@ -105,11 +105,13 @@ async function fillEditor(options: {
   host: HTMLElement
   value: string
   agent: string
+  halt: () => void
 }): Promise<{value: string} | string> {
-  const {host, value, agent} = options
+  const {host, value, agent, halt} = options
   simulateClick({element: host, agent})
   typeByEvents({host, value})
   await pageTurn()
+  halt()
   if (!holds({host, value})) typeByCommands({host, value})
   host.dispatchEvent(new Event('change', {bubbles: true}))
   await pageTurn()
@@ -121,15 +123,16 @@ export async function fill(options: {
   element: Element
   value: string
   agent: string
+  halt: () => void
 }): Promise<{value: string} | string> {
-  const {element, value, agent} = options
+  const {element, value, agent, halt} = options
   if (element.closest(CODE_EDITORS)) return 'That is a code editor (CodeMirror or Monaco); fill cannot type into it.'
   const readOnly = element.closest('[aria-readonly]')?.getAttribute('aria-readonly') === 'true'
   if (!isInput(element) && !isTextArea(element)) {
     const host = editableHost(element)
     if (!host) return 'That element is not a text field.'
     if (readOnly || !host.isContentEditable) return 'That field is read-only.'
-    return fillEditor({host, value, agent})
+    return fillEditor({host, value, agent, halt})
   }
   if (readOnly || element.readOnly) return 'That field is read-only.'
   simulateFill({element, value, agent})

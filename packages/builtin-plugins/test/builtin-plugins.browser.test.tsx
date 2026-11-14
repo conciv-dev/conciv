@@ -1,8 +1,8 @@
 import {afterAll, beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest'
-import {page, server, userEvent} from 'vitest/browser'
+import {cdp, page, server, userEvent} from 'vitest/browser'
 import {render} from '@solidjs/testing-library'
 import {createSignal} from 'solid-js'
-import {installReactBridge} from '@conciv/page'
+import {installReactBridge, MASKED_VALUE} from '@conciv/page'
 import {Menu} from '@conciv/ui-kit-system'
 import {z} from 'zod'
 import {CHAT_FONTS} from '@conciv/ui-kit-chat/theme/fonts'
@@ -1116,5 +1116,162 @@ describe.skipIf(inFirefox)('the agent cursor always arrives', () => {
     await expect(
       aimCursor({id: AGENT, at: windowAt({x: -500, y: -500}), look: CursorLook.AGENT}),
     ).resolves.toBeUndefined()
+  })
+})
+
+describe.skipIf(inFirefox)('page action queue', () => {
+  const AGENT = 'queue-session'
+  const FIELDS = ['first', 'last', 'email', 'phone', 'city', 'zip']
+  const MASK = {name: 'Agent is using this page'}
+
+  function QueueForm(props: {heard: (event: string) => void}) {
+    const field = (name: string) => (
+      <label>
+        {name}
+        <input name={name} onInput={() => props.heard(name)} />
+      </label>
+    )
+    return (
+      <form onSubmit={(event) => event.preventDefault()}>
+        {FIELDS.map(field)}
+        <label>
+          card
+          <input name="card" autocomplete="cc-number" onInput={() => props.heard('card')} />
+        </label>
+        <label>
+          locked
+          <input name="locked" readOnly value="fixed" />
+        </label>
+        <label>
+          <input type="checkbox" name="agree" onChange={() => props.heard('agree')} />
+          agree
+        </label>
+        <button type="button" onKeyDown={(event) => props.heard(`key ${event.key}`)}>
+          Send
+        </button>
+        <div id="notes" contenteditable="true" role="textbox" aria-label="Notes">
+          <p id="notes-line">old note</p>
+        </div>
+      </form>
+    )
+  }
+
+  function queuePage() {
+    const heard: string[] = []
+    render(() => <QueueForm heard={(event) => heard.push(event)} />)
+    const host = document.createElement('div')
+    host.setAttribute('data-conciv-root', '')
+    document.body.append(host)
+    onTestFinished(() => host.remove())
+    onTestFinished(mountSimulator({root: host.attachShadow({mode: 'open'}), session: () => AGENT, onStop: endTask}))
+    onTestFinished(endTask)
+    const driver = makePageOperations(noContributions)
+    onTestFinished(driver.dispose)
+    const queued = (id: string, index: number, of: number, action: Record<string, unknown>) =>
+      driver.execute(Command.parse({action, agentId: AGENT, timeoutMs: 5000, queued: {id, index, of}}))
+    const accept = (id: string, actions: Record<string, unknown>[]) =>
+      queued(id, -1, actions.length, {type: 'queue', actions})
+    const play = (id: string, actions: Record<string, unknown>[]) =>
+      actions.reduce<Promise<Outcome[]>>(async (done, {tool, ...input}, index) => {
+        const before = await done
+        return [...before, await queued(id, index, actions.length, {...input, type: String(tool).slice(5)})]
+      }, Promise.resolve([]))
+    return {heard, accept, play}
+  }
+
+  const fill = (name: string, value: string) => ({tool: 'page_fill', selector: `[name=${name}]`, value})
+  const played = (value: Record<string, unknown>) => ({type: 'success', result: {value}})
+
+  it('answers at once, then plays fill, check and press in order, each landing after the one before', async () => {
+    const {heard, accept, play} = queuePage()
+    const actions = [
+      fill('first', 'Ada'),
+      fill('last', 'Lovelace'),
+      {tool: 'page_check', selector: '[name=agree]'},
+      {tool: 'page_press', selector: 'button', key: 'Enter'},
+    ]
+    expect(await accept('q-order', actions)).toMatchObject(
+      played({queueId: 'q-order', status: 'playing', done: 0, of: 4}),
+    )
+    expect(heard).toEqual([])
+    expect(await play('q-order', actions)).toMatchObject([
+      played({ok: true, value: 'Ada'}),
+      played({ok: true, value: 'Lovelace'}),
+      played({ok: true, checked: true}),
+      played({ok: true}),
+    ])
+    expect(heard).toEqual(['first', 'last', 'agree', 'key Enter'])
+  })
+
+  it('a missing target and a read-only field fail on their own and the rest still play', async () => {
+    const {heard, accept, play} = queuePage()
+    const actions = [fill('first', 'Ada'), fill('nope', 'x'), fill('locked', 'y'), fill('email', 'ada@example.com')]
+    await accept('q-skip', actions)
+    expect(await play('q-skip', actions)).toMatchObject([
+      {type: 'success'},
+      {type: 'failure', code: 'invalid-args', message: 'no element for selector [name=nope]'},
+      {type: 'failure', code: 'invalid-args', message: 'That field is read-only.'},
+      played({value: 'ada@example.com'}),
+    ])
+    expect(heard).toEqual(['first', 'email'])
+  })
+
+  it('a queue with no in-page run takes the mask down once it finishes', async () => {
+    const {accept, play} = queuePage()
+    const actions = [fill('first', 'Ada'), fill('last', 'Byron')]
+    await accept('q-outside', actions)
+    await expect.element(page.getByRole('status', MASK)).toBeInTheDocument()
+    await play('q-outside', actions)
+    await expect.element(page.getByRole('status', MASK)).not.toBeInTheDocument()
+  })
+
+  it('a queued fill types into a contenteditable editor', async () => {
+    const {accept, play} = queuePage()
+    const actions = [fill('first', 'Ada'), {tool: 'page_fill', selector: '#notes-line', value: 'Hello editor'}]
+    await accept('q-editor', actions)
+    expect(await play('q-editor', actions)).toMatchObject([
+      played({ok: true, value: 'Ada'}),
+      played({ok: true, value: 'Hello editor'}),
+    ])
+    await expect.element(page.getByRole('textbox', {name: 'Notes'})).toMatchTextContent(/^\s*Hello editor\s*$/)
+  })
+
+  it('masks a card number in the result', async () => {
+    const {accept, play} = queuePage()
+    await accept('q-mask', [fill('card', '4242424242424242')])
+    expect(await play('q-mask', [fill('card', '4242424242424242')])).toMatchObject([
+      played({ok: true, value: MASKED_VALUE}),
+    ])
+  })
+
+  it('two clicks on the mask stop the queue: no action after the stop runs and the mask comes down', async () => {
+    const {heard, accept, play} = queuePage()
+    const actions = FIELDS.map((name) => fill(name, `${name} value`))
+    await accept('q-stop', actions)
+    await expect.element(page.getByRole('status', MASK)).toBeInTheDocument()
+    await userEvent.click(page.getByRole('button', {name: 'Send'}), {force: true})
+    await userEvent.click(page.getByRole('button', {name: 'Send'}), {force: true})
+    expect(await play('q-stop', actions)).toEqual(
+      FIELDS.map(() =>
+        expect.objectContaining({
+          type: 'failure',
+          message: 'stopped by the user before this action',
+          raised: expect.objectContaining({code: 'QUEUE_STOPPED'}),
+        }),
+      ),
+    )
+    expect(heard).toEqual([])
+    await expect.element(page.getByRole('status', MASK)).not.toBeInTheDocument()
+  })
+
+  it('still finishes under reduced motion', async () => {
+    const {accept, play} = queuePage()
+    await cdp().send('Emulation.setEmulatedMedia', {features: [{name: 'prefers-reduced-motion', value: 'reduce'}]})
+    onTestFinished(async () => {
+      await cdp().send('Emulation.setEmulatedMedia', {features: []})
+    })
+    const actions = [fill('first', 'Ada'), fill('last', 'Byron')]
+    await accept('q-reduced', actions)
+    expect(await play('q-reduced', actions)).toMatchObject([{type: 'success'}, {type: 'success'}])
   })
 })

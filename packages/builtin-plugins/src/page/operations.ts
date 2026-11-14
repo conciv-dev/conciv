@@ -2,6 +2,8 @@ import {z} from 'zod'
 import {
   isPageFailure,
   ok,
+  PAGE_QUEUE_STOPPED,
+  PAGE_QUEUE_STOPPED_MESSAGE,
   pageFailure,
   PageErrorSchema,
   type PageError,
@@ -46,12 +48,26 @@ import {actionable, fill, focusedElement, hover, isDisabled, isHtml, press, sele
 import {Operations, type Action, type Command, type File, type Outcome} from './rpc.js'
 import {screenshot} from './screenshot.js'
 import {watchHotUpdates} from './hmr.js'
-import {pointAt, simulateClick, startTask, touchTask} from './simulator.js'
+import {
+  acceptQueue,
+  arriveAt,
+  finishQueue,
+  landQueued,
+  pointAt,
+  queueStopped,
+  simulateClick,
+  startTask,
+  touchTask,
+  type Beat,
+} from './simulator.js'
 
 type Locator = {ref?: string; selector?: string; name?: string}
 
+type Queued = NonNullable<Command['queued']>
+
 type Call = {
   agentId: string
+  queued?: Queued
   document: Document
   target: (locator: Locator) => Element
   resolve: (locator: Locator) => Element | null
@@ -110,10 +126,49 @@ async function touchingAsync(value: () => Promise<unknown>): Promise<Answer> {
   return result(await value())
 }
 
-async function acting(call: Call, value: () => unknown): Promise<Answer> {
+async function acting(call: Call, input: Locator, value: () => unknown, beat: Beat = 'click'): Promise<Answer> {
+  const queued = call.queued
+  if (queued === undefined) {
+    startTask(call.agentId)
+    touchTask()
+    return result(await value())
+  }
+  try {
+    return result(await playQueued({input, call, queued, beat, value}))
+  } finally {
+    if (queued.index === queued.of - 1) finishQueue(queued.id)
+  }
+}
+
+function stoppedBefore(queued: Queued): void {
+  if (queueStopped(queued.id)) throw toolError(PAGE_QUEUE_STOPPED, {message: PAGE_QUEUE_STOPPED_MESSAGE})
+}
+
+function stillQueued(call: Call): void {
+  if (call.queued !== undefined) stoppedBefore(call.queued)
+}
+
+function paceTarget(input: Locator, call: Call): Element | null {
+  const element = hasLocator(input) ? call.resolve(input) : focusedElement()
+  if (element === null || element === call.document.body) return null
+  return typeof actionable(element) === 'string' ? null : element
+}
+
+async function playQueued(options: {
+  input: Locator
+  call: Call
+  queued: Queued
+  beat: Beat
+  value: () => unknown
+}): Promise<unknown> {
+  const {input, call, queued, beat, value} = options
+  stoppedBefore(queued)
   startTask(call.agentId)
   touchTask()
-  return result(await value())
+  const element = paceTarget(input, call)
+  if (element !== null) await arriveAt({element, agent: call.agentId, beat})
+  stoppedBefore(queued)
+  return landQueued({beat, act: async () => value()})
 }
 
 function actionableTarget(call: Call, input: Locator): Element {
@@ -135,7 +190,7 @@ async function setCheckedOn(input: Locator, call: Call, checked: boolean): Promi
 
 async function fillOn(input: Locator, call: Call, value: string): Promise<PageResult> {
   const element = actionableTarget(call, input)
-  return buildOutcome(await fill({element, value, agent: call.agentId}))
+  return buildOutcome(await fill({element, value, agent: call.agentId, halt: () => stillQueued(call)}))
 }
 
 async function selectOn(input: Locator, call: Call, value: string): Promise<PageResult> {
@@ -347,22 +402,32 @@ function perform(
     case 'attr':
       return touching(() => ({value: call.target(action).getAttribute(action.attribute)}))
     case 'click':
-      return acting(call, () => {
+      return acting(call, action, () => {
         simulateClick({element: actionableTarget(call, action), agent: call.agentId})
         return ok()
       })
     case 'hover':
-      return acting(call, () => {
-        const element = actionableTarget(call, action)
-        pointAt({element, agent: call.agentId})
-        hover(element)
-        return ok()
-      })
+      return acting(
+        call,
+        action,
+        () => {
+          const element = actionableTarget(call, action)
+          pointAt({element, agent: call.agentId})
+          hover(element)
+          return ok()
+        },
+        'point',
+      )
     case 'scroll':
-      return acting(call, () => {
-        pointAt({element: call.target(action), agent: call.agentId})
-        return ok()
-      })
+      return acting(
+        call,
+        action,
+        () => {
+          pointAt({element: call.target(action), agent: call.agentId})
+          return ok()
+        },
+        'point',
+      )
     case 'submit':
       return touching(() => {
         const el = call.target(action)
@@ -372,30 +437,35 @@ function perform(
         return ok()
       })
     case 'fill':
-      return acting(call, () => fillOn(action, call, action.value))
+      return acting(call, action, () => fillOn(action, call, action.value), 'input')
     case 'fill_form':
-      return acting(call, () => fillForm(action.fields, call, signal))
+      return acting(call, {}, () => fillForm(action.fields, call, signal))
     case 'select':
-      return acting(call, () => selectOn(action, call, action.value))
+      return acting(call, action, () => selectOn(action, call, action.value))
     case 'check':
-      return acting(call, () => setCheckedOn(action, call, true))
+      return acting(call, action, () => setCheckedOn(action, call, true))
     case 'uncheck':
-      return acting(call, () => setCheckedOn(action, call, false))
+      return acting(call, action, () => setCheckedOn(action, call, false))
     case 'press':
-      return acting(call, () => {
-        if (!hasLocator(action)) {
-          press({element: focusedElement(), key: action.key})
+      return acting(
+        call,
+        action,
+        () => {
+          if (!hasLocator(action)) {
+            press({element: focusedElement(), key: action.key})
+            return ok()
+          }
+          const element = actionableTarget(call, action)
+          pointAt({element, agent: call.agentId})
+          if (isHtml(element)) element.focus({preventScroll: true})
+          press({element, key: action.key})
           return ok()
-        }
-        const element = actionableTarget(call, action)
-        pointAt({element, agent: call.agentId})
-        if (isHtml(element)) element.focus({preventScroll: true})
-        press({element, key: action.key})
-        return ok()
-      })
+        },
+        'input',
+      )
     case 'queue':
     case 'queue_async':
-      return badArgs('page_queue plays through the engine queue only')
+      return accepted(call, action.actions.length, signal)
     case 'setattr':
       return touching(() => {
         call.target(action).setAttribute(action.attribute, action.value)
@@ -488,7 +558,22 @@ function missingTarget(locator: Locator): never {
 
 type TargetSlot = {el: Element | null}
 
-function callCtx(agentId: string, refs: Refs, consoleBuf: ConsoleEntry[], slot: TargetSlot): Call {
+function accepted(call: Call, of: number, signal: AbortSignal | undefined): Answer {
+  const queued = call.queued
+  if (queued === undefined) badArgs('page_queue plays through the engine queue only')
+  startTask(call.agentId)
+  touchTask()
+  acceptQueue(queued.id, signal)
+  return result({queueId: queued.id, status: 'playing', done: 0, of})
+}
+
+function callCtx(
+  agentId: string,
+  refs: Refs,
+  consoleBuf: ConsoleEntry[],
+  slot: TargetSlot,
+  queued: Queued | undefined,
+): Call {
   const remember = (el: Element | null): Element | null => {
     if (el !== null) slot.el = el
     return el
@@ -496,6 +581,7 @@ function callCtx(agentId: string, refs: Refs, consoleBuf: ConsoleEntry[], slot: 
   const resolve = (locator: Locator): Element | null => remember(locatorTarget(locator, refs))
   return {
     agentId,
+    ...(queued === undefined ? {} : {queued}),
     document,
     resolve,
     target: (locator) => {
@@ -618,12 +704,12 @@ export function makePageOperations(ctx: Pick<BaseContext, 'list'>): PageOperatio
     const mode = captureMode(action)
     const slot: TargetSlot = {el: null}
     const captures = makeCaptureCollector(action.type)
-    const call = callCtx(command.agentId, refs, consoleBuf, slot)
+    const call = callCtx(command.agentId, refs, consoleBuf, slot, command.queued)
     try {
       const answer = await perform(action, capturingCall(call, mode, captures), effects, signal)
       const record = readPlainRecord(answer.value)
       if (!record || !isJsonSerializable(record)) fail(`${action.type} returned a non-serializable result`)
-      if (mode !== 'none') captures.take('after', slot.el)
+      if (mode !== 'none' && command.queued === undefined) captures.take('after', slot.el)
       const capture = await tryBuildCaptureBundle(captures.entries(), action.type)
       const value = z.json().parse(record)
       return {
