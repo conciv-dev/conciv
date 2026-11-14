@@ -5,6 +5,7 @@ import {onCleanup, type Accessor} from 'solid-js'
 import {createStore, type SetStoreFunction, type Store} from 'solid-js/store'
 import {persistStore} from './persist'
 import {canWriteBackHydration} from './persist-machine'
+import {withInitial} from './schema'
 import {settingsStorage, settingsSync} from './settings-storage'
 
 type InitType = Promise<string | null> | string | null
@@ -120,21 +121,6 @@ export const Persist = {
   },
 }
 
-function validated<S extends StandardSchemaV1<unknown, object>>(
-  name: string,
-  schema: S,
-  initial: StandardSchemaV1.InferOutput<S>,
-  value: unknown,
-): StandardSchemaV1.InferOutput<S> {
-  const result = schema['~standard'].validate(value)
-
-  if (result instanceof Promise) throw new TypeError(`The store ${name} has a schema that validates asynchronously`)
-
-  if (result.issues) return initial
-
-  return result.value
-}
-
 export function removePersisted(
   target: Pick<PersistTarget, 'scope' | 'namespace' | 'copyFrom' | 'key'>,
   rpc: RpcClient,
@@ -160,11 +146,12 @@ export function persisted<S extends StandardSchemaV1<unknown, object>>(
 ): PersistedWithReady<StandardSchemaV1.InferOutput<S>> {
   const config = target
   const name = config.key
+  const restore = withInitial(name, schema, initial)
 
   const decode = (raw: string) => {
     const value = decodeJson(raw)
 
-    if (value !== undefined) return {value: validated(name, schema, initial, value.value)}
+    if (value !== undefined) return {value: restore(value.value)}
   }
 
   const serialize = (value: StandardSchemaV1.InferOutput<S>) => JSON.stringify(value)
@@ -175,7 +162,7 @@ export function persisted<S extends StandardSchemaV1<unknown, object>>(
     if (value !== undefined) return serialize(value.value)
   }
 
-  const store = createStore<StandardSchemaV1.InferOutput<S>>(validated(name, schema, initial, initial))
+  const store = createStore<StandardSchemaV1.InferOutput<S>>(restore(initial))
   const canCommit = () => canWriteBackHydration(persist.state())
 
   const current = settingsStorage(rpc, config)
@@ -218,7 +205,7 @@ export function persisted<S extends StandardSchemaV1<unknown, object>>(
     name: config.key,
     storage,
     serialize,
-    deserialize: (raw) => validated(name, schema, initial, JSON.parse(raw)),
+    deserialize: (raw) => restore(JSON.parse(raw)),
     sync: channel ? settingsSync(rpc, config, channel.signal) : undefined,
   })
 
