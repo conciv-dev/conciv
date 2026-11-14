@@ -46,6 +46,7 @@ export const Recorder = Rpc.define({
     window: {input: RangeInput, output: EventWindow},
     since: {input: z.object({clientId: ClientId, cursor: z.number().int().nonnegative()}), output: EventWindow},
     state: {input: NoInput, output: z.object({live: z.boolean()})},
+    presence: {input: z.object({viewerId: z.string().min(1).max(128), live: z.boolean()}), output: OkOutput},
     reset: {input: NoInput, output: OkOutput},
     log: {input: RangeInput, output: z.object({entries: z.array(ActionLogEntrySchema)})},
     'recordings.save': {input: RangeInput, output: SaveOutput},

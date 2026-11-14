@@ -171,3 +171,20 @@ describe('the recorder RPC events', () => {
     expect(await nextEvent()).toEqual({type: 'rpc.recorder.control', data: {snapshot: true, flush: true}})
   })
 })
+
+describe('the recorder viewer presence', () => {
+  it('turns capture live for a new viewer and asks for a snapshot, renews a lease without a new snapshot, and turns it off when the viewer leaves', async () => {
+    const kit = await bootRecorder()
+    const nextEvent = await followEvents(kit)
+
+    expect(await call(kit, 'presence', {viewerId: 'viewer-1', live: true})).toEqual({ok: true})
+    expect(await nextEvent()).toEqual({type: 'rpc.recorder.control', data: {live: true}})
+    expect(await nextEvent()).toEqual({type: 'rpc.recorder.control', data: {snapshot: true, flush: true}})
+    expect(await call(kit, 'state')).toEqual({live: true})
+
+    expect(await call(kit, 'presence', {viewerId: 'viewer-1', live: true})).toEqual({ok: true})
+    expect(await call(kit, 'presence', {viewerId: 'viewer-1', live: false})).toEqual({ok: true})
+    expect(await nextEvent()).toEqual({type: 'rpc.recorder.control', data: {live: false}})
+    expect(await call(kit, 'state')).toEqual({live: false})
+  })
+})

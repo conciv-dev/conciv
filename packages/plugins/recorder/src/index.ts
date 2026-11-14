@@ -36,6 +36,12 @@ function registerRpc(rpc: Plugin.Context['rpc'], runtime: RecorderRuntime, annou
       cursor: runtime.rings.head(input.clientId),
     }),
     state: async () => ({live: runtime.control.isLive()}),
+    presence: async (input) => {
+      if (!input.live) runtime.control.dropViewer(input.viewerId)
+      const joined = input.live ? runtime.control.renewViewer(input.viewerId) : false
+      if (joined) runtime.control.emit({snapshot: true, flush: true})
+      return OK
+    },
     reset: async () => {
       runtime.rings.clear()
       const appendCursor = runtime.control.emit({snapshot: true, flush: true})
