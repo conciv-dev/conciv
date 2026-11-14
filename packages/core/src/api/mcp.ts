@@ -200,9 +200,9 @@ type McpDeps = {
     sessionId: SessionId,
     publish: (chunk: ChatEvent) => void,
     capabilities?: readonly CodeCapability[],
-    outside?: boolean,
   ) => Promise<CodeRunner | null>
-  finishedQueues: (sessionId: SessionId, outside: boolean) => PageQueueResult[]
+  hubCall: (sessionId: SessionId, callId: string) => void
+  finishedQueues: (sessionId: SessionId, hub: boolean) => PageQueueResult[]
   startedQueues: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => PageQueueHandle[]
   outsideCapabilities: (sessionId: SessionId) => CodeCapability[]
   admitCall: ChatPlane['admitCall']
@@ -268,18 +268,19 @@ export async function openCodeSession(
   caller: CodeCaller,
 ): Promise<CodeSession | null> {
   const hub = caller.trace.hub !== null
+  if (hub) deps.hubCall(scope.id, caller.trace.callId)
   const run = {threadId: scope.id, live: await scope.run.live()}
   const mirror = caller.trace.mirror(run, {publish: scope.stream.publish, record: scope.run.record})
   const childCalls = new Set<string>()
   const publish = (chunk: ChatEvent): void => {
     if (chunk.type === ChatEventType.TOOL_CALL_START) childCalls.add(chunk.toolCallId)
+    if (hub && chunk.type === ChatEventType.TOOL_CALL_START) deps.hubCall(scope.id, chunk.toolCallId)
     mirror.publish([caller.trace.mark(chunk)])
   }
   const runner = await deps.codeRunner(
     scope.id,
     publish,
     hub && caller.outside ? deps.outsideCapabilities(scope.id) : undefined,
-    hub,
   )
   if (runner === null) return null
   const calls: CallPublisher = {

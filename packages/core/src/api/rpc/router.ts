@@ -96,8 +96,8 @@ async function hubTraced<Result>(
   name: string,
   input: unknown,
   run: () => Promise<Result>,
+  trace: ReturnType<typeof callTrace> = callTrace((header) => rpcHeader(context, header)),
 ): Promise<Result> {
-  const trace = callTrace((header) => rpcHeader(context, header))
   if (trace.hub === null) return run()
   const scope = context.session
   const mirrored = {threadId: scope.id, live: await scope.run.live()}
@@ -118,10 +118,6 @@ async function hubTraced<Result>(
 type CodeErrors = {NO_CODE_MODE: (options?: {message: string}) => Error}
 
 type CodeCall = {context: RpcContext; errors: CodeErrors; signal?: AbortSignal}
-
-function hubOrigin(context: RpcContext): boolean {
-  return callTrace((header) => rpcHeader(context, header)).hub !== null
-}
 
 async function resolveCodeSession(
   deps: RpcDeps,
@@ -261,14 +257,20 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       call: toolCallOs.registry.call.handler(async ({input, context, errors, signal, path}) => {
         const assist = deps.assist(context.session.id).find((capability) => capability.name === input.name)
         if (assist === undefined && !context.session.tools.has(input.name)) throw errors.UNKNOWN_TOOL()
+        const trace = callTrace((header) => rpcHeader(context, header))
+        if (trace.hub !== null) deps.code.hubCall(context.session.id, trace.callId)
         const gate: RegistryCallGate = async (run) => {
           await admitOutsideCall(deps, context, context.session, signal, path.join('.'))
           await refuseUnapproved(deps, input.name, input.input, {context, errors, signal})
-          return hubTraced(context, input.name, input.input, run)
+          return hubTraced(context, input.name, input.input, run, trace)
         }
         const call = (): Promise<unknown> =>
           assist === undefined
-            ? context.session.tools.call(input.name, input.input, {signal, gate, outside: hubOrigin(context)})
+            ? context.session.tools.call(input.name, input.input, {
+                toolCallId: trace.callId,
+                signal,
+                gate,
+              })
             : gate(() => assist.execute(input.input))
         return call().catch((error: unknown) => {
           throw registryCallError(error, errors)

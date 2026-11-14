@@ -53,7 +53,9 @@ export type SessionDomain = {
     },
     unknown
   >
-  readonly create: (input?: SessionCreateInput) => Effect.Effect<SessionInfo, unknown>
+  readonly create: (
+    input?: Omit<SessionCreateInput, 'id'> & {readonly id?: SessionId | undefined},
+  ) => Effect.Effect<SessionInfo, unknown>
   readonly get: (input: SessionInput) => Effect.Effect<SessionInfo, unknown>
   readonly remove: (input: SessionInput) => Effect.Effect<void, unknown>
   readonly switchAgent: (input: {readonly sessionId: SessionId; readonly agent: string}) => Effect.Effect<void, unknown>

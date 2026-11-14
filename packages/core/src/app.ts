@@ -8,7 +8,7 @@ import {upgradeWebSocket} from '@conciv/serve'
 import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter} from '@conciv/harness'
 import {concivStateDir} from '@conciv/protocol/state-types'
-import type {RunLifecycle} from '@conciv/protocol/chat-event-types'
+import {idleFailedEvent, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {
@@ -475,7 +475,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const scopedToolCall: ScopedToolCall = (name, input, request) =>
     runtime
       .forSession(request.sessionId)
-      .tools.call(name, input, {toolCallId: request.toolCallId, signal: request.signal, outside: request.outside})
+      .tools.call(name, input, {toolCallId: request.toolCallId, signal: request.signal})
 
   const serverSessions: ServerSessions = {
     resumeToken: (sessionId) => nativeIdFor(db, sessionId),
@@ -542,6 +542,16 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   )
   const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
   const turnEnds = mounted.flatMap((entry) => (entry.turnEnd ? [entry.turnEnd] : []))
+  const idleFailed = async (sessionId: SessionId, runId: string, error: unknown): Promise<void> => {
+    logError(`[core] the experimental.idle hook failed: ${String(error)}`)
+    const message = error instanceof Error ? error.message : String(error)
+    await plane
+      .recordRunError(sessionId, runId, message)
+      .catch((recordError: unknown) =>
+        logError(`[core] recording the experimental.idle failure of run ${runId} failed: ${String(recordError)}`),
+      )
+    stream.publish(sessionId, idleFailedEvent.create({runId}))
+  }
   const onRunEnd = async (sessionId: SessionId, run: RunLifecycle): Promise<void> => {
     const settled = await Promise.allSettled(turnEnds.map((hook) => hook(sessionId)))
     settled.forEach((outcome) => {
@@ -557,7 +567,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
             }),
           ),
         )
-        .catch((error: unknown) => logError(`[core] the experimental.idle hook failed: ${String(error)}`))
+        .catch((error: unknown) => idleFailed(sessionId, run.runId, error))
     }
     if (run.phase === 'aborted') {
       holdForNextReply(primitives.page.queues, sessionId)
@@ -691,7 +701,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     void scope.run
       .record(chunks)
       .catch((error: unknown) => logError(`[core] recording queue ${result.queueId} failed: ${String(error)}`))
-    if (!record.outside) followUpOwedQueues(record.sessionId)
+    if (!primitives.hubCalls.has(record.sessionId, record.toolCallId)) followUpOwedQueues(record.sessionId)
   })
 
   const admitOutside = async (
@@ -713,9 +723,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const search = createSessionSearch({db, cwd: chatDeps.cwd, harnesses: chatDeps.harnesses})
   const mcp: McpVars['mcp'] = {
-    codeRunner: (sessionId, publish, capabilities, outside) =>
-      plane.codeRunner(sessionId, publish, capabilities, outside),
-    finishedQueues: (sessionId, outside) => primitives.page.queues.undelivered(sessionId, outside),
+    codeRunner: (sessionId, publish, capabilities) => plane.codeRunner(sessionId, publish, capabilities),
+    hubCall: (sessionId, callId) => primitives.hubCalls.add(sessionId, callId),
+    finishedQueues: (sessionId, fromHub) => primitives.page.queues.undelivered(sessionId, fromHub),
     startedQueues: (sessionId, toolCallIds) => primitives.page.queues.startedBy(sessionId, toolCallIds),
     admitCall: (sessionId, call) => plane.admitCall(sessionId, call),
     outsideCapabilities: (sessionId) =>

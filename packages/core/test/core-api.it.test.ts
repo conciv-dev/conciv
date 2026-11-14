@@ -86,7 +86,7 @@ import {
 } from '@conciv/harness-testkit'
 import {Plugin, Rpc as PluginRpc, type RpcRegistration} from '@conciv/plugin'
 import {evaluatePluginBundle} from '@conciv/plugin/experimental/host'
-import {PluginHost} from '@conciv/plugin-host'
+import {Location, PluginHost, Session} from '@conciv/plugin-host'
 import {claude} from '@conciv/harness/claude'
 import {codex as codexHarness} from '@conciv/harness/codex'
 import {pi as piHarness} from '@conciv/harness/pi'
@@ -96,6 +96,7 @@ import {
   type ChatEvent,
   ChatEventType,
   pageQueueEvent,
+  runLifecycleEvent,
   sessionRunEvent,
 } from '@conciv/protocol/chat-event-types'
 import {webSocket} from '@conciv/ai/client'
@@ -131,14 +132,16 @@ import {createORPCClient} from '@orpc/client'
 import {RPCLink} from '@orpc/client/fetch'
 import {onError, ORPCError, os, type RouterClient} from '@orpc/server'
 import WebSocket from 'ws'
-import {Effect, ManagedRuntime} from 'effect'
+import {Effect, ManagedRuntime, Schema} from 'effect'
 import {z} from 'zod'
 import {makeApp, type MadeApp} from '../src/app.js'
 import {callTrace} from '../src/api/call-trace.js'
 import {resolveConfig} from '../src/config.js'
 import {openSourceFromFrames} from '../src/editor/open-source.js'
 import {originAllowed} from '../src/lib/cors.js'
+import {provideSessions} from '../src/runtime/plugin-sessions.js'
 import {provideServersSource} from '../src/runtime/servers-source.js'
+import {createSessionSearch} from '../src/sessions/session-search.js'
 import {start, type Engine} from '../src/start.js'
 import {sampleServerExtension, sampleState} from './fixtures/sample-server-extension.js'
 import corePackage from '../package.json' with {type: 'json'}
@@ -1133,6 +1136,39 @@ describe('api harness switching', () => {
     expect(row(sessionId)?.deletedAt).not.toBeNull()
     expect(await listings(false)).toEqual({owner: 1, phantoms: 0})
     expect(row(sessionId)?.deletedAt).toBeNull()
+
+    const app = made.app
+    if (app === null) throw new Error('the app did not boot')
+    const search = createSessionSearch({db: app.chat.db, cwd: app.chat.cwd, harnesses: app.chat.harnesses})
+    onTestFinished(() => search.dispose())
+    const sessionKey = provideSessions(() => ({
+      chat: app.chat,
+      runtime: app.runtime,
+      search,
+      pluginHost: app.pluginHost,
+    }))
+    const key = <Success, Failure>(use: (service: Session.Interface) => Effect.Effect<Success, Failure>) =>
+      Effect.runPromise(Session.Service.use(use).pipe(Effect.provide(sessionKey)))
+    const id = SessionId.parse(sessionId)
+    const oldMarkers = (await kit().rpc.markers.list({sessionId})).map((marker) => marker.id)
+    expect(oldMarkers).not.toEqual([])
+    await key((sessions) => sessions.setMetadata({sessionId: id, metadata: {ticket: 7}}))
+    await key((sessions) =>
+      sessions.setPermissions({sessionId: id, permissions: [{action: 'bash', resource: '*', effect: 'deny'}]}),
+    )
+    const old = await key((sessions) => sessions.get(id))
+    expect(old).toMatchObject({metadata: {ticket: 7}, permissions: [{action: 'bash', resource: '*', effect: 'deny'}]})
+    await key((sessions) => sessions.remove(id))
+    const location = Schema.decodeSync(Location.Ref)({directory: app.chat.cwd})
+    const reused = await key((sessions) => sessions.create({id, title: 'A new session on an old id', location}))
+    expect(reused).toMatchObject({id, title: 'A new session on an old id', metadata: undefined, permissions: undefined})
+    expect(reused.time.created).toEqual(expect.any(Number))
+    expect(reused.time.created).toBeGreaterThanOrEqual(old.time.updated)
+    expect(await key((sessions) => sessions.get(id))).toEqual(reused)
+    expect(row(sessionId)).toMatchObject({harnessKind: 'alpha', harnessSessionId: null, deletedAt: null})
+    const newMarkers = (await kit().rpc.markers.list({sessionId})).map((marker) => marker.id)
+    expect(newMarkers.filter((marker) => oldMarkers.includes(marker))).toEqual([])
+    expect(await listings(false)).toEqual({owner: 1, phantoms: 1})
   })
 
   it('lists the native sessions of every available harness, labelled by harness', async () => {
@@ -2054,6 +2090,18 @@ describe('rpc wire', () => {
         script().release()
         expect((await finished(sessionId, 'right after', {runId: 'after-stop'})).text()).toBe('ok')
         expect((await chatKit().hydrate(sessionId)).lastRun).toMatchObject({runId: 'after-stop', phase: 'completed'})
+
+        const earlySession = await newSession()
+        script().hold()
+        const early = await send(earlySession, 'stop before any answer', {runId: 'stopped-early'})
+        await early.waitForRunStart({runId: 'stopped-early'})
+        await chatKit().rpc.chat.stop({sessionId: earlySession, runIds: ['stopped-early']})
+        script().release()
+        await early.waitFor((chunk) => runLifecycleEvent.parse(chunk)?.phase === 'aborted')
+        expect(await chatKit().hydrate(earlySession)).toMatchObject({
+          activeRun: null,
+          lastRun: {runId: 'stopped-early', phase: 'aborted'},
+        })
       })
 
       it('a stop that names only an earlier run leaves the next turn running', async () => {
@@ -2219,6 +2267,22 @@ describe('rpc wire', () => {
         expect(cards.map(cardMetadata)).toContainEqual({
           conciv: {origin: 'hub', client: 'codex', run: expect.any(String)},
         })
+      })
+
+      it('a hub registry call runs under the call id of its one hub card', async () => {
+        const sessionId = await newSession()
+        const hub = {[CONCIV_SESSION_HEADER]: sessionId, [CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
+        withHomeDb(concivHome({env: process.env}), (db) => recordHubConnection(db, 'codex', Date.now()))
+        const call = makeRpcClient(chatKit().base, {headers: hub}).registry.call({name: 'fixture_quiet', input: {}})
+        await vi.waitFor(async () => expect(await approvePending(chatKit().base, sessionId)).toHaveLength(1), {
+          timeout: 3000,
+        })
+        await call
+        const cards = toolCallParts((await chatKit().rpc.chat.hydrate({sessionId})).messages).filter(
+          (part) => part.name === 'fixture_quiet',
+        )
+        expect(cards.map(cardMetadata)).toEqual([{conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}}])
+        expect(quietCallIds.at(-1)).toBe(cards[0]?.id)
       })
 
       it('the CLI resumes its own session while its transcript exists, and starts fresh when it does not', async () => {
@@ -3603,6 +3667,7 @@ return seen`
   const seenRuns: SeenRun[] = []
   const cli: {usage: TokenUsage[]; launchFailures: string[]} = {usage: [], launchFailures: []}
   const toolRuns = {ask: 0, echo: 0}
+  const quietCallIds: (string | undefined)[] = []
   const refusedCalls: {code: string; message: string; sessionId: string; tool: string; input: unknown}[] = []
   const holdEntered = Promise.withResolvers<void>()
   const turnEnds: string[] = []
@@ -3659,7 +3724,10 @@ return seen`
       inputSchema: z.object({}),
       outputSchema: z.unknown(),
       meta: {summary: 'return nothing', category: 'fixture', mutating: false},
-    }).server(() => undefined)
+    }).server((_input, _context, request) => {
+      quietCallIds.push(request.toolCallId)
+      return undefined
+    })
   }
 
   function holdTool() {
@@ -4216,6 +4284,7 @@ function bootAt(
   root = tempDir('conciv-outside-'),
   hubAccess: HubAccess = 'session',
   harness = createFakeHarness(),
+  plugins: readonly Plugin.Plugin[] = [],
 ): Promise<Engine> {
   return start({
     options: {stateRoot: root, hubAccess},
@@ -4223,6 +4292,7 @@ function bootAt(
     launchEditor: () => {},
     harness,
     homeDir,
+    plugins,
   })
 }
 
@@ -5301,10 +5371,10 @@ describe('page action queue delivery', () => {
 
   type QueuedOnTab = {id: string; replies: string[]}
 
-  async function engineWithTab(harness = createFakeHarness()) {
+  async function engineWithTab(harness = createFakeHarness(), plugins: readonly Plugin.Plugin[] = []) {
     const home = tempDir('conciv-queue-home-')
     withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
-    const engine = await bootAt(home, tempDir('conciv-queue-'), 'open', harness)
+    const engine = await bootAt(home, tempDir('conciv-queue-'), 'open', harness, plugins)
     engines.push(engine)
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
@@ -5706,7 +5776,14 @@ describe('page action queue delivery', () => {
 
   it('an in-page queue that finishes while its run is live starts the follow-up turn once that run ends', async () => {
     const harness = createFakeHarness()
-    const page = await engineWithTab(harness)
+    const idled: string[] = []
+    const idleCounter = Plugin.define({
+      id: 'idle-counter',
+      async setup(ctx) {
+        await ctx.session.hook('experimental.idle', (event) => void idled.push(event.sessionId))
+      },
+    })
+    const page = await engineWithTab(harness, [idleCounter])
     harness.script.hold()
     const viewer = new AbortController()
     onTestFinished(() => viewer.abort())
@@ -5734,6 +5811,7 @@ describe('page action queue delivery', () => {
     await page.followUpFinished(['queueing-run'])
     expect(page.runIds().filter((runId) => runId !== 'queueing-run')).toHaveLength(1)
     expect((await page.tab.chat.hydrate({sessionId: page.sessionId})).activeRun).toBeNull()
+    expect(idled).toEqual([page.sessionId])
   })
 
   it('a user stop starts no follow-up turn: the owed result arrives with the agent next reply', async () => {
@@ -5820,6 +5898,13 @@ export default {
         options: {codemode: false},
         execute: async () => shot(),
       })
+      tools.add({
+        name: 'seer_direct_id',
+        description: 'Names its own call',
+        input: {type: 'object', properties: {}},
+        options: {codemode: false},
+        execute: async (_input, context) => ({content: 'called as ' + context.id}),
+      })
     })
     await ctx.rpc.register(Seer, {
       seen: async () => ({
@@ -5855,7 +5940,11 @@ export default {
 `
   const Embedded = PluginRpc.define({
     id: 'embedded',
-    methods: {ping: {input: z.object({}), output: z.string()}, announce: {input: z.object({}), output: z.string()}},
+    methods: {
+      ping: {input: z.object({}), output: z.string()},
+      announce: {input: z.object({}), output: z.string()},
+      deleted: {input: z.object({}), output: z.string()},
+    },
     events: {announced: {schema: z.object({})}},
   })
 
@@ -5921,11 +6010,17 @@ export default {
     const embedded = Plugin.define({
       id: 'embedded',
       async setup(ctx) {
+        const deletedSessions = ctx.event.subscribe({types: ['session.deleted']})
+        const firstDeletion = deletedSessions[Symbol.asyncIterator]().next()
         const registration: Promise<RpcRegistration<typeof Embedded>> = ctx.rpc.register(Embedded, {
           ping: async () => 'pong',
           announce: async () => {
             await (await registration).events.emit('announced', {})
             return 'announced'
+          },
+          deleted: async () => {
+            const result = await firstDeletion
+            return result.done ? 'closed' : result.value.data.sessionID
           },
         })
         await registration
@@ -6029,6 +6124,13 @@ export default {
     onTestFinished(() => mcp.close())
     const direct = (await mcp.tools()).find((entry) => entry.name === 'seer_direct_shot')
     expect.soft(shotImages(await direct?.execute?.({}))).toEqual(resized)
+    const named = (await mcp.tools()).find((entry) => entry.name === 'seer_direct_id')
+    const namedReply = JSON.stringify(await named?.execute?.({}))
+    const namedCards = (await makeRpcClient(base).chat.hydrate({sessionId})).messages.flatMap((message) =>
+      message.parts.flatMap((part) => (part.type === 'tool-call' && part.name === 'seer_direct_id' ? [part.id] : [])),
+    )
+    expect(namedCards).toHaveLength(1)
+    expect(namedReply).toContain(`called as ${namedCards[0]}`)
 
     const everything = await makeRpcClient(base).event.subscribe()
     const deletions = await makeRpcClient(base).event.subscribe({types: ['session.deleted']})
@@ -6036,7 +6138,9 @@ export default {
     expect(await everything.next()).toEqual(connected)
     expect(await deletions.next()).toEqual(connected)
     expect(await call(base, 'embedded', 'announce')).toBe('announced')
+    const pluginReadDeletion = call(base, 'embedded', 'deleted')
     await makeRpcClient(base).sessions.delete({sessionId})
+    expect(await pluginReadDeletion).toBe(sessionId)
     const announced = {
       id: expect.stringMatching(/^evt_/),
       type: 'rpc.embedded.announced',
