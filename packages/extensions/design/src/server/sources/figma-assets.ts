@@ -136,9 +136,11 @@ function assetKind(node: DesignNode): Wanted['ext'] | null {
 
 function allVectors(node: DesignNode): boolean {
   return node.children.every((child) => {
-    const type = child.figma?.type ?? ''
-    if (VECTORS.has(type)) return true
-    return GROUPS.has(type) && child.children.length > 0 && allVectors(child)
+    const facts = child.figma
+    if (facts === undefined) return false
+    if (VECTORS.has(facts.type)) return true
+    const painted = facts.fields.fills !== undefined || facts.fields.strokes !== undefined
+    return GROUPS.has(facts.type) && !painted && child.children.length > 0 && allVectors(child)
   })
 }
 

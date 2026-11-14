@@ -51,6 +51,14 @@ function fixture(file: string): string {
   return fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
 }
 
+async function sliced(name: string, node: string): Promise<{figma: string; document: unknown; image: string}> {
+  return {
+    figma: `https://www.figma.com/design/ItFixtureKey/x?node-id=${node}`,
+    document: JSON.parse(await readFile(fixture(`${name}.json`), 'utf8')),
+    image: fixture(`${name}.png`),
+  }
+}
+
 function blankPng(input: {width: number; height: number}): Uint8Array {
   const png = new PNG({width: input.width, height: input.height})
   png.data.fill(255)
@@ -111,11 +119,7 @@ describe('design_check on the cards page', () => {
 describe('a Figma line', () => {
   it('keeps the check from done while the page draws no line, and takes a visible border on that side as the line', async () => {
     await kit.goto('input-field')
-    await call('design_get', {
-      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1418',
-      document: JSON.parse(await readFile(fixture('input-field.json'), 'utf8')),
-      image: fixture('input-field.png'),
-    })
+    await call('design_get', await sliced('input-field', '100-1418'))
     const bare = roundOf(await call('design_check', {}))
     await kit.goto('input-field-line')
     const lined = roundOf(await call('design_check', {}))
@@ -132,20 +136,12 @@ describe('a Figma line', () => {
 
   it('counts as drawn by a sibling border on its edge or by its own 1px element', async () => {
     await kit.goto('process-row')
-    await call('design_get', {
-      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=50-876',
-      document: JSON.parse(await readFile(fixture('process-row.json'), 'utf8')),
-      image: fixture('process-row.png'),
-    })
+    await call('design_get', await sliced('process-row', '50-876'))
     const bordered = roundOf(await call('design_check', {}))
     await kit.goto('process-row-boxed')
     const element = roundOf(await call('design_check', {}))
     await kit.goto('input-field-rule')
-    await call('design_get', {
-      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1418',
-      document: JSON.parse(await readFile(fixture('input-field.json'), 'utf8')),
-      image: fixture('input-field.png'),
-    })
+    await call('design_get', await sliced('input-field', '100-1418'))
     const ruled = roundOf(await call('design_check', {}))
     expect([
       bordered.coverage.missing.includes('50:883'),
@@ -162,11 +158,7 @@ describe('a Figma stroke drawn inside the box', () => {
         .rows.filter((row) => row.node === '100:1418' && row.property === 'border')
         .map((row) => row.text)
     await kit.goto('input-field-bare')
-    const got = await call('design_get', {
-      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1418',
-      document: JSON.parse(await readFile(fixture('input-field.json'), 'utf8')),
-      image: fixture('input-field.png'),
-    })
+    const got = await call('design_get', await sliced('input-field', '100-1418'))
     const bare = await borderRows()
     await kit.goto('input-field-outline')
     const outlined = await borderRows()
@@ -185,11 +177,7 @@ describe('a Figma stroke drawn inside the box', () => {
 describe('a text field', () => {
   it('shows its placeholder as the design text it stands for, in the placeholder colour', async () => {
     await kit.goto('input-field-input')
-    await call('design_get', {
-      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1418',
-      document: JSON.parse(await readFile(fixture('input-field.json'), 'utf8')),
-      image: fixture('input-field.png'),
-    })
+    await call('design_get', await sliced('input-field', '100-1418'))
     const checked = roundOf(await call('design_check', {}))
     expect([
       checked.coverage.missing.includes('100:1421'),
@@ -264,11 +252,7 @@ describe('a Figma effect', () => {
         .rows.filter((row) => row.property === 'effect')
         .map((row) => row.text)
     await kit.goto('logo-tile')
-    const got = await call('design_get', {
-      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1683',
-      document: JSON.parse(await readFile(fixture('logo-tile.json'), 'utf8')),
-      image: fixture('logo-tile.png'),
-    })
+    const got = await call('design_get', await sliced('logo-tile', '100-1683'))
     const glowing = await effectRows()
     await kit.goto('logo-tile-flat')
     const flat = await effectRows()
@@ -283,11 +267,7 @@ describe('a Figma effect', () => {
 describe('a Figma wrapper that draws nothing', () => {
   it('is not required when the page merges it into its children', async () => {
     await kit.goto('process-row')
-    await call('design_get', {
-      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=50-876',
-      document: JSON.parse(await readFile(fixture('process-row.json'), 'utf8')),
-      image: fixture('process-row.png'),
-    })
+    await call('design_get', await sliced('process-row', '50-876'))
     const checked = roundOf(await call('design_check', {}))
     expect(checked.reasons.filter((reason) => reason.includes('required nodes'))).toEqual([])
   })
@@ -296,11 +276,7 @@ describe('a Figma wrapper that draws nothing', () => {
 describe('a page that drifts from the design', () => {
   it('is told where the drift starts when its 1px lines take space, and those lines match their crops', async () => {
     await kit.goto('process-column-flat')
-    const got = await call('design_get', {
-      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1535',
-      document: JSON.parse(await readFile(fixture('process-column.json'), 'utf8')),
-      image: fixture('process-column.png'),
-    })
+    const got = await call('design_get', await sliced('process-column', '100-1535'))
     const rows = async () => roundOf(await call('design_check', {})).rows
     const told = (listed: Awaited<ReturnType<typeof rows>>, part: string) =>
       listed.filter((row) => row.text.includes(part)).map((row) => row.text)
@@ -389,13 +365,9 @@ describe('a page that switches layouts between two frames', () => {
 })
 
 describe('an image node drawn as a box with its icon inside', () => {
-  it('passes when the drawn element looks like the asset, whatever the file is named', async () => {
+  it('passes when the drawn element looks like the asset, whatever the file is named, and each button keeps its icon', async () => {
     await kit.goto('check-row')
-    await call('design_get', {
-      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=83-30723',
-      document: JSON.parse(await readFile(fixture('check-row.json'), 'utf8')),
-      image: fixture('check-row.png'),
-    })
+    await call('design_get', await sliced('check-row', '83-30723'))
     const imageRows = async () =>
       roundOf(await call('design_check', {}))
         .rows.filter((row) => row.property === 'image')
@@ -403,9 +375,11 @@ describe('an image node drawn as a box with its icon inside', () => {
     const drawn = await imageRows()
     await kit.goto('check-row-wrong')
     const wrong = await imageRows()
-    expect([drawn, wrong]).toEqual([
+    const buttons = await call('design_get', await sliced('social-buttons', '83-30209'))
+    expect([drawn, wrong, buttons.nodes.flatMap((node) => (node.asset === undefined ? [] : [node.asset]))]).toEqual([
       [],
       ['wrong image at [119:119]: /design/119-119.png expected, an image /design/4-30.svg'],
+      ['/design/83-30210.png', '/design/83-30213.png', '/design/83-30216.png'],
     ])
   })
 })
@@ -417,11 +391,7 @@ describe('a Figma frame stroked on one side', () => {
         .rows.filter((row) => row.node === '50:880' && row.property === 'border')
         .map((row) => row.text)
     await kit.goto('process-row')
-    const got = await call('design_get', {
-      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=50-876',
-      document: JSON.parse(await readFile(fixture('process-row.json'), 'utf8')),
-      image: fixture('process-row.png'),
-    })
+    const got = await call('design_get', await sliced('process-row', '50-876'))
     const underlined = await borderRows()
     await kit.goto('process-row-boxed')
     const boxed = await borderRows()
@@ -438,11 +408,7 @@ describe('a Figma frame stroked on one side', () => {
 describe('a thin Figma bar', () => {
   it('pairs a 3px bar drawn at its design height', async () => {
     await kit.goto('range-slider')
-    await call('design_get', {
-      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1449',
-      document: JSON.parse(await readFile(fixture('range-slider.json'), 'utf8')),
-      image: fixture('range-slider.png'),
-    })
+    await call('design_get', await sliced('range-slider', '100-1449'))
     const checked = roundOf(await call('design_check', {}))
     expect([
       checked.coverage.missing.includes('100:1455'),

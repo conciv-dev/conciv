@@ -83,7 +83,7 @@ src/
   any image or paints a CSS shape (a fill, border or gradient) and its capture matches the asset by pixels; an element that paints
   nothing fails as a wrong image. Figma effects come with the node as `effects` (inner-shadow, drop-shadow with x, y,
   blur, spread, color and opacity; layer-blur and background-blur with blur); an element that draws no matching
-  box-shadow, text-shadow, filter blur or backdrop-filter blur gives a `wrong effect` paint row. A Figma line cropped from the frame render takes its stroke weight, so a 1px line drawn as a 1px box
+  box-shadow, text-shadow, filter blur or backdrop-filter blur gives a `wrong effect` paint row. A frame, group or instance whose descendants are only vectors exports as one asset, but a child that paints its own fill or stroke (a button around an icon) stops that, so a row of buttons gives one asset per button, never one image for the row. A Figma line cropped from the frame render takes its stroke weight, so a 1px line drawn as a 1px box
   matches it.
 - A run builds one page, so its targets share one route. `design_get` takes `route`, the path of that page (`/pricing`,
   with a query when the page needs one), and moves every target of the run there, the frames of that call and the
