@@ -39,12 +39,11 @@ async function viteResolve(server: ViteDevServer, spec: string, importer?: strin
 
 function findModules(server: ViteDevServer, file: string): ModuleNode[] {
   const root = server.config.root
-  const nodes = [resolve(root, file), join(root, file)].flatMap((path) => [
-    ...(server.moduleGraph.getModulesByFile(path) ?? []),
-  ])
-  if (nodes.length === 0)
-    throw new ORPCError('NOT_FOUND', {message: `no module for ${file} in the dev server's module graph`})
-  return [...new Set(nodes)]
+  const nodes = [resolve(root, file), join(root, file)]
+    .map((path) => [...(server.moduleGraph.getModulesByFile(path) ?? [])])
+    .find((found) => found.length > 0)
+  if (!nodes) throw new ORPCError('NOT_FOUND', {message: `no module for ${file} in the dev server's module graph`})
+  return nodes
 }
 
 function viteGraph(server: ViteDevServer, file: string) {
