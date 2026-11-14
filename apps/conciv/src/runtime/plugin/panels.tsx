@@ -336,7 +336,7 @@ export function MobilePanel(props: {
         visible: () => props.visible,
         present: () => props.visible,
         placement: () => 'mobile',
-        animate: () => true,
+        animate: () => false,
         open: props.open,
       }}
     >
