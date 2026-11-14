@@ -45,6 +45,8 @@ export type PointerDrag = {name: string; moves: PointerMove[]; escape?: boolean;
 
 export type PointerHover = {name: string; moves: PointerMove[]; settleMs: number}
 
+export type ChosenFile = {name: string; mimeType: string; text: string}
+
 export type FaultSpec =
   | {kind: 'fail'; path: string[]; status?: number}
   | {kind: 'abort'; path?: string[]}
@@ -580,7 +582,16 @@ const hoverButton: BrowserCommand<[hover: PointerHover]> = async (ctx, hover) =>
   await ctx.page.waitForTimeout(hover.settleMs)
 }
 
+const chooseFiles: BrowserCommand<[name: string, chosen: ChosenFile[]]> = async (ctx, name, chosen) => {
+  const chooser = ctx.page.waitForEvent('filechooser')
+  await ctx.iframe.getByRole('button', {name, exact: true}).click()
+  await (
+    await chooser
+  ).setFiles(chosen.map((file) => ({name: file.name, mimeType: file.mimeType, buffer: Buffer.from(file.text)})))
+}
+
 export const coreCommands = {
+  chooseFiles,
   dragButton,
   hoverButton,
   bootCore,

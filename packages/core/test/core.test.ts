@@ -2838,6 +2838,39 @@ describe('session prompt hook', () => {
     expect((await kit.hydrate(session)).messages[0]?.parts).toEqual(partForPart.parts)
     expect(asked).toEqual([partForPart.parts])
   })
+
+  test('a throwing prompt hook stops the later hooks, fails the prompt and stores nothing for that message id', async () => {
+    const failure = {message: 'the prompt hook refused'}
+    const later: string[] = []
+    const plugin = Plugin.define({
+      id: 'prompt-refusing',
+      async setup(ctx) {
+        await ctx.session.hook('prompt', () => {
+          if (failure.message !== '') throw new Error(failure.message)
+        })
+        await ctx.session.hook('prompt', (event) => {
+          later.push(event.prompt.text)
+        })
+      },
+    })
+    const {kit, made, asked} = await promptKit([plugin])
+    const session = await kit.session()
+
+    const refused = await (await kit.turn(noted('Refused'), {session, messageId: 'message-refused'})).done()
+
+    expect(refused.errors()).toEqual(['the prompt hook refused'])
+    expect([later, asked]).toEqual([[], []])
+    const stored = await kit.hydrate(session)
+    expect(stored.messages).toEqual([])
+    expect(stored.lastRun).toBeNull()
+    expect(made.plane.driving(SessionId.parse(session))).toBe(false)
+
+    failure.message = ''
+    const retried = await (await kit.turn(noted('Refused'), {session, messageId: 'message-refused'})).done()
+    expect(retried.errors()).toEqual([])
+    expect(later).toEqual(['Refused'])
+    expect(userTexts(await kit.hydrate(session))).toEqual(['Refused'])
+  })
 })
 
 describe('plugin rpc over the socket', () => {

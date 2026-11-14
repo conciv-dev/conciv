@@ -2733,6 +2733,43 @@ describe('pane composer attachments', () => {
   })
 })
 
+describe('a refusing prompt hook', () => {
+  const REFUSING_PLUGIN = `export default {
+  id: 'prompt-refusing',
+  async setup(ctx) {
+    await ctx.session.hook('prompt', () => {
+      throw new Error('the prompt hook refused')
+    })
+  },
+}
+`
+  const core = bootedCore('prompt-refusing', {
+    files: {'prompt-refusing/index.ts': REFUSING_PLUGIN},
+    plugins: ['./prompt-refusing'],
+  })
+  const keep = keptPane()
+  const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const attached = () => page.getByRole('button', {name: 'Remove notes.txt'})
+  const notifications = () => page.getByRole('region', {name: /Notifications/})
+
+  test('a prompt hook that throws fails the send, and the composer holds the text and the attachment again', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    keep(mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />))
+
+    await input().click()
+    await userEvent.keyboard('keep this request')
+    await coreControl.chooseFiles('Add an attachment', [{name: 'notes.txt', mimeType: 'text/plain', text: 'the notes'}])
+    await expect.element(attached()).toBeVisible()
+    await input().click()
+    await userEvent.keyboard('{Enter}')
+
+    await expect.element(notifications(), {timeout: 8000}).toMatchTextContent(/the prompt hook refused/)
+    await expect.element(input()).toHaveTextContent('keep this request')
+    await expect.element(attached()).toBeVisible()
+    await expect.element(page.getByRole('log').getByText('keep this request')).not.toBeInTheDocument()
+  }, 30_000)
+})
+
 const FOUND_API_BASE = 'http://found.test'
 const CONNECT_PROBE_NAME = 'connect-probe'
 

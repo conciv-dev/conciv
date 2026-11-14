@@ -8,7 +8,14 @@ import {
   type EngineTokenSource,
 } from '@conciv/contract'
 import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
-import type {BootCoreInput, BootCoreResult, FaultSpec, PointerDrag, PointerHover} from './commands/core-control.js'
+import type {
+  BootCoreInput,
+  BootCoreResult,
+  ChosenFile,
+  FaultSpec,
+  PointerDrag,
+  PointerHover,
+} from './commands/core-control.js'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {fetchServerSentEvents} from '@conciv/ai/client'
 import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
@@ -47,6 +54,7 @@ import type {WebStorage} from '@conciv/storage-history'
 declare module 'vitest/internal/browser' {
   interface BrowserCommands {
     bootCore: (input: BootCoreInput) => Promise<BootCoreResult>
+    chooseFiles: (name: string, chosen: ChosenFile[]) => Promise<void>
     dragButton: (drag: PointerDrag) => Promise<void>
     hoverButton: (hover: PointerHover) => Promise<void>
     closeCore: () => Promise<void>
