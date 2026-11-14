@@ -77,6 +77,8 @@ everything added is withdrawn when the plugin reloads or stops. Also exported: `
 `usePlugin`, `bindPlugin`, `usePanel` and `useDrawer`. `ctx.client.rpc(Definition)` calls the plugin's own engine
 part; `ctx.servers.get(id)?.client.rpc(Definition)` calls another engine.
 
+The browser part needs `Promise.try`: Chrome and Edge 128, Firefox 134, Safari and iOS Safari 18.2 (Node 23.0.0 for tooling that evaluates it), source MDN browser-compat-data (`javascript.builtins.Promise.try`).
+
 ```tsx
 import {z} from 'zod'
 import {createLatest, Panel, Plugin, Slot, Store} from '@conciv/plugin/experimental'
