@@ -8,6 +8,8 @@ import {
 } from '@tanstack/solid-router'
 import {For, Show, createMemo, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {isEqual} from 'es-toolkit'
+import {useQuery} from '@conciv/client'
 import {createElementSize} from '@solid-primitives/resize-observer'
 import {Switch, TabsPrimitive as Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
 import SlidersHorizontal from 'lucide-solid/icons/sliders-horizontal'
@@ -16,11 +18,14 @@ import Keyboard from 'lucide-solid/icons/keyboard'
 import Shield from 'lucide-solid/icons/shield'
 import ChevronLeft from 'lucide-solid/icons/chevron-left'
 import Puzzle from 'lucide-solid/icons/puzzle'
+import Box from 'lucide-solid/icons/box'
 import {MICRO, SettingsHeader} from '../settings/settings-ui.js'
 import {extensionSettingsPage} from '../settings/extension-fields.js'
 import type {SettingsTabId} from '../settings/last-tab.js'
 import type {SettingsScope} from '@conciv/contract'
 import {settingsSearchSchema} from '../settings/settings-search-schemas.js'
+import {useAppData, useConnected} from '../app/context.js'
+import {createPluginRows, type PluginRows} from '../runtime/plugin/extension-plugins.js'
 
 const PAGE = 'flex flex-1 flex-col min-h-0'
 const BACK = 'size-8 shrink-0'
@@ -55,7 +60,12 @@ const MAIN_TABS: BuiltinTab[] = [
   {id: 'views', label: 'Views', icon: LayoutPanelTop},
   {id: 'shortcuts', label: 'Shortcuts', icon: Keyboard},
 ]
+const PLUGINS_TAB: BuiltinTab = {id: 'plugins', label: 'Plugins', icon: Box}
 const ADVANCED_TAB: BuiltinTab = {id: 'advanced', label: 'Advanced', icon: Shield}
+
+function offeredPluginTabs(rows: PluginRows): BuiltinTab[] {
+  return rows.listed().length + rows.unnamed().length + rows.failedBuiltins().length > 0 ? [PLUGINS_TAB] : []
+}
 
 const MAX_TOP_ROW_TABS = 4
 
@@ -95,6 +105,12 @@ function SettingsLayout(): JSX.Element {
     open: () => void navigate({to: `./${tab.id}`}),
   })
   const mainTabs = MAIN_TABS.map(builtin)
+  const appData = useAppData()
+  const connected = useConnected()
+  const pluginList = useQuery(() => ({...appData.utils.plugin.list.queryOptions(), enabled: connected()}))
+  const pluginRows = createPluginRows(() => pluginList.data?.data ?? [])
+  const offeredPlugins = createMemo(() => offeredPluginTabs(pluginRows), [], {equals: isEqual})
+  const pluginTabs = createMemo(() => offeredPlugins().map(builtin))
   const advancedTab = builtin(ADVANCED_TAB)
   const extensionTabs = context()
     .extensions.filter((extension) => extension.settings)
@@ -114,10 +130,13 @@ function SettingsLayout(): JSX.Element {
           params: {sessionId: params().sessionId, name: extension.name},
         }),
     }))
-  const tabs = [...mainTabs, ...extensionTabs, advancedTab]
-  const orientation = () => (wide() || tabs.length > MAX_TOP_ROW_TABS ? 'vertical' : 'horizontal')
-  const current = () => tabs.find((tab) => tab.selected())?.id ?? 'general'
-  const select = (id: string) => tabs.find((tab) => tab.id === id)?.open()
+  const tabs = () => [...mainTabs, ...pluginTabs(), ...extensionTabs, advancedTab]
+  const orientation = () => (wide() || tabs().length > MAX_TOP_ROW_TABS ? 'vertical' : 'horizontal')
+  const current = () => tabs().find((tab) => tab.selected())?.id ?? 'general'
+  const select = (id: string) =>
+    tabs()
+      .find((tab) => tab.id === id)
+      ?.open()
   const changeScope = (scope: SettingsScope) =>
     void router.navigate({to: '.', search: (previous) => ({...previous, scope})})
   const close = () =>
@@ -161,7 +180,7 @@ function SettingsLayout(): JSX.Element {
       >
         <Tabs.List class={RAIL} aria-label="Settings sections">
           <Tabs.Indicator class={INDICATOR} />
-          <For each={[...mainTabs, ...extensionTabs]}>{(tab) => <TabTrigger tab={tab} />}</For>
+          <For each={[...mainTabs, ...pluginTabs(), ...extensionTabs]}>{(tab) => <TabTrigger tab={tab} />}</For>
           <Show when={orientation() === 'vertical'}>
             <span class={SPACER} aria-hidden="true" />
           </Show>

@@ -9,6 +9,7 @@ import GripVertical from 'lucide-solid/icons/grip-vertical'
 import Pin from 'lucide-solid/icons/pin'
 import AppWindow from 'lucide-solid/icons/app-window'
 import {orderViews} from './arrange-views.js'
+import {Badge} from './settings-ui.js'
 
 type SettingsView = {id: string; label: string; badge?: string; icon?: Component<{class?: string}>}
 
@@ -22,8 +23,6 @@ const CHECK_CONTROL =
 const ICON = 'size-3.75 shrink-0 text-chat-text-2'
 const NAME =
   'flex flex-1 min-w-0 overflow-hidden items-center gap-2 text-[0.8125rem] font-medium text-chat-text-hi group-data-[off]:text-chat-dim'
-const BADGE =
-  'min-w-0 truncate ms-0.5 py-px px-1.25 rounded-[var(--chat-radius-chip)] [border:1px_solid_var(--chat-line-2)] font-chat-mono text-[0.5625rem] font-normal uppercase tracking-[0.1em] text-chat-text-2'
 const PIN =
   'grid place-items-center size-8 shrink-0 rounded-[var(--chat-radius-sm)] bg-transparent [border:none] text-chat-text-2 cursor-pointer focus-ring trans-bg hover:bg-chat-fill-strong hover:text-chat-text-hi aria-pressed:text-chat-accent disabled:cursor-default disabled:hover:bg-transparent'
 
@@ -101,7 +100,7 @@ export function ViewRow(props: ViewRowProps): JSX.Element {
         <Dynamic component={props.view.icon ?? AppWindow} class={ICON} aria-hidden="true" />
         <Checkbox.Label class={NAME}>
           {props.view.label}
-          <Show when={props.view.badge}>{(badge) => <span class={BADGE}>{badge()}</span>}</Show>
+          <Show when={props.view.badge}>{(badge) => <Badge>{badge()}</Badge>}</Show>
         </Checkbox.Label>
         <Checkbox.HiddenInput />
       </Checkbox.Root>

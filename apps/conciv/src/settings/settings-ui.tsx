@@ -16,6 +16,8 @@ const BUTTON =
   'inline-flex shrink-0 items-center gap-1.5 h-7 px-2.5 rounded-[var(--chat-radius-sm)] bg-transparent [border:1px_solid_var(--chat-line-2)] font-chat text-[0.75rem] text-chat-text cursor-pointer focus-ring trans-bg hover:bg-chat-fill-strong disabled:opacity-50 disabled:cursor-not-allowed'
 export const BUTTON_WARN = `${BUTTON} [border-color:color-mix(in_oklch,var(--chat-warn)_42%,transparent)] !text-chat-warn hover:!bg-[color-mix(in_oklch,var(--chat-warn)_10%,transparent)]`
 export const BUTTON_DANGER_FILL = `${BUTTON} !bg-chat-danger [border-color:var(--chat-danger)] !text-chat-on-accent`
+const BADGE =
+  'min-w-0 truncate ms-0.5 py-px px-1.25 rounded-[var(--chat-radius-chip)] [border:1px_solid_var(--chat-line-2)] font-chat-mono text-[0.5625rem] font-normal uppercase tracking-[0.1em] text-chat-text-2'
 const ROW = 'flex items-center gap-3 min-h-11.5 py-2.5 px-3'
 const STACK = 'flex flex-col gap-2.5 p-3'
 const TEXT = 'flex flex-1 min-w-0 flex-col gap-0.5'
@@ -160,12 +162,19 @@ export function SettingRow(props: SettingRowProps): JSX.Element {
   )
 }
 
-type ActionRowProps = {label: JSX.Element; hint?: JSX.Element; id?: string; children: JSX.Element}
+type ActionRowProps = {
+  label: JSX.Element
+  hint?: JSX.Element
+  id?: string
+  leading?: JSX.Element
+  children: JSX.Element
+}
 
 export function ActionRow(props: ActionRowProps): JSX.Element {
   const hint = children(() => props.hint)
   return (
     <div class={ROW} data-action={props.id}>
+      {props.leading}
       <span class={TEXT}>
         <span class={LABEL}>{props.label}</span>
         <Show when={hint()}>
@@ -175,6 +184,10 @@ export function ActionRow(props: ActionRowProps): JSX.Element {
       {props.children}
     </div>
   )
+}
+
+export function Badge(props: {children: JSX.Element}): JSX.Element {
+  return <span class={BADGE}>{props.children}</span>
 }
 
 const FAILED = 'flex flex-col items-start gap-2 text-[0.8125rem] text-chat-text-2'
