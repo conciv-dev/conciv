@@ -78,6 +78,7 @@ const PLANNING_TEXT =
   'Based on the gathered information, we create a comprehensive project plan and strategy. This includes defining project milestones, timelines, deliverables, and resource allocation. We collaborate closely with you to align our strategy with your vision.'
 const SLIDER_LAYER = {gridColumn: 1, gridRow: 1} as const
 const COLUMN_CARDS = [292, 292, 334, 334, 340, 340, 334, 340]
+const COLUMN_LINES = ['100-1615', '100-1622', '100-1635', '100-1642', '100-1655', '100-1668', '100-2303']
 const MEDIA_HEIGHT_CSS = '#root section { @media (width >= 40rem) { height: 120px; } }'
 const FIELD_BORDER = {borderColor: '#d64545', borderRadius: 0}
 const SLOW_FONT_CSS = "@import url('/slow-font.css');"
@@ -224,13 +225,25 @@ export function App() {
       </main>
     )
   }
-  if (requested === 'process-column' || requested === 'process-column-flat' || requested === 'process-column-screen') {
+  if (
+    requested === 'process-column' ||
+    requested === 'process-column-flat' ||
+    requested === 'process-column-screen' ||
+    requested === 'process-column-thin'
+  ) {
     const flat = requested !== 'process-column'
     return (
       <main style={{margin: -24, width: 358, display: 'flex', flexDirection: 'column', background: '#1a1a1a'}} data-conciv-key="pCmNaA">
         {COLUMN_CARDS.map((height, index) => (
           <>
-            {index === 0 ? null : (
+            {index === 0 ? null : requested === 'process-column-thin' ? (
+              <img
+                src={`/design/${COLUMN_LINES[index - 1]}.png`}
+                alt=""
+                style={{display: 'block', width: '100%', aspectRatio: index % 2 === 0 ? '1596 / 1' : '358 / 1'}}
+                data-conciv-key="pCtHnA"
+              />
+            ) : (
               <span
                 style={flat ? {height: 0, outline: '0.5px solid #262626'} : {height: 1, background: '#262626'}}
                 data-conciv-key="pClNeA"

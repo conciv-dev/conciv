@@ -291,7 +291,7 @@ describe('a Figma wrapper that draws nothing', () => {
 })
 
 describe('a page that drifts from the design', () => {
-  it('is told where the drift starts when its 1px lines take space, from 3 px, and those lines match their crops', async () => {
+  it('is told where the drift starts when its 1px lines take space, from 3 px, lines too thin to draw pair with no far line, and those lines match their crops', async () => {
     await kit.goto('process-column-flat')
     const got = await call('design_get', await sliced('process-column', '100-1535'))
     const rows = async () => roundOf(await call('design_check', {})).rows
@@ -303,6 +303,8 @@ describe('a page that drifts from the design', () => {
     const drifted = told(lined, 'drifts')
     await kit.goto('process-column-screen')
     const screen = told(await rows(), 'drifts')
+    await kit.goto('process-column-thin')
+    const thin = (await rows()).filter((row) => row.text.includes('drifts') || row.text.includes('its place'))
     await kit.goto('contact-form')
     await call('design_get', await sliced('contact-form', '100-1416'))
     const form = told(await rows(), 'drifts')
@@ -318,6 +320,7 @@ describe('a page that drifts from the design', () => {
       got.nodes.find((node) => node.id === '100:1615')?.asset,
       told(lined, 'wrong image'),
       screen,
+      thin.map((row) => row.text.split('; ')[0]),
       form.map((text) => text.split('; ')[0]),
       formFlat,
       section.map((row) => `${row.node} ${row.selector}`),
@@ -328,6 +331,7 @@ describe('a page that drifts from the design', () => {
       '/design/100-1615.png',
       [],
       [],
+      ['the page drifts from the design: Card [100:1675] sits 5 px lower on the page than in the frame'],
       ['the page drifts from the design: Button [100:1466] sits 3 px lower on the page than in the frame'],
       [],
       [],

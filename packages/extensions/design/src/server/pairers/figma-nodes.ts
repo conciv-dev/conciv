@@ -42,6 +42,7 @@ type Vote = {
   taken: Set<string>
   holders: Map<string, Set<string>>
   implied: Set<string>
+  nodes: Node[]
 }
 
 const PAIR = designConfig.tolerances.figmaPair
@@ -99,6 +100,7 @@ function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
     taken: new Set(),
     holders: new Map(),
     implied: new Set(nodes.flatMap(({node}) => (node.implied === true ? [node.id] : []))),
+    nodes,
   }
   input.pins.forEach((pin) =>
     paired({vote, node: pin.node, pick: {path: pin.path, score: 1, margin: 1, candidates: []}}),
@@ -162,7 +164,8 @@ function displaced(input: {vote: Vote; entry: Node; offered: Scored[]; votes: Ba
   const carriers = vote.elements.flatMap((element) => {
     const text = normalized(element.text)
     if (vote.taken.has(element.path) || element.box.w * element.box.h === 0) return []
-    if (lines[0] === undefined) return pictured(entry.node) && element.img ? [element] : []
+    if (lines[0] === undefined)
+      return pictured(entry.node) && element.img && !claimed({vote, entry, element}) ? [element] : []
     if (entry.node.kind === 'text' || !text.includes(lines[0])) return text === lines[0] ? [element] : []
     const holder = [element.path, ...element.chain].find((path) => holdsAll({vote, path, said: lines})) ?? ''
     const held = vote.byPath.get(holder)
@@ -176,6 +179,17 @@ function displaced(input: {vote: Vote; entry: Node; offered: Scored[]; votes: Ba
   paired({vote, node: entry.node.id, pick})
   votes.push(...ballotsOf({node: entry.node.id, scored, byPath: vote.byPath, won: pick.path}))
   return true
+}
+
+function claimed(input: {vote: Vote; entry: Node; element: Element}): boolean {
+  const {vote, entry, element} = input
+  return vote.nodes.some(
+    (other) =>
+      other.node !== entry.node &&
+      pictured(other.node) &&
+      !vote.pairs.has(other.node.id) &&
+      scoreOf({vote, entry: other, element}).length > 0,
+  )
 }
 
 function sameBoxParent(input: {vote: Vote; entry: Node}): Pick | undefined {
