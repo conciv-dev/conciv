@@ -52,6 +52,8 @@ const SAME_BOX_PX = designConfig.tolerances.geometryPx
 
 const TWIN_MARGIN = designConfig.tolerances.pairMargin
 
+const SHIFT_PX = designConfig.tolerances.slightShiftPx
+
 const TIE_SCORE = 0.01
 
 const SKIPPED_TAGS = new Set([
@@ -386,6 +388,7 @@ function scoreOf(input: {vote: Vote; entry: Node; element: Element; anywhere?: b
   if (node.implied === true && !holdsChildren({node, box: placed})) return []
   if (element.kids === 0 && holdsText(node)) return []
   if (thickerThanLine({node, box, element: element.box})) return []
+  if (blankFrame(node) && pastBothEnds({box, element: flowed})) return []
   const anchor = anchorOf({node, vote})
   if (anchor !== null && !underAnchor({vote, element, anchor})) return []
   const image = pictured(node) && element.img ? PAIR.imageBonus : 0
@@ -402,6 +405,19 @@ function thickerThanLine(input: {node: DesignNode; box: Box; element: Box}): boo
   const flat = box.w > box.h
   const across = flat ? element.h - box.h : element.w - box.w
   return across > SAME_BOX_PX
+}
+
+function blankFrame(node: DesignNode): boolean {
+  const {fills, strokes, effects} = node.figma?.fields ?? {}
+  const listed = (value: unknown): boolean => Array.isArray(value) && value.length > 0
+  return node.kind === 'box' && node.children.length > 0 && ![fills, strokes, effects].some(listed)
+}
+
+function pastBothEnds(input: {box: Box; element: Box}): boolean {
+  const {box, element} = input
+  const past = (start: number, size: number, outer: number, outerSize: number): boolean =>
+    outer < start - SHIFT_PX && outer + outerSize > start + size + SHIFT_PX
+  return past(box.x, box.w, element.x, element.w) || past(box.y, box.h, element.y, element.h)
 }
 
 function textualOf(input: {node: Node['node']; element: Element}): number {

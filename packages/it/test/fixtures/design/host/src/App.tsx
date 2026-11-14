@@ -518,6 +518,23 @@ export function App() {
         </header>
       </main>
     )
+  if (requested === 'range-slider-track') {
+    return (
+      <main style={{margin: -24, paddingTop: 5.67, background: '#141414'}} data-conciv-key="rTmNaA">
+        <div style={{position: 'relative', padding: '26px 3px'}} data-conciv-key="rTfRmA">
+          <span style={{display: 'block', height: 2, background: '#333333'}} data-conciv-key="rTtRkA" />
+          <span style={{position: 'absolute', left: 3, right: 3, top: 17, height: 20}} data-conciv-key="rToVaA">
+            <span style={{position: 'absolute', top: 8.5, left: 77, width: 286, height: 3, background: '#9eff00'}} data-conciv-key="rTbArA" />
+            {[57, 363].map((left, index) => (
+              <span key={left} style={{position: 'absolute', top: 0, left}} data-conciv-key="rTkPsA">
+                <SliderKnob label={index === 0 ? '$1000' : '$5000'} />
+              </span>
+            ))}
+          </span>
+        </div>
+      </main>
+    )
+  }
   if (requested === 'range-slider') {
     return (
       <main style={{margin: -24, paddingTop: 5.67, background: '#141414'}} data-conciv-key="rSmNaA">

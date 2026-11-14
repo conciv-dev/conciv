@@ -495,9 +495,13 @@ describe('an image node drawn as a box with its icon inside', () => {
     await kit.goto('range-slider')
     await call('design_get', await sliced('range-slider', '100-1449'))
     const checked = roundOf(await call('design_check', {}))
+    await kit.goto('range-slider-track')
+    const track = roundOf(await call('design_check', {})).rows.filter((row) =>
+      ['100:1451', '100:1455'].includes(row.node),
+    )
     expect([
       checked.coverage.missing.includes('100:1455'),
-      checked.rows.filter((row) => row.node === '100:1455').map((row) => row.text),
+      [...checked.rows.filter((row) => row.node === '100:1455'), ...track].map((row) => row.text),
     ]).toEqual([false, []])
   })
 })
