@@ -2,8 +2,11 @@ import {createMemo, For, onCleanup, Show, untrack, type Accessor} from 'solid-js
 import {Navigate, getRouteApi, useRouter} from '@tanstack/solid-router'
 import {Panel, Slot, type MountedSession, type SessionScreen} from '@conciv/plugin/experimental'
 import {useLayers} from '../app/context'
+import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query'
 import {usePluginAttachment} from '../runtime/plugin/attachment'
 import {usePluginHost} from '../runtime/plugin/host'
+import {icons} from '../runtime/plugin/icons'
+import {createMobileViews, MobileViewContent, type MobileViews} from '../runtime/plugin/mobile'
 import {createMountedSession} from '../runtime/plugin/mounted-session'
 import {isPluginView, panelKey} from '../runtime/plugin/panel-keys'
 import {PanelTrigger} from '../runtime/plugin/panel-trigger'
@@ -50,17 +53,39 @@ export function createPluginTabs(input: {
     },
   }
 
+  const phone = createMediaQuery(PHONE_MEDIA_QUERY)
+  const mobile = createMobileViews()
+
   const views = () => {
     const region = attachment.shownRegion()
 
     if (!region) return []
 
-    return region.keys().map((key) => ({
-      id: key,
-      label: region.entry(key)?.tab.title ?? key,
-      content: () => <PluginTabTrigger value={key} />,
-      missing: region.entry(key)?.tab.missing,
-    }))
+    const panelTabs = region.keys().flatMap((key) => {
+      const entry = region.entry(key)
+
+      if (phone() && entry?.provider.mobile) return []
+
+      return [
+        {
+          id: key,
+          label: entry?.tab.title ?? key,
+          content: () => <PluginTabTrigger value={key} />,
+          missing: entry?.tab.missing,
+        },
+      ]
+    })
+
+    if (!phone()) return panelTabs
+
+    return [
+      ...[...mobile.tabs(), ...mobile.menu()].map((entry) => ({
+        id: entry.key,
+        label: entry.mobile.title,
+        icon: entry.mobile.icon && icons[entry.mobile.icon],
+      })),
+      ...panelTabs,
+    ]
   }
 
   return {tabs, views}
@@ -128,10 +153,13 @@ function routedKeyStatus(input: {
   key: string
   view: MountedSession | undefined
   screen: SessionScreen | undefined
+  phone: boolean
+  mobile: MobileViews
 }) {
   const owners = input.providers.filter((item) => input.key.startsWith(`${item.plugin}:`))
 
   if (owners.length === 0) return 'unlisted'
+  if (input.phone && input.mobile.find(input.key)) return 'listed'
   const view = input.view
   const screen = input.screen
 
@@ -149,6 +177,8 @@ export function PluginPanelKeys() {
   const known = usePluginsKnown()
   const panels = useRouter().options.context.pluginPanels
   const providers = createMemo(() => paneProviders(host))
+  const phone = createMediaQuery(PHONE_MEDIA_QUERY)
+  const mobile = createMobileViews()
 
   onCleanup(
     panels.bind(({sessionId, key}) =>
@@ -161,6 +191,8 @@ export function PluginPanelKeys() {
           key,
           view: attachment.current(),
           screen: attachment.shownScreen(),
+          phone: phone(),
+          mobile,
         })
       }),
     ),
@@ -217,7 +249,7 @@ export function PluginRegion(props: {view: Accessor<MountedSession>; screen: Ses
 
   onCleanup(attachment.region(region))
 
-  return null
+  return <MobileViewContent region={region} view={props.view()} screen={props.screen} />
 }
 
 export function PluginTabContent() {
@@ -226,6 +258,8 @@ export function PluginTabContent() {
   const host = usePluginHost()
   const known = usePluginsKnown()
   const providers = createMemo(() => paneProviders(host))
+  const phone = createMediaQuery(PHONE_MEDIA_QUERY)
+  const mobile = createMobileViews()
 
   return (
     <Show when={host.ready() && known() === 'known' ? attachment.shownRegion() : undefined}>
@@ -242,23 +276,27 @@ export function PluginTabContent() {
                       key: params().view,
                       view: view(),
                       screen,
+                      phone: phone(),
+                      mobile,
                     }) === 'listed'
                   }
                   fallback={<Navigate to="/panel/$sessionId" params={{sessionId: params().sessionId}} replace />}
                 >
-                  <div class="relative flex flex-1 flex-col min-h-0">
-                    <RegionContent
-                      pane={region().pane}
-                      view={view()}
-                      screen={screen}
-                      frame={{
-                        placement: () => 'pane',
-                        present: () => true,
-                        animate: () => false,
-                        shown: () => true,
-                      }}
-                    />
-                  </div>
+                  <Show when={!phone() || !mobile.find(params().view)}>
+                    <div class="relative flex flex-1 flex-col min-h-0">
+                      <RegionContent
+                        pane={region().pane}
+                        view={view()}
+                        screen={screen}
+                        frame={{
+                          placement: () => 'pane',
+                          present: () => true,
+                          animate: () => false,
+                          shown: () => true,
+                        }}
+                      />
+                    </div>
+                  </Show>
                 </Show>
               )}
             </Show>

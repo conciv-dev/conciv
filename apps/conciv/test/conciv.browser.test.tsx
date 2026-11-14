@@ -6184,9 +6184,9 @@ describe('installed plugins in settings', () => {
 })
 
 describe('a fixture plugin driven like a user', () => {
-  const fixtureBundle = `const {Panel, Registry, Slot, Store} = require('@conciv/plugin/experimental')
+  const fixtureBundle = `const {Panel, Registry, Slot, Store, useDrawer, usePanel} = require('@conciv/plugin/experimental')
 const {createComponent} = require('solid-js/web')
-const {createRenderEffect} = require('solid-js')
+const {createRenderEffect, createSignal} = require('solid-js')
 const {z} = require('zod')
 const ToolCall = Registry.define('tool-call')
 module.exports = {default: {stores: {
@@ -6254,6 +6254,32 @@ module.exports = {default: {stores: {
     list: (input) => (input.open.includes('opened') ? [opened] : []),
     normalize: (input) => (input.id === 'old' ? 'opened' : input.id),
     render: () => document.createTextNode('The opened tab content'),
+  })
+  ctx.add(Panel, {
+    id: 'counter',
+    region: 'pane',
+    mobile: {title: 'Count', order: 1, kind: 'tab', cached: true},
+    list: () => [],
+    render: () => {
+      const [count, setCount] = createSignal(0)
+      return [line(() => 'Count: ' + count()), button('Count up', () => setCount(count() + 1))]
+    },
+  })
+  ctx.add(Panel, {
+    id: 'phone',
+    region: 'pane',
+    mobile: {title: 'Phone', order: 0, kind: 'drawer', icon: 'terminal'},
+    list: () => [{id: 'phone', title: 'Phone tab', pinned: true}],
+    render: () => {
+      const panel = usePanel()
+      const drawer = useDrawer()
+      const pushed = Object.assign(document.createElement('p'), {textContent: 'The pushed view'})
+      return [
+        line(() => 'Placed in ' + panel.placement()),
+        button('Push a view', (event) => drawer?.open({title: 'Pushed', content: pushed, trigger: event.currentTarget})),
+        button('Close the drawer', () => drawer?.close()),
+      ]
+    },
   })
   ctx.add(Slot, {
     at: 'window.bottom',
@@ -6588,5 +6614,89 @@ module.exports = {default: {stores: {
     await elsewhere.manager.enable('fixture')
     await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
     await expect.element(heldNote()).toBeVisible()
+  }, 90_000)
+
+  test('on a phone its mobile views are status bar entries drawn in place of the chat, a cached one keeps its state, and the address survives a reload and a desktop width', async () => {
+    await page.viewport(414, 896)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const entries = () => page.getByRole('toolbar', {name: 'Session status'}).getByRole('tab')
+    const count = (value: number) => shown(`Count: ${value}`)
+
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(tab('Count'), {timeout: 15_000}).toBeVisible()
+    await expect.element(entries().nth(0)).toHaveAccessibleName('Chat')
+    await expect.element(entries().nth(1)).toHaveAccessibleName('Count')
+    await expect.element(entries().nth(2)).toHaveAccessibleName('Phone')
+    await expect.element(entries().nth(3)).toHaveAccessibleName('Fixture tools')
+    await expect.element(entries().nth(4)).not.toBeInTheDocument()
+    await expect.element(tab('Phone tab')).not.toBeInTheDocument()
+
+    await tab('Count').click()
+    await expect.element(tab('Count')).toHaveAttribute('aria-selected', 'true')
+    await expect.element(count(0)).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:counter'))
+    await control('Count up').click()
+    await expect.element(count(1)).toBeVisible()
+
+    await tab('Phone').click()
+    await expect.element(shown('Placed in mobile')).toBeVisible()
+    await expect.element(count(1)).not.toBeVisible()
+    expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:phone'))
+
+    await control('Push a view').click()
+    await expect.element(shown('The pushed view')).toBeVisible()
+    await expect.element(control('Go back')).toBeVisible()
+    await expect.element(shown('Placed in mobile')).not.toBeVisible()
+    await control('Go back').click()
+    await expect.element(shown('Placed in mobile')).toBeVisible()
+    await expect.element(shown('The pushed view')).not.toBeInTheDocument()
+    await expect.element(control('Push a view')).toHaveFocus()
+    await control('Close the drawer').click()
+    await expect.element(editor()).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}`)
+
+    await tab('Phone').click()
+    await expect.element(shown('Placed in mobile')).toBeVisible()
+    await tab('Chat').click()
+    await expect.element(editor()).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}`)
+    await editor().click()
+    await expect.element(editor()).toHaveFocus()
+    const sessionChip = () => page.getByRole('toolbar', {name: 'Session status'}).getByRole('status')
+    await expect.element(sessionChip()).toBeInViewport({ratio: 1})
+    await tab('Fixture tools').click()
+    await expect.element(tab('Fixture tools')).toHaveAttribute('aria-selected', 'true')
+    await expect.element(tab('Fixture tools')).toHaveFocus()
+    await expect.element(sessionChip()).toBeInViewport({ratio: 1})
+    await userEvent.keyboard('{ArrowLeft}')
+    await expect.element(tab('Phone')).toHaveFocus()
+    await userEvent.keyboard('{ArrowLeft}')
+    await expect.element(tab('Count')).toHaveFocus()
+    await userEvent.keyboard('{ArrowLeft}')
+    await expect.element(tab('Chat')).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(editor()).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}`)
+    await tab('Count').click()
+    await expect.element(count(1)).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+    harness.dispose()
+
+    harness.mountShell(`${tabPath(sessionId, 'fixture:counter')}?open=true`)
+    await expect.element(count(0), {timeout: 15_000}).toBeVisible()
+    await expect.element(tab('Count')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:counter'))
+
+    await tab('Phone').click()
+    await expect.element(shown('Placed in mobile')).toBeVisible()
+    await page.viewport(1000, 900)
+    await expect.element(shown('Placed in pane')).toBeVisible()
+    await expect.element(tab('Phone tab')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:phone'))
+    await expect.element(entries().nth(0)).toHaveAccessibleName('Chat')
+    await expect.element(entries().nth(1)).toHaveAccessibleName('Fixture tools')
+    await expect.element(entries().nth(2)).toHaveAccessibleName('Phone tab')
+    await expect.element(entries().nth(3)).not.toBeInTheDocument()
   }, 90_000)
 })
