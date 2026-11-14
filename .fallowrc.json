@@ -216,6 +216,7 @@
     "@conciv/unplugin",
     "@conciv/plugin",
     "@conciv/plugin-host",
+    "@conciv/plugin-tanstack",
     "@conciv/preact",
     "@conciv/protocol",
     "@conciv/react",

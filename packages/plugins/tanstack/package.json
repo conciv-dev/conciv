@@ -1,0 +1,72 @@
+{
+  "name": "@conciv/plugin-tanstack",
+  "version": "0.0.22",
+  "description": "The conciv TanStack plugin: build errors, the route manifest and server-function traces of a TanStack Router or Start app, read from the dev server by code-mode tools.",
+  "keywords": [
+    "conciv",
+    "conciv-plugin",
+    "inspection",
+    "plugin",
+    "router",
+    "tanstack"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/plugins/tanstack"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./rpc": {
+      "types": "./dist/rpc.d.ts",
+      "import": "./dist/rpc.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@conciv/extension": "workspace:^",
+    "@conciv/harness-testkit": "workspace:^",
+    "@conciv/plugin": "workspace:^",
+    "@conciv/plugin-testkit": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/tsconfig": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@conciv/plugin": "workspace:^",
+    "@tanstack/react-router": ">=1.170.0"
+  }
+}
