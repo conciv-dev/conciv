@@ -532,6 +532,56 @@ export const Definition = Rpc.define({
     changes: {input: z.object({sessionId: SessionId}), output: z.array(PageChangeEntrySchema), errors},
     clearChanges: {input: z.object({sessionId: SessionId}), output: OkResult, errors},
     'captures.list': {input: z.object({sessionId: SessionId}), output: SessionCapturesSchema, errors},
+    'queue.wait': {
+      input: z.object({sessionId: SessionId, queueId: z.string().min(1), waitMs: z.number().int().min(0)}),
+      output: z.union([PageQueueResultSchema, PageQueueProgressSchema]),
+      errors,
+    },
+    'queue.startedBy': {
+      input: z.object({sessionId: SessionId, toolCallIds: z.array(z.string())}),
+      output: z.array(PageQueueHandleSchema),
+      errors,
+    },
+    'queue.undelivered': {
+      input: z.object({
+        sessionId: SessionId,
+        toolCallIds: z.array(z.string()).optional(),
+        excludeToolCallIds: z.array(z.string()).optional(),
+      }),
+      output: z.array(PageQueueResultSchema),
+      errors,
+    },
+    'queue.owed': {
+      input: z.object({sessionId: SessionId, excludeToolCallIds: z.array(z.string()), claim: z.boolean()}),
+      output: z.array(
+        z.object({
+          queueId: z.string(),
+          toolCallId: z.string(),
+          result: PageQueueResultSchema,
+          before: z.enum(['owed', 'nextReply']),
+        }),
+      ),
+      errors,
+    },
+    'queue.settle': {
+      input: z.object({
+        sessionId: SessionId,
+        queueIds: z.array(z.string()),
+        delivery: z.enum(['owed', 'nextReply', 'delivered']),
+      }),
+      output: OkResult,
+      errors,
+    },
   },
-  events: {control: {schema: Control}},
+  events: {
+    control: {schema: Control},
+    'queue.finished': {
+      schema: z.object({
+        sessionId: SessionId,
+        queueId: z.string(),
+        toolCallId: z.string(),
+        result: PageQueueResultSchema,
+      }),
+    },
+  },
 })

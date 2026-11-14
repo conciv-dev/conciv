@@ -20,6 +20,7 @@ import {
   type ConnectionEvent,
   type RequestSettlement,
 } from './machine.js'
+import * as Queue from './queue.js'
 import * as Records from './records.js'
 import {Definition, Operations, type Action, type Command, type Result, type Tab} from './rpc.js'
 
@@ -71,6 +72,17 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
   )
   const machine = {state: createConnectionState()}
   const records = Records.fromStorage(ctx.storage)
+  const queues = Queue.fromPlay({
+    play: (sessionId, play) => playQueue(sessionId, play),
+    journal: (sessionId, change) => records.append(sessionId, change),
+    finished: (record) => {
+      if (record.result === null) return
+      const {sessionId, queueId, toolCallId, result} = record
+      void registration.events
+        .emit('queue.finished', {sessionId, queueId, toolCallId, result})
+        .catch((error: unknown) => console.warn(`Announcing queue ${queueId} failed`, error))
+    },
+  })
   const attachments = new Map<number, PromiseWithResolvers<AttachmentOutcome>>()
   const requests = new Map<string, PromiseWithResolvers<RequestSettlement>>()
   const lanes = new Map<SessionId, Mutex>()
@@ -207,6 +219,20 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
       return {ok: true as const}
     },
     'captures.list': (input) => records.captures(input.sessionId),
+    'queue.wait': async (input, call) => {
+      try {
+        return await queues.wait(input.sessionId, input.queueId, input.waitMs, call.signal)
+      } catch (error) {
+        return call.error('unavailable', error instanceof Error ? error.message : String(error), {})
+      }
+    },
+    'queue.startedBy': async (input) => queues.startedBy(input.sessionId, input.toolCallIds),
+    'queue.undelivered': async (input) => queues.undelivered(input.sessionId, input),
+    'queue.owed': async (input) => queues.owed(input.sessionId, input.excludeToolCallIds, input.claim),
+    'queue.settle': async (input) => {
+      queues.settle(input.sessionId, input.queueIds, input.delivery)
+      return {ok: true as const}
+    },
   })
   void watchDeletions()
   async function watchDeletions(): Promise<void> {
@@ -358,7 +384,7 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
 
   return {
     target,
-    playQueue,
+    queues,
     records,
     tabs: (sessionId: SessionId): {tabs: Tab[]; focusedTabId: string | null} => selectTabs(machine.state, sessionId),
     dispose: async (): Promise<void> => {

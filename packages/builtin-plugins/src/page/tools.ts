@@ -54,6 +54,11 @@ export async function register(
         source: {type: 'tool', messageId: tool.messageId, id: tool.id},
       })
     if (action.type === 'tabs.list') return exportResult(connection.tabs(tool.sessionId), [])
+    const queueing = {agentId: tool.agent, toolCallId: tool.id}
+    if (action.type === 'queue')
+      return exportResult(await connection.queues.play(tool.sessionId, {...queueing, action}, tool.signal), [])
+    if (action.type === 'queue_async')
+      return exportResult(connection.queues.start(tool.sessionId, {...queueing, action}), [])
     const target = connection.target(tool.sessionId, action)
     const response = await target
       .request({agentId: tool.agent, signal: tool.signal})

@@ -580,7 +580,7 @@ const TAB_FIXTURE = `import {Definition} from '${join(PAGE_SOURCE, 'rpc.ts')}'
 const method = {input: {type: 'object'}, output: {type: 'object'}}
 const Tabs = {
   id: 'page-tabs',
-  methods: {open: method, close: method, report: method, next: method, reply: method, cancels: method, permissions: method, tool: method, asked: method, waiting: method, decide: method, ended: method},
+  methods: {open: method, close: method, report: method, next: method, reply: method, cancels: method, permissions: method, tool: method, asked: method, waiting: method, decide: method, ended: method, finished: method},
   events: {},
 }
 
@@ -594,6 +594,7 @@ export default {
     const arrived = new EventTarget()
     const stop = new AbortController()
     const asks = []
+    const finished = []
     const follow = async () => {
       for await (const event of ctx.event.subscribe({types: ['permission.asked'], signal: stop.signal})) {
         const {id, sessionId, action, resources} = event.data
@@ -611,6 +612,10 @@ export default {
         received.push({connectionId: control.connectionId, requestId: control.requestId, command})
       }
       arrived.dispatchEvent(new CustomEvent('control', {detail: control}))
+    }, {signal: stop.signal})
+    page.events.on('queue.finished', (event) => {
+      finished.push(event.data)
+      arrived.dispatchEvent(new CustomEvent('control', {detail: {type: 'finished'}}))
     }, {signal: stop.signal})
     const until = async (found) => {
       for (;;) {
@@ -663,6 +668,7 @@ export default {
       permissions: async ({sessionId}) => ({permissions: (await ctx.session.get({sessionId})).permissions ?? []}),
       asked: async () => until(() => asks.shift()),
       waiting: async () => ({waiting: asks.length}),
+      finished: async () => until(() => finished.shift()),
       ended: async ({connectionId}) => open.get(connectionId).ended,
       decide: async ({sessionId, requestId, decision}) => {
         await ctx.permission.reply({sessionId, requestId, decision})
@@ -683,11 +689,7 @@ export default {
 }
 `
 
-const Received = z.object({
-  connectionId: z.string(),
-  requestId: z.string(),
-  command: z.object({action: z.looseObject({type: z.string()}), agentId: z.string(), timeoutMs: z.number()}),
-})
+const Received = z.object({connectionId: z.string(), requestId: z.string(), command: Page.Command})
 const SOURCE_MAP = Buffer.from(
   JSON.stringify({version: 3, sources: ['app/page.tsx'], names: [], mappings: ';AAgBI'}),
 ).toString('base64')
@@ -703,7 +705,7 @@ const Answer = z.union([
 ])
 
 describe('page connection', () => {
-  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, locate answers with the source file, a declared page error keeps its code, changing calls journal and captures keep their tool call, and deleting the session ends its tabs and drops its records', async () => {
+  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, locate answers with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, and deleting the session ends its tabs and drops its records', async () => {
     const kit = await bootCoreKit({
       id: 'page-connection',
       plugins: ['./page', './tabs'],
@@ -861,7 +863,7 @@ describe('page connection', () => {
       metadata: {code: 'UNKNOWN_EFFECT'},
     })
 
-    const page = (method: string) => call('experimental.page', method, {sessionId: session})
+    const page = (method: string, input = {}) => call('experimental.page', method, {sessionId: session, ...input})
     const descriptor = {tagName: 'H1', selectorPath: 'h1'}
     const before = {kind: 'before' as const, ts: 1, descriptor}
     const after = {kind: 'after' as const, ts: 2, descriptor, cssBundleId: 'css_1'}
@@ -893,6 +895,46 @@ describe('page connection', () => {
     expect(await page('captures.list')).toEqual(captured)
     expect(await page('clearChanges')).toEqual({ok: true})
     expect(await page('changes')).toEqual([])
+
+    const actions = [
+      {tool: 'page_fill', selector: '#a', value: 'Ada'},
+      {tool: 'page_click', selector: '#go'},
+    ]
+    const queueing = call('page-tabs', 'tool', {sessionId: session, name: 'queue_async', input: {actions}, id: 'q1'})
+    const accepting = await next('conn_d')
+    const queueId = accepting.command.queued?.id ?? ''
+    expect(accepting.command).toMatchObject({action: {type: 'queue', actions}, queued: {index: -1, of: 2}})
+    expect(await queueing).toEqual({ok: true, value: {queueId, actions: 2}})
+    const single = ask({type: 'click', selector: '#after'})
+    await reply('conn_d', accepting.requestId, succeeded({queueId, status: 'playing', done: 0, of: 2}))
+    const firstQueued = await next('conn_d')
+    expect(firstQueued.command).toMatchObject({action: {type: 'fill', value: 'Ada'}, queued: {id: queueId, index: 0}})
+    expect(await page('queue.startedBy', {toolCallIds: ['q1']})).toEqual([{queueId, actions: 2}])
+    await reply('conn_d', firstQueued.requestId, succeeded({ok: true, value: 'Ada'}))
+    const secondQueued = await next('conn_d')
+    expect(secondQueued.command.queued).toEqual({id: queueId, index: 1, of: 2})
+    await reply('conn_d', secondQueued.requestId, {type: 'failure', code: 'invalid-args', message: 'no #go'})
+    const afterQueue = await next('conn_d')
+    expect(afterQueue.command.action).toEqual({type: 'click', selector: '#after'})
+    await reply('conn_d', afterQueue.requestId, succeeded({ok: true}))
+    expect(await single).toEqual({ok: true, value: {ok: true}})
+    const outcomes = [
+      {index: 0, tool: 'page_fill', ok: true, result: {ok: true, value: 'Ada'}},
+      {index: 1, tool: 'page_click', ok: false, error: '[page.invalid-args] no #go'},
+    ]
+    const result = {queueId, status: 'finished', outcomes, failed: 1, played: 2}
+    expect(await tabs('finished', {})).toEqual({sessionId: session, queueId, toolCallId: 'q1', result})
+    const owed = [{queueId, toolCallId: 'q1', result, before: 'owed'}]
+    expect(await page('queue.owed', {excludeToolCallIds: [], claim: false})).toEqual(owed)
+    expect(await page('queue.undelivered', {excludeToolCallIds: ['q1']})).toEqual([])
+    expect(await page('queue.owed', {excludeToolCallIds: [], claim: true})).toEqual(owed)
+    expect(await page('queue.settle', {queueIds: [queueId], delivery: 'nextReply'})).toEqual({ok: true})
+    expect(await page('queue.undelivered', {toolCallIds: ['q1']})).toEqual([result])
+    expect(await page('queue.wait', {queueId, waitMs: 0})).toEqual(result)
+    expect(await page('changes')).toMatchObject([
+      {verb: 'page_fill', selector: '#a', args: {value: 'Ada'}},
+      {verb: 'page_click', selector: '#after'},
+    ])
 
     const shot = ask({type: 'screenshot'})
     const onShot = await next('conn_d')
