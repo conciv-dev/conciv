@@ -5740,8 +5740,20 @@ const tab = {
     return counter
   },
 }
+const notes = {id: 'notes', title: 'Notes'}
 module.exports = {default: {setup(ctx) {
-  ctx.add(Panel, {id: 'counter', region: 'pane', list: () => [tab], render: () => document.createTextNode('Counter body')})
+  ctx.add(Panel, {
+    id: 'counter',
+    region: 'pane',
+    list: (input) => (input.open.includes('notes') ? [tab, notes] : [tab]),
+    render(props) {
+      if (props.tab.id === 'notes') return document.createTextNode('Notes body')
+      const opener = document.createElement('button')
+      opener.textContent = 'Open notes'
+      opener.addEventListener('click', () => ctx.layout.open('counter:notes', props.session))
+      return opener
+    },
+  })
 }}}
 `
   const coreBase = bootedCore('plugin-panel-tabs', {
@@ -5764,13 +5776,18 @@ module.exports = {default: {setup(ctx) {
 
     await expect.element(counted(0), {timeout: 15_000}).toBeVisible()
     await counted(0).click()
-    await expect.element(page.getByText('Counter body', {exact: true})).toBeVisible()
     await expect.element(page.getByRole('tab', {name: /Count/, selected: true})).toBeVisible()
     await expect.element(counted(1)).toBeVisible()
 
+    await page.getByRole('button', {name: 'Open notes', exact: true}).click()
+    await expect.element(page.getByRole('tab', {name: 'Notes', exact: true, selected: true})).toBeVisible()
+    await expect.element(page.getByText('Notes body', {exact: true})).toBeVisible()
+    await expect.element(counted(1)).toBeVisible()
+    await expect.element(counted(0)).not.toBeInTheDocument()
+
     await page.getByRole('tab', {name: 'Chat', exact: true}).click()
     await expect.element(page.getByRole('tab', {name: 'Chat', exact: true, selected: true})).toBeVisible()
-    await expect.element(page.getByText('Counter body', {exact: true})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('tab', {name: 'Notes', exact: true})).not.toBeInTheDocument()
     await expect.element(counted(1)).toBeVisible()
     await expect.element(counted(0)).not.toBeInTheDocument()
   }, 30_000)
