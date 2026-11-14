@@ -1,0 +1,70 @@
+{
+  "name": "@conciv/plugin-recorder",
+  "version": "0.0.22",
+  "description": "The conciv recorder plugin: a sliding window of the page's rrweb recording on the engine, agent tools returning a distilled action log plus keyframes, and the recorder RPC.",
+  "keywords": [
+    "conciv",
+    "conciv-plugin",
+    "plugin",
+    "recorder",
+    "replay",
+    "rrweb"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/plugins/recorder"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./rpc": {
+      "types": "./dist/rpc.d.ts",
+      "import": "./dist/rpc.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "playwright-core": "^1.64.1",
+    "rrweb": "^2.2.0",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@conciv/harness-testkit": "workspace:^",
+    "@conciv/plugin": "workspace:^",
+    "@conciv/plugin-testkit": "workspace:^",
+    "@conciv/tsconfig": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@conciv/plugin": "workspace:^"
+  }
+}
