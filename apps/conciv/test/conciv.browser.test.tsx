@@ -5723,6 +5723,78 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
   }, 90_000)
 })
 
+describe('plugin settings pages', () => {
+  const settingsBundle = (pages: string) => `const {SettingsPage} = require('@conciv/plugin/experimental')
+const text = (value) => () => document.createTextNode(value)
+module.exports = {default: {setup(ctx) {
+${pages}
+}}}
+`
+  const server = (id: string) => `export default {id: '${id}', async setup() {}}
+`
+  const coreBase = bootedCore('plugin-settings-pages', {
+    plugins: ['./alpha', './beta'],
+    files: {
+      'alpha/index.ts': server('alpha'),
+      'alpha/plugin-experimental.js': settingsBundle(`
+  ctx.add(SettingsPage, {id: 'prefs', title: 'Alpha prefs', render: text('Alpha prefs body')})
+  ctx.add(SettingsPage, {id: 'inline', page: 'general', section: 'general', title: 'Inline', render: text('Alpha row in general')})
+  ctx.add(SettingsPage, {id: 'block', page: 'general', title: 'Block', render: text('Alpha section on general')})`),
+      'beta/index.ts': server('beta'),
+      'beta/plugin-experimental.js': settingsBundle(`
+  ctx.add(SettingsPage, {id: 'prefs', title: 'Beta prefs', icon: 'wrench', render: text('Beta prefs body')})`),
+    },
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  const tab = (name: string) => page.getByRole('tab', {name, exact: true})
+  const selectedTab = (name: string) => page.getByRole('tab', {name, exact: true, selected: true})
+  const body = (text: string) => page.getByText(text, {exact: true})
+
+  test('a plugin settings page has its own tab and route, and a section joins the general page after its groups', async () => {
+    await page.viewport(1000, 900)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const settingsPath = (name: string) => `/panel/${sessionId}/settings/${name}`
+
+    harness.mountShell(`${settingsPath('general')}?open=true`)
+    await expect.element(tab('Plugins'), {timeout: 15_000}).toBeVisible()
+    await expect.element(tab('Beta prefs')).toBeVisible()
+    await expect.element(tab('Alpha prefs')).toBeVisible()
+    await expect.element(body('Alpha row in general')).toBeVisible()
+    await expect.element(body('Alpha section on general')).toBeVisible()
+
+    await tab('Alpha prefs').click()
+    await expect.element(body('Alpha prefs body')).toBeVisible()
+    await expect.element(selectedTab('Alpha prefs')).toBeVisible()
+    await expect.element(selectedTab('Plugins')).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(settingsPath(`plugins/${encodeURIComponent('alpha:prefs')}`))
+
+    await tab('Beta prefs').click()
+    await expect.element(body('Beta prefs body')).toBeVisible()
+    await expect.element(selectedTab('Beta prefs')).toBeVisible()
+    await expect.element(body('Alpha prefs body')).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(settingsPath(`plugins/${encodeURIComponent('beta:prefs')}`))
+
+    await tab('Plugins').click()
+    await expect.element(selectedTab('Plugins')).toBeVisible()
+    await expect.element(body('Beta prefs body')).not.toBeInTheDocument()
+    harness.dispose()
+
+    harness.mountShell(`${settingsPath(`plugins/${encodeURIComponent('beta:prefs')}`)}?open=true`)
+    await expect.element(body('Beta prefs body'), {timeout: 15_000}).toBeVisible()
+    await expect.element(selectedTab('Beta prefs')).toBeVisible()
+    expect(harness.pathname()).toBe(settingsPath(`plugins/${encodeURIComponent('beta:prefs')}`))
+    harness.dispose()
+
+    harness.mountShell(`${settingsPath(`plugins/${encodeURIComponent('beta:missing')}`)}?open=true`)
+    await expect.element(selectedTab('General'), {timeout: 15_000}).toBeVisible()
+    await expect.element(body('Alpha row in general')).toBeVisible()
+    expect(harness.pathname()).toBe(settingsPath('general'))
+  }, 60_000)
+})
+
 type InstalledPush = Parameters<Parameters<InstalledSource['on']>[0]>[0]
 
 type InstalledRows = InstalledPush['list']
