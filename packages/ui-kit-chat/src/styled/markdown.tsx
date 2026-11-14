@@ -1,8 +1,25 @@
-import {createContext, createSignal, onMount, Show, useContext, type JSX} from 'solid-js'
-import {mapValues} from 'es-toolkit'
+import {
+  createContext,
+  createMemo,
+  createSignal,
+  onCleanup,
+  onMount,
+  Show,
+  useContext,
+  type JSX,
+  type ParentProps,
+} from 'solid-js'
+import {mapValues, memoize} from 'es-toolkit'
 import {ReactiveMap} from '@solid-primitives/map'
 import {Highlight} from '@conciv/ui-kit-system'
-import {Streamdown, type HastElement, type HighlightCode} from '@conciv/solid-streamdown'
+import {
+  Streamdown,
+  type FenceView,
+  type HastElement,
+  type HighlightCode,
+  type LocalFileExists,
+  type OpenLocalFile,
+} from '@conciv/solid-streamdown'
 import type {WorkerToMainMessage} from './highlight-shared.js'
 
 const MAX_CACHE_ENTRIES = 512
@@ -253,11 +270,11 @@ function streamedPrefix(language: string, fenceText: string): HastElement | unde
 
 function codeBlock(fenceText: string, lang: string | undefined, streaming: boolean): ReturnType<HighlightCode> {
   backendReadyTick()
-  const requested = (lang ?? '').trim().toLowerCase()
+  const requested = fenceLanguage(lang)
   if (requested === 'mermaid') return streaming ? undefined : MermaidDiagram
   const active = ensureBackend()
   if (!active || !active.isSupported(requested)) return undefined
-  const code = fenceText.endsWith('\n') ? fenceText.slice(0, -1) : fenceText
+  const code = fenceCode(fenceText)
   const highlighted = highlightedWithTail(requested, code, fenceText)
   if (highlighted) return highlighted
   active.requestHighlight(cacheKey(requested, code), requested, code, streaming)
@@ -286,6 +303,96 @@ export function HighlightedText(props: {text: string}): JSX.Element {
   )
 }
 
+type MarkdownCodeBlock = {
+  readonly code: string
+  readonly language: string
+}
+
+type MarkdownCodeBlockMatch = {
+  readonly render: ReadonlySet<string>
+  readonly actions: ReadonlySet<string>
+}
+
+export type MarkdownCodeAction = {
+  readonly icon: string
+  readonly title: string
+  run(block: MarkdownCodeBlock): void
+}
+
+export type MarkdownCodeBlocks = {
+  readonly current: () => MarkdownCodeBlockMatch
+  readonly render: (target: HTMLElement, block: MarkdownCodeBlock, fallback: () => void) => (() => void) | undefined
+  readonly actions: (language: string) => readonly MarkdownCodeAction[]
+}
+
+const MarkdownContext = createContext<{
+  readonly openLocalFile?: OpenLocalFile
+  readonly localFileExists?: LocalFileExists
+  readonly codeBlocks?: MarkdownCodeBlocks
+}>()
+
+export function MarkdownProvider(
+  props: ParentProps<{
+    openLocalFile?: OpenLocalFile
+    localFileExists?: LocalFileExists
+    codeBlocks?: MarkdownCodeBlocks | false
+  }>,
+): JSX.Element {
+  const parent = useMarkdown()
+  return (
+    <MarkdownContext.Provider
+      value={{
+        get openLocalFile() {
+          return props.openLocalFile
+        },
+        get localFileExists() {
+          return props.localFileExists ?? parent?.localFileExists
+        },
+        get codeBlocks() {
+          if (props.codeBlocks === false) return undefined
+          return props.codeBlocks ?? parent?.codeBlocks
+        },
+      }}
+    >
+      {props.children}
+    </MarkdownContext.Provider>
+  )
+}
+
+export const useMarkdown = () => useContext(MarkdownContext)
+
+function CodeBlockContent(props: {language: string; code: string; fallback: () => void}): JSX.Element {
+  const markdown = useMarkdown()
+  const block = createMemo(() => ({code: fenceCode(props.code), language: props.language}))
+  return (
+    <Show when={block()} keyed>
+      {(current) => (
+        <div
+          ref={(target) =>
+            onMount(() => {
+              const dispose = markdown?.codeBlocks?.render(target, current, props.fallback)
+              if (!dispose) return props.fallback()
+              onCleanup(dispose)
+            })
+          }
+        />
+      )}
+    </Show>
+  )
+}
+
+const codeBlockView = memoize((language: string): FenceView => (props) => (
+  <CodeBlockContent language={language} code={props.code} fallback={props.fallback} />
+))
+
+function fenceLanguage(lang: string | undefined): string {
+  return (lang ?? '').trim().toLowerCase()
+}
+
+function fenceCode(fenceText: string): string {
+  return fenceText.endsWith('\n') ? fenceText.slice(0, -1) : fenceText
+}
+
 export function Markdown(props: MarkdownProps): JSX.Element {
   const inherited = useContext(MarkdownHighlightContext)
   const highlight = () => props.highlight ?? inherited
@@ -308,7 +415,13 @@ export function Markdown(props: MarkdownProps): JSX.Element {
 
 function FullMarkdown(props: Omit<MarkdownProps, 'compact'>): JSX.Element {
   warmHighlighter()
-  const highlightCode: HighlightCode = (code, lang) => codeBlock(code, lang, props.streaming === true)
+  const markdown = useMarkdown()
+  const highlightCode: HighlightCode = (code, lang) => {
+    const language = fenceLanguage(lang)
+    const content = props.streaming !== true && markdown?.codeBlocks?.current().render.has(language)
+    if (content) return codeBlockView(language)
+    return codeBlock(code, lang, props.streaming === true)
+  }
   return (
     <Streamdown
       class={props.streaming ? 'prose-chat chat-caret-live' : 'prose-chat'}
@@ -316,6 +429,8 @@ function FullMarkdown(props: Omit<MarkdownProps, 'compact'>): JSX.Element {
       caret={props.streaming ? 'block' : false}
       highlightCode={highlightCode}
       highlight={props.highlight}
+      openLocalFile={markdown?.openLocalFile}
+      localFileExists={markdown?.localFileExists}
     >
       {props.content}
     </Streamdown>
