@@ -78,6 +78,26 @@ const PLANNING_TEXT =
   'Based on the gathered information, we create a comprehensive project plan and strategy. This includes defining project milestones, timelines, deliverables, and resource allocation. We collaborate closely with you to align our strategy with your vision.'
 const SLIDER_LAYER = {gridColumn: 1, gridRow: 1} as const
 const FORM_STROKE = '0 -1px 0 0 #262626, 1px 0 0 0 #262626, -1px 0 0 0 #262626'
+const GRID_STEPS = [
+  ["Discovery", "We begin by thoroughly understanding your business goals, target audience, and project requirements. We conduct in-depth research to gather insights and define project objectives, allowing us to develop a tailored strategy."],
+  ["Planning and Strategy", "Based on the gathered information, we create a comprehensive project plan and strategy. This includes defining project milestones, timelines, deliverables, and resource allocation. We collaborate closely with you to align our strategy with your vision."],
+  ["Design", "Our expert designers translate the project requirements into captivating visual designs. We create wireframes, mockups, and interactive prototypes to showcase the user interface, user experience, and overall design aesthetics. We iterate on the designs based on your feedback until we achieve the perfect look and feel."],
+  ["Development", "Once the designs are approved, our skilled development team brings them to life. We use cutting-edge technologies and coding best practices to build robust and scalable digital products. Throughout the development phase, we maintain open lines of communication to keep you updated on progress and address any questions or concerns."],
+  ["Testing and Quality Assurance", "We conduct rigorous testing to ensure that your digital product functions flawlessly across different devices, browsers, and operating systems. Our quality assurance team meticulously checks for bugs, usability issues, and performance bottlenecks. We strive for a seamless user experience and a high level of reliability."],
+  ["Deployment and Launch", "When your digital product is thoroughly tested and meets your satisfaction, we prepare for deployment. We handle all the technical aspects of launching your product, ensuring a smooth transition from development to the live environment. We assist with setting up hosting, configuring servers, and managing any required integrations."],
+  ["Post-Launch Support", "Our commitment to your success doesn't end with the launch. We provide ongoing support and maintenance services to ensure your digital product continues to perform optimally. We offer different support packages based on your needs, including bug fixes, feature enhancements, security updates, and technical support."],
+  ["Continuous Improvement", "We believe in continuous improvement and strive to optimize your digital product even after launch. We monitor user feedback, analytics, and market trends to identify opportunities for enhancement and growth. We proactively suggest improvements and updates to keep your digital product ahead of the curve."],
+]
+const GRID_CSS = [
+  "@font-face { font-family: 'Inter'; src: url('/fonts/inter-400.woff2') format('woff2'); font-weight: 400; }",
+  '.grid-steps { margin: -24px; padding: 0; width: 1596px; border-inline: 1px solid #262626; background: #1a1a1a; color: #98989a; list-style: none; display: grid; grid-template-columns: 1fr 1fr; }',
+  '.grid-step { display: flex; flex-direction: column; gap: 50px; padding: 100px 50px; border-top: 1px solid #262626; }',
+  '.grid-step:nth-child(odd) { border-right: 1px solid #262626; }',
+  '.grid-head { display: flex; align-items: flex-end; gap: 14px; }',
+  '.grid-number { font-size: 150px; line-height: normal; font-weight: 600; color: #d8ff99; text-box: trim-both cap alphabetic; }',
+  '.grid-title { margin: 0; flex: 1; padding: 0 0 26px 10px; border-bottom: 1px solid #262626; font-size: 30px; line-height: normal; font-weight: 500; }',
+  ".grid-text { margin: 0; font-family: 'Inter'; font-size: 18px; line-height: 1.5; }",
+].join(' ')
 const COLUMN_CARDS = [292, 292, 334, 334, 340, 340, 334, 340]
 const COLUMN_LINES = ['100-1615', '100-1622', '100-1635', '100-1642', '100-1655', '100-1668', '100-2303']
 const MEDIA_HEIGHT_CSS = '#root section { @media (width >= 40rem) { height: 120px; } }'
@@ -264,6 +284,28 @@ export function App() {
           </>
         ))}
       </main>
+    )
+  }
+  if (requested === 'process-grid') {
+    return (
+      <>
+        <style data-conciv-key="pGsTyA">{GRID_CSS}</style>
+        <ol className="grid-steps" data-conciv-key="pGoLsA">
+          {GRID_STEPS.map(([title, body], index) => (
+            <li key={title} className="grid-step" data-conciv-key="pGlIaA">
+              <div className="grid-head" data-conciv-key="pGhDaA">
+                <span className="grid-number" data-conciv-key="pGnMaA">{`0${index + 1}`}</span>
+                <h3 className="grid-title" data-conciv-key="pGtTaA">
+                  {title}
+                </h3>
+              </div>
+              <p className="grid-text" data-conciv-key="pGpRaA">
+                {body}
+              </p>
+            </li>
+          ))}
+        </ol>
+      </>
     )
   }
   if (requested === 'check-row' || requested === 'check-row-wrong') {

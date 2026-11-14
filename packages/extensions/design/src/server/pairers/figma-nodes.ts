@@ -51,6 +51,8 @@ const SAME_BOX_PX = designConfig.tolerances.geometryPx
 
 const TWIN_MARGIN = designConfig.tolerances.pairMargin
 
+const TIE_SCORE = 0.01
+
 const SKIPPED_TAGS = new Set([
   'script',
   'style',
@@ -126,11 +128,12 @@ function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
     const scored = rivals({vote, entry})
     const voted = picked(scored)
     const pick = voted !== null && sharesParent({vote, entry, path: voted.path}) ? null : voted
-    if (pick !== null && pick.score >= PAIR.threshold && !tiedApart({pick, scored, byPath})) {
-      const ordered = orderedTwin({vote, entry, scored, pick})
-      const painted = paintedTwin({pick, scored, byPath, node: entry.node})
-      const outer = painted === pick.path ? outermostTwin({pick, scored, byPath}) : painted
-      const chosen = {...pick, path: ordered ?? holdingTwin({vote, entry, pick, scored, path: outer})}
+    const won = pick === null ? null : winning({vote, entry, scored, pick})
+    if (won !== null) {
+      const painted = paintedTwin({pick: won.pick, scored, byPath, node: entry.node})
+      const outer = painted === won.pick.path ? outermostTwin({pick: won.pick, scored, byPath}) : painted
+      const path = won.ordered ?? holdingTwin({vote, entry, pick: won.pick, scored, path: outer})
+      const chosen = {...won.pick, path}
       paired({vote, node: entry.node.id, pick: chosen})
       votes.push(...ballotsOf({node: entry.node.id, scored, byPath, won: chosen.path}))
       return
@@ -143,6 +146,19 @@ function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
     if (inherited !== undefined) paired({vote, node: entry.node.id, pick: {...inherited, candidates: []}})
   })
   return {root: matchOf({node: input.design.root, pairs: vote.pairs, ties, lives}), partial: false, votes}
+}
+
+function winning(input: {
+  vote: Vote
+  entry: Node
+  scored: Scored[]
+  pick: Pick
+}): {pick: Pick; ordered: string | null} | null {
+  const {vote, scored, pick} = input
+  const ordered = orderedTwin(input)
+  const within = ordered === null ? TIE_SCORE : 0
+  const settled = pick.score >= PAIR.threshold && !tiedApart({pick, scored, byPath: vote.byPath, within})
+  return settled ? {pick, ordered} : null
 }
 
 function heldText(input: {vote: Vote; entry: Node}): Pick | null {
@@ -511,15 +527,17 @@ function tiedApart(input: {
   pick: Pick
   scored: {path: string; score: number}[]
   byPath: Map<string, Element>
+  within: number
 }): boolean {
-  const {pick, byPath} = input
+  const {pick, byPath, within} = input
   const winner = byPath.get(pick.path)
-  if (pick.margin > 0 || winner === undefined) return false
+  if (pick.margin > within || winner === undefined) return false
   return input.scored.some((entry) => {
     const other = byPath.get(entry.path)
-    if (entry.score < pick.score || entry.path === pick.path || other === undefined) return false
+    const gap = pick.score - entry.score
+    if (gap > within || entry.path === pick.path || other === undefined) return false
     const nested = other.ancestors.has(winner.path) || winner.ancestors.has(other.path)
-    return !nested || !sameBox({a: other.box, b: winner.box})
+    return !nested || (gap <= 0 && !sameBox({a: other.box, b: winner.box}))
   })
 }
 

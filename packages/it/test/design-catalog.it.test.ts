@@ -285,11 +285,19 @@ describe('a Figma effect', () => {
 })
 
 describe('a Figma wrapper that draws nothing', () => {
-  it('is not required when the page merges it into its children', async () => {
+  it('is not required when the page merges it into its children, nor paired with part of one child', async () => {
     await kit.goto('process-row')
     await call('design_get', await sliced('process-row', '50-876'))
     const checked = roundOf(await call('design_check', {}))
-    expect(checked.reasons.filter((reason) => reason.includes('required nodes'))).toEqual([])
+    await kit.goto('process-grid')
+    await call('design_get', await sliced('process-grid', '50-875'))
+    const grid = roundOf(await call('design_check', {}))
+    const told = (round: Checked, node: string) => round.rows.filter((row) => row.node === node).map((row) => row.text)
+    expect([
+      checked.reasons.filter((reason) => reason.includes('required nodes')),
+      told(grid, '50:921'),
+      ['50:922', '50:929'].filter((node) => grid.coverage.missing.includes(node)),
+    ]).toEqual([[], [], []])
   })
 })
 
