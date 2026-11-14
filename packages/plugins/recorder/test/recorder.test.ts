@@ -416,7 +416,11 @@ describe('the recording tools', () => {
     expect(await useTool(kit, 'pull', {secondsBack: 60, keyframes: 2})).toBe('No recorded activity in this window.')
 
     await call(kit, 'flush', {clientId: 'render', events: renderStream(Date.now() - 2000)})
-    const [answer, ...images] = ModelPartsSchema.parse(await useTool(kit, 'pull', {secondsBack: 60, keyframes: 2}))
+    const reply = await useTool(kit, 'pull', {secondsBack: 60, keyframes: 2})
+    const [answer, ...images] = ModelPartsSchema.parse(
+      typeof reply === 'string' ? [{type: 'text', content: reply}] : reply,
+    )
+    expect(images.length, 'keyframe image parts in the model reply').toBeGreaterThan(0)
     if (answer?.type !== 'text') throw new Error('the model reply does not open with the log text')
     const pulled = CodeResultSchema.parse(JSON.parse(answer.content)).result
     expect(pulled).toContain('[click]')
