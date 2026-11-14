@@ -253,7 +253,7 @@ async function targetBehind(input: {link: string | undefined; session: string; s
   const {link, session, store} = input
   if (link === undefined) return store.current(session)
   const ref = figmaRef(link)
-  return (await store.list()).find((record) => record.ref === ref) ?? null
+  return (await store.list(session)).find((record) => record.ref === ref) ?? null
 }
 
 function shownText(component: Component & {nodes: NodeRef[]}): string {

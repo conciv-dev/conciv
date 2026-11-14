@@ -66,10 +66,11 @@ async function figmaDocument(file: string): Promise<unknown> {
   return JSON.parse(await readFile(fixture(file), 'utf8'))
 }
 
-function blankPng(input: {width: number; height: number}): Uint8Array {
-  const png = new PNG({width: input.width, height: input.height})
+async function blankImage(input: {dir: string; name: string}): Promise<string> {
+  const png = new PNG({width: 1280, height: 720})
   png.data.fill(255)
-  return new Uint8Array(PNG.sync.write(png))
+  await writeFile(join(input.dir, input.name), PNG.sync.write(png))
+  return join(input.dir, input.name)
 }
 
 function roundOf(checked: Checked): Exclude<Checked, {unsettled: true} | {compile: unknown} | {thrown: unknown}> {
@@ -357,7 +358,7 @@ describe('a page that drifts from the design', () => {
 })
 
 describe('a page between two frames', () => {
-  it('is checked at its own breakpoints that fall between the frames, and centred text whose box hugs it sits where the frame has it', async () => {
+  it('is checked at its own breakpoints that fall between the frames, centred text whose box hugs it sits where the frame has it, and its frames stay its own when another session gets one', async () => {
     await kit.goto('hero-gap')
     await call('design_get', {
       figma: [
@@ -378,6 +379,15 @@ describe('a page between two frames', () => {
     const placed = VariantsSchema.parse(await call('design_check', {})).variants.map((variant) =>
       variant.rows.filter((row) => row.text.includes('further')).map((row) => row.text),
     )
+    await makeRpcClient(kit.apiBase, {headers: {[CONCIV_SESSION_HEADER]: `conciv_${randomUUID()}`}}).registry.call({
+      name: 'design_get',
+      input: {
+        figma: ['100-1170', '100-1449'].map((node) => `https://www.figma.com/design/ItFixtureKey/x?node-id=${node}`),
+        document: [await figmaDocument('hero-1440.json'), await figmaDocument('range-slider.json')],
+        image: [fixture('hero-1440.png'), fixture('range-slider.png')],
+        route: '/',
+      },
+    })
     const again = await call('design_get', {route: '/?variant=hero-gap-fit'})
     const widths = z.object({variants: z.array(z.object({viewport: z.object({width: z.number()})}))}).safeParse(again)
     expect([broken, fitted, placed, widths.data?.variants.map((variant) => variant.viewport.width)]).toEqual([
@@ -568,14 +578,14 @@ describe('catalog component rows', () => {
 
   async function measured(input: {on: Kit; page: string; link: string; document: unknown}) {
     await input.on.goto(input.page)
-    const image = join(input.on.targetsDir, 'named-figma.png')
-    await writeFile(image, blankPng({width: 1280, height: 720}))
+    const image = await blankImage({dir: input.on.targetsDir, name: 'named-figma.png'})
     const got = await input.on.call('design_get', {figma: input.link, image, document: input.document})
-    const checked = roundOf(await input.on.call('design_check', {}))
-    const rows = checked.rows
-      .filter((row) => row.magnitude === 'component')
-      .map((row) => [row.node, row.component, row.specifier, row.text])
-    return {got, rows}
+    return {got, rows: componentLines(roundOf(await input.on.call('design_check', {})))}
+  }
+
+  function componentLines(checked: ReturnType<typeof roundOf>) {
+    const kept = checked.rows.filter((row) => row.magnitude === 'component')
+    return kept.map((row) => [row.node, row.component, row.specifier, row.text])
   }
 
   async function componentRows(input: {on: Kit; page: string}) {
@@ -603,7 +613,10 @@ describe('catalog component rows', () => {
     )
   })
 
-  it('lists no component row for a do-not-use component, and one at any score for a preferred one', async () => {
+  it('lists an instance drawn by hand as one component row with the import line of the drawing file, none when the named component renders it, none for a do-not-use component and one at any score for a preferred one', async () => {
+    expect([await componentRows({on: kit, page: 'drift-hand'}), await componentRows({on: kit, page: 'drift'})]).toEqual(
+      [[['10:2', 'Chip', './Chip.tsx', CHIP_ROW]], []],
+    )
     try {
       await call('design_components', {doNotUse: 'Chip', prefer: 'Table'})
       expect((await componentRows({on: kit, page: 'drift-hand'})).map((row) => [row[0], row[1]])).toEqual([
@@ -613,12 +626,6 @@ describe('catalog component rows', () => {
       await call('design_components', {clear: 'Chip'})
       await call('design_components', {clear: 'Table'})
     }
-  })
-
-  it('lists an instance of a component drawn by hand as one component row, its import line from the drawing file, and none when the named component renders the node', async () => {
-    expect([await componentRows({on: kit, page: 'drift-hand'}), await componentRows({on: kit, page: 'drift'})]).toEqual(
-      [[['10:2', 'Chip', './Chip.tsx', CHIP_ROW]], []],
-    )
   })
 
   it('gives no hint to a node that shares no word with a component name, and a text that holds a component word as a whole word no row and no hint of 1', async () => {
@@ -655,8 +662,7 @@ describe('catalog component rows', () => {
   async function roundsAcross(input: {on: Kit; frame: number; pages: string[]}) {
     const {on, frame} = input
     await on.goto(input.pages[0] ?? '')
-    const image = join(on.targetsDir, 'kit-figma.png')
-    await writeFile(image, blankPng({width: 1280, height: 720}))
+    const image = await blankImage({dir: on.targetsDir, name: 'kit-figma.png'})
     await on.call('design_get', {
       figma: `https://www.figma.com/design/ItFixtureKey/x?node-id=${frame}-1`,
       image,
@@ -665,11 +671,7 @@ describe('catalog component rows', () => {
     return input.pages.reduce<Promise<unknown[][][]>>(async (earlier, page, index) => {
       const listed = await earlier
       if (index > 0) await on.goto(page)
-      const checked = roundOf(await on.call('design_check', {}))
-      const rows = checked.rows
-        .filter((row) => row.magnitude === 'component')
-        .map((row) => [row.node, row.component, row.specifier, row.text])
-      return [...listed, rows]
+      return [...listed, componentLines(roundOf(await on.call('design_check', {})))]
     }, Promise.resolve([]))
   }
 
@@ -683,8 +685,7 @@ describe('catalog component rows', () => {
 
   it('credits the node paired to the root of a kit component that stamps nothing to the component written at its call site', async () => {
     await kit.goto('drift-kit')
-    const image = join(kit.targetsDir, 'kit-figma.png')
-    await writeFile(image, blankPng({width: 1280, height: 720}))
+    const image = await blankImage({dir: kit.targetsDir, name: 'kit-figma.png'})
     const got = await call('design_get', {
       figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=18-1',
       image,
@@ -731,8 +732,7 @@ describe('catalog component rows', () => {
 
     async function siteRounds(pages: string[], edit: () => Promise<void> = async () => {}) {
       await kit.goto(pages[0] ?? '')
-      const image = join(kit.targetsDir, 'site-figma.png')
-      await writeFile(image, blankPng({width: 1280, height: 720}))
+      const image = await blankImage({dir: kit.targetsDir, name: 'site-figma.png'})
       const got = await call('design_get', {figma: SITE_LINK, image, document: SITE_DOCUMENT})
       return pages.reduce<Promise<{layers: unknown[][]; rows: unknown[][]}[]>>(async (earlier, page, index) => {
         const listed = await earlier

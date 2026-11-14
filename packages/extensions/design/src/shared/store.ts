@@ -58,7 +58,7 @@ export type Store = {
   variants(session: string): Promise<TargetRecord[]>
   reroute(input: {session: string; route: string}): Promise<void>
   group(ids: string[]): Promise<void>
-  list(): Promise<TargetRecord[]>
+  list(session?: string): Promise<TargetRecord[]>
 }
 
 type Shot = {

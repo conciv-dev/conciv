@@ -354,7 +354,7 @@ async function variantsGot(input: {
   const {runtime, query, session} = input
   const records: TargetRecord[] = []
   for (const [index, link] of input.links.entries()) {
-    const held = await runtime.store.list()
+    const held = await runtime.store.list(session)
     const known = held.find((record) => record.session === session && record.ref === figmaRef(link))
     const one = {
       figma: link,

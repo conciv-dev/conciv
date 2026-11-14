@@ -108,21 +108,22 @@ export function createStore(input: {
     })
   }
 
-  async function held(): Promise<TargetRow[]> {
+  async function held(session?: string): Promise<TargetRow[]> {
     const latest = await orm
       .select()
       .from(targets)
       .where(await ofProject())
       .orderBy(desc(targets.run_id))
-    return uniqBy(latest, (row) => row.target_id).toSorted((a, b) => a.at - b.at)
+    const ownFirst = latest.toSorted((a, b) => Number(b.session === session) - Number(a.session === session))
+    return uniqBy(ownFirst, (row) => row.target_id).toSorted((a, b) => a.at - b.at)
   }
 
-  async function list(): Promise<TargetRecord[]> {
-    return (await held()).map(recordOf)
+  async function list(session?: string): Promise<TargetRecord[]> {
+    return (await held(session)).map(recordOf)
   }
 
   async function currentRecord(session: string): Promise<TargetRecord | null> {
-    const records = await list()
+    const records = await list(session)
     return records.filter((entry) => entry.session === session).at(-1) ?? records.at(-1) ?? null
   }
 
@@ -547,7 +548,7 @@ export function createStore(input: {
     current: currentRecord,
     checkedRun,
     variants: async (session) => {
-      const all = await held()
+      const all = await held(session)
       const last = all.filter((entry) => entry.session === session).at(-1) ?? all.at(-1)
       if (last === undefined) return []
       if (last.lead === null) return [recordOf(last)]
