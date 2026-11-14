@@ -70,6 +70,7 @@ export const PUBLIC_PACKAGES = [
   '@conciv/extension-compiler',
   '@conciv/plugin',
   '@conciv/plugin-host',
+  '@conciv/plugin-test-runner',
   '@conciv/solid-diffs',
   '@conciv/solid-streamdown',
   '@conciv/ui-kit-system',

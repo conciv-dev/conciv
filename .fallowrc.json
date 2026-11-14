@@ -209,6 +209,7 @@
     "@conciv/unplugin",
     "@conciv/plugin",
     "@conciv/plugin-host",
+    "@conciv/plugin-test-runner",
     "@conciv/preact",
     "@conciv/protocol",
     "@conciv/react",

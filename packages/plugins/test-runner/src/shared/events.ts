@@ -1,0 +1,92 @@
+import {z} from 'zod'
+
+const TestStateSchema = z.enum(['pass', 'fail', 'skip'])
+export type TestState = z.infer<typeof TestStateSchema>
+
+const TestErrorSchema = z.object({
+  file: z.string(),
+  name: z.string(),
+  message: z.string(),
+  stack: z.string(),
+  line: z.number().optional(),
+})
+export type TestError = z.infer<typeof TestErrorSchema>
+
+const SummarySchema = z.object({
+  passed: z.number(),
+  failed: z.number(),
+  skipped: z.number(),
+  durationMs: z.number(),
+})
+export type Summary = z.infer<typeof SummarySchema>
+
+const FileStateSchema = z.object({
+  file: z.string(),
+  state: z.enum(['pass', 'fail', 'skip', 'running']),
+  durationMs: z.number().optional(),
+})
+export type FileState = z.infer<typeof FileStateSchema>
+
+const TestRowSchema = z.object({
+  id: z.string(),
+  file: z.string(),
+  name: z.string(),
+  state: TestStateSchema,
+  durationMs: z.number(),
+  error: TestErrorSchema.optional(),
+})
+export type TestRow = z.infer<typeof TestRowSchema>
+
+export const TestRunResultSchema = z.object({
+  summary: SummarySchema,
+  failures: z.array(TestErrorSchema),
+  tests: z.array(TestRowSchema),
+})
+export type TestRunResult = z.infer<typeof TestRunResultSchema>
+
+export const TestEventSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('snapshot'),
+    files: z.array(FileStateSchema),
+    summary: SummarySchema,
+    watching: z.boolean(),
+  }),
+  z.object({type: z.literal('run-start'), runId: z.string(), files: z.array(z.string())}),
+  TestRowSchema.extend({type: z.literal('test')}),
+  z.object({type: z.literal('file-end'), file: z.string(), ok: z.boolean(), durationMs: z.number()}),
+  z.object({
+    type: z.literal('run-end'),
+    runId: z.string(),
+    summary: SummarySchema,
+    failures: z.array(TestErrorSchema),
+    tests: z.array(TestRowSchema),
+  }),
+])
+export type TestEvent = z.infer<typeof TestEventSchema>
+
+export function countStates(tests: ReadonlyArray<TestRow>): Omit<Summary, 'durationMs'> {
+  return {
+    passed: tests.filter((test) => test.state === 'pass').length,
+    failed: tests.filter((test) => test.state === 'fail').length,
+    skipped: tests.filter((test) => test.state === 'skip').length,
+  }
+}
+
+export type TestCaseLike = {
+  id: string
+  name: string
+  module: {moduleId: string}
+  result: () => {
+    state: 'passed' | 'failed' | 'skipped' | 'pending'
+    errors?: ReadonlyArray<{message: string; stacks?: ReadonlyArray<{file?: string; line?: number}>}>
+  }
+}
+
+export function parseFailure(tc: TestCaseLike): TestError | null {
+  const result = tc.result()
+  if (result.state !== 'failed') return null
+  const err = result.errors?.[0]
+  const message = err?.message ?? 'test failed'
+  const top = err?.stacks?.find((s) => s.file === tc.module.moduleId) ?? err?.stacks?.[0]
+  return {file: tc.module.moduleId, name: tc.name, message, stack: message, line: top?.line}
+}
