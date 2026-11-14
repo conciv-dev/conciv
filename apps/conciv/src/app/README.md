@@ -8,12 +8,12 @@ Solid contexts and hooks for app-wide and per-pane state: app context accessors,
 
 - `AppContext`, `AppContextValue` (`context.ts`): app-wide context
 - `useRpc`, `useSettings`, `useAppData`, `useEnvironment`, `useAppQueryClient`, `useAnnounce`, `useLayers`, `useInstances`, `useConnected`, `useApiBase`, `useLiveSessions`, `usePaneChat`, `useWarmSession` and further accessors (`context.ts`)
-- `makeLiveSessions(deps)`, `LiveSessions`, `PaneActivity` (`live-sessions.ts`): owns one chat client per session (`useChatSession` keyed on session id and connection generation; each chat subscribes to its api base trust and re-hydrates in place when trust flips from untrusted or revoked to trusted); `open(sessionId)` hands a pane that client; `reopen(sessionId)` retires that client and builds a fresh one, so the library's mount load runs again and joins a run still in flight; `activityIn` returns `unmounted` | `idle` | `running`; `waitingIn` is true while that session's chat has a pending approval
+- `makeLiveSessions(deps)`, `LiveSessions`, `PaneActivity` (`live-sessions.ts`): owns one chat client per session (`useChatSession` keyed on session id and connection generation; each chat subscribes to its api base trust and, when trust flips from untrusted or revoked to trusted, rebuilds the chat the way `reopen` does if its load had failed, else re-hydrates in place); `open(sessionId)` hands a pane that client; `reopen(sessionId)` retires that client and builds a fresh one, so the library's mount load runs again and joins a run still in flight; `activityIn` returns `unmounted` | `idle` | `running`; `waitingIn` is true while that session's chat has a pending approval
 - `PaneContext`, `usePane`, `makePendingAttachmentQueue` (`pane-context.ts`): per-session pane context and a File queue
 - `PaneProvider` (`pane-provider.tsx`): builds the pane context for a `sessionId` (chat, refresh, grab staging, attachments, `newSession`)
 - `PanelChromeContext`, `usePanelChrome` (`panel-chrome.ts`): panel close handle and the `frame` ref the panel hands to the root, which measures it for the launcher robot
 - `makePanelComposerFocus`, `usePanelComposerFocus` (`panel-focus.ts`): tracks the active composer input
-- `EngineReachabilityContext`, `makeEngineReachability`, `useEngineReachability` (`reachability.ts`): `online` and `sustainedOffline` accessors
+- `EngineReachabilityContext`, `makeEngineReachability(apiBase)`, `useEngineReachability` (`reachability.ts`): `online`, `sustainedOffline` and `locked` accessors; `locked` is `engineLock(status)` over its own `createEngineLogin({apiBase})` on the same connection, released with the owner
 - `createWarmSession`, `WarmSession` (`warm-session.ts`): resolves the most recently updated session
 
 ## Invariants

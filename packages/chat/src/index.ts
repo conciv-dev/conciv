@@ -26,6 +26,7 @@ export {assistCapabilities, registryCapabilities, toolDomainCapabilities, type C
 export type {AttachmentExpanders, SessionPort} from './turn.js'
 
 const FIRST_OUTPUT_TIMEOUT_MS = 30_000
+const FIRST_START_TIMEOUT_MS = 30_000
 
 const OUTSIDE_DENIED = 'the user denied outside agents for this session'
 
@@ -136,6 +137,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     sandbox: {dir: deps.cwd},
     hooks: turnHooks(deps, {approvals, ui, transcripts}),
     codeModeResult: cappedValue,
+    startTimeoutMs: FIRST_START_TIMEOUT_MS,
     firstOutputTimeoutMs: deps.firstOutputTimeoutMs ?? FIRST_OUTPUT_TIMEOUT_MS,
     log: deps.log,
   })
