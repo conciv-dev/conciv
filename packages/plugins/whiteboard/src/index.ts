@@ -6,6 +6,7 @@ import {autoCommitDraft} from './server/auto-commit.js'
 import {createStore} from './server/db/store.js'
 import {startCommentEnrichment} from './server/enrich-worker.js'
 import {whiteboardHandlers} from './server/rpc-handlers.js'
+import {info} from './skill.js'
 import {register} from './tools.js'
 
 export default Plugin.define({
@@ -23,6 +24,7 @@ export default Plugin.define({
     })
     const stopEnrichment = startCommentEnrichment(store, directory)
     await register(ctx.tool, store, directory)
+    await ctx.skill.transform((editor) => editor.add(info))
     await ctx.session.hook('experimental.idle', async ({sessionId}) => {
       await autoCommitDraft(store, sessionId)
     })
