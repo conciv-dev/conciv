@@ -38,7 +38,7 @@ export function createPluginTabs(input: {
       if (key === untrack(routed)) input.chat()
     },
     remap: (rewrite: (key: string) => string) => {
-      const key = untrack(routed)
+      const key = routed()
 
       if (key === undefined) return
       const next = rewrite(key)
