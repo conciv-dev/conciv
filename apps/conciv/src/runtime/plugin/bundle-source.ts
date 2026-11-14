@@ -67,7 +67,7 @@ export function createBundleSource(input: {readonly rpc: RpcClient; readonly api
   const plugins = new Map<string, BridgePluginExperimental>()
   const inventory: {reserved: readonly string[]; server: ReadonlySet<string>; unreadable: ReadonlyMap<string, string>} =
     {reserved: [], server: new Set(), unreadable: new Map()}
-  const enableState: {rows: readonly EnableState[]} = {rows: []}
+  const enableState: {rows: readonly EnableState[] | undefined} = {rows: undefined}
   const listeners = new Set<(message: PluginExperimentalsMessage) => void>()
   const installedListeners = new Set<(message: InstalledMessage) => void>()
   const resources: Resources = {}
@@ -241,7 +241,7 @@ export function createBundleSource(input: {readonly rpc: RpcClient; readonly api
   })
 
   const enabled = (pluginId: string) =>
-    pluginEnabled({id: pluginId, builtin: local.includes(pluginId)}, enableState.rows)
+    pluginEnabled({id: pluginId, builtin: local.includes(pluginId)}, enableState.rows ?? [])
 
   const known = (pluginId: string) => local.includes(pluginId) || plugins.has(pluginId)
 
@@ -265,12 +265,14 @@ export function createBundleSource(input: {readonly rpc: RpcClient; readonly api
   ]
 
   const changed = () => {
+    if (enableState.rows === undefined) return
+
     const message: InstalledMessage = {type: 'installed', list: installed()}
     installedListeners.forEach((listener) => listener(message))
   }
 
   const settle = (rows: readonly EnableState[]) => {
-    const before = installed()
+    const before = enableState.rows === undefined ? [] : installed()
     enableState.rows = rows
 
     if (!isEqual(before, installed())) changed()
@@ -280,14 +282,21 @@ export function createBundleSource(input: {readonly rpc: RpcClient; readonly api
 
   const unfollowEnableState = enableStore.on((rows) => {
     settle(rows)
-    loaded.resolve(enableState.rows)
+    loaded.resolve(rows)
   })
 
   const setEnabled = async (pluginId: string, value: boolean) => {
     if (!known(pluginId)) throw pluginError('notFound')
 
-    await enableStore.setEnabled(pluginId, value)
-    enableState.rows = uniqBy([{id: pluginId, enabled: value}, ...enableState.rows], (row) => row.id)
+    const previous = enableState.rows
+    enableState.rows = uniqBy([{id: pluginId, enabled: value}, ...(previous ?? [])], (row) => row.id)
+    changed()
+
+    await enableStore.setEnabled(pluginId, value).catch((cause: unknown) => {
+      enableState.rows = previous
+      changed()
+      throw cause
+    })
   }
 
   dispatch({type: 'started', endpoint, quitting: false})
@@ -307,14 +316,8 @@ export function createBundleSource(input: {readonly rpc: RpcClient; readonly api
 
         return () => installedListeners.delete(listener)
       },
-      async enable(pluginId) {
-        await setEnabled(pluginId, true)
-        changed()
-      },
-      async disable(pluginId) {
-        await setEnabled(pluginId, false)
-        changed()
-      },
+      enable: (pluginId) => setEnabled(pluginId, true),
+      disable: (pluginId) => setEnabled(pluginId, false),
       async reload(pluginId) {
         if (!known(pluginId)) throw pluginError('notFound')
 
