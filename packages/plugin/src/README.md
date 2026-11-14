@@ -340,6 +340,9 @@ tag line `@remarks Not implemented yet. Always undefined in this version.`, and 
 Declared with the source's type but not implemented, so a call does nothing: `Composer.attach` (logged, for `file`,
 `note` and `quote` alike), `Composer.model` (undefined), `Composer.setModel` and `Composer.setVariant` (false).
 
+Declared with the source's type but not read by the host: `PanelTab.fallback`. A session shows a plugin tab only while
+the route names it, so no tab is selected in place of a missing one.
+
 ## Not available yet
 
 Not declared: declaring them would mean inventing a conciv copy of an opencode type that conciv does not have.

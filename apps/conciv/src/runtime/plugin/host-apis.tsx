@@ -60,6 +60,7 @@ import {
 import {usePluginHost, type HostApiFactories} from './host'
 import {icons} from './icons'
 import {createLocatedWrites} from './located'
+import type {Region} from './panels'
 import {deferredHandle, globalStoreTarget, persistedHandle, storeImports, storeName} from './stores'
 import {ui} from './ui'
 
@@ -460,7 +461,16 @@ export function createPluginAttachment(apis: HostApis) {
 
   const shownView = (session: SessionRef) => (route().routed === session.id ? route().view : undefined)
 
-  const state = (key: string, session: SessionRef): PanelState => (shownView(session) === key ? 'visible' : 'closed')
+  const [region, setRegion] = createSignal<Region>()
+
+  const mountedRegion = (session: SessionRef) => (current()?.key === session.key ? region() : undefined)
+
+  const state = (key: string, session: SessionRef): PanelState => {
+    const mounted = mountedRegion(session)
+    const shown = mounted ? mounted.active() : shownView(session)
+
+    return shown === key ? 'visible' : 'closed'
+  }
 
   const show = (key: string, session: SessionRef) =>
     void router.navigate({to: '/panel/$sessionId/$view', params: {sessionId: session.id, view: key}})
@@ -474,8 +484,18 @@ export function createPluginAttachment(apis: HostApis) {
       if (state(key, session) === 'visible') chat(session)
     })
 
+  const closeAt = (key: string, session: SessionRef) => {
+    const mounted = mountedRegion(session)
+
+    if (mounted) return mounted.close(key)
+
+    if (state(key, session) === 'visible') chat(session)
+  }
+
+  const close = (key: string, session: SessionRef) => located.hold(session, () => closeAt(key, session))
+
   const toggle = (key: string, session: SessionRef) =>
-    located.hold(session, () => (state(key, session) === 'visible' ? chat(session) : show(key, session)))
+    located.hold(session, () => (state(key, session) === 'visible' ? closeAt(key, session) : show(key, session)))
 
   const shellTabs = createMemo((): readonly ShellTab[] =>
     sessions().map((session) => ({key: session.tab, session, active: session.id === route().routed})),
@@ -535,7 +555,7 @@ export function createPluginAttachment(apis: HostApis) {
     },
     layout: {
       open,
-      close: hide,
+      close,
       toggle,
       hide,
       state,
@@ -565,6 +585,13 @@ export function createPluginAttachment(apis: HostApis) {
 
       return () => {
         if (screen() === value) setScreen(undefined)
+      }
+    },
+    region(value: Region) {
+      setRegion(() => value)
+
+      return () => {
+        if (region() === value) setRegion(undefined)
       }
     },
     mount(view: Accessor<MountedSession | undefined>) {
