@@ -123,7 +123,7 @@ it.live('interrupts pending watcher setup when the loader scope closes during mo
   }),
 )
 
-it.live('blocks a local plugin before module initialization and honors replacement policies', () =>
+it.live('a loader made under a deny policy blocks a local plugin, one made under no policy loads it', () =>
   Effect.gen(function* () {
     const directory = yield* tmpdirScoped()
     const entered = path.join(directory.path, 'entered')
