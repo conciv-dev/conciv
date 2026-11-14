@@ -568,6 +568,42 @@ describe('tool call card dispatch', () => {
     await expect.element(page.getByRole('button', {name: 'Allow'})).toBeVisible()
     await expect.element(page.getByRole('button', {name: 'Deny'})).toBeVisible()
   })
+
+  it('an entry that declines a call hands it to the next match, then to the fallback, until it accepts', async () => {
+    const pluginEntry: ToolCardEntry = {
+      names: ['mcp__weather__forecast'],
+      render: cardSaying('the plugin card'),
+      hasEmbeddedBody: () => true,
+      accepts: (_call, result) => result !== undefined,
+    }
+    const catalogEntry: ToolCardEntry = {
+      names: ['mcp__weather__forecast'],
+      render: cardSaying('the second card'),
+      hasEmbeddedBody: () => true,
+    }
+    const fallbackRow = page.getByRole('button', {name: /Used tool: mcp__weather__forecast/})
+    const [tools, setTools] = createSignal<ToolCardEntry[]>([pluginEntry, catalogEntry])
+    const [result, setResult] = createSignal<ToolResultPart | undefined>(undefined)
+    mountView(() => (
+      <ToolCallCard
+        part={{...part('mcp__weather__forecast'), id: 'e1'}}
+        result={result()}
+        ctx={ctxAsking(makeCatalog({}))}
+        tools={tools}
+      />
+    ))
+
+    await expect.element(page.getByText('the second card')).toBeVisible()
+    await expect.element(page.getByText('the plugin card')).not.toBeInTheDocument()
+
+    setTools([pluginEntry])
+    await expect.element(fallbackRow).toBeVisible()
+    await expect.element(page.getByText('the plugin card')).not.toBeInTheDocument()
+
+    setResult(cardResult('sunny', 'complete'))
+    await expect.element(page.getByText('the plugin card')).toBeVisible()
+    await expect.element(fallbackRow).not.toBeInTheDocument()
+  })
 })
 
 describe('tool card auto collapse', () => {
