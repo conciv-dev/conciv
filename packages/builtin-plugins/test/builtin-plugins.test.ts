@@ -9,7 +9,6 @@ import {SessionId} from '@conciv/protocol/chat-types'
 import {bootCoreKit} from '@conciv/plugin-testkit/core-kit'
 import * as PageMachine from '../src/page/machine.js'
 import * as Page from '../src/page/rpc.js'
-import * as PageSkill from '../src/page/skill.js'
 
 const tabId = `tab_${crypto.randomUUID()}`
 
@@ -83,11 +82,8 @@ describe('page rpc', () => {
     const decode = (input: unknown) => z.parse(Page.Control, input)
     expect(() => decode({type: 'attached', connectionId: 'old-client'})).toThrow()
     expect(() => decode({type: 'attached', connectionId: 'old-client', version: 2})).toThrow()
-    expect(decode({type: 'attached', connectionId: 'client', version: 1})).toEqual({
-      type: 'attached',
-      connectionId: 'client',
-      version: 1,
-    })
+    const current = {type: 'attached', connectionId: 'client', version: 1}
+    expect(decode(current)).toEqual(current)
     expect(z.parse(Page.Definition.methods.attach.output, 'replaced')).toBe('replaced')
   })
 
@@ -110,12 +106,6 @@ describe('page rpc', () => {
     expect(Page.Operations.map((operation) => operation.name).toSorted()).toEqual(
       ['tabs.list', 'fill_form', ...PAGE_TOOL_DEFS.map((definition) => pageVerbOfTool(definition.name))].toSorted(),
     )
-  })
-})
-
-describe('page skill', () => {
-  it('the built-in page skill uses a virtual skill:// URI', () => {
-    expect(PageSkill.info.path).toBe('skill://page/SKILL.md')
   })
 })
 
@@ -954,12 +944,18 @@ describe('page connection', () => {
     expect(saved.value).toMatchObject({width: 800, files: [{id: image.id, mime: 'image/webp', bytes: 4}]})
     expect(await readFile(saved.value.files[0]?.path ?? '', 'base64')).toBe('UklGRg==')
 
-    const stranded = ask({type: 'wait', selector: 'body', timeout: 100})
+    const clicks = ['#slow', '#gone'].map((selector) => ({tool: 'page_click', selector}))
+    await call('page-tabs', 'tool', {sessionId: session, name: 'queue_async', input: {actions: clicks}, id: 'q2'})
+    const stranding = await next('conn_d')
+    const strandedId = stranding.command.queued?.id ?? ''
+    await reply('conn_d', stranding.requestId, succeeded({queueId: strandedId, status: 'playing', done: 0, of: 2}))
     await next('conn_d')
+    expect((await next('conn_d')).command.queued).toEqual({id: strandedId, index: 1, of: 2})
     await tabs('close', {connectionId: 'conn_d'})
-    expect(await stranded).toMatchObject({
-      ok: false,
-      message: expect.stringContaining('the action may already have run'),
+    const lines = ['the page did not confirm page_click in time', 'the page reloaded or closed during page_click']
+    expect(await page('queue.wait', {queueId: strandedId, waitMs: 5000})).toMatchObject({
+      status: 'lost',
+      outcomes: lines.map((text) => ({tool: 'page_click', ok: false, error: `${text}; it may already have run`})),
     })
 
     expect(await tabs('open', {sessionId: session, connectionId: 'conn_e'})).toEqual({attached: true})

@@ -51,7 +51,7 @@ const QUEUE_RESULT_CHARS = RESULT_CAP_CHARS - 5000
 
 const Raised = z.object({code: z.string(), message: z.string()})
 
-const Unconfirmed = z.string().regex(/^\[page\.(timeout|disconnected|tab_unavailable)\]/)
+const Unconfirmed = /^\[page\.(timeout|disconnected|tab_unavailable)\]/
 
 const Values = z.record(z.string(), z.unknown())
 
@@ -64,8 +64,14 @@ function playedOutcome(index: number, tool: string, settlement: RequestSettlemen
   const raised = Raised.safeParse(settlement.error.error)
   const error = raised.success ? raised.data.message || settlement.error.message : settlement.error.message
   if (raised.success) return {outcome: {index, tool, ok: false, error}, landed: unplayedAs(raised.data.code)}
-  const lost = settlement.tabClosed === true || Unconfirmed.safeParse(error).success
-  return {outcome: {index, tool, ok: false, error}, landed: lost ? 'lost' : 'played'}
+  const code = settlement.tabClosed === true ? 'disconnected' : Unconfirmed.exec(error)?.[1]
+  if (code === undefined) return {outcome: {index, tool, ok: false, error}, landed: 'played'}
+  return {outcome: {index, tool, ok: false, error: unconfirmedError(code, tool)}, landed: 'lost'}
+}
+
+function unconfirmedError(code: string, tool: string): string {
+  if (code === 'timeout') return `the page did not confirm ${tool} in time; it may already have run`
+  return `the page reloaded or closed during ${tool}; it may already have run`
 }
 
 function unplayedAs(code: string): Landed {
