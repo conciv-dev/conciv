@@ -291,6 +291,9 @@ describe('a page that drifts from the design', () => {
     const form = told(await rows(), 'drifts')
     await kit.goto('contact-form-flat')
     const formFlat = told(await rows(), 'drifts')
+    await kit.goto('contact-section')
+    await call('design_get', await sliced('contact-section', '100-1403'))
+    const section = (await rows()).filter((row) => ['100:1415', '100:1416'].includes(row.node))
     expect([
       flat,
       drifted.map((text) => text.split('; ')[0]),
@@ -300,6 +303,7 @@ describe('a page that drifts from the design', () => {
       screen,
       form.map((text) => text.split('; ')[0]),
       formFlat,
+      section.map((row) => `${row.node} ${row.selector}`),
     ]).toEqual([
       [],
       ['the page drifts from the design: Card [100:1675] sits 7 px lower on the page than in the frame'],
@@ -308,6 +312,7 @@ describe('a page that drifts from the design', () => {
       [],
       [],
       ['the page drifts from the design: Button [100:1466] sits 3 px lower on the page than in the frame'],
+      [],
       [],
     ])
   })

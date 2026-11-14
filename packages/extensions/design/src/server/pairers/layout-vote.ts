@@ -33,7 +33,8 @@ const FLOWS = new Set([HORIZONTAL, 'VERTICAL'])
 const PaddedSchema = z.object({pad: z.array(z.number())})
 
 function flowVote(input: {node: DesignNode; element: Laid; cssom: Styles; row: boolean}): number {
-  if (input.node.children.some((child) => child.implied === true)) return 0
+  const {children} = input.node
+  if (children.length < 2 || children.some((child) => child.implied === true)) return 0
   const row = flowRow(input.cssom) ?? (laidOut(input.cssom) ? null : paddedFlow(input))
   if (row === null) return 0
   return row === input.row ? WEIGHT : -WEIGHT

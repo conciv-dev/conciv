@@ -205,7 +205,8 @@ export function App() {
       </main>
     )
   }
-  if (requested === 'contact-form' || requested === 'contact-form-flat') return <ContactForm flat={requested === 'contact-form-flat'} data-conciv-key="cFpGeA" />
+  if (requested === 'contact-form' || requested === 'contact-form-flat' || requested === 'contact-section')
+    return <ContactForm flat={requested !== 'contact-form'} section={requested === 'contact-section'} data-conciv-key="cFpGeA" />
   if (requested === 'process-row' || requested === 'process-row-boxed') {
     const boxed = requested === 'process-row-boxed'
     return (
@@ -567,11 +568,19 @@ function FormThumb(props: {value: string}) {
   )
 }
 
-function ContactForm(props: {flat: boolean}) {
-  return (
-    <main style={{margin: -24, background: '#1a1a1a'}} data-conciv-key="cFmNaA">
+function ContactForm(props: {flat: boolean; section: boolean}) {
+  const form = (
       <form
-        style={{display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 30, padding: 60, outline: '1px solid #262626', outlineOffset: -1}}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          gap: 30,
+          padding: 60,
+          outline: '1px solid #262626',
+          outlineOffset: -1,
+          ...(props.section ? {boxSizing: 'border-box', width: '100%', maxWidth: 846} : {}),
+        }}
         data-conciv-key="cFfRmA"
       >
         <div style={{display: 'flex', gap: 30}} data-conciv-key="cFrWaA">
@@ -641,7 +650,30 @@ function ContactForm(props: {flat: boolean}) {
           Submit
         </button>
       </form>
-    </main>
+  )
+  return (
+    <main style={{margin: -24, background: '#1a1a1a'}} data-conciv-key="cFmNaA">
+      {props.section ? (
+        <section style={{display: 'flex', flexDirection: 'column'}} data-conciv-key="cSsCnA">
+          <div
+            style={{height: 483, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 30, color: '#ffffff'}}
+            data-conciv-key="cShDrA"
+          >
+            <h2 style={{margin: 0, fontSize: 28, fontWeight: 600}} data-conciv-key="cShTxA">
+              Thank you for your Interest in SquareUp.
+            </h2>
+            <span style={{padding: '14px 24px', borderRadius: 8, background: '#9eff00', color: '#000000'}} data-conciv-key="cSbTnA">
+              Start Project
+            </span>
+          </div>
+          <div style={{display: 'flex', justifyContent: 'center', boxShadow: 'inset 0 1px 0 #262626'}} data-conciv-key="cSwRpA">
+            {form}
+          </div>
+        </section>
+      ) : (
+        form
+      )}
+</main>
   )
 }
 
