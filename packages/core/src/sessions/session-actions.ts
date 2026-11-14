@@ -17,11 +17,13 @@ type SessionDeletion = {
   pluginHost: ManagedRuntime.ManagedRuntime<Bus.Interface | KV.Interface, never>
 }
 
+export const newSessionId = (): SessionId => SessionId.parse(`conciv_${randomUUID()}`)
+
 export async function createChatSession(
   db: ConcivDb,
   scope: {harnessKind: string; cwd: string},
+  sessionId: SessionId = newSessionId(),
 ): Promise<{sessionId: SessionId}> {
-  const sessionId = SessionId.parse(`conciv_${randomUUID()}`)
   await createRow(db, {
     id: sessionId,
     harnessSessionId: null,

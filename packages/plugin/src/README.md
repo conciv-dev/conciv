@@ -230,6 +230,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - `SessionHooks` has `experimental.idle` only; `fork`, `compaction`, `generate`, `title`, `experimental.model.resolve`, `model.request`, `http.request`, `http.response`, `experimental.ws.handshake`, `experimental.ws.send`, `experimental.ws.receive` and `retry` are not ours, with their event types.
 - `experimental.idle` runs when a run completes and no page-queue result is owed to the session (an owed result starts a follow-up turn, whose completion runs it instead); it does not run after a stopped or failed run, as in opencode; no second hook exists (ruling: whiteboard drafts from such a turn stay drafts).
 - `SessionIdle.background` is always empty: conciv keeps no background jobs; the CLI owns that work.
+- `session.create` fails with `Session.AgentNotFoundError` for an agent other than `build`, and with `Session.NotFoundError` for a model the session's harness does not list (or lists disabled, or without the given `variant`), as `switchAgent` and `switchModel` do; nothing is created. The source accepts both unchecked (`core/src/session/session.ts:290-310`) and fails at run time, which conciv has no place to do. The errors' `sessionId` is the id the call minted for the new session.
 - `SessionDomain` has no `move` (not ours: one directory per engine).
 - The session list input has no `directory`, `project` or `subpath`, and the session create input no `location` (one project per engine).
 - `interrupt`'s `resume` is accepted and does nothing more than the stop: conciv has no steering inbox, so `resume` has nothing to wake.
@@ -310,7 +311,7 @@ tag line `@remarks Not implemented yet. Always undefined in this version.`, and 
 - `Tool.ToolContext.messageId`, `messageId` in the tool hooks
 - `Model.Ref.providerId`, `Model.Ref.variant`
 - `Model.Info`: `canonical`, `type`, `family`
-- session info: `parentId`, `fork`, `projectId`, `outcome`, `time.created`, `time.busy`, `time.idle`, `time.viewed`, `time.archived`, `subpath`, `revert`
+- session info: `parentId`, `fork`, `projectId`, `outcome`, `time.busy`, `time.idle`, `time.viewed`, `time.archived`, `subpath`, `revert`
 - session list input: `order`, `parentId`, `archived`
 - session create input: `id`, `parentId`
 - session update input: `archived`

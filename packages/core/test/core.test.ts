@@ -2929,12 +2929,13 @@ describe('plugin context keys provided by core', () => {
       agent: 'build',
       cost: 0,
       tokens: {input: 0, output: 0, reasoning: 0, cache: {read: 0, write: 0}},
-      time: {created: undefined, updated: expect.any(Number)},
+      time: {created: expect.any(Number), updated: expect.any(Number)},
       title: 'Plan the port',
       metadata: {ticket: 7, tags: ['plugins']},
       permissions: [{action: 'bash', resource: '*', effect: 'deny'}],
       location: {directory: stateRoot},
     })
+    expect(created.time.created).toBeLessThanOrEqual(created.time.updated)
     expect(await key.run((sessions) => sessions.get(sessionId))).toEqual(created)
 
     await key.run((sessions) =>
@@ -2952,6 +2953,18 @@ describe('plugin context keys provided by core', () => {
     expect(second.model).toEqual({id: 'opus', providerId: 'listing-cli'})
     const listed = await key.run((sessions) => sessions.list())
     expect(listed.data.map((session) => session.id).toSorted()).toEqual([sessionId, second.id].toSorted())
+    expect(listed.data.find((session) => session.id === sessionId)?.time.created).toBe(created.time.created)
+    expect(await key.fail((sessions) => sessions.create({title: 'Planned', agent: 'plan', location}))).toMatchObject({
+      _tag: 'Session.AgentNotFoundError',
+      sessionId: expect.stringMatching(/^conciv_/),
+      agent: 'plan',
+    })
+    expect(
+      await key.fail((sessions) => sessions.create({model: {id: 'gone', providerId: 'listing-cli'}, location})),
+    ).toMatchObject({_tag: 'Session.NotFoundError', sessionId: expect.stringMatching(/^conciv_/)})
+    expect((await key.run((sessions) => sessions.list())).data.map((session) => session.id).toSorted()).toEqual(
+      [sessionId, second.id].toSorted(),
+    )
     const first = await key.run((sessions) => sessions.list({limit: 1}))
     expect(first.data).toHaveLength(1)
     expect(first.cursor.next).toEqual(expect.any(String))

@@ -113,8 +113,7 @@ export interface SessionInfo {
   /** @remarks Not implemented yet. Always undefined in this version. */
   outcome?: 'succeeded' | 'failed' | 'interrupted'
   time: {
-    /** @remarks Not implemented yet. Always undefined in this version. */
-    created: number | undefined
+    created: number
     updated: number
     /** @remarks Not implemented yet. Always undefined in this version. */
     busy?: number

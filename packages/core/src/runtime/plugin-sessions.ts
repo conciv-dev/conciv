@@ -13,7 +13,7 @@ import {
 import {Agent, type Bus, type KV, Session, SessionErrors} from '@conciv/plugin-host'
 import type {ChatContext} from '../api/rpc/mount.js'
 import {listedSessionPage, searchedSessionPage, switchSessionEffort, switchSessionModel} from '../api/rpc/sessions.js'
-import {createChatSession, deleteSession, renameSession} from '../sessions/session-actions.js'
+import {createChatSession, deleteSession, newSessionId, renameSession} from '../sessions/session-actions.js'
 import type {createSessionSearch} from '../sessions/session-search.js'
 import {rowById, setMetadata, setPermissions} from '../sessions/session-rows.js'
 import type {CoreRuntime} from './scope-types.js'
@@ -64,7 +64,7 @@ function sessionInfo(chat: ChatContext, row: SessionRecord): SessionInfo {
       reasoning: usage.reasoningTokens,
       cache: {read: usage.cacheReadTokens, write: usage.cacheWriteTokens},
     },
-    time: {created: undefined, updated: row.updatedAt},
+    time: {created: row.createdAt, updated: row.updatedAt},
     title: row.title ?? undefined,
     metadata: row.metadata ?? undefined,
     permissions: row.permissions ?? undefined,
@@ -94,14 +94,16 @@ function applyModelChoice(chat: ChatContext, sessionId: SessionId, choice: Model
   })
 }
 
-function createdModel(chat: ChatContext, input: CreateInput) {
+function createdModel(chat: ChatContext, input: CreateInput, sessionId: SessionId) {
   return Effect.gen(function* () {
     const agent = given(input.agent) ?? Agent.defaultId
-    if (agent !== Agent.defaultId) return yield* Effect.die(new Error(`Agent not found: "${agent}"`))
+    if (agent !== Agent.defaultId) {
+      return yield* Effect.fail(SessionErrors.makeAgentNotFoundError({sessionId, agent: Agent.Id.make(agent)}))
+    }
     const model = given(input.model)
     if (model === undefined) return null
     const choice = yield* modelChoice(chat.defaultHarness, model)
-    if (choice === null) return yield* Effect.die(new Error(`Model not found: "${model.providerId}/${model.id}"`))
+    if (choice === null) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
     return choice
   })
 }
@@ -162,9 +164,10 @@ export function provideSessions(started: () => SessionKeyDeps) {
       create: (input) =>
         Effect.gen(function* () {
           const {chat, search} = started()
-          const choice = yield* createdModel(chat, input)
-          const {sessionId} = yield* Effect.promise(() =>
-            createChatSession(chat.db, {harnessKind: chat.defaultHarness.id, cwd: chat.cwd}),
+          const sessionId = newSessionId()
+          const choice = yield* createdModel(chat, input, sessionId)
+          yield* Effect.promise(() =>
+            createChatSession(chat.db, {harnessKind: chat.defaultHarness.id, cwd: chat.cwd}, sessionId),
           )
           yield* Effect.promise(() => describeCreated({db: chat.db, search}, sessionId, input))
           if (choice !== null && !(yield* applyModelChoice(chat, sessionId, choice))) {
