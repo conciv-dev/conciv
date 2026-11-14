@@ -133,6 +133,29 @@ async function setCheckedOn(input: Locator, call: Call, checked: boolean): Promi
   return buildOutcome(await setChecked({element, checked, agent: call.agentId}))
 }
 
+async function fillOn(input: Locator, call: Call, value: string): Promise<PageResult> {
+  const element = actionableTarget(call, input)
+  return buildOutcome(await fill({element, value, agent: call.agentId}))
+}
+
+async function selectOn(input: Locator, call: Call, value: string): Promise<PageResult> {
+  const element = call.target(input)
+  if (isDisabled(element)) badArgs('That element is disabled.')
+  pointAt({element, agent: call.agentId})
+  return buildOutcome(await select({element, value}))
+}
+
+type FormField = Extract<Action, {readonly type: 'fill_form'}>['fields'][number]
+
+async function fillForm(fields: readonly FormField[], call: Call): Promise<PageResult> {
+  for (const field of fields) {
+    if (field.type === 'text') await fillOn(field, call, field.value)
+    if (field.type === 'select') await selectOn(field, call, field.value)
+    if (field.type === 'check') await setCheckedOn(field, call, field.checked)
+  }
+  return ok()
+}
+
 const INSERT_POS: Record<string, InsertPosition> = {
   before: 'beforebegin',
   after: 'afterend',
@@ -339,17 +362,11 @@ function perform(action: Action, call: Call, effects: () => readonly PageEffect[
         return ok()
       })
     case 'fill':
-      return acting(call, async () => {
-        const element = actionableTarget(call, action)
-        return buildOutcome(await fill({element, value: action.value, agent: call.agentId}))
-      })
+      return acting(call, () => fillOn(action, call, action.value))
+    case 'fill_form':
+      return acting(call, () => fillForm(action.fields, call))
     case 'select':
-      return acting(call, async () => {
-        const element = call.target(action)
-        if (isDisabled(element)) badArgs('That element is disabled.')
-        pointAt({element, agent: call.agentId})
-        return buildOutcome(await select({element, value: action.value}))
-      })
+      return acting(call, () => selectOn(action, call, action.value))
     case 'check':
       return acting(call, () => setCheckedOn(action, call, true))
     case 'uncheck':

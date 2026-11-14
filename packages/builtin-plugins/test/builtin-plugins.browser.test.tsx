@@ -299,6 +299,32 @@ describe.skipIf(inFirefox)('page tools', () => {
       expect(await runForResult('value', {selector: '#sel'})).toEqual({value: 'fs'})
     })
 
+    it('fills a form field by field in order and stops at the first field that refuses', async () => {
+      expect(
+        await runForResult('fill_form', {
+          fields: [
+            {selector: '#field', type: 'text', value: 'from the form'},
+            {selector: '#sel', type: 'select', value: 'A'},
+            {selector: '#subscribe', type: 'check', checked: true},
+          ],
+        }),
+      ).toEqual({ok: true})
+      expect(await runForResult('value', {selector: '#field'})).toEqual({value: 'from the form'})
+      expect(await runForResult('value', {selector: '#sel'})).toEqual({value: 'a'})
+      await expect.element(formState()).toMatchTextContent('subscribed: true')
+      expect(
+        await runForFailure('fill_form', {
+          fields: [
+            {selector: '#field', type: 'text', value: 'second pass'},
+            {selector: '#prose', type: 'text', value: 'x'},
+            {selector: '#subscribe', type: 'check', checked: false},
+          ],
+        }),
+      ).toEqual({code: 'invalid-args', message: 'That element is not a text field.'})
+      expect(await runForResult('value', {selector: '#field'})).toEqual({value: 'second pass'})
+      await expect.element(formState()).toMatchTextContent('subscribed: true')
+    })
+
     it('fails instead of reporting ok when a field or box refuses the change', async () => {
       document.querySelector('#stuck')?.addEventListener('click', (event) => event.preventDefault())
       expect(await runForFailure('fill', {selector: '#qty', value: 'many'})).toEqual({

@@ -124,8 +124,8 @@
       },
       {
         "files": ["packages/builtin-plugins/src/page/operations.ts"],
-        "maxCyclomatic": 43,
-        "maxCrap": 443,
+        "maxCyclomatic": 44,
+        "maxCrap": 463,
         "reason": "perform keeps the source's single dispatch switch, opencode gui-plugins/src/browser/chromium.ts:718-726"
       }
     ]
