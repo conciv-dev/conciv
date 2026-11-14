@@ -121,7 +121,8 @@ README.md; this file is the non-obvious operational rules.
 - The calm perf gate (frame-gap budgets) is `pnpm --filter @conciv/app test:perf`, kept out of `pnpm test`;
   run it locally before merging a chat-plane change. It measures the merge base with `origin/main` in a scratch
   worktree, then the branch, in Chromium and Firefox, and judges the branch against main
-  (`apps/conciv/README.md`, Perf gate). It needs `origin/main` locally and takes about 7 minutes.
+  (`apps/conciv/README.md`, Perf gate). It needs `origin/main` locally and takes 4 to 7 minutes. When main itself
+  drops frames in that session it refuses to judge and exits non-zero: neither a pass nor a regression.
 - Widget integration tests load the PREBUILT bundle (`packages/embed/dist/conciv-widget.global.js`):
   rebuild it (`pnpm turbo run build --filter=@conciv/embed`) before running them, or you test
   stale code.

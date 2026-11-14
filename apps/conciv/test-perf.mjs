@@ -61,8 +61,26 @@ function missingMedians(file) {
   if (!existsSync(file)) return PERF_BROWSERS.flatMap((browser) => PERF_CASES.map((name) => `${browser} ${name}`))
   const medians = JSON.parse(readFileSync(file, 'utf8'))
   return PERF_BROWSERS.flatMap((browser) =>
-    PERF_CASES.filter((name) => typeof medians[browser]?.[name] !== 'number').map((name) => `${browser} ${name}`),
+    PERF_CASES.filter((name) => typeof medians[browser]?.[name]?.median !== 'number').map(
+      (name) => `${browser} ${name}`,
+    ),
   )
+}
+
+function describeTooLoaded(file) {
+  const medians = JSON.parse(readFileSync(file, 'utf8'))
+  return PERF_BROWSERS.flatMap((browser) => {
+    const failed = PERF_CASES.filter((name) => medians[browser][name].broken.length > 0)
+    if (failed.length === 0) return []
+    const checks = failed.map((name) => `${medians[browser][name].broken.join(', ')} on ${name}`).join('; ')
+    return [
+      `this machine is too loaded to judge: main itself failed ${checks} on ${browser}`,
+      ...PERF_CASES.map(
+        (name) =>
+          `  main ${browser} ${name} samples p50/p95/max/over33/sampled: ${medians[browser][name].samples.join(' | ')}`,
+      ),
+    ]
+  })
 }
 
 function removeCheckout(scratch) {
@@ -115,6 +133,8 @@ async function measureMain(scratchApp, scratch) {
         "If the output above is a failed import, this branch's perf test needs product code the merge base lacks.",
     )
   }
+  const tooLoaded = describeTooLoaded(scratch.medians)
+  if (tooLoaded.length > 0) throw new Error(tooLoaded.join('\n'))
   console.info(
     `test:perf: main's medians (its own verdicts are printed above): ${readFileSync(scratch.medians, 'utf8')}`,
   )

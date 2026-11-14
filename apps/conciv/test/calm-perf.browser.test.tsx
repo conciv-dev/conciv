@@ -34,7 +34,7 @@ async function readP95Limit(scenario: string): Promise<{limit: number; against: 
     console.warn(`perf ${server.browser} ${scenario}: no baseline: judged against the fixed budget only`)
     return {limit: FRAME_P95_BUDGET_MS, against: 'no baseline'}
   }
-  const main = baseline[server.browser]?.[scenario]
+  const main = baseline[server.browser]?.[scenario]?.median
   if (main === undefined) throw new Error(`the perf baseline has no median for ${scenario} in ${server.browser}`)
   return {limit: Math.max(FRAME_P95_BUDGET_MS, main + PERF_MAIN_TOLERANCE_MS), against: `main ${main}`}
 }
@@ -43,9 +43,26 @@ function describeSample(gaps: FrameGaps): string {
   return `${gaps.p50}/${gaps.p95}/${gaps.max}/${gaps.over33}/${gaps.sampledMs}ms`
 }
 
+function listBrokenChecks(samples: ReadonlyArray<FrameGaps>): string[] {
+  return samples.flatMap((gaps, index) =>
+    [
+      gaps.sampledMs < MIN_SAMPLED_WINDOW_MS
+        ? `sample ${index + 1} sampled ${gaps.sampledMs} ms, under ${MIN_SAMPLED_WINDOW_MS} ms`
+        : '',
+      gaps.over33 > FRAME_JANK_BUDGET
+        ? `sample ${index + 1} had ${gaps.over33} frames over 33 ms, over ${FRAME_JANK_BUDGET}`
+        : '',
+    ].filter((check) => check !== ''),
+  )
+}
+
 async function expectSmooth(scenario: string, samples: ReadonlyArray<FrameGaps>): Promise<void> {
   const median = medianP95(samples)
-  await commands.recordPerfMedian(server.browser, scenario, median)
+  await commands.recordPerfMedian(server.browser, scenario, {
+    median,
+    broken: listBrokenChecks(samples),
+    samples: samples.map(describeSample),
+  })
   const {limit, against} = await readP95Limit(scenario)
   const verdict = median <= limit ? 'PASS' : 'FAIL'
   console.info(

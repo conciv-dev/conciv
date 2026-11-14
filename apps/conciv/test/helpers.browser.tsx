@@ -9,7 +9,7 @@ import {
 } from '@conciv/contract'
 import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {BootCoreInput, BootCoreResult, FaultSpec, PointerDrag, PointerHover} from './commands/core-control.js'
-import type {PerfMedians} from './commands/perf-baseline.js'
+import type {PerfMedians, PerfRecord} from './commands/perf-baseline.js'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {fetchServerSentEvents} from '@conciv/ai/client'
 import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
@@ -79,7 +79,7 @@ declare module 'vitest/internal/browser' {
     awaitFaultPending: (handle: string, count: number) => Promise<void>
     awaitFaultAnswered: (handle: string) => Promise<void>
     perfBaseline: () => Promise<PerfMedians | null>
-    recordPerfMedian: (browser: string, scenario: string, median: number) => Promise<void>
+    recordPerfMedian: (browser: string, scenario: string, record: PerfRecord) => Promise<void>
   }
 }
 

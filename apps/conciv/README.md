@@ -43,10 +43,15 @@ branch against that file. It removes the scratch worktree at the end (also on fa
 session and pane; every sample is printed and must keep its sampled window and its count of frames over 33 ms; the
 median p95 passes when it is at most 20 ms or at most main's median plus `PERF_MAIN_TOLERANCE_MS`. `PERF_SAMPLES = 5`
 and `PERF_MAIN_TOLERANCE_MS = 1.5` come from this machine's measured spread on 2026-11-14 and must be re-measured, not
-guessed, if changed. It needs `origin/main` locally (it never fetches) and fails without a branch run when main cannot
+guessed, if changed. They were measured in Chromium only; Firefox uses the same constants until it is measured on an
+idle machine, and Firefox reports frame gaps in whole milliseconds. When main itself breaks a per-sample check (the
+sampled window or the count of frames over 33 ms, on any sample of any case, in either browser), the gate prints
+`this machine is too loaded to judge: main itself failed ... on <browser>` with main's samples, runs nothing on the
+branch and exits non-zero: that exit is neither a pass nor a regression, the session was too loaded to judge. Main's
+median alone being over 20 ms is not a refusal. It needs `origin/main` locally (it never fetches) and fails without a branch run when main cannot
 be built or measured. On the merge base itself it skips main and judges against the 20 ms budget alone, and says so.
 The baseline uses this branch's test files against main's product code, so a branch whose perf helpers need product
-code main lacks fails loudly at the baseline step. A run takes about 7 minutes on a warm turbo cache (417 s measured on 2026-11-14). It is not part of `pnpm test` or CI.
+code main lacks fails loudly at the baseline step. A run takes 4 to 7 minutes on a warm turbo cache (259 to 417 s measured on 2026-11-14 and 2026-11-15). It is not part of `pnpm test` or CI.
 
 ## Side Effects
 

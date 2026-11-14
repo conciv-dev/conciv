@@ -2,7 +2,11 @@ import {existsSync, readFileSync, writeFileSync} from 'node:fs'
 import type {BrowserCommand} from 'vitest/node'
 import {z} from 'zod'
 
-const PerfMediansSchema = z.record(z.string(), z.record(z.string(), z.number()))
+const PerfRecordSchema = z.object({median: z.number(), broken: z.array(z.string()), samples: z.array(z.string())})
+
+const PerfMediansSchema = z.record(z.string(), z.record(z.string(), PerfRecordSchema))
+
+export type PerfRecord = z.infer<typeof PerfRecordSchema>
 
 export type PerfMedians = z.infer<typeof PerfMediansSchema>
 
@@ -16,16 +20,16 @@ const perfBaseline: BrowserCommand<[]> = () => {
   return readMedians(file)
 }
 
-const recordPerfMedian: BrowserCommand<[browser: string, scenario: string, median: number]> = (
+const recordPerfMedian: BrowserCommand<[browser: string, scenario: string, record: PerfRecord]> = (
   _context,
   browser,
   scenario,
-  median,
+  record,
 ) => {
   const file = process.env.CONCIV_PERF_RECORD
   if (!file) return
   const recorded = existsSync(file) ? readMedians(file) : {}
-  writeFileSync(file, JSON.stringify({...recorded, [browser]: {...recorded[browser], [scenario]: median}}, null, 2))
+  writeFileSync(file, JSON.stringify({...recorded, [browser]: {...recorded[browser], [scenario]: record}}, null, 2))
 }
 
 export const perfCommands = {perfBaseline, recordPerfMedian}
