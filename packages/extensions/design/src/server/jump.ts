@@ -55,5 +55,5 @@ function keptNarrow(input: {node: DesignNode; wide: DesignNode; element: LiveCom
   const wideWay = wide.layout?.direction
   if (way === undefined || wideWay === undefined || way === wideWay) return false
   const placed = element.children.filter((child) => child.bounds.w > 0 && child.bounds.h > 0)
-  return placed.length > 1 && element.axis === way
+  return placed.length > 1 && placed.every((child) => child.axis === way)
 }

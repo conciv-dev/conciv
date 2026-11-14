@@ -89,14 +89,15 @@ const HERO_GAP_CSS = [
 ].join(' ')
 const HERO_FIT_CSS = HERO_GAP_CSS.replace('width: 780px', 'width: 100%; max-width: 780px')
 const CONTACT_ITEMS = ['hello@squareup.com', '+91 91813 23 2309', 'Somewhere in the World']
-function contactBarCss(breakpoint: number): string {
+function contactBarCss(input: {breakpoint: number; footer: string}): string {
+  const {breakpoint, footer} = input
   return [
     '.contact-bar { display: flex; flex-direction: column; gap: 20px; color: #e6e6e6; font-size: 18px; }',
     '.contact-bar-items { display: flex; flex-direction: column; }',
     '.contact-bar-item { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 20px 0; box-shadow: inset 0 0 0 1px #262626; }',
     '.contact-bar-icon { width: 24px; height: 24px; background: #9eff00; }',
     '.contact-bar-copy { color: #98989a; font-size: 16px; text-align: center; }',
-    `@media (width >= ${breakpoint}px) { .contact-bar { flex-direction: row; justify-content: space-between; align-items: center; } .contact-bar-items { flex-direction: row; gap: 22px; } .contact-bar-item { padding: 6px 0; gap: 6px; font-size: 16px; } .contact-bar-copy { font-size: 14px; } }`,
+    `@media (width >= ${breakpoint}px) { .contact-bar { flex-direction: ${footer}; justify-content: space-between; align-items: center; } .contact-bar-items { flex-direction: row; gap: 22px; } .contact-bar-item { padding: 6px 0; gap: 6px; font-size: 16px; } .contact-bar-copy { font-size: 14px; } }`,
   ].join(' ')
 }
 const LATE_FONT_CSS = `${SLOW_FONT_CSS} @media (width < 900px) { #root { font-family: 'Slow Sans', monospace; } }`
@@ -262,10 +263,10 @@ export function App() {
       </main>
     )
   }
-  if (requested === 'contact-bar' || requested === 'contact-bar-fit') {
+  if (requested === 'contact-bar' || requested === 'contact-bar-fit' || requested === 'contact-bar-stacked') {
     return (
       <main style={{margin: -24, background: '#1a1a1a'}} data-conciv-key="cBmNaA">
-        <style data-conciv-key="cBsTyA">{contactBarCss(requested === 'contact-bar' ? 1200 : 700)}</style>
+        <style data-conciv-key="cBsTyA">{contactBarCss({breakpoint: requested === 'contact-bar-fit' ? 700 : 1200, footer: requested === 'contact-bar-stacked' ? 'column' : 'row'})}</style>
         <footer className="contact-bar" data-conciv-key="cBfTrA">
           <div className="contact-bar-items" data-conciv-key="cBiTmA">
             {CONTACT_ITEMS.map((item) => (

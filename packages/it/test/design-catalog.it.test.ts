@@ -376,11 +376,14 @@ describe('a page that switches layouts between two frames', () => {
     const late = await jumped()
     await kit.goto('contact-bar-fit')
     const early = await jumped()
-    expect([late, early]).toEqual([
+    await kit.goto('contact-bar-stacked')
+    const stacked = await jumped()
+    expect([late, early, stacked]).toEqual([
       [
         'frame Sub Container [100:1514] at 1199 wide: lays its children out in a column as the 358 px frame does, though 1199 is nearer the 1280 px frame, which lays them out in a row; switch to the 358 px layout below 819',
       ],
       [],
+      late,
     ])
   })
 })
