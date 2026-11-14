@@ -91,6 +91,17 @@ const SessionListSchemas = passingUnknownKeys({
   search: Schema.optional(Schema.String),
   archived: Schema.optional(Schema.Boolean),
 })
+const SessionSwitchAgentSchemas = passingUnknownKeys({sessionId: Session.Id, agent: Agent.Id})
+const SessionSwitchModelSchemas = passingUnknownKeys({sessionId: Session.Id, model: Model.Ref})
+const SessionCompactSchemas = passingUnknownKeys({sessionId: Session.Id, id: Schema.optional(SessionMessage.Id)})
+const SessionInterruptSchemas = passingUnknownKeys({sessionId: Session.Id, resume: Schema.optional(Schema.Boolean)})
+const SessionUpdateSchemas = passingUnknownKeys({
+  sessionId: Session.Id,
+  title: Schema.optional(Schema.String),
+  metadata: Schema.optional(Schema.Record(Schema.String, Schema.Json)),
+  permissions: Schema.optional(Permission.Ruleset),
+  archived: Schema.optional(Schema.Boolean),
+})
 const PluginListSchemas = {
   input: Schema.toType(LocationQuery),
   output: Location.response(Schema.Array(PluginSchema.Info)),
@@ -407,15 +418,15 @@ export function fromPromise(plugin: Plugin.Plugin) {
             list: adaptMethod(SessionListSchemas, host.session.list),
             create: adaptMethod(SessionCreateSchemas, host.session.create),
             get: adaptMethod(SessionIdSchemas, host.session.get),
-            remove: adaptMethod({}, host.session.remove),
-            switchAgent: adaptMethod({}, host.session.switchAgent),
-            switchModel: adaptMethod({}, host.session.switchModel),
+            remove: adaptMethod(SessionIdSchemas, host.session.remove),
+            switchAgent: adaptMethod(SessionSwitchAgentSchemas, host.session.switchAgent),
+            switchModel: adaptMethod(SessionSwitchModelSchemas, host.session.switchModel),
             generate: undefined,
             command: undefined,
-            compact: adaptMethod({}, host.session.compact),
+            compact: adaptMethod(SessionCompactSchemas, host.session.compact),
             synthetic: undefined,
-            interrupt: adaptMethod({}, host.session.interrupt),
-            update: adaptMethod({}, host.session.update),
+            interrupt: adaptMethod(SessionInterruptSchemas, host.session.interrupt),
+            update: adaptMethod(SessionUpdateSchemas, host.session.update),
             wait: adaptMethod(SessionIdSchemas, host.session.wait),
             instructions: {
               entry: {
