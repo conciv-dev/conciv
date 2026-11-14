@@ -6171,6 +6171,9 @@ describe('installed plugins in settings', () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`, [])
     await expect.element(tab('General'), {timeout: 8000}).toBeVisible()
+    await expect.element(tab('Plugins')).toBeVisible()
+    await expect.element(tab('Plugins')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(`/panel/${sessionId}/settings/plugins`)
     await expect.element(lateRow()).not.toBeInTheDocument()
 
     await coreControl.writeProjectFile('conciv/plugins/late.ts', "export default {id: 'late', async setup() {}}\n")
