@@ -9,6 +9,7 @@ import {Permission} from '../../schema/permission.js'
 import {Plugin as PluginSchema} from '../../schema/plugin.js'
 import {Session} from '../../schema/session.js'
 import {Skill} from '../../schema/skill.js'
+import {PositiveInt} from '../../schema/schema.js'
 import {eventDefinition} from '../../core/rpc.js'
 import type {
   ConcivEvent,
@@ -80,11 +81,16 @@ const PermissionReplySchemas = {
     message: Schema.String.pipe(Schema.optional),
   }),
 }
-const SessionCreateSchemas = {
-  input: Schema.StructWithRest(Schema.Struct({id: Schema.optional(Session.Id)}), [
-    Schema.Record(Schema.String, Schema.Unknown),
-  ]),
-}
+const passingUnknownKeys = <Fields extends Schema.Struct.Fields>(fields: Fields) => ({
+  input: Schema.StructWithRest(Schema.Struct(fields), [Schema.Record(Schema.String, Schema.Unknown)]),
+})
+const SessionCreateSchemas = passingUnknownKeys({id: Schema.optional(Session.Id)})
+const SessionIdSchemas = passingUnknownKeys({sessionId: Session.Id})
+const SessionListSchemas = passingUnknownKeys({
+  limit: Schema.optional(PositiveInt),
+  search: Schema.optional(Schema.String),
+  archived: Schema.optional(Schema.Boolean),
+})
 const PluginListSchemas = {
   input: Schema.toType(LocationQuery),
   output: Location.response(Schema.Array(PluginSchema.Info)),
@@ -398,9 +404,9 @@ export function fromPromise(plugin: Plugin.Plugin) {
           session: {
             hook: (name, callback) =>
               register(host.session.hook(name, (event) => Effect.promise(() => Promise.resolve(callback(event))))),
-            list: adaptMethod({}, host.session.list),
+            list: adaptMethod(SessionListSchemas, host.session.list),
             create: adaptMethod(SessionCreateSchemas, host.session.create),
-            get: adaptMethod({}, host.session.get),
+            get: adaptMethod(SessionIdSchemas, host.session.get),
             remove: adaptMethod({}, host.session.remove),
             switchAgent: adaptMethod({}, host.session.switchAgent),
             switchModel: adaptMethod({}, host.session.switchModel),
@@ -410,7 +416,7 @@ export function fromPromise(plugin: Plugin.Plugin) {
             synthetic: undefined,
             interrupt: adaptMethod({}, host.session.interrupt),
             update: adaptMethod({}, host.session.update),
-            wait: adaptMethod({}, host.session.wait),
+            wait: adaptMethod(SessionIdSchemas, host.session.wait),
             instructions: {
               entry: {
                 list: adaptMethod({}, host.session.instructions.entry.list),

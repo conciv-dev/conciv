@@ -525,6 +525,15 @@ it.effect('normalizes Promise plugin API inputs through JSON', () =>
     const sessions = yield* Session.Service
     const created: boolean[] = []
     const refused: unknown[] = []
+    const reads = new Map<string, unknown>()
+    const outcome = (call: Promise<unknown>) =>
+      call.then(
+        (value) => ({value}),
+        (error: unknown) => ({error}),
+      )
+    const refusal = (field: string) => ({
+      error: expect.objectContaining({name: 'SchemaError', message: expect.stringContaining(`["${field}"]`)}),
+    })
     yield* plugins.activate([
       {
         ...fromPromise({
@@ -538,11 +547,25 @@ it.effect('normalizes Promise plugin API inputs through JSON', () =>
                 (error) => error,
               ),
             )
-            await ctx.session.create({
+            const supplied = await ctx.session.create({
               id: 'conciv_promise_input',
               title: 'Supplied',
               metadata: {ticket: 7, ratio: Number.NaN},
             })
+            const notASession = {sessionId: 'not-a-session'}
+            const withNote = {sessionId: supplied.id, note: 'kept'}
+            // @ts-expect-error untyped JavaScript plugins can still pass any session id
+            reads.set('get bad id', await outcome(ctx.session.get(notASession)))
+            reads.set('get with note', await outcome(ctx.session.get(withNote)))
+            // @ts-expect-error untyped JavaScript plugins can still pass any session id
+            reads.set('wait bad id', await outcome(ctx.session.wait(notASession)))
+            reads.set('wait with note', await outcome(ctx.session.wait(withNote)))
+            // @ts-expect-error untyped JavaScript plugins can still pass a number as the search
+            reads.set('list bad search', await outcome(ctx.session.list({search: 5})))
+            reads.set('list bad limit', await outcome(ctx.session.list({limit: 0})))
+            const listWithNote = {search: 'Supplied', note: 'kept'}
+            reads.set('list with note', await outcome(ctx.session.list(listWithNote)))
+            reads.set('list cursor passed through', await outcome(ctx.session.list({cursor: 'next-page'})))
           },
         }),
         revision: '1',
@@ -554,6 +577,16 @@ it.effect('normalizes Promise plugin API inputs through JSON', () =>
     expect(refused).toEqual([
       expect.objectContaining({name: 'SchemaError', message: expect.stringContaining('["id"]')}),
     ])
+    expect(Object.fromEntries(reads)).toEqual({
+      'get bad id': refusal('sessionId'),
+      'get with note': {value: expect.objectContaining({id: 'conciv_promise_input'})},
+      'wait bad id': refusal('sessionId'),
+      'wait with note': {value: undefined},
+      'list bad search': refusal('search'),
+      'list bad limit': refusal('limit'),
+      'list with note': {value: {data: [expect.objectContaining({id: 'conciv_promise_input'})], cursor: {}}},
+      'list cursor passed through': {error: expect.objectContaining({name: 'Session.InvalidListCursorError'})},
+    })
     expect(yield* sessions.get(SessionSchema.Id.make('conciv_promise_input'))).toMatchObject({
       id: 'conciv_promise_input',
       title: 'Supplied',
