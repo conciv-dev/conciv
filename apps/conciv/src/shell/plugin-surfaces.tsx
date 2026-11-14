@@ -5,6 +5,7 @@ import {useLayers} from '../app/context'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query'
 import {usePluginAttachment} from '../runtime/plugin/attachment'
 import {usePluginHost} from '../runtime/plugin/host'
+import {icons} from '../runtime/plugin/icons'
 import {createMobileViews, type MobileViews} from '../runtime/plugin/mobile'
 import {createMountedSession} from '../runtime/plugin/mounted-session'
 import {isPluginView, panelKey} from '../runtime/plugin/panel-keys'
@@ -52,17 +53,39 @@ export function createPluginTabs(input: {
     },
   }
 
+  const phone = createMediaQuery(PHONE_MEDIA_QUERY)
+  const mobile = createMobileViews()
+
   const views = () => {
     const region = attachment.shownRegion()
 
     if (!region) return []
 
-    return region.keys().map((key) => ({
-      id: key,
-      label: region.entry(key)?.tab.title ?? key,
-      content: () => <PluginTabTrigger value={key} />,
-      missing: region.entry(key)?.tab.missing,
-    }))
+    const panelTabs = region.keys().flatMap((key) => {
+      const entry = region.entry(key)
+
+      if (phone() && entry?.provider.mobile) return []
+
+      return [
+        {
+          id: key,
+          label: entry?.tab.title ?? key,
+          content: () => <PluginTabTrigger value={key} />,
+          missing: entry?.tab.missing,
+        },
+      ]
+    })
+
+    if (!phone()) return panelTabs
+
+    return [
+      ...[...mobile.tabs(), ...mobile.menu()].map((entry) => ({
+        id: entry.key,
+        label: entry.mobile.title,
+        icon: entry.mobile.icon && icons[entry.mobile.icon],
+      })),
+      ...panelTabs,
+    ]
   }
 
   return {tabs, views}
