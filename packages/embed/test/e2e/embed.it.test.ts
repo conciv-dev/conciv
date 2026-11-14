@@ -31,6 +31,8 @@ import {
   browserBase,
   openLoggedIn,
   logInFromPanelNotice,
+  logInFromPanelNoticeWithCode,
+  requestLoginCode,
   serveWidgetHost,
 } from '../helpers.js'
 import {currentHref} from '@conciv/plugin-testkit/navigation-state'
@@ -1433,6 +1435,8 @@ test.describe('rebind', () => {
       await expect(loggedOutSend).toBeDisabled()
       await expect(chatLog(page).getByText(TYPED_TEXT)).toHaveCount(0)
       await expect(panel.getByText(STREAM_READ_FAILED)).toHaveCount(0)
+      await loggedOutRefusal.getByRole('button', {name: 'Dismiss'}).click()
+      await expect(loggedOutRefusal).toHaveCount(0)
 
       await logInFromPanelNotice(page, kit, 'Log in to use conciv on this page.')
       await expect(loginNotice).toBeHidden({timeout: 30_000})
@@ -1454,6 +1458,8 @@ test.describe('rebind', () => {
       await expect(revokedRefusal.getByText(REVOKED_SENTENCE, {exact: true})).toBeVisible({timeout: 30_000})
       await expect(starter).toBeVisible()
       await expect(composer).toHaveText(TYPED_TEXT)
+      await revokedRefusal.getByRole('button', {name: 'Dismiss'}).click()
+      await expect(revokedRefusal).toHaveCount(0)
 
       await logInFromPanelNotice(page, kit, REVOKED_SENTENCE)
       await expect(revokedNotice).toBeHidden({timeout: 30_000})
@@ -1486,6 +1492,7 @@ test.describe('rebind', () => {
         await page.keyboard.press('Enter')
         await expect(queued).toBeVisible({timeout: 30_000})
 
+        const steerLoginCode = await requestLoginCode(kit)
         revokeBrowsers(concivStateDir(kit.stateRoot), 'all')
         await expect(revokedNotice).toBeVisible({timeout: 30_000})
         await expect(revokedRefusal).toHaveCount(0)
@@ -1496,7 +1503,7 @@ test.describe('rebind', () => {
         await expect(stop).toBeVisible()
         await expect(chatLog(page).getByText(QUEUED_TEXT)).toHaveCount(0)
 
-        await logInFromPanelNotice(page, kit, REVOKED_SENTENCE)
+        await logInFromPanelNoticeWithCode(page, REVOKED_SENTENCE, steerLoginCode)
         await expect(revokedNotice).toBeHidden({timeout: 30_000})
         await steer.click()
         await expect(queued).toBeHidden({timeout: 30_000})
