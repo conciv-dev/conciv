@@ -2,6 +2,7 @@ import 'virtual:uno.css'
 import '@conciv/ui-kit-system/tokens.css'
 import '@conciv/ui-kit-chat/theme/tokens.css'
 import {type JSX, createSignal, onMount, untrack, type ParentProps, For} from 'solid-js'
+import {createStore} from 'solid-js/store'
 import {page, userEvent, type Locator} from 'vitest/browser'
 import {expect, it, beforeEach, describe} from 'vitest'
 import type {ChatPart, ToolCallPart, ChatMessage} from '@conciv/protocol/chat-message-types'
@@ -999,16 +1000,20 @@ describe('thread session log', () => {
     onMount(() => chat.setMessages(NORMAL_CHAT))
     const driveFromOutside = () =>
       chat.setMessages([...NORMAL_CHAT, outsideCall(1), outsideCall(2), outsideCall(3), ...AFTER_OUTSIDE])
+    const [login, setLogin] = createStore({loggedOut: false})
     return (
       <ChatProvider chat={chat}>
         <button type="button" onClick={driveFromOutside}>
           outside agent drives the tab
         </button>
+        <button type="button" onClick={() => setLogin('loggedOut', true)}>
+          the page logs out
+        </button>
         <ToolProvider value={ctxWith(makeCatalog({}))}>
           <div class="flex flex-col h-200 w-110 [background:var(--chat-bg)]">
             <Thread>
               <Thread.Viewport>
-                <Thread.Messages />
+                <Thread.Messages refreshDisabled={login.loggedOut} />
               </Thread.Viewport>
             </Thread>
           </div>
@@ -1049,6 +1054,10 @@ describe('thread session log', () => {
     await outsideActions.getByRole('button', {name: 'Copy'}).click()
     await expect.element(outsideActions.getByRole('status')).toHaveTextContent('Could not copy the message')
     await expect.element(outsideActions.getByRole('button', {name: 'Copy failed'})).toBeVisible()
+
+    await expect.element(toolbars.nth(3).getByRole('button', {name: 'Refresh'})).toBeEnabled()
+    await page.getByRole('button', {name: 'the page logs out'}).click()
+    await expect.element(toolbars.nth(3).getByRole('button', {name: 'Refresh'})).toBeDisabled()
   })
 
   it('renders text, trace, then text in stream order for a turn with parts interleaved around a tool call', async () => {

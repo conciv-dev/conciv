@@ -46,6 +46,7 @@ export type PaneMessaging = {
   onSend: (content: string | SendContent) => Promise<void>
   onSendError: (failure: unknown) => void
   onSteer: () => void
+  resendAllowed: () => boolean
 }
 
 export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
@@ -84,6 +85,8 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
     locked: deps.reachability.locked(),
   })
 
+  const resendAllowed = (): boolean => checkSendState({...sendState(), busy: false}).ok
+
   const onSend = async (content: string | SendContent): Promise<void> => {
     const verdict = checkSend(content, sendState())
     if (!verdict.ok) throw sendRejection(verdict)
@@ -109,5 +112,5 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
     )
   }
 
-  return {uiReply, compact, compacting, visibleError, onSend, onSendError, onSteer}
+  return {uiReply, compact, compacting, visibleError, onSend, onSendError, onSteer, resendAllowed}
 }
