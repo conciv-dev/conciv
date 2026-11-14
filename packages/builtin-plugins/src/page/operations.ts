@@ -496,7 +496,7 @@ type CaptureCollector = {
   entries: () => readonly PendingBundleEntry[]
 }
 
-function makeCaptureCollector(): CaptureCollector {
+function makeCaptureCollector(operation: string): CaptureCollector {
   const entries: PendingBundleEntry[] = []
   const seen = new Set<ElementCaptureKind>()
   return {
@@ -507,8 +507,8 @@ function makeCaptureCollector(): CaptureCollector {
         if (taken === null) return
         seen.add(kind)
         entries.push({kind, capture: taken.capture, pendingCss: taken.pendingCss})
-      } catch {
-        return
+      } catch (error) {
+        console.error(`[conciv] page ${operation} ${kind} capture failed`, error)
       }
     },
     entries: () => entries,
@@ -532,10 +532,14 @@ async function buildCaptureBundle(entries: readonly PendingBundleEntry[]): Promi
   return bundle
 }
 
-async function tryBuildCaptureBundle(entries: readonly PendingBundleEntry[]): Promise<PageCaptureBundle | undefined> {
+async function tryBuildCaptureBundle(
+  entries: readonly PendingBundleEntry[],
+  operation: string,
+): Promise<PageCaptureBundle | undefined> {
   try {
     return await buildCaptureBundle(entries)
-  } catch {
+  } catch (error) {
+    console.error(`[conciv] page ${operation} capture bundle failed`, error)
     return undefined
   }
 }
@@ -586,14 +590,14 @@ export function makePageOperations(ctx: Pick<BaseContext, 'list'>): PageOperatio
     const {action} = command
     const mode = captureMode(action)
     const slot: TargetSlot = {el: null}
-    const captures = makeCaptureCollector()
+    const captures = makeCaptureCollector(action.type)
     const call = callCtx(command.agentId, refs, consoleBuf, slot)
     try {
       const answer = await perform(action, capturingCall(call, mode, captures), effects)
       const record = readPlainRecord(answer.value)
       if (!record || !isJsonSerializable(record)) fail(`${action.type} returned a non-serializable result`)
       if (mode !== 'none') captures.take('after', slot.el)
-      const capture = await tryBuildCaptureBundle(captures.entries())
+      const capture = await tryBuildCaptureBundle(captures.entries(), action.type)
       const value = z.json().parse(record)
       return {
         type: 'success',
