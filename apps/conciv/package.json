@@ -19,7 +19,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run --project unit --project browser",
-    "test:perf": "vitest run --project perf"
+    "test:perf": "node test-perf.mjs"
   },
   "dependencies": {
     "@ark-ui/solid": "catalog:",

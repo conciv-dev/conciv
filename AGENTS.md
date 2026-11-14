@@ -119,7 +119,9 @@ README.md; this file is the non-obvious operational rules.
   assertions (`toHaveCSS`, `getComputedStyle`, DOM reads via `page.evaluate`, class/id locators, test-ids).
 - Widget UI is tested in a REAL browser (Playwright/Chromium), never jsdom/happy-dom.
 - The calm perf gate (frame-gap budgets) is `pnpm --filter @conciv/app test:perf`, kept out of `pnpm test`;
-  run it locally in Chromium and Firefox before merging a chat-plane change.
+  run it locally before merging a chat-plane change. It measures the merge base with `origin/main` in a scratch
+  worktree, then the branch, in Chromium and Firefox, and judges the branch against main
+  (`apps/conciv/README.md`, Perf gate). It needs `origin/main` locally and takes about 7 minutes.
 - Widget integration tests load the PREBUILT bundle (`packages/embed/dist/conciv-widget.global.js`):
   rebuild it (`pnpm turbo run build --filter=@conciv/embed`) before running them, or you test
   stale code.
