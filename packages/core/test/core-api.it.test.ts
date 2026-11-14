@@ -84,7 +84,7 @@ import {
   type McpTool,
 } from '@conciv/harness-testkit'
 import {Plugin, Rpc as PluginRpc, type RpcRegistration} from '@conciv/plugin'
-import {PluginHost} from '@conciv/plugin-host'
+import {Location, PluginHost, Session} from '@conciv/plugin-host'
 import {claude} from '@conciv/harness/claude'
 import {codex as codexHarness} from '@conciv/harness/codex'
 import {pi as piHarness} from '@conciv/harness/pi'
@@ -129,14 +129,16 @@ import {createORPCClient} from '@orpc/client'
 import {RPCLink} from '@orpc/client/fetch'
 import {onError, ORPCError, os, type RouterClient} from '@orpc/server'
 import WebSocket from 'ws'
-import {Effect, ManagedRuntime} from 'effect'
+import {Effect, ManagedRuntime, Schema} from 'effect'
 import {z} from 'zod'
 import {makeApp, type MadeApp} from '../src/app.js'
 import {callTrace} from '../src/api/call-trace.js'
 import {resolveConfig} from '../src/config.js'
 import {openSourceFromFrames} from '../src/editor/open-source.js'
 import {originAllowed} from '../src/lib/cors.js'
+import {provideSessions} from '../src/runtime/plugin-sessions.js'
 import {provideServersSource} from '../src/runtime/servers-source.js'
+import {createSessionSearch} from '../src/sessions/session-search.js'
 import {start, type Engine} from '../src/start.js'
 import {sampleServerExtension, sampleState} from './fixtures/sample-server-extension.js'
 import corePackage from '../package.json' with {type: 'json'}
@@ -1129,6 +1131,39 @@ describe('api harness switching', () => {
     expect(row(sessionId)?.deletedAt).not.toBeNull()
     expect(await listings(false)).toEqual({owner: 1, phantoms: 0})
     expect(row(sessionId)?.deletedAt).toBeNull()
+
+    const app = made.app
+    if (app === null) throw new Error('the app did not boot')
+    const search = createSessionSearch({db: app.chat.db, cwd: app.chat.cwd, harnesses: app.chat.harnesses})
+    onTestFinished(() => search.dispose())
+    const sessionKey = provideSessions(() => ({
+      chat: app.chat,
+      runtime: app.runtime,
+      search,
+      pluginHost: app.pluginHost,
+    }))
+    const key = <Success, Failure>(use: (service: Session.Interface) => Effect.Effect<Success, Failure>) =>
+      Effect.runPromise(Session.Service.use(use).pipe(Effect.provide(sessionKey)))
+    const id = SessionId.parse(sessionId)
+    const oldMarkers = (await kit().rpc.markers.list({sessionId})).map((marker) => marker.id)
+    expect(oldMarkers).not.toEqual([])
+    await key((sessions) => sessions.setMetadata({sessionId: id, metadata: {ticket: 7}}))
+    await key((sessions) =>
+      sessions.setPermissions({sessionId: id, permissions: [{action: 'bash', resource: '*', effect: 'deny'}]}),
+    )
+    const old = await key((sessions) => sessions.get(id))
+    expect(old).toMatchObject({metadata: {ticket: 7}, permissions: [{action: 'bash', resource: '*', effect: 'deny'}]})
+    await key((sessions) => sessions.remove(id))
+    const location = Schema.decodeSync(Location.Ref)({directory: app.chat.cwd})
+    const reused = await key((sessions) => sessions.create({id, title: 'A new session on an old id', location}))
+    expect(reused).toMatchObject({id, title: 'A new session on an old id', metadata: undefined, permissions: undefined})
+    expect(reused.time.created).toEqual(expect.any(Number))
+    expect(reused.time.created).toBeGreaterThanOrEqual(old.time.updated)
+    expect(await key((sessions) => sessions.get(id))).toEqual(reused)
+    expect(row(sessionId)).toMatchObject({harnessKind: 'alpha', harnessSessionId: null, deletedAt: null})
+    const newMarkers = (await kit().rpc.markers.list({sessionId})).map((marker) => marker.id)
+    expect(newMarkers.filter((marker) => oldMarkers.includes(marker))).toEqual([])
+    expect(await listings(false)).toEqual({owner: 1, phantoms: 1})
   })
 
   it('lists the native sessions of every available harness, labelled by harness', async () => {
