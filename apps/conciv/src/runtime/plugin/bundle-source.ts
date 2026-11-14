@@ -1,6 +1,7 @@
 import {isEqual, uniqBy} from 'es-toolkit'
 import {z} from 'zod'
 import {subscribeRpcReachability, type RpcClient} from '@conciv/contract'
+import {Conciv, type ConcivClient} from '@conciv/plugin'
 import {
   pluginEnabled,
   pluginIdAvailable,
@@ -62,6 +63,7 @@ export type BundleSource = PluginExperimentalSource & {readonly manager: PluginM
 
 export function createBundleSource(input: {readonly rpc: RpcClient; readonly apiBase: string}): BundleSource {
   const endpoint = {url: input.apiBase, authorization: undefined}
+  const client = Conciv.make(input.rpc)
   const local = builtins.map((definition) => definition.id)
   const enableStore = createManager(input.rpc, local)
   const plugins = new Map<string, BridgePluginExperimental>()
@@ -134,18 +136,16 @@ export function createBundleSource(input: {readonly rpc: RpcClient; readonly api
     const controller = new AbortController()
     resources.watch = controller
 
-    await readChanges(attempt, controller.signal).catch(() => undefined)
+    if (!controller.signal.aborted && isCurrentHostWatch(machine.following, attempt))
+      await readEvents(client, attempt, controller.signal).catch(() => undefined)
 
     if (!controller.signal.aborted) dispatch({type: 'watch.ended', attempt, quitting: false})
   }
 
-  const readChanges = async (attempt: number, signal: AbortSignal) => {
-    const changes = await input.rpc.plugin.changes(undefined, {signal})
-
-    if (signal.aborted || !isCurrentHostWatch(machine.following, attempt)) return
-    dispatch({type: 'relist.requested', watchAttempt: attempt, quitting: false})
-
-    for await (const _ of changes) dispatch({type: 'relist.requested', watchAttempt: attempt, quitting: false})
+  const readEvents = async (client: ConcivClient, attempt: number, signal: AbortSignal) => {
+    for await (const event of client.event.subscribe({signal}))
+      if (event.type === 'plugin.updated' || event.type === 'server.connected')
+        dispatch({type: 'relist.requested', watchAttempt: attempt, quitting: false})
   }
 
   const listPlugins = async (attempt: number, timeoutMs: number) => {
