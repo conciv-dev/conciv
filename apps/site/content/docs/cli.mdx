@@ -4,7 +4,7 @@ description: The conciv CLI the agent drives your app with. You can use it too.
 icon: SquareTerminal
 ---
 
-The agent's hands are a CLI. When it inspects your page, clicks a button, or asks you a question,
+The agent's hands are a CLI. When it inspects your page or clicks a button,
 it is running `conciv` commands against the live dev server. The same binary is on your `PATH` in
 any repo with conciv installed, so everything the agent can do, you can script.
 
@@ -14,8 +14,8 @@ conciv tools page click --name SubmitButton
 conciv tools server urls          # where the dev server listens
 ```
 
-Two command trees: `tools` talks to the running app, `ui` renders interactive cards in the chat
-thread.
+`tools` talks to the running app. Interactive cards in the chat thread are not a command: see the
+end of this page.
 
 ## `conciv tools`
 
@@ -55,8 +55,9 @@ conciv tools react override --name PricingCard --target props --path plan --json
 ```
 
 `override` patches `props`, `state`, `hooks`, or `context` on the live instance and needs
-`--target`. `track` records re-renders (`--action start | stop | report`); `--action` accepts every
-value the page protocol declares — `start`, `stop`, `report`, `enable`, `disable`, `toggle`, `list`.
+`--target`. `track` records re-renders page-wide: `--action start` begins recording, `--action report`
+(the default) lists them, `--name` narrows the report to one component, and `--action stop` ends
+recording. `enable`, `disable`, `toggle` and `list` are accepted too and report like `report`.
 
 ### `server`
 
