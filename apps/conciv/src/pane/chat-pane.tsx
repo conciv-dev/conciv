@@ -237,7 +237,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     meta: (name) => registryCatalog.data?.find((signature) => signature.name === name),
   }
   const captures = useSessionCaptures(sessionId)
-  const draftStorage = makeDraftStorage(rpc, sessionId)
+  const draftStorage = makeDraftStorage(appData, sessionId)
 
   const messaging = usePaneMessaging({
     rpc,

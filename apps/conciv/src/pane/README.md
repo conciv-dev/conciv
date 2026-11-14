@@ -11,7 +11,7 @@ The chat pane for one session: transcript, composer with attachments and element
 - `ComposerInputAdapter`, `ComposerInputHandle`, `SelectionOffsets` (`composer-input-adapter.tsx`)
 - `usePaneMessaging(deps)`, `PaneMessaging` (`use-pane-messaging.ts`): send, `chat.uiReply` and `sessions.compact` mutations
 - `checkSend(content, state)`, `MAX_CONTENT_PARTS` (`send-checks.ts`): pre-send validation verdict
-- `makeDraftStorage(rpc, sessionId)`, `appendDraft`, `PaneDraftStorage` (`draft-storage.ts`): composer draft storage backed by `rpc.drafts`
+- `makeDraftStorage(appData, sessionId)`, `appendDraft(appData, sessionId, text)`, `PaneDraftStorage` (`draft-storage.ts`): composer draft storage backed by `AppData.readDraft`, `cachedDraft` and `saveDraft` (`data/app-data.ts`): the `drafts.get` query cache entry and a `drafts.set` mutation scoped to the session
 - `makeGrabStaging(deps)`, `GrabStaging`, `ComposerGrabPort` (`grab-staging.ts`): stages page element grabs as composer attachments
 - `resolveGrabSource(grab, symbolicate)` (`grab-source-resolve.ts`)
 - `paneAttachments`, `returnQueueToDraft` (`pane-attachments.ts`): image and text attachment adapters; Stop takes the queued messages out of the queue and puts them back in the draft (text in order, images as attachments), unsent
@@ -32,12 +32,12 @@ The chat pane for one session: transcript, composer with attachments and element
 - `older-messages.tsx:OlderMessages`: one older page loads at a time; nothing loads once `chat.hasOlderMessages()` is false or after a failure until Retry
 - `chat-pane.tsx:threadDividers`: dividers before the first loaded message (the `New session` line) show only once no older page is left
 - `chat-pane.tsx:renderTurnPrefix`: an assistant turn carries its harness name only once the session's replies (hydrated `readHarness(messageId)`, else the current harness) span more than one harness
-- `draft-storage.ts:makeDraftStorage`: the composer renders at once with an empty draft; `restore` reads `rpc.drafts.get` and hands the row to `restoreDraft` (text and selection only into an untouched composer, attachments merged by id); a composer the user emptied before the read lands gets nothing restored and its cleared draft is written at once; no write reaches the server before that restore settles, then the latest typed draft is written; writes are debounced by 300 ms (`WRITE_DELAY_MS`); clearing a non-empty draft persists the cleared draft immediately
+- `draft-storage.ts:makeDraftStorage`: the composer renders at once with an empty draft; `restore` reads the row through `appData.readDraft` (`ensureQueryData` on `utils.drafts.get`) and hands it to `restoreDraft` (text and selection only into an untouched composer, attachments merged by id); a composer the user emptied before the read lands gets nothing restored and its cleared draft is written at once; no write reaches the server before that restore settles, then the latest typed draft is written; every save is a `drafts.set` mutation with `scope: {id: sessionId}`, so saves for one session reach the server in order, and its `onMutate` writes the row into the `drafts.get` cache entry (kept with `staleTime` and `gcTime` Infinity and `retry: false` in `app-data.ts`); `storage.getItem` returns that cached row, else the pane-local value, so a pane rebuilt after a view switch paints the text at once; keystrokes are batched by the kit's own 300 ms debounce, which flushes when the composer unmounts; clearing a non-empty draft persists the cleared draft immediately
 - `queue-strip.tsx:QueueStrip`: shows at most 3 queued messages (`VISIBLE_LIMIT`), the rest as an overflow count
 
 ## Side Effects
 
-- `draft-storage.ts:makeDraftStorage`, `appendDraft`: `rpc.drafts.get` and `rpc.drafts.set`; write errors are swallowed
+- `draft-storage.ts:makeDraftStorage`, `appendDraft`: `drafts.get` through the query cache and `drafts.set` through a scoped mutation; a failed save is logged with `console.error` and the cache keeps the text, with no rollback, so after a refused save the text lives only in this page's cache until a later save succeeds
 - `use-pane-messaging.ts:usePaneMessaging`: `rpc.chat.uiReply` and `rpc.sessions.compact`, then `invalidateSession` for the pane's session
 - `refresh-coordinator.ts:run`: `chat().refresh()` and refetches `sessions.list`, `sessions.search`, the pane's `sessions.get`, `markers.list`, `captures.list`; screen reader announcements
 - `chat-pane.tsx:ChatPane`: announces `conciv is asking for permission.` and `conciv replied.`; invalidates sessions and refetches markers when a run settles

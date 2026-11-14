@@ -64,7 +64,7 @@ function PanelView(): JSX.Element {
             sessionId={() => params().sessionId}
             grab={makePaneGrabApi(pane.grabStaging, pane.grabProvider)}
             insert={(text) =>
-              void appendDraft(rpc, params().sessionId, text).catch((error: unknown) => {
+              void appendDraft(appData, params().sessionId, text).catch((error: unknown) => {
                 console.error('[conciv] could not insert into the draft', error)
               })
             }
