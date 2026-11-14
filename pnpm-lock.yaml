@@ -2201,6 +2201,34 @@ importers:
         specifier: 'catalog:'
         version: 7.0.2
 
+  packages/builtin-plugins:
+    dependencies:
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../plugin
+      '@conciv/protocol':
+        specifier: workspace:^
+        version: link:../protocol
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+    devDependencies:
+      '@conciv/extension-page':
+        specifier: workspace:^
+        version: link:../extensions/page
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@conciv/vitest-config':
+        specifier: workspace:*
+        version: link:../vitest-config
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
+
   packages/bundle-size:
     devDependencies:
       '@conciv/tsconfig':
