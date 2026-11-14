@@ -572,7 +572,7 @@ describe('dialog parts', () => {
     {mode: "Ark's default modal mode", modes: {}},
     {mode: "the widget's non-modal, focus-trapping mode", modes: {modal: false, trapFocus: true}},
   ])('opens stacked dialogs composed from the parts inside the shadow root in $mode', async ({modes}) => {
-    const shadow = mountInShadow((root) => {
+    mountInShadow((root) => {
       const [seen, setSeen] = createStore({focus: 'nothing', saves: 0})
       const track = (name: string) => ({
         onFocus: () => setSeen('focus', name),
@@ -622,11 +622,6 @@ describe('dialog parts', () => {
         </EnvironmentProvider>
       )
     })
-    const kitStyles = new CSSStyleSheet()
-    kitStyles.replaceSync(
-      Array.from(document.styleSheets, (sheet) => Array.from(sheet.cssRules, (rule) => rule.cssText).join('')).join(''),
-    )
-    shadow.adoptedStyleSheets = [kitStyles]
     const save = page.getByRole('button', {name: 'Save', includeHidden: true})
 
     await userEvent.click(page.getByRole('button', {name: 'Open plugin settings'}))
@@ -634,14 +629,15 @@ describe('dialog parts', () => {
     await expect.element(page.getByText('Choose what the plugin may read.')).toBeVisible()
     await expect.element(page.getByText('Focus is on the close button')).toBeVisible()
 
-    await userEvent.click(page.getByRole('button', {name: 'Open plugin details'}))
+    await userEvent.hover(save)
+    await userEvent.keyboard('{Tab}{Enter}')
     await expect.element(page.getByRole('dialog', {name: 'Plugin details'})).toBeVisible()
-    await userEvent.click(save, {force: true})
+    await userEvent.pointer('[MouseLeft>][/MouseLeft]')
     await expect.element(page.getByText('Saves: 0')).toBeVisible()
     await userEvent.keyboard('{Escape}')
     await expect.element(page.getByRole('dialog', {name: 'Plugin details'})).not.toBeInTheDocument()
     await expect.element(page.getByRole('dialog', {name: 'Plugin settings'})).toBeVisible()
-    await userEvent.click(save)
+    await userEvent.pointer('[MouseLeft>][/MouseLeft]')
     await expect.element(page.getByText('Saves: 1')).toBeVisible()
 
     await userEvent.click(page.getByRole('button', {name: 'Close'}))

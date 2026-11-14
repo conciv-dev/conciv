@@ -11,7 +11,7 @@ import {INPUT_FRAME} from './input-frame.js'
 const ROOT = 'min-w-0'
 const CONTROL = `${INPUT_FRAME} w-full min-w-48`
 const INPUT =
-  'flex-1 w-full min-w-0 bg-transparent [border:none] px-2.5 py-2 text-inherit [font:inherit] focus-visible:outline-none placeholder:text-chat-text-3 read-only:cursor-default'
+  'flex-1 w-full min-w-0 bg-transparent [border:none] px-2.5 py-1.25 text-inherit [font:inherit] focus-visible:outline-none placeholder:text-chat-text-3 read-only:cursor-default'
 const TRIGGER =
   'flex items-center justify-center shrink-0 w-8 bg-transparent [border:none] p-0 text-chat-text-3 cursor-pointer hover:text-chat-text-hi disabled:cursor-not-allowed'
 const CONTENT =

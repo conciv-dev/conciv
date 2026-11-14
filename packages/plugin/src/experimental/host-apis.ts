@@ -480,8 +480,14 @@ export interface Links {
    * @returns False when no handler matches.
    */
   open(link: Link): boolean
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly exists: ((link: Link) => boolean | Promise<boolean>) | undefined
+  /**
+   * Whether a link's target exists, so text that names it can be styled as a link. Asks the LinkHandler `open` would
+   * use. Untracked: calling it inside an effect does not subscribe that effect.
+   *
+   * @param link - The candidate link.
+   * @returns False when no handler matches, the handler has no `exists`, or the target does not exist.
+   */
+  exists(link: Link): boolean | Promise<boolean>
 }
 
 export interface DialogHandle {
@@ -510,14 +516,59 @@ export interface Dialogs {
     },
   ): DialogHandle
   active(): boolean
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly confirm: ((options: ConfirmOptions) => Promise<boolean>) | undefined
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly alert: ((options: AlertOptions) => Promise<void>) | undefined
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly prompt: ((options: PromptOptions) => Promise<string | undefined>) | undefined
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly select: (<T>(options: SelectOptions<T>) => Promise<T | undefined>) | undefined
+  /**
+   * Asks the user to confirm an action, in the app's own confirmation dialog. Opens as `open` does, with the same
+   * lifetime: it waits for the app interface, and closes with the owner that asked, else with the plugin.
+   *
+   * @param options - The question and its buttons.
+   * @returns True only when the user chose the confirm button. False when they chose cancel, pressed Escape or clicked
+   *   outside, when another dialog replaced it, and when it closed or never opened because its owner or plugin went
+   *   away.
+   *
+   * @example
+   * ```ts
+   * if (await ctx.dialogs.confirm({title: 'End the session?', confirm: 'End', danger: true})) end()
+   * ```
+   */
+  confirm(options: ConfirmOptions): Promise<boolean>
+  /**
+   * Tells the user something they must acknowledge, in a dialog with one button. Opens and closes as `confirm` does.
+   *
+   * @param options - What the dialog says.
+   * @returns Resolves once the dialog closes, however it closes.
+   *
+   * @example
+   * ```ts
+   * await ctx.dialogs.alert({title: 'Export done', description: path})
+   * ```
+   */
+  alert(options: AlertOptions): Promise<void>
+  /**
+   * Asks the user for a line of text, in the app's own dialog. Enter submits. Opens and closes as `confirm` does.
+   *
+   * @param options - The question, the field and its button.
+   * @returns The text the user submits, which is never empty: the submit button and Enter do nothing while the field
+   *   is empty. Undefined when the user cancels, dismisses the dialog, or it closes with its owner.
+   *
+   * @example
+   * ```ts
+   * const invite = await ctx.dialogs.prompt({title: 'Join a session', placeholder: 'https://…'})
+   * ```
+   */
+  prompt(options: PromptOptions): Promise<string | undefined>
+  /**
+   * Asks the user to pick one option from a searchable list, in the app's own dialog. Opens and closes as `confirm`
+   * does.
+   *
+   * @param options - The title, the search field and the options.
+   * @returns The picked option's `value`; undefined when the user dismisses the dialog or it closes with its owner.
+   *
+   * @example
+   * ```ts
+   * const url = await ctx.dialogs.select({title: 'Links', options: links.map((url) => ({title: url, value: url}))})
+   * ```
+   */
+  select<T>(options: SelectOptions<T>): Promise<T | undefined>
 }
 
 export interface ConfirmOptions {

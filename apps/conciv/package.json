@@ -55,6 +55,7 @@
     "@tanstack/solid-pacer": "catalog:",
     "@tanstack/solid-router": "catalog:",
     "es-toolkit": "catalog:",
+    "fuzzysort": "catalog:",
     "lucide-solid": "catalog:",
     "semver": "catalog:",
     "solid-js": "catalog:",

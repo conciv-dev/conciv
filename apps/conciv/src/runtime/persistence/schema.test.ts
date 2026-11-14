@@ -174,6 +174,18 @@ describe('persistence schemas', () => {
     )
   })
 
+  test('an undefined field of an object inside an array counts as absent, an undefined array element is still a difference', () => {
+    const items = z.object({items: z.array(z.object({a: z.number(), b: z.number().optional()}))})
+    const slots = z.object({slots: z.array(z.number().optional().nullable())})
+
+    expect(() => assertStoreDefinition('plugin.acme.items', items, {items: [{a: 1, b: undefined}]})).not.toThrow()
+    expect(() => assertStoreDefinition('plugin.acme.slots', slots, {slots: [1, undefined]})).toThrow(
+      new Error(
+        'The store plugin.acme.slots is refused: it does not read back what it writes at slots; a converting schema needs an encode',
+      ),
+    )
+  })
+
   test('a write the store would not read back is refused when the definition could not show it', () => {
     const amount = z.codec(z.string(), z.number(), {decode: Number, encode: String})
     const records = z.object({amounts: z.record(z.string(), amount)})

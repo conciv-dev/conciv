@@ -3,6 +3,7 @@ import {
   createMemo,
   createRenderEffect,
   type Accessor,
+  ErrorBoundary,
   For,
   from,
   Index,
@@ -11,6 +12,7 @@ import {
   Match,
   on,
   onMount,
+  Show,
   Switch,
   untrack,
 } from 'solid-js'
@@ -34,9 +36,11 @@ import {
   type OpenLocalFile,
 } from './local-file-links.js'
 
-export type FenceView = (props: {code: string}) => JSX.Element
+export type FenceView = (props: {code: string; fallback: () => void}) => JSX.Element
 
-export type HighlightCode = (code: string, lang: string | undefined) => HastElement | FenceView | undefined
+export type FencedView = {view: FenceView; fallback: HastElement | FenceView | undefined}
+
+export type HighlightCode = (code: string, lang: string | undefined) => HastElement | FenceView | FencedView | undefined
 
 export type CaretVariant = 'block' | 'circle'
 
@@ -84,7 +88,14 @@ type MarkdownElementNode = {
 }
 type MarkdownTextNode = {key: string; type: 'text'; text: string}
 type MarkdownWordNode = {key: string; type: 'word'; text: string; animate?: true}
-type MarkdownViewNode = {key: string; type: 'view'; code: string; view: FenceView}
+type MarkdownViewNode = {
+  key: string
+  type: 'view'
+  code: string
+  language: string | undefined
+  view: FenceView
+  fallback: MarkdownNode[]
+}
 type MarkdownNode = MarkdownElementNode | MarkdownTextNode | MarkdownWordNode | MarkdownViewNode
 
 type HastRoot = ReturnType<MarkdownProcessor['runSync']>
@@ -121,10 +132,35 @@ function highlightedFence(node: HastElement, path: string, walk: HastWalk): Mark
   const code = fenceCode(node)
   if (!code) return undefined
   const text = hastText(code)
-  const result = walk.highlightCode(text, codeLang(elementAttributes(code.properties).class))
-  if (typeof result === 'function') return [{key: `${path}:view`, type: 'view', code: text, view: result}]
+  const language = codeLang(elementAttributes(code.properties).class)
+  const result = walk.highlightCode(text, language)
   if (!result) return undefined
-  return hastNode(result, path, {...walk, highlightCode: undefined})
+  const unhighlighted = {...walk, highlightCode: undefined}
+  if (typeof result !== 'function' && !('view' in result)) return hastNode(result, path, unhighlighted)
+  const fence = {path, code: text, language}
+  return [fenceViewNode(fence, result, hastNode(node, path, unhighlighted), unhighlighted)]
+}
+
+type Fence = {path: string; code: string; language: string | undefined}
+
+function viewNode(fence: Fence, key: string, view: FenceView, fallback: MarkdownNode[]): MarkdownViewNode {
+  return {key: `${fence.path}:${key}`, type: 'view', code: fence.code, language: fence.language, view, fallback}
+}
+
+function fenceViewNode(fence: Fence, result: FenceView | FencedView, plain: MarkdownNode[], walk: HastWalk) {
+  if (typeof result === 'function') return viewNode(fence, 'view', result, plain)
+  return viewNode(fence, 'view', result.view, fencedFallback(fence, result.fallback, plain, walk))
+}
+
+function fencedFallback(
+  fence: Fence,
+  fallback: FencedView['fallback'],
+  plain: MarkdownNode[],
+  walk: HastWalk,
+): MarkdownNode[] {
+  if (!fallback) return plain
+  if (typeof fallback === 'function') return [viewNode(fence, 'fallback-view', fallback, plain)]
+  return hastNode(fallback, fence.path, walk)
 }
 
 function textNodes(node: HastText, path: string, walk: HastWalk): MarkdownNode[] {
@@ -241,13 +277,36 @@ function asView(node: MarkdownNode): MarkdownViewNode | undefined {
   return node.type === 'view' ? node : undefined
 }
 
+function MarkdownView(props: {node: MarkdownViewNode}): JSX.Element {
+  const [declined, setDeclined] = createStore<{code?: string}>({})
+  const decline = (): void => {
+    setDeclined('code', props.node.code)
+  }
+  const plain = (): JSX.Element => <For each={props.node.fallback}>{(child) => <MarkdownDomNode node={child} />}</For>
+  return (
+    <Show when={declined.code !== props.node.code} fallback={plain()}>
+      <ErrorBoundary
+        fallback={(error: unknown) => {
+          onMount(() => {
+            console.error(`[streamdown] ${props.node.language ?? 'plain'} fence view failed`, error)
+            decline()
+          })
+          return null
+        }}
+      >
+        <Dynamic component={props.node.view} code={props.node.code} fallback={decline} />
+      </ErrorBoundary>
+    </Show>
+  )
+}
+
 function MarkdownDomNode(props: {node: MarkdownNode}): JSX.Element {
   return (
     <Switch>
       <Match when={asText(props.node)}>{(node) => <HastText value={node().text} />}</Match>
       <Match when={asWord(props.node)}>{(node) => <MarkdownWord node={node()} />}</Match>
       <Match when={asElement(props.node)}>{(node) => <MarkdownElement node={node()} />}</Match>
-      <Match when={asView(props.node)}>{(node) => <Dynamic component={node().view} code={node().code} />}</Match>
+      <Match when={asView(props.node)}>{(node) => <MarkdownView node={node()} />}</Match>
     </Switch>
   )
 }

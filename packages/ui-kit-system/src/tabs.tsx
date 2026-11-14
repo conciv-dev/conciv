@@ -4,7 +4,7 @@ import {nativeFocusPart} from './native-focus.js'
 
 const LIST = 'relative flex items-center gap-1 border-b border-chat-line'
 const TRIGGER =
-  'relative inline-flex items-center gap-1.5 py-2 px-3 text-[0.8125rem] font-chat text-chat-text-3 cursor-pointer select-none trans-btn hover:text-chat-text-2 data-[selected]:text-chat-text focus-ring disabled:opacity-50 disabled:cursor-not-allowed'
+  'relative inline-flex items-center gap-1.5 py-1.5 px-3 text-[0.8125rem] leading-5 font-chat text-chat-text-3 cursor-pointer select-none trans-btn hover:text-chat-text-2 data-[selected]:text-chat-text focus-ring disabled:opacity-50 disabled:cursor-not-allowed'
 const CONTENT = 'pt-3 focus-visible:outline-none'
 const INDICATOR =
   'absolute bottom-0 h-0.5 bg-chat-accent [width:var(--width)] [left:var(--left)] [--transition-duration:240ms] [--transition-timing-function:var(--chat-ease-expo)] motion-reduce:[--transition-duration:0ms]'

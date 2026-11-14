@@ -6,7 +6,6 @@ const bundle = `
 const sdk = require("@conciv/plugin/experimental")
 const solid = require("solid-js")
 const fs = require("node:fs")
-const notes = fs.readFileSync("notes.json")
 const modified = new fs.Stats().mtime.getTime()
 exports.default = sdk.Plugin.define({
   setup(ctx) {

@@ -8,7 +8,7 @@ import {Avatar, Menu, MenuCheckboxItem, MenuRadioGroup, MenuRadioItem, MenuSepar
 
 const PANEL =
   'fixed right-0 top-0 bottom-0 m-3 w-[clamp(20rem,28vw,25rem)] max-sm:left-0 max-sm:top-auto max-sm:w-auto max-sm:h-[65vh] max-sm:m-2 pointer-events-auto flex flex-col bg-chat-panel text-chat-text border border-chat-line rounded-chat-surface-lg shadow-chat-lg overflow-hidden anim-presence-in'
-const TOGGLE = 'fixed right-4 top-4 pointer-events-auto h-9 px-3 rounded-chat-pill shadow-chat-lg text-[0.8125rem]'
+const TOGGLE = 'fixed right-4 top-4 pointer-events-auto rounded-chat-pill shadow-chat-lg'
 const MARK_ALL = 'px-2 rounded-chat-surface-sm'
 const ICON_BTN =
   'inline-flex size-7 items-center justify-center rounded-chat-surface-sm text-chat-text-2 [outline:none] trans-bg hover:bg-chat-fill focus-ring'

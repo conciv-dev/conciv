@@ -8,10 +8,10 @@ import {INPUT_FRAME} from './input-frame.js'
 import {TooltipIconButton} from './tooltip-icon-button.js'
 
 const INPUT =
-  'flex-1 w-full min-w-0 bg-transparent [border:none] px-2.5 py-2 text-inherit font-chat-mono text-[0.75rem] focus-visible:outline-none placeholder:text-chat-text-3 read-only:cursor-default'
+  'flex-1 w-full min-w-0 bg-transparent [border:none] px-2.5 py-1.25 text-inherit font-chat-mono text-[0.75rem] leading-5 focus-visible:outline-none placeholder:text-chat-text-3 read-only:cursor-default'
 const ACTIONS = 'flex items-center gap-0.5 shrink-0 px-0.5'
 const ICON = 'size-3.5'
-const BUTTON = 'size-8'
+const BUTTON = 'size-7'
 
 type PasswordInputProps = {
   value: string

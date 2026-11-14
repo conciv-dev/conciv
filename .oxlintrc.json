@@ -443,13 +443,32 @@
         "apps/conciv/src/runtime/server/**"
       ],
       "rules": {
-        "conciv/banned-vocabulary": "off",
-        "unicorn/no-thenable": "off",
-        "no-shadow": "off",
-        "unicorn/no-array-sort": "off",
         "unicorn/no-useless-spread": "off",
         "no-unassigned-vars": "off",
         "solid/reactivity": "off"
+      }
+    },
+    {
+      "files": [
+        "apps/conciv/src/runtime/plugin/attach-machine.ts",
+        "apps/conciv/src/runtime/plugin/bundle-source.ts",
+        "apps/conciv/src/runtime/plugin/composer-write-machine.test.ts",
+        "apps/conciv/src/runtime/plugin/host-apis.tsx",
+        "apps/conciv/src/runtime/plugin/host.tsx",
+        "apps/conciv/src/runtime/plugin/link-check-machine.ts",
+        "apps/conciv/src/runtime/plugin/link-check.ts",
+        "apps/conciv/src/runtime/plugin/machine.ts",
+        "apps/conciv/src/runtime/plugin/manager.ts",
+        "apps/conciv/src/runtime/plugin/mounted-session.ts",
+        "apps/conciv/src/runtime/plugin/session-store-machine.test.ts",
+        "apps/conciv/src/runtime/plugin/session-store-machine.ts",
+        "apps/conciv/src/runtime/plugin/startup.ts"
+      ],
+      "rules": {
+        "conciv/banned-vocabulary": "off",
+        "unicorn/no-thenable": "off",
+        "no-shadow": "off",
+        "unicorn/no-array-sort": "off"
       }
     },
     {

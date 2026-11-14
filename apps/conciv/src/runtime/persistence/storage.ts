@@ -2,12 +2,12 @@ import type {RpcClient, SettingsScope} from '@conciv/contract'
 import type {AsyncStorage} from '@solid-primitives/storage'
 import type {StoreType} from '@conciv/plugin/experimental'
 import type {StandardSchemaV1} from '@standard-schema/spec'
-import {onCleanup, type Accessor} from 'solid-js'
+import type {Accessor} from 'solid-js'
 import {createStore, type SetStoreFunction, type Store} from 'solid-js/store'
 import {persistStore} from './persist'
 import {canWriteBackHydration} from './persist-machine'
 import {assertStoreDefinition, assertStoreWrite, withInitial, type Encode} from './schema'
-import {settingsStorage, settingsSync} from './settings-storage'
+import {settingsStorage} from './settings-storage'
 
 type InitType = Promise<string | null> | string | null
 
@@ -19,7 +19,6 @@ type PersistedWithReady<T> = [
 ]
 
 type PersistTarget = {
-  sync?: boolean
   scope: SettingsScope
   namespace: string
   copyFrom?: readonly CopyFrom[]
@@ -198,10 +197,6 @@ export function persisted<S extends StandardSchemaV1<unknown, object>>(
     },
   }
 
-  const channel = config.sync ? new AbortController() : undefined
-
-  if (channel) onCleanup(() => channel.abort())
-
   const persist = persistStore({
     store: store[0],
     setStore: store[1],
@@ -213,7 +208,6 @@ export function persisted<S extends StandardSchemaV1<unknown, object>>(
       assertStoreWrite(name, schema, value, encode)
       await storage.setItem(name, serialized)
     },
-    sync: channel ? settingsSync(rpc, config, channel.signal) : undefined,
   })
 
   return [
