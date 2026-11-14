@@ -105,6 +105,11 @@ const COLUMN_CARDS = [292, 292, 334, 334, 340, 340, 334, 340]
 const COLUMN_LINES = ['100-1615', '100-1622', '100-1635', '100-1642', '100-1655', '100-1668', '100-2303']
 const MEDIA_HEIGHT_CSS = '#root section { @media (width >= 40rem) { height: 120px; } }'
 const FIELD_BORDER = {borderColor: '#d64545', borderRadius: 0}
+const CHECK_ICONS: Record<string, string> = {
+  'check-row': '/design/check-icon.svg',
+  'check-row-wrong': '/design/4-30.svg',
+  'check-row-stalled': '/stalled/design/check-icon.svg',
+}
 const SLOW_FONT_CSS = "@import url('/slow-font.css');"
 const HERO_GAP_CSS = [
   '.hero-gap { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 50px 16px; text-align: center; color: #ffffff; }',
@@ -322,7 +327,7 @@ export function App() {
       </>
     )
   }
-  if (requested === 'check-row' || requested === 'check-row-wrong') {
+  if (requested === 'check-row' || requested === 'check-row-wrong' || requested === 'check-row-stalled') {
     return (
       <main style={{margin: -24, background: '#1a1a1a'}} data-conciv-key="cKmNaA">
         <label style={{display: 'flex', alignItems: 'center', gap: 10, width: 400}} data-conciv-key="cKlBlA">
@@ -340,7 +345,7 @@ export function App() {
             data-conciv-key="cKbXxA"
           >
             <img
-              src={requested === 'check-row' ? '/design/check-icon.svg' : '/design/4-30.svg'}
+              src={CHECK_ICONS[requested]}
               alt=""
               style={{width: 20, height: 20}}
               data-conciv-key="cKiCnA"

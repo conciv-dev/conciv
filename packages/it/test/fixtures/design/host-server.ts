@@ -41,6 +41,7 @@ export async function serveDesignHost(input: {
 
 export const HOST_ROOT = fileURLToPath(new URL('host/', import.meta.url))
 const DELAYS = [
+  {prefix: '/stalled/', ms: 4000},
   {prefix: '/slow/', ms: 3000},
   {prefix: '/late/', ms: 1000},
 ]

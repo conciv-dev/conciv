@@ -453,7 +453,7 @@ describe('a page that switches layouts between two frames', () => {
 })
 
 describe('an image node drawn as a box with its icon inside', () => {
-  it('passes when the drawn element looks like the asset, whatever the file is named, and each button keeps its icon', async () => {
+  it('passes when the drawn element looks like the asset, whatever the file is named or however slowly it loads, and each button keeps its icon', async () => {
     await kit.goto('check-row')
     await call('design_get', await sliced('check-row', '83-30723'))
     const imageRows = async () =>
@@ -461,10 +461,18 @@ describe('an image node drawn as a box with its icon inside', () => {
         .rows.filter((row) => row.property === 'image')
         .map((row) => row.text)
     const drawn = await imageRows()
+    await kit.goto('check-row-stalled')
+    const stalled = await imageRows()
     await kit.goto('check-row-wrong')
     const wrong = await imageRows()
     const buttons = await call('design_get', await sliced('social-buttons', '83-30209'))
-    expect([drawn, wrong, buttons.nodes.flatMap((node) => (node.asset === undefined ? [] : [node.asset]))]).toEqual([
+    expect([
+      drawn,
+      stalled,
+      wrong,
+      buttons.nodes.flatMap((node) => (node.asset === undefined ? [] : [node.asset])),
+    ]).toEqual([
+      [],
       [],
       ['wrong image at [119:119]: /design/119-119.png expected, an image /design/4-30.svg'],
       ['/design/83-30210.png', '/design/83-30213.png', '/design/83-30216.png'],

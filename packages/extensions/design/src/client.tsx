@@ -307,7 +307,7 @@ async function nodeShot(input: {doc: Document; node: ShotsInput['nodes'][number]
   if (element === null) throw new Error(`no element matches ${node.selector} in the mirror`)
   const width = Math.max(1, Math.round(node.width * node.scale))
   const height = Math.max(1, Math.round(node.height * node.scale))
-  const captured = await snapdom(element, {dpr: node.scale, embedFonts: true})
+  const captured = await snapdom(element, {dpr: node.scale, embedFonts: true, fallbackURL: browserLoaded})
   const canvas = await captured.toCanvas()
   const reference =
     node.reference === undefined ? null : drawnAt({source: await imageAt(node.reference), width, height})
@@ -324,12 +324,26 @@ function imageAt(url: string): Promise<HTMLImageElement> {
 }
 
 function drawnAt(input: {source: CanvasImageSource; width: number; height: number}): string {
+  const url = pngUrl(input)
+  return url.slice(url.indexOf(DATA_URL_COMMA) + 1)
+}
+
+function pngUrl(input: {source: CanvasImageSource; width: number; height: number}): string {
   const canvas = document.createElement('canvas')
   canvas.width = input.width
   canvas.height = input.height
   canvas.getContext('2d')?.drawImage(input.source, 0, 0, input.width, input.height)
-  const url = canvas.toDataURL('image/png')
-  return url.slice(url.indexOf(DATA_URL_COMMA) + 1)
+  return canvas.toDataURL('image/png')
+}
+
+async function browserLoaded(input: {src?: string; width?: number; height?: number}): Promise<string> {
+  if (input.src === undefined) throw new Error('snapdom gave no image to load')
+  const image = await imageAt(input.src)
+  return pngUrl({
+    source: image,
+    width: image.naturalWidth || Math.max(1, Math.round(input.width ?? 1)),
+    height: image.naturalHeight || Math.max(1, Math.round(input.height ?? 1)),
+  })
 }
 
 function pageScheme(): MeasureResult['scheme'] {
@@ -467,6 +481,7 @@ async function snapdomShot(input: {doc: Document; size: Size; exclude: string[];
     exclude: input.exclude,
     excludeMode: 'remove',
     embedFonts: true,
+    fallbackURL: browserLoaded,
     plugins: capturePlugins,
   })
   return composited({blob: await capture.toBlob({format: 'png'}), doc, ...size})
