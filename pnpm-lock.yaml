@@ -2203,12 +2203,36 @@ importers:
 
   packages/builtin-plugins:
     dependencies:
+      '@conciv/extension':
+        specifier: workspace:^
+        version: link:../extension
+      '@conciv/page':
+        specifier: workspace:^
+        version: link:../page
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../plugin
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@solid-primitives/map':
+        specifier: 'catalog:'
+        version: 0.7.4(solid-js@1.9.17)
+      '@tanstack/hotkeys':
+        specifier: 'catalog:'
+        version: 0.18.0
+      '@tanstack/solid-pacer':
+        specifier: 'catalog:'
+        version: 0.24.0(solid-js@1.9.17)
+      '@zumer/snapdom':
+        specifier: 'catalog:'
+        version: 3.3.3
+      ai-motion:
+        specifier: 'catalog:'
+        version: 0.4.8
+      solid-js:
+        specifier: 'catalog:'
+        version: 1.9.17
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -2219,12 +2243,69 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@conciv/ui-kit-chat':
+        specifier: workspace:*
+        version: link:../ui-kit-chat
+      '@conciv/ui-kit-system':
+        specifier: workspace:^
+        version: link:../ui-kit-system
+      '@conciv/uno-preset':
+        specifier: workspace:*
+        version: link:../uno-preset
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
+      '@solidjs/testing-library':
+        specifier: 'catalog:'
+        version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
+      '@tiptap/core':
+        specifier: 'catalog:'
+        version: 3.32.1(@tiptap/pm@3.32.1)
+      '@tiptap/extension-document':
+        specifier: 'catalog:'
+        version: 3.32.1(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))
+      '@tiptap/extension-paragraph':
+        specifier: 'catalog:'
+        version: 3.32.1(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))
+      '@tiptap/extension-text':
+        specifier: 'catalog:'
+        version: 3.32.1(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))
+      '@tiptap/pm':
+        specifier: 'catalog:'
+        version: 3.32.1
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.3.0(@types/react@19.3.0)
+      '@vitest/browser-playwright':
+        specifier: 'catalog:'
+        version: 5.1.0(playwright@1.64.1)(vite@8.3.5)(vitest@5.1.0)
+      playwright:
+        specifier: 'catalog:'
+        version: 1.64.1
+      react:
+        specifier: 'catalog:'
+        version: 19.3.1
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.3.1(react@19.3.1)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+      unocss:
+        specifier: 'catalog:'
+        version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
+      vite-plugin-solid:
+        specifier: 'catalog:'
+        version: 2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5)
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
