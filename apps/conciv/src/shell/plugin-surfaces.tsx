@@ -6,7 +6,7 @@ import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query'
 import {usePluginAttachment} from '../runtime/plugin/attachment'
 import {usePluginHost} from '../runtime/plugin/host'
 import {icons} from '../runtime/plugin/icons'
-import {createMobileViews, type MobileViews} from '../runtime/plugin/mobile'
+import {createMobileViews, MobileViewContent, type MobileViews} from '../runtime/plugin/mobile'
 import {createMountedSession} from '../runtime/plugin/mounted-session'
 import {isPluginView, panelKey} from '../runtime/plugin/panel-keys'
 import {PanelTrigger} from '../runtime/plugin/panel-trigger'
@@ -249,7 +249,7 @@ export function PluginRegion(props: {view: Accessor<MountedSession>; screen: Ses
 
   onCleanup(attachment.region(region))
 
-  return null
+  return <MobileViewContent region={region} view={props.view()} screen={props.screen} />
 }
 
 export function PluginTabContent() {
@@ -282,19 +282,21 @@ export function PluginTabContent() {
                   }
                   fallback={<Navigate to="/panel/$sessionId" params={{sessionId: params().sessionId}} replace />}
                 >
-                  <div class="relative flex flex-1 flex-col min-h-0">
-                    <RegionContent
-                      pane={region().pane}
-                      view={view()}
-                      screen={screen}
-                      frame={{
-                        placement: () => 'pane',
-                        present: () => true,
-                        animate: () => false,
-                        shown: () => true,
-                      }}
-                    />
-                  </div>
+                  <Show when={!phone() || !mobile.find(params().view)}>
+                    <div class="relative flex flex-1 flex-col min-h-0">
+                      <RegionContent
+                        pane={region().pane}
+                        view={view()}
+                        screen={screen}
+                        frame={{
+                          placement: () => 'pane',
+                          present: () => true,
+                          animate: () => false,
+                          shown: () => true,
+                        }}
+                      />
+                    </div>
+                  </Show>
                 </Show>
               )}
             </Show>

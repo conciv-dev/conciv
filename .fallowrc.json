@@ -589,10 +589,6 @@
       "exports": ["WATCH_RETRY_MS", "LIST_TIMEOUT_MS", "sameHostEndpoint"]
     },
     {
-      "file": "apps/conciv/src/runtime/plugin/panels.tsx",
-      "exports": ["MobilePanel"]
-    },
-    {
       "file": "apps/conciv/src/runtime/plugin/mobile.tsx",
       "exports": ["MobileEntry"]
     },
