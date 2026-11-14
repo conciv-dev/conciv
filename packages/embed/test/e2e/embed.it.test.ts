@@ -744,7 +744,28 @@ test.describe('forced drop', () => {
         await expect(chatLog(page).getByText(QUEUED_TEXT)).toHaveCount(1)
         await expect(chatLog(page).getByText(RUNNING_TEXT)).toHaveCount(1)
         await expect(composer).toHaveText('')
+
+        const UNANSWERED_TEXT = 'sent but never answered'
+        const QUEUED_AFTER_TEXT = 'queued behind the unanswered send'
+        suite.kit().harness.script.holdStart()
+        await composer.click()
+        await composer.pressSequentially(UNANSWERED_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(stop).toBeVisible()
+        await expect(chatLog(page).getByText(UNANSWERED_TEXT)).toHaveCount(1)
+        await composer.click()
+        await composer.pressSequentially(QUEUED_AFTER_TEXT)
+        await page.keyboard.press('Enter')
+        const queuedAfter = panel.getByRole('listitem').filter({hasText: QUEUED_AFTER_TEXT})
+        await expect(queuedAfter).toBeVisible()
+        const closing = reopened
+        reopened = null
+        await closing.close()
+        await expect(queuedAfter).toBeHidden()
+        await expect(stop).toBeHidden()
+        await expect(composer).toHaveText(new RegExp(`^${UNANSWERED_TEXT}\\s*${QUEUED_AFTER_TEXT}$`))
       } finally {
+        suite.kit().harness.script.releaseStart()
         suite.kit().harness.script.release()
         if (reopened) await reopened.close()
       }
