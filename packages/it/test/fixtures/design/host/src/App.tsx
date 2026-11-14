@@ -100,6 +100,45 @@ function contactBarCss(input: {breakpoint: number; footer: string}): string {
     `@media (width >= ${breakpoint}px) { .contact-bar { flex-direction: ${footer}; justify-content: space-between; align-items: center; } .contact-bar-items { flex-direction: row; gap: 22px; } .contact-bar-item { padding: 6px 0; gap: 6px; font-size: 16px; } .contact-bar-copy { font-size: 14px; } }`,
   ].join(' ')
 }
+const FORM_FIELD = {
+  display: 'flex',
+  flexDirection: 'column',
+  justifyContent: 'center',
+  borderRadius: 8,
+  background: 'rgba(36, 36, 36, 0.5)',
+  padding: '20px 30px',
+  outline: '1px solid #262626',
+  outlineOffset: -1,
+} as const
+const FORM_PANEL = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 30,
+  margin: 0,
+  border: 0,
+  minWidth: 0,
+  padding: 30,
+  borderRadius: 8,
+  background: 'rgba(36, 36, 36, 0.5)',
+  outline: '1px solid #262626',
+  outlineOffset: -1,
+} as const
+const FORM_LABEL = {margin: 0, padding: 0, fontSize: 18, lineHeight: 1.5, fontWeight: 500, color: '#ffffff'} as const
+const FORM_INPUT = {
+  width: '100%',
+  margin: 0,
+  padding: 0,
+  border: 0,
+  background: 'transparent',
+  fontSize: 16,
+  lineHeight: 1.5,
+  color: '#ffffff',
+  outline: 'none',
+} as const
+const FORM_REASONS = [
+  ['Web Design', 'Collaboration'],
+  ['Mobile App Design', 'Others'],
+]
 const LATE_FONT_CSS = `${SLOW_FONT_CSS} @media (width < 900px) { #root { font-family: 'Slow Sans', monospace; } }`
 const SLOW_FONT_TEXT = 'The quarterly report lists every invoice that was paid late, with the customer and the days overdue.'
 const WRAP_TEXT = 'The quarterly report lists every invoice that was paid late, with the customer and the days overdue.'
@@ -165,6 +204,7 @@ export function App() {
       </main>
     )
   }
+  if (requested === 'contact-form' || requested === 'contact-form-flat') return <ContactForm flat={requested === 'contact-form-flat'} data-conciv-key="cFpGeA" />
   if (requested === 'process-row' || requested === 'process-row-boxed') {
     const boxed = requested === 'process-row-boxed'
     return (
@@ -471,6 +511,121 @@ function ProcessCard(props: {number: string; heading: string; text: string; boxe
         {props.text}
       </p>
     </div>
+  )
+}
+
+function FormLine(props: {flat: boolean}) {
+  return (
+    <span
+      style={{display: 'block', width: '100%', height: 1, marginBottom: props.flat ? -1 : 0, background: '#262626'}}
+      data-conciv-key="cFlNeA"
+    />
+  )
+}
+
+function FormField(props: {label: string; flat: boolean}) {
+  return (
+    <label style={{...FORM_FIELD, gap: 16, flex: '1 1 0'}} data-conciv-key="cFfLdA">
+      <span style={FORM_LABEL} data-conciv-key="cFlBlA">
+        {props.label}
+      </span>
+      <span style={{display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6}} data-conciv-key="cFsBcA">
+        <input placeholder="Type here" style={FORM_INPUT} data-conciv-key="cFiNpA" />
+        <FormLine flat={props.flat} />
+      </span>
+    </label>
+  )
+}
+
+function FormThumb(props: {value: string}) {
+  return (
+    <span style={{position: 'relative', display: 'flex', borderRadius: 30, background: '#4c4c4d', padding: 4}} data-conciv-key="cFtHbA">
+      <span style={{width: 12, height: 12, borderRadius: 6, background: '#9eff00'}} data-conciv-key="cFtDtA" />
+      <span
+        style={{position: 'absolute', top: 27, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', fontSize: 14, fontWeight: 500, color: '#ffffff'}}
+        data-conciv-key="cFtLbA"
+      >
+        {props.value}
+      </span>
+    </span>
+  )
+}
+
+function ContactForm(props: {flat: boolean}) {
+  return (
+    <main style={{margin: -24, background: '#1a1a1a'}} data-conciv-key="cFmNaA">
+      <form
+        style={{display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 30, padding: 60, outline: '1px solid #262626', outlineOffset: -1}}
+        data-conciv-key="cFfRmA"
+      >
+        <div style={{display: 'flex', gap: 30}} data-conciv-key="cFrWaA">
+          <FormField label="Full Name" flat={props.flat} />
+          <FormField label="Email" flat={props.flat} />
+        </div>
+        <fieldset style={FORM_PANEL} data-conciv-key="cFfStA">
+          <legend style={{...FORM_LABEL, float: 'left', width: '100%'}} data-conciv-key="cFlGdA">
+            Why are you contacting us?
+          </legend>
+          <div style={{display: 'flex', flexDirection: 'column', gap: 24}} data-conciv-key="cFcKsA">
+            {FORM_REASONS.map((row) => (
+              <div key={row[0]} style={{display: 'flex', gap: 20}} data-conciv-key="cFcRwA">
+                {row.map((reason) => (
+                  <label key={reason} style={{display: 'flex', alignItems: 'center', gap: 10, flex: '1 1 0'}} data-conciv-key="cFcBxA">
+                    <span
+                      style={{width: 28, height: 28, boxSizing: 'border-box', borderRadius: 4, background: '#262626', outline: '1px solid #333333', outlineOffset: -1}}
+                      data-conciv-key="cFcSqA"
+                    />
+                    <span style={{flex: 1, fontSize: 16, lineHeight: 1.5, color: '#fdfffa'}} data-conciv-key="cFcTxA">
+                      {reason}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            ))}
+          </div>
+        </fieldset>
+        <div style={{...FORM_PANEL}} data-conciv-key="cFbDgA">
+          <div style={{display: 'flex', flexDirection: 'column', gap: 14}} data-conciv-key="cFbTxA">
+            <p style={FORM_LABEL} data-conciv-key="cFbHdA">
+              Your Budget
+            </p>
+            <p style={{margin: 0, fontSize: 16, lineHeight: 1.5, color: '#e6e6e6'}} data-conciv-key="cFbPrA">
+              Slide to indicate your budget range
+            </p>
+          </div>
+          <div style={{display: 'grid', padding: '26px 3px'}} data-conciv-key="cFsLdA">
+            <div style={{...SLIDER_LAYER, height: 2, alignSelf: 'center', background: '#333333'}} data-conciv-key="cFsTkA" />
+            <div
+              style={{...SLIDER_LAYER, display: 'flex', alignItems: 'center', margin: '-9px 0 -9px 8.6%', width: '49%'}}
+              data-conciv-key="cFsRgA"
+            >
+              <FormThumb value="$1000" />
+              <div style={{height: 3, flex: 1, background: '#9eff00'}} data-conciv-key="cFsBrA" />
+              <FormThumb value="$5000" />
+            </div>
+          </div>
+        </div>
+        <label style={{...FORM_FIELD, gap: 20}} data-conciv-key="cFmSgA">
+          <span style={FORM_LABEL} data-conciv-key="cFmLbA">
+            Your Message
+          </span>
+          <span style={{display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 34}} data-conciv-key="cFmBdA">
+            <span style={{display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6}} data-conciv-key="cFmInA">
+              <input placeholder="Type here" style={FORM_INPUT} data-conciv-key="cFmIpA" />
+              <FormLine flat={props.flat} />
+            </span>
+            <FormLine flat={props.flat} />
+          </span>
+        </label>
+        <button
+          type="submit"
+          style={{alignSelf: 'center', border: 0, borderRadius: 8, background: '#9eff00', padding: '14px 36px', fontSize: 14, lineHeight: 1.5, fontWeight: 500, color: '#1a1a1a'}}
+          data-conciv-key="cFsBtA"
+        >
+          Submit
+        </button>
+      </form>
+    </main>
   )
 }
 

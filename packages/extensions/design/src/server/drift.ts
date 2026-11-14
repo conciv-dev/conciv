@@ -53,7 +53,7 @@ export function driftRows(input: {root: DesignNode; reads: ReturnType<typeof rea
   ]
 }
 
-const DRIFT_PX = designConfig.tolerances.geometryPx * 2
+const DRIFT_PX = designConfig.tolerances.geometryPx
 
 const NAMED = 6
 
