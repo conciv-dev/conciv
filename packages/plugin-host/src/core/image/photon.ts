@@ -2,7 +2,8 @@ export * as Photon from './photon.js'
 
 import {Effect, Exit, Schema, Semaphore} from 'effect'
 import type {Worker} from 'node:worker_threads'
-import {makeDecodeError, makeResizerUnavailableError, makeSizeError, type Content, type Limits} from '../image.js'
+import type {FileSystem} from '../filesystem.js'
+import {makeDecodeError, makeResizerUnavailableError, makeSizeError, type Limits} from '../image.js'
 import {PhotonNormalize} from './photon-normalize.js'
 import type {Reply, Request} from './photon-worker.js'
 
@@ -107,7 +108,11 @@ export function makeWith(spawn: Effect.Effect<Worker, WorkerUnavailableError>, i
       catch: () => makeResizerUnavailableError(),
     }).pipe(Effect.map((photon) => PhotonNormalize.normalize(photon, content, limits)))
 
-  return Effect.fn('Image.Photon.normalize')(function* (resource: string, content: Content, limits: Readonly<Limits>) {
+  return Effect.fn('Image.Photon.normalize')(function* (
+    resource: string,
+    content: FileSystem.Content & {readonly encoding: 'base64'},
+    limits: Readonly<Limits>,
+  ) {
     if (!PhotonNormalize.available) return yield* Effect.fail(makeResizerUnavailableError())
     const result = useWorker
       ? yield* inWorker(content, limits).pipe(
