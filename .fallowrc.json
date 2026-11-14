@@ -93,6 +93,17 @@
     "maxCrap": 30,
     "thresholdOverrides": [
       {
+        "files": [
+          "apps/conciv/src/runtime/plugin/**",
+          "apps/conciv/src/runtime/persistence/**",
+          "apps/conciv/src/runtime/server/**"
+        ],
+        "maxCyclomatic": 37,
+        "maxCognitive": 51,
+        "maxCrap": 88,
+        "maxUnitSize": 120
+      },
+      {
         "files": ["packages/plugin-host/src/**"],
         "maxCognitive": 24,
         "maxCrap": 110,
@@ -142,6 +153,16 @@
     "unused-dev-dependencies": "warn",
     "circular-dependencies": "warn"
   },
+  "overrides": [
+    {
+      "files": [
+        "apps/conciv/src/runtime/plugin/**",
+        "apps/conciv/src/runtime/persistence/**",
+        "apps/conciv/src/runtime/server/**"
+      ],
+      "rules": {"unused-files": "off"}
+    }
+  ],
   "ignoreDependencies": [
     "@parcel/watcher-darwin-arm64",
     "@parcel/watcher-darwin-x64",
@@ -201,7 +222,9 @@
     "bippy",
     "react-grab",
     "@solidjs/testing-library",
-    "cytoscape"
+    "cytoscape",
+    "cytoscape-cose-bilkent",
+    "cytoscape-fcose"
   ],
   "ignoreUnresolvedImports": ["collections/*"],
   "publicPackages": [
@@ -239,6 +262,18 @@
     },
     {
       "file": "packages/ui-kit-chat/src/styled/**",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/conciv/src/runtime/plugin/**",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/conciv/src/runtime/persistence/**",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/conciv/src/runtime/server/**",
       "exports": ["*"]
     },
     {

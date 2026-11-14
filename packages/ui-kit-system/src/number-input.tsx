@@ -4,6 +4,7 @@ import {NumberInput as Ark} from '@ark-ui/solid/number-input'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import ChevronUp from 'lucide-solid/icons/chevron-up'
 import {INPUT_FRAME} from './input-frame.js'
+import {nativeFocusPart} from './native-focus.js'
 
 const ROOT = 'inline-flex min-w-0'
 const CONTROL = `${INPUT_FRAME} w-full data-[invalid]:border-chat-danger`
@@ -28,6 +29,8 @@ type NumberInputProps = {
   class?: string
   'aria-label'?: string
 }
+
+const Input = nativeFocusPart(Ark.Input, 'input')
 
 const PAGE_KEYS: Partial<Record<string, number>> = {PageUp: 1, PageDown: -1}
 
@@ -77,7 +80,7 @@ export function NumberInput(props: NumberInputProps): JSX.Element {
       <Ark.Control class={CONTROL}>
         <Ark.Context>
           {(api) => (
-            <Ark.Input
+            <Input
               class={INPUT}
               aria-label={local['aria-label']}
               onKeyDown={(event) => {

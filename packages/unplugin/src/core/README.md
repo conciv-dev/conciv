@@ -15,7 +15,7 @@ The plugin internals: booting the engine process, the Vite hook (HTML tags, widg
 - `extensions-entry.ts:writeExtensionsEntry(root)` / `generateExtensionsEntrySource(files)` - write `.conciv/extensions-client.gen.tsx`.
 - `extensions-watch.ts:watchExtensionsDir(root)` - watches `<root>/conciv` and rewrites the entry on change.
 - `bin-shim.ts:installConcivBinShim(stateDir)` - returns a `PATH` with `<stateDir>/bin` first.
-- `open-editor.ts:makeOpenInEditor(root)` - opens `file:line` with `launch-editor`.
+- `open-editor.ts:makeOpenInEditor(root)` - opens `file:line` or `file:line:column` with `launch-editor`.
 - `app-extensions.d.ts` - declares the `@conciv/app-extensions` module.
 
 ## Invariants

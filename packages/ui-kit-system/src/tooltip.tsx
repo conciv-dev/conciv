@@ -19,6 +19,7 @@ import {makeEventListener} from '@solid-primitives/event-listener'
 import {Timer, TooltipGroup, useTooltipGroup, type TooltipGroupApi, type TooltipGroupMember} from './tooltip-group.js'
 import {popIn, sideFromPlacement} from './tooltip-motion.js'
 import {isDocument, isHTMLElement, isShadowRoot} from './realm.js'
+import {nativeFocusPart} from './native-focus.js'
 
 const CONTENT =
   'hidden data-[state=open]:block z-[2147483647] rounded-chat-surface-sm bg-chat-panel text-chat-text border border-chat-line shadow-chat-lg py-1 px-2 text-[0.6875rem] font-chat max-w-60 focus-visible:outline-none'
@@ -173,6 +174,8 @@ function Root(props: RootProps) {
   )
 }
 
+const Trigger = nativeFocusPart(Ark.Trigger, 'button')
+
 function Positioner(props: ComponentProps<typeof Ark.Positioner>) {
   return (
     <Show when={useContext(MemberContext)} fallback={<Ark.Positioner {...props} />}>
@@ -210,4 +213,4 @@ function Content(props: ComponentProps<typeof Ark.Content>) {
   )
 }
 
-export const Tooltip = Object.assign({}, Ark, {Root, Positioner, Content, Group: TooltipGroup})
+export const Tooltip = Object.assign({}, Ark, {Root, Trigger, Positioner, Content, Group: TooltipGroup})

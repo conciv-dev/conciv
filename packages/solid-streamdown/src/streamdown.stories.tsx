@@ -1,6 +1,6 @@
 import {createEffect, createSignal, onCleanup} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
-import {expect, waitFor, within} from 'storybook/test'
+import {expect, userEvent, waitFor, within} from 'storybook/test'
 import {Streamdown, type CaretVariant, type HighlightCode} from './streamdown.js'
 
 const demoHighlight: HighlightCode = (code, lang) => ({
@@ -313,5 +313,52 @@ export const LinkSafety: Story = {
     const hrefs = Array.from(canvasElement.querySelectorAll('a')).map((a) => a.getAttribute('href') ?? '')
     await expect(hrefs.some((h) => h.startsWith('javascript:'))).toBe(false)
     await expect(hrefs.some((h) => h.startsWith('https://example.com'))).toBe(true)
+  },
+}
+
+const LOCAL_LINKS =
+  'Read [the renderer](src/streamdown.tsx:326) and the [README](README.md), then `src/streamdown.tsx` next to `src/missing.ts`. The [Solid docs](https://docs.solidjs.com) stay a web link.'
+
+const existingFiles = new Set(['src/streamdown.tsx', 'README.md'])
+
+function LocalFileLinksDemo(): ReturnType<typeof Streamdown> {
+  const [opened, setOpened] = createSignal<string[]>([])
+  const open = (path: string) => setOpened((paths) => [...paths, path])
+  return (
+    <div style={{display: 'grid', gap: '24px'}}>
+      <section aria-label="No host props">
+        <Streamdown class="prose-chat" animated={false}>
+          {LOCAL_LINKS}
+        </Streamdown>
+      </section>
+      <section aria-label="openLocalFile only">
+        <Streamdown class="prose-chat" animated={false} openLocalFile={open}>
+          {LOCAL_LINKS}
+        </Streamdown>
+      </section>
+      <section aria-label="Both props">
+        <Streamdown
+          class="prose-chat"
+          animated={false}
+          openLocalFile={open}
+          localFileExists={(path) => Promise.resolve(existingFiles.has(path))}
+        >
+          {LOCAL_LINKS}
+        </Streamdown>
+      </section>
+      <output aria-label="Opened files">{`Opened: ${opened().join(', ')}`}</output>
+    </div>
+  )
+}
+
+export const LocalFileLinks: Story = {
+  render: () => <LocalFileLinksDemo />,
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    const openOnly = within(canvas.getByRole('region', {name: 'openLocalFile only'}))
+
+    await userEvent.click(openOnly.getByRole('link', {name: 'README'}))
+
+    await expect(canvas.getByRole('status', {name: 'Opened files'})).toHaveTextContent('Opened: README.md')
   },
 }

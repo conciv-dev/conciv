@@ -1,14 +1,14 @@
-export type LaunchFn = (file: string, line: number) => void
+export type LaunchFn = (file: string, line: number, column?: number) => void
 
-export type OpenInEditor = (file: string, line?: number) => void
+export type OpenInEditor = (file: string, line?: number, column?: number) => void
 
 export function makeEditorOpener(launch: LaunchFn, windowMs: number, now: () => number): OpenInEditor {
   const seen = new Map<string, number>()
-  return (file: string, line = 1): void => {
-    const key = `${file}:${line}`
+  return (file: string, line = 1, column?: number): void => {
+    const key = `${file}:${line}:${column ?? ''}`
     const last = seen.get(key) ?? -Infinity
     if (now() - last < windowMs) return
     seen.set(key, now())
-    launch(file, line)
+    launch(file, line, column)
   }
 }

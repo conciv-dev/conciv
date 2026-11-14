@@ -1,6 +1,7 @@
 import {createContext, createSignal, splitProps, useContext, type ComponentProps, type JSX} from 'solid-js'
 import {Switch as Ark, useSwitchContext} from '@ark-ui/solid/switch'
 import {makeEventListener} from '@solid-primitives/event-listener'
+import {nativeFocusPart} from './native-focus.js'
 import {clamp, createFrameLoop, prefersReducedMotion, springSettled, springStep, type Spring} from './motion.js'
 
 const ROOT =
@@ -329,8 +330,10 @@ function Label(props: ComponentProps<typeof Ark.Label>) {
   return <Ark.Label {...rest} class={`${LABEL}  ${local.class ?? ''}`} />
 }
 
+const NativeHiddenInput = nativeFocusPart(Ark.HiddenInput, 'input')
+
 function HiddenInput(props: ComponentProps<typeof Ark.HiddenInput>) {
-  return <Ark.HiddenInput role="switch" {...props} />
+  return <NativeHiddenInput role="switch" {...props} />
 }
 
 export const Switch = Object.assign({}, Ark, {Root, Control, Thumb, Label, HiddenInput})

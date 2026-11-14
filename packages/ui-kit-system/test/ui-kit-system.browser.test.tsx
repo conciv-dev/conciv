@@ -2,6 +2,7 @@ import 'virtual:uno.css'
 import {afterEach, describe, expect, it, test, onTestFinished} from 'vitest'
 import {fitHeight, measureTextArea} from '../src/autosize.js'
 import {createSignal, For, Show, createRoot, type JSX} from 'solid-js'
+import {createStore} from 'solid-js/store'
 import {render} from '@solidjs/testing-library'
 import {page, userEvent} from 'vitest/browser'
 import {createClipboardCopy} from '../src/clipboard.js'
@@ -20,6 +21,15 @@ import {TruncatedText, TruncatedTextGroup} from '../src/truncated-text.js'
 import {Tooltip} from '../src/tooltip.js'
 import ChevronRight from 'lucide-solid/icons/chevron-right'
 import {VirtualJsonTree} from '../src/virtual-json-tree.js'
+import {Select, createListCollection} from '../src/select.js'
+import {Tabs} from '../src/tabs.js'
+import {NumberInput} from '../src/number-input.js'
+import {HoverCard} from '../src/hover-card.js'
+import {Switch} from '../src/switch.js'
+import {Checkbox} from '../src/checkbox.js'
+import {Toast, ToastGroup, createToaster, type ToasterInstance} from '../src/toast.js'
+import tokens from '../src/tokens.css?inline'
+import type {Locator} from 'vitest/browser'
 
 describe('autosize', () => {
   const containers: HTMLElement[] = []
@@ -553,6 +563,93 @@ describe('dialog', () => {
   })
 })
 
+describe('dialog parts', () => {
+  afterEach(() => {
+    cleanupMounts()
+  })
+
+  it.each([
+    {mode: "Ark's default modal mode", modes: {}},
+    {mode: "the widget's non-modal, focus-trapping mode", modes: {modal: false, trapFocus: true}},
+  ])('opens stacked dialogs composed from the parts inside the shadow root in $mode', async ({modes}) => {
+    const shadow = mountInShadow((root) => {
+      const [seen, setSeen] = createStore({focus: 'nothing', saves: 0})
+      const track = (name: string) => ({
+        onFocus: () => setSeen('focus', name),
+        onBlur: () => setSeen('focus', 'nothing'),
+      })
+      return (
+        <EnvironmentProvider value={() => root}>
+          <p>Focus is on {seen.focus}</p>
+          <p>Saves: {seen.saves}</p>
+          <Dialog.Root {...modes}>
+            <Dialog.Trigger {...track('the opener')}>Open plugin settings</Dialog.Trigger>
+            <Dialog.Portal>
+              <Dialog.Layer>
+                <Dialog.Backdrop />
+                <Dialog.Positioner>
+                  <Dialog.Content size="lg">
+                    <Dialog.Header>
+                      <Dialog.Title>Plugin settings</Dialog.Title>
+                      <Dialog.CloseTrigger {...track('the close button')} />
+                    </Dialog.Header>
+                    <Dialog.Body>
+                      <p>Choose what the plugin may read.</p>
+                      <Dialog.Root {...modes} closeOnInteractOutside={false}>
+                        <Dialog.Trigger>Open plugin details</Dialog.Trigger>
+                        <Dialog.Portal>
+                          <Dialog.Layer>
+                            <Dialog.Backdrop />
+                            <Dialog.Positioner>
+                              <Dialog.Content>
+                                <Dialog.Title>Plugin details</Dialog.Title>
+                              </Dialog.Content>
+                            </Dialog.Positioner>
+                          </Dialog.Layer>
+                        </Dialog.Portal>
+                      </Dialog.Root>
+                    </Dialog.Body>
+                    <Dialog.Footer>
+                      <button type="button" onClick={() => setSeen('saves', (saves) => saves + 1)}>
+                        Save
+                      </button>
+                    </Dialog.Footer>
+                  </Dialog.Content>
+                </Dialog.Positioner>
+              </Dialog.Layer>
+            </Dialog.Portal>
+          </Dialog.Root>
+        </EnvironmentProvider>
+      )
+    })
+    const kitStyles = new CSSStyleSheet()
+    kitStyles.replaceSync(
+      Array.from(document.styleSheets, (sheet) => Array.from(sheet.cssRules, (rule) => rule.cssText).join('')).join(''),
+    )
+    shadow.adoptedStyleSheets = [kitStyles]
+    const save = page.getByRole('button', {name: 'Save', includeHidden: true})
+
+    await userEvent.click(page.getByRole('button', {name: 'Open plugin settings'}))
+    await expect.element(page.getByRole('dialog', {name: 'Plugin settings'})).toBeVisible()
+    await expect.element(page.getByText('Choose what the plugin may read.')).toBeVisible()
+    await expect.element(page.getByText('Focus is on the close button')).toBeVisible()
+
+    await userEvent.click(page.getByRole('button', {name: 'Open plugin details'}))
+    await expect.element(page.getByRole('dialog', {name: 'Plugin details'})).toBeVisible()
+    await userEvent.click(save, {force: true})
+    await expect.element(page.getByText('Saves: 0')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('dialog', {name: 'Plugin details'})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('dialog', {name: 'Plugin settings'})).toBeVisible()
+    await userEvent.click(save)
+    await expect.element(page.getByText('Saves: 1')).toBeVisible()
+
+    await userEvent.click(page.getByRole('button', {name: 'Close'}))
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
+    await expect.element(page.getByText('Focus is on the opener')).toBeVisible()
+  })
+})
+
 describe('resize', () => {
   const press = (key: string): KeyboardEvent => new KeyboardEvent('keydown', {key, cancelable: true})
 
@@ -854,16 +951,6 @@ describe('tooltip icon button', () => {
     expect(trigger.id).not.toBe(button.element().id)
   })
 
-  it('opens the tooltip when the button takes keyboard focus', async () => {
-    mount()
-    const button = page.getByRole('button', {name: NAME})
-    await expect.element(button).toBeVisible()
-
-    await userEvent.tab()
-
-    await expect.element(page.getByRole('tooltip')).toBeVisible()
-  })
-
   it('hides the tooltip once the menu it opens is showing', async () => {
     mount()
     const button = page.getByRole('button', {name: NAME})
@@ -912,6 +999,55 @@ describe('tooltip icon button', () => {
     await button.click()
 
     await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
+  })
+})
+
+describe('tooltip in a shadow root', () => {
+  afterEach(() => {
+    cleanupMounts()
+  })
+
+  it('opens as keyboard focus moves between triggers inside the root, and closes on Escape or moving on', async () => {
+    mountInShadow((root) => (
+      <EnvironmentProvider value={() => root}>
+        <button type="button">Before</button>
+        <TooltipIconButton tooltip="Pin">
+          <span aria-hidden="true">P</span>
+        </TooltipIconButton>
+        <Tooltip.Root>
+          <Tooltip.Trigger
+            asChild={(triggerProps) => (
+              <span {...triggerProps()}>
+                <button type="button">Wrapped</button>
+              </span>
+            )}
+          />
+          <Tooltip.Positioner>
+            <Tooltip.Content>Wrapped tip</Tooltip.Content>
+          </Tooltip.Positioner>
+        </Tooltip.Root>
+        <button type="button">After</button>
+      </EnvironmentProvider>
+    ))
+    const pin = page.getByRole('button', {name: 'Pin'})
+    await expect.element(pin).toBeVisible()
+
+    await userEvent.tab()
+    await userEvent.tab()
+
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Pin')
+    expect(pin.element().matches(':focus-visible')).toBe(true)
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
+
+    await userEvent.tab()
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Wrapped tip')
+    expect(page.getByRole('button', {name: 'Wrapped'}).element().matches(':focus-visible')).toBe(true)
+
+    await userEvent.tab()
+    await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: 'After'})).toBeVisible()
   })
 })
 
@@ -1195,5 +1331,207 @@ describe('virtual json tree', () => {
     await userEvent.keyboard('{ArrowLeft}')
     await expect.element(page.getByRole('treeitem', {name: FIRST_LEAF})).not.toBeInTheDocument()
     await expect.element(control).toHaveFocus()
+  })
+})
+
+declare module 'vitest' {
+  interface Matchers<R extends void | Promise<void>> {
+    toHaveVisibleFocusInItsRoot: () => R
+  }
+}
+
+function holdsVisibleFocus(element: Element): boolean {
+  const root = element.getRootNode()
+  const active = root instanceof ShadowRoot || root instanceof Document ? root.activeElement : null
+  return active === element && element.matches(':focus-visible')
+}
+
+expect.extend({
+  toHaveVisibleFocusInItsRoot(received: Element) {
+    return {
+      pass: holdsVisibleFocus(received),
+      message: () => `expected ${received.outerHTML.slice(0, 120)} to hold visible keyboard focus in its root`,
+    }
+  },
+})
+
+describe('keyboard inside a shadow root', () => {
+  afterEach(() => {
+    cleanupMounts()
+  })
+
+  const FRUITS = createListCollection({items: ['Apple', 'Banana', 'Cherry']})
+
+  function mount(): {shadow: ShadowRoot; toaster: ToasterInstance} {
+    const toaster = createToaster({placement: 'bottom-end'})
+    const [retries, setRetries] = createSignal<number | undefined>(undefined)
+    const [committed, setCommitted] = createSignal<number | undefined>(undefined)
+    const pageStyles = Array.from(document.head.querySelectorAll('style'), (sheet) => sheet.textContent)
+    const shadow = mountInShadow((root) => (
+      <EnvironmentProvider value={() => root}>
+        <For each={pageStyles}>{(css) => <style>{css}</style>}</For>
+        <style>{tokens}</style>
+        <input aria-label="Start here" />
+        <Menu.Root>
+          <Menu.Trigger>Actions</Menu.Trigger>
+          <Menu.Positioner>
+            <Menu.Content>
+              <Menu.Item value="copy">Copy</Menu.Item>
+              <Menu.Item value="paste">Paste</Menu.Item>
+            </Menu.Content>
+          </Menu.Positioner>
+        </Menu.Root>
+        <Select.Root collection={FRUITS}>
+          <Select.Control>
+            <Select.Trigger aria-label="Fruit">
+              <Select.ValueText placeholder="Pick a fruit" />
+            </Select.Trigger>
+          </Select.Control>
+          <Select.Positioner>
+            <Select.Content>
+              <For each={FRUITS.items}>
+                {(fruit) => (
+                  <Select.Item item={fruit}>
+                    <Select.ItemText>{fruit}</Select.ItemText>
+                  </Select.Item>
+                )}
+              </For>
+            </Select.Content>
+          </Select.Positioner>
+        </Select.Root>
+        <Tabs.Root defaultValue="one">
+          <Tabs.List>
+            <Tabs.Trigger value="one">One</Tabs.Trigger>
+            <Tabs.Trigger value="two">Two</Tabs.Trigger>
+            <Tabs.Trigger value="three">Three</Tabs.Trigger>
+          </Tabs.List>
+        </Tabs.Root>
+        <NumberInput aria-label="Retries" value={retries()} onValueChange={setRetries} onValueCommit={setCommitted} />
+        <button type="button">After retries</button>
+        <p>{committed() === undefined ? 'Nothing committed' : `Committed ${committed()}`}</p>
+        <div role="group" aria-label="Autosave row" class="p-2 w-fit">
+          <Switch.Root>
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+            <Switch.Label>Autosave</Switch.Label>
+            <Switch.HiddenInput />
+          </Switch.Root>
+        </div>
+        <div role="group" aria-label="Hints row" class="p-2 w-fit">
+          <Checkbox label="Show hints" />
+        </div>
+        <HoverCard trigger="Usage" label="Usage">
+          <p>Usage breakdown</p>
+        </HoverCard>
+        <ToastGroup toaster={toaster}>
+          {(toast) => (
+            <Toast.Root>
+              <Toast.Title>{toast().title}</Toast.Title>
+              <Toast.Context>{(api) => <p>{api().paused ? 'Countdown paused' : 'Counting down'}</p>}</Toast.Context>
+              <Toast.CloseTrigger aria-label="Dismiss notification">Close</Toast.CloseTrigger>
+            </Toast.Root>
+          )}
+        </ToastGroup>
+      </EnvironmentProvider>
+    ))
+    return {shadow, toaster}
+  }
+
+  async function expectShadowFocus(shadow: ShadowRoot, target: Locator): Promise<void> {
+    await expect.element(page.elementLocator(shadow.host)).toHaveFocus()
+    await expect.element(target).toHaveVisibleFocusInItsRoot()
+  }
+
+  test('reaches every control from another control in the same root with the keyboard alone', async () => {
+    const {shadow, toaster} = mount()
+    const start = page.getByRole('textbox', {name: 'Start here'})
+    await userEvent.click(start)
+    await expectShadowFocus(shadow, start)
+
+    const menuTrigger = page.getByRole('button', {name: 'Actions'})
+    await userEvent.tab()
+    await expectShadowFocus(shadow, menuTrigger)
+    await userEvent.keyboard('{Enter}')
+    const menu = page.getByRole('menu', {name: 'Actions'})
+    await expect.element(menu).toBeVisible()
+    await expect.element(menu).toHaveVisibleFocusInItsRoot()
+    await expect
+      .element(menu)
+      .toHaveAttribute('aria-activedescendant', page.getByRole('menuitem', {name: 'Copy'}).element().id)
+    await userEvent.keyboard('{ArrowDown}')
+    await expect
+      .element(menu)
+      .toHaveAttribute('aria-activedescendant', page.getByRole('menuitem', {name: 'Paste'}).element().id)
+    await userEvent.keyboard('{Escape}')
+    await expect.element(menu).not.toBeInTheDocument()
+    await expectShadowFocus(shadow, menuTrigger)
+
+    const selectTrigger = page.getByRole('combobox', {name: 'Fruit'})
+    await userEvent.tab()
+    await expectShadowFocus(shadow, selectTrigger)
+    await userEvent.keyboard('{ArrowDown}')
+    const fruits = page.getByRole('listbox')
+    await expect.element(fruits).toBeVisible()
+    await expect.element(fruits).toHaveVisibleFocusInItsRoot()
+    await expect
+      .element(fruits)
+      .toHaveAttribute('aria-activedescendant', page.getByRole('option', {name: 'Apple'}).element().id)
+    await userEvent.keyboard('{ArrowDown}')
+    await expect
+      .element(fruits)
+      .toHaveAttribute('aria-activedescendant', page.getByRole('option', {name: 'Banana'}).element().id)
+    await userEvent.keyboard('{Escape}')
+    await expect.element(fruits).not.toBeInTheDocument()
+    await expectShadowFocus(shadow, selectTrigger)
+
+    await userEvent.tab()
+    await expectShadowFocus(shadow, page.getByRole('tab', {name: 'One'}))
+    await userEvent.keyboard('{ArrowRight}')
+    await expectShadowFocus(shadow, page.getByRole('tab', {name: 'Two'}))
+    await userEvent.keyboard('{End}')
+    await expectShadowFocus(shadow, page.getByRole('tab', {name: 'Three'}))
+    await userEvent.keyboard('{Home}')
+    await expectShadowFocus(shadow, page.getByRole('tab', {name: 'One'}))
+
+    const retries = page.getByRole('spinbutton', {name: 'Retries'})
+    await userEvent.tab()
+    await expectShadowFocus(shadow, retries)
+    await userEvent.keyboard('7')
+    await expect.element(retries).toHaveValue('7')
+    await userEvent.tab()
+    await expectShadowFocus(shadow, page.getByRole('button', {name: 'After retries'}))
+    await expect.element(page.getByText('Committed 7')).toBeVisible()
+
+    const switchRow = page.getByRole('group', {name: 'Autosave row'})
+    const switchResting = await switchRow.screenshot({save: false})
+    expect(await switchRow.screenshot({save: false})).toBe(switchResting)
+    await userEvent.tab()
+    await expectShadowFocus(shadow, page.getByRole('switch', {name: 'Autosave'}))
+    expect(await switchRow.screenshot({save: false})).not.toBe(switchResting)
+
+    const hintsRow = page.getByRole('group', {name: 'Hints row'})
+    const hintsResting = await hintsRow.screenshot({save: false})
+    expect(await hintsRow.screenshot({save: false})).toBe(hintsResting)
+    await userEvent.tab()
+    await expectShadowFocus(shadow, page.getByRole('checkbox', {name: 'Show hints'}))
+    expect(await hintsRow.screenshot({save: false})).not.toBe(hintsResting)
+
+    await userEvent.tab()
+    await expectShadowFocus(shadow, page.getByRole('button', {name: 'Usage'}))
+    await expect.element(page.getByText('Usage breakdown')).toBeVisible()
+
+    toaster.create({title: 'Settings saved', duration: 60_000})
+    await expect.element(page.getByText('Settings saved')).toBeVisible()
+    await expect.element(page.getByText('Counting down')).toBeVisible()
+    await userEvent.tab()
+    await expectShadowFocus(shadow, page.getByRole('status', {name: 'Settings saved'}))
+    await expect.element(page.getByText('Countdown paused')).toBeVisible()
+    const dismiss = page.getByRole('button', {name: 'Dismiss notification'})
+    await userEvent.tab()
+    await expectShadowFocus(shadow, dismiss)
+    await expect.element(page.getByText('Countdown paused')).toBeVisible()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByText('Settings saved')).not.toBeInTheDocument()
   })
 })

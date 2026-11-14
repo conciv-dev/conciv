@@ -1,5 +1,6 @@
 import {splitProps, type ComponentProps} from 'solid-js'
 import {Slider as Ark} from '@ark-ui/solid/slider'
+import {nativeFocusPart} from './native-focus.js'
 
 const ROOT = 'flex flex-col gap-1.5 w-full data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed'
 const CONTROL = 'relative flex items-center h-4.5 cursor-pointer data-[disabled]:cursor-not-allowed'
@@ -8,6 +9,8 @@ const RANGE = 'absolute h-full bg-chat-accent'
 const THUMB =
   'size-3.5 rounded-chat-pill bg-chat-text [border:1px_solid_var(--chat-line)] trans-btn data-[dragging]:bg-chat-accent data-[focus-visible]:[outline:0.125rem_solid_var(--chat-accent)] data-[focus-visible]:[outline-offset:0.125rem]'
 const LABEL = 'text-[0.8125rem] font-chat text-chat-text-2'
+
+const NativeThumb = nativeFocusPart(Ark.Thumb, 'div')
 
 function Root(props: ComponentProps<typeof Ark.Root>) {
   const [local, rest] = splitProps(props, ['class'])
@@ -31,7 +34,7 @@ function Range(props: ComponentProps<typeof Ark.Range>) {
 
 function Thumb(props: ComponentProps<typeof Ark.Thumb>) {
   const [local, rest] = splitProps(props, ['class'])
-  return <Ark.Thumb {...rest} class={`${THUMB}  ${local.class ?? ''}`} />
+  return <NativeThumb {...rest} class={`${THUMB}  ${local.class ?? ''}`} />
 }
 
 function Label(props: ComponentProps<typeof Ark.Label>) {

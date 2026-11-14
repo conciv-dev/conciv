@@ -847,6 +847,7 @@ describe('host', () => {
         'stores: { count: { scope: "global", schema: {"~standard": {validate: 1}} } }',
         'schema',
       ],
+      ['a non-function encode', 'stores:{n:{scope:"global",schema:{"~standard":{validate:Map}},encode:1}}', 'encode'],
       ['a setup that is not a function', 'setup: true', 'setup'],
     ])('reject a plugin with %s', (_, field, named) => {
       const evaluated = () => evaluate(`exports.default = { ${field} }`)

@@ -1,8 +1,14 @@
 import {For, Show, splitProps, type JSX} from 'solid-js'
 import {useFieldContext} from '@ark-ui/solid/field'
 import {ColorPicker as Ark, parseColor, useColorPicker} from '@ark-ui/solid/color-picker'
+import {nativeFocusPart} from './native-focus.js'
 import Check from 'lucide-solid/icons/check'
 import {INPUT_FRAME} from './input-frame.js'
+
+const Trigger = nativeFocusPart(Ark.Trigger, 'button')
+const AreaThumb = nativeFocusPart(Ark.AreaThumb, 'div')
+const ChannelSliderThumb = nativeFocusPart(Ark.ChannelSliderThumb, 'div')
+const ChannelInput = nativeFocusPart(Ark.ChannelInput, 'input')
 
 const ROOT = 'flex flex-wrap items-center gap-x-3 gap-y-2 min-w-0'
 const CONTROL = 'flex items-center gap-2'
@@ -75,11 +81,11 @@ export function ColorPicker(props: ColorPickerProps): JSX.Element {
   return (
     <Ark.RootProvider value={picker} class={`${ROOT}  ${local.class ?? ''}`}>
       <Ark.Control class={CONTROL}>
-        <Ark.Trigger class={TRIGGER}>
+        <Trigger class={TRIGGER}>
           <Ark.ValueSwatch class={VALUE_SWATCH} />
-        </Ark.Trigger>
+        </Trigger>
         <div class={HEX_FRAME}>
-          <Ark.ChannelInput
+          <ChannelInput
             channel="hex"
             class={HEX_INPUT}
             aria-labelledby={field?.().ids.label}
@@ -107,11 +113,11 @@ export function ColorPicker(props: ColorPickerProps): JSX.Element {
         <Ark.Content class={CONTENT}>
           <Ark.Area class={AREA}>
             <Ark.AreaBackground class="size-full" />
-            <Ark.AreaThumb class={THUMB} />
+            <AreaThumb class={THUMB} />
           </Ark.Area>
           <Ark.ChannelSlider channel="hue" class={SLIDER}>
             <Ark.ChannelSliderTrack class={SLIDER_TRACK} />
-            <Ark.ChannelSliderThumb class={SLIDER_THUMB} />
+            <ChannelSliderThumb class={SLIDER_THUMB} />
           </Ark.ChannelSlider>
         </Ark.Content>
       </Ark.Positioner>

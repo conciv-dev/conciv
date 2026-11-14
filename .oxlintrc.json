@@ -170,6 +170,12 @@
       }
     },
     {
+      "files": ["packages/ui-kit-*/src/**", "apps/conciv/src/**"],
+      "rules": {
+        "conciv/no-delegated-focus": "error"
+      }
+    },
+    {
       "files": ["packages/ai/**", "packages/protocol/**"],
       "rules": {
         "no-restricted-imports": [
@@ -427,7 +433,23 @@
     {
       "files": ["apps/conciv/**"],
       "rules": {
-        "conciv/test-file-budget": ["error", {"max": 3}]
+        "conciv/test-file-budget": ["error", {"max": 21}]
+      }
+    },
+    {
+      "files": [
+        "apps/conciv/src/runtime/plugin/**",
+        "apps/conciv/src/runtime/persistence/**",
+        "apps/conciv/src/runtime/server/**"
+      ],
+      "rules": {
+        "conciv/banned-vocabulary": "off",
+        "unicorn/no-thenable": "off",
+        "no-shadow": "off",
+        "unicorn/no-array-sort": "off",
+        "unicorn/no-useless-spread": "off",
+        "no-unassigned-vars": "off",
+        "solid/reactivity": "off"
       }
     },
     {

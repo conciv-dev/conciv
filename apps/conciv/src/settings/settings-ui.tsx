@@ -1,4 +1,4 @@
-import {Match, Show, Switch, createUniqueId, splitProps, useContext, type JSX} from 'solid-js'
+import {Match, Show, Switch, children, createUniqueId, splitProps, useContext, type JSX} from 'solid-js'
 import {Button, FieldPrimitive as Field, Loader} from '@conciv/ui-kit-system'
 import Lock from 'lucide-solid/icons/lock'
 import {useFieldContext} from './form-context.js'
@@ -31,14 +31,41 @@ const SECTION_TEXT = 'flex flex-1 min-w-0 flex-col gap-0.5'
 const SECTION_TITLE =
   'flex items-center gap-1.75 m-0 font-chat-display text-[0.84375rem] font-semibold text-chat-text-hi'
 const SECTION_DESCRIPTION = 'm-0 text-[0.71875rem] leading-[1.35] text-chat-text-2'
+const HEADER = 'flex h-13 shrink-0 items-center gap-1.5 px-2 [border-block-end:1px_solid_var(--chat-line-soft)]'
+const HEADER_TEXT = 'flex flex-1 min-w-0 flex-col gap-0.5'
+const HEADER_TITLE = 'm-0 font-chat-display text-[0.9375rem] font-semibold text-chat-text-hi leading-[1.25]'
+
+type SettingsHeaderProps = {
+  title: JSX.Element
+  description?: JSX.Element
+  leading?: JSX.Element
+  actions?: JSX.Element
+}
+
+export function SettingsHeader(props: SettingsHeaderProps): JSX.Element {
+  const description = children(() => props.description)
+  return (
+    <header class={HEADER}>
+      {props.leading}
+      <div class={HEADER_TEXT}>
+        <h2 class={HEADER_TITLE}>{props.title}</h2>
+        <Show when={description()}>
+          <p class={SECTION_DESCRIPTION}>{description()}</p>
+        </Show>
+      </div>
+      {props.actions}
+    </header>
+  )
+}
 
 type GroupProps = {
-  title: JSX.Element
+  title?: JSX.Element
   description?: string
   action?: JSX.Element
   danger?: boolean
   keys?: readonly string[]
   children: JSX.Element
+  footer?: JSX.Element
 }
 
 export function Group(props: GroupProps): JSX.Element {
@@ -46,26 +73,32 @@ export function Group(props: GroupProps): JSX.Element {
   const readNote = useContext(SettingNote)
   const note = () => props.keys?.map((key) => readNote(key)).find((text) => text !== undefined)
   return (
-    <section class={`${SECTION} ${props.danger ? SECTION_DANGER : ''}`} aria-labelledby={titleId}>
-      <div class={SECTION_HEAD}>
-        <div class={SECTION_TEXT}>
-          <span class={HEADLINE}>
-            <h3 id={titleId} class={`${SECTION_TITLE} ${props.danger ? '!text-chat-danger' : ''}`}>
-              {props.title}
-            </h3>
-            <Show when={note()}>
-              <span class={NOTE} title={note()}>
-                {note()}
-              </span>
+    <section
+      class={`${SECTION} ${props.danger ? SECTION_DANGER : ''}`}
+      aria-labelledby={props.title === undefined ? undefined : titleId}
+    >
+      <Show when={props.title !== undefined}>
+        <div class={SECTION_HEAD}>
+          <div class={SECTION_TEXT}>
+            <span class={HEADLINE}>
+              <h3 id={titleId} class={`${SECTION_TITLE} ${props.danger ? '!text-chat-danger' : ''}`}>
+                {props.title}
+              </h3>
+              <Show when={note()}>
+                <span class={NOTE} title={note()}>
+                  {note()}
+                </span>
+              </Show>
+            </span>
+            <Show when={props.description}>
+              <p class={SECTION_DESCRIPTION}>{props.description}</p>
             </Show>
-          </span>
-          <Show when={props.description}>
-            <p class={SECTION_DESCRIPTION}>{props.description}</p>
-          </Show>
+          </div>
+          {props.action}
         </div>
-        {props.action}
-      </div>
+      </Show>
       {props.children}
+      {props.footer}
     </section>
   )
 }
@@ -127,15 +160,16 @@ export function SettingRow(props: SettingRowProps): JSX.Element {
   )
 }
 
-type ActionRowProps = {label: JSX.Element; hint?: string; children: JSX.Element}
+type ActionRowProps = {label: JSX.Element; hint?: JSX.Element; id?: string; children: JSX.Element}
 
 export function ActionRow(props: ActionRowProps): JSX.Element {
+  const hint = children(() => props.hint)
   return (
-    <div class={ROW}>
+    <div class={ROW} data-action={props.id}>
       <span class={TEXT}>
         <span class={LABEL}>{props.label}</span>
-        <Show when={props.hint}>
-          <span class={HINT}>{props.hint}</span>
+        <Show when={hint()}>
+          <span class={HINT}>{hint()}</span>
         </Show>
       </span>
       {props.children}
@@ -154,7 +188,7 @@ export function SettingsLoad(props: SettingsLoadProps): JSX.Element {
       <Match when={props.status === 'error'}>
         <div class={FAILED} role="alert">
           <p class="m-0">Your conciv settings could not be loaded.</p>
-          <Button variant="outline" size="sm" class="min-h-7" onClick={() => props.retry()}>
+          <Button variant="outline" size="sm" onClick={() => props.retry()}>
             Retry
           </Button>
         </div>

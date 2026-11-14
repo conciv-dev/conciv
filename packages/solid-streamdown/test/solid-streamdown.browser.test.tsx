@@ -1,7 +1,7 @@
 import {describe, it, expect} from 'vitest'
-import {createSignal} from 'solid-js'
+import {createSignal, For, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
-import {page} from 'vitest/browser'
+import {page, userEvent} from 'vitest/browser'
 import {Streamdown, type HastElement} from '../src/streamdown.js'
 import '../src/styles.css'
 
@@ -179,6 +179,116 @@ describe('streamed text stability', () => {
       const currentNodes = new Set(renderedNodes(paragraph))
       expect(settledNodes.filter((node) => !currentNodes.has(node))).toEqual([])
       expect(removed.filter((node) => settledNodes.includes(node))).toEqual([])
+    })
+  })
+})
+
+describe('local file links', () => {
+  const reply =
+    'Open [the entry](src/app.ts:42), read `src/existing.ts` and `src/missing.ts`, then `src/late.ts` and `src/broken.ts`, or see [the docs](https://example.com/docs).'
+
+  function OpenedFiles(props: {paths: string[]}): JSX.Element {
+    return (
+      <ul aria-label="Opened files">
+        <For each={props.paths}>{(path) => <li>{path}</li>}</For>
+      </ul>
+    )
+  }
+
+  describe('Streamdown local file links', () => {
+    it('hands links and existing paths to the host, leaves missing paths and web links alone', async () => {
+      const [opened, setOpened] = createSignal<string[]>([])
+      const asked: string[] = []
+      const late = Promise.withResolvers<boolean>()
+      const before = window.location.href
+      render(() => (
+        <>
+          <section aria-label="With host">
+            <Streamdown
+              openLocalFile={(path) => setOpened((paths) => [...paths, path])}
+              localFileExists={(path) => {
+                asked.push(path)
+                if (path === 'src/late.ts') return late.promise
+                if (path === 'src/broken.ts') return Promise.reject(new Error('check failed'))
+                return path === 'src/existing.ts'
+              }}
+            >
+              {reply}
+            </Streamdown>
+            <OpenedFiles paths={opened()} />
+          </section>
+          <section aria-label="Without host">
+            <Streamdown>{reply}</Streamdown>
+          </section>
+        </>
+      ))
+      const host = page.getByRole('region', {name: 'With host'})
+      const plain = page.getByRole('region', {name: 'Without host'})
+      const openedList = host.getByRole('list', {name: 'Opened files'})
+
+      const entry = host.getByRole('link', {name: 'the entry'})
+      await entry.click()
+      await expect.element(openedList).toHaveTextContent('src/app.ts#L42')
+      await expect.element(entry).toHaveFocus()
+      expect(window.location.href).toBe(before)
+
+      await userEvent.keyboard('{Enter}')
+      await expect.element(openedList.getByRole('listitem').nth(1)).toHaveTextContent('src/app.ts#L42')
+
+      await userEvent.keyboard('{Tab}')
+      const existing = host.getByRole('link', {name: 'src/existing.ts'})
+      await expect.element(existing).toHaveFocus()
+      await userEvent.keyboard('{Enter}')
+      await expect.element(openedList.getByRole('listitem').nth(2)).toHaveTextContent('src/existing.ts')
+      await userEvent.keyboard(' ')
+      await expect.element(openedList.getByRole('listitem').nth(3)).toHaveTextContent('src/existing.ts')
+      await userEvent.keyboard('{Tab}')
+      await expect.element(host.getByRole('link', {name: 'the docs'})).toHaveFocus()
+
+      await host.getByText('src/missing.ts', {exact: true}).click()
+      await host.getByText('src/broken.ts', {exact: true}).click()
+      await existing.click()
+      await expect.element(openedList.getByRole('listitem').nth(4)).toHaveTextContent('src/existing.ts')
+      await expect.element(openedList.getByRole('listitem').nth(5)).not.toBeInTheDocument()
+
+      late.resolve(true)
+      await late.promise
+      await host.getByRole('link', {name: 'src/late.ts'}).click()
+      await expect.element(openedList.getByRole('listitem').nth(5)).toHaveTextContent('src/late.ts')
+      await expect.element(host.getByRole('link', {name: 'src/broken.ts'})).not.toBeInTheDocument()
+      expect(asked).toEqual(['src/existing.ts', 'src/missing.ts', 'src/late.ts', 'src/broken.ts'])
+
+      await expect.element(host.getByRole('link', {name: 'the docs'})).toBeVisible()
+      await expect.element(plain.getByRole('link', {name: 'the docs'})).toBeVisible()
+      await expect.element(plain.getByText('the entry [blocked]')).toBeVisible()
+      await expect.element(plain.getByRole('link', {name: 'the entry'})).not.toBeInTheDocument()
+      expect(window.location.href).toBe(before)
+    })
+
+    it('asks about the paths of the block still streaming only once streaming ends, animated or not', async () => {
+      const [streaming, setStreaming] = createSignal(true)
+      const asked: string[] = []
+      render(() => (
+        <Streamdown
+          animated={false}
+          isAnimating={streaming()}
+          openLocalFile={() => undefined}
+          localFileExists={(path) => {
+            asked.push(path)
+            return true
+          }}
+        >
+          {'Read `src/first.ts` first.\n\nThen `src/last.ts` next.'}
+        </Streamdown>
+      ))
+
+      await expect.element(page.getByRole('link', {name: 'src/first.ts'})).toBeVisible()
+      expect(asked).toEqual(['src/first.ts'])
+
+      setStreaming(false)
+
+      await expect.element(page.getByRole('link', {name: 'src/last.ts'})).toBeVisible()
+      expect(asked).toEqual(['src/first.ts', 'src/last.ts'])
     })
   })
 })

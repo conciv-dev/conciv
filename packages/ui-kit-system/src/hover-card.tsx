@@ -1,8 +1,11 @@
 import type {JSX} from 'solid-js'
 import {HoverCard as Ark} from '@ark-ui/solid/hover-card'
+import {nativeFocusPart} from './native-focus.js'
 
 const CONTENT =
   'hidden data-[state=open]:block data-[state=open]:anim-combo z-[2147483647] w-60 rounded-chat-surface-md overflow-hidden bg-chat-panel text-chat-text border border-chat-line shadow-chat-lg text-[0.75rem] font-chat focus-visible:outline-none'
+
+const Trigger = nativeFocusPart(Ark.Trigger, 'button')
 
 export function HoverCard(props: {
   trigger: JSX.Element
@@ -20,9 +23,9 @@ export function HoverCard(props: {
       closeDelay={props.closeDelay ?? 120}
       positioning={{strategy: 'fixed', placement: 'bottom-start', gutter: props.sideOffset ?? 6}}
     >
-      <Ark.Trigger class={props.triggerClass} aria-label={props.label}>
+      <Trigger class={props.triggerClass} aria-label={props.label}>
         {props.trigger}
-      </Ark.Trigger>
+      </Trigger>
       <Ark.Positioner>
         <Ark.Content class={`${CONTENT}  ${props.class ?? ''}`}>{props.children}</Ark.Content>
       </Ark.Positioner>

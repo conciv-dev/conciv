@@ -298,6 +298,7 @@ export interface Layout {
 
 export type StorageScope =
   | 'global'
+  | 'project'
   | {
       readonly server: string
       readonly directory?: string
@@ -311,6 +312,7 @@ export interface StoreOptions<S extends StandardSchemaV1<unknown, object>> {
   readonly initial: StoreType<S>
   readonly scope?: StorageScope
   readonly from?: StoreFrom | readonly StoreFrom[]
+  encode?(value: StandardSchemaV1.InferOutput<S>): StandardSchemaV1.InferInput<S>
 }
 
 export interface Storage {

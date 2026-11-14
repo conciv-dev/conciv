@@ -61,7 +61,7 @@ export function TerminalActions(): JSX.Element {
       <span class="mx-0.5 bg-chat-line-2 shrink-0 h-4 w-px" aria-hidden="true" />
       <Switch>
         <Match when={models.isLoading}>
-          <Button variant="outline" size="sm" class="shrink-0 h-7" disabled aria-label="Loading models">
+          <Button variant="outline" size="sm" class="shrink-0" disabled aria-label="Loading models">
             Models…
           </Button>
         </Match>
@@ -69,7 +69,7 @@ export function TerminalActions(): JSX.Element {
           <Button
             variant="outline"
             size="sm"
-            class="text-chat-danger shrink-0 gap-1.5 h-7"
+            class="text-chat-danger shrink-0 gap-1.5"
             onClick={() => void models.refetch()}
           >
             <RotateCw class="size-3.5 block" aria-hidden="true" />
@@ -77,7 +77,7 @@ export function TerminalActions(): JSX.Element {
           </Button>
         </Match>
         <Match when={options().length === 0}>
-          <Button variant="outline" size="sm" class="shrink-0 h-7" disabled>
+          <Button variant="outline" size="sm" class="shrink-0" disabled>
             No models
           </Button>
         </Match>

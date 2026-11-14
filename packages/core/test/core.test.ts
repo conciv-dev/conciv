@@ -894,9 +894,10 @@ describe('editor symbolicate', () => {
 })
 
 describe('engine boot writes .conciv/mcp-endpoint.json', () => {
-  it('start records the MCP endpoint a headless stdio bridge reads, and the endpoint answers', async () => {
+  it('start records the MCP endpoint a headless stdio bridge reads, the endpoint answers, and repeat opens launch the editor once', async () => {
     const root = tempDir()
-    const engine = await bootEngine(root)
+    const launched: unknown[] = []
+    const engine = await bootEngine(root, {launchEditor: (...call) => launched.push(call)})
     try {
       const file = join(statePaths(root).dir, 'mcp-endpoint.json')
       const {mcpUrl} = z.object({mcpUrl: z.string()}).parse(JSON.parse(readFileSync(file, 'utf8')))
@@ -910,6 +911,20 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
       })
       expect(response.status).toBe(200)
       await response.body?.cancel()
+      const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+      const {sessionId} = await makeRpcClient(base).sessions.create(undefined)
+      const rpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+      const open = (column?: number) => rpc.editor.open({file: 'src/a.ts', line: 3, column})
+      await open(9)
+      await open(9)
+      expect(launched).toEqual([['src/a.ts', 3, 9]])
+      await open(4)
+      await open()
+      expect(launched).toEqual([
+        ['src/a.ts', 3, 9],
+        ['src/a.ts', 3, 4],
+        ['src/a.ts', 3, undefined],
+      ])
     } finally {
       await engine.stop()
     }
@@ -2205,7 +2220,7 @@ describe('settings storage', () => {
     }
   }, 30_000)
 
-  test('saved settings survive a restart, a corrupt file starts empty, and a namespace outside the folder is refused', async () => {
+  test('saved settings survive a restart, a corrupt file starts empty, and a namespace outside the folder or a key over 512 characters is refused', async () => {
     const [root, home] = [tempDir(), tempDir()]
     const folder = join(root, '.conciv', 'settings')
     mkdirSync(folder, {recursive: true})
@@ -2233,6 +2248,9 @@ describe('settings storage', () => {
       expect(
         await engine.rpc.settings.set({scope: 'project', namespace: 'release..prefs', key: 'on', value: true}),
       ).toMatchObject({value: {on: true}})
+      const longest = {...broken, key: 'k'.repeat(512), value: 1}
+      expect(await engine.rpc.settings.set(longest)).toMatchObject({value: {[longest.key]: 1}})
+      await expect(engine.rpc.settings.set({...longest, key: 'k'.repeat(513)})).rejects.toMatchObject(refusal(/512/))
       await expect(engine.rpc.settings.all({scope: 'project', namespace: 'acme/editor'})).rejects.toMatchObject(
         refusal(/settings folder/),
       )

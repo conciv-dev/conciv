@@ -1744,10 +1744,20 @@ describe('rpc wire', () => {
     })
 
     describe('on one app with an editor opener', () => {
-      const opened: Array<{file: string; line?: number}> = []
+      const opened: Array<{file: string; line?: number; column?: number}> = []
       const harness = createTestHarness(requireClaude())
       const kit = sharedKit(() =>
-        bootKit({openInEditor: (file, line) => opened.push({file, ...(line === undefined ? {} : {line})})}, harness),
+        bootKit(
+          {
+            openInEditor: (file, line, column) =>
+              opened.push({
+                file,
+                ...(line === undefined ? {} : {line}),
+                ...(column === undefined ? {} : {column}),
+              }),
+          },
+          harness,
+        ),
       )
 
       beforeEach(() => {
@@ -1771,6 +1781,12 @@ describe('rpc wire', () => {
           session,
         )
         expect(viaFrames).toBe('no-source')
+        const rpc = makeRpcClient(kit().base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+        opened.splice(0)
+        expect(await rpc.editor.open({file: 'src/b.ts', line: 3, column: 9})).toEqual({ok: true})
+        expect(opened).toEqual([{file: 'src/b.ts', line: 3, column: 9}])
+        await rpc.editor.open({file: 'src/c.ts', column: 4})
+        expect(opened).toEqual([{file: 'src/b.ts', line: 3, column: 9}, {file: 'src/c.ts'}])
       })
 
       it('a scripted code-mode call executes the real open capability inside the turn', async () => {

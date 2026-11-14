@@ -1,5 +1,6 @@
 import {splitProps, type ComponentProps} from 'solid-js'
 import {SegmentGroup as Ark} from '@ark-ui/solid/segment-group'
+import {nativeFocusPart} from './native-focus.js'
 
 const ROOT =
   'relative inline-flex items-center gap-0.5 p-0.5 rounded-chat-surface-sm bg-chat-fill-soft [border:1px_solid_var(--chat-line)] data-[orientation=vertical]:flex-col data-[orientation=vertical]:items-stretch data-[disabled]:opacity-50'
@@ -35,4 +36,11 @@ function Label(props: ComponentProps<typeof Ark.Label>) {
   return <Ark.Label {...rest} class={`${LABEL}  ${local.class ?? ''}`} />
 }
 
-export const SegmentGroup = Object.assign({}, Ark, {Root, Indicator, Item, ItemText, Label})
+export const SegmentGroup = Object.assign({}, Ark, {
+  Root,
+  Indicator,
+  Item,
+  ItemText,
+  Label,
+  ItemHiddenInput: nativeFocusPart(Ark.ItemHiddenInput, 'input'),
+})

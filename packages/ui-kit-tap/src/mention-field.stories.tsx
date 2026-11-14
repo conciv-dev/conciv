@@ -139,6 +139,7 @@ export const MentionFlow: Story = {
     await userEvent.click(option)
 
     await waitFor(() => expect(canvas.getByText('@Opus')).toBeVisible())
+    await waitFor(() => expect(editor).toHaveFocus())
     await userEvent.keyboard('{Enter}')
 
     await waitFor(() => {

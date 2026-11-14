@@ -1,5 +1,6 @@
 import {z} from 'zod'
 import type {PluginInfo} from '../client/promise/generated/types.js'
+import type {PluginOptions} from '../options.js'
 import type {Cleanup} from './core.js'
 import type {Declarations, Stores} from './declarations.js'
 
@@ -217,7 +218,14 @@ type BundlePlugin = {
 
 const BundleDefinition = z.object({
   stores: z
-    .record(z.string(), z.object({scope: z.enum(['global', 'project', 'session']), schema: z.custom(isStandardSchema)}))
+    .record(
+      z.string(),
+      z.object({
+        scope: z.enum(['global', 'project', 'session']),
+        schema: z.custom(isStandardSchema),
+        encode: z.custom((encode) => typeof encode === 'function').optional(),
+      }),
+    )
     .optional(),
   setup: z.custom((value) => typeof value === 'function').optional(),
 })
@@ -274,4 +282,16 @@ export function shipsPluginExperimental(plugin: PluginInfo): plugin is PluginInf
     plugin.state.status === 'active' &&
     !!plugin.features.experimental
   )
+}
+
+export interface BridgePluginExperimental {
+  readonly id: string
+  readonly revision: string
+  readonly code: string
+  readonly options: PluginOptions
+}
+
+export interface BridgePluginExperimentals {
+  readonly plugins: readonly BridgePluginExperimental[]
+  readonly reserved: readonly string[]
 }
