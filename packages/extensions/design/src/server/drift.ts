@@ -18,11 +18,11 @@ export function driftRows(input: {root: DesignNode; reads: ReturnType<typeof rea
     by: Math.round(entry.top - origin - (entry.node.box.y - root.box.y)),
   }))
   const worst = maxBy(drifts, (entry) => Math.abs(entry.by))
-  if (worst === undefined || Math.abs(worst.by) < DRIFT_PX) return []
+  if (worst === undefined || Math.abs(worst.by) < SHARED_PX) return []
   const shifted = drifts.filter(
-    (entry) => Math.abs(entry.by) >= DRIFT_PX && Math.sign(entry.by) === Math.sign(worst.by),
+    (entry) => Math.abs(entry.by) >= SHARED_PX && Math.sign(entry.by) === Math.sign(worst.by),
   )
-  if (Math.abs(worst.by) === DRIFT_PX && shifted.length < drifts.length * DRIFT_SHARE) return []
+  if (Math.abs(worst.by) <= DRIFT_PX && shifted.length < drifts.length * DRIFT_SHARE) return []
   const byNode = new Map(drifts.map((entry) => [entry.node.id, entry]))
   const siblings = groupBy(drifts, (entry) => entry.parent?.id ?? '')
   const steps = Object.values(siblings).flatMap((group) => {
@@ -60,6 +60,8 @@ export function driftRows(input: {root: DesignNode; reads: ReturnType<typeof rea
 const DRIFT_PX = designConfig.tolerances.geometryPx
 
 const DRIFT_SHARE = designConfig.tolerances.driftShare
+
+const SHARED_PX = 1
 
 const NAMED = 6
 

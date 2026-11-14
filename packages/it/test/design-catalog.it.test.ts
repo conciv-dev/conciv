@@ -324,7 +324,7 @@ describe('a Figma wrapper that draws nothing', () => {
 })
 
 describe('a page that drifts from the design', () => {
-  it('is told where the drift starts when its 1px lines take space, from 3 px, lines too thin to draw pair with no far line, a line pairs with no tall box, and those lines match their crops', async () => {
+  it('is told where the drift starts when its 1px lines take space, from 3 px or from 1 px on a quarter of its boxes, lines too thin to draw pair with no far line, a line pairs with no tall box, and those lines match their crops', async () => {
     await kit.goto('process-column-flat')
     const got = await call('design_get', await sliced('process-column', '100-1535'))
     const rows = async () => roundOf(await call('design_check', {})).rows
@@ -364,7 +364,7 @@ describe('a page that drifts from the design', () => {
       '/design/100-1615.png',
       [
         'the page drifts from the design: Card [100:1675] sits 5 px lower on the page than in the frame',
-        'the page drifts from the design: Line [100:1615] sits 2 px higher on the page than in the frame',
+        'the page drifts from the design: Line [100:1615] sits 1 px higher on the page than in the frame',
       ],
       ['the page drifts from the design: Button [100:1466] sits 3 px lower on the page than in the frame'],
     ])

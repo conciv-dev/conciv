@@ -364,7 +364,7 @@ export function App() {
               />
             )}
             <div
-              style={{height: requested === 'process-column-high' && index === 0 ? height - 2 : height, minHeight: requested === 'process-column-screen' && index === 0 ? '12vh' : 0, boxSizing: 'border-box', padding: '40px 24px', boxShadow: requested === 'process-column-ruled' ? 'inset 0 1px 0 #262626' : 'none'}}
+              style={{height: requested === 'process-column-high' && index === 0 ? height - 1 : height, minHeight: requested === 'process-column-screen' && index === 0 ? '12vh' : 0, boxSizing: 'border-box', padding: '40px 24px', boxShadow: requested === 'process-column-ruled' ? 'inset 0 1px 0 #262626' : 'none'}}
               data-conciv-key="pCcRdA"
             >
               <span style={{fontSize: 56, lineHeight: '56px', fontWeight: 600, color: '#d8ff99'}} data-conciv-key="pCnMbA">
