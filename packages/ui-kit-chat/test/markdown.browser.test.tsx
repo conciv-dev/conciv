@@ -1,11 +1,11 @@
 import 'virtual:uno.css'
 import '@conciv/ui-kit-system/tokens.css'
 import '@conciv/ui-kit-chat/theme/tokens.css'
-import {createSignal} from 'solid-js'
+import {createSignal, For, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
 import {describe, expect, it} from 'vitest'
-import {page} from 'vitest/browser'
-import {Markdown} from '../src/styled/markdown.js'
+import {page, userEvent} from 'vitest/browser'
+import {Markdown, MarkdownProvider} from '../src/styled/markdown.js'
 import {mountView} from './helpers.js'
 import {CodeBlock} from '../src/tools/styled/code-block.js'
 import {ResultImage} from '../src/tools/styled/result-image.js'
@@ -108,6 +108,87 @@ describe('markdown mermaid diagram', () => {
 
     await expect.element(page.getByText('Reload page', {exact: true})).toBeVisible()
     await expect.element(page.getByText('E[Broken --> ((', {exact: false})).toBeVisible()
+  })
+})
+
+describe('markdown provider', () => {
+  const REPLY = [
+    'Read `src/existing.ts` and `src/missing.ts`.',
+    '',
+    '```chart',
+    'sales by month',
+    '```',
+    '',
+    '```chart',
+    'declined chart',
+    '```',
+  ].join('\n')
+
+  function OpenedFiles(props: {paths: string[]}): JSX.Element {
+    return (
+      <ul aria-label="Opened files">
+        <For each={props.paths}>{(path) => <li>{path}</li>}</For>
+      </ul>
+    )
+  }
+
+  function chartBlocks(rendered: string[]) {
+    return {
+      current: () => ({render: new Set(['chart']), actions: new Set<string>()}),
+      render: (target: HTMLElement, block: {code: string; language: string}) => {
+        rendered.push(`${block.language}:${block.code}`)
+        if (block.code === 'declined chart') return undefined
+        const figure = document.createElement('figure')
+        figure.setAttribute('aria-label', 'Chart')
+        figure.textContent = `Chart of ${block.code}`
+        target.append(figure)
+        return () => figure.remove()
+      },
+      actions: () => [],
+    }
+  }
+
+  it('hands its file handlers and code block content to the Markdown below, and turns content off below codeBlocks false', async () => {
+    const [opened, setOpened] = createSignal<string[]>([])
+    const rendered: string[] = []
+    mountView(() => (
+      <MarkdownProvider
+        openLocalFile={(path) => setOpened((paths) => [...paths, path])}
+        localFileExists={(path) => path === 'src/existing.ts'}
+        codeBlocks={chartBlocks(rendered)}
+      >
+        <section aria-label="With content">
+          <Markdown content={REPLY} />
+          <OpenedFiles paths={opened()} />
+        </section>
+        <MarkdownProvider codeBlocks={false}>
+          <section aria-label="Without content">
+            <Markdown content={REPLY} />
+          </section>
+        </MarkdownProvider>
+      </MarkdownProvider>
+    ))
+    const content = page.getByRole('region', {name: 'With content'})
+    const plain = page.getByRole('region', {name: 'Without content'})
+
+    await expect.element(content.getByRole('figure', {name: 'Chart'})).toHaveTextContent('Chart of sales by month')
+    await expect.element(content.getByText('declined chart')).toBeVisible()
+    await expect.element(content.getByText('sales by month', {exact: true})).not.toBeInTheDocument()
+
+    const existing = content.getByRole('link', {name: 'src/existing.ts'})
+    await existing.click()
+    await expect.element(content.getByRole('list', {name: 'Opened files'})).toHaveTextContent('src/existing.ts')
+    await expect.element(existing).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    await expect
+      .element(content.getByRole('list', {name: 'Opened files'}).getByRole('listitem').nth(1))
+      .toHaveTextContent('src/existing.ts')
+    await expect.element(content.getByRole('link', {name: 'src/missing.ts'})).not.toBeInTheDocument()
+
+    await expect.element(plain.getByText('sales by month')).toBeVisible()
+    await expect.element(plain.getByRole('figure', {name: 'Chart'})).not.toBeInTheDocument()
+    await expect.element(plain.getByRole('link', {name: 'src/existing.ts'})).not.toBeInTheDocument()
+    expect(rendered).toEqual(['chart:sales by month', 'chart:declined chart'])
   })
 })
 
