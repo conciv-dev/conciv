@@ -1,4 +1,5 @@
 import {z} from 'zod'
+import {fileToDataSource} from '@conciv/ui-kit-chat'
 import type {DraftRow} from '@conciv/contract'
 import type {WebStorage} from '@conciv/storage-history'
 import type {AppData} from '../data/app-data.js'
@@ -70,6 +71,26 @@ export async function appendDraft(appData: AppData, sessionId: string, text: str
   })
 }
 
+async function appendDraftFile(appData: AppData, sessionId: string, file: File): Promise<void> {
+  const source = await fileToDataSource(file)
+  const row = await appData.readDraft(sessionId)
+  const text = row?.text ?? ''
+  const attachment = {
+    id: crypto.randomUUID(),
+    type: file.name,
+    name: file.name,
+    contentType: source.mimeType,
+    data: source.value,
+  }
+  await appData.saveDraft({
+    sessionId,
+    text,
+    selectionStart: row?.selectionStart ?? text.length,
+    selectionEnd: row?.selectionEnd ?? text.length,
+    attachments: [...(row?.attachments ?? []), attachment],
+  })
+}
+
 export function draftCacheSink(appData: AppData, sessionId: string): DraftSink {
   let written = Promise.resolve()
   const keep = (write: () => Promise<void>): void => {
@@ -79,7 +100,7 @@ export function draftCacheSink(appData: AppData, sessionId: string): DraftSink {
   }
   return {
     insert: (text) => keep(() => appendDraft(appData, sessionId, text)),
-    addFile: () => {},
+    addFile: (file) => keep(() => appendDraftFile(appData, sessionId, file)),
   }
 }
 
