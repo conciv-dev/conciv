@@ -5723,6 +5723,76 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
   }, 90_000)
 })
 
+describe('plugin panel tabs in the status bar', () => {
+  const counterBundle = `const {Panel} = require('@conciv/plugin/experimental')
+const tab = {
+  id: 'counter',
+  title: 'Counter',
+  pinned: true,
+  label() {
+    const counter = document.createElement('span')
+    const clicks = {count: 0}
+    counter.textContent = 'Counted 0'
+    counter.addEventListener('click', () => {
+      clicks.count += 1
+      counter.textContent = 'Counted ' + clicks.count
+    })
+    return counter
+  },
+}
+const notes = {id: 'notes', title: 'Notes'}
+module.exports = {default: {setup(ctx) {
+  ctx.add(Panel, {
+    id: 'counter',
+    region: 'pane',
+    list: (input) => (input.open.includes('notes') ? [tab, notes] : [tab]),
+    render(props) {
+      if (props.tab.id === 'notes') return document.createTextNode('Notes body')
+      const opener = document.createElement('button')
+      opener.textContent = 'Open notes'
+      opener.addEventListener('click', () => ctx.layout.open('counter:notes', props.session))
+      return opener
+    },
+  })
+}}}
+`
+  const coreBase = bootedCore('plugin-panel-tabs', {
+    plugins: ['./counter'],
+    files: {
+      'counter/index.ts': `export default {id: 'counter', async setup() {}}
+`,
+      'counter/plugin-experimental.js': counterBundle,
+    },
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  const counted = (count: number) => page.getByText(`Counted ${count}`, {exact: true})
+
+  test("a plugin tab's label keeps its own state while the status bar rebuilds its list", async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await expect.element(counted(0), {timeout: 15_000}).toBeVisible()
+    await counted(0).click()
+    await expect.element(page.getByRole('tab', {name: /^Counted 1/, selected: true})).toBeVisible()
+    await expect.element(counted(1)).toBeVisible()
+
+    await page.getByRole('button', {name: 'Open notes', exact: true}).click()
+    await expect.element(page.getByRole('tab', {name: 'Notes', exact: true, selected: true})).toBeVisible()
+    await expect.element(page.getByText('Notes body', {exact: true})).toBeVisible()
+    await expect.element(counted(1)).toBeVisible()
+    await expect.element(counted(0)).not.toBeInTheDocument()
+
+    await page.getByRole('tab', {name: 'Chat', exact: true}).click()
+    await expect.element(page.getByRole('tab', {name: 'Chat', exact: true, selected: true})).toBeVisible()
+    await expect.element(page.getByRole('tab', {name: 'Notes', exact: true})).not.toBeInTheDocument()
+    await expect.element(counted(1)).toBeVisible()
+    await expect.element(counted(0)).not.toBeInTheDocument()
+  }, 30_000)
+})
+
 type InstalledPush = Parameters<Parameters<InstalledSource['on']>[0]>[0]
 
 type InstalledRows = InstalledPush['list']

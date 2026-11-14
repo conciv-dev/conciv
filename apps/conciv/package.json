@@ -44,6 +44,7 @@
     "@solid-primitives/active-element": "^2.1.6",
     "@solid-primitives/date": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
+    "@solid-primitives/keyed": "catalog:",
     "@solid-primitives/mutation-observer": "^1.2.4",
     "@solid-primitives/resize-observer": "catalog:",
     "@solid-primitives/storage": "catalog:",
