@@ -3361,3 +3361,23 @@ describe('plugin context keys provided by core', () => {
     expect((await key.run((sessions) => sessions.list())).data.map((session) => session.id)).toEqual([second.id])
   })
 })
+
+describe('engine build keeps runtime packages external', () => {
+  const distDir = join(import.meta.dirname, '..', 'dist')
+  const chunks = readdirSync(distDir)
+    .filter((name) => name.endsWith('.js'))
+    .map((name) => ({name, source: readFileSync(join(distDir, name), 'utf8')}))
+  const definesDirname = /\b(?:const|let|var)\s+__dirname\b/
+
+  it('imports the code mode driver from @conciv/ai instead of inlining it, and no ESM chunk uses an undefined __dirname', () => {
+    expect(chunks.some((chunk) => /from\s*["']@conciv\/ai\/server["']/.test(chunk.source))).toBe(true)
+    expect(
+      chunks.filter((chunk) => chunk.source.includes('no usable isolate driver')).map((chunk) => chunk.name),
+    ).toEqual([])
+    expect(
+      chunks
+        .filter((chunk) => chunk.source.includes('__dirname') && !definesDirname.test(chunk.source))
+        .map((chunk) => chunk.name),
+    ).toEqual([])
+  })
+})
