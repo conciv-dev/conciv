@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {MutationObserver, makeQueryUtils, type QueryUtils, type QueryClient, type QueryKey} from '@conciv/client'
+import {QueryMutationObserver, makeQueryUtils, type QueryUtils, type QueryClient, type QueryKey} from '@conciv/client'
 import {DraftRowSchema, type DraftRow, type RpcClient} from '@conciv/contract'
 
 type DraftInput = Omit<z.input<typeof DraftRowSchema>, 'updatedAt'>
@@ -23,7 +23,7 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient): AppData {
   queryClient.setQueryDefaults(utils.drafts.get.key(), {staleTime: Infinity, gcTime: Infinity, retry: false})
   const draftQuery = (sessionId: string) => utils.drafts.get.queryOptions({input: {sessionId}})
   const saveDraft = (row: DraftInput): Promise<void> => {
-    const observer = new MutationObserver(
+    const observer = new QueryMutationObserver(
       queryClient,
       utils.drafts.set.mutationOptions({
         scope: {id: row.sessionId},
