@@ -341,6 +341,24 @@ export const Operations = [
     acting,
   ),
   operation(
+    'fill_form',
+    'fill several fields in order: text uses fill, select chooses an option by value or visible label, check sets checked',
+    {
+      ...tab,
+      fields: z
+        .array(
+          z.discriminatedUnion('type', [
+            z.object({...ElementTarget, type: z.literal('text'), value: z.string()}),
+            z.object({...ElementTarget, type: z.literal('select'), value: z.string()}),
+            z.object({...ElementTarget, type: z.literal('check'), checked: z.boolean()}),
+          ]),
+        )
+        .max(100),
+    },
+    OkResult,
+    acting,
+  ),
+  operation(
     'select',
     'choose an option in a select element',
     {...tab, ...select},
