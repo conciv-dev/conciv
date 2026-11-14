@@ -232,8 +232,13 @@ export function App() {
   }
   if (requested === 'contact-form' || requested === 'contact-form-flat' || requested === 'contact-section')
     return <ContactForm flat={requested !== 'contact-form'} section={requested === 'contact-section'} data-conciv-key="cFpGeA" />
-  if (requested === 'form-stroke')
-    return <main style={{margin: -24, width: 358, height: 1070, background: '#1a1a1a', boxShadow: FORM_STROKE}} data-conciv-key="fSmNaA" />
+  if (requested === 'form-stroke' || requested === 'form-stroke-short')
+    return (
+      <main
+        style={{margin: -24, width: 358, height: requested === 'form-stroke' ? 1070 : 1064, background: '#1a1a1a', boxShadow: FORM_STROKE}}
+        data-conciv-key="fSmNaA"
+      />
+    )
   if (requested === 'form-stroke-wrapped')
     return (
       <main style={{margin: -24, width: 358, boxShadow: 'inset 0 1px 0 0 #262626'}} data-conciv-key="fSwRaA">

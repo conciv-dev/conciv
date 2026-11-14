@@ -57,9 +57,13 @@ function fixture(file: string): string {
 async function sliced(name: string, node: string): Promise<{figma: string; document: unknown; image: string}> {
   return {
     figma: `https://www.figma.com/design/ItFixtureKey/x?node-id=${node}`,
-    document: JSON.parse(await readFile(fixture(`${name}.json`), 'utf8')),
+    document: await figmaDocument(`${name}.json`),
     image: fixture(`${name}.png`),
   }
+}
+
+async function figmaDocument(file: string): Promise<unknown> {
+  return JSON.parse(await readFile(fixture(file), 'utf8'))
 }
 
 function blankPng(input: {width: number; height: number}): Uint8Array {
@@ -102,7 +106,7 @@ describe('design_check on the cards page', () => {
     const checked = roundOf(await call('design_check', {}))
     expect(
       checked.rows
-        .filter((row) => row.node === '1:2' && row.property === 'height')
+        .filter((row) => row.node === '1:2' && row.property === 'height' && !row.text.startsWith('the page is'))
         .map((row) => row.text.includes('set by @media') && row.text.includes('40rem')),
     ).toEqual([true])
   })
@@ -137,7 +141,7 @@ describe('a Figma line', () => {
     ]).toEqual(['not yet', true, true, false, false])
   })
 
-  it('counts as drawn by a sibling border on its edge or by its own 1px element', async () => {
+  it('counts as drawn by a sibling border on its edge or by its own 1px element, and the wrapper that draws nothing is not required', async () => {
     await kit.goto('process-row')
     await call('design_get', await sliced('process-row', '50-876'))
     const bordered = roundOf(await call('design_check', {}))
@@ -147,10 +151,11 @@ describe('a Figma line', () => {
     await call('design_get', await sliced('input-field', '100-1418'))
     const ruled = roundOf(await call('design_check', {}))
     expect([
+      bordered.reasons.filter((reason) => reason.includes('required nodes')),
       bordered.coverage.missing.includes('50:883'),
       element.coverage.missing.includes('50:883'),
       ruled.coverage.missing.includes('100:1422'),
-    ]).toEqual([false, false, false])
+    ]).toEqual([[], false, false, false])
   })
 })
 
@@ -179,6 +184,10 @@ describe('a Figma stroke', () => {
     const outset = await borderRows('100:1693')
     await kit.goto('form-stroke-wrapped')
     const wrapped = await borderRows('100:1693')
+    await kit.goto('form-stroke-short')
+    const short = roundOf(await call('design_check', {}))
+      .rows.filter((row) => row.text.startsWith('the page is'))
+      .map((row) => row.text)
     expect([
       field.nodes.find((node) => node.id === '100:1418')?.strokeAlign,
       field.rules.some((rule) => rule.includes('outline-offset')),
@@ -186,7 +195,7 @@ describe('a Figma stroke', () => {
       typed.coverage.missing.includes('100:1421'),
       typed.rows.filter((found) => found.node === '100:1421' && found.text.includes('text color')),
       row.nodes.find((node) => node.id === '50:880')?.individualStrokeWeights,
-      [underlined, boxed, outset, wrapped],
+      [underlined, boxed, outset, wrapped, short],
     ]).toEqual([
       'INSIDE',
       true,
@@ -201,6 +210,7 @@ describe('a Figma stroke', () => {
         ],
         [],
         [],
+        ['the page is 1064 px tall, the frame is 1070'],
       ],
     ])
   })
@@ -285,31 +295,22 @@ describe('a Figma effect', () => {
 })
 
 describe('a Figma wrapper that draws nothing', () => {
-  it('is not required when the page merges it into its children, nor paired with part of one child, and a text breaks where the frame does', async () => {
-    await kit.goto('process-row')
-    await call('design_get', await sliced('process-row', '50-876'))
-    const checked = roundOf(await call('design_check', {}))
+  it('is not paired with part of one child when the page leaves it out, and a text inside breaks its lines where the frame does', async () => {
     await kit.goto('process-grid')
     await call('design_get', await sliced('process-grid', '50-875'))
     const grid = roundOf(await call('design_check', {}))
     await kit.goto('process-grid-early')
     const early = roundOf(await call('design_check', {}))
-    const told = (round: Checked, node: string) => round.rows.filter((row) => row.node === node).map((row) => row.text)
+    const told = (round: ReturnType<typeof roundOf>, node: string) =>
+      round.rows.filter((row) => row.node === node).map((row) => row.text)
     expect([
-      checked.reasons.filter((reason) => reason.includes('required nodes')),
       told(grid, '50:921'),
       ['50:922', '50:929'].filter((node) => grid.coverage.missing.includes(node)),
-      [grid, early].map((round) => told(round, '50:919')),
+      [grid, early].map((round) => told(round, '50:919').map((text) => text.split('p.grid-text: ')[1])),
     ]).toEqual([
       [],
       [],
-      [],
-      [
-        [],
-        [
-          "text Paragraph [50:919] p.grid-text: breaks its lines where the frame does not: line 4 is 625px wide, the frame's is 695px",
-        ],
-      ],
+      [[], ["breaks its lines where the frame does not: line 4 is 625px wide, the frame's is 695px"]],
     ])
   })
 })
@@ -338,41 +339,32 @@ describe('a page that drifts from the design', () => {
     await call('design_get', await sliced('contact-section', '100-1403'))
     const section = (await rows()).filter((row) => ['100:1415', '100:1416'].includes(row.node))
     expect([
-      flat,
+      [...flat, ...told(lined, 'wrong image'), ...screen, ...formFlat, ...section.map((row) => row.node)],
       drifted.map((text) => text.split('; ')[0]),
       drifted.some((text) => text.includes('below Line [100:1615]')),
       got.nodes.find((node) => node.id === '100:1615')?.asset,
-      told(lined, 'wrong image'),
-      screen,
       thin.map((row) => row.text.split('; ')[0]),
       form.map((text) => text.split('; ')[0]),
-      formFlat,
-      section.map((row) => `${row.node} ${row.selector}`),
     ]).toEqual([
       [],
       ['the page drifts from the design: Card [100:1675] sits 7 px lower on the page than in the frame'],
       true,
       '/design/100-1615.png',
-      [],
-      [],
       ['the page drifts from the design: Card [100:1675] sits 5 px lower on the page than in the frame'],
       ['the page drifts from the design: Button [100:1466] sits 3 px lower on the page than in the frame'],
-      [],
-      [],
     ])
   })
 })
 
 describe('a page between two frames', () => {
   it('is checked at its own breakpoints that fall between the frames, and centred text whose box hugs it sits where the frame has it', async () => {
-    const document = async (file: string): Promise<unknown> => JSON.parse(await readFile(fixture(file), 'utf8'))
     await kit.goto('hero-gap')
     await call('design_get', {
       figma: [
         'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1480',
         'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1170',
       ],
-      document: [await document('hero-390.json'), await document('hero-1440.json')],
+      document: [await figmaDocument('hero-390.json'), await figmaDocument('hero-1440.json')],
       image: [fixture('hero-390.png'), fixture('hero-1440.png')],
     })
     const between = async () =>
@@ -406,14 +398,13 @@ describe('a page between two frames', () => {
 
 describe('a page that switches layouts between two frames', () => {
   it('is flagged when it keeps the narrow layout past the midpoint, and an image row names the picture shown', async () => {
-    const document = async (file: string): Promise<unknown> => JSON.parse(await readFile(fixture(file), 'utf8'))
     await kit.goto('contact-bar')
     await call('design_get', {
       figma: [
         'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1513',
         'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1155',
       ],
-      document: [await document('contact-bar-390.json'), await document('contact-bar-1440.json')],
+      document: [await figmaDocument('contact-bar-390.json'), await figmaDocument('contact-bar-1440.json')],
       image: [fixture('contact-bar-390.png'), fixture('contact-bar-1440.png')],
     })
     const jumped = async () =>
@@ -591,10 +582,6 @@ describe('catalog component rows', () => {
     return (await measured({...input, link: NAMED_LINK, document: NAMED_DOCUMENT})).rows
   }
 
-  it('lists an instance of a component drawn by hand as one component row, its import line from the drawing file', async () => {
-    expect(await componentRows({on: kit, page: 'drift-hand'})).toEqual([['10:2', 'Chip', './Chip.tsx', CHIP_ROW]])
-  })
-
   it('reads the component rows of the running run from lost_components', async () => {
     await componentRows({on: kit, page: 'drift-hand'})
     const runIds = z
@@ -616,8 +603,10 @@ describe('catalog component rows', () => {
     )
   })
 
-  it('lists no component row when the named component renders the node', async () => {
-    expect(await componentRows({on: kit, page: 'drift'})).toEqual([])
+  it('lists an instance of a component drawn by hand as one component row, its import line from the drawing file, and none when the named component renders the node', async () => {
+    expect([await componentRows({on: kit, page: 'drift-hand'}), await componentRows({on: kit, page: 'drift'})]).toEqual(
+      [[['10:2', 'Chip', './Chip.tsx', CHIP_ROW]], []],
+    )
   })
 
   it('lists no component row for a do-not-use component, and one at any score for a preferred one', async () => {
@@ -632,31 +621,7 @@ describe('catalog component rows', () => {
     }
   })
 
-  it('lists no component row with catalog hints off', async () => {
-    const bare = await bootDesignHost({config: {catalog: {hint: false}}})
-    try {
-      expect(await componentRows({on: bare, page: 'drift-hand'})).toEqual([])
-    } finally {
-      await bare.dispose()
-    }
-  })
-
-  it('gives no hint to a node that shares no word with a component name', async () => {
-    const {got} = await measured({
-      on: kit,
-      page: 'drift-hand',
-      link: 'https://www.figma.com/design/ItFixtureKey/x?node-id=11-1',
-      document: documentOf({
-        id: '11:1',
-        children: [namedBox({id: '11:2', name: 'Header', y: 40}), namedBox({id: '11:3', name: 'Part', y: 160})],
-      }),
-    })
-    expect(
-      got.nodes.filter((node) => node.hint !== undefined).map((node) => [node.name, node.hint?.component]),
-    ).toEqual([])
-  })
-
-  it('gives a text that holds a component word as a whole word no row and no hint of 1', async () => {
+  it('gives no hint to a node that shares no word with a component name, and a text that holds a component word as a whole word no row and no hint of 1', async () => {
     const {got, rows} = await measured({
       on: kit,
       page: 'drift-hand',
@@ -671,7 +636,11 @@ describe('catalog component rows', () => {
       }),
     })
     const hint = got.nodes.find((node) => node.id === '12:2')?.hint
-    expect([hint === undefined || hint.confidence < 1, rows.filter((row) => row[1] === 'Far')]).toEqual([true, []])
+    expect([
+      got.nodes.filter((node) => ['12:3', '12:4'].includes(node.id) && node.hint !== undefined),
+      hint === undefined || hint.confidence < 1,
+      rows.filter((row) => row[1] === 'Far'),
+    ]).toEqual([[], true, []])
   })
 
   function pillRow(frame: number) {
@@ -749,6 +718,12 @@ describe('catalog component rows', () => {
 
   describe('a kit root that carries only its call site', () => {
     const SITE_LINK = 'https://www.figma.com/design/ItFixtureKey/x?node-id=19-1'
+    const BADGE_ROW = [
+      '19:3',
+      'Badge',
+      './ui-kit/Badge.tsx',
+      "Marker was rendered by `Badge` and is now drawn by hand (`import {Badge} from './ui-kit/Badge.tsx'`)",
+    ]
     const SITE_DOCUMENT = documentOf({
       id: '19:1',
       children: [namedBox({id: '19:2', name: 'Tag', y: 40}), namedBox({id: '19:3', name: 'Marker', y: 160})],
@@ -800,14 +775,7 @@ describe('catalog component rows', () => {
             ['19:2', 'src/SitePage.tsx:16/0', 'Pill'],
             ['19:3', 'sThBdg', 'SiteHandPage'],
           ],
-          rows: [
-            [
-              '19:3',
-              'Badge',
-              './ui-kit/Badge.tsx',
-              "Marker was rendered by `Badge` and is now drawn by hand (`import {Badge} from './ui-kit/Badge.tsx'`)",
-            ],
-          ],
+          rows: [BADGE_ROW],
         },
       ])
     })
@@ -826,14 +794,7 @@ describe('catalog component rows', () => {
       expect((await siteRounds(['site-kit', 'site-moved', 'site-hand'])).map((round) => round.rows)).toEqual([
         [],
         [],
-        [
-          [
-            '19:3',
-            'Badge',
-            './ui-kit/Badge.tsx',
-            "Marker was rendered by `Badge` and is now drawn by hand (`import {Badge} from './ui-kit/Badge.tsx'`)",
-          ],
-        ],
+        [BADGE_ROW],
       ])
     })
   })
@@ -849,10 +810,13 @@ describe('catalog component rows', () => {
     ])
   })
 
-  it('lists the row for a component the page lost with catalog hints off', async () => {
+  it('lists no row for a hand-drawn instance with catalog hints off, and the row for a component the page lost', async () => {
     const bare = await bootDesignHost({config: {catalog: {hint: false}}})
     try {
-      expect(await roundsAcross({on: bare, frame: 17, pages: ['drift-kit', 'drift-hand']})).toEqual([[], [pillRow(17)]])
+      expect([
+        await componentRows({on: bare, page: 'drift-hand'}),
+        await roundsAcross({on: bare, frame: 17, pages: ['drift-kit', 'drift-hand']}),
+      ]).toEqual([[], [[], [pillRow(17)]]])
     } finally {
       await bare.dispose()
     }

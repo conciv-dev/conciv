@@ -13,9 +13,10 @@ export function pageHeightRows(input: {
   const {root, live, reads, width, scrollHeight} = input
   const frame = Math.round(root.figma?.box.h ?? root.box.h)
   const elements = [...walk(live)].filter(({node}) => node !== live).map(({node}) => node)
-  const drawn = Math.round(Math.max(frame, ...elements.map(bottomOf)))
+  const drawn = Math.round(Math.max(0, ...elements.map(bottomOf)))
   const page = drawn - frame > frame ? drawn : Math.round(Math.max(drawn, scrollHeight))
-  if (Math.abs(page - frame) <= frame) return []
+  const exact = width === Math.round(root.figma?.box.w ?? root.box.w)
+  if (Math.abs(page - frame) <= (exact ? designConfig.tolerances.geometryPx : frame)) return []
   const tall = elements.filter((element) => element.bounds.h > frame)
   const [tallest] = tall
     .filter((element) => !tall.some((other) => other.path.startsWith(`${element.path}/`)))
