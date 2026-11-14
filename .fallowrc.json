@@ -121,6 +121,12 @@
         "maxCyclomatic": 35,
         "maxCrap": 250,
         "reason": "copied from opencode core/src/plugin/module.ts: load keeps opencode's shape"
+      },
+      {
+        "files": ["packages/builtin-plugins/src/page/machine.ts"],
+        "maxCognitive": 18,
+        "maxCrap": 50,
+        "reason": "copied from opencode packages/plugin-browser/src/machine.ts: transitionConnection keeps opencode's shape, transitionAttached and transitionAttaching carry the several-tabs deviation"
       }
     ]
   },
