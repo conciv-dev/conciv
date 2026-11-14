@@ -579,7 +579,7 @@ const TAB_FIXTURE = `import {Definition} from '${join(PAGE_SOURCE, 'rpc.ts')}'
 const method = {input: {type: 'object'}, output: {type: 'object'}}
 const Tabs = {
   id: 'page-tabs',
-  methods: {open: method, close: method, report: method, next: method, reply: method, cancels: method, permissions: method, tool: method, asked: method, waiting: method, decide: method},
+  methods: {open: method, close: method, report: method, next: method, reply: method, cancels: method, permissions: method, tool: method, asked: method, waiting: method, decide: method, ended: method},
   events: {},
 }
 
@@ -662,6 +662,7 @@ export default {
       permissions: async ({sessionId}) => ({permissions: (await ctx.session.get({sessionId})).permissions ?? []}),
       asked: async () => until(() => asks.shift()),
       waiting: async () => ({waiting: asks.length}),
+      ended: async ({connectionId}) => open.get(connectionId).ended,
       decide: async ({sessionId, requestId, decision}) => {
         await ctx.permission.reply({sessionId, requestId, decision})
         return {}
@@ -693,7 +694,7 @@ const Answer = z.union([
 ])
 
 describe('page connection', () => {
-  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, and eval asks until the user always allows it', async () => {
+  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, and deleting the session ends its tabs', async () => {
     const kit = await bootCoreKit({
       id: 'page-connection',
       plugins: ['./page', './tabs'],
@@ -839,6 +840,11 @@ describe('page connection', () => {
       ok: false,
       message: expect.stringContaining('the action may already have run'),
     })
+
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_e'})).toEqual({attached: true})
+    const ending = tabs('ended', {connectionId: 'conn_e'})
+    await kit.rpc.sessions.delete({sessionId: session})
+    expect(await ending).toEqual({outcome: 'closed'})
   })
 })
 
