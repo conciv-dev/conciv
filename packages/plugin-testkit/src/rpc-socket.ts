@@ -21,6 +21,7 @@ type Message = string | Buffer
 
 export type RpcSocketCall = {
   path: readonly string[]
+  input: unknown
   forward: () => void
   reply: (status: number) => Promise<void>
   garble: () => Promise<void>
@@ -155,9 +156,11 @@ async function sendOutbound(message: Message, socketId: string, outbound: Outbou
     .split('/')
     .filter((segment) => segment !== '')
     .map(decodeURIComponent)
-  outbound.emit({kind: 'request', requestId, path, input: serializer.deserialize(payload.body)})
+  const input = serializer.deserialize(payload.body)
+  outbound.emit({kind: 'request', requestId, path, input})
   const call: RpcSocketCall = {
     path,
+    input,
     forward: outbound.forward,
     reply: (status) => injectReply(outbound, id, requestId, status, FAILURE_BODY),
     garble: () => injectReply(outbound, id, requestId, 200, GARBLED_BODY),

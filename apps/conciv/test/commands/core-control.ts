@@ -48,7 +48,7 @@ export type PointerHover = {name: string; moves: PointerMove[]; settleMs: number
 export type FaultSpec =
   | {kind: 'fail'; path: string[]; status?: number}
   | {kind: 'abort'; path?: string[]}
-  | {kind: 'garble'; path: string[]}
+  | {kind: 'garble'; path: string[]; input?: unknown}
   | {kind: 'gate'; path?: string[]}
   | {kind: 'chat-refused'; status?: number}
   | {kind: 'offline'}
@@ -493,7 +493,7 @@ function brokenRpcCalls(
   spec: Extract<FaultSpec, {kind: 'abort' | 'fail' | 'garble'}>,
 ): ReturnType<CoreTestkit['abortRpcCalls']> {
   if (spec.kind === 'abort') return testkit.abortRpcCalls(ctx.page, pathOptions(spec.path))
-  if (spec.kind === 'garble') return testkit.garbleRpcReplies(ctx.page, {path: spec.path})
+  if (spec.kind === 'garble') return testkit.garbleRpcReplies(ctx.page, {path: spec.path, input: spec.input})
   return testkit.failRpcCalls(ctx.page, {path: spec.path, ...statusOptions(spec.status)})
 }
 
