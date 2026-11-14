@@ -93,11 +93,12 @@ async function bootRecorder(): Promise<CoreKit> {
 async function followEvents(kit: CoreKit): Promise<() => Promise<z.infer<typeof RecorderEventSchema>>> {
   const following = new AbortController()
   onTestFinished(() => following.abort())
-  const stream = await kit.rpc.plugin.events(
-    {rpcId: 'recorder', types: ['control', 'appended']},
+  const stream = await kit.rpc.event.subscribe(
+    {types: ['rpc.recorder.control', 'rpc.recorder.appended']},
     {signal: following.signal},
   )
   const iterator = stream[Symbol.asyncIterator]()
+  expect(await iterator.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
   return async () => {
     const next = await iterator.next()
     if (next.done) throw new Error('the recorder event stream ended')
