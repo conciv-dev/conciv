@@ -21,7 +21,7 @@ export async function serveDesignHost(input: {
     server: {host: '127.0.0.1', port: 0},
     resolve: {alias: {'@app': join(HOST_ROOT, 'src')}},
     plugins: [
-      slowFonts(),
+      slowFiles(),
       react(),
       unplugin.vite({
         stateRoot: input.stateRoot,
@@ -40,12 +40,14 @@ export async function serveDesignHost(input: {
 }
 
 export const HOST_ROOT = fileURLToPath(new URL('host/', import.meta.url))
-const SLOW_PREFIX = '/slow/'
-const SLOW_FONT_MS = 3000
+const DELAYS = [
+  {prefix: '/slow/', ms: 3000},
+  {prefix: '/late/', ms: 1000},
+]
 
-function slowFonts(): Plugin {
+function slowFiles(): Plugin {
   return {
-    name: 'conciv-it-slow-fonts',
+    name: 'conciv-it-slow-files',
     configureServer: (server) => {
       server.middlewares.use(slowly)
     },
@@ -54,7 +56,8 @@ function slowFonts(): Plugin {
 
 function slowly(request: Connect.IncomingMessage, _response: unknown, next: () => void): void {
   const url = request.url ?? ''
-  if (!url.startsWith(SLOW_PREFIX)) return next()
-  request.url = url.slice(SLOW_PREFIX.length - 1)
-  setTimeout(next, SLOW_FONT_MS)
+  const delay = DELAYS.find((entry) => url.startsWith(entry.prefix))
+  if (delay === undefined) return next()
+  request.url = url.slice(delay.prefix.length - 1)
+  setTimeout(next, delay.ms)
 }

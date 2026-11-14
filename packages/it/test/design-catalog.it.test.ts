@@ -343,7 +343,7 @@ describe('a page between two frames', () => {
 })
 
 describe('a page that switches layouts between two frames', () => {
-  it('is flagged when it keeps the narrow layout past the midpoint between the frames', async () => {
+  it('is flagged when it keeps the narrow layout past the midpoint, and an image row names the picture shown', async () => {
     const document = async (file: string): Promise<unknown> => JSON.parse(await readFile(fixture(file), 'utf8'))
     await kit.goto('contact-bar')
     await call('design_get', {
@@ -363,12 +363,24 @@ describe('a page that switches layouts between two frames', () => {
     const early = await jumped()
     await kit.goto('contact-bar-stacked')
     const stacked = await jumped()
-    expect([late, early, stacked]).toEqual([
+    await kit.goto('contact-bar-picture')
+    const pictured = VariantsSchema.parse(await call('design_check', {})).variants.flatMap((variant) =>
+      variant.rows.filter((row) => row.text.startsWith('wrong image')).map((row) => row.text),
+    )
+    expect([late, early, stacked, pictured]).toEqual([
       [
         'frame Sub Container [100:1514] at 1199 wide: lays its children out in a column as the 358 px frame does, though 1199 is nearer the 1280 px frame, which lays them out in a row; switch to the 358 px layout below 819',
       ],
       [],
       late,
+      [
+        'wrong image at [100:1158]: /design/100-1158.png expected, <img src=/late/design/4-30.svg>',
+        'wrong image at [100:1162]: /design/100-1162.png expected, <img src=/late/design/4-30.svg>',
+        'wrong image at [100:1166]: /design/100-1166.png expected, <img src=/late/design/4-30.svg>',
+        'wrong image at [100:1516]: /design/100-1516.png expected, an image /late/design/4-30.svg',
+        'wrong image at [100:1520]: /design/100-1520.png expected, an image /late/design/4-30.svg',
+        'wrong image at [100:1524]: /design/100-1524.png expected, an image /late/design/4-30.svg',
+      ],
     ])
   })
 })

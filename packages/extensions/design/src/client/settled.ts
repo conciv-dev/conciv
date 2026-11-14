@@ -6,10 +6,17 @@ export async function settled(input: {doc: Document; cap: number}): Promise<numb
     await doc.fonts.ready
     return doc.fonts.status === 'loaded'
   })
+  const shown = Promise.all(pendingImages(doc).map(loadOf)).then(() => true)
   const capped = new Promise<false>((resolve) => setTimeout(() => resolve(false), cap))
-  const done = await Promise.race([loaded, capped])
+  const [done] = await Promise.all([Promise.race([loaded, capped]), Promise.race([shown, capped])])
   return done ? null : Math.round(performance.now() - started)
 }
+
+function pendingImages(doc: Document): HTMLImageElement[] {
+  return [...doc.images].filter((image) => !image.complete && image.loading !== LAZY)
+}
+
+const LAZY = 'lazy'
 
 const SHEET_OWNERS = 'style, link[rel~="stylesheet"]'
 

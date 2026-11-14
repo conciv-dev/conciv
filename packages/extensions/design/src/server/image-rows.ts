@@ -64,8 +64,10 @@ export async function imageRowsOf(input: {
   const shots = await shotsOf({page: input.page, mirror: input.mirror, nodes: asked})
   const found = checked.map((entry) => {
     if (entry.shot === null) return {row: entry.row, ratio: null}
-    const shot = shots[asked.indexOf(entry.shot)] ?? null
-    const ratio = shot === null ? null : ratioOf(shot)
+    const taken = shots[asked.indexOf(entry.shot)] ?? {shot: null, error: 'no capture came back'}
+    if (taken.shot === null)
+      return {row: {...entry.row, text: `could not capture [${entry.node}]: ${taken.error ?? 'no image'}`}, ratio: null}
+    const ratio = ratioOf(taken.shot)
     return {
       row: ratio === null || ratio > GATE ? entry.row : null,
       ratio: ratio === null ? null : {node: entry.node, ratio},
@@ -90,22 +92,32 @@ function side(length: number): number {
   return Math.max(1, Math.round(length))
 }
 
+type Taken = {shot: PageNodeShot | null; error: string | null}
+
 async function shotsOf(input: {
   page: ServerToolPageAccess
   mirror: {width: number; height: number} | null
   nodes: NodeShot[]
-}): Promise<(PageNodeShot | null)[]> {
+}): Promise<Taken[]> {
   const {page, mirror, nodes} = input
   if (nodes.length === 0) return []
   if (mirror === null)
     return Promise.all(
-      nodes.map(async (node) => {
-        const shot = PageNodeShotSchema.safeParse(await page.call(screenshotNodeDef.name, node).catch(() => null))
-        return shot.success ? shot.data : null
-      }),
+      nodes.map((node) =>
+        page
+          .call(screenshotNodeDef.name, node)
+          .then((reply) => ({shot: PageNodeShotSchema.parse(reply), error: null}))
+          .catch(failed),
+      ),
     )
-  const taken = ShotsSchema.safeParse(await page.call(shotsDef.name, {...mirror, nodes}).catch(() => null))
-  return taken.success ? taken.data.shots : nodes.map(() => null)
+  return page
+    .call(shotsDef.name, {...mirror, nodes})
+    .then((reply) => ShotsSchema.parse(reply).shots)
+    .catch((error: unknown) => nodes.map(() => failed(error)))
+}
+
+function failed(error: unknown): Taken {
+  return {shot: null, error: error instanceof Error ? error.message : String(error)}
 }
 
 function ratioOf(shot: PageNodeShot): number | null {

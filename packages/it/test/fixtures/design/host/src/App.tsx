@@ -89,6 +89,7 @@ const HERO_GAP_CSS = [
 ].join(' ')
 const HERO_FIT_CSS = HERO_GAP_CSS.replace('width: 780px', 'width: 100%; max-width: 780px')
 const CONTACT_ITEMS = ['hello@squareup.com', '+91 91813 23 2309', 'Somewhere in the World']
+const CONTACT_ICONS = ['/design/100-1516.png', '/design/100-1520.png', '/design/100-1524.png']
 function contactBarCss(input: {breakpoint: number; footer: string}): string {
   const {breakpoint, footer} = input
   return [
@@ -303,15 +304,27 @@ export function App() {
       </main>
     )
   }
-  if (requested === 'contact-bar' || requested === 'contact-bar-fit' || requested === 'contact-bar-stacked') {
+  if (
+    requested === 'contact-bar' ||
+    requested === 'contact-bar-fit' ||
+    requested === 'contact-bar-stacked' ||
+    requested === 'contact-bar-picture'
+  ) {
     return (
       <main style={{margin: -24, background: '#1a1a1a'}} data-conciv-key="cBmNaA">
         <style data-conciv-key="cBsTyA">{contactBarCss({breakpoint: requested === 'contact-bar-fit' ? 700 : 1200, footer: requested === 'contact-bar-stacked' ? 'column' : 'row'})}</style>
         <footer className="contact-bar" data-conciv-key="cBfTrA">
           <div className="contact-bar-items" data-conciv-key="cBiTmA">
-            {CONTACT_ITEMS.map((item) => (
+            {CONTACT_ITEMS.map((item, index) => (
               <span className="contact-bar-item" key={item} data-conciv-key="cBbTnA">
-                <span className="contact-bar-icon" data-conciv-key="cBiCnA" />
+                {requested === 'contact-bar-picture' ? (
+                  <picture data-conciv-key="cBpIcA">
+                    <source srcSet="/late/design/4-30.svg" />
+                    <img src={CONTACT_ICONS[index]} alt="" width={24} height={24} data-conciv-key="cBiMgA" />
+                  </picture>
+                ) : (
+                  <span className="contact-bar-icon" data-conciv-key="cBiCnA" />
+                )}
                 {item}
               </span>
             ))}

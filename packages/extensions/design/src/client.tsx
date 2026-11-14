@@ -52,6 +52,7 @@ type MeasureInput = z.output<(typeof measureDef)['inputSchema']>
 type ShotsInput = z.output<(typeof shotsDef)['inputSchema']>
 type RouteInput = z.output<(typeof routeDef)['inputSchema']>
 type NodeShot = z.output<NonNullable<(typeof shotsDef)['outputSchema']>>['shots'][number]
+type PageNodeShot = NonNullable<NodeShot['shot']>
 type MeasureResult = Omit<z.output<NonNullable<(typeof measureDef)['outputSchema']>>, 'components'> & {
   components: LiveComponent[]
 }
@@ -276,16 +277,22 @@ async function shotsStep(input: ShotsInput): Promise<{shots: NodeShot[]}> {
     doc,
     run: async () => {
       const shots: NodeShot[] = []
-      for (const node of input.nodes) shots.push(await nodeShot({doc, node}).catch(() => null))
+      for (const node of input.nodes)
+        shots.push(
+          await nodeShot({doc, node}).then(
+            (shot) => ({shot, error: null}),
+            (error: unknown) => ({shot: null, error: error instanceof Error ? error.message : String(error)}),
+          ),
+        )
       return {shots}
     },
   })
 }
 
-async function nodeShot(input: {doc: Document; node: ShotsInput['nodes'][number]}): Promise<NodeShot> {
+async function nodeShot(input: {doc: Document; node: ShotsInput['nodes'][number]}): Promise<PageNodeShot> {
   const {node} = input
   const element = input.doc.querySelector(node.selector)
-  if (element === null) return null
+  if (element === null) throw new Error(`no element matches ${node.selector} in the mirror`)
   const width = Math.max(1, Math.round(node.width * node.scale))
   const height = Math.max(1, Math.round(node.height * node.scale))
   const captured = await snapdom(element, {dpr: node.scale, embedFonts: true})
@@ -936,7 +943,15 @@ function imageSource(input: {element: Element; image: string}): string {
   if (start >= 0) return enclosedBody(input.image.slice(start + URL_TOKEN.length))
   const shown = input.element.matches(PICTURES) ? input.element : input.element.querySelector(PICTURES)
   if (shown === null) return ''
-  return shown.tagName.toLowerCase() === 'img' ? (shown.getAttribute('src') ?? '') : INLINE_SVG
+  const view = shown.ownerDocument.defaultView
+  if (view === null || !(shown instanceof view.HTMLImageElement)) return INLINE_SVG
+  return shownSource(shown)
+}
+
+function shownSource(image: HTMLImageElement): string {
+  if (image.currentSrc === '') return image.getAttribute('src') ?? ''
+  const url = new URL(image.currentSrc)
+  return url.origin === image.ownerDocument.location.origin ? `${url.pathname}${url.search}` : image.currentSrc
 }
 
 function gradientStops(image: string): Gradient | null {

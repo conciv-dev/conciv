@@ -559,7 +559,9 @@ export const RouteResultSchema = z.object({initiated: z.literal(true)})
 
 export const ShotsInputSchema = z.object({width: Width, height: Width, nodes: z.array(screenshotNodeDef.inputSchema)})
 
-export const ShotsResultSchema = z.object({shots: z.array(PageNodeShotSchema.nullable())})
+export const ShotsResultSchema = z.object({
+  shots: z.array(z.object({shot: PageNodeShotSchema.nullable(), error: z.string().nullable()})),
+})
 
 type Rgb = [number, number, number]
 type MeasureSource = z.output<typeof MeasureSourceSchema>
