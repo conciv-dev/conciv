@@ -265,6 +265,8 @@ minimumReleaseAgeExclude:
   - 'lucide-react'
   - 'lucide-solid'
   - 'tsdown'
+  # remove after 2026-11-16, 2.0.3 aged out on 2026-11-14 18:15Z
+  - 'encodeurl'
 patchedDependencies:
   # TanStack/query#11230: cached data resolves the query resource synchronously so background refetches stop
   # re-suspending (focus loss in the composer and model search). The patch only reaches users because
