@@ -316,7 +316,7 @@ describe('a Figma wrapper that draws nothing', () => {
 })
 
 describe('a navbar', () => {
-  it('pairs its frame with the element that spans it', async () => {
+  it('pairs its frame with the element that spans it, each link with the element that draws it, and a padded link holds its text', async () => {
     await kit.goto('navbar-wrapped')
     await call('design_get', await sliced('navbar', '50-533'))
     const links = ['50:548', '50:549', '50:551', '50:552', '50:553', '50:554']
@@ -332,7 +332,7 @@ describe('a navbar', () => {
         .filter((row) => row.property !== 'font family')
         .map((row) => row.text)
     }
-    expect(await rows('navbar-wrapped')).toEqual([])
+    expect([await rows('navbar-wrapped'), await rows('navbar-list')]).toEqual([[], []])
   })
 })
 

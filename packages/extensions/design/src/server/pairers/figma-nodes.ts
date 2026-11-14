@@ -131,7 +131,8 @@ function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
     const won = pick === null ? null : winning({vote, entry, scored, pick})
     if (won !== null) {
       const painted = paintedTwin({pick: won.pick, scored, byPath, node: entry.node})
-      const outer = painted === won.pick.path ? outermostTwin({pick: won.pick, scored, byPath}) : painted
+      const outer =
+        painted === won.pick.path ? outermostTwin({pick: won.pick, scored, byPath, node: entry.node}) : painted
       const path = won.ordered ?? holdingTwin({vote, entry, pick: won.pick, scored, path: outer})
       const chosen = {...won.pick, path}
       paired({vote, node: entry.node.id, pick: chosen})
@@ -472,20 +473,22 @@ function paintedTwin(input: {
   node: DesignNode
 }): string {
   const {pick, byPath} = input
-  const fill = solidFill(input.node)
-  if (pick.margin > 0 || fill === null) return pick.path
+  if (pick.margin > 0 || solidFill(input.node) === null) return pick.path
   const twins = input.scored.filter((entry) => entry.score === pick.score)
-  const match = twins.find((entry) => {
-    const background = parse(byPath.get(entry.path)?.cssom?.background ?? '')
-    return background !== undefined && (background.alpha ?? 1) > 0 && formatHex(background) === fill
-  })
+  const match = twins.find((entry) => paints({element: byPath.get(entry.path), node: input.node}))
   return match?.path ?? pick.path
 }
 
-function outermostTwin(input: {pick: Pick; scored: Scored[]; byPath: Map<string, Element>}): string {
-  const {pick, byPath} = input
+function paints(input: {element: Element | undefined; node: DesignNode}): boolean {
+  const fill = solidFill(input.node)
+  const background = parse(input.element?.cssom?.background ?? '')
+  return fill !== null && background !== undefined && (background.alpha ?? 1) > 0 && formatHex(background) === fill
+}
+
+function outermostTwin(input: {pick: Pick; scored: Scored[]; byPath: Map<string, Element>; node: DesignNode}): string {
+  const {pick, byPath, node} = input
   const winner = byPath.get(pick.path)
-  if (winner === undefined) return pick.path
+  if (winner === undefined || node.kind === 'text' || paints({element: winner, node})) return pick.path
   const outer = input.scored
     .flatMap((entry) => {
       const other = byPath.get(entry.path)
