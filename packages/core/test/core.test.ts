@@ -87,6 +87,7 @@ import {
   CodeModeCatalog,
   Database,
   Global,
+  Image,
   InstructionEntry,
   InstructionEntrySchema,
   KV,
@@ -303,7 +304,9 @@ describe('chat plane', () => {
     await ensureRow(db, builtins, 'fake-cli', root)
     const host = ManagedRuntime.make(
       Layer.mergeAll(SkillInstructions.layer, SessionProjector.layer, Tool.layer).pipe(
-        Layer.provideMerge(Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, permissionSessions(db))),
+        Layer.provideMerge(
+          Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, Image.layer, permissionSessions(db)),
+        ),
         Layer.provideMerge(Layer.mergeAll(Bus.configured(), KV.layer)),
         Layer.provideMerge(
           Layer.succeed(
@@ -2659,7 +2662,7 @@ describe('plugin permission cards', () => {
     const host = ManagedRuntime.make(
       Layer.mergeAll(Tool.layer, Permission.layer).pipe(
         Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(db))),
-        Layer.provideMerge(PluginHooks.layer),
+        Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, Image.layer)),
         Layer.provideMerge(Bus.configured()),
         Layer.provideMerge(
           Layer.succeed(
@@ -3155,7 +3158,9 @@ describe('plugin context keys provided by core', () => {
         provideHarnessModels(listingHarness([OPUS, SONNET, RETIRED], 'sonnet')),
         provideGlobalRoots(home),
       ).pipe(
-        Layer.provideMerge(Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, permissionSessions(db))),
+        Layer.provideMerge(
+          Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, Image.layer, permissionSessions(db)),
+        ),
         Layer.provideMerge(Layer.mergeAll(Bus.configured(), KV.layer)),
         Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),
       ),

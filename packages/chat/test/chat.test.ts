@@ -16,6 +16,7 @@ import {
   Bus,
   CodeModeCatalog,
   Database,
+  Image,
   Location,
   Permission,
   PermissionSaved,
@@ -162,7 +163,9 @@ describe('permission cards', () => {
 
 describe('plugin tools in code mode', () => {
   it('an empty tool domain changes no list, a plugin tool runs through code mode with its hooks, and a name a built-in capability has is left out', async () => {
-    const host = ManagedRuntime.make(Tool.layer.pipe(Layer.provideMerge(PluginHooks.layer)))
+    const host = ManagedRuntime.make(
+      Tool.layer.pipe(Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, Image.layer))),
+    )
     onTestFinished(() => host.dispose())
     const scope = host.runSync(Scope.make())
     const builtin: CodeCapability = {
@@ -281,7 +284,9 @@ describe('plugin tools in code mode', () => {
   })
 
   it('a tool outside the listed budget is found by search and called through the returned path', async () => {
-    const host = ManagedRuntime.make(Tool.layer.pipe(Layer.provideMerge(PluginHooks.layer)))
+    const host = ManagedRuntime.make(
+      Tool.layer.pipe(Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, Image.layer))),
+    )
     onTestFinished(() => host.dispose())
     const scope = host.runSync(Scope.make())
     const helper = (index: number) =>
@@ -380,7 +385,7 @@ describe('refusal text', () => {
     const host = ManagedRuntime.make(
       Layer.mergeAll(Tool.layer, Permission.layer).pipe(
         Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, sessions)),
-        Layer.provideMerge(PluginHooks.layer),
+        Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, Image.layer)),
         Layer.provideMerge(Bus.configured()),
         Layer.provideMerge(
           Layer.succeed(
@@ -484,7 +489,9 @@ describe('refusal text', () => {
 
 describe('direct tools', () => {
   it('a codemode false tool reaches the turn and the runner as its own tool, and a session that denies execute gets every plugin tool directly and no code mode', async () => {
-    const host = ManagedRuntime.make(Tool.layer.pipe(Layer.provideMerge(PluginHooks.layer)))
+    const host = ManagedRuntime.make(
+      Tool.layer.pipe(Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, Image.layer))),
+    )
     onTestFinished(() => host.dispose())
     const scope = host.runSync(Scope.make())
     const ran: string[] = []
