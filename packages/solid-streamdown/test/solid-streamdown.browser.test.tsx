@@ -293,6 +293,56 @@ describe('local file links', () => {
   })
 })
 
+describe('fence view fallback', () => {
+  function DecliningView(props: {code: string; fallback: () => void}): JSX.Element {
+    return (
+      <figure aria-label="Fence view">
+        <figcaption>{props.code}</figcaption>
+        <button type="button" onClick={() => props.fallback()}>
+          Show the code
+        </button>
+      </figure>
+    )
+  }
+
+  function ThrowingView(): JSX.Element {
+    throw new Error('the view failed')
+  }
+
+  describe('Streamdown fence view fallback', () => {
+    it('shows the code once a view falls back or throws, and mounts the view again for new code', async () => {
+      const [code, setCode] = createSignal('first block')
+      render(() => (
+        <>
+          <section aria-label="Declining">
+            <Streamdown highlightCode={(_, language) => (language === 'demo' ? DecliningView : undefined)}>
+              {['```demo', code(), '```'].join('\n')}
+            </Streamdown>
+          </section>
+          <section aria-label="Throwing">
+            <Streamdown highlightCode={(_, language) => (language === 'boom' ? ThrowingView : undefined)}>
+              {['```boom', 'thrown block', '```'].join('\n')}
+            </Streamdown>
+          </section>
+        </>
+      ))
+      const declining = page.getByRole('region', {name: 'Declining'})
+      const throwing = page.getByRole('region', {name: 'Throwing'})
+
+      await expect.element(declining.getByRole('figure', {name: 'Fence view'}).getByText('first block')).toBeVisible()
+      await declining.getByRole('button', {name: 'Show the code'}).click()
+      await expect.element(declining.getByRole('figure', {name: 'Fence view'})).not.toBeInTheDocument()
+      await expect.element(declining.getByText('first block')).toBeVisible()
+
+      setCode('second block')
+      await expect.element(declining.getByRole('figure', {name: 'Fence view'}).getByText('second block')).toBeVisible()
+      await expect.element(declining.getByRole('button', {name: 'Show the code'})).toBeVisible()
+
+      await expect.element(throwing.getByText('thrown block')).toBeVisible()
+    })
+  })
+})
+
 describe('structural streaming', () => {
   describe('Streamdown structural streaming', () => {
     it('does not crash while structure-changing markdown streams in character by character', async () => {

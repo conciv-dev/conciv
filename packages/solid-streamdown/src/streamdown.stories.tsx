@@ -1,7 +1,7 @@
 import {createEffect, createSignal, onCleanup} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, userEvent, waitFor, within} from 'storybook/test'
-import {Streamdown, type CaretVariant, type HighlightCode} from './streamdown.js'
+import {Streamdown, type CaretVariant, type FenceView, type HighlightCode} from './streamdown.js'
 
 const demoHighlight: HighlightCode = (code, lang) => ({
   type: 'element',
@@ -360,5 +360,43 @@ export const LocalFileLinks: Story = {
     await userEvent.click(openOnly.getByRole('link', {name: 'README'}))
 
     await expect(canvas.getByRole('status', {name: 'Opened files'})).toHaveTextContent('Opened: README.md')
+  },
+}
+
+const FALLBACK_FENCES = ['```chart', 'sales by month', '```', '', '```broken', 'a view that throws', '```'].join('\n')
+
+const DecliningChart: FenceView = (props) => (
+  <figure aria-label="Chart">
+    <figcaption>{`Chart of ${props.code.trim()}`}</figcaption>
+    <button type="button" onClick={() => props.fallback()}>
+      Show the code
+    </button>
+  </figure>
+)
+
+const ThrowingView: FenceView = () => {
+  throw new Error('the view failed')
+}
+
+const fallbackViews: HighlightCode = (_, lang) => {
+  if (lang === 'chart') return DecliningChart
+  if (lang === 'broken') return ThrowingView
+  return undefined
+}
+
+export const FenceFallback: Story = {
+  render: () => (
+    <Streamdown class="prose-chat" animated={false} highlightCode={fallbackViews}>
+      {FALLBACK_FENCES}
+    </Streamdown>
+  ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+
+    await expect(canvas.getByText('a view that throws')).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', {name: 'Show the code'}))
+
+    await waitFor(() => expect(canvas.queryByRole('figure', {name: 'Chart'})).toBeNull())
+    await expect(canvas.getByText('sales by month')).toBeVisible()
   },
 }

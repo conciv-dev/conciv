@@ -3,6 +3,7 @@ import {
   createMemo,
   createRenderEffect,
   type Accessor,
+  ErrorBoundary,
   For,
   from,
   Index,
@@ -11,6 +12,7 @@ import {
   Match,
   on,
   onMount,
+  Show,
   Switch,
   untrack,
 } from 'solid-js'
@@ -34,7 +36,7 @@ import {
   type OpenLocalFile,
 } from './local-file-links.js'
 
-export type FenceView = (props: {code: string}) => JSX.Element
+export type FenceView = (props: {code: string; fallback: () => void}) => JSX.Element
 
 export type HighlightCode = (code: string, lang: string | undefined) => HastElement | FenceView | undefined
 
@@ -84,7 +86,7 @@ type MarkdownElementNode = {
 }
 type MarkdownTextNode = {key: string; type: 'text'; text: string}
 type MarkdownWordNode = {key: string; type: 'word'; text: string; animate?: true}
-type MarkdownViewNode = {key: string; type: 'view'; code: string; view: FenceView}
+type MarkdownViewNode = {key: string; type: 'view'; code: string; view: FenceView; fallback: MarkdownNode[]}
 type MarkdownNode = MarkdownElementNode | MarkdownTextNode | MarkdownWordNode | MarkdownViewNode
 
 type HastRoot = ReturnType<MarkdownProcessor['runSync']>
@@ -122,7 +124,10 @@ function highlightedFence(node: HastElement, path: string, walk: HastWalk): Mark
   if (!code) return undefined
   const text = hastText(code)
   const result = walk.highlightCode(text, codeLang(elementAttributes(code.properties).class))
-  if (typeof result === 'function') return [{key: `${path}:view`, type: 'view', code: text, view: result}]
+  if (typeof result === 'function') {
+    const fallback = hastNode(node, path, {...walk, highlightCode: undefined})
+    return [{key: `${path}:view`, type: 'view', code: text, view: result, fallback}]
+  }
   if (!result) return undefined
   return hastNode(result, path, {...walk, highlightCode: undefined})
 }
@@ -241,13 +246,33 @@ function asView(node: MarkdownNode): MarkdownViewNode | undefined {
   return node.type === 'view' ? node : undefined
 }
 
+function MarkdownView(props: {node: MarkdownViewNode}): JSX.Element {
+  const [declined, setDeclined] = createStore<{code?: string}>({})
+  const decline = (): void => {
+    setDeclined('code', props.node.code)
+  }
+  const plain = (): JSX.Element => <For each={props.node.fallback}>{(child) => <MarkdownDomNode node={child} />}</For>
+  return (
+    <Show when={declined.code !== props.node.code} fallback={plain()}>
+      <ErrorBoundary
+        fallback={() => {
+          onMount(decline)
+          return null
+        }}
+      >
+        <Dynamic component={props.node.view} code={props.node.code} fallback={decline} />
+      </ErrorBoundary>
+    </Show>
+  )
+}
+
 function MarkdownDomNode(props: {node: MarkdownNode}): JSX.Element {
   return (
     <Switch>
       <Match when={asText(props.node)}>{(node) => <HastText value={node().text} />}</Match>
       <Match when={asWord(props.node)}>{(node) => <MarkdownWord node={node()} />}</Match>
       <Match when={asElement(props.node)}>{(node) => <MarkdownElement node={node()} />}</Match>
-      <Match when={asView(props.node)}>{(node) => <Dynamic component={node().view} code={node().code} />}</Match>
+      <Match when={asView(props.node)}>{(node) => <MarkdownView node={node()} />}</Match>
     </Switch>
   )
 }
