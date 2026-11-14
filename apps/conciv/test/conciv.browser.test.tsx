@@ -3,6 +3,7 @@ import 'virtual:uno.css'
 import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe, onTestFinished} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
 import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
+import {CONNECTION_CHANGED_EVENT} from '@conciv/protocol/event-bus'
 import {
   makeBrowserRpcClient,
   makeRpcClient,
@@ -6073,13 +6074,40 @@ module.exports = {default: {setup(ctx) {
   }, 60_000)
 })
 
+function engineReportedUnreachable(): Promise<void> {
+  const reported = Promise.withResolvers<void>()
+  const listener = (event: Event) => {
+    if (!(event instanceof CustomEvent) || !z.object({connected: z.literal(true)}).safeParse(event.detail).success)
+      return
+    window.removeEventListener(CONNECTION_CHANGED_EVENT, listener)
+    reported.resolve()
+  }
+  window.addEventListener(CONNECTION_CHANGED_EVENT, listener)
+  onTestFinished(() => window.removeEventListener(CONNECTION_CHANGED_EVENT, listener))
+  return reported.promise
+}
+
+async function logInOnce(harness: ReturnType<typeof createShellHarness>, origin: string, at: string): Promise<void> {
+  onTestFinished(() => localStorage.removeItem(`conciv:engine-token:${origin}`))
+  const loginNotice = page.getByRole('alert').filter({hasText: 'Log in to use conciv on this page.'})
+  harness.mountShell(at, [], {login: {apiBase: origin}})
+  await expect.element(loginNotice, {timeout: 15_000}).toBeVisible()
+  await loginNotice.getByRole('button', {name: 'Log in'}).click()
+  await userEvent.type(page.getByRole('textbox', {name: 'Digit 1 of 6'}), await coreControl.requestCode())
+  await expect.element(loginNotice).not.toBeInTheDocument()
+  harness.dispose()
+}
+
+const lostConnection = () => page.getByRole('alert').filter({hasText: 'conciv lost connection to the engine.'})
+
 describe('plugin settings page links while plugins are not yet known', () => {
   const coreBase = bootedCore('plugin-settings-pages-known')
   const harness = createShellHarness(coreBase)
+  const faults = trackedFaults()
 
   afterEach(harness.dispose)
 
-  test('with zero plugins an unknown page lands on General, and with the engine unreachable a page link lands on General', async () => {
+  test('with zero plugins an unknown page lands on General, and with the engine unreachable a page link keeps its address under the lost connection notice until Retry finds the page gone', async () => {
     await page.viewport(1000, 900)
     const sessionId = await createSession(coreRpc(coreBase()))
     const pagePath = (key: string) => `/panel/${sessionId}/settings/plugins/${encodeURIComponent(key)}?open=true`
@@ -6089,15 +6117,26 @@ describe('plugin settings page links while plugins are not yet known', () => {
     expect(harness.pathname()).toBe(`/panel/${sessionId}/settings/general`)
     harness.dispose()
 
+    const deadPort = engineReportedUnreachable()
     harness.mountShell(pagePath('alpha:prefs'), [], {login: {apiBase: 'http://127.0.0.1:9'}})
-    await expect
-      .element(
-        page.getByRole('tabpanel', {name: 'General'}).getByText(/Loading settings…|settings could not be loaded/),
-        {timeout: 15_000},
-      )
-      .toBeVisible()
+    await deadPort
+    await expect.element(lostConnection(), {timeout: 15_000}).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}/settings/plugins/${encodeURIComponent('alpha:prefs')}`)
+    harness.dispose()
+
+    const origin = new URL(coreBase()).origin
+    await logInOnce(harness, origin, `/panel/${sessionId}?open=true`)
+    const offline = await faults.install({kind: 'offline'})
+    const unreachable = engineReportedUnreachable()
+    harness.mountShell(pagePath('alpha:prefs'), [], {login: {apiBase: origin}})
+    await unreachable
+    await expect.element(lostConnection(), {timeout: 15_000}).toBeVisible()
+    await coreControl.releaseFault(offline)
+    expect(harness.pathname()).toBe(`/panel/${sessionId}/settings/plugins/${encodeURIComponent('alpha:prefs')}`)
+    await lostConnection().getByRole('button', {name: 'Retry'}).click()
+    await expect.element(page.getByRole('heading', {name: 'Appearance'}), {timeout: 15_000}).toBeVisible()
     expect(harness.pathname()).toBe(`/panel/${sessionId}/settings/general`)
-  }, 60_000)
+  }, 90_000)
 })
 
 type InstalledPush = Parameters<Parameters<InstalledSource['on']>[0]>[0]
@@ -6499,7 +6538,7 @@ module.exports = {default: {stores: {
     expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:tools'))
   }, 60_000)
 
-  test('a cold link to a tab no panel lists, or to its tab with the engine unreachable, ends on the chat', async () => {
+  test('a cold link to a tab no panel lists ends on the chat, and a cold link to its tab with the engine unreachable keeps its address under the lost connection notice and opens the tab after Retry', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(`${tabPath(sessionId, 'fixture:missing')}?open=true`)
     await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
@@ -6508,13 +6547,30 @@ module.exports = {default: {stores: {
     expect(harness.pathname()).toBe(`/panel/${sessionId}`)
     harness.dispose()
 
+    const deadPort = engineReportedUnreachable()
     harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, [], {
       login: {apiBase: 'http://127.0.0.1:9'},
     })
-    await expect.element(tab('Chat'), {timeout: 15_000}).toHaveAttribute('aria-selected', 'true')
-    await expect.element(editor()).toBeVisible()
-    expect(harness.pathname()).toBe(`/panel/${sessionId}`)
-  }, 60_000)
+    await deadPort
+    await expect.element(lostConnection(), {timeout: 15_000}).toBeVisible()
+    expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:tools'))
+    harness.dispose()
+
+    const origin = new URL(coreBase()).origin
+    await logInOnce(harness, origin, `/panel/${sessionId}?open=true`)
+    const offline = await faults.install({kind: 'offline'})
+    const unreachable = engineReportedUnreachable()
+    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, [], {login: {apiBase: origin}})
+    await unreachable
+    await expect.element(lostConnection(), {timeout: 15_000}).toBeVisible()
+    await expect.element(tab('Chat')).toHaveAttribute('aria-selected', 'false')
+    await coreControl.releaseFault(offline)
+    expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:tools'))
+    await lostConnection().getByRole('button', {name: 'Retry'}).click()
+    await expect.element(control('Write a plain note'), {timeout: 15_000}).toBeVisible()
+    await expect.element(tab('Fixture tools')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:tools'))
+  }, 90_000)
 
   const FILLER_TURNS = 16
   const STORE_WRITES = ['settings', 'set']

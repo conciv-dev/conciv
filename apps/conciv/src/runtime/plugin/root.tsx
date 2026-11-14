@@ -135,7 +135,7 @@ export function PluginRoot(props: ParentProps) {
           reported: () => {
             const status = login()?.status() ?? 'trusted'
 
-            if (status === 'checking') return undefined
+            if (status === 'checking' || status === 'unreachable') return undefined
 
             if (status !== 'trusted') return []
 
