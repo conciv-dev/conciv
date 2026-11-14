@@ -1,4 +1,4 @@
-import type {Component} from 'solid-js'
+import type {Component, JSX} from 'solid-js'
 import type {ToolCallPart, ToolResultPart} from './chat-message-types.js'
 import type {ToolIconKey, ToolLabel} from './tool-icon-types.js'
 import type {ToolCaptureView} from './element-capture-types.js'
@@ -47,6 +47,7 @@ export type ToolCardProps = {
   addResult: (value: UiAnswerValue) => void
   durationMs?: number
   capture?: ToolCaptureView
+  body?: JSX.Element
 }
 
 export type ToolRenderResultOptions = {expanded: boolean; isPartial: boolean}
