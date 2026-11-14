@@ -418,7 +418,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                         <RunErrorRow
                           error={error()}
                           compacting={compacting()}
-                          onRetry={() => void chat.reload()}
+                          onRetry={messaging.retryable() ? () => void chat.reload() : undefined}
                           onCompact={() => messaging.compact.mutate()}
                         />
                       </Show>
