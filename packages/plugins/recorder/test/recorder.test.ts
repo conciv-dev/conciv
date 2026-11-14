@@ -192,6 +192,11 @@ function sizedEvent(type: number, timestamp: number, bytes: number): RrwebEvent 
   return {type, data: {blob: 'x'.repeat(bytes - bare)}, timestamp}
 }
 
+async function flushAndSave(kit: CoreKit, clientId: string, events: RrwebEvent[]): Promise<{recordingId: string}> {
+  expect(await call(kit, 'flush', {clientId, events})).toEqual({ok: true})
+  return SavedSchema.parse(await call(kit, 'recordings.save', {clientId}))
+}
+
 function recordingsDirectory(kit: CoreKit): string {
   return join(kit.stateRoot, '.conciv', 'recorder', 'recordings')
 }
@@ -316,9 +321,7 @@ describe('the recorder RPC', () => {
     onTestFinished(() => rm(folder, {recursive: true, force: true}))
     const first = await bootCoreKit({...RECORDER_KIT, stateRoot: folder})
     const reopenEvents = fixtureStream(Date.now())
-    expect(await call(first, 'flush', {clientId: 'reopen', events: reopenEvents})).toEqual({ok: true})
-    const reopened = SavedSchema.parse(await call(first, 'recordings.save', {clientId: 'reopen'}))
-    await first.cleanup()
+    const reopened = await flushAndSave(first, 'reopen', reopenEvents).finally(() => first.cleanup())
     const second = await bootRecorder(folder)
     expect(await call(second, 'recordings.get', {recordingId: reopened.recordingId})).toEqual({events: reopenEvents})
   })
