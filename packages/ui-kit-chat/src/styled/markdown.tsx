@@ -303,7 +303,7 @@ export function HighlightedText(props: {text: string}): JSX.Element {
   )
 }
 
-type MarkdownCodeBlock = {
+export type MarkdownCodeBlock = {
   readonly code: string
   readonly language: string
 }
