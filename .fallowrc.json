@@ -121,6 +121,12 @@
         "maxCyclomatic": 35,
         "maxCrap": 250,
         "reason": "copied from opencode core/src/plugin/module.ts: load keeps opencode's shape"
+      },
+      {
+        "files": ["packages/builtin-plugins/src/page/operations.ts"],
+        "maxCyclomatic": 43,
+        "maxCrap": 443,
+        "reason": "perform keeps the source's single dispatch switch, opencode gui-plugins/src/browser/chromium.ts:718-726"
       }
     ]
   },
