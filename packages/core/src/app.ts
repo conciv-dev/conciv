@@ -77,7 +77,7 @@ import {
   answerPermission,
   followPermissionCards,
   pluginInstructions,
-  sessionSnapshot,
+  sessionToolDomain,
 } from './runtime/permission-cards.js'
 import {makePluginRuntime} from './runtime/plugin-runtime.js'
 import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-types.js'
@@ -605,7 +605,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const withPluginTools = (sessionId: SessionId, capabilities: CodeCapability[]): CodeCapability[] =>
     toolDomainCapabilities(
       capabilities,
-      pluginHost.runSync(sessionSnapshot(sessionId)),
+      pluginHost.runSync(sessionToolDomain(sessionId)),
       (effect, signal) => pluginHost.runPromiseExit(effect, {signal}),
       reportToolCollision,
     )

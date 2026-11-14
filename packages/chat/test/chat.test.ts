@@ -182,7 +182,7 @@ describe('plugin tools in code mode', () => {
     const capabilities = (): CodeCapability[] =>
       toolDomainCapabilities(
         [builtin],
-        host.runSync(Tool.Service.use((tools) => tools.snapshot())),
+        {snapshot: host.runSync(Tool.Service.use((tools) => tools.snapshot())), agent: Agent.Id.make('plan')},
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         (name) => collisions.push(name),
       )
@@ -282,7 +282,7 @@ describe('plugin tools in code mode', () => {
     })
     expect(new Set(collisions)).toEqual(new Set(['unit_taken']))
     await expect(runner?.code?.run('return await external_unit_shout({text: "hi"})', 'parent')).resolves.toMatchObject({
-      result: 'CHANGED BY A HOOK in conciv_plugin as build',
+      result: 'CHANGED BY A HOOK in conciv_plugin as plan',
     })
     expect(seen).toEqual(['before unit_shout without a message {"text":"hi"}', 'after unit_shout completed'])
     await expect(runner?.code?.run('return await external_unit_double({count: "2"})', 'parent')).resolves.toMatchObject(
@@ -386,7 +386,7 @@ describe('plugin tools in code mode', () => {
     const capabilities = (): CodeCapability[] =>
       toolDomainCapabilities(
         [],
-        host.runSync(Tool.Service.use((tools) => tools.snapshot())),
+        {snapshot: host.runSync(Tool.Service.use((tools) => tools.snapshot())), agent: Agent.defaultId},
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )
@@ -498,7 +498,7 @@ describe('refusal text', () => {
     )
     const [guarded, wrapped] = toolDomainCapabilities(
       [],
-      host.runSync(Tool.Service.use((tools) => tools.snapshot())),
+      {snapshot: host.runSync(Tool.Service.use((tools) => tools.snapshot())), agent: Agent.defaultId},
       (effect, signal) => host.runPromiseExit(effect, {signal}),
       () => undefined,
     )
@@ -593,11 +593,14 @@ describe('direct tools', () => {
     const capabilities = (sessionId: SessionId): CodeCapability[] =>
       toolDomainCapabilities(
         [builtin],
-        host.runSync(
-          Tool.Service.use((tools) =>
-            tools.snapshot(sessionId === closed ? [{action: 'execute', resource: '*', effect: 'deny'}] : []),
+        {
+          snapshot: host.runSync(
+            Tool.Service.use((tools) =>
+              tools.snapshot(sessionId === closed ? [{action: 'execute', resource: '*', effect: 'deny'}] : []),
+            ),
           ),
-        ),
+          agent: Agent.Id.make('plan'),
+        },
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )
@@ -616,7 +619,7 @@ describe('direct tools', () => {
     expect(names(runner?.direct)).toEqual(['unit_direct', 'unit_direct_snap'])
     await expect(runner?.direct[0]?.run({text: 'hi'}, 'parent')).resolves.toBe('direct hi')
     await expect(runner?.direct[1]?.run({}, 'parent')).resolves.toEqual([
-      {type: 'text', content: 'untrusted page data for build'},
+      {type: 'text', content: 'untrusted page data for plan'},
       {type: 'image', source: {type: 'data', value: PIXEL_PNG, mimeType: 'image/png'}},
     ])
     expect(ran).toEqual(['unit_direct hi conciv_direct'])

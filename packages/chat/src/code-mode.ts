@@ -39,6 +39,8 @@ export type CodeCapability = {
 
 export type CapabilityResult = {value: unknown; files: ChatContentPart[]}
 
+export type ToolDomain = {snapshot: Tool.Snapshot; agent: Agent.Id}
+
 const ATTACHED_FILE_TEXT = 'Attached document or image follows.'
 
 const JsonSchemaObject = z.record(z.string(), z.unknown())
@@ -110,10 +112,10 @@ function waitForCancel(signal: AbortSignal): Effect.Effect<void> {
   })
 }
 
-function toolContext(request: ToolRequest): Tool.Context {
+function toolContext(request: ToolRequest, agent: Agent.Id): Tool.Context {
   return {
     sessionId: SessionSchema.Id.make(request.sessionId),
-    agent: Agent.defaultId,
+    agent,
     messageId: undefined,
     id: Tool.CallId.make(request.toolCallId ?? randomUUID()),
     progress: () => Effect.void,
@@ -193,7 +195,7 @@ function enclosingNamespaces(namespaces: CodeModeSnapshot['namespaces'], path: s
   })
 }
 
-function codeModeCapabilities(codeMode: CodeModeSnapshot, run: EffectRun): CodeCapability[] {
+function codeModeCapabilities(codeMode: CodeModeSnapshot, agent: Agent.Id, run: EffectRun): CodeCapability[] {
   return [...codeMode.tools].map(([name, tool]) => {
     const path = qualifiedName(tool)
     const definition = ToolRuntime.definition(tool)
@@ -207,7 +209,7 @@ function codeModeCapabilities(codeMode: CodeModeSnapshot, run: EffectRun): CodeC
       inputSchema: jsonSchemaOnly(definition.inputSchema),
       outputSchema: pluginOutput(definition.outputSchema),
       execute: (input, request) =>
-        runTool(name, run, codeMode.execute(name, input, toolContext(request)), request.signal),
+        runTool(name, run, codeMode.execute(name, input, toolContext(request, agent)), request.signal),
     }
   })
 }
@@ -216,7 +218,7 @@ function pluginOutput(schema: ReturnType<typeof ToolRuntime.definition>['outputS
   return schema === undefined ? PLUGIN_TEXT_OUTPUT : {...schema}
 }
 
-function directCapabilities(snapshot: Tool.Snapshot, run: EffectRun): CodeCapability[] {
+function directCapabilities(snapshot: Tool.Snapshot, agent: Agent.Id, run: EffectRun): CodeCapability[] {
   return snapshot.definitions.map((definition) => ({
     name: definition.name,
     path: definition.name,
@@ -228,7 +230,7 @@ function directCapabilities(snapshot: Tool.Snapshot, run: EffectRun): CodeCapabi
       runTool(
         definition.name,
         run,
-        snapshot.execute(directCall(definition.name, input, toolContext(request))),
+        snapshot.execute(directCall(definition.name, input, toolContext(request, agent))),
         request.signal,
       ),
   }))
@@ -236,7 +238,7 @@ function directCapabilities(snapshot: Tool.Snapshot, run: EffectRun): CodeCapabi
 
 export function toolDomainCapabilities(
   capabilities: readonly CodeCapability[],
-  snapshot: Tool.Snapshot,
+  {snapshot, agent}: ToolDomain,
   run: EffectRun,
   collided: (name: string) => void,
 ): CodeCapability[] {
@@ -244,8 +246,8 @@ export function toolDomainCapabilities(
   const offered = codeMode === undefined ? [] : capabilities
   const taken = (capability: CodeCapability) => offered.some((entry) => entry.name === capability.name)
   const added = [
-    ...(codeMode === undefined ? [] : codeModeCapabilities(codeMode, run)),
-    ...directCapabilities(snapshot, run),
+    ...(codeMode === undefined ? [] : codeModeCapabilities(codeMode, agent, run)),
+    ...directCapabilities(snapshot, agent, run),
   ]
   added.filter(taken).forEach((capability) => collided(capability.name))
   return [...offered, ...added.filter((capability) => !taken(capability))]

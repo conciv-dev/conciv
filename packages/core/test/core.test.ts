@@ -175,7 +175,7 @@ import {
   followPermissionCards,
   permissionSessions,
   pluginInstructions,
-  sessionSnapshot,
+  sessionToolDomain,
 } from '../src/runtime/permission-cards.js'
 import {bootMadeApp, chunkWithInlineMap, cleanupChunks, makeChatFixture, requireClaude} from './helpers.js'
 
@@ -368,7 +368,7 @@ describe('chat plane', () => {
     const capabilities = (id: SessionId): CodeCapability[] =>
       toolDomainCapabilities(
         id === builtins ? [echo, secret] : [],
-        host.runSync(sessionSnapshot(id)),
+        host.runSync(sessionToolDomain(id)),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )
@@ -516,7 +516,7 @@ describe('chat plane', () => {
       capabilities: (id) =>
         toolDomainCapabilities(
           pinged,
-          host.runSync(sessionSnapshot(id)),
+          host.runSync(sessionToolDomain(id)),
           (effect, signal) => host.runPromiseExit(effect, {signal}),
           () => undefined,
         ),
@@ -2720,7 +2720,7 @@ describe('plugin permission cards', () => {
     const buildCapabilities = (sessionId: SessionId) =>
       toolDomainCapabilities(
         [],
-        host.runSync(sessionSnapshot(sessionId)),
+        host.runSync(sessionToolDomain(sessionId)),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )

@@ -38,6 +38,7 @@ export {
   toolDomainCapabilities,
   type CapabilityResult,
   type CodeCapability,
+  type ToolDomain,
 } from './code-mode.js'
 export type {AttachmentExpanders, SessionPort} from './turn.js'
 
