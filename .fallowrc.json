@@ -261,7 +261,8 @@
     "e2e/harnesses/vite.*.config.ts",
     "packages/db/drizzle-home.config.ts",
     "apps/conciv/test/commands/core-control.ts",
-    "apps/conciv/test/commands/core-testkit.ts"
+    "apps/conciv/test/commands/core-testkit.ts",
+    "apps/conciv/test/commands/perf-baseline.ts"
   ],
   "framework": [
     {

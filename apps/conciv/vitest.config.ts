@@ -1,5 +1,6 @@
 import {configDefaults, defineConfig, type TestProjectInlineConfiguration} from 'vitest/config'
 import {coreCommands} from './test/commands/core-control.js'
+import {perfCommands} from './test/commands/perf-baseline.js'
 import {playwright} from '@vitest/browser-playwright'
 import solidPlugin from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
@@ -45,7 +46,7 @@ function browserProject(
           browser,
           provider: playwright({contextOptions: {timezoneId: TIMEZONE, permissions: PERMISSIONS[browser]}}),
         })),
-        commands: coreCommands,
+        commands: {...coreCommands, ...perfCommands},
       },
     },
   }

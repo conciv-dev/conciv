@@ -9,6 +9,7 @@ import {
 } from '@conciv/contract'
 import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {BootCoreInput, BootCoreResult, FaultSpec, PointerDrag, PointerHover} from './commands/core-control.js'
+import type {PerfMedians} from './commands/perf-baseline.js'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {fetchServerSentEvents} from '@conciv/ai/client'
 import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
@@ -77,6 +78,8 @@ declare module 'vitest/internal/browser' {
     faultPending: (handle: string) => Promise<number>
     awaitFaultPending: (handle: string, count: number) => Promise<void>
     awaitFaultAnswered: (handle: string) => Promise<void>
+    perfBaseline: () => Promise<PerfMedians | null>
+    recordPerfMedian: (browser: string, scenario: string, median: number) => Promise<void>
   }
 }
 
@@ -443,7 +446,7 @@ const VIEWPORT_SELECTOR = '[role="log"][aria-live="off"]'
 const SETTLE_PASSES = 3
 const JANK_FRAME_MS = 33
 
-type FrameGaps = {sampledMs: number; p50: number; p95: number; max: number; over33: number}
+export type FrameGaps = {sampledMs: number; p50: number; p95: number; max: number; over33: number}
 
 export type CalmWatch = {
   checkpoint: () => Promise<void>
@@ -566,16 +569,28 @@ export function registerCalmCore(id: string): void {
     await coreControl.closeCore()
   }, 30_000)
 
-  afterEach(async () => {
-    active.watch?.stop()
-    active.watch = null
-    await coreControl.releaseTools()
-    await coreControl.releaseResults()
-    await coreControl.releaseTurn()
-    await coreControl.clearScript()
-    active.pane?.dispose()
-    active.pane = null
-  })
+  afterEach(releaseCalmRun)
+}
+
+async function releaseCalmRun(): Promise<void> {
+  active.watch?.stop()
+  active.watch = null
+  await coreControl.releaseTools()
+  await coreControl.releaseResults()
+  await coreControl.releaseTurn()
+  await coreControl.clearScript()
+  active.pane?.dispose()
+  active.pane = null
+}
+
+export async function sampleCalmRuns(count: number, run: () => Promise<CalmWatch>): Promise<FrameGaps[]> {
+  const samples: FrameGaps[] = []
+  for (let index = 0; index < count; index += 1) {
+    const watch = await run()
+    samples.push(watch.frameGaps())
+    await releaseCalmRun()
+  }
+  return samples
 }
 
 async function newSession(): Promise<{rpc: RpcClient; sessionId: string}> {
