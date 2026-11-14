@@ -1452,7 +1452,8 @@ test.describe('rebind', () => {
       await expect(revokedRefusal).toHaveCount(0)
       await starter.click()
       await expect(revokedRefusal.getByText(REVOKED_SENTENCE, {exact: true})).toBeVisible({timeout: 30_000})
-      await expect(chatLog(page).getByText(STARTER_TEXT)).toHaveCount(0)
+      await expect(starter).toBeVisible()
+      await expect(composer).toHaveText(TYPED_TEXT)
 
       await logInFromPanelNotice(page, kit, REVOKED_SENTENCE)
       await expect(revokedNotice).toBeHidden({timeout: 30_000})
