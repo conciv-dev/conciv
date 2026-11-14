@@ -112,7 +112,6 @@ export type ChatPlane = {
     sessionId: SessionId,
     publish: (chunk: ChatEvent) => void,
     capabilities?: readonly CodeCapability[],
-    outside?: boolean,
   ) => Promise<CodeRunner | null>
   followUp: (sessionId: SessionId, input: string) => Promise<FollowUpOutcome>
   admitCall: (sessionId: SessionId, call: AdmittedCall) => Promise<CallRefusal | null>
@@ -293,14 +292,10 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
         startingFollowUps.delete(sessionId)
       }
     },
-    codeRunner: async (sessionId, publish, given, outside) => {
+    codeRunner: async (sessionId, publish, given) => {
       const model = deps.sessions.row(sessionId)?.model ?? null
       const capabilities = given ?? deps.capabilities(sessionId)
-      const toolSet = chatToolSet(
-        capabilities,
-        {sessionId, agentId: sessionId, model, ...(outside ? {outside} : {})},
-        deps.driver !== null,
-      )
+      const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model}, deps.driver !== null)
       const runner = server.codeRunner(toolSet.codeMode, toolSet.search)
       if (runner === null && toolSet.direct.length === 0 && toolSet.asking.length === 0) return null
       const emitter = (parentToolCallId: string | null) => (name: string, value: Record<string, unknown>) => {
@@ -344,7 +339,11 @@ function codeTools(tools: readonly ChatTool[], capabilities: readonly CodeCapabi
         description: tool.description,
         inputSchema: capability.inputSchema,
         run: async (input, parentToolCallId, signal) =>
-          execute(input, {emitCustomEvent: emitter(parentToolCallId), abortSignal: signal}),
+          execute(input, {
+            toolCallId: parentToolCallId,
+            emitCustomEvent: emitter(parentToolCallId),
+            abortSignal: signal,
+          }),
       },
     ]
   })

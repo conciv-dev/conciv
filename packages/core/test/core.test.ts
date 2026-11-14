@@ -122,6 +122,7 @@ import {withSavedModels} from '../src/lib/saved-models.js'
 import {statePaths} from '../src/lib/state-paths.js'
 import {makeJournal, makePageBus} from '../src/page/page-bus.js'
 import {makePageQueues, startQueueFollowUp, type PageQueues} from '../src/page/page-queue.js'
+import {makeHubCalls} from '../src/api/call-trace.js'
 import {makeCoreRuntime} from '../src/runtime/core-runtime.js'
 import {provideHarnessModels} from '../src/runtime/harness-models.js'
 import {makeSessionPrimitives} from '../src/runtime/primitives.js'
@@ -554,7 +555,8 @@ describe('chat plane', () => {
     const mcp = new Hono<{Variables: McpVars}>()
       .use(async (c, next) => {
         c.set('mcp', {
-          codeRunner: (id, publish, given, outside) => withoutDriver.codeRunner(id, publish, given, outside),
+          codeRunner: (id, publish, given) => withoutDriver.codeRunner(id, publish, given),
+          hubCall: () => {},
           finishedQueues: () => [],
           startedQueues: () => [],
           outsideCapabilities: () => [],
@@ -1199,7 +1201,9 @@ describe('page bus and the session scope', () => {
   function pageQueues(bus: ReturnType<typeof makePageBus>, syncMs?: number): PageQueues {
     const db = openDb(tempDir())
     onTestFinished(() => db.$client.close())
-    return makePageQueues({bus, journal: makeJournal(db), syncMs})
+    const hubCalls = makeHubCalls()
+    for (const callId of [HUB_CALL, 'call-1']) hubCalls.add(SESSION_A, callId)
+    return makePageQueues({bus, journal: makeJournal(db), syncMs, hubCalls})
   }
 
   function trackFinished(queues: PageQueues): (queueId: string) => Promise<void> {
@@ -1215,11 +1219,12 @@ describe('page bus and the session scope', () => {
     return (queueId) => of(queueId).promise
   }
 
+  const HUB_CALL = 'hub-call'
+
   const queueStart = (actions: Record<string, unknown>[]) => ({
     agentId: SESSION_A,
     input: {actions},
-    outside: true,
-    toolCallId: undefined,
+    toolCallId: HUB_CALL,
   })
 
   it('queued replies that arrive out of order are each kept for their own action', async () => {
@@ -1408,8 +1413,8 @@ describe('page bus and the session scope', () => {
     const queues = pageQueues(bus)
     const finished = trackFinished(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
-    const played = async (outside: boolean): Promise<string> => {
-      const {queueId} = await queues.start(SESSION_A, {...queueStart(check), outside})
+    const played = async (hub: boolean): Promise<string> => {
+      const {queueId} = await queues.start(SESSION_A, {...queueStart(check), toolCallId: hub ? HUB_CALL : undefined})
       bus.resolve(SESSION_A, queued.at(-1)?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
       await finished(queueId)
       return queueId
@@ -1461,7 +1466,6 @@ describe('page bus and the session scope', () => {
       const {queueId} = await queues.start(fixture.sessionId, {
         agentId: fixture.sessionId,
         input: {actions: [{tool: 'page_check', selector: '#agree'}]},
-        outside: false,
         toolCallId: undefined,
       })
       await finished(queueId)

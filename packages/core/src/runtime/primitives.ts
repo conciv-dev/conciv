@@ -6,11 +6,13 @@ import {createSessionBus, type SessionBus} from '../sessions/session-bus.js'
 import {makeJournal, makePageBus, type CaptureSink, type PageEnv} from '../page/page-bus.js'
 import {makeBuiltinRegistry} from '../tool-registry.js'
 import {makePageQueues} from '../page/page-queue.js'
+import {makeHubCalls, type HubCalls} from '../api/call-trace.js'
 
 export type SessionPrimitives = {
   stream: SessionBus
   page: PageEnv
   registry: ToolRegistry
+  hubCalls: HubCalls
 }
 
 export type SessionPrimitivesDeps = {
@@ -25,15 +27,17 @@ export type SessionPrimitivesDeps = {
 export function makeSessionPrimitives(deps: SessionPrimitivesDeps): SessionPrimitives {
   const journal = makeJournal(deps.db)
   const bus = makePageBus()
+  const hubCalls = makeHubCalls()
   const page: PageEnv = {
     journal,
     root: deps.root,
     bus,
     storeCapture: deps.storeCapture,
-    queues: makePageQueues({bus, journal}),
+    queues: makePageQueues({bus, journal, hubCalls}),
   }
   return {
     stream: createSessionBus(),
+    hubCalls,
     page,
     registry: makeBuiltinRegistry({
       page,

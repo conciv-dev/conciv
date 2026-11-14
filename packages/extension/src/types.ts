@@ -29,7 +29,6 @@ export type ToolRequest = {
   model: string | null
   toolCallId?: string
   signal?: AbortSignal
-  outside?: boolean
 }
 
 export type ExtensionServerTool = {
