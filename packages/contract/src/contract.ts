@@ -4,6 +4,7 @@ import {z} from 'zod'
 import {type ChatEvent, RunLifecycleSchema} from '@conciv/protocol/chat-event-types'
 import {
   ChatCommandsSchema,
+  ChatContentPartSchema,
   ChatHarnessesSchema,
   ChatHistorySchema,
   ChatModelsSchema,
@@ -219,6 +220,7 @@ const CodeSessionInput = z.object({sessionId: SessionId.optional()})
 
 const CodeDelivery = {
   logs: z.array(z.string()),
+  files: z.array(ChatContentPartSchema).optional(),
   queued: z.array(PageQueueHandleSchema),
   finished: z.array(PageQueueResultSchema),
 }
@@ -259,12 +261,13 @@ function locationResponse<Data extends z.ZodType>(data: Data) {
   return z.object({location: LocationPublicRefSchema, data})
 }
 
-export const PluginRpcEventSchema = z.object({
+export const EventEnvelopeSchema = z.object({
   id: z.string(),
   type: z.string(),
-  created: z.number(),
+  created: z.number().optional(),
+  durable: z.object({aggregateID: z.string(), seq: z.number(), version: z.number()}).optional(),
   data: z.record(z.string(), z.unknown()),
-  location: LocationPublicRefSchema,
+  location: LocationPublicRefSchema.optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 })
 
@@ -500,14 +503,16 @@ export const contract = {
       .errors(pluginRpcFailed)
       .input(z.object({rpcId: z.string().min(1), method: z.string().min(1), input: z.unknown().optional()}))
       .output(z.unknown()),
-    events: oc
-      .input(z.object({rpcId: z.string().min(1), types: z.array(z.string().min(1)).optional()}))
-      .output(eventIterator(PluginRpcEventSchema)),
     list: oc.output(locationResponse(z.array(PluginInfoSchema))),
     experimental: oc
       .errors(pluginNotFound)
       .input(z.object({id: PluginIdSchema}))
       .output(locationResponse(PluginExperimentalBundleSchema)),
-    changes: oc.output(eventIterator(z.object({}))),
+  },
+  event: {
+    subscribe: oc
+      .errors(approvalDenied)
+      .input(z.object({types: z.array(z.string().min(1)).optional()}).optional())
+      .output(eventIterator(EventEnvelopeSchema)),
   },
 }

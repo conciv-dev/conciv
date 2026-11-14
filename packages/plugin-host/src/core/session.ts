@@ -37,7 +37,7 @@ export interface Interface {
     },
     InvalidListCursorError
   >
-  readonly create: (input: CreateInput) => Effect.Effect<SessionInfo, NotFoundError>
+  readonly create: (input: CreateInput) => Effect.Effect<SessionInfo, NotFoundError | AgentNotFoundError>
   readonly get: (sessionId: SessionId) => Effect.Effect<SessionInfo, NotFoundError>
   readonly remove: (sessionId: SessionId) => Effect.Effect<void, NotFoundError>
   readonly switchAgent: (input: {

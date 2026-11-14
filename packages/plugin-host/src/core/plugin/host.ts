@@ -92,7 +92,7 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
     app,
     location: locationInfo(),
     options: {},
-    rpc: Object.assign(rpc.client, {register}),
+    rpc: Object.assign(<D extends Rpc.Definition>(definition: D) => rpc.client(definition), {register}),
     agent: {
       transform: (callback) =>
         agents.transform((editor) => {

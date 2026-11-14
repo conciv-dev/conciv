@@ -29,6 +29,7 @@ export type {Info, ToolContext, ToolDomain, ToolEditor} from './tool.js'
 export type {ExperimentalGenerateApi, SelectedEvent, SubscribeOptions} from '../client/promise/api.js'
 export type {ConcivClient, ConcivEvent} from '../client/promise/index.js'
 export type {RpcApi, RpcArguments, RpcCallOptions, RpcClient, RpcEventPayload} from '../client/promise/rpc.js'
+export {Conciv} from '../client/promise/index.js'
 export {makeRpc} from '../client/promise/rpc.js'
 export type {RequestOptions} from '../client/promise/generated/client.js'
 export type {
