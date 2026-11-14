@@ -18,7 +18,6 @@ import type {StorageDomain} from './storage.js'
 import type {ToolDomain} from './tool.js'
 
 export interface Context {
-  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly app: App | undefined
   readonly location: Info
   readonly options: PluginOptions

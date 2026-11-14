@@ -2772,6 +2772,43 @@ describe('pane composer attachments', () => {
   })
 })
 
+describe('a refusing prompt hook', () => {
+  const REFUSING_PLUGIN = `export default {
+  id: 'prompt-refusing',
+  async setup(ctx) {
+    await ctx.session.hook('prompt', () => {
+      throw new Error('the prompt hook refused')
+    })
+  },
+}
+`
+  const core = bootedCore('prompt-refusing', {
+    files: {'prompt-refusing/index.ts': REFUSING_PLUGIN},
+    plugins: ['./prompt-refusing'],
+  })
+  const keep = keptPane()
+  const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const attached = () => page.getByRole('button', {name: 'Remove notes.txt'})
+  const notifications = () => page.getByRole('region', {name: /Notifications/})
+
+  test('a prompt hook that throws fails the send, and the composer holds the text and the attachment again', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    keep(mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />))
+
+    await input().click()
+    await userEvent.keyboard('keep this request')
+    await coreControl.chooseFiles('Add an attachment', [{name: 'notes.txt', mimeType: 'text/plain', text: 'the notes'}])
+    await expect.element(attached()).toBeVisible()
+    await input().click()
+    await userEvent.keyboard('{Enter}')
+
+    await expect.element(notifications(), {timeout: 8000}).toMatchTextContent(/the prompt hook refused/)
+    await expect.element(input()).toHaveTextContent('keep this request')
+    await expect.element(attached()).toBeVisible()
+    await expect.element(page.getByRole('log').getByText('keep this request')).not.toBeInTheDocument()
+  }, 30_000)
+})
+
 const FOUND_API_BASE = 'http://found.test'
 const CONNECT_PROBE_NAME = 'connect-probe'
 
@@ -4892,6 +4929,7 @@ describe('wire name coverage', () => {
 
 describe('run errors', () => {
   const OVERFLOW_TEXT = 'prompt is too long: 250000 tokens > 200000 maximum'
+  const IDLE_FAILURE = 'the idle judge is unreachable'
 
   function FailedRun(props: {failure: ChatEvent; compacted: () => void; compacting?: boolean}): JSX.Element {
     const chat = createChat({
@@ -4957,24 +4995,57 @@ describe('run errors', () => {
 
     await expect.element(page.getByRole('alert').getByText('upstream is overloaded')).toBeVisible()
     await expect.element(page.getByRole('button', {name: 'Retry'})).toBeVisible()
+
+    render(() => <RunErrorRow error={new Error(IDLE_FAILURE)} compacting={false} onCompact={() => {}} />)
+    const idleRow = page.getByRole('alert').filter({hasText: IDLE_FAILURE})
+    await expect.element(idleRow).toBeVisible()
+    await expect.element(idleRow.getByRole('button', {name: 'Retry'})).not.toBeInTheDocument()
   })
 
   describe('in a live pane', () => {
-    const core = bootedCore('run-errors-live')
+    const REPLY = 'the turn went through'
+    const IDLE_JUDGE = [
+      `import {existsSync} from 'node:fs'`,
+      `import {join} from 'node:path'`,
+      `export default {`,
+      `  id: 'idle-judge',`,
+      `  async setup(ctx) {`,
+      `    await ctx.session.hook('experimental.idle', () => {`,
+      `      if (existsSync(join(ctx.location.directory, 'judge-offline'))) throw new Error(${JSON.stringify(IDLE_FAILURE)})`,
+      `    })`,
+      `  },`,
+      `}`,
+    ].join('\n')
+    const core = bootedCore('run-errors-live', {text: REPLY, files: {'conciv/plugins/idle-judge.ts': IDLE_JUDGE}})
     const keep = keptPane()
 
     const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
-    const runError = (text: string) =>
-      page.getByRole('alert').filter({hasText: text, has: page.getByRole('button', {name: 'Retry'})})
+    const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
+    const alerts = () => page.getByRole('alert')
+    const retry = () => page.getByRole('button', {name: 'Retry'})
+    const latestReply = () => page.getByText(REPLY, {exact: true}).last()
+    const idleError = () => alerts().filter({hasText: IDLE_FAILURE})
+    const runError = (text: string) => alerts().filter({hasText: text, has: retry()})
+    const mountChatPane = (sessionId: string): PaneMount =>
+      keep(mountPane({base: core(), sessionId, width: 460}, () => <ChatPane sessionId={sessionId} />))
 
     async function typeTurn(text: string): Promise<void> {
       await userEvent.click(input())
       await userEvent.keyboard(`${text}{Enter}`)
     }
 
+    async function heldTurn(text: string): Promise<void> {
+      await coreControl.holdTurn()
+      await typeTurn(text)
+      await expect.element(stopButton()).toBeVisible()
+      await expect.element(alerts()).not.toBeInTheDocument()
+      await coreControl.releaseTurn()
+      await expect.element(stopButton()).not.toBeInTheDocument()
+    }
+
     it('a finished compaction clears the run error it resolved, and a later failure still shows', async () => {
       const sessionId = await createSession(coreRpc(core()))
-      keep(mountPane({base: core(), sessionId, width: 460}, () => <ChatPane sessionId={sessionId} />))
+      const first = mountChatPane(sessionId)
       await expect.element(input()).toBeVisible()
 
       await coreControl.scriptError('upstream is overloaded')
@@ -4990,6 +5061,37 @@ describe('run errors', () => {
       await coreControl.scriptError('the model went away')
       await typeTurn('second turn')
       await expect.element(runError('the model went away')).toBeVisible()
+
+      first.dispose()
+      const reloaded = mountChatPane(sessionId)
+      await expect.element(page.getByRole('separator', {name: 'Context compacted'})).toBeVisible()
+      await expect.element(runError('the model went away')).toBeVisible()
+      expect(alerts().all()).toHaveLength(1)
+      await page.screenshot({path: '__screenshots__/run-errors/failed-after-reload.png'})
+
+      await heldTurn('third turn')
+      await expect.element(page.getByText('third turn')).toBeVisible()
+      await expect.element(alerts()).not.toBeInTheDocument()
+
+      await coreControl.writeProjectFile('judge-offline', '')
+      await heldTurn('fourth turn')
+      await expect.element(latestReply()).toBeVisible()
+      await expect.element(idleError()).toBeVisible()
+      await expect.element(idleError().getByRole('button', {name: 'Retry'})).not.toBeInTheDocument()
+      expect(alerts().all()).toHaveLength(1)
+      await page.screenshot({path: '__screenshots__/run-errors/idle-failed.png'})
+
+      reloaded.dispose()
+      mountChatPane(sessionId)
+      await expect.element(page.getByRole('separator', {name: 'Context compacted'})).toBeVisible()
+      await expect.element(latestReply()).toBeVisible()
+      await expect.element(idleError()).toBeVisible()
+      await expect.element(retry()).not.toBeInTheDocument()
+      expect(alerts().all()).toHaveLength(1)
+
+      await heldTurn('fifth turn')
+      await expect.element(idleError()).toBeVisible()
+      expect(alerts().all()).toHaveLength(1)
     })
   })
 })

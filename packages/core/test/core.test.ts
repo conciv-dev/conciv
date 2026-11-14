@@ -20,6 +20,7 @@ import {text as bodyText} from 'node:stream/consumers'
 import {randomUUID} from 'node:crypto'
 import {setImmediate, setTimeout as wait} from 'node:timers/promises'
 import {describe, it, expect, afterEach, onTestFinished, test, vi} from 'vitest'
+import {webSocket} from '@conciv/ai/client'
 import {makeTextAdapter, quickJSThreadDriver} from '@conciv/ai/server'
 import {createToolCallChunks, fakeText} from '@conciv/ai/testkit'
 import {
@@ -69,6 +70,7 @@ import {createToolRegistry} from '@conciv/extension/registry'
 import {type HarnessAdapter, defineHarness, resolveHarnessModels} from '@conciv/harness'
 import {
   ChatEventType,
+  idleFailedEvent,
   readApprovalAsk,
   readApprovalSettled,
   sessionRunEvent,
@@ -76,7 +78,13 @@ import {
 } from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {HarnessModel} from '@conciv/protocol/harness-types'
-import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
+import {
+  CHAT_SSE_PATH,
+  CHAT_WS_PATH,
+  CONCIV_SESSION_HEADER,
+  HarnessSessionId,
+  SessionId,
+} from '@conciv/protocol/chat-types'
 import {ConcivConfigSchema} from '@conciv/protocol/config-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
 import {eq, sql} from 'drizzle-orm'
@@ -107,9 +115,9 @@ import {
   SkillInstructions,
   Tool,
 } from '@conciv/plugin-host'
-import {Conciv, Rpc as PluginRpc} from '@conciv/plugin'
+import {Conciv, Plugin, Rpc as PluginRpc} from '@conciv/plugin'
 import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
-import {isEqual} from 'es-toolkit'
+import {isEqual, once as onceOnly} from 'es-toolkit'
 import getPort from 'get-port'
 import {WSContext, defineWebSocketHelper} from 'hono/ws'
 import {z} from 'zod'
@@ -141,7 +149,13 @@ import {
 } from '../src/engine-login.js'
 import {serveHono} from '@conciv/serve'
 import {Hono} from 'hono'
-import {createTestHarness, exchangePrintedCode, loginThroughTerminal, requestPrintedCode} from '@conciv/harness-testkit'
+import {
+  createTestHarness,
+  createTestkit,
+  exchangePrintedCode,
+  loginThroughTerminal,
+  requestPrintedCode,
+} from '@conciv/harness-testkit'
 import {os} from '@orpc/server'
 import {createORPCClient} from '@orpc/client'
 import {RPCLink as FetchRpcLink} from '@orpc/client/fetch'
@@ -550,11 +564,14 @@ describe('chat plane', () => {
       db,
       model: () => null,
       staleness: () => unchanged,
+      interruptIdle: async () => false,
     })
     const mcp = new Hono<{Variables: McpVars}>()
       .use(async (c, next) => {
         c.set('mcp', {
-          codeRunner: (id, publish, given, outside) => withoutDriver.codeRunner(id, publish, given, outside),
+          codeRunner: (id, publish, given) => withoutDriver.codeRunner(id, publish, given),
+          hubCall: () => {},
+          hubReplied: () => {},
           finishedQueues: () => [],
           startedQueues: () => [],
           outsideCapabilities: () => [],
@@ -832,6 +849,7 @@ describe('chat plane', () => {
       toolNames: new Set(),
       capabilities: () => [],
       attachmentExpanders: {},
+      prompt: async (event) => event,
       pluginInstructions: async () => ({initial: '', update: '', told: async () => undefined}),
       firstOutputTimeoutMs: 30_000,
       log: () => undefined,
@@ -1214,7 +1232,9 @@ describe('page bus and the session scope', () => {
   function pageQueues(bus: ReturnType<typeof makePageBus>, syncMs?: number): PageQueues {
     const db = openDb(tempDir())
     onTestFinished(() => db.$client.close())
-    return makePageQueues({bus, journal: makeJournal(db), syncMs})
+    const queues = makePageQueues({bus, journal: makeJournal(db), syncMs})
+    for (const callId of [HUB_CALL, 'call-1']) queues.hubCall(SESSION_A, callId)
+    return queues
   }
 
   function trackFinished(queues: PageQueues): (queueId: string) => Promise<void> {
@@ -1230,11 +1250,12 @@ describe('page bus and the session scope', () => {
     return (queueId) => of(queueId).promise
   }
 
+  const HUB_CALL = 'hub-call'
+
   const queueStart = (actions: Record<string, unknown>[]) => ({
     agentId: SESSION_A,
     input: {actions},
-    outside: true,
-    toolCallId: undefined,
+    toolCallId: HUB_CALL,
   })
 
   it('queued replies that arrive out of order are each kept for their own action', async () => {
@@ -1321,6 +1342,40 @@ describe('page bus and the session scope', () => {
       expect.objectContaining({queueId, status: 'finished', played: 2}),
     ])
     expect(queues.undelivered(SESSION_A, true)).toEqual([])
+  })
+
+  it('a hub call keeps the queues it started as hub work after it replies, until the session is deleted', async () => {
+    const bus = makePageBus(2000)
+    const tab = arrivingTab(bus)
+    const queues = pageQueues(bus)
+    const finished = trackFinished(queues)
+    const check = [{tool: 'page_check', selector: '#agree'}]
+    const playOut = async (index: number): Promise<void> => {
+      const frame = await tab.frame(index)
+      for (const reply of frame.queue.replies) bus.resolve(SESSION_A, reply, {ok: true, result: {}})
+    }
+    queues.hubCall(SESSION_A, 'hub-early')
+    const {queueId: early} = await queues.start(SESSION_A, {...queueStart(check), toolCallId: 'hub-early'})
+    await playOut(0)
+    await finished(early)
+    queues.hubReplied(SESSION_A, new Set(['hub-early']))
+    expect(queues.owedTurn(SESSION_A)).toEqual([])
+    expect(queues.undelivered(SESSION_A, true)).toEqual([expect.objectContaining({queueId: early})])
+    queues.hubCall(SESSION_A, 'hub-replied')
+    const {queueId: replied} = await queues.start(SESSION_A, {...queueStart(check), toolCallId: 'hub-replied'})
+    queues.hubReplied(SESSION_A, new Set(['hub-replied']))
+    queues.hubCall(SESSION_A, 'hub-running')
+    const {queueId: running} = await queues.start(SESSION_A, {...queueStart(check), toolCallId: 'hub-running'})
+    queues.release(SESSION_A)
+    await playOut(1)
+    await finished(replied)
+    await playOut(2)
+    await finished(running)
+    expect(queues.undelivered(SESSION_A, true)).toEqual([])
+    expect(queues.owedTurn(SESSION_A).map((record) => [record.queueId, record.result?.status])).toEqual([
+      [replied, 'finished'],
+      [running, 'finished'],
+    ])
   })
 
   it('undelivered results are never evicted: at 1000 owed a new queue is refused before it plays, and delivering one frees a place', async () => {
@@ -1423,8 +1478,8 @@ describe('page bus and the session scope', () => {
     const queues = pageQueues(bus)
     const finished = trackFinished(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
-    const played = async (outside: boolean): Promise<string> => {
-      const {queueId} = await queues.start(SESSION_A, {...queueStart(check), outside})
+    const played = async (hub: boolean): Promise<string> => {
+      const {queueId} = await queues.start(SESSION_A, {...queueStart(check), toolCallId: hub ? HUB_CALL : undefined})
       bus.resolve(SESSION_A, queued.at(-1)?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
       await finished(queueId)
       return queueId
@@ -1476,7 +1531,6 @@ describe('page bus and the session scope', () => {
       const {queueId} = await queues.start(fixture.sessionId, {
         agentId: fixture.sessionId,
         input: {actions: [{tool: 'page_check', selector: '#agree'}]},
-        outside: false,
         toolCallId: undefined,
       })
       await finished(queueId)
@@ -1843,7 +1897,14 @@ describe('page bus and the session scope', () => {
       }).client()
       primitives.registry.register(clicker, {owner: 'a fixture'})
       const {plane, db} = fixture
-      const runtime = makeCoreRuntime({primitives, plane, db, model: () => null, staleness: () => fresh})
+      const runtime = makeCoreRuntime({
+        primitives,
+        plane,
+        db,
+        model: () => null,
+        staleness: () => fresh,
+        interruptIdle: async () => false,
+      })
       const unsubscribe = primitives.page.bus.subscribe(SESSION_A, (frame) => {
         const requestId = readRequestId(frame)
         if (requestId === null) return
@@ -2441,7 +2502,14 @@ type MadeApp = Awaited<ReturnType<typeof bootMadeApp>>
 function sessionKey(made: MadeApp) {
   const search = createSessionSearch({db: made.chat.db, cwd: made.chat.cwd, harnesses: made.chat.harnesses})
   onTestFinished(() => search.dispose())
-  const layer = provideSessions(() => ({chat: made.chat, runtime: made.runtime, search, pluginHost: made.pluginHost}))
+  const queues = makePageQueues({bus: makePageBus(), journal: makeJournal(made.chat.db)})
+  const layer = provideSessions(() => ({
+    chat: made.chat,
+    runtime: made.runtime,
+    search,
+    pluginHost: made.pluginHost,
+    queues,
+  }))
   return {
     run: <Success, Failure>(use: (service: Session.Interface) => Effect.Effect<Success, Failure>) =>
       Effect.runPromise(Session.Service.use(use).pipe(Effect.provide(layer))),
@@ -2478,13 +2546,24 @@ describe('plugin host bus', () => {
     }))
     const harness = createTestHarness(requireClaude())
     const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}}, {extensions: [recorder]})
-    onTestFinished(() => made.dispose())
+    const dispose = onceOnly(() => made.dispose())
+    onTestFinished(dispose)
     const id = SessionId.parse('conciv_idle')
     await ensureRow(made.chat.db, id, harness.id, stateRoot)
     const idles: unknown[] = []
+    const laterIdles: unknown[] = []
+    const idleFailure: {message: string | null} = {message: null}
     await made.pluginHost.runPromise(
       PluginHooks.Service.use((hooks) =>
-        hooks.register('session', 'experimental.idle', (event) => Effect.sync(() => idles.push(event))),
+        Effect.all([
+          hooks.register('session', 'experimental.idle', (event) =>
+            Effect.suspend(() => {
+              idles.push(event)
+              return idleFailure.message === null ? Effect.void : Effect.die(new Error(idleFailure.message))
+            }),
+          ),
+          hooks.register('session', 'experimental.idle', (event) => Effect.sync(() => laterIdles.push(event))),
+        ]),
       ).pipe(Scope.provide(made.pluginHost.runSync(Scope.make()))),
     )
 
@@ -2510,6 +2589,82 @@ describe('plugin host bus', () => {
     expect(await following).toEqual({kind: 'stopped'})
     expect(idles).toHaveLength(1)
     expect(turnEnds).toEqual([id, id, id])
+
+    const published: ChatEvent[] = []
+    onTestFinished(made.runtime.forSession(id).stream.listen((chunk) => void published.push(chunk)))
+    idleFailure.message = 'judge unreachable'
+    harness.script.scriptTurn({text: 'the finished answer', toolCalls: []})
+    expect(await made.plane.followUp(id, 'answer, then the idle hook fails')).toEqual({kind: 'delivered'})
+    const failedIdle = await made.plane.hydrate(id)
+    expect(failedIdle.lastRun).toMatchObject({phase: 'completed', error: 'judge unreachable'})
+    expect(published.flatMap((chunk) => idleFailedEvent.parse(chunk) ?? [])).toEqual([
+      {runId: failedIdle.lastRun?.runId},
+    ])
+    expect(published.filter((chunk) => chunk.type === ChatEventType.RUN_ERROR)).toEqual([])
+    expect(failedIdle.messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      parts: expect.arrayContaining([{type: 'text', content: 'the finished answer'}]),
+    })
+    expect([idles.length, laterIdles.length]).toEqual([2, 1])
+
+    idleFailure.message = null
+    expect(await made.plane.followUp(id, 'answer, and the idle hook succeeds')).toEqual({kind: 'delivered'})
+    const succeededIdle = await made.plane.hydrate(id)
+    expect(succeededIdle.lastRun).toMatchObject({phase: 'completed', error: null})
+    expect(succeededIdle.lastRun?.runId).not.toBe(failedIdle.lastRun?.runId)
+    expect([idles.length, laterIdles.length]).toEqual([3, 2])
+    expect(published.flatMap((chunk) => idleFailedEvent.parse(chunk) ?? [])).toHaveLength(1)
+
+    const key = sessionKey(made)
+    const waitsOnItsOwnSession = () => {
+      const entered = Promise.withResolvers<void>()
+      const registration = made.pluginHost.runSync(Scope.make())
+      const registered = made.pluginHost.runPromise(
+        PluginHooks.Service.use((hooks) =>
+          hooks.register('session', 'experimental.idle', (event) =>
+            Effect.sync(() => entered.resolve()).pipe(
+              Effect.andThen(Effect.promise(() => key.run((sessions) => sessions.wait(event.sessionId)))),
+            ),
+          ),
+        ).pipe(Scope.provide(registration)),
+      )
+      return {
+        entered: entered.promise,
+        registered,
+        unregister: () => Effect.runPromise(Scope.close(registration, Exit.void)),
+      }
+    }
+    const selfWait = waitsOnItsOwnSession()
+    await selfWait.registered
+    const waiting = made.plane.followUp(id, 'answer, then the idle hook waits on its own session')
+    await selfWait.entered
+    expect(await made.runtime.forSession(id).run.stop()).toEqual({ok: true, stopped: true})
+    expect(await waiting).toEqual({kind: 'delivered'})
+    const stoppedIdle = await made.plane.hydrate(id)
+    expect(stoppedIdle.lastRun).toMatchObject({phase: 'completed', error: null})
+    expect(published.flatMap((chunk) => idleFailedEvent.parse(chunk) ?? [])).toHaveLength(1)
+    expect([idles.length, laterIdles.length]).toEqual([4, 3])
+    await selfWait.unregister()
+    expect(await made.plane.followUp(id, 'answer, and the idle hook fires again')).toEqual({kind: 'delivered'})
+    expect([idles.length, laterIdles.length]).toEqual([5, 4])
+
+    const compacting = waitsOnItsOwnSession()
+    await compacting.registered
+    const waitingThenCompacted = made.plane.followUp(id, 'answer, then the idle hook waits while a compact is sent')
+    await compacting.entered
+    await compacting.unregister()
+    expect(await made.runtime.forSession(id).run.compact()).toBeUndefined()
+    expect(await waitingThenCompacted).toEqual({kind: 'delivered'})
+    const compactedBoundaries = await made.chat.db.select().from(markers).where(eq(markers.sessionId, id))
+    expect(compactedBoundaries.filter((marker) => marker.kind === 'compact')).toHaveLength(1)
+    expect(published.flatMap((chunk) => idleFailedEvent.parse(chunk) ?? [])).toHaveLength(1)
+
+    const closing = waitsOnItsOwnSession()
+    await closing.registered
+    const waitingAtClose = made.plane.followUp(id, 'answer, then the idle hook waits until the engine closes')
+    await closing.entered
+    await dispose()
+    expect(await waitingAtClose).toEqual({kind: 'delivered'})
   })
   test('the session key interrupts a live run, waits for it to end, answers false with nothing to stop even when asked to resume, and compacts a session on its harness', async () => {
     const stateRoot = tempDir()
@@ -2562,6 +2717,264 @@ describe('plugin host bus', () => {
     expect(
       await key.fail((sessions) => sessions.compact({sessionId: SessionSchema.Id.make('conciv_no_such_session')})),
     ).toMatchObject({_tag: 'Session.NotFoundError', sessionId: 'conciv_no_such_session'})
+  })
+})
+
+describe('session prompt hook', () => {
+  const NOTE = Buffer.from('a note the user attached').toString('base64')
+
+  function askedHarness(asked: unknown[]): HarnessAdapter {
+    return defineHarness({
+      id: 'asked-cli',
+      binName: 'true',
+      chatConfig: () => ({
+        adapter: makeTextAdapter('asked-cli', async function* (options) {
+          asked.push(options.messages.findLast((message) => message.role === 'user')?.content)
+          const run = {threadId: options.threadId ?? '', runId: options.runId ?? ''}
+          const messageId = `${run.runId}-a`
+          yield {type: ChatEventType.RUN_STARTED, ...run}
+          yield {type: ChatEventType.TEXT_MESSAGE_START, messageId, role: 'assistant'}
+          yield {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId, delta: 'answered'}
+          yield {type: ChatEventType.TEXT_MESSAGE_END, messageId}
+          yield {type: ChatEventType.RUN_FINISHED, ...run}
+        }),
+      }),
+      capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
+    })
+  }
+
+  async function promptKit(plugins: Plugin.Plugin[], started = true) {
+    const asked: unknown[] = []
+    const booted: MadeApp[] = []
+    const kit = await createTestkit(askedHarness(asked), async (env) => {
+      const made = await bootMadeApp(env, {plugins})
+      booted.push(made)
+      return made
+    }).setup()
+    onTestFinished(() => kit.cleanup())
+    const made = booted[0]
+    if (made === undefined) throw new Error('the prompt kit booted no app')
+    if (started) await made.startPlugins()
+    return {kit, made, asked}
+  }
+
+  const userTexts = (thread: {messages: ChatMessage[]}) =>
+    thread.messages
+      .filter((message) => message.role === 'user')
+      .map((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(''))
+
+  const noted = (text: string) => ({
+    role: 'user',
+    content: [
+      {type: 'text', content: text},
+      {type: 'document', source: {type: 'data', mimeType: 'text/plain', value: NOTE}},
+    ],
+  })
+
+  test('acquires Location only for new prompt preparation and persists before waking', async () => {
+    const calls: string[] = []
+    const plugin = Plugin.define({
+      id: 'prompt-context',
+      async setup(ctx) {
+        await ctx.session.hook('prompt', (event) => {
+          calls.push(event.prompt.text)
+          event.prompt.text += ' with context'
+        })
+      },
+    })
+    const {kit, asked} = await promptKit([plugin])
+    const session = await kit.session()
+
+    const first = await (await kit.turn(noted('Original'), {session, messageId: 'message-original'})).done()
+
+    expect(first.errors()).toEqual([])
+    expect(calls).toEqual(['Original'])
+    expect(asked).toEqual([
+      [
+        {type: 'text', content: 'Original with context'},
+        expect.objectContaining({type: 'document', source: {type: 'data', mimeType: 'text/plain', value: NOTE}}),
+      ],
+    ])
+    const stored = await kit.hydrate(session)
+    expect(userTexts(stored)).toEqual(['Original with context'])
+    expect(stored.messages[0]?.parts).toContainEqual(
+      expect.objectContaining({type: 'document', source: {type: 'data', mimeType: 'text/plain', value: NOTE}}),
+    )
+
+    await (await kit.turn(noted('Original'), {session, messageId: 'message-original'})).done()
+    expect(calls).toEqual(['Original'])
+    expect(userTexts(await kit.hydrate(session))).toEqual(['Original with context'])
+  })
+
+  test('keeps preparation interruptible without admitting input or committing a staged revert', async () => {
+    const entered = Promise.withResolvers<void>()
+    const plugin = Plugin.define({
+      id: 'prompt-forever',
+      async setup(ctx) {
+        await ctx.session.hook('prompt', () => {
+          entered.resolve()
+          return new Promise<void>(() => {})
+        })
+      },
+    })
+    const {kit, made, asked} = await promptKit([plugin])
+    const session = await kit.session()
+    const runId = randomUUID()
+
+    const turn = await kit.turn('Never admitted', {session, runId})
+    await entered.promise
+    await kit.rpc.chat.stop({sessionId: session, runIds: [runId]})
+    const ended = await turn.done()
+
+    expect(ended.errors()).toHaveLength(1)
+    expect(asked).toEqual([])
+    const stored = await kit.hydrate(session)
+    expect(stored.messages).toEqual([])
+    expect(stored.lastRun).toBeNull()
+    expect(made.plane.driving(SessionId.parse(session))).toBe(false)
+  })
+
+  test('runs prompt hooks from a cold Location before admitting a prompt', async () => {
+    const entered = Promise.withResolvers<void>()
+    const ready = Promise.withResolvers<void>()
+    const plugin = Plugin.define({
+      id: 'prompt-cold',
+      async setup(ctx) {
+        entered.resolve()
+        await ready.promise
+        await ctx.session.hook('prompt', (event) => {
+          event.prompt.text = `Prompt hook: ${event.prompt.text}`
+        })
+      },
+    })
+    const {kit, made, asked} = await promptKit([plugin], false)
+    const session = await kit.session()
+    const activating = made.startPlugins()
+    await entered.promise
+
+    const turn = await kit.turn('Original', {session})
+    await setImmediate()
+    expect(asked).toEqual([])
+    ready.resolve()
+    await activating
+    expect((await turn.done()).errors()).toEqual([])
+
+    expect(asked).toEqual([[{type: 'text', content: 'Prompt hook: Original'}]])
+    expect(userTexts(await kit.hydrate(session))).toEqual(['Prompt hook: Original'])
+  })
+
+  const partForPart: ChatMessage = {
+    id: 'message-parts',
+    role: 'user',
+    parts: [
+      {type: 'text', content: 'first line'},
+      {type: 'text', content: 'second line'},
+      {
+        type: 'document',
+        source: {type: 'data', mimeType: 'text/plain', value: NOTE},
+        metadata: {modelOnly: false, label: 'note'},
+      },
+    ],
+  }
+
+  async function sentPartForPart(wsBase: string, session: string, message: ChatMessage = partForPart) {
+    const abort = new AbortController()
+    onTestFinished(() => abort.abort())
+    const connection = webSocket(`${wsBase}${CHAT_WS_PATH}`)
+    const chunks = connection.subscribe(abort.signal)
+    void connection.send([message], {}, abort.signal, {threadId: session, runId: randomUUID()}).catch(() => {})
+    for await (const chunk of chunks) {
+      if (chunk.type === ChatEventType.RUN_FINISHED || chunk.type === ChatEventType.RUN_ERROR) return chunk.type
+    }
+    return 'closed'
+  }
+
+  test('stores and sends the user message part for part when no prompt hook is registered', async () => {
+    const {kit, asked} = await promptKit([])
+    const session = await kit.session()
+
+    expect(await sentPartForPart(kit.wsBase, session)).toBe(ChatEventType.RUN_FINISHED)
+    expect((await kit.hydrate(session)).messages[0]?.parts).toEqual(partForPart.parts)
+    expect(asked).toEqual([partForPart.parts])
+  })
+
+  test('stores and sends the user message part for part when no prompt hook changed it', async () => {
+    const seen: string[] = []
+    const plugin = Plugin.define({
+      id: 'prompt-reader',
+      async setup(ctx) {
+        await ctx.session.hook('prompt', (event) => {
+          seen.push(event.prompt.text)
+        })
+      },
+    })
+    const {kit, asked} = await promptKit([plugin])
+    const session = await kit.session()
+
+    expect(await sentPartForPart(kit.wsBase, session)).toBe(ChatEventType.RUN_FINISHED)
+    expect(seen).toEqual(['first line\nsecond line'])
+    expect((await kit.hydrate(session)).messages[0]?.parts).toEqual(partForPart.parts)
+    expect(asked).toEqual([partForPart.parts])
+  })
+
+  test('a prompt hook sees the metadata the client sent and its change lands on the stored message', async () => {
+    const seen: unknown[] = []
+    const plugin = Plugin.define({
+      id: 'prompt-metadata',
+      async setup(ctx) {
+        await ctx.session.hook('prompt', (event) => {
+          seen.push(structuredClone(event.metadata))
+          if (event.metadata?.note === 'from the client') event.metadata = {...event.metadata, tagged: 'by the hook'}
+        })
+      },
+    })
+    const {kit} = await promptKit([plugin])
+    const session = await kit.session()
+    const sent: ChatMessage = {...partForPart, id: 'message-metadata', metadata: {note: 'from the client'}}
+    const untouched: ChatMessage = {...partForPart, id: 'message-untouched', metadata: {note: 'left alone'}}
+    const storedMetadata = async (id: string) =>
+      (await kit.hydrate(session)).messages.find((message) => message.id === id)?.metadata
+
+    expect(await sentPartForPart(kit.wsBase, session, sent)).toBe(ChatEventType.RUN_FINISHED)
+    expect(seen).toEqual([{note: 'from the client'}])
+    expect(await storedMetadata('message-metadata')).toEqual({note: 'from the client', tagged: 'by the hook'})
+
+    expect(await sentPartForPart(kit.wsBase, session, untouched)).toBe(ChatEventType.RUN_FINISHED)
+    expect(seen).toEqual([{note: 'from the client'}, {note: 'left alone'}])
+    expect(await storedMetadata('message-untouched')).toEqual({note: 'left alone'})
+  })
+
+  test('a throwing prompt hook stops the later hooks, fails the prompt and stores nothing for that message id', async () => {
+    const failure = {message: 'the prompt hook refused'}
+    const later: string[] = []
+    const plugin = Plugin.define({
+      id: 'prompt-refusing',
+      async setup(ctx) {
+        await ctx.session.hook('prompt', () => {
+          if (failure.message !== '') throw new Error(failure.message)
+        })
+        await ctx.session.hook('prompt', (event) => {
+          later.push(event.prompt.text)
+        })
+      },
+    })
+    const {kit, made, asked} = await promptKit([plugin])
+    const session = await kit.session()
+
+    const refused = await (await kit.turn(noted('Refused'), {session, messageId: 'message-refused'})).done()
+
+    expect(refused.errors()).toEqual(['the prompt hook refused'])
+    expect([later, asked]).toEqual([[], []])
+    const stored = await kit.hydrate(session)
+    expect(stored.messages).toEqual([])
+    expect(stored.lastRun).toBeNull()
+    expect(made.plane.driving(SessionId.parse(session))).toBe(false)
+
+    failure.message = ''
+    const retried = await (await kit.turn(noted('Refused'), {session, messageId: 'message-refused'})).done()
+    expect(retried.errors()).toEqual([])
+    expect(later).toEqual(['Refused'])
+    expect(userTexts(await kit.hydrate(session))).toEqual(['Refused'])
   })
 })
 
@@ -3429,6 +3842,28 @@ describe('plugin context keys provided by core', () => {
     expect(await key.fail((sessions) => sessions.remove(sessionId))).toMatchObject({_tag: 'Session.NotFoundError'})
     expect(heard.filter((event) => event.type === SessionEvent.Deleted.type)).toHaveLength(1)
     expect((await key.run((sessions) => sessions.list())).data.map((session) => session.id)).toEqual([second.id])
+
+    const suppliedId = SessionSchema.Id.make('conciv_supplied_by_the_caller')
+    const supplied = await key.run((sessions) => sessions.create({id: suppliedId, title: 'Supplied', location}))
+    expect(supplied.id).toBe(suppliedId)
+    expect(
+      await key.run((sessions) =>
+        sessions.create({
+          id: suppliedId,
+          title: 'Overwritten',
+          model: {id: 'sonnet', providerId: 'listing-cli'},
+          metadata: {overwritten: true},
+          location,
+        }),
+      ),
+    ).toEqual(supplied)
+    expect(await key.run((sessions) => sessions.create({id: suppliedId, agent: 'plan', location}))).toEqual(supplied)
+    expect(await key.run((sessions) => sessions.get(suppliedId))).toEqual(supplied)
+    expect(
+      (await key.run((sessions) => sessions.list())).data
+        .map((session) => session.id)
+        .filter((id) => id === suppliedId),
+    ).toEqual([suppliedId])
   })
 })
 

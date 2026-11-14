@@ -20,7 +20,7 @@ export type SessionTools = {
   call: (
     name: string,
     input: unknown,
-    options?: {toolCallId?: string; signal?: AbortSignal; outside?: boolean; gate?: RegistryCallGate},
+    options?: {toolCallId?: string; signal?: AbortSignal; gate?: RegistryCallGate},
   ) => Promise<unknown>
   has: (name: string) => boolean
   catalog: ToolCatalog
@@ -56,7 +56,7 @@ export type SessionHistory = {
 }
 
 export type SessionRun = {
-  stop: (runIds: readonly string[]) => Promise<{ok: true}>
+  stop: (runIds?: readonly string[]) => Promise<{ok: true; stopped: boolean}>
   compact: () => Promise<void>
   live: () => Promise<boolean>
   record: (chunks: readonly ChatEvent[]) => Promise<void>

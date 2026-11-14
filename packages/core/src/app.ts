@@ -8,7 +8,7 @@ import {upgradeWebSocket} from '@conciv/serve'
 import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter} from '@conciv/harness'
 import {concivStateDir} from '@conciv/protocol/state-types'
-import type {RunLifecycle} from '@conciv/protocol/chat-event-types'
+import {idleFailedEvent, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {
@@ -54,6 +54,7 @@ import {
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
 import {memoize} from 'es-toolkit'
+import {Cause, Effect, Exit, Fiber, FiberMap, Scope} from 'effect'
 import {PluginHooks, SessionSchema} from '@conciv/plugin-host'
 import type {Plugin} from '@conciv/plugin'
 import {pushRoutes, type PushDeps} from './api/push.js'
@@ -475,7 +476,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const scopedToolCall: ScopedToolCall = (name, input, request) =>
     runtime
       .forSession(request.sessionId)
-      .tools.call(name, input, {toolCallId: request.toolCallId, signal: request.signal, outside: request.outside})
+      .tools.call(name, input, {toolCallId: request.toolCallId, signal: request.signal})
 
   const serverSessions: ServerSessions = {
     resumeToken: (sessionId) => nativeIdFor(db, sessionId),
@@ -542,22 +543,38 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   )
   const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
   const turnEnds = mounted.flatMap((entry) => (entry.turnEnd ? [entry.turnEnd] : []))
+  const idleFailed = async (sessionId: SessionId, runId: string, error: unknown): Promise<void> => {
+    logError(`[core] the experimental.idle hook failed: ${String(error)}`)
+    const message = error instanceof Error ? error.message : String(error)
+    await plane
+      .recordRunError(sessionId, runId, message)
+      .catch((recordError: unknown) =>
+        logError(`[core] recording the experimental.idle failure of run ${runId} failed: ${String(recordError)}`),
+      )
+    stream.publish(sessionId, idleFailedEvent.create({runId}))
+  }
   const onRunEnd = async (sessionId: SessionId, run: RunLifecycle): Promise<void> => {
     const settled = await Promise.allSettled(turnEnds.map((hook) => hook(sessionId)))
     settled.forEach((outcome) => {
       if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
     })
     if (run.phase === 'completed' && !owesFollowUp(primitives.page.queues, sessionId)) {
-      await pluginHost
-        .runPromise(
-          PluginHooks.Service.use((hooks) =>
-            hooks.trigger('session', 'experimental.idle', {
-              sessionId: SessionSchema.Id.make(sessionId),
-              background: [],
-            }),
-          ),
+      const idled = await pluginHost
+        .runPromiseExit(
+          FiberMap.run(
+            idleTriggers,
+            sessionId,
+            PluginHooks.Service.use((hooks) =>
+              hooks.trigger('session', 'experimental.idle', {
+                sessionId: SessionSchema.Id.make(sessionId),
+                background: [],
+              }),
+            ),
+          ).pipe(Effect.flatMap(Fiber.join)),
         )
-        .catch((error: unknown) => logError(`[core] the experimental.idle hook failed: ${String(error)}`))
+        .catch((error: unknown) => Exit.die(error))
+      if (Exit.isFailure(idled) && !Cause.hasInterruptsOnly(idled.cause))
+        await idleFailed(sessionId, run.runId, Cause.squash(idled.cause))
     }
     if (run.phase === 'aborted') {
       holdForNextReply(primitives.page.queues, sessionId)
@@ -599,10 +616,18 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     },
     bundler: opts.bridge,
     extensionSlugs: mounted.map((entry) => slug(entry.extensionName)),
-    sessions: () => ({chat: chatDeps, runtime, search, pluginHost}),
+    sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: primitives.page.queues}),
   })
   const pluginHost: PluginHost = plugins.runtime
   await pluginHost.context()
+  const idleScope = Effect.runSync(Scope.make())
+  const idleTriggers = Effect.runSync(FiberMap.make<SessionId>().pipe(Scope.provide(idleScope)))
+  const interruptIdle = (sessionId: SessionId): Promise<boolean> =>
+    Effect.runPromise(
+      FiberMap.has(idleTriggers, sessionId).pipe(
+        Effect.tap((running) => (running ? FiberMap.remove(idleTriggers, sessionId) : Effect.void)),
+      ),
+    )
   const reportToolCollision = memoize((name: string) =>
     logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`),
   )
@@ -654,6 +679,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     toolNames: new Set([...toolList.map((tool) => tool.name), ...concivSandboxToolNames()]),
     capabilities: codeModeCapabilities,
     attachmentExpanders,
+    prompt: plugins.prompt,
     pluginInstructions: (sessionId, reset, inventory) =>
       pluginHost.runPromise(pluginInstructions(sessionId, reset, inventory)),
     firstOutputTimeoutMs: opts.firstChunkTimeoutMs,
@@ -674,7 +700,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     plane,
   }
 
-  const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness})
+  const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness, interruptIdle})
 
   function followUpOwedQueues(sessionId: SessionId): void {
     void startQueueFollowUp(primitives.page.queues, plane, sessionId).catch((error: unknown) =>
@@ -691,7 +717,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     void scope.run
       .record(chunks)
       .catch((error: unknown) => logError(`[core] recording queue ${result.queueId} failed: ${String(error)}`))
-    if (!record.outside) followUpOwedQueues(record.sessionId)
+    if (!primitives.page.queues.fromHub(record)) followUpOwedQueues(record.sessionId)
   })
 
   const admitOutside = async (
@@ -713,9 +739,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const search = createSessionSearch({db, cwd: chatDeps.cwd, harnesses: chatDeps.harnesses})
   const mcp: McpVars['mcp'] = {
-    codeRunner: (sessionId, publish, capabilities, outside) =>
-      plane.codeRunner(sessionId, publish, capabilities, outside),
-    finishedQueues: (sessionId, outside) => primitives.page.queues.undelivered(sessionId, outside),
+    codeRunner: (sessionId, publish, capabilities) => plane.codeRunner(sessionId, publish, capabilities),
+    hubCall: (sessionId, callId) => primitives.page.queues.hubCall(sessionId, callId),
+    hubReplied: (sessionId, callIds) => primitives.page.queues.hubReplied(sessionId, callIds),
+    finishedQueues: (sessionId, fromHub) => primitives.page.queues.undelivered(sessionId, fromHub),
     startedQueues: (sessionId, toolCallIds) => primitives.page.queues.startedBy(sessionId, toolCallIds),
     admitCall: (sessionId, call) => plane.admitCall(sessionId, call),
     outsideCapabilities: (sessionId) =>
@@ -810,6 +837,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       [
         plugins.closeRpc,
         plugins.closePlugins,
+        () => Effect.runPromise(Scope.close(idleScope, Exit.void)),
         plugins.closePermissions,
         () => plane.endAllRuns(),
         ...disposers,
