@@ -1,4 +1,5 @@
-import {existsSync} from 'node:fs'
+import {existsSync, mkdtempSync, rmSync} from 'node:fs'
+import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {randomUUID} from 'node:crypto'
@@ -237,6 +238,38 @@ function openCanvas(kit: CoreKit, room: string): Promise<() => Promise<void>> {
   })
 }
 
+function commentRow(cid: string) {
+  return {
+    id: randomUUID(),
+    cid,
+    threadId: cid,
+    parentId: null,
+    parts: [{type: 'text', text: 'hi'}],
+    authorKind: 'human',
+    authorModel: null,
+    authorId: null,
+    authorName: null,
+    authorAvatar: null,
+    status: 'open',
+    kind: 'floating',
+    anchor: null,
+    anchorFile: null,
+    anchorComponent: null,
+    anchorHash: null,
+    createdAt: 1000,
+    updatedAt: 1000,
+    resolvedAt: null,
+  }
+}
+
+async function board(kit: CoreKit, room: string) {
+  return {
+    comments: await call(kit, 'comments.list', {room}),
+    pins: await call(kit, 'pins.list', {room}),
+    elements: await listElements(kit, room, 'live'),
+  }
+}
+
 function pinRow(cid: string) {
   return {id: randomUUID(), cid, x: 1, y: 2, elementId: null, pinState: 'locked', anchorX: null, anchorY: null}
 }
@@ -280,27 +313,7 @@ describe('the whiteboard store and its rpc', () => {
 
     await call(kit, 'comments.insert', {
       room,
-      row: {
-        id: randomUUID(),
-        cid: 'cc1',
-        threadId: 'cc1',
-        parentId: null,
-        parts: [{type: 'text', text: 'hi'}],
-        authorKind: 'human',
-        authorModel: null,
-        authorId: null,
-        authorName: null,
-        authorAvatar: null,
-        status: 'open',
-        kind: 'floating',
-        anchor: null,
-        anchorFile: null,
-        anchorComponent: null,
-        anchorHash: null,
-        createdAt: 1000,
-        updatedAt: 1000,
-        resolvedAt: null,
-      },
+      row: commentRow('cc1'),
     })
     expect(
       z
@@ -338,10 +351,36 @@ describe('the whiteboard store and its rpc', () => {
     expect(await listElements(kit, room, 'live')).toEqual([])
   })
 
-  it('keeps its database in the project folder', async () => {
-    const {kit, room} = await boot()
-    await call(kit, 'pins.insert', {room, row: pinRow('located')})
-    expect(existsSync(join(kit.stateRoot, '.conciv', 'whiteboard', 'whiteboard.db'))).toBe(true)
+  it('keeps its database in the project folder, where a second engine on that folder reads the board back', async () => {
+    const folder = mkdtempSync(join(tmpdir(), 'conciv-whiteboard-reopen-'))
+    onTestFinished(() => rmSync(folder, {recursive: true, force: true, maxRetries: 10, retryDelay: 50}))
+
+    const first = await bootCoreKit({id: 'fake', plugins: [PACKAGE_DIR], stateRoot: folder})
+    const room = await first.session()
+    const pin = {...pinRow('kept'), room}
+    const {room: _pinRoom, ...pinInsert} = pin
+    const element = {elementId: 'kept', data: {type: 'rectangle'}, version: 1}
+    const fill = async () => {
+      await call(first, 'comments.insert', {room, row: commentRow('kept')})
+      await call(first, 'pins.insert', {room, row: pinInsert})
+      await call(first, 'elements.upsert', {room, scope: 'live', row: element})
+      return board(first, room)
+    }
+    const stored = await fill().finally(() => first.cleanup())
+    expect(
+      z
+        .array(CommentSchema)
+        .parse(stored.comments)
+        .map((row) => row.cid),
+    ).toEqual(['kept'])
+    expect(stored.pins).toEqual([pin])
+    expect(stored.elements).toEqual([{...element, room}])
+
+    const second = await bootCoreKit({id: 'fake', plugins: [PACKAGE_DIR], stateRoot: folder})
+    onTestFinished(() => second.cleanup())
+    expect(second.stateRoot).toBe(folder)
+    expect(await board(second, room)).toEqual(stored)
+    expect(existsSync(join(folder, '.conciv', 'whiteboard', 'whiteboard.db'))).toBe(true)
   })
 
   it('announces each stored change as ids and a per-room cursor, and answers the missed changes since a cursor', async () => {
