@@ -2,6 +2,8 @@ import {expect, test as baseTest, describe, it, test} from 'vitest'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {appendDraft, makeDraftStorage, type ServerDraft} from '../src/pane/draft-storage.js'
+import {QueryClient} from '@conciv/client'
+import {makeAppData, type AppData} from '../src/data/app-data.js'
 import {createSession, seedDraft, proxyTo, type ProxyCore} from './helpers.node.js'
 import type {Grab} from '@conciv/grab'
 import {resolveGrabSource} from '../src/pane/grab-source-resolve.js'
@@ -50,6 +52,10 @@ describe('draft storage', () => {
     },
   })
 
+  function draftApp(base: string): AppData {
+    return makeAppData(makeRpcClient(base), new QueryClient())
+  }
+
   function composerDraft(text: string): string {
     return JSON.stringify({text, quote: null, attachments: []})
   }
@@ -66,7 +72,7 @@ describe('draft storage', () => {
   }
 
   test('clamps noted offsets that fall beyond the persisted text', async ({kit, core, sessionId}) => {
-    const draftStorage = makeDraftStorage(makeRpcClient(core.base), sessionId)
+    const draftStorage = makeDraftStorage(draftApp(core.base), sessionId)
     await draftStorage.restore(() => {}, new AbortController().signal)
 
     draftStorage.noteSelection({start: 40, end: 44})
@@ -84,7 +90,7 @@ describe('draft storage', () => {
 
   test('a composer cleared before the server draft arrives clears the server draft', async ({kit, core, sessionId}) => {
     await seedDraft(kit.rpc, sessionId, {text: 'stale on the server'})
-    const draftStorage = makeDraftStorage(makeRpcClient(core.base), sessionId)
+    const draftStorage = makeDraftStorage(draftApp(core.base), sessionId)
 
     draftStorage.storage.setItem('any', composerDraft('typed early'))
     draftStorage.storage.setItem('any', composerDraft(''))
@@ -98,7 +104,7 @@ describe('draft storage', () => {
 
   test('clearing a restored draft before its first write reaches the server', async ({kit, core, sessionId}) => {
     await seedDraft(kit.rpc, sessionId, {text: 'restored then cleared'})
-    const draftStorage = makeDraftStorage(makeRpcClient(core.base), sessionId)
+    const draftStorage = makeDraftStorage(draftApp(core.base), sessionId)
     await draftStorage.restore(() => {}, new AbortController().signal)
 
     draftStorage.storage.setItem('any', composerDraft(''))
@@ -112,7 +118,7 @@ describe('draft storage', () => {
     core,
     sessionId,
   }) => {
-    const draftStorage = makeDraftStorage(makeRpcClient(core.base), sessionId)
+    const draftStorage = makeDraftStorage(draftApp(core.base), sessionId)
 
     draftStorage.storage.setItem('any', composerDraft('typed while loading'))
     await draftStorage.restore(() => {}, new AbortController().signal)
@@ -124,7 +130,7 @@ describe('draft storage', () => {
   test('appends to the stored draft on a new line with the caret at the end', async ({kit, core, sessionId}) => {
     await seedDraft(kit.rpc, sessionId, {text: 'a first line'})
 
-    await appendDraft(makeRpcClient(core.base), sessionId, 'a second line')
+    await appendDraft(draftApp(core.base), sessionId, 'a second line')
 
     expect(await storedDraft(kit.rpc, sessionId)).toEqual({
       sessionId,
@@ -138,7 +144,7 @@ describe('draft storage', () => {
     await seedDraft(kit.rpc, sessionId, {text: 'unreachable at boot'})
     core.fail(DRAFTS_GET_PATH)
 
-    const draftStorage = makeDraftStorage(makeRpcClient(core.base), sessionId)
+    const draftStorage = makeDraftStorage(draftApp(core.base), sessionId)
     const restored: ServerDraft[] = []
     await draftStorage.restore((draft) => restored.push(draft), new AbortController().signal)
 
