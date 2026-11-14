@@ -9,7 +9,8 @@ import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers} from '@conciv/db'
 import {EventPublisher, type Router} from '@orpc/server'
 import {Effect, Fiber, Result, Stream} from 'effect'
-import {Bus, Rpc} from '@conciv/plugin-host'
+import {Bus, Event, Rpc} from '@conciv/plugin-host'
+import {EventFeed} from '../../runtime/event-feed.js'
 import {
   cappedText,
   PluginRpcEventSchema,
@@ -173,6 +174,34 @@ async function* relay(delivered: AsyncIterable<unknown>, stop: () => Promise<voi
   }
 }
 
+async function eventStream(
+  host: PluginHost,
+  types: ReadonlyArray<string> | undefined,
+  signal: AbortSignal | undefined,
+) {
+  const feed = await host.runPromise(EventFeed.Service.use(Effect.succeed))
+  const connected = {id: Event.Id.create(), type: 'server.connected', data: {}}
+  const output = Stream.unwrap(
+    feed.subscribe(types).pipe(Effect.map((live) => Stream.make(connected).pipe(Stream.concat(live)))),
+  )
+  return relayEvents(Stream.toAsyncIterable(output)[Symbol.asyncIterator](), signal)
+}
+
+async function* relayEvents<Value>(events: AsyncIterator<Value>, signal: AbortSignal | undefined) {
+  const stop = () => void events.return?.()
+  signal?.addEventListener('abort', stop, {once: true})
+  try {
+    for (;;) {
+      const step = await events.next()
+      if (step.done === true) return
+      yield step.value
+    }
+  } finally {
+    signal?.removeEventListener('abort', stop)
+    await events.return?.()
+  }
+}
+
 async function pluginCall(
   host: PluginHost,
   input: {rpcId: string; method: string; input?: unknown},
@@ -263,6 +292,9 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         throw errors.PLUGIN_RPC({message: outcome.failure.message, data: outcome.failure})
       }),
       events: os.plugin.events.handler(({input, signal}) => pluginEvents(deps.pluginHost, input, signal)),
+    },
+    event: {
+      subscribe: os.event.subscribe.handler(({input, signal}) => eventStream(deps.pluginHost, input?.types, signal)),
     },
     captures: {
       list: os.captures.list.handler(({input}) => deps.runtime.forSession(input.sessionId).captures.list()),

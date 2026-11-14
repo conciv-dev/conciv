@@ -83,7 +83,7 @@ import {
   type McpClient,
   type McpTool,
 } from '@conciv/harness-testkit'
-import {Plugin, Rpc as PluginRpc} from '@conciv/plugin'
+import {Plugin, Rpc as PluginRpc, type RpcRegistration} from '@conciv/plugin'
 import {PluginHost} from '@conciv/plugin-host'
 import {claude} from '@conciv/harness/claude'
 import {codex as codexHarness} from '@conciv/harness/codex'
@@ -5771,8 +5771,8 @@ export default {
 `
   const Embedded = PluginRpc.define({
     id: 'embedded',
-    methods: {ping: {input: z.object({}), output: z.string()}},
-    events: {},
+    methods: {ping: {input: z.object({}), output: z.string()}, announce: {input: z.object({}), output: z.string()}},
+    events: {announced: {schema: z.object({})}},
   })
 
   function projectWithPlugins(): string {
@@ -5791,7 +5791,14 @@ export default {
     const embedded = Plugin.define({
       id: 'embedded',
       async setup(ctx) {
-        await ctx.rpc.register(Embedded, {ping: async () => 'pong'})
+        const registration: Promise<RpcRegistration<typeof Embedded>> = ctx.rpc.register(Embedded, {
+          ping: async () => 'pong',
+          announce: async () => {
+            await (await registration).events.emit('announced', {})
+            return 'announced'
+          },
+        })
+        await registration
         return () => writeFileSync(join(root, 'cleanups.log'), 'embedded\n', {flag: 'a'})
       },
     })
@@ -5876,6 +5883,33 @@ export default {
         await executeOverMcp(base, {[CONCIV_SESSION_HEADER]: sessionId}, 'return await external_seer_echo({})'),
       ),
     ).toContain('seer-was-here')
+
+    const everything = await makeRpcClient(base).event.subscribe()
+    const deletions = await makeRpcClient(base).event.subscribe({types: ['session.deleted']})
+    const connected = {done: false, value: {id: expect.stringMatching(/^evt_/), type: 'server.connected', data: {}}}
+    expect(await everything.next()).toEqual(connected)
+    expect(await deletions.next()).toEqual(connected)
+    expect(await call(base, 'embedded', 'announce')).toBe('announced')
+    await makeRpcClient(base).sessions.delete({sessionId})
+    const announced = {
+      id: expect.stringMatching(/^evt_/),
+      type: 'rpc.embedded.announced',
+      created: expect.any(Number),
+      location: {directory: root},
+      data: {},
+    }
+    const deleted = {...announced, type: 'session.deleted', data: {sessionID: sessionId}}
+    expect(await everything.next()).toEqual({done: false, value: announced})
+    expect(await everything.next()).toEqual({done: false, value: deleted})
+    expect(await deletions.next()).toEqual({done: false, value: deleted})
+
+    const outside = makeRpcClient(base, {headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'terminal'}})
+    await expect(outside.event.subscribe()).rejects.toMatchObject({
+      code: 'APPROVAL_DENIED',
+      message: "outside agents can't read the engine's event stream",
+    })
+    await everything.return(undefined)
+    await deletions.return(undefined)
 
     stopped.current = true
     await engine.stop()

@@ -249,14 +249,16 @@ const pluginRpcFailed = {
   },
 }
 
-export const PluginRpcEventSchema = z.object({
+export const EventEnvelopeSchema = z.object({
   id: z.string(),
   type: z.string(),
-  created: z.number(),
+  created: z.number().optional(),
   data: z.record(z.string(), z.unknown()),
-  location: z.object({directory: z.string()}),
+  location: z.object({directory: z.string()}).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 })
+
+export const PluginRpcEventSchema = EventEnvelopeSchema.required({created: true, location: true})
 
 export const contract = {
   auth: {
@@ -446,5 +448,11 @@ export const contract = {
     events: oc
       .input(z.object({rpcId: z.string().min(1), types: z.array(z.string().min(1)).optional()}))
       .output(eventIterator(PluginRpcEventSchema)),
+  },
+  event: {
+    subscribe: oc
+      .errors(approvalDenied)
+      .input(z.object({types: z.array(z.string().min(1)).optional()}).optional())
+      .output(eventIterator(EventEnvelopeSchema)),
   },
 }
