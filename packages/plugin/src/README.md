@@ -110,7 +110,7 @@ finished tool call's card (`ToolCallProps`).
 ### `@conciv/plugin/experimental/page` (`experimental/page.ts`)
 
 What the built-in page plugin offers other plugins' browser parts, shaped as opencode's `gui/browser.ts` (interface and
-const of one name): the `Page` contract (`symbolicate`, `toast`, `capture.exclude`), the `ReactTree` contract
+const of one name): the `Page` contract (`symbolicate`, `toast`, `capture` with `exclude` and `plugins`, snapdom's own `SnapdomPlugin` type, so `@zumer/snapdom` is a dependency), the `ReactTree` contract
 (`page.react`: `rootFibers`, `dehydrate`, `describe`, `locate`, `frames`) and the `PageEffect` registry
 (`page.effect`), with `PageToastTone`, `PageCapture`, `DehydrateOptions`, `ReactFiber` and `ReactComponentInfo`.
 

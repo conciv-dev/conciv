@@ -72,6 +72,7 @@
     "@conciv/contract": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@standard-schema/spec": "catalog:",
+    "@zumer/snapdom": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

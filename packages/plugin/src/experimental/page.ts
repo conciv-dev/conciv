@@ -1,4 +1,5 @@
 import type {LocateResult, RawFrame, SourceLoc} from '@conciv/protocol/page-introspect-types'
+import type {SnapdomPlugin} from '@zumer/snapdom'
 import {Contract, Registry} from './core.js'
 import type {GrabFrame} from './grab.js'
 
@@ -6,6 +7,7 @@ export type PageToastTone = 'info' | 'success' | 'error'
 
 export interface PageCapture {
   readonly exclude: string
+  readonly plugins: readonly SnapdomPlugin[]
 }
 
 export interface Page {
