@@ -47,9 +47,10 @@ export interface ToolCallProps {
 export interface ToolCall {
   readonly tools: readonly string[]
   /**
-   * Renders one finished call's body once, under your plugin's context; its own reactivity updates it. Return
-   * `undefined` to keep the host's default card. A render that throws records the error under your plugin and the
-   * default card shows; the plugin keeps running.
+   * Renders one finished call's body each time the call's card mounts, under your plugin's context; its own reactivity
+   * updates it. A card can leave the thread and mount again, and your render then runs again. Return `undefined` to
+   * keep the host's default card. A render that throws records the error under your plugin and the default card
+   * shows; the plugin keeps running. A call you declined or threw for is not asked again.
    *
    * @param props - The finished call and its session. Do not destructure.
    * @returns Your UI for the card's body, or `undefined` to keep the default card.
