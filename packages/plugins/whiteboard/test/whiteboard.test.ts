@@ -117,6 +117,13 @@ async function rejection(pending: Promise<unknown>): Promise<Error> {
   return failure
 }
 
+function renderedToModel(result: unknown) {
+  return [
+    {type: 'text', content: JSON.stringify({result, logs: []})},
+    {type: 'image', source: {type: 'data', mimeType: 'image/png', value: expect.any(String)}},
+  ]
+}
+
 function useTool(kit: CoreKit, name: string, input: unknown = {}): Promise<unknown> {
   return kit.callTool(`whiteboard_${name}`, input)
 }
@@ -135,7 +142,9 @@ async function since(kit: CoreKit, room: string, cursor: number) {
 
 async function followChanges(kit: CoreKit, onChange: (change: Change) => Promise<void> | void) {
   const closing = new AbortController()
-  const stream = await kit.rpc.plugin.events({rpcId: 'whiteboard', types: ['changed']}, {signal: closing.signal})
+  const stream = await kit.rpc.event.subscribe({types: ['rpc.whiteboard.changed']}, {signal: closing.signal})
+  const connected = await stream.next()
+  expect(connected).toMatchObject({done: false, value: {type: 'server.connected'}})
   const following = (async () => {
     for await (const delivered of stream) {
       expect(delivered.type).toBe('rpc.whiteboard.changed')
@@ -379,8 +388,10 @@ describe('the whiteboard canvas tools', () => {
       {...first, data: {...z.record(z.string(), z.unknown()).parse(first.data), width: 99}, version: 2},
     ])
 
-    expect(await useTool(kit, 'canvas_preview')).toEqual({elements: 1})
-    expect(await useTool(kit, 'canvas_export', {format: 'png', scope: 'draft'})).toEqual({scope: 'draft'})
+    expect(await useTool(kit, 'canvas_preview')).toEqual(renderedToModel({elements: 1}))
+    expect(await useTool(kit, 'canvas_export', {format: 'png', scope: 'draft'})).toEqual(
+      renderedToModel({scope: 'draft'}),
+    )
     expect(await listPending(kit, room)).toEqual([])
 
     expect(await useTool(kit, 'canvas_commit')).toEqual({committed: true, elements: 1})
