@@ -5505,13 +5505,13 @@ describe('plugin enable state', () => {
   const coreBase = bootedCore('plugin-enable-state')
 
   test('a plugin disabled through one store reads back disabled, in a fresh store and in a following one', async () => {
-    const store = createManager(coreRpc(coreBase()), [])
+    const store = createManager(Conciv.make(coreRpc(coreBase())), [])
     const fresh = await store.read()
     expect(fresh).toEqual([])
     expect(pluginEnabled({id: 'x', builtin: false}, fresh)).toBe(true)
     expect(await store.enabled('y')).toBe(true)
 
-    const follower = createManager(coreRpc(coreBase()), [])
+    const follower = createManager(Conciv.make(coreRpc(coreBase())), [])
     const followed: (readonly EnableState[])[] = []
     onTestFinished(follower.on((state) => followed.push(state)))
     await expect.poll(() => followed.at(-1)).toEqual([])
@@ -5529,7 +5529,7 @@ describe('plugin enable state', () => {
     await expect.poll(() => followed.at(-1)).toEqual([{id: 'x', enabled: true}])
 
     await store.setEnabled('x', false)
-    const reloaded = createManager(coreRpc(coreBase()), [])
+    const reloaded = createManager(Conciv.make(coreRpc(coreBase())), [])
     expect(await reloaded.read()).toEqual([{id: 'x', enabled: false}])
     expect(await reloaded.enabled('x')).toBe(false)
     await expect.poll(() => followed.at(-1)).toEqual([{id: 'x', enabled: false}])
@@ -5580,8 +5580,7 @@ function storeNames(plugins: readonly PluginExperimental[]): string[][] {
 }
 
 function bundleSource(base: string) {
-  const rpc = coreRpc(base)
-  return createBundleSource({client: Conciv.make(rpc), rpc, apiBase: base})
+  return createBundleSource({client: Conciv.make(coreRpc(base)), apiBase: base})
 }
 
 function recordPushes(source: PluginExperimentalSource) {

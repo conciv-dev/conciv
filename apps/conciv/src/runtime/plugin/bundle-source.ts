@@ -1,6 +1,6 @@
 import {isEqual, uniqBy} from 'es-toolkit'
 import {z} from 'zod'
-import {subscribeRpcReachability, type RpcClient} from '@conciv/contract'
+import {subscribeRpcReachability} from '@conciv/contract'
 import type {ConcivClient} from '@conciv/plugin'
 import {
   pluginEnabled,
@@ -61,14 +61,10 @@ export type PluginManager = InstalledSource & {
 
 export type BundleSource = PluginExperimentalSource & {readonly manager: PluginManager; readonly dispose: () => void}
 
-export function createBundleSource(input: {
-  readonly client: ConcivClient
-  readonly rpc: RpcClient
-  readonly apiBase: string
-}): BundleSource {
+export function createBundleSource(input: {readonly client: ConcivClient; readonly apiBase: string}): BundleSource {
   const endpoint = {url: input.apiBase, authorization: undefined}
   const local = builtins.map((definition) => definition.id)
-  const enableStore = createManager(input.rpc, local)
+  const enableStore = createManager(input.client, local)
   const plugins = new Map<string, BridgePluginExperimental>()
   const inventory: {reserved: readonly string[]; server: ReadonlySet<string>; unreadable: ReadonlyMap<string, string>} =
     {reserved: [], server: new Set(), unreadable: new Map()}
