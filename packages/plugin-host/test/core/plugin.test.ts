@@ -3,6 +3,7 @@ import {mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {Deferred, Effect, Fiber, Logger, Schema, Stream} from 'effect'
+import {Tool as PluginTool} from '@conciv/plugin'
 import {Agent} from '../../src/core/agent.js'
 import {Bus} from '../../src/core/bus.js'
 import {Watcher} from '../../src/core/filesystem/watcher.js'
@@ -537,6 +538,50 @@ it.effect('normalizes Promise plugin API inputs through JSON', () =>
     yield* plugins.awaitActivation
 
     expect(created).toEqual([true])
+  }),
+)
+
+it.effect("a Promise plugin tool's toolError reaches the host as a Tool.Error with its message and metadata", () =>
+  Effect.gen(function* () {
+    const plugins = yield* Plugin.Service
+    const tools = yield* Tool.Service
+    yield* plugins.activate([
+      {
+        ...fromPromise({
+          id: 'promise-failure',
+          async setup(ctx) {
+            await ctx.tool.transform((editor) => {
+              editor.add({
+                name: 'promise_fail',
+                description: 'Fails with metadata.',
+                input: {type: 'object', properties: {}},
+                execute: async () => {
+                  throw PluginTool.toolError({message: 'the probe broke', metadata: {code: 'X_CODE'}})
+                },
+              })
+            })
+          },
+        }),
+        revision: '1',
+      },
+    ])
+    yield* plugins.awaitActivation
+    const tool = yield* get(tools, 'promise_fail')
+    if (!tool) return yield* Effect.die('promise_fail is not registered')
+    const failure = yield* tool
+      .execute(
+        {},
+        {
+          sessionId: SessionSchema.Id.make('conciv_plugin'),
+          agent: Agent.Id.make('build'),
+          messageId: undefined,
+          id: Tool.CallId.make('call_promise_fail'),
+          progress: () => Effect.void,
+        },
+      )
+      .pipe(Effect.flip)
+
+    expect(failure).toMatchObject({_tag: 'Tool.Error', message: 'the probe broke', metadata: {code: 'X_CODE'}})
   }),
 )
 

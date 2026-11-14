@@ -1,9 +1,15 @@
 import '../src/styles.css'
 import 'virtual:uno.css'
-import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe} from 'vitest'
+import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe, onTestFinished} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
 import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
-import {makeBrowserRpcClient, makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
+import {
+  makeBrowserRpcClient,
+  makeRpcClient,
+  subscribeRpcReachability,
+  type RpcClient,
+  type EngineStaleness,
+} from '@conciv/contract'
 import appManifest from '../package.json' with {type: 'json'}
 import {until} from '@conciv/harness-testkit/until'
 import {formatForDisplay} from '@tanstack/solid-hotkeys'
@@ -109,12 +115,23 @@ import {concivExtensionsToolDef, concivUiToolDef} from '@conciv/tools/defs'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS} from '@conciv/tools/builtins'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
+import {pluginEnabled, type EnableState} from '@conciv/plugin/experimental/host'
+import {createManager} from '../src/runtime/plugin/manager.js'
+import {createBundleSource} from '../src/runtime/plugin/bundle-source.js'
+import {createStartupGate, type InstalledSource} from '../src/runtime/plugin/startup.js'
+import {selectDisabled} from '../src/runtime/plugin/machine.js'
+import {
+  PluginExperimentalLoader,
+  type PluginExperimental,
+  type PluginExperimentalSource,
+} from '../src/runtime/plugin/plugins.js'
 
 const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
 describe('approval replay', () => {
   const core = bootedCore('approval-replay')
   const keep = keptPane()
+  const faults = trackedFaults()
 
   const permissionRequest = () => page.getByRole('group', {name: 'Permission request'})
   const approveButton = () => page.getByRole('button', {name: 'Approve'})
@@ -196,6 +213,26 @@ describe('approval replay', () => {
     await expect.element(permissionRequest(), {timeout: 15_000}).not.toBeInTheDocument()
     expect(await waiting).toContain('{\\"result\\":1')
     expect(await coreControl.hubExecute(sessionId, 'return 40 + 2')).toContain('42')
+  }, 120_000)
+
+  test('a card answered on one client and then on a client that missed the answer leaves both, with no error shown', async () => {
+    const sessionId = await newSession()
+    keep(await attachedPane(sessionId))
+    const waiting = coreControl.hubExecute(sessionId, 'return 7')
+    await expect.element(permissionRequest(), {timeout: 15_000}).toBeVisible()
+    await faults.install({kind: 'detached-sockets'})
+    const other = mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />)
+    onTestFinished(() => other.dispose())
+    await expect.element(permissionRequest().nth(1), {timeout: 15_000}).toBeVisible()
+
+    await approveButton().nth(0).click()
+    expect(await waiting).toContain('{\\"result\\":7')
+    await expect.element(permissionRequest().nth(1)).not.toBeInTheDocument()
+    await expect.element(permissionRequest()).toBeVisible()
+
+    await approveButton().click()
+    await expect.element(permissionRequest()).not.toBeInTheDocument()
+    expect(page.getByText('That permission request is no longer waiting for an answer.').query()).toBeNull()
   }, 120_000)
 
   describe('permission cards', () => {
@@ -287,6 +324,70 @@ describe('approval replay', () => {
       replies[1]?.reject(new Error('UNKNOWN_REQUEST'))
       await expect.element(card('bash git push')).not.toBeInTheDocument()
       await expect.element(page.getByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
+    }, 30_000)
+
+    test('a hydrate read before a live ask or settle keeps the live card and does not bring back a settled one', async () => {
+      const announced: ChatSessionCallbacks[] = []
+      const reads: Array<PromiseWithResolvers<ChatSessionHydration>> = []
+      const session = createRoot((dispose) => {
+        disposers.push(dispose)
+        return createChatSession({
+          sessionId: 'permission-hydrate-order',
+          connect: (callbacks) => {
+            announced.push(callbacks)
+            return {
+              ...quietConnection,
+              refresh: async () => {
+                const read = Promise.withResolvers<ChatSessionHydration>()
+                reads.push(read)
+                const hydration = await read.promise
+                callbacks.onHydrated(hydration)
+                return hydration
+              },
+            }
+          },
+          stop: () => Promise.resolve(),
+          decide: () => Promise.resolve({startsTurn: false}),
+        })
+      })
+      const ctx = makeToolViewCtx({
+        harnessId: () => 'claude',
+        catalog: INERT_TOOL_CTX.catalog,
+        sendMessage: () => undefined,
+        decide: session.decide,
+        onError: () => undefined,
+        addResult: INERT_TOOL_CTX.addResult,
+        durationFor: () => undefined,
+        captureFor: () => undefined,
+      })
+      render(() => <PendingApprovals asks={session.pendingApprovals()} ctx={ctx} />)
+      const callbacks = announced[0]
+      const card = (target: string) => page.getByRole('group', {name: 'Permission request'}).filter({hasText: target})
+      const hydration = (pendingApprovals: ChatSessionHydration['pendingApprovals']): ChatSessionHydration => ({
+        messages: [],
+        messageHarness: {},
+        lastRun: null,
+        pendingApprovals,
+      })
+      const liveAsk = permissionAsk('live-ask', 'edit src/live.ts', {filepath: 'src/live.ts'}, false)
+      const settledAsk = permissionAsk('settled-ask', 'read old.env', {filepath: 'old.env'}, false)
+
+      const firstRefresh = session.refresh()
+      callbacks?.onApprovalAsk(liveAsk)
+      await expect.element(card('edit src/live.ts')).toBeVisible()
+      reads[0]?.resolve(hydration([]))
+      await firstRefresh
+      expect.soft(card('edit src/live.ts').query()).not.toBeNull()
+
+      callbacks?.onApprovalAsk(settledAsk)
+      await expect.element(card('read old.env')).toBeVisible()
+      const secondRefresh = session.refresh()
+      callbacks?.onApprovalSettled('settled-ask')
+      await expect.element(card('read old.env')).not.toBeInTheDocument()
+      reads[1]?.resolve(hydration([liveAsk, settledAsk]))
+      await secondRefresh
+      expect(card('read old.env').query()).toBeNull()
+      expect(card('edit src/live.ts').query()).not.toBeNull()
     }, 30_000)
   })
 })
@@ -5420,3 +5521,357 @@ function pickerRouter(entry: string, view: () => JSX.Element) {
   })
   return createRouter({routeTree: root, history: createMemoryHistory({initialEntries: [entry]})})
 }
+
+describe('plugin enable state', () => {
+  const coreBase = bootedCore('plugin-enable-state')
+
+  test('a plugin disabled through one store reads back disabled, in a fresh store and in a following one', async () => {
+    const store = createManager(coreRpc(coreBase()), [])
+    const fresh = await store.read()
+    expect(fresh).toEqual([])
+    expect(pluginEnabled({id: 'x', builtin: false}, fresh)).toBe(true)
+    expect(await store.enabled('y')).toBe(true)
+
+    const follower = createManager(coreRpc(coreBase()), [])
+    const followed: (readonly EnableState[])[] = []
+    onTestFinished(follower.on((state) => followed.push(state)))
+    await expect.poll(() => followed.at(-1)).toEqual([])
+
+    await store.setEnabled('x', false)
+    const disabled = await store.read()
+    expect(disabled).toEqual([{id: 'x', enabled: false}])
+    expect(pluginEnabled({id: 'x', builtin: false}, disabled)).toBe(false)
+    expect(pluginEnabled({id: 'y', builtin: false}, disabled)).toBe(true)
+    expect(await store.enabled('x')).toBe(false)
+    await expect.poll(() => followed.at(-1)).toEqual([{id: 'x', enabled: false}])
+
+    await store.setEnabled('x', true)
+    expect(await store.read()).toEqual([{id: 'x', enabled: true}])
+    await expect.poll(() => followed.at(-1)).toEqual([{id: 'x', enabled: true}])
+
+    await store.setEnabled('x', false)
+    const reloaded = createManager(coreRpc(coreBase()), [])
+    expect(await reloaded.read()).toEqual([{id: 'x', enabled: false}])
+    expect(await reloaded.enabled('x')).toBe(false)
+    await expect.poll(() => followed.at(-1)).toEqual([{id: 'x', enabled: false}])
+
+    await coreRpc(coreBase()).settings.set({scope: 'global', namespace: 'plugin-enable', key: 'bad', value: 'yes'})
+    expect(await store.read()).toEqual([{id: 'x', enabled: false}])
+    expect(await store.enabled('bad')).toBe(true)
+    await store.setEnabled('y', false)
+    await expect
+      .poll(() => followed.at(-1))
+      .toEqual([
+        {id: 'x', enabled: false},
+        {id: 'y', enabled: false},
+      ])
+  })
+})
+
+type PluginExperimentalsPush = Parameters<Parameters<PluginExperimentalSource['on']>[0]>[0]
+
+function arrivals<Item>() {
+  const items: Item[] = []
+  const waiting = new Map<number, PromiseWithResolvers<Item>>()
+  const slot = (count: number) => {
+    const existing = waiting.get(count)
+    if (existing) return existing
+    const created = Promise.withResolvers<Item>()
+    waiting.set(count, created)
+    return created
+  }
+  return {
+    items,
+    add(item: Item) {
+      items.push(item)
+      slot(items.length).resolve(item)
+    },
+    nth: (count: number) => slot(count).promise,
+  }
+}
+
+function onlyRevision(push: PluginExperimentalsPush): string {
+  const [plugin, ...others] = push.plugins
+  if (!plugin || others.length > 0) throw new Error(`expected one pushed plugin, got ${push.plugins.length}`)
+  return plugin.revision
+}
+
+function storeNames(plugins: readonly PluginExperimental[]): string[][] {
+  return plugins.map((plugin) => Object.keys(plugin.definition.stores ?? {}))
+}
+
+function recordPushes(source: PluginExperimentalSource) {
+  const pushes = arrivals<PluginExperimentalsPush>()
+  onTestFinished(source.on((message) => pushes.add(message)))
+  return pushes
+}
+
+describe('plugin bundles reach the widget', () => {
+  const PANE_BUNDLE = 'pane/plugin-experimental.js'
+  const TAKEN_BUNDLE = 'taken/plugin-experimental.js'
+  const EXPERIMENTAL = ['plugin', 'experimental']
+  const LISTED = ['plugin', 'list']
+  const server = (id: string) => `export default {id: '${id}', async setup() {}}
+`
+  const bundle = (label: string) => `const {z} = require('zod')
+module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.string()}}, setup() {}}}
+`
+  const coreBase = bootedCore('plugin-bundles', {
+    plugins: [['./pane', {greeting: 'hi'}], './plain', './taken'],
+    files: {
+      'pane/index.ts': server('pane'),
+      [PANE_BUNDLE]: bundle('first'),
+      'plain/index.ts': server('plain'),
+      'taken/index.ts': server('conciv'),
+      [TAKEN_BUNDLE]: bundle('taken'),
+    },
+  })
+  const faults = trackedFaults()
+  const servedSince = async (path: string[]) => {
+    const before = await coreControl.rpcCallCount(path)
+    return (more: number) => coreControl.rpcStartedOnceServed(path, before + more, [])
+  }
+
+  test('a driver lists, fetches and pushes each shipped plugin bundle as the engine changes it', async () => {
+    const base = coreBase()
+    const votes = arrivals<boolean>()
+    onTestFinished(subscribeRpcReachability(base, (reachable) => votes.add(reachable)))
+    const first = createBundleSource({rpc: coreRpc(base), apiBase: base})
+    onTestFinished(first.dispose)
+    const pushes = recordPushes(first)
+    const pane = (label: string) => ({
+      type: 'pluginExperimentals',
+      plugins: [
+        {id: 'pane', revision: expect.stringMatching(/^[0-9a-f]{64}$/), code: bundle(label), options: {greeting: 'hi'}},
+      ],
+      reserved: ['conciv'],
+    })
+
+    const listed = await pushes.nth(1)
+    expect(listed).toEqual(pane('first'))
+    expect(await first.pluginExperimentals()).toEqual({plugins: listed.plugins, reserved: ['conciv']})
+    expect(await coreControl.rpcCallCount(EXPERIMENTAL, {id: 'conciv'})).toBe(0)
+
+    await coreControl.writeProjectFile(PANE_BUNDLE, bundle('second'))
+    const rebuilt = await pushes.nth(2)
+    expect(rebuilt).toEqual(pane('second'))
+    expect(onlyRevision(rebuilt)).not.toBe(onlyRevision(listed))
+
+    const listings = await servedSince(LISTED)
+    const garbled = await faults.install({kind: 'garble', path: EXPERIMENTAL})
+    await coreControl.writeProjectFile(PANE_BUNDLE, bundle('third'))
+    await listings(1)
+    await coreControl.writeProjectFile(TAKEN_BUNDLE, bundle('third'))
+    await listings(2)
+    expect(pushes.items).toHaveLength(2)
+    expect(await first.pluginExperimentals()).toEqual({plugins: rebuilt.plugins, reserved: ['conciv']})
+    await coreControl.writeProjectFile(PANE_BUNDLE, bundle('fourth'))
+    await coreControl.releaseFault(garbled)
+    const recovered = await pushes.nth(3)
+    expect(recovered).toEqual(pane('fourth'))
+    expect(votes.items).not.toContain(false)
+
+    const fetches = await servedSince(EXPERIMENTAL)
+    await coreControl.writeProjectFile(TAKEN_BUNDLE, bundle('fourth'))
+    await fetches(1)
+    await coreControl.writeProjectFile(PANE_BUNDLE, bundle('fifth'))
+    const fifth = await pushes.nth(4)
+    expect(fifth).toEqual(pane('fifth'))
+    expect(await coreControl.rpcCallCount(EXPERIMENTAL, {id: 'conciv'})).toBe(0)
+
+    const dropped = votes.nth(votes.items.length + 1)
+    const offline = await faults.install({kind: 'offline'})
+    expect(await dropped).toBe(false)
+    await coreControl.writeProjectFile(PANE_BUNDLE, bundle('sixth'))
+    await coreControl.releaseFault(offline)
+    const reconnected = await pushes.nth(5)
+    expect(reconnected).toEqual(pane('sixth'))
+
+    const second = createBundleSource({rpc: coreRpc(base), apiBase: base})
+    onTestFinished(second.dispose)
+    const secondPushes = recordPushes(second)
+    expect(await secondPushes.nth(1)).toEqual(reconnected)
+    first.dispose()
+    await coreControl.writeProjectFile(PANE_BUNDLE, bundle('seventh'))
+    const afterDispose = await secondPushes.nth(2)
+    expect(afterDispose).toEqual(pane('seventh'))
+    expect(pushes.items).toHaveLength(5)
+
+    const loaded = arrivals<{plugins: readonly PluginExperimental[]; reserved: readonly string[]}>()
+    const rendered = render(() => (
+      <PluginExperimentalLoader
+        source={second}
+        client={() => undefined}
+        onChange={(plugins, reserved) => loaded.add({plugins, reserved})}
+      />
+    ))
+    onTestFinished(rendered.unmount)
+    const evaluated = await loaded.nth(1)
+    expect(evaluated.reserved).toEqual(['conciv'])
+    expect(evaluated.plugins.map((plugin) => plugin.definition.id)).toEqual(['pane'])
+    expect(storeNames(evaluated.plugins)).toEqual([['seventh']])
+    expect(evaluated.plugins.map((plugin) => plugin.options)).toEqual([{greeting: 'hi'}])
+    await coreControl.writeProjectFile(PANE_BUNDLE, bundle('eighth'))
+    const reevaluated = await loaded.nth(2)
+    expect(reevaluated.plugins.map((plugin) => plugin.definition.id)).toEqual(['pane'])
+    expect(storeNames(reevaluated.plugins)).toEqual([['eighth']])
+  }, 90_000)
+})
+
+type InstalledPush = Parameters<Parameters<InstalledSource['on']>[0]>[0]
+
+type InstalledRows = InstalledPush['list']
+
+function recordInstalled(source: InstalledSource) {
+  const pushes = arrivals<InstalledPush>()
+  onTestFinished(source.on((message) => pushes.add(message)))
+  const taken = {count: 0}
+  return {
+    async next(expected: InstalledRows) {
+      taken.count += 1
+      expect((await pushes.nth(taken.count)).list).toEqual(expected)
+      expect(pushes.items).toHaveLength(taken.count)
+    },
+    done: () => expect(pushes.items).toHaveLength(taken.count),
+  }
+}
+
+describe('installed plugins', () => {
+  const EXPERIMENTAL = ['plugin', 'experimental']
+  const server = (id: string) => `export default {id: '${id}', async setup() {}}
+`
+  const bundle = (label: string) => `const {z} = require('zod')
+module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.string()}}, setup() {}}}
+`
+  const coreBase = bootedCore('installed-plugins', {
+    plugins: ['./pane', './broken'],
+    files: {
+      'pane/index.ts': server('pane'),
+      'pane/plugin-experimental.js': bundle('pane'),
+      'broken/index.ts': server('broken'),
+      'broken/plugin-experimental.js': bundle('broken'),
+    },
+  })
+  const faults = trackedFaults()
+  const row = (id: string, enabled: boolean) => ({id, builtin: false, enabled, server: true})
+  const rows = (pane: boolean) => [row('pane', pane), {...row('broken', true), error: expect.stringMatching(/./)}]
+  const notFound = {code: 'notFound', message: 'notFound'}
+  const disabledPlugins = page.getByRole('status', {name: 'disabled plugins'})
+
+  test('a plugin that never loaded is listed with its error, and disable, enable and reload act through the store', async () => {
+    const base = coreBase()
+    await faults.install({kind: 'garble', path: EXPERIMENTAL, input: {id: 'broken'}})
+    const first = createBundleSource({rpc: coreRpc(base), apiBase: base})
+    onTestFinished(first.dispose)
+    const firstInstalled = recordInstalled(first.manager)
+
+    await firstInstalled.next(rows(true))
+    expect(await first.manager.list()).toEqual(rows(true))
+    const loaded = arrivals<readonly PluginExperimental[]>()
+    const rendered = render(() => {
+      const gate = createStartupGate({installed: first.manager, plugins: [], servers: false})
+      return (
+        <>
+          <PluginExperimentalLoader
+            source={first}
+            client={() => undefined}
+            onChange={(plugins) => loaded.add(plugins)}
+          />
+          <output aria-label="disabled plugins">
+            {[...(selectDisabled(gate.state(), ['pane', 'broken'], new Set()) ?? [])].join(' ') || 'none'}
+          </output>
+        </>
+      )
+    })
+    onTestFinished(rendered.unmount)
+    expect((await loaded.nth(1)).map((plugin) => plugin.definition.id)).toEqual(['pane'])
+    await expect.element(disabledPlugins).toHaveTextContent('none')
+    firstInstalled.done()
+
+    await first.manager.disable('pane')
+    await firstInstalled.next(rows(false))
+    await expect.element(disabledPlugins).toHaveTextContent('pane')
+    expect((await first.pluginExperimentals()).plugins.map((plugin) => plugin.id)).toEqual(['pane'])
+    const engine = (await coreRpc(base).plugin.list()).data.find((plugin) => plugin.id === 'pane')
+    expect(engine?.state.status).toBe('active')
+    firstInstalled.done()
+
+    const held = await faults.install({kind: 'gate', path: ['settings', 'changes']})
+    const second = createBundleSource({rpc: coreRpc(base), apiBase: base})
+    onTestFinished(second.dispose)
+    const secondInstalled = recordInstalled(second.manager)
+    expect((await recordPushes(second).nth(1)).plugins.map((plugin) => plugin.id)).toEqual(['pane'])
+    await coreControl.releaseFault(held)
+    expect(await second.manager.initial).toEqual([{id: 'pane', enabled: false}])
+    await secondInstalled.next(rows(false))
+    firstInstalled.done()
+
+    await first.manager.enable('pane')
+    await firstInstalled.next(rows(true))
+    await secondInstalled.next(rows(true))
+    await expect.element(disabledPlugins).toHaveTextContent('none')
+    firstInstalled.done()
+    secondInstalled.done()
+
+    await second.manager.disable('pane')
+    await secondInstalled.next(rows(false))
+    await firstInstalled.next(rows(false))
+    await expect.element(disabledPlugins).toHaveTextContent('pane')
+    await second.manager.enable('pane')
+    await secondInstalled.next(rows(true))
+    await firstInstalled.next(rows(true))
+    await expect.element(disabledPlugins).toHaveTextContent('none')
+    secondInstalled.done()
+
+    await first.manager.reload('pane')
+    await firstInstalled.next(rows(true))
+
+    await expect(first.manager.disable('nobody')).rejects.toMatchObject(notFound)
+    await expect(first.manager.enable('nobody')).rejects.toMatchObject(notFound)
+    await expect(first.manager.reload('nobody')).rejects.toMatchObject(notFound)
+    await expect(first.manager.disable('broken')).rejects.toMatchObject(notFound)
+    expect(await first.manager.list()).toEqual(rows(true))
+    firstInstalled.done()
+    secondInstalled.done()
+
+    const unloaded = await faults.install({kind: 'gate', path: ['settings', 'changes']})
+    const third = createBundleSource({rpc: coreRpc(base), apiBase: base})
+    onTestFinished(third.dispose)
+    const thirdInstalled = recordInstalled(third.manager)
+    expect((await recordPushes(third).nth(1)).plugins.map((plugin) => plugin.id)).toEqual(['pane'])
+    const disabling = third.manager.disable('pane')
+    await coreControl.releaseFault(unloaded)
+    await thirdInstalled.next(rows(true))
+    await disabling
+    await thirdInstalled.next(rows(false))
+    await firstInstalled.next(rows(false))
+    await secondInstalled.next(rows(false))
+    await expect.element(disabledPlugins).toHaveTextContent('pane')
+    firstInstalled.done()
+    secondInstalled.done()
+    thirdInstalled.done()
+
+    const failing = await faults.install({kind: 'fail', path: ['settings', 'changes'], status: 500})
+    const fourth = createBundleSource({rpc: coreRpc(base), apiBase: base})
+    onTestFinished(fourth.dispose)
+    const fourthInstalled = recordInstalled(fourth.manager)
+    expect((await recordPushes(fourth).nth(1)).plugins.map((plugin) => plugin.id)).toEqual(['pane'])
+    await expect(fourth.manager.initial).rejects.toMatchObject({status: 500})
+    await expect(fourth.manager.list()).rejects.toMatchObject({status: 500})
+    await expect(fourth.manager.enable('pane')).rejects.toMatchObject({status: 500})
+    await coreControl.releaseFault(failing)
+
+    const unanswered = await faults.install({kind: 'gate', path: ['settings', 'changes']})
+    const fifth = createBundleSource({rpc: coreRpc(base), apiBase: base})
+    const fifthInstalled = recordInstalled(fifth.manager)
+    expect((await recordPushes(fifth).nth(1)).plugins.map((plugin) => plugin.id)).toEqual(['pane'])
+    fifth.dispose()
+    await expect(fifth.manager.enable('pane')).rejects.toThrow('the plugin manager was disposed')
+    await coreControl.releaseFault(unanswered)
+    await expect.element(disabledPlugins).toHaveTextContent('pane')
+    firstInstalled.done()
+    secondInstalled.done()
+    fourthInstalled.done()
+    fifthInstalled.done()
+  }, 90_000)
+})

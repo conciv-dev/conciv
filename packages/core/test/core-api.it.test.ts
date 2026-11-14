@@ -19,6 +19,7 @@ import {open, writeFile} from 'node:fs/promises'
 import {execFileSync} from 'node:child_process'
 import {createServer, request as httpRequest} from 'node:http'
 import {DatabaseSync} from 'node:sqlite'
+import {crc32, deflateSync} from 'node:zlib'
 import {tmpdir} from 'node:os'
 import {basename, join, dirname} from 'node:path'
 import {afterAll, beforeAll, describe, expect, it, afterEach, onTestFinished, test, vi, beforeEach} from 'vitest'
@@ -84,6 +85,7 @@ import {
   type McpTool,
 } from '@conciv/harness-testkit'
 import {Plugin, Rpc as PluginRpc, type RpcRegistration} from '@conciv/plugin'
+import {evaluatePluginBundle} from '@conciv/plugin/experimental/host'
 import {PluginHost} from '@conciv/plugin-host'
 import {claude} from '@conciv/harness/claude'
 import {codex as codexHarness} from '@conciv/harness/codex'
@@ -296,9 +298,11 @@ describe('api engine staleness di', () => {
       expect(description.length).toBeLessThanOrEqual(4096)
       expect(description).toContain('## Code Mode tools (call only inside `execute_typescript`)')
       expect(description).toContain('The catalog is partial.')
-      expect(description).toContain('- page_insert (1 tool')
-      expect(sandboxNames.length).toBeGreaterThan(0)
-      expect(sandboxNames.filter((name) => !description.includes(`- ${name.slice('external_'.length)} (`))).toEqual([])
+      expect(description).toContain('- page (41 tools')
+      expect(sandboxNames).toContain('external_page_insert')
+      expect(
+        sandboxNames.filter((name) => !description.includes(`- ${name.slice('external_'.length).split('_', 1)[0]} (`)),
+      ).toEqual([])
       expect(discoverDescription.length).toBeLessThanOrEqual(4096)
       expect(discoverDescription).not.toContain('external_page_insert')
       expect(calls.count).toBeGreaterThanOrEqual(3)
@@ -3243,7 +3247,8 @@ describe('rpc wire', () => {
         }
         const description = offered.find((tool) => tool.name === 'execute_typescript')?.description ?? ''
         expect(description).toContain('discover_tools')
-        expect(description).toContain('- fixture_echo (1 tool')
+        expect(description).toContain('- fixture (7 tools')
+        expect(description).toContain('external_fixture_echo(')
       })
 
       it('code reaches every capability by name, returns values and logs, and keeps each run isolated', async () => {
@@ -3372,7 +3377,7 @@ return seen`
         expect(found).toContain('PROBE_BROKE: the probe broke')
         expect(JSON.stringify(await discover.execute({toolNames: ['fixture_echo']}))).toContain('echoed')
         const execute = await mcpTool('execute_typescript')
-        expect(execute.description).toContain('- fixture_fail (1 tool')
+        expect(execute.description).toContain('- fixture (7 tools')
         expect(execute.description).not.toContain('PROBE_BROKE')
         expect(discover.description).toContain('toolNames')
         expect(discover.description).not.toContain('external_fixture_fail')
@@ -5796,7 +5801,7 @@ describe('page action queue delivery', () => {
 })
 
 describe('engine plugins', () => {
-  const SEER = `import {appendFileSync} from 'node:fs'
+  const SEER = `import {appendFileSync, readFileSync} from 'node:fs'
 import {join} from 'node:path'
 
 const Seer = {id: 'seer', methods: {seen: {input: {type: 'object'}, output: {type: 'object'}}}, events: {}}
@@ -5811,6 +5816,25 @@ export default {
         description: 'Says what the seer saw',
         input: {type: 'object', properties: {}},
         execute: async () => ({content: 'seer-was-here'}),
+      })
+      const shot = () => ({
+        content: [
+          {type: 'text', text: 'shot taken'},
+          {
+            type: 'file',
+            uri: 'data:image/png;base64,' + readFileSync(join(ctx.location.directory, 'shot.png')).toString('base64'),
+            mime: 'image/png',
+            name: 'shot.png',
+          },
+        ],
+      })
+      tools.add({name: 'seer_shot', description: 'Shoots the page', input: {type: 'object', properties: {}}, execute: async () => shot()})
+      tools.add({
+        name: 'seer_direct_shot',
+        description: 'Shoots the page directly',
+        input: {type: 'object', properties: {}},
+        options: {codemode: false},
+        execute: async () => shot(),
       })
     })
     await ctx.rpc.register(Seer, {
@@ -5856,12 +5880,58 @@ export default {
     mkdirSync(join(root, 'conciv', 'plugins'), {recursive: true})
     writeFileSync(join(root, 'conciv', 'plugins', 'seer.ts'), SEER)
     writeFileSync(join(root, 'conciv', 'plugins', 'broken.ts'), BROKEN)
+    writeFileSync(join(root, 'shot.png'), gradientPng(2400, 1200))
     for (const id of ['configured', 'removed', 'denied']) {
       mkdirSync(join(root, id))
       writeFileSync(join(root, id, 'index.ts'), configured(id))
     }
     return root
   }
+
+  function pngChunk(type: string, data: Buffer): Buffer {
+    const body = Buffer.concat([Buffer.from(type, 'latin1'), data])
+    const length = Buffer.alloc(4)
+    length.writeUInt32BE(data.length)
+    const checksum = Buffer.alloc(4)
+    checksum.writeUInt32BE(crc32(body))
+    return Buffer.concat([length, body, checksum])
+  }
+
+  function gradientPng(width: number, height: number): Buffer {
+    const header = Buffer.alloc(13)
+    header.writeUInt32BE(width, 0)
+    header.writeUInt32BE(height, 4)
+    header.set([8, 2, 0, 0, 0], 8)
+    const row = (y: number) =>
+      Buffer.from([0, ...Array.from({length: width}, (_, x) => [x % 256, y % 256, (x + y) % 256]).flat()])
+    const pixels = Buffer.concat(Array.from({length: height}, (_, y) => row(y)))
+    return Buffer.concat([
+      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+      pngChunk('IHDR', header),
+      pngChunk('IDAT', deflateSync(pixels)),
+      pngChunk('IEND', Buffer.alloc(0)),
+    ])
+  }
+
+  function jpegSize(base64: string): {width: number; height: number} {
+    const bytes = Buffer.from(base64, 'base64')
+    const frame = bytes.findIndex((byte, index) => byte === 0xff && bytes[index + 1] === 0xc0)
+    return {width: bytes.readUInt16BE(frame + 7), height: bytes.readUInt16BE(frame + 5)}
+  }
+
+  const ShotImageSchema = z.object({
+    type: z.literal('image'),
+    source: z.object({type: z.literal('data'), value: z.string(), mimeType: z.string()}),
+  })
+
+  const shotImages = (parts: unknown) =>
+    z
+      .array(z.object({type: z.string()}).loose())
+      .parse(parts)
+      .flatMap((part) => {
+        const image = ShotImageSchema.safeParse(part)
+        return image.success ? [{mimeType: image.data.source.mimeType, ...jpegSize(image.data.source.value)}] : []
+      })
 
   function bootWithPlugins(home: string, root: string): Promise<Engine> {
     const embedded = Plugin.define({
@@ -5959,6 +6029,22 @@ export default {
         await executeOverMcp(base, {[CONCIV_SESSION_HEADER]: sessionId}, 'return await external_seer_echo({})'),
       ),
     ).toContain('seer-was-here')
+    const resized = [{mimeType: 'image/jpeg', width: 2000, height: 1000}]
+    expect
+      .soft(
+        shotImages(
+          await executeOverMcp(
+            base,
+            {[CONCIV_SESSION_HEADER]: sessionId},
+            'await external_seer_shot({}); return "done"',
+          ),
+        ),
+      )
+      .toEqual(resized)
+    const mcp = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: sessionId})
+    onTestFinished(() => mcp.close())
+    const direct = (await mcp.tools()).find((entry) => entry.name === 'seer_direct_shot')
+    expect.soft(shotImages(await direct?.execute?.({}))).toEqual(resized)
 
     const everything = await makeRpcClient(base).event.subscribe()
     const deletions = await makeRpcClient(base).event.subscribe({types: ['session.deleted']})
@@ -6002,5 +6088,94 @@ export default {
     expect(z.object({mcpUrl: z.string()}).parse(await call(againBase, 'seer', 'seen')).mcpUrl).toBe(
       `${againBase}/api/mcp`,
     )
+  })
+})
+
+describe('engine plugin bundles', () => {
+  const server = (id: string) => `export default {id: '${id}', async setup() {}}
+`
+  const bundle = (label: string) => `module.exports = {default: {setup() { return () => '${label}' }}}
+`
+
+  it('an engine lists its configured plugins with their browser parts, serves each bundle by id and announces a rebuilt one', async () => {
+    const root = tempDir('conciv-bundles-')
+    for (const id of ['pane', 'plain']) {
+      mkdirSync(join(root, id))
+      writeFileSync(join(root, id, 'index.ts'), server(id))
+    }
+    writeFileSync(join(root, 'pane', 'plugin-experimental.js'), bundle('first'))
+    const engine = await start({
+      options: {stateRoot: root, plugins: [['./pane', {greeting: 'hi'}], './plain']},
+      root,
+      launchEditor: () => {},
+      harness: createFakeHarness(),
+      homeDir: tempDir('conciv-home-'),
+    })
+    onTestFinished(() => engine.stop())
+    const rpc = makeRpcClient(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}`)
+    const options = {signal: AbortSignal.timeout(5000)}
+
+    const listed = await rpc.plugin.list(undefined, options)
+    expect(listed.location).toEqual({directory: root})
+    expect(listed.data.find((plugin) => plugin.id === 'pane')).toEqual({
+      id: 'pane',
+      source: {type: 'local', path: join(root, 'pane')},
+      features: {server: true, experimental: true},
+      state: {status: 'active'},
+    })
+    expect(listed.data.find((plugin) => plugin.id === 'plain')?.features).toEqual({server: true})
+
+    const first = await rpc.plugin.experimental({id: 'pane'}, options)
+    expect(first.location).toEqual({directory: root})
+    expect(first.data.code).toBe(bundle('first'))
+    expect(first.data.options).toEqual({greeting: 'hi'})
+    expect(first.data.revision).toMatch(/^[0-9a-f]{64}$/)
+    expect(typeof evaluatePluginBundle(first.data.code, {require: () => ({})}).setup).toBe('function')
+
+    for (const id of ['nobody', 'plain']) {
+      await expect(rpc.plugin.experimental({id}, options)).rejects.toMatchObject({
+        code: 'PLUGIN_NOT_FOUND',
+        status: 404,
+        data: {pluginId: id, message: `No active plugin with a ./plugin-experimental bundle: ${id}`},
+      })
+    }
+
+    const changes = await rpc.event.subscribe({types: ['plugin.updated']}, options)
+    expect(await changes.next()).toEqual({
+      done: false,
+      value: {id: expect.stringMatching(/^evt_/), type: 'server.connected', data: {}},
+    })
+    const delivered: unknown[] = []
+    const [secondArrival, thirdArrival] = [Promise.withResolvers<void>(), Promise.withResolvers<void>()]
+    const arrivals = [secondArrival, thirdArrival]
+    const consume = async () => {
+      for await (const change of changes) {
+        delivered.push(change)
+        arrivals[delivered.length - 1]?.resolve()
+      }
+    }
+    const consumed = Promise.allSettled([consume()])
+    const rebuilt = async (label: string, arrival: PromiseWithResolvers<void>) => {
+      writeFileSync(join(root, 'pane', 'plugin-experimental.js'), bundle(label))
+      await arrival.promise
+      return (await rpc.plugin.experimental({id: 'pane'}, options)).data
+    }
+    const second = await rebuilt('second', secondArrival)
+    expect(second.code).toBe(bundle('second'))
+    expect(second.revision).not.toBe(first.data.revision)
+    const third = await rebuilt('third', thirdArrival)
+    expect(third.code).toBe(bundle('third'))
+    expect(third.revision).not.toBe(second.revision)
+    await changes.return()
+    const [ended] = await consumed
+    const updated = {
+      id: expect.stringMatching(/^evt_/),
+      type: 'plugin.updated',
+      created: expect.any(Number),
+      location: {directory: root},
+      data: {},
+    }
+    expect(delivered).toEqual([updated, updated])
+    expect(ended).toMatchObject({status: 'rejected', reason: {name: 'AbortError', message: 'Stream was cancelled'}})
   })
 })

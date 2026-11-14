@@ -9,9 +9,15 @@ import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers} from '@conciv/db'
 import type {Router} from '@orpc/server'
 import {Effect, Result, Stream} from 'effect'
-import {Event, Rpc} from '@conciv/plugin-host'
+import {Event, Location, Plugin, Rpc} from '@conciv/plugin-host'
 import {EventFeed} from '../../runtime/event-feed.js'
-import {cappedText, safeStringify, type contract, type RegistryCallErrorName} from '@conciv/contract'
+import {
+  cappedText,
+  PluginExperimentalBundleSchema,
+  safeStringify,
+  type contract,
+  type RegistryCallErrorName,
+} from '@conciv/contract'
 import {widgetCaller} from '../../lib/cors.js'
 import {listCommands} from '../../sessions/commands.js'
 import {session} from '../../runtime/session-context.js'
@@ -163,6 +169,29 @@ async function* relayEvents<Value>(events: AsyncIterator<Value>, signal: AbortSi
   }
 }
 
+function locationResponse<Data, Failure>(data: Effect.Effect<Data, Failure, Plugin.Interface>) {
+  return Effect.gen(function* () {
+    const location = yield* Location.Service
+    return {location: {directory: location.directory}, data: yield* data}
+  })
+}
+
+function pluginList(host: PluginHost, signal: AbortSignal | undefined) {
+  return host.runPromise(locationResponse(Plugin.Service.use((plugins) => plugins.list())), {signal})
+}
+
+function pluginExperimental(host: PluginHost, id: string, signal: AbortSignal | undefined) {
+  return host.runPromise(
+    Effect.gen(function* () {
+      const plugins = yield* Plugin.Service
+      const bundle = yield* plugins.experimental(Plugin.Id.make(id))
+      if (!bundle) return undefined
+      return yield* locationResponse(Effect.succeed(PluginExperimentalBundleSchema.parse(bundle)))
+    }),
+    {signal},
+  )
+}
+
 async function pluginCall(
   host: PluginHost,
   input: {rpcId: string; method: string; input?: unknown},
@@ -251,6 +280,13 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         const outcome = await pluginCall(deps.pluginHost, input, signal)
         if (Result.isSuccess(outcome)) return outcome.success
         throw errors.PLUGIN_RPC({message: outcome.failure.message, data: outcome.failure})
+      }),
+      list: os.plugin.list.handler(({signal}) => pluginList(deps.pluginHost, signal)),
+      experimental: os.plugin.experimental.handler(async ({input, errors, signal}) => {
+        const bundle = await pluginExperimental(deps.pluginHost, input.id, signal)
+        if (bundle !== undefined) return bundle
+        const message = `No active plugin with a ./plugin-experimental bundle: ${input.id}`
+        throw errors.PLUGIN_NOT_FOUND({message, data: {pluginId: input.id, message}})
       }),
     },
     event: {

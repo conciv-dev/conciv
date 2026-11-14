@@ -1,8 +1,8 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {Cause, Effect, Exit, Option, Result, Schema} from 'effect'
-import {approvalDenied, describeInput} from '@conciv/ai/server'
-import {cappedValue} from '@conciv/contract'
+import {approvalDenied, CodeFilesCapability, describeSchemas} from '@conciv/ai/server'
+import {cappedValue, safeStringify} from '@conciv/contract'
 import {
   Agent,
   CodeMode,
@@ -14,6 +14,7 @@ import {
   ToolRuntime,
 } from '@conciv/plugin-host'
 import {defineTool, type ChatTool} from '@conciv/protocol/chat-tool-types'
+import type {ChatContentPart} from '@conciv/protocol/chat-types'
 import type {ToolRequest} from '@conciv/extension'
 import {type SandboxTool} from '@conciv/extension/registry'
 import type {ConcivServerTool} from '@conciv/tools'
@@ -32,8 +33,19 @@ export type CodeCapability = {
   direct?: true
   errors: {code: string; message: string}[]
   inputSchema: SchemaInput
-  execute: (input: unknown, request: ToolRequest) => Promise<unknown>
+  outputSchema?: SchemaInput
+  execute: (input: unknown, request: ToolRequest) => Promise<CapabilityResult>
 }
+
+export type CapabilityResult = {value: unknown; files: ChatContentPart[]}
+
+export type ToolDomain = {snapshot: Tool.Snapshot; agent: Agent.Id}
+
+const ATTACHED_FILE_TEXT = 'Attached document or image follows.'
+
+const JsonSchemaObject = z.record(z.string(), z.unknown())
+
+const PLUGIN_TEXT_OUTPUT: SchemaInput = {type: ['string', 'null']}
 
 export type CapabilityCall = (name: string, input: unknown, request: ToolRequest) => Promise<unknown>
 
@@ -47,26 +59,41 @@ function discoverableDescription(tool: SandboxTool): string {
   ].join('\n\n')
 }
 
-export function registryCapabilities(tools: readonly SandboxTool[], call: CapabilityCall): CodeCapability[] {
+function groupedPath(name: string, group: string | undefined): string {
+  const prefix = group ?? name.split('_', 1)[0] ?? name
+  return name.startsWith(`${prefix}_`) ? `${prefix}.${name.slice(prefix.length + 1)}` : name
+}
+
+export function registryCapabilities(
+  tools: readonly SandboxTool[],
+  call: CapabilityCall,
+  extensionFor: (name: string) => string | undefined,
+): CodeCapability[] {
   return tools.map((tool) => ({
     name: tool.name,
-    path: tool.name,
+    path: groupedPath(tool.name, extensionFor(tool.name)),
     description: discoverableDescription(tool),
     ...(tool.approval === undefined ? {} : {approval: tool.approval}),
     errors: tool.errors.map(({code, message}) => ({code, message})),
     inputSchema: tool.schema,
-    execute: (input, request) => call(tool.name, input, request),
+    ...registryOutput(tool.outputSchema),
+    execute: async (input, request) => ({value: await call(tool.name, input, request), files: []}),
   }))
+}
+
+function registryOutput(schema: unknown): {outputSchema?: SchemaInput} {
+  const parsed = JsonSchemaObject.safeParse(schema)
+  return parsed.success ? {outputSchema: parsed.data} : {}
 }
 
 export function assistCapabilities(tools: ConcivServerTool[]): CodeCapability[] {
   return tools.map((tool) => ({
     name: tool.name,
-    path: tool.name,
+    path: groupedPath(tool.name, undefined),
     description: tool.description,
     errors: [],
     inputSchema: tool.inputSchema,
-    execute: (input) => tool.execute(input),
+    execute: async (input) => ({value: await tool.execute(input), files: []}),
   }))
 }
 
@@ -85,10 +112,10 @@ function waitForCancel(signal: AbortSignal): Effect.Effect<void> {
   })
 }
 
-function toolContext(request: ToolRequest): Tool.Context {
+function toolContext(request: ToolRequest, agent: Agent.Id): Tool.Context {
   return {
     sessionId: SessionSchema.Id.make(request.sessionId),
-    agent: Agent.defaultId,
+    agent,
     messageId: undefined,
     id: Tool.CallId.make(request.toolCallId ?? randomUUID()),
     progress: () => Effect.void,
@@ -97,12 +124,32 @@ function toolContext(request: ToolRequest): Tool.Context {
 }
 
 const isDeclined = Schema.is(Permission.DeclinedError)
+const isBlocked = Schema.is(Permission.BlockedError)
+const isCorrected = Schema.is(Permission.CorrectedError)
+const isToolError = Schema.is(Tool.Error)
+
+type SessionError = {type: string; message: string}
+
+function toSessionError(error: unknown): SessionError {
+  if (error instanceof Error && isBlocked(error)) return {type: 'permission.rejected', message: error.message}
+  if (isCorrected(error)) return {type: 'permission.rejected', message: error.feedback}
+  if (isToolError(error)) {
+    if (error.error === undefined) return {type: 'tool.execution', message: error.message}
+    const unwrapped = toSessionError(error.error)
+    return unwrapped.message === '' ? {...unwrapped, type: 'tool.execution', message: error.message} : unwrapped
+  }
+  return {type: 'unknown', message: error instanceof Error ? error.message : String(error)}
+}
 
 function refusal(name: string, cause: Cause.Cause<Tool.Error>): unknown {
   const defect = Cause.findDefect(cause)
   if (Result.isSuccess(defect)) return isDeclined(defect.success) ? approvalDenied(name) : defect.success
   const failure = Cause.findErrorOption(cause)
-  if (Option.isSome(failure)) return new Error(failure.value.message)
+  if (Option.isSome(failure) && isDeclined(failure.value.error)) return approvalDenied(name)
+  if (Option.isSome(failure)) {
+    const {type, message} = toSessionError(failure.value)
+    return Object.assign(new Error(message), {type})
+  }
   return Cause.squash(cause)
 }
 
@@ -111,10 +158,20 @@ async function runTool(
   run: EffectRun,
   effect: Effect.Effect<Tool.NormalizedResult, Tool.Error>,
   signal: AbortSignal | undefined,
-): Promise<unknown> {
+): Promise<CapabilityResult> {
   const exit = await run(effect, signal)
   if (Exit.isFailure(exit)) throw refusal(name, exit.cause)
-  return resultValue(exit.value)
+  return {value: resultValue(exit.value), files: outputFiles(exit.value.content)}
+}
+
+function outputFiles(content: Tool.NormalizedResult['content']): ChatContentPart[] {
+  return content.flatMap((part): ChatContentPart[] => {
+    if (part.type !== 'file') return []
+    const prefix = `data:${part.mime};base64,`
+    if (!part.uri.startsWith(prefix)) return []
+    if (!part.mime.startsWith('image/')) return [{type: 'text', content: ATTACHED_FILE_TEXT}]
+    return [{type: 'image', source: {type: 'data', value: part.uri.slice(prefix.length), mimeType: part.mime}}]
+  })
 }
 
 function resultValue(result: Tool.NormalizedResult): unknown {
@@ -139,21 +196,30 @@ function enclosingNamespaces(namespaces: CodeModeSnapshot['namespaces'], path: s
   })
 }
 
-function codeModeCapabilities(codeMode: CodeModeSnapshot, run: EffectRun): CodeCapability[] {
-  return [...codeMode.tools].map(([name, tool]) => ({
-    name,
-    path: qualifiedName(tool),
-    namespaces: enclosingNamespaces(codeMode.namespaces, qualifiedName(tool)),
-    ...(tool.options?.pinned === true ? {pinned: true} : {}),
-    description: tool.description,
-    errors: [],
-    inputSchema: jsonSchemaOnly(ToolRuntime.definition(tool).inputSchema),
-    execute: (input, request) =>
-      runTool(name, run, codeMode.execute(name, input, toolContext(request)), request.signal),
-  }))
+function codeModeCapabilities(codeMode: CodeModeSnapshot, agent: Agent.Id, run: EffectRun): CodeCapability[] {
+  return [...codeMode.tools].map(([name, tool]) => {
+    const path = qualifiedName(tool)
+    const definition = ToolRuntime.definition(tool)
+    return {
+      name: CodeMode.capabilityName(path),
+      path,
+      namespaces: enclosingNamespaces(codeMode.namespaces, path),
+      ...(tool.options?.pinned === true ? {pinned: true} : {}),
+      description: tool.description,
+      errors: [],
+      inputSchema: jsonSchemaOnly(definition.inputSchema),
+      outputSchema: pluginOutput(definition.outputSchema),
+      execute: (input, request) =>
+        runTool(name, run, codeMode.execute(name, input, toolContext(request, agent)), request.signal),
+    }
+  })
 }
 
-function directCapabilities(snapshot: Tool.Snapshot, run: EffectRun): CodeCapability[] {
+function pluginOutput(schema: ReturnType<typeof ToolRuntime.definition>['outputSchema']): SchemaInput {
+  return schema === undefined ? PLUGIN_TEXT_OUTPUT : {...schema}
+}
+
+function directCapabilities(snapshot: Tool.Snapshot, agent: Agent.Id, run: EffectRun): CodeCapability[] {
   return snapshot.definitions.map((definition) => ({
     name: definition.name,
     path: definition.name,
@@ -162,13 +228,18 @@ function directCapabilities(snapshot: Tool.Snapshot, run: EffectRun): CodeCapabi
     errors: [],
     inputSchema: jsonSchemaOnly(definition.inputSchema),
     execute: (input, request) =>
-      runTool(definition.name, run, snapshot.execute(directCall(definition.name, input, request)), request.signal),
+      runTool(
+        definition.name,
+        run,
+        snapshot.execute(directCall(definition.name, input, toolContext(request, agent))),
+        request.signal,
+      ),
   }))
 }
 
 export function toolDomainCapabilities(
   capabilities: readonly CodeCapability[],
-  snapshot: Tool.Snapshot,
+  {snapshot, agent}: ToolDomain,
   run: EffectRun,
   collided: (name: string) => void,
 ): CodeCapability[] {
@@ -176,15 +247,14 @@ export function toolDomainCapabilities(
   const offered = codeMode === undefined ? [] : capabilities
   const taken = (capability: CodeCapability) => offered.some((entry) => entry.name === capability.name)
   const added = [
-    ...(codeMode === undefined ? [] : codeModeCapabilities(codeMode, run)),
-    ...directCapabilities(snapshot, run),
+    ...(codeMode === undefined ? [] : codeModeCapabilities(codeMode, agent, run)),
+    ...directCapabilities(snapshot, agent, run),
   ]
   added.filter(taken).forEach((capability) => collided(capability.name))
   return [...offered, ...added.filter((capability) => !taken(capability))]
 }
 
-function directCall(name: string, input: unknown, request: ToolRequest): Parameters<Tool.Snapshot['execute']>[0] {
-  const context = toolContext(request)
+function directCall(name: string, input: unknown, context: Tool.Context): Parameters<Tool.Snapshot['execute']>[0] {
   return {
     sessionId: context.sessionId,
     agent: context.agent,
@@ -264,14 +334,16 @@ function catalogInventory(
 }
 
 function visibleTool(capability: CodeCapability): CodeModeToolRuntime.VisibleTool {
-  let input: {type: string; parameters: string[]} | undefined
-  const described = () => (input ??= describeInput(capability.inputSchema))
+  let schemas: ReturnType<typeof describeSchemas> | undefined
+  const described = () => (schemas ??= describeSchemas(capability.inputSchema, capability.outputSchema))
   return {
     description: {
       path: capability.path,
       description: capability.description,
       get signature() {
-        return `${CodeMode.toolExpression(capability.path)}(input: ${described().type}): Promise<unknown>`
+        const {input, parameters, output} = described()
+        const call = parameters.length === 0 ? '()' : `(${input})`
+        return `${CodeMode.toolExpression(capability.path)}${call}: Promise<${output}>`
       },
     },
     get parameters() {
@@ -300,8 +372,8 @@ function sandboxDiscovery(capabilities: readonly CodeCapability[]): {
 }
 
 export type ChatToolSet = {
-  inventory: CodeModeCatalog.Inventory
-  search: SandboxSearch
+  inventory: CodeModeCatalog.Inventory | undefined
+  search: SandboxSearch | null
   codeMode: ChatTool[]
   asking: ChatTool[]
   asked: CodeCapability[]
@@ -320,24 +392,36 @@ function chatTool(capability: CodeCapability, request: ToolRequest, lazy: boolea
     try {
       const toolCallId = context?.toolCallId
       const signal = context?.abortSignal
-      const value = await capability.execute(args, {
+      const {value, files} = await capability.execute(args, {
         ...request,
         ...(toolCallId === undefined ? {} : {toolCallId}),
         ...(signal === undefined ? {} : {signal}),
       })
-      return lazy ? value : cappedValue(value)
+      if (!lazy) return cappedValue(files.length === 0 ? value : [...valueParts(value), ...files])
+      context?.getOptional?.(CodeFilesCapability)?.(files)
+      return value
     } catch (error) {
       throw withDeclaredCode(error)
     }
   })
 }
 
-export function chatToolSet(capabilities: readonly CodeCapability[], request: ToolRequest): ChatToolSet {
+function valueParts(value: unknown): ChatContentPart[] {
+  if (value === null) return []
+  return [{type: 'text', content: typeof value === 'string' ? value : safeStringify(value)}]
+}
+
+export function chatToolSet(
+  capabilities: readonly CodeCapability[],
+  request: ToolRequest,
+  codeMode: boolean,
+): ChatToolSet {
   const asked = capabilities.filter((capability) => capability.approval === 'ask')
-  const directed = capabilities.filter((capability) => capability.approval !== 'ask' && capability.direct === true)
-  const sandboxed = capabilities.filter((capability) => capability.approval !== 'ask' && capability.direct !== true)
+  const coded = (capability: CodeCapability) => codeMode && capability.direct !== true
+  const directed = capabilities.filter((capability) => capability.approval !== 'ask' && !coded(capability))
+  const sandboxed = capabilities.filter((capability) => capability.approval !== 'ask' && coded(capability))
   return {
-    ...sandboxDiscovery(sandboxed),
+    ...(codeMode ? sandboxDiscovery(sandboxed) : {inventory: undefined, search: null}),
     codeMode: sandboxed.map((capability) => chatTool(capability, request, true)),
     asking: asked.map((capability) => chatTool(capability, request, false)),
     asked,

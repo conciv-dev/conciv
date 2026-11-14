@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {and, desc, eq, inArray, isNull, lt, notInArray, or, sql} from 'drizzle-orm'
+import {and, desc, eq, getTableColumns, inArray, isNull, lt, notInArray, or, sql} from 'drizzle-orm'
 import {keyBy, mapValues, uniqBy} from 'es-toolkit'
 import {z} from 'zod'
 import type {SessionHit, SessionMeta} from '@conciv/contract'
@@ -15,6 +15,7 @@ import type {
 import {
   HarnessSessionId as HarnessSessionIdSchema,
   isSessionId,
+  PermissionRuleSchema,
   SessionId as SessionIdSchema,
   SessionRecordSchema,
 } from '@conciv/protocol/chat-types'
@@ -34,24 +35,62 @@ export type RowScope = {db: ConcivDb; harnessKind: string; cwd: string; mintId?:
 const resolveMintId = (scope: RowScope): (() => SessionId) =>
   scope.mintId ?? (() => SessionIdSchema.parse(`conciv_${randomUUID()}`))
 
+const sessionColumns = {...getTableColumns(sessions), permissions: sql<string | null>`${sessions.permissions}`}
+
+type StoredSessionRow = {permissions: string | null}
+
+type StoredRulesField = {permissions: PermissionRule[] | null}
+
+export type StoredRules = {readable: true; rules: PermissionRule[] | null} | {readable: false}
+
+const StoredRulesSchema = z.array(PermissionRuleSchema)
+
+function parsedJson(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return undefined
+  }
+}
+
+function decodeStoredRules(text: string | null): StoredRules {
+  if (text === null) return {readable: true, rules: null}
+  const rules = StoredRulesSchema.safeParse(parsedJson(text))
+  return rules.success ? {readable: true, rules: rules.data} : {readable: false}
+}
+
+function withReadablePermissions<Row extends StoredSessionRow>(row: Row): Omit<Row, 'permissions'> & StoredRulesField {
+  const stored = decodeStoredRules(row.permissions)
+  return {...row, permissions: stored.readable ? stored.rules : null}
+}
+
+function sessionRecord(row: StoredSessionRow): SessionRecord {
+  return SessionRecordSchema.parse(withReadablePermissions(row))
+}
+
+export function storedSessionRules(db: ConcivDb, id: SessionId): StoredRules | null {
+  const row = db.select({permissions: sessionColumns.permissions}).from(sessions).where(eq(sessions.id, id)).get()
+  return row === undefined ? null : decodeStoredRules(row.permissions)
+}
+
 export async function rowById(db: ConcivDb, id: SessionId): Promise<SessionRecord | null> {
-  const rows = await db.select().from(sessions).where(eq(sessions.id, id))
-  return rows[0] ? SessionRecordSchema.parse(rows[0]) : null
+  const rows = await db.select(sessionColumns).from(sessions).where(eq(sessions.id, id))
+  return rows[0] ? sessionRecord(rows[0]) : null
 }
 
 export function currentRow(db: ConcivDb, id: SessionId): SessionRecord | null {
-  const row = db.select().from(sessions).where(eq(sessions.id, id)).get()
-  return row === undefined ? null : SessionRecordSchema.parse(row)
+  const row = db.select(sessionColumns).from(sessions).where(eq(sessions.id, id)).get()
+  return row === undefined ? null : sessionRecord(row)
 }
 
 export async function rowByNativeId(db: ConcivDb, nativeId: HarnessSessionId): Promise<SessionRecord | null> {
-  const rows = await db.select().from(sessions).where(eq(sessions.harnessSessionId, nativeId))
-  return rows[0] ? SessionRecordSchema.parse(rows[0]) : null
+  const rows = await db.select(sessionColumns).from(sessions).where(eq(sessions.harnessSessionId, nativeId))
+  return rows[0] ? sessionRecord(rows[0]) : null
 }
 
 export async function rowByNativeRef(db: ConcivDb, ref: NativeSessionRef): Promise<SessionRecord | null> {
   const rows = await db
-    .select()
+    .select(sessionColumns)
     .from(sessions)
     .where(
       and(
@@ -60,7 +99,7 @@ export async function rowByNativeRef(db: ConcivDb, ref: NativeSessionRef): Promi
         eq(sessions.harnessSessionId, ref.nativeId),
       ),
     )
-  return rows[0] ? SessionRecordSchema.parse(rows[0]) : null
+  return rows[0] ? sessionRecord(rows[0]) : null
 }
 
 export async function createRow(
@@ -137,12 +176,12 @@ const cwdSpellings = (cwd: string): string[] => [...new Set([cwd, realpathOrSelf
 
 async function latestRow(scope: RowScope): Promise<SessionRecord | null> {
   const rows = await scope.db
-    .select()
+    .select(sessionColumns)
     .from(sessions)
     .where(and(isNull(sessions.deletedAt), eq(sessions.origin, 'chat'), inArray(sessions.cwd, cwdSpellings(scope.cwd))))
     .orderBy(desc(sessions.updatedAt))
     .limit(LATEST_ROW_WINDOW)
-  const mine = rows.map((row) => SessionRecordSchema.parse(row)).find((row) => sameCwd(row.cwd, scope.cwd))
+  const mine = rows.map(sessionRecord).find((row) => sameCwd(row.cwd, scope.cwd))
   return mine ?? null
 }
 
@@ -221,7 +260,7 @@ export async function mintExternalRow(scope: RowScope): Promise<SessionId> {
 
 export async function anonymousExternalRow(scope: RowScope): Promise<SessionId> {
   const rows = await scope.db
-    .select()
+    .select(sessionColumns)
     .from(sessions)
     .where(
       and(
@@ -235,7 +274,7 @@ export async function anonymousExternalRow(scope: RowScope): Promise<SessionId> 
     .orderBy(desc(sessions.createdAt))
     .limit(1)
   const existing = rows[0]
-  if (existing) return SessionRecordSchema.parse(existing).id
+  if (existing) return sessionRecord(existing).id
   return mintExternalRow(scope)
 }
 
@@ -360,7 +399,7 @@ async function concivOnlyEntries(input: SessionListInput): Promise<PageEntry[]> 
   const after = input.page.after
   const listingKinds = input.nativePages.map(({harnessKind}) => harnessKind)
   const rows = await input.db
-    .select()
+    .select(sessionColumns)
     .from(sessions)
     .where(
       and(
@@ -431,7 +470,7 @@ async function currentOwners(input: SessionListInput, natives: NativeSession[]):
   if (natives.length === 0) return new Map()
   const homes = resolveHomes(natives, input)
   const rows = await input.db
-    .select()
+    .select(sessionColumns)
     .from(sessions)
     .where(
       inArray(
@@ -440,7 +479,7 @@ async function currentOwners(input: SessionListInput, natives: NativeSession[]):
       ),
     )
   return new Map(
-    validRows(SessionRecordSchema, rows, 'a session row')
+    validRows(SessionRecordSchema, rows.map(withReadablePermissions), 'a session row')
       .filter((row): row is SessionRecord & {harnessSessionId: HarnessSessionId} => row.harnessSessionId !== null)
       .map((row) => [nativeKey(row.harnessKind, row.harnessSessionId), row] as const)
       .filter(([key, row]) => sameCwd(row.cwd, homes[key] ?? input.cwd)),
@@ -467,19 +506,16 @@ async function earlierOwners(input: SessionListInput, natives: NativeSession[]):
     wanted.has(nativeKey(claim.harnessKind, claim.nativeId)),
   )
   if (claims.length === 0) return new Map()
-  const owners = validRows(
-    SessionRecordSchema,
-    await input.db
-      .select()
-      .from(sessions)
-      .where(
-        inArray(
-          sessions.id,
-          claims.map(({ownerId}) => ownerId),
-        ),
+  const ownerRows = await input.db
+    .select(sessionColumns)
+    .from(sessions)
+    .where(
+      inArray(
+        sessions.id,
+        claims.map(({ownerId}) => ownerId),
       ),
-    'a session row',
-  )
+    )
+  const owners = validRows(SessionRecordSchema, ownerRows.map(withReadablePermissions), 'a session row')
   const homes = resolveHomes(natives, input)
   const ownerById = keyBy(owners, (owner) => owner.id)
   const owned = claims
@@ -533,8 +569,10 @@ function resolveHomes(natives: NativeSession[], input: SessionListInput): Record
   return mapValues(keyBy(natives, buildNativeKey), (native) => resolveHome(native, input))
 }
 
-function rowsInCwd(rows: unknown[], cwd: string): SessionRecord[] {
-  return validRows(SessionRecordSchema, rows, 'a session row').filter((row) => sameCwd(row.cwd, cwd))
+function rowsInCwd(rows: StoredSessionRow[], cwd: string): SessionRecord[] {
+  return validRows(SessionRecordSchema, rows.map(withReadablePermissions), 'a session row').filter((row) =>
+    sameCwd(row.cwd, cwd),
+  )
 }
 
 function validRows<T>(schema: z.ZodType<T>, rows: unknown[], what: string): T[] {

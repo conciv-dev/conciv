@@ -39,7 +39,8 @@ import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import {imageToolProvisioner} from './image-tool-results.js'
 import {childCards} from './child-cards.js'
 import {compactionStamp} from './compaction-stamp.js'
-import {codeModeTools, loadIsolateDriver, readSecretRefusal, stoppedWith} from './code-mode.js'
+import {codeModeTools, readSecretRefusal, stoppedWith} from './code-mode.js'
+import type {CodeDriver} from './quickjs-thread.js'
 import {createDelivery, endsTheRun, readTerminalPhase, type ChatDelivery, type Turn} from './delivery.js'
 import {guardedAdapter} from './run-guard.js'
 import {localSandbox} from './local-sandbox.js'
@@ -85,6 +86,7 @@ export type ChatServerConfig = {
   codeModeResult: (value: unknown) => unknown
   firstOutputTimeoutMs: number
   log: (message: string) => void
+  driver: CodeDriver | null
 }
 
 const ThreadPageSchema = z.discriminatedUnion('truncated', [
@@ -361,7 +363,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     fileEvents: false,
     lifecycle: {reuse: 'thread', destroyOnComplete: false},
   })
-  const driver = await loadIsolateDriver(config.log)
+  const driver = config.driver
   await sweepAbandonedRuns(stores.runs, hooks)
 
   const lifecycleChunk = (lifecycle: RunLifecycle): ChatEvent => runLifecycleEvent.create(lifecycle)

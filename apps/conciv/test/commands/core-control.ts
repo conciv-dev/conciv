@@ -3,6 +3,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
 import type {EngineStaleness} from '@conciv/contract'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {
   CHAT_SSE_PATH,
   CONCIV_CLIENT_HEADER,
@@ -32,6 +33,8 @@ export type BootCoreInput = {
   models?: HarnessModel[]
   alternates?: AlternateHarness[]
   allowedOrigins?: string[]
+  plugins?: NonNullable<ConcivConfig['plugins']>
+  files?: Record<string, string>
 }
 
 export type BootCoreResult = {base: string; wsBase: string; origin: string; bootMs: number}
@@ -45,6 +48,7 @@ export type PointerHover = {name: string; moves: PointerMove[]; settleMs: number
 export type FaultSpec =
   | {kind: 'fail'; path: string[]; status?: number}
   | {kind: 'abort'; path?: string[]}
+  | {kind: 'garble'; path: string[]; input?: unknown}
   | {kind: 'gate'; path?: string[]}
   | {kind: 'chat-refused'; status?: number}
   | {kind: 'offline'}
@@ -146,6 +150,8 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
     allowedOrigins: input.allowedOrigins,
     staleness: () => state.staleness.value,
     resumeBin: input.resumeBin,
+    plugins: input.plugins,
+    files: input.files,
   })
   holdTranscriptsWhen(kit, input.holdTranscripts)
   state.kit = kit
@@ -172,6 +178,10 @@ const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
     kit.harness.transcripts.release()
     await kit.cleanup()
   }
+}
+
+const writeProjectFile: BrowserCommand<[string, string]> = (ctx, path, content): void => {
+  requireKit(ctx).writeProjectFile(path, content)
 }
 
 const pushSocketsOpened: BrowserCommand<[]> = (ctx): number => requirePush(ctx).opened()
@@ -316,7 +326,8 @@ function restoreHubCli(state: FileState): void {
   rmSync(current.root, {recursive: true, force: true})
 }
 
-const rpcCallCount: BrowserCommand<[string[]]> = (ctx, path): number => requireCalls(ctx).servedSince(path)
+const rpcCallCount: BrowserCommand<[string[], unknown?]> = (ctx, path, input): number =>
+  requireCalls(ctx).servedSince(path, input)
 
 const rpcStartedOnceServed: BrowserCommand<[string[], number, string[][]]> = async (
   ctx,
@@ -479,9 +490,10 @@ function statusOptions(status: number | undefined): {status?: number} {
 function brokenRpcCalls(
   testkit: CoreTestkit,
   ctx: BrowserCommandContext,
-  spec: Extract<FaultSpec, {kind: 'abort' | 'fail'}>,
+  spec: Extract<FaultSpec, {kind: 'abort' | 'fail' | 'garble'}>,
 ): ReturnType<CoreTestkit['abortRpcCalls']> {
   if (spec.kind === 'abort') return testkit.abortRpcCalls(ctx.page, pathOptions(spec.path))
+  if (spec.kind === 'garble') return testkit.garbleRpcReplies(ctx.page, {path: spec.path, input: spec.input})
   return testkit.failRpcCalls(ctx.page, {path: spec.path, ...statusOptions(spec.status)})
 }
 
@@ -576,6 +588,7 @@ export const coreCommands = {
   hoverButton,
   bootCore,
   closeCore,
+  writeProjectFile,
   pushSocketsOpened,
   pushSocketsLive,
   printedCode,

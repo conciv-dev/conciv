@@ -43,7 +43,7 @@ export type SystemPromptSources = {systemPromptFile?: string; systemPromptText?:
 
 export type InstructionReset = 'keep' | 'reset'
 
-export type PluginInstructions = {initial: string; update: string}
+export type PluginInstructions = {initial: string; update: string; told: () => Promise<void>}
 
 export type AttachmentExpanders = Record<string, (part: AttachmentDocumentPart) => Promise<readonly ContentPart[]>>
 
@@ -59,7 +59,7 @@ export type TurnDeps = {
   pluginInstructions: (
     sessionId: SessionId,
     reset: InstructionReset,
-    inventory: CodeModeCatalog.Inventory,
+    inventory: CodeModeCatalog.Inventory | undefined,
   ) => Promise<PluginInstructions>
   log: (message: string) => void
 }
@@ -213,7 +213,7 @@ async function recordContext(deps: TurnDeps, sessionId: SessionId): Promise<void
 
 export function turnHooks(
   deps: TurnDeps,
-  context: {approvals: ApprovalStore; ui: UiChannel; transcripts: TranscriptImporter},
+  context: {approvals: ApprovalStore; ui: UiChannel; transcripts: TranscriptImporter; codeMode: boolean},
 ): TurnHooks {
   const normalize = toolNameNormalizer(deps.toolNames)
   return {
@@ -227,7 +227,11 @@ export function turnHooks(
       const resumeSessionId = resumableToken(deps, harness, row)
       const reset: InstructionReset = turn.kind === 'compact' || resumeSessionId === null ? 'reset' : 'keep'
       const instructions = Promise.withResolvers<PluginInstructions>()
-      const toolSet = chatToolSet(deps.capabilities(sessionId), {sessionId, agentId: sessionId, model})
+      const toolSet = chatToolSet(
+        deps.capabilities(sessionId),
+        {sessionId, agentId: sessionId, model},
+        context.codeMode,
+      )
       const config = harness.chatConfig({
         cwd: deps.cwd,
         sessionId,
@@ -269,6 +273,7 @@ export function turnHooks(
         },
         chunk: async (chunk) => {
           const shaped = normalizedChunk(chunk, normalize)
+          if (chunk.type === ChatEventType.RUN_FINISHED) await (await instructions.promise).told()
           if (chunk.type === ChatEventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') {
             await recordContext(deps, sessionId)
           }

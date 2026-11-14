@@ -1,12 +1,12 @@
 import type {Page} from 'playwright'
-import {rpcObserverFor} from './rpc-observer.js'
-import {samePath} from './rpc-payload.js'
+import {rpcObserverFor, type RpcInputPattern} from './rpc-observer.js'
+import {matchesPattern, samePath} from './rpc-payload.js'
 import {rpcSocketFor, type RpcSocketCall} from './rpc-socket.js'
 
 const ANSWER_TIMEOUT_MS = 15_000
 const RELEASED_GATE_STATUS = 200
 
-type PathMatcher = (path: readonly string[]) => boolean
+type CallMatcher = (call: RpcSocketCall) => boolean
 
 export type RpcFaultInjector = {repair: () => void; dispose: () => Promise<void>; answered: () => Promise<void>}
 
@@ -22,14 +22,20 @@ function answeredBy(page: Page, path: readonly string[] | undefined, status: num
   }
 }
 
-function pathMatcher(path: readonly string[] | undefined): PathMatcher {
+function pathMatcher(path: readonly string[] | undefined): CallMatcher {
   if (!path) return () => true
-  return (called) => samePath(called, path)
+  return (call) => samePath(call.path, path)
+}
+
+function callMatcher(path: readonly string[], input: RpcInputPattern | undefined): CallMatcher {
+  const onPath = pathMatcher(path)
+  if (input === undefined) return onPath
+  return (call) => onPath(call) && matchesPattern(call.input, input)
 }
 
 async function brokenWhile(
   page: Page,
-  matches: PathMatcher,
+  matches: CallMatcher,
   answered: () => Promise<void>,
   breakCall: (call: RpcSocketCall) => void,
 ): Promise<RpcFaultInjector> {
@@ -37,7 +43,7 @@ async function brokenWhile(
   await socket.installed
   const broken = {value: true}
   const remove = socket.rule((call) => {
-    if (!broken.value || !matches(call.path)) return 'pass'
+    if (!broken.value || !matches(call)) return 'pass'
     breakCall(call)
     return 'handled'
   })
@@ -71,6 +77,17 @@ export function abortRpcCalls(page: Page, options: {path?: readonly string[]} = 
   return brokenWhile(page, pathMatcher(options.path), answered, (call) => call.cut())
 }
 
+export function garbleRpcReplies(
+  page: Page,
+  options: {path: readonly string[]; input?: RpcInputPattern},
+): Promise<RpcFaultInjector> {
+  const answered = (): Promise<void> =>
+    Promise.reject(new Error('a garbled rpc call never reaches the server, so it is never answered'))
+  return brokenWhile(page, callMatcher(options.path, options.input), answered, (call) => {
+    call.garble().catch((error: unknown) => console.error('[extension-testkit] the garbled rpc reply failed', error))
+  })
+}
+
 export type RpcHold = {hold: () => void; release: () => void}
 
 export async function holdRpcCalls(page: Page): Promise<RpcHold> {
@@ -101,7 +118,7 @@ export async function gateRpcCalls(
   const captured: RpcSocketCall[] = []
   const waiters = new Set<CaptureWaiter>()
   const remove = socket.rule((call) => {
-    if (open.value || !matches(call.path)) return 'pass'
+    if (open.value || !matches(call)) return 'pass'
     captured.push(call)
     for (const waiter of waiters) {
       if (captured.length < waiter.count) continue

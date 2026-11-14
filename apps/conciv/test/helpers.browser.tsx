@@ -50,6 +50,7 @@ declare module 'vitest/internal/browser' {
     dragButton: (drag: PointerDrag) => Promise<void>
     hoverButton: (hover: PointerHover) => Promise<void>
     closeCore: () => Promise<void>
+    writeProjectFile: (path: string, content: string) => Promise<void>
     pushSocketsOpened: () => Promise<number>
     pushSocketsLive: () => Promise<number>
     printedCode: () => Promise<string>
@@ -70,7 +71,7 @@ declare module 'vitest/internal/browser' {
     scriptCustomEvent: (name: string, value: unknown) => Promise<void>
     fakeHubCli: (outcome: 'ok' | 'fail' | 'hold' | 'hold-remove' | null) => Promise<void>
     setHubConnection: (harness: string, connected: boolean) => Promise<void>
-    rpcCallCount: (path: string[]) => Promise<number>
+    rpcCallCount: (path: string[], input?: unknown) => Promise<number>
     rpcStartedOnceServed: (served: string[], count: number, started: string[][]) => Promise<number[]>
     installFault: (spec: FaultSpec) => Promise<string>
     releaseFault: (handle: string) => Promise<void>

@@ -4,6 +4,7 @@ import {z} from 'zod'
 import {type ChatEvent, RunLifecycleSchema} from '@conciv/protocol/chat-event-types'
 import {
   ChatCommandsSchema,
+  ChatContentPartSchema,
   ChatHarnessesSchema,
   ChatHistorySchema,
   ChatModelsSchema,
@@ -219,6 +220,7 @@ const CodeSessionInput = z.object({sessionId: SessionId.optional()})
 
 const CodeDelivery = {
   logs: z.array(z.string()),
+  files: z.array(ChatContentPartSchema).optional(),
   queued: z.array(PageQueueHandleSchema),
   finished: z.array(PageQueueResultSchema),
 }
@@ -253,14 +255,67 @@ const pluginRpcFailed = {
   },
 }
 
+const LocationPublicRefSchema = z.object({directory: z.string()})
+
+function locationResponse<Data extends z.ZodType>(data: Data) {
+  return z.object({location: LocationPublicRefSchema, data})
+}
+
 export const EventEnvelopeSchema = z.object({
   id: z.string(),
   type: z.string(),
   created: z.number().optional(),
   durable: z.object({aggregateID: z.string(), seq: z.number(), version: z.number()}).optional(),
   data: z.record(z.string(), z.unknown()),
-  location: z.object({directory: z.string()}).optional(),
+  location: LocationPublicRefSchema.optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
+})
+
+const pluginNotFound = {
+  PLUGIN_NOT_FOUND: {
+    status: 404,
+    message: 'no active plugin with a ./plugin-experimental bundle',
+    data: z.object({pluginId: z.string(), message: z.string()}),
+  },
+}
+
+const PluginIdSchema = z.string().min(1).max(256)
+
+const PluginSourceSchema = z.discriminatedUnion('type', [
+  z.object({type: z.literal('builtin')}),
+  z.object({
+    type: z.literal('package'),
+    target: z.string(),
+    version: z.string().optional(),
+    outdated: z.literal(true).optional(),
+    updating: z.literal(true).optional(),
+  }),
+  z.object({type: z.literal('local'), path: z.string()}),
+  z.object({type: z.literal('sdk')}),
+])
+
+const PluginFeaturesSchema = z.object({
+  server: z.literal(true).optional(),
+  rpc: z.literal(true).optional(),
+  experimental: z.literal(true).optional(),
+})
+
+const PluginStateSchema = z.discriminatedUnion('status', [
+  z.object({status: z.literal('active')}),
+  z.object({status: z.literal('failed'), error: z.string(), ref: z.string().optional()}),
+])
+
+const PluginInfoSchema = z.object({
+  id: z.string().optional(),
+  source: PluginSourceSchema,
+  features: PluginFeaturesSchema,
+  state: PluginStateSchema,
+})
+
+export const PluginExperimentalBundleSchema = z.object({
+  code: z.string(),
+  revision: z.string().min(1).max(256),
+  options: z.record(z.string(), z.json()),
 })
 
 export const contract = {
@@ -448,6 +503,11 @@ export const contract = {
       .errors(pluginRpcFailed)
       .input(z.object({rpcId: z.string().min(1), method: z.string().min(1), input: z.unknown().optional()}))
       .output(z.unknown()),
+    list: oc.output(locationResponse(z.array(PluginInfoSchema))),
+    experimental: oc
+      .errors(pluginNotFound)
+      .input(z.object({id: PluginIdSchema}))
+      .output(locationResponse(PluginExperimentalBundleSchema)),
   },
   event: {
     subscribe: oc

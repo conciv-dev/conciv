@@ -4,7 +4,14 @@ import {Hono} from 'hono'
 import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
 import {approvalRequestedEvent, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
-import {approvalNeeded, childCardChunks, createChatServer, drizzleChatStores, toolApprovalId} from '@conciv/ai/server'
+import {
+  approvalNeeded,
+  childCardChunks,
+  createChatServer,
+  drizzleChatStores,
+  toolApprovalId,
+  type CodeDriver,
+} from '@conciv/ai/server'
 import {cappedValue, type ChatHistoryWindow, type ChatHydration} from '@conciv/contract'
 import {chatRuns, markers, type ConcivDb} from '@conciv/db'
 import {CHAT_SSE_PATH, CHAT_WS_PATH, isSessionId, SessionId, type HubAccess} from '@conciv/protocol/chat-types'
@@ -25,7 +32,14 @@ import {clearThread, metadataKeysEndingWith, runningThreadIds} from './stores.js
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
 import {firstUserTitle, turnHooks, type TurnDeps} from './turn.js'
 
-export {assistCapabilities, registryCapabilities, toolDomainCapabilities, type CodeCapability} from './code-mode.js'
+export {
+  assistCapabilities,
+  registryCapabilities,
+  toolDomainCapabilities,
+  type CapabilityResult,
+  type CodeCapability,
+  type ToolDomain,
+} from './code-mode.js'
 export type {AttachmentExpanders, SessionPort} from './turn.js'
 
 const FIRST_OUTPUT_TIMEOUT_MS = 30_000
@@ -37,6 +51,7 @@ type ChatPlaneDeps = TurnDeps & {
   hubAccess: HubAccess
   hubGeneration: () => number | null
   firstOutputTimeoutMs?: number
+  driver: CodeDriver | null
 }
 
 export type CodeTool = {
@@ -147,10 +162,11 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   const server = await createChatServer({
     stores,
     sandbox: {dir: deps.cwd},
-    hooks: turnHooks(deps, {approvals, ui, transcripts}),
+    hooks: turnHooks(deps, {approvals, ui, transcripts, codeMode: deps.driver !== null}),
     codeModeResult: cappedValue,
     firstOutputTimeoutMs: deps.firstOutputTimeoutMs ?? FIRST_OUTPUT_TIMEOUT_MS,
     log: deps.log,
+    driver: deps.driver,
   })
   const normalize = toolNameNormalizer(deps.toolNames)
 
@@ -280,9 +296,13 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     codeRunner: async (sessionId, publish, given, outside) => {
       const model = deps.sessions.row(sessionId)?.model ?? null
       const capabilities = given ?? deps.capabilities(sessionId)
-      const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model, ...(outside ? {outside} : {})})
+      const toolSet = chatToolSet(
+        capabilities,
+        {sessionId, agentId: sessionId, model, ...(outside ? {outside} : {})},
+        deps.driver !== null,
+      )
       const runner = server.codeRunner(toolSet.codeMode, toolSet.search)
-      if (runner === null && toolSet.direct.length === 0) return null
+      if (runner === null && toolSet.direct.length === 0 && toolSet.asking.length === 0) return null
       const emitter = (parentToolCallId: string | null) => (name: string, value: Record<string, unknown>) => {
         const chunk: ChatEvent = {type: ChatEventType.CUSTOM, name, value, timestamp: Date.now()}
         for (const card of childCardChunks(chunk, parentToolCallId, cappedValue) ?? [chunk]) {
@@ -293,16 +313,18 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
         }
       }
       const direct = codeTools(toolSet.direct, toolSet.directed, emitter)
-      if (runner === null) return {code: null, asking: [], direct}
+      const asking = codeTools(toolSet.asking, toolSet.asked, emitter)
+      const inventory = toolSet.inventory
+      if (runner === null || inventory === undefined) return {code: null, asking, direct}
       return {
         code: {
           capabilities: toolSet.codeMode.map((tool) => ({name: tool.name, description: tool.description})),
-          inventory: toolSet.inventory,
+          inventory,
           run: (code, parentToolCallId, signal) => runner.run(code, emitter(parentToolCallId), signal),
           discover: runner.discover,
           declaredCodes: new Set(capabilities.flatMap((capability) => capability.errors.map(({code}) => code))),
         },
-        asking: codeTools(toolSet.asking, toolSet.asked, emitter),
+        asking,
         direct,
       }
     },

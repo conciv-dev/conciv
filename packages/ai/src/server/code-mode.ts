@@ -1,14 +1,24 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {
+  CapabilityRegistry,
   convertSchemaToJsonSchema,
+  createCapability,
   isStandardSchema,
   parseWithStandardSchema,
+  type Capability,
   type DebugConfig,
   type SchemaInput,
 } from '@tanstack/ai'
-import {createCodeMode, jsonSchemaToTypeScript, type CodeModeTool, type IsolateDriver} from '@tanstack/ai-code-mode'
+import {
+  createCodeMode,
+  createCodeModeTool,
+  jsonSchemaToTypeScript,
+  type CodeModeTool,
+  type IsolateDriver,
+} from '@tanstack/ai-code-mode'
 import {codeModeCallEvent, codeModeErrorEvent, codeModeResultEvent} from '@conciv/protocol/chat-event-types'
+import {ChatContentPartSchema, type ChatContentPart} from '@conciv/protocol/chat-types'
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import {CODE_MODE_TIMEOUT_MS} from '@conciv/protocol/chat-types'
 import {quickJSThreadDriver, type CodeDriver} from './quickjs-thread.js'
@@ -146,25 +156,62 @@ export function readSecretRefusal(result: unknown): string | null {
   return failed.success && failed.data.error.message.includes(SECRET_REFUSAL) ? failed.data.error.message : null
 }
 
-export function describeInput(schema: SchemaInput): {type: string; parameters: string[]} {
-  const jsonSchema = convertSchemaToJsonSchema(schema) ?? {type: 'object', properties: {}}
-  const input = jsonSchemaToTypeScript({...jsonSchema}, 'Input')
-  const prefix = `interface ${input.name} `
+function typeText(schema: Record<string, unknown>, name: string): string {
+  const rendered = jsonSchemaToTypeScript(schema, name)
+  const prefix = `interface ${rendered.name} `
+  return rendered.declaration.startsWith(prefix) ? rendered.declaration.slice(prefix.length) : rendered.name
+}
+
+export function describeSchemas(
+  input: SchemaInput,
+  output: SchemaInput | undefined,
+): {input: string; parameters: string[]; output: string} {
+  const inputSchema = convertSchemaToJsonSchema(input) ?? {type: 'object', properties: {}}
+  const outputSchema = output === undefined ? undefined : convertSchemaToJsonSchema(output)
   return {
-    type: input.declaration.startsWith(prefix) ? input.declaration.slice(prefix.length) : input.name,
-    parameters: Object.keys(jsonSchema.properties ?? {}),
+    input: typeText({...inputSchema}, 'Input'),
+    parameters: Object.keys(inputSchema.properties ?? {}),
+    output: outputSchema === undefined ? 'unknown' : typeText({...outputSchema}, 'Output'),
   }
 }
 
-function childCall(tool: CodeModeTool, secrets: ReadonlyMap<string, string>): CodeModeTool {
+export const CodeFilesCapability =
+  createCapability<(files: readonly ChatContentPart[]) => void>()('conciv.code-mode-files')
+
+const [, provideCodeFiles] = CodeFilesCapability
+
+type ChildTool = {tool: CodeModeTool; converted: CodeModeTool}
+
+function convertedSchemas(tool: CodeModeTool): ChildTool {
+  return {
+    tool,
+    converted: {
+      ...tool,
+      inputSchema: convertSchemaToJsonSchema(tool.inputSchema),
+      outputSchema: convertSchemaToJsonSchema(tool.outputSchema),
+    },
+  }
+}
+
+function filesContext(files: ChatContentPart[]): Pick<NonNullable<ToolContext>, 'getOptional'> {
+  const scope = {capabilities: new CapabilityRegistry()}
+  provideCodeFiles(scope, (parts) => files.push(...parts))
+  return {getOptional: <Value>(capability: Capability<Value>) => capability[0](scope, {optional: true})}
+}
+
+function childCall(
+  {tool, converted}: ChildTool,
+  secrets: ReadonlyMap<string, string>,
+  run: ChatContentPart[][],
+): CodeModeTool {
   const execute = tool.execute
   if (!execute) return tool
   return {
-    ...tool,
-    inputSchema: convertSchemaToJsonSchema(tool.inputSchema),
-    outputSchema: convertSchemaToJsonSchema(tool.outputSchema),
+    ...converted,
     execute: async (args, context) => {
       const callId = randomUUID()
+      const files: ChatContentPart[] = []
+      run.push(files)
       context?.emitCustomEvent(codeModeCallEvent.name, {callId, function: tool.name, args})
       try {
         const parameter = secrets.get(`external_${tool.name}`)
@@ -174,7 +221,7 @@ function childCall(tool: CodeModeTool, secrets: ReadonlyMap<string, string>): Co
         const input = validated(tool.inputSchema, args, `Input validation failed for tool ${tool.name}`)
         const output: unknown = await execute(
           input,
-          context === undefined ? undefined : {...context, toolCallId: callId},
+          context === undefined ? undefined : {...context, toolCallId: callId, ...filesContext(files)},
         )
         const result = validated(tool.outputSchema, output, `Output validation failed for tool ${tool.name}`)
         context?.emitCustomEvent(codeModeResultEvent.name, {callId, result})
@@ -204,6 +251,23 @@ const DISCOVER_DESCRIPTION =
 
 const SEARCH_DESCRIPTION = 'Search available tools'
 
+const ProgramInputSchema = z.object({typescriptCode: z.string()})
+
+const ExecuteResultSchema = z.object({
+  success: z.boolean(),
+  result: z.unknown().optional(),
+  logs: z.array(z.string()).optional(),
+  error: z
+    .object({
+      message: z.string(),
+      name: z.string().optional(),
+      line: z.number().optional(),
+      stack: z.string().optional(),
+    })
+    .optional(),
+  files: z.array(ChatContentPartSchema).optional(),
+})
+
 export function codeModeTools(
   driver: IsolateDriver,
   tools: readonly ChatTool[],
@@ -211,16 +275,15 @@ export function codeModeTools(
   shapeResult: (value: unknown) => unknown,
   debug: DebugConfig,
 ): CodeModeTools | null {
-  const serverTools = tools.filter(isServerTool)
+  const serverTools = tools.filter(isServerTool).map(convertedSchemas)
   if (serverTools.length === 0) return null
   const secrets = new Map<string, string>()
-  const codeMode = createCodeMode({
+  const config = {
     driver,
-    tools: serverTools.map((tool) => childCall(tool, secrets)),
     timeout: CODE_MODE_TIMEOUT_MS,
     debug,
-    onSecretParameter: (found) => secrets.set(found.toolName, found.paramPath.join('.')),
-    lazyToolsConfig: {includeDescription: 'first-sentence'},
+    onSecretParameter: (found: {toolName: string; paramPath: string[]}) =>
+      secrets.set(found.toolName, found.paramPath.join('.')),
     ...(search === null
       ? {}
       : {
@@ -233,8 +296,25 @@ export function codeModeTools(
             },
           }),
         }),
+  }
+  const codeMode = createCodeMode({
+    ...config,
+    tools: serverTools.map((tool) => childCall(tool, secrets, [])),
+    lazyToolsConfig: {includeDescription: 'first-sentence'},
   })
-  const execute = withResult(endingCalls(codeMode.tool), shapeResult)
+  const program: ChatTool = {
+    ...codeMode.tool,
+    outputSchema: ExecuteResultSchema,
+    execute: async (args: unknown, context?: ToolContext) => {
+      const run: ChatContentPart[][] = []
+      const {execute} = createCodeModeTool({...config, tools: serverTools.map((each) => childCall(each, secrets, run))})
+      if (!execute) throw new Error('the code mode tool has no execute')
+      const result = ExecuteResultSchema.parse(await execute(ProgramInputSchema.parse(args), context))
+      const files = run.flat()
+      return files.length === 0 ? result : {...result, files}
+    },
+  }
+  const execute = withResult(endingCalls(program), shapeResult)
   const discover =
     codeMode.discoveryTool === null ? null : {...codeMode.discoveryTool, description: DISCOVER_DESCRIPTION}
   return {
