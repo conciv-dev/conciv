@@ -22,6 +22,17 @@ const RemoveInput = RoomInput.extend({id: z.string()})
 const DeletedOutput = z.object({deleted: z.boolean()})
 const notFound = {NOT_FOUND: z.object({id: z.string()})}
 const conflict = {CONFLICT: z.object({current: elementRow})}
+const ChangeTable = z.enum([
+  'canvasElements',
+  'canvasDraftElements',
+  'canvasPending',
+  'canvasReplies',
+  'comments',
+  'pins',
+  'reads',
+])
+const ChangeType = z.enum(['upsert', 'delete'])
+const Cursor = z.number().int().min(0)
 
 const nonEmpty = <Patch extends z.ZodType<object>>(patch: Patch) =>
   patch.refine(
@@ -83,6 +94,17 @@ export const Whiteboard = Rpc.define({
       input: ScopeInput.extend({elementIds: z.array(z.string())}),
       output: z.object({deleted: z.number()}),
     },
+    since: {
+      input: RoomInput.extend({cursor: Cursor}),
+      output: z.object({
+        changes: z.array(z.object({table: ChangeTable, key: z.string(), type: ChangeType, cursor: Cursor})),
+        cursor: Cursor,
+      }),
+    },
   },
-  events: {},
+  events: {
+    changed: {
+      schema: z.object({room: SessionId, table: ChangeTable, key: z.string(), type: ChangeType, cursor: Cursor}),
+    },
+  },
 })

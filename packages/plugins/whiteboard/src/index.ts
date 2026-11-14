@@ -9,8 +9,16 @@ export default Plugin.define({
   id: 'whiteboard',
   async setup(ctx) {
     const store = await createStore(join(concivStateDir(ctx.location.directory), 'whiteboard'))
-    await ctx.rpc.register(Whiteboard, whiteboardHandlers(store))
+    const registration = await ctx.rpc.register(Whiteboard, whiteboardHandlers(store))
+    const stopAnnouncing = store.onEvent((event) => {
+      if (event.table === 'cursor') return
+      const {room, table, key, type, cursor} = event
+      registration.events.emit('changed', {room, table, key, type, cursor}).catch((error: unknown) => {
+        console.error(`[whiteboard] change ${table} ${key} was not announced: ${String(error)}`)
+      })
+    })
     return () => {
+      stopAnnouncing()
       store.close()
     }
   },

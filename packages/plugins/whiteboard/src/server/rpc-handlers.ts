@@ -50,5 +50,6 @@ export function whiteboardHandlers(store: Store): RpcHandlers<typeof Whiteboard>
     'elements.bulkDelete': async ({room, scope, elementIds}) => ({
       deleted: await store.deleteElements(scope, room, elementIds),
     }),
+    since: ({room, cursor}) => store.since(room, cursor),
   }
 }

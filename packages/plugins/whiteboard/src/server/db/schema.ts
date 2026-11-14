@@ -87,3 +87,17 @@ export const reads = sqliteTable('reads', {
   accountId: text('account_id').notNull(),
   lastReadAt: integer('last_read_at').notNull(),
 })
+
+export const whiteboardChanges = sqliteTable(
+  'whiteboard_changes',
+  {
+    room: text('room').notNull(),
+    sequence: integer('sequence').notNull(),
+    table: text('table', {
+      enum: ['canvasElements', 'canvasDraftElements', 'canvasPending', 'canvasReplies', 'comments', 'pins', 'reads'],
+    }).notNull(),
+    key: text('key').notNull(),
+    type: text('type', {enum: ['upsert', 'delete']}).notNull(),
+  },
+  (columns) => [primaryKey({columns: [columns.room, columns.sequence]})],
+)
