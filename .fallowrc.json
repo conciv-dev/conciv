@@ -466,12 +466,7 @@
     "unused-dev-dependencies": "warn",
     "circular-dependencies": "warn"
   },
-  "overrides": [
-    {
-      "files": ["apps/conciv/src/runtime/plugin/mobile.tsx"],
-      "rules": {"unused-files": "off"}
-    }
-  ],
+  "overrides": [],
   "ignoreDependencies": [
     "@parcel/watcher-darwin-arm64",
     "@parcel/watcher-darwin-x64",
@@ -596,6 +591,10 @@
     {
       "file": "apps/conciv/src/runtime/plugin/panels.tsx",
       "exports": ["MobilePanel"]
+    },
+    {
+      "file": "apps/conciv/src/runtime/plugin/mobile.tsx",
+      "exports": ["MobileEntry", "MobileViews"]
     },
     {
       "file": "apps/conciv/src/runtime/plugin/root.tsx",

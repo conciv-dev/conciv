@@ -1,15 +1,4 @@
-import {
-  batch,
-  createComputed,
-  createMemo,
-  createSignal,
-  getOwner,
-  on,
-  onCleanup,
-  runWithOwner,
-  untrack,
-  type Accessor,
-} from 'solid-js'
+import {batch, createMemo, createSignal, getOwner, on, onCleanup, runWithOwner, untrack, type Accessor} from 'solid-js'
 import {createStore, produce, type Store} from 'solid-js/store'
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import {createORPCClient} from '@orpc/client'
@@ -45,7 +34,7 @@ import {
   useRpc,
 } from '../../app/context'
 import {collectViews} from '../../extension/extension-views'
-import {createMediaQuery} from '../../lib/media-query'
+import {createMediaQuery, PHONE_MEDIA_QUERY} from '../../lib/media-query'
 import {quickPaneIds, quickSearchFor} from '../../lib/quick-search'
 import type {ComposerInputHandle} from '../../pane/composer-input-adapter'
 import {appendDraft} from '../../pane/draft-storage'
@@ -61,15 +50,10 @@ import {
   transitionHostApiAttach,
   type HostApiAttachEvent,
 } from './attach-machine'
-import {
-  createMobileViewState,
-  selectMobileView,
-  transitionMobileView,
-  type MobileViewEvent,
-} from './host-layout-machine'
 import {usePluginHost, type HostApiFactories} from './host'
 import {icons} from './icons'
 import {createLocatedWrites} from './located'
+import {createMobileViews} from './mobile'
 import {isPluginView} from './panel-keys'
 import type {Region} from './panels'
 import {deferredHandle, globalStoreTarget, persistedHandle, storeImports, storeName} from './stores'
@@ -415,7 +399,6 @@ export function createPluginAttachment(apis: HostApis) {
   const [routedView, setRoutedView] = createSignal<Accessor<MountedSession | undefined>>()
   const [composer, setComposer] = createSignal<ComposerBinder>()
   const refs = new Map<string, SessionRef>()
-  const owner = getOwner()
 
   const project = useQuery(() => ({...appData.utils.tabs.list.queryOptions(), enabled: connection()}))
 
@@ -460,29 +443,16 @@ export function createPluginAttachment(apis: HostApis) {
     return key && view?.key === key ? view : undefined
   })
 
-  const [mobileState, setMobileState] = createSignal(createMobileViewState())
-  let mobileTimer: ReturnType<typeof setTimeout> | undefined
+  const phone = createMediaQuery(PHONE_MEDIA_QUERY)
+  const mobileViews = createMobileViews()
 
-  const dispatchMobile = (event: MobileViewEvent) => {
-    const next = transitionMobileView(untrack(mobileState), event)
+  const mobileView = createMemo(() => {
+    const view = route().view
 
-    setMobileState(next.state)
-    next.effects.forEach((effect) => {
-      if (effect.type === 'cancel.expire') return clearTimeout(mobileTimer)
-      mobileTimer = setTimeout(() => dispatchMobile({type: 'expire', attempt: effect.attempt}), effect.timeoutMs)
-    })
-  }
-
-  createComputed(on(routed, (key) => dispatchMobile({type: 'route.changed', routed: key}), {defer: true}))
-
-  const mobileView = createMemo(() => selectMobileView(mobileState(), current()?.key))
-
-  const selectMobile = (session: SessionRef, view: string) =>
-    dispatchMobile({type: 'select', session: session.key, view, routed: untrack(routed)})
+    return phone() && view !== undefined && mobileViews.find(view) ? view : 'session'
+  })
 
   const located = createLocatedWrites()
-
-  if (owner) onCleanup(() => dispatchMobile({type: 'disposed'}))
 
   const shownView = (session: SessionRef) => (route().routed === session.id ? route().view : undefined)
 
@@ -619,7 +589,9 @@ export function createPluginAttachment(apis: HostApis) {
       select(view: string) {
         const session = current()
 
-        if (session) selectMobile(session, view)
+        if (!session) return
+        if (view === 'session') return chat(session)
+        show(view, session)
       },
     },
     screen(value: SessionScreen) {
