@@ -5793,6 +5793,79 @@ module.exports = {default: {setup(ctx) {
   }, 30_000)
 })
 
+describe('plugin tool cards', () => {
+  const probeBundle = `const {Registry} = require('@conciv/plugin/experimental')
+const ToolCall = Registry.define('tool-call')
+module.exports = {default: {setup(ctx) {
+  ctx.add(ToolCall, {
+    tools: ['plugin_probe'],
+    render(props) {
+      if (props.input.mode === 'throw') throw new Error('the probe render failed')
+      if (props.input.mode === 'decline') return undefined
+      const body = document.createElement('p')
+      body.textContent = 'Plugin drew ' + props.result.output.drawn
+      return body
+    },
+  })
+}}}
+`
+  const coreBase = bootedCore('plugin-tool-cards', {
+    plugins: ['./probe'],
+    files: {
+      'probe/index.ts': `export default {id: 'probe', async setup() {}}
+`,
+      'probe/plugin-experimental.js': probeBundle,
+    },
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(async () => {
+    harness.dispose()
+    await coreControl.releaseResults()
+    await coreControl.clearScript()
+  })
+
+  const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const probeCards = () => page.getByText('Tool: plugin_probe', {exact: true})
+
+  test('a plugin draws the body of a finished call it claims, and a declined or failed call keeps the default card', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    onTestFinished(() => {
+      vi.restoreAllMocks()
+    })
+    const sessionId = await createSession(coreRpc(coreBase()))
+    await coreControl.scriptTurn({
+      toolCalls: [
+        {name: 'plugin_probe', input: {mode: 'draw'}, result: {drawn: 'the drawn probe'}},
+        {name: 'plugin_probe', input: {mode: 'decline'}, result: {drawn: 'the declined probe'}},
+        {name: 'plugin_probe', input: {mode: 'throw'}, result: {drawn: 'the thrown probe'}},
+      ],
+      text: 'the probes are done',
+    })
+    await coreControl.holdResults()
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await editor().click()
+    await userEvent.keyboard('run the probes{Enter}')
+    await expect
+      .element(page.getByRole('button', {name: 'running probe Tool: plugin_probe'}), {timeout: 15_000})
+      .toBeVisible()
+    await page.screenshot({path: '__screenshots__/plugin-tool-cards/running.png'})
+    await expect.element(page.getByText('Plugin drew the drawn probe')).not.toBeInTheDocument()
+
+    await coreControl.releaseResults()
+    await expect.element(page.getByText('the probes are done'), {timeout: 15_000}).toBeVisible()
+    await page.screenshot({path: '__screenshots__/plugin-tool-cards/finished.png'})
+    await expect.element(probeCards().nth(2)).toBeVisible()
+    await expect.element(page.getByText('Plugin drew the drawn probe')).toBeVisible()
+    await expect.element(page.getByText('Plugin drew the declined probe')).not.toBeInTheDocument()
+    await expect.element(page.getByText('Plugin drew the thrown probe')).not.toBeInTheDocument()
+    await expect.element(page.getByText('"the drawn probe"', {exact: true})).not.toBeInTheDocument()
+    await expect.element(page.getByText('"the declined probe"', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('"the thrown probe"', {exact: true})).toBeVisible()
+  }, 45_000)
+})
+
 type InstalledPush = Parameters<Parameters<InstalledSource['on']>[0]>[0]
 
 type InstalledRows = InstalledPush['list']

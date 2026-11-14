@@ -8,6 +8,7 @@ The chat pane for one session: transcript, composer with attachments and element
 
 - `ChatPane({sessionId, viewTab?})` (`chat-pane.tsx`): the pane for one session
 - `createPaneSession`, `SessionHeaderSlot`, `SessionStatusSlot`, `SessionLinks`, `SessionComposerBinding` (`plugin-session-parts.tsx`): the chat pane's plugin parts: the `session.header` and `session.status` slots, the markdown link and code block provider (always mounted, so nothing remounts when the session object arrives), and the composer binding the mounted session writes through
+- `createPluginToolCards(session)` (`plugin-tool-cards.tsx`): the tool card entries of the plugins' `ToolCall` registry, first claim per tool name, placed first in the chat pane's list; an entry accepts a finished call while a session object exists and the plugin has not declined that call id; the plugin's render runs each time the card mounts, inside the host's card (`PluginCardShell`, the header awaits a ruling), and a render that returns nothing or throws marks the call id declined, so the next entry, the catalog card or the fallback draws it
 - `PaneComposer`, `PaneComposerProps` (`pane-composer.tsx`): composer with attachment, send and stop buttons
 - `ComposerInputAdapter`, `ComposerInputHandle`, `SelectionOffsets` (`composer-input-adapter.tsx`)
 - `usePaneMessaging(deps)`, `PaneMessaging` (`use-pane-messaging.ts`): send, `chat.uiReply` and `sessions.compact` mutations

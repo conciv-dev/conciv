@@ -75,6 +75,7 @@ import {
   SessionLinks,
   SessionStatusSlot,
 } from './plugin-session-parts.js'
+import {createPluginToolCards} from './plugin-tool-cards.js'
 
 const PAGE_SESSION: PageSessionConfig = {
   entry: pageSessionEntry,
@@ -272,7 +273,9 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   })
 
   const extensionToolCards = guardedToolCards(instances.map((instance) => instance.extension))
+  const pluginToolCards = createPluginToolCards(pluginSession.view)
   const tools = (): ToolCardEntry[] => [
+    ...pluginToolCards(),
     ...extensionToolCards,
     ...concivToolCards,
     ...coreToolCards,
