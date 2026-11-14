@@ -25,7 +25,7 @@ const NAME =
 const BADGE =
   'min-w-0 truncate ms-0.5 py-px px-1.25 rounded-[var(--chat-radius-chip)] [border:1px_solid_var(--chat-line-2)] font-chat-mono text-[0.5625rem] font-normal uppercase tracking-[0.1em] text-chat-text-2'
 const PIN =
-  'grid place-items-center size-7.5 shrink-0 rounded-[var(--chat-radius-sm)] bg-transparent [border:none] text-chat-text-2 cursor-pointer focus-ring trans-bg hover:bg-chat-fill-strong hover:text-chat-text-hi aria-pressed:text-chat-accent disabled:cursor-default disabled:hover:bg-transparent'
+  'grid place-items-center size-8 shrink-0 rounded-[var(--chat-radius-sm)] bg-transparent [border:none] text-chat-text-2 cursor-pointer focus-ring trans-bg hover:bg-chat-fill-strong hover:text-chat-text-hi aria-pressed:text-chat-accent disabled:cursor-default disabled:hover:bg-transparent'
 
 type ViewRowProps = {
   view: SettingsView
