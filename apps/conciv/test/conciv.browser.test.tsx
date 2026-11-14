@@ -2719,17 +2719,28 @@ describe('panel escape', () => {
   const coreBase = bootedCore('panel-escape')
   const harness = createShellHarness(coreBase)
 
-  afterEach(harness.dispose)
+  const faults = trackedFaults()
+
+  afterEach(async () => {
+    harness.dispose()
+    await coreControl.releaseTurn()
+  })
 
   const thumbnail = () => page.getByRole('button', {name: 'Open pixel.png'})
   const viewer = () => page.getByRole('dialog', {name: 'pixel.png'})
   const launcher = () => page.getByRole('button', {name: 'Open conciv chat'})
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
+  const stoppingControl = () => page.getByRole('button', {name: 'Stopping the run'})
 
-  test('Escape in an image viewer closes the viewer and leaves the panel open', async () => {
+  test('Escape closes an image viewer, stops a running turn, is ignored once while stopping, then closes the panel', async () => {
     const rpc = coreRpc(coreBase())
     const sessionId = await createSession(rpc)
+    await coreControl.holdTurn()
+    const turn = await sendTurn(coreBase(), sessionId, 'start a long turn')
+    await turn.awaitReply()
     await seedDraft(rpc, sessionId, {
+      text: 'draft kept while stopping',
       attachments: [{id: 'image-1', type: 'image', name: 'pixel.png', contentType: 'image/png', data: PNG_PIXEL}],
     })
     harness.mountShell(`/panel/${sessionId}?open=true`)
@@ -2743,10 +2754,24 @@ describe('panel escape', () => {
     await expect.element(viewer()).not.toBeInTheDocument()
     await expect.element(launcher()).not.toBeInTheDocument()
 
+    await expect.element(stopButton(), {timeout: 8000}).toBeVisible()
+    await faults.install({kind: 'gate', path: ['chat', 'stop']})
     await editor().click()
     await userEvent.keyboard('{Escape}')
 
+    await expect.element(stoppingControl()).toHaveTextContent('Stopping…')
+
+    await userEvent.keyboard('{Escape}')
+
+    await expect.element(stoppingControl()).toBeVisible()
+    await expect.element(launcher()).not.toBeInTheDocument()
+    await expect.element(editor()).toHaveFocus()
+    await expect.element(editor()).toHaveTextContent('draft kept while stopping')
+
+    await userEvent.keyboard('{Escape}')
+
     await expect.element(launcher()).toBeVisible()
+    turn.close()
   }, 30_000)
 })
 
