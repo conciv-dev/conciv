@@ -164,6 +164,7 @@
     "@tanstack/ai-mcp",
     "@tanstack/ai-event-client",
     "@tanstack/store",
+    "rrweb",
     "collections",
     "@conciv/app-extensions",
     "conciv",
