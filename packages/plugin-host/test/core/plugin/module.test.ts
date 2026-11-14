@@ -123,7 +123,7 @@ it.live('interrupts pending watcher setup when the loader scope closes during mo
   }),
 )
 
-it.live('blocks a local plugin before module initialization and honors replacement policies', () =>
+it.live('a loader made under a deny policy blocks a local plugin, one made under no policy loads it', () =>
   Effect.gen(function* () {
     const directory = yield* tmpdirScoped()
     const entered = path.join(directory.path, 'entered')
@@ -153,9 +153,11 @@ it.live('loads an experimental-only package under its package name without runni
   Effect.gen(function* () {
     const directory = yield* tmpdirScoped()
     const experimental = path.join(directory.path, 'experimental')
+    const empty = path.join(directory.path, 'acme-empty')
     const evaluated = 'throw new Error("A client part must not run on the server")'
     yield* Effect.promise(() =>
       Promise.all([
+        write(path.join(empty, 'notes.txt'), 'no plugin entry here'),
         write(
           path.join(experimental, 'package.json'),
           JSON.stringify({
@@ -176,6 +178,8 @@ it.live('loads an experimental-only package under its package name without runni
       experimental: {options: {region: 'eu'}},
       source: {type: 'local', path: experimental},
     })
+    const missing = yield* modules.load({type: 'add', target: empty, options: {}}).pipe(Effect.flip)
+    expect(missing.message).toBe(`Plugin entrypoint not found: ${empty}`)
     if ('pending' in loaded || 'blocked' in loaded) return yield* Effect.die(new Error('The plugin was not loaded'))
 
     yield* plugins.activate([loaded])

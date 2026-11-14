@@ -56,7 +56,7 @@ export type SessionHistory = {
 }
 
 export type SessionRun = {
-  stop: (runIds: readonly string[]) => Promise<{ok: true}>
+  stop: (runIds?: readonly string[]) => Promise<{ok: true; stopped: boolean}>
   compact: () => Promise<void>
   live: () => Promise<boolean>
   record: (chunks: readonly ChatEvent[]) => Promise<void>

@@ -54,6 +54,7 @@ import {
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
 import {memoize} from 'es-toolkit'
+import {Cause, Effect, Exit, Fiber, FiberMap, Scope} from 'effect'
 import {PluginHooks, SessionSchema} from '@conciv/plugin-host'
 import type {Plugin} from '@conciv/plugin'
 import {pushRoutes, type PushDeps} from './api/push.js'
@@ -558,16 +559,22 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
     })
     if (run.phase === 'completed' && !owesFollowUp(primitives.page.queues, sessionId)) {
-      await pluginHost
-        .runPromise(
-          PluginHooks.Service.use((hooks) =>
-            hooks.trigger('session', 'experimental.idle', {
-              sessionId: SessionSchema.Id.make(sessionId),
-              background: [],
-            }),
-          ),
+      const idled = await pluginHost
+        .runPromiseExit(
+          FiberMap.run(
+            idleTriggers,
+            sessionId,
+            PluginHooks.Service.use((hooks) =>
+              hooks.trigger('session', 'experimental.idle', {
+                sessionId: SessionSchema.Id.make(sessionId),
+                background: [],
+              }),
+            ),
+          ).pipe(Effect.flatMap(Fiber.join)),
         )
-        .catch((error: unknown) => idleFailed(sessionId, run.runId, error))
+        .catch((error: unknown) => Exit.die(error))
+      if (Exit.isFailure(idled) && !Cause.hasInterruptsOnly(idled.cause))
+        await idleFailed(sessionId, run.runId, Cause.squash(idled.cause))
     }
     if (run.phase === 'aborted') {
       holdForNextReply(primitives.page.queues, sessionId)
@@ -613,6 +620,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   })
   const pluginHost: PluginHost = plugins.runtime
   await pluginHost.context()
+  const idleScope = Effect.runSync(Scope.make())
+  const idleTriggers = Effect.runSync(FiberMap.make<SessionId>().pipe(Scope.provide(idleScope)))
+  const interruptIdle = (sessionId: SessionId): Promise<boolean> =>
+    Effect.runPromise(
+      FiberMap.has(idleTriggers, sessionId).pipe(
+        Effect.tap((running) => (running ? FiberMap.remove(idleTriggers, sessionId) : Effect.void)),
+      ),
+    )
   const reportToolCollision = memoize((name: string) =>
     logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`),
   )
@@ -685,7 +700,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     plane,
   }
 
-  const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness})
+  const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness, interruptIdle})
 
   function followUpOwedQueues(sessionId: SessionId): void {
     void startQueueFollowUp(primitives.page.queues, plane, sessionId).catch((error: unknown) =>
@@ -822,6 +837,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       [
         plugins.closeRpc,
         plugins.closePlugins,
+        () => Effect.runPromise(Scope.close(idleScope, Exit.void)),
         plugins.closePermissions,
         () => plane.endAllRuns(),
         ...disposers,
