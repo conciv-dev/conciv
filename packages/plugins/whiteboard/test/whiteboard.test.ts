@@ -478,9 +478,21 @@ describe('the whiteboard canvas tools', () => {
     expect(await listPending(kit, room)).toEqual([])
   })
 
-  it('commits an abandoned draft when a turn finishes', async () => {
+  it('leaves an abandoned draft when a turn is stopped, and commits it when a turn finishes', async () => {
     const {kit, room} = await boot()
     await call(kit, 'elements.upsert', {room, scope: 'draft', row: {elementId: 'd1', data: {}, version: 1}})
+
+    const runId = randomUUID()
+    kit.harness.script.hold()
+    const stopped = await kit.turn('draw something', {runId})
+    await stopped.waitForRunStart({runId})
+    await kit.rpc.chat.stop({sessionId: room, runIds: [runId]})
+    kit.harness.script.release()
+    await stopped.done()
+    await kit.hydrate(room)
+    expect((await listElements(kit, room, 'draft')).map((row) => row.elementId)).toEqual(['d1'])
+    expect(await listElements(kit, room, 'live')).toEqual([])
+    expect(await listPending(kit, room)).toEqual([])
 
     const [committed] = await changesUntil(
       kit,
