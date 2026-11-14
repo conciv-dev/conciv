@@ -2221,6 +2221,22 @@ describe('rpc wire', () => {
         })
       })
 
+      it('a hub registry call runs under the call id of its one hub card', async () => {
+        const sessionId = await newSession()
+        const hub = {[CONCIV_SESSION_HEADER]: sessionId, [CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
+        withHomeDb(concivHome({env: process.env}), (db) => recordHubConnection(db, 'codex', Date.now()))
+        const call = makeRpcClient(chatKit().base, {headers: hub}).registry.call({name: 'fixture_quiet', input: {}})
+        await vi.waitFor(async () => expect(await approvePending(chatKit().base, sessionId)).toHaveLength(1), {
+          timeout: 3000,
+        })
+        await call
+        const cards = toolCallParts((await chatKit().rpc.chat.hydrate({sessionId})).messages).filter(
+          (part) => part.name === 'fixture_quiet',
+        )
+        expect(cards.map(cardMetadata)).toEqual([{conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}}])
+        expect(quietCallIds.at(-1)).toBe(cards[0]?.id)
+      })
+
       it('the CLI resumes its own session while its transcript exists, and starts fresh when it does not', async () => {
         const resumable = await newSession()
         await finished(resumable, 'remember this')
@@ -3603,6 +3619,7 @@ return seen`
   const seenRuns: SeenRun[] = []
   const cli: {usage: TokenUsage[]; launchFailures: string[]} = {usage: [], launchFailures: []}
   const toolRuns = {ask: 0, echo: 0}
+  const quietCallIds: (string | undefined)[] = []
   const refusedCalls: {code: string; message: string; sessionId: string; tool: string; input: unknown}[] = []
   const holdEntered = Promise.withResolvers<void>()
   const turnEnds: string[] = []
@@ -3659,7 +3676,10 @@ return seen`
       inputSchema: z.object({}),
       outputSchema: z.unknown(),
       meta: {summary: 'return nothing', category: 'fixture', mutating: false},
-    }).server(() => undefined)
+    }).server((_input, _context, request) => {
+      quietCallIds.push(request.toolCallId)
+      return undefined
+    })
   }
 
   function holdTool() {
