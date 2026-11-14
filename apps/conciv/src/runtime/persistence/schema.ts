@@ -100,7 +100,7 @@ function readBackError(refused: string, path: Path) {
 function differingPath(left: unknown, right: unknown): Path {
   if (!isPlainObject(left) || !isPlainObject(right)) return []
   const key = uniq([...Object.keys(left), ...Object.keys(right)]).find(
-    (key) => !isEqual(ownField(left, key), ownField(right, key)),
+    (candidate) => !isEqual(ownField(left, candidate), ownField(right, candidate)),
   )
 
   return key === undefined ? [] : [key, ...differingPath(ownField(left, key), ownField(right, key))]
