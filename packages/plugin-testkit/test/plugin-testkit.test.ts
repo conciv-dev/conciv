@@ -1,4 +1,7 @@
-import {expect, afterEach, describe, it} from 'vitest'
+import {expect, afterEach, describe, it, onTestFinished} from 'vitest'
+import {mkdtempSync, rmSync} from 'node:fs'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
 import {type EngineStaleness} from '@conciv/contract'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {bootCoreKit, type CoreKit} from '../src/core-kit.js'
@@ -80,6 +83,24 @@ describe('core kit seams', () => {
 
       expect(rejected.status).toBe(403)
       expect(accepted.headers.get('access-control-allow-origin')).toBe(ORIGIN)
+    }, 30_000)
+
+    it('keeps a passed state root so a second kit on the same folder reads what the first one stored', async () => {
+      const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-core-kit-'))
+      onTestFinished(() => rmSync(stateRoot, {recursive: true, force: true}))
+
+      const first = await bootCoreKit({id: 'seams-state-root-first', stateRoot})
+      state.kit = first
+      const {sessionId} = await first.rpc.sessions.create()
+      await first.rpc.sessions.rename({sessionId, title: 'Kept across kits'})
+      await first.cleanup()
+      state.kit = undefined
+
+      const second = await bootCoreKit({id: 'seams-state-root-second', stateRoot})
+      state.kit = second
+      const {sessions} = await second.rpc.sessions.list({})
+
+      expect(sessions.find((meta) => meta.id === sessionId)?.title).toBe('Kept across kits')
     }, 30_000)
   })
 })

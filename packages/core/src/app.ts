@@ -475,7 +475,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const scopedToolCall: ScopedToolCall = (name, input, request) =>
     runtime
       .forSession(request.sessionId)
-      .tools.call(name, input, {toolCallId: request.toolCallId, signal: request.signal, outside: request.outside})
+      .tools.call(name, input, {toolCallId: request.toolCallId, signal: request.signal})
 
   const serverSessions: ServerSessions = {
     resumeToken: (sessionId) => nativeIdFor(db, sessionId),
@@ -691,7 +691,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     void scope.run
       .record(chunks)
       .catch((error: unknown) => logError(`[core] recording queue ${result.queueId} failed: ${String(error)}`))
-    if (!record.outside) followUpOwedQueues(record.sessionId)
+    if (!primitives.hubCalls.has(record.sessionId, record.toolCallId)) followUpOwedQueues(record.sessionId)
   })
 
   const admitOutside = async (
@@ -713,9 +713,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const search = createSessionSearch({db, cwd: chatDeps.cwd, harnesses: chatDeps.harnesses})
   const mcp: McpVars['mcp'] = {
-    codeRunner: (sessionId, publish, capabilities, outside) =>
-      plane.codeRunner(sessionId, publish, capabilities, outside),
-    finishedQueues: (sessionId, outside) => primitives.page.queues.undelivered(sessionId, outside),
+    codeRunner: (sessionId, publish, capabilities) => plane.codeRunner(sessionId, publish, capabilities),
+    hubCall: (sessionId, callId) => primitives.hubCalls.add(sessionId, callId),
+    finishedQueues: (sessionId, fromHub) => primitives.page.queues.undelivered(sessionId, fromHub),
     startedQueues: (sessionId, toolCallIds) => primitives.page.queues.startedBy(sessionId, toolCallIds),
     admitCall: (sessionId, call) => plane.admitCall(sessionId, call),
     outsideCapabilities: (sessionId) =>
