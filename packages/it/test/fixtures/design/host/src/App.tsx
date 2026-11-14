@@ -287,6 +287,15 @@ export function App() {
         <style data-conciv-key="fSmGsA">{'#root { display: block; padding: 0; }'}</style>
       </main>
     )
+  if (requested === 'form-stroke-section')
+    return (
+      <section style={{margin: '-415px -24px -24px', width: 358, outline: '1px solid #262626', outlineOffset: -1}} data-conciv-key="fSsCtA">
+        <h2 style={{margin: 0, height: 391}} data-conciv-key="fSsHdA" />
+        <div style={{boxShadow: 'inset 0 1px 0 #262626'}} data-conciv-key="fSsDvA">
+          <form style={{height: 1070, background: '#1a1a1a'}} data-conciv-key="fSsFmA" />
+        </div>
+      </section>
+    )
   if (requested === 'form-stroke-wrapped')
     return (
       <main style={{margin: -24, width: 358, boxShadow: 'inset 0 1px 0 0 #262626'}} data-conciv-key="fSwRaA">
@@ -308,14 +317,15 @@ export function App() {
     requested === 'process-column-flat' ||
     requested === 'process-column-screen' ||
     requested === 'process-column-thin' ||
-    requested === 'process-column-high'
+    requested === 'process-column-high' ||
+    requested === 'process-column-ruled'
   ) {
     const flat = requested !== 'process-column'
     return (
       <main style={{margin: -24, width: 358, display: 'flex', flexDirection: 'column', background: '#1a1a1a'}} data-conciv-key="pCmNaA">
         {COLUMN_CARDS.map((height, index) => (
           <>
-            {index === 0 ? null : requested === 'process-column-thin' ? (
+            {index === 0 || requested === 'process-column-ruled' ? null : requested === 'process-column-thin' ? (
               <img
                 src={`/design/${COLUMN_LINES[index - 1]}.png`}
                 alt=""
@@ -329,7 +339,7 @@ export function App() {
               />
             )}
             <div
-              style={{height: requested === 'process-column-high' && index === 0 ? height - 2 : height, minHeight: requested === 'process-column-screen' && index === 0 ? '12vh' : 0, boxSizing: 'border-box', padding: '40px 24px'}}
+              style={{height: requested === 'process-column-high' && index === 0 ? height - 2 : height, minHeight: requested === 'process-column-screen' && index === 0 ? '12vh' : 0, boxSizing: 'border-box', padding: '40px 24px', boxShadow: requested === 'process-column-ruled' ? 'inset 0 1px 0 #262626' : 'none'}}
               data-conciv-key="pCcRdA"
             >
               <span style={{fontSize: 56, lineHeight: '56px', fontWeight: 600, color: '#d8ff99'}} data-conciv-key="pCnMbA">

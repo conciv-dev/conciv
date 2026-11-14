@@ -77,7 +77,8 @@ src/
   `strokeAlign` (INSIDE, CENTER or OUTSIDE) and, when Figma strokes only some sides, `individualStrokeWeights`; a
   border row then names the sides and fails a box stroked on other sides; the rules ask for it as an outline inset by its weight, which takes no
   space, and the measure reads a border, an outline or an inset box-shadow with no blur as the stroke, each on the
-  sides it draws. A border row names the
+  sides it draws; a side the element leaves out passes when a parent or child flush on that edge draws it, and a side
+  it draws beyond the design passes when a flush parent draws that side too. A border row names the
   align after the expected stroke. An empty input or textarea measures its placeholder as its text, in the
   `::placeholder` colour (not the colour of typed text), so a real form control pairs with the design text it stands for. An asset node passes when its element shows that file, or shows
   any image or paints a CSS shape (a fill, border or gradient) and its capture matches the asset by pixels; an element that paints

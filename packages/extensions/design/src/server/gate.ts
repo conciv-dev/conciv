@@ -6,7 +6,8 @@ import {box as shapes} from '../shared/box.js'
 import {designConfig} from '../shared/tolerances.js'
 import {walk} from '../shared/tree.js'
 import type {readIds} from '../shared/id-tree.js'
-import {nodeLooks, type StrokeSides} from './node-look.js'
+import {nodeLooks} from './node-look.js'
+import {borderRow} from './border-rows.js'
 import type {Wrap} from './wraps.js'
 import {wrapsOf} from './wraps.js'
 
@@ -156,7 +157,6 @@ function lineSide(input: {line: Box; frame: Box}): string | null {
 }
 
 const LINE_KIND = 'line'
-const BORDER_ORDER = ['top', 'right', 'bottom', 'left'] as const
 const MEDIA_PROPERTIES = designConfig.mediaProperties
 const FAR_PX = 24
 const CONTAINER_TOLERANCE = 0.08
@@ -551,7 +551,7 @@ function rounded(box: Box): Box {
 
 type Look = ReturnType<typeof nodeLooks>[number]
 
-type Seen = {look: Look; element: LiveComponent; boxed: LiveComponent[]; under: string}
+type Seen = {look: Look; element: LiveComponent; boxed: LiveComponent[]; ancestors: LiveComponent[]; under: string}
 
 type Compared = {kind: PaintKind; expected: string; found: string; token: string | null; delta?: number}
 
@@ -584,6 +584,10 @@ function lookRows(input: {
     const parent = parents.get(element) ?? undefined
     return parent !== undefined && soleChild(parent) === element ? parent : undefined
   }
+  const ancestorsOf = (element: LiveComponent): LiveComponent[] => {
+    const parent = parents.get(element) ?? undefined
+    return parent === undefined ? [] : [parent, ...ancestorsOf(parent)]
+  }
   const behind = (element: LiveComponent | null | undefined): string => {
     if (element === null || element === undefined) return WHITE
     return opaque(element.styles.background) ? element.styles.background : behind(parents.get(element))
@@ -593,7 +597,7 @@ function lookRows(input: {
     if (element === undefined) return []
     const boxed = [...sameBox({element, next: soleChild}), ...sameBox({element, next: soleParent})]
     const under = behind(input.held.has(look.node) ? element : parents.get(element))
-    const seen = {look, element, boxed, under}
+    const seen = {look, element, boxed, ancestors: look.stroke === null ? [] : ancestorsOf(element), under}
     return compared(seen).map((found) => ({
       node: look.node,
       ...reads.named(look.node),
@@ -679,27 +683,8 @@ function radiusRows(seen: Seen): Compared[] {
 }
 
 function borderRows(seen: Seen): Compared[] {
-  const {look, element} = seen
-  const {stroke} = look
-  if (stroke === null) return []
-  const {border} = element.styles
-  const wanted = look.strokeSides === null ? null : sidesDrawn(look.strokeSides)
-  const weight = look.strokeSides === null ? (look.stroke_weight ?? 1) : Math.max(...Object.values(look.strokeSides))
-  const where = (sides: string[]) => (wanted === null ? '' : ` on ${sides.join(', ')}`)
-  const shown =
-    border.style === 'none' || border.width === 0
-      ? 'none'
-      : `${border.width}px ${border.color}${where(border.sides.map((side) => side.side))}`
-  const draws = (one: LiveComponent): boolean => {
-    const drawn = one.styles.border
-    const sameSides = wanted === null || wanted.join() === drawn.sides.map((side) => side.side).join()
-    return sameSides && drawn.width === weight && near({a: drawn.color, b: stroke})
-  }
-  const aligned = look.strokeAlign === null ? '' : ` ${look.strokeAlign}`
-  const expected = `${weight}px ${stroke}${aligned}${where(wanted ?? [])}`
-  return [element, ...seen.boxed].some(draws)
-    ? []
-    : [{kind: 'border', expected, found: shown, token: look.token_stroke}]
+  const told = borderRow(seen)
+  return told === null ? [] : [{kind: 'border', ...told, token: seen.look.token_stroke}]
 }
 
 function soleChild(element: LiveComponent): LiveComponent | undefined {
@@ -718,10 +703,6 @@ function sameBox(input: {
   const b = rounded(next.bounds)
   const same = Math.abs(a.x - b.x) + Math.abs(a.y - b.y) + Math.abs(a.w - b.w) + Math.abs(a.h - b.h) <= PX
   return same ? [next, ...sameBox({element: next, next: input.next})] : []
-}
-
-function sidesDrawn(sides: StrokeSides): string[] {
-  return BORDER_ORDER.filter((side) => sides[side] > 0)
 }
 
 function opacityRows(seen: Seen): Compared[] {

@@ -79,6 +79,11 @@ function roundOf(checked: Checked): Exclude<Checked, {unsettled: true} | {compil
   return checked
 }
 
+async function checkedTexts(kept: (row: ReturnType<typeof roundOf>['rows'][number]) => boolean): Promise<string[]> {
+  const {rows} = roundOf(await call('design_check', {}))
+  return rows.filter(kept).map((row) => row.text)
+}
+
 describe('design_check on the cards page', () => {
   it('gives each row the design value and the page value in the check and the status, measures the page its code renders and not what the user opened, names the media query whose rule sets a value and adds its width, and names the route it measured', async () => {
     await kit.goto('target')
@@ -150,12 +155,10 @@ describe('a Figma line', () => {
 })
 
 describe('a Figma stroke', () => {
-  it('is told with its alignment and sides, an inset outline, an inset or outset box-shadow or a side border draws it, on the element or a child in its box, and a bottom margin counts in the page height', async () => {
+  it('is told with its alignment and sides, an inset outline, an inset or outset box-shadow or a side border draws it, on the element, a child in its box or a flush ancestor or child per side, and a bottom margin counts in the page height', async () => {
     const texts = async (page: string, kept: (row: ReturnType<typeof roundOf>['rows'][number]) => boolean) => {
       await kit.goto(page)
-      return roundOf(await call('design_check', {}))
-        .rows.filter(kept)
-        .map((row) => row.text)
+      return checkedTexts(kept)
     }
     const border = (node: string) => (row: {node: string; property?: string | null}) =>
       row.node === node && row.property === 'border'
@@ -176,8 +179,12 @@ describe('a Figma stroke', () => {
     await call('design_get', await sliced('form-stroke', '100-1693'))
     const outset = await texts('form-stroke', border('100:1693'))
     const wrapped = await texts('form-stroke-wrapped', border('100:1693'))
+    const sectioned = await texts('form-stroke-section', border('100:1693'))
     const short = await texts('form-stroke-short', height)
     const margined = await texts('form-stroke-margin', height)
+    await kit.goto('process-column-ruled')
+    await call('design_get', await sliced('process-column', '100-1535'))
+    const ruled = await texts('process-column-ruled', border('100:1535'))
     expect([
       field.nodes.find((node) => node.id === '100:1418')?.strokeAlign,
       field.rules.some((rule) => rule.includes('outline-offset')),
@@ -185,7 +192,7 @@ describe('a Figma stroke', () => {
       typed.coverage.missing.includes('100:1421'),
       typed.rows.filter((found) => found.node === '100:1421' && found.text.includes('text color')),
       row.nodes.find((node) => node.id === '50:880')?.individualStrokeWeights,
-      [underlined, boxed, outset, wrapped, short, margined],
+      [underlined, boxed, [outset, wrapped, sectioned, ruled].flat(), short, margined],
     ]).toEqual([
       'INSIDE',
       true,
@@ -198,7 +205,6 @@ describe('a Figma stroke', () => {
         [
           'wrong border at [50:880]: 1px #262626 inside on bottom expected, 1px #262626 on top, right, bottom, left found',
         ],
-        [],
         [],
         ['the page is 1064 px tall, the frame is 1070'],
         [],
@@ -262,10 +268,7 @@ describe('an idle page while files outside the page change', () => {
 
 describe('a Figma effect', () => {
   it('is carried into the design and flagged when the page leaves it out', async () => {
-    const effectRows = async () =>
-      roundOf(await call('design_check', {}))
-        .rows.filter((row) => row.property === 'effect')
-        .map((row) => row.text)
+    const effectRows = async () => checkedTexts((row) => row.property === 'effect')
     await kit.goto('logo-tile')
     const got = await call('design_get', await sliced('logo-tile', '100-1683'))
     const glowing = await effectRows()
@@ -468,10 +471,7 @@ describe('an image node drawn as a box with its icon inside', () => {
   it('passes when the drawn element looks like the asset, whatever the file is named or however slowly it loads, and each button keeps its icon', async () => {
     await kit.goto('check-row')
     await call('design_get', await sliced('check-row', '83-30723'))
-    const imageRows = async () =>
-      roundOf(await call('design_check', {}))
-        .rows.filter((row) => row.property === 'image')
-        .map((row) => row.text)
+    const imageRows = async () => checkedTexts((row) => row.property === 'image')
     const drawn = await imageRows()
     await kit.goto('check-row-stalled')
     const stalled = await imageRows()
