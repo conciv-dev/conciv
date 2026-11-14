@@ -499,9 +499,9 @@ export const contract = {
       .errors({...pluginRpcFailed, ...approvalDenied})
       .input(z.object({rpcId: z.string().min(1), method: z.string().min(1), input: z.unknown().optional()}))
       .output(z.unknown()),
-    list: oc.output(locationResponse(z.array(PluginInfoSchema))),
+    list: oc.errors(approvalDenied).output(locationResponse(z.array(PluginInfoSchema))),
     experimental: oc
-      .errors(pluginNotFound)
+      .errors({...pluginNotFound, ...approvalDenied})
       .input(z.object({id: PluginIdSchema}))
       .output(locationResponse(PluginExperimentalBundleSchema)),
   },

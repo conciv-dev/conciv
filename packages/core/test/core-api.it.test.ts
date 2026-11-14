@@ -88,7 +88,7 @@ import {
 } from '@conciv/harness-testkit'
 import {Plugin, Rpc as PluginRpc, type RpcRegistration} from '@conciv/plugin'
 import {evaluatePluginBundle} from '@conciv/plugin/experimental/host'
-import {Location, PluginHost, Session} from '@conciv/plugin-host'
+import {InstructionEntry, Location, PluginHost, Session} from '@conciv/plugin-host'
 import {claude} from '@conciv/harness/claude'
 import {codex as codexHarness} from '@conciv/harness/codex'
 import {pi as piHarness} from '@conciv/harness/pi'
@@ -1161,6 +1161,10 @@ describe('api harness switching', () => {
     )
     const old = await key((sessions) => sessions.get(id))
     expect(old).toMatchObject({metadata: {ticket: 7}, permissions: [{action: 'bash', resource: '*', effect: 'deny'}]})
+    const entries = (run: (service: InstructionEntry.Interface) => Effect.Effect<unknown, unknown>) =>
+      app.pluginHost.runPromise(InstructionEntry.Service.use(run))
+    await entries((service) => service.put({sessionId: id, key: 'brief', value: 'the old session'}))
+    expect(await entries((service) => service.list(id))).toEqual([{key: 'brief', value: 'the old session'}])
     await key((sessions) => sessions.remove(id))
     const location = Schema.decodeSync(Location.Ref)({directory: app.chat.cwd})
     const reused = await key((sessions) => sessions.create({id, title: 'A new session on an old id', location}))
@@ -1168,6 +1172,7 @@ describe('api harness switching', () => {
     expect(reused.time.created).toEqual(expect.any(Number))
     expect(reused.time.created).toBeGreaterThanOrEqual(old.time.updated)
     expect(await key((sessions) => sessions.get(id))).toEqual(reused)
+    expect(await entries((service) => service.list(id))).toEqual([])
     expect(row(sessionId)).toMatchObject({harnessKind: 'alpha', harnessSessionId: null, deletedAt: null})
     const newMarkers = (await kit().rpc.markers.list({sessionId})).map((marker) => marker.id)
     expect(newMarkers.filter((marker) => oldMarkers.includes(marker))).toEqual([])
@@ -5088,7 +5093,7 @@ export default {
     expect(await hubRpc.chat.allowOutside({sessionId}).then(String, String)).toContain(refusal)
     await expect(hubRpc.plugin.call({rpcId: 'embedded', method: 'ping', input: {}})).rejects.toMatchObject({
       code: 'APPROVAL_DENIED',
-      message: "outside agents can't call plugin RPC methods; use the plugin in the tab",
+      message: "outside agents can't use plugin routes; use the plugin in the tab",
     })
     expect(await loadPending(base, sessionId)).toEqual([card])
     await own.chat.permissionDecision({approvalId: card?.approvalId ?? '', approved: false})
@@ -6230,12 +6235,19 @@ export default {
     })
     const pluginRefusal = {
       code: 'APPROVAL_DENIED',
-      message: "outside agents can't call plugin RPC methods; use the plugin in the tab",
+      message: "outside agents can't use plugin routes; use the plugin in the tab",
     }
     await expect(outside.plugin.call({rpcId: 'embedded', method: 'counted', input: {}})).rejects.toMatchObject(
       pluginRefusal,
     )
     expect(await call(base, 'embedded', 'counted')).toBe(1)
+    await expect(outside.plugin.list()).rejects.toMatchObject(pluginRefusal)
+    expect((await makeRpcClient(base).plugin.list()).data.map((plugin) => plugin.id)).toContain('embedded')
+    await expect(outside.plugin.experimental({id: 'configured'})).rejects.toMatchObject(pluginRefusal)
+    await expect(makeRpcClient(base).plugin.experimental({id: 'configured'})).rejects.toMatchObject({
+      code: 'PLUGIN_NOT_FOUND',
+      data: {pluginId: 'configured'},
+    })
     await everything.return(undefined)
     await deletions.return(undefined)
 
