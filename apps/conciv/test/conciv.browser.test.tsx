@@ -6181,10 +6181,36 @@ describe('installed plugins in settings', () => {
 })
 
 describe('a fixture plugin driven like a user', () => {
-  const fixtureBundle = `const {Panel, Slot} = require('@conciv/plugin/experimental')
+  const fixtureBundle = `const {Panel, Registry, Slot, Store} = require('@conciv/plugin/experimental')
 const {createComponent} = require('solid-js/web')
-module.exports = {default: {setup(ctx) {
+const {createRenderEffect} = require('solid-js')
+const {z} = require('zod')
+const ToolCall = Registry.define('tool-call')
+module.exports = {default: {stores: {
+  note: Store.global(z.object({text: z.string()}), {text: 'none'}),
+  visits: Store.global(z.object({count: z.number()}), {count: 0}),
+}, setup(ctx) {
   const button = (label, onClick) => createComponent(ctx.ui.Button, {onClick, children: label})
+  const line = (read) => {
+    const shown = document.createElement('p')
+    createRenderEffect(() => {
+      shown.textContent = read()
+    })
+    return shown
+  }
+  const asked = {declined: 0}
+  const askedLine = document.createElement('p')
+  askedLine.textContent = 'Declined call asked: 0'
+  ctx.add(ToolCall, {
+    tools: ['fixture_probe'],
+    render(props) {
+      if (props.input.mode !== 'decline') return Object.assign(document.createElement('p'), {textContent: 'Fixture drew ' + props.result.output.drawn})
+      asked.declined += 1
+      askedLine.textContent = 'Declined call asked: ' + asked.declined
+      return undefined
+    },
+  })
+  ctx.add(Slot, {at: 'window.bottom', render: () => askedLine})
   const dialog = (title, body) =>
     ctx.dialogs.open(() => createComponent(ctx.ui.Dialog, {title, get children() { return body() }}))
   const second = () => dialog('Fixture second dialog', () => 'The second dialog is on top')
@@ -6201,6 +6227,13 @@ module.exports = {default: {setup(ctx) {
       button('Open the listed tab', () => ctx.layout.open('fixture:opened', props.session)),
       button('Open the old tab', () => ctx.layout.open('fixture:old', props.session)),
       button('Open an unlisted tab', () => ctx.layout.open('fixture:missing', props.session)),
+      line(() => 'Stored note: ' + String(ctx.stores.note.value.text)),
+      line(() => 'Visits: ' + String(ctx.stores.visits.value.count)),
+      button('Save the note', () => ctx.stores.note.set({text: 'saved note'})),
+      button('Save a broken note', () => ctx.stores.note.set({text: 42})),
+      button('Count a visit', () => ctx.stores.visits.update((draft) => {
+        draft.count += 1
+      })),
     ],
   })
   ctx.add(Panel, {
@@ -6342,4 +6375,165 @@ module.exports = {default: {setup(ctx) {
     await expect.element(editor()).toBeVisible()
     expect(harness.pathname()).toBe(`/panel/${sessionId}`)
   }, 60_000)
+
+  const FILLER_TURNS = 16
+  const STORE_WRITES = ['settings', 'set']
+  const filler = (index: number) => page.getByText(`filler question ${index}`, {exact: true})
+  const thread = () => page.getByRole('log').filter({hasText: 'filler question'})
+  const shown = (text: string) => page.getByText(text, {exact: true})
+  const drawnBody = () => shown('Fixture drew the drawn probe')
+
+  test('its tool card body comes back after the thread evicts it, and its store survives a reload and refuses a bad write', async () => {
+    const base = coreBase()
+    const sessionId = await createSession(coreRpc(base))
+    await coreControl.scriptTurn({
+      toolCalls: [
+        {name: 'fixture_probe', input: {mode: 'draw'}, result: {drawn: 'the drawn probe'}},
+        {name: 'fixture_probe', input: {mode: 'decline'}, result: {drawn: 'the declined probe'}},
+      ],
+      text: 'the fixture probes are done',
+    })
+    onTestFinished(() => coreControl.clearScript())
+    await runTurn(base, sessionId, 'run the fixture probes')
+    for (let index = 0; index < FILLER_TURNS; index += 1) await runTurn(base, sessionId, `filler question ${index}`)
+
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(filler(FILLER_TURNS - 1), {timeout: 15_000}).toBeVisible()
+    await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
+
+    const probesPrompt = () => thread().getByText('run the fixture probes', {exact: true})
+    const showProbes = async () => {
+      await userEvent.wheel(thread(), {delta: {y: -1_000_000}})
+      await expect.element(probesPrompt()).toBeInViewport()
+      await thread()
+        .getByRole('button', {name: /Show trace/})
+        .click()
+    }
+
+    await showProbes()
+    await expect.element(drawnBody()).toBeVisible()
+    await expect.element(shown('"the declined probe"')).toBeVisible()
+    await expect.element(shown('Declined call asked: 1')).toBeVisible()
+
+    await userEvent.wheel(thread(), {delta: {y: 1_000_000}})
+    await expect.element(filler(FILLER_TURNS - 1)).toBeInViewport()
+    await expect.element(probesPrompt()).not.toBeInTheDocument()
+    await expect.element(drawnBody()).not.toBeInTheDocument()
+
+    await showProbes()
+    await expect.element(drawnBody()).toBeVisible()
+    await expect.element(shown('"the declined probe"')).toBeVisible()
+    await expect.element(shown('Declined call asked: 1')).toBeVisible()
+
+    await tab('Fixture tools').click()
+    await expect.element(shown('Stored note: none')).toBeVisible()
+    await expect.element(shown('Visits: 0')).toBeVisible()
+    const writesBefore = await coreControl.rpcCallCount(STORE_WRITES)
+    await control('Save the note').click()
+    await expect.element(shown('Stored note: saved note')).toBeVisible()
+    await coreControl.rpcStartedOnceServed(STORE_WRITES, writesBefore + 1, [])
+
+    await control('Save a broken note').click()
+    await expect.element(shown('Stored note: 42')).toBeVisible()
+    await control('Count a visit').click()
+    await expect.element(shown('Visits: 1')).toBeVisible()
+    await coreControl.rpcStartedOnceServed(STORE_WRITES, writesBefore + 2, [])
+    await tab('Chat').click()
+    await expect.element(editor()).toBeVisible()
+    harness.dispose()
+
+    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`)
+    await expect.element(shown('Stored note: saved note'), {timeout: 15_000}).toBeVisible()
+    await expect.element(shown('Visits: 1')).toBeVisible()
+  }, 90_000)
+
+  test('its tab appears once the engine trusts the page, stays through a revoke and a lost connection, and loads again after trust drops before its enable state arrived', async () => {
+    const origin = new URL(coreBase()).origin
+    onTestFinished(() => localStorage.removeItem(`conciv:engine-token:${origin}`))
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const loginNotice = () => page.getByRole('alert').filter({hasText: 'Log in to use conciv on this page.'})
+    const reloginNotice = () =>
+      page.getByRole('alert').filter({hasText: 'This browser is no longer authorized to use conciv.'})
+    const lostNotice = () => page.getByText('conciv lost connection to the engine.')
+    const codeDigit = () => page.getByRole('textbox', {name: 'Digit 1 of 6'})
+    const logIn = async (notice: Locator) => {
+      await notice.getByRole('button', {name: 'Log in'}).click()
+      await userEvent.type(codeDigit(), await coreControl.requestCode())
+      await expect.element(notice).not.toBeInTheDocument()
+    }
+
+    harness.mountShell(`/panel/${sessionId}?open=true`, [], {login: {apiBase: origin}})
+    await expect.element(loginNotice(), {timeout: 15_000}).toBeVisible()
+    await expect.element(tab('Chat')).toBeVisible()
+    await expect.element(tab('Fixture tools')).not.toBeInTheDocument()
+
+    const enableState = await faults.install({kind: 'gate', path: ['settings', 'changes']})
+    await logIn(loginNotice())
+    await coreControl.awaitFaultPending(enableState, 1)
+    await coreControl.revokeBrowsers()
+    await expect.element(reloginNotice(), {timeout: 15_000}).toBeVisible()
+    await coreControl.releaseFault(enableState)
+
+    await logIn(reloginNotice())
+    await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
+
+    await coreControl.revokeBrowsers()
+    await expect.element(reloginNotice(), {timeout: 15_000}).toBeVisible()
+    await expect.element(tab('Fixture tools')).toBeVisible()
+    await logIn(reloginNotice())
+
+    const offline = await faults.install({kind: 'offline'})
+    await expect.element(lostNotice(), {timeout: 15_000}).toBeVisible()
+    await expect.element(tab('Fixture tools')).toBeVisible()
+    await coreControl.releaseFault(offline)
+    await expect.element(lostNotice(), {timeout: 15_000}).not.toBeInTheDocument()
+
+    await tab('Fixture tools').click()
+    await control('Write a plain note').click()
+    await tab('Chat').click()
+    await expect.element(editor()).toHaveTextContent('plain note')
+  }, 90_000)
+
+  test('turning it off in Settings removes its tab and slot, turning it on brings them back, and turning it off elsewhere closes its open tab', async () => {
+    await page.viewport(1000, 900)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const fixtureSwitch = () => page.getByRole('switch', {name: 'fixture', exact: true})
+    const heldNote = () => control('Write a held note')
+    const switchFixture = async (settled: () => Promise<void>) => {
+      await page.getByRole('link', {name: 'Settings'}).click()
+      await tab('Plugins').click()
+      await fixtureSwitch().click({force: true})
+      await settled()
+      await page.getByRole('button', {name: 'Back to chat'}).click()
+      await expect.element(editor()).toBeVisible()
+    }
+
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
+    await expect.element(heldNote()).toBeVisible()
+
+    await switchFixture(() => expect.element(fixtureSwitch()).not.toBeChecked())
+    await expect.element(tab('Chat')).toBeVisible()
+    await expect.element(tab('Fixture tools')).not.toBeInTheDocument()
+    await expect.element(heldNote()).not.toBeInTheDocument()
+
+    await switchFixture(() => expect.element(fixtureSwitch()).toBeChecked())
+    await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
+    await expect.element(heldNote()).toBeVisible()
+
+    await tab('Fixture tools').click()
+    await expect.element(control('Write a plain note')).toBeVisible()
+    const elsewhere = bundleSource(coreBase())
+    onTestFinished(elsewhere.dispose)
+    await elsewhere.pluginExperimentals()
+    await elsewhere.manager.disable('fixture')
+    await expect.element(control('Write a plain note'), {timeout: 15_000}).not.toBeInTheDocument()
+    await expect.element(tab('Chat')).toHaveAttribute('aria-selected', 'true')
+    await expect.element(editor()).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}`)
+
+    await elsewhere.manager.enable('fixture')
+    await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
+    await expect.element(heldNote()).toBeVisible()
+  }, 90_000)
 })
