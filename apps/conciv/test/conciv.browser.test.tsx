@@ -5829,10 +5829,6 @@ module.exports = {default: {setup(ctx) {
   const probeCards = () => page.getByText('Tool: plugin_probe', {exact: true})
 
   test('a plugin draws the body of a finished call it claims, and a declined or failed call keeps the default card', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-    onTestFinished(() => {
-      vi.restoreAllMocks()
-    })
     const sessionId = await createSession(coreRpc(coreBase()))
     await coreControl.scriptTurn({
       toolCalls: [
