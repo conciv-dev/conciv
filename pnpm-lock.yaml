@@ -2209,6 +2209,9 @@ importers:
 
   packages/builtin-plugins:
     dependencies:
+      '@conciv/contract':
+        specifier: workspace:^
+        version: link:../contract
       '@conciv/extension':
         specifier: workspace:^
         version: link:../extension
@@ -2224,9 +2227,6 @@ importers:
       '@jridgewell/trace-mapping':
         specifier: 'catalog:'
         version: 0.3.31
-      es-toolkit:
-        specifier: 'catalog:'
-        version: 1.53.0
       '@solid-primitives/map':
         specifier: 'catalog:'
         version: 0.7.4(solid-js@1.9.17)
@@ -2242,6 +2242,9 @@ importers:
       ai-motion:
         specifier: 'catalog:'
         version: 0.4.8
+      es-toolkit:
+        specifier: 'catalog:'
+        version: 1.53.0
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17

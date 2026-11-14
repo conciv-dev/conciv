@@ -1,5 +1,6 @@
 import {delay} from 'es-toolkit'
 import {z} from 'zod'
+import {RESULT_CAP_CHARS} from '@conciv/contract'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {
   PAGE_QUEUE_REFUSED,
@@ -46,7 +47,7 @@ const KEPT_QUEUES = 200
 
 const OWED_QUEUES = 1000
 
-const QUEUE_RESULT_CHARS = 45_000
+const QUEUE_RESULT_CHARS = RESULT_CAP_CHARS - 5000
 
 const Raised = z.object({code: z.string(), message: z.string()})
 
