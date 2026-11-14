@@ -1,5 +1,5 @@
 import {createMemo, For, onCleanup, Show, untrack, type Accessor} from 'solid-js'
-import {useRouter} from '@tanstack/solid-router'
+import {Navigate, getRouteApi, useRouter} from '@tanstack/solid-router'
 import {Panel, Slot, type MountedSession, type SessionScreen} from '@conciv/plugin/experimental'
 import {useLayers} from '../app/context'
 import {usePluginAttachment} from '../runtime/plugin/attachment'
@@ -9,8 +9,11 @@ import {isPluginView, panelKey} from '../runtime/plugin/panel-keys'
 import {PanelTrigger} from '../runtime/plugin/panel-trigger'
 import {createRegion, panelInput, RegionContent} from '../runtime/plugin/panels'
 import {PluginSlot} from '../runtime/plugin/render'
+import {usePluginsKnown} from '../runtime/plugin/root'
 
 type RouteTabs = Parameters<typeof createRegion>[0]['tabs']
+
+const viewRoute = getRouteApi('/panel/$sessionId/$view')
 
 export function createPluginTabs(input: {
   view: Accessor<string>
@@ -86,66 +89,81 @@ function PluginTabTrigger(props: {value: string}) {
   )
 }
 
+type PluginHost = ReturnType<typeof usePluginHost>
+
+const paneProviders = (host: PluginHost) => host.items(Panel).filter((item) => item.value.region === 'pane')
+
+type PaneProvider = ReturnType<typeof paneProviders>[number]
+
+function listed(item: PaneProvider, key: string, view: MountedSession, screen: SessionScreen) {
+  try {
+    return item.value
+      .list(panelInput(() => view, screen, {open: [key.slice(item.plugin.length + 1)]}))
+      .some((tab) => panelKey(item.plugin, tab.id) === key)
+  } catch (cause) {
+    console.error(`[plugin] ${item.plugin} panel list failed`, cause)
+
+    return false
+  }
+}
+
+function renamed(item: PaneProvider, key: string, view: MountedSession, screen: SessionScreen) {
+  const normalize = item.value.normalize
+
+  if (!normalize) return false
+  try {
+    return (
+      panelKey(item.plugin, normalize(panelInput(() => view, screen, {id: key.slice(item.plugin.length + 1)}))) !== key
+    )
+  } catch (cause) {
+    console.error(`[plugin] ${item.plugin} panel normalize failed`, cause)
+
+    return false
+  }
+}
+
+function routedKeyStatus(input: {
+  providers: readonly PaneProvider[]
+  sessionId: string
+  key: string
+  view: MountedSession | undefined
+  screen: SessionScreen | undefined
+}) {
+  const owners = input.providers.filter((item) => input.key.startsWith(`${item.plugin}:`))
+
+  if (owners.length === 0) return 'unlisted'
+  const view = input.view
+  const screen = input.screen
+
+  if (view?.id !== input.sessionId || !screen) return 'listed'
+  const normalizer = owners.find((item) => item.value.normalize)
+
+  if (normalizer && renamed(normalizer, input.key, view, screen)) return 'listed'
+
+  return owners.some((item) => listed(item, input.key, view, screen)) ? 'listed' : 'unlisted'
+}
+
 export function PluginPanelKeys() {
   const host = usePluginHost()
   const attachment = usePluginAttachment()
+  const known = usePluginsKnown()
   const panels = useRouter().options.context.pluginPanels
-  const providers = createMemo(() => host.items(Panel).filter((item) => item.value.region === 'pane'))
-
-  const listed = (
-    item: ReturnType<typeof providers>[number],
-    key: string,
-    view: MountedSession,
-    screen: SessionScreen,
-  ) => {
-    try {
-      return item.value
-        .list(panelInput(() => view, screen, {open: [key.slice(item.plugin.length + 1)]}))
-        .some((tab) => panelKey(item.plugin, tab.id) === key)
-    } catch (cause) {
-      console.error(`[plugin] ${item.plugin} panel list failed`, cause)
-
-      return false
-    }
-  }
-
-  const renamed = (
-    item: ReturnType<typeof providers>[number],
-    key: string,
-    view: MountedSession,
-    screen: SessionScreen,
-  ) => {
-    const normalize = item.value.normalize
-
-    if (!normalize) return false
-    try {
-      return (
-        panelKey(item.plugin, normalize(panelInput(() => view, screen, {id: key.slice(item.plugin.length + 1)}))) !==
-        key
-      )
-    } catch (cause) {
-      console.error(`[plugin] ${item.plugin} panel normalize failed`, cause)
-
-      return false
-    }
-  }
+  const providers = createMemo(() => paneProviders(host))
 
   onCleanup(
-    panels.bind(({sessionId, key}) => {
-      if (!untrack(host.ready)) return 'pending'
-      const owners = untrack(providers).filter((item) => key.startsWith(`${item.plugin}:`))
+    panels.bind(({sessionId, key}) =>
+      untrack(() => {
+        if (!host.ready() || known() === 'pending') return 'pending'
 
-      if (owners.length === 0) return 'unlisted'
-      const view = untrack(attachment.current)
-      const screen = untrack(attachment.shownScreen)
-
-      if (view?.id !== sessionId || !screen) return 'listed'
-      const normalizer = owners.find((item) => item.value.normalize)
-
-      if (normalizer && renamed(normalizer, key, view, screen)) return 'listed'
-
-      return owners.some((item) => listed(item, key, view, screen)) ? 'listed' : 'unlisted'
-    }),
+        return routedKeyStatus({
+          providers: providers(),
+          sessionId,
+          key,
+          view: attachment.current(),
+          screen: attachment.shownScreen(),
+        })
+      }),
+    ),
   )
 
   return null
@@ -203,29 +221,45 @@ export function PluginRegion(props: {view: Accessor<MountedSession>; screen: Ses
 }
 
 export function PluginTabContent() {
+  const params = viewRoute.useParams()
   const attachment = usePluginAttachment()
   const host = usePluginHost()
+  const known = usePluginsKnown()
+  const providers = createMemo(() => paneProviders(host))
 
   return (
-    <Show when={host.ready() ? attachment.shownRegion() : undefined}>
+    <Show when={host.ready() && known() === 'known' ? attachment.shownRegion() : undefined}>
       {(region) => (
         <Show when={attachment.current()}>
           {(view) => (
             <Show when={attachment.shownScreen()} keyed>
               {(screen) => (
-                <div class="relative flex flex-1 flex-col min-h-0">
-                  <RegionContent
-                    pane={region().pane}
-                    view={view()}
-                    screen={screen}
-                    frame={{
-                      placement: () => 'pane',
-                      present: () => true,
-                      animate: () => false,
-                      shown: () => true,
-                    }}
-                  />
-                </div>
+                <Show
+                  when={
+                    routedKeyStatus({
+                      providers: providers(),
+                      sessionId: params().sessionId,
+                      key: params().view,
+                      view: view(),
+                      screen,
+                    }) === 'listed'
+                  }
+                  fallback={<Navigate to="/panel/$sessionId" params={{sessionId: params().sessionId}} replace />}
+                >
+                  <div class="relative flex flex-1 flex-col min-h-0">
+                    <RegionContent
+                      pane={region().pane}
+                      view={view()}
+                      screen={screen}
+                      frame={{
+                        placement: () => 'pane',
+                        present: () => true,
+                        animate: () => false,
+                        shown: () => true,
+                      }}
+                    />
+                  </div>
+                </Show>
               )}
             </Show>
           )}
