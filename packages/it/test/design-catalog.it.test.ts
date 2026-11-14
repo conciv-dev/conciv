@@ -330,6 +330,8 @@ describe('a page that drifts from the design', () => {
     const drifted = told(lined, 'drifts')
     await kit.goto('process-column-screen')
     const screen = told(await rows(), 'drifts')
+    await kit.goto('process-column-high')
+    const high = told(await rows(), 'drifts').map((text) => text.split('; ')[0])
     await kit.goto('process-column-thin')
     const thin = (await rows()).filter((row) => row.text.includes('drifts') || row.text.includes('its place'))
     await kit.goto('contact-form')
@@ -347,14 +349,17 @@ describe('a page that drifts from the design', () => {
       drifted.map((text) => text.split('; ')[0]),
       drifted.some((text) => text.includes('below Line [100:1615]')),
       got.nodes.find((node) => node.id === '100:1615')?.asset,
-      thin.map((row) => row.text.split('; ')[0]),
+      [...thin.map((row) => row.text.split('; ')[0]), ...high],
       form.map((text) => text.split('; ')[0]),
     ]).toEqual([
       [],
       ['the page drifts from the design: Card [100:1675] sits 7 px lower on the page than in the frame'],
       true,
       '/design/100-1615.png',
-      ['the page drifts from the design: Card [100:1675] sits 5 px lower on the page than in the frame'],
+      [
+        'the page drifts from the design: Card [100:1675] sits 5 px lower on the page than in the frame',
+        'the page drifts from the design: Line [100:1615] sits 2 px higher on the page than in the frame',
+      ],
       ['the page drifts from the design: Button [100:1466] sits 3 px lower on the page than in the frame'],
     ])
   })
@@ -546,7 +551,6 @@ describe('catalog component rows', () => {
       children: [],
     }
   }
-
   function namedText(input: {id: string; text: string; y: number}): unknown {
     return {
       id: input.id,
@@ -559,7 +563,6 @@ describe('catalog component rows', () => {
       children: [],
     }
   }
-
   function documentOf(input: {id: string; children: unknown[]; components?: Record<string, {name: string}>}) {
     return {
       name: 'it fixture',
@@ -578,7 +581,6 @@ describe('catalog component rows', () => {
       },
     }
   }
-
   const NAMED_DOCUMENT = documentOf({
     id: '10:1',
     children: [
@@ -594,16 +596,13 @@ describe('catalog component rows', () => {
     const got = await input.on.call('design_get', {figma: input.link, image, document: input.document})
     return {got, rows: componentLines(roundOf(await input.on.call('design_check', {})))}
   }
-
   function componentLines(checked: ReturnType<typeof roundOf>) {
     const kept = checked.rows.filter((row) => row.magnitude === 'component')
     return kept.map((row) => [row.node, row.component, row.specifier, row.text])
   }
-
   async function componentRows(input: {on: Kit; page: string}) {
     return (await measured({...input, link: NAMED_LINK, document: NAMED_DOCUMENT})).rows
   }
-
   it('reads the component rows of the running run from lost_components', async () => {
     await componentRows({on: kit, page: 'drift-hand'})
     const runIds = z
@@ -670,7 +669,6 @@ describe('catalog component rows', () => {
       "Tag was rendered by `Pill` and is now drawn by hand (`import {Pill} from './ui-kit/Pill.tsx'`)",
     ]
   }
-
   async function roundsAcross(input: {on: Kit; frame: number; pages: string[]}) {
     const {on, frame} = input
     await on.goto(input.pages[0] ?? '')
@@ -686,7 +684,6 @@ describe('catalog component rows', () => {
       return [...listed, componentLines(roundOf(await on.call('design_check', {})))]
     }, Promise.resolve([]))
   }
-
   it('lists a node the kit rendered last round and the page now draws by hand as one component row, none once restored', async () => {
     expect(await roundsAcross({on: kit, frame: 14, pages: ['drift-kit', 'drift-hand', 'drift-kit']})).toEqual([
       [],
@@ -804,7 +801,6 @@ describe('catalog component rows', () => {
       }
     })
   })
-
   it('lists no row for a component the page lost while the component is do-not-use, and the row once cleared', async () => {
     const pages = ['drift-kit', 'drift-hand']
     const flagged = await call('design_components', {doNotUse: 'Pill'})
@@ -815,7 +811,6 @@ describe('catalog component rows', () => {
       [[], [pillRow(16)]],
     ])
   })
-
   it('lists no row for a hand-drawn instance with catalog hints off, and the row for a component the page lost', async () => {
     const bare = await bootDesignHost({config: {catalog: {hint: false}}})
     try {
@@ -827,7 +822,6 @@ describe('catalog component rows', () => {
       await bare.dispose()
     }
   })
-
   it('gives an instance of a kit component a hint of 1 and no row in a host of another framework', async () => {
     const {got, rows} = await measured({
       on: kit,
@@ -863,7 +857,6 @@ describe('a component row where the component can be used', () => {
     })
     return createCatalog({home, db, cwd, sources: [createViteOxcSource()]})
   }
-
   async function rowsAt(input: {component: string; layer: string; source: string}) {
     const catalog = await catalogAt(HOST_ROOT)
     const config = CatalogSchemas.CatalogConfig.parse({})
@@ -920,7 +913,6 @@ describe('a component row where the component can be used', () => {
     })
     return listed.map((row) => [row.node, row.component, row.specifier, row.text])
   }
-
   it('lists a kit instance drawn by hand in a file of the kit framework with the import line that file writes, and no row for a kit Button inside a project component that renders it', async () => {
     expect([
       await rowsAt({component: 'Avatar', layer: 'Profile', source: `${CARD_SOURCE}:12:3`}),
@@ -986,7 +978,6 @@ describe('a component row where the component can be used', () => {
       listed.find((component) => component.names.includes('XrayPage'))?.framework,
     ]).toEqual(['Card', null, [['Chip']], 'react'])
   })
-
   it('gives a module with no framework import and no tsconfig jsx the framework of the vite plugins that reached it', async () => {
     const catalog = await catalogAt(PLUGIN_ROOT)
     const badge = (await catalog.list({hidden: true})).find((component) => component.names.includes('Badge'))

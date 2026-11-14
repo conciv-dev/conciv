@@ -298,7 +298,8 @@ export function App() {
     requested === 'process-column' ||
     requested === 'process-column-flat' ||
     requested === 'process-column-screen' ||
-    requested === 'process-column-thin'
+    requested === 'process-column-thin' ||
+    requested === 'process-column-high'
   ) {
     const flat = requested !== 'process-column'
     return (
@@ -319,7 +320,7 @@ export function App() {
               />
             )}
             <div
-              style={{height, minHeight: requested === 'process-column-screen' && index === 0 ? '12vh' : 0, boxSizing: 'border-box', padding: '40px 24px'}}
+              style={{height: requested === 'process-column-high' && index === 0 ? height - 2 : height, minHeight: requested === 'process-column-screen' && index === 0 ? '12vh' : 0, boxSizing: 'border-box', padding: '40px 24px'}}
               data-conciv-key="pCcRdA"
             >
               <span style={{fontSize: 56, lineHeight: '56px', fontWeight: 600, color: '#d8ff99'}} data-conciv-key="pCnMbA">

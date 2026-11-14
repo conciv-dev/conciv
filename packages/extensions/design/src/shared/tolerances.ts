@@ -43,6 +43,7 @@ export const designConfig = Object.assign(
   {
     tolerances: {
       geometryPx: 2,
+      driftShare: 0.25,
       slightShiftPx: 12,
       colorDeltaE: 3,
       declaredColorDeltaE: 1,
