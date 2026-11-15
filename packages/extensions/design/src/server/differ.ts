@@ -359,19 +359,20 @@ async function variantsGot(input: {
   page: ServerToolPageAccess
 }): Promise<Got[]> {
   const {runtime, query, session} = input
-  const records: TargetRecord[] = []
-  for (const [index, link] of input.links.entries()) {
-    const held = await runtime.store.list(session)
-    const known = held.find((record) => record.session === session && record.ref === figmaRef(link))
-    const one = {
-      figma: link,
-      image: at({list: query.image, index}),
-      document: at({list: query.document, index}),
-      widget: query.widget,
-      route: query.route,
-    }
-    records.push(known ?? (await registered({runtime, query: one, session, page: input.page})))
-  }
+  const held = await runtime.store.list(session)
+  const records = await Promise.all(
+    input.links.map((link, index) => {
+      const known = held.find((record) => record.session === session && record.ref === figmaRef(link))
+      const one = {
+        figma: link,
+        image: at({list: query.image, index}),
+        document: at({list: query.document, index}),
+        widget: query.widget,
+        route: query.route,
+      }
+      return known ?? registered({runtime, query: one, session, page: input.page})
+    }),
+  )
   await runtime.store.group(records.map((record) => record.id))
   return ruled({runtime, records})
 }

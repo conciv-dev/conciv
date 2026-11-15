@@ -188,10 +188,11 @@ async function restLoad(input: {link: FigmaLink; scale: number; token: string}):
   const {link, scale, token} = input
   const ids = encodeURIComponent(link.nodeId)
   const headers = {'X-Figma-Token': token}
-  const body = await figmaJson({url: `${FIGMA_API}/files/${link.fileKey}/nodes?ids=${ids}`, headers, link})
-  const images = FigmaImagesSchema.safeParse(
-    await figmaJson({url: `${FIGMA_API}/images/${link.fileKey}?ids=${ids}&format=png&scale=${scale}`, headers, link}),
-  )
+  const [body, rendered] = await Promise.all([
+    figmaJson({url: `${FIGMA_API}/files/${link.fileKey}/nodes?ids=${ids}`, headers, link}),
+    figmaJson({url: `${FIGMA_API}/images/${link.fileKey}?ids=${ids}&format=png&scale=${scale}`, headers, link}),
+  ])
+  const images = FigmaImagesSchema.safeParse(rendered)
   const render = images.success ? images.data.images[link.nodeId] : undefined
   if (render === undefined || render === null)
     throw toolError('figma-request', {message: `Figma rendered no image for ${link.nodeId}`})
@@ -253,7 +254,7 @@ function painted(input: {node: DesignNode; raster: Raster; config: DesignConfig}
   const {node, raster, config} = input
   const children = node.children.map((child) => painted({...input, node: child}))
   if (node.kind !== 'box' || node.paint !== undefined) return {...node, children}
-  const [background = ''] = raster.fills({box: node.box, glyphs: [node.box], color: config.color})
+  const [background = ''] = raster.fills({box: node.box, glyphs: [], color: config.color})
   const holes = node.children.map((child) => boxes.expand({box: child.box, by: TOLERANCES.glyphHalo}))
   const shape = fillShape({
     raster,

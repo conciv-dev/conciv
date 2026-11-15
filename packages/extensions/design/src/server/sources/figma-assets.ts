@@ -70,6 +70,7 @@ const GROUPS = new Set(['FRAME', 'GROUP', 'INSTANCE', 'COMPONENT'])
 const FIGMA_API = 'https://api.figma.com/v1'
 const PUBLIC_PREFIX = '/design/'
 const URI_TOO_LONG = 414
+const EXPORTS: Wanted['ext'][] = ['png', 'svg']
 const ImagesSchema = z.looseObject({images: z.record(z.string(), z.string().nullable())})
 const FillsSchema = z.looseObject({meta: z.looseObject({images: z.record(z.string(), z.string())})})
 const StackSchema = z.array(figmaSchemas.layer).catch([])
@@ -180,17 +181,24 @@ async function fromRest(input: {
   if (token === null) return {files: new Map(), reason: 'no FIGMA_API_KEY', notes: []}
   const headers = {'X-Figma-Token': token}
   const backgrounds = input.wanted.filter((entry) => entry.stack !== null)
-  const fills = backgrounds.length === 0 ? new Map<string, string>() : await fillUrls({fileKey, headers})
+  const [fills, exports] = await Promise.all([
+    backgrounds.length === 0 ? new Map<string, string>() : fillUrls({fileKey, headers}),
+    exportUrls({fileKey, headers, wanted: input.wanted, scale: design.scale}),
+  ])
   if (typeof fills === 'string') return {files: new Map(), reason: fills, notes: []}
+  if (typeof exports === 'string') return {files: new Map(), reason: exports, notes: []}
   const refs = new Set(backgrounds.flatMap((entry) => (entry.stack ?? []).flatMap((layer) => layer.ref ?? [])))
-  const images = await downloaded(
-    new Map(
-      [...refs].flatMap((ref) => {
-        const url = fills.get(ref)
-        return url === undefined ? [] : [[ref, url] as const]
-      }),
+  const [images, files] = await Promise.all([
+    downloaded(
+      new Map(
+        [...refs].flatMap((ref) => {
+          const url = fills.get(ref)
+          return url === undefined ? [] : [[ref, url] as const]
+        }),
+      ),
     ),
-  )
+    downloaded(exports),
+  ])
   const flattened = await Promise.all(
     backgrounds.map(async (entry) => {
       const box = {w: entry.box.w / entry.scale, h: entry.box.h / entry.scale}
@@ -204,18 +212,28 @@ async function fromRest(input: {
       return {id: entry.id, ...done}
     }),
   )
-  const urls = new Map<string, string>()
-  for (const ext of ['png', 'svg'] as const) {
-    const ids = input.wanted.filter((entry) => entry.ext === ext && entry.stack === null).map((entry) => entry.id)
-    if (ids.length === 0) continue
-    const query = ext === 'png' ? `format=png&scale=${design.scale}` : 'format=svg'
-    const answer = await imageUrls({fileKey, ids, size: ids.length, query, headers})
-    if (typeof answer === 'string') return {files: new Map(), reason: answer, notes: []}
-    for (const [id, url] of answer) urls.set(id, url)
-  }
-  const files = await downloaded(urls)
   const stacked = flattened.flatMap(({id, png}) => (png === null ? [] : [[id, png] as const]))
   return {files: new Map([...files, ...stacked]), reason: null, notes: flattened.flatMap(({notes}) => notes)}
+}
+
+async function exportUrls(input: {
+  fileKey: string
+  headers: Record<string, string>
+  wanted: Wanted[]
+  scale: number
+}): Promise<Map<string, string> | string> {
+  const {fileKey, headers, scale} = input
+  const answers = await Promise.all(
+    EXPORTS.map((ext) => {
+      const ids = input.wanted.filter((entry) => entry.ext === ext && entry.stack === null).map((entry) => entry.id)
+      if (ids.length === 0) return new Map<string, string>()
+      const query = ext === 'png' ? `format=png&scale=${scale}` : 'format=svg'
+      return imageUrls({fileKey, ids, size: ids.length, query, headers})
+    }),
+  )
+  const refused = answers.find((answer) => typeof answer === 'string')
+  if (refused !== undefined) return refused
+  return new Map(answers.flatMap((answer) => (typeof answer === 'string' ? [] : [...answer])))
 }
 
 async function downloaded(urls: Map<string, string>): Promise<Map<string, Uint8Array>> {

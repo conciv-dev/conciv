@@ -18,7 +18,12 @@ import {HOST_ROOT, serveDesignHost, type DesignConfigInput} from './host-server.
 import {renderTargets} from './render-targets.js'
 
 export async function bootDesignHost(
-  options: {config?: DesignConfigInput; stateRoot?: string; homeDir?: string; spawned?: boolean} = {},
+  options: {
+    config?: DesignConfigInput
+    stateRoot?: string
+    homeDir?: string
+    spawned?: {env: Record<string, string>}
+  } = {},
 ): Promise<Kit> {
   const stateRoot = options.stateRoot ?? (await mkdtemp(join(tmpdir(), 'conciv-design-state-')))
   const devEndpointDir = await mkdtemp(join(tmpdir(), 'conciv-design-endpoint-'))
@@ -29,7 +34,7 @@ export async function bootDesignHost(
   ]
   const printed: string[] = []
   const host = await hostOf({
-    spawned: options.spawned === true,
+    spawned: options.spawned ?? null,
     hosted: {stateRoot, homeDir, devEndpointDir, config: options.config, print: (line) => printed.push(line)},
   })
   const {origin} = host
@@ -158,8 +163,8 @@ type Hosted = Parameters<typeof serveDesignHost>[0]
 
 const HostMessageSchema = z.union([z.object({line: z.string()}), z.object({origin: z.string()})])
 
-async function hostOf(input: {spawned: boolean; hosted: Hosted}): Promise<Host> {
-  if (!input.spawned) {
+async function hostOf(input: {spawned: {env: Record<string, string>} | null; hosted: Hosted}): Promise<Host> {
+  if (input.spawned === null) {
     const {server, origin} = await serveDesignHost(input.hosted)
     return {
       origin,
@@ -168,7 +173,10 @@ async function hostOf(input: {spawned: boolean; hosted: Hosted}): Promise<Host> 
     }
   }
   const {print, ...passed} = input.hosted
-  const child = fork(HOST_PROCESS, [JSON.stringify(passed)], {execArgv: ['--import', 'tsx']})
+  const child = fork(HOST_PROCESS, [JSON.stringify(passed)], {
+    execArgv: ['--import', 'tsx'],
+    env: {...process.env, ...input.spawned.env},
+  })
   const exited = once(child, 'exit').then(([, signal]: unknown[]) => (typeof signal === 'string' ? signal : null))
   const origin = new Promise<string>((resolve, reject) => {
     child.on('message', (message) => {

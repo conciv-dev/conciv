@@ -201,6 +201,7 @@ function glyphCore(input: {
   color: (input: {a: string; b: string}) => number
 }): string | null {
   const {tile, glyphs, background, color} = input
+  if (glyphs.length === 0) return null
   const {raster, box: area} = tile
   const known = new Map<number, number>()
   const distances = Float64Array.from(range(raster.width * raster.height), (index) => {
