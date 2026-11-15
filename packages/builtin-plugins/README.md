@@ -29,6 +29,10 @@ Core activates the engine half last, in the host's post position (`core/src/app.
 ask onto every agent, so it runs after every project plugin that adds one. The source lists that plugin in its own
 internal list; core cannot, because plugin-host would then import plugin-page, which imports the host's SDK.
 
+Page tools are offered while a tab is attached. They carry `permission: 'page'`; the engine half denies `page` on
+every agent and grants it to the session while one of its tabs is attached, so with no tab neither the chat nor an
+outside agent is offered a page tool, and they are gone again once the last tab goes.
+
 ### Owed
 
 - **The halt inside a queued editor fill has no test.** `fillEditor` (`src/page/page-act.ts:104-120`) types by events,
