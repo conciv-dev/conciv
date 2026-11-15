@@ -5,7 +5,7 @@ import {repoUrl} from '@/lib/shared'
 
 const PRODUCT = [
   {label: 'Docs', splat: ''},
-  {label: 'Quick start', splat: 'get-started'},
+  {label: 'Quick start', splat: 'get-started/install'},
   {label: 'Configuration', splat: 'reference/configuration'},
   {label: 'Troubleshooting', splat: 'reference/troubleshooting'},
 ]

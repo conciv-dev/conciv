@@ -1,9 +1,7 @@
 ---
-title: Quick start
+title: Install
 description: One command sets your app up for conciv. Or pick your framework and wire it by hand.
 ---
-
-## One command
 
 Run it in your app's folder, the one with `package.json`:
 
@@ -16,7 +14,8 @@ npx @conciv/cli@latest init
 
 ### It looks at your project
 
-init finds your framework, your package manager, and the agent CLIs on your machine.
+init finds your framework from the dependencies in `package.json`, your package manager, and the agent CLIs on your
+machine.
 
 </Step>
 <Step>
@@ -24,9 +23,11 @@ init finds your framework, your package manager, and the agent CLIs on your mach
 ### It asks
 
 - Teach these agent harnesses about conciv? (every one it found, all checked)
-- Connect these agents to conciv, so they can find and drive your open conciv tabs?
+- Connect these agents to conciv, so they can find and drive your open conciv tabs? (the ones not connected yet)
 - Wire the detected vite config for conciv? (your framework's name in place of vite)
-- Add the `@conciv/skills` docs pack and TanStack intent skill-loading guidance?
+- Add the `@conciv/skills` docs pack and TanStack intent skill-loading guidance? (no by default)
+
+A question with nothing to pick from is skipped.
 
 </Step>
 <Step>
@@ -57,12 +58,16 @@ A plan for a Vite app, from `--dry-run`:
 
 ### It runs each step
 
-It installs `@conciv/it` as a dev dependency, adds conciv to your config and prints the diff, writes the conciv
-section of `AGENTS.md` and `CLAUDE.md`, connects each agent you picked, and records the harnesses
-you picked in `.conciv/harnesses.json`. A step it cannot do for you ends as a card with the snippet to paste.
+It records the harnesses you picked in `.conciv/harnesses.json`, installs `@conciv/it` as a dev dependency, adds
+conciv to your config and prints the diff, writes the conciv section of `AGENTS.md` and `CLAUDE.md`, installs the
+Claude Code plugin when you picked claude, and connects each agent you picked. A step it cannot do for you ends as a card with the snippet to
+paste. Press Ctrl+C while it runs and it puts back the files it changed.
 
 </Step>
 </Steps>
+
+When it is done it prints the next steps: start your app with your package manager's `dev` script, and ask your agent
+to run `.conciv/bin/conciv tools --help`.
 
 <TypeTable
   type={{
@@ -75,18 +80,20 @@ you picked in `.conciv/harnesses.json`. A step it cannot do for you ends as a ca
 
 init stops before it writes anything when there is no `package.json` in the folder, when the git tree has uncommitted
 changes and you did not pass `--force`, or when there is no terminal to ask in and you passed neither `--yes` nor
-`--dry-run`.
+`--dry-run`. See [Troubleshooting](/docs/reference/troubleshooting#from-the-conciv-cli) for the messages.
 
 ## Before you start
 
 <Callout>
   The chat runs an agent CLI on your machine: `claude` by default, on the `PATH` of the shell that starts your dev
-  server, and logged in. See [Harnesses](/docs/reference/harnesses) for the others.
+  server, and logged in. See [Supported agents](/docs/reference/harnesses) for the others.
 </Callout>
 
 conciv runs in your dev server only: `vite build` leaves it out, and a Next.js production server does not start it.
 
 ## Pick your framework
+
+Each page shows what init writes for that framework, and how to write it by hand.
 
 <Cards>
   <Card
@@ -121,11 +128,3 @@ conciv runs in your dev server only: `vite build` leaves it out, and a Next.js p
   />
   <Card title="Rollup and esbuild" href="/docs/frameworks/other-bundlers" description="Not supported yet." />
 </Cards>
-
-## Then log in
-
-The first time you open the panel, it asks for a 6-digit code that your dev server prints in its terminal. See
-[Logging in](/docs/what-you-get/logging-in).
-
-Working with coding agents in your own terminal? [Connect your agents](/docs/get-started/agents) covers what init sets
-up for them.
