@@ -365,7 +365,7 @@ export function createHostApis() {
 
 export type HostApis = ReturnType<typeof createHostApis>
 
-export {PluginAttachmentProvider, usePluginAttachment} from './attachment'
+export {PluginAttachmentProvider} from './attachment'
 
 function useRoutedSessions() {
   const params = useParams({strict: false})
