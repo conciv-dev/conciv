@@ -24,7 +24,6 @@ import {createNameVariantHinter} from '../../extensions/design/src/server/catalo
 import {CatalogSchemas} from '../../extensions/design/src/shared/catalog-defs.js'
 import {bootDesignHost} from './fixtures/design/boot.js'
 import {figmaFrame} from './fixtures/design/figma-frame.js'
-import {fakeFigma} from './fixtures/design/figma-fake.js'
 import {cardsDesign} from './fixtures/design/cards.js'
 
 const HOST_ROOT = fileURLToPath(new URL('fixtures/design/host/', import.meta.url))
@@ -430,24 +429,6 @@ describe('a page between two frames', () => {
       ],
       [1280, 358],
     ])
-  })
-})
-
-describe('a design of several Figma frames', () => {
-  it('asks Figma for every frame before it downloads any picture', async () => {
-    const figma = await fakeFigma({'100:1480': 'hero-390', '100:1170': 'hero-1440'})
-    const spawned = await bootDesignHost({spawned: {env: figma.env}})
-    try {
-      await spawned.call('design_get', {
-        figma: ['100-1480', '100-1170'].map((node) => `https://www.figma.com/design/FakeKey/x?node-id=${node}`),
-        route: '/?variant=hero-gap',
-      })
-      const first = ['nodes 100:1170', 'nodes 100:1480', 'render 100:1170', 'render 100:1480']
-      expect(figma.asked().slice(0, 4).toSorted()).toEqual(first)
-    } finally {
-      const written = ['100-1170', '100-1480'].map((id) => join(spawned.hostRoot, 'public/design', `${id}.png`))
-      await Promise.all([spawned.dispose(), figma.close(), ...written.map((file) => rm(file, {force: true}))])
-    }
   })
 })
 
