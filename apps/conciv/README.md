@@ -45,7 +45,8 @@ Each case runs its scenario `PERF_SAMPLES` times, each on a fresh session and pa
 its sampled window and its count of frames over 33 ms. The branch's median p95 passes when it is at most 20 ms or at
 most main's two-run median (the mean of main's medians before and after the branch) plus `PERF_MAIN_TOLERANCE_MS`. The
 test asserts the same rule against main before the branch alone; the script's per-case `test:perf: PASS|FAIL` lines
-judge with both main runs, decide the exit code, and say so when the two disagree. `PERF_SAMPLES = 5` and
+judge with both main runs, decide the exit code, and say so when the two disagree. A branch run that exits non-zero
+while none of its in-test median checks failed is red: the records do not explain that failure. `PERF_SAMPLES = 5` and
 `PERF_MAIN_TOLERANCE_MS = 1.5` come from this machine's measured spread on 2026-11-14 and must be re-measured, not
 guessed, if changed. They were measured in Chromium only; Firefox uses the same constants until it is measured on an
 idle machine, and Firefox reports frame gaps in whole milliseconds.

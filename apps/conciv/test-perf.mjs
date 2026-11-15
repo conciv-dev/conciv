@@ -120,8 +120,24 @@ function judgeCase(browser, name, records) {
   const verdict =
     `test:perf: ${describeVerdict(passes)} ${browser} ${name}: branch median p95 ${branch.median}, ` +
     `main ${before} before and ${after} after the branch, two-run main ${twoRun}, limit ${limit}`
-  const disagreement = describeDisagreement(medianPasses, branch.median <= firstLimit, firstLimit)
-  return {passes, line: `${verdict}${describeBrokenChecks(branch.broken)}${disagreement}`}
+  const firstPasses = branch.median <= firstLimit
+  const disagreement = describeDisagreement(medianPasses, firstPasses, firstLimit)
+  return {passes, firstPasses, line: `${verdict}${describeBrokenChecks(branch.broken)}${disagreement}`}
+}
+
+function reportBranchExit(verdicts, branchCode) {
+  if (verdicts.every((verdict) => verdict.firstPasses)) {
+    console.info(
+      `test:perf: FAIL: the branch run failed for a reason the records do not explain: it exited ${branchCode}, ` +
+        'yet every recorded check passed',
+    )
+    return 1
+  }
+  console.info(
+    "test:perf: PASS: the branch run's own median check against main before the branch failed, " +
+      'the two-run rule passes every case and the branch held every per-sample check',
+  )
+  return 0
 }
 
 function reportVerdicts(verdicts, branchCode) {
@@ -130,13 +146,7 @@ function reportVerdicts(verdicts, branchCode) {
     console.info('test:perf: FAIL')
     return 1
   }
-  if (branchCode !== 0) {
-    console.info(
-      "test:perf: PASS: the branch run's own median check against main before the branch failed, " +
-        'the two-run rule passes every case and the branch held every per-sample check',
-    )
-    return 0
-  }
+  if (branchCode !== 0) return reportBranchExit(verdicts, branchCode)
   console.info('test:perf: PASS')
   return 0
 }
