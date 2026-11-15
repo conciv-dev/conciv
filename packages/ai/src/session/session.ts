@@ -105,6 +105,21 @@ function stoppedRun(current: RunClockSource | null): RunClockSource | null {
   }
 }
 
+type RunState =
+  | {phase: 'known'; source: RunClockSource | null}
+  | {phase: 'stop-queued'; source: RunClockSource | null; runId: string | null}
+
+function heardRun(queued: string | null, next: RunClockSource | null): boolean {
+  if (next === null) return false
+  if (queued !== null && next.lifecycle.runId !== queued) return false
+  return queued !== null || !isRunPhaseTerminal(next.lifecycle.phase)
+}
+
+function acknowledged(source: RunClockSource | null, localRunId: string | null): boolean {
+  if (source === null) return false
+  return !isRunPhaseTerminal(source.lifecycle.phase) || source.lifecycle.runId === localRunId
+}
+
 function stitched(rendered: readonly ChatMessage[], window: readonly ChatMessage[]): ChatMessage[] {
   const cut = rendered.findIndex((message) => message.id === window[0]?.id)
   return cut === -1 ? [...window] : [...rendered.slice(0, cut), ...window]
@@ -124,7 +139,20 @@ export function createChat(options: CreateChatOptions): Chat {
 }
 
 export function createChatSession(options: CreateChatSessionOptions): ChatSession {
-  const [runSource, setRunSource] = createSignal<RunClockSource | null>(null)
+  const [run, setRun] = createSignal<RunState>({phase: 'known', source: null})
+  const runSource = createMemo(() => run().source)
+  const setRunSource = (update: (current: RunClockSource | null) => RunClockSource | null): void => {
+    setRun((current) => ({...current, source: update(current.source)}))
+  }
+  const receive = (next: RunClockSource | null): void => {
+    const current = run()
+    if (current.phase !== 'stop-queued' || next === current.source || !heardRun(current.runId, next)) {
+      setRun({...current, source: next})
+      return
+    }
+    setRun({phase: 'known', source: next})
+    if (next !== null && !isRunPhaseTerminal(next.lifecycle.phase)) void stop()
+  }
   const [served, setServed] = createStore<{pending: ApprovalAsk[]; harnesses: Record<string, string>}>({
     pending: [],
     harnesses: {},
@@ -134,11 +162,11 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   }
   const connection = options.connect({
     onLifecycle: (lifecycle) => {
-      setRunSource({lifecycle, receivedAt: Date.now()})
+      receive({lifecycle, receivedAt: Date.now()})
       if (lifecycle.phase === 'aborted' && lifecycle.runId === chat.runId() && chat.isLoading()) chat.stop()
     },
     onHydrated: (hydration) => {
-      setRunSource((current) => newerRun(current, hydration))
+      receive(newerRun(run().source, hydration))
       setServed('pending', reconcile(hydration.pendingApprovals.map(buildAsk), {key: 'approvalId'}))
       setServed('harnesses', hydration.messageHarness)
     },
@@ -187,10 +215,18 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     history: {pageSize: CHAT_HISTORY_PAGE_SIZE},
     live: true,
     queue: 'queue',
-    onError: options.onError,
+    onError: (error) => {
+      const current = run()
+      if (current.phase === 'stop-queued') setRun({phase: 'known', source: current.source})
+      options.onError?.(error)
+    },
   })
   onCleanup(() => connection.close())
-  const stopping = createMemo(() => runSource()?.lifecycle.phase === 'stopping')
+  const stopQueued = createMemo(() => {
+    const current = run()
+    return current.phase === 'stop-queued' && chatBusy(chat) && current.runId === chat.runId()
+  })
+  const stopping = createMemo(() => stopQueued() || runSource()?.lifecycle.phase === 'stopping')
   const stopped = createMemo(() => runSource()?.lifecycle.phase === 'aborted')
   const runError = createMemo(() => {
     const source = runSource()
@@ -219,7 +255,15 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     }
     await refresh()
   }
-  const stop = (): Promise<void> => stopRun().catch((error: unknown) => options.onError?.(asError(error)))
+  const queuesStop = (): boolean => chatBusy(chat) && !acknowledged(runSource(), chat.runId())
+  const stop = async (): Promise<void> => {
+    if (stopQueued()) return
+    if (queuesStop()) {
+      setRun((current) => ({phase: 'stop-queued', source: current.source, runId: chat.runId()}))
+      return
+    }
+    await stopRun().catch((error: unknown) => options.onError?.(asError(error)))
+  }
   const decide = async (approvalId: string, approved: boolean, scope: ChatApprovalScope): Promise<void> => {
     const ask = served.pending.find((waiting) => waiting.approvalId === approvalId)
     const decision = await options.decide(approvalId, approved, scope).finally(() => withdraw(approvalId))
