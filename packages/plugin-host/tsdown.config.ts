@@ -5,4 +5,5 @@ export default defineConfig({
   format: 'esm',
   fixedExtension: false,
   dts: false,
+  loader: {'.md': 'text'},
 })

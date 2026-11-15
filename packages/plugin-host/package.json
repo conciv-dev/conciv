@@ -31,7 +31,6 @@
   "scripts": {
     "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "gen-migrations": "node src/scripts/gen-migrations.ts",
     "lint": "oxlint",
     "test": "vitest run",
     "publint": "publint",
@@ -49,6 +48,7 @@
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "glob": "catalog:",
+    "js-yaml": "catalog:",
     "npm-package-arg": "catalog:",
     "pacote": "catalog:",
     "picomatch": "catalog:",
@@ -64,7 +64,6 @@
     "@types/npmcli__arborist": "catalog:",
     "@types/pacote": "catalog:",
     "@vitest/coverage-v8": "catalog:",
-    "drizzle-kit": "catalog:",
     "esbuild": "catalog:",
     "fast-check": "catalog:",
     "tsdown": "catalog:",

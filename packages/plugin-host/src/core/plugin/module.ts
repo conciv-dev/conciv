@@ -127,9 +127,7 @@ const load = Effect.fn('PluginModule.load')(function* (
     effect: () => Effect.void,
   }
   const revision = JSON.stringify([operation, server ? server.version : installed?.revision])
-  const experimental = local && entrypoints.experimental ? fileURLToPath(entrypoints.experimental) : undefined
-  if (experimental) yield* watch(experimental)
-  const bundle = experimental ? Hash.sha256(yield* Effect.promise(() => readFile(experimental))) : undefined
+  const bundle = yield* readBundle(entrypoints.experimental, local, revision, watch)
   const experimentalOptions = entrypoints.experimental
     ? yield* Schema.decodeUnknownEffect(ExperimentalOptions)(operation.options).pipe(
         Effect.mapError((cause) =>
@@ -144,17 +142,24 @@ const load = Effect.fn('PluginModule.load')(function* (
       ...(entrypoint && entrypoints.rpc ? {rpc: true as const} : {}),
       ...(entrypoints.experimental ? {experimental: true as const} : {}),
     },
-    experimental: entrypoints.experimental
-      ? {
-          file: entrypoints.experimental,
-          revision: Hash.sha256(JSON.stringify([revision, bundle])),
-          options: experimentalOptions,
-        }
-      : undefined,
+    experimental: bundle ? {...bundle, options: experimentalOptions} : undefined,
     revision,
     source: source(operation.target, installed?.version),
     effect: (host) => plugin.effect({...host, options: operation.options}),
   } satisfies Generation
+})
+
+const readBundle = Effect.fn('PluginModule.readBundle')(function* (
+  entry: string | undefined,
+  local: boolean,
+  revision: string,
+  watch: (file: string) => Effect.Effect<void>,
+) {
+  if (!entry) return undefined
+  const file = fileURLToPath(entry)
+  if (local) yield* watch(file)
+  const code = yield* Effect.promise(() => readFile(file, 'utf8'))
+  return {code, revision: Hash.sha256(JSON.stringify([revision, local ? Hash.sha256(code) : undefined]))}
 })
 
 const loadServer = Effect.fn('PluginModule.loadServer')(function* (

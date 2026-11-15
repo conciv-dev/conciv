@@ -283,7 +283,7 @@ describeNative('LocationWatcher', () => {
     ),
   )
 
-  it.live('skips changes inside a nested ignored directory while reporting its sibling', () =>
+  it.live('skips changes inside a nested ignored directory while reporting its sibling and its removal', () =>
     withTmp((directory) =>
       Effect.gen(function* () {
         const fs = yield* FSUtil.Service
@@ -292,12 +292,14 @@ describeNative('LocationWatcher', () => {
         const sibling = path.join(directory, 'nested', 'source.ts')
         yield* fs.ensureDir(path.dirname(ignored))
         const ready = yield* Deferred.make<void>()
+        const seen = yield* Deferred.make<void>()
         const updates = yield* watcher.subscribe(
           {path: directory, type: 'directory', ignore: FSUtil.ignoreGlobs},
           Deferred.succeed(ready, undefined),
         )
         const collected = yield* updates.pipe(
-          Stream.takeUntil((update) => update.path === sibling),
+          Stream.tap((update) => (update.path === sibling ? Deferred.succeed(seen, undefined) : Effect.void)),
+          Stream.takeUntil((update) => update.path === sibling && update.type === 'delete'),
           Stream.runCollect,
           Effect.forkScoped({startImmediately: true}),
         )
@@ -307,11 +309,12 @@ describeNative('LocationWatcher', () => {
           Effect.repeat(Schedule.spaced('10 millis')),
           Effect.forkScoped,
         )
-        const paths = (yield* Fiber.join(collected).pipe(Effect.ensuring(Fiber.interrupt(writes)))).map(
-          (update) => update.path,
-        )
+        yield* Deferred.await(seen).pipe(Effect.ensuring(Fiber.interrupt(writes)))
+        yield* fs.remove(sibling)
+        const updatesSeen = yield* Fiber.join(collected)
+        const paths = updatesSeen.map((update) => update.path)
 
-        expect(paths.at(-1)).toBe(sibling)
+        expect(updatesSeen.at(-1)).toEqual({path: sibling, type: 'delete'})
         expect(paths.filter((entry) => FSUtil.contains(path.dirname(ignored), entry))).toEqual([])
       }).pipe(Effect.provide(watcherLayer)),
     ),

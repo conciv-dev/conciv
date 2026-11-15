@@ -161,6 +161,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - The source's `//` comments are dropped; `packageID` is `packageId`.
 - `experimental/host.ts` ports `Entry` (`windowEntry` only; no `mainEntry`; `stores` is `Declarations.stores`, no `BuiltinStoreDeclaration`), `compose`, `EnableState`, `pluginEnabled`, `pluginIdAvailable` (reserved namespace `conciv`), `Installed` (no `tui`, no `unsupported`) and `shipsPluginGui` as `shipsPluginExperimental`, reading `features.experimental`. It re-exports `Scope`, `pluginSharedModules`, `pluginWindowModules` and `PluginModule` from `modules.ts` and, as source does, `DrawerContext`, `LifetimeContext`, `liveAccessor`, `PanelContext` and `PluginContext` from `internal.ts`. `runsOn` is absent (no `os`); `BridgePluginExperimental` and `BridgePluginExperimentals` are ported as plain data (the plugin browser parts to run: id, revision, code, options, and the reserved ids), which the browser host's plugin-experimental machine reads and conciv's widget gets from its engine; `Bridge`, `BridgeLayout`, `BridgeMessage` and `BridgeMenubarItem` are absent (Electron bridge, no desktop main process). The file's header comment is dropped.
 - The app's hot reload (`apps/conciv/src/runtime/plugin/hmr.tsx`, source `app/src/runtime/plugin/hmr.tsx`) logs a built-in's `windowEntry` import that rejects, `[plugin] <id>`, where source leaves the rejection unhandled.
+- The engine serves a plugin's `./plugin-experimental` as the text it read when it loaded the plugin, under the revision hashed from that text (`@conciv/plugin-host` `core/plugin/module.ts`, `core/plugin.ts`), where source reads the file again on each fetch (`core/src/plugin.ts:58`) under the revision it hashed at load (`core/src/plugin/module.ts:142`), so a fetch between an edit and its reload got the new code under the old revision. An edited bundle reaches the app once its reload has hashed its new revision.
 
 ### Evaluating a bundle (`experimental/host.ts`, `experimental/modules.ts`)
 
@@ -257,7 +258,10 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 
 ### Skill and servers
 
-- `Skill.DirectorySource`, `Skill.UrlSource`, `Skill.EmbeddedSource`, `Skill.Source` and `Skill.Event` are not ported: conciv loads no skill folders or URLs and emits no skill events.
+- `Skill.DirectorySource`, `Skill.UrlSource`, `Skill.EmbeddedSource`, `Skill.Source` and `Skill.Event` are not ported to the author SDK: a plugin adds skills through `ctx.skill.transform` and never names a source.
+- Where skills come from, besides plugins: the engine's `conciv.config.skill` plugin (a port of opencode's `ConfigSkillPlugin`, `core/src/config/plugin/skill.ts`) scans `skill/` and `skills/` in conciv's home (opencode's global config directory) and in the project's `conciv/` folder (opencode's `.opencode/`), in that order, so a project skill replaces a home skill of the same id. A skill is a folder holding `SKILL.md` (searched six folders deep) or a loose `*.md` at the root of one of those folders; its id is the folder (or file) name. Frontmatter `name`, `description`, `disable-model-invocation` and `metadata["conciv/autoinvoke"]` (opencode's `opencode/autoinvoke`) are read, with `js-yaml` where opencode uses `gray-matter`. A change in a watched folder rescans after 100 ms. Without the native watcher binding, a change inside an existing skills folder is not seen until the engine restarts; adding the folder is seen.
+- Built-in skills: the engine's `conciv.skill` plugin (a port of opencode's `SkillPlugin`, `core/src/plugin/skill.ts`) adds `conciv` (points the agent at conciv's documentation, opencode's `opencode`) and `report` (how to report a conciv issue with the GitHub CLI), at `skill://conciv/SKILL.md` and `skill://report/SKILL.md`. Their text is conciv's own, kept in `skill/conciv.md` and `skill/report.md` beside the plugin. The report skill ends with a snapshot taken when it is registered: conciv's version, Node, the OS and the configured plugins (sorted, or `None found in config`); the source's terminal and shell lines are not carried (they read environment variables, and the snapshot carries none), and no harness line (the harness is chosen per session).
+- Not ported from opencode's skill sources: the walk up from the project to find more `conciv/` folders, opencode's managed system directory, the `skills` config key (paths and URLs, with `SkillDiscovery`), and the rescan on `config.updated` (conciv has no config service). `ConfigCompatibilityPlugin` (`.claude/skills`, `.agents/skills`) is not ported either: the agent CLIs conciv runs load those folders themselves, so listing them again would offer every such skill twice.
 
 ### Scope
 
@@ -319,6 +323,12 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - `ServerEntry.connect` is declared, not implemented: opencode's host calls it when the user signs in to a server that waits for it (`app/src/session/server-unavailable-panel.tsx:57`, `app/src/runtime/plugin/servers.tsx:191`); try-it has no such action, its probe runs on its own (`packages/extensions/try-it/src/client/use-core-probe.ts:48`).
 - `ServerEntry.row`, `ServerRow` and `ServerHealth` are absent: they draw a row on a Servers settings page, which conciv does not have (`SettingsPage.page` is `'general'` only).
 - `http.password` JSDoc drops the fixed user name.
+
+### Files outside this package
+
+- The dialog stack (`apps/conciv/src/runtime/plugin/dialog-stack.tsx`, `dialog-stack-machine.ts`) is opencode's `ui/src/context/dialog.tsx` and `dialog-machine.ts`. It lives in the app, not the kit: the kit is flat and its `dialog.tsx` is the Dialog component, its test-file budget is full, and it takes no app plumbing.
+- `packages/plugin-host/test/codemode/codemode.test.ts` carries 11 of the 57 cases of opencode's `codemode/test/codemode.test.ts`. The other 46 are not applicable: each runs a program through opencode's interpreter, which conciv did not port (TanStack's code mode runs programs).
+- For the same reason `toolExpression` (`packages/plugin-host/src/codemode/tool-runtime.ts`) answers `external_x_y` where opencode answers `tools.x.y`: in TanStack's code mode a tool is a global function and there is no `tools` object.
 
 ## Declared, not implemented
 

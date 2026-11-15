@@ -57,12 +57,15 @@ declare module 'vitest/internal/browser' {
   interface BrowserCommands {
     bootCore: (input: BootCoreInput) => Promise<BootCoreResult>
     chooseFiles: (name: string, chosen: ChosenFile[]) => Promise<void>
+    downloadFrom: (name: string) => Promise<{name: string; text: string}>
+    openedFrom: (name: string) => Promise<string>
     dragButton: (drag: PointerDrag) => Promise<void>
     hoverButton: (hover: PointerHover) => Promise<void>
     closeCore: () => Promise<void>
     writeProjectFile: (path: string, content: string) => Promise<void>
     pushSocketsOpened: () => Promise<number>
     pushSocketsLive: () => Promise<number>
+    rpcSocketsOpened: () => Promise<number>
     printedCode: () => Promise<string>
     requestCode: () => Promise<string>
     revokeBrowsers: () => Promise<number>
@@ -97,8 +100,16 @@ type SeededDraft = {text?: string; attachments?: PersistedAttachment[]}
 
 type TurnHandle = {awaitTurnEnd: () => Promise<void>; awaitReply: () => Promise<void>; close: () => void}
 
+const helperClients: BrowserRpcClient[] = []
+
 export function coreRpc(base: string): RpcClient {
-  return makeBrowserRpcClient(base).rpc
+  const client = makeBrowserRpcClient(base)
+  helperClients.push(client)
+  return client.rpc
+}
+
+function closeHelperClients(): void {
+  for (const client of helperClients.splice(0)) client.close()
 }
 
 export async function createSession(rpc: RpcClient): Promise<string> {
@@ -585,8 +596,11 @@ export function registerCalmCore(id: string): void {
   }, 60_000)
 
   afterAll(async () => {
+    closeHelperClients()
     await coreControl.closeCore()
   }, 30_000)
+
+  afterEach(closeHelperClients)
 
   afterEach(async () => {
     active.watch?.stop()
@@ -767,7 +781,9 @@ export function bootedCore(id: string, extra: Omit<BootCoreInput, 'id' | 'allowe
     const booted = await coreControl.bootCore({...extra, id, allowedOrigins: [window.location.origin]})
     core.base = booted.base
   }, 60_000)
+  afterEach(closeHelperClients)
   afterAll(async () => {
+    closeHelperClients()
     await coreControl.closeCore()
   }, 30_000)
   return () => core.base

@@ -133,9 +133,18 @@ export function drizzleChatStores(db: NodeSQLiteDatabase, opts: StoreOptions): C
     if (window?.limit === undefined) return wholeThread(threadId)
     return threadWindow(threadId, window.limit, window.before)
   }
+  async function loadMessage(threadId: string, messageId: string): Promise<ModelMessage | null> {
+    const rows = await db
+      .select({messageJson: chatMessages.messageJson})
+      .from(chatMessages)
+      .where(and(eq(chatMessages.threadId, threadId), eq(chatMessages.messageId, messageId)))
+      .limit(1)
+    return rows[0]?.messageJson ?? null
+  }
   return {
     messages: {
       loadThread,
+      loadMessage,
       saveThread: async (threadId, messages) => {
         const changed = db.transaction((tx) => {
           const dropped = tx

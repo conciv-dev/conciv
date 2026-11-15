@@ -48,7 +48,7 @@ import {localSandbox} from './local-sandbox.js'
 import {toolHistory} from './tool-history.js'
 
 export type ChatStores = {
-  messages: MessageStore
+  messages: MessageStore & {loadMessage: (threadId: string, messageId: string) => Promise<ModelMessage | null>}
   runs: RunStore &
     Required<Pick<RunStore, 'listByThread' | 'listReclaimable'>> & {
       listRunning: () => Promise<RunRecord[]>
@@ -526,8 +526,8 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     const lastUser = messages[index]
     if (lastUser?.id === undefined) return messages
     const messageId = lastUser.id
-    const stored = (await stores.messages.loadThread(threadId)).find((message) => message.id === messageId)
-    if (stored !== undefined) return messages.with(index, stored)
+    const stored = await stores.messages.loadMessage(threadId, messageId)
+    if (stored !== null) return messages.with(index, stored)
     const [converted] = convertMessagesToModelMessages([lastUser])
     if (converted === undefined) return messages
     const prompted = await untilAborted(plan.prompt(converted), signal)
