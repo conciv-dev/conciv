@@ -4,14 +4,14 @@ description: The webpack entry starts the engine. It does not put the widget on 
 ---
 
 <Callout type="warn">
-  With conciv in your webpack config, `webpack serve` starts the engine, but the widget is not on your page, and conciv
-  has no supported way to add it yet. For the widget, use [Vite](/docs/frameworks/vite) or
-  [Next.js](/docs/frameworks/nextjs).
+  With conciv in your webpack config, you get the engine: it listens on `127.0.0.1`, writes `.conciv/server.json`, and
+  puts `.conciv/bin/conciv` in place. You do not get the widget, and conciv has no supported way to add it by hand yet.
+  For the widget, use [Vite](/docs/frameworks/vite) or [Next.js](/docs/frameworks/nextjs).
 </Callout>
 
-## Add it
+## Install
 
-<Tabs items={['init', 'By hand']}>
+<Tabs items={['init', 'pnpm', 'npm', 'yarn']}>
 
 <Tab value="init">
 
@@ -25,43 +25,85 @@ names do not add the widget.
 
 </Tab>
 
-<Tab value="By hand">
+<Tab value="pnpm">
+
+```bash
+pnpm add -D @conciv/it
+```
+
+</Tab>
+
+<Tab value="npm">
 
 ```bash
 npm install -D @conciv/it
 ```
 
-```js title="webpack.config.js"
-import HtmlWebpackPlugin from 'html-webpack-plugin'
-import conciv from '@conciv/it/plugin/webpack'
+</Tab>
 
-export default {
-  entry: './src/index.js',
-  plugins: [new HtmlWebpackPlugin({title: 'webpack probe'}), conciv()],
-  devServer: {port: 5301},
-}
+<Tab value="yarn">
+
+```bash
+yarn add -D @conciv/it
 ```
 
 </Tab>
 
 </Tabs>
 
-## What runs
+## Add it
+
+Use an ES module config. This is what init writes into one:
+
+```js title="webpack.config.js"
+import TerserPlugin from 'terser-webpack-plugin'
+import conciv from '@conciv/it/plugin/webpack'
+
+export default {
+  entry: './src/index.js',
+  plugins: [new TerserPlugin(), conciv()],
+}
+```
+
+<Callout type="warn">
+  A CommonJS config cannot load it: `require('@conciv/it/plugin/webpack')` fails with `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+  init still writes that `require` into a CommonJS config. Rename the config to `webpack.config.mjs` and use the
+  `import` above.
+</Callout>
+
+## Run it
+
+```bash
+webpack serve
+```
+
+The engine starts. Your page gets no conciv button.
+
+`webpack --mode production` also starts the engine, and the build process keeps running until you stop it.
+
+## Options
+
+Pass options to `conciv()`. These change how the webpack integration behaves; the engine options are on
+[Configuration](/docs/reference/configuration).
 
 <TypeTable
   type={{
-    'webpack serve': {
-      required: true,
-      type: 'dev',
-      description: 'Starts the engine on 127.0.0.1 and writes .conciv/server.json. Your page gets no conciv button.',
+    enabled: {
+      type: 'boolean',
+      default: 'true',
+      description: 'false starts no engine.',
     },
-    'webpack --mode production': {
-      required: true,
-      type: 'build',
-      description: 'Also starts the engine, and the build process keeps running until you stop it.',
+    port: {
+      type: 'number',
+      default: 'the last port, or a free one',
+      description: 'The engine listens on exactly this port. If it is in use, the process stops with EADDRINUSE.',
     },
   }}
 />
 
-Without `port`, the engine takes the port it used last time, or a free one. With `port`, it listens on exactly that
-port; if the port is in use, the webpack process exits with `EADDRINUSE`.
+## If it does not show up
+
+- **There is no button.** That is expected: the webpack integration adds no widget.
+- **The config fails with `ERR_PACKAGE_PATH_NOT_EXPORTED`.** It loads conciv with `require`. Use an ES module config.
+- **The process stops with `EADDRINUSE`.** The `port` you set is in use. Free it, or remove `port`.
+- **The conciv CLI finds no engine.** See [Troubleshooting](/docs/reference/troubleshooting#from-the-conciv-cli).
