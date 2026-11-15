@@ -4,6 +4,7 @@ import {
   inertModule,
   mainOnlyModule,
   type BridgePluginExperimental,
+  type PluginChunk,
   type PluginModule,
   type Entry,
 } from '@conciv/plugin/experimental/host'
@@ -24,11 +25,18 @@ const entryKey = '.'
 export async function pluginDefinition(
   id: string,
   experimental: Pick<BridgePluginExperimental, 'code' | 'chunks'>,
+  fetchChunks: (file: string) => Promise<readonly PluginChunk[]>,
 ): Promise<Entry> {
   const loaded = new Map<string, object>(
     await Promise.all(Object.entries(modules).map(async ([name, load]) => [name, await load()] as const)),
   )
   const evaluated = new Map<string, object>()
+
+  const evaluate = (chunks: readonly PluginChunk[]) =>
+    chunks.forEach((chunk) => {
+      if (!evaluated.has(chunk.file))
+        evaluated.set(chunk.file, evaluatePluginChunk(chunk.code, {require: requireFrom(chunk.file)}))
+    })
 
   const requireFrom = (requirer: string) => (name: string) => {
     const file = chunkFile.exec(name)?.[1]
@@ -44,18 +52,25 @@ export async function pluginDefinition(
     throw new Error(`A plugin's ./plugin-experimental bundle requires a module the app does not share: ${name}`)
   }
 
-  const unloadedChunk = (requirer: string, file: string): never => {
-    throw new Error(
-      `A plugin's ./plugin-experimental ${requirer === entryKey ? 'bundle' : `chunk ${requirer}`} requires the chunk ${file}, which the engine did not send before it`,
-    )
+  const unloadedChunk = (requirer: string, file: string): Promise<object> => {
+    if (!evaluated.has(requirer))
+      throw new Error(
+        `A plugin's ./plugin-experimental ${requirer === entryKey ? 'bundle' : `chunk ${requirer}`} requires the chunk ${file}, which the engine did not send before it`,
+      )
+
+    return fetchChunks(file).then((chunks) => {
+      evaluate(chunks)
+
+      return evaluated.get(file) ?? Promise.reject(new Error(`The engine answered without the chunk ${file}`))
+    })
   }
 
   const bundle = await Promise.try(() => {
-    experimental.chunks.forEach((chunk) =>
-      evaluated.set(chunk.file, evaluatePluginChunk(chunk.code, {require: requireFrom(chunk.file)})),
-    )
+    evaluate(experimental.chunks)
+    const value = evaluatePluginBundle(experimental.code, {require: requireFrom(entryKey)})
+    evaluated.set(entryKey, value)
 
-    return evaluatePluginBundle(experimental.code, {require: requireFrom(entryKey)})
+    return value
   }).then(
     (value) => ({ok: true as const, value}),
     (cause: unknown) => ({ok: false as const, cause}),

@@ -88,7 +88,7 @@ export function PluginExperimentalLoader(props: {
     }
 
     if (effect.type === 'evaluate')
-      return void Promise.all(effect.plugins.map(evaluate)).then(
+      return void Promise.all(effect.plugins.map((plugin) => evaluate(plugin, client))).then(
         (loaded) => dispatch({type: 'evaluated', attempt: effect.attempt, loaded}),
         (cause: unknown) => dispatch({type: 'evaluate.failed', attempt: effect.attempt, cause}),
       )
@@ -114,11 +114,20 @@ export function PluginExperimentalLoader(props: {
   return null
 }
 
-async function evaluate(plugin: BridgePluginExperimental): Promise<LoadedPluginExperimental> {
+async function evaluate(
+  plugin: BridgePluginExperimental,
+  client: () => ConcivClient | undefined,
+): Promise<LoadedPluginExperimental> {
   return {
     id: plugin.id,
     revision: plugin.revision,
     options: plugin.options,
-    definition: await pluginDefinition(plugin.id, plugin),
+    definition: await pluginDefinition(plugin.id, plugin, (file) => fetchChunks(client(), plugin.id, file)),
   }
+}
+
+function fetchChunks(client: ConcivClient | undefined, id: string, file: string) {
+  if (!client) return Promise.reject(new Error(`conciv has no engine connection to load ${file} of the plugin ${id}`))
+
+  return client.plugin.experimentalChunk({id, file}).then((result) => result.data.chunks)
 }

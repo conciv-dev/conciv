@@ -7000,10 +7000,29 @@ exports.big = big
   afterEach(harness.dispose)
 
   const shown = (text: string) => page.getByText(text, {exact: true})
+  const control = (name: string) => page.getByRole('button', {name, exact: true})
+  const BUNDLE = ['plugin', 'experimental']
+  const CHUNK = ['plugin', 'experimentalChunk']
 
-  test('its slot shows at start with the module its entry shares with a lazy part', async () => {
+  test('its slot shows at start with the module its entry shares with a lazy part, and the lazy part loads only when the user asks for it', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(`/panel/${sessionId}?open=true`)
     await expect.element(shown('Shared at start: shared'), {timeout: 15_000}).toBeVisible()
+    expect(await coreControl.rpcStartedOnceServed(BUNDLE, 1, [CHUNK])).toEqual([0])
+
+    await control('Load the lazy part').click()
+    await expect.element(shown('lazy part shared')).toBeVisible()
+    expect(await coreControl.rpcCallCount(CHUNK, {id: 'chunked', file: LAZY})).toBe(1)
+  }, 60_000)
+
+  test('a lazy part its build did not write is refused, and its slot shows the refusal', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(shown('Shared at start: shared'), {timeout: 15_000}).toBeVisible()
+
+    await control('Load a part outside the build').click()
+    await expect
+      .element(shown(`PLUGIN_CHUNK_NOT_FOUND: No chunk ${OUTSIDE} in the current build of the plugin chunked`))
+      .toBeVisible()
   }, 60_000)
 })
