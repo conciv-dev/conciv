@@ -726,7 +726,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness, interruptIdle})
 
   function followUpOwedQueues(sessionId: SessionId): void {
-    void startQueueFollowUp(primitives.page.queues, plane, sessionId).catch((error: unknown) =>
+    if (planeRef.current === null) return
+    void startQueueFollowUp(primitives.page.queues, planeRef.current, sessionId).catch((error: unknown) =>
       logError(`[core] the page queue follow-up turn for ${sessionId} could not start: ${String(error)}`),
     )
   }
