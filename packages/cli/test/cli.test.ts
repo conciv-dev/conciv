@@ -1480,6 +1480,34 @@ describe('cli', () => {
       }
     })
 
+    it('a registered dev server whose port is closed is retired, so --tab finds none running and a call without it uses the default port', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const closed = createHttpServer()
+      closed.listen(0, '127.0.0.1')
+      await once(closed, 'listening')
+      const port = z.object({port: z.number()}).parse(closed.address()).port
+      closed.close()
+      await once(closed, 'close')
+      const root = mkdtempSync(join(tmpdir(), 'conciv-closed-'))
+      const row = {id: 'closed-port', pid: process.pid, root, apiBase: `http://127.0.0.1:${port}`}
+      withHomeDb(home, (db) => registerEngine(db, row))
+      expect(await conciv(elsewhere, home, ['tools', 'tabs', '--tab', 'conciv_gone'])).toMatchObject({
+        ok: false,
+        error: {
+          kind: 'user',
+          message: `no conciv dev server is running; start one and open its page (conciv home folder read: ${home}).`,
+        },
+      })
+      expect(withHomeDb(home, listEngines)).toEqual([])
+      withHomeDb(home, (db) => registerEngine(db, row))
+      expect(await engineOrigin(elsewhere, {CONCIV_HOME: home}, null)).toEqual({
+        origin: 'http://127.0.0.1:5173',
+        outside: false,
+      })
+      expect(withHomeDb(home, listEngines)).toEqual([])
+    })
+
     it('--tab runs on an engine that answers its health check only when asked again', async () => {
       const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
       const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
