@@ -7157,6 +7157,19 @@ describe('installed plugins in settings', () => {
     await expect.element(lateRow(), {timeout: 15_000}).toBeVisible()
     await expect.element(tab('Plugins')).toHaveAttribute('aria-selected', 'true')
   }, 60_000)
+
+  test("the engine's own page plugin has no row a user could reload or switch off", async () => {
+    await page.viewport(1000, 900)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    await coreControl.writeProjectFile(
+      'conciv/plugins/neighbour.ts',
+      "export default {id: 'neighbour', async setup() {}}\n",
+    )
+    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`, [])
+    await expect.element(page.getByText('neighbour', {exact: true}), {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('conciv.page', {exact: true})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('switch', {name: 'conciv.page'})).not.toBeInTheDocument()
+  }, 60_000)
 })
 
 describe('a fixture plugin driven like a user', () => {
