@@ -514,6 +514,16 @@ describe('page machine: tab state', () => {
       connectionId: 'conn_2',
     })
   })
+
+  it('a session attached with no tab state yet is in neither sessions.attached nor its tabs', () => {
+    const noTabYet = attached()
+    expect(PageMachine.selectAttachedSessions(noTabYet)).toEqual([])
+    expect(PageMachine.selectTabs(noTabYet, sessionId)).toEqual({tabs: [], focusedTabId: null})
+
+    const withTab = run(noTabYet, reported('conn_1', tab)).state
+    expect(PageMachine.selectAttachedSessions(withTab)).toEqual([sessionId])
+    expect(PageMachine.selectTabs(withTab, sessionId)).toEqual({tabs: [tab], focusedTabId: tabId})
+  })
 })
 
 describe('page machine: session lifecycle', () => {

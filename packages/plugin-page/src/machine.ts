@@ -668,7 +668,9 @@ export function selectAttachedSessions(state: ConnectionState): SessionId[] {
   if (state.status === 'disposed') return []
 
   return Array.from(state.sessions).flatMap(([sessionId, entry]) =>
-    entry.status === 'attached' && entry.attachments.size > 0 ? [sessionId] : [],
+    entry.status === 'attached' && Array.from(entry.attachments.values()).some((attachment) => attachment.tab)
+      ? [sessionId]
+      : [],
   )
 }
 
