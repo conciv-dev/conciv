@@ -320,6 +320,12 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - `ServerEntry.row`, `ServerRow` and `ServerHealth` are absent: they draw a row on a Servers settings page, which conciv does not have (`SettingsPage.page` is `'general'` only).
 - `http.password` JSDoc drops the fixed user name.
 
+### Files outside this package
+
+- The dialog stack (`apps/conciv/src/runtime/plugin/dialog-stack.tsx`, `dialog-stack-machine.ts`) is opencode's `ui/src/context/dialog.tsx` and `dialog-machine.ts`. It lives in the app, not the kit: the kit is flat and its `dialog.tsx` is the Dialog component, its test-file budget is full, and it takes no app plumbing.
+- `packages/plugin-host/test/codemode/codemode.test.ts` carries 11 of the 57 cases of opencode's `codemode/test/codemode.test.ts`. The other 46 are not applicable: each runs a program through opencode's interpreter, which conciv did not port (TanStack's code mode runs programs).
+- For the same reason `toolExpression` (`packages/plugin-host/src/codemode/tool-runtime.ts`) answers `external_x_y` where opencode answers `tools.x.y`: in TanStack's code mode a tool is a global function and there is no `tools` object.
+
 ## Declared, not implemented
 
 Each is typed `| undefined` (or optional) and always undefined in this version. The source marks each with the JSDoc

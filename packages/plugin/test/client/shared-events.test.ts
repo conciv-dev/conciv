@@ -1,5 +1,5 @@
 import {expect, test} from 'vitest'
-import {SharedEvents} from '../src/client/shared-events.js'
+import {SharedEvents} from '../../src/client/shared-events.js'
 
 type Event = {readonly type: string; readonly value?: number}
 

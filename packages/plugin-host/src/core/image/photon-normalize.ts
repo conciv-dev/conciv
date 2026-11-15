@@ -1,6 +1,6 @@
 export * as PhotonNormalize from './photon-normalize.js'
 
-import photonWasm from './photon-wasm.js'
+import photonWasm from './photon-wasm.node.js'
 import type {FileSystem} from '../filesystem.js'
 import type {Limits} from '../image.js'
 
