@@ -1951,6 +1951,37 @@ test.describe('reload continuity', () => {
       await expect(page.getByRole('dialog', {name: 'Session options'})).toBeHidden()
       await switchToSessionByTitle(page, title)
     })
+
+    test('a reload right after switching tab or minimizing restores what was on screen', async ({page}) => {
+      test.setTimeout(240_000)
+      const sessionId = await openPanelOnNewSession(page, suite)
+      const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
+      const terminalTab = page.getByRole('tab', {name: 'Terminal'})
+      const launcher = page.getByRole('button', {name: 'Open conciv chat'})
+      await until(
+        async () => {
+          const href = await currentHref(suite.kit())
+          return href.includes(`/panel/${sessionId}`) && !href.includes('/options')
+        },
+        {hangGuardMs: 30_000, intervalMs: 100},
+      )
+
+      await terminalTab.click()
+      await expect(terminalTab).toHaveAttribute('aria-selected', 'true')
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await expect(panel).toBeVisible()
+      await expect(terminalTab).toHaveAttribute('aria-selected', 'true')
+
+      await until(async () => (await currentHref(suite.kit())).includes('/terminal'), {
+        hangGuardMs: 30_000,
+        intervalMs: 100,
+      })
+      await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
+      await expect(launcher).toBeVisible()
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await expect(launcher).toBeVisible()
+      await expect(panel).toBeHidden()
+    })
   })
 })
 
