@@ -1,5 +1,3 @@
 {
-  "title": "Plugins",
-  "icon": "Puzzle",
-  "pages": ["index", "your-first-plugin", "install", "engine", "browser", "terminal"]
+  "pages": ["!index", "install", "live-tests", "whiteboard", "tanstack"]
 }

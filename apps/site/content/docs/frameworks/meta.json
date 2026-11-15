@@ -1,0 +1,3 @@
+{
+  "pages": ["vite", "nextjs", "webpack", "rspack", "other-bundlers", "ios"]
+}

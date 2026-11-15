@@ -1,21 +1,17 @@
 {
   "pages": [
-    "---Getting started---",
+    "---Get started---",
     "index",
-    "quick-start",
-    "how-it-works",
-    "---Using conciv---",
-    "...usage",
+    "...get-started",
+    "---Frameworks---",
+    "...frameworks",
+    "---What you get---",
+    "...what-you-get",
     "---Plugins---",
     "...plugins",
+    "---Build a plugin---",
+    "...build-a-plugin",
     "---Reference---",
-    "configuration",
-    "skills",
-    "harnesses",
-    "cli",
-    "packages",
-    "troubleshooting",
-    "---Examples---",
-    "examples"
+    "...reference"
   ]
 }
