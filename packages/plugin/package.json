@@ -47,6 +47,14 @@
     "./experimental/host": {
       "types": "./dist/experimental/host.d.ts",
       "import": "./dist/experimental/host.js"
+    },
+    "./experimental/grab": {
+      "types": "./dist/experimental/grab.d.ts",
+      "import": "./dist/experimental/grab.js"
+    },
+    "./experimental/page": {
+      "types": "./dist/experimental/page.d.ts",
+      "import": "./dist/experimental/page.js"
     }
   },
   "publishConfig": {
@@ -64,6 +72,7 @@
     "@conciv/contract": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@standard-schema/spec": "catalog:",
+    "@zumer/snapdom": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

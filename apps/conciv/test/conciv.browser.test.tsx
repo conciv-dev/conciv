@@ -6542,6 +6542,67 @@ module.exports = {default: {setup(ctx) {
   }, 30_000)
 })
 
+describe('the page contracts reach a plugin', () => {
+  const sourceMap = btoa(JSON.stringify({version: 3, sources: ['src/app.tsx'], names: [], mappings: 'AAAA'}))
+  const readerBundle = `const {Panel, createKeyed} = require('@conciv/plugin/experimental')
+const {Page, ReactTree} = require('@conciv/plugin/experimental/page')
+module.exports = {default: {setup(ctx) {
+  const body = document.createElement('div')
+  const answer = document.createElement('p')
+  createKeyed(ctx.use(Page), (page) =>
+    createKeyed(ctx.use(ReactTree), (tree) => {
+      const button = document.createElement('button')
+      button.textContent = 'Read the contracts'
+      button.addEventListener('click', () => {
+        const fibers = Array.isArray(tree.rootFibers()) ? 'fibers listed' : 'no fibers'
+        page.symbolicate({frames: [{fileName: 'dist/chunk.js', line: 1, column: 1}]}).then(
+          (source) => (answer.textContent = 'Page and ReactTree, ' + fibers + ', ' + source.file + ':' + source.line + ':' + source.column),
+          (error) => (answer.textContent = String(error)),
+        )
+      })
+      body.replaceChildren(button, answer)
+    }),
+  )
+  ctx.add(Panel, {
+    id: 'reader',
+    region: 'pane',
+    list: () => [{id: 'reader', title: 'Contract reader', pinned: true}],
+    render: () => body,
+  })
+}}}
+`
+  const coreBase = bootedCore('page-contracts', {
+    plugins: ['./reader'],
+    files: {
+      'reader/index.ts': `export default {id: 'reader', async setup() {}}
+`,
+      'reader/plugin-experimental.js': readerBundle,
+      'dist/chunk.js': `console.log('chunk')
+//# sourceMappingURL=data:application/json;base64,${sourceMap}
+`,
+    },
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  test('a plugin that reads Page and ReactTree gets both, and Page.symbolicate answers from the engine', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    const reader = page.getByRole('tab', {name: 'Contract reader'})
+    await expect.element(reader, {timeout: 15_000}).toBeVisible()
+    await reader.click()
+    const read = page.getByRole('button', {name: 'Read the contracts', exact: true})
+    await expect.element(read).toBeVisible()
+    await read.click()
+
+    await expect
+      .element(page.getByText('Page and ReactTree, fibers listed, src/app.tsx:1:0', {exact: true}))
+      .toBeVisible()
+  }, 30_000)
+})
+
 describe('plugin tool cards', () => {
   const probeBundle = `const {Registry} = require('@conciv/plugin/experimental')
 const ToolCall = Registry.define('tool-call')
