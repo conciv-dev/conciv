@@ -49,6 +49,7 @@ import {SessionSelector} from '../composer/session-selector.js'
 import {usePanelChrome} from '../app/panel-chrome.js'
 import {ContextSummary} from '../pane/context-tracker.js'
 import {StatusBar, type StatusBarView} from '../pane/status-bar.js'
+import {PaneAlert} from '../pane/pane-alert.js'
 import {makeRefreshCoordinator} from '../pane/refresh-coordinator.js'
 import {SessionPillPending, UsagePending} from '../shell/pending.js'
 import {guardedComponent} from '../extension/extension-boundary.js'
@@ -66,6 +67,8 @@ const RAIL_SEPARATOR = 'chat-rail-context-full [color:var(--chat-separator)] px-
 const RAIL_TITLE_ROW =
   'group flex items-center gap-1 min-w-0 min-h-7 [font-family:var(--chat-font-display)] text-[14.5px] leading-[1.25] font-semibold tracking-[-0.012em] [color:var(--chat-text-hi)]'
 const RAIL_TITLE = 'min-w-0 truncate'
+const ROW_FAILED = 'Couldn’t load this session'
+const ROW_FAILED_LABEL = 'This session could not be loaded'
 const RAIL_TITLE_TRIGGER =
   '!justify-start gap-1.5 min-w-0 p-0 text-start [font:inherit] [letter-spacing:inherit] [color:inherit] rounded-[var(--chat-radius-sm)] focus-ring aria-busy:cursor-progress'
 const RAIL_TITLE_RENAME =
@@ -110,6 +113,7 @@ function SessionTitle(props: {
   sessionId: string
   savedTitle: string | undefined
   loading: boolean
+  failed: boolean
   refreshing: boolean
 }): JSX.Element {
   const appData = useAppData()
@@ -123,10 +127,11 @@ function SessionTitle(props: {
   }))
   const title = () => {
     if (rename.isPending && rename.variables?.sessionId === props.sessionId) return rename.variables.title
-    if (props.loading) return ''
+    if (props.loading || props.failed) return ''
     return props.savedTitle || 'New session'
   }
-  const label = () => `${title() || 'Session'}, ${props.refreshing ? 'refreshing the conversation' : 'session options'}`
+  const name = () => (props.failed ? ROW_FAILED_LABEL : title() || 'Session')
+  const label = () => `${name()}, ${props.refreshing ? 'refreshing the conversation' : 'session options'}`
   const commit = (value: string) => {
     const next = value.trim()
     if (!next || next === title()) return
@@ -422,8 +427,12 @@ function PanelSession(): JSX.Element {
               sessionId={params().sessionId}
               savedTitle={row()?.title}
               loading={session.isPending}
+              failed={session.isError}
               refreshing={coordinator.isRefreshing()}
             />
+            <Show when={session.isError}>
+              <PaneAlert message={ROW_FAILED} busy={session.isFetching} onRetry={() => void session.refetch()} />
+            </Show>
           </div>
           <Popover.Positioner>
             <Popover.Content aria-label="Session options" class={RAIL_MENU_CONTENT} style={RAIL_MENU_CONTENT_STYLE}>
