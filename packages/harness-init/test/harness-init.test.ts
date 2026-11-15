@@ -626,7 +626,13 @@ describe('plugin files', () => {
       expect(body).toContain('### When to use conciv instead of the browser MCP')
       expect(body).toContain('tools design diff')
       expect(body).toContain('`.conciv/bin/conciv tools react locate <selector>`')
-      expect(body).toContain('`.conciv/bin/conciv tools server graph|transform|reload`')
+      expect(body).toContain('`.conciv/bin/conciv tools server graph <file>`')
+      expect(body).toContain('`.conciv/bin/conciv tools server transform <url>`')
+      expect(body).toContain('`.conciv/bin/conciv tools server reload <file>`')
+      expect(body).toContain('`.conciv/bin/conciv tools react find --name <ComponentName>`')
+      expect(body).toContain(
+        '`.conciv/bin/conciv tools react track --action start`, reproduce, then `.conciv/bin/conciv tools react track --action report [--name <ComponentName>]`, then `.conciv/bin/conciv tools react track --action stop`',
+      )
       expect(body).not.toMatch(/`conciv /)
     })
 

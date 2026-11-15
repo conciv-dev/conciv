@@ -6,7 +6,7 @@ The oxlint JS plugin `conciv`: `plugin.js` registers twelve rules, each in its o
 
 ## Interface
 
-- `plugin.js:default` - `{meta: {name: 'conciv'}, rules}` with rule ids `banned-vocabulary`, `core-purity`, `lucide-per-icon`, `no-comments`, `no-locator-poll`, `no-predicate-waits`, `no-signal-ref`, `no-timers-in-tests`, `router-idioms`, `solid-test-render`, `test-file-budget`, `tool-card-shell`.
+- `plugin.js:default` - `{meta: {name: 'conciv'}, rules}` with rule ids `banned-vocabulary`, `core-purity`, `lucide-per-icon`, `no-comments`, `no-delegated-focus`, `no-locator-poll`, `no-predicate-waits`, `no-signal-ref`, `no-timers-in-tests`, `router-idioms`, `solid-test-render`, `test-file-budget`, `tool-card-shell`.
 - `vocabulary.js:makeVocabularyRule` - builds a rule from `{terms, allowedNames, exemptFiles, allowedTermPaths, message}`; splits identifiers into camel-case segments and reports declarations containing a term.
 - `ast-walk.js:walk`, `ast-walk.js:isNode`, `ast-walk.js:isIdentifier` - recursive AST traversal that skips `parent` keys and stops on a `'skip'` return.
 - `banned-vocabulary.js:REWRITE_BANNED_TERMS` - `bridge`, `pipeline`, `maintenance`, `manager`, `sendWhenAvailable`, `holdAndFlush`, `veto`, `epoch`, `snapshotKey`, `externalRev`, `forceSend`, `adopt`, `attach`, `presence`.
@@ -22,6 +22,7 @@ The oxlint JS plugin `conciv`: `plugin.js` registers twelve rules, each in its o
 - `no-signal-ref.js:default` flags a `createSignal` whose setter is only used as `ref={setter}` and whose getter is never read from a reactive scope.
 - `router-idioms.js:default` reports bare `useSearch`/`useNavigate`/`useParams`/`useLoaderData` imports in files matching `ROUTE_FILE` (`src/routes/`), `useRouterState` selects that read `matches`, and `validateSearch` / `*SearchSchema` zod fields without `.catch(...)`.
 - `solid-test-render.js:default` reports `render`/`hydrate` imported from `solid-js/web` in files matching `TEST_FILE`, except `EXEMPT_FILE` (`test/fixtures/host/main.tsx`).
+- `no-delegated-focus.js:default` reports a JSX attribute whose lowercased name is `onfocusin` or `onfocusout` (`DELEGATED_FOCUS`): Solid delegates those to the document, so they never run for a focus move inside a shadow root. Enabled for `packages/ui-kit-*/src/**` and `apps/conciv/src/**`.
 - `tool-card-shell.js:default` reports a `CollapsibleCard` import from `@conciv/ui-kit-chat` (`FORBIDDEN_SOURCE`) in any file outside `packages/ui-kit-chat/` (`ALLOWED_FILE`).
 - `lucide-per-icon.js:default` reports value imports from the `lucide-solid` barrel; it autofixes only when every per-icon path resolves, else reports `barrelImportUnresolved` without a fix.
 - `test-file-budget.js:default` counts `*.test.{ts,tsx,js}` files under the nearest `package.json` directory, skipping `IGNORED_DIRECTORIES` (`node_modules`, `dist`, `__screenshots__`, `fixtures`, `host`), nested packages and `apps/examples`; it reports once, on the first sorted file, when the count exceeds `max`.

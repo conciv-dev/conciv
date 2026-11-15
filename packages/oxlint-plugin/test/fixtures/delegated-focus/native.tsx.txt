@@ -1,0 +1,7 @@
+export function Pane(props: {select: () => void; leave: () => void}) {
+  return (
+    <div on:focusin={() => props.select()} on:focusout={() => props.leave()}>
+      <input onFocus={() => props.select()} onBlur={() => props.leave()} />
+    </div>
+  )
+}

@@ -12,7 +12,7 @@ import {logError} from './lib/debug.js'
 export type BuiltinRegistryDeps = {
   page: PageEnv
   bundler: () => BundlerBridge | undefined
-  openInEditor: (file: string, line?: number) => void
+  openInEditor: (file: string, line?: number, column?: number) => void
   listTabs: () => Promise<TabsListing>
 }
 

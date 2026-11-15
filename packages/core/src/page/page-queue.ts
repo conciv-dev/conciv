@@ -22,7 +22,6 @@ import {ChatEventType, pageQueueEvent, type ChatEvent} from '@conciv/protocol/ch
 import {generateMessageId} from '@conciv/protocol/chat-message-types'
 import {queueNotice, RESULT_CAP_CHARS} from '@conciv/contract'
 import type {Journal, PageBus} from './page-bus.js'
-import type {HubCalls} from '../api/call-trace.js'
 import {logError} from '../lib/debug.js'
 
 type Landed = 'played' | 'stopped' | 'lost'
@@ -63,6 +62,10 @@ export type PageQueues = {
   confirm: (record: QueueRecord, delivery: Exclude<Delivery, 'claimed'>) => void
   owedTurn: (sessionId: SessionId) => QueueRecord[]
   finished: (listener: (record: QueueRecord) => void) => void
+  hubCall: (sessionId: SessionId, callId: string) => void
+  hubReplied: (sessionId: SessionId, callIds: ReadonlySet<string>) => void
+  fromHub: (record: QueueRecord) => boolean
+  release: (sessionId: SessionId) => void
 }
 
 const KEPT_QUEUES = 200
@@ -151,14 +154,31 @@ function awaitsDelivery(record: QueueRecord): boolean {
   return (record.delivery === 'owed' || record.delivery === 'nextReply') && record.result !== null
 }
 
-export function makePageQueues(deps: {
-  bus: PageBus
-  journal: Journal
-  hubCalls: HubCalls
-  syncMs?: number
-}): PageQueues {
+export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: number}): PageQueues {
   const records = new Map<string, QueueRecord>()
   const listeners: Array<(record: QueueRecord) => void> = []
+  const inFlightHubCalls = new Map<SessionId, Set<string>>()
+  const hubQueues = new Map<SessionId, Set<string>>()
+
+  const sessionSet = (sets: Map<SessionId, Set<string>>, sessionId: SessionId): Set<string> => {
+    const known = sets.get(sessionId)
+    if (known !== undefined) return known
+    const made = new Set<string>()
+    sets.set(sessionId, made)
+    return made
+  }
+
+  const forget = (sets: Map<SessionId, Set<string>>, sessionId: SessionId, ids: Iterable<string>): void => {
+    const known = sets.get(sessionId)
+    if (known === undefined) return
+    for (const id of ids) known.delete(id)
+    if (known.size === 0) sets.delete(sessionId)
+  }
+
+  const markDelivered = (record: QueueRecord): void => {
+    record.delivery = 'delivered'
+    forget(hubQueues, record.sessionId, [record.queueId])
+  }
 
   const journaled = async (record: QueueRecord, index: number, action: Record<string, unknown>): Promise<void> => {
     const {tool: verb, ref: _ref, selector: _selector, ...args} = action
@@ -251,7 +271,7 @@ export function makePageQueues(deps: {
     }
     signal?.throwIfAborted()
     if (record.result !== null) {
-      record.delivery = 'delivered'
+      markDelivered(record)
       return record.result
     }
     return {
@@ -271,7 +291,24 @@ export function makePageQueues(deps: {
     return wait(sessionId, queueId, deps.syncMs ?? PAGE_QUEUE_SYNC_MS, signal)
   }
 
-  const hubCalled = (record: QueueRecord): boolean => deps.hubCalls.has(record.sessionId, record.toolCallId)
+  const hubCalled = (record: QueueRecord): boolean =>
+    (record.toolCallId !== undefined && inFlightHubCalls.get(record.sessionId)?.has(record.toolCallId) === true) ||
+    hubQueues.get(record.sessionId)?.has(record.queueId) === true
+
+  function hubReplied(sessionId: SessionId, callIds: ReadonlySet<string>): void {
+    const held = [...records.values()].filter(
+      (record) =>
+        record.sessionId === sessionId &&
+        record.delivery !== 'delivered' &&
+        record.toolCallId !== undefined &&
+        callIds.has(record.toolCallId),
+    )
+    if (held.length > 0) {
+      const kept = sessionSet(hubQueues, sessionId)
+      for (const record of held) kept.add(record.queueId)
+    }
+    forget(inFlightHubCalls, sessionId, callIds)
+  }
 
   function undelivered(sessionId: SessionId, hub: boolean): PageQueueResult[] {
     return [...records.values()].flatMap((record) => {
@@ -293,7 +330,7 @@ export function makePageQueues(deps: {
 
   function deliver(record: QueueRecord): boolean {
     if (!awaitsDelivery(record)) return false
-    record.delivery = 'delivered'
+    markDelivered(record)
     return true
   }
 
@@ -305,6 +342,10 @@ export function makePageQueues(deps: {
 
   function confirm(record: QueueRecord, delivery: Exclude<Delivery, 'claimed'>): void {
     if (record.delivery !== 'claimed') return
+    if (delivery === 'delivered') {
+      markDelivered(record)
+      return
+    }
     record.delivery = delivery
   }
 
@@ -324,6 +365,13 @@ export function makePageQueues(deps: {
     confirm,
     owedTurn,
     finished: (listener) => void listeners.push(listener),
+    hubCall: (sessionId, callId) => void sessionSet(inFlightHubCalls, sessionId).add(callId),
+    hubReplied,
+    fromHub: hubCalled,
+    release: (sessionId) => {
+      inFlightHubCalls.delete(sessionId)
+      hubQueues.delete(sessionId)
+    },
   }
 }
 

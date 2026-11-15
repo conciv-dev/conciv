@@ -1,4 +1,4 @@
-import type {JSX} from 'solid-js'
+import {children, Show, type JSX} from 'solid-js'
 import Wrench from 'lucide-solid/icons/wrench'
 import {ToolCard, ToolFallback, ToolFallbackPrimitive, toolFallbackHasEmbeddedBody} from '@conciv/ui-kit-chat/tools'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
@@ -8,16 +8,29 @@ function ToolIcon(): JSX.Element {
 }
 
 function ToolFallbackCard(props: ToolCardProps): JSX.Element {
+  const body = children(() => props.body)
   return (
     <ToolCard Icon={ToolIcon} title={`Tool: ${props.part.name}`} part={props.part} result={props.result}>
-      <ToolFallbackPrimitive.Root part={props.part} result={props.result} ctx={props.ctx} durationMs={props.durationMs}>
-        <div class="flex flex-col gap-2">
-          <ToolFallback.Error />
-          <ToolFallback.Args />
-          <ToolFallback.Approval />
-          <ToolFallback.Result />
-        </div>
-      </ToolFallbackPrimitive.Root>
+      <Show
+        when={body()}
+        fallback={
+          <ToolFallbackPrimitive.Root
+            part={props.part}
+            result={props.result}
+            ctx={props.ctx}
+            durationMs={props.durationMs}
+          >
+            <div class="flex flex-col gap-2">
+              <ToolFallback.Error />
+              <ToolFallback.Args />
+              <ToolFallback.Approval />
+              <ToolFallback.Result />
+            </div>
+          </ToolFallbackPrimitive.Root>
+        }
+      >
+        <div class="flex flex-col gap-2">{body()}</div>
+      </Show>
     </ToolCard>
   )
 }

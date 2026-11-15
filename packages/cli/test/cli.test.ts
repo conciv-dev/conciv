@@ -18,7 +18,12 @@ import {start as startEngine} from '@conciv/core'
 import {exchangePrintedCode, loginThroughTerminal} from '@conciv/harness-testkit'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {stdioTransport} from '@tanstack/ai-mcp/stdio'
-import {CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER, TabOpenSchema} from '@conciv/protocol/chat-types'
+import {
+  CONCIV_CLIENT_HEADER,
+  CONCIV_ORIGIN_HEADER,
+  CONCIV_SESSION_HEADER,
+  TabOpenSchema,
+} from '@conciv/protocol/chat-types'
 import {readApprovalAsk, type ChatEvent, ChatEventType, pageQueueEvent} from '@conciv/protocol/chat-event-types'
 import {PageQuerySchema} from '@conciv/protocol/page-types'
 import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
@@ -29,6 +34,7 @@ import {type Detected, detectFramework, detectProject, type Framework} from '../
 import {execFileOutcome} from '../src/init/exec.js'
 import {detectHarnesses} from '@conciv/harness-init/detect'
 import {createHubConnections} from '@conciv/harness-init/hub'
+import {CONCIV_BIN, CONCIV_COMMAND_GUIDE} from '@conciv/harness-init/agent-guide'
 import {listEngines, recordHubConnection, registerEngine, takeHubOperation, withHomeDb} from '@conciv/db'
 import type {HarnessId} from '../src/init/harness-detect.js'
 import {type ConfirmedSelections, type InitOutput, interactiveTerminal, type PlanPrompts} from '../src/init/wizard.js'
@@ -808,14 +814,56 @@ describe('cli', () => {
         })
       })
 
+      it('runs every command the agent guide teaches exactly as the guide spells it, except the design commands: this engine has no design extension', async () => {
+        const placeholders: Record<string, string> = {
+          '<selector>': '#a',
+          '<ComponentName>': 'Header',
+          '<expression>': 'document.title',
+          '<file>': 'src/a.ts',
+          '<url>': '/src/a.ts',
+        }
+        const everyTaught = CONCIV_COMMAND_GUIDE.split('`')
+          .filter((span, index) => index % 2 === 1 && span.startsWith(`${CONCIV_BIN} tools `))
+          .map((span) => span.slice(CONCIV_BIN.length + 1))
+        const needsDesignExtension = everyTaught.filter((command) => command.startsWith('tools design '))
+        expect(needsDesignExtension).toEqual([
+          'tools design target <image> --route <route> --width <px>',
+          'tools design diff',
+          'tools design status',
+        ])
+        const taught = everyTaught.filter((command) => !needsDesignExtension.includes(command))
+        expect(taught).toEqual(expect.arrayContaining(['tools page snapshot', 'tools page console']))
+        await bootCli(cleanups, {bridge: restartCapableBridge()})
+        const outcomes: Array<{command: string; reached: boolean; document: unknown}> = []
+        for (const command of taught) {
+          const argv = command
+            .replace(/[[\]]/g, '')
+            .split(' ')
+            .map((word) => placeholders[word] ?? word)
+          expect(argv.filter((word) => word.startsWith('<'))).toEqual([])
+          written.length = 0
+          await runCli(cliMain, argv)
+          const document = z
+            .object({ok: z.boolean(), error: z.object({code: z.string().optional(), message: z.string()}).optional()})
+            .parse(onlyDocument(written))
+          outcomes.push({command, reached: document.ok || document.error?.code !== undefined, document})
+        }
+        expect(outcomes.filter((outcome) => !outcome.reached)).toEqual([])
+      })
+
       it('tools open reaches the editor opener over rpc', async () => {
-        const opened: Array<{file: string; line?: number}> = []
+        const opened: Array<{file: string; line?: number; column?: number}> = []
         await bootCli(cleanups, {
-          openInEditor: (file, line) => opened.push({file, ...(line === undefined ? {} : {line})}),
+          openInEditor: (file, line, column) =>
+            opened.push({file, ...(line === undefined ? {} : {line}), ...(column === undefined ? {} : {column})}),
         })
         expect(await runCli(cliMain, ['tools', 'open', 'src/thing.ts', '--line', '7'])).toBe(0)
         expect(opened).toEqual([{file: 'src/thing.ts', line: 7}])
         expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true}})
+        expect(await runCli(cliMain, ['tools', 'open', 'src/thing.ts', '--line', '7', '--column', '3'])).toBe(0)
+        expect(opened.at(-1)).toEqual({file: 'src/thing.ts', line: 7, column: 3})
+        expect(await runCli(cliMain, ['tools', 'open', 'src/thing.ts', '--column', '3'])).toBe(0)
+        expect(opened.at(-1)).toEqual({file: 'src/thing.ts'})
       })
 
       it('open without its required positional is a user error, not a raw citty stack', async () => {
@@ -1073,6 +1121,7 @@ describe('cli', () => {
     given: {
       shared?: {root: string; sessionId: string}
       extensions?: Parameters<typeof startEngine>[0]['extensions']
+      plugins?: Parameters<typeof startEngine>[0]['plugins']
       hubAccess?: 'session' | 'open'
       queued?: (queue: {id: string; replies: string[]}) => void
     } = {},
@@ -1089,6 +1138,7 @@ describe('cli', () => {
       launchEditor: () => {},
       homeDir: home,
       extensions: given.extensions,
+      plugins: given.plugins,
     })
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const sessionId = given.shared?.sessionId ?? (await makeRpcClient(base).sessions.create(undefined)).sessionId
@@ -1285,6 +1335,79 @@ describe('cli', () => {
         })
       } finally {
         await Promise.all([first.engine.stop(), second.engine.stop()])
+      }
+    })
+  })
+
+  describe('conciv plugin call', () => {
+    const Probe = {
+      id: 'probe',
+      methods: {
+        echo: {input: z.object({word: z.string()}), output: z.string()},
+        ping: {input: z.object({}), output: z.string()},
+        counted: {input: z.object({}).optional(), output: z.number()},
+      },
+      events: {},
+    }
+    const probe: NonNullable<Parameters<typeof startEngine>[0]['plugins']>[number] = {
+      id: 'probe',
+      async setup(ctx) {
+        const calls = {counted: 0}
+        await ctx.rpc.register(Probe, {
+          echo: async ({word}) => word,
+          ping: async () => 'pong',
+          counted: async () => {
+            calls.counted += 1
+            return calls.counted
+          },
+        })
+      },
+    }
+    const pluginCall = (cwd: string, home: string, args: string[]) =>
+      new Promise<{code: unknown; document: unknown}>((resolve) =>
+        execFile(process.execPath, [bin, 'plugin', 'call', ...args], {cwd, env: {CONCIV_HOME: home}}, (error, stdout) =>
+          resolve({code: error === null ? 0 : error.code, document: JSON.parse(stdout)}),
+        ),
+      )
+    const refused = (message: string | RegExp) => ({code: 1, document: {ok: false, error: {kind: 'user', message}}})
+
+    it('answers a plugin method from the project and from anywhere as the owner, prints engine errors, and refuses bad --data before any call', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const {engine, base, root} = await engineWithTab(home, {plugins: [probe]})
+      try {
+        expect(await pluginCall(root, home, ['probe', 'echo', '--data', '{"word":"hi"}'])).toEqual({
+          code: 0,
+          document: {ok: true, data: 'hi'},
+        })
+        expect(await pluginCall(elsewhere, home, ['probe', 'echo', '-d', '{"word":"anywhere"}'])).toEqual({
+          code: 0,
+          document: {ok: true, data: 'anywhere'},
+        })
+        const hub = makeRpcClient(base, {headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'terminal'}})
+        await expect(hub.plugin.call({rpcId: 'probe', method: 'ping', input: {}})).rejects.toMatchObject({
+          code: 'APPROVAL_DENIED',
+          message: "outside agents can't use plugin routes; use the plugin in the tab",
+        })
+        expect(await pluginCall(root, home, ['nope', 'ping', '--data', '{}'])).toMatchObject(
+          refused('RPC is unavailable: nope'),
+        )
+        expect(await pluginCall(root, home, ['probe', 'nope', '--data', '{}'])).toMatchObject(
+          refused('Unknown RPC method: probe.nope'),
+        )
+        expect(await pluginCall(root, home, ['probe', 'counted', '--data', '{nope'])).toMatchObject(
+          refused(/--data is not JSON/),
+        )
+        expect(await pluginCall(elsewhere, home, ['probe', 'counted', '--data', '{nope'])).toMatchObject(
+          refused(/--data is not JSON/),
+        )
+        expect(await pluginCall(root, home, ['probe', 'counted'])).toEqual({code: 0, document: {ok: true, data: 1}})
+        expect(await pluginCall(root, home, ['probe', 'ping'])).toMatchObject({
+          code: 1,
+          document: {ok: false, error: {kind: 'user', code: 'PLUGIN_RPC'}},
+        })
+      } finally {
+        await engine.stop()
       }
     })
   })
@@ -4708,7 +4831,8 @@ export default defineConfig({plugins: [conciv()]})`)
           expect(sandbox).toBeGreaterThan(table)
           expect(section).toContain('`.conciv/bin/conciv tools page snapshot`')
           expect(section).toContain('`.conciv/bin/conciv tools react inspect <selector>`')
-          expect(section).toContain('`.conciv/bin/conciv tools server graph|transform|reload`')
+          expect(section).toContain('`.conciv/bin/conciv tools server graph <file>`')
+          expect(section).toContain('`.conciv/bin/conciv tools server reload <file>`')
           expect(section).toContain('`.conciv/bin/conciv tools --help`')
         })
 

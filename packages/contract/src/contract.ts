@@ -98,7 +98,7 @@ const SettingsSnapshotSchema = z.object({
 export type SettingsSnapshot = z.infer<typeof SettingsSnapshotSchema>
 
 const SettingsInput = z.object({scope: SettingsScopeSchema, namespace: SettingsNamespaceSchema})
-const SettingsKeyInput = SettingsInput.extend({key: z.string().max(200)})
+const SettingsKeyInput = SettingsInput.extend({key: z.string().max(512)})
 const ChatPendingInterruptSchema = z.object({
   id: z.string(),
   reason: z.string(),
@@ -176,7 +176,11 @@ export const ToolCommandSignatureSchema = z.object({
 
 export type ToolCommandSignature = z.infer<typeof ToolCommandSignatureSchema>
 
-export const EditorOpenInputSchema = z.object({file: z.string(), line: z.number().int().min(1).optional()})
+export const EditorOpenInputSchema = z.object({
+  file: z.string(),
+  line: z.number().int().min(1).optional(),
+  column: z.number().int().min(1).optional(),
+})
 
 export const EngineStalenessSchema = z.object({
   stale: z.boolean(),
@@ -496,12 +500,12 @@ export const contract = {
   },
   plugin: {
     call: oc
-      .errors(pluginRpcFailed)
+      .errors({...pluginRpcFailed, ...approvalDenied})
       .input(z.object({rpcId: z.string().min(1), method: z.string().min(1), input: z.unknown().optional()}))
       .output(z.unknown()),
-    list: oc.output(locationResponse(z.array(PluginInfoSchema))),
+    list: oc.errors(approvalDenied).output(locationResponse(z.array(PluginInfoSchema))),
     experimental: oc
-      .errors(pluginNotFound)
+      .errors({...pluginNotFound, ...approvalDenied})
       .input(z.object({id: PluginIdSchema}))
       .output(locationResponse(PluginExperimentalBundleSchema)),
   },

@@ -17,6 +17,10 @@ import {engineLocked, type EngineLogin} from './app/engine-login.js'
 
 export type ConcivEnvironment = {rootNode: ShadowRoot | Document; document: Document}
 
+export type PanelKeyStatus = 'listed' | 'unlisted' | 'pending'
+
+type PanelKeyLookup = (input: {readonly sessionId: string; readonly key: string}) => PanelKeyStatus
+
 export type ConcivRouterContext = {
   rpc: RpcClient
   environment: ConcivEnvironment
@@ -36,6 +40,10 @@ export type ConcivRouterContext = {
   disposeInstances: () => void
   notifyInteractive: () => void
   login?: EngineLogin
+  pluginPanels: {
+    bind: (lookup: PanelKeyLookup) => () => void
+    status: PanelKeyLookup
+  }
 }
 
 export type ConcivRouterConfig = {
@@ -86,6 +94,21 @@ function watchEngine(apiBase: string, rerunRefused: () => void): () => void {
     stopReachability()
     stopTrust()
     connection.release()
+  }
+}
+
+function createPluginPanels(): ConcivRouterContext['pluginPanels'] {
+  const bound: {lookup?: PanelKeyLookup} = {}
+
+  return {
+    bind(lookup) {
+      bound.lookup = lookup
+
+      return () => {
+        if (bound.lookup === lookup) bound.lookup = undefined
+      }
+    },
+    status: (input) => bound.lookup?.(input) ?? 'pending',
   }
 }
 
@@ -150,6 +173,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       disposeInstances,
       notifyInteractive: config.notifyInteractive ?? (() => {}),
       login: config.login,
+      pluginPanels: createPluginPanels(),
     },
   })
 }

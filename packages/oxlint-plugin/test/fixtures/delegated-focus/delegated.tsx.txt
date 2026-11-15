@@ -1,0 +1,7 @@
+export function Pane(props: {select: () => void; leave: () => void}) {
+  return (
+    <div onFocusIn={() => props.select()} onfocusout={() => props.leave()}>
+      <span onFocusin={() => props.select()} />
+    </div>
+  )
+}

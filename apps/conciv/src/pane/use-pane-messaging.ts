@@ -1,10 +1,11 @@
+import {createMemo} from 'solid-js'
 import {useMutation, type CreateMutationResult, type ChatSession} from '@conciv/client'
 import type {RpcClient} from '@conciv/contract'
 import type {SendContent} from '@conciv/protocol/chat-message-types'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import type {AppData} from '../data/app-data.js'
 import type {EngineNotices} from '../shell/notice-context.js'
-import {checkSend, type SendVerdict} from './send-checks.js'
+import {checkSend, checkSendState, type SendState, type SendVerdict} from './send-checks.js'
 
 type SendRejection = {rejected: true; message: string | null; tone: 'info' | 'warn'}
 
@@ -28,6 +29,21 @@ function notifyUnlessOffline(sustainedOffline: boolean, notify: () => void): voi
 
 type CompactContext = {resolving: Error | undefined}
 
+type RecordedFailure = {runId: string; message: string; retryable: boolean}
+
+function sameFailure(previous: RecordedFailure | undefined, next: RecordedFailure | undefined): boolean {
+  return (
+    previous?.runId === next?.runId && previous?.message === next?.message && previous?.retryable === next?.retryable
+  )
+}
+
+function recordedFailure(chat: ChatSession): RecordedFailure | undefined {
+  const lifecycle = chat.runSource()?.lifecycle
+  if (lifecycle === undefined || lifecycle.error === null) return undefined
+  if (lifecycle.phase !== 'failed' && lifecycle.phase !== 'completed') return undefined
+  return {runId: lifecycle.runId, message: lifecycle.error, retryable: lifecycle.phase === 'failed'}
+}
+
 type PaneMessagingDeps = {
   rpc: RpcClient
   sessionId: string
@@ -43,8 +59,11 @@ export type PaneMessaging = {
   compact: CreateMutationResult<unknown, Error, void, CompactContext>
   compacting: () => boolean
   visibleError: () => Error | undefined
+  retryable: () => boolean
   onSend: (content: string | SendContent) => Promise<void>
   onSendError: (failure: unknown) => void
+  onSteer: () => void
+  resendAllowed: () => boolean
 }
 
 export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
@@ -59,7 +78,7 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
 
   const compact = useMutation(() => ({
     mutationFn: () => deps.rpc.sessions.compact({sessionId: deps.sessionId}),
-    onMutate: (): CompactContext => ({resolving: deps.chat.error()}),
+    onMutate: (): CompactContext => ({resolving: runError()}),
     onError: () =>
       notifyUnlessOffline(deps.reachability.sustainedOffline(), () =>
         deps.notices.notify('Compaction failed. The session may be busy. Try again in a moment.'),
@@ -71,24 +90,47 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
   }))
   const compacting = () => compact.isPending
 
+  const lastRunFailure = createMemo(() => recordedFailure(deps.chat), undefined, {equals: sameFailure})
+  const failureError = createMemo(() => {
+    const recorded = lastRunFailure()
+    return recorded === undefined ? undefined : new Error(recorded.message)
+  })
+  const recordedError = (): Error | undefined => (deps.chat.runInProgress() ? undefined : failureError())
+  const runError = (): Error | undefined => deps.chat.error() ?? recordedError()
+  const retryable = (): boolean => deps.chat.error() !== undefined || lastRunFailure()?.retryable === true
+
   const visibleError = (): Error | undefined => {
-    const error = deps.reachability.sustainedOffline() ? undefined : deps.chat.error()
+    const error = deps.reachability.sustainedOffline() ? undefined : runError()
     if (compact.isSuccess && compact.context?.resolving === error) return undefined
     return error && error.message !== 'stopped' ? error : undefined
   }
 
+  const sendState = (): SendState => ({
+    busy: compacting(),
+    reachable: deps.reachability.online(),
+    locked: deps.reachability.locked(),
+  })
+
+  const resendAllowed = (): boolean => checkSendState({...sendState(), busy: false}).ok
+
   const onSend = async (content: string | SendContent): Promise<void> => {
-    const verdict = checkSend(content, {
-      busy: compacting(),
-      reachable: deps.reachability.online(),
-    })
+    const verdict = checkSend(content, sendState())
     if (!verdict.ok) throw sendRejection(verdict)
     await deps.chat.sendMessage(content)
   }
 
+  const onSteer = (): void => {
+    const verdict = checkSendState(sendState())
+    if (!verdict.ok) throw sendRejection(verdict)
+  }
+
   const onSendError = (failure: unknown): void => {
     if (isSendRejection(failure)) {
-      if (failure.message) deps.notices.notify(failure.message, {tone: failure.tone === 'warn' ? 'warn' : 'info'})
+      const message = failure.message
+      if (!message) return
+      notifyUnlessOffline(deps.reachability.sustainedOffline() && deps.reachability.locked() === null, () =>
+        deps.notices.notify(message, {tone: failure.tone === 'warn' ? 'warn' : 'info'}),
+      )
       return
     }
     notifyUnlessOffline(deps.reachability.sustainedOffline(), () =>
@@ -96,5 +138,5 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
     )
   }
 
-  return {uiReply, compact, compacting, visibleError, onSend, onSendError}
+  return {uiReply, compact, compacting, visibleError, retryable, onSend, onSendError, onSteer, resendAllowed}
 }

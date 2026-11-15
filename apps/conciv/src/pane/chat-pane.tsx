@@ -39,7 +39,7 @@ import type {MarkerRow} from '@conciv/contract'
 import type {ChatMessage, SendContent} from '@conciv/protocol/chat-message-types'
 import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
-import {paneAttachments, returnQueueToDraft} from './pane-attachments.js'
+import {paneAttachments, returnQueueToDraft, type DraftSink} from './pane-attachments.js'
 import {useAnnounce, useAppData, useConnected, useInstances, useLiveSessions, useRpc} from '../app/context.js'
 import {useHarnesses, useSessionHarness} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
@@ -68,6 +68,14 @@ import {usePaneMessaging} from './use-pane-messaging.js'
 import {RunErrorRow} from './run-error-row.js'
 import {viewTabPanelAttributes} from './view-tab-ids.js'
 import {QueueStrip} from './queue-strip.js'
+import {
+  createPaneSession,
+  SessionComposerBinding,
+  SessionHeaderSlot,
+  SessionLinks,
+  SessionStatusSlot,
+} from './plugin-session-parts.js'
+import {createPluginToolCards} from './plugin-tool-cards.js'
 
 const PAGE_SESSION: PageSessionConfig = {
   entry: pageSessionEntry,
@@ -118,6 +126,7 @@ function DraftRestore(props: {
   storage: PaneDraftStorage
   draftKey: string
   input: () => ComposerInputHandle | undefined
+  onRestore: (restoring: Promise<void>) => void
 }): JSX.Element {
   const context = useComposerContext()
   const controller = new AbortController()
@@ -125,17 +134,17 @@ function DraftRestore(props: {
   onMount(() => {
     const input = props.input
     const draftKey = props.draftKey
-    void props.storage
-      .restore((restored, edited) => {
-        const draft = readComposerDraft(restored.snapshot, draftKey)
-        if (!draft) return
-        const untouched = !edited && context.snapshotDraft().draft === ''
-        context.restoreDraft(draft)
-        if (untouched) input()?.select(restored.selection)
-      }, controller.signal)
-      .catch((error: unknown) => {
-        console.error('[conciv] could not restore the draft', error)
-      })
+    const restoring = props.storage.restore((restored, edited) => {
+      const draft = readComposerDraft(restored.snapshot, draftKey)
+      if (!draft) return
+      const untouched = !edited && context.snapshotDraft().draft === ''
+      context.restoreDraft(draft)
+      if (untouched) input()?.select(restored.selection)
+    }, controller.signal)
+    props.onRestore(restoring)
+    restoring.catch((error: unknown) => {
+      console.error('[conciv] could not restore the draft', error)
+    })
   })
   return <></>
 }
@@ -229,6 +238,9 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     onCleanup(() => panelFocus?.release(handle))
   })
   const composerApi = {current: null as ComposerApi | null}
+  const pluginSession = createPaneSession(sessionId)
+  const restored = Promise.withResolvers<unknown>()
+  restored.promise.catch(() => undefined)
 
   const markers = useQuery(() => appData.utils.markers.list.queryOptions({input: {sessionId}}))
   const registryCatalog = useQuery(() => ({...appData.utils.registry.catalog.queryOptions(), enabled: connected()}))
@@ -237,7 +249,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     meta: (name) => registryCatalog.data?.find((signature) => signature.name === name),
   }
   const captures = useSessionCaptures(sessionId)
-  const draftStorage = makeDraftStorage(rpc, sessionId)
+  const draftStorage = makeDraftStorage(appData, sessionId)
 
   const messaging = usePaneMessaging({
     rpc,
@@ -248,11 +260,14 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     notices,
     refetchMarkers: () => markers.refetch(),
   })
+  const sendFromButton = (text: string): void => {
+    void messaging.onSend(text).catch(messaging.onSendError)
+  }
 
   const toolCtx = makeToolViewCtx({
     harnessId: () => harness()?.id ?? '',
     catalog,
-    sendMessage: (text) => void chat.sendMessage(text),
+    sendMessage: sendFromButton,
     decide: decidedThen(chat, appData.invalidateOutsideAccess),
     onError: () => notices.notify('That permission request is no longer waiting for an answer.', {tone: 'warn'}),
     addResult: (toolCallId, value) => messaging.uiReply.mutate({toolCallId, value}),
@@ -261,7 +276,9 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   })
 
   const extensionToolCards = guardedToolCards(instances.map((instance) => instance.extension))
+  const pluginToolCards = createPluginToolCards(pluginSession.view)
   const tools = (): ToolCardEntry[] => [
+    ...pluginToolCards(),
     ...extensionToolCards,
     ...concivToolCards,
     ...coreToolCards,
@@ -371,105 +388,127 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     return (
       <div class="contents">
         <ExtensionSurface name="header" instances={instances} />
+        <SessionHeaderSlot pane={pluginSession} />
         <ExtensionSurface name="widget" instances={instances} />
         <div
           {...viewTabPanelAttributes(props.viewTab)}
           onAnimationEnd={resetSlideOnSelf(pane.resetSlide)}
           class={`chat-density flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
         >
-          <Thread>
-            <Thread.Viewport>
-              <Suspense fallback={<ConversationSkeleton />}>
-                <Show
-                  when={!chat.isHydrating()}
-                  fallback={<ConversationLoading reopened={props.opened.reopened} sessionId={sessionId} />}
-                >
-                  <OlderMessages sessionId={sessionId} chat={chat} />
-                  <Show when={!chat.loadFailed()}>
-                    <Thread.Welcome>
-                      <EmptyStateSlot onStarter={(starter) => void chat.sendMessage(starter)} instances={instances} />
-                    </Thread.Welcome>
+          <SessionLinks pane={pluginSession}>
+            <Thread>
+              <Thread.Viewport>
+                <Suspense fallback={<ConversationSkeleton />}>
+                  <Show
+                    when={!chat.isHydrating()}
+                    fallback={<ConversationLoading reopened={props.opened.reopened} sessionId={sessionId} />}
+                  >
+                    <OlderMessages sessionId={sessionId} chat={chat} />
+                    <Show when={!chat.loadFailed()}>
+                      <Thread.Welcome>
+                        <EmptyStateSlot onStarter={sendFromButton} instances={instances} />
+                      </Thread.Welcome>
+                    </Show>
+                    <Thread.Messages
+                      tools={tools()}
+                      attachmentCards={attachments().cards}
+                      components={{ToolFallback: toolFallbackCard}}
+                      turnPrefix={renderTurnPrefix}
+                      pageSession={PAGE_SESSION}
+                      refreshDisabled={!messaging.resendAllowed()}
+                    />
+                    <Show when={lastTurnStopped()}>
+                      <Divider kind="stopped" />
+                    </Show>
+                    <Show when={!chat.loadFailed()}>
+                      <For each={markerRowsAfter(lastMessageId())}>{renderDivider}</For>
+                    </Show>
+                    <Show when={compacting()}>
+                      <Divider kind="compact" pending />
+                    </Show>
+                    <Show when={outOfBandAsks().length > 0}>
+                      <PendingApprovals asks={outOfBandAsks()} ctx={toolCtx} />
+                    </Show>
+                    <Show when={narrating()}>
+                      <NarrationRow />
+                    </Show>
+                    <Show when={messaging.visibleError()}>
+                      {(error) => (
+                        <Show
+                          when={!chat.loadFailed()}
+                          fallback={<LoadFailedAlert busy={false} sessionId={sessionId} />}
+                        >
+                          <RunErrorRow
+                            error={error()}
+                            compacting={compacting()}
+                            onRetry={
+                              messaging.retryable() && messaging.resendAllowed() ? () => void chat.reload() : undefined
+                            }
+                            onCompact={() => messaging.compact.mutate()}
+                          />
+                        </Show>
+                      )}
+                    </Show>
                   </Show>
-                  <Thread.Messages
-                    tools={tools()}
-                    attachmentCards={attachments().cards}
-                    components={{ToolFallback: toolFallbackCard}}
-                    turnPrefix={renderTurnPrefix}
-                    pageSession={PAGE_SESSION}
-                  />
-                  <Show when={lastTurnStopped()}>
-                    <Divider kind="stopped" />
-                  </Show>
-                  <Show when={!chat.loadFailed()}>
-                    <For each={markerRowsAfter(lastMessageId())}>{renderDivider}</For>
-                  </Show>
-                  <Show when={compacting()}>
-                    <Divider kind="compact" pending />
-                  </Show>
-                  <Show when={outOfBandAsks().length > 0}>
-                    <PendingApprovals asks={outOfBandAsks()} ctx={toolCtx} />
-                  </Show>
-                  <Show when={narrating()}>
-                    <NarrationRow />
-                  </Show>
-                  <Show when={messaging.visibleError()}>
-                    {(error) => (
-                      <Show when={!chat.loadFailed()} fallback={<LoadFailedAlert busy={false} sessionId={sessionId} />}>
-                        <RunErrorRow
-                          error={error()}
-                          compacting={compacting()}
-                          onRetry={() => void chat.reload()}
-                          onCompact={() => messaging.compact.mutate()}
-                        />
-                      </Show>
-                    )}
-                  </Show>
-                </Show>
-              </Suspense>
-            </Thread.Viewport>
-            <Thread.Composer>
-              <div class={ABOVE_COMPOSER}>
-                <Suspense>
-                  <ConnectedAgents onDisconnected={focusInput} />
                 </Suspense>
-                <ExtensionSurface name="status" instances={instances} />
-                <ExtensionSurface name="footer" instances={instances} />
-              </div>
-              <QueueStrip queue={chat.queue()} />
-              <Suspense>
-                <PaneComposer
-                  draftStorage={draftStorage.storage}
-                  draftKey={sessionId}
-                  placeholder={composerPlaceholder()}
-                  inputLabel="Message the conciv agent"
-                  attachmentAdapter={attachments().adapter}
-                  AttachmentComponent={PaneAttachment}
-                  onInputReady={setInputHandle}
-                  onSelectionChange={draftStorage.noteSelection}
-                  busy={compactingIndicator(compacting())}
-                  triggers={commandSources.triggers}
-                  prompt={<SessionModelPrompt sessionId={sessionId} menu={modelMenu} running={narrating()} />}
-                >
-                  <DraftRestore storage={draftStorage} draftKey={sessionId} input={inputHandle} />
-                  <Suspense fallback={<ComposerActionsPending />}>
-                    <ComposerActions
-                      sessionId={sessionId}
-                      compacting={compacting()}
-                      onCompact={() => messaging.compact.mutate()}
-                      onNewSession={() => pane.newSession()}
-                      onStageGrab={stageGrab}
-                    />
-                    <ExtensionSurface name="composer" instances={instances} />
-                    <ComposerWiring
-                      onReady={(api) => {
-                        composerApi.current = api
-                      }}
-                    />
+              </Thread.Viewport>
+              <Thread.Composer>
+                <div class={ABOVE_COMPOSER}>
+                  <Suspense>
+                    <ConnectedAgents onDisconnected={focusInput} />
                   </Suspense>
-                </PaneComposer>
-              </Suspense>
-            </Thread.Composer>
-          </Thread>
+                  <ExtensionSurface name="status" instances={instances} />
+                  <SessionStatusSlot pane={pluginSession} />
+                  <ExtensionSurface name="footer" instances={instances} />
+                </div>
+                <QueueStrip queue={chat.queue()} />
+                <Suspense>
+                  <PaneComposer
+                    draftStorage={draftStorage.storage}
+                    draftKey={sessionId}
+                    placeholder={composerPlaceholder()}
+                    inputLabel="Message the conciv agent"
+                    attachmentAdapter={attachments().adapter}
+                    AttachmentComponent={PaneAttachment}
+                    onInputReady={setInputHandle}
+                    onSelectionChange={draftStorage.noteSelection}
+                    busy={compactingIndicator(compacting())}
+                    triggers={commandSources.triggers}
+                    prompt={<SessionModelPrompt sessionId={sessionId} menu={modelMenu} running={narrating()} />}
+                  >
+                    <SessionComposerBinding
+                      pane={pluginSession}
+                      input={inputHandle}
+                      focus={focusInput}
+                      restored={restored.promise}
+                    />
+                    <DraftRestore
+                      storage={draftStorage}
+                      draftKey={sessionId}
+                      input={inputHandle}
+                      onRestore={restored.resolve}
+                    />
+                    <LostQueueReceiver sessionId={sessionId} sink={{insert, addFile: attach}} />
+                    <Suspense fallback={<ComposerActionsPending />}>
+                      <ComposerActions
+                        sessionId={sessionId}
+                        compacting={compacting()}
+                        onCompact={() => messaging.compact.mutate()}
+                        onNewSession={() => pane.newSession()}
+                        onStageGrab={stageGrab}
+                      />
+                      <ExtensionSurface name="composer" instances={instances} />
+                      <ComposerWiring
+                        onReady={(api) => {
+                          composerApi.current = api
+                        }}
+                      />
+                    </Suspense>
+                  </PaneComposer>
+                </Suspense>
+              </Thread.Composer>
+            </Thread>
+          </SessionLinks>
         </div>
       </div>
     )
@@ -489,6 +528,8 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
             value={{
               onSend: sendOrRunCommand,
               onSendError: messaging.onSendError,
+              onSteer: messaging.onSteer,
+              onSteerError: messaging.onSendError,
               onCancel: () => {
                 returnQueueToDraft(chat, {insert, addFile: attach})
                 void chat.stop()
@@ -511,6 +552,12 @@ function ConversationLoading(props: {reopened: boolean; sessionId: string}): JSX
   )
 }
 
+function LostQueueReceiver(props: {sessionId: string; sink: DraftSink}): JSX.Element {
+  const liveSessions = useLiveSessions()
+  onMount(() => liveSessions.receiveLostQueue(props.sessionId, props.sink))
+  return <></>
+}
+
 function LoadFailedAlert(props: {busy: boolean; sessionId: string}): JSX.Element {
   const liveSessions = useLiveSessions()
   return <PaneAlert message={LOAD_FAILED} busy={props.busy} onRetry={() => liveSessions.reopen(props.sessionId)} />
@@ -523,7 +570,7 @@ function PaneAlert(props: {message: string; busy: boolean; onRetry: () => void})
       <Button
         variant="outline-danger"
         size="sm"
-        class="shrink-0 min-h-8 font-semibold"
+        class="shrink-0 font-semibold"
         disabled={props.busy}
         aria-busy={props.busy}
         onClick={() => props.onRetry()}
