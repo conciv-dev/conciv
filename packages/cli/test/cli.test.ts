@@ -1186,17 +1186,16 @@ describe('cli', () => {
 
   async function startFront(home: string, engine: {root: string; base: string}, given: {holdHealth?: boolean} = {}) {
     const upstream = new URL(engine.base)
-    const mode = {dropCalls: false, holdWaits: false}
     const health = new EventEmitter()
-    const healthAnswered = Promise.withResolvers<void>()
-    if (given.holdHealth !== true) healthAnswered.resolve()
+    const mode = {dropCalls: false, holdWaits: false, health: Promise.withResolvers<void>()}
+    if (given.holdHealth !== true) mode.health.resolve()
     const front = createHttpServer(async (request, response) => {
       const chunks: Buffer[] = []
       for await (const chunk of request) chunks.push(Buffer.from(chunk))
       const body = Buffer.concat(chunks)
       if (request.url === '/health') {
         health.emit('ask')
-        await healthAnswered.promise
+        await mode.health.promise
       }
       if (mode.holdWaits && request.url?.endsWith('/rpc/page/queue/wait')) return
       if (mode.dropCalls && request.url?.endsWith('/rpc/code/execute')) {
@@ -1212,7 +1211,11 @@ describe('cli', () => {
         method: request.method,
         headers,
         ...(body.length === 0 ? {} : {body}),
-      })
+      }).catch(() => null)
+      if (answer === null) {
+        response.destroy()
+        return
+      }
       const kept = [...answer.headers].filter(([key]) => !['content-encoding', 'content-length'].includes(key))
       response.writeHead(answer.status, Object.fromEntries(kept))
       response.end(Buffer.from(await answer.arrayBuffer()))
@@ -1237,7 +1240,10 @@ describe('cli', () => {
         await asks.next()
         await asks.return?.()
       },
-      answerHealth: () => healthAnswered.resolve(),
+      answerHealth: () => mode.health.resolve(),
+      holdHealth: () => {
+        mode.health = Promise.withResolvers<void>()
+      },
       close: async () => {
         front.closeAllConnections()
         front.close()
@@ -1318,17 +1324,46 @@ describe('cli', () => {
       const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
       const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
       const {engine, sessionId, page} = await engineWithTab(home)
+      const watched = new AbortController()
       try {
+        const asked = askRaised(page, sessionId, AbortSignal.any([watched.signal, pages.signal]))
         const waiting = conciv(elsewhere, home, ['tools', 'tabs'])
-        await vi.waitFor(async () => expect((await page.chat.hydrate({sessionId})).pendingApprovals).toHaveLength(1), {
-          timeout: 5000,
-        })
+        await expect(Promise.race([asked, waiting])).rejects.toThrow('the CLI asked "Allow terminal to use this tab"')
         const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
         expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
         await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: false})
         expect(await waiting).toMatchObject({ok: false, error: {message: /The user denied terminal access/}})
       } finally {
+        watched.abort()
         await engine.stop()
+      }
+    })
+
+    it('a call through the home db asks the tab of a dev server slow to answer its health check, never the default port', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const holder = await engineWithTab(home)
+      const front = await startFront(home, holder, {holdHealth: true})
+      const watched = new AbortController()
+      try {
+        const asked = askRaised(holder.page, holder.sessionId, AbortSignal.any([watched.signal, pages.signal]))
+        const healthAsked = front.healthAskedTwice()
+        const waiting = conciv(elsewhere, home, ['tools', 'tabs'])
+        await Promise.race([healthAsked, waiting])
+        front.answerHealth()
+        await expect(Promise.race([asked, waiting])).rejects.toThrow('the CLI asked "Allow terminal to use this tab"')
+        const [ask] = (await holder.page.chat.hydrate({sessionId: holder.sessionId})).pendingApprovals
+        await holder.page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: false})
+        const denied = await waiting
+        expect(denied).toMatchObject({
+          ok: false,
+          error: {code: 'APPROVAL_DENIED', message: expect.stringMatching(/The user denied terminal access/)},
+        })
+        expect(JSON.stringify(denied)).not.toContain('5173')
+      } finally {
+        watched.abort()
+        await front.close()
+        await holder.engine.stop()
       }
     })
 
@@ -1406,6 +1441,12 @@ describe('cli', () => {
         await expect(engineOrigin(elsewhere, {CONCIV_HOME: home}, null)).rejects.toThrow(
           `no conciv dev server answered: ${holder.root} did not answer (`,
         )
+        const unguessed = await conciv(elsewhere, home, ['tools', 'tabs'])
+        expect(unguessed).toMatchObject({
+          ok: false,
+          error: {kind: 'user', message: expect.stringContaining(`no conciv dev server answered: ${holder.root}`)},
+        })
+        expect(JSON.stringify(unguessed)).not.toContain('5173')
         const asked = front.healthAskedTwice()
         const answering = conciv(elsewhere, home, viaTab(holder.sessionId))
         await Promise.race([asked, answering])
@@ -1990,6 +2031,15 @@ describe('cli', () => {
         await Promise.race([asked, answering])
         front.answerHealth()
         expect(await answering).toContain('\\"result\\":2')
+        front.holdHealth()
+        const askedOnTab = front.healthAskedTwice()
+        const answeringOnTab = client.callTool('execute_typescript', {
+          typescriptCode: 'return 1 + 1',
+          tab: holder.sessionId,
+        })
+        await Promise.race([askedOnTab, answeringOnTab])
+        front.answerHealth()
+        expect(JSON.stringify(await answeringOnTab)).toContain('\\"result\\":2')
       } finally {
         await client.close()
         await front.close()
