@@ -23,7 +23,7 @@ The framework wiring step for each bundler. Vite, Next.js and webpack/rspack con
 - `addToPluginsArrayRequire` (`engine.ts`): unmatched when the file has any import statement
 - `addToPluginsArray` / `wrapDefaultExport` (`engine.ts`): idempotent; no duplicate call and no duplicate import
 - `wrapDefaultExport` (`engine.ts`): wraps only identifier, call_expression or member_expression default exports
-- `webpackFamilyStep` (`webpack-family.ts`): an ambiguous `moduleStyle` gives manual cards; apply always ends manual because the widget URL card still applies
+- `webpackFamilyStep` (`webpack-family.ts`): an ambiguous `moduleStyle` gives manual cards; apply always ends manual because the card saying the widget is not added for you still applies
 - `nextjsStep` (`nextjs.ts`): an instrumentation file with other content is not overwritten; a file counts as wired only when its trimmed content equals the expected line
 - `fallbackStep` (`fallback.ts`): detect is always missing, verify always false, apply always manual
 - `vite.ts`, `webpack-family.ts`, `nextjs.ts`: a missing config file gives a manual snippet card and no write
