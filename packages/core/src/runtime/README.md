@@ -31,7 +31,7 @@ Builds the per-session and engine-wide scope objects that join the tool registry
 
 ## Side Effects
 
-- `makePluginRuntime` (`plugin-runtime.ts`): building the runtime watches the project root for a `conciv` entry (and `conciv/` itself when it exists) through `ConfigPluginSource`; `startPlugins` loads the built-in `conciv.tool.skill` and `conciv.config.skill` plugins (the second offers the skills in `skill/` and `skills/` under conciv's home and the project's `conciv/` folder, rescanned when they change), the embedder's plugins, `conciv/plugin*/` files and the configured plugins, installing configured packages that are not installed
+- `makePluginRuntime` (`plugin-runtime.ts`): building the runtime watches the project root for a `conciv` entry (and `conciv/` itself when it exists) through `ConfigPluginSource`; `startPlugins` loads the built-in `conciv.skill` (the `conciv` and `report` skills), `conciv.tool.skill` and `conciv.config.skill` plugins (the second offers the skills in `skill/` and `skills/` under conciv's home and the project's `conciv/` folder, rescanned when they change), the embedder's plugins, `conciv/plugin*/` files and the configured plugins, installing configured packages that are not installed
 
 - `provideInstructionEntries` (`instruction-entries.ts`): `KV` reads and writes on the project database
 - `provideGlobalRoots` (`plugin-sources.ts`): makes the `cache` and `state` directories and sets the host's `Flock` state root when the layer is built
