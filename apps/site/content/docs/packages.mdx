@@ -1,35 +1,52 @@
 ---
 title: Packages
-description: What each @conciv package is, and which ones you actually install.
+description: The @conciv packages you install, run, or add, and what each one is for.
 icon: Boxes
 ---
 
-You install one package: [`@conciv/it`](https://github.com/conciv-dev/conciv/tree/main/packages/it).
-Everything else is internal wiring or opt-in authoring surface.
+An app installs one package, `@conciv/it`, as a dev dependency. The rest of conciv comes with it.
 
-## Install
+```bash
+pnpm add -D @conciv/it
+```
 
-| Package                                                                    | What it is                                                                                                        |
-| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| [`@conciv/it`](https://github.com/conciv-dev/conciv/tree/main/packages/it) | The umbrella you install. `@conciv/it/plugin/vite`, plus `/webpack`, `/rspack`, `/rollup`, `/esbuild`, `/nextjs`. |
+## Add conciv to your app
 
-## Author against
+| Package                                                                            | What it is                                                                                                                                            |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`@conciv/it`](https://github.com/conciv-dev/conciv/tree/main/packages/it)         | The conciv build integration. Import paths: `@conciv/it/plugin/vite`, `/plugin/nextjs`, `/plugin/nextjs/widget`, `/plugin/webpack`, `/plugin/rspack`. |
+| [`@conciv/react`](https://github.com/conciv-dev/conciv/tree/main/packages/react)   | `<ConcivWidget />` for a React app that renders the widget itself.                                                                                    |
+| [`@conciv/preact`](https://github.com/conciv-dev/conciv/tree/main/packages/preact) | `<ConcivWidget />` for Preact.                                                                                                                        |
+| [`@conciv/solid`](https://github.com/conciv-dev/conciv/tree/main/packages/solid)   | `<ConcivWidget />` for Solid.                                                                                                                         |
 
-| Package                                                                                                  | What it is                                                                                                         |
-| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| [`@conciv/extension`](https://github.com/conciv-dev/conciv/tree/main/packages/extension)                 | The extension contract: `defineExtension`, `defineTool`, `useSlot`/`useContext`. See [Extending](/docs/extending). |
-| [`@conciv/extension-testkit`](https://github.com/conciv-dev/conciv/tree/main/packages/extension-testkit) | Mounts any extension in a real browser against a real spawned server. See [Testing](/docs/extending/testing).      |
+A `<ConcivWidget />` still needs the engine: keep `@conciv/it` in your config with `widget: false`. See
+[Configuration](/docs/configuration#widget).
 
-## Under the hood
+## Run from your terminal
 
-| Package                                                                                                           | What it is                                                                               |
-| ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| [`@conciv/unplugin`](https://github.com/conciv-dev/conciv/tree/main/packages/unplugin)                            | The unplugin that boots the engine and injects the widget into your dev build.           |
-| [`@conciv/core`](https://github.com/conciv-dev/conciv/tree/main/packages/core)                                    | The framework-free engine: every `/api/*` route, sessions, harness and test registries.  |
-| [`@conciv/embed`](https://github.com/conciv-dev/conciv/tree/main/packages/embed)                                  | The browser half: mounts the conciv Solid app in an open shadow DOM, cards, page driver. |
-| [`@conciv/harness`](https://github.com/conciv-dev/conciv/tree/main/packages/harness)                              | Harness adapters: Claude and Codex, plus Gemini CLI, opencode, and Pi stubs.             |
-| [`@conciv/cli`](https://github.com/conciv-dev/conciv/tree/main/packages/cli)                                      | The [`conciv` CLI](/docs/cli) the agent calls from Bash.                                 |
-| [`@conciv/protocol`](https://github.com/conciv-dev/conciv/tree/main/packages/protocol)                            | Shared wire types. Zero runtime.                                                         |
-| [`@conciv/extension-whiteboard`](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/whiteboard)   | Built-in: the [shared canvas](/docs/usage/whiteboard).                                   |
-| [`@conciv/extension-test-runner`](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/test-runner) | Built-in: [live test execution](/docs/usage/live-tests).                                 |
-| [`@conciv/extension-ios`](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/ios)                 | Built-in (alpha): drive a [native iOS app](/docs/quick-start/ios) in the simulator.      |
+| Package                                                                      | What it is                                                                                                      |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| [`@conciv/cli`](https://github.com/conciv-dev/conciv/tree/main/packages/cli) | The `conciv` command: `init`, `auth`, `mcp` and `tools`. Run `npx @conciv/cli@latest init` to set a project up. |
+| [`@conciv/try`](https://github.com/conciv-dev/conciv/tree/main/packages/try) | Try conciv on conciv.dev with the agent on your machine: `npx @conciv/try --token <token>`.                     |
+
+## Add to `extensions`
+
+Each one is a separate install, and does nothing until you add it to `extensions`.
+
+| Package                                                                                                           | What it adds                                                                                   |
+| ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| [`@conciv/extension-test-runner`](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/test-runner) | Runs your tests and streams the results into a card. See [Live tests](/docs/usage/live-tests). |
+| [`@conciv/extension-whiteboard`](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/whiteboard)   | A canvas you and the agent draw on. See [Whiteboard](/docs/usage/whiteboard).                  |
+| [`@conciv/extension-terminal`](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/terminal)       | The harness's own terminal view in the panel.                                                  |
+| [`@conciv/extension-recorder`](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/recorder)       | Records the page session for the agent to read back.                                           |
+| [`@conciv/extension-tanstack`](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/tanstack)       | TanStack Router and Query state for the agent.                                                 |
+| [`@conciv/extension-ios`](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/ios)                 | Build and run a native iOS app in the simulator. See [iOS](/docs/quick-start/ios).             |
+
+## For your agents
+
+| Package                                                                            | What it is                                                                            |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| [`@conciv/skills`](https://github.com/conciv-dev/conciv/tree/main/packages/skills) | Guides for coding agents working on a conciv project. `conciv init` offers to add it. |
+
+The other published `@conciv/*` packages are conciv's internals, or the authoring kit covered in
+[Extending](/docs/extending).

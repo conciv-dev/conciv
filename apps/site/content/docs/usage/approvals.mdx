@@ -1,10 +1,121 @@
 ---
 title: Approvals
-description: Approve or deny risky commands before they run.
+description: What asks before it runs, per harness, and how the permission card works.
 ---
 
-The agent runs read-only commands and its own tooling freely. Anything that mutates state or
-reaches the network surfaces an Approve or Deny card first.
+Two things can ask you before they run: the harness itself, and a few of conciv's own tools. Either way the
+question shows as a **Permission** card in the chat, and the action runs only once you approve it.
 
-You stay in control without micromanaging. The agent runs what it needs, and waits on your
-confirm for the consequential steps like installs, git writes, or network calls.
+## The harness
+
+What the harness asks about is up to the harness. conciv shows its questions as cards.
+
+| Harness    | What asks                                                                                                                                                                                                                                                                                                                              |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude     | Claude Code runs in its `auto` permission mode and decides what to ask. conciv also gives it ask rules, so these Bash commands always ask: `git push --force`, `-f`, `--delete`, `-d` or `:branch`; `git reset --hard`; `git clean`; `git branch -D`; `git gc --prune`; `rm -r`, `-R`, `-fr` or `-fR`; `chmod -R`; `chown -R`; `sudo`. |
+| Codex      | Nothing. Codex runs with `approvalPolicy: 'never'` in the `workspace-write` sandbox: the sandbox limits what it can do.                                                                                                                                                                                                                |
+| OpenCode   | What OpenCode's own permission settings ask about.                                                                                                                                                                                                                                                                                     |
+| Gemini CLI | What Gemini CLI asks about.                                                                                                                                                                                                                                                                                                            |
+| Pi         | Pi has no chat yet.                                                                                                                                                                                                                                                                                                                    |
+
+## conciv's own tools
+
+These tools ask on every call, on every harness.
+
+<TypeTable
+  type={{
+    page_eval: {required: true, type: 'built in', description: 'Runs JavaScript in your page.'},
+    server_reload: {required: true, type: 'built in', description: 'Forces a hot update of one module.'},
+    server_restart: {
+      required: true,
+      type: 'built in',
+      description: 'Restarts the dev server and re-bundles its dependencies.',
+    },
+    canvas_delete: {
+      required: true,
+      type: '@conciv/extension-whiteboard',
+      description: 'Removes an element from the canvas.',
+    },
+    canvas_clear: {
+      required: true,
+      type: '@conciv/extension-whiteboard',
+      description: 'Removes every element from the canvas.',
+    },
+    comment_resolve: {required: true, type: '@conciv/extension-whiteboard', description: 'Marks a comment resolved.'},
+    comment_delete: {
+      required: true,
+      type: '@conciv/extension-whiteboard',
+      description: 'Removes a comment, or the whole thread when it is the first comment.',
+    },
+    ios_build: {
+      required: true,
+      type: '@conciv/extension-ios',
+      description: 'Compiles the iOS project for the simulator.',
+    },
+    ios_run: {
+      required: true,
+      type: '@conciv/extension-ios',
+      description: 'Boots the simulator, installs the app and launches it.',
+    },
+  }}
+/>
+
+The tools from an extension package exist only when you add that package to `extensions`. See
+[Configuration](/docs/configuration#extensions).
+
+## The card
+
+<TypeTable
+  type={{
+    Approve: {required: true, type: '⌘ Enter or Ctrl Enter', description: 'Runs it this once.'},
+    Deny: {required: true, type: 'Escape', description: 'Refuses it.'},
+    'Allow for session': {
+      required: true,
+      type: 'button',
+      description: 'Allows this exact command for the rest of the session. Shown for a command.',
+    },
+    'Always allow': {
+      required: true,
+      type: 'button',
+      description: 'Allows this in this project from now on. Shown when the harness offers it.',
+    },
+  }}
+/>
+
+The keys work while the card has focus. A countdown on the card shows how long it waits. A command that contains
+`;`, `&`, `|`, a backtick, `$`, `<`, `>`, `\` or a line break is never remembered for the session, so it asks each
+time.
+
+## Outside agents
+
+An agent CLI connected with `conciv mcp connect` can drive your open tabs from your own terminal. `hubAccess` decides
+whether it has to be let in first.
+
+<TypeTable
+  type={{
+    open: {required: true, type: 'default', description: 'No card. A connected agent can use any open tab.'},
+    session: {
+      required: true,
+      type: 'per tab',
+      description: 'The first call to a tab shows "Allow <agent> to use this tab". One answer per tab.',
+    },
+    project: {
+      required: true,
+      type: 'per project',
+      description: 'The same card, and one Allow lets it into every tab of this project.',
+    },
+  }}
+/>
+
+```ts title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [conciv({hubAccess: 'session'})],
+})
+```
+
+The call waits up to 50 seconds for your answer. If you deny it, the session menu shows **Allow outside agents** to
+let it in later. An outside agent can never answer a permission card, and never connect or disconnect agents: you do
+that in the tab.

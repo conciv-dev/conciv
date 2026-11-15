@@ -14,8 +14,34 @@ plan and asks once before it writes anything. On approval it installs `@conciv/i
 config, teaches your agents the conciv CLI through AGENTS.md, and installs the conciv claude plugin.
 Anything it cannot do for you comes back as a card with the snippet to paste.
 
-`--yes` approves the plan up front, `--dry-run` prints it and exits. init refuses a dirty git tree;
-commit first or pass `--force`.
+`--yes` approves the plan up front, `--dry-run` prints it and exits, `--json` prints the result as JSON
+and never asks (pair it with `--yes` or `--dry-run`). init refuses a dirty git tree; commit first or
+pass `--force`. On a terminal it cannot ask in, it refuses unless you pass `--yes` or `--dry-run`.
+
+## Log a browser in
+
+```bash
+conciv auth link http://localhost:5173/
+conciv auth revoke
+conciv auth revoke <id>
+conciv auth revoke --all
+```
+
+`auth link` prints a link that logs a browser in to the engine without typing the code. `auth revoke`
+with no id lists the logged-in browsers; with an id, or `--all`, it logs them out.
+See [Logging in](https://conciv.dev/docs/usage/logging-in).
+
+## Connect your agents
+
+```bash
+conciv mcp connect claude
+conciv mcp disconnect claude
+conciv mcp list
+```
+
+`mcp connect` adds conciv to an agent CLI (`claude`, `codex`, `gemini-cli` or `opencode`), so that
+agent can find and drive your open conciv tabs. `mcp serve --agent <agent>` is the MCP server that
+agent runs; `connect` registers it. See [Connect your agents](https://conciv.dev/docs/quick-start/agents).
 
 ## Drive the app
 

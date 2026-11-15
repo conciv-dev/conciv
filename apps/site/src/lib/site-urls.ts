@@ -1,8 +1,8 @@
 export const SITE = 'https://conciv.dev'
 
-export const DEFAULT_TITLE = 'conciv: Conceive it. Claude Code, living inside your running app'
+export const DEFAULT_TITLE = 'conciv: Conceive it. Your coding agent, living inside your running app'
 export const DEFAULT_DESCRIPTION =
-  'conciv is a dev-only AI agent embedded in your running app. Grab any element, chat, and let it drive the page and run your tests, without leaving what you are building.'
+  'conciv puts the coding agent you already use, such as Claude Code, Codex, OpenCode or Gemini CLI, into your running app during development. Grab any element, chat, and let it drive the page, without leaving what you are building.'
 
 export const brandPageTitle = 'conciv brand assets: logos, favicons, and social tiles'
 export const brandPageDescription =

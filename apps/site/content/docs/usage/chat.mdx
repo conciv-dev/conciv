@@ -1,10 +1,10 @@
 ---
 title: Chat
-description: Talk to the agent about the page you are looking at.
+description: Talk to the agent about the page you are looking at, and manage its sessions.
 ---
 
-The chat thread talks to an agent embedded in your live app. When you say "this" or "here", it
-reads the rendered page first, so it answers about what you actually see.
+The chat talks to the harness, running in your project. When you say "this" or "here", conciv's prompt tells it to
+read the rendered page before it edits anything.
 
 <ImageZoom
   src="/screenshots/chat-thread.png"
@@ -13,20 +13,68 @@ reads the rendered page first, so it answers about what you actually see.
   height={1080}
 />
 
-You watch it think and call tools inline. Stop a turn at any time with the stop button.
+## The composer
 
-## Generative UI
+<TypeTable
+  type={{
+    Enter: {required: true, type: 'key', description: 'Sends the message.'},
+    'Shift Enter': {required: true, type: 'key', description: 'A new line.'},
+    Escape: {required: true, type: 'key', description: 'Stops the running turn.'},
+    '/': {
+      required: true,
+      type: 'key',
+      description: "Opens the commands: the harness's own, and conciv's such as /model.",
+    },
+    '@': {required: true, type: 'key', description: 'Lists the tools you can mention.'},
+  }}
+/>
 
-When the agent needs a decision or input, it calls its `conciv_ui` tool, which renders real
-controls in the thread instead of asking in plain text. The turn waits while you interact, and
-your answer goes straight back to the agent as the tool's result: same turn, no extra message.
+The buttons beside it:
 
-- **Choices**: tappable options for a quick pick.
-- **Confirm**: a yes or no question, often before a risky change.
-- **Diff**: a proposed change with Apply or Reject.
-- **Form**: structured fields when the agent needs more than one value.
+- **Add an attachment**: add a file, or paste one. Images go only to Claude; the other harnesses take no images.
+- **Select an element from the page**: click an element on your page to attach it, with its source file when conciv
+  can find it.
+- **Start a new session**.
+- **Compress the conversation**: only on Claude.
+- **Stop generating**: while a turn runs.
+
+A message holds at most 16 parts. Your draft is saved per session on the engine, so it comes back after a reload.
+
+## While a turn runs
+
+What you send while the agent works waits in a queue under the composer. The first 3 show, with a count for the rest.
+Each has **Steer**, which sends it now, and **Remove**. **Stop generating** stops the turn and puts the queued
+messages back in your draft, unsent.
+
+## When the agent asks you [#generative-ui]
+
+The agent can put real controls in the thread instead of asking in plain text:
+
+<TypeTable
+  type={{
+    choices: {
+      required: true,
+      type: 'kind',
+      description: 'Options to pick from. It can let you pick several, or type your own.',
+    },
+    confirm: {required: true, type: 'kind', description: 'A yes or no question.'},
+    diff: {required: true, type: 'kind', description: 'A proposed change with Apply.'},
+    form: {required: true, type: 'kind', description: 'Fields to fill in.'},
+  }}
+/>
+
+The agent waits up to two minutes for your answer. After that it goes on without it, and your answer reaches it as a
+later message.
 
 ## Sessions
 
-A thread is resumable. Set `previewId` to correlate a session, or `sessionId` to resume a specific
-thread. See [Configuration](/docs/configuration).
+The session picker lists your sessions under Today, Yesterday and Earlier, and searches them on the engine. It lists
+the harness's own sessions from this project too, such as a Claude Code session you started in your terminal, when the
+harness keeps them (see [Harnesses](/docs/harnesses)). Hover a row for a preview. A match from another project copies
+the command that resumes it there. Rename a session by clicking its title in the panel header.
+
+## Model and harness
+
+The model menu lists the models of every harness conciv found, and the effort levels of the current model when it
+has them. Picking a model of another harness switches the session to that harness; in a chat that already has
+messages, conciv asks first and estimates how much history moves over.
