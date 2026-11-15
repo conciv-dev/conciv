@@ -40,6 +40,7 @@ const workerEntry = path.join(import.meta.dirname, '../fixture/effect-flock-work
 
 const testGlobal = Global.layerWith({
   cache: os.tmpdir(),
+  config: os.tmpdir(),
   state: os.tmpdir(),
 })
 

@@ -25,6 +25,7 @@ export namespace FSUtil {
     readonly isDir: (path: string) => Effect.Effect<boolean>
     readonly isFile: (path: string) => Effect.Effect<boolean>
     readonly existsSafe: (path: string) => Effect.Effect<boolean>
+    readonly readFileStringSafe: (path: string) => Effect.Effect<string | undefined, Error>
     readonly readJson: (path: string) => Effect.Effect<unknown, Error>
     readonly ensureDir: (path: string) => Effect.Effect<void, Error>
     readonly resolve: (path: string) => Effect.Effect<string>
@@ -40,6 +41,15 @@ export namespace FSUtil {
 
       const existsSafe = Effect.fn('FileSystem.existsSafe')(function* (path: string) {
         return yield* fs.exists(path).pipe(Effect.orElseSucceed(() => false))
+      })
+
+      const readFileStringSafe = Effect.fn('FileSystem.readFileStringSafe')(function* (path: string) {
+        return yield* fs.readFileString(path).pipe(
+          Effect.catchIf(
+            (error) => error.reason._tag === 'NotFound' || isAccessDenied(error),
+            () => Effect.undefined,
+          ),
+        )
       })
 
       const isDir = Effect.fn('FileSystem.isDir')(function* (path: string) {
@@ -93,6 +103,7 @@ export namespace FSUtil {
       return Service.of({
         ...fs,
         existsSafe,
+        readFileStringSafe,
         isDir,
         isFile,
         resolve,

@@ -6,6 +6,7 @@ import type {EngineStaleness} from '@conciv/contract'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {
   CHAT_SSE_PATH,
+  CHAT_WS_PATH,
   CONCIV_CLIENT_HEADER,
   CONCIV_ORIGIN_HEADER,
   CONCIV_SESSION_HEADER,
@@ -57,6 +58,7 @@ export type FaultSpec =
   | {kind: 'late-close'}
   | {kind: 'detached-sockets'}
   | {kind: 'chat-gate'}
+  | {kind: 'chat-frame-gate'; onRelease: 'deliver' | 'cut'}
   | {kind: 'cut-on-release'; path: string[]}
   | {kind: 'pre-version-engine'}
 
@@ -483,6 +485,60 @@ function ignoreHandledRoute(error: unknown): void {
   throw error
 }
 
+type SocketRoute = Parameters<Parameters<BrowserCommandContext['page']['routeWebSocket']>[1]>[0]
+
+type HeldFrame = {socket: SocketRoute; server: SocketRoute; message: string | Buffer}
+
+function isRunSocket(url: URL, host: string): boolean {
+  return (
+    url.host === host &&
+    url.pathname.endsWith(CHAT_WS_PATH) &&
+    url.searchParams.has('runId') &&
+    !url.searchParams.has('offset')
+  )
+}
+
+function settleFrame(frame: HeldFrame, onRelease: 'deliver' | 'cut'): void {
+  if (onRelease === 'deliver') return frame.server.send(frame.message)
+  void frame.server.close()
+  void frame.socket.close()
+}
+
+async function gateChatFrames(ctx: BrowserCommandContext, onRelease: 'deliver' | 'cut'): Promise<Fault> {
+  const host = new URL(requireKit(ctx).origin).host
+  const held: {open: boolean; frames: HeldFrame[]; waiters: {count: number; deliver: () => void}[]} = {
+    open: false,
+    frames: [],
+    waiters: [],
+  }
+  await ctx.page.routeWebSocket(
+    (url) => isRunSocket(url, host),
+    (socket) => {
+      const server = socket.connectToServer()
+      socket.onMessage((message) => {
+        if (held.open) return server.send(message)
+        held.frames.push({socket, server, message})
+        for (const waiter of held.waiters.filter((entry) => held.frames.length >= entry.count)) waiter.deliver()
+      })
+    },
+  )
+  const open = (): Promise<void> => {
+    held.open = true
+    for (const frame of held.frames.splice(0)) settleFrame(frame, onRelease)
+    return Promise.resolve()
+  }
+  return {
+    pending: () => held.frames.length,
+    awaitCaptured: (count) =>
+      held.frames.length >= count
+        ? Promise.resolve()
+        : new Promise((resolve) => held.waiters.push({count, deliver: resolve})),
+    answered: () => Promise.reject(new Error('a held frame fault has no single call to await')),
+    release: open,
+    dispose: open,
+  }
+}
+
 function gateChatTurns(ctx: BrowserCommandContext): Promise<Fault> {
   return holdPosts(
     ctx,
@@ -517,6 +573,7 @@ async function createFault(ctx: BrowserCommandContext, handle: string, spec: Fau
   const testkit = await importTestkit(ctx)
   if (spec.kind === 'gate') return testkit.gateRpcCalls(ctx.page, pathOptions(spec.path))
   if (spec.kind === 'chat-gate') return gateChatTurns(ctx)
+  if (spec.kind === 'chat-frame-gate') return gateChatFrames(ctx, spec.onRelease)
   if (spec.kind === 'cut-on-release') return cutOnRelease(ctx, spec.path)
   if (spec.kind === 'detached-sockets') return trackedFault(handle, spec.kind, await detachEngineSockets(ctx))
   if (spec.kind === 'offline') return trackedFault(handle, spec.kind, await takeEngineOffline(ctx))

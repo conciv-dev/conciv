@@ -23,6 +23,7 @@ const msg: Msg = JSON.parse(process.argv[2] ?? '')
 
 const testGlobal = Global.layerWith({
   cache: os.tmpdir(),
+  config: os.tmpdir(),
   state: os.tmpdir(),
 })
 

@@ -48,6 +48,7 @@
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "glob": "catalog:",
+    "js-yaml": "catalog:",
     "npm-package-arg": "catalog:",
     "pacote": "catalog:",
     "picomatch": "catalog:",

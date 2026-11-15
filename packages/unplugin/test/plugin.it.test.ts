@@ -32,6 +32,7 @@ import {readTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {rpcObserverFor} from '@conciv/plugin-testkit/rpc-observer'
 import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
+import {createConcivUnplugin} from '../src/index.js'
 import {installConcivBinShim} from '../src/core/bin-shim.js'
 import {makeEngineBooter} from '../src/core/boot.js'
 import {generateExtensionsEntrySource, writeExtensionsEntry} from '../src/core/extensions-entry.js'
@@ -134,15 +135,15 @@ describe('bundler diagnostics', () => {
   })
 })
 
-describe('engine port exact', () => {
-  function holdPort(port: number): Promise<() => Promise<void>> {
-    const blocker = createNetServer()
-    return new Promise((resolve, reject) => {
-      blocker.once('error', reject)
-      blocker.listen(port, '127.0.0.1', () => resolve(() => new Promise<void>((done) => blocker.close(() => done()))))
-    })
-  }
+function holdPort(port: number): Promise<() => Promise<void>> {
+  const blocker = createNetServer()
+  return new Promise((resolve, reject) => {
+    blocker.once('error', reject)
+    blocker.listen(port, '127.0.0.1', () => resolve(() => new Promise<void>((done) => blocker.close(() => done()))))
+  })
+}
 
+describe('engine port exact', () => {
   function tempRoot(): string {
     return mkdtempSync(join(tmpdir(), 'conciv-engine-port-exact-'))
   }
@@ -175,6 +176,82 @@ describe('engine port exact', () => {
       }
     })
   })
+})
+
+describe('webpack and rspack hooks', () => {
+  type Taps = {watchRun: Array<() => Promise<void>>; watchClose: Array<() => unknown>}
+
+  function bundlerCompiler(taps: Taps) {
+    return {
+      hooks: {
+        watchRun: {tapPromise: (_name: string, run: () => Promise<void>) => void taps.watchRun.push(run)},
+        watchClose: {tap: (_name: string, close: () => unknown) => void taps.watchClose.push(close)},
+      },
+    }
+  }
+
+  function applyHook(framework: 'webpack' | 'rspack', options: {port: number; stateRoot: string}): Taps {
+    const taps: Taps = {watchRun: [], watchClose: []}
+    const compiler = bundlerCompiler(taps)
+    const meta =
+      framework === 'webpack'
+        ? {framework, versions: {}, webpack: {compiler}}
+        : {framework, versions: {}, rspack: {compiler}}
+    const plugin = createConcivUnplugin().raw(options, meta)
+    if (Array.isArray(plugin)) throw new Error('expected one plugin')
+    plugin[framework]?.(compiler)
+    return taps
+  }
+
+  async function runAll(hooks: Array<() => unknown>): Promise<void> {
+    for (const hook of hooks) await hook()
+  }
+
+  it.each(['webpack', 'rspack'] as const)(
+    '%s starts the engine on the first watch run only, and stops it when watching closes',
+    async (framework) => {
+      const root = mkdtempSync(join(tmpdir(), `conciv-${framework}-hook-`))
+      const serverFile = join(concivStateDir(root), 'server.json')
+      try {
+        const port = await getPort()
+        const taps = applyHook(framework, {port, stateRoot: root})
+        expect(taps.watchRun).toHaveLength(1)
+        expect(existsSync(serverFile)).toBe(false)
+
+        await runAll(taps.watchRun)
+        expect((await fetch(`http://127.0.0.1:${port}/health`)).ok).toBe(true)
+        await runAll(taps.watchRun)
+        expect(JSON.parse(readFileSync(serverFile, 'utf8'))).toMatchObject({port})
+
+        await runAll(taps.watchClose)
+        await expect(fetch(`http://127.0.0.1:${port}/health`)).rejects.toThrow()
+      } finally {
+        rmSync(root, {recursive: true, force: true})
+      }
+    },
+    60_000,
+  )
+
+  it.each(['webpack', 'rspack'] as const)(
+    '%s keeps watching without an engine when the configured port is taken',
+    async (framework) => {
+      const root = mkdtempSync(join(tmpdir(), `conciv-${framework}-taken-`))
+      const taken = await getPort()
+      const release = await holdPort(taken)
+      try {
+        const taps = applyHook(framework, {port: taken, stateRoot: root})
+        expect(taps.watchRun).toHaveLength(1)
+        await expect(runAll(taps.watchRun)).resolves.toBeUndefined()
+        await expect(runAll(taps.watchRun)).resolves.toBeUndefined()
+        expect(existsSync(join(concivStateDir(root), 'server.json'))).toBe(false)
+        await expect(runAll(taps.watchClose)).resolves.toBeUndefined()
+      } finally {
+        await release()
+        rmSync(root, {recursive: true, force: true})
+      }
+    },
+    60_000,
+  )
 })
 
 describe('engine port fallback', () => {
