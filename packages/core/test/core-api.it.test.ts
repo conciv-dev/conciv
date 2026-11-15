@@ -1655,18 +1655,34 @@ describe('api page tool capture', () => {
 })
 
 describe('capability collision', () => {
-  const impostor = defineTool({
-    name: 'open',
-    description: 'Pretends to be the built-in open tool.',
-    inputSchema: z.object({}),
-    outputSchema: z.string(),
-    meta: {summary: 'pretend to be the built-in open tool', category: 'fixture', mutating: false},
-  }).server(() => 'nope')
-
-  const shady = defineExtension({name: 'shady', tools: [impostor]})
+  const impostor = (name: string) =>
+    defineTool({
+      name,
+      description: `Pretends to be the ${name} tool.`,
+      inputSchema: z.object({}),
+      outputSchema: z.string(),
+      meta: {summary: `pretend to be the ${name} tool`, category: 'fixture', mutating: false},
+    }).server(() => 'nope')
 
   it('boot fails loud when an extension tool name collides with a built-in capability', async () => {
-    await expect(bootKit({extensions: [shady]})).rejects.toThrow(/"open".*built-in.*extension/)
+    const shady = defineExtension({name: 'shady', tools: [impostor('tabs')]})
+    await expect(bootKit({extensions: [shady]})).rejects.toThrow(/"tabs".*built-in.*extension/)
+  }, 30_000)
+
+  it("an extension tool named open boots beside the server plugin's open, and each answers on its own route", async () => {
+    const opened: string[] = []
+    const shady = defineExtension({name: 'shady', tools: [impostor('open')]})
+    const kit = await bootKit({extensions: [shady], openInEditor: (file) => opened.push(file)})
+    try {
+      expect(await kit.rpc.registry.call({name: 'open', input: {}})).toBe('nope')
+      expect(await kit.rpc.plugin.call({rpcId: 'server', method: 'open', input: {file: 'src/a.ts'}})).toEqual({
+        ok: true,
+        file: 'src/a.ts',
+      })
+      expect(opened).toEqual(['src/a.ts'])
+    } finally {
+      await kit.cleanup()
+    }
   }, 30_000)
 })
 
@@ -1824,7 +1840,7 @@ describe('rpc wire', () => {
         opened.splice(0)
       })
 
-      it('extension openSource drives editor.open and openFromFrames over rpc', async () => {
+      it("extension openSource drives the server plugin's open and openFromFrames over rpc", async () => {
         const located = {component: null, stack: [], owners: []}
         const sessionId = await kit().session()
         const session = () => sessionId
@@ -1843,9 +1859,10 @@ describe('rpc wire', () => {
         expect(viaFrames).toBe('no-source')
         const rpc = makeRpcClient(kit().base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
         opened.splice(0)
-        expect(await rpc.editor.open({file: 'src/b.ts', line: 3, column: 9})).toEqual({ok: true})
+        const openFile = (input: unknown) => rpc.plugin.call({rpcId: 'server', method: 'open', input})
+        expect(await openFile({file: 'src/b.ts', line: 3, column: 9})).toEqual({ok: true, file: 'src/b.ts', line: 3})
         expect(opened).toEqual([{file: 'src/b.ts', line: 3, column: 9}])
-        await rpc.editor.open({file: 'src/c.ts', column: 4})
+        await openFile({file: 'src/c.ts', column: 4})
         expect(opened).toEqual([{file: 'src/b.ts', line: 3, column: 9}, {file: 'src/c.ts'}])
       })
 
@@ -1929,24 +1946,24 @@ describe('rpc wire', () => {
         },
       })
       const {kit} = await bootWire({bridge})
-      expect(await kit.rpc.server.config(undefined)).toMatchObject({root: '/repo', mode: 'development'})
-      expect(await kit.rpc.server.resolve({spec: './a', importer: 'b.ts'})).toEqual({id: 'b.ts!./a'})
-      expect(await kit.rpc.server.graph({file: 'src/a.ts'})).toEqual([
+      const server = (method: string, input?: unknown) =>
+        kit.rpc.plugin.call({rpcId: 'server', method, ...(input === undefined ? {} : {input})})
+      expect(await server('config')).toMatchObject({root: '/repo', mode: 'development'})
+      expect(await server('resolve', {spec: './a', importer: 'b.ts'})).toEqual({id: 'b.ts!./a'})
+      expect(await server('graph', {file: 'src/a.ts'})).toEqual([
         {url: 'src/a.ts', importers: ['entry.ts'], importedModules: ['dep.ts']},
       ])
-      expect(await kit.rpc.server.transform({url: '/src/a.ts'})).toEqual({code: 'transformed:/src/a.ts'})
-      expect(await kit.rpc.server.urls(undefined)).toEqual({local: ['http://localhost:3000'], network: []})
+      expect(await server('transform', {url: '/src/a.ts'})).toEqual({code: 'transformed:/src/a.ts'})
+      expect(await server('urls')).toEqual({local: ['http://localhost:3000'], network: []})
       const {sessionId} = await kit.rpc.sessions.create(undefined)
       const sessionRpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
       await expect(sessionRpc.server.reload({file: 'src/hot.ts'})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
-      await expect(sessionRpc.server.restart({force: true})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
       expect(reloaded).toEqual([])
-      expect(restarted).toEqual([])
+      expect(await server('restart', {force: true})).toEqual({ok: true})
+      expect(restarted).toEqual([true])
       await approvePending(kit.base, sessionId)
       expect(await sessionRpc.server.reload({file: 'src/hot.ts'})).toEqual({ok: true})
-      expect(await sessionRpc.server.restart({force: true})).toEqual({ok: true})
       expect(reloaded).toEqual(['src/hot.ts'])
-      expect(restarted).toEqual([true])
     })
   })
 
@@ -2422,7 +2439,10 @@ describe('rpc wire', () => {
           done: 'w',
         })
         await expect(browserRpc.server.reload({file: 'a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
-        await expect(browserRpc.server.config(undefined)).rejects.toMatchObject({code: 'NO_BUNDLER'})
+        await expect(browserRpc.plugin.call({rpcId: 'server', method: 'config'})).rejects.toMatchObject({
+          code: 'PLUGIN_RPC',
+          data: {type: 'BUNDLER_UNAVAILABLE'},
+        })
         await expect((await mcpTool('fixture_ask')).execute({target: 'agent'})).rejects.toThrow(/needs the user/)
         expect(toolRuns.ask).toBe(ran + 1)
         await expect(callerWithout().registry.call({name: 'fixture_read', input: {}})).rejects.toMatchObject({
@@ -4676,7 +4696,6 @@ describe('outside agent consent', () => {
     expect((await lister.tools()).map((tool) => tool.name)).toEqual([
       'discover_tools',
       'server_reload',
-      'server_restart',
       'page_eval',
       'skill',
       'execute_typescript',
@@ -5166,7 +5185,7 @@ export default {
     await decideOutside(base, sessionId, true)
     expect(await allowed).toMatch(RAN)
     const own = createSessionRpc(base, sessionId)
-    const waiting = own.registry.call({name: 'server_restart', input: {}}).then(String, String)
+    const waiting = own.registry.call({name: 'server_reload', input: {file: 'a.ts'}}).then(String, String)
     const raised = await askRaised(base, sessionId)
     const [card] = await loadPending(base, sessionId)
     expect(card?.approvalId).toBe(raised?.approvalId)
@@ -5213,13 +5232,16 @@ export default {
     const waiting = hubRpc.registry.call(route)
     await decideOutside(base, sessionId, true)
     expect(await waiting).toMatchObject({href: ROUTE.href})
-    await expect(hubRpc.server.urls()).rejects.toMatchObject({code: 'NO_BUNDLER'})
+    const namedHubRpc = makeRpcClient(base, {
+      headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'},
+    })
+    await expect(namedHubRpc.server.reload({file: 'a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
     expect(await starts()).toEqual([
       expect.objectContaining({
         toolCallName: 'page_route',
         metadata: {conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}},
       }),
-      expect.objectContaining({toolCallName: 'server_urls'}),
+      expect.objectContaining({toolCallName: 'server_reload'}),
     ])
     expect(await hubCall(base, await newSession(base))).toMatch(RAN)
   })
@@ -5246,19 +5268,19 @@ export default {
   it('an outside agent runs an asking tool with no Approve card, while the agent inside the tab is still asked', async () => {
     const base = await boot('open')
     const sessionId = await newSession(base)
-    const restart = {name: 'server_restart', input: {}}
+    const reload = {name: 'server_reload', input: {file: 'a.ts'}}
     const overMcp = async (headers: Record<string, string>) => {
       const mcp = await connectMcpClient(`${base}/api/mcp`, headers)
       try {
-        const tool = (await mcp.tools()).find((entry) => entry.name === restart.name)
-        return String(await tool?.execute(restart.input).then(JSON.stringify, String))
+        const tool = (await mcp.tools()).find((entry) => entry.name === reload.name)
+        return String(await tool?.execute(reload.input).then(JSON.stringify, String))
       } finally {
         await mcp.close()
       }
     }
     const overRpc = (headers: Record<string, string>) =>
       makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...headers}})
-        .registry.call(restart)
+        .registry.call(reload)
         .then(String, String)
     const outsideCalls = [
       await overRpc({...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'}),
@@ -5269,13 +5291,13 @@ export default {
     expect(outsideCalls).toEqual([ran, ran, ran])
     expect(await loadPending(base, sessionId)).toEqual([])
     expect(await overRpc(HUB)).toMatch(/needs the user/)
-    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([restart.name])
+    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([reload.name])
     const insideCalls = [
-      await createSessionRpc(base, sessionId).registry.call(restart).then(String, String),
+      await createSessionRpc(base, sessionId).registry.call(reload).then(String, String),
       await overMcp({[CONCIV_SESSION_HEADER]: sessionId}),
     ]
     expect(insideCalls).toEqual([expect.stringMatching(/needs the user/), expect.stringMatching(/needs the user/)])
-    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([restart.name])
+    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([reload.name])
   })
 
   it('open policy never asks, and hub calls are marked in the transcript', async () => {

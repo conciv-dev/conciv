@@ -32,7 +32,6 @@ import {
   SourceLocSchema,
   SymbolicateSchema,
 } from '@conciv/protocol/page-types'
-import {BundlerConfigSchema, ModuleNodeSchema} from '@conciv/protocol/bundler-types'
 import {SessionCapturesSchema} from '@conciv/protocol/element-capture-types'
 import {TOOL_ICON_KEYS} from '@conciv/protocol/tool-icon-types'
 import {INIT_HARNESS_IDS} from '@conciv/protocol/harness-types'
@@ -175,12 +174,6 @@ export const ToolCommandSignatureSchema = z.object({
 })
 
 export type ToolCommandSignature = z.infer<typeof ToolCommandSignatureSchema>
-
-export const EditorOpenInputSchema = z.object({
-  file: z.string(),
-  line: z.number().int().min(1).optional(),
-  column: z.number().int().min(1).optional(),
-})
 
 export const EngineStalenessSchema = z.object({
   stale: z.boolean(),
@@ -459,33 +452,12 @@ export const contract = {
       .output(Ok),
   },
   server: {
-    config: oc.errors({...noBundler, ...approvalDenied}).output(BundlerConfigSchema),
-    resolve: oc
-      .errors({...noBundler, ...approvalDenied})
-      .input(z.object({spec: z.string(), importer: z.string().optional()}))
-      .output(z.object({id: z.string().nullable()})),
-    graph: oc
-      .errors({...noBundler, ...approvalDenied})
-      .input(z.object({file: z.string()}))
-      .output(z.array(ModuleNodeSchema)),
-    transform: oc
-      .errors({...noBundler, ...approvalDenied})
-      .input(z.object({url: z.string()}))
-      .output(z.object({code: z.string().nullable()})),
-    urls: oc
-      .errors({...noBundler, ...approvalDenied})
-      .output(z.object({local: z.array(z.string()), network: z.array(z.string())})),
     reload: oc
       .errors({...noBundler, ...approvalDenied})
       .input(z.object({file: z.string()}))
       .output(Ok),
-    restart: oc
-      .errors({...noBundler, ...approvalDenied})
-      .input(z.object({force: z.boolean().default(false)}))
-      .output(Ok),
   },
   editor: {
-    open: oc.errors(approvalDenied).input(EditorOpenInputSchema).output(Ok),
     openFromFrames: oc.input(OpenSourceSchema).output(OpenSourceResultSchema),
   },
   meta: {

@@ -279,8 +279,6 @@ describe('cli', () => {
   describe('cli derived commands', () => {
     const {cleanups, written} = cliSession()
 
-    const FailureSchema = z.object({ok: z.literal(false), error: z.object({kind: z.enum(['user', 'unexpected'])})})
-
     async function helpText(argv: string[]): Promise<string> {
       const logged: string[] = []
       vi.spyOn(console, 'log').mockImplementation((line: unknown) => {
@@ -543,34 +541,11 @@ describe('cli', () => {
         expect(reloaded).toEqual(['src/hot.ts'])
       })
 
-      it('takes the positional the dev-server declaration names and leaves its other fields as flags', async () => {
-        const resolved: string[] = []
-        await bootCli(cleanups, {
-          bridge: {
-            id: 'positional-test',
-            config: () => ({root: '/repo', base: '/', mode: 'development', aliases: [], plugins: []}),
-            resolve: async (spec: string, importer?: string) => {
-              resolved.push(`${spec} from ${importer ?? 'nowhere'}`)
-              return {id: spec}
-            },
-            moduleGraph: () => [],
-            transform: async () => ({code: null}),
-            urls: () => ({local: ['http://localhost:3000'], network: []}),
-            reload: async () => {},
-            restart: async () => {},
-          },
-        })
-        expect(await runCli(cliMain, ['tools', 'server', 'resolve', './x.ts', '--importer', 'src/a.ts'])).toBe(0)
-        expect(resolved).toEqual(['./x.ts from src/a.ts'])
-      })
-
-      it('rejects a zero, fractional or non-numeric line number as a plain user mistake, not a bug', async () => {
-        await bootCli(cleanups)
-        for (const line of ['0', '1.5', 'abc']) {
-          written.length = 0
-          expect(await runCli(cliMain, ['tools', 'open', 'src/a.ts', '--line', line])).toBe(1)
-          expect(FailureSchema.parse(onlyDocument(written)).error.kind).toBe('user')
-        }
+      it('takes the positional the declaration names and leaves its other fields as flags', async () => {
+        const kit = await bootCli(cleanups)
+        const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: 'large'}})
+        expect(await runCli(cliMain, ['tools', 'page', 'select', '#size', '--value', 'large'])).toBe(0)
+        expect(answer.seen()).toMatchObject({name: 'page_select', input: {selector: '#size', value: 'large'}})
       })
     })
   })
@@ -623,7 +598,7 @@ describe('cli', () => {
     describe('conciv CLI failure reporting', () => {
       it('names the address and the fix when no dev server is listening, with no stack', async () => {
         process.env.CONCIV_PORT = String(await closedPort())
-        const code = await runCli(cliMain, ['tools', 'server', 'urls'])
+        const code = await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])
         expect(code).toBe(1)
         const error = failure()
         expect(error.kind).toBe('user')
@@ -647,7 +622,7 @@ describe('cli', () => {
             response.end(body)
           }),
         )
-        const code = await runCli(cliMain, ['tools', 'server', 'urls'])
+        const code = await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])
         expect(code).toBe(1)
         const error = failure()
         expect(error.kind).toBe('user')
@@ -672,7 +647,7 @@ describe('cli', () => {
 
       it('reports an alien server on the port as a probable bug, with the stack', async () => {
         process.env.CONCIV_PORT = String(await listen((_request, response) => response.end('not a rpc reply')))
-        const code = await runCli(cliMain, ['tools', 'server', 'urls'])
+        const code = await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])
         expect(code).toBe(1)
         const error = failure()
         expect(error.kind).toBe('unexpected')
@@ -777,41 +752,22 @@ describe('cli', () => {
         expect(onlyDocument(written)).toEqual({ok: true, data: []})
       })
 
-      it('server restart is refused through the session and an approval lets the retry run', async () => {
+      it('server reload is refused through the session and an approval lets the retry run', async () => {
         const bridge = restartCapableBridge()
         const kit = await bootCli(cleanups, {bridge})
         const session = await approvedSession(kit)
-        expect(await runCli(cliMain, ['tools', 'server', 'restart'])).toBe(1)
+        expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])).toBe(1)
         expect(onlyDocument(written)).toMatchObject({
           ok: false,
           error: {kind: 'user', code: 'APPROVAL_DENIED', message: expect.stringContaining('needs the user')},
         })
         written.length = 0
-        expect(await session.approve()).toEqual(['conciv:tool:server_restart'])
-        expect(await runCli(cliMain, ['tools', 'server', 'restart'])).toBe(0)
+        expect(await session.approve()).toEqual(['conciv:tool:server_reload'])
+        expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])).toBe(0)
         expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true}})
         written.length = 0
-        expect(await runCli(cliMain, ['tools', 'server', 'restart'])).toBe(1)
+        expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])).toBe(1)
         expect((await kit.rpc.chat.hydrate({sessionId: session.sessionId})).lastRun).toBeNull()
-      })
-
-      it('server graph round-trips a real bundler bridge inside the envelope', async () => {
-        const bridge = defineBundlerBridge({
-          id: 'cli-test',
-          config: () => ({root: '/repo', base: '/', mode: 'development', aliases: [], plugins: []}),
-          resolve: async (spec) => ({id: spec}),
-          moduleGraph: (file) => [{url: file, importers: [], importedModules: ['dep.ts']}],
-          transform: async () => ({code: null}),
-          urls: () => ({local: [], network: []}),
-          reload: async () => {},
-          restart: async () => {},
-        })
-        await bootCli(cleanups, {bridge})
-        expect(await runCli(cliMain, ['tools', 'server', 'graph', '/x.ts'])).toBe(0)
-        expect(onlyDocument(written)).toEqual({
-          ok: true,
-          data: [{url: '/x.ts', importers: [], importedModules: ['dep.ts']}],
-        })
       })
 
       it('runs every command the agent guide teaches exactly as the guide spells it, except the design commands: this engine has no design extension', async () => {
@@ -823,7 +779,11 @@ describe('cli', () => {
           '<url>': '/src/a.ts',
         }
         const everyTaught = CONCIV_COMMAND_GUIDE.split('`')
-          .filter((span, index) => index % 2 === 1 && span.startsWith(`${CONCIV_BIN} tools `))
+          .filter(
+            (span, index) =>
+              index % 2 === 1 &&
+              (span.startsWith(`${CONCIV_BIN} tools `) || span.startsWith(`${CONCIV_BIN} plugin call `)),
+          )
           .map((span) => span.slice(CONCIV_BIN.length + 1))
         const needsDesignExtension = everyTaught.filter((command) => command.startsWith('tools design '))
         expect(needsDesignExtension).toEqual([
@@ -832,47 +792,42 @@ describe('cli', () => {
           'tools design status',
         ])
         const taught = everyTaught.filter((command) => !needsDesignExtension.includes(command))
-        expect(taught).toEqual(expect.arrayContaining(['tools page snapshot', 'tools page console']))
+        expect(taught).toEqual(
+          expect.arrayContaining([
+            'tools page snapshot',
+            'tools page console',
+            `plugin call server graph --data '{"file":"<file>"}'`,
+            `plugin call server transform --data '{"url":"<url>"}'`,
+          ]),
+        )
         await bootCli(cleanups, {bridge: restartCapableBridge()})
         const outcomes: Array<{command: string; reached: boolean; document: unknown}> = []
         for (const command of taught) {
           const argv = command
             .replace(/[[\]]/g, '')
             .split(' ')
-            .map((word) => placeholders[word] ?? word)
-          expect(argv.filter((word) => word.startsWith('<'))).toEqual([])
+            .map((word) =>
+              Object.entries(placeholders).reduce(
+                (filled, [placeholder, value]) => filled.replaceAll(placeholder, value),
+                word.replace(/^'(.*)'$/, '$1'),
+              ),
+            )
+          expect(argv.filter((word) => word.includes('<'))).toEqual([])
           written.length = 0
           await runCli(cliMain, argv)
+          const printed = onlyDocument(written)
           const document = z
             .object({ok: z.boolean(), error: z.object({code: z.string().optional(), message: z.string()}).optional()})
-            .parse(onlyDocument(written))
-          outcomes.push({command, reached: document.ok || document.error?.code !== undefined, document})
+            .parse(printed)
+          outcomes.push({command, reached: document.ok || document.error?.code !== undefined, document: printed})
         }
         expect(outcomes.filter((outcome) => !outcome.reached)).toEqual([])
-      })
-
-      it('tools open reaches the editor opener over rpc', async () => {
-        const opened: Array<{file: string; line?: number; column?: number}> = []
-        await bootCli(cleanups, {
-          openInEditor: (file, line, column) =>
-            opened.push({file, ...(line === undefined ? {} : {line}), ...(column === undefined ? {} : {column})}),
-        })
-        expect(await runCli(cliMain, ['tools', 'open', 'src/thing.ts', '--line', '7'])).toBe(0)
-        expect(opened).toEqual([{file: 'src/thing.ts', line: 7}])
-        expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true}})
-        expect(await runCli(cliMain, ['tools', 'open', 'src/thing.ts', '--line', '7', '--column', '3'])).toBe(0)
-        expect(opened.at(-1)).toEqual({file: 'src/thing.ts', line: 7, column: 3})
-        expect(await runCli(cliMain, ['tools', 'open', 'src/thing.ts', '--column', '3'])).toBe(0)
-        expect(opened.at(-1)).toEqual({file: 'src/thing.ts'})
-      })
-
-      it('open without its required positional is a user error, not a raw citty stack', async () => {
-        await bootCli(cleanups)
-        const code = await runCli(cliMain, ['tools', 'open'])
-        expect(code).toBe(1)
-        const failure = onlyDocument(written)
-        expect(failure).toMatchObject({ok: false, error: {kind: 'user'}})
-        expect(JSON.stringify(failure)).toContain('FILE')
+        expect(
+          outcomes.filter((outcome) => outcome.command.startsWith('plugin call ')).map((outcome) => outcome.document),
+        ).toEqual([
+          {ok: true, data: [{url: 'src/a.ts', importers: [], importedModules: []}]},
+          {ok: true, data: {code: null}},
+        ])
       })
     })
   })
@@ -1227,7 +1182,7 @@ describe('cli', () => {
         expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
         await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: true})
         expect(await waiting).toMatchObject(listed)
-        const restart = ['tools', 'server', 'restart']
+        const restart = ['tools', 'server', 'reload', 'src/a.ts']
         expect([
           await conciv(elsewhere, home, [...restart, '--tab', sessionId]),
           await conciv(elsewhere, home, restart),
@@ -1520,6 +1475,21 @@ describe('cli', () => {
           document: {ok: true, data: {ok: true, file: 'src/other.ts'}},
         })
         expect(
+          await pluginCall(attached.root, home, ['server', 'open', '--data', '{"file":"src/third.ts","column":3}']),
+        ).toEqual({code: 0, document: {ok: true, data: {ok: true, file: 'src/third.ts'}}})
+        for (const line of ['0', '1.5', '"abc"']) {
+          expect(
+            await pluginCall(attached.root, home, ['server', 'open', '--data', `{"file":"src/a.ts","line":${line}}`]),
+          ).toMatchObject({
+            code: 1,
+            document: {ok: false, error: {kind: 'user', code: 'PLUGIN_RPC', type: 'rpc.invalid_input'}},
+          })
+        }
+        expect(await pluginCall(attached.root, home, ['server', 'open'])).toMatchObject({
+          code: 1,
+          document: {ok: false, error: {kind: 'user', code: 'PLUGIN_RPC', type: 'rpc.invalid_input'}},
+        })
+        expect(
           await pluginCall(attached.root, home, ['server', 'open', '--data', '{"file":"src/thing.ts","line":"7"}']),
         ).toMatchObject({
           code: 1,
@@ -1528,6 +1498,7 @@ describe('cli', () => {
         expect(launched).toEqual([
           {file: 'src/thing.ts', line: 7, column: 3},
           {file: 'src/other.ts', line: 1},
+          {file: 'src/third.ts', line: 1},
         ])
         expect(await pluginCall(detached.root, home, ['server', 'config'])).toMatchObject({
           code: 1,
@@ -4970,7 +4941,7 @@ export default defineConfig({plugins: [conciv()]})`)
           expect(sandbox).toBeGreaterThan(table)
           expect(section).toContain('`.conciv/bin/conciv tools page snapshot`')
           expect(section).toContain('`.conciv/bin/conciv tools react inspect <selector>`')
-          expect(section).toContain('`.conciv/bin/conciv tools server graph <file>`')
+          expect(section).toContain(`\`.conciv/bin/conciv plugin call server graph --data '{"file":"<file>"}'\``)
           expect(section).toContain('`.conciv/bin/conciv tools server reload <file>`')
           expect(section).toContain('`.conciv/bin/conciv tools --help`')
         })

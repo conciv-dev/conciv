@@ -464,7 +464,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     root: opts.cwd,
     storeCapture: (params) => writeToolCapture(db, params),
     bundler: () => opts.bridge,
-    openInEditor: opts.openInEditor,
     listTabs: outsideTabs.list,
   })
   const {registry, stream} = primitives

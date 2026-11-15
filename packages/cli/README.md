@@ -30,8 +30,8 @@ as soon as the server mounts it; the CLI itself ships no extension code.
 - `conciv tools page` - read and drive the live page; `--help` lists every capability
 - `conciv tools react` - inspect and edit live React components
 - `conciv tools design` - match the live page to a design image (when the design extension is mounted)
-- `conciv tools server` - inspect and nudge the dev server; `--help` lists every capability
-- `conciv tools open` - open a file in the user's editor
+- `conciv tools server reload <file>` - force a hot update of one module
+- `conciv plugin call server <method>` - inspect the dev server (`config`, `urls`, `resolve`, `graph`, `transform`), restart it (`restart`) or open a file in the user's editor (`open`); pass the input with `--data '<json>'`
 - `conciv tools tabs` - list every open conciv tab on this machine, from any folder
 
 Add `--tab <id>` (an id from `conciv tools tabs`) to any command to act on that tab, on whichever dev

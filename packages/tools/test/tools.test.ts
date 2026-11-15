@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {type BundlerBridge} from '@conciv/protocol/bundler-types'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS, BUILTIN_TABS_TOOL, builtinToolNames} from '../src/builtins.js'
+import {BUILTIN_SERVER_TOOLS, BUILTIN_TABS_TOOL, builtinToolNames} from '../src/builtins.js'
 import {concivExtensionsToolDef} from '../src/extensions-tool.js'
 import {concivSandboxTools} from '../src/tools.js'
 
@@ -15,14 +15,10 @@ describe('builtins', () => {
     return String(error.code)
   }
 
-  function registryWith(bundler: BundlerBridge | undefined, opened: string[] = []) {
+  function registryWith(bundler: BundlerBridge | undefined) {
     const registry = createToolRegistry()
     for (const tool of BUILTIN_SERVER_TOOLS)
       registry.register(tool, {owner: 'a test registrant', context: {bundler: () => bundler}})
-    registry.register(BUILTIN_OPEN_TOOL, {
-      owner: 'a test registrant',
-      context: {openInEditor: (file: string) => opened.push(file)},
-    })
     registry.register(BUILTIN_TABS_TOOL, {
       owner: 'a test registrant',
       context: {listTabs: async () => ({tabs: [], unreachable: []})},
@@ -48,13 +44,12 @@ describe('builtins', () => {
       const catalog = registryWith(fakeBundler()).catalog.list()
       expect(catalog.map((entry) => entry.name).toSorted()).toEqual(builtinToolNames().toSorted())
       const bindings = new Map(catalog.map((entry) => [entry.name, entry.binding]))
-      expect(bindings.get('server_urls')).toBe('server')
-      expect(bindings.get('open')).toBe('server')
+      expect(bindings.get('server_reload')).toBe('server')
     })
 
     it('gives every declared input field its own help text', () => {
       const missing: string[] = []
-      for (const tool of [...BUILTIN_SERVER_TOOLS, BUILTIN_OPEN_TOOL]) {
+      for (const tool of BUILTIN_SERVER_TOOLS) {
         const schema = z.toJSONSchema(tool.inputSchema, {io: 'input'})
         const properties = schema.properties ?? {}
         for (const [field, definition] of Object.entries(properties)) {
@@ -63,24 +58,6 @@ describe('builtins', () => {
         }
       }
       expect(missing).toEqual([])
-    })
-
-    it('runs a server tool and the open tool end to end through the registry', async () => {
-      const opened: string[] = []
-      const registry = registryWith(fakeBundler(), opened)
-      await expect(registry.call('server_urls', {}, {request: testRequest})).resolves.toEqual({
-        local: ['http://localhost:5173/'],
-        network: [],
-      })
-      await expect(registry.call('server_resolve', {spec: 'x'}, {request: testRequest})).resolves.toEqual({
-        id: '/app/src/x.ts',
-      })
-      await expect(registry.call('open', {file: 'src/app.ts', line: 4}, {request: testRequest})).resolves.toEqual({
-        ok: true,
-        file: 'src/app.ts',
-        line: 4,
-      })
-      expect(opened).toEqual(['src/app.ts'])
     })
 
     it('waits for the page to apply the hot update after a reload', async () => {
@@ -112,7 +89,7 @@ describe('builtins', () => {
 
     it('raises its declared NO_BUNDLER error when no dev server is attached', async () => {
       const registry = registryWith(undefined)
-      const failure = await registry.call('server_config', {}, {request: testRequest}).then(
+      const failure = await registry.call('server_reload', {file: 'src/a.ts'}, {request: testRequest}).then(
         () => null,
         (error: unknown) => error,
       )
