@@ -18,6 +18,8 @@ import {watchHotUpdates, type HotSurface} from '../src/page/hmr.js'
 import {endTask, mountSimulator, startTask} from '../src/page/simulator.js'
 import {aimCursor, CursorLook, dropCursor, windowAt} from '../src/page/agent-cursor.js'
 import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
+import {makeReactTree, pageMembers} from '../src/page/contracts.js'
+import type {ReactFiber} from '@conciv/plugin/experimental/page'
 
 const inFirefox = server.browser === 'firefox'
 
@@ -1273,5 +1275,79 @@ describe.skipIf(inFirefox)('page action queue', () => {
     const actions = [fill('first', 'Ada'), fill('last', 'Byron')]
     await accept('q-reduced', actions)
     expect(await play('q-reduced', actions)).toMatchObject([{type: 'success'}, {type: 'success'}])
+  })
+})
+
+describe('the page contracts another plugin reads', () => {
+  it('Page shows a toast on the page and captures it without conciv’s own interface', async () => {
+    pageMembers.toast('contract toast shown', 'success')
+    await expect.element(page.getByText('contract toast shown')).toBeInTheDocument()
+    const box = document.createElement('div')
+    box.style.cssText = 'position:fixed;top:0;left:0;width:40px;height:40px;background:#fff'
+    const ours = document.createElement('div')
+    ours.setAttribute('data-conciv-root', '')
+    ours.style.cssText = 'width:40px;height:40px;background:#000'
+    box.append(ours)
+    document.body.append(box)
+    onTestFinished(() => box.remove())
+    const {snapdom} = await import('@zumer/snapdom')
+    const shot = await snapdom(box, {
+      dpr: 1,
+      exclude: [pageMembers.capture.exclude],
+      excludeMode: 'remove',
+      plugins: [...pageMembers.capture.plugins],
+    })
+    const bitmap = await createImageBitmap(await shot.toBlob({format: 'png'}))
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('no 2d context to sample the capture')
+    context.drawImage(bitmap, 0, 0)
+    const inked = context
+      .getImageData(0, 0, bitmap.width, bitmap.height)
+      .data.some((value, index) => index % 4 === 0 && value < 128)
+    expect(inked).toBe(false)
+  })
+
+  describe.skipIf(inFirefox)('ReactTree', () => {
+    let container: HTMLElement
+    let reactRoot: Root
+    const leaf = () => page.getByRole('button', {name: /^A:/})
+
+    beforeAll(async () => {
+      installReactBridge()
+      container = document.createElement('div')
+      document.body.append(container)
+      reactRoot = createRoot(container)
+      reactRoot.render(createElement(FixtureApp))
+      await vi.waitFor(() => leaf().element())
+    })
+
+    afterAll(() => {
+      reactRoot.unmount()
+      container.remove()
+    })
+
+    it('reads the component tree, names and locates an element, and dehydrates what it finds', async () => {
+      const tree = makeReactTree()
+      const element = leaf().element()
+      expect(tree.describe(element)).toEqual({component: 'Leaf', file: null})
+      const located = await tree.locate(element)
+      expect(located?.stack).toContain('Leaf')
+      expect(located?.stack).toContain('Branch')
+      expect(located?.owners.map((owner) => owner.component)).toContain('Leaf')
+      expect(located?.owners.every((owner) => owner.ref.startsWith('v'))).toBe(true)
+      expect((await tree.frames(element)).map((frame) => frame.fn)).toContain('Leaf')
+      const labels = (fiber: ReactFiber | null | undefined): unknown[] => {
+        if (!fiber) return []
+        const props = z.object({label: z.string()}).safeParse(fiber.memoizedProps)
+        return [
+          ...(props.success ? [tree.dehydrate(props.data)] : []),
+          ...labels(fiber.child),
+          ...labels(fiber.sibling),
+        ]
+      }
+      expect(tree.rootFibers().flatMap(labels)).toContainEqual({label: 'A'})
+      expect(tree.dehydrate({label: 'A', run: function run() {}})).toEqual({label: 'A', run: 'ƒ run()'})
+    })
   })
 })
