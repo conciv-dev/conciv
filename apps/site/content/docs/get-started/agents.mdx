@@ -16,7 +16,7 @@ is separate. Connect it to conciv and it can find your open conciv tabs and use 
       required: true,
       type: 'every harness',
       description:
-        'A marked conciv section between <!-- conciv:start --> and <!-- conciv:end -->, ending with a "Set up for:" line naming the harnesses you picked. Re-running init updates it in place.',
+        'A marked conciv section between <!-- conciv:start --> and <!-- conciv:end -->: how to call the conciv CLI as .conciv/bin/conciv tools, and a "Set up for:" line naming the harnesses you picked. Re-running init updates it in place.',
     },
     'CLAUDE.md': {
       required: true,
@@ -28,15 +28,19 @@ is separate. Connect it to conciv and it can find your open conciv tabs and use 
       required: true,
       type: 'claude',
       description:
-        'A Claude Code plugin with a conciv skill and an MCP bridge, installed with Claude Code\'s plugin manager for this project only.',
+        "A Claude Code plugin with a conciv skill and an MCP bridge, installed with Claude Code's plugin manager for this project only.",
     },
     'conciv-hub': {
       required: true,
       type: 'claude, codex, gemini-cli, opencode',
-      description: 'An MCP server added to that agent\'s own user config, one per agent you picked to connect.',
+      description:
+        "An MCP server added to that agent's own MCP config, one per agent you picked to connect. Pi has none.",
     },
   }}
 />
+
+`.conciv/bin/conciv` is put in place by the dev server when it starts, so the agent's commands work while your dev
+server runs.
 
 The Claude Code plugin's bridge reads the engine's address from `.conciv/mcp-endpoint.json`, which the engine writes
 when it starts. If the plugin install fails, init prints the commands to run yourself:
@@ -66,7 +70,8 @@ npx @conciv/cli@latest mcp connect claude
     'mcp disconnect <agent>': {
       required: true,
       type: 'command',
-      description: 'Stops conciv answering that agent and removes conciv from that agent CLI.',
+      description:
+        'Stops conciv answering that agent and removes conciv from that agent CLI. OpenCode keeps its entry in opencode.json, and conciv refuses it until you connect it again.',
     },
     'mcp list': {required: true, type: 'command', description: 'The agents connected to conciv.'},
     'mcp serve --agent <agent>': {
@@ -84,9 +89,12 @@ With nothing connected, `mcp list` prints:
 {"ok":true,"data":[]}
 ```
 
+## In the panel
+
 The panel shows the same connections: a **Connected agents** row above the composer with one chip per agent, each
-with a disconnect button. The composer's **More composer actions** menu has a **Connect** entry for each agent CLI you
-have that is not connected yet, such as **Connect Codex**.
+with a **Disconnect** button. The composer's **Connect agents** button has a **Connect** entry for each agent CLI you
+have that is not connected yet, such as **Connect Codex**. On a narrow composer the same entries are in **More composer
+actions**.
 
 <ImageZoom
   src="/screenshots/agents-connect.png"
