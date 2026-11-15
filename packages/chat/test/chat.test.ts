@@ -57,6 +57,12 @@ const harness = defineHarness({
   },
 })
 
+const NO_EXECUTE: Permission.Ruleset = [{action: 'execute', resource: '*', effect: 'deny'}]
+
+function currentDomain(agent: Agent.Id, rules: Permission.Ruleset = []) {
+  return Tool.Service.use((tools) => tools.snapshot(rules)).pipe(Effect.map((snapshot) => ({snapshot, agent})))
+}
+
 function openDatabase() {
   const root = mkdtempSync(join(tmpdir(), 'conciv-chat-unit-'))
   const db = openDb(root)
@@ -185,7 +191,8 @@ describe('plugin tools in code mode', () => {
     const capabilities = (): CodeCapability[] =>
       toolDomainCapabilities(
         [builtin],
-        {snapshot: host.runSync(Tool.Service.use((tools) => tools.snapshot())), agent: Agent.Id.make('plan')},
+        host.runSync(currentDomain(Agent.Id.make('plan'))),
+        currentDomain(Agent.Id.make('plan')),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         (name) => collisions.push(name),
       )
@@ -389,7 +396,8 @@ describe('plugin tools in code mode', () => {
     const capabilities = (): CodeCapability[] =>
       toolDomainCapabilities(
         [],
-        {snapshot: host.runSync(Tool.Service.use((tools) => tools.snapshot())), agent: Agent.defaultId},
+        host.runSync(currentDomain(Agent.defaultId)),
+        currentDomain(Agent.defaultId),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )
@@ -519,7 +527,8 @@ describe('refusal text', () => {
     )
     const [guarded, promised, wrapped] = toolDomainCapabilities(
       [],
-      {snapshot: host.runSync(Tool.Service.use((tools) => tools.snapshot())), agent: Agent.defaultId},
+      host.runSync(currentDomain(Agent.defaultId)),
+      currentDomain(Agent.defaultId),
       (effect, signal) => host.runPromiseExit(effect, {signal}),
       () => undefined,
     )
@@ -622,14 +631,8 @@ describe('direct tools', () => {
     const capabilities = (sessionId: SessionId): CodeCapability[] =>
       toolDomainCapabilities(
         [builtin],
-        {
-          snapshot: host.runSync(
-            Tool.Service.use((tools) =>
-              tools.snapshot(sessionId === closed ? [{action: 'execute', resource: '*', effect: 'deny'}] : []),
-            ),
-          ),
-          agent: Agent.Id.make('plan'),
-        },
+        host.runSync(currentDomain(Agent.Id.make('plan'), sessionId === closed ? NO_EXECUTE : [])),
+        currentDomain(Agent.Id.make('plan'), sessionId === closed ? NO_EXECUTE : []),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )

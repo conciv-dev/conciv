@@ -8,7 +8,8 @@ Site helpers: fumadocs source loader, SEO and JSON-LD, OG image rendering, brand
 
 - `source`, `markdownPathToSlugs`, `slugsToMarkdownPath`, `getLLMText` (`source.ts`): fumadocs loader over `content/docs`
 - `getTrySession` (GET), `dismissTry` (POST) (`try-session.functions.ts`): `createServerFn` handlers for the try-it token and dismissal cookies
-- `mountLiveWidget({widgetOpen, tryParam})` (`mount-live-widget.ts`): loads `@conciv/embed`, the terminal and try-it extensions, and mounts the widget
+- `mountLiveWidget({widgetOpen, router})` (`mount-live-widget.ts`): loads `@conciv/embed`, the terminal and try-it extensions, mounts the widget, and keeps the panel in step with the root `?try` param
+- `panelCommands` (`panel-commands.ts`): the site's event-bus client for the widget panel's `open`/`close`/`toggle` commands
 - `shouldAutoOpen`, `shouldDismissOnClose`, `tryButtonLabel` (`try-state.ts`)
 - `pairResponse(token, origin)` (`pair-text.ts`): markdown instructions for `npx @conciv/try --token <token>`
 - `renderOgImageResponse`, `OG_IMAGE_CACHE_HEADERS` (`og-render.server.ts`), `loadOgFonts` (`og-fonts.server.ts`), `buildOgTree` (`og-template.tsx`), `clampOgText`, `MAX_OG_TITLE_LENGTH`, `MAX_OG_DESCRIPTION_LENGTH` (`og-limits.ts`)
@@ -27,6 +28,7 @@ Site helpers: fumadocs source loader, SEO and JSON-LD, OG image rendering, brand
 - `try-state.ts:shouldAutoOpen`: auto-opens only when not dismissed, no `?try`, no widget present and `widgetOpen`
 - `try-state.ts:shouldDismissOnClose`: dismiss only after the panel was opened and closed while not connected
 - `mount-live-widget.ts:mountLiveWidget`: does nothing if `[data-conciv-root]` already exists (checked before and after the dynamic imports)
+- `mount-live-widget.ts`: `?try=1` appearing opens the panel and disappearing (Back) closes it; closing the panel removes `?try` with a replace navigation
 - `og-limits.ts`: OG title is clamped to 70 chars, description to 140
 - `brand-assets.ts:brandAssetUrl`: throws `No brand asset emitted for <path>` for an unknown asset
 - `og-fonts.server.ts:loadOgFonts`: throws when a font asset fetch is not ok
@@ -34,7 +36,7 @@ Site helpers: fumadocs source loader, SEO and JSON-LD, OG image rendering, brand
 ## Side Effects
 
 - `try-session.functions.ts`: sets the `conciv-try-token` and `conciv-try-dismissed` cookies
-- `mount-live-widget.ts:mountLiveWidget`: appends `<meta name="conciv-widget">` to `document.head`, mounts the widget, listens to `PANEL_TOGGLED_EVENT` on `window` and calls `dismissTry`
+- `mount-live-widget.ts:mountLiveWidget`: appends `<meta name="conciv-widget">` to `document.head`, mounts the widget, subscribes to the router's `onResolved`, listens to `PANEL_TOGGLED_EVENT` on `window`, calls `dismissTry` and navigates to drop `?try`
 - `star-count-store.ts`: `fetch('/api/stars')` once per page
 - `og-fonts.server.ts:loadOgFonts`: `env.ASSETS.fetch` from `cloudflare:workers`
 - `use-media-query.ts`, `use-reduced-motion.ts`: `matchMedia` change listeners

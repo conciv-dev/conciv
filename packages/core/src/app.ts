@@ -78,6 +78,7 @@ import {
   answerPermission,
   followPermissionCards,
   pluginInstructions,
+  currentToolDomain,
   sessionToolDomain,
 } from './runtime/permission-cards.js'
 import {makePluginRuntime} from './runtime/plugin-runtime.js'
@@ -654,6 +655,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     toolDomainCapabilities(
       capabilities,
       pluginHost.runSync(sessionToolDomain(sessionId)),
+      currentToolDomain(sessionId),
       (effect, signal) => pluginHost.runPromiseExit(effect, {signal}),
       reportToolCollision,
     )

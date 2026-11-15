@@ -12,14 +12,14 @@ import type {Engine} from '@conciv/core/start'
 import {starsResponseSchema} from '../src/lib/star-count'
 import {createSiteTest, serveSite} from './helpers.js'
 
-const liveConnectTest = createSiteTest({port: 8787, inspectorPort: 9787})
-const mobileGatingTest = createSiteTest({port: 8788, inspectorPort: 9788})
-const robotFabTest = createSiteTest({port: 8794, inspectorPort: 9794})
+const liveConnectTest = createSiteTest()
+const mobileGatingTest = createSiteTest()
+const robotFabTest = createSiteTest()
 
 describe('brand assets', () => {
   const WebManifestSchema = z.object({icons: z.array(z.object({src: z.string()}))})
 
-  const ORIGIN = serveSite({port: 8795, inspectorPort: 9795})
+  const origin = serveSite()
 
   const BRAND_FAVICON_DIRECTORY = new URL(
     'favicon/',
@@ -52,7 +52,7 @@ describe('brand assets', () => {
   }
 
   async function fetchAsset(url: string) {
-    const response = await fetch(`${ORIGIN}${url}`)
+    const response = await fetch(`${origin()}${url}`)
     await response.arrayBuffer()
     return {url, status: response.status, contentType: response.headers.get('content-type') ?? ''}
   }
@@ -74,7 +74,7 @@ describe('brand assets', () => {
   }
 
   async function fetchHtml(path: string) {
-    const response = await fetch(`${ORIGIN}${path}`)
+    const response = await fetch(`${origin()}${path}`)
     const html = await response.text()
     return {status: response.status, html}
   }
@@ -152,7 +152,7 @@ describe('brand assets', () => {
     })
 
     it('points every webmanifest icon at a path the site serves', async () => {
-      const response = await fetch(`${ORIGIN}/site.webmanifest`)
+      const response = await fetch(`${origin()}/site.webmanifest`)
       const manifest = WebManifestSchema.parse(await response.json())
       const sources = manifest.icons.map((icon) => icon.src)
 
@@ -163,9 +163,6 @@ describe('brand assets', () => {
 })
 
 describe('live connect', () => {
-  const SITE_PORT = 8787
-  const ORIGIN = `http://127.0.0.1:${SITE_PORT}`
-
   const test = liveConnectTest
 
   let engine: Engine | null = null
@@ -174,8 +171,8 @@ describe('live connect', () => {
     await engine?.stop()
   })
 
-  async function openLandingOnConnectSteps(page: Page): Promise<Locator> {
-    await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
+  async function openLandingOnConnectSteps(page: Page, origin: string): Promise<Locator> {
+    await page.goto(origin, {waitUntil: 'domcontentloaded'})
     const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
     await expectLocator(panel.getByText('Drive this page with your agent.')).toBeVisible({timeout: 20_000})
     return panel
@@ -190,18 +187,55 @@ describe('live connect', () => {
   }
 
   test.describe('widget-native live connect on the built site', () => {
-    test('opens the panel for a click that lands before the widget bundle has mounted', async ({browser}) => {
+    test('opens the panel for a click that lands before the widget bundle has mounted', async ({browser, site}) => {
       const page = await browser.newPage()
-      await page.goto(`${ORIGIN}/?widget=false`, {waitUntil: 'domcontentloaded'})
-      await page.getByRole('button', {name: /Try it live/i}).click()
-      await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 20_000})
+      const hydrationHeld = Promise.withResolvers<void>()
+      await page.route(
+        /\/assets\/index-[^/]*\.js$/,
+        async (route) => {
+          await hydrationHeld.promise
+          await route.abort()
+        },
+        {times: 1},
+      )
+      await page.goto(`${site.origin}/?widget=false`, {waitUntil: 'commit'})
+      const tryLive = page.getByRole('link', {name: /Try it live/i})
+      const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
+      const documentNavigation = page.waitForRequest(
+        (request) => request.isNavigationRequest() && new URL(request.url()).searchParams.get('try') === '1',
+        {timeout: 10_000},
+      )
+      await tryLive.click()
+      await documentNavigation
+      hydrationHeld.resolve()
+      await expectLocator(panel).toBeVisible({timeout: 20_000})
+      await expectLocator(page).toHaveURL(/[?&]try=1/)
+
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await expectLocator(panel).toBeVisible({timeout: 20_000})
+
+      await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
+      await expectLocator(panel).toBeHidden({timeout: 10_000})
+      await expectLocator(page).not.toHaveURL(/[?&]try=/)
+
+      await tryLive.click()
+      await expectLocator(panel).toBeVisible({timeout: 10_000})
+      await expectLocator(page).toHaveURL(/[?&]try=1/)
+
+      await page.goBack()
+      await expectLocator(panel).toBeHidden({timeout: 10_000})
+      await expectLocator(page).not.toHaveURL(/[?&]try=/)
+
+      await page.goForward()
+      await expectLocator(panel).toBeVisible({timeout: 10_000})
+      await expectLocator(page).toHaveURL(/[?&]try=1/)
 
       await page.close()
-    }, 60_000)
+    }, 90_000)
 
-    test('boots the widget into connect steps and hands off in place to live chat', async ({browser}) => {
+    test('boots the widget into connect steps and hands off in place to live chat', async ({browser, site}) => {
       const page = await browser.newPage()
-      const panel = await openLandingOnConnectSteps(page)
+      const panel = await openLandingOnConnectSteps(page, site.origin)
 
       const command = await panel
         .getByText(/^npx @conciv\/try --token \S+$/)
@@ -214,7 +248,7 @@ describe('live connect', () => {
       engine = await runConnect({
         token,
         harnessAdapter: createFakeHarness({id: 'fake-e2e', text: 'hello from e2e'}),
-        origin: ORIGIN,
+        origin: site.origin,
       })
 
       const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
@@ -243,22 +277,22 @@ describe('live connect', () => {
       engine = null
     }, 180_000)
 
-    test('remembers a pre-connect dismissal, and ?try=1 forces the panel open again', async ({browser}) => {
+    test('remembers a pre-connect dismissal, and ?try=1 forces the panel open again', async ({browser, site}) => {
       const page = await browser.newPage()
-      const panel = await openLandingOnConnectSteps(page)
+      const panel = await openLandingOnConnectSteps(page, site.origin)
       await dismissAndReload(page, panel)
 
-      await page.goto(`${ORIGIN}/?try=1`, {waitUntil: 'domcontentloaded'})
+      await page.goto(`${site.origin}/?try=1`, {waitUntil: 'domcontentloaded'})
       await expectLocator(panel.getByText('Drive this page with your agent.')).toBeVisible({timeout: 20_000})
       await page.close()
     }, 90_000)
 
-    test('the button reopens the panel after a dismiss-then-reload re-entry', async ({browser}) => {
+    test('the button reopens the panel after a dismiss-then-reload re-entry', async ({browser, site}) => {
       const page = await browser.newPage()
-      const panel = await openLandingOnConnectSteps(page)
+      const panel = await openLandingOnConnectSteps(page, site.origin)
       await dismissAndReload(page, panel)
 
-      await page.getByRole('button', {name: /Try it live/i}).click()
+      await page.getByRole('link', {name: /Try it live/i}).click()
       await expectLocator(panel).toBeVisible({timeout: 20_000})
 
       await page.close()
@@ -267,30 +301,27 @@ describe('live connect', () => {
 })
 
 describe('mobile gating', () => {
-  const SITE_PORT = 8788
-  const ORIGIN = `http://127.0.0.1:${SITE_PORT}`
-
   const test = mobileGatingTest
 
   test.describe('landing gates the dev-only demo behind a non-mobile pointer', () => {
-    test('mounts the live widget and shows the install + try-it CTAs on desktop', async ({browser}) => {
+    test('mounts the live widget and shows the install + try-it CTAs on desktop', async ({browser, site}) => {
       const page = await browser.newPage()
-      await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
+      await page.goto(site.origin, {waitUntil: 'domcontentloaded'})
 
       await expectLocator(page.locator('[data-conciv-root]')).toHaveCount(1, {timeout: 20_000})
       await expectLocator(page.getByRole('button', {name: 'Copy install command'})).toBeVisible()
-      await expectLocator(page.getByRole('button', {name: /Try it live/i})).toBeVisible()
+      await expectLocator(page.getByRole('link', {name: /Try it live/i})).toBeVisible()
 
       await page.close()
     }, 60_000)
 
-    test('does not mount the live widget or the CTAs on a mobile device', async ({browser}) => {
+    test('does not mount the live widget or the CTAs on a mobile device', async ({browser, site}) => {
       const context = await browser.newContext(devices['iPhone 13'])
       const page = await context.newPage()
-      await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
+      await page.goto(site.origin, {waitUntil: 'domcontentloaded'})
 
       await expectLocator(page.getByRole('button', {name: 'Copy install command'})).toHaveCount(0, {timeout: 20_000})
-      await expectLocator(page.getByRole('button', {name: /Try it live/i})).toHaveCount(0)
+      await expectLocator(page.getByRole('link', {name: /Try it live/i})).toHaveCount(0)
       await expectLocator(page.locator('[data-conciv-root]')).toHaveCount(0)
       await expectLocator(page.getByText('desktop-only')).toBeVisible()
       await expectLocator(page.getByRole('link', {name: 'Read the quick start →'})).toBeVisible()
@@ -300,9 +331,9 @@ describe('mobile gating', () => {
   })
 
   test.describe('the live widget mounts site-wide and the root widget param decides the panel', () => {
-    test('shows the launcher with the panel closed on a docs page on desktop', async ({browser}) => {
+    test('shows the launcher with the panel closed on a docs page on desktop', async ({browser, site}) => {
       const page = await browser.newPage()
-      await page.goto(`${ORIGIN}/docs/quick-start`, {waitUntil: 'domcontentloaded'})
+      await page.goto(`${site.origin}/docs/quick-start`, {waitUntil: 'domcontentloaded'})
 
       await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 20_000})
       await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeHidden()
@@ -310,9 +341,9 @@ describe('mobile gating', () => {
       await page.close()
     }, 60_000)
 
-    test('auto-opens the panel on the home page without a widget param in the URL', async ({browser}) => {
+    test('auto-opens the panel on the home page without a widget param in the URL', async ({browser, site}) => {
       const page = await browser.newPage()
-      await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
+      await page.goto(site.origin, {waitUntil: 'domcontentloaded'})
 
       await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 20_000})
       expect(new URL(page.url()).searchParams.has('widget')).toBe(false)
@@ -320,9 +351,9 @@ describe('mobile gating', () => {
       await page.close()
     }, 60_000)
 
-    test('keeps the panel closed on the home page when ?widget=false is explicit', async ({browser}) => {
+    test('keeps the panel closed on the home page when ?widget=false is explicit', async ({browser, site}) => {
       const page = await browser.newPage()
-      await page.goto(`${ORIGIN}/?widget=false`, {waitUntil: 'domcontentloaded'})
+      await page.goto(`${site.origin}/?widget=false`, {waitUntil: 'domcontentloaded'})
 
       await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 20_000})
       await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeHidden()
@@ -330,9 +361,9 @@ describe('mobile gating', () => {
       await page.close()
     }, 60_000)
 
-    test('keeps the open panel mounted while navigating from the landing page to the docs', async ({browser}) => {
+    test('keeps the open panel mounted while navigating from the landing page to the docs', async ({browser, site}) => {
       const page = await browser.newPage()
-      await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
+      await page.goto(site.origin, {waitUntil: 'domcontentloaded'})
 
       const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
       await expectLocator(panel).toBeVisible({timeout: 20_000})
@@ -347,9 +378,10 @@ describe('mobile gating', () => {
 
     test('keeps a closed panel closed across navigation to the docs and back to the landing page', async ({
       browser,
+      site,
     }) => {
       const page = await browser.newPage()
-      await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
+      await page.goto(site.origin, {waitUntil: 'domcontentloaded'})
 
       const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
       await expectLocator(panel).toBeVisible({timeout: 20_000})
@@ -362,15 +394,15 @@ describe('mobile gating', () => {
       await expectLocator(panel).toBeHidden()
 
       await page.getByRole('link', {name: 'conciv', exact: true}).first().click()
-      await expectLocator(page).toHaveURL(`${ORIGIN}/`)
+      await expectLocator(page).toHaveURL(`${site.origin}/`)
       await expectLocator(panel).toBeHidden()
 
       await page.close()
     }, 60_000)
 
-    test('opens the panel on a docs page when ?widget=true is explicit', async ({browser}) => {
+    test('opens the panel on a docs page when ?widget=true is explicit', async ({browser, site}) => {
       const page = await browser.newPage()
-      await page.goto(`${ORIGIN}/docs/quick-start?widget=true`, {waitUntil: 'domcontentloaded'})
+      await page.goto(`${site.origin}/docs/quick-start?widget=true`, {waitUntil: 'domcontentloaded'})
 
       await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 20_000})
 
@@ -380,10 +412,6 @@ describe('mobile gating', () => {
 })
 
 describe('robot fab', () => {
-  const SITE_PORT = 8794
-  const ORIGIN = `http://127.0.0.1:${SITE_PORT}`
-  const LANDING = `${ORIGIN}/?widget=false`
-
   const test = robotFabTest
 
   const restingFab = (page: Page): Locator => page.getByRole('button', {name: 'Make the robot think'})
@@ -395,9 +423,9 @@ describe('robot fab', () => {
   const locateEmitter = (fab: Locator): Locator => fab.locator('[data-scope="mascot"][data-part="effect"] > span')
 
   test.describe('the landing robot fab rides the mascot compound api', () => {
-    test('leaves no mascot or emitter behind when the landing page unmounts', async ({browser}) => {
+    test('leaves no mascot or emitter behind when the landing page unmounts', async ({browser, site}) => {
       const page = await browser.newPage()
-      await page.goto(LANDING, {waitUntil: 'domcontentloaded'})
+      await page.goto(`${site.origin}/?widget=false`, {waitUntil: 'domcontentloaded'})
 
       const fab = restingFab(page)
       await expectLocator(fab).toBeVisible({timeout: 20_000})
@@ -410,7 +438,7 @@ describe('robot fab', () => {
       await expectLocator(page.locator('[data-scope="mascot"][data-part="effect"] > span')).toHaveCount(0)
 
       await page.getByRole('link', {name: 'conciv', exact: true}).first().click()
-      await expectLocator(page).toHaveURL(new RegExp(`${SITE_PORT}/(\\?|$)`))
+      await expectLocator(page).toHaveURL(new RegExp(`:${new URL(site.origin).port}/(\\?|$)`))
       const remounted = restingFab(page)
       await expectLocator(locateMascot(remounted)).toHaveCount(1)
       await expectLocator(locateEmitter(remounted)).toHaveCount(0)
@@ -421,14 +449,14 @@ describe('robot fab', () => {
 })
 
 describe('seo metadata', () => {
-  const ORIGIN = serveSite({port: 8793, inspectorPort: 9793})
+  const origin = serveSite()
 
   function extractTag(html: string, pattern: RegExp): string | undefined {
     return html.match(pattern)?.[1]
   }
 
   async function fetchHtml(path: string) {
-    const response = await fetch(`${ORIGIN}${path}`)
+    const response = await fetch(`${origin()}${path}`)
     const html = await response.text()
     return {response, html}
   }
@@ -476,7 +504,7 @@ describe('seo metadata', () => {
 
   describe('/api/stars', () => {
     it('returns a stars count and a cache-control header', async () => {
-      const response = await fetch(`${ORIGIN}/api/stars`)
+      const response = await fetch(`${origin()}/api/stars`)
       const body = starsResponseSchema.parse(await response.json())
 
       expect(response.status).toBe(200)
@@ -523,7 +551,7 @@ describe('seo metadata', () => {
     it.each([['/og.png'], ['/og/quick-start.png'], ['/og/index.png']])(
       'renders a PNG for %s',
       async (path) => {
-        const response = await fetch(`${ORIGIN}${path}`)
+        const response = await fetch(`${origin()}${path}`)
 
         expect(response.status).toBe(200)
         expect(response.headers.get('content-type')).toContain('image/png')
@@ -535,7 +563,7 @@ describe('seo metadata', () => {
     )
 
     it('404s for a docs page that does not exist', async () => {
-      const response = await fetch(`${ORIGIN}/og/does-not-exist.png`)
+      const response = await fetch(`${origin()}/og/does-not-exist.png`)
       expect(response.status).toBe(404)
     })
 
@@ -549,7 +577,7 @@ describe('seo metadata', () => {
 
   describe('the generated sitemap', () => {
     it('lists every prerendered page and every listed url resolves', async () => {
-      const response = await fetch(`${ORIGIN}/sitemap.xml`)
+      const response = await fetch(`${origin()}/sitemap.xml`)
       expect(response.status).toBe(200)
       expect(response.headers.get('content-type')).toContain('xml')
 
@@ -562,7 +590,7 @@ describe('seo metadata', () => {
 
       const statuses = await Promise.all(
         locs.map(async (url) => {
-          const pageResponse = await fetch(url.replace(SITE, ORIGIN))
+          const pageResponse = await fetch(url.replace(SITE, origin()))
           return pageResponse.status
         }),
       )
@@ -573,14 +601,14 @@ describe('seo metadata', () => {
 })
 
 describe('worker routes', () => {
-  const ORIGIN = serveSite({port: 8792, inspectorPort: 9792})
+  const origin = serveSite()
 
   function servedByWorker(response: Response): boolean {
     return response.headers.get('etag') === null && response.headers.get('cf-cache-status') === null
   }
 
   async function markdownRoutes(): Promise<string[]> {
-    const response = await fetch(`${ORIGIN}/llms.txt`)
+    const response = await fetch(`${origin()}/llms.txt`)
     expect(response.status).toBe(200)
     const index = await response.text()
     const docs = [...new Set([...index.matchAll(/\((\/docs[^)]*)\)/g)].flatMap((match) => match[1] ?? []))]
@@ -594,7 +622,7 @@ describe('worker routes', () => {
 
       const failures = await Promise.all(
         routes.map(async (route) => {
-          const response = await fetch(`${ORIGIN}${route}`)
+          const response = await fetch(`${origin()}${route}`)
           const body = await response.text()
           const broken = /Internal Server Error|Cannot find module|No such module|ReferenceError/i.test(body)
           if (!servedByWorker(response))
@@ -609,7 +637,7 @@ describe('worker routes', () => {
     }, 120_000)
 
     it('renders a not-found docs page through the worker rather than crashing', async () => {
-      const response = await fetch(`${ORIGIN}/docs/this-page-does-not-exist`)
+      const response = await fetch(`${origin()}/docs/this-page-does-not-exist`)
       expect(servedByWorker(response)).toBe(true)
       expect(response.status).toBe(404)
       expect(await response.text()).not.toMatch(/Internal Server Error|No such module/i)

@@ -28,12 +28,25 @@ export const Features = Schema.Struct({
 }).annotate({identifier: 'Plugin.Features'})
 export type Features = typeof Features.Type
 
+export const Chunk = Schema.Struct({file: Schema.String, code: Schema.String}).annotate({identifier: 'Plugin.Chunk'})
+
 export interface ExperimentalBundle extends Schema.Schema.Type<typeof ExperimentalBundle> {}
 export const ExperimentalBundle = Schema.Struct({
+  file: Schema.String,
   code: Schema.String,
   revision: Schema.String,
   options: Schema.Record(Schema.String, Schema.Json),
+  chunks: Schema.Array(Chunk),
 }).annotate({identifier: 'Plugin.ExperimentalBundle'})
+
+export interface ExperimentalChunks extends Schema.Schema.Type<typeof ExperimentalChunks> {}
+export const ExperimentalChunks = Schema.Struct({
+  revision: Schema.String,
+  chunks: Schema.Array(Chunk),
+}).annotate({identifier: 'Plugin.ExperimentalChunks'})
+
+export const ChunkNotFound = Schema.TaggedStruct('Plugin.ChunkNotFound', {file: Schema.String})
+export type ChunkNotFound = typeof ChunkNotFound.Type
 
 export const State = Schema.Union([
   Schema.Struct({status: Schema.Literal('active')}),

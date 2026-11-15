@@ -390,6 +390,7 @@ describe('chat plane', () => {
       toolDomainCapabilities(
         id === builtins ? [echo, secret] : [],
         host.runSync(sessionToolDomain(id)),
+        sessionToolDomain(id),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )
@@ -538,6 +539,7 @@ describe('chat plane', () => {
         toolDomainCapabilities(
           pinged,
           host.runSync(sessionToolDomain(id)),
+          sessionToolDomain(id),
           (effect, signal) => host.runPromiseExit(effect, {signal}),
           () => undefined,
         ),
@@ -3131,22 +3133,33 @@ describe('plugin rpc over the socket', () => {
 
       const inProcess = (rpcId: string, method: string, input: unknown) =>
         host.runPromise(Rpc.Service.use((rpc) => rpc.call(rpcId, method, input)).pipe(Effect.flip))
-      const failures: [string, string, unknown, string, () => Promise<unknown>][] = [
-        ['nobody', 'search', {query: 'docs'}, 'rpc.unavailable', () => api(Nobody).search({query: 'docs'})],
-        ['acme', 'missing', undefined, 'rpc.method_not_found', () => acme.missing()],
-        ['acme', 'search', {query: 1}, 'rpc.invalid_input', () => acme.search({query: 1})],
-        ['acme', 'explode', undefined, 'rpc.internal', () => acme.explode()],
-        ['acme', 'malformed', undefined, 'rpc.invalid_output', () => acme.malformed()],
+      const overHttp = makeRpcClient(`${served.origin}/t/${served.made.agentToken}`).plugin
+      const mistake = {status: 400, code: 'PLUGIN_RPC'}
+      const defect = {status: 500, code: 'PLUGIN_RPC_INTERNAL'}
+      const failures: [string, string, unknown, string, typeof mistake, () => Promise<unknown>][] = [
+        ['nobody', 'search', {query: 'docs'}, 'rpc.unavailable', mistake, () => api(Nobody).search({query: 'docs'})],
+        ['acme', 'missing', undefined, 'rpc.method_not_found', mistake, () => acme.missing()],
+        ['acme', 'search', {query: 1}, 'rpc.invalid_input', mistake, () => acme.search({query: 1})],
+        ['acme', 'explode', undefined, 'rpc.internal', defect, () => acme.explode()],
+        ['acme', 'malformed', undefined, 'rpc.invalid_output', defect, () => acme.malformed()],
       ]
-      for (const [rpcId, method, input, type, call] of failures) {
+      for (const [rpcId, method, input, type, answer, call] of failures) {
         const expected = await inProcess(rpcId, method, input)
         expect(expected.type).toBe(type)
         await expect(call()).rejects.toStrictEqual({type, message: expected.message})
+        await expect(overHttp.call({rpcId, method, input})).rejects.toMatchObject({
+          ...answer,
+          data: {type, message: expected.message},
+        })
       }
       await expect(acme.search({query: 'slow'})).rejects.toStrictEqual({
         type: 'limited',
         message: 'try later',
         data: {retryAfter: 5},
+      })
+      await expect(overHttp.call({rpcId: 'acme', method: 'search', input: {query: 'slow'}})).rejects.toMatchObject({
+        ...mistake,
+        data: {type: 'limited', message: 'try later', data: {retryAfter: 5}},
       })
 
       const connected = conciv.event.subscribe()[Symbol.asyncIterator]()
@@ -3243,6 +3256,7 @@ describe('plugin permission cards', () => {
       toolDomainCapabilities(
         [],
         host.runSync(sessionToolDomain(sessionId)),
+        sessionToolDomain(sessionId),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )
