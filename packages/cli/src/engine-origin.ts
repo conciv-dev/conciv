@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {z} from 'zod'
-import {differenceBy} from 'es-toolkit'
+import {differenceBy, partition} from 'es-toolkit'
 import {checkEngines, concivHome, type EngineRow} from '@conciv/db'
 import {makeRpcClient} from '@conciv/contract'
 import type {SessionId} from '@conciv/protocol/chat-types'
@@ -90,16 +90,24 @@ async function tabOwner(home: string, tab: SessionId): Promise<string> {
     )
   }
   const answers = await tabAnswers(first.live, tab, PROBE_MS)
-  if (answers.some((answer) => answer.open) || first.unreachable.length === 0) {
+  const [settled, unsettled] = partition(answers, (answer) => answer.error === null)
+  if (answers.some((answer) => answer.open) || (first.unreachable.length === 0 && unsettled.length === 0)) {
     return ownerAmong(tab, answers, first.unreachable)
   }
-  const second = await askAgain(home, first.unreachable)
+  const [second, retried] = await Promise.all([
+    askAgain(home, first.unreachable),
+    tabAnswers(
+      unsettled.map((answer) => answer.row),
+      tab,
+      ENGINE_READ_MS,
+    ),
+  ])
   const later = await tabAnswers(
     differenceBy(second.live, first.live, (row) => row.id),
     tab,
     ENGINE_READ_MS,
   )
-  return ownerAmong(tab, [...answers, ...later], second.unreachable)
+  return ownerAmong(tab, [...settled, ...retried, ...later], second.unreachable)
 }
 
 function tabAnswers(rows: EngineRow[], tab: SessionId, timeoutMs: number): Promise<TabAnswer[]> {

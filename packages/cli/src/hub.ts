@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {once} from 'node:events'
 import {z} from 'zod'
-import {differenceBy} from 'es-toolkit'
+import {differenceBy, partition} from 'es-toolkit'
 import {command, description, name, option, schema} from '@bomb.sh/router'
 import {ORPCError} from '@orpc/client'
 import {createMCPServer, type McpServer} from '@tanstack/ai-mcp/server'
@@ -123,7 +123,11 @@ type Checked = Awaited<ReturnType<typeof checkEngines>>
 
 type Silent = Checked['unreachable']
 
-type TabProbe = PromiseSettledResult<{row: EngineRow; answer: TabOpen}>
+type TabProbe = {row: EngineRow; answer: TabOpen | null; failure: unknown}
+
+type Candidate = {runner: Runner; unusable: null} | {runner: null; unusable: string}
+
+type Picked = {runner: Runner | null; unusable: string[]}
 
 async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<CliOutcome> {
   const home = concivHome({env})
@@ -385,28 +389,41 @@ async function pickRunner(home: string, headers: Record<string, string>): Promis
   if (first.live.length === 0 && first.unreachable.length === 0) {
     throw new Error(`no conciv dev server is running; start one and open its page (conciv home folder read: ${home})`)
   }
-  const checked = first.live.length > 0 ? first : await askAgain(home, first.unreachable)
-  if (checked.live.length === 0) throw new Error(`no conciv dev server answered: ${silence(checked.unreachable)}`)
-  return firstUsable(checked.live, headers, [])
+  const picked = await firstUsable(first.live, headers, [])
+  if (picked.runner !== null) return picked.runner
+  const second = await askAgain(home, first.unreachable)
+  const later = await firstUsable(
+    differenceBy(second.live, first.live, (row) => row.id),
+    headers,
+    picked.unusable,
+  )
+  if (later.runner !== null) return later.runner
+  throw noRunner(later.unusable, second.unreachable)
 }
 
-async function firstUsable(rows: EngineRow[], headers: Record<string, string>, unusable: string[]): Promise<Runner> {
+function noRunner(unusable: string[], silent: Silent): Error {
+  if (unusable.length === 0) return new Error(`no conciv dev server answered: ${silence(silent)}`)
+  const named = silent.length === 0 ? unusable : [...unusable, silence(silent)]
+  return new Error(`no conciv dev server this hub can use is running: ${named.join('; ')}`)
+}
+
+async function firstUsable(rows: EngineRow[], headers: Record<string, string>, unusable: string[]): Promise<Picked> {
   const [row, ...rest] = rows
-  if (row === undefined) throw new Error(`no conciv dev server this hub can use is running: ${unusable.join('; ')}`)
-  const runner = await runnerAt(row, headers)
-  if (!('unusable' in runner)) return runner
-  return firstUsable(rest, headers, [...unusable, `${row.root} (${runner.unusable})`])
+  if (row === undefined) return {runner: null, unusable}
+  const candidate = await runnerAt(row, headers)
+  if (candidate.runner !== null) return {runner: candidate.runner, unusable}
+  return firstUsable(rest, headers, [...unusable, `${row.root} (${candidate.unusable})`])
 }
 
-async function runnerAt(row: EngineRow, headers: Record<string, string>): Promise<Runner | {unusable: string}> {
+async function runnerAt(row: EngineRow, headers: Record<string, string>): Promise<Candidate> {
   const rpc = makeRpcClient(row.apiBase, {headers})
   return rpc.code.describe(undefined, {signal: AbortSignal.timeout(ENGINE_READ_MS)}).then(
-    (described) => ({root: row.root, rpc, described}),
-    (error: unknown) => {
-      if (engineTooOld(error)) return {unusable: TOO_OLD}
-      if (error instanceof ORPCError && error.code === 'NO_CODE_MODE') return {unusable: errorText(error)}
+    (described): Candidate => ({runner: {root: row.root, rpc, described}, unusable: null}),
+    (error: unknown): Candidate => {
+      if (engineTooOld(error)) return {runner: null, unusable: TOO_OLD}
+      if (error instanceof ORPCError && error.code === 'NO_CODE_MODE') return {runner: null, unusable: errorText(error)}
       logHub(`reading the tool descriptions of the conciv engine at ${row.root} failed; using the built-in text`, error)
-      return {root: row.root, rpc, described: null}
+      return {runner: {root: row.root, rpc, described: null}, unusable: null}
     },
   )
 }
@@ -422,30 +439,47 @@ function toolDescriptions(described: CodeDescriptions | null): Record<ToolName, 
 async function findOwner(home: string, tab: SessionId, headers: Record<string, string>): Promise<TabOwner> {
   const first = await liveEngines(home)
   const probes = await tabProbes(first.live, tab, PROBE_MS)
-  if (openAnswers(probes).length > 0 || first.unreachable.length === 0) {
+  const [settled, unsettled] = partition(probes, (probe) => probe.answer !== null)
+  if (openAnswers(probes).length > 0 || (first.unreachable.length === 0 && unsettled.length === 0)) {
     return ownerAmong(tab, probes, first.unreachable, headers)
   }
-  const second = await askAgain(home, first.unreachable)
+  const [second, retried] = await Promise.all([
+    askAgain(home, first.unreachable),
+    tabProbes(
+      unsettled.map((probe) => probe.row),
+      tab,
+      ENGINE_READ_MS,
+    ),
+  ])
   const later = await tabProbes(
     differenceBy(second.live, first.live, (row) => row.id),
     tab,
     ENGINE_READ_MS,
   )
-  return ownerAmong(tab, [...probes, ...later], second.unreachable, headers)
+  return ownerAmong(tab, [...settled, ...retried, ...later], second.unreachable, headers)
 }
 
 function tabProbes(rows: EngineRow[], tab: SessionId, timeoutMs: number): Promise<TabProbe[]> {
-  return Promise.allSettled(rows.map(async (row) => ({row, answer: await tabAnswer(row, tab, timeoutMs)})))
+  return Promise.all(
+    rows.map((row) =>
+      tabAnswer(row, tab, timeoutMs).then(
+        (answer): TabProbe => ({row, answer, failure: null}),
+        (failure: unknown): TabProbe => ({row, answer: null, failure}),
+      ),
+    ),
+  )
 }
 
 function openAnswers(probes: TabProbe[]): Array<{row: EngineRow; answer: TabOpen}> {
-  return probes.flatMap((probe) => (probe.status === 'fulfilled' && probe.value.answer.open ? [probe.value] : []))
+  return probes.flatMap((probe) =>
+    probe.answer !== null && probe.answer.open ? [{row: probe.row, answer: probe.answer}] : [],
+  )
 }
 
 function ownerAmong(tab: SessionId, probes: TabProbe[], silent: Silent, headers: Record<string, string>): TabOwner {
   const [only, second] = openAnswers(probes)
   const failures = [
-    ...probes.flatMap((probe) => (probe.status === 'rejected' ? [probe.reason] : [])),
+    ...probes.flatMap((probe) => (probe.answer === null ? [probe.failure] : [])),
     ...silent.map((entry) => new Error(`${entry.root} did not answer (${entry.error})`)),
   ]
   if (only === undefined) throw notOpen(tab, failures)
