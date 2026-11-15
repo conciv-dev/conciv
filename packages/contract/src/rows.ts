@@ -39,6 +39,9 @@ export const PersistedAttachmentSchema = z.object({
 })
 export type PersistedAttachment = z.infer<typeof PersistedAttachmentSchema>
 
+export const DraftItemSchema = z.object({key: z.string(), value: z.json()})
+export type DraftItem = z.infer<typeof DraftItemSchema>
+
 export const DraftRowSchema = z.object({
   sessionId: SessionId,
   text: z.string(),
@@ -46,6 +49,11 @@ export const DraftRowSchema = z.object({
   selectionEnd: z.number().int().min(0),
   attachments: z
     .array(PersistedAttachmentSchema)
+    .nullable()
+    .default([])
+    .transform((value) => value ?? []),
+  items: z
+    .array(DraftItemSchema)
     .nullable()
     .default([])
     .transform((value) => value ?? []),

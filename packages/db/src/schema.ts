@@ -1,5 +1,6 @@
 import {index, integer, primaryKey, sqliteTable, text, uniqueIndex} from 'drizzle-orm/sqlite-core'
 import type {Brand, Schema} from 'effect'
+import type {z} from 'zod'
 import type {
   NavigationEntry,
   PermissionRule,
@@ -36,12 +37,15 @@ export const sessions = sqliteTable(
 
 type PersistedAttachment = {id: string; type: string; name: string; contentType: string; data: string}
 
+type DraftItem = {key: string; value: z.core.util.JSONType}
+
 export const drafts = sqliteTable('drafts', {
   sessionId: text('session_id').primaryKey(),
   text: text('text').notNull(),
   selectionStart: integer('selection_start').notNull(),
   selectionEnd: integer('selection_end').notNull(),
   attachments: text('attachments', {mode: 'json'}).$type<PersistedAttachment[]>(),
+  items: text('items', {mode: 'json'}).$type<DraftItem[]>(),
   updatedAt: integer('updated_at').notNull(),
 })
 

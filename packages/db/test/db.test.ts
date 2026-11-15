@@ -16,7 +16,7 @@ import type {SessionRecord} from '@conciv/protocol/chat-types'
 import {openDb, type ConcivDb} from '../src/db.js'
 import {importLegacyThreads} from '../src/chat-thread-import.js'
 import {chatMessages, chatRuns, runMessages, runs, sessionHistory} from '../src/run-schema.js'
-import {sessions} from '../src/schema.js'
+import {drafts, sessions} from '../src/schema.js'
 import {readModel, runMessagesFor} from '../src/run-queries.js'
 import {
   closeHomeDb,
@@ -430,6 +430,29 @@ describe('db', () => {
       const metadata = {owner: 'review', round: 2, nested: {tags: ['a', 'b'], done: false}}
       db.update(sessions).set({metadata}).where(eq(sessions.id, 'conciv_old')).run()
       expect(db.select({metadata: sessions.metadata}).from(sessions).all()).toEqual([{metadata}])
+      client.close()
+    })
+  })
+
+  describe('draft items migration', () => {
+    it('gives an existing draft no items, which then holds a json list', () => {
+      const migration = readdirSync(drizzleDir).find((name) => name.endsWith('_draft_items')) ?? 'missing'
+      const client = beforeMigration(migration)
+      client
+        .prepare(
+          'INSERT INTO drafts (session_id, text, selection_start, selection_end, updated_at) VALUES (?, ?, ?, ?, ?)',
+        )
+        .run('conciv_old', 'an old draft', 0, 0, 1)
+
+      migrationsFrom(migration).forEach((name) => applyMigration(client, name))
+
+      const db = drizzle({client})
+      expect(db.select({text: drafts.text, items: drafts.items}).from(drafts).all()).toEqual([
+        {text: 'an old draft', items: null},
+      ])
+      const items = [{key: 'note:grab:c=1', value: {comment: 'make it blue', nested: {tags: ['a'], done: false}}}]
+      db.update(drafts).set({items}).where(eq(drafts.sessionId, 'conciv_old')).run()
+      expect(db.select({items: drafts.items}).from(drafts).all()).toEqual([{items}])
       client.close()
     })
   })
