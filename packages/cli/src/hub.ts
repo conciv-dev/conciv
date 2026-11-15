@@ -21,6 +21,7 @@ import {
 import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER, SessionId, type TabOpen} from '@conciv/protocol/chat-types'
 import type {PageQueueHandle, PageQueueProgress, PageQueueResult} from '@conciv/protocol/page-types'
 import type {InitHarnessId} from '@conciv/protocol/harness-types'
+import {PAGE_NAMESPACE} from '@conciv/plugin-page/rpc'
 import {HubAgentSchema} from './hub-agent.js'
 import cliManifest from '../package.json' with {type: 'json'}
 import type {CliOutcome} from './envelope.js'
@@ -71,7 +72,7 @@ const TaskIdParamsSchema = z.object({taskId: z.string().min(1)})
 
 const TaskRequestSchema = z.object({params: TaskIdParamsSchema})
 
-const PAGE_TOOL_PREFIX = 'page_'
+const PAGE_TOOL_PREFIX = `${PAGE_NAMESPACE}_`
 
 const PAGE_TOOLS_NOTE = `Page tools (external_${PAGE_TOOL_PREFIX}*) are offered only for a tab whose page is open and connected: if none are listed, that page is closed or still connecting, so ask the user to open the app in the browser and call again with that tab.`
 

@@ -16,6 +16,7 @@ import {
   SymbolicateSchema,
 } from '@conciv/protocol/page-types'
 
+export const PAGE_NAMESPACE = 'page'
 export const MAX_FILE_BYTES = 5 * 1024 * 1024
 export const MAX_TEXT = 100_000
 const text = z.string().max(MAX_TEXT)
