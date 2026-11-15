@@ -386,12 +386,12 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
           </Show>
           <For each={anchors().flatMap((message) => markerRowsAfter(message?.id))}>{renderDivider}</For>
           <Show when={turnHarnessName(source)}>{(name) => <span class={HARNESS_LABEL}>{name()}</span>}</Show>
-          <Show when={source.role === 'user'}>
-            <SentNotes messages={() => source.turn().messages} />
-          </Show>
         </>
       )
     }
+    const renderPromptSuffix = (source: TurnPrefixSource, besideText: boolean): JSX.Element => (
+      <SentNotes messages={() => source.turn().messages} bounded={besideText} />
+    )
     return (
       <div class="contents">
         <ExtensionSurface name="header" instances={instances} />
@@ -421,6 +421,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                       attachmentCards={attachments().cards}
                       components={{ToolFallback: toolFallbackCard}}
                       turnPrefix={renderTurnPrefix}
+                      promptSuffix={renderPromptSuffix}
                       pageSession={PAGE_SESSION}
                       refreshDisabled={!messaging.resendAllowed()}
                     />

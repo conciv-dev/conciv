@@ -17,7 +17,9 @@ const FALLBACK_ICON: IconName = 'message-square'
 const SENT_NOTE_BOUND = 5
 
 const CARD =
-  'flex flex-col justify-center gap-0.5 h-14 min-w-24 max-w-56 ps-2.5 pe-7 rounded-[var(--chat-radius-md)] [border:1px_solid_var(--chat-line)] [background:var(--chat-fill)]'
+  'flex flex-col justify-center gap-0.5 h-14 ps-2.5 pe-7 rounded-[var(--chat-radius-md)] [border:1px_solid_var(--chat-line)] [background:var(--chat-fill)]'
+const STAGED_CARD = `${CARD} min-w-24 max-w-56`
+const SENT_CARD = `${CARD} w-full`
 const HEADING = 'block truncate text-[length:var(--chat-text-sm)] [color:var(--chat-text-hi)]'
 const META = 'flex items-center gap-1 min-w-0 text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)]'
 const REMOVE_WRAPPER = 'absolute end-0.5 top-0.5'
@@ -39,9 +41,9 @@ function noteSubtitle(note: NoteComment): string {
   return note.subtitle?.trim() || note.label
 }
 
-function NoteChip(props: {note: NoteComment}): JSX.Element {
+function NoteChip(props: {note: NoteComment; wide?: boolean}): JSX.Element {
   return (
-    <div class={CARD}>
+    <div class={props.wide ? SENT_CARD : STAGED_CARD}>
       <TruncatedText class={HEADING} text={noteHeading(props.note)} />
       <span class={META}>
         <Dynamic component={icons[noteIcon(props.note.icon)]} size={12} class="shrink-0" aria-hidden="true" />
@@ -121,26 +123,27 @@ export function ComposerNotes(props: {session: Accessor<MountedSession | undefin
   )
 }
 
-export function SentNotes(props: {messages: Accessor<readonly ChatMessage[]>}): JSX.Element {
+export function SentNotes(props: {messages: Accessor<readonly ChatMessage[]>; bounded: boolean}): JSX.Element {
   const [state, setState] = createStore({expanded: false})
   const notes = createMemo(() =>
     props.messages().flatMap((message) => readPromptPresentation(message.metadata)?.comments ?? []),
   )
-  const shown = createMemo(() => (state.expanded ? notes() : notes().slice(0, SENT_NOTE_BOUND)))
+  const collapsed = () => props.bounded && !state.expanded
+  const shown = createMemo(() => (collapsed() ? notes().slice(0, SENT_NOTE_BOUND) : notes()))
 
   return (
     <Show when={notes().length > 0}>
-      <div class="flex flex-col items-end gap-1 self-end max-w-full">
-        <ul aria-label="Notes on this message" class="flex flex-wrap justify-end gap-1 list-none p-0">
+      <div class="flex flex-col items-start gap-2 w-full max-w-80">
+        <ul aria-label="Notes on this message" class="flex flex-col gap-2 w-full list-none p-0">
           <For each={shown()}>
             {(note) => (
               <li>
-                <NoteChip note={note} />
+                <NoteChip note={note} wide />
               </li>
             )}
           </For>
         </ul>
-        <Show when={!state.expanded && notes().length > SENT_NOTE_BOUND}>
+        <Show when={collapsed() && notes().length > SENT_NOTE_BOUND}>
           <Button variant="ghost" size="sm" onClick={() => setState('expanded', true)}>
             Show more
           </Button>

@@ -58,10 +58,12 @@ import {
   ANSWER_ROW_CLASS,
   ASSISTANT_ROOT_CLASS,
   PROMPT_GUTTER_CLASS,
+  PROMPT_BODY_CLASS,
   PROMPT_ROOT_CLASS,
   PROMPT_TEXT_CLASS,
   PROMPT_TIME_CLASS,
   TURN_FRAME_CLASS,
+  TURN_INDENT_CLASS,
   TURN_LEAD_CLASS,
 } from './turn-classes.js'
 import {AttachmentByMime, type AttachmentCardSlot} from './attachment-dispatch.js'
@@ -90,6 +92,7 @@ export type ThreadMessagesProps = {
   components?: ThreadComponents
   tools?: ToolCardEntry[]
   turnPrefix?: (turn: TurnPrefixSource) => JSX.Element
+  promptSuffix?: (turn: TurnPrefixSource, besideText: boolean) => JSX.Element
   attachmentCards?: readonly AttachmentCardSlot[]
   pageSession?: PageSessionConfig
   grouping?: Grouping
@@ -285,8 +288,8 @@ function AssistantTurn(props: {
   }
   const groupEntries = createMemo<GroupEntry[]>(() => {
     const chain: GroupEntry = {key: CHAIN_GROUP_KEY, render: ChainGroup}
-    const config = props.pageSession
-    return [chain, ...(config ? [config.entry] : []), ...(props.groupEntries ?? [])]
+    const pageSession = props.pageSession
+    return [chain, ...(pageSession ? [pageSession.entry] : []), ...(props.groupEntries ?? [])]
   })
   const entryFor = (key: GroupKey) => groupEntries().find((entry) => entry.key === key)
   const PartLeaf = (leafProps: {node: GroupNodePart}): JSX.Element => {
@@ -403,14 +406,24 @@ function UserTurn(): JSX.Element {
           <Message.Attachments components={{Image: AttachmentCard, Document: AttachmentCard}} />
         </div>
       </Message.If>
-      <Show when={promptText()}>
+      <Show
+        when={promptText()}
+        fallback={
+          <div class={`${TURN_INDENT_CLASS} empty:hidden`}>
+            <PromptSuffix besideText={false} />
+          </div>
+        }
+      >
         <Message.Root data-conciv-msg class={PROMPT_ROOT_CLASS}>
           <span class={PROMPT_GUTTER_CLASS} aria-hidden="true">
             ❯
           </span>
-          <span class={PROMPT_TEXT_CLASS}>
-            <HighlightedText text={promptText()} />
-          </span>
+          <div class={PROMPT_BODY_CLASS}>
+            <span class={PROMPT_TEXT_CLASS}>
+              <HighlightedText text={promptText()} />
+            </span>
+            <PromptSuffix besideText />
+          </div>
           <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
         </Message.Root>
       </Show>
@@ -423,6 +436,7 @@ type ThreadConfig = {
   fallback: () => ToolCardView
   assistant: () => Component | undefined
   turnPrefix: () => ((turn: TurnPrefixSource) => JSX.Element) | undefined
+  promptSuffix: () => ((turn: TurnPrefixSource, besideText: boolean) => JSX.Element) | undefined
   attachmentCards: () => readonly AttachmentCardSlot[]
   pageSession: () => PageSessionConfig | undefined
   grouping: () => Grouping | undefined
@@ -436,6 +450,7 @@ const ThreadConfigContext = createContext<ThreadConfig>({
   fallback: () => toolFallbackCardView,
   assistant: () => undefined,
   turnPrefix: () => undefined,
+  promptSuffix: () => undefined,
   attachmentCards: () => [],
   pageSession: () => undefined,
   grouping: () => undefined,
@@ -450,6 +465,16 @@ function TurnPrefix(): JSX.Element {
   return (
     <Show when={config.turnPrefix()}>
       {(prefix) => prefix()({key: message.key, role: message.role, turn: message.message})}
+    </Show>
+  )
+}
+
+function PromptSuffix(props: {besideText: boolean}): JSX.Element {
+  const config = useContext(ThreadConfigContext)
+  const message = useMessage()
+  return (
+    <Show when={config.promptSuffix()}>
+      {(suffix) => suffix()({key: message.key, role: message.role, turn: message.message}, props.besideText)}
     </Show>
   )
 }
@@ -541,7 +566,7 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
   const estimator = internal
     ? createTurnEstimator(internal.element, {
         grouping: () => props.grouping ?? createGrouping(props.pageSession, props.tools ?? []),
-        exactAllowed: () => props.turnPrefix === undefined,
+        exactAllowed: () => props.turnPrefix === undefined && props.promptSuffix === undefined,
         disabled: () => props.components?.AssistantMessage !== undefined,
       })
     : undefined
@@ -552,6 +577,7 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
         fallback: () => props.components?.ToolFallback ?? toolFallbackCardView,
         assistant: () => props.components?.AssistantMessage,
         turnPrefix: () => props.turnPrefix,
+        promptSuffix: () => props.promptSuffix,
         attachmentCards: () => props.attachmentCards ?? [],
         pageSession: () => props.pageSession,
         grouping: () => props.grouping,

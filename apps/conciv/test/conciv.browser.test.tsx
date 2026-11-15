@@ -6728,6 +6728,9 @@ module.exports = {default: {stores: {
         for (const index of [1, 2, 3, 4, 5, 6]) props.screen.composer.attach(fixtureNote('s' + index, 'note number ' + index))
         props.screen.composer.insert('six notes')
       }),
+      button('Attach six notes alone', () => {
+        for (const index of [1, 2, 3, 4, 5, 6]) props.screen.composer.attach(fixtureNote('a' + index, 'alone note ' + index))
+      }),
       button('Attach drawn notes', () => {
         props.screen.composer.attach(drawnNote('d1', 'a card it draws'))
         props.screen.composer.attach(drawnNote('d2', 'a card it declines'))
@@ -6967,7 +6970,8 @@ module.exports = {default: {setup(ctx) {
     const sentLists = () => page.getByRole('list', {name: 'Notes on this message'})
     const sentCard = (text: string) => sentLists().getByRole('listitem').filter({hasText: text}).first()
     const sentence = () => page.getByText(/The user made the following comment/)
-    const typed = (text: string) => page.getByRole('tabpanel', {name: 'Chat'}).getByText(text, {exact: true}).first()
+    const chatPanel = () => page.getByRole('tabpanel', {name: 'Chat'})
+    const typed = (text: string) => chatPanel().getByText(text, {exact: true}).first()
     const title = () => page.getByLabelText('Session: noted', {exact: true})
     const refused = await faults.install({kind: 'chat-refused', status: 500})
     harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, [], {transport: 'fetch'})
@@ -7042,7 +7046,17 @@ module.exports = {default: {setup(ctx) {
     await expect.element(title()).toBeInTheDocument()
     await expect.element(sentence()).not.toBeInTheDocument()
     await expect.element(sentCard('the changed comment')).toHaveTextContent('the changed commentFixture note')
+    await expect.element(chatPanel()).toMatchTextContent(/❯notedthe changed commentFixture note/)
     await expect.element(sentCard('a card it draws')).toHaveTextContent('a card it drawsDrawn note')
+
+    await tab('Fixture tools').click()
+    await control('Attach six notes alone').click()
+    await tab('Chat').click()
+    await expect.element(card('alone note 6')).toBeVisible()
+    await userEvent.click(editor())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(sentCard('alone note 6')).toBeVisible()
+    await expect.element(control('Show more')).not.toBeInTheDocument()
 
     await tab('Fixture tools').click()
     await control('Attach six notes').click()
@@ -7056,6 +7070,7 @@ module.exports = {default: {setup(ctx) {
     await control('Show more').click()
     await expect.element(sentCard('note number 6')).toBeVisible()
     await expect.element(control('Show more')).not.toBeInTheDocument()
+    await expect.element(chatPanel()).toMatchTextContent(/❯six notesnote number 1/)
 
     harness.dispose()
     harness.mountShell(`/panel/${sessionId}?open=true`)
@@ -7066,6 +7081,7 @@ module.exports = {default: {setup(ctx) {
     await expect.element(sentCard('the changed comment')).toBeVisible()
     await expect.element(sentCard('note number 5')).toBeVisible()
     await expect.element(sentCard('note number 6')).not.toBeInTheDocument()
+    await expect.element(sentCard('alone note 6')).toBeVisible()
     await expect.element(control('Show more')).toBeVisible()
   }, 90_000)
 
