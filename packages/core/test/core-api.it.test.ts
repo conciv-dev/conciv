@@ -5536,6 +5536,10 @@ describe('page action queue delivery', () => {
       if (!pages.signal.aborted) throw error
     })
     const queueEvents = () => seen.flatMap((chunk) => pageQueueEvent.parse(chunk) ?? [])
+    const cards = (queueId: string) =>
+      seen.filter(
+        (chunk) => chunk.type === ChatEventType.TOOL_CALL_START && chunk.toolCallId === `page-queue-${queueId}`,
+      )
     const seenChunk = async (matches: (chunk: ChatEvent) => boolean): Promise<void> => {
       if (seen.some(matches)) return
       await once(arrivals, 'chunk')
@@ -5581,6 +5585,7 @@ describe('page action queue delivery', () => {
       discover,
       close,
       queueEvents,
+      cards,
       finishedEvent,
       followUpFinished,
       runIds,
@@ -5672,7 +5677,7 @@ describe('page action queue delivery', () => {
     expect(JSON.stringify(await page.hub('return 1'))).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
   }, 5000)
 
-  it('a page.queue.wait its caller aborts as the queue finishes keeps the result owed, so it leads the next reply once', async () => {
+  it('a page.queue.wait its caller aborts as the queue finishes keeps the result owed, so it leads the next reply once, with one finished event and one card', async () => {
     const page = await engineWithTab()
     const {queueId} = parseHandle(await page.hub(queued()))
     const onTab = await page.nextQueue()
@@ -5690,6 +5695,7 @@ describe('page action queue delivery', () => {
     expect(JSON.stringify(await page.hub('return 1'))).toContain(notice)
     expect(JSON.stringify(await page.hub('return 2'))).not.toContain(notice)
     expect(page.queueEvents().filter((event) => event.queueId === queueId)).toHaveLength(1)
+    expect(page.cards(queueId)).toHaveLength(1)
   }, 5000)
 
   it('a code.execute its caller aborts hands over no finished result, so that result leads the next reply', async () => {
