@@ -295,12 +295,9 @@ function Root(props: FormProps): JSX.Element {
     chat.setView('draft', '')
     setState({attachments: [], quote: null, items: []})
   }
-  const setItem = (item: ComposerItem) => {
-    setState('items', (current) => {
-      const index = current.findIndex((value) => value.key === item.key)
-      if (index < 0) return [...current, item]
-      return current.toSpliced(index, 1, item)
-    })
+  const addItem = (item: ComposerItem) => {
+    if (state.items.some((value) => value.key === item.key)) return
+    setState('items', (current) => [...current, item])
   }
   const removeItem = (key: string) => {
     setState('items', (current) => current.filter((value) => value.key !== key))
@@ -374,7 +371,7 @@ function Root(props: FormProps): JSX.Element {
         quote: () => state.quote,
         setQuote: (value) => setState('quote', value),
         items: () => state.items,
-        setItem,
+        addItem,
         removeItem,
         updateItem,
         editing: () => state.editing,

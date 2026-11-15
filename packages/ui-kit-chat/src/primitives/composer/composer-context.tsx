@@ -22,7 +22,7 @@ export type ComposerContextValue = {
   quote: Accessor<string | null>
   setQuote: (value: string | null) => void
   items: Accessor<ComposerItem[]>
-  setItem: (item: ComposerItem) => void
+  addItem: (item: ComposerItem) => void
   removeItem: (key: string) => void
   updateItem: (key: string, value: JsonValue) => void
   editing: Accessor<boolean>

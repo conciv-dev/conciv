@@ -1030,7 +1030,7 @@ describe('composer completion', () => {
     return {composer: captured, unmount: mounted.unmount}
   }
 
-  it('keeps its items by key through a restore, a failed send and a reload', async () => {
+  it('attaching the same key twice keeps the first, and the items outlive a restore, a failed send and a reload', async () => {
     const probe = createProbeStorage()
     const [sendError, setSendError] = createSignal('')
     const handlers: ComposerHandlers = {
@@ -1045,11 +1045,11 @@ describe('composer completion', () => {
     ))
     const first = mountItemsComposer(probe.storage, handlers)
 
-    first.composer.setItem({key: 'note:grab:c=1', value: {comment: 'make it blue'}})
-    first.composer.setItem({key: 'note:grab:c=1', value: {comment: 'make it red'}})
-    first.composer.setItem({key: 'note:recorder:c=2', value: ['a', 1, null]})
+    first.composer.addItem({key: 'note:grab:c=1', value: {comment: 'make it blue'}})
+    first.composer.addItem({key: 'note:grab:c=1', value: {comment: 'make it red'}})
+    first.composer.addItem({key: 'note:recorder:c=2', value: ['a', 1, null]})
     await expect
-      .element(page.getByText('items: note:grab:c=1={"comment":"make it red"} note:recorder:c=2=["a",1,null]'))
+      .element(page.getByText('items: note:grab:c=1={"comment":"make it blue"} note:recorder:c=2=["a",1,null]'))
       .toBeVisible()
 
     first.composer.updateItem('note:grab:c=1', {comment: 'make it green'})

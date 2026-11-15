@@ -55,7 +55,7 @@ function Frame(): JSX.Element {
         quote: () => null,
         setQuote: () => {},
         items: () => [],
-        setItem: () => {},
+        addItem: () => {},
         removeItem: () => {},
         updateItem: () => {},
         editing: () => false,
