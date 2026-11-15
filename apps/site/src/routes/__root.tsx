@@ -14,7 +14,7 @@ const TWITTER_IMAGE = `${SITE}${TWITTER_CARD_URL}`
 
 export const Route = createRootRoute({
   validateSearch: rootSearchSchema,
-  search: {middlewares: [retainSearchParams(['widget'])]},
+  search: {middlewares: [retainSearchParams(['widget', 'try'])]},
   beforeLoad: ({matches}) => ({
     widgetHomeDefault: matches.some((match) => match.routeId === '/'),
   }),
