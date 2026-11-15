@@ -57,3 +57,4 @@ conciv({widget: {transport: 'websocket'}}) // never probe, always /rpc-ws
 ## Verification
 
 - Run: `pnpm exec turbo run test --filter=@conciv/embed` from the repo root (turbo builds the package and its dependencies first) (builds `vite.handle.config.ts`, then runs vitest and Playwright)
+- The embed IT (`test/e2e/embed.it.test.ts`) needs the handle fixture `test/dist/conciv-handle.global.js`, which only the package's own `test` script builds (`vite.handle.config.ts`): `turbo run build --filter=@conciv/embed` does not build it.
