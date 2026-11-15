@@ -135,7 +135,7 @@ export const layer = Layer.effectDiscard(
     const activate = Effect.fn('PluginSupervisor.activate')(function* () {
       const current = ++generation
       const pre = [...internal.pre, ...sdk.all(), ...instance.all()]
-      const post = internal.post
+      const post = [...internal.post, ...instance.post()]
       const operations = yield* sources.operations()
       const immediate = yield* resolve(modules, pre, post, operations, false, running)
       const source = (source: Plugin.Source) =>

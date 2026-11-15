@@ -6,6 +6,7 @@ import {Deferred, Duration, Effect, Fiber, Layer, LayerMap, Schedule} from 'effe
 import {TestClock} from 'effect/testing'
 import {Bus} from '../../../src/core/bus.js'
 import {Watcher} from '../../../src/core/filesystem/watcher.js'
+import {Agent} from '../../../src/core/agent.js'
 import {Plugin} from '../../../src/core/plugin.js'
 import {SdkPlugins} from '../../../src/core/plugin/sdk.js'
 import {Rpc} from '../../../src/core/rpc.js'
@@ -86,6 +87,55 @@ const failed = (plugins: Plugin.Interface) =>
   )
 
 describe('PluginSupervisor reload', () => {
+  it.live(
+    'a host plugin activated last reaches an agent a project plugin adds, also after that plugin reloads',
+    () =>
+      Effect.gen(function* () {
+        const directory = yield* tmpdirScoped()
+        const file = path.join(directory.path, 'external/reviewer/index.ts')
+        const reviewer = (version: number) => `export default {
+  id: "reviewer",
+  async setup(ctx) {
+    await ctx.agent.transform((editor) => editor.update("reviewer", (agent) => { agent.description = "v${version}" }))
+  },
+}`
+        const ask = {action: 'page_eval', resource: '*', effect: 'ask'} as const
+        const everyAgentAsks = define({
+          id: 'every-agent-asks',
+          effect: (ctx) =>
+            ctx.agent
+              .transform((editor) => editor.list().forEach((agent) => agent.permissions.push(ask)))
+              .pipe(Effect.asVoid),
+        })
+        yield* Effect.promise(() => write(file, reviewer(1)))
+        const watcher = yield* Watcher.Test
+        const locations = yield* LayerMap.make(
+          (location: string) => supervisorLayer(location, {configured: [path.dirname(file)], post: [everyAgentAsks]}),
+          {idleTimeToLive: Duration.infinity},
+        )
+        yield* Effect.gen(function* () {
+          const plugins = yield* Plugin.Service
+          const agents = yield* Agent.Service
+          const asked = (description: string) =>
+            agents.get(Agent.Id.make('reviewer')).pipe(
+              Effect.flatMap((agent) =>
+                agent?.description === description ? Effect.succeed(agent.permissions) : Effect.fail('not reloaded'),
+              ),
+              Effect.retry({times: 80, schedule: Schedule.spaced('25 millis')}),
+            )
+          yield* plugins.awaitActivation
+          expect(yield* asked('v1')).toContainEqual(ask)
+
+          yield* Effect.promise(async () => {
+            await write(file, reviewer(2))
+            await fs.utimes(file, new Date(), new Date(Date.now() + 1000))
+          })
+          yield* watcher.emit({path: file, type: 'update'})
+          expect(yield* asked('v2')).toContainEqual(ask)
+        }).pipe(Effect.scoped, Effect.provide(locations.get(directory.path)))
+      }),
+    30_000,
+  )
   ;(
     [
       {name: 'on a helper-only save', helper: 'nested/helper.ts', touchEntry: false},
