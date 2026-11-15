@@ -35,7 +35,39 @@ as soon as the server mounts it; the CLI itself ships no extension code.
 - `conciv tools tabs` - list every open conciv tab on this machine, from any folder
 
 Add `--tab <id>` (an id from `conciv tools tabs`) to any command to act on that tab, on whichever dev
-server holds it. The tab's page asks the user to allow the CLI the first time.
+server holds it.
+
+## Who is asked
+
+Some tools ask first: running code in the page, reloading or restarting the dev server, clearing or
+deleting on the whiteboard, resolving or deleting comments, building or running the iOS app. Who is
+asked depends on how the CLI found the dev server:
+
+- Inside the project, the CLI acts on your latest chat (an agent conciv started acts on its own).
+  Unless an earlier approval still covers the call, an asking tool shows the Approve card in the tab,
+  and the CLI gets an error saying the call needs the user. Run the command again once they approve.
+  For these tools the card offers Approve and Deny: one Approve lets exactly one later call of that
+  tool through; after that, or after a Deny (which is not kept), the next call asks again. An Approve
+  given inside a chat turn does not carry over to the CLI.
+- With `--tab`, the CLI is an outside agent that named its tab. Nobody is asked: an asking tool runs
+  with no Approve card.
+- With no `.conciv/server.json` in this folder or a parent and no `CONCIV_PORT`, the CLI uses the most
+  recently started dev server on this machine and acts on that server's latest chat. It is an outside
+  agent that named no tab, so an asking tool still shows the Approve card in the tab, on the same
+  terms as inside the project. A
+  `.conciv/server.json` left over from a stopped server still counts: the CLI uses it and fails with
+  `No conciv dev server on 127.0.0.1:<port>.`
+
+Outside agents get one more card only when the project sets `hubAccess` to `'session'` (an Allow card
+per tab) or `'project'` (one for the whole project); the call waits for the answer. Once the user
+allows, later calls run with no card until an agent is disconnected from conciv, which asks again.
+Once the user denies, later calls are refused with no card until they choose Allow outside agents in
+the tab. The default, `'open'`, asks nothing.
+
+Whoever holds the engine's token is the owner. The CLI reads it from the project's `.conciv` folder,
+and conciv hands it to the agents it starts. The Approve and Allow cards guard against the model's
+mistakes inside a chat turn, not against another program running as you on this machine. The engine
+listens on this machine only.
 
 These commands, and their `--help`, need the dev server running; without one they print the
 "No conciv dev server" error with how to start it. Every command prints one JSON document on stdout
