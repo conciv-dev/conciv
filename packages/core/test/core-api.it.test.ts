@@ -148,6 +148,7 @@ import {onError, ORPCError, os, type RouterClient} from '@orpc/server'
 import WebSocket from 'ws'
 import {Effect, ManagedRuntime, Schema} from 'effect'
 import * as Page from '@conciv/plugin-page/rpc'
+import {pageTabs, type PageReply, type PageTab} from '@conciv/plugin-page-testkit/page-tabs'
 import {z} from 'zod'
 import {makeApp, type MadeApp} from '../src/app.js'
 import {callTrace} from '../src/api/call-trace.js'
@@ -196,127 +197,9 @@ function sharedKit(boot: () => Promise<Kit>): () => Kit {
   }
 }
 
-type PageReply = z.input<typeof Page.Outcome>
-
-type PageAnswer = (command: Page.Command, requestId: string) => PageReply | undefined
-
-type PageTab = {
-  wake: () => void
-  end: () => void
-  seen: () => string[]
-  focus: (focused: boolean) => Promise<void>
-  requested: () => Promise<string>
-  cancelled: (requestId: string) => Promise<void>
-  command: (requestId: string) => Promise<Page.Command>
-  reply: (requestId: string, outcome: PageReply) => Promise<void>
-}
-
-type TabLook = {url: string; title: string; focused: boolean; visible: boolean}
-
-type OpenTab = (sessionId: string, answerFor: PageAnswer, look?: Partial<TabLook>) => Promise<PageTab>
-
 const ONE_PIXEL_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 const ONE_PIXEL_WEBP =
   'UklGRh4CAABXRUJQVlA4WAoAAAAgAAAAAAAAAAAASUNDUMgBAAAAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADZWUDggMAAAAPABAJ0BKgEAAQABQCYloAJ0ugH4AAUhAAD+y7f/2ln6ln6ln+PL/5sCua59zQAAAA=='
-
-function pageTabs(): {plugin: Plugin.Plugin; open: OpenTab} {
-  type Answering = {
-    sessionId: SessionId
-    answerFor: PageAnswer
-    seen: string[]
-    requests: string[]
-    cancels: string[]
-    heard: EventTarget
-  }
-  const answering = new Map<string, Answering>()
-  const attached = new EventTarget()
-  const ready = Promise.withResolvers<OpenTab>()
-  const plugin = Plugin.define({
-    id: 'page-tab-fixture',
-    async setup(ctx) {
-      const page = ctx.rpc(Page.Definition)
-      const stop = new AbortController()
-      page.events.on(
-        'control',
-        async ({data: control}) => {
-          if (control.type === 'attached') attached.dispatchEvent(new Event(control.connectionId))
-          const tab = answering.get(control.connectionId)
-          if (control.type === 'attached' || tab === undefined) return
-          const {connectionId, requestId} = control
-          if (control.type === 'cancel') {
-            tab.cancels.push(requestId)
-            tab.heard.dispatchEvent(new Event('cancel'))
-            return
-          }
-          tab.requests.push(requestId)
-          tab.heard.dispatchEvent(new Event('command'))
-          const command = await page.command({sessionId: tab.sessionId, connectionId, requestId})
-          tab.seen.push(`page_${command.action.type}`)
-          const outcome = tab.answerFor(command, requestId)
-          if (outcome === undefined) return
-          await page.result({sessionId: tab.sessionId, connectionId, requestId, outcome})
-        },
-        {signal: stop.signal},
-      )
-      ready.resolve(async (session, answerFor, look = {}) => {
-        const sessionId = SessionId.parse(session)
-        const connectionId = `conn_${randomUUID()}`
-        const closing = new AbortController()
-        const seen: string[] = []
-        const requests: string[] = []
-        const cancels: string[] = []
-        const heard = new EventTarget()
-        const read = {next: 0}
-        const wakes = new EventTarget()
-        answering.set(connectionId, {sessionId, answerFor, seen, requests, cancels, heard})
-        const state = {
-          id: `tab_${randomUUID()}`,
-          url: 'https://example.com/',
-          title: 'Example',
-          focused: true,
-          visible: true,
-          ...look,
-        }
-        const attachOnce = async () => {
-          const joined = once(attached, connectionId, {signal: closing.signal}).then(() =>
-            page.state({sessionId, connectionId, state}),
-          )
-          const ended = page.attach({sessionId, connectionId, version: 1}, {signal: closing.signal}).catch(() => {})
-          await joined
-          return {ended}
-        }
-        const keep = async ({ended}: {ended: Promise<unknown>}): Promise<void> => {
-          await ended
-          if (closing.signal.aborted) return
-          await once(wakes, 'wake', {signal: closing.signal})
-          return keep(await attachOnce())
-        }
-        void keep(await attachOnce()).catch(() => {})
-        return {
-          wake: () => wakes.dispatchEvent(new Event('wake')),
-          end: () => closing.abort(),
-          seen: () => [...seen],
-          focus: (focused) => page.state({sessionId, connectionId, state: {...state, focused}}),
-          requested: async () => {
-            const index = read.next
-            read.next += 1
-            while (requests.length <= index) await once(heard, 'command')
-            return requests[index] ?? ''
-          },
-          cancelled: async (requestId) => {
-            while (!cancels.includes(requestId)) await once(heard, 'cancel')
-          },
-          command: (requestId) => page.command({sessionId, connectionId, requestId}),
-          reply: async (requestId, outcome) => {
-            await page.result({sessionId, connectionId, requestId, outcome})
-          },
-        }
-      })
-      return () => stop.abort()
-    },
-  })
-  return {plugin, open: async (sessionId, answerFor, look) => (await ready.promise)(sessionId, answerFor, look)}
-}
 
 function pageSuccess(
   value: Page.Result['value'],
@@ -5698,7 +5581,6 @@ describe('page action queue delivery', () => {
       sessionId,
       engine,
       tab,
-      wake: onTab.wake,
       nextQueue,
       play,
       hub,
@@ -6104,7 +5986,6 @@ describe('page action queue delivery', () => {
       return asked()
     }
     writeFileSync(helper, helperLooking('second look'))
-    page.wake()
     const turn = page.inChat('eval-run', 'return await external_page_eval({code: "document.domain"})')
     const endedFirst = turn.then((response) => response.clone().text()).then((text) => ({endedWithoutAsking: text}))
     expect(await Promise.race([asked(), endedFirst])).toMatchObject({
