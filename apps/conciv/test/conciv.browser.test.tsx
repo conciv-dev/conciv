@@ -747,6 +747,33 @@ describe('chat pane', () => {
       await expect.element(threadText('stop before the post lands')).toBeVisible()
       await expect.element(stoppedLine()).toBeVisible()
     })
+
+    test('when the send fails it is taken back quietly, and a failed send with no Stop still says so', async () => {
+      const {sessionId} = await newSession()
+      const frame = await faults.install({kind: 'chat-frame-gate', onRelease: 'cut'})
+      mountChatPane(sessionId)
+      await input().fill('take this one back')
+      await userEvent.keyboard('{Enter}')
+      await coreControl.awaitFaultPending(frame, 1)
+
+      await stopButton().click()
+      await expect.element(stoppingButton()).toBeVisible()
+
+      await coreControl.releaseFault(frame)
+      await expect.element(input()).toHaveTextContent('take this one back')
+      await expect.element(page.getByRole('button', {name: 'Send message', exact: true})).toBeVisible()
+      await expect.element(threadText('take this one back')).not.toBeInTheDocument()
+      await expect.element(page.getByRole('button', {name: 'Retry'})).not.toBeInTheDocument()
+      await expect.element(notifications().getByText(/could not be sent|connection closed/)).not.toBeInTheDocument()
+
+      const unstopped = await faults.install({kind: 'chat-frame-gate', onRelease: 'cut'})
+      await userEvent.click(input())
+      await userEvent.keyboard('{Enter}')
+      await coreControl.awaitFaultPending(unstopped, 1)
+      await coreControl.releaseFault(unstopped)
+      await expect.element(notifications()).toMatchTextContent(/could not be sent|connection closed/)
+      await expect.element(input()).toHaveTextContent('take this one back')
+    })
   })
 
   test('Escape in the focused composer does what the stop button does and keeps the typed draft ahead of the queue', async () => {
