@@ -100,8 +100,8 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/builtin-plugins": "workspace:*",
     "@conciv/harness-testkit": "workspace:^",
+    "@conciv/plugin-page": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",

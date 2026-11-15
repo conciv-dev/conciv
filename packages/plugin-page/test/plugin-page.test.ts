@@ -4,9 +4,9 @@ import {describe, expect, it, onTestFinished} from 'vitest'
 import {z} from 'zod'
 import {PAGE_TOOL_DEFS, pageVerbOfTool} from '@conciv/extension-page/defs'
 import {SessionId} from '@conciv/protocol/chat-types'
-import * as PageMachine from '../src/page/machine.js'
-import * as Page from '../src/page/rpc.js'
-import * as PageSkill from '../src/page/skill.js'
+import * as PageMachine from '../src/machine.js'
+import * as Page from '../src/rpc.js'
+import * as PageSkill from '../src/skill.js'
 
 const tabId = `tab_${crypto.randomUUID()}`
 
@@ -564,7 +564,7 @@ describe('page tools', () => {
       mime: 'text/plain',
       data: new TextEncoder().encode(name),
     })
-    const PageFiles = await import('../src/page/files.js')
+    const PageFiles = await import('../src/files.js')
     const saved = await PageFiles.save([file('..'), file('.'), file('CON.txt'), file('lpt1'), file('report.html')])
     const first = saved[0]?.path ?? ''
     onTestFinished(() => rm(dirname(dirname(first)), {recursive: true, force: true}))

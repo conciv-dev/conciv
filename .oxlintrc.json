@@ -152,9 +152,9 @@
   "overrides": [
     {
       "files": [
-        "packages/builtin-plugins/src/page/rpc.ts",
-        "packages/builtin-plugins/src/page/machine.ts",
-        "packages/builtin-plugins/src/page/connection.ts"
+        "packages/plugin-page/src/rpc.ts",
+        "packages/plugin-page/src/machine.ts",
+        "packages/plugin-page/src/connection.ts"
       ],
       "rules": {
         "conciv/banned-vocabulary": "off"

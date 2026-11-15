@@ -16,8 +16,7 @@ import {
   chmodSync,
 } from 'node:fs'
 import {createHash, randomUUID} from 'node:crypto'
-import {registerHooks} from 'node:module'
-import {fileURLToPath, pathToFileURL} from 'node:url'
+import {fileURLToPath} from 'node:url'
 import {on, once} from 'node:events'
 import {open, readFile, writeFile} from 'node:fs/promises'
 import {execFileSync} from 'node:child_process'
@@ -149,7 +148,7 @@ import {RPCLink} from '@orpc/client/fetch'
 import {onError, ORPCError, os, type RouterClient} from '@orpc/server'
 import WebSocket from 'ws'
 import {Effect, ManagedRuntime, Schema} from 'effect'
-import * as Page from '@conciv/builtin-plugins/page/rpc'
+import * as Page from '@conciv/plugin-page/rpc'
 import {z} from 'zod'
 import {makeApp, type MadeApp} from '../src/app.js'
 import {callTrace} from '../src/api/call-trace.js'
@@ -6569,20 +6568,10 @@ describe('page connection', () => {
   const tabId = `tab_${crypto.randomUUID()}`
   const tab: Page.Tab = {id: tabId, url: 'https://example.com/', title: 'Example', focused: true, visible: true}
 
-  const PAGE_SOURCE = fileURLToPath(new URL('./', import.meta.resolve('@conciv/builtin-plugins/page')))
-
-  registerHooks({
-    resolve(specifier, context, nextResolve) {
-      const inPage = context.parentURL?.startsWith(pathToFileURL(PAGE_SOURCE).href) === true
-      if (!inPage || !specifier.startsWith('./') || !specifier.endsWith('.js')) return nextResolve(specifier, context)
-      return nextResolve(specifier.replace(/\.js$/u, '.ts'), context)
-    },
-  })
-
-  const ENGINE_FIXTURE = `export {default} from '${join(PAGE_SOURCE, 'index.ts')}'
+  const ENGINE_FIXTURE = `export {default} from '${fileURLToPath(import.meta.resolve('@conciv/plugin-page'))}'
 `
 
-  const TAB_FIXTURE = `import {Definition} from '${join(PAGE_SOURCE, 'rpc.ts')}'
+  const TAB_FIXTURE = `import {Definition} from '${fileURLToPath(import.meta.resolve('@conciv/plugin-page/rpc'))}'
 
 const method = {input: {type: 'object'}, output: {type: 'object'}}
 const Tabs = {
