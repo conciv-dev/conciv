@@ -181,6 +181,8 @@ const pushSocketsOpened: BrowserCommand<[]> = (ctx): number => requirePush(ctx).
 
 const pushSocketsLive: BrowserCommand<[]> = (ctx): number => requirePush(ctx).liveSockets()
 
+const rpcSocketsOpened: BrowserCommand<[]> = (ctx): number => requireCalls(ctx).socketsSince()
+
 const printedCode: BrowserCommand<[]> = (ctx): string => {
   const code = [
     ...requireKit(ctx)
@@ -649,6 +651,7 @@ export const coreCommands = {
   closeCore,
   pushSocketsOpened,
   pushSocketsLive,
+  rpcSocketsOpened,
   printedCode,
   requestCode,
   revokeBrowsers,
