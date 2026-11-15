@@ -60,14 +60,11 @@ export const layer = Layer.effect(
     const experimental = Effect.fn('Plugin.experimental')(function* (id: Plugin.Id) {
       const part = active.get(id)?.plugin.experimental
       if (!part) return undefined
-      const entry = fileURLToPath(part.file)
-      const code = yield* Effect.promise(() => readFile(entry, 'utf8'))
-      const chunks = yield* servedChunks(entry, part.chunks, part.chunks.start)
       return {
-        code,
+        code: part.code,
         revision: part.revision,
         options: part.options,
-        chunks,
+        chunks: yield* servedChunks(fileURLToPath(part.file), part.chunks, part.chunks.start),
       } satisfies Plugin.ExperimentalBundle
     })
     const experimentalChunk = Effect.fn('Plugin.experimentalChunk')(function* (id: Plugin.Id, file: string) {

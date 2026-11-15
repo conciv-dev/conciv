@@ -7,7 +7,7 @@ import {isRunPhaseTerminal, type RunLifecycle} from '@conciv/protocol/chat-event
 import type {AppData} from '../data/app-data.js'
 import {returnQueueToDraft, type DraftSink, type QueueOwner} from '../pane/pane-attachments.js'
 import {draftCacheSink} from '../pane/draft-storage.js'
-import {engineLocked} from './engine-login.js'
+import {becameTrusted} from './engine-login.js'
 
 export type PaneActivity = 'unmounted' | 'idle' | 'running'
 
@@ -140,7 +140,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
     })
     const connection = browserRpcConnection(apiBase)
     const stopTrust = connection.trust.subscribe((status, previous) => {
-      if (status !== 'trusted' || !engineLocked(previous)) return
+      if (!becameTrusted(status, previous)) return
       if (session.loadFailed()) return retire(sessionId, session)
       session.refresh().catch((error: unknown) => console.error('[conciv] re-hydrating the chat failed', error))
     })

@@ -1,5 +1,4 @@
 import {Effect, Schema} from 'effect'
-import {toolExpression} from './index.js'
 
 const compareText = (left: string, right: string) => (left < right ? -1 : left > right ? 1 : 0)
 
@@ -28,6 +27,10 @@ const SearchOutput = Schema.Struct({
   remaining: NonNegativeInt,
   next: Schema.NullOr(Schema.Struct({offset: NonNegativeInt})),
 })
+
+export const capabilityName = (path: string): string => path.split('.').join('_')
+
+export const toolExpression = (path: string): string => `external_${capabilityName(path)}`
 
 export type SearchEntry = {
   readonly description: ToolDescription
@@ -281,6 +284,27 @@ export const makeSearchTool = (searchIndex: ReadonlyArray<SearchEntry>): SearchT
       }
     }),
 })
+
+export const searchSignature: string = `search({
+  query?: string,
+  namespace?: string,
+  /** @integer @exclusiveMinimum 0 */
+  limit?: number,
+  /** @integer @minimum 0 */
+  offset?: number,
+}): {
+  items: Array<{
+      path: string,
+      description: string,
+      signature: string,
+    }>,
+  /** @integer @minimum 0 */
+  remaining: number,
+  next: {
+      /** @integer @minimum 0 */
+      offset: number,
+    } | null,
+}`
 
 export type VisibleTool = {
   readonly description: ToolDescription

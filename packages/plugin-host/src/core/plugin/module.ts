@@ -154,10 +154,11 @@ const loadExperimental = Effect.fn('PluginModule.loadExperimental')(function* (
 ) {
   const entry = fileURLToPath(file)
   if (watch) yield* watch(entry)
-  const bundle = watch ? Hash.sha256(yield* Effect.promise(() => readFile(entry))) : undefined
+  const code = yield* Effect.promise(() => readFile(entry, 'utf8'))
   return {
     file,
-    revision: Hash.sha256(JSON.stringify([revision, bundle])),
+    code,
+    revision: Hash.sha256(JSON.stringify([revision, watch ? Hash.sha256(code) : undefined])),
     options: yield* Schema.decodeUnknownEffect(ExperimentalOptions)(options).pipe(
       Effect.mapError((cause) =>
         makeLoadError({message: 'Plugin options must be JSON to reach its ./plugin-experimental', cause}),

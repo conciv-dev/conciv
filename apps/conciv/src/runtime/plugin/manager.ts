@@ -1,24 +1,10 @@
-import {z} from 'zod'
-import type {SettingsScope, SettingsSnapshot} from '@conciv/contract'
+import type {SettingsScope} from '@conciv/contract'
 import type {ConcivClient} from '@conciv/plugin'
 import {pluginEnabled, type EnableState} from '@conciv/plugin/experimental/host'
+import {readEnableState} from './enable-state'
+import {pluginError} from './error'
 
 const WHERE: {readonly scope: SettingsScope; readonly namespace: string} = {scope: 'global', namespace: 'plugin-enable'}
-
-export function pluginError(code: 'notFound' | 'builtin') {
-  return Object.assign(new Error(code), {code})
-}
-
-const EnableRowSchema = z.object({id: z.string().min(1), enabled: z.boolean()})
-
-function readEnableState(snapshot: SettingsSnapshot): readonly EnableState[] {
-  return Object.entries(snapshot.value).flatMap(([id, enabled]) => {
-    const row = EnableRowSchema.safeParse({id, enabled})
-    if (row.success) return [row.data]
-    console.error(`[plugins] dropped the stored enable state of ${id}`, row.error)
-    return []
-  })
-}
 
 export function createManager(client: ConcivClient, builtins: readonly string[]) {
   const read = async () => readEnableState(await client.settings.all(WHERE))

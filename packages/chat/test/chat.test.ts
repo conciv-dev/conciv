@@ -7,10 +7,11 @@ import {fakeText} from '@conciv/ai/testkit'
 import {openDb, type ConcivDb} from '@conciv/db'
 import {defineHarness} from '@conciv/harness'
 import {readApprovalAsk, approvalRequestedEvent} from '@conciv/protocol/chat-event-types'
-import {SessionId} from '@conciv/protocol/chat-types'
+import {CHAT_SSE_PATH, SessionId} from '@conciv/protocol/chat-types'
 import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 import {Effect, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {z} from 'zod'
+import {defineWebSocketHelper} from 'hono/ws'
 import {
   Agent,
   Bus,
@@ -91,6 +92,7 @@ function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typ
     capabilities: () => [],
     attachmentExpanders: {},
     prompt: async (event) => event,
+    promptHooked: async () => false,
     pluginInstructions: async () => ({initial: '', update: '', told: async () => undefined}),
     log: () => undefined,
     driver,
@@ -743,6 +745,63 @@ describe('plugin instructions', () => {
     expect(sent[1]?.systemPrompts).toEqual(['the base prompt', preface])
     expect(lastUserContent(1)).toBe('and again')
     expect(JSON.stringify(sent[1]?.messages)).not.toContain('a skill was added')
+  })
+})
+
+describe('the session prompt hook', () => {
+  it('a turn with no prompt hook never reaches the hook service, and a registered hook rewrites the words the model gets', async () => {
+    const host = ManagedRuntime.make(PluginHooks.layer)
+    onTestFinished(() => host.dispose())
+    const scope = host.runSync(Scope.make())
+    const triggered: string[] = []
+    const {root, db} = openDatabase()
+    const sessionId = SessionId.parse('conciv_prompt_hook')
+    const chat = await chatPlane(db, root, {
+      prompt: (event) => {
+        triggered.push(event.prompt.text)
+        return host.runPromise(PluginHooks.Service.use((hooks) => hooks.trigger('session', 'prompt', event)))
+      },
+      promptHooked: () => host.runPromise(PluginHooks.Service.use((hooks) => hooks.has('session', 'prompt'))),
+    })
+    const sent: unknown[] = []
+    const recorded = ({request}: {request: {messages: ModelMessage[]}}) => {
+      sent.push(request.messages.findLast((message) => message.role === 'user')?.content)
+      return {text: 'done'}
+    }
+    const routes = chat.routes(defineWebSocketHelper(async () => undefined))
+    const say = async (runId: string, text: string) => {
+      const response = await routes.request(CHAT_SSE_PATH, {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({
+          threadId: sessionId,
+          runId,
+          messages: [{id: `${runId}-user`, role: 'user', content: text}],
+          tools: [],
+          context: [],
+        }),
+      })
+      await response.text()
+    }
+
+    model.setResponses([recorded])
+    await say('run-plain', 'plain words')
+    expect(triggered).toEqual([])
+    expect(sent).toEqual(['plain words'])
+
+    await host.runPromise(
+      PluginHooks.Service.use((hooks) =>
+        hooks.register('session', 'prompt', (event) =>
+          Effect.sync(() => {
+            event.prompt.text += ' rewritten'
+          }),
+        ),
+      ).pipe(Scope.provide(scope)),
+    )
+    model.setResponses([recorded])
+    await say('run-hooked', 'hooked words')
+    expect(triggered).toEqual(['hooked words'])
+    expect(sent).toEqual(['plain words', [{type: 'text', content: 'hooked words rewritten'}]])
   })
 })
 

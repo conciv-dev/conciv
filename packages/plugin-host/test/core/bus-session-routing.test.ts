@@ -43,7 +43,7 @@ const it = testEffect(
   ),
 )
 
-const withoutEngine = testEffect(Bus.layer.pipe(Layer.provideMerge(Database.layer())))
+const withoutEngine = testEffect(Bus.layer.pipe(Layer.provideMerge(databaseLayer)))
 
 const Done = Bus.ephemeral({type: 'test.routing.done', schema: {}})
 const owned = SessionId.make('conciv_routing')

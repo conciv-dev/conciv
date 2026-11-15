@@ -11,7 +11,6 @@ const OPENCODE_COPIES = [
   'packages/plugin/src/',
   'apps/conciv/src/runtime/plugin/',
   'apps/conciv/src/runtime/persistence/',
-  'apps/conciv/src/runtime/server/',
 ]
 
 const ALLOWED_NAMES = [...LANGUAGE_NAMES, ...FOREIGN_KEYS]

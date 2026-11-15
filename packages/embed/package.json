@@ -67,6 +67,7 @@
   },
   "devDependencies": {
     "@conciv/app": "workspace:*",
+    "@conciv/browser-fixture": "workspace:*",
     "@conciv/extension-recorder": "workspace:^",
     "@conciv/extension-tanstack": "workspace:^",
     "@conciv/extension-terminal": "workspace:^",
