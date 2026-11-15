@@ -100,6 +100,12 @@ const UNAVAILABLE = 'The server that runs this plugin is unavailable'
 
 const HostSettingsTab = z.enum(['general', 'views', 'shortcuts', 'plugins', 'advanced'])
 
+function openInput(file: string, position: {line: number; column?: number} | undefined) {
+  if (position === undefined) return {file}
+  if (position.column === undefined) return {file, line: position.line}
+  return {file, line: position.line, column: position.column}
+}
+
 export function createHostApis() {
   const rpc = useRpc()
   const apiBase = useApiBase()
@@ -267,7 +273,7 @@ export function createHostApis() {
     }),
     desktop: () => ({
       launch: (path, position) =>
-        rpc.editor.open({file: path, line: position?.line, column: position?.column}).then(() => undefined),
+        rpc.plugin.call({rpcId: 'server', method: 'open', input: openInput(path, position)}).then(() => undefined),
       reveal: undefined,
       installed: undefined,
       pick: undefined,
