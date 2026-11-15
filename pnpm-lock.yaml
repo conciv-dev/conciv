@@ -553,7 +553,7 @@ overrides:
   '@opentelemetry/core@<2.8.0': '>=2.8.0 <3'
   postcss-selector-parser@<6.1.5: '>=6.1.5 <7'
 
-packageExtensionsChecksum: sha256-dVhKvsWIVuG9nPr1LtcuSzZV8oO+dNO4ylE3TdR8UyE=
+packageExtensionsChecksum: sha256-IwwPaGDkQEqfamVoYxdkgFO5CMpzVeMRN9n1rNC0/lk=
 
 patchedDependencies:
   '@tanstack/solid-query@5.107.1': 6ca287b8a3085f4433ba1dbacd30d21e25e9c73cb2f279264f59a24b9df6218f
@@ -4102,7 +4102,7 @@ importers:
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
       drizzle-kit:
         specifier: ^0.31.11
-        version: 0.31.11
+        version: 0.31.11(drizzle-orm@0.45.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1))
       playwright:
         specifier: 'catalog:'
         version: 1.64.1
@@ -14844,6 +14844,8 @@ packages:
   drizzle-kit@0.31.11:
     resolution: {integrity: sha512-YCYqxTLIB2OCqf6w9/Vef13baBVbwQIPcbT4Y56AfO6B9ajZhDhD8Jkveg/hJvT/iuMloKD/IYYkyMMNhr7Kqg==}
     hasBin: true
+    peerDependencies:
+      drizzle-orm: '*'
 
   drizzle-kit@1.0.0-rc.5:
     resolution: {integrity: sha512-8glQN7iFK3e1aOIoRit1NtslcsqE/rnlqNw/1jUC5Ph4RFVh/E5Jricxd6Nu2ugj2HlFZlZ6O4006AwqJ9e24g==}
@@ -29066,10 +29068,11 @@ snapshots:
 
   dotenv@17.4.2: {}
 
-  drizzle-kit@0.31.11:
+  drizzle-kit@0.31.11(drizzle-orm@0.45.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)):
     dependencies:
       '@drizzle-team/brocli': 0.10.2
       '@esbuild-kit/esm-loader': 2.6.5
+      drizzle-orm: 0.45.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)
       esbuild: 0.25.12
       tsx: 4.23.15
 
