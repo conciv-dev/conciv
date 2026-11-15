@@ -22,7 +22,7 @@ describe.skipIf(process.platform === 'win32')('Database file permissions', () =>
     expect(await openModes(path.join(tmp.path, 'opencode.db'))).toEqual([0o600, 0o600, 0o600])
   })
 
-  test('tightens an existing database and sidecars', async () => {
+  test('leaves the modes of a database and sidecars it did not create as they were', async () => {
     await using tmp = await tmpdir()
     const filename = path.join(tmp.path, 'opencode.db')
     await Promise.all(
@@ -32,6 +32,6 @@ describe.skipIf(process.platform === 'win32')('Database file permissions', () =>
       }),
     )
 
-    expect(await openModes(filename)).toEqual([0o600, 0o600, 0o600])
+    expect(await openModes(filename)).toEqual([0o644, 0o644, 0o644])
   })
 })

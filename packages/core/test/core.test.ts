@@ -8,6 +8,7 @@ import {
   writeFileSync,
   mkdirSync,
   utimesSync,
+  chmodSync,
 } from 'node:fs'
 import {once} from 'node:events'
 import {request as httpRequest} from 'node:http'
@@ -1150,14 +1151,18 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
 })
 
 describe('configured session rows', () => {
-  it('the configured conciv and harness session rows exist once the engine resolves', async () => {
+  it('the configured conciv and harness session rows exist once the engine resolves, and the start leaves the database file mode alone', async () => {
     const root = tempDir()
+    const databaseFile = join(concivStateDir(root), 'conciv.db')
+    openDb(root).$client.close()
+    chmodSync(databaseFile, 0o644)
     const configured = {sessionId: 'conciv_configured', claudeSessionId: 'native-configured'}
     const made = await makeApp({cfg: resolveConfig(configured, root), cwd: root, openInEditor: () => {}})
     try {
       const rows = await made.chat.db.select().from(sessionTable)
       expect(rows.map((row) => row.id)).toContain('conciv_configured')
       expect(rows.map((row) => row.harnessSessionId)).toContain('native-configured')
+      expect([databaseFile, `${databaseFile}-wal`].map((file) => statSync(file).mode & 0o777)).toEqual([0o644, 0o644])
     } finally {
       await made.dispose()
     }

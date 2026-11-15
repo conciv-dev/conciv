@@ -47,7 +47,7 @@ export function layer(options: Options = {path: ':memory:'}) {
     Effect.gen(function* () {
       const provide = (filename: string) => databaseLayer.pipe(Layer.provide(sqliteLayer({filename})))
       const filename = options.path ?? ':memory:'
-      if (filename === ':memory:') return provide(filename)
+      if (filename === ':memory:' || existsSync(filename)) return provide(filename)
       yield* Effect.promise(() => restrictToOwner(filename))
       return provide(filename)
     }),
@@ -56,7 +56,7 @@ export function layer(options: Options = {path: ':memory:'}) {
 
 async function restrictToOwner(filename: string) {
   if (process.platform === 'win32') return
-  if (!existsSync(filename)) closeSync(openSync(filename, 'a', 0o600))
+  closeSync(openSync(filename, 'a', 0o600))
   await chmod(filename, 0o600)
   await Promise.all(
     [`${filename}-wal`, `${filename}-shm`].map((file) =>
