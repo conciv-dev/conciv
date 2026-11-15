@@ -1,6 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {chmodSync, existsSync, mkdtempSync, writeFileSync} from 'node:fs'
-import {tmpdir} from 'node:os'
+import {chmodSync, existsSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {setImmediate} from 'node:timers/promises'
 import {setFlagsFromString} from 'node:v8'
@@ -36,6 +35,7 @@ import {
 } from '../src/shared/protocol.js'
 import {buttonFixture, pageFixture} from './fixtures/page.js'
 import {addMarker, runtimeFixture, startLiveCapture, useRecorderTestApi} from './helpers.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 describe('capture survives run end', () => {
   const api = useRecorderTestApi({harness: createFakeHarness()})
@@ -215,10 +215,10 @@ describe('extension', () => {
   }
 
   async function boot(): Promise<{base: string; engine: Engine}> {
-    const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-recorder-it-'))
+    const stateRoot = tempDir('conciv-recorder-it-')
     const engine = await start({
       options: {systemPrompt: false, stateRoot},
-      root: mkdtempSync(join(tmpdir(), 'conciv-recorder-root-')),
+      root: tempDir('conciv-recorder-root-'),
       launchEditor: () => {},
       extensions,
     })
@@ -1152,7 +1152,7 @@ describe('recordings', () => {
   const event = (timestamp: number) => ({type: 3, data: {source: 2, type: 2, id: 1}, timestamp})
 
   function freshDir(): string {
-    return mkdtempSync(join(tmpdir(), 'rec-'))
+    return tempDir('rec-')
   }
 
   function freshStore() {
@@ -1313,7 +1313,7 @@ describe('runtime', () => {
           control,
           config: {masking: 'none', windowMinutes: 10, console: true},
           useRenderer: async () => null,
-          recordings: createRecordingStore(mkdtempSync(join(tmpdir(), 'rec-'))),
+          recordings: createRecordingStore(tempDir('rec-')),
         },
         8000,
         10_000,
