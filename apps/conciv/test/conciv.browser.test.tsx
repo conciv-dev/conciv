@@ -2296,6 +2296,29 @@ describe('launcher activity', () => {
 
     await expect.element(launcher(), {timeout: 8000}).toHaveAttribute('aria-busy', 'false')
   }, 30_000)
+
+  test('a session that never ran shows no status and no task, and its first turn reads as running, then done', async () => {
+    await page.viewport(1000, 900)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const statusBar = page.getByRole('toolbar', {name: 'Session status'})
+
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(composer(), {timeout: 8000}).toBeVisible()
+    await expect.element(statusBar.getByRole('tab', {name: 'Chat', exact: true})).toBeVisible()
+    await expect.element(page.getByText(/^CONCIV/)).toBeVisible()
+    await expect.element(statusBar.getByRole('status')).not.toBeInTheDocument()
+    await expect.element(page.getByText(/TASK|^LAST$|^ACTIVE$/)).not.toBeInTheDocument()
+
+    await coreControl.holdTurn()
+    await userEvent.click(composer())
+    await userEvent.keyboard('rename the widget package{Enter}')
+    await expect.element(statusBar.getByRole('status'), {timeout: 8000}).toHaveTextContent('RUNNING')
+    await expect.element(page.getByText('CONCIV / ACTIVE TASK', {exact: true})).toBeVisible()
+
+    await coreControl.releaseTurn()
+    await expect.element(statusBar.getByRole('status'), {timeout: 8000}).toHaveTextContent('DONE')
+    await expect.element(page.getByText('CONCIV / LAST TASK', {exact: true})).toBeVisible()
+  }, 30_000)
 })
 
 describe('launcher drag', () => {
