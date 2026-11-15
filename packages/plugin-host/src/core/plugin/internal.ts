@@ -6,6 +6,7 @@ import {Context, Effect, Scope} from 'effect'
 import {FSUtil} from '../../util/fs-util.js'
 import {Permission} from '../permission.js'
 import {Skill} from '../skill.js'
+import {ServerTools} from '../tool/plugin/server.js'
 import {SkillTool} from '../tool/plugin/skill.js'
 import {Tool} from '../tool.js'
 
@@ -15,7 +16,7 @@ export type Requirements = Context.Service.Identifier<(typeof services)[number]>
 
 export type InternalPlugin = Plugin<Requirements | Scope.Scope>
 
-const pre = [SkillTool.Plugin] as const satisfies readonly InternalPlugin[]
+const pre = [ServerTools.Plugin, SkillTool.Plugin] as const satisfies readonly InternalPlugin[]
 
 const post = [] as const satisfies readonly InternalPlugin[]
 

@@ -1122,6 +1122,8 @@ describe('cli', () => {
       shared?: {root: string; sessionId: string}
       extensions?: Parameters<typeof startEngine>[0]['extensions']
       plugins?: Parameters<typeof startEngine>[0]['plugins']
+      bridge?: Parameters<typeof startEngine>[0]['bridge']
+      launchEditor?: Parameters<typeof startEngine>[0]['launchEditor']
       hubAccess?: 'session' | 'open'
       queued?: (queue: {id: string; replies: string[]}) => void
     } = {},
@@ -1135,10 +1137,11 @@ describe('cli', () => {
         hubAccess: given.hubAccess ?? 'session',
       },
       root,
-      launchEditor: () => {},
+      launchEditor: given.launchEditor ?? (() => {}),
       homeDir: home,
       extensions: given.extensions,
       plugins: given.plugins,
+      bridge: given.bridge,
     })
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const sessionId = given.shared?.sessionId ?? (await makeRpcClient(base).sessions.create(undefined)).sessionId
@@ -1408,6 +1411,43 @@ describe('cli', () => {
         })
       } finally {
         await engine.stop()
+      }
+    })
+
+    it('answers the server methods from a real bundler bridge as the tools do, and refuses them without one', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const bridge = defineBundlerBridge({
+        id: 'cli-server-methods',
+        config: () => ({
+          root: '/repo',
+          base: '/app/',
+          mode: 'development',
+          aliases: [{find: '@', replacement: '/repo/src'}],
+          plugins: ['vite:react'],
+        }),
+        resolve: async (spec, importer) => ({id: `/repo/src/${spec}${importer === undefined ? '' : '?from'}`}),
+        moduleGraph: (file) => [{url: file, importers: ['/src/main.ts'], importedModules: ['/src/dep.ts']}],
+        transform: async (url) => ({code: `export const served = ${JSON.stringify(url)}`}),
+        urls: () => ({local: ['http://localhost:5173/'], network: ['http://192.168.1.2:5173/']}),
+        reload: async () => {},
+        restart: async () => {},
+      })
+      const attached = await engineWithTab(home, {bridge})
+      const detached = await engineWithTab(home)
+      try {
+        expect(await pluginCall(attached.root, home, ['server', 'config'])).toEqual({
+          code: 0,
+          document: {ok: true, data: bridge.config()},
+        })
+        expect(await pluginCall(detached.root, home, ['server', 'config'])).toMatchObject({
+          code: 1,
+          document: {
+            ok: false,
+            error: {kind: 'user', code: 'PLUGIN_RPC', message: 'no dev server is attached to conciv'},
+          },
+        })
+      } finally {
+        await Promise.all([attached.engine.stop(), detached.engine.stop()])
       }
     })
   })
