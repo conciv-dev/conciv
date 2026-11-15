@@ -9,7 +9,14 @@ import {
   type PluginExperimentalState,
 } from './plugin-experimental-machine'
 
-const experimental = (id: string, revision: string): BridgePluginExperimental => ({id, revision, code: '', options: {}})
+const experimental = (id: string, revision: string): BridgePluginExperimental => ({
+  id,
+  revision,
+  code: '',
+  options: {},
+  chunks: [],
+  file: 'plugin-experimental.cjs',
+})
 
 const experimentals = (plugins: BridgePluginExperimental[], reserved: string[] = []): BridgePluginExperimentals => ({
   plugins,
