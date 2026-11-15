@@ -9,7 +9,6 @@ import type {ConcivConfig, ExtensionPackage} from '@conciv/protocol/config-types
 import type {Builtins} from '@conciv/extension-compiler/extensions'
 import {makeViteHook} from '../../src/core/vite.js'
 
-const PORT_RELEASE_MS = 300
 const FIXTURE_EXTENSION_DIR = join(import.meta.dirname, '..', 'fixtures', 'extension')
 
 export type StartedDevServer = {server: ViteDevServer; root: string}
@@ -49,7 +48,6 @@ export function devServers(): DevServers {
 
   const stopAll = async (): Promise<void> => {
     for (const server of running.splice(0)) await server.close()
-    await new Promise((resolve) => setTimeout(resolve, PORT_RELEASE_MS))
     for (const dir of dirs.splice(0)) rmSync(dir, {recursive: true, force: true})
   }
 

@@ -179,19 +179,27 @@ describe('engine port exact', () => {
 })
 
 describe('webpack and rspack hooks', () => {
-  type Taps = {watchRun: Array<() => Promise<void>>; watchClose: Array<() => unknown>}
+  type Taps = {
+    watchRun: Array<() => Promise<void>>
+    watchClose: Array<() => unknown>
+    shutdown: Array<() => Promise<void>>
+  }
 
   function bundlerCompiler(taps: Taps) {
     return {
       hooks: {
         watchRun: {tapPromise: (_name: string, run: () => Promise<void>) => void taps.watchRun.push(run)},
         watchClose: {tap: (_name: string, close: () => unknown) => void taps.watchClose.push(close)},
+        shutdown: {tapPromise: (_name: string, close: () => Promise<void>) => void taps.shutdown.push(close)},
       },
     }
   }
 
-  function applyHook(framework: 'webpack' | 'rspack', options: {port: number; stateRoot: string}): Taps {
-    const taps: Taps = {watchRun: [], watchClose: []}
+  function applyHook(
+    framework: 'webpack' | 'rspack',
+    options: {port: number; stateRoot: string; extensions?: ExtensionPackage[]},
+  ): Taps {
+    const taps: Taps = {watchRun: [], watchClose: [], shutdown: []}
     const compiler = bundlerCompiler(taps)
     const meta =
       framework === 'webpack'
@@ -224,6 +232,27 @@ describe('webpack and rspack hooks', () => {
         expect(JSON.parse(readFileSync(serverFile, 'utf8'))).toMatchObject({port})
 
         await runAll(taps.watchClose)
+        await expect(fetch(`http://127.0.0.1:${port}/health`)).rejects.toThrow()
+      } finally {
+        rmSync(root, {recursive: true, force: true})
+      }
+    },
+    60_000,
+  )
+
+  it.each(['webpack', 'rspack'] as const)(
+    '%s compiler close settles only after the engine has stopped',
+    async (framework) => {
+      const root = mkdtempSync(join(tmpdir(), `conciv-${framework}-close-`))
+      try {
+        const port = await getPort()
+        const taps = applyHook(framework, {port, stateRoot: root, extensions: [fixtureExtension()]})
+        await runAll(taps.watchRun)
+        expect((await fetch(`http://127.0.0.1:${port}/health`)).ok).toBe(true)
+
+        taps.watchClose.forEach((close) => void close())
+        await runAll(taps.shutdown)
+        expect(existsSync(join(concivStateDir(root), 'fixture-disposed'))).toBe(true)
         await expect(fetch(`http://127.0.0.1:${port}/health`)).rejects.toThrow()
       } finally {
         rmSync(root, {recursive: true, force: true})
@@ -272,6 +301,22 @@ describe('engine port fallback', () => {
       expect((await fetch(`http://127.0.0.1:${preferred}/health`)).ok).toBe(true)
     }, 60_000)
   })
+})
+
+describe('dev server close', () => {
+  const servers = devServers()
+
+  afterEach(() => servers.stopAll())
+
+  it('settles only after the engine has stopped', async () => {
+    const started = await servers.start({widget: false, extensions: [fixtureExtension()]})
+    const apiBase = await pageApiBase(started.server)
+    expect((await fetch(`${apiBase}/health`)).ok).toBe(true)
+
+    await started.server.close()
+    expect(existsSync(join(concivStateDir(started.root), 'fixture-disposed'))).toBe(true)
+    await expect(fetch(`${apiBase}/health`)).rejects.toThrow()
+  }, 30_000)
 })
 
 describe('extensions entry', () => {

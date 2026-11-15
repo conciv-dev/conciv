@@ -12,6 +12,7 @@ type WatchingCompiler = {
   hooks: {
     watchRun: {tapPromise: (name: string, run: () => Promise<void>) => void}
     watchClose: {tap: (name: string, close: () => void) => void}
+    shutdown: {tapPromise: (name: string, close: () => Promise<void>) => void}
   }
 }
 
@@ -37,16 +38,20 @@ export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<
       (state.engine ??= makeEngineBooter(options, process.cwd(), builtins, 'exact')().catch(
         reportStartFailure(options.port),
       ))
-    const stopEngine = () =>
-      state.engine
+    const stopEngine = async (): Promise<void> => {
+      const stopping = state.engine
         ?.then((engine) => engine?.stop())
         .catch((error: unknown) => console.error('conciv: stopping the engine failed', error))
+      state.engine = stopping?.then(() => undefined) ?? null
+      await stopping
+    }
     const startWhileWatching = (compiler: WatchingCompiler) => {
       if (options.enabled === false) return
       compiler.hooks.watchRun.tapPromise('conciv', async () => {
         await startEngine()
       })
       compiler.hooks.watchClose.tap('conciv', stopEngine)
+      compiler.hooks.shutdown.tapPromise('conciv', stopEngine)
     }
 
     return {
