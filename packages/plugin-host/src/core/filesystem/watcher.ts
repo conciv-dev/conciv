@@ -1,8 +1,7 @@
 export * as Watcher from './watcher.js'
 
-// @ts-ignore
-import {createWrapper} from '@parcel/watcher/wrapper.js'
-import type ParcelWatcher from '@parcel/watcher'
+import {hasMagic} from 'glob'
+import picomatch from 'picomatch'
 import {FSUtil} from '../../util/fs-util.js'
 import {isRecord} from '../../util/record.js'
 import {Cause, Context, Effect, Layer, PubSub, RcMap, Stream} from 'effect'
@@ -13,22 +12,48 @@ import loadBinding from './watcher-binding.js'
 
 const SUBSCRIBE_TIMEOUT_MS = 10_000
 
-const watcher = lazy((): typeof ParcelWatcher | undefined => {
+type Backend = 'fs-events' | 'inotify' | 'windows'
+
+export type Update = {readonly path: string; readonly type: 'create' | 'update' | 'delete'}
+
+type SubscribeCallback = (error: Error | null, updates: readonly Update[]) => void
+
+type BindingOptions = {
+  readonly backend: Backend
+  readonly ignorePaths: readonly string[]
+  readonly ignoreGlobs: readonly string[]
+}
+
+type Binding = {
+  readonly subscribe: (directory: string, callback: SubscribeCallback, options: BindingOptions) => Promise<void>
+  readonly unsubscribe: (directory: string, callback: SubscribeCallback, options: BindingOptions) => Promise<void>
+}
+
+const watcher = lazy((): Binding | undefined => {
   try {
-    return createWrapper(loadBinding()) as typeof ParcelWatcher
+    return loadBinding()
   } catch {
     return
   }
 })
 
-function getBackend() {
+function bindingOptions(directory: string, ignore: readonly string[], backend: Backend): BindingOptions {
+  return {
+    backend,
+    ignorePaths: ignore.filter((entry) => !hasMagic(entry)).map((entry) => path.resolve(directory, entry)),
+    ignoreGlobs: ignore
+      .filter((entry) => hasMagic(entry))
+      .map((glob) => picomatch.makeRe(glob, {dot: true, windows: process.platform === 'win32'}).source),
+  }
+}
+
+function getBackend(): Backend | undefined {
   if (process.platform === 'win32') return 'windows'
   if (process.platform === 'darwin') return 'fs-events'
   if (process.platform === 'linux') return 'inotify'
 }
 
 export const hasNativeBinding = () => !!watcher()
-export type Update = ParcelWatcher.Event
 
 export type WatchInput =
   | {readonly path: string; readonly type: 'file'}
@@ -221,8 +246,8 @@ export const nativeLayer = Layer.succeed(
 )
 
 function subscribeDirectory(
-  native: typeof ParcelWatcher | undefined,
-  backend: ParcelWatcher.BackendType | undefined,
+  native: Binding | undefined,
+  backend: Backend | undefined,
   directory: string,
   ignore: readonly string[],
   publish: (update: Update) => void,
@@ -232,16 +257,18 @@ function subscribeDirectory(
       Effect.as(undefined),
     )
   }
-  const callback: ParcelWatcher.SubscribeCallback = (error, updates) => {
+  const callback: SubscribeCallback = (error, updates) => {
     if (error) Effect.runFork(Effect.logError('watcher callback failed', {error}))
     for (const update of updates) publish(update)
   }
-  const pending = native.subscribe(directory, callback, {ignore: [...ignore], backend})
+  const options = bindingOptions(directory, ignore, backend)
+  const unsubscribe = () => native.unsubscribe(directory, callback, options)
+  const pending = native.subscribe(directory, callback, options)
   return Effect.promise(() => pending).pipe(
-    Effect.map((subscription) => ({unsubscribe: () => subscription.unsubscribe(), backend})),
+    Effect.map(() => ({unsubscribe, backend})),
     Effect.onInterrupt(() =>
       Effect.sync(() => {
-        pending.then((subscription) => subscription.unsubscribe()).catch(() => {})
+        pending.then(unsubscribe).catch(() => {})
       }),
     ),
     Effect.timeout(SUBSCRIBE_TIMEOUT_MS),

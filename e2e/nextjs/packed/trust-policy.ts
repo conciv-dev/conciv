@@ -33,7 +33,6 @@ export async function runTrustPolicyInstall(): Promise<TrustPolicyInstallResult>
       ...UPSTREAM_BLOCKED_TRUST_EXCLUDES.map((name) => `  - ${JSON.stringify(name)}`),
       'allowBuilds:',
       '  protobufjs: false',
-      "  '@parcel/watcher': false",
       'overrides:',
       ...Object.entries(overrides).map(([name, value]) => `  ${JSON.stringify(name)}: ${JSON.stringify(value)}`),
       '',

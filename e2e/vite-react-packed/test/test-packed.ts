@@ -59,7 +59,7 @@ await timed('install', () =>
   installPacked({
     root: PACKED_APP_DIR,
     packages: ['.'],
-    allowBuilds: {protobufjs: false, '@parcel/watcher': false},
+    allowBuilds: {protobufjs: false},
     overrides,
     lockPath: LOCK_PATH,
   }),
