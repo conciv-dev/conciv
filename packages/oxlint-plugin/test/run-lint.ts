@@ -1,10 +1,10 @@
 import {execFile} from 'node:child_process'
-import {cp, mkdir, mkdtemp, readFile, readdir, rename, rm, symlink, writeFile} from 'node:fs/promises'
-import {tmpdir} from 'node:os'
+import {cp, mkdir, readFile, readdir, rename, rm, symlink, writeFile} from 'node:fs/promises'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {promisify} from 'node:util'
 import {afterAll} from 'vitest'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 const runFile = promisify(execFile)
 const packageDir = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -49,7 +49,7 @@ function readStdout(value: unknown): string {
 }
 
 async function createWorkspace(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), 'oxlint-plugin-'))
+  const root = tempDir('oxlint-plugin-')
   await Promise.all([
     symlink(join(packageDir, 'src'), join(root, 'src')),
     symlink(join(packageDir, 'node_modules'), join(root, 'node_modules')),
