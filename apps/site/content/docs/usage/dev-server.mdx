@@ -1,0 +1,70 @@
+---
+title: Dev server
+description: The agent reads your Vite dev server's config, module graph and served code, restarts it, and opens files in your editor.
+---
+
+The agent can ask the dev server that conciv runs in how your app is built: its resolved config, where it listens,
+where an import resolves, the module graph and the code it serves for a URL. It can also restart the dev server and
+open a file in your editor. These tools are built in: there is nothing to install or turn on.
+
+```text
+why does @/components/button resolve to the wrong file?
+```
+
+## The tools
+
+The agent calls them from code mode.
+
+| Tool               | What it does                                                                  |
+| ------------------ | ----------------------------------------------------------------------------- |
+| `server_config`    | The resolved root, base, mode, aliases and the names of the Vite plugins.     |
+| `server_urls`      | The local and network URLs the dev server listens on.                         |
+| `server_resolve`   | Where an import specifier resolves, optionally as imported from a given file. |
+| `server_graph`     | The importers and imported modules of a file.                                 |
+| `server_transform` | The transformed code the dev server serves for a URL.                         |
+| `server_restart`   | Restarts the dev server and re-bundles its dependencies. Asks you first.      |
+| `open`             | Opens a file in your editor, at a line and column when given.                 |
+
+The `server_*` tools need Vite. With Next.js, webpack or Rspack they fail with `no dev server is attached to
+conciv`. `open` works everywhere.
+
+## What asks first
+
+`server_restart` shows a **Permission** card. **Always allow** saves the answer for this project. See
+[Approvals](/docs/usage/approvals).
+
+## From your terminal
+
+Each tool is a method of the RPC `server`. Nothing asks from the terminal, `restart` included.
+
+```bash
+conciv plugin call server config
+conciv plugin call server urls
+conciv plugin call server resolve --data '{"spec":"@/components/button"}'
+conciv plugin call server graph --data '{"file":"src/main.ts"}'
+conciv plugin call server transform --data '{"url":"/src/main.ts"}'
+conciv plugin call server restart --data '{"force":true}'
+conciv plugin call server open --data '{"file":"src/main.ts","line":12}'
+```
+
+<TypeTable
+  type={{
+    config: {required: true, type: 'no input', description: 'The resolved config.'},
+    urls: {required: true, type: 'no input', description: 'Where the dev server listens.'},
+    resolve: {required: true, type: '{spec, importer?}', description: 'Where an import specifier resolves.'},
+    graph: {required: true, type: '{file}', description: 'The importers and imported modules of a file.'},
+    transform: {required: true, type: '{url}', description: 'The code served for a URL, or null.'},
+    restart: {
+      required: true,
+      type: '{force?}',
+      description: 'Restarts the dev server. force: true forces a full restart.',
+    },
+    open: {
+      required: true,
+      type: '{file, line?, column?}',
+      description: 'Opens the file. column is used only with a line.',
+    },
+  }}
+/>
+
+Without Vite, every method but `open` fails with the code `BUNDLER_UNAVAILABLE`.
