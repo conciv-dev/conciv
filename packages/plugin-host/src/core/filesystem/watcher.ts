@@ -41,7 +41,9 @@ function bindingOptions(directory: string, ignore: readonly string[], backend: B
   return {
     backend,
     ignorePaths: ignore.filter((entry) => !hasMagic(entry)).map((entry) => path.resolve(directory, entry)),
-    ignoreGlobs: ignore.filter((entry) => hasMagic(entry)).map((glob) => picomatch.makeRe(glob, {dot: true}).source),
+    ignoreGlobs: ignore
+      .filter((entry) => hasMagic(entry))
+      .map((glob) => picomatch.makeRe(glob, {dot: true, windows: process.platform === 'win32'}).source),
   }
 }
 
