@@ -24,7 +24,6 @@ import {
 } from '../src/registry.js'
 import {claude} from '../src/claude/index.js'
 import {
-  mkdtempSync,
   readFileSync,
   readdirSync,
   mkdirSync,
@@ -38,7 +37,7 @@ import {
   renameSync,
   writeSync,
 } from 'node:fs'
-import {tmpdir, homedir} from 'node:os'
+import {homedir} from 'node:os'
 import {dirname, join} from 'node:path'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {claudeChatConfig, claudeExecutable} from '../src/claude/chat.js'
@@ -59,7 +58,7 @@ import {claudeSdkCommands, __commandsCacheSet} from '../src/claude/sdk.js'
 import {claudeTtyCommand} from '../src/claude/tty.js'
 import {codex} from '../src/codex/index.js'
 import {codexDefaultModel, codexHome, codexModels} from '../src/codex/models.js'
-import {mkdtemp, mkdir, open, realpath, symlink, writeFile} from 'node:fs/promises'
+import {mkdir, open, realpath, symlink, writeFile} from 'node:fs/promises'
 import {DatabaseSync} from 'node:sqlite'
 import {rolloutPath, codexHistory, sessionsRoot, stateDbPath} from '../src/codex/history.js'
 import {codexModels as CODEX_MODELS, makeTextAdapter} from '@conciv/ai/server'
@@ -74,6 +73,7 @@ import {pi} from '../src/pi/index.js'
 import {encodeSessionDir, sessionsDir, piHistory} from '../src/pi/history.js'
 import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 import {execFileSync} from 'node:child_process'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 const OPENCODE_TABLES = [
   `create table if not exists session (id text primary key, project_id text not null default '', directory text not null, title text not null, time_created integer not null, time_updated integer not null, time_archived integer, model text, tokens_input integer not null default 0, tokens_output integer not null default 0)`,
@@ -363,7 +363,7 @@ describe('claude chat config', () => {
     })
 
     it('writes image parts to @path fileRefs inside .conciv/tmp, never the workspace root', () => {
-      const dir = mkdtempSync(join(tmpdir(), 'claude-chat-'))
+      const dir = tempDir('claude-chat-')
       const config = claudeChatConfig(deps({cwd: dir}))
       const pixel = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
       const prepared = config.prepareMessages?.([
@@ -973,7 +973,7 @@ describe('codex chat config', () => {
     })
 
     it('defaults to the model named in the CODEX_HOME the session env points at', () => {
-      const dir = mkdtempSync(join(tmpdir(), 'codex-chat-config-'))
+      const dir = tempDir('codex-chat-config-')
       writeFileSync(join(dir, 'config.toml'), 'model = "gpt-from-env-home"\n')
       expect(codex.chatConfig(deps({env: {PATH: '/usr/bin', CODEX_HOME: dir}})).adapter.model).toBe('gpt-from-env-home')
     })
@@ -1268,7 +1268,7 @@ describe('codex history', () => {
   describe('codex refuses a persisted rollout path that leaves the codex home', () => {
     it('ignores a threads row pointing outside .codex in reads, meta and list, and falls back to the contained scan', async () => {
       const planted = HarnessSessionId.parse('019fb340-0000-7000-8000-0000000000e5')
-      const outside = join(await realpath(await mkdtemp(join(tmpdir(), 'codex-escape-'))), 'planted.jsonl')
+      const outside = join(await realpath(tempDir('codex-escape-')), 'planted.jsonl')
       await writeFile(outside, rollout(ROLLOUT_LINES), 'utf8')
       seedThreads([{id: planted, path: outside, cwd: PROJECT, updated: 2}])
 
@@ -1283,7 +1283,7 @@ describe('codex history', () => {
 
   describe('codex history follows a symlinked project root', () => {
     it('reads a rollout recorded under the real path when asked through the link', async () => {
-      const root = await realpath(await mkdtemp(join(tmpdir(), 'codex-symlink-')))
+      const root = await realpath(tempDir('codex-symlink-'))
       const real = join(root, 'project')
       const link = join(root, 'project-link')
       const linked = HarnessSessionId.parse('019fb340-0000-7000-8000-00000000011c')
@@ -1333,7 +1333,7 @@ describe('codex models', () => {
   const fallback = CODEX_MODELS.map((id) => ({id, name: id, group: 'Codex'}))
 
   const codexDir = (files: Record<string, string>): string => {
-    const dir = join(mkdtempSync(join(tmpdir(), 'codex-models-')), '.codex')
+    const dir = join(tempDir('codex-models-'), '.codex')
     mkdirSync(dir)
     Object.entries(files).forEach(([name, content]) => writeFileSync(join(dir, name), content))
     return dir
@@ -1413,13 +1413,13 @@ describe('contained path', () => {
 
   describe('containedPath refuses anything that lands outside the root', () => {
     it('accepts a plain child', () => {
-      const root = mkdtempSync(join(tmpdir(), 'conciv-contain-'))
+      const root = tempDir('conciv-contain-')
       scratch.push(root)
       expect(containedPath(root, join(root, 'a.jsonl'))).not.toBeNull()
     })
 
     it('refuses the root itself and a traversal out of it', () => {
-      const root = mkdtempSync(join(tmpdir(), 'conciv-contain-'))
+      const root = tempDir('conciv-contain-')
       scratch.push(root)
       expect(containedPath(root, root)).toBeNull()
       expect(containedPath(root, join(root, '..', 'secret.jsonl'))).toBeNull()
@@ -1427,8 +1427,8 @@ describe('contained path', () => {
     })
 
     it('refuses a symlink inside the root that points outside it', () => {
-      const root = mkdtempSync(join(tmpdir(), 'conciv-contain-'))
-      const outside = mkdtempSync(join(tmpdir(), 'conciv-outside-'))
+      const root = tempDir('conciv-contain-')
+      const outside = tempDir('conciv-outside-')
       scratch.push(root, outside)
       const secret = join(outside, 'secret.jsonl')
       writeFileSync(secret, 'TOP SECRET')
@@ -1439,7 +1439,7 @@ describe('contained path', () => {
 
   describe('transcriptPathWithin contains a charset-valid harness session id', () => {
     it('yields a path for an ordinary token', () => {
-      const cwd = mkdtempSync(join(tmpdir(), 'conciv-project-'))
+      const cwd = tempDir('conciv-project-')
       scratch.push(cwd)
       const root = claudeProject(cwd)
       const token = HarnessSessionId.parse('018f3a2b-4c5d-6e7f')
@@ -1448,8 +1448,8 @@ describe('contained path', () => {
     })
 
     it('refuses a token whose transcript is a symlink out of the project directory', () => {
-      const cwd = mkdtempSync(join(tmpdir(), 'conciv-project-'))
-      const outside = mkdtempSync(join(tmpdir(), 'conciv-outside-'))
+      const cwd = tempDir('conciv-project-')
+      const outside = tempDir('conciv-outside-')
       scratch.push(cwd, outside)
       const root = claudeProject(cwd)
       const secret = join(outside, 'secret.jsonl')
@@ -1460,7 +1460,7 @@ describe('contained path', () => {
     })
 
     it('refuses a traversing token even when the brand parse is bypassed', () => {
-      const cwd = mkdtempSync(join(tmpdir(), 'conciv-project-'))
+      const cwd = tempDir('conciv-project-')
       scratch.push(cwd)
       claudeProject(cwd)
       const traversal = UncheckedHarnessSessionId.parse('../../secret')
@@ -1468,7 +1468,7 @@ describe('contained path', () => {
     })
 
     it('yields nothing for a history that declares no transcript path', () => {
-      const cwd = mkdtempSync(join(tmpdir(), 'conciv-project-'))
+      const cwd = tempDir('conciv-project-')
       scratch.push(cwd)
       const pathless = {...claudeHistory, transcriptPath: undefined, transcriptRoot: undefined}
       expect(transcriptPathWithin(pathless, cwd, HarnessSessionId.parse('tok'))).toBeNull()
@@ -1585,7 +1585,7 @@ describe('opencode models', () => {
     `\u001b]0;ready\u0007${models.map((model) => `${model.providerID}/${model.id}\n${JSON.stringify(model, null, 2)}`).join('\n')}\n`
 
   async function fakeOpencode(output: string, exitCode = 0): Promise<void> {
-    const bin = await mkdtemp(join(tmpdir(), 'conciv-fake-opencode-'))
+    const bin = tempDir('conciv-fake-opencode-')
     await writeFile(join(bin, 'listing.txt'), output)
     await writeFile(
       join(bin, 'opencode'),
@@ -1959,7 +1959,7 @@ describe('opencode history', () => {
 
   describe('opencode history follows a symlinked project root', () => {
     it('reads a session recorded under the real path when asked through the link', async () => {
-      const root = await realpath(await mkdtemp(join(tmpdir(), 'opencode-symlink-')))
+      const root = await realpath(tempDir('opencode-symlink-'))
       const real = join(root, 'project')
       const link = join(root, 'project-link')
       const linked = HarnessSessionId.parse('ses_linked')
@@ -2222,7 +2222,7 @@ describe('pi history', () => {
       const project = '/workspace/pi-symlink.demo'
       const dir = sessionsDir(project)
       await mkdir(dir, {recursive: true})
-      const outside = join(await mkdtemp(join(tmpdir(), 'pi-outside-')), 'outside.jsonl')
+      const outside = join(tempDir('pi-outside-'), 'outside.jsonl')
       await writeFile(outside, jsonl(LINES), 'utf8')
       const escapee = HarnessSessionId.parse('escapee')
       await symlink(outside, join(dir, `2026-01-01T00-00-00-000Z_${escapee}.jsonl`))
@@ -2263,7 +2263,7 @@ describe('replayed history from another harness', () => {
   it.each([claude, codex, geminiCli, opencode, pi].map((adapter) => [adapter.id, adapter] as const))(
     '%s takes a history with foreign tool calls and earlier images and keeps the question last',
     (_id, adapter) => {
-      const cwd = mkdtempSync(join(tmpdir(), 'replay-'))
+      const cwd = tempDir('replay-')
       const config = adapter.chatConfig({
         cwd,
         sessionId: SessionId.parse('conciv_replay'),
@@ -3112,8 +3112,8 @@ describe('resume.command', () => {
 })
 
 describe('claude transcript usage', () => {
-  const cwd = mkdtempSync(join(tmpdir(), 'conciv-usage-'))
-  const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-usage-elsewhere-'))
+  const cwd = tempDir('conciv-usage-')
+  const elsewhere = tempDir('conciv-usage-elsewhere-')
   const readUsage = (nativeId: string) =>
     claude.history?.transcriptUsage?.({cwd, nativeId: HarnessSessionId.parse(nativeId)})
 

@@ -1,12 +1,15 @@
-import {expect, test} from 'vitest'
+import {describe, expect, test} from 'vitest'
+import {z} from 'zod'
+import {makeRpcClient, type RpcClientOptions} from '@conciv/contract'
 import {SharedEvents} from '../../src/client/shared-events.js'
+import {Conciv, Rpc, type EventSubscribeOutput} from '../../src/promise/index.js'
 
 type Event = {readonly type: string; readonly value?: number}
 
-function source(cleanup?: Promise<void>) {
+function source<A extends {readonly type: string} = Event>(cleanup?: Promise<void>) {
   const connections: {
     signal: AbortSignal
-    push: (event: Event) => void
+    push: (event: A) => void
     close: () => void
     fail: (error: unknown) => void
     closing: Promise<void>
@@ -20,12 +23,12 @@ function source(cleanup?: Promise<void>) {
       if (!connections[index]) await (opened[index] ??= Promise.withResolvers<void>()).promise
       return connections[index]!
     },
-    connect(signal: AbortSignal): AsyncIterable<Event> {
-      let controller!: ReadableStreamDefaultController<Event>
+    connect(signal: AbortSignal): AsyncIterable<A> {
+      let controller!: ReadableStreamDefaultController<A>
       let ended = false
       const closing = Promise.withResolvers<void>()
       const closed = Promise.withResolvers<void>()
-      const stream = new ReadableStream<Event>({
+      const stream = new ReadableStream<A>({
         start(value) {
           controller = value
         },
@@ -394,4 +397,101 @@ test('source activity fans out to every subscriber that asked for it', async () 
   await first.return!()
   await second.return!()
   await events.connections[0]!.closed
+})
+
+describe('Conciv.make event stream', () => {
+  const connected = (id: string): EventSubscribeOutput => ({id, type: 'server.connected', data: {}})
+  const indexed = (count: number): EventSubscribeOutput => ({
+    id: `indexed-${count}`,
+    created: count,
+    type: 'rpc.acme.indexed',
+    location: {directory: '/workspace'},
+    data: {count},
+  })
+  const Acme = Rpc.define({id: 'acme', methods: {}, events: {indexed: {schema: z.object({count: z.number()})}}})
+
+  function engine(connect: (signal: AbortSignal) => AsyncIterable<EventSubscribeOutput>) {
+    const serve: NonNullable<RpcClientOptions['interceptors']>[number] = async (options) => {
+      if (options.path.join('.') !== 'event.subscribe' || options.signal === undefined) return options.next()
+      return connect(options.signal)
+    }
+    return Conciv.make(makeRpcClient('http://127.0.0.1:9', {interceptors: [serve]}))
+  }
+
+  test('a direct reader sees server.connected again and the next event after the stream ends, fails or is refused', async () => {
+    const events = source<EventSubscribeOutput>()
+    const attempts = {count: 0}
+    const client = engine((signal) => {
+      attempts.count += 1
+      if (attempts.count === 3) throw new Error('the engine refused the subscription')
+      return events.connect(signal)
+    })
+    const reader = client.event.subscribe()[Symbol.asyncIterator]()
+
+    const opening = reader.next()
+    const first = await events.at(0)
+    first.push(connected('first'))
+    expect(await opening).toEqual({done: false, value: connected('first')})
+
+    const afterEnd = reader.next()
+    first.close()
+    const second = await events.at(1)
+    second.push(connected('second'))
+    expect(await afterEnd).toEqual({done: false, value: connected('second')})
+    second.push(indexed(1))
+    expect(await reader.next()).toEqual({done: false, value: indexed(1)})
+
+    const afterFailure = reader.next()
+    second.fail(new Error('the engine ended the event stream'))
+    const third = await events.at(2)
+    expect(attempts.count).toBe(4)
+    third.push(connected('third'))
+    expect(await afterFailure).toEqual({done: false, value: connected('third')})
+    third.push(indexed(2))
+    expect(await reader.next()).toEqual({done: false, value: indexed(2)})
+
+    await reader.return?.()
+    await third.closed
+    expect(third.signal.aborted).toBe(true)
+    const fresh = client.event.subscribe()[Symbol.asyncIterator]()
+    const freshRead = fresh.next()
+    const fourth = await events.at(3)
+    expect(events.connections).toHaveLength(4)
+    fourth.push(connected('fourth'))
+    expect(await freshRead).toEqual({done: false, value: connected('fourth')})
+    await fresh.return?.()
+    await fourth.closed
+  })
+
+  test('an events.on handler keeps receiving across a reopen and after it throws', async () => {
+    const events = source<EventSubscribeOutput>()
+    const client = engine((signal) => events.connect(signal))
+    const delivered: number[] = []
+    const waiting: {count: number; resolve: () => void}[] = []
+    const received = (count: number) =>
+      delivered.includes(count) ? Promise.resolve() : new Promise<void>((resolve) => waiting.push({count, resolve}))
+    const stop = client.rpc(Acme).events.on('indexed', (event) => {
+      delivered.push(event.data.count)
+      waiting.filter((waiter) => waiter.count === event.data.count).forEach((waiter) => waiter.resolve())
+      if (event.data.count === 1) throw new Error('the handler failed on its first event')
+    })
+
+    const first = await events.at(0)
+    first.push(connected('first'))
+    first.push(indexed(1))
+    await received(1)
+    first.push(indexed(2))
+    await received(2)
+    first.close()
+
+    const second = await events.at(1)
+    second.push(connected('second'))
+    second.push(indexed(3))
+    await received(3)
+    expect(delivered).toEqual([1, 2, 3])
+
+    stop()
+    await second.closed
+    expect(second.signal.aborted).toBe(true)
+  })
 })

@@ -1,7 +1,6 @@
 import {execFileSync} from 'node:child_process'
-import {cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
-import {mkdtemp, realpath, rm, writeFile} from 'node:fs/promises'
-import {tmpdir} from 'node:os'
+import {cpSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {realpath, rm, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {afterAll, afterEach, beforeAll, describe, expect, it, onTestFinished, test} from 'vitest'
@@ -25,6 +24,7 @@ import {
   waitForAboutQuery,
   waitForPagePlane,
 } from './helpers.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 async function startTrusted(opts: StartOpts): Promise<{engine: Engine; apiBase: string}> {
   const engine = await start(opts)
@@ -51,7 +51,7 @@ describe('boot', () => {
 
 describe('package install', () => {
   test('the factory loads as an installed extension package and its server tool runs on the real engine', async () => {
-    const root = await realpath(await mkdtemp(join(await realpath(tmpdir()), 'conciv-fi-')))
+    const root = await realpath(tempDir('conciv-fi-'))
     cpSync(fileURLToPath(new URL('./fixtures/route-manifest-app', import.meta.url)), root, {recursive: true})
 
     const {extensions} = await loadExtensionPackages([tanstack()])
@@ -149,7 +149,7 @@ describe('framework adapter', () => {
 
 describe('packed resolution', {tags: ['packed']}, () => {
   test('packed tarball has no workspace protocol and its root export is the factory', () => {
-    const tgz = packTarball(process.cwd(), mkdtempSync(join(tmpdir(), 'conciv-packed-')))
+    const tgz = packTarball(process.cwd(), tempDir('conciv-packed-'))
     const manifestText = execFileSync('tar', ['-xzOf', tgz, 'package/package.json']).toString()
     expect(manifestText).not.toContain('workspace:')
     const manifest: unknown = JSON.parse(manifestText)
@@ -214,8 +214,8 @@ describe('resolution matrix', {tags: ['packed']}, () => {
   }
 
   async function buildFixture(): Promise<Fixture> {
-    const dir = mkdtempSync(join(tmpdir(), 'conciv-resolution-matrix-'))
-    const packDir = mkdtempSync(join(tmpdir(), 'conciv-resolution-packs-'))
+    const dir = tempDir('conciv-resolution-matrix-')
+    const packDir = tempDir('conciv-resolution-packs-')
     const {packed, overrides} = await packWorkspaceClosure(packDir)
     writeFixtureManifest(dir, overrides)
     await installPacked({
@@ -458,7 +458,7 @@ describe('server tools', () => {
   const RoutesSchema = z.array(RouteInfoSchema)
 
   async function makeStateRoot(): Promise<string> {
-    const root = await realpath(await mkdtemp(join(await realpath(tmpdir()), 'conciv-ts-server-')))
+    const root = await realpath(tempDir('conciv-ts-server-'))
     onTestFinished(() => rm(root, {recursive: true, force: true}))
     return root
   }
@@ -589,7 +589,7 @@ describe('serverfn trace', () => {
   const BASEPATH_FN_ID = Buffer.from(JSON.stringify(BASEPATH_FN)).toString('base64')
 
   async function makeStateRoot(): Promise<string> {
-    return realpath(await mkdtemp(join(await realpath(tmpdir()), 'conciv-ts-serverfn-')))
+    return realpath(tempDir('conciv-ts-serverfn-'))
   }
 
   async function bootEngine(root: string, bridge?: BundlerBridge): Promise<{engine: Engine; callTool: CallTool}> {
