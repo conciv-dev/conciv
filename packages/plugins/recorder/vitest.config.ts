@@ -6,7 +6,7 @@ export default defineConfig({
     ...ciTest(),
     name: 'plugin-recorder',
     environment: 'node',
-    include: ['test/recorder.test.ts'],
+    include: ['test/recorder.test.ts', 'test/recorder.it.test.ts'],
     testTimeout: 120_000,
     fileParallelism: false,
   },
