@@ -213,6 +213,7 @@ describe('the tanstack plugin on a real Vite dev server', () => {
     expect(payload.traces.map((trace) => trace.name)).toEqual([SERVER_FN.export])
     expect(payload.traces[0]?.durationMs).toBeGreaterThanOrEqual(0)
     expect(payload.functions).toEqual([{id: SERVER_FN_ID, name: SERVER_FN.export, route: null, file: SERVER_FN.file}])
+    expect(await terminalCall(kit, 'serverFnTrace', '{}')).toEqual({ok: true, data: payload})
 
     const underBase = diagnosticSeen(
       bridge,
@@ -228,5 +229,6 @@ describe('the tanstack plugin on a real Vite dev server', () => {
       route: null,
       file: BASEPATH_FN.file,
     })
+    expect(await terminalCall(kit, 'serverFnTrace', '{"count":1}')).toEqual({ok: true, data: based})
   })
 })

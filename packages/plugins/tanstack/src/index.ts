@@ -23,6 +23,7 @@ export default Plugin.define({
           return error('MANIFEST_UNREADABLE', failureMessage(cause), {})
         }
       },
+      serverFnTrace: async ({count}) => tanstack.serverFnTrace(count),
     })
     await ctx.skill.transform((editor) => editor.add(info))
     return async () => {

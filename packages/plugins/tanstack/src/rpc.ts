@@ -79,6 +79,21 @@ const RouteInfo = z.object({
   file: z.string().nullable(),
 })
 
+const ServerFnTraces = z.object({
+  traces: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      durationMs: z.number(),
+      status: z.enum(['ok', 'error']),
+      at: z.number(),
+    }),
+  ),
+  functions: z.array(
+    z.object({id: z.string(), name: z.string(), route: z.string().nullable(), file: z.string().nullable()}),
+  ),
+})
+
 export const Definition = Rpc.define({
   id: 'experimental.tanstack',
   methods: {
@@ -91,6 +106,10 @@ export const Definition = Rpc.define({
       input: z.object({}),
       output: z.array(RouteInfo),
       errors: {MANIFEST_UNREADABLE: z.object({})},
+    },
+    serverFnTrace: {
+      input: z.object({count: z.number().int().positive().max(100).optional()}),
+      output: ServerFnTraces,
     },
   },
   events: {},

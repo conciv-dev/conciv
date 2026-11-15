@@ -16,5 +16,7 @@ plugins: ['@conciv/plugin-tanstack']
     bundler bridge it prints the `bundler bridge unavailable` failure.
   - `conciv plugin call experimental.tanstack routeManifest --data '{}'` prints every route; when the generated
     route tree cannot be read it prints why.
+  - `conciv plugin call experimental.tanstack serverFnTrace --data '{}'` prints the recent server-function calls and
+    every server function seen; `--data '{"count":5}'` keeps the latest five calls.
 - `./rpc`: the schemas `FrameworkInfo`, `RouterCurrent`, `RouteNode`, `CacheEntry` and `AppError`, and `Definition`,
   the RPC `experimental.tanstack` other plugins call.

@@ -1,26 +1,10 @@
 import {Tool, type BundlerDomain, type ToolDomain} from '@conciv/plugin'
-import {z} from 'zod'
 import {Definition} from './rpc.js'
 import {buildErrorToAppError, makeDiagnosticsRing} from './server/diagnostics.js'
 import {readRouteManifest} from './server/route-manifest.js'
 import {makeServerFnTraceRing} from './server/serverfn-trace.js'
 
 const options = {namespace: 'tanstack', codemode: true}
-
-const ServerFnTraces = z.object({
-  traces: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string(),
-      durationMs: z.number(),
-      status: z.enum(['ok', 'error']),
-      at: z.number(),
-    }),
-  ),
-  functions: z.array(
-    z.object({id: z.string(), name: z.string(), route: z.string().nullable(), file: z.string().nullable()}),
-  ),
-})
 
 export type Capabilities = ReturnType<typeof capabilities>
 
@@ -86,8 +70,8 @@ export async function register(tool: ToolDomain, tanstack: Capabilities) {
       name: 'server_fn_trace',
       description:
         'Read recent TanStack server-function calls: which server fn ran (file + export), duration, and status. Use it to see server-side data fetching triggered by the app.',
-      input: z.object({count: z.number().int().positive().max(100).optional()}),
-      output: ServerFnTraces,
+      input: Definition.methods.serverFnTrace.input,
+      output: Definition.methods.serverFnTrace.output,
       options,
       execute: async ({count}) => ({output: tanstack.serverFnTrace(count)}),
     })
