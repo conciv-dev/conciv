@@ -59,7 +59,10 @@ function serverDraft(row: DraftRow): ServerDraft {
 }
 
 export async function appendDraft(appData: AppData, sessionId: string, text: string): Promise<void> {
-  const row = await appData.readDraft(sessionId)
+  const row = await appData.readDraft(sessionId).catch((error: unknown) => {
+    console.error('[conciv] could not read the saved draft', error)
+    return null
+  })
   const nextText = row?.text ? `${row.text}\n${text}` : text
   await appData.saveDraft({
     sessionId,
