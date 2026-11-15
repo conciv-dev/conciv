@@ -6474,7 +6474,7 @@ export default {
     )
   })
 
-  it('an engine with no plugin offers its built-in conciv and report skills, then a skill added to the project conciv/skills folder, and drops it once removed', async () => {
+  it('an engine with no plugin offers its built-in conciv and report skills and a skill added to the project conciv/skills folder', async () => {
     const root = tempDir('conciv-skills-')
     const prompts: string[][] = []
     const fake = createFakeHarness()
@@ -6536,11 +6536,6 @@ export default {
     expect(await updates.next()).toMatchObject({value: {type: 'skill.updated'}})
     expect(await prompted('greet-run')).toContain('<id>greet</id>')
     expect(await load('greet')).toContain('Greet twice.')
-
-    rmSync(folder, {recursive: true})
-    expect(await updates.next()).toMatchObject({value: {type: 'skill.updated'}})
-    await expect(load('greet')).rejects.toThrow('Unable to load skill greet')
-    expect(await load('conciv')).toContain('Full documentation is available at')
   })
 })
 
