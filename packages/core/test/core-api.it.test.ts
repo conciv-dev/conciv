@@ -137,12 +137,7 @@ import {
   SessionCapturesSchema,
 } from '@conciv/protocol/element-capture-types'
 import {type HarnessChatDeps, type HarnessListCursor, type HarnessModel} from '@conciv/protocol/harness-types'
-import {
-  type PageOutcome,
-  PageQuerySchema,
-  PageQueueResultSchema,
-  PAGE_TRANSPORT_ERROR_CODES,
-} from '@conciv/protocol/page-types'
+import {PageQueueResultSchema, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
 import {type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
@@ -202,7 +197,7 @@ function sharedKit(boot: () => Promise<Kit>): () => Kit {
 
 type PageReply = z.input<typeof Page.Outcome>
 
-type PageAnswer = (command: Page.Command) => PageReply | undefined
+type PageAnswer = (command: Page.Command, requestId: string) => PageReply | undefined
 
 type PageTab = {
   end: () => void
@@ -211,6 +206,7 @@ type PageTab = {
   requested: () => Promise<string>
   cancelled: (requestId: string) => Promise<void>
   command: (requestId: string) => Promise<Page.Command>
+  reply: (requestId: string, outcome: PageReply) => Promise<void>
 }
 
 type TabLook = {url: string; title: string; focused: boolean; visible: boolean}
@@ -254,7 +250,7 @@ function pageTabs(): {plugin: Plugin.Plugin; open: OpenTab} {
           tab.heard.dispatchEvent(new Event('command'))
           const command = await page.command({sessionId: tab.sessionId, connectionId, requestId})
           tab.seen.push(`page_${command.action.type}`)
-          const outcome = tab.answerFor(command)
+          const outcome = tab.answerFor(command, requestId)
           if (outcome === undefined) return
           await page.result({sessionId: tab.sessionId, connectionId, requestId, outcome})
         },
@@ -296,6 +292,9 @@ function pageTabs(): {plugin: Plugin.Plugin; open: OpenTab} {
             while (!cancels.includes(requestId)) await once(heard, 'cancel')
           },
           command: (requestId) => page.command({sessionId, connectionId, requestId}),
+          reply: async (requestId, outcome) => {
+            await page.result({sessionId, connectionId, requestId, outcome})
+          },
         }
       })
       return () => stop.abort()
@@ -5572,12 +5571,13 @@ describe('page action queue delivery', () => {
     await Promise.all(engines.map((engine) => engine.stop()))
   })
 
-  type QueuedOnTab = {id: string; replies: string[]}
+  type QueuedOnTab = {id: string; of: number}
 
   async function engineWithTab(harness = createFakeHarness(), plugins: readonly Plugin.Plugin[] = []) {
     const home = tempDir('conciv-queue-home-')
     withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
-    const engine = await bootAt(home, tempDir('conciv-queue-'), 'open', harness, plugins)
+    const tabs = pageTabs()
+    const engine = await bootAt(home, tempDir('conciv-queue-'), 'open', harness, [tabs.plugin, ...plugins])
     engines.push(engine)
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
@@ -5586,34 +5586,37 @@ describe('page action queue delivery', () => {
     expect(await browserRpcConnection(origin).trust.requestTrustWithToken(engine.agentToken)).toBe(true)
     onTestFinished(() => browser.close())
     const tab = browser.rpc
-    const closed = new AbortController()
-    const queries = await tab.page.queries(undefined, {signal: AbortSignal.any([pages.signal, closed.signal])})
     const accepted: QueuedOnTab[] = []
+    const held = new Map<string, string>()
     const arrivals = new EventTarget()
-    const answer = async (): Promise<void> => {
-      for await (const {requestId, query} of queries) {
-        const parsed = PageQuerySchema.parse(query)
-        if (parsed.queue === undefined) {
-          await tab.page.reply({requestId, outcome: {ok: true, result: {}}})
-          continue
-        }
-        const {id, replies} = parsed.queue
-        await tab.page.reply({requestId, outcome: {ok: true, result: {queueId: id, actions: replies.length}}})
-        accepted.push({id, replies})
-        arrivals.dispatchEvent(new Event('queue'))
+    const answerFor = (command: Page.Command, requestId: string): PageReply | undefined => {
+      if (command.queued === undefined) return pageSuccess({})
+      const {id, index, of} = command.queued
+      if (index >= 0) {
+        held.set(`${id}/${index}`, requestId)
+        arrivals.dispatchEvent(new Event('held'))
+        return undefined
       }
+      accepted.push({id, of})
+      arrivals.dispatchEvent(new Event('queue'))
+      return pageSuccess({queueId: id, actions: of})
     }
-    const answering = answer().catch((error: unknown) => {
-      if (!closed.signal.aborted && !pages.signal.aborted) throw error
-    })
+    const onTab = await tabs.open(sessionId, answerFor)
+    pages.signal.addEventListener('abort', () => onTab.end(), {once: true})
     const nextQueue = async (): Promise<QueuedOnTab> => {
       const known = accepted.shift()
       if (known !== undefined) return known
       await once(arrivals, 'queue')
       return nextQueue()
     }
-    const play = (queued: QueuedOnTab, index: number, outcome: PageOutcome) =>
-      tab.page.reply({requestId: queued.replies[index] ?? '', outcome})
+    const heldRequest = async (key: string): Promise<string> => {
+      const requestId = held.get(key)
+      if (requestId !== undefined) return requestId
+      await once(arrivals, 'held')
+      return heldRequest(key)
+    }
+    const play = async (queued: QueuedOnTab, index: number, outcome: PageReply) =>
+      onTab.reply(await heldRequest(`${queued.id}/${index}`), outcome)
     const events = await tab.chat.events({sessionId}, {signal: pages.signal})
     const seen: ChatEvent[] = []
     const watch = async (): Promise<void> => {
@@ -5642,12 +5645,23 @@ describe('page action queue delivery', () => {
         if (chunk.type === ChatEventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') return
       }
     }
-    const tabOpen = async () => TabOpenSchema.parse(await makeRpcClient(base).tabs.get({sessionId}))
-    await vi.waitFor(async () => expect((await tabOpen()).open).toBe(true), {timeout: 3000})
+    expect(TabOpenSchema.parse(await makeRpcClient(base).tabs.get({sessionId})).open).toBe(true)
     const hub = (code: string) => executeOverMcp(base, {...HUB, [CONCIV_SESSION_HEADER]: sessionId}, code)
-    const close = async () => {
-      closed.abort()
-      await answering
+    const close = async () => onTab.end()
+    const inChat = (runId: string, typescriptCode: string) => {
+      harness.script.scriptToolCall('execute_typescript', {typescriptCode})
+      return fetch(`${base}${CHAT_SSE_PATH}`, {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({
+          threadId: sessionId,
+          runId,
+          messages: [{id: `${runId}-user`, role: 'user', content: 'fill the form'}],
+          tools: [],
+          context: [],
+        }),
+        signal: pages.signal,
+      })
     }
     void watching
     const discover = async (toolNames: string[]): Promise<unknown> => {
@@ -5675,6 +5689,7 @@ describe('page action queue delivery', () => {
       followUpFinished,
       runIds,
       seenChunk,
+      inChat,
     }
   }
 
@@ -5728,8 +5743,8 @@ describe('page action queue delivery', () => {
       typescriptCode: "return {queueId: 'q_x', actions: 1}",
     })
     expect(lookalike).toMatchObject({ok: true, result: {queueId: 'q_x', actions: 1}, queued: []})
-    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
-    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    await page.play(onTab, 0, pageSuccess({ok: true, value: 'Ada'}))
+    await page.play(onTab, 1, pageSuccess({ok: true, checked: true}))
     await page.finishedEvent(onTab.id)
     expect(await typed.page.queue.wait({sessionId: page.sessionId, queueId: onTab.id, waitMs: 0})).toMatchObject({
       queueId: onTab.id,
@@ -5756,8 +5771,8 @@ describe('page action queue delivery', () => {
     caller.abort()
     await expect(waiting).rejects.toMatchObject({name: 'AbortError'})
     expect(await typed.tabs.get({sessionId: page.sessionId})).toMatchObject({open: true})
-    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
-    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    await page.play(onTab, 0, pageSuccess({ok: true, value: 'Ada'}))
+    await page.play(onTab, 1, pageSuccess({ok: true, checked: true}))
     await page.finishedEvent(queueId)
     expect(JSON.stringify(await page.hub('return 1'))).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
   }, 5000)
@@ -5766,8 +5781,8 @@ describe('page action queue delivery', () => {
     const page = await engineWithTab()
     const {queueId} = parseHandle(await page.hub(queued()))
     const first = await page.nextQueue()
-    await page.play(first, 0, {ok: true, result: {ok: true, value: 'Ada'}})
-    await page.play(first, 1, {ok: true, result: {ok: true, checked: true}})
+    await page.play(first, 0, pageSuccess({ok: true, value: 'Ada'}))
+    await page.play(first, 1, pageSuccess({ok: true, checked: true}))
     await page.finishedEvent(queueId)
     const caller = new AbortController()
     const typed = makeRpcClient(page.base, {headers: HUB})
@@ -5788,15 +5803,16 @@ describe('page action queue delivery', () => {
     const page = await engineWithTab()
     const typed = makeRpcClient(page.base, {headers: {...HUB, [CONCIV_SESSION_HEADER]: page.sessionId}})
     const playAll = async (onTab: QueuedOnTab): Promise<void> => {
-      await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
-      await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+      await page.play(onTab, 0, pageSuccess({ok: true, value: 'Ada'}))
+      await page.play(onTab, 1, pageSuccess({ok: true, checked: true}))
     }
     const nextHubReply = async (): Promise<string> => JSON.stringify(await page.hub('return 1'))
     const notice = (queueId: string) => `queue ${queueId} finished: 2 played, 0 failed`
 
-    const calling = typed.registry.call({name: 'page_queue_async', input: {actions: ACTIONS}})
-    await playAll(await page.nextQueue())
-    const fast = z.object({queueId: z.string()}).parse(await calling).queueId
+    const calling = page.hub(queued())
+    const fastOnTab = await page.nextQueue()
+    const fast = parseHandle(await calling).queueId
+    await playAll(fastOnTab)
     await page.finishedEvent(fast)
     expect(await nextHubReply()).toContain(notice(fast))
     expect(page.runIds()).toEqual([])
@@ -5844,8 +5860,8 @@ describe('page action queue delivery', () => {
     const page = await engineWithTab()
     const {queueId} = parseHandle(await page.hub(queued()))
     const onTab = await page.nextQueue()
-    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
-    await page.play(onTab, 1, {ok: false, error: {code: 'invalid-args', message: 'That element is disabled.'}})
+    await page.play(onTab, 0, pageSuccess({ok: true, value: 'Ada'}))
+    await page.play(onTab, 1, {type: 'failure', code: 'invalid-args', message: 'That element is disabled.'})
     await page.finishedEvent(queueId)
     const next = await page.hub('return 7')
     expect(Array.isArray(next)).toBe(true)
@@ -5856,7 +5872,7 @@ describe('page action queue delivery', () => {
       status: 'finished',
       outcomes: [
         {index: 0, tool: 'page_fill', ok: true, result: {ok: true, value: 'Ada'}},
-        {index: 1, tool: 'page_check', ok: false, error: 'That element is disabled.'},
+        {index: 1, tool: 'page_check', ok: false, error: '[page.invalid-args] That element is disabled.'},
       ],
       failed: 1,
       played: 2,
@@ -5880,15 +5896,15 @@ describe('page action queue delivery', () => {
           onTab,
           index,
           index % 2 === 0
-            ? {ok: true, result: {ok: true, value: 'v'.repeat(3000)}}
-            : {ok: false, error: {code: 'invalid-args', message: 'e'.repeat(3000)}},
+            ? pageSuccess({ok: true, value: 'v'.repeat(3000)})
+            : {type: 'failure', code: 'invalid-args', message: 'e'.repeat(2048)},
         )
       }
     }
     const expected = actions.map((_, index) =>
       index % 2 === 0
         ? {index, tool: 'page_fill', ok: true, result: expect.any(Object)}
-        : {index, tool: 'page_fill', ok: false, error: expect.stringMatching(/^e+/)},
+        : {index, tool: 'page_fill', ok: false, error: expect.stringMatching(/^\[page\.invalid-args\] e+$/)},
     )
     const noticed = (text: string | undefined) =>
       PageQueueResultSchema.parse(JSON.parse(text?.split('\n').slice(1).join('\n') ?? ''))
@@ -5922,8 +5938,8 @@ describe('page action queue delivery', () => {
     const page = await engineWithTab()
     const {queueId} = parseHandle(await page.hub(queued()))
     const onTab = await page.nextQueue()
-    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
-    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    await page.play(onTab, 0, pageSuccess({ok: true, value: 'Ada'}))
+    await page.play(onTab, 1, pageSuccess({ok: true, checked: true}))
     await page.finishedEvent(queueId)
     const [notice] = z
       .array(z.object({type: z.literal('text'), content: z.string()}))
@@ -5936,8 +5952,8 @@ describe('page action queue delivery', () => {
     const page = await engineWithTab()
     const replied = page.hub(played)
     const onTab = await page.nextQueue()
-    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
-    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    await page.play(onTab, 0, pageSuccess({ok: true, value: 'Ada'}))
+    await page.play(onTab, 1, pageSuccess({ok: true, checked: true}))
     expect(JSON.parse(String(await replied)).result).toEqual({
       queueId: onTab.id,
       status: 'finished',
@@ -5956,7 +5972,7 @@ describe('page action queue delivery', () => {
     const page = await engineWithTab()
     const replied = page.hub(played)
     const onTab = await page.nextQueue()
-    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+    await page.play(onTab, 0, pageSuccess({ok: true, value: 'Ada'}))
     await page.close()
     expect(JSON.parse(String(await replied)).result).toEqual({
       queueId: onTab.id,
@@ -5977,19 +5993,20 @@ describe('page action queue delivery', () => {
 
   it('an in-page queue publishes one conciv.page-queue event, records it, and starts a follow-up turn', async () => {
     const page = await engineWithTab()
-    const handle = page.tab.registry.call({name: 'page_queue_async', input: {actions: ACTIONS}})
+    const turn = page.inChat('queueing-run', queued())
     const onTab = await page.nextQueue()
-    const {queueId} = z.object({queueId: z.string()}).parse(await handle)
-    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
-    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    const queueId = onTab.id
+    await (await turn).text()
+    await page.play(onTab, 0, pageSuccess({ok: true, value: 'Ada'}))
+    await page.play(onTab, 1, pageSuccess({ok: true, checked: true}))
     await page.finishedEvent(queueId)
     expect(page.queueEvents()).toEqual([expect.objectContaining({queueId, status: 'finished', played: 2, failed: 0})])
-    await page.followUpFinished()
+    await page.followUpFinished(['queueing-run'])
     const hydrated = await page.tab.chat.hydrate({sessionId: page.sessionId})
     const parts = hydrated.messages
       .filter((message) => message.role === 'assistant')
       .flatMap((message) => message.parts)
-    expect(parts).toContainEqual(expect.objectContaining({type: 'tool-call', name: 'page_queue_async'}))
+    expect(parts).toContainEqual(expect.objectContaining({type: 'tool-call', name: 'execute_typescript'}))
     expect(parts).toContainEqual({type: 'text', content: 'ok'})
     expect(hydrated.activeRun).toBeNull()
     expect(page.queueEvents()).toHaveLength(1)
@@ -5998,26 +6015,32 @@ describe('page action queue delivery', () => {
   it('three failed follow-up runs start no fourth when their run ends, and a later queue starts exactly one more', async () => {
     const harness = createFakeHarness()
     const page = await engineWithTab(harness)
-    for (const attempt of [1, 2, 3]) harness.script.scriptError(`launch failure ${attempt}`)
-    const playedInPage = async (): Promise<void> => {
-      const handle = page.tab.registry.call({name: 'page_queue_async', input: {actions: ACTIONS}})
+    const queueing: string[] = []
+    const followUps = () => page.runIds().filter((runId) => !queueing.includes(runId))
+    const playedInPage = async (failures: number): Promise<void> => {
+      const runId = `queueing-run-${queueing.length}`
+      queueing.push(runId)
+      const turn = page.inChat(runId, queued())
       const onTab = await page.nextQueue()
-      const {queueId} = z.object({queueId: z.string()}).parse(await handle)
-      await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
-      await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+      const queueId = onTab.id
+      await (await turn).text()
+      for (const attempt of Array.from({length: failures}, (_, offset) => offset + 1))
+        harness.script.scriptError(`launch failure ${attempt}`)
+      await page.play(onTab, 0, pageSuccess({ok: true, value: 'Ada'}))
+      await page.play(onTab, 1, pageSuccess({ok: true, checked: true}))
       await page.finishedEvent(queueId)
     }
     const followUpsEnded = async (from: number, count: number): Promise<void> => {
       for (const index of Array.from({length: count}, (_, offset) => offset)) {
-        await page.followUpFinished(page.runIds().slice(0, from + index))
+        await page.followUpFinished([...queueing, ...followUps().slice(0, from + index)])
       }
     }
-    await playedInPage()
+    await playedInPage(3)
     await followUpsEnded(0, 3)
-    expect(page.runIds()).toHaveLength(3)
-    await playedInPage()
+    expect(followUps()).toHaveLength(3)
+    await playedInPage(0)
     await followUpsEnded(3, 1)
-    expect(page.runIds()).toHaveLength(4)
+    expect(followUps()).toHaveLength(4)
   })
 
   it('an in-page queue that finishes while its run is live starts the follow-up turn once that run ends', async () => {
@@ -6031,26 +6054,11 @@ describe('page action queue delivery', () => {
     })
     const page = await engineWithTab(harness, [idleCounter])
     harness.script.hold()
-    const viewer = new AbortController()
-    onTestFinished(() => viewer.abort())
-    const turn = fetch(`${page.base}${CHAT_SSE_PATH}`, {
-      method: 'POST',
-      headers: {'content-type': 'application/json'},
-      body: JSON.stringify({
-        threadId: page.sessionId,
-        runId: 'queueing-run',
-        messages: [{id: 'queueing-run-user', role: 'user', content: 'fill the form'}],
-        tools: [],
-        context: [],
-      }),
-      signal: viewer.signal,
-    })
-    await page.seenChunk(() => page.runIds().includes('queueing-run'))
-    const handle = page.tab.registry.call({name: 'page_queue_async', input: {actions: ACTIONS}})
+    const turn = page.inChat('queueing-run', queued())
     const onTab = await page.nextQueue()
-    const {queueId} = z.object({queueId: z.string()}).parse(await handle)
-    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
-    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    const queueId = onTab.id
+    await page.play(onTab, 0, pageSuccess({ok: true, value: 'Ada'}))
+    await page.play(onTab, 1, pageSuccess({ok: true, checked: true}))
     await page.finishedEvent(queueId)
     harness.script.release()
     await (await turn).text()
@@ -6079,13 +6087,11 @@ describe('page action queue delivery', () => {
         }),
         signal: viewer.signal,
       })
-    const stopped = send('stopped-run', 'fill the form')
-    await page.seenChunk(() => page.runIds().includes('stopped-run'))
-    const handle = page.tab.registry.call({name: 'page_queue_async', input: {actions: ACTIONS}})
+    const stopped = page.inChat('stopped-run', queued())
     const onTab = await page.nextQueue()
-    const {queueId} = z.object({queueId: z.string()}).parse(await handle)
-    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
-    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    const queueId = onTab.id
+    await page.play(onTab, 0, pageSuccess({ok: true, value: 'Ada'}))
+    await page.play(onTab, 1, pageSuccess({ok: true, checked: true}))
     await page.finishedEvent(queueId)
     await page.tab.chat.stop({sessionId: page.sessionId, runIds: ['stopped-run']})
     await (await stopped).text()
