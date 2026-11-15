@@ -570,6 +570,46 @@ describe('chat pane', () => {
     await expect.element(input()).toHaveTextContent('a message the server refuses')
   })
 
+  test('a send refused while the connection is lost adds a row only until the lost-connection notice stands', async () => {
+    const {sessionId} = await newSession()
+    const [connection, setConnection] = createStore({online: false, sustainedOffline: false})
+    const reachability = {
+      online: () => connection.online,
+      sustainedOffline: () => connection.sustainedOffline,
+      locked: () => null,
+    }
+    active.pane = mountPane({base: core(), sessionId}, () => (
+      <EngineReachabilityContext.Provider value={reachability}>
+        <ChatPane sessionId={sessionId} />
+      </EngineReachabilityContext.Provider>
+    ))
+    const typed = 'a message typed while the connection is lost'
+    const refusals = page.getByRole('status').filter({hasText: 'Your message is still in the composer.'})
+    const send = page.getByRole('button', {name: 'conciv lost connection to the engine', exact: true})
+
+    await expect.element(input()).toBeVisible()
+    await userEvent.click(input())
+    await userEvent.keyboard(typed)
+    await expect.element(send).toBeDisabled()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(refusals).toBeVisible()
+    await expect.element(input()).toHaveTextContent(typed)
+    await userEvent.click(refusals.getByRole('button', {name: 'Dismiss'}))
+    await expect.element(refusals).not.toBeInTheDocument()
+
+    setConnection('sustainedOffline', true)
+    await userEvent.click(input())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(input()).toHaveTextContent(typed)
+    expect(refusals.query()).toBeNull()
+
+    setConnection({online: true, sustainedOffline: false})
+    await expect.element(page.getByRole('button', {name: 'Send message', exact: true})).toBeEnabled()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
+    await expect.element(refusals).not.toBeInTheDocument()
+  })
+
   test('sending announces the settled reply through the live region', async () => {
     const {sessionId} = await newSession()
     mountChatPane(sessionId)
