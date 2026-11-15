@@ -6551,7 +6551,7 @@ describe('installed plugins in settings', () => {
 })
 
 describe('a fixture plugin driven like a user', () => {
-  const fixtureBundle = `const {Panel, Registry, Slot, Store, useDrawer, usePanel} = require('@conciv/plugin/experimental')
+  const fixtureBundle = `const {Panel, Registry, SettingsPage, Slot, Store, useDrawer, usePanel} = require('@conciv/plugin/experimental')
 const {createComponent} = require('solid-js/web')
 const {createRenderEffect, createSignal} = require('solid-js')
 const {z} = require('zod')
@@ -6606,6 +6606,7 @@ module.exports = {default: {stores: {
       button('Open the listed tab', () => ctx.layout.open('fixture:opened', props.session)),
       button('Open the old tab', () => ctx.layout.open('fixture:old', props.session)),
       button('Open an unlisted tab', () => ctx.layout.open('fixture:missing', props.session)),
+      button('Open the fixture settings', () => ctx.layout.settings('prefs')),
       button('Open a draft session', () =>
         ctx.layout.draft({server: props.session.server.id, directory: props.session.directory, prompt: 'a drafted prompt'}),
       ),
@@ -6657,14 +6658,54 @@ module.exports = {default: {stores: {
     at: 'window.bottom',
     render: () => button('Write a held note', () => ctx.screen.current()?.composer.insert(' held note')),
   })
+  ctx.add(SettingsPage, {
+    id: 'prefs',
+    title: 'Fixture prefs',
+    render: () => Object.assign(document.createElement('p'), {textContent: 'The fixture prefs page'}),
+  })
+}}}
+`
+  const fragileBundle = `const {Panel, Slot} = require('@conciv/plugin/experimental')
+const {createComponent} = require('solid-js/web')
+const {createSignal} = require('solid-js')
+module.exports = {default: {setup(ctx) {
+  const [stage, setStage] = createSignal('steady')
+  const button = (label, next) => createComponent(ctx.ui.Button, {onClick: () => setStage(next), children: label})
+  ctx.add(Slot, {
+    at: 'window.bottom',
+    render: () => [
+      button('Show the fragile tab', 'listed'),
+      button('Break the fragile list', 'broken list'),
+      button('Break the fragile slot', 'broken slot'),
+    ],
+  })
+  ctx.add(Slot, () => {
+    if (stage() === 'broken slot') throw new Error('the fragile slot broke')
+    return {at: 'window.bottom', render: () => Object.assign(document.createElement('p'), {textContent: 'The fragile slot'})}
+  })
+  ctx.add(Panel, {
+    id: 'fragile',
+    region: 'pane',
+    list: () => {
+      if (stage() === 'broken list') throw new Error('the fragile list broke')
+      return stage() === 'listed' ? [{id: 'fragile', title: 'Fragile tab', pinned: true}] : []
+    },
+    focus: () => {
+      throw new Error('the fragile tab broke on focus')
+    },
+    render: () => document.createTextNode('The fragile tab content'),
+  })
 }}}
 `
   const coreBase = bootedCore('plugin-fixture-journey', {
-    plugins: ['./fixture'],
+    plugins: ['./fixture', './fragile'],
     files: {
       'fixture/index.ts': `export default {id: 'fixture', async setup() {}}
 `,
       'fixture/plugin-experimental.js': fixtureBundle,
+      'fragile/index.ts': `export default {id: 'fragile', async setup() {}}
+`,
+      'fragile/plugin-experimental.js': fragileBundle,
     },
   })
   const harness = createShellHarness(coreBase)
@@ -6738,6 +6779,7 @@ module.exports = {default: {stores: {
     await expect.element(editor()).toHaveTextContent('a drafted prompt')
     expect(harness.pathname()).toMatch(/^\/panel\/[^/]+$/)
     expect(harness.pathname()).not.toBe(`/panel/${sessionId}`)
+    const draftedPath = harness.pathname()
 
     await tab('Fixture tools').click()
     await expect.element(control('Save a fixture file')).toBeVisible()
@@ -6747,7 +6789,81 @@ module.exports = {default: {stores: {
     })
 
     expect(await coreControl.openedFrom('Open the engine health page')).toBe(new URL('/health', coreBase()).href)
+
+    await tab('Fixture tools').click()
+    await control('Open the fixture settings').click()
+    await expect.element(page.getByText('The fixture prefs page', {exact: true})).toBeVisible()
+    await expect.element(page.getByRole('tab', {name: 'Fixture prefs', exact: true, selected: true})).toBeVisible()
+    expect(harness.pathname()).toBe(`${draftedPath}/settings/plugins/${encodeURIComponent('fixture:prefs')}`)
   }, 60_000)
+
+  test('its pop-out notice ends with the panel that raised it when the quick terminal replaces the panel', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const popOutLost = () => page.getByText('The pop-out window could not be reopened.', {exact: true})
+    harness.mountShell(`/panel/${sessionId}?open=true&popOut=lost`, [], {
+      host: {quickTerminal: {hotkey: 'Control+Shift+K'}},
+    })
+    await expect.element(popOutLost(), {timeout: 15_000}).toBeVisible()
+    await expect.element(control('Pop out again')).toBeVisible()
+
+    await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
+    await expect.element(page.getByRole('dialog', {name: 'conciv quick terminal'}), {timeout: 8000}).toBeVisible()
+    await expect.element(editor()).toBeVisible()
+    await expect.element(popOutLost()).not.toBeInTheDocument()
+    await expect.element(control('Pop out again')).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('a plugin that throws from its panel focus, its panel list or its reactive slot loses only that contribution, shows the failure in Settings, and the chat and the other plugin keep working', async () => {
+    await page.viewport(1000, 900)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const fragileSlot = () => page.getByText('The fragile slot', {exact: true})
+    const fragileReload = () => page.getByRole('button', {name: 'Reload', exact: true}).nth(1)
+    const failure = (message: string) => page.getByText(new RegExp(message))
+    const chatAndOtherPluginWork = async () => {
+      await tab('Chat').click()
+      await expect.element(editor()).toBeVisible()
+      await expect.element(control('Write a held note')).toBeVisible()
+      await tab('Fixture tools').click()
+      await expect.element(control('Write a plain note')).toBeVisible()
+      await tab('Chat').click()
+      await expect.element(editor()).toBeVisible()
+    }
+    const settingsShows = async (message: string) => {
+      await page.getByRole('link', {name: 'Settings'}).click()
+      await tab('Plugins').click()
+      await expect.element(failure(message)).toBeVisible()
+    }
+    const reloadFragile = async (message: string) => {
+      await settingsShows(message)
+      await fragileReload().click()
+      await expect.element(failure(message)).not.toBeInTheDocument()
+      await page.getByRole('button', {name: 'Back to chat'}).click()
+      await expect.element(editor()).toBeVisible()
+    }
+
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(control('Show the fragile tab'), {timeout: 15_000}).toBeVisible()
+    await expect.element(fragileSlot()).toBeVisible()
+    await control('Show the fragile tab').click()
+    await tab('Fragile tab').click()
+    await expect.element(page.getByText('The fragile tab content', {exact: true})).toBeVisible()
+    await expect.element(tab('Fragile tab')).toHaveAttribute('aria-selected', 'true')
+    await chatAndOtherPluginWork()
+    await reloadFragile('the fragile tab broke on focus')
+
+    await control('Show the fragile tab').click()
+    await expect.element(tab('Fragile tab')).toBeVisible()
+    await control('Break the fragile list').click()
+    await expect.element(tab('Fragile tab')).not.toBeInTheDocument()
+    await expect.element(control('Break the fragile slot')).toBeVisible()
+    await chatAndOtherPluginWork()
+    await reloadFragile('the fragile list broke')
+
+    await control('Break the fragile slot').click()
+    await expect.element(fragileSlot()).not.toBeInTheDocument()
+    await chatAndOtherPluginWork()
+    await settingsShows('the fragile slot broke')
+  }, 90_000)
 
   const tabPath = (sessionId: string, key: string) => `/panel/${sessionId}/${encodeURIComponent(key)}`
 
@@ -6970,7 +7086,7 @@ module.exports = {default: {stores: {
     const sessionId = await createSession(coreRpc(coreBase()))
     const fixtureSwitch = () => page.getByRole('switch', {name: 'fixture', exact: true})
     const heldNote = () => control('Write a held note')
-    const reload = () => page.getByRole('button', {name: 'Reload', exact: true})
+    const reload = () => page.getByRole('button', {name: 'Reload', exact: true}).first()
     const switchFixture = async (settled: () => Promise<void>) => {
       await page.getByRole('link', {name: 'Settings'}).click()
       await tab('Plugins').click()
