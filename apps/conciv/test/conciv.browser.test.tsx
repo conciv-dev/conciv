@@ -2,6 +2,7 @@ import '../src/styles.css'
 import 'virtual:uno.css'
 import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe, onTestFinished} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
+import {uniq} from 'es-toolkit'
 import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {CONNECTION_CHANGED_EVENT} from '@conciv/protocol/event-bus'
 import {
@@ -5777,7 +5778,7 @@ function onlyRevision(push: PluginExperimentalsPush): string {
 
 function pairings(pushes: readonly PluginExperimentalsPush[]) {
   const plugins = pushes.flatMap((push) => push.plugins)
-  const distinct = (values: readonly string[]) => new Set(values).size
+  const distinct = (values: readonly string[]) => uniq(values).length
   return {
     revisions: distinct(plugins.map((plugin) => plugin.revision)),
     codes: distinct(plugins.map((plugin) => plugin.code)),
