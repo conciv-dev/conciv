@@ -376,7 +376,7 @@ export const contract = {
       .input(SessionIdInput)
       .output(SessionMetaSchema),
     preview: oc.errors(notFound).input(SessionPreviewInput).output(SessionPreviewSchema),
-    create: oc.output(SessionIdInput),
+    create: oc.output(SessionIdInput.extend({session: SessionMetaSchema})),
     resolve: oc.input(z.object({id: z.string().optional()})).output(SessionIdInput),
     open: oc.input(NativeSessionRefSchema).output(SessionIdInput),
     restore: oc.errors(approvalDenied).input(SessionIdInput).output(SessionIdInput),

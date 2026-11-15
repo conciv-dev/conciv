@@ -8,7 +8,7 @@ import {
   type QueryClient,
   type QueryKey,
 } from '@conciv/client'
-import {DraftRowSchema, type DraftRow, type RpcClient} from '@conciv/contract'
+import {DraftRowSchema, SessionMetaSchema, type DraftRow, type RpcClient, type SessionMeta} from '@conciv/contract'
 
 type DraftInput = Omit<z.input<typeof DraftRowSchema>, 'updatedAt'>
 
@@ -27,6 +27,8 @@ export type AppData = {
   utils: QueryUtils
   invalidateSessions: () => Promise<void>
   invalidateSession: (sessionId: string) => Promise<void>
+  seedSession: (row: SessionMeta) => Promise<void>
+  createSession: () => Promise<{sessionId: string}>
   invalidateOutsideAccess: () => Promise<void>
   readDraft: (sessionId: string) => Promise<DraftRow | null>
   cachedDraft: (sessionId: string) => DraftRow | null | undefined
@@ -89,10 +91,30 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient): AppData {
   const invalidate = async (queryKeys: QueryKey[]) => {
     await Promise.all(queryKeys.map((queryKey) => queryClient.invalidateQueries({queryKey})))
   }
+  const sessionKey = (sessionId: string) => utils.sessions.get.queryKey({input: {sessionId}})
+  const seed = (row: SessionMeta) => {
+    const queryKey = sessionKey(row.id)
+    if (queryClient.getQueryData(queryKey) === undefined)
+      queryClient.setQueryData(queryKey, SessionMetaSchema.parse(row))
+  }
+  const seedSession = async (row: SessionMeta): Promise<void> => {
+    seed(row)
+    await queryClient.invalidateQueries({queryKey: sessionKey(row.id)})
+  }
+  const invalidateSession = (sessionId: string) =>
+    invalidate([...listKeys, utils.sessions.get.key({input: {sessionId}})])
+  const createSession = async (): Promise<{sessionId: string}> => {
+    const {sessionId, session} = await rpc.sessions.create(undefined)
+    seed(session)
+    void invalidateSession(sessionId)
+    return {sessionId}
+  }
   return {
     utils,
     invalidateSessions: () => invalidate([...listKeys, utils.sessions.get.key()]),
-    invalidateSession: (sessionId) => invalidate([...listKeys, utils.sessions.get.key({input: {sessionId}})]),
+    invalidateSession,
+    seedSession,
+    createSession,
     invalidateOutsideAccess: () => queryClient.invalidateQueries({queryKey: utils.chat.outsideAccess.key()}),
     readDraft: (sessionId) => queryClient.ensureQueryData(draftQuery(sessionId)),
     cachedDraft: (sessionId) => queryClient.getQueryData(draftQuery(sessionId).queryKey),

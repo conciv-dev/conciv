@@ -189,12 +189,49 @@ describe('live connect', () => {
   test.describe('widget-native live connect on the built site', () => {
     test('opens the panel for a click that lands before the widget bundle has mounted', async ({browser, site}) => {
       const page = await browser.newPage()
-      await page.goto(`${site.origin}/?widget=false`, {waitUntil: 'domcontentloaded'})
-      await page.getByRole('button', {name: /Try it live/i}).click()
-      await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 20_000})
+      const hydrationHeld = Promise.withResolvers<void>()
+      await page.route(
+        /\/assets\/index-[^/]*\.js$/,
+        async (route) => {
+          await hydrationHeld.promise
+          await route.abort()
+        },
+        {times: 1},
+      )
+      await page.goto(`${site.origin}/?widget=false`, {waitUntil: 'commit'})
+      const tryLive = page.getByRole('link', {name: /Try it live/i})
+      const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
+      const documentNavigation = page.waitForRequest(
+        (request) => request.isNavigationRequest() && new URL(request.url()).searchParams.get('try') === '1',
+        {timeout: 10_000},
+      )
+      await tryLive.click()
+      await documentNavigation
+      hydrationHeld.resolve()
+      await expectLocator(panel).toBeVisible({timeout: 20_000})
+      await expectLocator(page).toHaveURL(/[?&]try=1/)
+
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await expectLocator(panel).toBeVisible({timeout: 20_000})
+
+      await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
+      await expectLocator(panel).toBeHidden({timeout: 10_000})
+      await expectLocator(page).not.toHaveURL(/[?&]try=/)
+
+      await tryLive.click()
+      await expectLocator(panel).toBeVisible({timeout: 10_000})
+      await expectLocator(page).toHaveURL(/[?&]try=1/)
+
+      await page.goBack()
+      await expectLocator(panel).toBeHidden({timeout: 10_000})
+      await expectLocator(page).not.toHaveURL(/[?&]try=/)
+
+      await page.goForward()
+      await expectLocator(panel).toBeVisible({timeout: 10_000})
+      await expectLocator(page).toHaveURL(/[?&]try=1/)
 
       await page.close()
-    }, 60_000)
+    }, 90_000)
 
     test('boots the widget into connect steps and hands off in place to live chat', async ({browser, site}) => {
       const page = await browser.newPage()
@@ -255,7 +292,7 @@ describe('live connect', () => {
       const panel = await openLandingOnConnectSteps(page, site.origin)
       await dismissAndReload(page, panel)
 
-      await page.getByRole('button', {name: /Try it live/i}).click()
+      await page.getByRole('link', {name: /Try it live/i}).click()
       await expectLocator(panel).toBeVisible({timeout: 20_000})
 
       await page.close()
@@ -273,7 +310,7 @@ describe('mobile gating', () => {
 
       await expectLocator(page.locator('[data-conciv-root]')).toHaveCount(1, {timeout: 20_000})
       await expectLocator(page.getByRole('button', {name: 'Copy install command'})).toBeVisible()
-      await expectLocator(page.getByRole('button', {name: /Try it live/i})).toBeVisible()
+      await expectLocator(page.getByRole('link', {name: /Try it live/i})).toBeVisible()
 
       await page.close()
     }, 60_000)
@@ -284,7 +321,7 @@ describe('mobile gating', () => {
       await page.goto(site.origin, {waitUntil: 'domcontentloaded'})
 
       await expectLocator(page.getByRole('button', {name: 'Copy install command'})).toHaveCount(0, {timeout: 20_000})
-      await expectLocator(page.getByRole('button', {name: /Try it live/i})).toHaveCount(0)
+      await expectLocator(page.getByRole('link', {name: /Try it live/i})).toHaveCount(0)
       await expectLocator(page.locator('[data-conciv-root]')).toHaveCount(0)
       await expectLocator(page.getByText('desktop-only')).toBeVisible()
       await expectLocator(page.getByRole('link', {name: 'Read the quick start →'})).toBeVisible()
