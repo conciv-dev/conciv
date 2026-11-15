@@ -399,6 +399,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     components={{ToolFallback: toolFallbackCard}}
                     turnPrefix={renderTurnPrefix}
                     pageSession={PAGE_SESSION}
+                    refreshDisabled={!messaging.resendAllowed()}
                   />
                   <Show when={lastTurnStopped()}>
                     <Divider kind="stopped" />
@@ -421,7 +422,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                         <RunErrorRow
                           error={error()}
                           compacting={compacting()}
-                          onRetry={() => void chat.reload()}
+                          onRetry={messaging.resendAllowed() ? () => void chat.reload() : undefined}
                           onCompact={() => messaging.compact.mutate()}
                         />
                       </Show>
