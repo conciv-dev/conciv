@@ -1,6 +1,5 @@
 {
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["conciv/extensions"],
   "compilerOptions": {
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo",

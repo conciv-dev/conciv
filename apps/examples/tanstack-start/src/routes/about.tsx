@@ -23,7 +23,6 @@ const STRUCTURE = [
   ['src/routes', 'One file per route, plus the generated route tree.'],
   ['src/components', 'Header, footer, and the theme toggle.'],
   ['src/lib', 'Small helpers with their own unit tests.'],
-  ['conciv/extensions', 'The agent-side extensions this demo registers.'],
 ]
 
 function About() {

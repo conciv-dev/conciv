@@ -203,7 +203,6 @@ For TanStack Start specific documentation, visit [TanStack Start](https://tansta
 ## Invariants
 
 - `vite.config.ts`: no `ios` extension; the iOS overlay demo lives in [native/swift](../../../native/swift/README.md) so web sessions here never get the iOS system prompt
-- `package.json:typecheck`: typechecks both the React app and `conciv/extensions/tsconfig.json` (Solid JSX)
 
 ## Side Effects
 

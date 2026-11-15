@@ -11,13 +11,12 @@
     "generate-routes": "tsr generate",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p conciv/extensions/tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint"
   },
   "dependencies": {
     "@conciv/cli": "workspace:*",
     "@conciv/embed": "workspace:*",
-    "@conciv/extension": "workspace:*",
     "@conciv/extension-recorder": "workspace:*",
     "@conciv/extension-tanstack": "workspace:*",
     "@conciv/extension-terminal": "workspace:*",
@@ -25,7 +24,6 @@
     "@conciv/extension-whiteboard": "workspace:*",
     "@conciv/it": "workspace:*",
     "@conciv/protocol": "workspace:*",
-    "@conciv/ui-kit-chat": "workspace:*",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/react-devtools": "catalog:",
     "@tanstack/react-form": "^1.33.5",

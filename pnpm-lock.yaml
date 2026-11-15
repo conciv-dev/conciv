@@ -873,9 +873,6 @@ importers:
       '@conciv/embed':
         specifier: workspace:*
         version: link:../../../packages/embed
-      '@conciv/extension':
-        specifier: workspace:*
-        version: link:../../../packages/extension
       '@conciv/extension-recorder':
         specifier: workspace:*
         version: link:../../../packages/extensions/recorder
@@ -897,9 +894,6 @@ importers:
       '@conciv/protocol':
         specifier: workspace:*
         version: link:../../../packages/protocol
-      '@conciv/ui-kit-chat':
-        specifier: workspace:*
-        version: link:../../../packages/ui-kit-chat
       '@tailwindcss/vite':
         specifier: 'catalog:'
         version: 4.3.3(vite@8.3.5)
