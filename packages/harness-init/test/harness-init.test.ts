@@ -635,7 +635,7 @@ describe('plugin files', () => {
         '`.conciv/bin/conciv plugin call experimental.page run --data \'{"sessionId":"<sessionId>","action":{"type":"find","name":"<ComponentName>"}}\'`',
       )
       expect(body).toContain(
-        '`.conciv/bin/conciv plugin call experimental.page run --data \'{"sessionId":"<sessionId>","action":{"type":"track","action":"start"}}\'`, reproduce, then `.conciv/bin/conciv plugin call experimental.page run --data \'{"sessionId":"<sessionId>","action":{"type":"track","action":"report"[,"name":"<ComponentName>"]}}\'`, then `.conciv/bin/conciv plugin call experimental.page run --data \'{"sessionId":"<sessionId>","action":{"type":"track","action":"stop"}}\'`',
+        '`.conciv/bin/conciv plugin call experimental.page run --data \'{"sessionId":"<sessionId>","action":{"type":"track","action":"start"}}\'`, reproduce, then `.conciv/bin/conciv plugin call experimental.page run --data \'{"sessionId":"<sessionId>","action":{"type":"track","action":"report"}}\'` (or `.conciv/bin/conciv plugin call experimental.page run --data \'{"sessionId":"<sessionId>","action":{"type":"track","action":"report","name":"<ComponentName>"}}\'` for one component), then `.conciv/bin/conciv plugin call experimental.page run --data \'{"sessionId":"<sessionId>","action":{"type":"track","action":"stop"}}\'`',
       )
       expect(body).not.toMatch(/`conciv /)
     })

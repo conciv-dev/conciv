@@ -784,7 +784,6 @@ describe('cli', () => {
         const outcomes: Array<{command: string; reached: boolean; document: unknown}> = []
         for (const command of taught) {
           const argv = command
-            .replace(/[[\]]/g, '')
             .split(' ')
             .map((word) =>
               Object.entries(placeholders).reduce(
