@@ -1,3 +1,0 @@
-export function flattenAllOf(schema: {allOf: unknown[]}): unknown[] {
-  return schema.allOf
-}
