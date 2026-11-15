@@ -1,13 +1,17 @@
 ---
 title: Page control
-description: The agent reads and drives your live page, then persists to source.
+description: The agent reads and drives the page you have open, restyles it live, and finds the source behind it.
 ---
 
-The agent works against the page you see. It takes a snapshot of the accessibility tree, acts on
-an element, waits for the page to settle, and snapshots again.
+The agent works on the page you have open in your own browser, with the panel on it, so you see what it does. It
+reads the page, acts on it with a pointer, restyles it, inspects its React components and waits for hot updates.
+Page control is built in: there is nothing to install or turn on.
 
-Grab an element to point at what you mean: the crosshair in the composer picks any element on the
-page and pins it to your next message, source location included.
+## Point at an element
+
+Click **Select an element from the page** in the composer, then click an element. It is attached to your next
+message, with its source file when conciv can find it. The button is disabled, with the tooltip **Nothing on this
+screen to select**, when there is nothing to pick.
 
 <ImageZoom
   src="/screenshots/grab-element.png"
@@ -16,13 +20,16 @@ page and pins it to your next message, source location included.
   height={1080}
 />
 
-## Preview, then persist
+## While the agent uses the page
 
-It can tweak the DOM and CSS live to show you an idea right away. These live edits are ephemeral.
-The next hot reload wipes them, because they are not in your source.
+The page shows the agent's cursor and takes no clicks from you. Click once and the cursor says **Click again to stop
+me**. Click again while it shows and the turn stops.
 
-When you keep a change, the agent edits the real files so it survives a reload. It can open the
-exact source file in your editor too.
+## Preview, then keep
+
+Live edits such as a new style, class or text change only the page. A reload wipes them. conciv's built-in prompt
+tells the agent to preview with live edits, then make the change in your source files, so it survives the reload.
+When a page tool finds the file and line that rendered an element, the agent can open it in your editor.
 
 <ImageZoom
   src="/screenshots/page-control.png"
@@ -31,7 +38,123 @@ exact source file in your editor too.
   height={1080}
 />
 
-<Callout>
-  Ask for something visible, like "make the heading larger". You see it instantly, then the agent offers to persist it
-  as a real edit.
-</Callout>
+Ask for something visible:
+
+```text
+make the heading larger
+```
+
+## What the agent can do
+
+The agent calls these tools from code mode. Element tools take a `ref` from the latest `page_snapshot`, a CSS
+`selector`, or a React component `name`.
+
+### Read the page
+
+| Tool              | What it does                                                             |
+| ----------------- | ------------------------------------------------------------------------ |
+| `page_tabs_list`  | Lists the session's tabs and the tab you focused last.                   |
+| `page_route`      | The current URL and title of the page.                                   |
+| `page_snapshot`   | Every control on the page with its current value, checked state and ref. |
+| `page_screenshot` | A webp image of the visible viewport. conciv's own UI is left out.       |
+| `page_text`       | The visible text of an element.                                          |
+| `page_value`      | The current value of a form field.                                       |
+| `page_attr`       | One attribute of an element.                                             |
+| `page_dom`        | The outer HTML of an element, or of the whole body.                      |
+| `page_query`      | Describes every element matching a selector.                             |
+| `page_exists`     | Whether a selector matches anything.                                     |
+| `page_console`    | The buffered browser console output.                                     |
+
+### Act with the pointer
+
+| Tool               | What it does                                                                        |
+| ------------------ | ----------------------------------------------------------------------------------- |
+| `page_click`       | Clicks an element.                                                                  |
+| `page_fill`        | Types a value into a form field.                                                    |
+| `page_fill_form`   | Fills several fields in order: text, a select option by value or label, a checkbox. |
+| `page_select`      | Chooses an option in a select element.                                              |
+| `page_check`       | Checks a checkbox or radio.                                                         |
+| `page_uncheck`     | Unchecks a checkbox.                                                                |
+| `page_press`       | Sends a key to an element.                                                          |
+| `page_hover`       | Hovers the pointer over an element.                                                 |
+| `page_scroll`      | Scrolls an element into view.                                                       |
+| `page_submit`      | Submits the form an element belongs to.                                             |
+| `page_queue`       | Plays a list of page actions in order and returns every outcome.                    |
+| `page_queue_async` | Queues a list of page actions and answers at once.                                  |
+| `page_wait`        | Waits until a selector is visible or hidden.                                        |
+| `page_hmr`         | After a file edit, waits for the hot update to land.                                |
+| `page_reload`      | Reloads the page.                                                                   |
+
+### Edit the page live
+
+| Tool               | What it does                                                     |
+| ------------------ | ---------------------------------------------------------------- |
+| `page_setstyle`    | Sets one inline style property.                                  |
+| `page_addclass`    | Adds a class.                                                    |
+| `page_removeclass` | Removes a class.                                                 |
+| `page_setattr`     | Sets an attribute.                                               |
+| `page_removeattr`  | Removes an attribute.                                            |
+| `page_settext`     | Replaces the text of an element.                                 |
+| `page_sethtml`     | Replaces the inner HTML of an element.                           |
+| `page_insert`      | Inserts an HTML fragment around an element.                      |
+| `page_remove`      | Removes an element.                                              |
+| `page_css`         | Injects a stylesheet.                                            |
+| `page_effect`      | Turns on, off, or lists the visual effects your page registered. |
+| `page_eval`        | Runs JavaScript in the page. Asks you first.                     |
+
+### Inspect React
+
+| Tool            | What it does                                                |
+| --------------- | ----------------------------------------------------------- |
+| `page_locate`   | The source file and line that rendered an element.          |
+| `page_find`     | Every mounted instance of a component, by name.             |
+| `page_tree`     | The live React tree under an element.                       |
+| `page_inspect`  | The props, state, hooks and context of a live component.    |
+| `page_override` | Patches props, state, hooks or context on a live component. |
+| `page_track`    | Records and reports re-renders.                             |
+
+A call without a `tabId` goes to the tab you focused last. With the page closed, a call fails with
+`[page.disconnected]`.
+
+## What asks first
+
+`page_eval` shows a **Permission** card on every call. **Always allow** saves the answer for this project, and it
+stops asking. See [Approvals](/docs/usage/approvals).
+
+## Screenshots
+
+`page_screenshot` saves the image to a new temporary folder on the machine running the engine and gives the agent
+both the image and its path.
+
+## From your terminal
+
+Run any page action on a session's page with the `run` method. It takes the same actions as the tools and answers
+what the tool answers:
+
+```bash
+conciv plugin call experimental.page run --data '{"sessionId":"conciv_...","action":{"type":"text","selector":"h1"}}'
+```
+
+Nothing asks from the terminal, `eval` included: the terminal is yours.
+
+<TypeTable
+  type={{
+    run: {required: true, type: '{sessionId, action}', description: 'Runs one page action and prints its answer.'},
+    changes: {
+      required: true,
+      type: '{sessionId}',
+      description: 'Lists the changing page calls of the session: time, tool, target and arguments.',
+    },
+    clearChanges: {required: true, type: '{sessionId}', description: 'Empties that list.'},
+    'captures.list': {
+      required: true,
+      type: '{sessionId}',
+      description: 'The element captures taken before and after the changing calls.',
+    },
+    'hmr.wait': {
+      required: true,
+      type: '{sessionId, timeout?}',
+      description: 'Waits up to timeout milliseconds for a pending hot update to land.',
+    },
+  }}
+/>

@@ -4,7 +4,7 @@ description: Runnable apps wired with conciv.
 icon: FolderCode
 ---
 
-The repo ships two runnable hosts. Clone it, install, then run one.
+The repo has two example apps. Clone it and install:
 
 ```bash
 pnpm install
@@ -15,26 +15,30 @@ pnpm install
     title="TanStack Start"
     href="https://github.com/conciv-dev/conciv/tree/main/apps/examples/tanstack-start"
     icon={<img src="/icons/tanstack.svg" alt="" className="size-4" />}
-    description="The full Vite integration."
+    description="conciv in a Vite config."
   />
   <Card
     title="Next.js"
     href="https://github.com/conciv-dev/conciv/tree/main/apps/examples/nextjs-app"
     icon={<img src="/icons/nextjs.svg" alt="" className="size-4" />}
-    description="The withConciv integration."
+    description="conciv through withConciv in next.config.ts."
   />
 </Cards>
+
+Run one with turbo, which builds the conciv packages it uses first.
 
 ### TanStack Start
 
 ```bash
-pnpm --filter tanstack-start-example dev
+pnpm turbo run dev --filter=tanstack-start-example
 ```
+
+It serves on port 3000.
 
 ### Next.js
 
 ```bash
-pnpm --filter nextjs-app dev
+pnpm turbo run dev --filter=nextjs-app
 ```
 
 Open the printed URL and click the conciv button.

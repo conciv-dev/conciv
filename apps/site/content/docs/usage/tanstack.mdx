@@ -1,0 +1,64 @@
+---
+title: TanStack
+description: The agent reads a TanStack Router or Start app's build errors, every route it defines, and its server-function calls.
+---
+
+The TanStack plugin lets the agent read a TanStack Router or Start app from the dev server side: the recent build
+errors, every route the app defines (not only the one on screen), and the recent server-function calls.
+
+```text
+the page is blank since my last edit, what broke?
+```
+
+## Turn it on
+
+Add `@conciv/plugin-tanstack` to `plugins` where you add conciv:
+
+```ts title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [conciv({plugins: ['@conciv/plugin-tanstack']})],
+})
+```
+
+The engine installs the package itself when it starts. See [Plugins](/docs/plugins).
+
+## The tools
+
+The agent calls them from code mode.
+
+| Tool                       | What it does                                                                                                                                 |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tanstack_build_errors`    | The recent build and transform errors: message, stack, and the source file and line when known.                                              |
+| `tanstack_route_manifest`  | Every route in `src/routeTree.gen.ts`: its path, whether it is a page, layout, API route or middleware, whether it is dynamic, and its file. |
+| `tanstack_server_fn_trace` | The latest server-function calls with their duration and status, and every server function seen so far.                                      |
+
+Build errors and server-function calls come from the Vite dev server. Without it, `tanstack_build_errors` fails with
+the code `BUNDLER_UNAVAILABLE` and no server-function call is seen. When `src/routeTree.gen.ts` is missing or cannot
+be read, `tanstack_route_manifest` fails with the code `MANIFEST_UNREADABLE` and says why.
+
+## From your terminal
+
+The same reads are methods of the RPC `experimental.tanstack`:
+
+```bash
+conciv plugin call experimental.tanstack buildErrors
+conciv plugin call experimental.tanstack routeManifest
+conciv plugin call experimental.tanstack serverFnTrace --data '{}'
+conciv plugin call experimental.tanstack serverFnTrace --data '{"count":5}'
+```
+
+<TypeTable
+  type={{
+    buildErrors: {required: true, type: 'no input', description: 'The recent build errors.'},
+    routeManifest: {required: true, type: 'no input', description: 'Every route the app defines.'},
+    serverFnTrace: {
+      required: true,
+      type: '{count?}',
+      description:
+        'The recent server-function calls, the latest count of them (1 to 100), and every server function seen.',
+    },
+  }}
+/>

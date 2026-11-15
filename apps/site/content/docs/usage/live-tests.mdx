@@ -1,22 +1,97 @@
 ---
 title: Live tests
-description: Run your tests and watch results stream into a card.
+description: The agent lists and runs your tests with your own test framework and reads the result.
 ---
 
-Ask the agent to run your tests. Results stream into a test card in the widget, with pass and fail
-state per test as they come in.
+The test runner plugin runs your project's own tests in a separate process, in your project folder, and gives the
+agent the result: what passed, what failed, and why.
+
+```text
+run the math tests
+```
 
 <ImageZoom
   src="/screenshots/test-card.png"
-  alt="A test card streaming live results while the suite runs"
+  alt="The agent running the project's tests from the chat"
   width={1920}
   height={1080}
 />
 
-A vague request like "run the tests" makes the agent list your test files first, and it may ask
-which to run. Name a target to skip that step.
+## Turn it on
 
-On a failure, it summarizes what broke and asks before changing anything. It does not edit your
-code unprompted.
+Add `@conciv/plugin-test-runner` to `plugins` where you add conciv. Vitest is the default runner:
 
-<Callout>Vitest is the default runner. Playwright is also supported. See [Test runners](/docs/test-runners).</Callout>
+```ts title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [conciv({plugins: ['@conciv/plugin-test-runner']})],
+})
+```
+
+For Playwright, pass the `runner` option:
+
+```ts
+conciv({plugins: [['@conciv/plugin-test-runner', {runner: 'playwright'}]]})
+```
+
+The engine installs the package itself when it starts. The test framework is your project's own: Vitest or
+Playwright installed in your project as usual. See [Plugins](/docs/plugins).
+
+## Options
+
+<TypeTable
+  type={{
+    runner: {
+      type: '"vitest" | "playwright" | "jest" | "node-test"',
+      default: '"vitest"',
+      description: 'The test framework the plugin drives.',
+    },
+  }}
+/>
+
+`jest` and `node-test` are accepted names with no runner behind them yet. With either, the plugin fails to load with
+`jest runner not implemented` or `node-test runner not implemented`, and the rest of conciv keeps running.
+
+## The tools
+
+The agent calls them from code mode.
+
+| Tool                 | What it does                                                                                 |
+| -------------------- | -------------------------------------------------------------------------------------------- |
+| `test_runner_list`   | Lists the test files without running them.                                                   |
+| `test_runner_run`    | Runs every test, or only the files whose path matches a `pattern`, and waits for the result. |
+| `test_runner_status` | The result of the last finished run, without starting one.                                   |
+
+A result has the counts of passed, failed and skipped tests and the run's duration, each failure with its file, test
+name, message, stack and line when known, and one row per test.
+
+When the runner cannot start, because the framework is not installed or its config fails to load, the call fails with
+a message that says why, such as `vitest unavailable`.
+
+## From your terminal
+
+The same runner answers the RPC `test-runner`:
+
+```bash
+conciv plugin call test-runner list --data '{}'
+conciv plugin call test-runner run --data '{"patterns":["math"]}'
+conciv plugin call test-runner status
+conciv plugin call test-runner stop
+```
+
+<TypeTable
+  type={{
+    list: {required: true, type: '{failedOnly?}', description: 'The test files, without running them.'},
+    run: {
+      required: true,
+      type: '{patterns?, testNamePattern?, failedOnly?}',
+      description: 'Runs the tests and prints the result.',
+    },
+    status: {required: true, type: 'no input', description: 'The result of the last finished run.'},
+    stop: {required: true, type: 'no input', description: 'Stops the running tests.'},
+  }}
+/>
+
+When the runner cannot start, `list` and `run` fail with the code `UNAVAILABLE` and the reason.
