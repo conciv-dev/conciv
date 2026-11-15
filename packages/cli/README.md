@@ -43,14 +43,18 @@ Some tools ask first: running code in the page, reloading or restarting the dev 
 deleting on the whiteboard, resolving or deleting comments, building or running the iOS app. Who is
 asked depends on how the CLI found the dev server:
 
-- Inside the project, the CLI acts on your latest chat (an agent conciv started acts on its own). An
-  asking tool shows the Approve card in the tab, and the CLI gets an error saying the call needs the
-  user. Run the command again once they approve.
+- Inside the project, the CLI acts on your latest chat (an agent conciv started acts on its own).
+  Unless an earlier approval still covers the call, an asking tool shows the Approve card in the tab,
+  and the CLI gets an error saying the call needs the user. Run the command again once they approve.
+  For these tools the card offers Approve and Deny: one Approve lets exactly one later call of that
+  tool through; after that, or after a Deny (which is not kept), the next call asks again. An Approve
+  given inside a chat turn does not carry over to the CLI.
 - With `--tab`, the CLI is an outside agent that named its tab. Nobody is asked: an asking tool runs
   with no Approve card.
 - With no `.conciv/server.json` in this folder or a parent and no `CONCIV_PORT`, the CLI uses the most
   recently started dev server on this machine and acts on that server's latest chat. It is an outside
-  agent that named no tab, so an asking tool still shows the Approve card in the tab. A
+  agent that named no tab, so an asking tool still shows the Approve card in the tab, on the same
+  terms as inside the project. A
   `.conciv/server.json` left over from a stopped server still counts: the CLI uses it and fails with
   `No conciv dev server on 127.0.0.1:<port>.`
 
