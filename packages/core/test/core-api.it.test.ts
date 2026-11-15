@@ -6893,11 +6893,12 @@ export default {
       mkdirSync(dirname(join(root, path)), {recursive: true})
       writeFileSync(join(root, path), content)
     }
+    const harness = createFakeHarness({id: 'page-connection'})
     const engine = await start({
       options: {stateRoot: root, hubAccess: 'session', plugins: ['./tabs']},
       root,
       launchEditor: () => {},
-      harness: createFakeHarness({id: 'page-connection'}),
+      harness,
       homeDir: home,
     })
     onTestFinished(async () => {
@@ -6966,6 +6967,18 @@ export default {
     }
     expect(await reloaded()).toEqual({look: 'second look'})
     await reloads.return(undefined)
+    const afterReload = await fetch(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}${CHAT_SSE_PATH}`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({
+        threadId: (await rpc.sessions.create(undefined)).sessionId,
+        runId: 'after-reload',
+        messages: [{id: 'after-reload-user', role: 'user', content: 'read the domain'}],
+        tools: [],
+        context: [],
+      }),
+    })
+    await afterReload.text()
     const refusedAfterReload = ask({type: 'eval', code: 'document.domain'})
     await decide('document.domain', 'reject')
     expect(await refusedAfterReload).toMatchObject({ok: false})
