@@ -1,12 +1,20 @@
 import {isIdentifier, walk} from './ast-walk.js'
 
-const TEST_FILE = /(^|[\\/])test[\\/].*\.[jt]sx?$|\.(?:test|spec)\.[jt]sx?$/
+const SOURCE_EXTENSION = /\.[jt]sx?$/
+const TEST_SUFFIX = /\.(?:test|spec)\.[jt]sx?$/
 const HELPER_FILE = /(^|[\\/])packages[\\/]vitest-config[\\/]src[\\/]/
 const FS_SOURCES = new Set(['node:fs', 'node:fs/promises', 'fs', 'fs/promises'])
 const MKDTEMP_NAMES = new Set(['mkdtemp', 'mkdtempSync'])
 
+function isTestFile(filename) {
+  const segments = filename.split(/[\\/]/)
+  const baseName = segments.at(-1) ?? ''
+  if (TEST_SUFFIX.test(baseName)) return true
+  return SOURCE_EXTENSION.test(baseName) && segments.slice(0, -1).includes('test')
+}
+
 function appliesToFile(filename) {
-  return TEST_FILE.test(filename) && !HELPER_FILE.test(filename)
+  return isTestFile(filename) && !HELPER_FILE.test(filename)
 }
 
 function bindingsFrom(program) {

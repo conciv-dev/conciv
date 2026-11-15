@@ -63,9 +63,10 @@ async function createWorkspace(): Promise<string> {
       .map((path) => rename(join(root, 'test', 'fixtures', path), join(root, 'test', 'fixtures', path.slice(0, -4)))),
   )
   await mkdir(join(root, 'fixtures'))
-  await rename(
-    join(root, 'test', 'fixtures', 'solid-test-render-outside'),
-    join(root, 'fixtures', 'solid-test-render-outside'),
+  await Promise.all(
+    ['solid-test-render-outside', 'temp-dir-outside'].map((folder) =>
+      rename(join(root, 'test', 'fixtures', folder), join(root, 'fixtures', folder)),
+    ),
   )
   return root
 }

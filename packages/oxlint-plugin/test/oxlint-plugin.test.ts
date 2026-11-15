@@ -512,4 +512,13 @@ describe('no hand-made temp dir', () => {
     expect(await lintFixture('temp-dir/helpers.ts')).toEqual([])
     expect(await lintFixture('packages/vitest-config/src/temp-dir.ts')).toEqual([])
   })
+
+  test('outside a test folder it flags a spec file and leaves a source file alone', async () => {
+    const outside = async (file: string) =>
+      (await lintDiagnostics('test/oxlintrc-temp-dir.json', `fixtures/temp-dir-outside/${file}`)).filter(
+        (diagnostic) => diagnostic.code === 'conciv(no-hand-made-temp-dir)',
+      )
+    expect(await outside('hand-made.spec.ts')).toHaveLength(3)
+    expect(await outside('hand-made.ts')).toEqual([])
+  })
 })
