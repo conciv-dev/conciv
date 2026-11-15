@@ -1,5 +1,5 @@
 import {test, expect, describe, onTestFinished} from 'vitest'
-import {writeFile, mkdir, mkdtemp, rm, symlink, readFile} from 'node:fs/promises'
+import {writeFile, mkdir, rm, symlink, readFile} from 'node:fs/promises'
 import {dirname, join, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {createRequire} from 'node:module'
@@ -16,7 +16,6 @@ import {
   assertPublishedChangesCovered,
 } from '../src/guards.ts'
 import {scaffoldWorkspaceRoot, writeManifest} from './fixtures.ts'
-import {tmpdir} from 'node:os'
 import {execa} from 'execa'
 import {buildSyncPlan, pushMissingTags} from '../src/sync.ts'
 import {recordFromDocument} from '../src/registry.ts'
@@ -31,6 +30,7 @@ import {
 } from '../src/swift-mirror.ts'
 import {buildDependencyGraph, readWorkspacePackages, transitiveDependents} from '../src/workspace.ts'
 import {assertTypecheckCoversTrackedFiles} from '../src/typecheck-coverage.ts'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 describe('catalog', () => {
   test('assertSharedDependenciesCatalogued accepts catalog deps, single-manifest explicit deps, workspace: references and peer ranges', async () => {
@@ -388,7 +388,7 @@ describe('cli', () => {
       writeManifest(join(root, 'packages', 'page'), {name: '@conciv/page', version: '0.0.20'}),
       writeManifest(join(root, 'packages', 'grab'), {name: '@conciv/grab', version: '0.0.20'}),
     ])
-    const origin = await mkdtemp(join(tmpdir(), 'sync-tags-origin-'))
+    const origin = tempDir('sync-tags-origin-')
     onTestFinished(() => rm(origin, {recursive: true, force: true}))
     await git(origin, ['init', '--bare', '--quiet'])
     await git(root, ['init', '--quiet'])
@@ -449,7 +449,7 @@ describe('cli', () => {
 
 describe('coverage', () => {
   async function initRepo(): Promise<{repo: string; git: (...args: string[]) => Promise<{stdout: string}>}> {
-    const repo = await mkdtemp(join(tmpdir(), 'coverage-repo-'))
+    const repo = tempDir('coverage-repo-')
     onTestFinished(() => rm(repo, {recursive: true, force: true}))
     const git = (...args: string[]) => execa('git', ['-C', repo, ...args])
     await git('init', '-q')
@@ -707,7 +707,7 @@ describe('swift mirror', () => {
   async function scaffold(
     version: string,
   ): Promise<{sourceDir: string; templateDir: string; destDir: string; bridgeManifestPath: string; root: string}> {
-    const root = await mkdtemp(join(tmpdir(), 'swift-mirror-'))
+    const root = tempDir('swift-mirror-')
     const sourceDir = join(root, 'source')
     const templateDir = join(root, 'template')
     const destDir = join(root, 'dest')
@@ -813,7 +813,7 @@ describe('swift mirror', () => {
   })
 
   test('readBridgeVersion rejects a manifest whose version is not bare semver', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'swift-mirror-'))
+    const root = tempDir('swift-mirror-')
     const bridgeManifestPath = join(root, 'bridge-package.json')
     await writeFile(
       bridgeManifestPath,
@@ -827,7 +827,7 @@ describe('swift mirror', () => {
   const SOURCE_REL = 'native/swift/ConcivWidget'
 
   async function initRepo(): Promise<{repo: string; git: (...args: string[]) => Promise<unknown>}> {
-    const repo = await mkdtemp(join(tmpdir(), 'swift-mirror-repo-'))
+    const repo = tempDir('swift-mirror-repo-')
     const git = (...args: string[]) => execa('git', ['-C', repo, ...args])
     await git('init', '-q')
     await git('config', 'user.email', 'mirror@conciv.dev')

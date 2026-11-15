@@ -1,6 +1,4 @@
-import {mkdtempSync} from 'node:fs'
-import {mkdtemp, readdir, readFile, rm, watch} from 'node:fs/promises'
-import {tmpdir} from 'node:os'
+import {readdir, readFile, rm, watch} from 'node:fs/promises'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {afterAll, describe, expect, it} from 'vitest'
@@ -23,6 +21,7 @@ import {
   vitestChildTs,
   vitestSpec,
 } from './helpers.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 declare module '@conciv/protocol/config-types' {
   interface ExtensionRegistry extends RegisterExtension<typeof testRunnerExtension> {}
@@ -44,7 +43,7 @@ describe('extension', () => {
     const engine = await start({
       options: {
         systemPrompt: false,
-        stateRoot: mkdtempSync(join(tmpdir(), 'conciv-test-runner-it-')),
+        stateRoot: tempDir('conciv-test-runner-it-'),
       },
       root: opts.root ?? fixture,
       launchEditor: () => {},
@@ -127,8 +126,8 @@ describe('extension', () => {
     }, 30_000)
 
     it('maps a runner-unavailable failure to a typed UNAVAILABLE error on run', async () => {
-      const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-it-state-'))
-      const missingRoot = join(mkdtempSync(join(tmpdir(), 'conciv-it-root-')), 'absent')
+      const stateRoot = tempDir('conciv-it-state-')
+      const missingRoot = join(tempDir('conciv-it-root-'), 'absent')
       const engine = await start({
         options: {systemPrompt: false, stateRoot},
         root: missingRoot,
@@ -246,7 +245,7 @@ describe('playwright', () => {
 
     it('stops the Playwright CLI and removes its report directory when the run is stopped mid-test', async () => {
       const reportPrefix = 'conciv-playwright-report-'
-      const scratch = await mkdtemp(join(tmpdir(), 'conciv-playwright-stop-'))
+      const scratch = tempDir('conciv-playwright-stop-')
       const startedFile = join(scratch, 'blocked-test-started')
       try {
         const mgr = makeChildManager(playwrightSpec, fixture, {
@@ -321,7 +320,7 @@ describe('tool catalog', () => {
 
   async function boot(): Promise<{base: string; engine: Engine}> {
     const engine = await start({
-      options: {systemPrompt: false, stateRoot: mkdtempSync(join(tmpdir(), 'conciv-test-runner-catalog-'))},
+      options: {systemPrompt: false, stateRoot: tempDir('conciv-test-runner-catalog-')},
       root: fixture,
       launchEditor: () => {},
       extensions,

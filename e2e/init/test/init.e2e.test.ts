@@ -1,8 +1,8 @@
 import {execFile, execFileSync} from 'node:child_process'
-import {cpSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
-import {tmpdir} from 'node:os'
+import {cpSync, existsSync, readFileSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 const repoRoot = join(import.meta.dirname, '..', '..', '..')
 const cliBin = join(repoRoot, 'packages', 'cli', 'dist', 'bin.js')
@@ -12,8 +12,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function minimalTools(): {PATH: string; HOME: string} {
-  const binDir = mkdtempSync(join(tmpdir(), 'conciv-init-tools-'))
-  const home = mkdtempSync(join(tmpdir(), 'conciv-init-home-'))
+  const binDir = tempDir('conciv-init-tools-')
+  const home = tempDir('conciv-init-home-')
   symlinkSync(process.execPath, join(binDir, 'node'))
   symlinkSync(execFileSync('which', ['git'], {encoding: 'utf8'}).trim(), join(binDir, 'git'))
   return {PATH: binDir, HOME: home}
@@ -40,7 +40,7 @@ function withoutConcivDependencies(cloneDir: string): void {
 }
 
 function cloneApp(appName: string): string {
-  const cloneDir = mkdtempSync(join(tmpdir(), `conciv-init-${appName}-`))
+  const cloneDir = tempDir(`conciv-init-${appName}-`)
   const appDir = join(repoRoot, 'e2e', appName)
   const trackedPaths = execFileSync('git', ['ls-files'], {cwd: appDir, encoding: 'utf8'})
     .split('\n')

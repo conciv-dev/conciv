@@ -1,7 +1,6 @@
 import {expect, afterEach, describe, it, onTestFinished} from 'vitest'
-import {mkdtempSync, rmSync} from 'node:fs'
-import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {rmSync} from 'node:fs'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {type EngineStaleness} from '@conciv/contract'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {bootCoreKit, type CoreKit} from '../src/core-kit.js'
@@ -87,7 +86,7 @@ describe('core kit seams', () => {
     }, 30_000)
 
     it('keeps a passed state root so a second kit on the same folder reads what the first one stored', async () => {
-      const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-core-kit-'))
+      const stateRoot = tempDir('conciv-core-kit-')
       onTestFinished(() => rmSync(stateRoot, {recursive: true, force: true}))
 
       const first = await bootCoreKit({id: 'seams-state-root-first', stateRoot})

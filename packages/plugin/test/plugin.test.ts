@@ -1,6 +1,5 @@
 import * as NodeFs from 'node:fs'
-import {mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile} from 'node:fs/promises'
-import {tmpdir} from 'node:os'
+import {mkdir, readdir, readFile, realpath, rm, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {pathToFileURL} from 'node:url'
 import {afterAll, afterEach, beforeEach, describe, expect, expectTypeOf, it, vi} from 'vitest'
@@ -50,6 +49,7 @@ import * as PageModule from '../src/experimental/page.js'
 import * as GrabModule from '../src/experimental/grab.js'
 import * as RpcEntry from '../src/rpc.js'
 import * as Host from '../src/host.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 type Count = {count: number}
 
@@ -579,7 +579,7 @@ describe('host', () => {
   const name = '@fixture/plugin'
 
   async function fixture(files: Record<string, string>, installed = false) {
-    const root = await realpath(await mkdtemp(path.join(tmpdir(), 'conciv-host-')))
+    const root = await realpath(tempDir('conciv-host-'))
     const directory = installed ? path.join(root, 'node_modules', name) : root
     await Promise.all(
       Object.entries(files).map(async ([file, content]) => {
@@ -947,7 +947,7 @@ describe('experimental() build', () => {
   afterAll(() => Promise.all(dirs.map((dir) => rm(dir, {recursive: true, force: true}))))
 
   const project = async (files: Record<string, string>) => {
-    const root = await mkdtemp(path.join(tmpdir(), 'conciv-experimental-vite-'))
+    const root = tempDir('conciv-experimental-vite-')
     dirs.push(root)
     await Promise.all(
       Object.entries(files).map(async ([file, text]) => {

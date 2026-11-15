@@ -4,6 +4,7 @@ import {PACKED_APP_DIR} from './test/packed-app-dir.ts'
 
 export default defineConfig(
   e2eConfig('vite-react-packed', {
+    dir: import.meta.dirname,
     command: (port) => `pnpm --dir ${JSON.stringify(PACKED_APP_DIR)} exec vite --port ${port} --strictPort --force`,
     reuseExistingServer: false,
   }),
