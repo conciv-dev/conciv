@@ -2,6 +2,7 @@ import {createElement} from 'react'
 import {loader} from 'fumadocs-core/source'
 import {docs} from 'collections/server'
 import {
+  BookOpen,
   Bot,
   Boxes,
   FlaskConical,
@@ -19,6 +20,7 @@ import {
 import {docsRoute} from './shared'
 
 const docsIcons: Record<string, LucideIcon> = {
+  BookOpen,
   Bot,
   Boxes,
   FlaskConical,
