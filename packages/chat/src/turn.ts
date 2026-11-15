@@ -13,6 +13,7 @@ import type {Turn, TurnHooks} from '@conciv/ai/server'
 import type {AttachmentDocumentPart} from '@conciv/extension'
 import {transcriptPathWithin} from '@conciv/harness'
 import {isEqual} from 'es-toolkit'
+import {z} from 'zod'
 import {
   ChatContentPartSchema,
   isHarnessSessionId,
@@ -238,10 +239,15 @@ function isBlank(message: ModelMessage): boolean {
   return !hasParts && readText(message).trim() === ''
 }
 
+const PromptDisplaySchema = z.object({displayText: z.string()})
+
+function titleText(message: ModelMessage | undefined): string {
+  const typed = PromptDisplaySchema.safeParse(message?.metadata).data?.displayText.trim()
+  return typed || readText(message).trim()
+}
+
 export function firstUserTitle(messages: readonly ModelMessage[]): string {
-  return readText(messages.find((message) => message.role === 'user'))
-    .trim()
-    .slice(0, TITLE_MAX_CHARS)
+  return titleText(messages.find((message) => message.role === 'user')).slice(0, TITLE_MAX_CHARS)
 }
 
 async function countContextTokens(deps: TurnDeps, sessionId: SessionId): Promise<number | undefined> {

@@ -1,17 +1,20 @@
-import {createMemo, Show, type Accessor, type JSX} from 'solid-js'
+import {createMemo, For, Show, type Accessor, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {Dynamic} from 'solid-js/web'
 import {Key} from '@solid-primitives/keyed'
 import XIcon from 'lucide-solid/icons/x'
-import {TooltipIconButton, TruncatedText} from '@conciv/ui-kit-system'
+import {Button, TooltipIconButton, TruncatedText} from '@conciv/ui-kit-system'
 import {useComposerContext} from '@conciv/ui-kit-chat'
 import {NoteCard, type ComposerNote, type IconName, type MountedSession} from '@conciv/plugin/experimental'
 import {usePluginHost} from '../runtime/plugin/host'
 import {Contribution} from '../runtime/plugin/render'
 import {icons} from '../runtime/plugin/icons'
+import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {NoteContextItem, type NoteComment} from './note-schema'
+import {readPromptPresentation} from './comment-note'
 
 const FALLBACK_ICON: IconName = 'message-square'
+const SENT_NOTE_BOUND = 5
 
 const CARD =
   'flex flex-col justify-center gap-0.5 h-14 min-w-24 max-w-56 ps-2.5 pe-7 rounded-[var(--chat-radius-md)] [border:1px_solid_var(--chat-line)] [background:var(--chat-fill)]'
@@ -114,6 +117,35 @@ export function ComposerNotes(props: {session: Accessor<MountedSession | undefin
           )}
         </Key>
       </ul>
+    </Show>
+  )
+}
+
+export function SentNotes(props: {messages: Accessor<readonly ChatMessage[]>}): JSX.Element {
+  const [state, setState] = createStore({expanded: false})
+  const notes = createMemo(() =>
+    props.messages().flatMap((message) => readPromptPresentation(message.metadata)?.comments ?? []),
+  )
+  const shown = createMemo(() => (state.expanded ? notes() : notes().slice(0, SENT_NOTE_BOUND)))
+
+  return (
+    <Show when={notes().length > 0}>
+      <div class="flex flex-col items-end gap-1 self-end max-w-full">
+        <ul aria-label="Notes on this message" class="flex flex-wrap justify-end gap-1 list-none p-0">
+          <For each={shown()}>
+            {(note) => (
+              <li>
+                <NoteChip note={note} />
+              </li>
+            )}
+          </For>
+        </ul>
+        <Show when={!state.expanded && notes().length > SENT_NOTE_BOUND}>
+          <Button variant="ghost" size="sm" onClick={() => setState('expanded', true)}>
+            Show more
+          </Button>
+        </Show>
+      </div>
     </Show>
   )
 }

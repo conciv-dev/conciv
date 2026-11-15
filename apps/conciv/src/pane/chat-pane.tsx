@@ -56,7 +56,7 @@ import {ExtensionSurface} from '../extension/extension-slots.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {ComposerActions} from '../composer/actions.js'
 import {promptWithNotes} from '../composer/comment-note.js'
-import {ComposerNotes} from '../composer/note-card.js'
+import {ComposerNotes, SentNotes} from '../composer/note-card.js'
 import {ConnectedAgents} from '../composer/connected-agents.js'
 import {SessionModelPrompt, useModelMenu} from '../composer/model-selector.js'
 import {useEngineNotices} from '../shell/notice-context.js'
@@ -386,6 +386,9 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
           </Show>
           <For each={anchors().flatMap((message) => markerRowsAfter(message?.id))}>{renderDivider}</For>
           <Show when={turnHarnessName(source)}>{(name) => <span class={HARNESS_LABEL}>{name()}</span>}</Show>
+          <Show when={source.role === 'user'}>
+            <SentNotes messages={() => source.turn().messages} />
+          </Show>
         </>
       )
     }

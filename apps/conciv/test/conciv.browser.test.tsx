@@ -6466,6 +6466,10 @@ module.exports = {default: {stores: {
         props.screen.composer.attach(fixtureNote('c2', 'the other comment'))
         props.screen.composer.insert('noted')
       }),
+      button('Attach six notes', () => {
+        for (const index of [1, 2, 3, 4, 5, 6]) props.screen.composer.attach(fixtureNote('s' + index, 'note number ' + index))
+        props.screen.composer.insert('six notes')
+      }),
       button('Attach drawn notes', () => {
         props.screen.composer.attach(drawnNote('d1', 'a card it draws'))
         props.screen.composer.attach(drawnNote('d2', 'a card it declines'))
@@ -6721,6 +6725,40 @@ module.exports = {default: {stores: {
     await expect.element(notes().getByRole('listitem').nth(3)).toBeVisible()
     await expect.element(notes().getByRole('listitem').nth(4)).not.toBeInTheDocument()
     await expect.element(editor()).toHaveFocus()
+  }, 60_000)
+
+  test('a sent message shows what the user typed and its notes as cards, five until Show more, also after a reload', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const sent = () => page.getByRole('list', {name: 'Notes on this message'})
+    const sentCard = (text: string) => sent().getByRole('listitem').filter({hasText: text})
+    const sentence = () => page.getByText(/The user made the following comment/)
+    const typed = () => page.getByRole('tabpanel', {name: 'Chat'}).getByText('six notes', {exact: true})
+    const title = () => page.getByLabelText('Session: six notes', {exact: true})
+    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`)
+    await expect.element(control('Attach six notes'), {timeout: 15_000}).toBeVisible()
+    await control('Attach six notes').click()
+    await tab('Chat').click()
+    await expect.element(editor()).toHaveTextContent('six notes')
+    await userEvent.click(editor())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByText('the fixture reply')).toBeVisible()
+
+    await expect.element(typed()).toBeVisible()
+    await expect.element(title()).toBeInTheDocument()
+    await expect.element(sentence()).not.toBeInTheDocument()
+    await expect.element(sentCard('note number 1')).toHaveTextContent('note number 1Fixture note')
+    await expect.element(sentCard('note number 5')).toBeVisible()
+    await expect.element(sentCard('note number 6')).not.toBeInTheDocument()
+    await control('Show more').click()
+    await expect.element(sentCard('note number 6')).toBeVisible()
+
+    harness.dispose()
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(typed(), {timeout: 15_000}).toBeVisible()
+    await expect.element(title()).toBeInTheDocument()
+    await expect.element(sentence()).not.toBeInTheDocument()
+    await expect.element(sentCard('note number 5')).toBeVisible()
+    await expect.element(sentCard('note number 6')).not.toBeInTheDocument()
   }, 60_000)
 
   const tabPath = (sessionId: string, key: string) => `/panel/${sessionId}/${encodeURIComponent(key)}`

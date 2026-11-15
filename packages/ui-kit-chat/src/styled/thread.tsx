@@ -18,7 +18,8 @@ import {Key} from '@solid-primitives/keyed'
 import {isEqual, takeRightWhile} from 'es-toolkit'
 import ArrowDown from 'lucide-solid/icons/arrow-down'
 import {TruncatedTextGroup} from '@conciv/ui-kit-system'
-import type {ChatPart, ToolCallPart} from '@conciv/protocol/chat-message-types'
+import {z} from 'zod'
+import type {ChatMessage, ChatPart, ToolCallPart} from '@conciv/protocol/chat-message-types'
 import type {ToolCardEntry, ToolCardProps, ToolCardView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {useThread} from '../store/chat-context.js'
 import {useToolCtx} from '../store/tool-context.js'
@@ -371,14 +372,21 @@ function AssistantTurn(props: {
   )
 }
 
-function collectPromptText(turn: Turn): string {
-  return turn.parts
+const PromptDisplaySchema = z.object({displayText: z.string()})
+
+function messagePromptText(message: ChatMessage): string[] {
+  const display = PromptDisplaySchema.safeParse(message.metadata)
+  if (display.success) return display.data.displayText.trim() ? [display.data.displayText] : []
+  return message.parts
     .filter(
       (part): part is Extract<ChatPart, {type: 'text'}> =>
         part.type === 'text' && part.content.trim().length > 0 && !partIsModelOnly(part),
     )
     .map((part) => part.content)
-    .join('\n')
+}
+
+function collectPromptText(turn: Turn): string {
+  return turn.messages.flatMap(messagePromptText).join('\n')
 }
 
 function UserTurn(): JSX.Element {
@@ -395,7 +403,7 @@ function UserTurn(): JSX.Element {
           <Message.Attachments components={{Image: AttachmentCard, Document: AttachmentCard}} />
         </div>
       </Message.If>
-      <Message.If hasText>
+      <Show when={promptText()}>
         <Message.Root data-conciv-msg class={PROMPT_ROOT_CLASS}>
           <span class={PROMPT_GUTTER_CLASS} aria-hidden="true">
             ❯
@@ -405,7 +413,7 @@ function UserTurn(): JSX.Element {
           </span>
           <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
         </Message.Root>
-      </Message.If>
+      </Show>
     </TurnFrame>
   )
 }
