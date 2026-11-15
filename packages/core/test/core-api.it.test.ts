@@ -6592,11 +6592,11 @@ export default {
 }
 `
 
-  async function askerEngine() {
+  async function askerEngine(first: 'asks' | 'gone' = 'asks') {
     const root = tempDir('conciv-asker-')
     const plugin = join(root, 'conciv', 'plugins', 'asker.ts')
     mkdirSync(dirname(plugin), {recursive: true})
-    writeFileSync(plugin, asker('first', 'asks'))
+    writeFileSync(plugin, asker('first', first))
     const harness = createFakeHarness()
     const engine = await bootAt(tempDir('conciv-asker-home-'), root, 'session', harness)
     onTestFinished(async () => {
@@ -6626,14 +6626,22 @@ export default {
       harness.script.scriptToolCall('execute_typescript', {typescriptCode: 'return await external_asker_run({})'})
       return sseTurn(base, sessionId, runId, 'run the asker', new AbortController().signal).then(sseStream)
     }
+    const twoSteps = (runId: string, secondStep: string) => {
+      runs.push(runId)
+      harness.script.scriptToolCall('execute_typescript', {typescriptCode: "return ['the first', 'step'].join(' ')"})
+      harness.script.scriptToolCall('execute_typescript', {typescriptCode: secondStep})
+      return sseTurn(base, sessionId, runId, 'run the asker', new AbortController().signal).then(sseStream)
+    }
     onTestFinished(async () => {
       await makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}}).chat.stop({sessionId, runIds: runs})
     })
     const askedOrEnded = (ended: Promise<string>) =>
       Promise.race([next('permission.asked'), ended.then((text) => ({endedWithoutAsking: text}))])
     const asking = {sessionId, action: 'asker_run', resources: ['now']}
-    return {root, plugin, harness, turn, loading, askedOrEnded, asking}
+    return {root, plugin, harness, turn, twoSteps, loading, askedOrEnded, asking}
   }
+
+  const offeredCheck = "return ['asker is', typeof external_asker_run].join(' ')"
 
   it('a turn sent at once after the plugin is rewritten asks before the tool runs', async () => {
     const engine = await askerEngine()
@@ -6646,7 +6654,7 @@ export default {
     const engine = await askerEngine()
     engine.harness.script.holdTools()
     const turn = await engine.turn('reloading-run')
-    expect(await turn.reach('RUN_STARTED')).toBe('RUN_STARTED')
+    expect(await turn.reach('fake.session-id')).toBe('fake.session-id')
     writeFileSync(engine.plugin, asker('second', 'gated'))
     await engine.loading('second')
     engine.harness.script.releaseTools()
@@ -6659,13 +6667,39 @@ export default {
     const engine = await askerEngine()
     engine.harness.script.holdTools()
     const turn = await engine.turn('dropped-run')
-    expect(await turn.reach('RUN_STARTED')).toBe('RUN_STARTED')
+    expect(await turn.reach('fake.session-id')).toBe('fake.session-id')
     writeFileSync(engine.plugin, asker('second', 'gone'))
     await engine.loading('second')
     engine.harness.script.releaseTools()
     const text = await turn.ended()
     expect(text).toMatch(/No tool named \W+asker_run\W+ is currently available/)
     expect(text).not.toContain('asker ran')
+  })
+
+  it('a tool a reload adds mid-turn is offered at the next model step of the same turn', async () => {
+    const engine = await askerEngine('gone')
+    engine.harness.script.holdTools()
+    const turn = await engine.twoSteps('added-run', offeredCheck)
+    expect(await turn.reach('fake.session-id')).toBe('fake.session-id')
+    writeFileSync(engine.plugin, asker('second', 'asks'))
+    await engine.loading('second')
+    engine.harness.script.releaseTools()
+    const text = await turn.ended()
+    expect(text).toContain('the first step')
+    expect(text).toContain('asker is function')
+  })
+
+  it('a tool a reload removes mid-turn is no longer offered at the next model step of the same turn', async () => {
+    const engine = await askerEngine()
+    engine.harness.script.holdTools()
+    const turn = await engine.twoSteps('removed-run', offeredCheck)
+    expect(await turn.reach('fake.session-id')).toBe('fake.session-id')
+    writeFileSync(engine.plugin, asker('second', 'gone'))
+    await engine.loading('second')
+    engine.harness.script.releaseTools()
+    const text = await turn.ended()
+    expect(text).toContain('the first step')
+    expect(text).toContain('asker is undefined')
   })
 })
 

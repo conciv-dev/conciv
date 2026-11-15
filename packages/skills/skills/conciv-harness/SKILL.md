@@ -102,7 +102,6 @@ export type HarnessChatDeps = {
   model?: string
   env: Record<string, string | undefined>
   kind: 'chat' | 'compact'
-  hasTools?: boolean
 }
 
 export type HarnessChatConfig = {
@@ -130,12 +129,16 @@ const codexChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
   adapter: codexAdapter(deps.model ?? 'gpt-5.5', {
     sandboxMode: 'workspace-write',
     approvalPolicy: 'never',
-    ...(deps.hasTools ? {config: bridgeApproveConfig} : {}),
     env: definedEntries(deps.env),
   }),
   modelOptions: deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {},
 })
 ```
+
+The tools a turn offers can change between model steps, so `deps` carries no tool flag. A CLI that must
+know whether tools ride a step reads that step's `options.tools` inside `chatStream`, the way codex builds
+its run adapter per step and auto-approves its tanstack MCP server only when that step offers tools
+(`packages/harness/src/codex/run-adapter.ts`).
 
 (`packages/harness/src/codex/index.ts:11-19`.) `deps.env` is `Record<string, string | undefined>`
 (it's `process.env`-shaped); most `@tanstack/ai-*` adapters want `Record<string, string>`, so run it
