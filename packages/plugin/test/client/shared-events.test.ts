@@ -1,12 +1,15 @@
-import {expect, test} from 'vitest'
+import {describe, expect, test} from 'vitest'
+import {z} from 'zod'
+import {makeRpcClient} from '@conciv/contract'
 import {SharedEvents} from '../../src/client/shared-events.js'
+import {makeRpc, Rpc, type EventSubscribeOutput} from '../../src/promise/index.js'
 
 type Event = {readonly type: string; readonly value?: number}
 
-function source(cleanup?: Promise<void>) {
+function source<A extends {readonly type: string} = Event>(cleanup?: Promise<void>) {
   const connections: {
     signal: AbortSignal
-    push: (event: Event) => void
+    push: (event: A) => void
     close: () => void
     fail: (error: unknown) => void
     closing: Promise<void>
@@ -20,12 +23,12 @@ function source(cleanup?: Promise<void>) {
       if (!connections[index]) await (opened[index] ??= Promise.withResolvers<void>()).promise
       return connections[index]!
     },
-    connect(signal: AbortSignal): AsyncIterable<Event> {
-      let controller!: ReadableStreamDefaultController<Event>
+    connect(signal: AbortSignal): AsyncIterable<A> {
+      let controller!: ReadableStreamDefaultController<A>
       let ended = false
       const closing = Promise.withResolvers<void>()
       const closed = Promise.withResolvers<void>()
-      const stream = new ReadableStream<Event>({
+      const stream = new ReadableStream<A>({
         start(value) {
           controller = value
         },
@@ -394,4 +397,59 @@ test('source activity fans out to every subscriber that asked for it', async () 
   await first.return!()
   await second.return!()
   await events.connections[0]!.closed
+})
+
+describe('makeRpc events.on', () => {
+  const Acme = Rpc.define({id: 'acme', methods: {}, events: {indexed: {schema: z.object({count: z.number()})}}})
+  const connected: EventSubscribeOutput = {id: 'connected', type: 'server.connected', data: {}}
+  const indexed = (count: number): EventSubscribeOutput => ({
+    id: `indexed-${count}`,
+    created: count,
+    type: 'rpc.acme.indexed',
+    location: {directory: '/workspace'},
+    data: {count},
+  })
+
+  test('comes back after a failed stream and an overflowed subscriber, from the next server.connected', async () => {
+    const events = source<EventSubscribeOutput>()
+    const client = makeRpc(makeRpcClient('http://127.0.0.1:9'), SharedEvents.make(events.connect))(Acme)
+    const delivered: number[] = []
+    const waiting: {count: number; resolve: () => void}[] = []
+    const gate = {held: Promise.resolve()}
+    const received = (count: number) =>
+      delivered.includes(count) ? Promise.resolve() : new Promise<void>((resolve) => waiting.push({count, resolve}))
+    const stop = client.events.on('indexed', async (event) => {
+      delivered.push(event.data.count)
+      waiting.filter((waiter) => waiter.count === event.data.count).forEach((waiter) => waiter.resolve())
+      await gate.held
+    })
+
+    const first = await events.at(0)
+    first.push(connected)
+    first.push(indexed(1))
+    await received(1)
+    first.fail(new Error('the engine ended the event stream'))
+
+    const second = await events.at(1)
+    second.push(connected)
+    second.push(indexed(2))
+    await received(2)
+    const release = Promise.withResolvers<void>()
+    gate.held = release.promise
+    second.push(indexed(3))
+    await received(3)
+    Array.from({length: 4_097}, (_, index) => second.push(indexed(4 + index)))
+    await second.closed
+    release.resolve()
+
+    const third = await events.at(2)
+    third.push(connected)
+    third.push(indexed(5_000))
+    await received(5_000)
+    expect(delivered).toEqual([1, 2, 3, 5_000])
+
+    stop()
+    await third.closed
+    expect(third.signal.aborted).toBe(true)
+  })
 })

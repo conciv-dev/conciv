@@ -49,6 +49,8 @@ export interface RpcApi<Options = RpcCallOptions> {
   <D extends Rpc.PortableDefinition>(definition: D): RpcClient<D, Options>
 }
 
+const reconnectDelay = 1_000
+
 const RpcError = z.object({
   defined: z.literal(true),
   code: z.literal('PLUGIN_RPC'),
@@ -124,7 +126,14 @@ export function makeRpc(
             async function deliver() {
               for await (const event of source) await handler(event)
             }
-            void deliver().catch((error: unknown) => console.error(error))
+            async function follow() {
+              while (!signal.aborted) {
+                await deliver().catch((error: unknown) => console.error(error))
+                if (signal.aborted) return
+                await wait(reconnectDelay, signal)
+              }
+            }
+            void follow()
             return () => controller.abort()
           },
         },
@@ -135,4 +144,16 @@ export function makeRpc(
 
 function eventType(definition: Rpc.PortableDefinition, name: string) {
   return `rpc.${definition.id}.${name}` as const
+}
+
+function wait(delay: number, signal: AbortSignal) {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(done, delay)
+    signal.addEventListener('abort', done, {once: true})
+    function done() {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', done)
+      resolve()
+    }
+  })
 }
