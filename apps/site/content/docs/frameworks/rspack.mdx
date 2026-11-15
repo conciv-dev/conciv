@@ -4,14 +4,14 @@ description: The Rspack entry starts the engine. It does not put the widget on y
 ---
 
 <Callout type="warn">
-  With conciv in your Rspack config, `rspack serve` starts the engine, but the widget is not on your page, and conciv
-  has no supported way to add it yet. For the widget, use [Vite](/docs/frameworks/vite) or
-  [Next.js](/docs/frameworks/nextjs).
+  With conciv in your Rspack config, you get the engine: it listens on `127.0.0.1`, writes `.conciv/server.json`, and
+  puts `.conciv/bin/conciv` in place. You do not get the widget, and conciv has no supported way to add it by hand yet.
+  For the widget, use [Vite](/docs/frameworks/vite) or [Next.js](/docs/frameworks/nextjs).
 </Callout>
 
-## Add it
+## Install
 
-<Tabs items={['init', 'By hand']}>
+<Tabs items={['init', 'pnpm', 'npm', 'yarn']}>
 
 <Tab value="init">
 
@@ -25,43 +25,83 @@ names do not add the widget.
 
 </Tab>
 
-<Tab value="By hand">
+<Tab value="pnpm">
+
+```bash
+pnpm add -D @conciv/it
+```
+
+</Tab>
+
+<Tab value="npm">
 
 ```bash
 npm install -D @conciv/it
 ```
 
-```js title="rspack.config.mjs"
-import {rspack} from '@rspack/core'
-import conciv from '@conciv/it/plugin/rspack'
+</Tab>
 
-export default {
-  entry: './src/index.js',
-  plugins: [new rspack.HtmlRspackPlugin({title: 'rspack probe'}), conciv()],
-  devServer: {port: 5302},
-}
+<Tab value="yarn">
+
+```bash
+yarn add -D @conciv/it
 ```
 
 </Tab>
 
 </Tabs>
 
-## What runs
+## Add it
+
+Use an ES module config. This is what init writes into one:
+
+```js title="rspack.config.js"
+import conciv from '@conciv/it/plugin/rspack'
+export default {
+  entry: './src/index.js',
+  plugins: [conciv()],
+}
+```
+
+<Callout type="warn">
+  A CommonJS config cannot load it: `require('@conciv/it/plugin/rspack')` fails with `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+  init still writes that `require` into a CommonJS config. Rename the config to `rspack.config.mjs` and use the `import`
+  above.
+</Callout>
+
+## Run it
+
+```bash
+rspack serve
+```
+
+The engine starts. Your page gets no conciv button.
+
+`rspack build` also starts the engine, and the build process keeps running until you stop it.
+
+## Options
+
+Pass options to `conciv()`. These change how the Rspack integration behaves; the engine options are on
+[Configuration](/docs/reference/configuration).
 
 <TypeTable
   type={{
-    'rspack serve': {
-      required: true,
-      type: 'dev',
-      description: 'Starts the engine on 127.0.0.1 and writes .conciv/server.json. Your page gets no conciv button.',
+    enabled: {
+      type: 'boolean',
+      default: 'true',
+      description: 'false starts no engine.',
     },
-    'rspack build': {
-      required: true,
-      type: 'build',
-      description: 'Also starts the engine, and the build process keeps running until you stop it.',
+    port: {
+      type: 'number',
+      default: 'the last port, or a free one',
+      description: 'The engine listens on exactly this port. If it is in use, the process stops with EADDRINUSE.',
     },
   }}
 />
 
-Without `port`, the engine takes the port it used last time, or a free one. With `port`, it listens on exactly that
-port; if the port is in use, the process exits with `EADDRINUSE`.
+## If it does not show up
+
+- **There is no button.** That is expected: the Rspack integration adds no widget.
+- **The config fails with `ERR_PACKAGE_PATH_NOT_EXPORTED`.** It loads conciv with `require`. Use an ES module config.
+- **The process stops with `EADDRINUSE`.** The `port` you set is in use. Free it, or remove `port`.
+- **The conciv CLI finds no engine.** See [Troubleshooting](/docs/reference/troubleshooting#from-the-conciv-cli).
