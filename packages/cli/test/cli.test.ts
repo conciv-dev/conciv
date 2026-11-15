@@ -1371,7 +1371,10 @@ describe('cli', () => {
           resolve({code: error === null ? 0 : error.code, document: JSON.parse(stdout)}),
         ),
       )
-    const refused = (message: string | RegExp) => ({code: 1, document: {ok: false, error: {kind: 'user', message}}})
+    const refused = (message: string | RegExp, type?: string) => ({
+      code: 1,
+      document: {ok: false, error: {kind: 'user', message, ...(type === undefined ? {} : {type})}},
+    })
 
     it('answers a plugin method from the project and from anywhere as the owner, prints engine errors, and refuses bad --data before any call', async () => {
       const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
@@ -1392,10 +1395,10 @@ describe('cli', () => {
           message: "outside agents can't use plugin routes; use the plugin in the tab",
         })
         expect(await pluginCall(root, home, ['nope', 'ping', '--data', '{}'])).toMatchObject(
-          refused('RPC is unavailable: nope'),
+          refused('RPC is unavailable: nope', 'rpc.unavailable'),
         )
         expect(await pluginCall(root, home, ['probe', 'nope', '--data', '{}'])).toMatchObject(
-          refused('Unknown RPC method: probe.nope'),
+          refused('Unknown RPC method: probe.nope', 'rpc.method_not_found'),
         )
         expect(await pluginCall(root, home, ['probe', 'counted', '--data', '{nope'])).toMatchObject(
           refused(/--data is not JSON/),
@@ -1406,7 +1409,7 @@ describe('cli', () => {
         expect(await pluginCall(root, home, ['probe', 'counted'])).toEqual({code: 0, document: {ok: true, data: 1}})
         expect(await pluginCall(root, home, ['probe', 'ping'])).toMatchObject({
           code: 1,
-          document: {ok: false, error: {kind: 'user', code: 'PLUGIN_RPC'}},
+          document: {ok: false, error: {kind: 'user', code: 'PLUGIN_RPC', type: 'rpc.invalid_input'}},
         })
         expect(await pluginCall(root, home, ['probe', 'limited', '--data', '{}'])).toEqual({
           code: 1,
