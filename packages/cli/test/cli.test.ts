@@ -2068,7 +2068,7 @@ describe('cli', () => {
           JSON.stringify([
             {
               type: 'text',
-              text: `cannot tell whether tab conciv_gone is open: no engine that answered has it, and the tab probe failed on ${crashing.root} (Internal Server Error); ${old.root} (engine too old; upgrade its @conciv packages); nothing ran`,
+              text: `cannot tell whether tab conciv_gone is open: no engine that answered has it, and ${crashing.root} did not answer (Internal Server Error); ${old.root} (engine too old; upgrade its @conciv packages); nothing ran`,
             },
           ]),
         )
@@ -2128,7 +2128,7 @@ describe('cli', () => {
       }
     })
 
-    it('a tab whose check timed out on its engine is asked once more before the hub answers', async () => {
+    it('a tab whose check timed out on its engine is asked once more before the hub answers, and named when it never answers', async () => {
       const {home, mcp} = fakeClaude()
       expect(mcp('connect', 'claude')).toMatchObject({status: 0})
       const holder = await engineWithTab(home, {hubAccess: 'open'})
@@ -2140,6 +2140,12 @@ describe('cli', () => {
         await Promise.race([asked, answering])
         front.answerHeld()
         expect(JSON.stringify(await answering)).toContain('\\"result\\":2')
+        front.holdAgain()
+        const unanswered = JSON.stringify(
+          await client.callTool('execute_typescript', {typescriptCode: 'return 1 + 1', tab: 'conciv_gone'}),
+        )
+        expect(unanswered).toContain(`${holder.root} did not answer (`)
+        expect(unanswered).not.toContain('the tab probe failed on')
       } finally {
         await client.close()
         await front.close()
