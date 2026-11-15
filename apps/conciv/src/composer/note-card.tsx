@@ -17,13 +17,11 @@ const FALLBACK_ICON: IconName = 'message-square'
 const SENT_NOTE_BOUND = 5
 
 const CARD =
-  'flex flex-col justify-center gap-0.5 h-14 ps-2.5 pe-7 rounded-[var(--chat-radius-md)] [border:1px_solid_var(--chat-line)] [background:var(--chat-fill)]'
+  'flex flex-col justify-center gap-0.5 h-14 px-2.5 rounded-[var(--chat-radius-md)] [border:1px_solid_var(--chat-line)] [background:var(--chat-fill)]'
 const STAGED_CARD = `${CARD} min-w-24 max-w-56`
 const SENT_CARD = `${CARD} w-full`
 const HEADING = 'block truncate text-[length:var(--chat-text-sm)] [color:var(--chat-text-hi)]'
 const META = 'flex items-center gap-1 min-w-0 text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)]'
-const REMOVE_WRAPPER = 'absolute end-0.5 top-0.5'
-const REMOVE = 'size-6 rounded-[var(--chat-radius-pill)] [background:var(--chat-panel)] shadow-[var(--chat-shadow-lg)]'
 
 function isIconName(name: string): name is IconName {
   return Object.hasOwn(icons, name)
@@ -104,17 +102,11 @@ export function ComposerNotes(props: {session: Accessor<MountedSession | undefin
       <ul aria-label="Notes" class="flex flex-wrap gap-1 list-none p-0">
         <Key each={notes()} by={(entry) => entry.key}>
           {(entry) => (
-            <li class="relative anim-presence-in">
+            <li class="flex items-center gap-0.5 min-w-0 anim-presence-in">
               <PluginNoteCard note={entry().note} session={props.session()} />
-              <span class={REMOVE_WRAPPER}>
-                <TooltipIconButton
-                  tooltip={`Remove ${noteHeading(entry().note)}`}
-                  class={REMOVE}
-                  onClick={() => remove(entry().key)}
-                >
-                  <XIcon size={12} aria-hidden="true" />
-                </TooltipIconButton>
-              </span>
+              <TooltipIconButton tooltip={`Remove ${noteHeading(entry().note)}`} onClick={() => remove(entry().key)}>
+                <XIcon size={12} aria-hidden="true" />
+              </TooltipIconButton>
             </li>
           )}
         </Key>
