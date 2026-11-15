@@ -2483,13 +2483,12 @@ describe('launcher activity', () => {
     await page.viewport(1000, 900)
     const rpc = coreRpc(coreBase())
     const sessionId = await createSession(rpc)
-    const statusBar = page.getByRole('toolbar', {name: 'Session status'})
 
     harness.mountShell(`/panel/${sessionId}?open=true`)
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
-    await expect.element(statusBar.getByRole('tab', {name: 'Chat', exact: true})).toBeVisible()
+    await expect.element(statusBar().getByRole('tab', {name: 'Chat', exact: true})).toBeVisible()
     await expect.element(page.getByText(/^CONCIV/)).toBeVisible()
-    await expect.element(statusBar.getByRole('status')).not.toBeInTheDocument()
+    await expect.element(statusBar().getByRole('status')).not.toBeInTheDocument()
     await expect.element(page.getByText(/TASK|^LAST$|^ACTIVE$/)).not.toBeInTheDocument()
 
     const frame = await faults.install({kind: 'chat-frame-gate', onRelease: 'cut'})
@@ -2501,7 +2500,7 @@ describe('launcher activity', () => {
     await coreControl.releaseFault(frame)
     await expect.element(composer()).toHaveTextContent('take this one back')
     await expect.element(page.getByRole('button', {name: 'Send message', exact: true})).toBeVisible()
-    await expect.element(statusBar.getByRole('status')).not.toBeInTheDocument()
+    await expect.element(statusBar().getByRole('status')).not.toBeInTheDocument()
     await expect.element(page.getByText(/TASK|^LAST$|^ACTIVE$/)).not.toBeInTheDocument()
     expect({
       row: (await rpc.sessions.get({sessionId})).lastRunAt,
@@ -2511,16 +2510,46 @@ describe('launcher activity', () => {
     await coreControl.holdTurn()
     await userEvent.click(composer())
     await userEvent.keyboard('{Enter}')
-    await expect.element(statusBar.getByRole('status'), {timeout: 8000}).toHaveTextContent('RUNNING')
+    await expect.element(statusBar().getByRole('status'), {timeout: 8000}).toHaveTextContent('RUNNING')
     await expect.element(page.getByText('CONCIV / ACTIVE TASK', {exact: true})).toBeVisible()
 
     await coreControl.releaseTurn()
-    await expect.element(statusBar.getByRole('status'), {timeout: 8000}).toHaveTextContent('DONE')
+    await expect.element(statusBar().getByRole('status'), {timeout: 8000}).toHaveTextContent('DONE')
     await expect.element(page.getByText('CONCIV / LAST TASK', {exact: true})).toBeVisible()
     const lastRun = (await rpc.chat.hydrate({sessionId})).lastRun
     expect(lastRun).not.toBeNull()
     expect((await rpc.sessions.get({sessionId})).lastRunAt).toBe(lastRun?.startedAt)
   }, 30_000)
+
+  test('a session whose row fails to load says so where the title is, keeps its menu and its chat, and Retry brings the title back', async () => {
+    await page.viewport(1000, 900)
+    const rpc = coreRpc(coreBase())
+    const sessionId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId, title: 'a row that failed to load'})
+    const broken = await faults.install({kind: 'fail', path: ['sessions', 'get'], status: 500})
+
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    const rowAlert = page.getByRole('alert').filter({hasText: 'Couldn’t load this session'})
+    await expect.element(rowAlert, {timeout: 20_000}).toBeVisible()
+    await expect.element(rowAlert.getByRole('button', {name: 'Retry'})).toBeVisible()
+    await expect.element(titleButton('This session could not be loaded')).toBeVisible()
+    await expect.element(titleButton('New session')).not.toBeInTheDocument()
+
+    await userEvent.click(titleButton('This session could not be loaded'))
+    await expect.element(page.getByRole('dialog', {name: 'Session options'})).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('dialog', {name: 'Session options'})).not.toBeInTheDocument()
+
+    await userEvent.click(composer())
+    await userEvent.keyboard('still talking while the row is failed{Enter}')
+    await expect.element(page.getByText('Hello from conciv'), {timeout: 8000}).toBeVisible()
+    await expect.element(rowAlert).toBeVisible()
+
+    await coreControl.releaseFault(broken)
+    await userEvent.click(rowAlert.getByRole('button', {name: 'Retry'}))
+    await expect.element(titleButton('a row that failed to load'), {timeout: 8000}).toBeVisible()
+    await expect.element(rowAlert).not.toBeInTheDocument()
+  }, 45_000)
 })
 
 describe('launcher drag', () => {
