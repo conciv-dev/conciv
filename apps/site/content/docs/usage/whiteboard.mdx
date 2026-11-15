@@ -1,13 +1,14 @@
 ---
 title: Whiteboard
-description: A shared Excalidraw canvas over your app. You sketch, the AI draws back.
+description: An Excalidraw canvas you and the agent share, with comments anchored to your source.
 ---
 
-The whiteboard is a shared [Excalidraw](https://excalidraw.com) canvas that opens over your dev
-app. You and the agent draw on the same surface: sketch a rough layout and ask the agent to build
-it, or ask it to diagram the thing you are both looking at.
+The whiteboard is an [Excalidraw](https://excalidraw.com) canvas in the widget that you and the agent share. Sketch a
+rough layout and ask the agent to build it, or ask it to diagram what you are both looking at.
 
-Open it from the whiteboard button in the composer. It is a built-in extension, on by default.
+```text
+sketch the auth flow we just discussed as a flowchart
+```
 
 <ImageZoom
   src="/screenshots/whiteboard.png"
@@ -16,35 +17,58 @@ Open it from the whiteboard button in the composer. It is a built-in extension, 
   height={1080}
 />
 
-## The AI draws real elements
+## Turn it on
 
-When the agent draws, it writes real, editable Excalidraw elements onto the canvas, not an image.
-You can move, restyle, and delete anything it produced. Ask for a diagram and it can also convert
-mermaid into native shapes.
+Add `@conciv/plugin-whiteboard` to `plugins` where you add conciv:
 
-```text
-you: sketch the auth flow we just discussed as a flowchart
+```ts title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [conciv({plugins: ['@conciv/plugin-whiteboard']})],
+})
 ```
 
-The agent draws the flowchart on the shared canvas; you drag boxes around and it keeps working
-with your edits.
+The engine installs the package itself when it starts. See [Plugins](/docs/plugins).
 
-## Source-anchored comments
+## The agent draws real elements
 
-Comments and pins attach to your source, not just to canvas coordinates. The agent can leave a
-comment anchored to the component it is talking about, resolve threads when they are addressed,
-and pick up threads you started.
+The agent writes real, editable Excalidraw elements, not an image: you can move, restyle and delete anything it drew.
+It draws with SVG markup, with element skeletons (rectangles, ellipses, diamonds, text, arrows, lines), or from a
+Mermaid diagram.
 
-Destructive actions ask first: clearing the canvas or deleting comments surfaces a confirm before
-anything is lost.
+It draws into a hidden draft, which it can preview before it commits it. You see the drawing once the draft is
+committed. A draft
+it leaves uncommitted is committed when its turn finishes. When you stop the turn, or the turn fails, the draft stays
+a draft.
 
-## Local by design
+## Comments anchored to source
 
-The canvas syncs through a self-hosted CRDT server that the plugin runs for you (state lives under
-`.conciv/` in your project). Nothing leaves your machine, and every chat session gets its own
-room.
+A comment is pinned to the canvas, or anchored to a component in your source. The agent can find a component by name
+in a file to anchor a comment to it, check whether an anchored comment still points at its element after the code
+changed, reply in a thread, and resolve or delete comments.
 
-<Callout>
-  The whiteboard is also the biggest worked example of the extension contract. See
-  [Built-ins](/docs/extending/built-ins) for how it is put together.
-</Callout>
+## What asks first
+
+These tools show a **Permission** card before they run. **Always allow** saves the answer for this project. See
+[Approvals](/docs/usage/approvals).
+
+<TypeTable
+  type={{
+    whiteboard_canvas_delete: {required: true, type: 'tool', description: 'Removes one element from the canvas.'},
+    whiteboard_canvas_clear: {required: true, type: 'tool', description: 'Removes every element from the canvas.'},
+    whiteboard_comment_resolve: {required: true, type: 'tool', description: 'Marks a comment resolved.'},
+    whiteboard_comment_delete: {
+      required: true,
+      type: 'tool',
+      description: 'Removes a comment, or the whole thread and its pin when it is the first comment.',
+    },
+  }}
+/>
+
+## Where the board is kept
+
+Each chat session has its own board. Boards are kept in your project, in `.conciv/whiteboard/whiteboard.db`. The
+`stateRoot` option and the `CONCIV_STATE_ROOT` variable do not move it yet: with either set, the board stays in
+your project folder.
