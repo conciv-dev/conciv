@@ -2763,9 +2763,6 @@ importers:
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
-      '@tanstack/pacer':
-        specifier: 'catalog:'
-        version: 0.23.1
       '@tanstack/solid-router':
         specifier: 'catalog:'
         version: 1.170.43(solid-js@1.9.17)

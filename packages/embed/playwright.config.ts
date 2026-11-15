@@ -17,5 +17,8 @@ export default defineConfig({
   use: {
     trace: 'retain-on-failure',
   },
-  projects: [{name: 'chromium', use: {...devices['Desktop Chrome']}}],
+  projects: [
+    {name: 'chromium', use: {...devices['Desktop Chrome']}},
+    {name: 'firefox', grep: /reload continuity/, use: {...devices['Desktop Firefox']}},
+  ],
 })
