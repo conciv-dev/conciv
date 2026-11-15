@@ -1,5 +1,4 @@
-import {mkdir, mkdtemp, rm, writeFile} from 'node:fs/promises'
-import {tmpdir} from 'node:os'
+import {mkdir, rm, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {afterEach, expect, test} from 'vitest'
 import {
@@ -15,6 +14,7 @@ import {
   workerIsOverBudget,
   type WorkerReport,
 } from '../src/measure.ts'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 let root = ''
 
@@ -24,7 +24,7 @@ afterEach(async () => {
 })
 
 async function scaffold(entries: {dir: string; name: string; isPrivate?: boolean; dist?: Record<string, string>}[]) {
-  root = await mkdtemp(join(tmpdir(), 'conciv-bundle-size-'))
+  root = tempDir('conciv-bundle-size-')
   await mkdir(join(root, 'packages/extensions'), {recursive: true})
   for (const entry of entries) {
     await mkdir(join(root, entry.dir, 'dist/widget'), {recursive: true})
@@ -172,7 +172,7 @@ test('parseSizes tolerates an unusable baseline instead of crashing the gate', (
 })
 
 test('measureWorker refuses to silently skip when the site is not built', async () => {
-  const unbuilt = await mkdtemp(join(tmpdir(), 'conciv-unbuilt-'))
+  const unbuilt = tempDir('conciv-unbuilt-')
   expect(workerIsBuilt(unbuilt)).toBe(false)
   expect(() => measureWorker(unbuilt)).toThrow(/dist\/server\/wrangler\.json is missing/)
   await rm(unbuilt, {recursive: true, force: true})
