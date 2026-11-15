@@ -862,7 +862,7 @@ describe('cli', () => {
           '<url>': '/src/a.ts',
         }
         const everyTaught = CONCIV_COMMAND_GUIDE.split('`')
-          .filter((span, index) => index % 2 === 1 && span.startsWith(`${CONCIV_BIN} tools `))
+          .filter((span, index) => index % 2 === 1 && span.startsWith(`${CONCIV_BIN} `))
           .map((span) => span.slice(CONCIV_BIN.length + 1))
         const needsDesignExtension = everyTaught.filter((command) => command.startsWith('tools design '))
         expect(needsDesignExtension).toEqual([
@@ -871,15 +871,26 @@ describe('cli', () => {
           'tools design status',
         ])
         const taught = everyTaught.filter((command) => !needsDesignExtension.includes(command))
-        expect(taught).toEqual(expect.arrayContaining(['tools page snapshot', 'tools page console']))
+        expect(taught).toEqual(
+          expect.arrayContaining([
+            'plugin call experimental.page run --data \'{"sessionId":"<sessionId>","action":{"type":"snapshot"}}\'',
+            'plugin call experimental.page run --data \'{"sessionId":"<sessionId>","action":{"type":"console"}}\'',
+          ]),
+        )
         await bootCli(cleanups, {bridge: restartCapableBridge()})
+        placeholders['<sessionId>'] = process.env.CONCIV_SESSION_ID ?? ''
         const outcomes: Array<{command: string; reached: boolean; document: unknown}> = []
         for (const command of taught) {
           const argv = command
             .replace(/[[\]]/g, '')
             .split(' ')
-            .map((word) => placeholders[word] ?? word)
-          expect(argv.filter((word) => word.startsWith('<'))).toEqual([])
+            .map((word) =>
+              Object.entries(placeholders).reduce(
+                (spelled, [placeholder, value]) => spelled.replaceAll(placeholder, value),
+                word.replace(/^'(.*)'$/, '$1'),
+              ),
+            )
+          expect(argv.filter((word) => word.includes('<'))).toEqual([])
           written.length = 0
           await runCli(cliMain, argv)
           const document = z
@@ -4883,8 +4894,12 @@ export default defineConfig({plugins: [conciv()]})`)
           expect(ranking).toBeGreaterThan(section.indexOf('## conciv'))
           expect(table).toBeGreaterThan(ranking)
           expect(sandbox).toBeGreaterThan(table)
-          expect(section).toContain('`.conciv/bin/conciv tools page snapshot`')
-          expect(section).toContain('`.conciv/bin/conciv tools react inspect <selector>`')
+          expect(section).toContain(
+            '`.conciv/bin/conciv plugin call experimental.page run --data \'{"sessionId":"<sessionId>","action":{"type":"snapshot"}}\'`',
+          )
+          expect(section).toContain(
+            '`.conciv/bin/conciv plugin call experimental.page run --data \'{"sessionId":"<sessionId>","action":{"type":"inspect","selector":"<selector>"}}\'`',
+          )
           expect(section).toContain('`.conciv/bin/conciv tools server graph <file>`')
           expect(section).toContain('`.conciv/bin/conciv tools server reload <file>`')
           expect(section).toContain('`.conciv/bin/conciv tools --help`')
@@ -4901,7 +4916,9 @@ export default defineConfig({plugins: [conciv()]})`)
           )
           const [, tail = ''] = agentsSection(consented).split('### When to use conciv instead of the browser MCP')
           const table = tail.split('\n\n').slice(1, 3).join('\n\n')
-          expect(table).toContain('`.conciv/bin/conciv tools page console`')
+          expect(table).toContain(
+            '`.conciv/bin/conciv plugin call experimental.page run --data \'{"sessionId":"<sessionId>","action":{"type":"console"}}\'`',
+          )
           expect(skill?.contents).toContain(table)
         })
 
