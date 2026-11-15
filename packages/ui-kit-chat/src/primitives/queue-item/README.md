@@ -14,7 +14,7 @@ Headless parts for a queued user message: its text, a steer action that sends it
 
 ## Side Effects
 
-- `Steer` calls `chat.cancelQueued(id)` then `chat.sendMessage(content, {whenBusy: 'interrupt'})`; a failure (from `onSteer` or the send) goes to `onSteerError(error, item)` with the item it took out of the queue, so the app can put its text back; nothing is resent. `Remove` calls `chat.cancelQueued(id)`.
+- `Steer` calls `chat.cancelQueued(id)` then `chat.sendMessage(content, {whenBusy: 'interrupt'})`; a failure (from `onSteer` or the send) goes to `onSteerError(error, item)` with the item it took out of the queue, so the app can put its text back (with no `onSteerError` set it is logged through `reportUnsent`); nothing is resent. `Remove` calls `chat.cancelQueued(id)`.
 
 ## Verification
 

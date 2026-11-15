@@ -19,3 +19,7 @@ export const ComposerHandlersProvider = ComposerHandlersContext.Provider
 export function useComposerHandlers(): ComposerHandlers {
   return useContext(ComposerHandlersContext)
 }
+
+export function reportUnsent(error: unknown): void {
+  console.error('[conciv] the message could not be sent', error)
+}

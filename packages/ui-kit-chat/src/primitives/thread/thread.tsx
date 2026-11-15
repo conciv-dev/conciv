@@ -24,7 +24,7 @@ import type {Turn} from '../../store/grouping.js'
 import {createTurnParts} from '../../store/turn-parts.js'
 import {MessageProvider} from '../message/message-context.js'
 import {SuggestionProvider, type SuggestionData} from '../suggestion/suggestion.js'
-import {useComposerHandlers} from '../composer/composer-handlers.js'
+import {reportUnsent, useComposerHandlers} from '../composer/composer-handlers.js'
 import {
   ViewportProvider,
   useThreadViewport,
@@ -349,7 +349,9 @@ function Suggestion(props: SuggestionProps): JSX.Element {
     if (local.clearComposer !== false) composer.setText('')
     if (local.send) {
       const prompt = local.prompt
-      void sendFromUser(() => chat.sendMessage(prompt)).catch((error: unknown) => handlers.onSendError?.(error))
+      void sendFromUser(() => chat.sendMessage(prompt)).catch((error: unknown) =>
+        (handlers.onSendError ?? reportUnsent)(error),
+      )
       return
     }
     composer.setText(local.prompt)

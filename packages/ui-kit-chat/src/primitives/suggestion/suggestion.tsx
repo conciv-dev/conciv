@@ -1,7 +1,7 @@
 import {createContext, splitProps, useContext, type Accessor, type JSX} from 'solid-js'
 import {useChatContext, useComposer} from '../../store/chat-context.js'
 import {Primitive} from '../util/primitive.js'
-import {useComposerHandlers} from '../composer/composer-handlers.js'
+import {reportUnsent, useComposerHandlers} from '../composer/composer-handlers.js'
 
 export type SuggestionData = {title: string; label: string; prompt: string}
 
@@ -37,7 +37,9 @@ function Trigger(props: TriggerProps): JSX.Element {
     if (typeof local.onClick === 'function') local.onClick(event)
     if (local.clearComposer !== false) composer.setText('')
     if (local.send) {
-      void chat.sendMessage(suggestion().prompt).catch((error: unknown) => handlers.onSendError?.(error))
+      void chat
+        .sendMessage(suggestion().prompt)
+        .catch((error: unknown) => (handlers.onSendError ?? reportUnsent)(error))
       return
     }
     composer.setText(suggestion().prompt)

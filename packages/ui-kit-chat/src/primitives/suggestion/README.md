@@ -15,7 +15,7 @@ Headless suggestion item: title, description and a trigger that sends the sugges
 
 ## Side Effects
 
-- `suggestion.tsx:Trigger` calls the user `onClick`, then `chat.sendMessage(suggestion().prompt)`.
+- `suggestion.tsx:Trigger` calls the user `onClick`, then `chat.sendMessage(suggestion().prompt)`; a refused send goes to `onSendError`, or to `console.error` (`reportUnsent` in `composer-handlers.tsx`) when no `ComposerHandlersProvider` sets one. `thread.tsx:Suggestion` does the same.
 
 ## Verification
 

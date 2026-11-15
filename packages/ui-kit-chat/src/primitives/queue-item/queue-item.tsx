@@ -3,7 +3,7 @@ import {Primitive} from '../util/primitive.js'
 import {createActionButton, type ActionButtonState} from '../util/create-action-button.js'
 import {useChatContext} from '../../store/chat-context.js'
 import type {SendContent, QueuedMessage} from '@conciv/protocol/chat-message-types'
-import {useComposerHandlers} from '../composer/composer-handlers.js'
+import {reportUnsent, useComposerHandlers} from '../composer/composer-handlers.js'
 
 export type {QueuedMessage} from '@conciv/protocol/chat-message-types'
 
@@ -53,7 +53,10 @@ const Steer = createActionButton('Steer', () => {
     await resend()
   }
   return (): ActionButtonState => ({
-    run: () => void steer().catch((error) => handlers.onSteerError?.(error, item)),
+    run: () =>
+      void steer().catch((error: unknown) =>
+        handlers.onSteerError ? handlers.onSteerError(error, item) : reportUnsent(error),
+      ),
   })
 })
 
