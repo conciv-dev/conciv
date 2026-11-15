@@ -33,6 +33,15 @@ Page tools are offered while a tab is attached. They carry `permission: 'page'`;
 every agent and grants it to the session while one of its tabs is attached, so with no tab neither the chat nor an
 outside agent is offered a page tool, and they are gone again once the last tab goes.
 
+A page failure is the plugin's own error, a `[page.<code>]` message; the old registry's codes for page tools map:
+
+| Old registry code | Page plugin error                                                                   |
+| ----------------- | ----------------------------------------------------------------------------------- |
+| `NO_PAGE_CLIENT`  | `[page.disconnected]`                                                               |
+| `PAGE_TIMEOUT`    | `[page.timeout]`                                                                    |
+| `INVALID_ARGS`    | a missing target: `[page.invalid-args] <the page's message>`                        |
+| `HANDLER_ERROR`   | the action's own error as the page raised it, e.g. `[page.handler-error] <message>` |
+
 ### Owed
 
 - **The halt inside a queued editor fill has no test.** `fillEditor` (`src/page/page-act.ts:104-120`) types by events,

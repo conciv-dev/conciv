@@ -131,7 +131,11 @@ import {
   TabsSchema,
   type ReasoningEffort,
 } from '@conciv/protocol/chat-types'
-import {type ElementCapture, type ElementCaptureKind} from '@conciv/protocol/element-capture-types'
+import {
+  type ElementCapture,
+  type ElementCaptureKind,
+  SessionCapturesSchema,
+} from '@conciv/protocol/element-capture-types'
 import {type HarnessChatDeps, type HarnessListCursor, type HarnessModel} from '@conciv/protocol/harness-types'
 import {
   type PageOutcome,
@@ -197,6 +201,68 @@ function sharedKit(boot: () => Promise<Kit>): () => Kit {
     if (held.kit === undefined) throw new Error('the shared app did not boot')
     return held.kit
   }
+}
+
+type PageReply = z.input<typeof Page.Outcome>
+
+type PageAnswer = (command: Page.Command) => PageReply
+
+type PageTab = {end: () => void; seen: () => string[]}
+
+type OpenTab = (sessionId: string, answerFor: PageAnswer) => Promise<PageTab>
+
+function pageTabs(): {plugin: Plugin.Plugin; open: OpenTab} {
+  const answering = new Map<string, {sessionId: SessionId; answerFor: PageAnswer; seen: string[]}>()
+  const attached = new EventTarget()
+  const ready = Promise.withResolvers<OpenTab>()
+  const plugin = Plugin.define({
+    id: 'page-tab-fixture',
+    async setup(ctx) {
+      const page = ctx.rpc(Page.Definition)
+      const stop = new AbortController()
+      page.events.on(
+        'control',
+        async ({data: control}) => {
+          if (control.type === 'attached') attached.dispatchEvent(new Event(control.connectionId))
+          const tab = answering.get(control.connectionId)
+          if (control.type !== 'command' || tab === undefined) return
+          const {connectionId, requestId} = control
+          const command = await page.command({sessionId: tab.sessionId, connectionId, requestId})
+          tab.seen.push(`page_${command.action.type}`)
+          await page.result({sessionId: tab.sessionId, connectionId, requestId, outcome: tab.answerFor(command)})
+        },
+        {signal: stop.signal},
+      )
+      ready.resolve(async (session, answerFor) => {
+        const sessionId = SessionId.parse(session)
+        const connectionId = `conn_${randomUUID()}`
+        const closing = new AbortController()
+        const seen: string[] = []
+        answering.set(connectionId, {sessionId, answerFor, seen})
+        const joined = once(attached, connectionId)
+        void page.attach({sessionId, connectionId, version: 1}, {signal: closing.signal}).catch(() => {})
+        await joined
+        const state = {
+          id: `tab_${randomUUID()}`,
+          url: 'https://example.com/',
+          title: 'Example',
+          focused: true,
+          visible: true,
+        }
+        await page.state({sessionId, connectionId, state})
+        return {end: () => closing.abort(), seen: () => [...seen]}
+      })
+      return () => stop.abort()
+    },
+  })
+  return {plugin, open: async (sessionId, answerFor) => (await ready.promise)(sessionId, answerFor)}
+}
+
+function pageSuccess(
+  value: Page.Result['value'],
+  more: Omit<z.input<typeof Page.Result>, 'value' | 'files'> = {},
+): PageReply {
+  return {type: 'success', result: {value, files: [], ...more}}
 }
 
 async function executeOverMcp(base: string, headers: Record<string, string>, typescriptCode: string): Promise<unknown> {
@@ -1494,18 +1560,20 @@ describe('api page page', () => {
     source: z.object({file: z.string(), line: z.number(), column: z.number()}).nullish(),
   })
 
-  function callPage(kit: Kit, name: string, input: Record<string, unknown> = {}): Promise<unknown> {
-    return kit.rpc.registry.call({name, input})
-  }
+  describe('experimental.page run (IT, real server, typed rpc)', () => {
+    const tabs = pageTabs()
+    const kit = sharedKit(() => bootKit({cwd: tmpdir(), plugins: [tabs.plugin]}))
+    const state: {tab: PageTab | undefined} = {tab: undefined}
 
-  describe('registry.call page-bus (IT, real server, typed rpc)', () => {
-    const kit = sharedKit(() => bootKit({cwd: tmpdir()}))
-    const state: {widget: FakeWidget | undefined} = {widget: undefined}
+    const page = async (method: string, input: Record<string, unknown> = {}): Promise<unknown> =>
+      kit().rpc.plugin.call({rpcId: 'experimental.page', method, input: {sessionId: await kit().session(), ...input}})
+
+    const run = (action: Page.Action): Promise<unknown> => page('run', {action})
 
     afterEach(async () => {
-      state.widget?.end()
-      state.widget = undefined
-      await kit().rpc.page.clearChanges(undefined)
+      state.tab?.end()
+      state.tab = undefined
+      await page('clearChanges')
       await cleanupChunks()
     })
 
@@ -1524,52 +1592,50 @@ describe('api page page', () => {
       })
     })
 
-    it('reports NO_PAGE_CLIENT when no widget is subscribed', async () => {
-      await expect(callPage(kit(), 'page_route')).rejects.toMatchObject({
-        code: 'NO_PAGE_CLIENT',
+    it('reports [page.disconnected] when no tab is attached', async () => {
+      await expect(run({type: 'route'})).rejects.toMatchObject({
+        message: expect.stringContaining('[page.disconnected]'),
       })
     })
 
     it('enriches a locate reply with symbolicated source through the server-wrapped locate tool', async () => {
       const chunk = await chunkWithInlineMap('app/page.tsx', 17, 4)
-      state.widget = await connectWidget(kit(), () => ({
-        ok: true,
-        result: {component: 'Home', stack: ['Home'], frames: [{fileName: `file://${chunk}`, line: 2, column: 1}]},
-      }))
-      const data = LocateSchema.parse(await callPage(kit(), 'page_locate', {selector: 'h1'}))
+      state.tab = await tabs.open(await kit().session(), () =>
+        pageSuccess({component: 'Home', stack: ['Home'], frames: [{fileName: `file://${chunk}`, line: 2, column: 1}]}),
+      )
+      const data = LocateSchema.parse(await run({type: 'locate', selector: 'h1'}))
       expect(data.component).toBe('Home')
       expect(data.source).toEqual({file: 'app/page.tsx', line: 17, column: 4})
     })
 
-    it('a failed handler becomes HANDLER_ERROR naming the tool, and a refused mutation is not journaled', async () => {
-      state.widget = await connectWidget(kit(), (name) =>
-        name === 'page_text'
-          ? {ok: false, error: {code: 'handler-error', message: 'handler-error says no'}}
-          : {ok: false, error: {code: 'invalid-args', message: 'no element for selector #email'}},
+    it("a failed handler raises the action's own error, and a refused mutation is not journaled", async () => {
+      state.tab = await tabs.open(await kit().session(), ({action}) =>
+        action.type === 'text'
+          ? {type: 'failure', code: 'handler-error', message: 'handler-error says no'}
+          : {type: 'failure', code: 'invalid-args', message: 'no element for selector #email'},
       )
-      await expect(callPage(kit(), 'page_text', {selector: '#h'})).rejects.toMatchObject({
-        code: 'HANDLER_ERROR',
-        message: 'page_text: handler-error says no',
+      await expect(run({type: 'text', selector: '#h'})).rejects.toMatchObject({
+        message: '[page.handler-error] handler-error says no',
       })
-      await expect(callPage(kit(), 'page_fill', {selector: '#email', value: 'a@b.c'})).rejects.toMatchObject({
-        code: 'INVALID_ARGS',
+      await expect(run({type: 'fill', selector: '#email', value: 'a@b.c'})).rejects.toMatchObject({
+        message: '[page.invalid-args] no element for selector #email',
       })
-      expect(ChangesSchema.parse(await kit().rpc.page.changes(undefined))).toEqual([])
+      expect(ChangesSchema.parse(await page('changes'))).toEqual([])
     })
 
     it('journals a fill with its value but never a read, and clear empties the journal', async () => {
-      state.widget = await connectWidget(kit(), (name) =>
-        name === 'page_text' ? {ok: true, result: {text: 'hi'}} : {ok: true, result: {ok: true, value: 'a@b.c'}},
+      state.tab = await tabs.open(await kit().session(), ({action}) =>
+        action.type === 'text' ? pageSuccess({text: 'hi'}) : pageSuccess({ok: true, value: 'a@b.c'}),
       )
-      await callPage(kit(), 'page_text', {selector: '#h'})
-      expect(await callPage(kit(), 'page_fill', {selector: '#email', value: 'a@b.c'})).toEqual({
+      await run({type: 'text', selector: '#h'})
+      expect(await run({type: 'fill', selector: '#email', value: 'a@b.c'})).toEqual({
         ok: true,
         value: 'a@b.c',
       })
-      const changes = ChangesSchema.parse(await kit().rpc.page.changes(undefined))
+      const changes = ChangesSchema.parse(await page('changes'))
       expect(changes).toMatchObject([{verb: 'page_fill', selector: '#email', args: {value: 'a@b.c'}}])
-      await kit().rpc.page.clearChanges(undefined)
-      expect(ChangesSchema.parse(await kit().rpc.page.changes(undefined))).toEqual([])
+      await page('clearChanges')
+      expect(ChangesSchema.parse(await page('changes'))).toEqual([])
     })
   })
 })
@@ -1578,16 +1644,16 @@ describe('api page tool capture', () => {
   const SECRET = 'hunter2-never-leaves-the-page'
 
   describe('an element capture is stored beside the transcript and never reaches the model', () => {
-    const kit = sharedKit(() => bootKit({cwd: tmpdir()}))
-    const state: {widget: FakeWidget | undefined} = {widget: undefined}
-
-    beforeAll(async () => {
-      state.widget = await connectWidget(kit(), answerFor)
-    })
+    const tabs = pageTabs()
+    const kit = sharedKit(() => bootKit({cwd: tmpdir(), plugins: [tabs.plugin]}))
+    const opened: PageTab[] = []
 
     afterAll(() => {
-      state.widget?.end()
+      opened.forEach((tab) => tab.end())
     })
+
+    const page = async (method: string, sessionId: string): Promise<unknown> =>
+      kit().rpc.plugin.call({rpcId: 'experimental.page', method, input: {sessionId}})
 
     function side(kind: ElementCaptureKind): ElementCapture {
       return {
@@ -1599,20 +1665,22 @@ describe('api page tool capture', () => {
       }
     }
 
-    function answerFor(): PageOutcome {
-      return {
-        ok: true,
-        result: {ok: true, value: '***'},
-        capture: {
-          before: side('before'),
-          after: side('after'),
-          cssBundles: [{hash: 'csstest1', css: '.form input {color: red}'}],
+    function answerFor(): PageReply {
+      return pageSuccess(
+        {ok: true, value: '***'},
+        {
+          capture: {
+            before: side('before'),
+            after: side('after'),
+            cssBundles: [{hash: 'csstest1', css: '.form input {color: red}'}],
+          },
         },
-      }
+      )
     }
 
     async function capturing(): Promise<{sessionId: string; call: (name: string, input: unknown) => Promise<unknown>}> {
       const sessionId = await kit().session()
+      opened.push(await tabs.open(sessionId, answerFor))
       return {sessionId, call: makeCallTool(kit().base, sessionId)}
     }
 
@@ -1620,7 +1688,7 @@ describe('api page tool capture', () => {
       const {sessionId, call} = await capturing()
       await call('page_fill', {selector: '#email', value: SECRET})
 
-      const stored = await kit().rpc.captures.list({sessionId})
+      const stored = SessionCapturesSchema.parse(await page('captures.list', sessionId))
       expect(stored.captures.map((row) => row.kind).toSorted()).toEqual(['after', 'before'])
       const ids = new Set(stored.captures.map((row) => row.toolCallId))
       expect(ids.size).toBe(1)
@@ -1638,21 +1706,20 @@ describe('api page tool capture', () => {
 
     it('drops a session capture, its unreferenced css bundle, its draft and its page changes when the session is deleted', async () => {
       const {sessionId, call} = await capturing()
-      const asSession = makeRpcClient(kit().base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
       await call('page_fill', {selector: '#email', value: SECRET})
       await kit().rpc.drafts.set({sessionId, text: 'an unsent draft', selectionStart: 0, selectionEnd: 0})
       expect(await kit().rpc.drafts.get({sessionId})).toMatchObject({text: 'an unsent draft'})
-      expect(await asSession.page.changes(undefined)).toContainEqual(
+      expect(await page('changes', sessionId)).toContainEqual(
         expect.objectContaining({verb: 'page_fill', selector: '#email'}),
       )
 
       await kit().rpc.sessions.delete({sessionId})
 
-      const stored = await kit().rpc.captures.list({sessionId})
+      const stored = SessionCapturesSchema.parse(await page('captures.list', sessionId))
       expect(stored.captures).toEqual([])
       expect(stored.cssBundles).toEqual({})
       expect(await kit().rpc.drafts.get({sessionId})).toBeNull()
-      expect(await asSession.page.changes(undefined)).toEqual([])
+      expect(await page('changes', sessionId)).toEqual([])
     })
   })
 })
