@@ -42,12 +42,13 @@ outside agent is offered a page tool, and they are gone again once the last tab 
 
 A page failure is the plugin's own error, a `[page.<code>]` message; the old registry's codes for page tools map:
 
-| Old registry code | Page plugin error                                                                   |
-| ----------------- | ----------------------------------------------------------------------------------- |
-| `NO_PAGE_CLIENT`  | `[page.disconnected]`                                                               |
-| `PAGE_TIMEOUT`    | `[page.timeout]`                                                                    |
-| `INVALID_ARGS`    | a missing target: `[page.invalid-args] <the page's message>`                        |
-| `HANDLER_ERROR`   | the action's own error as the page raised it, e.g. `[page.handler-error] <message>` |
+| Old registry code | Page plugin error                                                                                                                                                                                                                                                                                  |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NO_PAGE_CLIENT`  | `[page.disconnected]`                                                                                                                                                                                                                                                                              |
+| `PAGE_TIMEOUT`    | `[page.timeout]`                                                                                                                                                                                                                                                                                   |
+| `INVALID_ARGS`    | a missing target: `[page.invalid-args] <the page's message>`                                                                                                                                                                                                                                       |
+| `HANDLER_ERROR`   | the action's own error as the page raised it, e.g. `[page.handler-error] <message>`                                                                                                                                                                                                                |
+| `UNKNOWN_REQUEST` | no page error: a dropped request's page is told to stop (a `cancel` control for that request id) and the request is gone (`command` for it answers unavailable `Page request is no longer available.`); a late result for it while the tab is attached is accepted and ignored, as the source does |
 
 ### Owed
 

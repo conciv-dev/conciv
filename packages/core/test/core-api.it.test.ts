@@ -204,14 +204,29 @@ type PageReply = z.input<typeof Page.Outcome>
 
 type PageAnswer = (command: Page.Command) => PageReply | undefined
 
-type PageTab = {end: () => void; seen: () => string[]; focus: (focused: boolean) => Promise<void>}
+type PageTab = {
+  end: () => void
+  seen: () => string[]
+  focus: (focused: boolean) => Promise<void>
+  requested: () => Promise<string>
+  cancelled: (requestId: string) => Promise<void>
+  command: (requestId: string) => Promise<Page.Command>
+}
 
 type TabLook = {url: string; title: string; focused: boolean; visible: boolean}
 
 type OpenTab = (sessionId: string, answerFor: PageAnswer, look?: Partial<TabLook>) => Promise<PageTab>
 
 function pageTabs(): {plugin: Plugin.Plugin; open: OpenTab} {
-  const answering = new Map<string, {sessionId: SessionId; answerFor: PageAnswer; seen: string[]}>()
+  type Answering = {
+    sessionId: SessionId
+    answerFor: PageAnswer
+    seen: string[]
+    requests: string[]
+    cancels: string[]
+    heard: EventTarget
+  }
+  const answering = new Map<string, Answering>()
   const attached = new EventTarget()
   const ready = Promise.withResolvers<OpenTab>()
   const plugin = Plugin.define({
@@ -224,8 +239,15 @@ function pageTabs(): {plugin: Plugin.Plugin; open: OpenTab} {
         async ({data: control}) => {
           if (control.type === 'attached') attached.dispatchEvent(new Event(control.connectionId))
           const tab = answering.get(control.connectionId)
-          if (control.type !== 'command' || tab === undefined) return
+          if (control.type === 'attached' || tab === undefined) return
           const {connectionId, requestId} = control
+          if (control.type === 'cancel') {
+            tab.cancels.push(requestId)
+            tab.heard.dispatchEvent(new Event('cancel'))
+            return
+          }
+          tab.requests.push(requestId)
+          tab.heard.dispatchEvent(new Event('command'))
           const command = await page.command({sessionId: tab.sessionId, connectionId, requestId})
           tab.seen.push(`page_${command.action.type}`)
           const outcome = tab.answerFor(command)
@@ -239,7 +261,11 @@ function pageTabs(): {plugin: Plugin.Plugin; open: OpenTab} {
         const connectionId = `conn_${randomUUID()}`
         const closing = new AbortController()
         const seen: string[] = []
-        answering.set(connectionId, {sessionId, answerFor, seen})
+        const requests: string[] = []
+        const cancels: string[] = []
+        const heard = new EventTarget()
+        const read = {next: 0}
+        answering.set(connectionId, {sessionId, answerFor, seen, requests, cancels, heard})
         const joined = once(attached, connectionId)
         void page.attach({sessionId, connectionId, version: 1}, {signal: closing.signal}).catch(() => {})
         await joined
@@ -256,6 +282,16 @@ function pageTabs(): {plugin: Plugin.Plugin; open: OpenTab} {
           end: () => closing.abort(),
           seen: () => [...seen],
           focus: (focused) => page.state({sessionId, connectionId, state: {...state, focused}}),
+          requested: async () => {
+            const index = read.next
+            read.next += 1
+            while (requests.length <= index) await once(heard, 'command')
+            return requests[index] ?? ''
+          },
+          cancelled: async (requestId) => {
+            while (!cancels.includes(requestId)) await once(heard, 'cancel')
+          },
+          command: (requestId) => page.command({sessionId, connectionId, requestId}),
         }
       })
       return () => stop.abort()
@@ -1584,18 +1620,18 @@ describe('api page page', () => {
     })
 
     it('a call its rpc caller aborts drops its page query, so the late reply settles nothing', async () => {
-      const listening = new AbortController()
-      onTestFinished(() => listening.abort())
-      const queries = await kit().rpc.page.queries(undefined, {signal: listening.signal})
+      const sessionId = await kit().session()
+      state.tab = await tabs.open(sessionId, () => undefined)
       const calling = new AbortController()
-      const called = kit().rpc.registry.call({name: 'page_route', input: {}}, {signal: calling.signal})
-      const asked = await queries.next()
+      const called = kit().rpc.plugin.call(
+        {rpcId: 'experimental.page', method: 'run', input: {sessionId, action: {type: 'route'}}},
+        {signal: calling.signal},
+      )
+      const requestId = await state.tab.requested()
       calling.abort()
       await expect(called).rejects.toThrow()
-      const requestId = asked.done === true ? '' : asked.value.requestId
-      await expect(kit().rpc.page.reply({requestId, outcome: {ok: true, result: {}}})).rejects.toMatchObject({
-        code: 'UNKNOWN_REQUEST',
-      })
+      await state.tab.cancelled(requestId)
+      await expect(state.tab.command(requestId)).rejects.toThrow('Page request is no longer available.')
     })
 
     it('run reports [page.timeout] when the page never replies', async () => {
@@ -3468,17 +3504,9 @@ return seen`
       })
 
       async function silentPage(sessionId: string) {
-        const listening = new AbortController()
-        onTestFinished(() => listening.abort())
-        const page = callerWith(sessionId)
-        const queries = await page.page.queries(undefined, {signal: listening.signal})
-        return {
-          asked: async () => {
-            const next = await queries.next()
-            return next.done === true ? '' : next.value.requestId
-          },
-          lateReply: (requestId: string) => page.page.reply({requestId, outcome: {ok: true, result: {}}}),
-        }
+        const tab = await chatTabs.open(sessionId, () => undefined)
+        onTestFinished(() => tab.end())
+        return tab
       }
 
       it('stopping a turn whose program waits on the page drops the page query', async () => {
@@ -3486,11 +3514,12 @@ return seen`
         const page = await silentPage(sessionId)
         codeTurn('return await external_page_route({})')
         await send(sessionId, 'route', {runId: 'page-stop-run'})
-        const requestId = await page.asked()
+        const requestId = await page.requested()
         const ended = nextTurnEnd(sessionId)
         await chatKit().rpc.chat.stop({sessionId, runIds: ['page-stop-run']})
         await ended()
-        await expect(page.lateReply(requestId)).rejects.toMatchObject({code: 'UNKNOWN_REQUEST'})
+        await page.cancelled(requestId)
+        await expect(page.command(requestId)).rejects.toThrow('Page request is no longer available.')
       })
 
       it('a page call a program leaves running is dropped when the program ends', async () => {
@@ -3503,7 +3532,9 @@ return seen`
         const typescriptCode =
           'void external_page_route({}); await external_fixture_echo({text: "after"}); return "ended"'
         expect(JSON.stringify(await mcp.callTool('execute_typescript', {typescriptCode}))).toContain('ended')
-        await expect(page.lateReply(await page.asked())).rejects.toMatchObject({code: 'UNKNOWN_REQUEST'})
+        const requestId = await page.requested()
+        await page.cancelled(requestId)
+        await expect(page.command(requestId)).rejects.toThrow('Page request is no longer available.')
       })
 
       it('an MCP client that cancels execute_typescript stops the program and drops its page query', async () => {
@@ -3518,13 +3549,14 @@ return seen`
         const cancelling = new AbortController()
         const typescriptCode = 'return await external_page_route({})'
         const running = mcp.callTool('execute_typescript', {typescriptCode}, {signal: cancelling.signal})
-        const requestId = await page.asked()
+        const requestId = await page.requested()
         cancelling.abort()
         await expect(running).rejects.toThrow()
         await stream.waitFor((chunk) => chunk.type === ChatEventType.RUN_FINISHED)
         const result = events.findLast((chunk) => chunk.type === ChatEventType.TOOL_CALL_RESULT)
         expect(JSON.stringify(result)).toMatch(/abort/i)
-        await expect(page.lateReply(requestId)).rejects.toMatchObject({code: 'UNKNOWN_REQUEST'})
+        await page.cancelled(requestId)
+        await expect(page.command(requestId)).rejects.toThrow('Page request is no longer available.')
       })
 
       it('discover_tools shows a tool output shape and declared error codes; the catalog lives on execute_typescript', async () => {
