@@ -598,7 +598,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     fallbackRoots: join(stateDir, 'plugin-host'),
     engineId,
     config: opts.cfg,
-    plugins: [concivPage, ...(opts.plugins ?? [])],
+    plugins: opts.plugins ?? [],
+    post: [concivPage],
     harness,
     harnessSource: {
       harness: serverHarness,
