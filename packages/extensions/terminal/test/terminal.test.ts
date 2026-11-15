@@ -1,7 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {mkdtempSync, rmSync} from 'node:fs'
-import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {rmSync} from 'node:fs'
 import {fileURLToPath} from 'node:url'
 import {afterAll, afterEach, beforeAll, describe, expect, it, test} from 'vitest'
 import WebSocket from 'ws'
@@ -21,6 +19,7 @@ import type {TtyServerControl} from '@conciv/protocol/terminal-types'
 import terminalExtension, {default as terminal, type TerminalRouter} from '../src/server.js'
 import {createTtySessions, type TtySessions, type TtySink} from '../src/server/pty-sessions.js'
 import {recordingHarness, startTerminalServer, type TerminalTestServer} from './helpers.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 describe('prefixed serving', () => {
   const TOKEN = '8a1e7d5c-3b2f-4e6a-9c0d-1f2e3a4b5c6d'
@@ -32,7 +31,7 @@ describe('prefixed serving', () => {
     let rpc: RpcClient
 
     beforeAll(async () => {
-      root = mkdtempSync(join(tmpdir(), 'conciv-prefixed-wire-'))
+      root = tempDir('conciv-prefixed-wire-')
       const harness: HarnessAdapter = createFakeHarness({id: 'fake-prefixed-wire', text: 'prefixed ok'})
       engine = await startEngine({
         options: {stateRoot: root, systemPrompt: false, harness: 'fake-prefixed-wire'},

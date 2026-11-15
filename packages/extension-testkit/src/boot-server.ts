@@ -1,4 +1,4 @@
-import {mkdtemp} from 'node:fs/promises'
+import {mkdtemp, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {start} from '@conciv/core/start'
@@ -12,6 +12,8 @@ export type BootedServer = {
   stop: () => Promise<void>
 }
 
+const removeRoot = (root: string): Promise<void> => rm(root, {recursive: true, force: true, maxRetries: 10})
+
 export async function bootExtensionServer(
   extension: AnyExtension,
   opts: {harness?: HarnessAdapter} = {},
@@ -24,12 +26,21 @@ export async function bootExtensionServer(
     extensions: [extension],
     launchEditor: () => {},
     print: () => {},
+  }).catch(async (error: unknown) => {
+    await removeRoot(root)
+    throw error
   })
   const origin = `http://127.0.0.1:${engine.port}`
   return {
     apiBase: `${origin}/t/${engine.agentToken}`,
     origin,
     extensionContexts: engine.extensionContexts,
-    stop: () => engine.stop(),
+    stop: async () => {
+      try {
+        await engine.stop()
+      } finally {
+        await removeRoot(root)
+      }
+    },
   }
 }
