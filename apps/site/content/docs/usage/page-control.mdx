@@ -113,8 +113,8 @@ The agent calls these tools from code mode. Element tools take a `ref` from the 
 | `page_override` | Patches props, state, hooks or context on a live component. |
 | `page_track`    | Records and reports re-renders.                             |
 
-A call without a `tabId` goes to the tab you focused last. With the page closed, a call fails with
-`[page.disconnected]`.
+A call without a `tabId` goes to the tab you focused last. The agent is offered these tools only while a tab of its
+session is attached: with no tab open, it has no page tools, and they come back when the page connects.
 
 ## What asks first
 
@@ -135,7 +135,8 @@ what the tool answers:
 conciv plugin call experimental.page run --data '{"sessionId":"conciv_...","action":{"type":"text","selector":"h1"}}'
 ```
 
-Nothing asks from the terminal, `eval` included: the terminal is yours.
+Nothing asks from the terminal, `eval` included: the terminal is yours. With no tab of that session open, `run` fails
+with `[page.disconnected]`.
 
 <TypeTable
   type={{
