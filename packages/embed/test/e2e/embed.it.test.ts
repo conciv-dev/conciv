@@ -855,6 +855,70 @@ test.describe('forced drop', () => {
         kit.harness.script.release()
       }
     })
+
+    test('a queue lost while the pane is away is kept as the draft when its draft read was held from mount and then failed', async ({
+      page,
+    }) => {
+      test.setTimeout(240_000)
+      const kit = suite.kit()
+      const away = await kit.rpc.sessions.create()
+      const awayTitle = `draft read held ${away.sessionId.slice(-12)}`
+      await kit.rpc.sessions.rename({sessionId: away.sessionId, title: awayTitle})
+      const draftRead = await gateRpcCalls(page, {path: ['drafts', 'get'], onRelease: 'cut'})
+      const refusing = {value: false}
+      const chatSockets: WebSocketRoute[] = []
+      await page.routeWebSocket(
+        (url) => url.pathname.endsWith(CHAT_WS_PATH),
+        (socket) => {
+          if (refusing.value) return socket.close()
+          chatSockets.push(socket)
+          socket.connectToServer()
+        },
+      )
+      const sessionId = SessionId.parse(await openPanelOnNewSession(page, suite))
+      const title = `session under test ${sessionId.slice(-12)}`
+      const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
+      const composer = chatBox(page)
+      const stop = panel.getByRole('button', {name: 'Stop generating'})
+      const queued = panel.getByRole('listitem').filter({hasText: QUEUED_TEXT})
+      const failingReads: {dispose: () => Promise<void>}[] = []
+      kit.harness.script.hold()
+      try {
+        await draftRead.awaitCaptured(1)
+        await composer.click()
+        await composer.pressSequentially(RUNNING_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(stop).toBeVisible()
+        await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1)
+        await composer.click()
+        await composer.pressSequentially(QUEUED_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(queued).toBeVisible()
+
+        await switchToSessionByTitle(page, awayTitle)
+        await expect(chatLog(page).getByText(RUNNING_TEXT)).toHaveCount(0)
+        failingReads.push(await failRpcCalls(page, {path: ['drafts', 'get']}))
+        await draftRead.dispose()
+        refusing.value = true
+        await Promise.all(chatSockets.splice(0).map((socket) => socket.close()))
+        await until(async () => (await kit.rpc.drafts.get({sessionId}))?.text === QUEUED_TEXT, {
+          hangGuardMs: 60_000,
+          intervalMs: 100,
+        })
+        refusing.value = false
+        kit.harness.script.release()
+
+        await switchToSessionByTitle(page, title)
+        await expect(composer).toHaveText(QUEUED_TEXT)
+        await expect(queued).toBeHidden()
+        await expect(chatLog(page).getByText(QUEUED_TEXT)).toHaveCount(0)
+      } finally {
+        refusing.value = false
+        kit.harness.script.release()
+        await draftRead.dispose()
+        for (const fault of failingReads) await fault.dispose()
+      }
+    })
   })
 })
 
