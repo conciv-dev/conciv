@@ -6037,6 +6037,115 @@ module.exports = {default: {setup(ctx) {
   }, 45_000)
 })
 
+describe('plugin composer pills', () => {
+  const pillsBundle = `const {ComposerPill, Slot} = require('@conciv/plugin/experimental')
+const {createComponent} = require('solid-js/web')
+const {createSignal} = require('solid-js')
+module.exports = {default: {setup(ctx) {
+  const [shown, setShown] = createSignal(false)
+  const [pinged, setPinged] = createSignal(false)
+  ctx.add(Slot, {
+    at: 'window.bottom',
+    render: () => createComponent(ctx.ui.Button, {onClick: () => setShown(true), children: 'Show the pills'}),
+  })
+  ctx.add(ComposerPill, {id: 'never', order: 0, show: () => undefined})
+  ctx.add(ComposerPill, {
+    id: 'ping',
+    order: 2,
+    show: () =>
+      shown()
+        ? {
+            label: pinged() ? 'Pinged' : 'Ping',
+            title: 'Ping pill',
+            icon: 'sparkles',
+            run: () => {
+              setPinged(true)
+              ctx.toast.show({title: 'Pinged from the pill'})
+            },
+          }
+        : undefined,
+  })
+  ctx.add(ComposerPill, {
+    id: 'notes',
+    order: 3,
+    show: () => (shown() ? {label: 'Notes', title: 'Notes pill', icon: 'file-text'} : undefined),
+    menu: (input) => [
+      Object.assign(document.createElement('p'), {textContent: 'Notes for the session'}),
+      createComponent(ctx.ui.Button, {onClick: () => input.close(), children: 'Done with the notes'}),
+    ],
+  })
+  ctx.add(ComposerPill, {
+    id: 'checks',
+    order: 1,
+    show: () =>
+      shown()
+        ? {
+            label: 'Checks',
+            title: 'Checks pill',
+            icon: 'list-checks',
+            tone: 'success',
+            rows: [
+              {label: 'Run the checks', detail: '3 left', icon: 'terminal', run: () => ctx.toast.show({title: 'Checks started'})},
+              {label: 'Locked check', icon: 'lock'},
+            ],
+          }
+        : undefined,
+  })
+}}}
+`
+  const coreBase = bootedCore('plugin-composer-pills', {
+    plugins: ['./pills'],
+    files: {
+      'pills/index.ts': `export default {id: 'pills', async setup() {}}
+`,
+      'pills/plugin-experimental.js': pillsBundle,
+    },
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  const pills = () => page.getByRole('button', {name: / pill$/})
+  const pill = (name: string) => page.getByRole('button', {name, exact: true})
+  const notifications = () => page.getByRole('region', {name: /Notifications/})
+
+  test('the pills a plugin shows sit above the composer in order, a plain pill runs, a rows pill opens its menu, and a menu pill opens its popover', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    const reveal = page.getByRole('button', {name: 'Show the pills', exact: true})
+    await expect.element(reveal, {timeout: 15_000}).toBeVisible()
+    await expect.element(pills().first()).not.toBeInTheDocument()
+
+    await reveal.click()
+    await expect.element(pills().nth(0)).toHaveAccessibleName('Checks pill')
+    await expect.element(pills().nth(1)).toHaveAccessibleName('Ping pill')
+    await expect.element(pills().nth(2)).toHaveAccessibleName('Notes pill')
+    await expect.element(pills().nth(3)).not.toBeInTheDocument()
+
+    await pill('Ping pill').click()
+    await expect.element(notifications().getByText('Pinged from the pill', {exact: true})).toBeVisible()
+    await expect.element(pill('Ping pill')).toHaveTextContent('Pinged')
+
+    await pill('Checks pill').click()
+    const checks = page.getByRole('menu', {name: 'Checks pill', exact: true})
+    await expect.element(checks).toBeVisible()
+    await expect.element(checks.getByText('Checks pill', {exact: true})).toBeVisible()
+    await expect.element(checks.getByRole('menuitem', {name: /Locked check/})).toHaveAttribute('aria-disabled', 'true')
+    await expect.element(checks.getByRole('menuitem', {name: /Run the checks/})).toMatchTextContent(/3 left$/i)
+    await checks.getByRole('menuitem', {name: /Run the checks/}).click()
+    await expect.element(notifications().getByText('Checks started', {exact: true})).toBeVisible()
+    await expect.element(checks).not.toBeInTheDocument()
+
+    await pill('Notes pill').click()
+    const notes = page.getByRole('dialog', {name: 'Notes pill', exact: true})
+    await expect.element(notes).toBeVisible()
+    await expect.element(notes.getByText('Notes for the session', {exact: true})).toBeVisible()
+    await notes.getByRole('button', {name: 'Done with the notes', exact: true}).click()
+    await expect.element(notes).not.toBeInTheDocument()
+  }, 45_000)
+})
+
 describe('plugin settings pages', () => {
   const settingsBundle = (pages: string) => `const {SettingsPage} = require('@conciv/plugin/experimental')
 const text = (value) => () => Object.assign(document.createElement('p'), {textContent: value})

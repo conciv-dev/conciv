@@ -6,6 +6,7 @@ import {usePluginAttachment} from '../runtime/plugin/attachment'
 import {usePluginHost} from '../runtime/plugin/host'
 import {PluginLinks, PluginSlot} from '../runtime/plugin/render'
 import type {ComposerInputHandle} from './composer-input-adapter'
+import {PluginComposerPills} from './plugin-composer-pills'
 
 export type PaneSession = ReturnType<typeof createPaneSession>
 
@@ -72,6 +73,23 @@ export function SessionStatusSlot(props: {pane: PaneSession}) {
       {(view, screen) => (
         <PluginSlot
           at="session.status"
+          input={{
+            get session() {
+              return view()
+            },
+            screen,
+          }}
+        />
+      )}
+    </SessionParts>
+  )
+}
+
+export function SessionComposerPills(props: {pane: PaneSession}) {
+  return (
+    <SessionParts pane={props.pane}>
+      {(view, screen) => (
+        <PluginComposerPills
           input={{
             get session() {
               return view()
