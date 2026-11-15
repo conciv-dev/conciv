@@ -6880,16 +6880,24 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
   })
   const faults = trackedFaults()
   const row = (id: string, enabled: boolean) => ({id, builtin: false, enabled, server: true})
-  const rows = (pane: boolean) => [row('pane', pane), {...row('broken', true), error: expect.stringMatching(/./)}]
+  const builtinPage = {id: 'page', builtin: true, enabled: true}
+  const rows = (pane: boolean) => [
+    builtinPage,
+    row('pane', pane),
+    {...row('broken', true), error: expect.stringMatching(/./)},
+  ]
   const notFound = {code: 'notFound', message: 'notFound'}
   const disabledPlugins = page.getByRole('status', {name: 'disabled plugins'})
 
   test('a plugin that never loaded is listed with its error, and disable, enable and reload act through the store', async () => {
     const base = coreBase()
     await faults.install({kind: 'garble', path: EXPERIMENTAL, input: {id: 'broken'}})
+    const listed = await faults.install({kind: 'gate', path: ['settings', 'changes']})
     const first = bundleSource(base)
     onTestFinished(first.dispose)
     const firstInstalled = recordInstalled(first.manager)
+    expect((await recordPushes(first).nth(1)).plugins.map((plugin) => plugin.id)).toEqual(['pane'])
+    await coreControl.releaseFault(listed)
 
     await firstInstalled.next(rows(true))
     expect(await first.manager.list()).toEqual(rows(true))
