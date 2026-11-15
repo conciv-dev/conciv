@@ -725,6 +725,28 @@ describe('chat pane', () => {
       await expect.element(threadText('stop before the engine has it')).toBeVisible()
       await expect.element(stoppedLine()).toBeVisible()
     })
+
+    test('over fetch it keeps the message and ends the run with the Stopped line', async () => {
+      const {sessionId} = await newSession()
+      await coreControl.holdTurn()
+      const post = await faults.install({kind: 'chat-gate'})
+      mountChatPane(sessionId, {transport: 'fetch'})
+      await input().fill('stop before the post lands')
+      await userEvent.keyboard('{Enter}')
+      await coreControl.awaitFaultPending(post, 1)
+
+      await stopButton().click()
+      await expect.element(stoppingButton()).toBeVisible()
+
+      await coreControl.releaseFault(post)
+      await expect.element(stoppedLine()).toBeVisible()
+      await expect.element(threadText('stop before the post lands')).toBeVisible()
+      await expect.element(narration()).not.toBeInTheDocument()
+      active.pane?.dispose()
+      mountChatPane(sessionId)
+      await expect.element(threadText('stop before the post lands')).toBeVisible()
+      await expect.element(stoppedLine()).toBeVisible()
+    })
   })
 
   test('Escape in the focused composer does what the stop button does and keeps the typed draft ahead of the queue', async () => {
