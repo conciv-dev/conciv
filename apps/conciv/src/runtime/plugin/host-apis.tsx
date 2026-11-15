@@ -525,7 +525,7 @@ export function createPluginAttachment(apis: HostApis) {
             `[plugin] ${plugin}: a draft runs in ${listed.root} on the server "${engine.id}", not in ${input.directory} on "${input.server}"`,
           )
         const {sessionId} = await rpc.sessions.create(undefined)
-        await appendDraft(rpc, sessionId, input.prompt)
+        await appendDraft(appData, sessionId, input.prompt)
         void appData.invalidateSession(sessionId)
         await router.navigate({to: '/panel/$sessionId', params: {sessionId}})
       })

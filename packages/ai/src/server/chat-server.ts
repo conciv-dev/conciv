@@ -86,6 +86,7 @@ export type ChatServerConfig = {
   sandbox: {dir: string}
   hooks: TurnHooks
   codeModeResult: (value: unknown) => unknown
+  startTimeoutMs: number
   firstOutputTimeoutMs: number
   log: (message: string) => void
   driver: CodeDriver | null
@@ -582,19 +583,17 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
             config.codeModeResult,
             debug,
           )
-    const seconds = Math.round(config.firstOutputTimeoutMs / 1000)
+    const seconds = (ms: number) => Math.round(ms / 1000)
+    const failed = (message: string) => entry.ending.abort({type: EventType.RUN_ERROR, message, timestamp: Date.now()})
     const view: RunMessages = {full: []}
     const stream = chat({
       adapter: guardedAdapter(plan.adapter, {
         ended: entry.ending.signal,
         stopped: controller.signal,
+        startMs: config.startTimeoutMs,
         firstOutputMs: config.firstOutputTimeoutMs,
-        onSilence: () =>
-          entry.ending.abort({
-            type: EventType.RUN_ERROR,
-            message: `the agent produced no output within ${seconds}s`,
-            timestamp: Date.now(),
-          }),
+        onNotStarted: () => failed(`the agent did not start within ${seconds(config.startTimeoutMs)}s`),
+        onSilence: () => failed(`the agent produced no output within ${seconds(config.firstOutputTimeoutMs)}s`),
         stop: () => controller.abort(RUN_CANCEL_REASON),
         log: config.log,
       }),

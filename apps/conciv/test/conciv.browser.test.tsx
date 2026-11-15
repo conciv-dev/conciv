@@ -540,6 +540,31 @@ describe('chat pane', () => {
 
   describe('the composer never waits on the server draft', () => {
     const DRAFT_GET_PATH = ['drafts', 'get']
+    const shell = createShellHarness(core)
+
+    afterEach(() => shell.dispose())
+
+    test('text typed just before a quick trip to settings is still in the composer on the way back and after a reload', async () => {
+      const {sessionId} = await newSession()
+      shell.mountShell(`/panel/${sessionId}?open=true`)
+      await expect.element(input()).toBeVisible()
+      const write = await faults.install({kind: 'gate', path: ['drafts', 'set']})
+      await userEvent.click(input())
+      await userEvent.keyboard('typed just before a quick trip')
+      await expect.element(input()).toHaveTextContent('typed just before a quick trip')
+
+      await userEvent.click(page.getByRole('link', {name: 'Settings'}))
+      await userEvent.click(page.getByRole('button', {name: 'Back to chat'}))
+
+      await expect.element(input()).toHaveTextContent('typed just before a quick trip')
+      await coreControl.awaitFaultPending(write, 1)
+      await coreControl.releaseFault(write)
+      await coreControl.awaitFaultAnswered(write)
+      shell.dispose()
+      shell.mountShell(`/panel/${sessionId}?open=true`)
+
+      await expect.element(input()).toHaveTextContent('typed just before a quick trip')
+    })
 
     test('a stalled draft read still renders a composer that accepts typing', async () => {
       const {sessionId} = await newSession()
@@ -639,6 +664,46 @@ describe('chat pane', () => {
 
     await expect.element(notifications()).toMatchTextContent(/Internal Server Error|could not be sent/)
     await expect.element(input()).toHaveTextContent('a message the server refuses')
+  })
+
+  test('a send refused while the connection is lost adds a row only until the lost-connection notice stands', async () => {
+    const {sessionId} = await newSession()
+    const [connection, setConnection] = createStore({online: false, sustainedOffline: false})
+    const reachability = {
+      online: () => connection.online,
+      sustainedOffline: () => connection.sustainedOffline,
+      locked: () => null,
+    }
+    active.pane = mountPane({base: core(), sessionId}, () => (
+      <EngineReachabilityContext.Provider value={reachability}>
+        <ChatPane sessionId={sessionId} />
+      </EngineReachabilityContext.Provider>
+    ))
+    const typed = 'a message typed while the connection is lost'
+    const refusals = page.getByRole('status').filter({hasText: 'Your message is still in the composer.'})
+    const send = page.getByRole('button', {name: 'conciv lost connection to the engine', exact: true})
+
+    await expect.element(input()).toBeVisible()
+    await userEvent.click(input())
+    await userEvent.keyboard(typed)
+    await expect.element(send).toBeDisabled()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(refusals).toBeVisible()
+    await expect.element(input()).toHaveTextContent(typed)
+    await userEvent.click(refusals.getByRole('button', {name: 'Dismiss'}))
+    await expect.element(refusals).not.toBeInTheDocument()
+
+    setConnection('sustainedOffline', true)
+    await userEvent.click(input())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(input()).toHaveTextContent(typed)
+    expect(refusals.query()).toBeNull()
+
+    setConnection({online: true, sustainedOffline: false})
+    await expect.element(page.getByRole('button', {name: 'Send message', exact: true})).toBeEnabled()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
+    await expect.element(refusals).not.toBeInTheDocument()
   })
 
   test('sending announces the settled reply through the live region', async () => {
@@ -2661,7 +2726,9 @@ describe('pane composer stopping', () => {
       })
     })
     return (
-      <EngineReachabilityContext.Provider value={{online: () => true, sustainedOffline: () => false}}>
+      <EngineReachabilityContext.Provider
+        value={{online: () => true, sustainedOffline: () => false, locked: () => null}}
+      >
         <ChatProvider chat={stoppable}>
           <ComposerHandlersProvider value={{}}>
             <PaneComposer
@@ -2719,7 +2786,9 @@ describe('pane composer attachments', () => {
         connection: storyConnection({chunks: createTextChunks('done')}),
       })
     render(() => (
-      <EngineReachabilityContext.Provider value={{online: () => true, sustainedOffline: () => false}}>
+      <EngineReachabilityContext.Provider
+        value={{online: () => true, sustainedOffline: () => false, locked: () => null}}
+      >
         <ChatProvider chat={chat()}>
           <ComposerHandlersProvider value={{}}>
             <PaneComposer
@@ -3751,7 +3820,9 @@ describe('queue strip', () => {
       return create()
     })
     render(() => (
-      <EngineReachabilityContext.Provider value={{online: () => true, sustainedOffline: () => false}}>
+      <EngineReachabilityContext.Provider
+        value={{online: () => true, sustainedOffline: () => false, locked: () => null}}
+      >
         <ChatProvider chat={session}>
           <ComposerHandlersProvider value={{}}>
             <PaneComposer
@@ -6449,11 +6520,20 @@ module.exports = {default: {stores: {
 
   test('its dialogs stack and return focus, its composer writes wait for the chat, its opened and renamed tabs show and an unlisted tab goes back to the chat', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
+    const restore = await faults.install({kind: 'gate', path: ['drafts', 'get']})
     harness.mountShell(`/panel/${sessionId}?open=true`)
+    await coreControl.awaitFaultPending(restore, 1)
     await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
     await tab('Fixture tools').click()
     await expect.element(tab('Fixture tools')).toHaveAttribute('aria-selected', 'true')
+    await expect.element(control('Write a plain note')).toBeVisible()
+    await control('Write a held note').click()
+    await expect.element(control('Write a plain note')).toBeVisible()
+    await coreControl.releaseFault(restore)
+    await tab('Chat').click()
+    await expect.element(editor()).toHaveTextContent('held note')
 
+    await tab('Fixture tools').click()
     await control('Open the fixture dialog').click()
     await expect.element(dialog('Fixture dialog')).toBeVisible()
     await expect.element(dialog('Fixture dialog')).toHaveFocus()
@@ -6473,19 +6553,7 @@ module.exports = {default: {stores: {
 
     await control('Write a plain note').click()
     await tab('Chat').click()
-    await expect.element(editor()).toHaveTextContent('plain note')
-
-    const restore = await faults.install({kind: 'gate', path: ['drafts', 'get']})
-    await tab('Fixture tools').click()
-    await expect.element(control('Write a plain note')).toBeVisible()
-    await tab('Chat').click()
-    await coreControl.awaitFaultPending(restore, 1)
-    await control('Write a held note').click()
-    await tab('Fixture tools').click()
-    await expect.element(control('Write a plain note')).toBeVisible()
-    await coreControl.releaseFault(restore)
-    await tab('Chat').click()
-    await expect.element(editor()).toHaveTextContent('held note')
+    await expect.element(editor()).toHaveTextContent('held noteplain note')
 
     await tab('Fixture tools').click()
     await control('Open the listed tab').click()

@@ -51,8 +51,16 @@ export function engineConnected(status: TrustStatus): boolean {
   return status === 'trusted' || status === 'unreachable'
 }
 
+export type EngineLock = 'logged-out' | 'revoked' | null
+
+export function engineLock(status: TrustStatus): EngineLock {
+  if (status === 'revoked') return 'revoked'
+  if (status === 'untrusted') return 'logged-out'
+  return null
+}
+
 export function engineLocked(status: TrustStatus): boolean {
-  return status === 'untrusted' || status === 'revoked'
+  return engineLock(status) !== null
 }
 
 async function exchangeMagicLink(trust: EngineTrust, code: string): Promise<boolean> {

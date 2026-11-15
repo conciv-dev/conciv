@@ -181,8 +181,9 @@ The middleware is generic `@tanstack/ai` middleware that applies to every adapte
 has a per-harness variant. `withSandbox` is the published one from `@tanstack/ai-sandbox`, and conciv
 hands it a sandbox built once at engine start — `localProcessSandbox({dir})` behind a `default: 'ask'`
 policy, reused per thread (the `defineSandbox` call in `createChatServer`) — and no durability
-options: the agent CLI's stdout is read straight from its pipe, so the chat server's first-output
-timeout is the only limit on a silent CLI. A run outlives a client that disconnects because the
+options: the agent CLI's stdout is read straight from its pipe, so the chat server's two limits are
+the only bound on a silent CLI: a start limit until the adapter's first `RUN_STARTED`, then a silence
+limit until its first output. A run outlives a client that disconnects because the
 transport's own stream durability keeps driving it and replays it on resume, not because of
 `withSandbox`. `withSandbox` emits `sandbox.starting` from its `setup`, which makes `chat()` send
 `RUN_STARTED` before `withPersistence` stores anything, so the `runRecord` step (`conciv-run-record`)

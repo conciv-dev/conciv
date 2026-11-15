@@ -1,10 +1,9 @@
 import {z} from 'zod'
-import {Debouncer} from '@tanstack/pacer'
-import type {RpcClient} from '@conciv/contract'
+import type {DraftRow} from '@conciv/contract'
 import type {WebStorage} from '@conciv/storage-history'
+import type {AppData} from '../data/app-data.js'
 import type {SelectionOffsets} from './composer-input-adapter.js'
-
-const WRITE_DELAY_MS = 300
+import type {DraftSink} from './pane-attachments.js'
 
 const PersistedAttachmentSchema = z.object({
   id: z.string(),
@@ -20,8 +19,6 @@ const PersistedDraftSchema = z.object({
 })
 
 type PersistedDraft = z.infer<typeof PersistedDraftSchema>
-
-type DraftRow = NonNullable<Awaited<ReturnType<RpcClient['drafts']['get']>>>
 
 export type ServerDraft = {snapshot: WebStorage; selection: SelectionOffsets}
 
@@ -49,18 +46,25 @@ function clampSelection(offsets: SelectionOffsets | null, text: string): Selecti
   return {start: Math.min(offsets.start, text.length), end: Math.min(offsets.end, text.length)}
 }
 
+function serializeRow(row: DraftRow): string {
+  return JSON.stringify({text: row.text, quote: null, attachments: row.attachments})
+}
+
 function serverDraft(row: DraftRow): ServerDraft {
-  const serialized = JSON.stringify({text: row.text, quote: null, attachments: row.attachments})
+  const serialized = serializeRow(row)
   return {
     snapshot: {getItem: () => serialized, setItem: () => {}},
     selection: clampSelection({start: row.selectionStart, end: row.selectionEnd}, row.text),
   }
 }
 
-export async function appendDraft(rpc: RpcClient, sessionId: string, text: string): Promise<void> {
-  const row = await rpc.drafts.get({sessionId})
+export async function appendDraft(appData: AppData, sessionId: string, text: string): Promise<void> {
+  const row = await appData.readDraft(sessionId).catch((error: unknown) => {
+    console.error('[conciv] could not read the saved draft', error)
+    return null
+  })
   const nextText = row?.text ? `${row.text}\n${text}` : text
-  await rpc.drafts.set({
+  await appData.saveDraft({
     sessionId,
     text: nextText,
     selectionStart: nextText.length,
@@ -69,48 +73,56 @@ export async function appendDraft(rpc: RpcClient, sessionId: string, text: strin
   })
 }
 
-export function makeDraftStorage(rpc: RpcClient, sessionId: string): PaneDraftStorage {
+export function draftCacheSink(appData: AppData, sessionId: string): DraftSink {
+  let written = Promise.resolve()
+  const keep = (write: () => Promise<void>): void => {
+    written = written
+      .then(write)
+      .catch((error: unknown) => console.error('[conciv] could not keep the queued message as a draft', error))
+  }
+  return {
+    insert: (text) => keep(() => appendDraft(appData, sessionId, text)),
+    addFile: () => {},
+  }
+}
+
+export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraftStorage {
   let cache: string | null = null
   let selection: SelectionOffsets | null = null
+  let writable = false
   const persist = (draft: PersistedDraft) => {
     const offsets = clampSelection(selection, draft.text)
-    void rpc.drafts
-      .set({
+    appData
+      .saveDraft({
         sessionId,
         text: draft.text,
         selectionStart: offsets.start,
         selectionEnd: offsets.end,
         attachments: draft.attachments,
       })
-      .catch((error: unknown) => {
-        console.error('[conciv] could not save the draft', error)
-      })
+      .catch(() => undefined)
   }
-  const write = new Debouncer(persist, {wait: WRITE_DELAY_MS, enabled: false})
   const cached = () => (cache === null ? null : parseDraft(cache))
   return {
     storage: {
-      getItem: () => cache,
+      getItem: () => {
+        const row = appData.cachedDraft(sessionId)
+        return row ? serializeRow(row) : cache
+      },
       setItem: (_key, value) => {
         const stored = cached()
         cache = value
         const parsed = parseDraft(value)
-        if (!parsed) return
-        if (!isCleared(parsed)) {
-          write.maybeExecute(parsed)
-          return
-        }
-        write.cancel()
-        if (stored && isCleared(stored)) return
-        write.maybeExecute(parsed)
-        write.flush()
+        if (!parsed || !writable) return
+        if (isCleared(parsed) && stored && isCleared(stored)) return
+        persist(parsed)
       },
     },
     noteSelection: (offsets) => {
       selection = offsets
     },
     restore: async (apply, signal) => {
-      const row = await rpc.drafts.get({sessionId}, {signal}).catch((error: unknown) => {
+      const row = await appData.readDraft(sessionId).catch((error: unknown) => {
         if (!signal.aborted) console.error('[conciv] could not read the saved draft', error)
         return null
       })
@@ -120,9 +132,8 @@ export function makeDraftStorage(rpc: RpcClient, sessionId: string): PaneDraftSt
       try {
         if (row && !cleared) apply(serverDraft(row), typed !== null)
       } finally {
-        write.setOptions({enabled: true})
-        if (typed && (row || !cleared)) write.maybeExecute(typed)
-        if (cleared) write.flush()
+        writable = true
+        if (typed && (row || !cleared)) persist(typed)
       }
     },
   }

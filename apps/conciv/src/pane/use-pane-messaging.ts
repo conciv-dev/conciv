@@ -5,7 +5,7 @@ import type {SendContent} from '@conciv/protocol/chat-message-types'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import type {AppData} from '../data/app-data.js'
 import type {EngineNotices} from '../shell/notice-context.js'
-import {checkSend, type SendVerdict} from './send-checks.js'
+import {checkSend, checkSendState, type SendState, type SendVerdict} from './send-checks.js'
 
 type SendRejection = {rejected: true; message: string | null; tone: 'info' | 'warn'}
 
@@ -62,6 +62,8 @@ export type PaneMessaging = {
   retryable: () => boolean
   onSend: (content: string | SendContent) => Promise<void>
   onSendError: (failure: unknown) => void
+  onSteer: () => void
+  resendAllowed: () => boolean
 }
 
 export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
@@ -103,18 +105,32 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
     return error && error.message !== 'stopped' ? error : undefined
   }
 
+  const sendState = (): SendState => ({
+    busy: compacting(),
+    reachable: deps.reachability.online(),
+    locked: deps.reachability.locked(),
+  })
+
+  const resendAllowed = (): boolean => checkSendState({...sendState(), busy: false}).ok
+
   const onSend = async (content: string | SendContent): Promise<void> => {
-    const verdict = checkSend(content, {
-      busy: compacting(),
-      reachable: deps.reachability.online(),
-    })
+    const verdict = checkSend(content, sendState())
     if (!verdict.ok) throw sendRejection(verdict)
     await deps.chat.sendMessage(content)
   }
 
+  const onSteer = (): void => {
+    const verdict = checkSendState(sendState())
+    if (!verdict.ok) throw sendRejection(verdict)
+  }
+
   const onSendError = (failure: unknown): void => {
     if (isSendRejection(failure)) {
-      if (failure.message) deps.notices.notify(failure.message, {tone: failure.tone === 'warn' ? 'warn' : 'info'})
+      const message = failure.message
+      if (!message) return
+      notifyUnlessOffline(deps.reachability.sustainedOffline() && deps.reachability.locked() === null, () =>
+        deps.notices.notify(message, {tone: failure.tone === 'warn' ? 'warn' : 'info'}),
+      )
       return
     }
     notifyUnlessOffline(deps.reachability.sustainedOffline(), () =>
@@ -122,5 +138,5 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
     )
   }
 
-  return {uiReply, compact, compacting, visibleError, retryable, onSend, onSendError}
+  return {uiReply, compact, compacting, visibleError, retryable, onSend, onSendError, onSteer, resendAllowed}
 }

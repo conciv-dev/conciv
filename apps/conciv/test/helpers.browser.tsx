@@ -321,7 +321,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     isRefreshing: chatRoot.coordinator.isRefreshing,
   }
   const reachabilityRoot = createRoot((disposeReachability) => ({
-    reachability: makeEngineReachability(),
+    reachability: makeEngineReachability(() => options.base),
     dispose: disposeReachability,
   }))
   const tree = () => (

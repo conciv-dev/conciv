@@ -39,7 +39,7 @@ import type {MarkerRow} from '@conciv/contract'
 import type {ChatMessage, SendContent} from '@conciv/protocol/chat-message-types'
 import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
-import {paneAttachments, returnQueueToDraft} from './pane-attachments.js'
+import {paneAttachments, returnQueueToDraft, type DraftSink} from './pane-attachments.js'
 import {useAnnounce, useAppData, useConnected, useInstances, useLiveSessions, useRpc} from '../app/context.js'
 import {useHarnesses, useSessionHarness} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
@@ -249,7 +249,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     meta: (name) => registryCatalog.data?.find((signature) => signature.name === name),
   }
   const captures = useSessionCaptures(sessionId)
-  const draftStorage = makeDraftStorage(rpc, sessionId)
+  const draftStorage = makeDraftStorage(appData, sessionId)
 
   const messaging = usePaneMessaging({
     rpc,
@@ -260,11 +260,14 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     notices,
     refetchMarkers: () => markers.refetch(),
   })
+  const sendFromButton = (text: string): void => {
+    void messaging.onSend(text).catch(messaging.onSendError)
+  }
 
   const toolCtx = makeToolViewCtx({
     harnessId: () => harness()?.id ?? '',
     catalog,
-    sendMessage: (text) => void chat.sendMessage(text),
+    sendMessage: sendFromButton,
     decide: decidedThen(chat, appData.invalidateOutsideAccess),
     onError: () => notices.notify('That permission request is no longer waiting for an answer.', {tone: 'warn'}),
     addResult: (toolCallId, value) => messaging.uiReply.mutate({toolCallId, value}),
@@ -403,7 +406,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     <OlderMessages sessionId={sessionId} chat={chat} />
                     <Show when={!chat.loadFailed()}>
                       <Thread.Welcome>
-                        <EmptyStateSlot onStarter={(starter) => void chat.sendMessage(starter)} instances={instances} />
+                        <EmptyStateSlot onStarter={sendFromButton} instances={instances} />
                       </Thread.Welcome>
                     </Show>
                     <Thread.Messages
@@ -412,6 +415,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                       components={{ToolFallback: toolFallbackCard}}
                       turnPrefix={renderTurnPrefix}
                       pageSession={PAGE_SESSION}
+                      refreshDisabled={!messaging.resendAllowed()}
                     />
                     <Show when={lastTurnStopped()}>
                       <Divider kind="stopped" />
@@ -437,7 +441,9 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                           <RunErrorRow
                             error={error()}
                             compacting={compacting()}
-                            onRetry={messaging.retryable() ? () => void chat.reload() : undefined}
+                            onRetry={
+                              messaging.retryable() && messaging.resendAllowed() ? () => void chat.reload() : undefined
+                            }
                             onCompact={() => messaging.compact.mutate()}
                           />
                         </Show>
@@ -482,6 +488,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                       input={inputHandle}
                       onRestore={restored.resolve}
                     />
+                    <LostQueueReceiver sessionId={sessionId} sink={{insert, addFile: attach}} />
                     <Suspense fallback={<ComposerActionsPending />}>
                       <ComposerActions
                         sessionId={sessionId}
@@ -521,6 +528,8 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
             value={{
               onSend: sendOrRunCommand,
               onSendError: messaging.onSendError,
+              onSteer: messaging.onSteer,
+              onSteerError: messaging.onSendError,
               onCancel: () => {
                 returnQueueToDraft(chat, {insert, addFile: attach})
                 void chat.stop()
@@ -541,6 +550,12 @@ function ConversationLoading(props: {reopened: boolean; sessionId: string}): JSX
       <LoadFailedAlert busy sessionId={props.sessionId} />
     </Show>
   )
+}
+
+function LostQueueReceiver(props: {sessionId: string; sink: DraftSink}): JSX.Element {
+  const liveSessions = useLiveSessions()
+  onMount(() => liveSessions.receiveLostQueue(props.sessionId, props.sink))
+  return <></>
 }
 
 function LoadFailedAlert(props: {busy: boolean; sessionId: string}): JSX.Element {
