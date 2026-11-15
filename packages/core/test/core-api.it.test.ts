@@ -79,7 +79,7 @@ import {
 import {asc, eq} from 'drizzle-orm'
 import {drizzle} from 'drizzle-orm/node-sqlite'
 import {migrateSync} from 'drizzle-orm/sqlite-core/async/session'
-import {isEqual} from 'es-toolkit'
+import {isEqual, uniq} from 'es-toolkit'
 import {
   createFakeHarness,
   type FakeHarness,
@@ -6700,7 +6700,7 @@ export default {
     z.object({ok: z.literal(false), message: z.string(), metadata: z.unknown()}),
   ])
 
-  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, and deleting the session ends its tabs and drops its records', async () => {
+  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs any action through run without asking and with its own id per call, and deleting the session ends its tabs and drops its records', async () => {
     const [home, root] = [tempDir('conciv-home-'), tempDir('conciv-page-connection-')]
     const files = {'page/server.ts': ENGINE_FIXTURE, 'tabs/server.ts': TAB_FIXTURE, 'chunk.js': CHUNK}
     for (const [path, content] of Object.entries(files)) {
@@ -6748,6 +6748,13 @@ export default {
       ok: false,
       message: expect.stringContaining('[page.disconnected]'),
     })
+    await expect(
+      rpc.plugin.call({
+        rpcId: 'experimental.page',
+        method: 'run',
+        input: {sessionId: session, action: {type: 'route'}},
+      }),
+    ).rejects.toMatchObject({message: expect.stringContaining('[page.disconnected]')})
 
     expect(await tabs('open', {sessionId: session, connectionId: 'conn_a'})).toEqual({attached: true})
     expect(await granted()).toHaveLength(1)
@@ -6995,6 +7002,33 @@ export default {
     expect(await tabs('open', {sessionId: session, connectionId: 'conn_e'})).toEqual({attached: true})
     const ending = tabs('ended', {connectionId: 'conn_e'})
     expect(await page('captures.list')).toEqual(captured)
+    const ran = (action: Page.Action) => page('run', {action})
+    const evaluated = ran({type: 'eval', code: 'document.cookie'})
+    const onRun = await next('conn_e')
+    expect(onRun.command).toEqual({
+      action: {type: 'eval', code: 'document.cookie'},
+      agentId: 'terminal',
+      timeoutMs: 5000,
+    })
+    await reply('conn_e', onRun.requestId, succeeded({result: 'a=1'}))
+    expect(await evaluated).toEqual({result: 'a=1'})
+    expect(await tabs('waiting', {})).toEqual({waiting: 0})
+    for (const text of ['One', 'Two']) {
+      const editing = ran({type: 'settext', selector: 'h1', text})
+      const onRunEdit = await next('conn_e')
+      await reply('conn_e', onRunEdit.requestId, {
+        type: 'success',
+        result: {value: {ok: true}, files: [], capture: {before, after, cssBundles: []}},
+      })
+      expect(await editing).toEqual({ok: true})
+    }
+    const ranCaptures = Page.Definition.methods['captures.list'].output
+      .parse(await page('captures.list'))
+      .captures.filter((entry) => entry.toolCallId !== 'call_settext')
+    const ranIds = uniq(ranCaptures.map((entry) => entry.toolCallId))
+    expect(ranCaptures).toHaveLength(4)
+    expect(ranIds).toHaveLength(2)
+    expect(ranIds).toEqual(ranIds.map(() => expect.stringMatching(/^[0-9a-f-]{36}$/u)))
     await rpc.sessions.delete({sessionId: session})
     expect(await ending).toEqual({outcome: 'closed'})
     expect(await page('captures.list')).toEqual({captures: [], cssBundles: {}})

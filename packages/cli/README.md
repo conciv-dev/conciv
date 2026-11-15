@@ -60,6 +60,12 @@ token the dev server wrote and calls as the owner, never as an outside agent. Th
 plugin calls, and listing plugins or reading their options, only to callers that announce
 themselves as outside, such as agents connected through `conciv mcp`.
 
+### Who is asked
+
+Nobody. A plugin method called from here runs as the owner, so it does not ask first; that includes
+running page script with `conciv plugin call experimental.page run --data '{"sessionId":"conciv_...","action":{"type":"eval","code":"document.title"}}'`.
+The same action from an agent inside a chat turn still asks the user.
+
 Docs: [conciv.dev](https://conciv.dev/docs/quick-start). Part of
 [conciv](https://github.com/conciv-dev/conciv).
 

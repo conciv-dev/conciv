@@ -1,9 +1,10 @@
 import {Buffer} from 'node:buffer'
 import {z} from 'zod'
 import {Tool, type Plugin, type ToolContext} from '@conciv/plugin'
-import {raise, type Connection} from './connection.js'
+import {keyBy} from 'es-toolkit'
+import {raise, type Connection, type Run} from './connection.js'
 import * as Files from './files.js'
-import {Operations, type File, type Operation, type Result} from './rpc.js'
+import {Operations, type Action, type File, type Operation, type Result} from './rpc.js'
 import * as PageSkill from './skill.js'
 import {symbolicateFrames} from './symbolicate.js'
 
@@ -19,6 +20,10 @@ const PINNED: readonly string[] = [
   'scroll',
   'route',
 ]
+
+const operations = keyBy(Operations, (operation) => operation.name)
+
+type Call = Parameters<Run>[1]
 
 const JsonObject = z.record(z.string(), z.json())
 const DECLARED: Partial<Record<string, Record<string, string>>> = {
@@ -41,7 +46,7 @@ export async function register(
   ctx: Pick<Plugin.Context, 'tool' | 'skill' | 'location' | 'permission'>,
   connection: Connection,
 ) {
-  const execute = async (operation: Operation, input: unknown, tool: ToolContext): Promise<Tool.Result> => {
+  const asked = async (operation: Operation, input: unknown, tool: ToolContext): Promise<Tool.Result> => {
     const action = operation.action.parse({...JsonObject.safeParse(input).data, type: operation.name})
     if (action.type === 'eval')
       await ctx.permission.assert({
@@ -53,6 +58,9 @@ export async function register(
         agent: tool.agent,
         source: {type: 'tool', messageId: tool.messageId, id: tool.id},
       })
+    return execute(operation, action, tool)
+  }
+  const execute = async (operation: Operation, action: Action, tool: Call): Promise<Tool.Result> => {
     if (action.type === 'tabs.list') return exportResult(connection.tabs(tool.sessionId), [])
     const queueing = {agentId: tool.agent, toolCallId: tool.id}
     if (action.type === 'queue')
@@ -79,6 +87,7 @@ export async function register(
     return exportResult(output, response.files)
   }
 
+  connection.serve(async (action, call) => (await execute(operations[action.type], action, call)).output)
   await ctx.skill.transform((editor) => editor.add(PageSkill.info))
   await ctx.tool.transform((editor) => {
     editor.namespace({
@@ -99,7 +108,7 @@ export async function register(
           codemode: true,
           pinned: PINNED.includes(operation.name),
         },
-        execute: (input, tool) => execute(operation, input, tool),
+        execute: (input, tool) => asked(operation, input, tool),
       })
     })
   })

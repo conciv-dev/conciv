@@ -98,6 +98,18 @@ describe('page rpc', () => {
     expect(z.parse(output, null)).toBeNull()
   })
 
+  it('run takes a session and one action the page tools validate, and answers what the tool answers', () => {
+    const {input, output} = Page.Definition.methods.run
+    const text = {sessionId, action: {type: 'text', selector: 'h1'}}
+    expect(z.parse(input, text)).toEqual(text)
+    expect(z.parse(input, {sessionId, action: {type: 'tabs.list'}})).toEqual({sessionId, action: {type: 'tabs.list'}})
+    expect(() => z.parse(input, {action: {type: 'text'}})).toThrow()
+    expect(() => z.parse(input, {sessionId, action: {type: 'no_such_action'}})).toThrow()
+    expect(() => z.parse(input, {sessionId, action: {type: 'fill', selector: 'h1', value: 1}})).toThrow()
+    const saved = {width: 800, files: [{id: `file_${crypto.randomUUID()}`, path: '/tmp/conciv-page-a/0/shot.webp'}]}
+    expect(z.parse(output, saved)).toEqual(saved)
+  })
+
   it('page ID patterns survive JSON Schema export for model tool definitions', () => {
     expect(exported(Page.TabId)).toMatchObject({type: 'string', pattern: '^tab_[a-f0-9-]{36}$'})
     expect(exported(Page.FileId)).toMatchObject({type: 'string', pattern: '^file_[a-f0-9-]{36}$'})

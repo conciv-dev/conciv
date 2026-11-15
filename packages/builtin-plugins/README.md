@@ -8,6 +8,13 @@ Private. The browser parts of conciv's built-in plugins, given to the widget fro
 The browser part of `experimental.page`: one attachment per tab to its engine half (`@conciv/plugin-page`), the
 operations it runs on the page, and the members other plugins read (`Page`, `ReactTree`).
 
+The terminal runs any page action through the engine half's one `run` method: `conciv plugin call experimental.page
+run --data '{"sessionId":"conciv_...","action":{"type":"text","selector":"h1"}}'`. It takes the same actions the
+page tools validate and answers what the tool answers, files saved as the tool saves them. Each call gets a fresh id
+in the role a tool call id plays, so its captures and any queue it starts are its own; a queue started this way
+belongs to no chat turn. `run` asks nobody, `eval` included: the terminal is the owner. Inside a chat turn the
+`eval` tool still asks the user first.
+
 ### Owed
 
 - **The halt inside a queued editor fill has no test.** `fillEditor` (`src/page/page-act.ts:104-120`) types by events,
