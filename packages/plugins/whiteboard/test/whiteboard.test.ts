@@ -170,12 +170,14 @@ async function followChanges(kit: CoreKit, onChange: (change: Change) => Promise
   const stream = await kit.rpc.event.subscribe({types: ['rpc.whiteboard.changed']}, {signal: closing.signal})
   const connected = await stream.next()
   expect(connected).toMatchObject({done: false, value: {type: 'server.connected'}})
-  const following = (async () => {
+  const follow = async () => {
     for await (const delivered of stream) {
+      if (delivered.type === 'server.heartbeat') continue
       expect(delivered.type).toBe('rpc.whiteboard.changed')
       await onChange(ChangeSchema.parse(delivered.data))
     }
-  })().catch((error: unknown) => {
+  }
+  const following = follow().catch((error: unknown) => {
     if (!closing.signal.aborted) throw error
   })
   return async () => {
