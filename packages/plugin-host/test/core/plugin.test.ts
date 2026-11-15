@@ -242,6 +242,22 @@ it.live("serves a local plugin's built chunks, each answer pinned to the bytes r
       {file: 'lazy-D.cjs', code: 'exports.big = () => "second"'},
     ])
     expect(yield* refused('lazy-B.cjs')).toEqual({_tag: 'Plugin.ChunkNotFound', file: 'lazy-B.cjs'})
+
+    const refusal = (records: object) =>
+      write({'plugin-experimental.js.manifest.json': JSON.stringify(records)}).pipe(
+        Effect.andThen(Effect.flip(modules.load({type: 'add', target: directory, options: {}}))),
+        Effect.map((error) => error.message),
+      )
+    const of = `The chunk manifest of ${path.join(directory, 'plugin-experimental.js')}`
+    expect(yield* refusal({'src/lazy.ts': {file: '../lazy-D.cjs'}})).toBe(`${of} is malformed`)
+    expect(yield* refusal({'src/lazy.ts': {file: 'lazy-D.cjs', imports: ['_gone.cjs']}})).toBe(
+      `${of} imports _gone.cjs, which it does not list`,
+    )
+    const entryImport = {
+      'src/entry.ts': {file: 'x.js', isEntry: true},
+      'b.ts': {file: 'lazy-D.cjs', imports: ['src/entry.ts']},
+    }
+    expect(yield* refusal(entryImport)).toBe(`${of} imports src/entry.ts, whose file x.js is not a chunk`)
   }).pipe(Effect.scoped),
 )
 it.effect('unloading a plugin removes its tools and runs cleanup', () =>

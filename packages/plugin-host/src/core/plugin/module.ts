@@ -167,50 +167,58 @@ const loadExperimental = Effect.fn('PluginModule.loadExperimental')(function* (
   }
 })
 
+const ChunkFile = z.string().regex(/^[\w.-]+\.cjs$/)
+
+const ChunkImports = z.array(z.string()).optional()
+
 const Manifest = z.record(
   z.string(),
-  z.object({file: z.string(), isEntry: z.boolean().optional(), imports: z.array(z.string()).optional()}),
+  z.union([
+    z.object({file: z.string(), isEntry: z.literal(true), imports: ChunkImports}),
+    z.object({file: ChunkFile, isEntry: z.literal(false).optional(), imports: ChunkImports}),
+  ]),
 )
 
 const readChunks = Effect.fn('PluginModule.readChunks')(function* (entry: string) {
   const manifest = `${entry}.manifest.json`
   if (!existsSync(manifest)) return {start: [], files: new Map()} satisfies Chunks
-  return yield* Effect.tryPromise({
-    try: () => manifestChunks(manifest),
-    catch: (cause) => makeLoadError({message: `Plugin chunk manifest is malformed: ${manifest}`, cause}),
-  })
-})
-
-async function manifestChunks(manifest: string): Promise<Chunks> {
-  const directory = path.dirname(manifest)
-  const records = new Map(Object.entries(Manifest.parse(JSON.parse(await readFile(manifest, 'utf8')))))
-  const files = (keys: readonly string[] = []) =>
-    keys.map((key) => {
-      const record = records.get(key)
-      if (!record) throw new Error(`the manifest imports ${key}, which it does not list`)
-      return record.file
+  const refusal = (problem: string, cause?: unknown) =>
+    makeLoadError({message: `The chunk manifest of ${entry} ${problem}`, cause})
+  const records = new Map(
+    Object.entries(
+      yield* Effect.tryPromise({
+        try: async () => Manifest.parse(JSON.parse(await readFile(manifest, 'utf8'))),
+        catch: (cause) => refusal('is malformed', cause),
+      }),
+    ),
+  )
+  const imported = (keys: readonly string[] = []) =>
+    Effect.forEach(keys, (key) => {
+      const file = records.get(key)?.file
+      if (file === undefined) return Effect.fail(refusal(`imports ${key}, which it does not list`))
+      if (!ChunkFile.safeParse(file).success)
+        return Effect.fail(refusal(`imports ${key}, whose file ${file} is not a chunk`))
+      return Effect.succeed(file)
     })
   const listed = [...records.values()]
-  return {
-    start: listed.flatMap((record) => (record.isEntry ? files(record.imports) : [])),
-    files: new Map(
-      await Promise.all(
-        listed
-          .filter((record) => !record.isEntry)
-          .map(
-            async (record) =>
-              [
-                record.file,
-                {
-                  sha256: Hash.sha256(await readFile(path.join(directory, record.file))),
-                  imports: files(record.imports),
-                },
-              ] as const,
-          ),
-      ),
-    ),
-  }
-}
+  const start = yield* Effect.forEach(
+    listed.filter((record) => record.isEntry),
+    (record) => imported(record.imports),
+  )
+  const files = yield* Effect.forEach(
+    listed.filter((record) => !record.isEntry),
+    (record) =>
+      Effect.all({
+        sha256: Effect.tryPromise({
+          try: () => readFile(path.join(path.dirname(manifest), record.file)),
+          catch: (cause) => refusal(`lists ${record.file}, which can't be read`, cause),
+        }).pipe(Effect.map(Hash.sha256)),
+        imports: imported(record.imports),
+      }).pipe(Effect.map((chunk) => [record.file, chunk] as const)),
+    {concurrency: 'unbounded'},
+  )
+  return {start: start.flat(), files: new Map(files)} satisfies Chunks
+})
 
 const loadServer = Effect.fn('PluginModule.loadServer')(function* (
   entrypoint: string,
