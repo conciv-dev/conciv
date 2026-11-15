@@ -217,6 +217,10 @@ type TabLook = {url: string; title: string; focused: boolean; visible: boolean}
 
 type OpenTab = (sessionId: string, answerFor: PageAnswer, look?: Partial<TabLook>) => Promise<PageTab>
 
+const ONE_PIXEL_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+const ONE_PIXEL_WEBP =
+  'UklGRh4CAABXRUJQVlA4WAoAAAAgAAAAAAAAAAAASUNDUMgBAAAAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADZWUDggMAAAAPABAJ0BKgEAAQABQCYloAJ0ugH4AAUhAAD+y7f/2ln6ln6ln+PL/5sCua59zQAAAA=='
+
 function pageTabs(): {plugin: Plugin.Plugin; open: OpenTab} {
   type Answering = {
     sessionId: SessionId
@@ -3621,15 +3625,23 @@ return seen`
         expect(results).not.toContain('z'.repeat(60_000))
       })
 
-      it('a page screenshot lands in a gitignored project file, and the result names it beside the image', async () => {
+      it('a page screenshot from code mode is written to a temporary file, and the result names it beside the image', async () => {
         const sessionId = await chatKit().session()
+        const shot = {id: `file_${randomUUID()}`, name: 'screenshot.webp', mime: 'image/webp', data: ONE_PIXEL_WEBP}
+        const tab = await chatTabs.open(sessionId, () => ({
+          type: 'success',
+          result: {value: {width: 8, height: 6}, files: [shot]},
+        }))
+        onTestFinished(() => tab.end())
         codeTurn('return await external_page_screenshot({})')
         await finished(sessionId, 'shoot')
         const results = collectResults(await thread(sessionId))
-        expect(results).toContain(SCREENSHOT_BYTES)
-        const saved = /\.conciv\/tmp\/screenshots\/[\w-]+\.webp/.exec(results)?.[0]
+        expect(results).toContain(ONE_PIXEL_WEBP)
+        expect(results).toContain('"mimeType":"image/webp"')
+        const saved = /"path":"([^"]+\/conciv-page-[\w-]+\/0\/screenshot\.webp)"/.exec(results)?.[1]
         if (saved === undefined) throw new Error(`no screenshot path in: ${results.slice(0, 300)}`)
-        expect(readFileSync(join(chatKit().stateRoot, saved)).toString('base64')).toBe(SCREENSHOT_BYTES)
+        expect(saved.startsWith(join(tmpdir(), 'conciv-page-'))).toBe(true)
+        expect(readFileSync(saved).toString('base64')).toBe(ONE_PIXEL_WEBP)
       })
 
       it('the tool bridge hands the CLI an image block, with the text capped apart from it', async () => {
@@ -3732,10 +3744,7 @@ return seen`
   const CHILD_CARDS = ['fixture_echo', 'fixture_echo', 'fixture_echo', 'fixture_fail', 'fixture_huge']
   const ECHO_DESCRIPTION = 'Echo the text back.\n\nUse it to echo.\n\nNever echo secrets.\n\nKeep it short.'
   const EXPANSION_PART = {type: 'text', content: 'fixture-expanded', metadata: {modelOnly: true}}
-  const ONE_PIXEL_PNG =
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
   const IMAGE = {type: 'image', source: {type: 'data', mimeType: 'image/png', value: ONE_PIXEL_PNG}}
-  const SCREENSHOT_BYTES = 'UklGRg=='
   const BIG_IMAGE_BYTES = ONE_PIXEL_PNG.repeat(1_000)
   const BIG_IMAGE = {type: 'image', source: {type: 'data', mimeType: 'image/png', value: BIG_IMAGE_BYTES}}
   const BridgeReplySchema = z.object({
@@ -4688,7 +4697,7 @@ describe('outside agent consent', () => {
 
   const outside = (base: string, code: string): Promise<string> => executeOverMcp(base, HUB, code).then(String, String)
 
-  const SCREENSHOT = {image: 'UklGRhYAAABXRUJQVlA4', width: 1, height: 1}
+  const SCREENSHOT = {image: ONE_PIXEL_WEBP, width: 1, height: 1}
 
   const pageAnswer = (command: Page.Command): PageReply =>
     command.action.type === 'screenshot'
@@ -7169,7 +7178,7 @@ export default {
 
     const shot = ask({type: 'screenshot'})
     const onShot = await next('conn_d')
-    const image = {id: `file_${crypto.randomUUID()}`, name: 'screenshot.webp', mime: 'image/webp', data: 'UklGRg=='}
+    const image = {id: `file_${crypto.randomUUID()}`, name: 'screenshot.webp', mime: 'image/webp', data: ONE_PIXEL_WEBP}
     await tabs('reply', {
       sessionId: session,
       connectionId: 'conn_d',
@@ -7182,8 +7191,8 @@ export default {
         value: z.object({width: z.number(), files: z.array(z.looseObject({path: z.string()}))}),
       })
       .parse(await shot)
-    expect(saved.value).toMatchObject({width: 800, files: [{id: image.id, mime: 'image/webp', bytes: 4}]})
-    expect(await readFile(saved.value.files[0]?.path ?? '', 'base64')).toBe('UklGRg==')
+    expect(saved.value).toMatchObject({width: 800, files: [{id: image.id, mime: 'image/webp', bytes: 550}]})
+    expect(await readFile(saved.value.files[0]?.path ?? '', 'base64')).toBe(ONE_PIXEL_WEBP)
 
     const stranded = ask({type: 'wait', selector: 'body', timeout: 100})
     await next('conn_d')
