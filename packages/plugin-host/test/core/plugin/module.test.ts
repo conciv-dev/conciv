@@ -243,11 +243,14 @@ export default { id: [\`typescript-\${Mode.Ready}-\${view.type}\`, plain, lib, t
     const operation = {type: 'add' as const, target: pluginDirectory, options: {}}
     const loaded = yield* modules.load(operation)
     expect(loaded).toMatchObject({id: 'typescript-ready-strong-plain-lib-twin-kind-count', features: {server: true}})
-    const changed = yield* modules
-      .changes()
-      .pipe(Stream.runHead, Effect.timeout('5 seconds'), Effect.forkScoped({startImmediately: true}))
-    yield* Effect.promise(() => write(path.join(pluginDirectory, 'plain.ts'), 'export const plain: string = "edited"'))
-    yield* Fiber.join(changed)
+    const changed = yield* modules.changes().pipe(Stream.runHead, Effect.forkScoped({startImmediately: true}))
+    yield* Effect.promise(() =>
+      write(path.join(pluginDirectory, 'plain.ts'), 'export const plain: string = "edited"'),
+    ).pipe(
+      Effect.andThen(Fiber.join(changed).pipe(Effect.timeout('500 millis'))),
+      Effect.retry(Schedule.forever),
+      Effect.timeout('5 seconds'),
+    )
     expect(yield* modules.load(operation)).toMatchObject({id: 'typescript-ready-strong-edited-lib-twin-kind-count'})
   }),
 )
