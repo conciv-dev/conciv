@@ -62,7 +62,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "^1.65.0",
+    "@cloudflare/vite-plugin": "1.69.1",
     "@conciv/browser-fixture": "workspace:*",
     "@conciv/core": "workspace:*",
     "@conciv/harness-testkit": "workspace:*",
@@ -81,6 +81,6 @@
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
-    "wrangler": "^4.154.0"
+    "wrangler": "4.160.0"
   }
 }
