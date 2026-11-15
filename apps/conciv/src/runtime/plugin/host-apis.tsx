@@ -420,7 +420,7 @@ export function createPluginAttachment(apis: HostApis) {
         server: engine,
         pending: false,
         get location() {
-          const root = project.data?.project.root
+          const root = project.isSuccess ? project.data?.project.root : undefined
 
           return root === undefined ? undefined : {directory: root}
         },
