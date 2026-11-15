@@ -16,6 +16,20 @@ The engine only answers browsers it trusts. The first time a browser opens the p
 A browser that has not logged in shows the conciv button with a warning mark, labelled "Authorize conciv". Click
 it. The **Authorize conciv** dialog opens instead of the chat: "Enter the 6-digit code printed in the terminal running your dev server."
 
+<ImageZoom
+  src="/screenshots/login-locked-launcher.png"
+  alt="The conciv button in the corner of the app with a warning mark and an Unauthorized label"
+  width={1920}
+  height={1080}
+/>
+
+<ImageZoom
+  src="/screenshots/login-authorize-dialog.png"
+  alt="The Authorize conciv dialog with six empty boxes for the code and a Send a new code link"
+  width={1920}
+  height={1080}
+/>
+
 </Step>
 <Step>
 
@@ -90,6 +104,13 @@ Revoke one by its `id`, or all of them with `--all`:
 
 A revoked browser is cut off at once: the panel shows "This browser is no longer authorized to use conciv."
 with a **Log in** button that opens the code dialog again.
+
+<ImageZoom
+  src="/screenshots/login-revoked.png"
+  alt="The chat panel with a red banner: This browser is no longer authorized to use conciv, and a Log in link"
+  width={1920}
+  height={1080}
+/>
 
 ## What the panel says
 
