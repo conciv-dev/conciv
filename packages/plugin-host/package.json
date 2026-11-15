@@ -51,6 +51,7 @@
     "effect": "catalog:",
     "esbuild": "catalog:",
     "glob": "catalog:",
+    "js-yaml": "5.5.0",
     "npm-package-arg": "catalog:",
     "pacote": "catalog:",
     "zod": "catalog:"

@@ -4487,6 +4487,9 @@ importers:
       glob:
         specifier: 'catalog:'
         version: 13.0.5
+      js-yaml:
+        specifier: 5.5.0
+        version: 5.5.0
       npm-package-arg:
         specifier: 'catalog:'
         version: 13.0.2
