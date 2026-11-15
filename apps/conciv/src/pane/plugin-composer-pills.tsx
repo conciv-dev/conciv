@@ -27,9 +27,9 @@ const PILL =
 
 const PANEL = 'w-80 max-w-[calc(100vw-2rem)] p-1 font-chat text-chat-sm'
 
-const PANEL_BODY = 'flex flex-col items-start gap-2 px-2.5 pb-2 min-w-0'
+const PANEL_BODY = 'flex flex-col items-start gap-2 px-2.5 pb-2 min-w-0 max-h-80 overflow-y-auto overscroll-contain'
 
-const MENU = 'w-max max-w-[calc(100vw-2rem)]'
+const MENU = 'w-max max-w-[calc(100vw-2rem)] max-h-80 overflow-y-auto overscroll-contain'
 
 const HEADING = `${LIST_PANEL_GROUP_LABEL} block line-clamp-3 [overflow-wrap:anywhere]`
 

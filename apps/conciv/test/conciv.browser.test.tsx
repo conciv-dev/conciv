@@ -6645,6 +6645,9 @@ module.exports = {default: {setup(ctx) {
     show: () => (shown() ? {label: 'Notes', title: 'Notes pill', icon: 'file-text'} : undefined),
     menu: (input) => [
       Object.assign(document.createElement('p'), {textContent: 'Notes for the session'}),
+      ...Array.from({length: 40}, (_, index) =>
+        Object.assign(document.createElement('p'), {textContent: 'Note line ' + (index + 1)}),
+      ),
       createComponent(ctx.ui.Button, {onClick: () => input.close(), children: 'Done with the notes'}),
     ],
   })
@@ -6661,6 +6664,11 @@ module.exports = {default: {setup(ctx) {
             rows: [
               {label: 'Run the checks', detail: '3 left', icon: 'terminal', run: () => ctx.toast.show({title: 'Checks started'})},
               {label: 'Locked check', icon: 'lock'},
+              ...Array.from({length: 38}, (_, index) => ({
+                label: 'Check ' + (index + 3),
+                icon: 'terminal',
+                run: () => ctx.toast.show({title: 'Check ' + (index + 3) + ' started'}),
+              })),
             ],
           }
         : undefined,
@@ -6709,6 +6717,11 @@ module.exports = {default: {setup(ctx) {
     await expect.element(checks.getByRole('menuitem', {name: /Run the checks/})).toMatchTextContent(/3 left$/i)
     await checks.getByRole('menuitem', {name: /Run the checks/}).click()
     await expect.element(notifications().getByText('Checks started', {exact: true})).toBeVisible()
+    await expect.element(checks).not.toBeInTheDocument()
+
+    await pill('Checks pill').click()
+    await checks.getByRole('menuitem', {name: 'Check 40', exact: true}).click()
+    await expect.element(notifications().getByText('Check 40 started', {exact: true})).toBeVisible()
     await expect.element(checks).not.toBeInTheDocument()
 
     await pill('Notes pill').click()
