@@ -1,4 +1,5 @@
 import {z} from 'zod'
+import {Rpc} from '@conciv/plugin/rpc'
 
 export const FrameworkInfo = z.object({
   name: z.enum(['nextjs', 'tanstack-start', 'vue', 'solid-start', 'astro']),
@@ -70,3 +71,15 @@ export const AppError = z.object({
   at: z.number(),
 })
 export type AppError = z.infer<typeof AppError>
+
+export const Definition = Rpc.define({
+  id: 'experimental.tanstack',
+  methods: {
+    buildErrors: {
+      input: z.object({}),
+      output: z.array(AppError),
+      errors: {BUNDLER_UNAVAILABLE: z.object({})},
+    },
+  },
+  events: {},
+})

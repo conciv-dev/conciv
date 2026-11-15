@@ -1,6 +1,6 @@
 import {Tool, type BundlerDomain, type ToolDomain} from '@conciv/plugin'
 import {z} from 'zod'
-import {AppError} from './rpc.js'
+import {Definition} from './rpc.js'
 import {buildErrorToAppError, makeDiagnosticsRing} from './server/diagnostics.js'
 import {readRouteManifest} from './server/route-manifest.js'
 import {makeServerFnTraceRing} from './server/serverfn-trace.js'
@@ -29,11 +29,21 @@ const ServerFnTraces = z.object({
   ),
 })
 
-function failureMessage(error: unknown): string {
+export type Capabilities = ReturnType<typeof capabilities>
+
+export function failureMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-export async function register(tool: ToolDomain, bundler: BundlerDomain | undefined, directory: string) {
+async function answer<Output>(code: string, read: () => Output | Promise<Output>) {
+  try {
+    return {output: await read()}
+  } catch (error) {
+    throw Tool.toolError({message: failureMessage(error), error, metadata: {code}})
+  }
+}
+
+export function capabilities(bundler: BundlerDomain | undefined, directory: string) {
   const ring = makeDiagnosticsRing()
   const serverFnRing = makeServerFnTraceRing()
   const bundlerAvailable = typeof bundler?.subscribe === 'function'
@@ -41,6 +51,21 @@ export async function register(tool: ToolDomain, bundler: BundlerDomain | undefi
     if (diagnostic.kind === 'build-error') ring.push(buildErrorToAppError(diagnostic))
     serverFnRing.observe(diagnostic)
   })
+  return {
+    buildErrors: () => {
+      if (!bundlerAvailable) throw new Error('bundler bridge unavailable')
+      return ring.list()
+    },
+    routeManifest: () => readRouteManifest(directory),
+    serverFnTrace: (count: number | undefined) => ({
+      traces: serverFnRing.traces(count ?? Number.MAX_SAFE_INTEGER),
+      functions: serverFnRing.functions(),
+    }),
+    dispose: () => unsubscribe?.(),
+  }
+}
+
+export async function register(tool: ToolDomain, tanstack: Capabilities) {
   await tool.transform((editor) => {
     editor.namespace({
       name: 'tanstack',
@@ -50,14 +75,10 @@ export async function register(tool: ToolDomain, bundler: BundlerDomain | undefi
       name: 'build_errors',
       description:
         "Read recent build/transform errors from the running TanStack dev server (compile failures, bad imports). Use it when the app is broken or a change didn't take effect.",
-      input: z.object({}),
-      output: z.array(AppError),
+      input: Definition.methods.buildErrors.input,
+      output: Definition.methods.buildErrors.output,
       options,
-      execute: async () => {
-        if (!bundlerAvailable)
-          throw Tool.toolError({message: 'bundler bridge unavailable', metadata: {code: 'BUNDLER_UNAVAILABLE'}})
-        return {output: ring.list()}
-      },
+      execute: () => answer('BUNDLER_UNAVAILABLE', tanstack.buildErrors),
     })
     editor.add({
       name: 'route_manifest',
@@ -66,13 +87,7 @@ export async function register(tool: ToolDomain, bundler: BundlerDomain | undefi
       input: z.object({}),
       output: z.array(RouteInfo),
       options,
-      execute: async () => {
-        try {
-          return {output: await readRouteManifest(directory)}
-        } catch (error) {
-          throw Tool.toolError({message: failureMessage(error), error, metadata: {code: 'MANIFEST_UNREADABLE'}})
-        }
-      },
+      execute: () => answer('MANIFEST_UNREADABLE', tanstack.routeManifest),
     })
     editor.add({
       name: 'server_fn_trace',
@@ -81,10 +96,7 @@ export async function register(tool: ToolDomain, bundler: BundlerDomain | undefi
       input: z.object({count: z.number().int().positive().max(100).optional()}),
       output: ServerFnTraces,
       options,
-      execute: async ({count}) => ({
-        output: {traces: serverFnRing.traces(count ?? Number.MAX_SAFE_INTEGER), functions: serverFnRing.functions()},
-      }),
+      execute: async ({count}) => ({output: tanstack.serverFnTrace(count)}),
     })
   })
-  return () => unsubscribe?.()
 }

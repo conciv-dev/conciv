@@ -1,3 +1,4 @@
+import {execFile} from 'node:child_process'
 import {copyFileSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {mkdtemp, realpath, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
@@ -13,6 +14,7 @@ import type {BundlerBridge, BundlerDiagnostic} from '@conciv/protocol/bundler-ty
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 const FIXTURES = join(PACKAGE_DIR, 'test', 'fixtures')
+const CLI_BIN = fileURLToPath(import.meta.resolve('@conciv/cli/bin'))
 
 const RoutesSchema = z.array(
   z.object({path: z.string(), kind: z.string(), dynamic: z.boolean(), file: z.string().nullable()}),
@@ -87,6 +89,20 @@ function useTool(kit: CoreKit, name: string, input: Record<string, unknown> = {}
   return kit.callTool(`tanstack_${name}`, input)
 }
 
+function terminalCall(kit: CoreKit, method: string, data: string): Promise<unknown> {
+  const env = {CONCIV_HOME: kit.home, CONCIV_PORT: new URL(kit.origin).port, CONCIV_TOKEN: kit.token}
+  const args = [CLI_BIN, 'plugin', 'call', 'experimental.tanstack', method, '--data', data]
+  return new Promise((resolve, reject) =>
+    execFile(process.execPath, args, {cwd: kit.stateRoot, env}, (_error, stdout, stderr) => {
+      try {
+        resolve(JSON.parse(stdout))
+      } catch {
+        reject(new Error(`conciv plugin call ${method} printed no JSON: ${stdout}${stderr}`))
+      }
+    }),
+  )
+}
+
 async function toolFailure(pending: Promise<unknown>): Promise<string> {
   const failure = await pending.then(
     () => new Error('the tool answered instead of failing'),
@@ -156,6 +172,10 @@ describe('the tanstack plugin without a bundler', () => {
     expect(unreadable).toContain('routeTree.gen.ts')
 
     expect(await toolFailure(useTool(kit, 'build_errors'))).toBe('bundler bridge unavailable')
+    expect(await terminalCall(kit, 'buildErrors', '{}')).toEqual({
+      ok: false,
+      error: {kind: 'user', message: 'bundler bridge unavailable', code: 'PLUGIN_RPC'},
+    })
   })
 })
 
@@ -171,9 +191,11 @@ describe('the tanstack plugin on a real Vite dev server', () => {
     const failed = diagnosticSeen(bridge, (diagnostic) => diagnostic.kind === 'build-error')
     await fetch(`${viteBase}/broken.ts`, {headers: {'sec-fetch-dest': 'script'}}).catch(() => undefined)
     await failed
-    const buildError = AppErrorsSchema.parse(await useTool(kit, 'build_errors')).find((error) => error.kind === 'build')
+    const buildErrors = await useTool(kit, 'build_errors')
+    const buildError = AppErrorsSchema.parse(buildErrors).find((error) => error.kind === 'build')
     expect(buildError?.message.length).toBeGreaterThan(0)
     expect(buildError?.source?.file).toContain('broken.ts')
+    expect(await terminalCall(kit, 'buildErrors', '{}')).toEqual({ok: true, data: buildErrors})
 
     const traced = diagnosticSeen(
       bridge,
