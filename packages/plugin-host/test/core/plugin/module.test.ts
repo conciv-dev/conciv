@@ -1,6 +1,5 @@
 import {expect} from 'vitest'
 import {access, mkdir, writeFile} from 'node:fs/promises'
-import {setTimeout} from 'node:timers/promises'
 import path from 'node:path'
 import {NodeFileSystem} from '@effect/platform-node'
 import {Deferred, Effect, Exit, Fiber, Layer, Schedule, Scope, Stream} from 'effect'
@@ -77,6 +76,7 @@ it.live('interrupts pending watcher setup when the loader scope closes during mo
     const entry = path.join(directory.path, 'index.ts')
     const entered = path.join(directory.path, 'entered')
     const release = path.join(directory.path, 'release')
+    const left = path.join(directory.path, 'left')
     const started = yield* Deferred.make<void>()
     const stopped = yield* Deferred.make<void>()
     const gate = yield* Deferred.make<void>()
@@ -95,6 +95,7 @@ it.live('interrupts pending watcher setup when the loader scope closes during mo
         import { setTimeout } from "node:timers/promises"
         await writeFile(${JSON.stringify(entered)}, "entered")
         while (!(await access(${JSON.stringify(release)}).then(() => true, () => false))) await setTimeout(5)
+        await writeFile(${JSON.stringify(left)}, "left")
         export default { id: "pending", async setup() {} }
       `,
       ),
@@ -119,7 +120,10 @@ it.live('interrupts pending watcher setup when the loader scope closes during mo
     yield* Scope.close(scope, Exit.void)
     expect(yield* Deferred.isDone(stopped)).toBe(true)
     yield* Effect.promise(() => writeFile(release, 'release'))
-    yield* Effect.promise(() => setTimeout(50))
+    yield* Effect.promise(() => exists(left)).pipe(
+      Effect.repeat({until: (found) => found, schedule: Schedule.spaced('5 millis')}),
+      Effect.timeout('2 seconds'),
+    )
   }),
 )
 
