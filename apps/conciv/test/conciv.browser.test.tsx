@@ -618,6 +618,29 @@ describe('chat pane', () => {
       })
     })
 
+    test('a save that failed for good keeps the typed text across a view switch, and Retry saves what is on screen', async () => {
+      const DRAFT_SET_PATH = ['drafts', 'set']
+      const TYPED = 'typed before every save was refused'
+      const {rpc, sessionId} = await newSession()
+      shell.mountShell(`/panel/${sessionId}?open=true`)
+      await expect.element(input()).toBeVisible()
+      const saves = await coreControl.rpcCallCount(DRAFT_SET_PATH)
+      const refusal = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+      const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
+
+      await input().fill(TYPED)
+      await expect.element(unsaved.getByRole('button', {name: 'Retry'}), {timeout: 20_000}).toBeVisible()
+      await userEvent.click(page.getByRole('link', {name: 'Settings'}))
+      await userEvent.click(page.getByRole('button', {name: 'Back to chat'}))
+      await expect.element(input()).toHaveTextContent(TYPED)
+      await coreControl.releaseFault(refusal)
+      await userEvent.click(unsaved.getByRole('button', {name: 'Retry'}))
+      await expect.element(unsaved).not.toBeInTheDocument()
+      await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, saves + 1, [])
+
+      expect((await rpc.drafts.get({sessionId}))?.text).toBe(TYPED)
+    })
+
     test('a restored draft is not saved back to the engine, while the next edit is', async () => {
       const DRAFT_SET_PATH = ['drafts', 'set']
       const SEEDED = 'restored and never written back'

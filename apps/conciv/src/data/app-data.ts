@@ -14,8 +14,6 @@ type DraftInput = Omit<z.input<typeof DraftRowSchema>, 'updatedAt'>
 
 const DraftSessionSchema = z.object({sessionId: z.string()})
 
-type DraftSaveContext = {previous: DraftRow | null | undefined}
-
 const DRAFT_SAVE_RETRIES = 3
 
 function retriableDraftSave(failureCount: number, error: unknown): boolean {
@@ -43,24 +41,16 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient): AppData {
   }
   queryClient.setQueryDefaults(utils.drafts.get.key(), {staleTime: Infinity, gcTime: Infinity, retry: false})
   const draftQuery = (sessionId: string) => utils.drafts.get.queryOptions({input: {sessionId}})
-  queryClient.setMutationDefaults<unknown, Error, DraftInput, DraftSaveContext>(utils.drafts.set.mutationKey(), {
+  queryClient.setMutationDefaults<unknown, Error, DraftInput>(utils.drafts.set.mutationKey(), {
     retry: retriableDraftSave,
     gcTime: Infinity,
     onMutate: async (input) => {
       const {queryKey} = draftQuery(input.sessionId)
       await queryClient.cancelQueries({queryKey})
-      const previous = queryClient.getQueryData(queryKey)
       queryClient.setQueryData(queryKey, DraftRowSchema.parse({...input, updatedAt: Date.now()}))
-      return {previous}
     },
-    onError: (error, input, context) => {
+    onError: (error) => {
       console.error('[conciv] could not save the draft', error)
-      const {queryKey} = draftQuery(input.sessionId)
-      if (context?.previous === undefined) {
-        queryClient.removeQueries({queryKey, exact: true})
-        return
-      }
-      queryClient.setQueryData(queryKey, context.previous)
     },
     onSuccess: (_data, input) => {
       const mutationCache = queryClient.getMutationCache()
