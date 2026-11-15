@@ -263,7 +263,9 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
         deletedAt: null,
       })
       await db.insert(markers).values({id: randomUUID(), sessionId, afterMessageId: null, kind: 'new'})
-      return {sessionId}
+      const session = await rpcSessionMeta(chat, sessionId)
+      if (session === null) throw new Error(`the session row ${sessionId} vanished right after it was created`)
+      return {sessionId, session}
     }),
     resolve: os.sessions.resolve.handler(({input}) => resolveRow(scope, input)),
     open: os.sessions.open.handler(({input}) => openNativeRow(scope, input)),

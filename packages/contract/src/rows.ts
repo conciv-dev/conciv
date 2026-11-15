@@ -18,6 +18,7 @@ export const SessionMetaSchema = z.object({
   hidden: z.boolean(),
   native: NativeSessionRefSchema.nullable(),
   harnessKind: z.string(),
+  lastRunAt: z.number().nullable(),
 })
 export type SessionMeta = z.infer<typeof SessionMetaSchema>
 
