@@ -6543,6 +6543,159 @@ export default {
   })
 })
 
+describe('a plugin tool that asks, across a reload of its plugin', () => {
+  const asker = (look: string, shape: 'asks' | 'gated' | 'gone') => `import {existsSync, watch} from 'node:fs'
+import {join} from 'node:path'
+
+const Asker = {id: 'asker', methods: {}, events: {loading: {schema: {type: 'object', properties: {look: {type: 'string'}}}}}}
+
+const opened = (directory) =>
+  new Promise((resolve) => {
+    const gate = join(directory, 'asker-gate')
+    const watcher = watch(directory, () => {
+      if (!existsSync(gate)) return
+      watcher.close()
+      resolve()
+    })
+    if (!existsSync(gate)) return
+    watcher.close()
+    resolve()
+  })
+
+export default {
+  id: 'asker',
+  async setup(ctx) {
+    const registration = await ctx.rpc.register(Asker, {})
+    await registration.events.emit('loading', {look: '${look}'})
+    if ('${shape}' === 'gone') return
+    if ('${shape}' === 'gated') await opened(ctx.location.directory)
+    await ctx.agent.transform((editor) =>
+      editor.list().forEach((agent) => agent.permissions.push({action: 'asker_run', resource: '*', effect: 'ask'})),
+    )
+    await ctx.tool.transform((tools) =>
+      tools.add({
+        name: 'asker_run',
+        description: 'Runs once the user agrees',
+        input: {type: 'object', properties: {}},
+        execute: async (_input, context) => {
+          await ctx.permission.assert({action: 'asker_run', resources: ['now'], sessionId: context.sessionId, agent: context.agent})
+          return {content: 'asker ran'}
+        },
+      }),
+    )
+  },
+}
+`
+
+  function streamed(response: Response) {
+    const body = response.body
+    if (body === null) throw new Error('the SSE response has no body')
+    const reader = body.pipeThrough(new TextDecoderStream()).getReader()
+    const read = {text: ''}
+    const rest = async (): Promise<string> => {
+      const next = await reader.read()
+      if (next.done) return read.text
+      read.text += next.value
+      return rest()
+    }
+    const reach = async (marker: string): Promise<string> => {
+      if (read.text.includes(marker)) return marker
+      const next = await reader.read()
+      if (next.done) return read.text
+      read.text += next.value
+      return reach(marker)
+    }
+    const ended = rest
+    return {reach, ended}
+  }
+
+  async function askerEngine() {
+    const root = tempDir('conciv-asker-')
+    const plugin = join(root, 'conciv', 'plugins', 'asker.ts')
+    mkdirSync(dirname(plugin), {recursive: true})
+    writeFileSync(plugin, asker('first', 'asks'))
+    const harness = createFakeHarness()
+    const engine = await bootAt(tempDir('conciv-asker-home-'), root, 'session', harness)
+    onTestFinished(async () => {
+      writeFileSync(join(root, 'asker-gate'), '')
+      await engine.stop()
+    })
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    const events = await makeRpcClient(base).event.subscribe()
+    onTestFinished(async () => {
+      await events.return(undefined)
+    })
+    const next = async (type: string): Promise<unknown> => {
+      const event = await events.next()
+      if (event.done === true) return undefined
+      if (event.value.type === type) return event.value.data
+      return next(type)
+    }
+    const loading = async (look: string): Promise<void> => {
+      const data = z.object({look: z.string()}).safeParse(await next('rpc.asker.loading'))
+      if (data.success && data.data.look === look) return
+      return loading(look)
+    }
+    const runs = new Array<string>()
+    const turn = (runId: string) => {
+      runs.push(runId)
+      harness.script.scriptToolCall('execute_typescript', {typescriptCode: 'return await external_asker_run({})'})
+      return fetch(`${base}${CHAT_SSE_PATH}`, {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({
+          threadId: sessionId,
+          runId,
+          messages: [{id: `${runId}-user`, role: 'user', content: 'run the asker'}],
+          tools: [],
+          context: [],
+        }),
+      }).then(streamed)
+    }
+    onTestFinished(async () => {
+      await makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}}).chat.stop({sessionId, runIds: runs})
+    })
+    const askedOrEnded = (ended: Promise<string>) =>
+      Promise.race([next('permission.asked'), ended.then((text) => ({endedWithoutAsking: text}))])
+    const asking = {sessionId, action: 'asker_run', resources: ['now']}
+    return {root, plugin, harness, turn, loading, askedOrEnded, asking}
+  }
+
+  it('a turn sent at once after the plugin is rewritten asks before the tool runs', async () => {
+    const engine = await askerEngine()
+    writeFileSync(engine.plugin, asker('second', 'asks'))
+    const turn = await engine.turn('rewritten-run')
+    expect(await engine.askedOrEnded(turn.ended())).toMatchObject(engine.asking)
+  })
+
+  it('a call that arrives while the plugin reloads waits for the reload, then asks', async () => {
+    const engine = await askerEngine()
+    engine.harness.script.holdTools()
+    const turn = await engine.turn('reloading-run')
+    expect(await turn.reach('RUN_STARTED')).toBe('RUN_STARTED')
+    writeFileSync(engine.plugin, asker('second', 'gated'))
+    await engine.loading('second')
+    engine.harness.script.releaseTools()
+    expect(await turn.reach('"toolCallName":"asker_run"')).toBe('"toolCallName":"asker_run"')
+    writeFileSync(join(engine.root, 'asker-gate'), '')
+    expect(await engine.askedOrEnded(turn.ended())).toMatchObject(engine.asking)
+  })
+
+  it('a turn whose plugin dropped the tool and its ask rule cannot run the tool from its old binding', async () => {
+    const engine = await askerEngine()
+    engine.harness.script.holdTools()
+    const turn = await engine.turn('dropped-run')
+    expect(await turn.reach('RUN_STARTED')).toBe('RUN_STARTED')
+    writeFileSync(engine.plugin, asker('second', 'gone'))
+    await engine.loading('second')
+    engine.harness.script.releaseTools()
+    const text = await turn.ended()
+    expect(text).toMatch(/No tool named \W+asker_run\W+ is currently available/)
+    expect(text).not.toContain('asker ran')
+  })
+})
+
 describe('engine plugin bundles', () => {
   const server = (id: string) => `export default {id: '${id}', async setup() {}}
 `
