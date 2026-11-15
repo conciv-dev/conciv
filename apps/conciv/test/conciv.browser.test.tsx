@@ -4609,7 +4609,7 @@ describe('session selector', () => {
 
     const anyPreview = page.getByRole('dialog', {name: /^Preview of /})
     const preview = (title: string) => page.getByRole('dialog', {name: `Preview of ${title}`})
-    const entry = (title: string, text: string) => preview(title).getByText(text, {exact: true})
+    const entry = (title: string, text: string) => preview(title).getByText(text, {exact: true}).first()
     await userEvent.click(trigger)
     const searchArea = page.getByRole('search')
     const labelled = searchArea.getByRole('combobox', {name: 'Search sessions'})
@@ -6065,7 +6065,7 @@ ${pages}
 
   const tab = (name: string) => page.getByRole('tab', {name, exact: true})
   const selectedTab = (name: string) => page.getByRole('tab', {name, exact: true, selected: true})
-  const body = (text: string) => page.getByText(text, {exact: true})
+  const body = (text: string) => page.getByText(text, {exact: true}).first()
 
   test('a plugin settings page has its own tab and route, and a section joins the general page after its groups', async () => {
     await page.viewport(1000, 900)
@@ -6613,10 +6613,10 @@ module.exports = {default: {stores: {
     expect(harness.pathname()).not.toBe(`/panel/${sessionId}`)
   }, 60_000)
 
-  test('its notes attach while the chat is not shown, a second attach of the same note keeps the first, and update and detach reach the saved draft', async () => {
+  test('its notes travel the whole path: staged while the chat is hidden, drawn as cards in the composer, changed and removed, kept by a refused send, sent with one sentence each and their metadata, shown under the sent message, five until Show more, and kept after a reload', async () => {
     const rpc = coreRpc(coreBase())
     const sessionId = await createSession(rpc)
-    const note = (commentId: string, comment: string) => ({
+    const staged = (commentId: string, comment: string) => ({
       key: `note:fixture:c=${commentId}`,
       value: {
         type: 'note',
@@ -6628,6 +6628,14 @@ module.exports = {default: {stores: {
         comment,
       },
     })
+    const sentNote = (origin: string, label: string, icon: string, subject: string, comment: string) => ({
+      type: 'note',
+      origin,
+      label,
+      icon,
+      subject,
+      comment,
+    })
     const savedOnChat = async () => {
       const write = await faults.install({kind: 'gate', path: ['drafts', 'set']})
       await tab('Chat').click()
@@ -6637,50 +6645,58 @@ module.exports = {default: {stores: {
       await coreControl.awaitFaultAnswered(write)
       return rpc.drafts.get({sessionId})
     }
-    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`)
+    const notes = () => page.getByRole('list', {name: 'Notes'})
+    const card = (text: string) => notes().getByRole('listitem').filter({hasText: text})
+    const sentLists = () => page.getByRole('list', {name: 'Notes on this message'})
+    const sentCard = (text: string) => sentLists().getByRole('listitem').filter({hasText: text}).first()
+    const sentence = () => page.getByText(/The user made the following comment/)
+    const typed = (text: string) => page.getByRole('tabpanel', {name: 'Chat'}).getByText(text, {exact: true}).first()
+    const title = () => page.getByLabelText('Session: noted', {exact: true})
+    const refused = await faults.install({kind: 'chat-refused', status: 500})
+    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, [], {transport: 'fetch'})
     await expect.element(control('Attach two notes'), {timeout: 15_000}).toBeVisible()
 
     await control('Attach two notes').click()
     expect(await savedOnChat()).toMatchObject({
       text: 'noted',
-      items: [note('c1', 'the first comment'), note('c2', 'the other comment')],
+      items: [staged('c1', 'the first comment'), staged('c2', 'the other comment')],
     })
+    await expect.element(card('the first comment')).toHaveTextContent('the first commentFixture note')
+    await expect.element(card('the other comment')).toHaveTextContent('the other commentFixture note')
 
     await tab('Fixture tools').click()
     await control('Change the first note').click()
     await control('Detach the other note').click()
-    expect(await savedOnChat()).toMatchObject({text: 'noted', items: [note('c1', 'the changed comment')]})
-  }, 60_000)
+    expect(await savedOnChat()).toMatchObject({text: 'noted', items: [staged('c1', 'the changed comment')]})
+    await expect.element(card('the changed comment')).toHaveTextContent('the changed commentFixture note')
+    await expect.element(card('the other comment')).not.toBeInTheDocument()
 
-  test('its notes travel with a send: a refused send keeps them, and the sent message carries one sentence per note and the notes in its metadata', async () => {
-    const rpc = coreRpc(coreBase())
-    const sessionId = await createSession(rpc)
-    const sentNote = (comment: string) => ({
-      type: 'note',
-      origin: 'fixture',
-      label: 'Fixture note',
-      icon: 'terminal',
-      subject: 'the fixture subject',
-      comment,
-    })
-    const refused = await faults.install({kind: 'chat-refused', status: 500})
-    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, [], {transport: 'fetch'})
-    await expect.element(control('Attach two notes'), {timeout: 15_000}).toBeVisible()
-    await control('Attach two notes').click()
+    await tab('Fixture tools').click()
+    await control('Attach drawn notes').click()
     await tab('Chat').click()
-    await expect.element(editor()).toHaveTextContent('noted')
+    await expect.element(card('Fixture card: a card it draws')).toBeVisible()
+    await expect.element(card('a card it declines')).toHaveTextContent('a card it declinesDrawn note')
+    await expect.element(card('a card that throws')).toHaveTextContent('a card that throwsDrawn note')
+    await card('a card that throws').getByRole('button', {name: 'Remove a card that throws'}).click()
+    await expect.element(card('a card that throws')).not.toBeInTheDocument()
+    await expect.element(notes().getByRole('listitem').nth(2)).toBeVisible()
+    await expect.element(notes().getByRole('listitem').nth(3)).not.toBeInTheDocument()
+    await expect.element(editor()).toHaveFocus()
 
-    await userEvent.click(editor())
     await userEvent.keyboard('{Enter}')
     await expect
       .element(page.getByRole('region', {name: /Notifications/}))
       .toMatchTextContent(/Internal Server Error|could not be sent/)
     await expect.element(editor()).toHaveTextContent('noted')
+    await expect.element(card('the changed comment')).toBeVisible()
+    await expect.element(card('Fixture card: a card it draws')).toBeVisible()
+    await expect.element(card('a card it declines')).toBeVisible()
 
     await coreControl.releaseFault(refused)
     await userEvent.click(editor())
     await userEvent.keyboard('{Enter}')
     await expect.element(page.getByText('the fixture reply')).toBeVisible()
+    await expect.element(notes()).not.toBeInTheDocument()
     const asked = (await rpc.chat.hydrate({sessionId})).messages.filter((message) => message.role === 'user')
     expect(asked).toHaveLength(1)
     expect(asked[0]).toMatchObject({
@@ -6689,77 +6705,52 @@ module.exports = {default: {stores: {
           type: 'text',
           content: [
             'noted',
-            'The user made the following comment regarding the fixture subject: the first comment',
-            'The user made the following comment regarding the fixture subject: the other comment',
+            'The user made the following comment regarding the fixture subject: the changed comment',
+            'The user made the following comment regarding a drawn subject: a card it draws',
+            'The user made the following comment regarding a drawn subject: a card it declines',
           ].join('\n'),
         },
       ],
       metadata: {
         displayText: 'noted',
-        comments: [sentNote('the first comment'), sentNote('the other comment')],
+        comments: [
+          sentNote('fixture', 'Fixture note', 'terminal', 'the fixture subject', 'the changed comment'),
+          sentNote('fixture-drawn', 'Drawn note', 'pencil', 'a drawn subject', 'a card it draws'),
+          sentNote('fixture-drawn', 'Drawn note', 'pencil', 'a drawn subject', 'a card it declines'),
+        ],
         attachments: [],
       },
     })
-  }, 60_000)
+    await expect.element(typed('noted')).toBeVisible()
+    await expect.element(title()).toBeInTheDocument()
+    await expect.element(sentence()).not.toBeInTheDocument()
+    await expect.element(sentCard('the changed comment')).toHaveTextContent('the changed commentFixture note')
+    await expect.element(sentCard('a card it draws')).toHaveTextContent('a card it drawsDrawn note')
 
-  test('its notes show as cards in the composer: the host chip by default, its own NoteCard for its origin, the chip again when its card declines or throws, and a removed note leaves the composer', async () => {
-    const sessionId = await createSession(coreRpc(coreBase()))
-    const notes = () => page.getByRole('list', {name: 'Notes'})
-    const card = (text: string) => notes().getByRole('listitem').filter({hasText: text})
-    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`)
-    await expect.element(control('Attach two notes'), {timeout: 15_000}).toBeVisible()
-    await control('Attach two notes').click()
-    await control('Attach drawn notes').click()
-    await tab('Chat').click()
-
-    await expect.element(card('the first comment')).toHaveTextContent('the first commentFixture note')
-    await expect.element(card('the other comment')).toHaveTextContent('the other commentFixture note')
-    await expect.element(card('Fixture card: a card it draws')).toBeVisible()
-    await expect.element(card('a card it declines')).toHaveTextContent('a card it declinesDrawn note')
-    await expect.element(card('a card that throws')).toHaveTextContent('a card that throwsDrawn note')
-    await expect.element(notes().getByRole('listitem').nth(4)).toBeVisible()
-    await expect.element(notes().getByRole('listitem').nth(5)).not.toBeInTheDocument()
-
-    await card('the other comment').getByRole('button', {name: 'Remove the other comment'}).click()
-    await expect.element(card('the other comment')).not.toBeInTheDocument()
-    await expect.element(notes().getByRole('listitem').nth(3)).toBeVisible()
-    await expect.element(notes().getByRole('listitem').nth(4)).not.toBeInTheDocument()
-    await expect.element(editor()).toHaveFocus()
-  }, 60_000)
-
-  test('a sent message shows what the user typed and its notes as cards, five until Show more, also after a reload', async () => {
-    const sessionId = await createSession(coreRpc(coreBase()))
-    const sent = () => page.getByRole('list', {name: 'Notes on this message'})
-    const sentCard = (text: string) => sent().getByRole('listitem').filter({hasText: text})
-    const sentence = () => page.getByText(/The user made the following comment/)
-    const typed = () => page.getByRole('tabpanel', {name: 'Chat'}).getByText('six notes', {exact: true})
-    const title = () => page.getByLabelText('Session: six notes', {exact: true})
-    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`)
-    await expect.element(control('Attach six notes'), {timeout: 15_000}).toBeVisible()
+    await tab('Fixture tools').click()
     await control('Attach six notes').click()
     await tab('Chat').click()
     await expect.element(editor()).toHaveTextContent('six notes')
     await userEvent.click(editor())
     await userEvent.keyboard('{Enter}')
-    await expect.element(page.getByText('the fixture reply')).toBeVisible()
-
-    await expect.element(typed()).toBeVisible()
-    await expect.element(title()).toBeInTheDocument()
-    await expect.element(sentence()).not.toBeInTheDocument()
-    await expect.element(sentCard('note number 1')).toHaveTextContent('note number 1Fixture note')
+    await expect.element(typed('six notes')).toBeVisible()
     await expect.element(sentCard('note number 5')).toBeVisible()
     await expect.element(sentCard('note number 6')).not.toBeInTheDocument()
     await control('Show more').click()
     await expect.element(sentCard('note number 6')).toBeVisible()
+    await expect.element(control('Show more')).not.toBeInTheDocument()
 
     harness.dispose()
     harness.mountShell(`/panel/${sessionId}?open=true`)
-    await expect.element(typed(), {timeout: 15_000}).toBeVisible()
+    await expect.element(typed('six notes'), {timeout: 15_000}).toBeVisible()
+    await expect.element(typed('noted')).toBeVisible()
     await expect.element(title()).toBeInTheDocument()
     await expect.element(sentence()).not.toBeInTheDocument()
+    await expect.element(sentCard('the changed comment')).toBeVisible()
     await expect.element(sentCard('note number 5')).toBeVisible()
     await expect.element(sentCard('note number 6')).not.toBeInTheDocument()
-  }, 60_000)
+    await expect.element(control('Show more')).toBeVisible()
+  }, 90_000)
 
   const tabPath = (sessionId: string, key: string) => `/panel/${sessionId}/${encodeURIComponent(key)}`
 
@@ -6831,7 +6822,7 @@ module.exports = {default: {stores: {
   const STORE_WRITES = ['settings', 'set']
   const filler = (index: number) => page.getByText(`filler question ${index}`, {exact: true})
   const thread = () => page.getByRole('log').filter({hasText: 'filler question'})
-  const shown = (text: string) => page.getByText(text, {exact: true})
+  const shown = (text: string) => page.getByText(text, {exact: true}).first()
   const drawnBody = () => shown('Fixture drew the drawn probe')
 
   test('its tool card body comes back after the thread evicts it, and its store survives a reload and refuses a bad write', async () => {
