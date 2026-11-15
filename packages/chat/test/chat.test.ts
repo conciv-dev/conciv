@@ -1,6 +1,4 @@
-import {mkdtempSync, rmSync} from 'node:fs'
-import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {rmSync} from 'node:fs'
 import {describe, expect, it, onTestFinished} from 'vitest'
 import {toolApprovalId} from '@conciv/ai/server'
 import {fakeText} from '@conciv/ai/testkit'
@@ -12,6 +10,7 @@ import {Effect, Layer, ManagedRuntime, Scope} from 'effect'
 import {z} from 'zod'
 import {PluginHooks, Tool} from '@conciv/plugin-host'
 import {createChatPlane, toolDomainCapabilities, type CodeCapability} from '../src/index.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 const model = fakeText()
 const answer = model.chatStream.bind(model)
@@ -43,7 +42,7 @@ const harness = defineHarness({
 })
 
 function openDatabase() {
-  const root = mkdtempSync(join(tmpdir(), 'conciv-chat-unit-'))
+  const root = tempDir('conciv-chat-unit-')
   const db = openDb(root)
   onTestFinished(() => {
     db.$client.close()
