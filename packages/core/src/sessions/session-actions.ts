@@ -8,7 +8,7 @@ import {Bus, KV, SessionEvent, SessionSchema} from '@conciv/plugin-host'
 import {removeInstructionEntries} from '../runtime/instruction-entries.js'
 import {createRow, reuseDeletedRow, rowById, tombstoneRow, type FreshRowInput} from './session-rows.js'
 import type {createSessionSearch} from './session-search.js'
-import type {PageQueues} from '../page/page-queue.js'
+import type {PagePlugin} from '../page/page-plugin.js'
 
 type SessionRenaming = {db: ConcivDb; search: Pick<ReturnType<typeof createSessionSearch>, 'retitle'>}
 
@@ -16,7 +16,7 @@ type SessionDeletion = {
   db: ConcivDb
   plane: Pick<ChatPlane, 'clear'>
   pluginHost: ManagedRuntime.ManagedRuntime<Bus.Interface | KV.Interface, never>
-  queues: Pick<PageQueues, 'release'>
+  queues: Pick<PagePlugin, 'release'>
 }
 
 export const newSessionId = (): SessionId => SessionId.parse(`conciv_${randomUUID()}`)

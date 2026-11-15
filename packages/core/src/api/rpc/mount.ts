@@ -21,7 +21,7 @@ import type {createHubInstaller} from './hub.js'
 import type {createSettingsStorage} from '../../settings/settings-storage.js'
 import type {McpVars} from '../mcp.js'
 import type {createTabs} from '../tabs.js'
-import type {PageQueues} from '../../page/page-queue.js'
+import type {PagePlugin} from '../../page/page-plugin.js'
 import type {ManagedRuntime} from 'effect'
 import type {
   Agent,
@@ -87,7 +87,8 @@ export type RpcDeps = {
   assist: (sessionId: SessionId) => readonly ConcivServerTool[]
   code: McpVars['mcp']
   tabs: ReturnType<typeof createTabs>
-  queues: Pick<PageQueues, 'wait' | 'release'>
+  queues: Pick<PagePlugin, 'release'>
+  queueWait: PagePlugin['queueWait']
   pluginHost: PluginHost
   answerPermission: PermissionAnswer
 }

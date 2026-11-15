@@ -24,7 +24,6 @@ import {UiAnswerValueSchema} from '@conciv/protocol/ui-types'
 import {
   OpenSourceResultSchema,
   OpenSourceSchema,
-  PageChangeEntrySchema,
   PageQueueHandleSchema,
   PageQueueProgressSchema,
   PageQueueResultSchema,
@@ -450,8 +449,6 @@ export const contract = {
         .output(z.discriminatedUnion('status', [PageQueueResultSchema, PageQueueProgressSchema])),
     },
     symbolicate: oc.input(SymbolicateSchema).output(SourceLocSchema.nullable()),
-    changes: oc.errors(approvalDenied).output(z.array(PageChangeEntrySchema)),
-    clearChanges: oc.errors(approvalDenied).output(Ok),
     queries: oc.errors(approvalDenied).output(eventIterator(z.object({requestId: z.string(), query: z.unknown()}))),
     reply: oc
       .errors({...approvalDenied, UNKNOWN_REQUEST: {message: 'no pending request'}})

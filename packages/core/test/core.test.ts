@@ -572,9 +572,9 @@ describe('chat plane', () => {
         c.set('mcp', {
           codeRunner: (id, publish, given) => withoutDriver.codeRunner(id, publish, given),
           hubCall: () => {},
-          hubReplied: () => {},
-          finishedQueues: () => [],
-          startedQueues: () => [],
+          hubReplied: async () => {},
+          finishedQueues: async () => [],
+          startedQueues: async () => [],
           outsideCapabilities: () => [],
           admitCall: (id, call) => withoutDriver.admitCall(id, call),
           resolveSession: async () => runtime.forSession(codeless),
@@ -1781,7 +1781,7 @@ describe('page bus and the session scope', () => {
   it('a reading call that loses its browser tab is sent once more to the next tab that serves the session', async () => {
     const bus = makePageBus(2000)
     const lost = bus.subscribe(SESSION_A, () => {})
-    const answered = bus.ask(SESSION_A, {name: 'page_route', input: {}, agentId: SESSION_A}, {mutating: false})
+    const answered = bus.ask(SESSION_A, {name: 'fixture_read', input: {}, agentId: SESSION_A}, {mutating: false})
     lost()
     await setImmediate()
     const reloaded = replyingTab(bus, {href: '/after-reload'})
@@ -1797,7 +1797,7 @@ describe('page bus and the session scope', () => {
       () => {},
       () => ({focusedAt: 1, visible: true}),
     )
-    const answered = bus.ask(SESSION_A, {name: 'page_snapshot', input: {}, agentId: SESSION_A}, {mutating: false})
+    const answered = bus.ask(SESSION_A, {name: 'fixture_snapshot', input: {}, agentId: SESSION_A}, {mutating: false})
     lost()
     expect(await answered).toEqual({result: {href: '/other'}})
     expect(other).toHaveLength(1)
@@ -1806,7 +1806,7 @@ describe('page bus and the session scope', () => {
   it('a reading call whose browser tab never comes back fails as before once its own timeout runs out', async () => {
     const bus = makePageBus(100)
     const lost = bus.subscribe(SESSION_A, () => {})
-    const answered = bus.ask(SESSION_A, {name: 'page_route', input: {}, agentId: SESSION_A}, {mutating: false})
+    const answered = bus.ask(SESSION_A, {name: 'fixture_read', input: {}, agentId: SESSION_A}, {mutating: false})
     lost()
     await expect(answered).rejects.toMatchObject({
       error: {code: 'no-widget', message: 'browser tab b1 closed before it replied'},
@@ -1817,23 +1817,23 @@ describe('page bus and the session scope', () => {
     const bus = makePageBus(100)
     const frames: unknown[] = []
     bus.subscribe(SESSION_A, (frame) => frames.push(frame))
-    const reading = bus.ask(SESSION_A, {name: 'page_route', input: {}, agentId: SESSION_A}, {mutating: false})
+    const reading = bus.ask(SESSION_A, {name: 'fixture_read', input: {}, agentId: SESSION_A}, {mutating: false})
     await expect(reading).rejects.toMatchObject({error: {code: 'timeout'}})
     expect(frames.map(readRequestId).filter((found) => found !== null)).toHaveLength(1)
-    const changing = bus.ask(SESSION_A, {name: 'page_click', input: {}, agentId: SESSION_A}, {mutating: true})
+    const changing = bus.ask(SESSION_A, {name: 'fixture_click', input: {}, agentId: SESSION_A}, {mutating: true})
     await expect(changing).rejects.toMatchObject({error: {code: 'timeout'}})
   })
 
   it('a changing call that loses its browser tab is never sent again and says it may already have run', async () => {
     const bus = makePageBus(2000)
     const lost = bus.subscribe(SESSION_A, () => {})
-    const answered = bus.ask(SESSION_A, {name: 'page_click', input: {}, agentId: SESSION_A}, {mutating: true})
+    const answered = bus.ask(SESSION_A, {name: 'fixture_click', input: {}, agentId: SESSION_A}, {mutating: true})
     lost()
     await expect(answered).rejects.toMatchObject({
       error: {
         code: 'no-widget',
         message:
-          'the page reloaded or closed during page_click; it may already have run. Take a new snapshot before continuing',
+          'the page reloaded or closed during fixture_click; it may already have run. Take a new snapshot before continuing',
       },
     })
     expect(replyingTab(bus, {})).toHaveLength(0)
@@ -1843,7 +1843,7 @@ describe('page bus and the session scope', () => {
     const bus = makePageBus(60_000)
     const frames: unknown[] = []
     const lost = bus.subscribe(SESSION_A, (frame) => frames.push(frame))
-    const route = {name: 'page_route', input: {}, agentId: SESSION_A}
+    const route = {name: 'fixture_read', input: {}, agentId: SESSION_A}
     const waiting = new AbortController()
     const answered = bus.ask(SESSION_A, route, {mutating: false}, waiting.signal)
     waiting.abort()

@@ -96,6 +96,7 @@ import {
 } from '@conciv/extension/rpc-mount'
 import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
+import concivPage from '@conciv/plugin-page'
 import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
 import {loadIsolateDriver} from '@conciv/ai/server'
@@ -560,7 +561,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     settled.forEach((outcome) => {
       if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
     })
-    if (run.phase === 'completed' && !owesFollowUp(primitives.page.queues, sessionId)) {
+    if (run.phase === 'completed' && !(await owedFollowUp(sessionId))) {
       const idled = await pluginHost
         .runPromiseExit(
           FiberMap.run(
@@ -579,11 +580,18 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         await idleFailed(sessionId, run.runId, Cause.squash(idled.cause))
     }
     if (run.phase === 'aborted') {
-      holdForNextReply(primitives.page.queues, sessionId)
+      await holdForNextReply(pagePlugin.delivery, sessionId).catch((error: unknown) =>
+        logError(`[core] the page queue results of ${sessionId} could not wait for the next reply: ${String(error)}`),
+      )
       return
     }
     followUpOwedQueues(sessionId)
   }
+  const owedFollowUp = (sessionId: SessionId): Promise<boolean> =>
+    owesFollowUp(pagePlugin.delivery, sessionId).catch((error: unknown) => {
+      logError(`[core] the page queue results owed to ${sessionId} could not be read: ${String(error)}`)
+      return false
+    })
   const sessionModel = (sessionId: SessionId): string | null => readModel(db, sessionId)
   const makeToolCtx = (sessionId: SessionId): ConcivToolContext => ({
     askUi: () => runtime.forSession(sessionId).asks.ui(),
@@ -610,6 +618,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     engineId,
     config: opts.cfg,
     plugins: opts.plugins ?? [],
+    post: [concivPage],
     harness,
     harnessSource: {
       harness: serverHarness,
@@ -618,7 +627,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     },
     bundler: opts.bridge,
     extensionSlugs: mounted.map((entry) => slug(entry.extensionName)),
-    sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: primitives.page.queues}),
+    sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: pagePlugin}),
   })
   const pluginHost: PluginHost = plugins.runtime
   const pagePlugin = makePagePlugin(() => pluginHost)
@@ -706,21 +715,20 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness, interruptIdle})
 
   function followUpOwedQueues(sessionId: SessionId): void {
-    void startQueueFollowUp(primitives.page.queues, plane, sessionId).catch((error: unknown) =>
+    void startQueueFollowUp(pagePlugin.delivery, plane, sessionId).catch((error: unknown) =>
       logError(`[core] the page queue follow-up turn for ${sessionId} could not start: ${String(error)}`),
     )
   }
 
-  primitives.page.queues.finished((record) => {
-    const result = record.result
-    if (result === null) return
-    const scope = runtime.forSession(record.sessionId)
-    const chunks = pageQueueChunks({result, record, live: plane.driving(record.sessionId)})
+  await pagePlugin.followFinished((finished) => {
+    const {result, sessionId} = finished
+    const scope = runtime.forSession(sessionId)
+    const chunks = pageQueueChunks({result, record: finished, live: plane.driving(sessionId)})
     chunks.forEach((chunk) => scope.stream.publish(chunk))
     void scope.run
       .record(chunks)
       .catch((error: unknown) => logError(`[core] recording queue ${result.queueId} failed: ${String(error)}`))
-    if (!primitives.page.queues.fromHub(record)) followUpOwedQueues(record.sessionId)
+    if (!pagePlugin.fromHub(sessionId, finished.toolCallId)) followUpOwedQueues(sessionId)
   })
 
   const admitOutside = async (
@@ -737,16 +745,18 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       until: AbortSignal.any([signal, AbortSignal.timeout(OUTSIDE_DECISION_WAIT_MS)]),
     })
     if (refusal === null) return null
-    return refusal.reason === 'missing' ? refusal.message : outsideRefusal(scope, client, refusal.reason)
+    return refusal.reason === 'missing'
+      ? refusal.message
+      : outsideRefusal(pagePlugin.tabs, scope, client, refusal.reason)
   }
 
   const search = createSessionSearch({db, cwd: chatDeps.cwd, harnesses: chatDeps.harnesses})
   const mcp: McpVars['mcp'] = {
     codeRunner: (sessionId, publish, capabilities) => plane.codeRunner(sessionId, publish, capabilities),
-    hubCall: (sessionId, callId) => primitives.page.queues.hubCall(sessionId, callId),
-    hubReplied: (sessionId, callIds) => primitives.page.queues.hubReplied(sessionId, callIds),
-    finishedQueues: (sessionId, fromHub) => primitives.page.queues.undelivered(sessionId, fromHub),
-    startedQueues: (sessionId, toolCallIds) => primitives.page.queues.startedBy(sessionId, toolCallIds),
+    hubCall: pagePlugin.hubCall,
+    hubReplied: pagePlugin.hubReplied,
+    finishedQueues: pagePlugin.undelivered,
+    startedQueues: pagePlugin.startedBy,
     admitCall: (sessionId, call) => plane.admitCall(sessionId, call),
     outsideCapabilities: (sessionId) =>
       outsideRunCapabilities(
@@ -764,11 +774,13 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     code: mcp,
     tabs: createTabs({
       bus: primitives.page.bus,
+      pageTabs: pagePlugin.tabs,
       session: (sessionId) => rpcSessionMeta(chatDeps, sessionId),
       root: opts.cwd,
       instructions: systemPromptText,
     }),
-    queues: primitives.page.queues,
+    queues: pagePlugin,
+    queueWait: pagePlugin.queueWait,
     pluginHost,
     chat: chatDeps,
     search,

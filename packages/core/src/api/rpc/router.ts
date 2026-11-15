@@ -276,8 +276,8 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
           .catch((error: unknown) => {
             throw registryCallError(error, errors)
           })
-          .finally(() => {
-            if (trace.hub !== null) deps.code.hubReplied(context.session.id, new Set([trace.callId]))
+          .finally(async () => {
+            if (trace.hub !== null) await deps.code.hubReplied(context.session.id, new Set([trace.callId]))
           })
       }),
     },
@@ -320,22 +320,13 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     page: {
       queue: {
         wait: os.page.queue.wait.handler(({input, errors, signal}) =>
-          deps.queues.wait(input.sessionId, input.queueId, input.waitMs, signal).catch((error: unknown) => {
+          deps.queueWait(input, signal).catch((error: unknown) => {
             if (signal?.aborted === true) throw error
             throw errors.NO_QUEUE({message: error instanceof Error ? error.message : String(error)})
           }),
         ),
       },
       symbolicate: os.page.symbolicate.handler(({input}) => engine.symbolicate(input.frames)),
-      changes: sessionOs.page.changes.handler(({context}) =>
-        hubTraced(context, 'page_changes', {}, () => context.session.page.changes()),
-      ),
-      clearChanges: sessionOs.page.clearChanges.handler(({context}) =>
-        hubTraced(context, 'page_clear_changes', {}, async () => {
-          await context.session.page.clearChanges()
-          return {ok: true as const}
-        }),
-      ),
       queries: sessionOs.page.queries.handler(({context, signal}) =>
         context.session.page.queries(signal ?? new AbortController().signal),
       ),

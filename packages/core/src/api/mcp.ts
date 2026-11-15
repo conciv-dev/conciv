@@ -202,9 +202,9 @@ type McpDeps = {
     capabilities?: readonly CodeCapability[],
   ) => Promise<CodeRunner | null>
   hubCall: (sessionId: SessionId, callId: string) => void
-  hubReplied: (sessionId: SessionId, callIds: ReadonlySet<string>) => void
-  finishedQueues: (sessionId: SessionId, hub: boolean) => PageQueueResult[]
-  startedQueues: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => PageQueueHandle[]
+  hubReplied: (sessionId: SessionId, callIds: ReadonlySet<string>) => Promise<void>
+  finishedQueues: (sessionId: SessionId, hub: boolean) => Promise<PageQueueResult[]>
+  startedQueues: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => Promise<PageQueueHandle[]>
   outsideCapabilities: (sessionId: SessionId) => CodeCapability[]
   admitCall: ChatPlane['admitCall']
   resolveSession: (header: SessionId | null, nativeId: HarnessSessionId | null) => Promise<SessionScope>
@@ -290,7 +290,8 @@ export async function openCodeSession(
     run,
     signal: caller.signal,
   }
-  const finished = (): PageQueueResult[] => (caller.signal.aborted ? [] : deps.finishedQueues(scope.id, hub))
+  const finished = async (): Promise<PageQueueResult[]> =>
+    caller.signal.aborted ? [] : deps.finishedQueues(scope.id, hub)
   const hubRequest = async <Value>(work: () => Promise<Value>): Promise<Value> => {
     if (!hub) return work()
     deps.hubCall(scope.id, caller.trace.callId)
@@ -305,8 +306,8 @@ export async function openCodeSession(
     execute: (typescriptCode) =>
       hubRequest(async () => {
         const executed = await runExecute(code, typescriptCode, calls)
-        const started = deps.startedQueues(scope.id, childCalls)
-        const delivered = finished()
+        const started = await deps.startedQueues(scope.id, childCalls)
+        const delivered = await finished()
         const finishedIds = new Set(delivered.map((result) => result.queueId))
         const result = {
           ...executed,
@@ -318,7 +319,7 @@ export async function openCodeSession(
     discover: async (toolNames) => {
       if (code.discover === null) throw new Error('no tools to discover')
       const tools = cappedValue(await code.discover.run(toolNames))
-      return {tools, finished: finished()}
+      return {tools, finished: await finished()}
     },
   })
   return {
@@ -327,10 +328,10 @@ export async function openCodeSession(
     asked: (tool, input) =>
       hubRequest(async () => {
         const asking = caller.askBeforeCalls ? approvedFirst(deps, scope.id, tool, publish) : tool
-        return withFinishedQueues(await runDirect(asking, input, calls), finished())
+        return withFinishedQueues(await runDirect(asking, input, calls), await finished())
       }),
     direct: (tool, input) =>
-      hubRequest(async () => withFinishedQueues(await runDirect(tool, input, calls), finished())),
+      hubRequest(async () => withFinishedQueues(await runDirect(tool, input, calls), await finished())),
   }
 }
 

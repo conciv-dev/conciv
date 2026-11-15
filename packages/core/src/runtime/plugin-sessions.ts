@@ -23,14 +23,14 @@ import {
 import type {createSessionSearch} from '../sessions/session-search.js'
 import {rowById, setMetadata, setPermissions} from '../sessions/session-rows.js'
 import type {CoreRuntime} from './scope-types.js'
-import type {PageQueues} from '../page/page-queue.js'
+import type {PagePlugin} from '../page/page-plugin.js'
 
 type SessionKeyDeps = {
   chat: ChatContext
   runtime: Pick<CoreRuntime, 'forSession'>
   search: Pick<ReturnType<typeof createSessionSearch>, 'retitle' | 'pages' | 'listed'>
   pluginHost: ManagedRuntime.ManagedRuntime<Bus.Interface | KV.Interface, never>
-  queues: Pick<PageQueues, 'release'>
+  queues: Pick<PagePlugin, 'release'>
 }
 
 type SessionInfo = Effect.Success<ReturnType<Session.Interface['get']>>

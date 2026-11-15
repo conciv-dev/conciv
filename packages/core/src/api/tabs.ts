@@ -1,24 +1,20 @@
 import {readFile} from 'node:fs/promises'
 import {dirname, join, resolve} from 'node:path'
-import {setTimeout as delay} from 'node:timers/promises'
 import {z} from 'zod'
 import type {SessionMeta} from '@conciv/contract'
-import {TabsSchema, type SessionId, type TabOpen, type Tabs} from '@conciv/protocol/chat-types'
-import {isPageFailure} from '@conciv/protocol/page-types'
+import type {SessionId, TabOpen, Tabs} from '@conciv/protocol/chat-types'
+import type {State} from '@conciv/plugin-page/rpc'
 import type {PageBus} from '../page/page-bus.js'
-
-const PAGE_PROBE_MS = 200
 
 type TabsDeps = {
   bus: PageBus
+  pageTabs: (sessionId: SessionId) => Promise<State>
   session: (sessionId: SessionId) => Promise<SessionMeta | null>
   root: string
   instructions: string
 }
 
-const PageSchema = TabsSchema.shape.tabs.element.shape.page
-
-type TabPage = Tabs['tabs'][number]['page']
+type BrowserTab = Tabs['tabs'][number]['browserTabs'][number]
 
 const PackageNameSchema = z.object({name: z.string()})
 
@@ -54,7 +50,7 @@ async function listTabs(deps: TabsDeps): Promise<Tabs> {
   const open = deps.bus.openSessions()
   const [metas, pages, name, branch] = await Promise.all([
     Promise.all(open.map((entry) => deps.session(entry.sessionId))),
-    Promise.all(open.map((entry) => browserTabPages(deps.bus, entry))),
+    Promise.all(open.map((entry) => pageBrowserTabs(deps, entry.sessionId))),
     projectName(deps.root),
     gitBranch(deps.root),
   ])
@@ -75,27 +71,16 @@ async function listTabs(deps: TabsDeps): Promise<Tabs> {
   return {project: {name, root: deps.root, branch}, tabs}
 }
 
-function browserTabPages(
-  bus: PageBus,
-  entry: {sessionId: SessionId; browserTabs: string[]},
-): Promise<Array<{id: string; page: TabPage}>> {
-  return Promise.all(entry.browserTabs.map(async (id) => ({id, page: await probePage(bus, entry.sessionId, id)})))
-}
-
-function probePage(bus: PageBus, sessionId: SessionId, browserTab: string): Promise<TabPage> {
-  const answered = bus.ask(sessionId, {name: 'page_route', input: {}, agentId: sessionId}, {browserTab}).then(
-    (answer) => PageSchema.catch(null).parse(answer.result),
-    (error: unknown) => {
-      if (!isPageFailure(error)) {
-        console.warn(
-          `conciv: reading the page of browser tab ${browserTab} failed; the tab is listed without it`,
-          error,
-        )
-      }
-      return null
-    },
-  )
-  return Promise.race([answered, delay(PAGE_PROBE_MS, null)])
+async function pageBrowserTabs(deps: TabsDeps, sessionId: SessionId): Promise<BrowserTab[]> {
+  const {tabs, focusedTabId} = await deps.pageTabs(sessionId)
+  const focusedFirst = [
+    ...tabs.filter((tab) => tab.id === focusedTabId),
+    ...tabs.filter((tab) => tab.id !== focusedTabId),
+  ]
+  return focusedFirst.map((tab) => ({
+    id: tab.id,
+    page: {href: tab.url, title: tab.title, state: tab.visible ? 'visible' : 'hidden'},
+  }))
 }
 
 function readText(path: string): Promise<string | null> {
