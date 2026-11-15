@@ -6451,6 +6451,9 @@ module.exports = {default: {stores: {
       button('Open the listed tab', () => ctx.layout.open('fixture:opened', props.session)),
       button('Open the old tab', () => ctx.layout.open('fixture:old', props.session)),
       button('Open an unlisted tab', () => ctx.layout.open('fixture:missing', props.session)),
+      button('Open a draft session', () =>
+        ctx.layout.draft({server: props.session.server.id, directory: props.session.directory, prompt: 'a drafted prompt'}),
+      ),
       line(() => 'Stored note: ' + String(ctx.stores.note.value.text)),
       line(() => 'Visits: ' + String(ctx.stores.visits.value.count)),
       button('Save the note', () => ctx.stores.note.set({text: 'saved note'})),
@@ -6518,7 +6521,7 @@ module.exports = {default: {stores: {
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const openedContent = () => page.getByText('The opened tab content', {exact: true})
 
-  test('its dialogs stack and return focus, its composer writes wait for the chat, its opened and renamed tabs show and an unlisted tab goes back to the chat', async () => {
+  test('its dialogs stack and return focus, its composer writes wait for the chat, its opened and renamed tabs show, an unlisted tab goes back to the chat, and its draft opens a new session with its prompt in the composer', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     const restore = await faults.install({kind: 'gate', path: ['drafts', 'get']})
     harness.mountShell(`/panel/${sessionId}?open=true`)
@@ -6572,6 +6575,12 @@ module.exports = {default: {stores: {
     await expect.element(tab('Chat')).toHaveAttribute('aria-selected', 'true')
     await expect.element(editor()).toBeVisible()
     expect(harness.pathname()).toBe(`/panel/${sessionId}`)
+
+    await tab('Fixture tools').click()
+    await control('Open a draft session').click()
+    await expect.element(editor()).toHaveTextContent('a drafted prompt')
+    expect(harness.pathname()).toMatch(/^\/panel\/[^/]+$/)
+    expect(harness.pathname()).not.toBe(`/panel/${sessionId}`)
   }, 60_000)
 
   const tabPath = (sessionId: string, key: string) => `/panel/${sessionId}/${encodeURIComponent(key)}`
