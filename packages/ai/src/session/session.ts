@@ -48,7 +48,9 @@ export type CreateChatSessionOptions = {
   onError?: (error: Error) => void
 }
 
-export type ChatSession = Omit<Chat, 'stop'> & {
+export type ChatSession = Omit<Chat, 'stop' | 'error'> & {
+  error: Accessor<Error | undefined>
+  withdrawn: Accessor<boolean>
   stop: () => Promise<void>
   refresh: () => Promise<void>
   stopping: Accessor<boolean>
@@ -108,6 +110,7 @@ function stoppedRun(current: RunClockSource | null): RunClockSource | null {
 type RunState =
   | {phase: 'known'; source: RunClockSource | null}
   | {phase: 'stop-queued'; source: RunClockSource | null; runId: string | null}
+  | {phase: 'withdrawn'; source: RunClockSource | null; hidden: Error}
 
 function heardRun(queued: string | null, next: RunClockSource | null): boolean {
   if (next === null) return false
@@ -118,6 +121,11 @@ function heardRun(queued: string | null, next: RunClockSource | null): boolean {
 function acknowledged(source: RunClockSource | null, localRunId: string | null): boolean {
   if (source === null) return false
   return !isRunPhaseTerminal(source.lifecycle.phase) || source.lifecycle.runId === localRunId
+}
+
+function beforeLastUser(messages: readonly ChatMessage[]): ChatMessage[] {
+  const lastUser = messages.findLastIndex((message) => message.role === 'user')
+  return lastUser === -1 ? [...messages] : messages.slice(0, lastUser)
 }
 
 function stitched(rendered: readonly ChatMessage[], window: readonly ChatMessage[]): ChatMessage[] {
@@ -217,7 +225,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     queue: 'queue',
     onError: (error) => {
       const current = run()
-      if (current.phase === 'stop-queued') setRun({phase: 'known', source: current.source})
+      if (current.phase === 'stop-queued') setRun({phase: 'withdrawn', source: current.source, hidden: error})
       options.onError?.(error)
     },
   })
@@ -237,7 +245,12 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     return source !== null && !isRunPhaseTerminal(source.lifecycle.phase)
   })
   const runInProgress = createMemo(() => chatBusy(chat) || sessionRunning())
-  const loadFailed = createMemo(() => chat.error() !== undefined && chat.messages().length === 0)
+  const error = createMemo(() => {
+    const current = run()
+    const latest = chat.error()
+    return current.phase === 'withdrawn' && current.hidden === latest ? undefined : latest
+  })
+  const loadFailed = createMemo(() => error() !== undefined && chat.messages().length === 0)
   const seenRunIds = (): string[] => {
     const source = runSource()
     const lifecycleRunIds = source && !isRunPhaseTerminal(source.lifecycle.phase) ? [source.lifecycle.runId] : []
@@ -264,6 +277,17 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     }
     await stopRun().catch((error: unknown) => options.onError?.(asError(error)))
   }
+  const withdrawn = createMemo(() => {
+    const current = run()
+    return current.phase === 'withdrawn' && current.hidden === chat.error()
+  })
+  const sendMessage: Chat['sendMessage'] = async (...args) => {
+    const before = run()
+    await chat.sendMessage(...args)
+    if (run() === before || !withdrawn()) return
+    chat.setMessages(beforeLastUser(chat.messages()))
+    throw new Error('The message was taken back before the engine had it')
+  }
   const decide = async (approvalId: string, approved: boolean, scope: ChatApprovalScope): Promise<void> => {
     const ask = served.pending.find((waiting) => waiting.approvalId === approvalId)
     const decision = await options.decide(approvalId, approved, scope).finally(() => withdraw(approvalId))
@@ -272,6 +296,9 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   }
   return {
     ...chat,
+    sendMessage,
+    error,
+    withdrawn,
     stop,
     refresh,
     stopping,

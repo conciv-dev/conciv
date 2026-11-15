@@ -12,6 +12,8 @@ function sendRejection(verdict: Extract<SendVerdict, {ok: false}>): SendRejectio
   return {rejected: true, message: verdict.message, tone: verdict.tone}
 }
 
+const WITHDRAWN: SendRejection = {rejected: true, message: null, tone: 'info'}
+
 function isSendRejection(failure: unknown): failure is SendRejection {
   return typeof failure === 'object' && failure !== null && 'rejected' in failure && failure.rejected === true
 }
@@ -90,7 +92,9 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
   const onSend = async (content: string | SendContent): Promise<void> => {
     const verdict = checkSend(content, sendState())
     if (!verdict.ok) throw sendRejection(verdict)
-    await deps.chat.sendMessage(content)
+    await deps.chat.sendMessage(content).catch((error: unknown) => {
+      throw deps.chat.withdrawn() ? WITHDRAWN : error
+    })
   }
 
   const onSteer = (): void => {
