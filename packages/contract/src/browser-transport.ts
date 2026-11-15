@@ -268,16 +268,19 @@ function attemptSettled(socket: ReconnectingWebSocket, lifetime: AbortSignal): P
   })
 }
 
+async function connectionAttempt(socket: ReconnectingWebSocket, ended: AbortSignal): Promise<void> {
+  if (socket.readyState === socket.OPEN || ended.aborted) return
+  if (!socket.shouldReconnect) socket.reconnect()
+  await attemptSettled(socket, ended)
+}
+
 async function sendFrame(
   socket: ReconnectingWebSocket,
   lifetime: AbortSignal,
   [id, type, payload]: DecodedRequestMessage,
 ): Promise<void> {
   const encoded = await encodeRequestMessage(id, type, payload)
-  if (type !== MessageType.ABORT_SIGNAL && socket.readyState !== socket.OPEN && !lifetime.aborted) {
-    if (!socket.shouldReconnect) socket.reconnect()
-    await attemptSettled(socket, lifetime)
-  }
+  if (type !== MessageType.ABORT_SIGNAL) await connectionAttempt(socket, lifetime)
   if (socket.readyState === socket.OPEN) socket.send(frame(encoded))
   else if (type !== MessageType.ABORT_SIGNAL) throw new Error(SOCKET_NOT_OPEN_MESSAGE)
 }
@@ -306,6 +309,12 @@ function socketClient(socket: ReconnectingWebSocket, lifetime: AbortSignal): Sta
   socket.addEventListener('close', () => peer.close())
   return {
     call: async (request) => {
+      await connectionAttempt(
+        socket,
+        request.signal === undefined ? lifetime : AbortSignal.any([lifetime, request.signal]),
+      )
+      request.signal?.throwIfAborted()
+      if (socket.readyState !== socket.OPEN) throw new Error(SOCKET_NOT_OPEN_MESSAGE)
       const response = await peer.request(request)
       return {...response, body: async () => response.body}
     },
