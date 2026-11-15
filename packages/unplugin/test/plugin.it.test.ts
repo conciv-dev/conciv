@@ -262,6 +262,41 @@ describe('webpack and rspack hooks', () => {
   )
 
   it.each(['webpack', 'rspack'] as const)(
+    '%s watching again after watching closed boots a new engine, after the old one has stopped',
+    async (framework) => {
+      const root = mkdtempSync(join(tmpdir(), `conciv-${framework}-rewatch-`))
+      const disposed = join(concivStateDir(root), 'fixture-disposed')
+      try {
+        const port = await getPort()
+        const health = `http://127.0.0.1:${port}/health`
+        const taps = applyHook(framework, {port, stateRoot: root, extensions: [fixtureExtension()]})
+        await runAll(taps.watchRun)
+        expect((await fetch(health)).ok).toBe(true)
+
+        await runAll(taps.watchClose)
+        expect(existsSync(disposed)).toBe(true)
+        await expect(fetch(health)).rejects.toThrow()
+
+        await runAll(taps.watchRun)
+        await expect(fetch(health).then((response) => response.ok)).resolves.toBe(true)
+
+        rmSync(disposed)
+        taps.watchClose.forEach((close) => void close())
+        await runAll(taps.watchRun)
+        expect(existsSync(disposed)).toBe(true)
+        await expect(fetch(health).then((response) => response.ok)).resolves.toBe(true)
+
+        taps.watchClose.forEach((close) => void close())
+        await runAll(taps.shutdown)
+        await expect(fetch(health)).rejects.toThrow()
+      } finally {
+        rmSync(root, {recursive: true, force: true})
+      }
+    },
+    60_000,
+  )
+
+  it.each(['webpack', 'rspack'] as const)(
     '%s keeps watching without an engine when the configured port is taken',
     async (framework) => {
       const root = mkdtempSync(join(tmpdir(), `conciv-${framework}-taken-`))

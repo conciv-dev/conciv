@@ -16,6 +16,11 @@ type WatchingCompiler = {
   }
 }
 
+type EngineSlot =
+  | {stage: 'idle'}
+  | {stage: 'running'; engine: Promise<Engine | undefined>}
+  | {stage: 'stopping'; stopped: Promise<void>}
+
 const AddressInUse = z.object({code: z.literal('EADDRINUSE')})
 
 function reportStartFailure(port: number | undefined): (error: unknown) => undefined {
@@ -33,17 +38,32 @@ function reportStartFailure(port: number | undefined): (error: unknown) => undef
 
 export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<ConcivConfig | undefined> {
   return createUnplugin<ConcivConfig | undefined>((options = {}) => {
-    const state: {engine: Promise<Engine | undefined> | null} = {engine: null}
-    const startEngine = () =>
-      (state.engine ??= makeEngineBooter(options, process.cwd(), builtins, 'exact')().catch(
+    const state: {slot: EngineSlot} = {slot: {stage: 'idle'}}
+    const startEngine = async (): Promise<Engine | undefined> => {
+      const slot = state.slot
+      if (slot.stage === 'running') return slot.engine
+      if (slot.stage === 'stopping') {
+        await slot.stopped
+        return startEngine()
+      }
+      const engine = makeEngineBooter(options, process.cwd(), builtins, 'exact')().catch(
         reportStartFailure(options.port),
-      ))
+      )
+      state.slot = {stage: 'running', engine}
+      return engine
+    }
     const stopEngine = async (): Promise<void> => {
-      const stopping = state.engine
-        ?.then((engine) => engine?.stop())
+      const slot = state.slot
+      if (slot.stage === 'idle') return
+      if (slot.stage === 'stopping') return slot.stopped
+      const stopped = slot.engine
+        .then((engine) => engine?.stop())
         .catch((error: unknown) => console.error('conciv: stopping the engine failed', error))
-      state.engine = stopping?.then(() => undefined) ?? null
-      await stopping
+        .then(() => {
+          state.slot = {stage: 'idle'}
+        })
+      state.slot = {stage: 'stopping', stopped}
+      return stopped
     }
     const startWhileWatching = (compiler: WatchingCompiler) => {
       if (options.enabled === false) return
