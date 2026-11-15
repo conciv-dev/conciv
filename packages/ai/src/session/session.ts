@@ -308,7 +308,10 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   const stop = async (): Promise<void> => {
     if (stopQueued()) return
     if (queuesStop()) {
-      setRun((current) => ({phase: 'stop-queued', source: current.source, runId: chat.runId()}))
+      const runId = chat.runId()
+      setRun((current) => ({phase: 'stop-queued', source: current.source, runId}))
+      if (runId === null) return
+      await options.stop([runId]).catch((error: unknown) => options.onError?.(asError(error)))
       return
     }
     await stopRun().catch((error: unknown) => options.onError?.(asError(error)))

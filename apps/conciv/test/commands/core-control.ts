@@ -1,4 +1,5 @@
 import {existsSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {createServer, type Socket} from 'node:net'
 import {join} from 'node:path'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
 import type {EngineStaleness} from '@conciv/contract'
@@ -59,6 +60,7 @@ export type FaultSpec =
   | {kind: 'detached-sockets'}
   | {kind: 'chat-gate'}
   | {kind: 'chat-frame-gate'; onRelease: 'deliver' | 'cut'}
+  | {kind: 'project-socket-gate'; socket: string}
   | {kind: 'cut-on-release'; path: string[]}
   | {kind: 'pre-version-engine'}
 
@@ -541,6 +543,44 @@ async function gateChatFrames(ctx: BrowserCommandContext, onRelease: 'deliver' |
   }
 }
 
+async function gateProjectSocket(root: string, name: string): Promise<Fault> {
+  const held: {open: boolean; sockets: Socket[]; waiters: {count: number; deliver: () => void}[]} = {
+    open: false,
+    sockets: [],
+    waiters: [],
+  }
+  const resumed = Promise.withResolvers<void>()
+  const server = createServer((socket) => {
+    socket.on('error', () => socket.destroy())
+    socket.on('close', () => resumed.resolve())
+    if (held.open) return socket.write('release')
+    held.sockets.push(socket)
+    for (const waiter of held.waiters.filter((entry) => held.sockets.length >= entry.count)) waiter.deliver()
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(join(root, name), resolve)
+  })
+  const open = (): Promise<void> => {
+    held.open = true
+    for (const socket of held.sockets.splice(0)) socket.write('release')
+    return Promise.resolve()
+  }
+  return {
+    pending: () => held.sockets.length,
+    awaitCaptured: (count) =>
+      held.sockets.length >= count
+        ? Promise.resolve()
+        : new Promise((resolve) => held.waiters.push({count, deliver: resolve})),
+    answered: () => resumed.promise,
+    release: open,
+    dispose: async () => {
+      await open()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    },
+  }
+}
+
 function gateChatTurns(ctx: BrowserCommandContext): Promise<Fault> {
   return holdPosts(
     ctx,
@@ -576,6 +616,7 @@ async function createFault(ctx: BrowserCommandContext, handle: string, spec: Fau
   if (spec.kind === 'gate') return testkit.gateRpcCalls(ctx.page, pathOptions(spec.path))
   if (spec.kind === 'chat-gate') return gateChatTurns(ctx)
   if (spec.kind === 'chat-frame-gate') return gateChatFrames(ctx, spec.onRelease)
+  if (spec.kind === 'project-socket-gate') return gateProjectSocket(requireKit(ctx).stateRoot, spec.socket)
   if (spec.kind === 'cut-on-release') return cutOnRelease(ctx, spec.path)
   if (spec.kind === 'detached-sockets') return trackedFault(handle, spec.kind, await detachEngineSockets(ctx))
   if (spec.kind === 'offline') return trackedFault(handle, spec.kind, await takeEngineOffline(ctx))
