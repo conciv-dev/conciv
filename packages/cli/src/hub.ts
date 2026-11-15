@@ -18,7 +18,13 @@ import {
   type CodeReply,
   type RpcClient,
 } from '@conciv/contract'
-import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER, SessionId, type TabOpen} from '@conciv/protocol/chat-types'
+import {
+  CODE_MODE_EXTERNAL_PREFIX,
+  CONCIV_CLIENT_HEADER,
+  CONCIV_ORIGIN_HEADER,
+  SessionId,
+  type TabOpen,
+} from '@conciv/protocol/chat-types'
 import type {PageQueueHandle, PageQueueProgress, PageQueueResult} from '@conciv/protocol/page-types'
 import type {InitHarnessId} from '@conciv/protocol/harness-types'
 import {PAGE_NAMESPACE} from '@conciv/plugin-page/rpc'
@@ -74,7 +80,7 @@ const TaskRequestSchema = z.object({params: TaskIdParamsSchema})
 
 const PAGE_TOOL_PREFIX = `${PAGE_NAMESPACE}_`
 
-const PAGE_TOOLS_NOTE = `Page tools (external_${PAGE_TOOL_PREFIX}*) are offered only for a tab whose page is open and connected: if none are listed, that page is closed or still connecting, so ask the user to open the app in the browser and call again with that tab.`
+const PAGE_TOOLS_NOTE = `Page tools (${CODE_MODE_EXTERNAL_PREFIX}${PAGE_TOOL_PREFIX}*) are offered only for a tab whose page is open and connected: if none are listed, that page is closed or still connecting, so ask the user to open the app in the browser and call again with that tab.`
 
 const DiscoverErrorsSchema = z.looseObject({errors: z.array(z.string()).min(1)})
 
@@ -557,7 +563,9 @@ function errorText(error: unknown): string {
 
 function notePageTools(discovered: CodeDiscoverResult, toolNames: string[]): CodeDiscoverResult {
   const refused = DiscoverErrorsSchema.safeParse(discovered.tools)
-  const askedPage = toolNames.some((toolName) => toolName.replace(/^external_/, '').startsWith(PAGE_TOOL_PREFIX))
+  const askedPage = toolNames.some((toolName) =>
+    [PAGE_TOOL_PREFIX, `${CODE_MODE_EXTERNAL_PREFIX}${PAGE_TOOL_PREFIX}`].some((prefix) => toolName.startsWith(prefix)),
+  )
   if (!refused.success || !askedPage) return discovered
   return {...discovered, tools: {...refused.data, errors: [...refused.data.errors, PAGE_TOOLS_NOTE]}}
 }
