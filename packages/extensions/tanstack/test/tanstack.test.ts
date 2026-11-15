@@ -221,7 +221,7 @@ describe('resolution matrix', {tags: ['packed']}, () => {
     await installPacked({
       root: dir,
       packages: ['.'],
-      allowBuilds: {'isolated-vm': false, protobufjs: false},
+      allowBuilds: {protobufjs: false},
       overrides,
     })
     return {dir, packDir, packed}

@@ -1,6 +1,5 @@
 import {expect, test} from 'vitest'
-import {setTimeout as sleep} from 'node:timers/promises'
-import {SharedEvents} from '../src/client/shared-events.js'
+import {SharedEvents} from '../../src/client/shared-events.js'
 
 type Event = {readonly type: string; readonly value?: number}
 
@@ -171,9 +170,7 @@ test('an idle consumer does not stall events for an active consumer', async () =
   ]) {
     const next = active.next()
     events.connections[0]!.push(event)
-    expect(
-      await Promise.race([next, sleep(1_000).then(() => ({done: true as const, value: {type: 'timeout'}}))]),
-    ).toEqual({done: false, value: event})
+    expect(await next).toEqual({done: false, value: event})
   }
 
   await idle.return!()
@@ -195,15 +192,18 @@ test('an idle consumer fails instead of buffering events without bound', async (
 
 test('source completion preserves events already buffered for an idle consumer', async () => {
   const events = source()
-  const idle = SharedEvents.make(events.connect).subscribe()[Symbol.asyncIterator]()
-  const connected = idle.next()
+  const shared = SharedEvents.make(events.connect)
+  const idle = shared.subscribe()[Symbol.asyncIterator]()
+  const watcher = shared.subscribe({types: ['unrelated']})[Symbol.asyncIterator]()
+  const connected = [idle.next(), watcher.next()]
   events.connections[0]!.push({type: 'server.connected'})
-  await connected
+  await Promise.all(connected)
+  const finished = watcher.next()
   events.connections[0]!.push({type: 'session.updated', value: 1})
   events.connections[0]!.push({type: 'session.updated', value: 2})
   events.connections[0]!.close()
   await events.connections[0]!.closed
-  await sleep(0)
+  expect(await finished).toEqual({done: true, value: undefined})
 
   expect(await idle.next()).toEqual({done: false, value: {type: 'session.updated', value: 1}})
   expect(await idle.next()).toEqual({done: false, value: {type: 'session.updated', value: 2}})

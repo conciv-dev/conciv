@@ -1,8 +1,7 @@
-import {readFileSync, statSync} from 'node:fs'
+import {statSync} from 'node:fs'
 import {registerHooks, type ResolveFnOutput, type ResolveHookContext} from 'node:module'
 import path from 'node:path'
 import {fileURLToPath, pathToFileURL} from 'node:url'
-import {transformSync} from 'esbuild'
 import {localSource} from './source.js'
 import {missingPackageTarget} from './source.package.js'
 import * as Host from '@conciv/plugin/host'
@@ -41,20 +40,6 @@ export async function prepareSource(entrypoint: string, track: (file: string, di
       track(file)
       return {...resolved, url: fresh(resolved.url)}
     },
-    load(url, context, nextLoad) {
-      if (!url.startsWith('file:') || new URL(url).searchParams.get('__opencode_reload') !== version)
-        return nextLoad(url, context)
-      const file = fileURLToPath(url)
-      const typescript = typescriptLoaders[path.extname(file)]
-      if (!typescript) return nextLoad(url, context)
-      const {code} = transformSync(readFileSync(file, 'utf8'), {
-        loader: typescript.loader,
-        format: typescript.format,
-        jsx: 'automatic',
-        sourcefile: file,
-      })
-      return {format: typescript.format === 'cjs' ? 'commonjs' : 'module', source: code, shortCircuit: true}
-    },
   })
   const specifier = fresh(entrypoint)
   return {version: specifier, load: () => Host.load(specifier), dispose: () => hook.deregister()}
@@ -79,18 +64,10 @@ function resolveLocal(
   }
 }
 
-const typescriptLoaders: Partial<Record<string, {loader: 'ts' | 'tsx'; format: 'esm' | 'cjs'}>> = {
-  '.ts': {loader: 'ts', format: 'esm'},
-  '.tsx': {loader: 'tsx', format: 'esm'},
-  '.mts': {loader: 'ts', format: 'esm'},
-  '.cts': {loader: 'ts', format: 'cjs'},
-}
-
-const bunExtensions = ['.tsx', '.jsx', '.mts', '.ts', '.mjs', '.js', '.cts', '.cjs', '.json']
+const bunExtensions = ['.mts', '.ts', '.mjs', '.js', '.cts', '.cjs', '.json']
 
 const typescriptTwins: Partial<Record<string, readonly string[]>> = {
-  '.js': ['.ts', '.tsx'],
-  '.jsx': ['.tsx'],
+  '.js': ['.ts'],
   '.mjs': ['.mts'],
 }
 

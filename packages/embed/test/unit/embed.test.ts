@@ -2,6 +2,9 @@ import {readdirSync, readFileSync} from 'node:fs'
 import {fileURLToPath} from 'node:url'
 import {Script} from 'node:vm'
 import {describe, expect, it} from 'vitest'
+import {expect as expectLocator} from '@playwright/test'
+import {test as browserTest} from '@conciv/browser-fixture'
+import {openPluginWidget} from '@conciv/plugin-testkit/widget-suite'
 import {z} from 'zod'
 import {createConciv, mountConciv} from '../../src/mount.js'
 
@@ -230,4 +233,39 @@ describe('widget loaders', () => {
       expect(shipped).toContain(lazyMarkers.shikiGrammars)
     })
   })
+})
+
+describe('a plugin widget opened through the plugin testkit', () => {
+  const greeterBundle = `const {Slot} = require('@conciv/plugin/experimental')
+module.exports = {default: {setup(ctx) {
+  ctx.add(Slot, {at: 'window.bottom', render: () => Object.assign(document.createElement('p'), {textContent: 'The greeter says hello'})})
+}}}
+`
+
+  browserTest(
+    'the plugin it lists draws its slot once the user opens the panel',
+    async ({browser}) => {
+      const widget = await openPluginWidget(browser, {
+        id: 'fake-plugin-widget',
+        plugins: ['./greeter'],
+        widgetBundle: widgetDistDir + 'conciv-widget.global.js',
+        files: {
+          'greeter/index.ts': "export default {id: 'greeter', async setup() {}}\n",
+          'greeter/plugin-experimental.js': greeterBundle,
+        },
+      })
+      try {
+        const page = widget.page
+        await expectLocator(page.getByText('page-bus-ok', {exact: true})).toBeVisible()
+        await page.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 30_000})
+        await expectLocator(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeFocused({
+          timeout: 30_000,
+        })
+        await expectLocator(page.getByText('The greeter says hello', {exact: true})).toBeVisible({timeout: 30_000})
+      } finally {
+        await widget.close()
+      }
+    },
+    120_000,
+  )
 })

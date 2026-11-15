@@ -51,8 +51,9 @@ README.md; this file is the non-obvious operational rules.
   Turbo shares the main checkout's `.turbo/cache` with every git worktree automatically. Never set
   `TURBO_CACHE_DIR` or pass `--cache-dir`: a second store makes runs miss each other's results, and
   `.claude/hooks/turbo-filter-gate.sh` blocks it.
-- Commit hooks: `prek` (devDep `@j178/prek`, config `.pre-commit-config.yaml`) runs oxfmt + oxlint on
-  staged files. `pnpm install` auto-activates the hook via the `prepare` script; no per-clone step.
+- Commit hooks: `prek` (devDep `@j178/prek`, config `.pre-commit-config.yaml`) runs `oxlint --fix`
+  and then oxfmt on staged files, so whatever the lint autofix rewrites is formatted before it is
+  restaged. `pnpm install` auto-activates the hook via the `prepare` script; no per-clone step.
   Whole-project gates (typecheck/build/test) are not in hooks; run them manually.
 - Dev loop: every host consumes workspace `@conciv/*` packages from `dist`, exactly like a consumer;
   nothing is served from `src/`. `pnpm dev:watch` runs `turbo watch dev --filter=@conciv/app`: the
@@ -79,7 +80,7 @@ README.md; this file is the non-obvious operational rules.
 - No IIFEs unless explicitly required.
 - No identifier ending in "Of" (`conciv/no-of-suffix`): name a function with a verb first that says what its body does,
   e.g. `readApprovalAsk`, not `approvalAskOf`. Files copied from opencode in `packages/plugin-host/src`,
-  `packages/plugin/src` and `apps/conciv/src/runtime/{plugin,persistence,server}` keep the source's names.
+  `packages/plugin/src` and `apps/conciv/src/runtime/{plugin,persistence}` keep the source's names.
 - Zero code comments in TS/JS (only tool directives like `@ts-`/`eslint-` survive). The
   `conciv/no-comments` lint rule autofix-DELETES anything else, so don't write comments and let lint
   strip them; write self-explanatory code.

@@ -40,7 +40,7 @@ import type {
   Tool,
 } from '@conciv/plugin-host'
 import type {PermissionAnswer} from '../../runtime/permission-cards.js'
-import type {EventFeed} from '../../runtime/event-feed.js'
+import type {EventFeed} from '../../event-feed.js'
 
 export type PluginHost = ManagedRuntime.ManagedRuntime<
   | Tool.Interface
