@@ -5756,6 +5756,8 @@ function arrivals<Item>() {
     waiting.set(count, created)
     return created
   }
+  const firstMatching = async (matches: (item: Item) => boolean, count = 1): Promise<number> =>
+    matches(await slot(count).promise) ? count : firstMatching(matches, count + 1)
   return {
     items,
     add(item: Item) {
@@ -5763,6 +5765,7 @@ function arrivals<Item>() {
       slot(items.length).resolve(item)
     },
     nth: (count: number) => slot(count).promise,
+    firstMatching,
   }
 }
 
@@ -5770,6 +5773,20 @@ function onlyRevision(push: PluginExperimentalsPush): string {
   const [plugin, ...others] = push.plugins
   if (!plugin || others.length > 0) throw new Error(`expected one pushed plugin, got ${push.plugins.length}`)
   return plugin.revision
+}
+
+function pairings(pushes: readonly PluginExperimentalsPush[]) {
+  const plugins = pushes.flatMap((push) => push.plugins)
+  const distinct = (values: readonly string[]) => new Set(values).size
+  return {
+    revisions: distinct(plugins.map((plugin) => plugin.revision)),
+    codes: distinct(plugins.map((plugin) => plugin.code)),
+    pairs: distinct(plugins.map((plugin) => JSON.stringify([plugin.revision, plugin.code]))),
+  }
+}
+
+function oneToOne(count: number) {
+  return {revisions: count, codes: count, pairs: count}
 }
 
 function storeNames(plugins: readonly PluginExperimental[]): string[][] {
@@ -5847,15 +5864,21 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
     expect(await first.pluginExperimentals()).toEqual({plugins: rebuilt.plugins, reserved: ['conciv']})
     await coreControl.writeProjectFile(PANE_BUNDLE, bundle('fourth'))
     await coreControl.releaseFault(garbled)
-    const recovered = await pushes.nth(3)
+    const settled = await pushes.firstMatching((push) =>
+      push.plugins.some((plugin) => plugin.code === bundle('fourth')),
+    )
+    const recovered = await pushes.nth(settled)
     expect(recovered).toEqual(pane('fourth'))
+    for (const stale of pushes.items.slice(2, settled - 1)) expect(stale).toEqual(pane('third'))
+    expect(settled).toBeLessThanOrEqual(4)
+    expect(pairings(pushes.items)).toEqual(oneToOne(settled))
     expect(votes.items).not.toContain(false)
 
     const fetches = await servedSince(EXPERIMENTAL)
     await coreControl.writeProjectFile(TAKEN_BUNDLE, bundle('fourth'))
     await fetches(1)
     await coreControl.writeProjectFile(PANE_BUNDLE, bundle('fifth'))
-    const fifth = await pushes.nth(4)
+    const fifth = await pushes.nth(settled + 1)
     expect(fifth).toEqual(pane('fifth'))
     expect(await coreControl.rpcCallCount(EXPERIMENTAL, {id: 'conciv'})).toBe(0)
 
@@ -5864,8 +5887,9 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
     expect(await dropped).toBe(false)
     await coreControl.writeProjectFile(PANE_BUNDLE, bundle('sixth'))
     await coreControl.releaseFault(offline)
-    const reconnected = await pushes.nth(5)
+    const reconnected = await pushes.nth(settled + 2)
     expect(reconnected).toEqual(pane('sixth'))
+    expect(pairings(pushes.items)).toEqual(oneToOne(settled + 2))
 
     const second = bundleSource(base)
     onTestFinished(second.dispose)
@@ -5875,7 +5899,7 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
     await coreControl.writeProjectFile(PANE_BUNDLE, bundle('seventh'))
     const afterDispose = await secondPushes.nth(2)
     expect(afterDispose).toEqual(pane('seventh'))
-    expect(pushes.items).toHaveLength(5)
+    expect(pushes.items).toHaveLength(settled + 2)
 
     const loaded = arrivals<{plugins: readonly PluginExperimental[]; reserved: readonly string[]}>()
     const rendered = render(() => (
