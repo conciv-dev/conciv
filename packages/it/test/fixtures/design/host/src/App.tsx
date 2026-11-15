@@ -277,7 +277,15 @@ export function App() {
     )
   }
   if (requested?.startsWith('contact-form') || requested === 'contact-section')
-    return <ContactForm flat={requested !== 'contact-form'} section={requested === 'contact-section'} ruled={requested === 'contact-form-ruled'} data-conciv-key="cFpGeA" />
+    return (
+      <ContactForm
+        flat={requested !== 'contact-form'}
+        section={requested === 'contact-section'}
+        ruled={requested === 'contact-form-ruled'}
+        leading={requested === 'contact-form-leading'}
+        data-conciv-key="cFpGeA"
+      />
+    )
   if (requested === 'form-stroke' || requested === 'form-stroke-short')
     return (
       <main
@@ -800,7 +808,7 @@ function ContactCell(props: {linked: boolean; children: React.ReactNode}) {
   return props.linked ? <span style={{display: 'flex', flexDirection: 'column'}} data-conciv-key="cBlNkA">{props.children}</span> : props.children
 }
 
-function ContactForm(props: {flat: boolean; section: boolean; ruled: boolean}) {
+function ContactForm(props: {flat: boolean; section: boolean; ruled: boolean; leading: boolean}) {
   const form = (
       <form
         style={{
@@ -846,7 +854,7 @@ function ContactForm(props: {flat: boolean; section: boolean; ruled: boolean}) {
             <p style={FORM_LABEL} data-conciv-key="cFbHdA">
               Your Budget
             </p>
-            <p style={{margin: 0, fontSize: 16, lineHeight: 1.5, color: '#e6e6e6'}} data-conciv-key="cFbPrA">
+            <p style={{margin: 0, fontSize: 16, lineHeight: props.leading ? '25px' : 1.5, color: '#e6e6e6'}} data-conciv-key="cFbPrA">
               Slide to indicate your budget range
             </p>
           </div>

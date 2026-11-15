@@ -324,7 +324,7 @@ describe('a Figma wrapper that draws nothing', () => {
 })
 
 describe('a page that drifts from the design', () => {
-  it('is told where the drift starts when its 1px lines take space, from 3 px or from 1 px on a quarter of its boxes, lines too thin to draw pair with no far line, a line pairs with no tall box, and those lines match their crops', async () => {
+  it('is told where the drift starts when its 1px lines take space, from 3 px or from 1 px on a quarter of its boxes, lines too thin to draw pair with no far line, a line pairs with no tall box, those lines match their crops, and a line height 1 px off the frame is a row', async () => {
     await kit.goto('process-column-flat')
     const got = await call('design_get', await sliced('process-column', '100-1535'))
     const rows = async () => roundOf(await call('design_check', {})).rows
@@ -344,7 +344,10 @@ describe('a page that drifts from the design', () => {
     await call('design_get', await sliced('contact-form', '100-1416'))
     const form = told(await rows(), 'drifts')
     await kit.goto('contact-form-flat')
-    const formFlat = told(await rows(), 'drifts')
+    const flatForm = await rows()
+    const formFlat = [...told(flatForm, 'drifts'), ...told(flatForm, 'line height')]
+    await kit.goto('contact-form-leading')
+    const leading = told(await rows(), 'line height')
     await kit.goto('contact-form-ruled')
     const ruled = (await rows()).filter((row) => row.node === '100:1465').map((row) => row.text)
     await kit.goto('contact-section')
@@ -356,7 +359,7 @@ describe('a page that drifts from the design', () => {
       drifted.some((text) => text.includes('below Line [100:1615]')),
       got.nodes.find((node) => node.id === '100:1615')?.asset,
       [...thin.map((row) => row.text.split('; ')[0]), ...high],
-      form.map((text) => text.split('; ')[0]),
+      [...form.map((text) => text.split('; ')[0]), ...leading],
     ]).toEqual([
       [],
       ['the page drifts from the design: Card [100:1675] sits 7 px lower on the page than in the frame'],
@@ -366,7 +369,10 @@ describe('a page that drifts from the design', () => {
         'the page drifts from the design: Card [100:1675] sits 5 px lower on the page than in the frame',
         'the page drifts from the design: Line [100:1615] sits 1 px higher on the page than in the frame',
       ],
-      ['the page drifts from the design: Button [100:1466] sits 3 px lower on the page than in the frame'],
+      [
+        'the page drifts from the design: Button [100:1466] sits 3 px lower on the page than in the frame',
+        'wrong line height at [100:1448]: 24px expected, 25px found',
+      ],
     ])
   })
 })

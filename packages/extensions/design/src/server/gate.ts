@@ -567,6 +567,7 @@ type PaintKind =
   | 'opacity'
 
 const PX = designConfig.tolerances.geometryPx
+const LINE_PX = 0.5
 const COLOR_DELTA = designConfig.tolerances.colorDeltaE
 const distance = designConfig.colorMetrics.ciede2000
 const WEIGHT_STEP = 100
@@ -729,7 +730,8 @@ function endsOf(input: {gradient: NonNullable<Look['gradient']>; under: string})
 
 function pxRow(input: {kind: PaintKind; expected: number | null; found: number; token: string | null}): Compared[] {
   const {kind, expected, found, token} = input
-  if (expected === null || Math.abs(expected - found) <= PX) return []
+  const slack = kind === 'line height' ? LINE_PX : PX
+  if (expected === null || Math.abs(expected - found) <= slack) return []
   return [{kind, expected: `${expected}px`, found: `${found}px`, token, delta: found - expected}]
 }
 
