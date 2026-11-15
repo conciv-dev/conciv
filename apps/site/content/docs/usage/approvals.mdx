@@ -62,13 +62,6 @@ The same actions called from your terminal with `conciv plugin call` do not ask:
 
 ## The card
 
-<ImageZoom
-  src="/screenshots/approvals-permission.png"
-  alt="A Permission card in the chat asking to approve Bash: rm -rf dist, with Approve, Allow for session and Deny"
-  width={1920}
-  height={1080}
-/>
-
 <TypeTable
   type={{
     Approve: {required: true, type: '⌘ Enter or Ctrl Enter', description: 'Runs it this once.'},
@@ -87,7 +80,7 @@ The same actions called from your terminal with `conciv plugin call` do not ask:
   }}
 />
 
-The keys work while the card has focus. A countdown on the card shows how long it waits. A command that contains
+The keys work while the card has focus. A command that contains
 `;`, `&`, `|`, a backtick, `$`, `<`, `>`, `\` or a line break is never remembered for the session, so it asks each
 time.
 
