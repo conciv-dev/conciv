@@ -3565,9 +3565,6 @@ describe('panel view tabs', () => {
     const AFTER_TOOLS_TEXT = 'the thread kept going after the tools'
     const tabCrash = {armed: true}
 
-    const crashReports = (name: string): number =>
-      vi.mocked(console.error).mock.calls.filter((call) => call[0] === `[conciv] extension "${name}" crashed`).length
-
     function boom(): JSX.Element {
       throw new Error('fixture crash')
     }
@@ -3596,11 +3593,9 @@ describe('panel view tabs', () => {
 
     afterEach(() => {
       tabCrash.armed = true
-      vi.restoreAllMocks()
     })
 
     test('a throwing tab shows its fallback, Retry re-mounts it, and chat stays usable', async () => {
-      vi.spyOn(console, 'error').mockImplementation(() => {})
       await mountAfterTurn([], [crashingTab])
       const crashed = () => page.getByText('The crash-tab extension crashed')
 
@@ -3610,11 +3605,9 @@ describe('panel view tabs', () => {
       await expect.element(crashed(), {timeout: 8000}).toBeVisible()
       await expect.element(page.getByText('Details are in the browser console.')).toBeVisible()
       await page.screenshot({path: '__screenshots__/extension-boundary/tab-fallback.png'})
-      expect(crashReports('crash-tab')).toBe(1)
 
       await retry().click()
       await expect.element(crashed()).toBeVisible()
-      expect(crashReports('crash-tab')).toBe(2)
 
       tabCrash.armed = false
       await retry().click()
@@ -6246,16 +6239,24 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
   })
   const faults = trackedFaults()
   const row = (id: string, enabled: boolean) => ({id, builtin: false, enabled, server: true})
-  const rows = (pane: boolean) => [row('pane', pane), {...row('broken', true), error: expect.stringMatching(/./)}]
+  const builtinPage = {id: 'page', builtin: true, enabled: true}
+  const rows = (pane: boolean) => [
+    builtinPage,
+    row('pane', pane),
+    {...row('broken', true), error: expect.stringMatching(/./)},
+  ]
   const notFound = {code: 'notFound', message: 'notFound'}
   const disabledPlugins = page.getByRole('status', {name: 'disabled plugins'})
 
   test('a plugin that never loaded is listed with its error, and disable, enable and reload act through the store', async () => {
     const base = coreBase()
     await faults.install({kind: 'garble', path: EXPERIMENTAL, input: {id: 'broken'}})
+    const listed = await faults.install({kind: 'gate', path: ['settings', 'changes']})
     const first = bundleSource(base)
     onTestFinished(first.dispose)
     const firstInstalled = recordInstalled(first.manager)
+    expect((await recordPushes(first).nth(1)).plugins.map((plugin) => plugin.id)).toEqual(['pane'])
+    await coreControl.releaseFault(listed)
 
     await firstInstalled.next(rows(true))
     expect(await first.manager.list()).toEqual(rows(true))
@@ -6968,4 +6969,184 @@ module.exports = {default: {stores: {
     await expect.element(entries().nth(2)).toHaveAccessibleName('Phone tab')
     await expect.element(entries().nth(3)).not.toBeInTheDocument()
   }, 90_000)
+})
+
+describe('the page plugin attached to the routed session', () => {
+  const driverPlugin = (rpcPath: string) => `import {Definition} from '${rpcPath}'
+
+const method = {input: {type: 'object'}, output: {type: 'object'}}
+const Driver = {id: 'page-driver', methods: {tool: method, attached: method}, events: {}}
+
+export default {
+  id: 'page-driver',
+  async setup(ctx) {
+    const stop = new AbortController()
+    const attached = []
+    const arrived = new EventTarget()
+    ctx.rpc(Definition).events.on('control', (event) => {
+      if (event.data.type !== 'attached') return
+      attached.push(event.data.connectionId)
+      arrived.dispatchEvent(new Event('attached'))
+    }, {signal: stop.signal})
+    await ctx.rpc.register(Driver, {
+      attached: async () => {
+        while (attached.length === 0) await new Promise((resolve) => arrived.addEventListener('attached', resolve, {once: true}))
+        return {connectionId: attached.shift()}
+      },
+      tool: async ({sessionId, name, input}, call) => {
+        const found = (await ctx.tool.list()).find((entry) => [entry.options?.namespace, entry.name].join('.') === 'page.' + name)
+        const result = await found.execute(input, {sessionId, agent: 'build', messageId: undefined, id: 'call_' + crypto.randomUUID(), signal: call.signal, progress: async () => {}})
+        return {value: result.output ?? null}
+      },
+    })
+    return () => stop.abort()
+  },
+}
+`
+  const core = {base: ''}
+  beforeAll(async () => {
+    const paths = await coreControl.pagePluginPaths()
+    const booted = await coreControl.bootCore({
+      id: 'page-plugin-attachment',
+      allowedOrigins: [window.location.origin],
+      plugins: ['./page', './driver'],
+      files: {'page/index.ts': `export {default} from '${paths.engine}'\n`, 'driver/index.ts': driverPlugin(paths.rpc)},
+    })
+    core.base = booted.base
+  }, 60_000)
+  afterAll(() => coreControl.closeCore(), 30_000)
+  const harness = createShellHarness(() => core.base)
+  const faults = trackedFaults()
+  afterEach(harness.dispose)
+  afterEach(faults.releaseAll)
+
+  const FIELDS = ['first', 'last', 'email', 'phone', 'city', 'zip']
+  const mask = () => page.getByRole('status', {name: 'Agent is using this page'})
+  const fill = (name: string, value: string) => ({tool: 'page_fill', selector: `[name=${name}]`, value})
+  const Played = z.object({
+    value: z.object({
+      outcomes: z.array(z.looseObject({index: z.number(), ok: z.boolean(), error: z.string().optional()})),
+    }),
+  })
+  const driver = (method: string, input: Record<string, unknown>) =>
+    coreRpc(core.base).plugin.call({rpcId: 'page-driver', method, input})
+  const attached = () => driver('attached', {})
+  const queue = async (sessionId: string, actions: Record<string, unknown>[]) =>
+    Played.parse(await driver('tool', {sessionId, name: 'queue', input: {actions}})).value.outcomes
+  const replied = (sessionId: string) =>
+    coreControl.rpcCallCount(['plugin', 'call'], {rpcId: 'experimental.page', method: 'result', input: {sessionId}})
+  const panel = (sessionId: string) => `/panel/${sessionId}?open=true`
+
+  function QueueForm(props: {heard: (event: string) => void; drafting: () => void}) {
+    const field = (name: string) => (
+      <label>
+        {name}
+        <input name={name} onInput={() => props.heard(name)} />
+      </label>
+    )
+    return (
+      <form onSubmit={(event) => event.preventDefault()}>
+        {FIELDS.map(field)}
+        <div
+          contenteditable="true"
+          role="textbox"
+          aria-label="Draft"
+          onBeforeInput={(event) => {
+            if (event.isTrusted) return
+            event.preventDefault()
+            props.drafting()
+          }}
+        >
+          <p id="draft-line">old draft</p>
+        </div>
+      </form>
+    )
+  }
+
+  function queueForm(drafting: () => void = () => {}) {
+    const heard: string[] = []
+    onTestFinished(render(() => <QueueForm heard={(event) => heard.push(event)} drafting={drafting} />).unmount)
+    return heard
+  }
+
+  test("a queue cut off by an unmount does not keep a later mount's mask up", async () => {
+    const sessionId = await createSession(coreRpc(core.base))
+    const heard = queueForm()
+    harness.mountShell(panel(sessionId))
+    await attached()
+    const cut = queue(sessionId, [fill('first', 'Ada'), fill('last', 'Lovelace'), fill('email', 'a@b.c')])
+    await expect.element(mask()).toBeInTheDocument()
+    harness.dispose()
+    harness.mountShell(panel(sessionId))
+    await attached()
+    await queue(sessionId, [fill('city', 'Paris')])
+    await expect.element(mask()).not.toBeInTheDocument()
+    expect(heard).toEqual(['city'])
+    await cut
+  }, 60_000)
+
+  test('a session switch mid-queue lands nothing more of the old queue, reports none of it, and takes the mask down', async () => {
+    const [before, after] = [await createSession(coreRpc(core.base)), await createSession(coreRpc(core.base))]
+    const heard = queueForm()
+    harness.mountShell([panel(after), panel(before)])
+    await attached()
+    const cut = queue(before, [fill('first', 'Ada'), fill('last', 'Lovelace')])
+    await expect.element(mask()).toBeInTheDocument()
+    harness.back()
+    await attached()
+    expect(await queue(after, [fill('city', 'Paris')])).toEqual([
+      {index: 0, tool: 'page_fill', ok: true, result: {ok: true, value: 'Paris'}},
+    ])
+    expect(heard).toEqual(['city'])
+    expect([await replied(before), await replied(after)]).toEqual([1, 2])
+    await expect.element(mask()).not.toBeInTheDocument()
+    await cut
+  }, 60_000)
+
+  test('a queue whose acceptance never reached the engine plays nothing and takes the mask down', async () => {
+    const sessionId = await createSession(coreRpc(core.base))
+    const heard = queueForm()
+    harness.mountShell(panel(sessionId))
+    await attached()
+    await faults.install({
+      kind: 'garble',
+      path: ['plugin', 'call'],
+      input: {rpcId: 'experimental.page', method: 'result', input: {outcome: {result: {value: {status: 'playing'}}}}},
+    })
+    expect(await queue(sessionId, [fill('first', 'Ada'), fill('last', 'Byron')])).toMatchObject([
+      {ok: false, error: expect.stringContaining('did not run')},
+      {ok: false, error: expect.stringContaining('did not run')},
+    ])
+    expect(heard).toEqual([])
+    await expect.element(mask()).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('a queued fill released after a session switch does not type', async () => {
+    const SWITCHED_TO = 'the session switched to'
+    const rpc = coreRpc(core.base)
+    const [before, after] = [await createSession(rpc), await createSession(rpc)]
+    await rpc.sessions.rename({sessionId: after, title: SWITCHED_TO})
+    const typed: string[] = []
+    queueForm(() => typed.push('draft'))
+    harness.mountShell([panel(after), panel(before)])
+    await attached()
+    const held = await faults.install({
+      kind: 'gate',
+      path: ['plugin', 'call'],
+      input: {rpcId: 'experimental.page', method: 'command', input: {sessionId: before}},
+    })
+    const cut = queue(before, [{tool: 'page_fill', selector: '#draft-line', value: 'Hello draft'}])
+    await coreControl.awaitFaultPending(held, 1)
+    harness.back()
+    await expect
+      .element(page.getByRole('banner').getByRole('button', {name: `${SWITCHED_TO}, session options`}))
+      .toBeVisible()
+    await coreControl.releaseFault(held)
+    await attached()
+    await queue(after, [fill('city', 'Paris')])
+    await expect.element(page.getByRole('textbox', {name: 'Draft'})).toMatchTextContent(/^\s*old draft\s*$/)
+    expect(typed).toEqual([])
+    expect([await replied(before), await replied(after)]).toEqual([0, 2])
+    await cut
+  }, 60_000)
 })

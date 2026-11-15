@@ -637,6 +637,9 @@ importers:
       '@conciv/ai':
         specifier: workspace:^
         version: link:../../packages/ai
+      '@conciv/builtin-plugins':
+        specifier: workspace:*
+        version: link:../../packages/builtin-plugins
       '@conciv/client':
         specifier: workspace:^
         version: link:../../packages/client
@@ -761,6 +764,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../../packages/harness-testkit
+      '@conciv/plugin-page':
+        specifier: workspace:^
+        version: link:../../packages/plugin-page
       '@conciv/plugin-testkit':
         specifier: workspace:^
         version: link:../../packages/plugin-testkit
@@ -2843,6 +2849,9 @@ importers:
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../plugin
+      '@conciv/plugin-page':
+        specifier: workspace:^
+        version: link:../plugin-page
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol

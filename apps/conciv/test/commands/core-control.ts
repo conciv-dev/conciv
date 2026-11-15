@@ -1,6 +1,7 @@
 import {existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
+import {fileURLToPath} from 'node:url'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
 import type {EngineStaleness} from '@conciv/contract'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
@@ -51,7 +52,7 @@ export type FaultSpec =
   | {kind: 'fail'; path: string[]; status?: number}
   | {kind: 'abort'; path?: string[]}
   | {kind: 'garble'; path: string[]; input?: unknown}
-  | {kind: 'gate'; path?: string[]}
+  | {kind: 'gate'; path?: string[]; input?: unknown}
   | {kind: 'chat-refused'; status?: number}
   | {kind: 'offline'}
   | {kind: 'detached-sockets'}
@@ -181,6 +182,11 @@ const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
     await kit.cleanup()
   }
 }
+
+const pagePluginPaths: BrowserCommand<[]> = (): {engine: string; rpc: string} => ({
+  engine: fileURLToPath(import.meta.resolve('@conciv/plugin-page')),
+  rpc: fileURLToPath(import.meta.resolve('@conciv/plugin-page/rpc')),
+})
 
 const writeProjectFile: BrowserCommand<[string, string]> = (ctx, path, content): void => {
   requireKit(ctx).writeProjectFile(path, content)
@@ -501,7 +507,7 @@ function brokenRpcCalls(
 
 async function createFault(ctx: BrowserCommandContext, handle: string, spec: FaultSpec): Promise<Fault> {
   const testkit = await importTestkit(ctx)
-  if (spec.kind === 'gate') return testkit.gateRpcCalls(ctx.page, pathOptions(spec.path))
+  if (spec.kind === 'gate') return testkit.gateRpcCalls(ctx.page, {...pathOptions(spec.path), input: spec.input})
   if (spec.kind === 'chat-gate') return gateChatTurns(ctx)
   if (spec.kind === 'cut-on-release') return cutOnRelease(ctx, spec.path)
   if (spec.kind === 'detached-sockets') return trackedFault(handle, spec.kind, await detachEngineSockets(ctx))
@@ -599,6 +605,7 @@ export const coreCommands = {
   hoverButton,
   bootCore,
   closeCore,
+  pagePluginPaths,
   writeProjectFile,
   pushSocketsOpened,
   pushSocketsLive,

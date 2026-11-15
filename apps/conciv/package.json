@@ -24,6 +24,7 @@
   "dependencies": {
     "@ark-ui/solid": "catalog:",
     "@conciv/ai": "workspace:^",
+    "@conciv/builtin-plugins": "workspace:*",
     "@conciv/client": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/core": "workspace:^",
@@ -67,6 +68,7 @@
     "@conciv/extension-page": "workspace:^",
     "@conciv/extension-whiteboard": "workspace:*",
     "@conciv/harness-testkit": "workspace:^",
+    "@conciv/plugin-page": "workspace:^",
     "@conciv/plugin-testkit": "workspace:^",
     "@conciv/storage-history": "workspace:^",
     "@conciv/tsconfig": "workspace:*",

@@ -24,7 +24,7 @@ const UNSUPPORTED: Outcome = {
     'This page does not support the requested page operation. Ask the user to reload the page so it runs the same conciv version as the engine, or use another operation.',
 }
 
-export function attachmentFailure(cause: unknown): AttachmentOutcome {
+function attachmentFailure(cause: unknown): AttachmentOutcome {
   const type = RpcFailure.safeParse(cause).data?.type
 
   if (type === 'rpc.unavailable') return 'unavailable'
