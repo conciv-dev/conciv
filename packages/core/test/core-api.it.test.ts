@@ -2,7 +2,6 @@ import {until} from '@conciv/harness-testkit/until'
 import {makeJournal, makePageBus} from '../src/page/page-bus.js'
 import {makePageQueues} from '../src/page/page-queue.js'
 import {
-  mkdtempSync,
   rmSync,
   mkdirSync,
   writeFileSync,
@@ -175,6 +174,7 @@ import {
   userTexts,
   type FakeWidget,
 } from './helpers.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 function groupAlive(group: number): boolean {
   try {
@@ -301,7 +301,7 @@ describe('api engine staleness di', () => {
   })
 
   async function serveWithProbe(staleness: () => EngineStaleness): Promise<ServedApp> {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-staleness-di-'))
+    const root = tempDir('conciv-staleness-di-')
     dirs.push(root)
     const {fetch, dispose, agentToken} = await makeApp({
       cfg: resolveConfig({}, root),
@@ -419,7 +419,7 @@ describe('api extension mount isolation', () => {
         errors.push(String(chunk))
         return true
       })
-      const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-mount-'))
+      const stateRoot = tempDir('conciv-mount-')
       state.stateRoot = stateRoot
 
       const broken = defineExtension({name: 'broken'}).server(() => {
@@ -441,7 +441,7 @@ describe('api extension mount isolation', () => {
     }, 30_000)
 
     it('still fails boot loudly on a duplicate extension name (config error is not swallowed)', async () => {
-      const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-mount-dup-'))
+      const stateRoot = tempDir('conciv-mount-dup-')
       state.stateRoot = stateRoot
       const first = defineExtension({name: 'dup'}).server(() => ({context: {}}))
       const second = defineExtension({name: 'dup'}).server(() => ({context: {}}))
@@ -567,7 +567,7 @@ describe('api installed harnesses', () => {
   })
 
   it('offers a harness for switching only when its binary is on PATH, not for a config directory alone', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-installed-harnesses-'))
+    const root = tempDir('conciv-installed-harnesses-')
     const bin = join(root, 'bin')
     const home = join(root, 'home')
     mkdirSync(bin)
@@ -749,7 +749,7 @@ describe('connect hub', () => {
 
 describe('api codex turns', () => {
   const saved = {PATH: process.env.PATH, HOME: process.env.HOME, CODEX_HOME: process.env.CODEX_HOME}
-  const root = mkdtempSync(join(tmpdir(), 'conciv-codex-turns-'))
+  const root = tempDir('conciv-codex-turns-')
   const bin = join(root, 'bin')
   const fakeCodex = [
     '#!/bin/sh',
@@ -851,7 +851,7 @@ describe('api claude turns', () => {
     CLAUDE_CODE_EFFORT_LEVEL: process.env.CLAUDE_CODE_EFFORT_LEVEL,
     MAX_THINKING_TOKENS: process.env.MAX_THINKING_TOKENS,
   }
-  const root = mkdtempSync(join(tmpdir(), 'conciv-claude-turns-'))
+  const root = tempDir('conciv-claude-turns-')
   const bin = join(root, 'bin')
   const fakeClaude = [
     '#!/bin/sh',
@@ -1450,9 +1450,9 @@ describe('api native page', () => {
 
   describe('token-scoped native page', () => {
     it('serves the native page under /t/<token> with a prefix-relative bundle and its widget chunks, and unprefixed as an open page', async () => {
-      const root = mkdtempSync(join(tmpdir(), 'conciv-native-token-'))
-      const nativeDir = mkdtempSync(join(tmpdir(), 'conciv-native-dist-'))
-      const endpointDir = mkdtempSync(join(tmpdir(), 'conciv-native-ep-'))
+      const root = tempDir('conciv-native-token-')
+      const nativeDir = tempDir('conciv-native-dist-')
+      const endpointDir = tempDir('conciv-native-ep-')
       writeFileSync(join(nativeDir, BUNDLE), 'globalThis.__conciv_native_loaded = true')
       mkdirSync(join(nativeDir, 'widget'))
       writeFileSync(join(nativeDir, 'widget', 'mount-impl-Ab_9.js'), 'export const chunk = 1')
@@ -1751,7 +1751,7 @@ describe('rpc registry catalog cosmetics', () => {
 })
 
 describe('rpc symbolicate', () => {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-symbolicate-')))
+  const root = realpathSync(tempDir('conciv-symbolicate-'))
 
   async function chunk(name: string, source: string, line: number, column: number): Promise<string> {
     const gen = new GenMapping()
@@ -2828,7 +2828,7 @@ describe('rpc wire', () => {
 
         beforeAll(async () => {
           searched.bootedAt = Date.now()
-          searched.cwd = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-search-cwd-')))
+          searched.cwd = realpathSync(tempDir('conciv-search-cwd-'))
           writeClaudeTurn(claudeId('claude-early'), 'an early note', 'the dunlin flew')
           searched.kit = await bootKit(
             {cwd: searched.cwd, harnesses: [codexHarness, piHarness]},
@@ -3197,7 +3197,7 @@ describe('rpc wire', () => {
         })
 
         it('previewing a session in a folder outside the index adds that folder, so a later search finds its sessions', async () => {
-          const folder = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-preview-unindexed-')))
+          const folder = realpathSync(tempDir('conciv-preview-unindexed-'))
           const transcriptIn = (nativeId: string, ask: string, answer: string) => {
             const id = HarnessSessionId.parse(nativeId)
             const entries = [
@@ -3236,7 +3236,7 @@ describe('rpc wire', () => {
           expect(window.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
           await foundOnceIndexed('ringed', ['pi-plover-neighbour'], true)
 
-          const elsewhere = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-preview-elsewhere-')))
+          const elsewhere = realpathSync(tempDir('conciv-preview-elsewhere-'))
           const turnstone = claudeId('claude-turnstone-away')
           writeWhole(
             requireTranscriptPath(requireClaude())(elsewhere, HarnessSessionId.parse(turnstone)),
@@ -3250,7 +3250,7 @@ describe('rpc wire', () => {
         })
 
         it('searches this project unless asked for every project, reading each session from its own folder', async () => {
-          const elsewhere = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-search-elsewhere-')))
+          const elsewhere = realpathSync(tempDir('conciv-search-elsewhere-'))
           const home = claudeId('claude-avocet-home')
           const away = claudeId('claude-avocet-away')
           writeClaudeTurn(home, 'an avocet at home', 'it waded the lagoon')
@@ -4330,8 +4330,6 @@ describe('token charset', () => {
     rmSync(root, {recursive: true, force: true})
   })
 })
-
-const tempDir = (prefix: string): string => mkdtempSync(join(tmpdir(), prefix))
 
 function bootAt(
   homeDir: string,
@@ -6663,11 +6661,11 @@ export default {
 }
 `
 
-  async function askerEngine() {
+  async function askerEngine(first: 'asks' | 'gone' = 'asks') {
     const root = tempDir('conciv-asker-')
     const plugin = join(root, 'conciv', 'plugins', 'asker.ts')
     mkdirSync(dirname(plugin), {recursive: true})
-    writeFileSync(plugin, asker('first', 'asks'))
+    writeFileSync(plugin, asker('first', first))
     const harness = createFakeHarness()
     const engine = await bootAt(tempDir('conciv-asker-home-'), root, 'session', harness)
     onTestFinished(async () => {
@@ -6697,14 +6695,22 @@ export default {
       harness.script.scriptToolCall('execute_typescript', {typescriptCode: 'return await external_asker_run({})'})
       return sseTurn(base, sessionId, runId, 'run the asker', new AbortController().signal).then(sseStream)
     }
+    const twoSteps = (runId: string, secondStep: string) => {
+      runs.push(runId)
+      harness.script.scriptToolCall('execute_typescript', {typescriptCode: "return ['the first', 'step'].join(' ')"})
+      harness.script.scriptToolCall('execute_typescript', {typescriptCode: secondStep})
+      return sseTurn(base, sessionId, runId, 'run the asker', new AbortController().signal).then(sseStream)
+    }
     onTestFinished(async () => {
       await makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}}).chat.stop({sessionId, runIds: runs})
     })
     const askedOrEnded = (ended: Promise<string>) =>
       Promise.race([next('permission.asked'), ended.then((text) => ({endedWithoutAsking: text}))])
     const asking = {sessionId, action: 'asker_run', resources: ['now']}
-    return {root, plugin, harness, turn, loading, askedOrEnded, asking}
+    return {root, plugin, harness, turn, twoSteps, loading, askedOrEnded, asking}
   }
+
+  const offeredCheck = "return ['asker is', typeof external_asker_run].join(' ')"
 
   it('a turn sent at once after the plugin is rewritten asks before the tool runs', async () => {
     const engine = await askerEngine()
@@ -6717,7 +6723,7 @@ export default {
     const engine = await askerEngine()
     engine.harness.script.holdTools()
     const turn = await engine.turn('reloading-run')
-    expect(await turn.reach('RUN_STARTED')).toBe('RUN_STARTED')
+    expect(await turn.reach('fake.session-id')).toBe('fake.session-id')
     writeFileSync(engine.plugin, asker('second', 'gated'))
     await engine.loading('second')
     engine.harness.script.releaseTools()
@@ -6730,13 +6736,39 @@ export default {
     const engine = await askerEngine()
     engine.harness.script.holdTools()
     const turn = await engine.turn('dropped-run')
-    expect(await turn.reach('RUN_STARTED')).toBe('RUN_STARTED')
+    expect(await turn.reach('fake.session-id')).toBe('fake.session-id')
     writeFileSync(engine.plugin, asker('second', 'gone'))
     await engine.loading('second')
     engine.harness.script.releaseTools()
     const text = await turn.ended()
     expect(text).toMatch(/No tool named \W+asker_run\W+ is currently available/)
     expect(text).not.toContain('asker ran')
+  })
+
+  it('a tool a reload adds mid-turn is offered at the next model step of the same turn', async () => {
+    const engine = await askerEngine('gone')
+    engine.harness.script.holdTools()
+    const turn = await engine.twoSteps('added-run', offeredCheck)
+    expect(await turn.reach('fake.session-id')).toBe('fake.session-id')
+    writeFileSync(engine.plugin, asker('second', 'asks'))
+    await engine.loading('second')
+    engine.harness.script.releaseTools()
+    const text = await turn.ended()
+    expect(text).toContain('the first step')
+    expect(text).toContain('asker is function')
+  })
+
+  it('a tool a reload removes mid-turn is no longer offered at the next model step of the same turn', async () => {
+    const engine = await askerEngine()
+    engine.harness.script.holdTools()
+    const turn = await engine.twoSteps('removed-run', offeredCheck)
+    expect(await turn.reach('fake.session-id')).toBe('fake.session-id')
+    writeFileSync(engine.plugin, asker('second', 'gone'))
+    await engine.loading('second')
+    engine.harness.script.releaseTools()
+    const text = await turn.ended()
+    expect(text).toContain('the first step')
+    expect(text).toContain('asker is undefined')
   })
 })
 

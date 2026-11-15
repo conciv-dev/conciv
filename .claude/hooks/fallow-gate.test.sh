@@ -20,6 +20,7 @@ if [ "${1:-}" = "--version" ]; then
   exit 0
 fi
 pwd -P >>"$FALLOW_STUB_LOG"
+printf '%s\n' "${FALLOW_AUDIT_BASE-<unset>}" >"$FALLOW_STUB_LOG.base"
 echo "{\"verdict\":\"$FALLOW_STUB_VERDICT\"}"
 [ "$FALLOW_STUB_VERDICT" = pass ]
 STUB
@@ -99,6 +100,31 @@ run_case "empty command" "" ""
 # --- documented behaviour of the generated script: a regeneration that changes these is noticed ---
 run_case "accepted false positive: quoted echo of git commit is audited" "echo \"git commit\"" "$REPO"
 run_case "KNOWN GAP of the generated script, not wanted: git by full path is not audited" "/usr/bin/git commit -m x" ""
+
+# --- the comparison base pinned in .claude/settings.json env reaches fallow ---
+base_case() {
+  local name="$1"
+  local expected="$2"
+  shift 2
+  rm -f "$AUDIT_LOG" "$AUDIT_LOG.base"
+  local payload
+  payload="$(jq -n --arg cwd "$REPO" '{tool_input: {command: "git commit -m x"}, cwd: $cwd}')"
+  (cd / && printf '%s' "$payload" | env -u FALLOW_AUDIT_BASE "$@" PATH="$WORK/bin:$PATH" FALLOW_STUB_LOG="$AUDIT_LOG" FALLOW_STUB_VERDICT=pass bash "$HOOK" >/dev/null 2>&1)
+  local actual=""
+  if [ -f "$AUDIT_LOG.base" ]; then
+    actual="$(cat "$AUDIT_LOG.base")"
+  fi
+  if [ "$actual" = "$expected" ]; then
+    PASS=$((PASS + 1))
+    echo "PASS: $name"
+  else
+    FAIL=$((FAIL + 1))
+    echo "FAIL: $name"
+    echo "  expected FALLOW_AUDIT_BASE [$expected], fallow saw [$actual]"
+  fi
+}
+base_case "FALLOW_AUDIT_BASE set is handed to fallow" "origin/main" FALLOW_AUDIT_BASE=origin/main
+base_case "FALLOW_AUDIT_BASE unset stays unset for fallow" "<unset>"
 
 echo
 echo "Results: $PASS passed, $FAIL failed"

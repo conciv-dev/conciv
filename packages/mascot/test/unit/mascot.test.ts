@@ -1,10 +1,10 @@
 import {execFileSync} from 'node:child_process'
-import {mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync, readdirSync, readFileSync} from 'node:fs'
+import {mkdirSync, rmSync, symlinkSync, writeFileSync, readdirSync, readFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
-import {tmpdir} from 'node:os'
 import {dirname, join, resolve, matchesGlob, relative, sep} from 'node:path'
 import {afterAll, describe, expect, test} from 'vitest'
 import {packTarball} from '@conciv/vitest-config/pack'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {EFFECT_MOUNTS} from '../effect-catalog.js'
 
 describe('packed install', {tags: ['packed']}, () => {
@@ -12,7 +12,7 @@ describe('packed install', {tags: ['packed']}, () => {
   const consumerRoots: string[] = []
 
   function makeConsumerRoot(): string {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-mascot-packed-'))
+    const root = tempDir('conciv-mascot-packed-')
     consumerRoots.push(root)
     return root
   }

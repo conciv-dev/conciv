@@ -1,7 +1,7 @@
 import {spawnSync} from 'node:child_process'
 import {join} from 'node:path'
 import {expect, test} from '@playwright/test'
-import {harnessHome} from '@conciv/e2e-utils/config'
+import {e2eConfigDir, harnessHome} from '@conciv/e2e-utils/config'
 import {collectFailures, expectWidgetBoots, loginWidget, trustedEngineBase} from '@conciv/e2e-utils/widget'
 import type {HarnessApp} from '@conciv/e2e-utils/ports'
 
@@ -112,7 +112,7 @@ test('connect hub registers conciv-hub in the harness CLI config', async ({page}
   }
   expect(await connected.json()).toEqual({json: {ok: true}})
 
-  const home = harnessHome(projectName)
+  const home = harnessHome(e2eConfigDir(testInfo.config.configFile), projectName)
   const env = {...process.env, HOME: home, CODEX_HOME: join(home, '.codex')}
   const run = spawnSync(bin, args, {env, encoding: 'utf8', timeout: 60_000})
   expect(run.status).toBe(0)
