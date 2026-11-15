@@ -62,6 +62,13 @@ The same actions called from your terminal with `conciv plugin call` do not ask:
 
 ## The card
 
+<ImageZoom
+  src="/screenshots/approvals-permission.png"
+  alt="A Permission card in the chat asking to approve Bash: rm -rf dist, with Approve, Allow for session and Deny"
+  width={1920}
+  height={1080}
+/>
+
 <TypeTable
   type={{
     Approve: {required: true, type: '⌘ Enter or Ctrl Enter', description: 'Runs it this once.'},
@@ -117,3 +124,10 @@ export default defineConfig({
 The call waits up to 50 seconds for your answer. If you deny it, the session menu shows **Allow outside agents** to
 let it in later. An outside agent can never answer a permission card, and never connect or disconnect agents: you do
 that in the tab.
+
+<ImageZoom
+  src="/screenshots/approvals-outside-agent.png"
+  alt="With hubAccess set to session, a Permission card in the tab asks: Allow codex to use this tab, with Approve and Deny"
+  width={1920}
+  height={1080}
+/>
