@@ -17,11 +17,11 @@ const FALLBACK_ICON: IconName = 'message-square'
 const SENT_NOTE_BOUND = 5
 
 const CARD =
-  'flex flex-col justify-center gap-0.5 h-14 px-2.5 rounded-[var(--chat-radius-md)] [border:1px_solid_var(--chat-line)] [background:var(--chat-fill)]'
+  'flex flex-col justify-center gap-0.5 h-14 px-2.5 rounded-chat-surface-sm border border-chat-line bg-chat-fill'
 const STAGED_CARD = `${CARD} min-w-24 max-w-56`
 const SENT_CARD = `${CARD} w-full`
-const HEADING = 'block truncate text-[length:var(--chat-text-sm)] [color:var(--chat-text-hi)]'
-const META = 'flex items-center gap-1 min-w-0 text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)]'
+const HEADING = 'block truncate text-chat-sm text-chat-text-hi'
+const META = 'flex items-center gap-1 min-w-0 text-chat-xs text-chat-text-3'
 
 function isIconName(name: string): name is IconName {
   return Object.hasOwn(icons, name)
