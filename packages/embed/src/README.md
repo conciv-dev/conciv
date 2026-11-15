@@ -19,7 +19,7 @@ Mounts the conciv widget into a shadow root on the host page and starts the page
 - `mount.ts:createConciv.mount` - does nothing without a `document` or when the state is not `unmounted`; a failed mount resets to `unmounted` and rethrows.
 - `mount.ts:createConciv.rebind` - does nothing unless the state is `mounted`.
 - `mount.ts:mountConciv` - does nothing inside a `data-conciv-capture` frame or when a `[data-conciv-script-root]` already exists; removes its element if the mount fails.
-- `navigation-storage.ts:makeNavigationStorage` - the server value is not restored after a local write or after `dispose`; the server value is read only once the engine trusts the page, and a write while untrusted is dropped; the stored view is restored only on the first trust answer, so a page whose engine was unreachable at mount and is trusted later (when its socket opens) lands on the default view; writes are debounced by 300 ms (`WRITE_DELAY_MS`) and stamped with a strictly increasing `updatedAt`; the mount flushes the pending write (`Debouncer.flush`) when the document turns hidden, so the frame is handed to the open rpc socket before the page unloads and a reload or tab close right after a navigation still persists it; a failed write is reported with `console.warn`.
+- `navigation-storage.ts:makeNavigationStorage` - the server value is not restored after a local write or after `dispose`; the server value is read only once the engine trusts the page, and a write while untrusted is dropped; the stored view is restored only on the first trust answer, so a page whose engine was unreachable at mount and is trusted later (when its socket opens) lands on the default view; every navigation is sent at once, not debounced, and stamped with a strictly increasing `updatedAt`, so the engine keeps the newest; nothing is held back while the page can unload, because Firefox closes the rpc socket between `beforeunload` and `pagehide`, before `visibilitychange` fires, so a write held for a flush on hide never leaves and a reload right after a navigation restored the one before it; a failed write is reported with `console.warn`.
 - `native-entry.ts:readLauncher` - the launcher is `mascot` only when the `launcher` query parameter says so, otherwise `native`.
 
 ## Side Effects
@@ -30,7 +30,7 @@ Mounts the conciv widget into a shadow root on the host page and starts the page
 - `mount-impl.tsx:makeDisconnect` - `POST <apiBase>/api/shutdown`, then reloads the page after 150 ms.
 - `mount-impl.tsx:metaContent` - reads the `conciv-widget` meta tag when no `settings` are passed.
 - `mount.ts:panelCommands` - opens an event-bus client (`PANEL_PLUGIN_ID`, reconnect every 500 ms, 60 retries) for `open`/`close`/`toggle`.
-- `navigation-storage.ts:makeNavigationStorage` - calls `rpc.navigation.get` once and `rpc.navigation.set` on debounced writes.
+- `navigation-storage.ts:makeNavigationStorage` - calls `rpc.navigation.get` once and `rpc.navigation.set` on every navigation.
 
 ## Verification
 
