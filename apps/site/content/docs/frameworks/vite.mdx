@@ -1,12 +1,14 @@
 ---
 title: Vite
-description: Add conciv to a Vite app, or to a framework built on Vite such as Astro.
+description: Add conciv to a Vite app, or to a framework built on Vite such as Astro or SvelteKit.
 ---
 
-Add conciv to your Vite config. In `vite dev` it starts the engine, adds the widget to every page the dev server
-serves, and gives the agent your dev server's module graph. `vite build` leaves it out.
+In `vite dev`, conciv starts the engine, adds the widget to every HTML page the dev server serves, and gives the agent
+your dev server's module graph. `vite build` leaves it out.
 
-<Tabs items={['init', 'By hand']}>
+## Install
+
+<Tabs items={['init', 'pnpm', 'npm', 'yarn']}>
 
 <Tab value="init">
 
@@ -19,15 +21,6 @@ your config. If it cannot read the shape of your config, it prints the snippet t
 [Install](/docs/get-started/install) for what it asks.
 
 </Tab>
-
-<Tab value="By hand">
-
-<Steps>
-<Step>
-
-### Install
-
-<Tabs items={['pnpm', 'npm', 'yarn']}>
 
 <Tab value="pnpm">
 
@@ -55,10 +48,7 @@ yarn add -D @conciv/it
 
 </Tabs>
 
-</Step>
-<Step>
-
-### Add conciv to your config
+## Add it
 
 <Tabs items={['vite.config.ts', 'astro.config.mjs']}>
 
@@ -92,36 +82,56 @@ export default defineConfig({
 
 </Tabs>
 
-</Step>
-</Steps>
-
-</Tab>
-
-</Tabs>
-
-<Steps>
-<Step>
-
-### Start your dev server
+## Run it
 
 ```bash
 pnpm dev
 ```
 
-</Step>
-<Step>
+Open your app. The conciv button sits in the corner. The first time, it asks for the 6-digit code your dev server
+prints in its terminal: see [Your first five minutes](/docs/get-started/first-five-minutes).
 
-### Open your app and log in
+<ImageZoom
+  src="/screenshots/widget-fab.png"
+  alt="The conciv robot button in the corner of a running app"
+  width={1920}
+  height={1080}
+/>
 
-Click the conciv button. The first time, it asks for the 6-digit code your dev server just printed in its terminal.
-See [Logging in](/docs/what-you-get/logging-in).
+With Vite DevTools in your plugins, conciv opens in the DevTools dock instead of the corner, and logs in with no code.
+See [Logging in](/docs/what-you-get/logging-in#vite-devtools).
 
-</Step>
-</Steps>
+## Options
 
-<Callout>
-  With Vite DevTools in your plugins, conciv opens in the DevTools dock instead of the corner, and logs in with no code.
-  See [Logging in](/docs/what-you-get/logging-in#vite-devtools).
-</Callout>
+Pass options to `conciv()`. These change how the Vite integration behaves; every other option is on
+[Configuration](/docs/reference/configuration).
 
-Next: [Your first five minutes](/docs/get-started/first-five-minutes) to try it, and [Configuration](/docs/reference/configuration) for the options.
+<TypeTable
+  type={{
+    enabled: {
+      type: 'boolean',
+      default: 'true',
+      description: 'false starts no engine and adds no widget.',
+    },
+    port: {
+      type: 'number',
+      default: 'the last port, or a free one',
+      description:
+        'The engine port. If it is in use, the engine takes a free port and prints a warning; the widget follows it.',
+    },
+    widget: {
+      type: '{modal?, quickTerminal?} | false',
+      default: 'both layouts on',
+      description: 'false adds no widget to the page; the engine still starts.',
+    },
+  }}
+/>
+
+## If it does not show up
+
+- **You ran `vite build` or `vite preview`.** conciv is part of `vite dev` only.
+- **`enabled: false` or `widget: false` is set.** Remove it.
+- **Vite DevTools is in your plugins.** conciv is in the DevTools dock, not the corner.
+- **The button shows Unauthorized.** Log in with the code from your terminal. See
+  [Troubleshooting](/docs/reference/troubleshooting#in-the-panel).
+- **The terminal says the port is in use.** See [Troubleshooting](/docs/reference/troubleshooting#in-the-terminal).
