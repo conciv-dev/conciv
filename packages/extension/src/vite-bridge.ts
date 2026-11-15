@@ -1,5 +1,7 @@
 import type {IncomingMessage, ServerResponse} from 'node:http'
-import type {ErrorPayload, ViteDevServer} from 'vite'
+import {join, resolve} from 'node:path'
+import {ORPCError} from '@orpc/server'
+import type {ErrorPayload, ModuleNode, ViteDevServer} from 'vite'
 import {defineBundlerBridge, type BundlerBridge, type BundlerDiagnostic} from '@conciv/protocol/bundler-types'
 
 export function makeViteBridge(server: ViteDevServer): BundlerBridge {
@@ -11,8 +13,7 @@ export function makeViteBridge(server: ViteDevServer): BundlerBridge {
     transform: (url) => viteTransform(server, url),
     urls: () => viteUrls(server),
     reload: async (file) => {
-      const mods = server.moduleGraph.getModulesByFile(file)
-      if (mods && server.reloadModule) for (const m of mods) await server.reloadModule(m)
+      for (const node of findModules(server, file)) await server.reloadModule(node)
     },
     restart: async (force) => {
       await server.restart?.(force)
@@ -36,10 +37,17 @@ async function viteResolve(server: ViteDevServer, spec: string, importer?: strin
   return {id: r?.id ?? null}
 }
 
+function findModules(server: ViteDevServer, file: string): ModuleNode[] {
+  const root = server.config.root
+  const nodes = [resolve(root, file), join(root, file)]
+    .map((path) => [...(server.moduleGraph.getModulesByFile(path) ?? [])])
+    .find((found) => found.length > 0)
+  if (!nodes) throw new ORPCError('NOT_FOUND', {message: `no module for ${file} in the dev server's module graph`})
+  return nodes
+}
+
 function viteGraph(server: ViteDevServer, file: string) {
-  const mods = server.moduleGraph.getModulesByFile(file)
-  if (!mods) return []
-  return [...mods].map((m) => ({
+  return findModules(server, file).map((m) => ({
     url: m.url,
     importers: [...m.importers].map((i) => i.url),
     importedModules: [...m.importedModules].map((i) => i.url),
