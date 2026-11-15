@@ -5013,15 +5013,18 @@ export default {
     const base = await boot()
     const sessionId = await newSession(base)
     const hubRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB}})
-    const asked = hubRpc.page.changes(undefined).then(String, String)
+    const journal = (method: string) => ({rpcId: 'experimental.page', method, input: {sessionId}})
+    const asked = hubRpc.chat.hydrate({sessionId}).then(String, String)
     await decideOutside(base, sessionId, false)
     expect(await asked).toContain(DENIED)
-    expect(await hubRpc.page.clearChanges(undefined).then(String, String)).toContain(DENIED)
+    const refusedRoute = "outside agents can't use plugin routes"
+    expect(await hubRpc.plugin.call(journal('changes')).then(String, String)).toContain(refusedRoute)
+    expect(await hubRpc.plugin.call(journal('clearChanges')).then(String, String)).toContain(refusedRoute)
     expect(await hubRpc.chat.allowOutside({sessionId}).then(String, String)).toContain("outside agents can't answer")
     expect(await hubRpc.chat.hydrate({sessionId}).then(String, String)).toContain(DENIED)
     const own = createSessionRpc(base, sessionId)
     expect(await own.chat.outsideAccess({sessionId})).toEqual({denied: true})
-    expect(await own.page.changes(undefined)).toEqual([])
+    expect(await own.plugin.call(journal('changes'))).toEqual([])
   })
 
   it('a hub-origin extension procedure naming a session passes its consent: after a deny the extension is never reached', async () => {
