@@ -2537,7 +2537,7 @@ function sessionKey(made: MadeApp) {
 }
 
 describe('plugin host bus', () => {
-  test('deleting a session delivers one session.deleted event to a bus subscriber, and a plugin host failure leaves the session in place', async () => {
+  test('deleting a session delivers one session.deleted event to a bus subscriber and keeps none of its events, and a plugin host failure leaves the session in place', async () => {
     const served = await serveCore(tempDir(), [], {})
     try {
       const rpc = makeRpcClient(`${served.origin}/t/${served.made.agentToken}`)
@@ -2551,6 +2551,15 @@ describe('plugin host bus', () => {
       expect(heard.filter((event) => event.type === SessionEvent.Deleted.type)).toEqual([
         expect.objectContaining({data: {sessionID: sessionId}}),
       ])
+      expect(
+        db.all(
+          sql`SELECT aggregate_id FROM event WHERE aggregate_id = ${sessionId} UNION ALL SELECT aggregate_id FROM event_sequence WHERE aggregate_id = ${sessionId}`,
+        ),
+      ).toEqual([])
+      await rpc.sessions.restore({sessionId})
+      expect(
+        db.select({deletedAt: sessionTable.deletedAt}).from(sessionTable).where(eq(sessionTable.id, sessionId)).all(),
+      ).toEqual([{deletedAt: null}])
 
       const kept = await rpc.sessions.create(undefined)
       db.run(sql`DROP TABLE kv`)
