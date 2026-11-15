@@ -307,7 +307,10 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       call: os.plugin.call.handler(async ({input, errors, signal}) => {
         const outcome = await pluginCall(deps.pluginHost, input, signal)
         if (Result.isSuccess(outcome)) return outcome.success
-        throw errors.PLUGIN_RPC({message: outcome.failure.message, data: outcome.failure})
+        const {type, message} = outcome.failure
+        if (type === 'rpc.internal' || type === 'rpc.invalid_output')
+          throw errors.PLUGIN_RPC_INTERNAL({message, data: {type, message}})
+        throw errors.PLUGIN_RPC({message, data: outcome.failure})
       }),
       list: os.plugin.list.handler(({signal}) => pluginList(deps.pluginHost, signal)),
       experimental: os.plugin.experimental.handler(async ({input, errors, signal}) => {
