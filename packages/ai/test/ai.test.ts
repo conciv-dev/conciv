@@ -860,7 +860,7 @@ const watched = require('node:net').connect(data.socket, () => {
         }),
         (message) => logged.push(message),
       )
-      const onQuickJS = logged.some((message) => message.includes('@tanstack/ai-isolate-node'))
+      expect(logged.filter((message) => message.includes('code mode'))).toEqual([])
       const echo = defineTool({
         name: 'echo',
         description: 'Echoes its input.',
@@ -870,7 +870,7 @@ const watched = require('node:net').connect(data.socket, () => {
       const runner = server.codeRunner([echo])
       if (runner === null) throw new Error('code mode found no driver')
       const booted = ours()
-      expect(booted).toHaveLength(onQuickJS ? 1 : 0)
+      expect(booted).toHaveLength(1)
       for (const _ of Array.from({length: 20})) {
         expect(await runner.run('return 1', () => undefined)).toMatchObject({success: true, result: 1})
         expect(ours()).toEqual(booted)

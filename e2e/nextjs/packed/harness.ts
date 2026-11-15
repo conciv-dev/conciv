@@ -168,7 +168,7 @@ export async function setupFixture(): Promise<Fixture> {
   await installPacked({
     root,
     packages: ['packages/*'],
-    allowBuilds: {'isolated-vm': false, sharp: false, protobufjs: false},
+    allowBuilds: {sharp: false, protobufjs: false},
     overrides,
     lockPath: FIXTURE_LOCK_PATH,
   })
