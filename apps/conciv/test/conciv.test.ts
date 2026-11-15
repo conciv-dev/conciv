@@ -10,6 +10,7 @@ import {resolveGrabSource} from '../src/pane/grab-source-resolve.js'
 import {QuickSearchSchema, quickPaneIds, quickSearchFor} from '../src/lib/quick-search.js'
 import {WS_RPC_PAYLOAD_BUDGET_BYTES} from '@conciv/protocol/rpc-types'
 import {checkSend, MAX_CONTENT_PARTS} from '../src/pane/send-checks.js'
+import {reconcileDraft} from '../src/pane/draft-reconcile.js'
 import {parseConcivSettings} from '../src/data/settings.js'
 import {
   clamp,
@@ -478,5 +479,51 @@ describe('launcher drag physics', () => {
       expect(presetPlacement('middle-right')).toEqual({kind: 'free', x: 100, y: 50})
       expect(presetPlacement('top-right')).toEqual({kind: 'corner', corner: 'top-right'})
     })
+  })
+})
+
+describe('draft reconcile', () => {
+  const sameText = (local: {text: string}, row: {text: string}) => local.text === row.text
+
+  test.each([
+    {
+      row: 'the engine row is the one this browser last synced, and the local copy is the same',
+      local: {text: 'kept', syncedAt: 5},
+      engine: {text: 'kept', updatedAt: 5},
+      outcome: {kind: 'local', saveToEngine: false},
+    },
+    {
+      row: 'the engine row is the one this browser last synced, and the local copy changed since',
+      local: {text: 'typed offline', syncedAt: 5},
+      engine: {text: 'kept', updatedAt: 5},
+      outcome: {kind: 'local', saveToEngine: true},
+    },
+    {
+      row: 'the engine row changed elsewhere',
+      local: {text: 'stale here', syncedAt: 5},
+      engine: {text: 'from the pop-out', updatedAt: 9},
+      outcome: {kind: 'engine'},
+    },
+    {
+      row: 'a local copy that never synced, and no engine row',
+      local: {text: 'engine was down', syncedAt: undefined},
+      engine: null,
+      outcome: {kind: 'local', saveToEngine: true},
+    },
+    {
+      row: 'an engine row and no local copy',
+      local: null,
+      engine: {text: 'from another origin', updatedAt: 9},
+      outcome: {kind: 'engine'},
+    },
+    {
+      row: 'a synced local copy whose engine row is gone, after a send or a delete',
+      local: {text: 'already sent', syncedAt: 5},
+      engine: null,
+      outcome: {kind: 'cleared'},
+    },
+    {row: 'neither copy', local: null, engine: null, outcome: {kind: 'empty'}},
+  ])('$row', ({local, engine, outcome}) => {
+    expect(reconcileDraft(local, engine, sameText)).toEqual(outcome)
   })
 })
