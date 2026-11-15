@@ -1517,11 +1517,24 @@ describe('cli', () => {
         if (engine === undefined) throw new Error('the engine with a tab did not start')
         const data = JSON.stringify({sessionId: engine.sessionId, action})
         const calling = pluginCall(engine.root, held.home, ['experimental.page', 'run', '--data', data])
-        if (action.type === 'queue') await answerPlayed((await nextQueue()).id)
-        if (action.type === 'queue_async') expect(await nextQueue()).toMatchObject({of: 1})
+        const queued = action.type === 'queue' || action.type === 'queue_async' ? await nextQueue() : undefined
+        if (action.type === 'queue' && queued !== undefined) await answerPlayed(queued.id)
+        if (action.type === 'queue_async') expect(queued).toMatchObject({of: 1})
         const answered = await calling
         expect(answered).toMatchObject({code: 0, document: {ok: true}})
-        if (action.type === 'queue' || action.type === 'queue_async') return
+        if (action.type === 'queue')
+          return expect(answered.document).toEqual({
+            ok: true,
+            data: {
+              queueId: queued?.id,
+              status: 'finished',
+              played: 1,
+              failed: 0,
+              outcomes: [{index: 0, tool: 'page_click', ok: true, result: ok}],
+            },
+          })
+        if (action.type === 'queue_async')
+          return expect(answered.document).toEqual({ok: true, data: {queueId: queued?.id, actions: 1}})
         expect(seen.get(action.type)).toEqual(action)
         if (action.type !== 'screenshot') return expect(answered.document).toEqual({ok: true, data: value})
         expect(answered.document).toMatchObject({
