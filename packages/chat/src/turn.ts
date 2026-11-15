@@ -67,7 +67,7 @@ export type TurnDeps = {
   toolNames: ReadonlySet<string>
   capabilities: (sessionId: SessionId) => CodeCapability[]
   attachmentExpanders: AttachmentExpanders
-  prompt: (event: SessionPrompt) => Promise<SessionPrompt>
+  prompt: (event: SessionPrompt, signal: AbortSignal) => Promise<SessionPrompt>
   promptHooked: () => Promise<boolean>
   pluginInstructions: (
     sessionId: SessionId,
@@ -308,11 +308,11 @@ export function turnHooks(
           instructions.resolve(deps.pluginInstructions(sessionId, reset, toolSet.inventory))
           return approvals
         },
-        prompt: async (message) => {
+        prompt: async (message, signal) => {
           if (turn.kind !== 'chat' || message.id === undefined) return message
           if (!(await deps.promptHooked())) return message
           const event = promptEvent(sessionId, message.id, message)
-          const prompted = await deps.prompt(structuredClone(event))
+          const prompted = await deps.prompt(structuredClone(event), signal)
           if (isEqual(prompted, event)) return message
           return promptedMessage(message, prompted)
         },

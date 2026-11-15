@@ -2926,6 +2926,47 @@ describe('session prompt hook', () => {
     expect(made.plane.driving(SessionId.parse(session))).toBe(false)
   })
 
+  test('a stop interrupts the prompt hook in flight, and the hook never resumes', async () => {
+    const entered = Promise.withResolvers<void>()
+    const held = Promise.withResolvers<void>()
+    const hookEnded = Promise.withResolvers<void>()
+    const hookTrail: string[] = []
+    const trail = (step: string) =>
+      Effect.sync(() => {
+        hookTrail.push(step)
+        hookEnded.resolve()
+      })
+    const {kit, made, asked} = await promptKit([])
+    await made.pluginHost.runPromise(
+      PluginHooks.Service.use((hooks) =>
+        hooks.register('session', 'prompt', () =>
+          Effect.sync(() => entered.resolve()).pipe(
+            Effect.andThen(Effect.promise(() => held.promise)),
+            Effect.andThen(trail('prompt hook resumed')),
+            Effect.onInterrupt(() => trail('prompt hook interrupted')),
+          ),
+        ),
+      ).pipe(Scope.provide(made.pluginHost.runSync(Scope.make()))),
+    )
+    const session = await kit.session()
+    const runId = randomUUID()
+
+    const turn = await kit.turn('Never admitted', {session, runId})
+    await entered.promise
+    await kit.rpc.chat.stop({sessionId: session, runIds: [runId]})
+    const ended = await turn.done()
+    held.resolve()
+    await hookEnded.promise
+
+    expect(hookTrail).toEqual(['prompt hook interrupted'])
+    expect(ended.errors()).toHaveLength(1)
+    expect(asked).toEqual([])
+    const stored = await kit.hydrate(session)
+    expect(stored.messages).toEqual([])
+    expect(stored.lastRun).toBeNull()
+    expect(made.plane.driving(SessionId.parse(session))).toBe(false)
+  })
+
   test('runs prompt hooks from a cold Location before admitting a prompt', async () => {
     const entered = Promise.withResolvers<void>()
     const ready = Promise.withResolvers<void>()

@@ -68,7 +68,7 @@ export type TurnPlan = {
   asking: readonly ChatTool[]
   direct: readonly ChatTool[]
   setup: () => Promise<Approvals>
-  prompt: (message: ModelMessage) => Promise<ModelMessage>
+  prompt: (message: ModelMessage, signal: AbortSignal) => Promise<ModelMessage>
   expand: (messages: ModelMessage[]) => Promise<ModelMessage[]>
   providerMessages: (messages: ModelMessage[]) => Promise<ModelMessage[]>
   chunk: (chunk: ChatEvent) => Promise<ChatEvent[]>
@@ -530,7 +530,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     if (stored !== null) return messages.with(index, stored)
     const [converted] = convertMessagesToModelMessages([lastUser])
     if (converted === undefined) return messages
-    const prompted = await untilAborted(plan.prompt(converted), signal)
+    const prompted = await untilAborted(plan.prompt(converted, signal), signal)
     if (prompted === converted) return messages
     return messages.with(index, prompted)
   }
