@@ -643,6 +643,7 @@ describe('native page vite boot', () => {
       )
       state.browser = await chromium.launch({headless: true})
       state.page = await state.browser.newPage()
+      await rpcSocketFor(state.page).installed
       state.page.on('console', (message) => {
         if (message.type() === 'error') state.errors.push(message.text())
       })
@@ -659,6 +660,14 @@ describe('native page vite boot', () => {
       const url = started?.server.resolvedUrls?.local[0]
       if (started === undefined || url === undefined) throw new Error('dev server did not start')
       return magicLinkUrl(started, url)
+    }
+
+    const openChat = async (page: Page): Promise<void> => {
+      await rpcSocketFor(page).installed
+      await page.goto(await trustedUrl(), {waitUntil: 'domcontentloaded'})
+      await page.getByRole('button', {name: /conciv chat$/}).click()
+      await page.getByRole('dialog', {name: 'conciv chat agent'}).waitFor({timeout: 15_000})
+      await page.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 15_000})
     }
 
     it('mounts the widget without a CommonJS interop error', async () => {
@@ -685,13 +694,22 @@ describe('native page vite boot', () => {
     it('opens the panel with the composer, so the embed shares the host Solid and extension singletons', async () => {
       const page = state.page
       if (page === undefined) throw new Error('dev server did not start')
-      await page.getByRole('button', {name: /conciv chat$/}).click()
-      await page.getByRole('dialog', {name: 'conciv chat agent'}).waitFor({timeout: 15_000})
-      await page.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 15_000})
+      await openChat(page)
       expect(state.errors).toEqual([])
+      const saves = rpcObserverFor(page)
+      const beforeMinimize = saves.mark()
+      await page.getByRole('textbox', {name: 'Message the conciv agent'}).press('Escape')
+      await saves.completed({path: NAVIGATION_SET_PATH, input: /^(?!.*open=true)/, since: beforeMinimize})
     }, 30_000)
 
     it('restores the open chat, keeps it usable and names the content blocker when every rrweb module is blocked', async () => {
+      const opener = await state.browser?.newPage()
+      if (opener === undefined) throw new Error('dev server did not start')
+      const saves = rpcObserverFor(opener)
+      const beforeOpen = saves.mark()
+      await openChat(opener)
+      await saves.completed({path: NAVIGATION_SET_PATH, input: /open=true/, since: beforeOpen})
+      await opener.close()
       const url = await trustedUrl()
       const blockedPage = await state.browser?.newPage()
       if (blockedPage === undefined) throw new Error('dev server did not start')
