@@ -1,9 +1,9 @@
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {execFileSync} from 'node:child_process'
-import {cp, mkdtemp, realpath, writeFile} from 'node:fs/promises'
+import {cp, realpath, writeFile} from 'node:fs/promises'
 import {
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -14,7 +14,6 @@ import {
 } from 'node:fs'
 import {createServer as createHttpServer, type Server, type ServerResponse} from 'node:http'
 import {createServer as createNetServer} from 'node:net'
-import {tmpdir} from 'node:os'
 import {dirname, isAbsolute, join, relative} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it} from 'vitest'
@@ -55,7 +54,7 @@ const NAVIGATION_SET_PATH = ['navigation', 'set']
 describe('bin shim', () => {
   describe('installConcivBinShim', () => {
     it('symlinks the agent-facing conciv shim to the cli package bin', () => {
-      const stateDir = mkdtempSync(join(tmpdir(), 'conciv-bin-shim-'))
+      const stateDir = tempDir('conciv-bin-shim-')
       const agentPath = installConcivBinShim(stateDir)
       expect(agentPath.startsWith(join(stateDir, 'bin'))).toBe(true)
       const target = realpathSync(join(stateDir, 'bin', 'conciv'))
@@ -87,7 +86,7 @@ describe('bundler diagnostics', () => {
     })
 
     it('captures a real transform error and a real HMR file change through server.bundler.subscribe', async () => {
-      const root = await realpath(await mkdtemp(join(await realpath(tmpdir()), 'conciv-diag-')))
+      const root = await realpath(tempDir('conciv-diag-'))
       await cp(FIXTURE, root, {recursive: true})
       await writeFile(join(root, 'broken.ts'), 'export const broken = = 1\n')
       const server = await createServer({
@@ -144,7 +143,7 @@ describe('engine port exact', () => {
   }
 
   function tempRoot(): string {
-    return mkdtempSync(join(tmpdir(), 'conciv-engine-port-exact-'))
+    return tempDir('conciv-engine-port-exact-')
   }
 
   describe('makeEngineBooter with the exact port policy (Next.js and the generic webpack/rspack plugin)', () => {
@@ -199,7 +198,7 @@ describe('engine port fallback', () => {
 
 describe('extensions entry', () => {
   function makeProject(): string {
-    return mkdtempSync(join(tmpdir(), 'conciv-entry-'))
+    return tempDir('conciv-entry-')
   }
 
   function seedExtensionsDir(root: string): string {
@@ -292,7 +291,7 @@ describe('extensions watch', () => {
   })
 
   function makeRoot(): string {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-watch-'))
+    const root = tempDir('conciv-watch-')
     roots.push(root)
     return root
   }
@@ -719,7 +718,7 @@ describe('nextjs config', () => {
       delete process.env[key]
     }
     originalCwd = process.cwd()
-    projectRoot = mkdtempSync(join(tmpdir(), 'conciv-nextcfg-'))
+    projectRoot = tempDir('conciv-nextcfg-')
     process.chdir(projectRoot)
   })
 
