@@ -57,7 +57,7 @@ capable as the tool you already trust.
 - 🧩 &nbsp;**Extensions**: drop a `.tsx` file in `conciv/extensions/` and get a new agent tool with its own card and composer UI.
 - 🎨 &nbsp;**Shared whiteboard**: add the whiteboard extension for an Excalidraw canvas you and the AI draw on together, with source-anchored comments.
 - ✅ &nbsp;**Approvals**: when the agent asks for permission, a card in the thread lets you approve or deny it.
-- 🔌 &nbsp;**Vite and Next.js**: dev-only, never in your production bundle. webpack and Rspack start the engine without the widget.
+- 🔌 &nbsp;**Vite and Next.js**: dev-only, never in your production bundle. webpack and Rspack start the engine without the widget, in dev and also during a production build.
 - 🤝 &nbsp;**Harness-agnostic**: Claude Code, Codex, OpenCode and Gemini CLI behind one capability interface.
 - 🌘 &nbsp;**Zero style leak**: the widget lives in an open Shadow DOM, isolated from your app's CSS.
 

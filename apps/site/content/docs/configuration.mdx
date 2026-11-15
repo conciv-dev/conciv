@@ -120,7 +120,7 @@ export default withConciv(nextConfig, {extensions: [terminal()]})
   <Tab value="Next.js">The engine listens on `port`, `41700` by default. If the port is in use, it does not start.</Tab>
   <Tab value="webpack and Rspack">
     Without `port`, the engine takes the port it used last time, or a free one. With `port`, it listens on exactly that
-    port, and does not start if the port is in use.
+    port. If the port is in use, the webpack or Rspack process exits with `EADDRINUSE`.
   </Tab>
 </Tabs>
 
