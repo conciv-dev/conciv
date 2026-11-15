@@ -5678,12 +5678,19 @@ describe('page action queue delivery', () => {
     expect(JSON.stringify(await page.hub('return 1'))).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
   }, 5000)
 
-  it('a page.queue.wait its caller aborts before any play starts keeps the result owed, so it leads the next reply once, with one finished event and one card', async () => {
+  it('a page.queue.wait its caller aborts before any play starts keeps the result owed, so it leads the next reply once, with one finished event and one card, while a result a live waiter took gets none', async () => {
     const page = await engineWithTab()
+    const typed = makeRpcClient(page.base, {headers: HUB})
+    const taken = parseHandle(await page.hub(queued())).queueId
+    const takenOnTab = await page.nextQueue()
+    const taking = typed.page.queue.wait({sessionId: page.sessionId, queueId: taken, waitMs: 60_000})
+    expect(await typed.tabs.get({sessionId: page.sessionId})).toMatchObject({open: true})
+    await page.play(takenOnTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+    await page.play(takenOnTab, 1, {ok: true, result: {ok: true, checked: true}})
+    expect(await taking).toMatchObject({queueId: taken, status: 'finished', played: 2})
     const {queueId} = parseHandle(await page.hub(queued()))
     const onTab = await page.nextQueue()
     const caller = new AbortController()
-    const typed = makeRpcClient(page.base, {headers: HUB})
     const waiting = typed.page.queue.wait({sessionId: page.sessionId, queueId, waitMs: 60_000}, {signal: caller.signal})
     expect(await typed.tabs.get({sessionId: page.sessionId})).toMatchObject({open: true})
     caller.abort()
@@ -5697,6 +5704,8 @@ describe('page action queue delivery', () => {
     expect(JSON.stringify(await page.hub('return 2'))).not.toContain(notice)
     expect(page.queueEvents().filter((event) => event.queueId === queueId)).toHaveLength(1)
     expect(page.cards(queueId)).toHaveLength(1)
+    expect(page.queueEvents().filter((event) => event.queueId === taken)).toHaveLength(0)
+    expect(page.cards(taken)).toHaveLength(0)
   }, 5000)
 
   it('a page.queue.wait over the websocket its caller aborts before the queue finishes keeps the result owed, so it leads the next reply once', async () => {
