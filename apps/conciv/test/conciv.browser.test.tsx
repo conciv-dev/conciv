@@ -6596,6 +6596,22 @@ module.exports = {default: {stores: {
     expect(harness.pathname()).toBe(`${draftedPath}/settings/plugins/${encodeURIComponent('fixture:prefs')}`)
   }, 60_000)
 
+  test('its pop-out notice ends with the panel that raised it when the quick terminal replaces the panel', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const popOutLost = () => page.getByText('The pop-out window could not be reopened.', {exact: true})
+    harness.mountShell(`/panel/${sessionId}?open=true&popOut=lost`, [], {
+      host: {quickTerminal: {hotkey: 'Control+Shift+K'}},
+    })
+    await expect.element(popOutLost(), {timeout: 15_000}).toBeVisible()
+    await expect.element(control('Pop out again')).toBeVisible()
+
+    await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
+    await expect.element(page.getByRole('dialog', {name: 'conciv quick terminal'}), {timeout: 8000}).toBeVisible()
+    await expect.element(editor()).toBeVisible()
+    await expect.element(popOutLost()).not.toBeInTheDocument()
+    await expect.element(control('Pop out again')).not.toBeInTheDocument()
+  }, 60_000)
+
   const tabPath = (sessionId: string, key: string) => `/panel/${sessionId}/${encodeURIComponent(key)}`
 
   test('a cold link to its tab shows the tab, and a cold link to its old tab key ends on the renamed tab', async () => {
