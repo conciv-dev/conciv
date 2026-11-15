@@ -654,17 +654,36 @@ describe('chat pane', () => {
     })
   })
 
-  test('a rejected send keeps the draft in the composer and tells the user why', async () => {
+  test('a rejected send keeps the draft in the composer, tells the user why, and a resend makes one turn', async () => {
     const {sessionId} = await newSession()
-    await faults.install({kind: 'chat-refused', status: 500})
+    const refused = await faults.install({kind: 'chat-refused', status: 500})
     mountChatPane(sessionId, {transport: 'fetch'})
+    const typed = 'a message the server refuses'
+    const turns = () => page.getByRole('log').getByText(typed, {exact: true})
+    const replies = () => page.getByRole('log').getByText(UNSCRIPTED_REPLY, {exact: true})
 
     await expect.element(input()).toBeVisible()
-    await input().fill('a message the server refuses')
+    await userEvent.click(input())
+    await userEvent.keyboard(typed)
     await userEvent.keyboard('{Enter}')
 
     await expect.element(notifications()).toMatchTextContent(/Internal Server Error|could not be sent/)
-    await expect.element(input()).toHaveTextContent('a message the server refuses')
+    await expect.element(input()).toHaveTextContent(typed)
+    await expect.element(input()).not.toHaveTextContent(new RegExp(`${typed}[\\s\\S]*${typed}`))
+    expect(turns().elements()).toHaveLength(0)
+
+    await coreControl.releaseFault(refused)
+    await userEvent.click(input())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(replies()).toBeVisible()
+    expect(turns().elements()).toHaveLength(1)
+    expect(replies().elements()).toHaveLength(1)
+
+    active.pane?.dispose()
+    mountChatPane(sessionId, {transport: 'fetch'})
+    await expect.element(replies()).toBeVisible()
+    expect(turns().elements()).toHaveLength(1)
+    expect(replies().elements()).toHaveLength(1)
   })
 
   test('a send refused while the connection is lost adds a row only until the lost-connection notice stands', async () => {
