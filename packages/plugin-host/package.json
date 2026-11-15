@@ -43,7 +43,6 @@
     "@effect/sql-sqlite-node": "catalog:",
     "@npmcli/arborist": "catalog:",
     "@npmcli/config": "catalog:",
-    "@parcel/watcher": "catalog:",
     "@silvia-odwyer/photon-node": "catalog:",
     "@standard-schema/spec": "catalog:",
     "detect-libc": "catalog:",
@@ -52,6 +51,7 @@
     "glob": "catalog:",
     "npm-package-arg": "catalog:",
     "pacote": "catalog:",
+    "picomatch": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
