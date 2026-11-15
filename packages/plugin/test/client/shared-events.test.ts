@@ -1,12 +1,15 @@
-import {expect, test} from 'vitest'
+import {describe, expect, test} from 'vitest'
+import {z} from 'zod'
+import {makeRpcClient} from '@conciv/contract'
 import {SharedEvents} from '../../src/client/shared-events.js'
+import {makeRpc, Rpc, type EventSubscribeOutput} from '../../src/promise/index.js'
 
 type Event = {readonly type: string; readonly value?: number}
 
-function source(cleanup?: Promise<void>) {
+function source<A extends {readonly type: string} = Event>(cleanup?: Promise<void>) {
   const connections: {
     signal: AbortSignal
-    push: (event: Event) => void
+    push: (event: A) => void
     close: () => void
     fail: (error: unknown) => void
     closing: Promise<void>
@@ -20,12 +23,12 @@ function source(cleanup?: Promise<void>) {
       if (!connections[index]) await (opened[index] ??= Promise.withResolvers<void>()).promise
       return connections[index]!
     },
-    connect(signal: AbortSignal): AsyncIterable<Event> {
-      let controller!: ReadableStreamDefaultController<Event>
+    connect(signal: AbortSignal): AsyncIterable<A> {
+      let controller!: ReadableStreamDefaultController<A>
       let ended = false
       const closing = Promise.withResolvers<void>()
       const closed = Promise.withResolvers<void>()
-      const stream = new ReadableStream<Event>({
+      const stream = new ReadableStream<A>({
         start(value) {
           controller = value
         },
@@ -178,16 +181,28 @@ test('an idle consumer does not stall events for an active consumer', async () =
   await events.connections[0]!.closed
 })
 
-test('an idle consumer fails instead of buffering events without bound', async () => {
+test('an idle consumer over its capacity comes back from the last server.connected', async () => {
   const events = source()
-  const idle = SharedEvents.make(events.connect).subscribe()[Symbol.asyncIterator]()
+  const shared = SharedEvents.make(events.connect)
+  const idle = shared.subscribe()[Symbol.asyncIterator]()
   const connected = idle.next()
-  events.connections[0]!.push({type: 'server.connected'})
+  events.connections[0]!.push({type: 'server.connected', value: 1})
   await connected
+  const marker = shared.subscribe({types: ['marker']})[Symbol.asyncIterator]()
+  await marker.next()
 
   Array.from({length: 4_097}, (_, value) => events.connections[0]!.push({type: 'session.updated', value}))
+  events.connections[0]!.push({type: 'marker'})
+  events.connections[0]!.push({type: 'session.updated', value: 5_000})
+  expect(await marker.next()).toEqual({done: false, value: {type: 'marker'}})
+  expect(await idle.next()).toEqual({done: false, value: {type: 'server.connected', value: 1}})
+  expect(await idle.next()).toEqual({done: false, value: {type: 'marker'}})
+  expect(await idle.next()).toEqual({done: false, value: {type: 'session.updated', value: 5_000}})
+  expect(events.connections).toHaveLength(1)
+  expect(events.connections[0]!.signal.aborted).toBe(false)
+  await idle.return!()
+  await marker.return!()
   await events.connections[0]!.closed
-  await expect(idle.next()).rejects.toThrow('Event subscriber exceeded its 4096-event capacity')
 })
 
 test('source completion preserves events already buffered for an idle consumer', async () => {
@@ -198,16 +213,21 @@ test('source completion preserves events already buffered for an idle consumer',
   const connected = [idle.next(), watcher.next()]
   events.connections[0]!.push({type: 'server.connected'})
   await Promise.all(connected)
-  const finished = watcher.next()
+  const reconnected = watcher.next()
   events.connections[0]!.push({type: 'session.updated', value: 1})
   events.connections[0]!.push({type: 'session.updated', value: 2})
   events.connections[0]!.close()
   await events.connections[0]!.closed
-  expect(await finished).toEqual({done: true, value: undefined})
 
   expect(await idle.next()).toEqual({done: false, value: {type: 'session.updated', value: 1}})
   expect(await idle.next()).toEqual({done: false, value: {type: 'session.updated', value: 2}})
-  expect(await idle.next()).toEqual({done: true, value: undefined})
+  const replacement = await events.at(1)
+  replacement.push({type: 'server.connected', value: 3})
+  expect(await reconnected).toEqual({done: false, value: {type: 'server.connected', value: 3}})
+  expect(await idle.next()).toEqual({done: false, value: {type: 'server.connected', value: 3}})
+  await idle.return!()
+  await watcher.return!()
+  await replacement.closed
 })
 
 test('late consumers receive the latest connection marker but no business event replay', async () => {
@@ -308,7 +328,7 @@ test('rapid resubscription opens a replacement while old cleanup finishes', asyn
   await replacement.closed
 })
 
-test('source EOF finishes all consumers and permits a fresh subscription without retry', async () => {
+test('source EOF reopens the source for every consumer, which sees server.connected again', async () => {
   const events = source()
   const shared = SharedEvents.make(events.connect)
   const first = shared.subscribe()[Symbol.asyncIterator]()
@@ -322,57 +342,70 @@ test('source EOF finishes all consumers and permits a fresh subscription without
     {done: false, value: {type: 'rpc.example.updated', value: 2}},
     {done: false, value: {type: 'rpc.example.updated', value: 2}},
   ])
+  const reopenedReads = [first.next(), second.next()]
   events.connections[0]!.close()
   await events.connections[0]!.closed
-  expect(await first.next()).toEqual({done: true, value: undefined})
-  expect(await second.next()).toEqual({done: true, value: undefined})
-  expect(events.connections).toHaveLength(1)
 
-  const fresh = shared.subscribe()[Symbol.asyncIterator]()
-  const next = fresh.next()
   const replacement = await events.at(1)
   replacement.push({type: 'server.connected', value: 3})
-  expect(await next).toEqual({done: false, value: {type: 'server.connected', value: 3}})
-  await fresh.return!()
+  expect(await Promise.all(reopenedReads)).toEqual([
+    {done: false, value: {type: 'server.connected', value: 3}},
+    {done: false, value: {type: 'server.connected', value: 3}},
+  ])
+  replacement.push({type: 'rpc.example.updated', value: 4})
+  expect(await first.next()).toEqual({done: false, value: {type: 'rpc.example.updated', value: 4}})
+  await first.return!()
+  await second.return!()
   await replacement.closed
 })
 
-test('source failures preserve error identity for every consumer and permit a new subscription', async () => {
+test('a failed source reopens for every direct reader, which sees server.connected again and the next event', async () => {
   const events = source()
   const shared = SharedEvents.make(events.connect)
   const first = shared.subscribe()[Symbol.asyncIterator]()
-  const second = shared.subscribe()[Symbol.asyncIterator]()
-  const failure = {reason: 'actual source failure'}
-  const reads = Promise.allSettled([first.next(), second.next()])
-  events.connections[0]!.fail(failure)
-  expect(await reads).toEqual([
-    {status: 'rejected', reason: failure},
-    {status: 'rejected', reason: failure},
-  ])
-  await expect(first.next()).rejects.toBe(failure)
-  expect(events.connections).toHaveLength(1)
+  const second = shared.subscribe({types: ['session.updated']})[Symbol.asyncIterator]()
+  const reads = [first.next(), second.next()]
+  events.connections[0]!.push({type: 'server.connected', value: 1})
+  await Promise.all(reads)
+  const reopenedReads = [first.next(), second.next()]
+  events.connections[0]!.fail({reason: 'the engine ended the event stream'})
+  await events.connections[0]!.closed
 
-  const fresh = shared.subscribe()[Symbol.asyncIterator]()
-  const next = fresh.next()
   const replacement = await events.at(1)
-  replacement.push({type: 'server.connected'})
-  expect(await next).toEqual({done: false, value: {type: 'server.connected'}})
-  await fresh.return!()
+  replacement.push({type: 'server.connected', value: 2})
+  expect(await Promise.all(reopenedReads)).toEqual([
+    {done: false, value: {type: 'server.connected', value: 2}},
+    {done: false, value: {type: 'server.connected', value: 2}},
+  ])
+  replacement.push({type: 'session.updated', value: 3})
+  expect(await Promise.all([first.next(), second.next()])).toEqual([
+    {done: false, value: {type: 'session.updated', value: 3}},
+    {done: false, value: {type: 'session.updated', value: 3}},
+  ])
+  expect(events.connections).toHaveLength(2)
+  await first.return!()
+  await second.return!()
   await replacement.closed
 })
 
-test('synchronous source creation failures reject subscribers without automatic retry', async () => {
+test('a synchronous source creation failure is retried until a source opens', async () => {
+  const events = source()
   const failure = new Error('connect failed')
   const attempts: AbortSignal[] = []
   const shared = SharedEvents.make<Event>((signal) => {
     attempts.push(signal)
-    throw failure
+    if (attempts.length === 1) throw failure
+    return events.connect(signal)
   })
-  await expect(shared.subscribe()[Symbol.asyncIterator]().next()).rejects.toBe(failure)
-  expect(attempts).toHaveLength(1)
-  expect(attempts[0]!.aborted).toBe(true)
-  await expect(shared.subscribe()[Symbol.asyncIterator]().next()).rejects.toBe(failure)
+  const subscriber = shared.subscribe()[Symbol.asyncIterator]()
+  const read = subscriber.next()
+  const opened = await events.at(0)
   expect(attempts).toHaveLength(2)
+  opened.push({type: 'server.connected'})
+  expect(await read).toEqual({done: false, value: {type: 'server.connected'}})
+  await subscriber.return!()
+  await opened.closed
+  expect(attempts[1]!.aborted).toBe(true)
 })
 
 test('source activity fans out to every subscriber that asked for it', async () => {
@@ -394,4 +427,72 @@ test('source activity fans out to every subscriber that asked for it', async () 
   await first.return!()
   await second.return!()
   await events.connections[0]!.closed
+})
+
+describe('makeRpc events.on', () => {
+  const Acme = Rpc.define({id: 'acme', methods: {}, events: {indexed: {schema: z.object({count: z.number()})}}})
+  const connected: EventSubscribeOutput = {id: 'connected', type: 'server.connected', data: {}}
+  const marked: EventSubscribeOutput = {
+    id: 'marker',
+    created: 0,
+    type: 'rpc.acme.marker',
+    location: {directory: '/workspace'},
+    data: {},
+  }
+  const indexed = (count: number): EventSubscribeOutput => ({
+    id: `indexed-${count}`,
+    created: count,
+    type: 'rpc.acme.indexed',
+    location: {directory: '/workspace'},
+    data: {count},
+  })
+
+  test('keeps delivering after a failed stream, a handler that throws and an overflowed subscriber', async () => {
+    const events = source<EventSubscribeOutput>()
+    const shared = SharedEvents.make(events.connect)
+    const client = makeRpc(makeRpcClient('http://127.0.0.1:9'), shared)(Acme)
+    const delivered: number[] = []
+    const waiting: {count: number; resolve: () => void}[] = []
+    const gate = {held: Promise.resolve()}
+    const received = (count: number) =>
+      delivered.includes(count) ? Promise.resolve() : new Promise<void>((resolve) => waiting.push({count, resolve}))
+    const stop = client.events.on('indexed', async (event) => {
+      delivered.push(event.data.count)
+      waiting.filter((waiter) => waiter.count === event.data.count).forEach((waiter) => waiter.resolve())
+      await gate.held
+      if (event.data.count === 2) throw new Error('the handler failed on its second event')
+    })
+
+    const first = await events.at(0)
+    first.push(connected)
+    first.push(indexed(1))
+    await received(1)
+    first.fail(new Error('the engine ended the event stream'))
+
+    const second = await events.at(1)
+    second.push(connected)
+    second.push(indexed(2))
+    await received(2)
+    second.push(indexed(3))
+    await received(3)
+    const release = Promise.withResolvers<void>()
+    gate.held = release.promise
+    second.push(indexed(4))
+    await received(4)
+    const marker = shared.subscribe({types: ['rpc.acme.marker']})[Symbol.asyncIterator]()
+    await marker.next()
+    Array.from({length: 4_097}, (_, index) => second.push(indexed(5 + index)))
+    second.push(marked)
+    second.push(indexed(5_000))
+    expect((await marker.next()).value?.type).toBe('rpc.acme.marker')
+    await marker.return!()
+    release.resolve()
+    await received(5_000)
+    expect(delivered).toEqual([1, 2, 3, 4, 5_000])
+    expect(events.connections).toHaveLength(2)
+
+    stop()
+    await second.closed
+    expect(second.signal.aborted).toBe(true)
+  })
 })
