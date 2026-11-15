@@ -59,8 +59,8 @@
     "@rrweb/types": "^2.2.0",
     "@solid-primitives/timer": "catalog:",
     "lucide-solid": "catalog:",
-    "playwright-core": "^1.64.1",
-    "rrweb": "^2.2.0",
+    "playwright-core": "catalog:",
+    "rrweb": "catalog:",
     "rrweb-player": "2.2.0",
     "zod": "catalog:"
   },
