@@ -6084,7 +6084,14 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
     const pane = (label: string) => ({
       type: 'pluginExperimentals',
       plugins: [
-        {id: 'pane', revision: expect.stringMatching(/^[0-9a-f]{64}$/), code: bundle(label), options: {greeting: 'hi'}},
+        {
+          id: 'pane',
+          revision: expect.stringMatching(/^[0-9a-f]{64}$/),
+          code: bundle(label),
+          options: {greeting: 'hi'},
+          chunks: [],
+          file: 'plugin-experimental.js',
+        },
       ],
       reserved: ['conciv'],
     })
@@ -7549,5 +7556,99 @@ export default {
     expect(typed).toEqual([])
     expect([await replied(before), await replied(after)]).toEqual([0, 2])
     await cut
+  }, 60_000)
+})
+
+describe('a fixture plugin built into chunks', () => {
+  const SHARED = 'shared-Bq3nWgtP.cjs'
+  const LAZY = 'lazy-D1x9cTqA.cjs'
+  const OUTSIDE = 'outside-Zz9yXw8V.cjs'
+  const entry = `Object.defineProperties(exports, {__esModule: {value: true}, [Symbol.toStringTag]: {value: 'Module'}})
+const require_shared = require('./${SHARED}')
+const {Slot} = require('@conciv/plugin/experimental')
+const {createComponent} = require('solid-js/web')
+var entry_default = {setup(ctx) {
+  const line = Object.assign(document.createElement('p'), {textContent: 'Shared at start: ' + require_shared.shared})
+  const load = (label, part) => createComponent(ctx.ui.Button, {
+    onClick: () => part().then(
+      (loaded) => { line.textContent = loaded.big() },
+      (error) => { line.textContent = error.code + ': ' + error.message },
+    ),
+    children: label,
+  })
+  ctx.add(Slot, {at: 'window.bottom', render: () => [
+    line,
+    load('Load the lazy part', () => Promise.resolve().then(() => require('./${LAZY}'))),
+    load('Load a part outside the build', () => Promise.resolve().then(() => require('./${OUTSIDE}'))),
+  ]})
+}}
+var label = 'from the entry'
+exports.default = entry_default
+exports.label = label
+`
+  const manifest = JSON.stringify({
+    [`_${SHARED}`]: {file: SHARED, name: 'shared'},
+    'src/plugin-experimental.tsx': {
+      file: 'plugin-experimental.cjs',
+      name: 'plugin-experimental',
+      src: 'src/plugin-experimental.tsx',
+      isEntry: true,
+      imports: [`_${SHARED}`],
+      dynamicImports: ['src/lazy.ts'],
+    },
+    'src/lazy.ts': {
+      file: LAZY,
+      name: 'lazy',
+      src: 'src/lazy.ts',
+      isDynamicEntry: true,
+      imports: [`_${SHARED}`, 'src/plugin-experimental.tsx'],
+    },
+  })
+  const coreBase = bootedCore('plugin-chunks', {
+    plugins: ['./chunked'],
+    files: {
+      'chunked/index.ts': `export default {id: 'chunked', async setup() {}}
+`,
+      'chunked/plugin-experimental.cjs': entry,
+      'chunked/plugin-experimental.cjs.manifest.json': manifest,
+      [`chunked/${SHARED}`]: `var shared = 'shared'
+Object.defineProperty(exports, 'shared', {enumerable: true, get: function() { return shared }})
+`,
+      [`chunked/${LAZY}`]: `const require_shared = require('./${SHARED}')
+const require_entry = require('./plugin-experimental.cjs')
+function big() { return 'lazy part ' + require_shared.shared + ' ' + require_entry.label }
+exports.big = big
+`,
+    },
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  const shown = (text: string) => page.getByText(text, {exact: true})
+  const control = (name: string) => page.getByRole('button', {name, exact: true})
+  const BUNDLE = ['plugin', 'experimental']
+  const CHUNK = ['plugin', 'experimentalChunk']
+
+  test('its slot shows at start with the module its entry shares with a lazy part, and the lazy part loads only when the user asks for it', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(shown('Shared at start: shared'), {timeout: 15_000}).toBeVisible()
+    expect(await coreControl.rpcStartedOnceServed(BUNDLE, 1, [CHUNK])).toEqual([0])
+
+    await control('Load the lazy part').click()
+    await expect.element(shown('lazy part shared from the entry')).toBeVisible()
+    expect(await coreControl.rpcCallCount(CHUNK, {id: 'chunked', file: LAZY})).toBe(1)
+  }, 60_000)
+
+  test('a lazy part its build did not write is refused, and its slot shows the refusal', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(shown('Shared at start: shared'), {timeout: 15_000}).toBeVisible()
+
+    await control('Load a part outside the build').click()
+    await expect
+      .element(shown(`PLUGIN_CHUNK_NOT_FOUND: No chunk ${OUTSIDE} in the current build of the plugin chunked`))
+      .toBeVisible()
   }, 60_000)
 })

@@ -800,16 +800,7 @@ describe('host', () => {
       ['counter', {CountSchema}],
     ])
 
-    const evaluate = (code: string) =>
-      evaluatePluginBundle(code, {
-        require: (required) => {
-          const module = modules.get(required)
-
-          if (module) return module
-
-          throw new Error(`not shared: ${required}`)
-        },
-      })
+    const evaluate = (code: string) => evaluatePluginBundle(code, {require: provider(modules)})
 
     it("read the default export's declarations and setups", () => {
       const bundle = evaluate(`
@@ -982,7 +973,7 @@ describe('experimental() build', () => {
   }
   const real = new Map<string, object>([...Object.entries(provided), ['node:fs', NodeFs]])
 
-  it('the preset writes one CommonJS file that requires only what the app provides', async () => {
+  it('the preset writes a CommonJS entry, a chunk for each import() and the manifest, requiring only what the app provides', async () => {
     const hosted = [...pluginSharedModules, ...pluginWindowModules]
     const root = await project({
       'src/plugin-experimental.tsx': [
@@ -995,23 +986,22 @@ describe('experimental() build', () => {
     })
 
     await bundle(root)
-    const code = await readFile(path.join(root, 'dist/plugin-experimental.cjs'), 'utf8')
+    const dist = (file: string) => readFile(path.join(root, 'dist', file), 'utf8')
+    const code = await dist('plugin-experimental.cjs')
+    const manifest = z
+      .record(z.string(), z.object({file: z.string()}))
+      .parse(JSON.parse(await dist('plugin-experimental.cjs.manifest.json')))
+    const chunk = manifest['src/page.tsx']?.file ?? ''
     const required = new Set(Array.from(code.matchAll(/require\("([^"]+)"\)/g), (match) => match[1]))
 
-    expect(await readdir(path.join(root, 'dist'))).toEqual(['plugin-experimental.cjs'])
-    expect(code).toContain('Notes')
-    expect([...required].toSorted()).toEqual([...hosted, 'node:fs'].toSorted())
-    expect(
-      evaluatePluginBundle(code, {
-        require: (name) => {
-          const module = real.get(name)
-
-          if (module) return module
-
-          throw new Error(`not provided: ${name}`)
-        },
-      }).setup,
-    ).toBeTypeOf('function')
+    expect(chunk).toMatch(/^page-[\w-]+\.cjs$/)
+    expect((await readdir(path.join(root, 'dist'))).toSorted()).toEqual(
+      ['plugin-experimental.cjs', 'plugin-experimental.cjs.manifest.json', chunk].toSorted(),
+    )
+    expect(code).not.toContain('Notes')
+    expect(await dist(chunk)).toContain('Notes')
+    expect([...required].toSorted()).toEqual([...hosted, 'node:fs', `./${chunk}`].toSorted())
+    expect(evaluatePluginBundle(code, {require: provider(real)}).setup).toBeTypeOf('function')
   }, 60_000)
 
   it('the preset fails the build on a conciv or Solid module the app does not provide', async () => {
@@ -1023,3 +1013,13 @@ describe('experimental() build', () => {
     await expect(bundle(root)).rejects.toThrow('@conciv/ui-kit-system is not a module the conciv app provides')
   }, 60_000)
 })
+
+function provider(modules: ReadonlyMap<string, object>) {
+  return (name: string) => {
+    const module = modules.get(name)
+
+    if (module) return module
+
+    throw new Error(`not provided: ${name}`)
+  }
+}
