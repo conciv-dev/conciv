@@ -67,7 +67,7 @@ export function promptWithNotes(content: string | SendContent, draft: ComposerDr
 
   const comments = notes.map((note) => noteComment(note, note.comment.trim()))
   const sentences = comments.map(formatNoteComment)
-  const displayText = draft.draft.trim()
+  const displayText = (typeof content === 'string' ? content : draft.draft).trim()
   const metadata = {displayText, comments, attachments: []}
 
   if (typeof content === 'string') return {content: [displayText, ...sentences].filter(Boolean).join('\n'), metadata}

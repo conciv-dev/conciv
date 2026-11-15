@@ -12,7 +12,7 @@ import {WS_RPC_PAYLOAD_BUDGET_BYTES} from '@conciv/protocol/rpc-types'
 import {checkSend, MAX_CONTENT_PARTS} from '../src/pane/send-checks.js'
 import {parseConcivSettings} from '../src/data/settings.js'
 import {contextItemKey, durableNote} from '../src/composer/note-schema.js'
-import {formatNoteComment, noteComment, readPromptPresentation} from '../src/composer/comment-note.js'
+import {formatNoteComment, noteComment, promptWithNotes, readPromptPresentation} from '../src/composer/comment-note.js'
 import {
   clamp,
   cornerAt,
@@ -295,6 +295,27 @@ describe('composer notes', () => {
       displayText: '',
       comments: [],
       attachments: [],
+    })
+  })
+
+  test('a string the composer hands over is the text sent and shown, not the draft it came from', () => {
+    const draft = {
+      draft: 'the draft as typed',
+      attachments: [],
+      quote: null,
+      items: [{key: contextItemKey(item), value: item}],
+    }
+
+    expect(promptWithNotes('the content handed over', draft)).toEqual({
+      content: [
+        'the content handed over',
+        'The user made the following comment regarding the fixture subject: make it blue',
+      ].join('\n'),
+      metadata: {
+        displayText: 'the content handed over',
+        comments: [noteComment(item, 'make it blue')],
+        attachments: [],
+      },
     })
   })
 })
