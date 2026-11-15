@@ -134,7 +134,7 @@ export function RecorderPanel(props: {clientId: string}): JSX.Element {
         <Match when={recording.error}>
           <RecorderErrorNotice retry={retry} />
         </Match>
-        <Match when={recording.loading && !recording.latest}>
+        <Match when={recording.state === 'pending'}>
           <RecorderNotice text="Loading recording…" />
         </Match>
         <Match keyed when={recordingWithEnoughEvents(recording.latest)}>
