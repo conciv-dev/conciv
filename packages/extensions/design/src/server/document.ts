@@ -1,6 +1,7 @@
 import type {DesignNode, Design, Got, IdTree} from '../shared/defs.js'
 import {walk} from '../shared/tree.js'
 import {readIds} from '../shared/id-tree.js'
+import {laidFields} from './node-look.js'
 
 export function documentOf(input: {target: string; design: Design; ids: IdTree | null}): Got {
   const {design} = input
@@ -25,7 +26,7 @@ export function documentOf(input: {target: string; design: Design; ids: IdTree |
 type Tagged = Got['nodes'][number]
 
 const NODE_FIELDS =
-  'Every node has its id, type, name, within (the node it sits in), absolute box, fills, strokes, text, font and auto-layout fields, tokens: the design variables its fields are bound to, and asset: the file to show for an image or vector node, or the finished background of a frame that has children, its fill layers already flattened into it (assetLayers lists them).'
+  'Every node has its id, type, name, within (the node it sits in), absolute box, fills, strokes, text, font (font.lineHeight.value is the line height in px Figma lays the text out at, absent when leading trim, font.trim, cuts an auto line to its glyphs) and auto-layout fields, tokens: the design variables its fields are bound to, and asset: the file to show for an image or vector node, or the finished background of a frame that has children, its fill layers already flattened into it (assetLayers lists them).'
 
 const RULES = [
   'The dev server keys the elements it serves with data-conciv-key; the keys are not in your files, and an element keeps its key while you edit it.',
@@ -77,7 +78,7 @@ function tagged(input: {
     within: parent?.id ?? null,
     depth,
     box: facts?.box ?? node.box,
-    ...facts?.fields,
+    ...laidFields(facts?.fields),
     ...(facts?.absolute === true ? {absolute: true} : {}),
     ...(node.implied === true ? {implied: true} : {}),
     ...(node.reflow === undefined ? {} : {reflow: shownReflow(node.reflow)}),

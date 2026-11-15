@@ -43,12 +43,21 @@ const VariantsSchema = z.object({
     }),
   ),
 })
+const FramesSchema = z.object({variants: z.array(z.object({nodes: z.array(z.unknown())}))})
+const ShownLineSchema = z.object({id: z.string(), font: z.object({lineHeight: z.object({value: z.number()})})})
 
 const kit = await bootDesignHost()
 const {call} = kit
 const xrayRpc = makeExtRpcClient<XrayRouter>(kit.apiBase, 'design')
 
 afterAll(() => kit.dispose())
+
+function shownLines(nodes: unknown[]): string[] {
+  return nodes.flatMap((node) => {
+    const shown = ShownLineSchema.safeParse(node)
+    return shown.success ? [`${shown.data.id} ${shown.data.font.lineHeight.value}`] : []
+  })
+}
 
 function fixture(file: string): string {
   return fileURLToPath(new URL(`fixtures/design/${file}`, import.meta.url))
@@ -350,9 +359,10 @@ describe('a page that drifts from the design', () => {
     const ruled = (await rows()).filter((row) => row.node === '100:1465').map((row) => row.text)
     await kit.goto('contact-section')
     await call('design_get', await sliced('contact-section', '100-1403'))
-    const section = (await rows()).filter((row) => ['100:1415', '100:1416'].includes(row.node))
+    const section = (await rows()).filter((row) => ['100:1415', '100:1416'].includes(row.node)).map((row) => row.node)
+    const trimmed = shownLines(got.nodes).filter((line) => line.startsWith('100:1605 '))
     expect([
-      [...flat, ...told(lined, 'wrong image'), ...screen, ...formFlat, ...ruled, ...section.map((row) => row.node)],
+      [...flat, ...told(lined, 'wrong image'), ...screen, ...formFlat, ...ruled, ...section, ...trimmed],
       drifted.map((text) => text.split('; ')[0]),
       drifted.some((text) => text.includes('below Line [100:1615]')),
       got.nodes.find((node) => node.id === '100:1615')?.asset,
@@ -378,7 +388,7 @@ describe('a page that drifts from the design', () => {
 describe('a page between two frames', () => {
   it('is checked at its own breakpoints that fall between the frames, centred text whose box hugs it sits where the frame has it, an auto line is the whole pixel Figma lays out unless the page keeps the font line, and its frames stay its own when another session gets one', async () => {
     await kit.goto('hero-gap')
-    await call('design_get', {
+    const frames = await call('design_get', {
       figma: [
         'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1480',
         'https://www.figma.com/design/ItFixtureKey/x?node-id=100-1170',
@@ -401,6 +411,7 @@ describe('a page between two frames', () => {
     }
     const placed = await told('hero-hug', 'further')
     const leading = await told('hero-leading', 'line height')
+    const laid = FramesSchema.parse(frames).variants.map((variant) => shownLines(variant.nodes))
     await makeRpcClient(kit.apiBase, {headers: {[CONCIV_SESSION_HEADER]: `conciv_${randomUUID()}`}}).registry.call({
       name: 'design_get',
       input: {
@@ -411,8 +422,8 @@ describe('a page between two frames', () => {
       },
     })
     const again = await call('design_get', {route: '/?variant=hero-gap-fit'})
-    const widths = z.object({variants: z.array(z.object({viewport: z.object({width: z.number()})}))}).safeParse(again)
-    expect([broken, fitted, placed, leading, widths.data?.variants.map((variant) => variant.viewport.width)]).toEqual([
+    const sized = z.object({variants: z.array(z.object({viewport: z.object({width: z.number()})}))}).parse(again)
+    expect([broken, fitted, placed, leading, laid, sized.variants.map((variant) => variant.viewport.width)]).toEqual([
       [
         [],
         [
@@ -426,6 +437,10 @@ describe('a page between two frames', () => {
       [
         ['wrong line height at [100:1171]: 46px expected, 45.6px found'],
         ['wrong line height at [100:1481]: 34px expected, 33.6px found'],
+      ],
+      [
+        ['100:1481 34', '100:1482 24'],
+        ['100:1171 46', '100:1172 24'],
       ],
       [1280, 358],
     ])

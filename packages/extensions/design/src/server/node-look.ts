@@ -67,6 +67,8 @@ const PaintSchema = z.object({
 })
 const StrokeSidesSchema = z.object({top: z.number(), right: z.number(), bottom: z.number(), left: z.number()})
 const TokensSchema = z.partialRecord(z.enum(['fill', 'stroke', 'radius', 'font', 'gap', 'padding']), z.string())
+const LineHeightSchema = z.object({value: z.number(), unit: z.string().default(PIXELS)})
+const LaidFontSchema = z.looseObject({lineHeight: LineHeightSchema.optional(), trim: z.string().optional()})
 const FieldsSchema = z.object({
   fills: z.array(PaintSchema).catch([]),
   strokes: z.array(PaintSchema).catch([]),
@@ -83,7 +85,7 @@ const FieldsSchema = z.object({
       family: z.string().optional(),
       size: z.number().optional(),
       weight: z.number().optional(),
-      lineHeight: z.object({value: z.number(), unit: z.string().default(PIXELS)}).optional(),
+      lineHeight: LineHeightSchema.optional(),
       trim: z.string().optional(),
       align: z.string().optional(),
     })
@@ -151,22 +153,32 @@ function paintLook(input: {fields: Fields; image: boolean; scale: number}) {
 function fontLook(input: {font: Fields['font']; scale: number}) {
   const {font, scale} = input
   const line = lineKind(font)
+  const height = scaled(font?.lineHeight?.value, scale)
   return {
     font_family: font?.family ?? null,
     font_weight: font?.weight ?? null,
     font_size: scaled(font?.size, scale),
-    line_height: laidLine({line, height: scaled(font?.lineHeight?.value, scale)}),
+    line_height: height === null ? null : laidLine({line, height}),
     text_align: font?.align ?? null,
     line,
   }
 }
 
-function laidLine(input: {line: LineKind; height: number | null}): number | null {
-  const {line, height} = input
-  return line === 'auto' && height !== null ? Math.round(height) : height
+export function laidFields(fields: Record<string, unknown> | undefined): Record<string, unknown> {
+  if (fields === undefined) return {}
+  const font = LaidFontSchema.safeParse(fields.font)
+  if (!font.success || font.data.lineHeight === undefined) return fields
+  const {lineHeight, ...rest} = font.data
+  const line = lineKind(font.data)
+  if (line === 'trimmed') return {...fields, font: rest}
+  return {...fields, font: {...rest, lineHeight: {...lineHeight, value: laidLine({line, height: lineHeight.value})}}}
 }
 
-function lineKind(font: Fields['font']): LineKind {
+function laidLine(input: {line: LineKind; height: number}): number {
+  return input.line === 'auto' ? Math.round(input.height) : input.height
+}
+
+function lineKind(font: {lineHeight?: {unit: string}; trim?: string} | undefined): LineKind {
   if (font?.lineHeight === undefined || !font.lineHeight.unit.startsWith(INTRINSIC)) return 'fixed'
   return font.trim === undefined ? 'auto' : 'trimmed'
 }
