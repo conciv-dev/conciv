@@ -1,17 +1,17 @@
 {
   "pages": [
-    "---Get started---",
+    "---[PixelPlay]Get started---",
     "index",
     "...get-started",
-    "---Frameworks---",
+    "---[PixelPlug]Frameworks---",
     "...frameworks",
-    "---What you get---",
+    "---[PixelRobot]What you get---",
     "...what-you-get",
-    "---Plugins---",
+    "---[PixelCartridge]Plugins---",
     "...plugins",
-    "---Build a plugin---",
+    "---[PixelWrench]Build a plugin---",
     "...build-a-plugin",
-    "---Reference---",
+    "---[PixelPage]Reference---",
     "...reference"
   ]
 }

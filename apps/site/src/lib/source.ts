@@ -15,11 +15,13 @@ import {
   SquareTerminal,
   Workflow,
   Zap,
-  type LucideIcon,
 } from 'lucide-react'
+import type {ComponentType} from 'react'
+import {pixelIcons} from '../components/pixel-icons'
 import {docsRoute} from './shared'
 
-const docsIcons: Record<string, LucideIcon> = {
+const docsIcons: Record<string, ComponentType> = {
+  ...pixelIcons,
   BookOpen,
   Bot,
   Boxes,
@@ -39,7 +41,9 @@ function docsIcon(name: string | undefined) {
   if (name === undefined) return undefined
   const icon = docsIcons[name]
   if (icon === undefined) {
-    throw new Error(`docs icon "${name}" is not in docsIcons in apps/site/src/lib/source.ts; add the lucide icon there`)
+    throw new Error(
+      `docs icon "${name}" is not in docsIcons in apps/site/src/lib/source.ts; add the lucide icon there, or the pixel icon in apps/site/src/components/pixel-icons.tsx`,
+    )
   }
   return createElement(icon)
 }
