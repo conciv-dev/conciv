@@ -57,7 +57,7 @@ export type FaultSpec =
 type Fault = {
   pending: () => number
   awaitCaptured: (count: number) => Promise<void>
-  answered: () => Promise<void>
+  answered: () => Promise<unknown>
   release: () => Promise<void>
   dispose: () => Promise<void>
 }
@@ -526,9 +526,8 @@ const releaseFault: BrowserCommand<[string]> = async (ctx, handle): Promise<void
   await requireFault(ctx, handle).release()
 }
 
-const awaitFaultAnswered: BrowserCommand<[string]> = async (ctx, handle): Promise<void> => {
-  await requireFault(ctx, handle).answered()
-}
+const awaitFaultAnswered: BrowserCommand<[string]> = (ctx, handle): Promise<unknown> =>
+  requireFault(ctx, handle).answered()
 
 const faultPending: BrowserCommand<[string]> = (ctx, handle): number => requireFault(ctx, handle).pending()
 

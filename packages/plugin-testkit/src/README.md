@@ -32,7 +32,7 @@ The testkit runs the real product path. A page under test talks to the engine th
 - `bootCoreKit` (`core-kit.ts`): throws if makeApp did not capture a runtime
 - `pagePlaneWatchFor` (`page-plane.ts`): one watch per Page (WeakMap); the ready gate resets on main-frame navigation and push-socket close; subscribed() times out after 30s and throws if no push socket sent a 'ready' frame; the journal keeps at most 200 entries
 - `rpcObserverFor` (`rpc-observer.ts`): one observer per Page (WeakMap); only calls on a socket opened after the route was installed are recorded; completed() checks buffered calls first and rejects after 30s by default; dispose rejects pending waiters
-- `failRpcCalls`/`abortRpcCalls`/`gateRpcCalls` (`rpc-fault.ts`): only request frames are matched (trust, abort and iterator frames always pass); the gate's answered waits for status 200 within 15s
+- `failRpcCalls`/`abortRpcCalls`/`gateRpcCalls` (`rpc-fault.ts`): only request frames are matched (trust, abort and iterator frames always pass); the gate's answered waits for status 200 within 15s and resolves with the engine's decoded answer (`output` on the observer's call record and the socket's `response` event)
 - `failChatTurns`/`dropChatTurns` (`chat-fault.ts`): only POST requests are faulted; the request's origin is echoed in CORS headers
 - `watchChatWire` (`chat-wire.ts`): only frames that parse against the RunAgentInput schema are recorded; nextTurn rejects after 30s
 - `serveStaticDir` (`widget-suite.ts`): returns 404 unless the resolved file is under dir and exists; close force-closes connections after 2s

@@ -31,7 +31,7 @@ export type RpcSocketRule = (call: RpcSocketCall) => RpcSocketVerdict
 
 export type RpcSocketEvent =
   | {kind: 'request'; requestId: string; path: readonly string[]; input: unknown}
-  | {kind: 'response'; requestId: string; status: number; served: boolean}
+  | {kind: 'response'; requestId: string; status: number; served: boolean; output: unknown}
 
 export type RpcSocketListener = (event: RpcSocketEvent) => void
 
@@ -183,7 +183,7 @@ async function sendOutbound(message: Message, socketId: string, outbound: Outbou
     reply: async (status) => {
       const failure = await encodeResponseMessage(id, MessageType.RESPONSE, {status, headers: {}, body: FAILURE_BODY})
       if (typeof failure !== 'string') throw new Error('the injected rpc failure frame encoded to binary')
-      outbound.emit({kind: 'response', requestId, status, served: false})
+      outbound.emit({kind: 'response', requestId, status, served: false, output: undefined})
       outbound.route.send(failure)
     },
     cut: () => void outbound.route.close({code: CUT_CLOSE_CODE}),
@@ -196,5 +196,11 @@ async function observeInbound(message: Message, socketId: string, emit: (event: 
   const decoded = await decodeResponseMessage(message).catch(() => null)
   if (decoded === null || decoded[1] !== MessageType.RESPONSE) return
   const [id, , payload] = decoded
-  emit({kind: 'response', requestId: `${socketId}:${id}`, status: payload.status, served: true})
+  emit({
+    kind: 'response',
+    requestId: `${socketId}:${id}`,
+    status: payload.status,
+    served: true,
+    output: serializer.deserialize(payload.body),
+  })
 }
