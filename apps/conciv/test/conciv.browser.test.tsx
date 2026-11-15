@@ -4609,7 +4609,7 @@ describe('session selector', () => {
 
     const anyPreview = page.getByRole('dialog', {name: /^Preview of /})
     const preview = (title: string) => page.getByRole('dialog', {name: `Preview of ${title}`})
-    const entry = (title: string, text: string) => preview(title).getByText(text, {exact: true}).first()
+    const entry = (title: string, text: string) => preview(title).getByText(text, {exact: true})
     await userEvent.click(trigger)
     const searchArea = page.getByRole('search')
     const labelled = searchArea.getByRole('combobox', {name: 'Search sessions'})
@@ -6065,7 +6065,7 @@ ${pages}
 
   const tab = (name: string) => page.getByRole('tab', {name, exact: true})
   const selectedTab = (name: string) => page.getByRole('tab', {name, exact: true, selected: true})
-  const body = (text: string) => page.getByText(text, {exact: true}).first()
+  const body = (text: string) => page.getByText(text, {exact: true})
 
   test('a plugin settings page has its own tab and route, and a section joins the general page after its groups', async () => {
     await page.viewport(1000, 900)
@@ -6822,7 +6822,7 @@ module.exports = {default: {stores: {
   const STORE_WRITES = ['settings', 'set']
   const filler = (index: number) => page.getByText(`filler question ${index}`, {exact: true})
   const thread = () => page.getByRole('log').filter({hasText: 'filler question'})
-  const shown = (text: string) => page.getByText(text, {exact: true}).first()
+  const shown = (text: string) => page.getByText(text, {exact: true})
   const drawnBody = () => shown('Fixture drew the drawn probe')
 
   test('its tool card body comes back after the thread evicts it, and its store survives a reload and refuses a bad write', async () => {
