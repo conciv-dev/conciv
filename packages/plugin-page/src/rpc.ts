@@ -12,6 +12,8 @@ import {
   PageQueueHandleSchema,
   PageQueueProgressSchema,
   PageQueueResultSchema,
+  SourceLocSchema,
+  SymbolicateSchema,
 } from '@conciv/protocol/page-types'
 
 export const MAX_FILE_BYTES = 5 * 1024 * 1024
@@ -532,6 +534,7 @@ export const Definition = Rpc.define({
     changes: {input: z.object({sessionId: SessionId}), output: z.array(PageChangeEntrySchema), errors},
     clearChanges: {input: z.object({sessionId: SessionId}), output: OkResult, errors},
     'captures.list': {input: z.object({sessionId: SessionId}), output: SessionCapturesSchema, errors},
+    symbolicate: {input: SymbolicateSchema, output: SourceLocSchema.nullable(), errors},
     'queue.wait': {
       input: z.object({sessionId: SessionId, queueId: z.string().min(1), waitMs: z.number().int().min(0)}),
       output: z.union([PageQueueResultSchema, PageQueueProgressSchema]),

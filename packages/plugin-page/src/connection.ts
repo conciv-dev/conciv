@@ -23,6 +23,7 @@ import {
 import * as Queue from './queue.js'
 import * as Records from './records.js'
 import {Definition, Operations, type Action, type Command, type Result, type Tab} from './rpc.js'
+import {symbolicateFrames} from './symbolicate.js'
 
 const DEFAULT_TIMEOUT_MS = 5000
 
@@ -219,6 +220,7 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
       return {ok: true as const}
     },
     'captures.list': (input) => records.captures(input.sessionId),
+    symbolicate: (input) => symbolicateFrames(input.frames, ctx.location.directory),
     'queue.wait': async (input, call) => {
       try {
         return await queues.wait(input.sessionId, input.queueId, input.waitMs, call.signal)

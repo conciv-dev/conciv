@@ -85,6 +85,19 @@ describe('page rpc', () => {
     expect(z.parse(Page.Definition.methods.attach.output, 'replaced')).toBe('replaced')
   })
 
+  it('symbolicate takes bounded frames and nothing else, and answers a source location or null', () => {
+    const {input, output} = Page.Definition.methods.symbolicate
+    const frames = [{fileName: 'chunk.js', line: 2, column: 1}]
+    expect(z.parse(input, {frames})).toEqual({frames})
+    expect(z.parse(input, {frames, sessionId: 'conciv_any'})).toEqual({frames})
+    expect(() => z.parse(input, {frames: []})).toThrow()
+    expect(() => z.parse(input, {frames: Array.from({length: 33}, () => frames[0])})).toThrow()
+    expect(() => z.parse(input, {frames: [{fileName: '', line: 2}]})).toThrow()
+    const source = {file: 'app/page.tsx', line: 17, column: 4}
+    expect(z.parse(output, source)).toEqual(source)
+    expect(z.parse(output, null)).toBeNull()
+  })
+
   it('page ID patterns survive JSON Schema export for model tool definitions', () => {
     expect(exported(Page.TabId)).toMatchObject({type: 'string', pattern: '^tab_[a-f0-9-]{36}$'})
     expect(exported(Page.FileId)).toMatchObject({type: 'string', pattern: '^file_[a-f0-9-]{36}$'})

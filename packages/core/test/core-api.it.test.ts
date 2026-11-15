@@ -6700,7 +6700,7 @@ export default {
     z.object({ok: z.literal(false), message: z.string(), metadata: z.unknown()}),
   ])
 
-  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, locate answers with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, and deleting the session ends its tabs and drops its records', async () => {
+  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, and deleting the session ends its tabs and drops its records', async () => {
     const [home, root] = [tempDir('conciv-home-'), tempDir('conciv-page-connection-')]
     const files = {'page/server.ts': ENGINE_FIXTURE, 'tabs/server.ts': TAB_FIXTURE, 'chunk.js': CHUNK}
     for (const [path, content] of Object.entries(files)) {
@@ -6856,6 +6856,13 @@ export default {
     const onLocate = await next('conn_d')
     await reply('conn_d', onLocate.requestId, succeeded({frames: [{fileName: 'chunk.js', line: 2, column: 1}]}))
     expect(await locating).toMatchObject({ok: true, value: {source: {file: 'app/page.tsx', line: 17, column: 4}}})
+    const frames = [{fileName: 'chunk.js', line: 2, column: 1}]
+    expect(await call('experimental.page', 'symbolicate', {frames})).toEqual({
+      file: 'app/page.tsx',
+      line: 17,
+      column: 4,
+    })
+    expect(await call('experimental.page', 'symbolicate', {frames: [{fileName: '../outside.js', line: 1}]})).toBeNull()
 
     const effecting = ask({type: 'effect', action: 'enable', effect: 'confetti'})
     const onEffect = await next('conn_d')
