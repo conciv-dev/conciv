@@ -1,4 +1,4 @@
-import {mkdtempSync} from 'node:fs'
+import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {defineConfig, devices, type ReporterDescription} from '@playwright/test'
@@ -28,6 +28,7 @@ function serverEntry(command: string, port: number, env: {CONCIV_HOME: string} &
 
 function isolatedConcivHome(): {CONCIV_HOME: string} {
   const home = mkdtempSync(join(tmpdir(), 'conciv-e2e-home-'))
+  process.once('exit', () => rmSync(home, {recursive: true, force: true, maxRetries: 10}))
   process.env.CONCIV_HOME = home
   return {CONCIV_HOME: home}
 }
