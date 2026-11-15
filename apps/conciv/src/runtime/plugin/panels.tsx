@@ -43,6 +43,15 @@ export function createRegion(input: {
   tabs: Tabs
 }) {
   const host = usePluginHost()
+  const contained = <T,>(plugin: string, fallback: T, run: () => T): T => {
+    try {
+      return run()
+    } catch (cause) {
+      queueMicrotask(() => host.fail(plugin, cause))
+
+      return fallback
+    }
+  }
   const stored = () => input.tabs().all()
   const providers = createMemo(() => host.items(Panel).filter((item) => item.value.region === input.region))
 
@@ -54,7 +63,9 @@ export function createRegion(input: {
         const prefix = `${item.plugin}:`
         const open = stored().flatMap((key) => (key.startsWith(prefix) ? [key.slice(prefix.length)] : []))
 
-        return item.value.list(panelInput(input.view, input.screen, {open})).map((tab): RegionEntry => {
+        const tabs = contained(item.plugin, [], () => item.value.list(panelInput(input.view, input.screen, {open})))
+
+        return tabs.map((tab): RegionEntry => {
           const key = panelKey(item.plugin, tab.id)
           const existing = prior.get(key)
 
@@ -82,16 +93,15 @@ export function createRegion(input: {
 
     const rewrite = (key: string) => {
       const item = normalizers.find((provider) => key.startsWith(`${provider.plugin}:`))
+      const normalize = item?.value.normalize
 
-      if (!item?.value.normalize) return key
+      if (!item || !normalize) return key
+
+      const id = key.slice(item.plugin.length + 1)
 
       return panelKey(
         item.plugin,
-        item.value.normalize(
-          panelInput(input.view, input.screen, {
-            id: key.slice(item.plugin.length + 1),
-          }),
-        ),
+        contained(item.plugin, id, () => normalize(panelInput(input.view, input.screen, {id}))),
       )
     }
 
@@ -123,11 +133,13 @@ export function createRegion(input: {
       const entry = key ? byKey().get(key) : undefined
 
       if (entry)
-        entry.provider.focus?.(
-          panelInput(input.view, input.screen, {
-            tab: entry.tab,
-            restored,
-          }),
+        contained(entry.plugin, undefined, () =>
+          entry.provider.focus?.(
+            panelInput(input.view, input.screen, {
+              tab: entry.tab,
+              restored,
+            }),
+          ),
         )
 
       return false
@@ -169,10 +181,12 @@ export function createRegion(input: {
       input.tabs().close(key)
 
       if (entry)
-        entry.provider.close?.(
-          panelInput(input.view, input.screen, {
-            tab: entry.tab,
-          }),
+        contained(entry.plugin, undefined, () =>
+          entry.provider.close?.(
+            panelInput(input.view, input.screen, {
+              tab: entry.tab,
+            }),
+          ),
         )
     },
   }

@@ -15,7 +15,7 @@ export type SubscribeOptions<Type extends string = string> = {
 export function make<A extends {readonly type: string}>(
   connect: (signal: AbortSignal, onActivity: () => void) => AsyncIterable<A>,
 ) {
-  type Completion = {readonly error: unknown} | Record<string, never>
+  type Completion = {readonly status: 'done'} | {readonly status: 'failed'; readonly error: unknown}
   type Subscriber = {
     push: (value: A) => void
     finish: (completion: Completion) => void
@@ -38,7 +38,7 @@ export function make<A extends {readonly type: string}>(
 
   async function run(connection: Connection) {
     let iterator: AsyncIterator<A> | undefined
-    let completion: Completion = {}
+    let completion: Completion = {status: 'done'}
     try {
       if (connection.controller.signal.aborted) return
       iterator = connect(connection.controller.signal, () => {
@@ -51,13 +51,13 @@ export function make<A extends {readonly type: string}>(
         connection.subscribers.forEach((subscriber) => subscriber.push(item.value))
       }
     } catch (error) {
-      completion = {error}
+      completion = {status: 'failed', error}
     } finally {
       stop(connection)
       try {
         await iterator?.return?.()
       } catch (error) {
-        if (!('error' in completion)) completion = {error}
+        if (completion.status === 'done') completion = {status: 'failed', error}
       }
       connection.subscribers.forEach((subscriber) => subscriber.finish(completion))
     }
@@ -85,13 +85,13 @@ export function make<A extends {readonly type: string}>(
             options?.signal?.removeEventListener('abort', abort)
             if (connection?.subscribers.delete(subscriber) && !connection.subscribers.size) stop(connection)
             pending.splice(0).forEach((request) => {
-              if ('error' in result) request.reject(result.error)
+              if (result.status === 'failed') request.reject(result.error)
               else request.resolve({done: true, value: undefined})
             })
           }
 
           function abort() {
-            finish({})
+            finish({status: 'done'})
           }
 
           const subscriber: Subscriber = {
@@ -108,7 +108,7 @@ export function make<A extends {readonly type: string}>(
                 return
               }
               if (queued.length === capacity) {
-                finish({error: new Error(`Event subscriber exceeded its ${capacity}-event capacity`)})
+                finish({status: 'failed', error: new Error(`Event subscriber exceeded its ${capacity}-event capacity`)})
                 return
               }
               queued.push(value)
@@ -133,7 +133,7 @@ export function make<A extends {readonly type: string}>(
               const value = queued.shift()
               if (value) return Promise.resolve({done: false, value})
               if (completion) {
-                if ('error' in completion) return Promise.reject(completion.error)
+                if (completion.status === 'failed') return Promise.reject(completion.error)
                 return Promise.resolve({done: true, value: undefined})
               }
               if (options?.signal?.aborted) {
@@ -150,7 +150,7 @@ export function make<A extends {readonly type: string}>(
               return request.promise
             },
             return(): Promise<IteratorResult<Item>> {
-              finish({})
+              finish({status: 'done'})
               return Promise.resolve({done: true, value: undefined})
             },
           }

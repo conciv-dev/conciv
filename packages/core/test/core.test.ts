@@ -8,6 +8,7 @@ import {
   writeFileSync,
   mkdirSync,
   utimesSync,
+  chmodSync,
 } from 'node:fs'
 import {once} from 'node:events'
 import {request as httpRequest} from 'node:http'
@@ -50,10 +51,15 @@ import {concivStateDir} from '@conciv/protocol/state-types'
 import {
   chatMetadata,
   chatRuns,
+  hubConnections,
   InstructionStateTable,
   markers,
   openDb,
+  readHomeDb,
+  recordHubConnection,
+  removeHubConnection,
   sessions as sessionTable,
+  withHomeDb,
   type ConcivDb,
 } from '@conciv/db'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
@@ -126,6 +132,7 @@ import {resolveConfig} from '../src/config.js'
 import {symbolicateFrame} from '../src/editor/symbolicate.js'
 import {readDevEndpoint, removeDevEndpoint, writeDevEndpoint} from '../src/lib/dev-endpoint.js'
 import {makeStalenessProbe} from '../src/lib/engine-stamp.js'
+import {homeDbReads} from '../src/lib/home-db-watch.js'
 import {withSavedModels} from '../src/lib/saved-models.js'
 import {statePaths} from '../src/lib/state-paths.js'
 import {makeJournal, makePageBus} from '../src/page/page-bus.js'
@@ -707,6 +714,33 @@ describe('chat plane', () => {
     expect.soft(logged).not.toMatch(/DrizzleQueryError|database is not open/)
   })
 
+  it('an engine that died mid-run starts again on the same state, the cut run ends aborted once, and no turn follows it', async () => {
+    const root = tempDir()
+    const cli = fakeCli('streaming')
+    const died = await bootEngine(root, {harness: cliHarness(cli)})
+    onTestFinished(async () => {
+      cli.release()
+      await died.stop()
+    })
+    const turn = await fetch(`http://127.0.0.1:${died.port}/t/${died.agentToken}${CHAT_SSE_PATH}`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: turnBody(sessionId('cut-short'), 'cut-short-run', 'keep talking'),
+    })
+    await readUntil(turn, ChatEventType.TEXT_MESSAGE_CONTENT)
+    const db = openDatabase(root)
+    const runRows = () =>
+      db.select({runId: chatRuns.runId, status: chatRuns.status, finishedAt: chatRuns.finishedAt}).from(chatRuns).all()
+    expect(runRows()).toEqual([{runId: 'cut-short-run', status: 'running', finishedAt: null}])
+    const restarted = await bootEngine(root, {harness: cliHarness(fakeCli())})
+    await restarted.stop()
+    const swept = runRows()
+    expect(swept).toEqual([{runId: 'cut-short-run', status: 'aborted', finishedAt: expect.any(Number)}])
+    const again = await bootEngine(root, {harness: cliHarness(fakeCli())})
+    await again.stop()
+    expect(runRows()).toEqual(swept)
+  })
+
   it('a push socket that opens while a run is going is told about that run', async () => {
     const cli = fakeCli('streaming')
     const engine = await bootEngine(tempDir(), {harness: cliHarness(cli)})
@@ -850,6 +884,7 @@ describe('chat plane', () => {
       capabilities: () => [],
       attachmentExpanders: {},
       prompt: async (event) => event,
+      promptHooked: async () => false,
       pluginInstructions: async () => ({initial: '', update: '', told: async () => undefined}),
       firstOutputTimeoutMs: 30_000,
       log: () => undefined,
@@ -1010,6 +1045,24 @@ describe('local state files', () => {
     expect(probe().fingerprint).not.toBe(fresh.fingerprint)
   })
 
+  describe('home db reads', () => {
+    it('yields every home db write made after the first value, from before the db exists until the abort', async () => {
+      const home = tempDir()
+      const stop = new AbortController()
+      onTestFinished(() => stop.abort())
+      const reads = homeDbReads(home, stop.signal, () => readHomeDb(home, hubConnections) ?? [])
+      expect((await reads.next()).value).toEqual([])
+      withHomeDb(home, (db) => recordHubConnection(db, 'claude', 1))
+      expect((await reads.next()).value).toEqual([{harness: 'claude', connectedAt: 1}])
+      withHomeDb(home, (db) => removeHubConnection(db, 'claude'))
+      expect((await reads.next()).value).toEqual([])
+      const waiting = reads.next()
+      stop.abort()
+      expect(await waiting).toEqual({done: true, value: undefined})
+      expect(existsSync(join(home, 'home.db-wal'))).toBe(false)
+    })
+  })
+
   describe('saved harness models', () => {
     type Listed = {id: string; name: string; group: string}
     const OPUS: Listed = {id: 'opus', name: 'Opus 5.5', group: 'Claude'}
@@ -1149,17 +1202,33 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
 })
 
 describe('configured session rows', () => {
-  it('the configured conciv and harness session rows exist once the engine resolves', async () => {
+  it('the configured conciv and harness session rows exist once the engine resolves, and the start leaves the database file mode alone', async () => {
     const root = tempDir()
+    const databaseFile = join(concivStateDir(root), 'conciv.db')
+    openDb(root).$client.close()
+    chmodSync(databaseFile, 0o644)
     const configured = {sessionId: 'conciv_configured', claudeSessionId: 'native-configured'}
     const made = await makeApp({cfg: resolveConfig(configured, root), cwd: root, openInEditor: () => {}})
     try {
       const rows = await made.chat.db.select().from(sessionTable)
       expect(rows.map((row) => row.id)).toContain('conciv_configured')
       expect(rows.map((row) => row.harnessSessionId)).toContain('native-configured')
+      expect([databaseFile, `${databaseFile}-wal`].map((file) => statSync(file).mode & 0o777)).toEqual([0o644, 0o644])
     } finally {
       await made.dispose()
     }
+  })
+
+  it('a start that fails once the plugin host is built closes every handle on the database', async () => {
+    const root = tempDir()
+    const databaseFile = join(concivStateDir(root), 'conciv.db')
+    const seeded = openDb(root)
+    seeded.run(
+      sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+    )
+    seeded.$client.close()
+    await expect(makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}})).rejects.toThrow()
+    expect(existsSync(`${databaseFile}-wal`)).toBe(false)
   })
 })
 
@@ -2519,10 +2588,11 @@ function sessionKey(made: MadeApp) {
 }
 
 describe('plugin host bus', () => {
-  test('deleting a session delivers one session.deleted event to a bus subscriber', async () => {
+  test('deleting a session delivers one session.deleted event to a bus subscriber and keeps none of its events, and a plugin host failure leaves the session in place', async () => {
     const served = await serveCore(tempDir(), [], {})
     try {
       const rpc = makeRpcClient(`${served.origin}/t/${served.made.agentToken}`)
+      const db = served.made.chat.db
       const {sessionId} = await rpc.sessions.create(undefined)
       const heard: {type: string; data: unknown}[] = []
       await served.made.pluginHost.runPromise(
@@ -2532,6 +2602,26 @@ describe('plugin host bus', () => {
       expect(heard.filter((event) => event.type === SessionEvent.Deleted.type)).toEqual([
         expect.objectContaining({data: {sessionID: sessionId}}),
       ])
+      expect(
+        db.all(
+          sql`SELECT aggregate_id FROM event WHERE aggregate_id = ${sessionId} UNION ALL SELECT aggregate_id FROM event_sequence WHERE aggregate_id = ${sessionId}`,
+        ),
+      ).toEqual([])
+      await rpc.sessions.restore({sessionId})
+      expect(
+        db.select({deletedAt: sessionTable.deletedAt}).from(sessionTable).where(eq(sessionTable.id, sessionId)).all(),
+      ).toEqual([{deletedAt: null}])
+
+      const kept = await rpc.sessions.create(undefined)
+      db.run(sql`DROP TABLE kv`)
+      await expect(rpc.sessions.delete({sessionId: kept.sessionId})).rejects.toThrow()
+      expect(
+        db
+          .select({deletedAt: sessionTable.deletedAt})
+          .from(sessionTable)
+          .where(eq(sessionTable.id, kept.sessionId))
+          .all(),
+      ).toEqual([{deletedAt: null}])
     } finally {
       await served.stop()
     }
@@ -3689,8 +3779,8 @@ describe('plugin context keys provided by core', () => {
     )
 
     const roots = await host.runPromise(Global.Service)
-    expect(roots).toEqual({cache: join(home, 'cache'), state: join(home, 'state')})
-    expect(existsSync(roots.cache) && existsSync(roots.state)).toBe(true)
+    expect(roots).toEqual({cache: join(home, 'cache'), config: home, state: join(home, 'state')})
+    expect(existsSync(roots.cache) && existsSync(roots.config) && existsSync(roots.state)).toBe(true)
   })
   it('the session key creates, reads, pages, renames, re-describes, switches and removes conciv sessions on their own rows', async () => {
     const stateRoot = tempDir()

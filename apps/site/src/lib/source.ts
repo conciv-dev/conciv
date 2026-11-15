@@ -1,12 +1,51 @@
+import {createElement} from 'react'
 import {loader} from 'fumadocs-core/source'
 import {docs} from 'collections/server'
-import {lucideIconsPlugin} from 'fumadocs-core/source/lucide-icons'
+import {
+  Bot,
+  Boxes,
+  FlaskConical,
+  FolderCode,
+  LifeBuoy,
+  MousePointerClick,
+  Puzzle,
+  Rocket,
+  Settings,
+  SquareTerminal,
+  Workflow,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react'
 import {docsRoute} from './shared'
+
+const docsIcons: Record<string, LucideIcon> = {
+  Bot,
+  Boxes,
+  FlaskConical,
+  FolderCode,
+  LifeBuoy,
+  MousePointerClick,
+  Puzzle,
+  Rocket,
+  Settings,
+  SquareTerminal,
+  Workflow,
+  Zap,
+}
+
+function docsIcon(name: string | undefined) {
+  if (name === undefined) return undefined
+  const icon = docsIcons[name]
+  if (icon === undefined) {
+    throw new Error(`docs icon "${name}" is not in docsIcons in apps/site/src/lib/source.ts; add the lucide icon there`)
+  }
+  return createElement(icon)
+}
 
 export const source = loader({
   source: docs.toFumadocsSource(),
   baseUrl: docsRoute,
-  plugins: [lucideIconsPlugin()],
+  icon: docsIcon,
 })
 
 export function markdownPathToSlugs(segs: string[]) {

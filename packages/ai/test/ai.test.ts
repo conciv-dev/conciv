@@ -109,6 +109,27 @@ describe('chat stores', () => {
       await expect(messages.loadThread('paged')).rejects.toThrow()
     })
 
+    it('a turn reads only the row of the message it prompts, so unreadable earlier rows do not stop it', async () => {
+      const {db, messages} = await savedThread()
+      db.run(sql`UPDATE chat_messages SET message_json = 'not json' WHERE thread_id = 'paged' AND position < 6`)
+      const prompted = Promise.withResolvers<string>()
+      const hooks = turnHooks(() => ({
+        adapter: scriptedModel([{text: 'ok'}]),
+        prompt: async (message) => {
+          prompted.resolve(`prompted ${message.id}`)
+          return message
+        },
+      }))
+      const server = await chatServer(hooks, () => undefined, db)
+      const reached = Promise.race([
+        prompted.promise,
+        say(server, 'paged', 'run-paged', 'next').then(() => 'ended without a prompt'),
+      ])
+      expect(await reached).toBe('prompted user-next')
+      expect(await messages.loadMessage('paged', 'u2')).toEqual(THREAD[6])
+      expect(await messages.loadMessage('paged', 'gone')).toBeNull()
+    })
+
     it('the newest page ends on the last stored message even when a position in between is missing', async () => {
       const {db, messages} = await savedThread()
       db.run(sql`DELETE FROM chat_messages WHERE thread_id = 'paged' AND position = 1`)
@@ -887,7 +908,7 @@ const watched = require('node:net').connect(data.socket, () => {
         undefined,
         await loadIsolateDriver(log),
       )
-      const onQuickJS = logged.some((message) => message.includes('@tanstack/ai-isolate-node'))
+      expect(logged.filter((message) => message.includes('code mode'))).toEqual([])
       const echo = defineTool({
         name: 'echo',
         description: 'Echoes its input.',
@@ -897,7 +918,7 @@ const watched = require('node:net').connect(data.socket, () => {
       const runner = server.codeRunner([echo], null)
       if (runner === null) throw new Error('code mode found no driver')
       const booted = ours()
-      expect(booted).toHaveLength(onQuickJS ? 1 : 0)
+      expect(booted).toHaveLength(1)
       for (const _ of Array.from({length: 20})) {
         expect(await runner.run('return 1', () => undefined)).toMatchObject({success: true, result: 1})
         expect(ours()).toEqual(booted)

@@ -8,7 +8,7 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 
 - `ShellFab`, `FabRobot` (`fab.tsx`, `fab-robot.tsx`): launcher button controlling `#conciv-chat-panel`; the robot's binary digits avoid the open panel's frame (`avoid`), going around its nearer free side
 - `createNoticeStore()`, `NoticeStore`, `Notify`, `NoticeOptions`, `NoticeHandle`, `NoticeIcon`, `NoticeTone` (`notices.tsx`): toaster with `notify` (message, optional description, lucide icon, duration, loading state, one `action` or several `actions`; returns a handle whose `dismiss` removes that notice), `remove`, `Toaster`
-- `NoticeContextProvider`, `useNotices`, `NoticeSurface`, `useEngineNotices` (`notice-context.tsx`): one store, provided in `routes/__root.tsx`; the panel, quick terminal and picture-in-picture layouts each draw the surface
+- `NoticeContextProvider`, `useNotices`, `NoticeSurface`, `useEngineNotices` (`notice-context.tsx`): one store, provided in `routes/__root.tsx`; the panel, quick terminal and picture-in-picture layouts each draw the surface, and a standing notice a layout raises is removed when that layout unmounts
 - `EngineStaleNotice`, `EngineUnreachableNotice` (`engine-notice.tsx`): standing danger notices driven by `meta.engine` and reachability
 - `lockedMessage(locked)` (`engine-lock-messages.ts`): the locked notice's sentence for an `EngineLock` (`null` when not locked), also the pane's send refusal and disabled Send label while locked; `EngineLockedNotice` shows while `useEngineReachability().locked()` is not `null`
 - `EngineOutdatedNotice` (`engine-notice.tsx`, mounted in the panel): fetches `${apiBase}/health` once and shows a standing notice naming the widget version and asking to update the @conciv packages to it when the `x-conciv-version` response header is missing or semver-older than the `@conciv/app` version; a newer engine shows nothing; the query (`engineVersionQueryOptions`) and the version check (`engineOlderThanWidget`) are exported so the plugin host's engine server reads the same cached health response
@@ -30,7 +30,7 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 - `notices.tsx:createNoticeStore`: a success notice with no icon shows the lucide `check`; a loading notice shows the kit `Loader` in the icon slot
 - `notice-context.tsx:useNotices`: throws outside `NoticeContextProvider`
 - `engine-notice.tsx:EngineStaleNotice`: one standing notice per engine `fingerprint`; cleared when the engine reports not stale and when the component unmounts
-- `engine-notice.tsx:EngineUnreachableNotice`: shown only while `sustainedOffline()`; Retry re-runs the login check, then calls `resetBrowserRpcConnection` and `router.invalidate()`
+- `engine-notice.tsx:EngineUnreachableNotice`: shown only while `sustainedOffline()`, and removed when the component unmounts; Retry re-runs the login check, then calls `resetBrowserRpcConnection` and `router.invalidate()`
 - `default-error-component.tsx:defaultErrorComponent`: runs its Retry when it mounts on a refused (`UNAUTHORIZED`) error while the engine already trusts this browser, and on a trust flip from untrusted or revoked to trusted while it is shown
 - `rpc-error-message.ts:classifyRpcError`: reachability errors map to the transport message, otherwise the error message or the generic one
 - `refresh-button.tsx:RefreshButton`: disabled while a run is in progress or a refresh is running

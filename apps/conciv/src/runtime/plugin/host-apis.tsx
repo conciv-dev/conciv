@@ -2,6 +2,7 @@ import {batch, createMemo, createSignal, getOwner, on, onCleanup, runWithOwner, 
 import {createStore, produce, type Store} from 'solid-js/store'
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import {createORPCClient} from '@orpc/client'
+import {z} from 'zod'
 import {useLocation, useParams, useRouter, useRouterState, useSearch} from '@tanstack/solid-router'
 import {formatForDisplay} from '@tanstack/solid-hotkeys'
 import {useQuery} from '@conciv/client'
@@ -54,7 +55,7 @@ import {usePluginHost, type HostApiFactories} from './host'
 import {icons} from './icons'
 import {createLocatedWrites} from './located'
 import {createMobileViews} from './mobile'
-import {isPluginView} from './panel-keys'
+import {isPluginView, panelKey} from './panel-keys'
 import type {Region} from './panels'
 import {deferredHandle, globalStoreTarget, persistedHandle, storeImports, storeName} from './stores'
 import {ui} from './ui'
@@ -67,7 +68,7 @@ type Attached = {
   layout: Pick<Layout, 'open' | 'close' | 'toggle' | 'hide' | 'state'> & {
     stored(plugin: string, session: SessionRef): readonly string[]
   }
-  settings: (page?: string) => void
+  settings: (plugin: string, page?: string) => void
   draft: (plugin: string, input: Parameters<Layout['draft']>[0]) => void
   mode: Accessor<'light' | 'dark'>
   routing: Accessor<boolean>
@@ -96,6 +97,8 @@ const TOAST_TONE: Record<NonNullable<ToastOptions['variant']>, NoticeTone> = {
 }
 
 const UNAVAILABLE = 'The server that runs this plugin is unavailable'
+
+const HostSettingsTab = z.enum(['general', 'views', 'shortcuts', 'plugins', 'advanced'])
 
 export function createHostApis() {
   const rpc = useRpc()
@@ -343,7 +346,7 @@ export function createHostApis() {
       state: (key, session) => current()?.layout.state(key, session) ?? 'closed',
       stored: (session) => current()?.layout.stored(plugin, session) ?? [],
       scroll: undefined,
-      settings: (page) => write((value) => value.settings(page)),
+      settings: (page) => write((value) => value.settings(plugin, page)),
       draft: (input) => write((value) => value.draft(plugin, input)),
     }),
     ui: () => ui,
@@ -365,7 +368,7 @@ export function createHostApis() {
 
 export type HostApis = ReturnType<typeof createHostApis>
 
-export {PluginAttachmentProvider, usePluginAttachment} from './attachment'
+export {PluginAttachmentProvider} from './attachment'
 
 function useRoutedSessions() {
   const params = useParams({strict: false})
@@ -420,7 +423,7 @@ export function createPluginAttachment(apis: HostApis) {
         server: engine,
         pending: false,
         get location() {
-          const root = project.data?.project.root
+          const root = project.isSuccess ? project.data?.project.root : undefined
 
           return root === undefined ? undefined : {directory: root}
         },
@@ -542,11 +545,20 @@ export function createPluginAttachment(apis: HostApis) {
     path: useLocation({select: (location) => `${location.pathname}${location.searchStr}`}),
     servers: () => [engine.id],
     server: (id) => (id === engine.id ? engine : undefined),
-    settings(page) {
+    settings(plugin, page) {
       const sessionId = untrack(route).routed
 
-      if (sessionId === undefined || (page !== undefined && page !== 'general')) return
-      void router.navigate({to: '/panel/$sessionId/settings/general', params: {sessionId}})
+      if (sessionId === undefined) return
+      const requested = page ?? 'general'
+      const tab = HostSettingsTab.safeParse(requested)
+      const navigated = tab.success
+        ? router.navigate({to: `/panel/$sessionId/settings/${tab.data}`, params: {sessionId}})
+        : router.navigate({
+            to: '/panel/$sessionId/settings/plugins/$page',
+            params: {sessionId, page: panelKey(plugin, requested)},
+          })
+
+      void navigated.catch((cause: unknown) => console.error(`[plugin] ${plugin}: settings did not open`, cause))
     },
     layout: {
       open,

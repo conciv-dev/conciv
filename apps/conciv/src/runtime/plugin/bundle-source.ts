@@ -13,7 +13,8 @@ import {
 } from '@conciv/plugin/experimental/host'
 import {builtins} from './builtins'
 import {createHostState, isCurrentHostWatch, transitionHost, type HostCommand, type HostEvent} from './host-machine'
-import {createManager, pluginError} from './manager'
+import {pluginError} from './error'
+import {createManager} from './manager'
 import type {PluginExperimentalSource} from './plugins'
 import type {InstalledSource} from './startup'
 

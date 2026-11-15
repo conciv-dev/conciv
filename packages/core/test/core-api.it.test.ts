@@ -1428,7 +1428,7 @@ describe('api native page', () => {
         const page = await fetch(pageUrl)
         expect(page.status).toBe(200)
         const html = await page.text()
-        const match = /<script src="([^"]+)"><\/script>/.exec(html)
+        const match = /<script\b[^>]*\bsrc="([^"]+)"/.exec(html)
         const src = match?.[1]
         expect(src).toBe(`native/${BUNDLE}`)
         if (src === undefined) throw new Error('no script src in native page')
@@ -6268,6 +6268,8 @@ export default {
     expect(seen.directory).toBe(root)
     expect(seen.plugins.map((plugin) => plugin.id).toSorted()).toEqual([
       'broken',
+      'conciv.config.skill',
+      'conciv.skill',
       'conciv.tool.skill',
       'configured',
       'embedded',
@@ -6470,6 +6472,70 @@ export default {
     expect(z.object({mcpUrl: z.string()}).parse(await call(againBase, 'seer', 'seen')).mcpUrl).toBe(
       `${againBase}/api/mcp`,
     )
+  })
+
+  it('an engine with no plugin offers its built-in conciv and report skills and a skill added to the project conciv/skills folder', async () => {
+    const root = tempDir('conciv-skills-')
+    const prompts: string[][] = []
+    const fake = createFakeHarness()
+    const harness: FakeHarness = {
+      ...fake,
+      chatConfig: (deps: HarnessChatDeps) => ({
+        adapter: makeTextAdapter(fake.id, async function* (options) {
+          prompts.push([...(options.systemPrompts ?? [])].map(String))
+          yield* fake.script.chatStream(deps, options)
+        }),
+      }),
+    }
+    const engine = await start({
+      options: {stateRoot: root},
+      root,
+      launchEditor: () => {},
+      harness,
+      homeDir: tempDir('conciv-home-'),
+    })
+    onTestFinished(() => engine.stop())
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    const prompted = async (runId: string) => {
+      await fetch(`${base}${CHAT_SSE_PATH}`, {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({
+          threadId: sessionId,
+          runId,
+          messages: [{id: `${runId}-user`, role: 'user', content: 'say hello'}],
+          tools: [],
+          context: [],
+        }),
+      }).then((response) => response.text())
+      return prompts.at(-1)?.join('\n') ?? ''
+    }
+    const mcp = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: sessionId})
+    onTestFinished(() => mcp.close())
+    const load = async (id: string) =>
+      JSON.stringify(await (await mcp.tools()).find((entry) => entry.name === 'skill')?.execute?.({id}))
+
+    const bare = await prompted('bare-run')
+    expect(bare).toContain('<id>conciv</id>')
+    expect(bare).toContain('<id>report</id>')
+    expect(await load('conciv')).toContain('Full documentation is available at <https://conciv.dev/docs>.')
+    const report = await load('report')
+    expect(report).toContain('# Report a conciv issue')
+    expect(report).toContain('## Runtime Diagnostics Snapshot')
+    expect(report).toContain('- Active plugins: None found in config')
+
+    const updates = await makeRpcClient(base).event.subscribe({types: ['skill.updated']})
+    onTestFinished(async () => {
+      await updates.return(undefined)
+    })
+    expect(await updates.next()).toMatchObject({value: {type: 'server.connected'}})
+    const folder = join(root, 'conciv', 'skills', 'greet')
+    mkdirSync(folder, {recursive: true})
+    writeFileSync(join(folder, 'SKILL.md'), '---\nname: greet\ndescription: How to greet the user\n---\nGreet twice.\n')
+    expect(await updates.next()).toMatchObject({value: {type: 'skill.updated'}})
+    expect(await prompted('greet-run')).toContain('<id>greet</id>')
+    expect(await load('greet')).toContain('Greet twice.')
   })
 })
 

@@ -28,12 +28,11 @@ module.exports = {
   }
 }
 
-function widgetUrlCard(name: FamilyName): ManualCard {
+function widgetCard(name: FamilyName): ManualCard {
   return {
-    title: 'Inject the widget',
-    body: `The ${name} plugin boots the engine but does not inject the widget for you.
-The widget bundle ships as @conciv/widget/global. Serve it and set widgetUrl so the script is added to your page.
-The live page bridge is Vite only. Chat, tests, and approvals work once the engine is booted and the widget is on the page.`,
+    title: 'The widget is not added for you',
+    body: `conciv's ${name} integration starts the engine while the dev server runs, but it does not add the widget to your page.
+What works today: https://conciv.dev/docs/quick-start/${name}`,
   }
 }
 
@@ -73,13 +72,13 @@ export function webpackFamilyStep(detected: Detected): InitStep {
     }),
     apply: async (ctx) => {
       const config = readConfig(ctx.cwd, detected.configFile)
-      if (config === null) return {status: 'manual', cards: [configCard(name), widgetUrlCard(name)]}
+      if (config === null) return {status: 'manual', cards: [configCard(name), widgetCard(name)]}
       const transformed = transformConfig(config.content, name)
       if (!transformed.matched || transformed.output === null) {
-        return {status: 'manual', cards: [configCard(name), widgetUrlCard(name)]}
+        return {status: 'manual', cards: [configCard(name), widgetCard(name)]}
       }
       writeConfigChange(ctx, config, transformed.output)
-      return {status: 'manual', cards: [widgetUrlCard(name)]}
+      return {status: 'manual', cards: [widgetCard(name)]}
     },
     verify: async (ctx) => detectWired(ctx.cwd, detected.configFile, name) === 'present',
     manualCard: () => configCard(name),
