@@ -1509,7 +1509,13 @@ describe('cli', () => {
           code: 1,
           document: {
             ok: false,
-            error: {kind: 'user', code: 'PLUGIN_RPC', message: 'no dev server is attached to conciv'},
+            error: {
+              kind: 'user',
+              code: 'PLUGIN_RPC',
+              type: 'BUNDLER_UNAVAILABLE',
+              message: 'no dev server is attached to conciv',
+              data: {},
+            },
           },
         })
       } finally {
