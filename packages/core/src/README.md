@@ -14,6 +14,7 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `CoreRuntime`, `EngineScope`, `SessionScope`, `ScopedToolCall`, `session` (`runtime.ts`)
 - `CodeRunCard`, `codeRunTool`, `EXECUTE_TOOL_NAME`, `coreToolCards` (`cards.tsx`)
 - `makeBuiltinRegistry(deps)` / `toolFailureFromPage` (`tool-registry.ts`)
+- `EventFeed` (`event-feed.ts`): opencode's `server/src/event-feed.ts` copied on `Bus.listen`: `layer`, `make(observe, {capacity?, encode?})`, `Service`, `subscribe(types?)` (a scoped stream of encoded events), `encode`, `SubscriberCapacity` (4096), `SubscriberOverflowError`, `EncodingError`. One edit from the source: it yields each encoded event object (the contract's `EventEnvelopeSchema`), not an SSE text frame, since the transport is oRPC; `encode` uses the host's own Effect definitions (`EventManifest.ServerDefinitions`, `Rpc.eventDefinition` for `rpc.*`)
 - Subdirectories:
   - api: [./api/README.md](./api/README.md) - MCP, tabs, push and native-page routes
   - cards: [./cards/README.md](./cards/README.md) - execute_typescript tool card
@@ -43,6 +44,7 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `/api/shutdown` (`app.ts`): 404 without `onShutdown`
 - `resolveConfig` (`config.ts`): session ids must pass `isSessionId` / `isHarnessSessionId`; harness defaults to 'claude'
 - `runClientTool` (`tool-registry.ts`): mutating page tools append a journal entry after success
+- `EventFeed` (`event-feed.ts`): only public events pass (`server.connected`, `EventManifest` server events, `rpc.*`), so internal events take no subscriber capacity; a subscriber with `types` gets only those types (filtered on the server); each event is encoded once and the same object goes to every subscriber; a subscriber whose queue holds 4096 undelivered events is removed and its stream fails with `SubscriberOverflowError`, the others go on; an encoding failure is logged and fails every current subscriber with `EncodingError`, later subscribers are served; a subscriber is removed and its queue shut down when its scope closes
 
 ## Side Effects
 

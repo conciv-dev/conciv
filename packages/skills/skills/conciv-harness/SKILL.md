@@ -81,8 +81,8 @@ checker — `HarnessAdapter` is an intersection of three conditional pairs
 
 There is no matching compile-time link for `resume`, `permissionGate`, `compaction`, `systemPrompt`,
 `mcp`, or `imageInput` — those are read at runtime by `packages/chat/src/turn.ts` (e.g.
-`deps.harness.capabilities.resume` gates whether a resume token is used,
-`packages/chat/src/turn.ts:108-117`; `deps.harness.capabilities.compaction` picks `/compact` vs a
+`harness.capabilities.resume` gates whether a resume token is used,
+`packages/chat/src/turn.ts:108-117`; `harness.capabilities.compaction` picks `/compact` vs a
 fallback prompt, `packages/chat/src/turn.ts:194-196`). Declare them honestly: `resume: false` when
 your CLI has no session-resume flag, `mcp: 'none'` when it can't accept an MCP server URL, and so on —
 core branches on these values to decide what to even attempt.
@@ -150,28 +150,59 @@ translation; most adapters omit it.
 ## `chat()` owns the turn — you never spawn or decode the CLI in core/widget
 
 `packages/chat/src/turn.ts:284-293` is the only call site that invokes `chatConfig`; the plan it
-returns reaches `chat()` in `run` (`packages/ai/src/server/chat-server.ts:377-420`):
+returns reaches `chat()` in `started` (`packages/ai/src/server/chat-server.ts:589-641`):
 
 ```ts
-return chat({
-  adapter: guardedAdapter(plan.adapter, guard),
+const stream = chat({
+  adapter: guardedAdapter(plan.adapter, {
+    ended: entry.ending.signal,
+    stopped: controller.signal,
+    startMs: config.startTimeoutMs,
+    firstOutputMs: config.firstOutputTimeoutMs,
+    onNotStarted: () => failed(`the agent did not start within ${seconds(config.startTimeoutMs)}s`),
+    onSilence: () => failed(`the agent produced no output within ${seconds(config.firstOutputTimeoutMs)}s`),
+    stop: () => controller.abort(RUN_CANCEL_REASON),
+    log: config.log,
+  }),
   messages,
   threadId: turn.threadId,
   runId: turn.runId,
-  systemPrompts,
-  tools,
+  systemPrompts: coded === null ? [] : [coded.preface],
+  tools: [...(coded?.tools ?? []), ...gatedTools(plan.asking, approvals), ...plan.direct],
   lazyToolsConfig: {includeDescription: 'first-sentence'},
+  retry: {maxRetries: 2},
   modelOptions: plan.modelOptions,
   abortController: controller,
   debug,
   middleware: [
-    steer,
+    defineChatMiddleware({
+      name: 'conciv-steer',
+      setup: () => endRuns(turn.threadId, turn.runId),
+    }),
+    defineChatMiddleware({
+      name: 'conciv-image-tools',
+      provides: [ToolBridgeProvisionerCapability],
+      setup: (ctx) => provideToolBridgeProvisioner(ctx, imageToolProvisioner),
+    }),
     withPersistence(persistence, {snapshotStreaming: true}),
     withLocks(locks),
-    threadView,
+    defineChatMiddleware({
+      name: 'conciv-thread-view',
+      onConfig: (_ctx, current) => {
+        view.full = current.messages
+      },
+    }),
     childCards(config.codeModeResult),
-    runRecord,
+    ...(turn.kind === 'compact' ? [compactionStamp(stores.messages)] : []),
+    defineChatMiddleware({
+      name: 'conciv-run-record',
+      setup: async (ctx) => {
+        await stores.runs.createOrResume({runId: turn.runId, threadId: turn.threadId, startedAt: Date.now()})
+        await getPendingTurn(ctx, {optional: true})?.snapshot()
+      },
+    }),
     withSandbox(sandbox, {locks}),
+    toolHistory(),
     concivTurn(turn, plan, granted, view, entry),
   ],
 })

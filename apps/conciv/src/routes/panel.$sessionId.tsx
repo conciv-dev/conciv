@@ -26,7 +26,7 @@ import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
 import RefreshCw from 'lucide-solid/icons/refresh-cw'
 import ShieldCheck from 'lucide-solid/icons/shield-check'
 import Unplug from 'lucide-solid/icons/unplug'
-import {Show, Suspense, createEffect, createMemo, createSignal, on, onMount, type JSX} from 'solid-js'
+import {Show, Suspense, createEffect, createMemo, createSignal, on, onCleanup, onMount, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {isSessionId} from '@conciv/protocol/chat-types'
 import {
@@ -249,6 +249,7 @@ function AllowOutsideAgentsRow(props: {sessionId: string}): JSX.Element {
 
 function showPopOutLost(lost: () => boolean, popOut: () => void): void {
   const notices = useNotices()
+  onCleanup(() => notices.remove(POP_OUT_LOST_KEY))
   createEffect(
     on(lost, (isLost) => {
       if (!isLost) {
