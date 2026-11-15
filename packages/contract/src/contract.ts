@@ -332,7 +332,7 @@ export const PluginExperimentalBundleSchema = z.object({
     .string()
     .min(1)
     .max(256)
-    .regex(/^[^/\\]+$/),
+    .regex(/^[^/\\]+\.c?js$/),
   code: z.string(),
   revision: z.string().min(1).max(256),
   options: z.record(z.string(), z.json()),

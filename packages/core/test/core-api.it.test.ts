@@ -45,6 +45,7 @@ import {
   cappedValue,
   codeExecuteReply,
   makeBrowserRpcClient,
+  PluginExperimentalBundleSchema,
   type EngineStaleness,
 } from '@conciv/contract'
 import {
@@ -6516,6 +6517,9 @@ describe('engine plugin bundles', () => {
     expect(first.data.options).toEqual({greeting: 'hi'})
     expect(first.data.revision).toMatch(/^[0-9a-f]{64}$/)
     expect(first.data.file).toBe('plugin-experimental.js')
+    expect(PluginExperimentalBundleSchema.safeParse({...first.data, file: 'plugin-experimental.ts'}).success).toBe(
+      false,
+    )
     expect(typeof evaluatePluginBundle(first.data.code, {require: () => ({})}).setup).toBe('function')
 
     for (const id of ['nobody', 'plain']) {
