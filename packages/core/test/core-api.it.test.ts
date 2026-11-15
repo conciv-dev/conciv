@@ -177,7 +177,6 @@ import {
   hydratedSnapshot,
   runTurn,
   userTexts,
-  type FakeWidget,
 } from './helpers.js'
 
 function groupAlive(group: number): boolean {
@@ -205,7 +204,7 @@ function sharedKit(boot: () => Promise<Kit>): () => Kit {
 
 type PageReply = z.input<typeof Page.Outcome>
 
-type PageAnswer = (command: Page.Command) => PageReply
+type PageAnswer = (command: Page.Command) => PageReply | undefined
 
 type PageTab = {end: () => void; seen: () => string[]}
 
@@ -229,7 +228,9 @@ function pageTabs(): {plugin: Plugin.Plugin; open: OpenTab} {
           const {connectionId, requestId} = control
           const command = await page.command({sessionId: tab.sessionId, connectionId, requestId})
           tab.seen.push(`page_${command.action.type}`)
-          await page.result({sessionId: tab.sessionId, connectionId, requestId, outcome: tab.answerFor(command)})
+          const outcome = tab.answerFor(command)
+          if (outcome === undefined) return
+          await page.result({sessionId: tab.sessionId, connectionId, requestId, outcome})
         },
         {signal: stop.signal},
       )
@@ -1592,6 +1593,13 @@ describe('api page page', () => {
       })
     })
 
+    it('registry.call reports PAGE_TIMEOUT when the page never replies', async () => {
+      state.tab = await tabs.open(await kit().session(), () => undefined)
+      await expect(run({type: 'wait', selector: 'body', timeout: 100})).rejects.toMatchObject({
+        message: expect.stringContaining('[page.timeout]'),
+      })
+    })
+
     it('reports [page.disconnected] when no tab is attached', async () => {
       await expect(run({type: 'route'})).rejects.toMatchObject({
         message: expect.stringContaining('[page.disconnected]'),
@@ -1830,24 +1838,6 @@ describe('rpc wire', () => {
     describe('on one default app', () => {
       const kit = sharedKit(() => bootKit({}, createTestHarness(requireClaude())))
 
-      it('registry.call reports PAGE_TIMEOUT when the page never replies', async () => {
-        const abort = new AbortController()
-        const iterator = await kit().rpc.page.queries(undefined, {signal: abort.signal})
-        const consumed = iterator.next()
-        await new Promise((resolve) => setTimeout(resolve, 50))
-        await expect(
-          kit().rpc.registry.call({name: 'page_wait', input: {selector: 'body', timeout: 100}}),
-        ).rejects.toMatchObject({
-          code: 'PAGE_TIMEOUT',
-        })
-        abort.abort()
-        const aborted = (error: unknown) => {
-          if (!abort.signal.aborted) throw error
-        }
-        await consumed.catch(aborted)
-        await iterator.return(undefined).catch(aborted)
-      })
-
       it('page.reply on an unknown request id reports UNKNOWN_REQUEST', async () => {
         await expect(
           kit().rpc.page.reply({requestId: 'pq-nope', outcome: {ok: true, result: {}}}),
@@ -2021,19 +2011,18 @@ describe('rpc wire', () => {
   })
 
   describe('chat', () => {
+    const chatTabs = pageTabs()
     beforeAll(async () => {
       app.harness = recordingHarness(createTestHarness(requireClaude()))
       app.kit = await createTestkit(
         app.harness,
-        bootCoreApp({extensions: [fixtureExtension()], firstChunkTimeoutMs: SILENCE_MS}),
+        bootCoreApp({extensions: [fixtureExtension()], firstChunkTimeoutMs: SILENCE_MS, plugins: [chatTabs.plugin]}),
       ).setup()
-      app.widget = await connectWidget(app.kit, answerFor)
       app.mcpSession = await newSession()
       app.mcp = await connectMcpClient(`${app.kit.base}/api/mcp`, {[CONCIV_SESSION_HEADER]: app.mcpSession})
     }, 60_000)
 
     afterAll(async () => {
-      app.widget?.end()
       await app.mcp?.close()
       await app.kit?.cleanup()
     })
@@ -3655,13 +3644,15 @@ return seen`
     describe('page tools', () => {
       it('a page tool reaches the page without an ask and its change lands in the page journal', async () => {
         const sessionId = await chatKit().session()
+        const tab = await chatTabs.open(sessionId, () => pageSuccess({ok: true}))
+        onTestFinished(() => tab.end())
         codeTurn('return await external_page_click({selector: "#go"})')
         const events = await finished(sessionId, 'click')
         expect(events.custom('approval-requested')).toEqual([])
-        expect(widget().seen()).toContain('page_click')
-        expect(await chatKit().rpc.page.changes(undefined)).toContainEqual(
-          expect.objectContaining({verb: 'page_click', selector: '#go'}),
-        )
+        expect(tab.seen()).toContain('page_click')
+        expect(
+          await chatKit().rpc.plugin.call({rpcId: 'experimental.page', method: 'changes', input: {sessionId}}),
+        ).toContainEqual(expect.objectContaining({verb: 'page_click', selector: '#go'}))
       })
     })
 
@@ -3762,7 +3753,6 @@ return seen`
   type SharedApp = {
     kit: Kit | null
     harness: TestHarness | null
-    widget: FakeWidget | null
     mcp: McpClient | null
     mcpSession: string
     mcpTools: () => Promise<McpTool[]>
@@ -3771,7 +3761,6 @@ return seen`
   const app: SharedApp = {
     kit: null,
     harness: null,
-    widget: null,
     mcp: null,
     mcpSession: '',
     mcpTools: async () => {
@@ -4002,11 +3991,6 @@ return seen`
     return app.harness.script
   }
 
-  function widget(): FakeWidget {
-    if (app.widget === null) throw new Error('the widget is not connected')
-    return app.widget
-  }
-
   async function newSession(): Promise<string> {
     return (await chatKit().rpc.sessions.create()).sessionId
   }
@@ -4189,12 +4173,6 @@ return seen`
       {type: 'document', source: {type: 'data', mimeType: 'application/x-unknown', value: 'eA=='}},
       {type: 'document', source: {type: 'data', mimeType: BROKEN_MIME, value: 'eA=='}},
     ]
-  }
-
-  function answerFor(name: string): PageOutcome {
-    if (name === 'page_click') return {ok: true, result: {ok: true}}
-    if (name === 'page_screenshot') return {ok: true, result: {image: SCREENSHOT_BYTES, width: 8, height: 6}}
-    return {ok: true, result: {text: 'page-ok'}}
   }
 
   async function capturingConsole<T>(work: () => Promise<T>): Promise<{result: T; lines: string[]}> {
