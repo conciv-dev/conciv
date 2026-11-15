@@ -141,6 +141,12 @@ describe('ServerTools', () => {
       ])
       expect(yield* served.call('open', {file: ''}).pipe(Effect.flip)).toMatchObject({_tag: 'Tool.Error'})
       expect(yield* served.method('open', {file: ''}).pipe(Effect.flip)).toMatchObject({type: 'rpc.invalid_input'})
+      expect(yield* served.call('open', {file: 'src/thing.ts', line: '7'}).pipe(Effect.flip)).toMatchObject({
+        _tag: 'Tool.Error',
+      })
+      expect(yield* served.method('open', {file: 'src/thing.ts', line: '7'}).pipe(Effect.flip)).toMatchObject({
+        type: 'rpc.invalid_input',
+      })
       expect(opened).toHaveLength(3)
     }),
   )

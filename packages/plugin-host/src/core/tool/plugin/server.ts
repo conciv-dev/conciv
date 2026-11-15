@@ -4,7 +4,6 @@ import type {BundlerDomain} from '@conciv/plugin'
 import type {Context} from '../../../plugin/effect/plugin.js'
 import {makeToolFailure} from '../../../ai/effect.js'
 import {Effect, Schema} from 'effect'
-import {z} from 'zod'
 import {EditorSource} from '../../plugin/host.js'
 import {Permission} from '../../permission.js'
 import {Rpc} from '../../rpc.js'
@@ -57,13 +56,15 @@ const RestartInput = Schema.Struct({
 
 const Restarted = Schema.Struct({ok: Schema.Literal(true)})
 
-const OpenInput = z.object({
-  file: z.string().min(1).describe('the file to open'),
-  line: z.coerce.number().int().min(1).optional().describe('line number to jump to'),
-  column: z.coerce.number().int().min(1).optional().describe('column to jump to, used only with a line'),
+const Position = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1))
+
+const OpenInput = Schema.Struct({
+  file: Schema.String.check(Schema.isMinLength(1)).annotate({description: 'the file to open'}),
+  line: Schema.optionalKey(Position).annotate({description: 'line number to jump to'}),
+  column: Schema.optionalKey(Position).annotate({description: 'column to jump to, used only with a line'}),
 })
 
-const Opened = z.object({ok: z.literal(true), file: z.string(), line: z.number().optional()})
+const Opened = Schema.Struct({ok: Schema.Literal(true), file: Schema.String, line: Schema.optionalKey(Schema.Number)})
 
 const unavailable = {BUNDLER_UNAVAILABLE: Schema.Struct({})}
 
@@ -136,8 +137,8 @@ export const Plugin = {
   effect: Effect.fn('ServerTools.Plugin')(function* (ctx: Context) {
     const bundler = ctx.bundler
     const openInEditor = yield* EditorSource
-    const open = (input: z.infer<typeof OpenInput>) =>
-      Effect.sync((): z.infer<typeof Opened> => {
+    const open = (input: typeof OpenInput.Type) =>
+      Effect.sync((): typeof Opened.Type => {
         openInEditor(input.file, input.line, input.line === undefined ? undefined : input.column)
         return input.line === undefined ? {ok: true, file: input.file} : {ok: true, file: input.file, line: input.line}
       })

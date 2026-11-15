@@ -1519,6 +1519,12 @@ describe('cli', () => {
           code: 0,
           document: {ok: true, data: {ok: true, file: 'src/other.ts'}},
         })
+        expect(
+          await pluginCall(attached.root, home, ['server', 'open', '--data', '{"file":"src/thing.ts","line":"7"}']),
+        ).toMatchObject({
+          code: 1,
+          document: {ok: false, error: {kind: 'user', code: 'PLUGIN_RPC', type: 'rpc.invalid_input'}},
+        })
         expect(launched).toEqual([
           {file: 'src/thing.ts', line: 7, column: 3},
           {file: 'src/other.ts', line: 1},
