@@ -7,12 +7,13 @@ import {fileURLToPath} from 'node:url'
 import {createServer, type Server, request as httpRequest, type IncomingMessage} from 'node:http'
 import {listenLocal} from '@conciv/plugin-testkit/listen-local'
 import type {Duplex} from 'node:stream'
-import {test, expect, type Page} from '@playwright/test'
+import {test, expect, type ConsoleMessage, type Page} from '@playwright/test'
 import type {DraftRow} from '@conciv/contract'
 import {until} from '@conciv/harness-testkit/until'
 import {magicLink, requestPrintedCode} from '@conciv/harness-testkit/login'
 import {PageToNativeSchema, type PageToNativeMessage} from '@conciv/extension-ios/bridge'
 import {awaitPagePlaneSubscribed} from '@conciv/plugin-testkit/page-plane'
+import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
 
 export type EmbedKit = CoreKit
 
@@ -302,18 +303,33 @@ export async function sendChatMessage(page: Page, text: string): Promise<void> {
   await page.getByRole('button', {name: 'Send message'}).click()
 }
 
-export function untilPanelDraft(
+export async function untilPanelDraft(
+  page: Page,
   kit: EmbedKit,
   sessionId: string,
   matches: (draft: DraftRow) => boolean,
 ): Promise<void> {
-  return until(
-    async () => {
-      const draft = await kit.rpc.drafts.get({sessionId})
-      return draft !== null && matches(draft)
-    },
-    {hangGuardMs: 30_000, intervalMs: 100},
-  )
+  const rpcSocket = rpcSocketFor(page)
+  const consoleLines: string[] = []
+  const keepLine = (message: ConsoleMessage): void => void consoleLines.push(`${message.type()}: ${message.text()}`)
+  page.on('console', keepLine)
+  try {
+    await until(
+      async () => {
+        const draft = await kit.rpc.drafts.get({sessionId})
+        return draft !== null && matches(draft)
+      },
+      {hangGuardMs: 30_000, intervalMs: 100},
+    )
+  } catch (error) {
+    const lines = consoleLines.length === 0 ? 'none' : consoleLines.join('\n')
+    throw new Error(
+      `the panel draft never matched: rpc sockets opened while waiting: ${rpcSocket.opened()}; page console while waiting: ${lines}`,
+      {cause: error},
+    )
+  } finally {
+    page.off('console', keepLine)
+  }
 }
 
 export async function mountHandle(page: Page, apiBase: string): Promise<void> {

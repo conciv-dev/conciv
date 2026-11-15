@@ -205,8 +205,8 @@ test.describe('composer rich input', () => {
   const composer = (page: Page) => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const panel = (page: Page) => page.getByRole('dialog', {name: 'conciv chat agent'})
 
-  const waitForDraftWrite = (sessionId: string, fragment: string) =>
-    untilPanelDraft(suite.kit(), sessionId, (draft) => draft.text.includes(fragment))
+  const waitForDraftWrite = (page: Page, sessionId: string, fragment: string) =>
+    untilPanelDraft(page, suite.kit(), sessionId, (draft) => draft.text.includes(fragment))
 
   async function openComposer(page: Page): Promise<string> {
     const sessionId = await openPanelOnNewSession(page, suite)
@@ -310,12 +310,12 @@ test.describe('composer rich input', () => {
       const input = composer(page)
 
       await input.pressSequentially('hello world')
-      await waitForDraftWrite(sessionId, 'hello world')
+      await waitForDraftWrite(page, sessionId, 'hello world')
       await expect(input).toBeFocused()
       for (let step = 0; step < 6; step += 1) await page.keyboard.press('ArrowLeft')
       await input.pressSequentially('X')
       await expect(input).toHaveText('helloX world')
-      await waitForDraftWrite(sessionId, 'helloX world')
+      await waitForDraftWrite(page, sessionId, 'helloX world')
 
       await page.reload({waitUntil: 'domcontentloaded'})
       const restored = composer(page)
@@ -540,7 +540,7 @@ test.describe('draft send remount', () => {
 
       const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
       await input.fill(USER_TEXT)
-      await untilPanelDraft(suite.kit(), sessionId, (draft) => draft.text === USER_TEXT)
+      await untilPanelDraft(page, suite.kit(), sessionId, (draft) => draft.text === USER_TEXT)
 
       await page.getByRole('button', {name: 'Send message'}).click()
       await expect(page.getByText(ASSISTANT_TEXT).first()).toBeVisible({timeout: 30_000})
@@ -1277,7 +1277,7 @@ test.describe('native widget', () => {
       await callNative(page, 'grabResult', {v: 1, seq: 3, requestId: pick?.requestId, grab: NEUTRAL_GRAB})
       await expect(panel(page).getByText('PaymentCardCell')).toBeVisible({timeout: 30_000})
       await expect(grabPreview(page)).toHaveAttribute('src', IMAGE_DATA_URL)
-      await untilPanelDraft(kit, sessionId, (draft) => {
+      await untilPanelDraft(page, kit, sessionId, (draft) => {
         const payload = findGrabPayload(draft)
         return payload !== null && payload.text.includes('[view]') && payload.text.includes('PaymentCardCell')
       })
@@ -1907,7 +1907,7 @@ test.describe('reload continuity', () => {
 
       await input.fill('an unsent draft survives')
       await input.press('End')
-      await untilPanelDraft(suite.kit(), sessionId, (draft) => draft.text === 'an unsent draft survives')
+      await untilPanelDraft(page, suite.kit(), sessionId, (draft) => draft.text === 'an unsent draft survives')
 
       expect(await suite.kit().rpc.drafts.get({sessionId})).toMatchObject({text: 'an unsent draft survives'})
 
