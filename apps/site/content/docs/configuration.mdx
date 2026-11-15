@@ -1,107 +1,201 @@
 ---
 title: Configuration
-description: The conciv() options and the common ways to set them.
+description: Every conciv option, its default, and the environment variables that set some of them.
 icon: Settings
 ---
 
-Pass options to the plugin. Every field is optional.
+Pass options where you add conciv. Every option is optional.
+
+<Tabs items={['Vite', 'Next.js']}>
+
+<Tab value="Vite">
 
 ```ts title="vite.config.ts"
+import {defineConfig} from 'vite'
 import conciv from '@conciv/it/plugin/vite'
 
-conciv({
-  harness: 'claude',
-  enabled: process.env.NODE_ENV !== 'production',
+export default defineConfig({
+  plugins: [conciv({widget: {quickTerminal: {hotkey: 'Alt+k'}}})],
 })
 ```
+
+</Tab>
+
+<Tab value="Next.js">
+
+Options are the second argument of `withConciv`.
+
+```ts title="next.config.ts"
+import type {NextConfig} from 'next'
+import {withConciv} from '@conciv/it/plugin/nextjs'
+import terminal from '@conciv/extension-terminal'
+
+const nextConfig: NextConfig = {}
+
+export default withConciv(nextConfig, {extensions: [terminal()]})
+```
+
+</Tab>
+
+</Tabs>
 
 ## Options
 
 <TypeTable
   type={{
-    enabled: {type: 'boolean', default: 'true', description: 'Mount the agent. Gate it on dev mode in real apps.'},
-    harness: {type: 'string', default: '"claude"', description: 'Harness adapter id, such as claude or codex.'},
-    harnessBin: {type: 'string', default: 'adapter default', description: 'Override the harness binary on PATH.'},
-    testRunner: {type: 'string', default: '"vitest"', description: 'Test runner adapter id.'},
-    widgetUrl: {
-      type: 'string',
-      default: 'CONCIV_WIDGET_URL',
-      description: 'Script src for the injected widget. Omit to skip injection.',
+    enabled: {
+      type: 'boolean',
+      default: 'true',
+      description: 'false turns conciv off: no engine starts and no widget is added.',
     },
-    systemPrompt: {type: 'string', default: 'built-in', description: 'Appended to each agent turn.'},
-    previewId: {type: 'string', default: '"local"', description: 'Correlates a resumable session.'},
-    sessionId: {type: 'string', default: 'none', description: 'Resume an existing thread.'},
+    harness: {
+      type: 'string',
+      default: '"claude"',
+      description: 'The harness a new chat starts with: claude, codex, opencode, gemini-cli or pi. See Harnesses.',
+    },
     port: {
       type: 'number',
-      default: 'auto',
-      description:
-        'Engine port. The Vite dev server treats it as a preference and falls back to a free port when it is taken, so a second dev server still boots; the Next.js integration and the generic webpack/rspack plugin need it exactly, because both hand the client a port that is fixed before the engine boots, and fail when it is taken.',
+      default: 'see below',
+      description: 'The engine port.',
     },
-    stateRoot: {type: 'string', default: 'process.cwd()', description: 'Root holding the .conciv state directory.'},
+    widget: {
+      type: '{modal?, quickTerminal?} | false',
+      default: 'both layouts on',
+      description:
+        'The two layouts. false adds no widget to the page; the engine still runs, for a widget you render yourself.',
+    },
+    systemPrompt: {
+      type: 'string | boolean',
+      default: "conciv's built-in prompt",
+      description: 'The prompt conciv gives the harness. See below.',
+    },
+    extensions: {
+      type: 'array',
+      default: '[]',
+      description: 'Packages that add tools and UI to conciv, such as terminal() from @conciv/extension-terminal.',
+    },
+    hubAccess: {
+      type: '"open" | "session" | "project"',
+      default: '"open"',
+      description:
+        'Whether an agent connected from outside, such as your own terminal agent, has to be allowed in the tab first. See Approvals.',
+    },
+    sessionId: {
+      type: 'string',
+      default: 'none',
+      description:
+        'A conciv session id (conciv_...). The engine makes sure this session exists when it starts. Any other value stops the engine with an error.',
+    },
+    claudeSessionId: {
+      type: 'string',
+      default: 'none',
+      description:
+        'A harness session id: up to 128 letters, digits, "_" and "-". The engine makes sure a conciv session for it exists when it starts.',
+    },
+    stateRoot: {
+      type: 'string',
+      default: 'the project root',
+      description: 'The folder that holds the .conciv state folder.',
+    },
+    homeDir: {
+      type: 'string',
+      default: 'your platform data folder',
+      description: 'Where conciv keeps the data it shares across projects, such as the agents you connected.',
+    },
     devEndpointDir: {
       type: 'string',
       default: '~/.conciv',
-      description: 'Directory holding dev-endpoint.json, the pairing file the iOS SDK reads.',
-    },
-    widget: {
-      type: 'object',
-      default: 'both layouts on',
-      description: 'Widget layouts: modal (corner panel) and quickTerminal (top drop-down). Both on by default.',
+      description: 'The folder for dev-endpoint.json, the file the iOS SDK reads to find the engine.',
     },
   }}
 />
 
-<Callout>`claudePath` and `claudeSessionId` are deprecated. Use `harnessBin` and `sessionId`.</Callout>
+### port
 
-## Common tasks
+<Tabs items={['Vite', 'Next.js', 'webpack and Rspack']}>
+  <Tab value="Vite">
+    Without `port`, the engine takes the port it used last time, or a free one. With `port`, the engine tries it and
+    takes a free port when it is in use, with a warning in the terminal.
+  </Tab>
+  <Tab value="Next.js">The engine listens on `port`, `41700` by default. If the port is in use, it does not start.</Tab>
+  <Tab value="webpack and Rspack">
+    Without `port`, the engine takes the port it used last time, or a free one. With `port`, it listens on exactly that
+    port, and does not start if the port is in use.
+  </Tab>
+</Tabs>
 
-### Gate to dev only
+### widget
 
-```ts
-conciv({enabled: process.env.NODE_ENV !== 'production'})
-```
-
-### Switch harness
-
-```ts
-conciv({harness: 'codex'})
-```
-
-See [Harnesses](/docs/harnesses) for the full list.
-
-### Widget layouts
-
-Two layouts ship, both on by default: the corner `modal` and the top drop-down `quickTerminal`.
-Configure or disable each under `widget`.
+`modal` is the corner panel and its button. `quickTerminal` is the sheet that drops from the top of the page. Both are
+on unless you set them to `false`.
 
 ```ts
-conciv({widget: {modal: {position: 'top-left'}}}) // move the corner button
-conciv({widget: {quickTerminal: {hotkey: ['Mod+`', 'Control+k']}}}) // set the hotkey(s)
-conciv({widget: {quickTerminal: false}}) // corner modal only
-conciv({widget: {modal: false}}) // quick terminal only
+conciv({widget: {modal: {position: 'top-left'}}})
+conciv({widget: {quickTerminal: {hotkey: ['Mod+`', 'Control+k']}}})
+conciv({widget: {quickTerminal: false}})
+conciv({widget: {modal: false}})
 ```
 
-`modal.position` is one of `top-left`, `top-right`, `middle-left`, `middle-right`, `bottom-left`,
-`bottom-right` (default), and the button is also draggable. See the
-[Quick Terminal](/docs/usage/quick-terminal) guide for the drop-down layout.
+`modal.position` is one of `top-left`, `top-right`, `middle-left`, `middle-right`, `bottom-left` or `bottom-right`
+(the default). The quick terminal hotkey is ``Mod+` `` by default. A `hotkey` set here replaces it and locks the
+setting in **Settings > Shortcuts**. See [Quick terminal](/docs/usage/quick-terminal).
 
-### Override the binary
+`widget: false` keeps the engine and adds nothing to the page. Use it when you render the widget yourself with
+`<ConcivWidget />` from `@conciv/react`, `@conciv/preact` or `@conciv/solid`, so the page does not get two:
 
-```ts
-conciv({harnessBin: '/usr/local/bin/claude'})
+```ts title="vite.config.ts"
+import {defineConfig} from 'vite'
+import react from '@vitejs/plugin-react'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [react(), conciv({widget: false})],
+})
 ```
 
-### Custom system prompt
+### systemPrompt
+
+<TypeTable
+  type={{
+    'unset or true': {required: true, type: 'boolean', description: "conciv's built-in prompt."},
+    'a string': {required: true, type: 'string', description: "Your string, in place of conciv's built-in prompt."},
+    false: {required: true, type: 'boolean', description: 'No conciv prompt.'},
+  }}
+/>
+
+The engine adds each extension's own prompt after it, writes the result to `.conciv/chat-system-prompt.txt` when it
+starts, and gives it to the harness. Claude gets it appended to Claude Code's own system prompt.
 
 ```ts
 conciv({systemPrompt: 'Prefer Tailwind classes over inline styles.'})
+conciv({systemPrompt: false})
 ```
 
-### widgetUrl
+### extensions
 
-On webpack and Rspack the plugin does not inject the widget. Set `widgetUrl` to the served widget
-bundle so the script lands on your page.
+Each package exports a function; call it in the list.
 
-```ts
-conciv({widgetUrl: '/conciv-widget.js'})
+```ts title="vite.config.ts"
+import {defineConfig} from 'vite'
+import react from '@vitejs/plugin-react'
+import conciv from '@conciv/it/plugin/vite'
+import terminal from '@conciv/extension-terminal'
+
+export default defineConfig({
+  plugins: [react(), conciv({extensions: [terminal()]})],
+})
 ```
+
+## Environment variables
+
+An option in the config wins over its variable.
+
+<TypeTable
+  type={{
+    CONCIV_HARNESS: {type: 'string', description: 'Sets harness.'},
+    CONCIV_STATE_ROOT: {type: 'string', description: 'Sets stateRoot.'},
+    CONCIV_SESSION_ID: {type: 'string', description: 'Sets sessionId.'},
+    CONCIV_CLAUDE_SESSION_ID: {type: 'string', description: 'Sets claudeSessionId.'},
+    CONCIV_HOME: {type: 'string', description: 'Sets homeDir.'},
+  }}
+/>
