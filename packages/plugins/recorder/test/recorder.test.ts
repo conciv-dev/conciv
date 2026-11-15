@@ -1,5 +1,6 @@
 import {existsSync} from 'node:fs'
-import {chmod, mkdtemp, readdir, rm, writeFile} from 'node:fs/promises'
+import {randomBytes} from 'node:crypto'
+import {chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -474,6 +475,64 @@ describe('the recording tools', () => {
           : [],
       ),
     )
+  })
+})
+
+const MAX_FILE_BYTES = 5 * 1024 * 1024
+
+const VideoPieceSchema = z.strictObject({data: z.string(), eof: z.boolean(), name: z.string(), mime: z.string()})
+
+async function readVideo(
+  kit: CoreKit,
+  clientId: string,
+  id: string,
+): Promise<{bytes: Buffer; pieces: z.infer<typeof VideoPieceSchema>[]}> {
+  const pieces: z.infer<typeof VideoPieceSchema>[] = []
+  const read = async (offset: number): Promise<void> => {
+    const piece = VideoPieceSchema.parse(await call(kit, 'recordings.exportVideo', {clientId, id, offset}))
+    pieces.push(piece)
+    if (!piece.eof) await read(offset + Buffer.from(piece.data, 'base64').length)
+  }
+  await read(0)
+  return {bytes: Buffer.concat(pieces.map((piece) => Buffer.from(piece.data, 'base64'))), pieces}
+}
+
+describe('the recording video export', () => {
+  it('renders a short recording once into <id>.webm beside its json and answers it in one piece', async () => {
+    const kit = await bootRecorder()
+    const saved = await flushAndSave(kit, 'video', renderStream(Date.now() - 2000))
+    const {bytes, pieces} = await readVideo(kit, 'video', saved.recordingId)
+    expect(pieces).toHaveLength(1)
+    expect(pieces[0]).toMatchObject({eof: true, name: 'recording.webm', mime: 'video/webm'})
+    expect(bytes.length).toBeGreaterThan(0)
+    expect(bytes.equals(await readFile(join(recordingsDirectory(kit), `${saved.recordingId}.webm`)))).toBe(true)
+  })
+
+  it('reads a stored video larger than the cap back byte-identical in pieces within the cap, answers a read past the end as empty and done, and refuses an unknown recording', async () => {
+    const folder = await mkdtemp(join(tmpdir(), 'conciv-recorder-pieces-'))
+    onTestFinished(() => rm(folder, {recursive: true, force: true}))
+    const recordingsDir = join(folder, '.conciv', 'recorder', 'recordings')
+    await mkdir(recordingsDir, {recursive: true})
+    const id = `${Date.now()}-000001-stored`
+    const video = randomBytes(MAX_FILE_BYTES * 2 + 12_345)
+    await writeFile(join(recordingsDir, `${id}.json`), JSON.stringify({events: renderStream(Date.now())}), 'utf8')
+    await writeFile(join(recordingsDir, `${id}.webm`), video)
+    const kit = await bootRecorder(folder)
+
+    const {bytes, pieces} = await readVideo(kit, 'stored', id)
+    expect(pieces.length).toBeGreaterThan(1)
+    for (const piece of pieces) expect(Buffer.from(piece.data, 'base64').length).toBeLessThanOrEqual(MAX_FILE_BYTES)
+    expect(bytes.equals(video)).toBe(true)
+
+    expect(await call(kit, 'recordings.exportVideo', {clientId: 'stored', id, offset: video.length})).toEqual({
+      data: '',
+      eof: true,
+      name: 'recording.webm',
+      mime: 'video/webm',
+    })
+    expect(
+      await failureType(call(kit, 'recordings.exportVideo', {clientId: 'stored', id: 'missing-recording', offset: 0})),
+    ).toBe('expired')
   })
 })
 
