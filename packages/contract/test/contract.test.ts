@@ -1,5 +1,6 @@
 import {describe, expect, expectTypeOf, it, afterAll, beforeAll} from 'vitest'
 import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from '../src/rows.js'
+import {SocketTrustFrameSchema} from '../src/contract.js'
 import type {SessionMeta} from '../src/rows.js'
 import {makeBrowserRpcClient, makeRpcClient, type RpcClient} from '../src/client.js'
 import {createServer, type Server} from 'node:http'
@@ -310,18 +311,28 @@ async function closingHandshakeServer(): Promise<ClosingHandshakeServer> {
   const sockets: Duplex[] = []
   const answer: {text: string | undefined} = {text: undefined}
   const requests: string[] = []
+  const failures: unknown[] = []
   const decoding = {tail: Promise.resolve()}
   const upgrades: {held: boolean; waiting: (() => void)[]} = {held: false, waiting: []}
   const recordRequest = (payload: Buffer): void => {
+    const text = payload.toString()
     decoding.tail = decoding.tail
-      .then(() => decodeRequestMessage(payload.toString()))
-      .then((message) => {
+      .then(async () => {
+        if (SocketTrustFrameSchema.safeParse(JSON.parse(text)).success) return
+        const message = await decodeRequestMessage(text)
         if (message[1] !== MessageType.REQUEST) return
         requests.push(message[2].url.pathname)
         frames.emit('request')
       })
-      .catch(() => undefined)
+      .catch((error: unknown) => {
+        failures.push(error)
+        frames.emit('request')
+      })
   }
+  const decodeFailure = (): Error | undefined =>
+    failures.length === 0
+      ? undefined
+      : new Error('the test server could not decode a frame the client sent', {cause: failures[0]})
   const acceptUpgrade = (request: IncomingMessage, socket: Duplex): void => {
     const accept = createHash('sha1')
       .update(`${request.headers['sec-websocket-key']}${WEBSOCKET_GUID}`)
@@ -385,9 +396,17 @@ async function closingHandshakeServer(): Promise<ClosingHandshakeServer> {
       for (const release of upgrades.waiting.splice(0)) release()
     },
     requestSeen: async (path) => {
-      while (!requests.some((each) => each.endsWith(path))) await once(frames, 'request')
+      while (!requests.some((each) => each.endsWith(path))) {
+        const failure = decodeFailure()
+        if (failure) throw failure
+        await once(frames, 'request')
+      }
     },
-    requestPaths: () => requests,
+    requestPaths: () => {
+      const failure = decodeFailure()
+      if (failure) throw failure
+      return requests
+    },
     close: async () => {
       for (const socket of sockets) socket.destroy()
       await new Promise((resolve) => server.close(resolve))
