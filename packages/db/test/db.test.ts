@@ -9,9 +9,13 @@ import {once} from 'node:events'
 import envPaths from 'env-paths'
 import {DatabaseSync} from 'node:sqlite'
 import {fileURLToPath} from 'node:url'
-import {asc, eq} from 'drizzle-orm'
+import {asc, eq, is} from 'drizzle-orm'
 import {drizzle} from 'drizzle-orm/node-sqlite'
+import {getTableConfig, SQLiteTable} from 'drizzle-orm/sqlite-core'
 import {describe, expect, it, expectTypeOf} from 'vitest'
+import {z} from 'zod'
+import * as schema from '../src/schema.js'
+import * as runSchema from '../src/run-schema.js'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
 import {openDb, type ConcivDb} from '../src/db.js'
 import {importLegacyThreads} from '../src/chat-thread-import.js'
@@ -478,6 +482,41 @@ describe('db', () => {
       migrationsFrom(migration).forEach((name) => applyMigration(built, name))
       expect(built.prepare('SELECT key FROM kv').all()).toEqual([{key: 'kept'}])
       built.close()
+    })
+  })
+
+  describe('migrations folder', () => {
+    const SnapshotSchema = z.object({
+      id: z.string(),
+      prevIds: z.array(z.string()),
+      ddl: z.array(z.object({entityType: z.string(), name: z.string(), table: z.string().optional()})),
+    })
+
+    it('is one chain whose latest snapshot holds every column the schema declares', () => {
+      const snapshots = migrationsFrom('').map((name) => ({
+        name,
+        ...SnapshotSchema.parse(JSON.parse(readFileSync(join(drizzleDir, name, 'snapshot.json'), 'utf8'))),
+      }))
+      const brokenLinks = snapshots
+        .map((snapshot, index) => ({
+          name: snapshot.name,
+          prevIds: snapshot.prevIds,
+          parent: [snapshots[index - 1]?.id ?? '00000000-0000-0000-0000-000000000000'],
+        }))
+        .filter((link) => link.prevIds.join() !== link.parent.join())
+      expect.soft(brokenLinks).toEqual([])
+
+      const latestColumns = (snapshots.at(-1)?.ddl ?? [])
+        .filter((entity) => entity.entityType === 'columns')
+        .map((entity) => `${entity.table}.${entity.name}`)
+      const missingColumns = [...Object.values(schema), ...Object.values(runSchema)]
+        .filter((value) => is(value, SQLiteTable))
+        .flatMap((table) => {
+          const config = getTableConfig(table)
+          return config.columns.map((column) => `${config.name}.${column.name}`)
+        })
+        .filter((column) => !latestColumns.includes(column))
+      expect(missingColumns).toEqual([])
     })
   })
 
