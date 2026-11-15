@@ -354,6 +354,7 @@ function PanelSession(): JSX.Element {
     stopping: chat().stopping(),
     runError: chat().runError(),
     stopped: chat().stopped(),
+    ran: chat().runSource() !== null,
   }))
   // oxlint-disable-next-line solid/reactivity
   const diff = sessionTotals(() => turns())
@@ -362,8 +363,11 @@ function PanelSession(): JSX.Element {
     const state = clock()
     return state.elapsedMs === null ? '--' : formatElapsed(state.elapsedMs)
   }
-  const lastTask = () => sessionStatus().kind === 'done' || sessionStatus().kind === 'stopped'
-  const taskContext = () => (lastTask() ? 'LAST TASK' : 'ACTIVE TASK')
+  const taskContext = () => {
+    const kind = sessionStatus().kind
+    if (kind === 'unstarted') return undefined
+    return kind === 'done' || kind === 'stopped' ? 'LAST' : 'ACTIVE'
+  }
   const statusBarViews = createMemo<StatusBarView[]>(() => [
     {id: 'chat', label: 'Chat'},
     ...views().map((view) => ({
@@ -399,10 +403,16 @@ function PanelSession(): JSX.Element {
         >
           <div class={RAIL_LEFT}>
             <span class={RAIL_MICROLABEL}>
-              <span class="chat-rail-context-full">
-                CONCIV <span class={RAIL_SEPARATOR}>/</span> {taskContext()}
-              </span>
-              <span class="chat-rail-context-narrow">{lastTask() ? 'LAST' : 'ACTIVE'}</span>
+              <Show when={taskContext()} fallback="CONCIV">
+                {(context) => (
+                  <>
+                    <span class="chat-rail-context-full">
+                      CONCIV <span class={RAIL_SEPARATOR}>/</span> {context()} TASK
+                    </span>
+                    <span class="chat-rail-context-narrow">{context()}</span>
+                  </>
+                )}
+              </Show>
             </span>
             <SessionTitle
               sessionId={params().sessionId}
