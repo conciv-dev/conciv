@@ -6,7 +6,6 @@ import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-type
 import {CONNECTION_CHANGED_EVENT} from '@conciv/protocol/event-bus'
 import {
   browserRpcConnection,
-  makeBrowserRpcClient,
   makeRpcClient,
   subscribeRpcReachability,
   type RpcClient,
@@ -803,6 +802,85 @@ describe('chat pane', () => {
     await expect.element(stoppedLine()).toBeVisible()
   })
 
+  describe('a Stop pressed before the engine has the run', () => {
+    const stoppingButton = () => page.getByRole('button', {name: 'Stopping the run'})
+    const threadText = (text: string) => page.getByRole('log').getByText(text, {exact: true})
+
+    test('over the chat socket it waits for the run and then stops it with the Stopped line', async () => {
+      const {sessionId} = await newSession()
+      await coreControl.holdTurn()
+      const frame = await faults.install({kind: 'chat-frame-gate', onRelease: 'deliver'})
+      mountChatPane(sessionId)
+      await input().fill('stop before the engine has it')
+      await userEvent.keyboard('{Enter}')
+      await coreControl.awaitFaultPending(frame, 1)
+
+      await stopButton().click()
+      await expect.element(stoppingButton()).toBeVisible()
+
+      await coreControl.releaseFault(frame)
+      await expect.element(stoppedLine()).toBeVisible()
+      await expect.element(stoppingButton()).not.toBeInTheDocument()
+      await expect.element(narration()).not.toBeInTheDocument()
+      await expect.element(stopButton()).not.toBeInTheDocument()
+      active.pane?.dispose()
+      mountChatPane(sessionId)
+      await expect.element(threadText('stop before the engine has it')).toBeVisible()
+      await expect.element(stoppedLine()).toBeVisible()
+    })
+
+    test('over fetch it keeps the message and ends the run with the Stopped line', async () => {
+      const {sessionId} = await newSession()
+      await coreControl.holdTurn()
+      const post = await faults.install({kind: 'chat-gate'})
+      mountChatPane(sessionId, {transport: 'fetch'})
+      await input().fill('stop before the post lands')
+      await userEvent.keyboard('{Enter}')
+      await coreControl.awaitFaultPending(post, 1)
+
+      await stopButton().click()
+      await expect.element(stoppingButton()).toBeVisible()
+
+      await coreControl.releaseFault(post)
+      await expect.element(stoppedLine()).toBeVisible()
+      await expect.element(threadText('stop before the post lands')).toBeVisible()
+      await expect.element(narration()).not.toBeInTheDocument()
+      active.pane?.dispose()
+      mountChatPane(sessionId)
+      await expect.element(threadText('stop before the post lands')).toBeVisible()
+      await expect.element(stoppedLine()).toBeVisible()
+    })
+
+    test('when the send fails it is taken back quietly, and a failed send with no Stop still says so', async () => {
+      const {sessionId} = await newSession()
+      const frame = await faults.install({kind: 'chat-frame-gate', onRelease: 'cut'})
+      mountChatPane(sessionId)
+      await input().fill('take this one back')
+      await userEvent.keyboard('{Enter}')
+      await coreControl.awaitFaultPending(frame, 1)
+
+      await stopButton().click()
+      await expect.element(stoppingButton()).toBeVisible()
+
+      await coreControl.releaseFault(frame)
+      await expect.element(input()).toHaveTextContent('take this one back')
+      await expect.element(page.getByRole('button', {name: 'Send message', exact: true})).toBeVisible()
+      await expect.element(threadText('take this one back')).not.toBeInTheDocument()
+      await expect.element(page.getByRole('button', {name: 'Retry'})).not.toBeInTheDocument()
+      await expect
+        .element(notifications().getByText(/Stream response body read failed|could not be sent/))
+        .not.toBeInTheDocument()
+
+      const unstopped = await faults.install({kind: 'chat-frame-gate', onRelease: 'cut'})
+      await userEvent.click(input())
+      await userEvent.keyboard('{Enter}')
+      await coreControl.awaitFaultPending(unstopped, 1)
+      await coreControl.releaseFault(unstopped)
+      await expect.element(notifications()).toMatchTextContent(/Stream response body read failed|could not be sent/)
+      await expect.element(input()).toHaveTextContent('take this one back')
+    })
+  })
+
   test('Escape in the focused composer does what the stop button does and keeps the typed draft ahead of the queue', async () => {
     await startStreamingRun()
 
@@ -1593,7 +1671,7 @@ describe('engine version', () => {
 
   test('an engine from before release versions still answers the widget, and the widget asks to update it', async () => {
     await coreControl.installFault({kind: 'pre-version-engine'})
-    const sessionId = await createSession(makeBrowserRpcClient(core()).rpc)
+    const sessionId = await createSession(coreRpc(core()))
     keep(mountPane({base: core(), sessionId}, () => <EngineOutdatedNotice />))
 
     await expect
@@ -1601,6 +1679,24 @@ describe('engine version', () => {
       .toHaveTextContent(
         `This widget is version ${appManifest.version} but the conciv engine is older. Update your @conciv packages to ${appManifest.version}, then restart your dev server.`,
       )
+  })
+})
+
+describe('helper rpc clients', () => {
+  const core = bootedCore('helper-rpc-clients')
+
+  async function socketsOpenedBySession(): Promise<number> {
+    const opened = await coreControl.rpcSocketsOpened()
+    await createSession(coreRpc(core()))
+    return (await coreControl.rpcSocketsOpened()) - opened
+  }
+
+  test('a helper client opens its own connection to the core', async () => {
+    expect(await socketsOpenedBySession()).toBeGreaterThan(0)
+  })
+
+  test('the next test opens a new connection, because the last test closed its helper clients', async () => {
+    expect(await socketsOpenedBySession()).toBeGreaterThan(0)
   })
 })
 

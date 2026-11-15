@@ -714,6 +714,33 @@ describe('chat plane', () => {
     expect.soft(logged).not.toMatch(/DrizzleQueryError|database is not open/)
   })
 
+  it('an engine that died mid-run starts again on the same state, the cut run ends aborted once, and no turn follows it', async () => {
+    const root = tempDir()
+    const cli = fakeCli('streaming')
+    const died = await bootEngine(root, {harness: cliHarness(cli)})
+    onTestFinished(async () => {
+      cli.release()
+      await died.stop()
+    })
+    const turn = await fetch(`http://127.0.0.1:${died.port}/t/${died.agentToken}${CHAT_SSE_PATH}`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: turnBody(sessionId('cut-short'), 'cut-short-run', 'keep talking'),
+    })
+    await readUntil(turn, ChatEventType.TEXT_MESSAGE_CONTENT)
+    const db = openDatabase(root)
+    const runRows = () =>
+      db.select({runId: chatRuns.runId, status: chatRuns.status, finishedAt: chatRuns.finishedAt}).from(chatRuns).all()
+    expect(runRows()).toEqual([{runId: 'cut-short-run', status: 'running', finishedAt: null}])
+    const restarted = await bootEngine(root, {harness: cliHarness(fakeCli())})
+    await restarted.stop()
+    const swept = runRows()
+    expect(swept).toEqual([{runId: 'cut-short-run', status: 'aborted', finishedAt: expect.any(Number)}])
+    const again = await bootEngine(root, {harness: cliHarness(fakeCli())})
+    await again.stop()
+    expect(runRows()).toEqual(swept)
+  })
+
   it('a push socket that opens while a run is going is told about that run', async () => {
     const cli = fakeCli('streaming')
     const engine = await bootEngine(tempDir(), {harness: cliHarness(cli)})
