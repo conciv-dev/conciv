@@ -16,7 +16,7 @@ The unplugin factory and its per-bundler entries. Vite gets the full hook; webpa
 
 ## Invariants
 
-- `index.ts:createConcivUnplugin` - webpack and rspack boot the engine only when `options.enabled !== false`, with the `exact` port policy.
+- `index.ts:createConcivUnplugin` - webpack and rspack boot the engine only when `options.enabled !== false`, with the `exact` port policy, on the compiler's first `watchRun` (the hook both bundlers call only from their `Watching`, so a dev server or `--watch` run): a one-off production build starts no engine and exits. `watchClose` stops the engine. A failed start never rejects into the bundler: a taken `port` logs `conciv: port <port> is already in use, the engine did not start. ...` once (the policy stays exact, since nothing hands the page the engine address at runtime), any other failure logs `conciv: the engine failed to start`, and the bundler keeps watching without an engine.
 - `nextjs-widget.ts` - starts only in a browser, when `NEXT_PUBLIC_CONCIV_PORT` is set and `NODE_ENV` is not `production`.
 
 ## Side Effects
