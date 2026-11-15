@@ -98,12 +98,12 @@ export const Definition = Rpc.define({
   id: 'experimental.tanstack',
   methods: {
     buildErrors: {
-      input: z.object({}),
+      input: z.undefined(),
       output: z.array(AppError),
       errors: {BUNDLER_UNAVAILABLE: z.object({})},
     },
     routeManifest: {
-      input: z.object({}),
+      input: z.undefined(),
       output: z.array(RouteInfo),
       errors: {MANIFEST_UNREADABLE: z.object({})},
     },

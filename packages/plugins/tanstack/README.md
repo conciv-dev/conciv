@@ -12,9 +12,9 @@ plugins: ['@conciv/plugin-tanstack']
   has no bundler bridge, `MANIFEST_UNREADABLE` when the generated route tree cannot be read.
 - Skill: `tanstack`, how to use the tools.
 - From a terminal, on the running engine:
-  - `conciv plugin call experimental.tanstack buildErrors --data '{}'` prints the same build errors; without a
+  - `conciv plugin call experimental.tanstack buildErrors` prints the same build errors; without a
     bundler bridge it prints the `bundler bridge unavailable` failure.
-  - `conciv plugin call experimental.tanstack routeManifest --data '{}'` prints every route; when the generated
+  - `conciv plugin call experimental.tanstack routeManifest` prints every route; when the generated
     route tree cannot be read it prints why.
   - `conciv plugin call experimental.tanstack serverFnTrace --data '{}'` prints the recent server-function calls and
     every server function seen; `--data '{"count":5}'` keeps the latest five calls.

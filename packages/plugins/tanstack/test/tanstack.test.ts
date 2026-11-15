@@ -89,9 +89,10 @@ function useTool(kit: CoreKit, name: string, input: Record<string, unknown> = {}
   return kit.callTool(`tanstack_${name}`, input)
 }
 
-function terminalCall(kit: CoreKit, method: string, data: string): Promise<unknown> {
+function terminalCall(kit: CoreKit, method: string, data?: string): Promise<unknown> {
   const env = {CONCIV_HOME: kit.home, CONCIV_PORT: new URL(kit.origin).port, CONCIV_TOKEN: kit.token}
-  const args = [CLI_BIN, 'plugin', 'call', 'experimental.tanstack', method, '--data', data]
+  const dataFlag = data === undefined ? [] : ['--data', data]
+  const args = [CLI_BIN, 'plugin', 'call', 'experimental.tanstack', method, ...dataFlag]
   return new Promise((resolve, reject) =>
     execFile(process.execPath, args, {cwd: kit.stateRoot, env}, (_error, stdout, stderr) => {
       try {
@@ -155,7 +156,7 @@ describe('the tanstack plugin without a bundler', () => {
     expect(about?.dynamic).toBe(false)
     expect(about?.file?.endsWith('.tsx')).toBe(true)
     expect(routes.find((route) => route.path === '/form')?.file?.endsWith('routes/form')).toBe(true)
-    expect(await terminalCall(kit, 'routeManifest', '{}')).toEqual({ok: true, data: routes})
+    expect(await terminalCall(kit, 'routeManifest')).toEqual({ok: true, data: routes})
 
     kit.writeProjectFile(
       'src/routeTree.gen.ts',
@@ -171,13 +172,13 @@ describe('the tanstack plugin without a bundler', () => {
     const unreadable = await toolFailure(useTool(kit, 'route_manifest'))
     expect(unreadable).toContain('ENOENT')
     expect(unreadable).toContain('routeTree.gen.ts')
-    expect(await terminalCall(kit, 'routeManifest', '{}')).toEqual({
+    expect(await terminalCall(kit, 'routeManifest')).toEqual({
       ok: false,
       error: {kind: 'user', message: unreadable, code: 'PLUGIN_RPC'},
     })
 
     expect(await toolFailure(useTool(kit, 'build_errors'))).toBe('bundler bridge unavailable')
-    expect(await terminalCall(kit, 'buildErrors', '{}')).toEqual({
+    expect(await terminalCall(kit, 'buildErrors')).toEqual({
       ok: false,
       error: {kind: 'user', message: 'bundler bridge unavailable', code: 'PLUGIN_RPC'},
     })
@@ -200,7 +201,7 @@ describe('the tanstack plugin on a real Vite dev server', () => {
     const buildError = AppErrorsSchema.parse(buildErrors).find((error) => error.kind === 'build')
     expect(buildError?.message.length).toBeGreaterThan(0)
     expect(buildError?.source?.file).toContain('broken.ts')
-    expect(await terminalCall(kit, 'buildErrors', '{}')).toEqual({ok: true, data: buildErrors})
+    expect(await terminalCall(kit, 'buildErrors')).toEqual({ok: true, data: buildErrors})
 
     const traced = diagnosticSeen(
       bridge,

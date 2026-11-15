@@ -1,3 +1,4 @@
+import {z} from 'zod'
 import {Tool, type BundlerDomain, type ToolDomain} from '@conciv/plugin'
 import {Definition} from './rpc.js'
 import {buildErrorToAppError, makeDiagnosticsRing} from './server/diagnostics.js'
@@ -52,7 +53,7 @@ export async function register(tool: ToolDomain, tanstack: Capabilities) {
       name: 'build_errors',
       description:
         "Read recent build/transform errors from the running TanStack dev server (compile failures, bad imports). Use it when the app is broken or a change didn't take effect.",
-      input: Definition.methods.buildErrors.input,
+      input: z.object({}),
       output: Definition.methods.buildErrors.output,
       options,
       execute: () => answer('BUNDLER_UNAVAILABLE', tanstack.buildErrors),
@@ -61,7 +62,7 @@ export async function register(tool: ToolDomain, tanstack: Capabilities) {
       name: 'route_manifest',
       description:
         "Read the app's route manifest from routeTree.gen (all defined routes, paths, dynamic segments). Use it to see what routes exist, not just the matched ones.",
-      input: Definition.methods.routeManifest.input,
+      input: z.object({}),
       output: Definition.methods.routeManifest.output,
       options,
       execute: () => answer('MANIFEST_UNREADABLE', tanstack.routeManifest),
