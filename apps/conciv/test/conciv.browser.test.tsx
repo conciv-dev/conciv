@@ -641,6 +641,31 @@ describe('chat pane', () => {
       expect((await rpc.drafts.get({sessionId}))?.text).toBe(TYPED)
     })
 
+    test('a later successful save clears the notice and leaves one save of that session in the cache', async () => {
+      const DRAFT_SET_PATH = ['drafts', 'set']
+      const {sessionId} = await newSession()
+      const mount = mountChatPane(sessionId)
+      await expect.element(input()).toBeVisible()
+      const saves = await coreControl.rpcCallCount(DRAFT_SET_PATH)
+      const refusal = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+      const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
+
+      await input().fill('refused first')
+      await expect.element(unsaved.getByRole('button', {name: 'Retry'}), {timeout: 20_000}).toBeVisible()
+      await coreControl.releaseFault(refusal)
+      await userEvent.click(input())
+      await userEvent.keyboard('{End}, then taken')
+      await expect.element(unsaved).not.toBeInTheDocument()
+      await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, saves + 1, [])
+
+      const sessionSaves = mount.queryClient.getMutationCache().findAll({
+        mutationKey: mount.data.utils.drafts.set.mutationKey(),
+        predicate: (mutation) =>
+          z.object({sessionId: z.string()}).safeParse(mutation.state.variables).data?.sessionId === sessionId,
+      })
+      expect(sessionSaves).toHaveLength(1)
+    })
+
     test('a restored draft is not saved back to the engine, while the next edit is', async () => {
       const DRAFT_SET_PATH = ['drafts', 'set']
       const SEEDED = 'restored and never written back'
