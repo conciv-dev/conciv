@@ -543,7 +543,16 @@ async function gateChatFrames(ctx: BrowserCommandContext, onRelease: 'deliver' |
   }
 }
 
+const UNIX_SOCKET_PATH_LIMIT = 103
+
 async function gateProjectSocket(root: string, name: string): Promise<Fault> {
+  const path = join(root, name)
+  const bytes = Buffer.byteLength(path)
+  if (bytes > UNIX_SOCKET_PATH_LIMIT) {
+    throw new Error(
+      `the project socket gate's path is ${bytes} bytes, over the ${UNIX_SOCKET_PATH_LIMIT} a unix socket allows: ${path}`,
+    )
+  }
   const held: {open: boolean; sockets: Socket[]; waiters: {count: number; deliver: () => void}[]} = {
     open: false,
     sockets: [],
@@ -559,7 +568,7 @@ async function gateProjectSocket(root: string, name: string): Promise<Fault> {
   })
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
-    server.listen(join(root, name), resolve)
+    server.listen(path, resolve)
   })
   const open = (): Promise<void> => {
     held.open = true

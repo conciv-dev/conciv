@@ -250,8 +250,18 @@ const noQueue = {NO_QUEUE: {message: 'no such queue on this tab'}}
 
 const pluginRpcFailed = {
   PLUGIN_RPC: {
+    status: 400,
     message: 'the plugin rpc call failed',
     data: z.object({type: z.string(), message: z.string(), data: z.unknown().optional()}),
+  },
+  PLUGIN_RPC_INTERNAL: {
+    status: 500,
+    message: 'the plugin rpc call failed inside the plugin',
+    data: z.object({
+      type: z.enum(['rpc.internal', 'rpc.invalid_output']),
+      message: z.string(),
+      data: z.unknown().optional(),
+    }),
   },
 }
 
