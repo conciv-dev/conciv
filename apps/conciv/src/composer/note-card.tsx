@@ -73,9 +73,11 @@ function PluginNoteCard(props: {note: ComposerNote; session: MountedSession | un
               },
             })
 
-            if (drawn === undefined || drawn === null) queueMicrotask(decline)
-
-            return drawn
+            return (
+              <Show when={drawn !== undefined && drawn !== null} fallback={<NoteChip note={props.note} />}>
+                {drawn}
+              </Show>
+            )
           }}
         </Contribution>
       )}
