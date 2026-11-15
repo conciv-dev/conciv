@@ -12,8 +12,14 @@ type WatchingCompiler = {
   hooks: {
     watchRun: {tapPromise: (name: string, run: () => Promise<void>) => void}
     watchClose: {tap: (name: string, close: () => void) => void}
+    shutdown: {tapPromise: (name: string, close: () => Promise<void>) => void}
   }
 }
+
+type EngineSlot =
+  | {stage: 'idle'}
+  | {stage: 'running'; engine: Promise<Engine | undefined>}
+  | {stage: 'stopping'; stopped: Promise<void>}
 
 const AddressInUse = z.object({code: z.literal('EADDRINUSE')})
 
@@ -32,21 +38,40 @@ function reportStartFailure(port: number | undefined): (error: unknown) => undef
 
 export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<ConcivConfig | undefined> {
   return createUnplugin<ConcivConfig | undefined>((options = {}) => {
-    const state: {engine: Promise<Engine | undefined> | null} = {engine: null}
-    const startEngine = () =>
-      (state.engine ??= makeEngineBooter(options, process.cwd(), builtins, 'exact')().catch(
+    const state: {slot: EngineSlot} = {slot: {stage: 'idle'}}
+    const startEngine = async (): Promise<Engine | undefined> => {
+      const slot = state.slot
+      if (slot.stage === 'running') return slot.engine
+      if (slot.stage === 'stopping') {
+        await slot.stopped
+        return startEngine()
+      }
+      const engine = makeEngineBooter(options, process.cwd(), builtins, 'exact')().catch(
         reportStartFailure(options.port),
-      ))
-    const stopEngine = () =>
-      state.engine
-        ?.then((engine) => engine?.stop())
+      )
+      state.slot = {stage: 'running', engine}
+      return engine
+    }
+    const stopEngine = async (): Promise<void> => {
+      const slot = state.slot
+      if (slot.stage === 'idle') return
+      if (slot.stage === 'stopping') return slot.stopped
+      const stopped = slot.engine
+        .then((engine) => engine?.stop())
         .catch((error: unknown) => console.error('conciv: stopping the engine failed', error))
+        .then(() => {
+          state.slot = {stage: 'idle'}
+        })
+      state.slot = {stage: 'stopping', stopped}
+      return stopped
+    }
     const startWhileWatching = (compiler: WatchingCompiler) => {
       if (options.enabled === false) return
       compiler.hooks.watchRun.tapPromise('conciv', async () => {
         await startEngine()
       })
       compiler.hooks.watchClose.tap('conciv', stopEngine)
+      compiler.hooks.shutdown.tapPromise('conciv', stopEngine)
     }
 
     return {
