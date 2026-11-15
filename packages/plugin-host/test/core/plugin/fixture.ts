@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import path from 'node:path'
 import {NodeFileSystem} from '@effect/platform-node'
 import {Context, Effect, Layer} from 'effect'
-import type {SessionInfo} from '@conciv/plugin'
+import type {BundlerDomain, SessionInfo} from '@conciv/plugin'
 import {Agent} from '../../../src/core/agent.js'
 import {App} from '../../../src/core/app.js'
 import {Bus} from '../../../src/core/bus.js'
@@ -183,27 +183,28 @@ const permissionSessionsLayer = Layer.effect(
   }),
 )
 
-const sourcesLayer = Layer.mergeAll(
-  Layer.succeed(App.Service, App.make()),
-  Layer.succeed(ServersSource, {list: () => [], get: () => undefined}),
-  Layer.succeed(HarnessSource, {
-    get: () => ({id: 'fixture'}),
-    resumeToken: () => Promise.resolve(null),
-    recordToken: () => Promise.resolve(),
-    mcpUrl: undefined,
-  }),
-  Layer.succeed(BundlerSource, undefined),
-  Layer.succeed(ExtensionSlugs, []),
-  Layer.succeed(EditorSource, () => {}),
-  Layer.succeed(ManagedPolicy.ConfiguredPolicies, []),
-  Layer.succeed(ConfigPluginSource.ConfiguredPlugins, []),
-)
+const sourcesLayer = (bundler: BundlerDomain | undefined) =>
+  Layer.mergeAll(
+    Layer.succeed(App.Service, App.make()),
+    Layer.succeed(ServersSource, {list: () => [], get: () => undefined}),
+    Layer.succeed(HarnessSource, {
+      get: () => ({id: 'fixture'}),
+      resumeToken: () => Promise.resolve(null),
+      recordToken: () => Promise.resolve(),
+      mcpUrl: undefined,
+    }),
+    Layer.succeed(BundlerSource, bundler),
+    Layer.succeed(ExtensionSlugs, []),
+    Layer.succeed(EditorSource, () => {}),
+    Layer.succeed(ManagedPolicy.ConfiguredPolicies, []),
+    Layer.succeed(ConfigPluginSource.ConfiguredPlugins, []),
+  )
 
 const watcherLayer = Layer.effect(Watcher.Service, Effect.service(Watcher.Service)).pipe(
   Layer.provide(Watcher.testLayer),
 )
 
-const pluginLayer = (directory: AbsolutePath) =>
+const pluginLayer = (directory: AbsolutePath, bundler?: BundlerDomain) =>
   Plugin.layer.pipe(
     Layer.provideMerge(Layer.mergeAll(Permission.layer, Tool.layer)),
     Layer.provideMerge(
@@ -224,7 +225,7 @@ const pluginLayer = (directory: AbsolutePath) =>
         sessionLayer(directory),
         modelLayer,
         instructionEntryLayer,
-        sourcesLayer,
+        sourcesLayer(bundler),
       ),
     ),
   )
@@ -246,6 +247,7 @@ export const supervisorLayer = (
     readonly plugins?: InstancePlugins.List
     readonly configured?: readonly ConfigPlugin.Plugin[]
     readonly source?: Layer.Layer<Context.Service.Identifier<typeof ConfigPluginSource.Service>>
+    readonly bundler?: BundlerDomain
   } = {},
 ) =>
   PluginSupervisor.layer.pipe(
@@ -259,6 +261,6 @@ export const supervisorLayer = (
           ),
       ),
     ),
-    Layer.provideMerge(pluginLayer(AbsolutePath.make(directory))),
+    Layer.provideMerge(pluginLayer(AbsolutePath.make(directory), options.bundler)),
     Layer.fresh,
   )

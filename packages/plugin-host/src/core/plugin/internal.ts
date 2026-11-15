@@ -17,9 +17,9 @@ export type Requirements = Context.Service.Identifier<(typeof services)[number]>
 
 export type InternalPlugin = Plugin<Requirements | Scope.Scope>
 
-const pre = [ServerTools.Plugin, SkillTool.Plugin] as const satisfies readonly InternalPlugin[]
+const pre = [SkillTool.Plugin] as const satisfies readonly InternalPlugin[]
 
-const post = [] as const satisfies readonly InternalPlugin[]
+const post = [ServerTools.Plugin] as const satisfies readonly InternalPlugin[]
 
 export const guarded: ReadonlySet<string> = new Set([])
 
