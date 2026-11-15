@@ -5,12 +5,11 @@ import {createStore} from 'solid-js/store'
 import {flushPersisted, persistStore} from './persist'
 import {isPersistReady} from './persist-machine'
 
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
 type State = {count: number; label: string}
 
 function setup(input: {initial?: string | null; delay?: number; sync?: PersistenceSyncAPI}) {
   const writes: string[] = []
+  const written = Promise.withResolvers<void>()
 
   return createRoot((dispose) => {
     const [store, setStore] = createStore<State>({count: 0, label: ''})
@@ -23,6 +22,7 @@ function setup(input: {initial?: string | null; delay?: number; sync?: Persisten
         getItem: () => input.initial ?? null,
         setItem: (_key: string, value: string) => {
           writes.push(value)
+          written.resolve()
         },
         removeItem: () => {},
       } satisfies SyncStorage,
@@ -32,7 +32,7 @@ function setup(input: {initial?: string | null; delay?: number; sync?: Persisten
       delay: input.delay ?? 10,
     })
 
-    return {store, set: persist.setStore, persist, writes, dispose}
+    return {store, set: persist.setStore, persist, writes, written: written.promise, dispose}
   })
 }
 
@@ -44,7 +44,7 @@ describe('persistStore', () => {
     value.set('label', 'a')
     expect(value.store.count).toBe(2)
     expect(value.writes).toEqual([])
-    await wait(30)
+    await value.written
     expect(value.writes).toEqual([JSON.stringify({count: 2, label: 'a'})])
     value.dispose()
   })

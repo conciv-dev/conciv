@@ -57,6 +57,8 @@ declare module 'vitest/internal/browser' {
   interface BrowserCommands {
     bootCore: (input: BootCoreInput) => Promise<BootCoreResult>
     chooseFiles: (name: string, chosen: ChosenFile[]) => Promise<void>
+    downloadFrom: (name: string) => Promise<{name: string; text: string}>
+    openedFrom: (name: string) => Promise<string>
     dragButton: (drag: PointerDrag) => Promise<void>
     hoverButton: (hover: PointerHover) => Promise<void>
     closeCore: () => Promise<void>
@@ -87,7 +89,7 @@ declare module 'vitest/internal/browser' {
     releaseFault: (handle: string) => Promise<void>
     faultPending: (handle: string) => Promise<number>
     awaitFaultPending: (handle: string, count: number) => Promise<void>
-    awaitFaultAnswered: (handle: string) => Promise<void>
+    awaitFaultAnswered: (handle: string) => Promise<unknown>
   }
 }
 

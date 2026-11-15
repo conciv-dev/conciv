@@ -19,11 +19,7 @@ export type Generation = PluginDefinition & {
   readonly revision: string
   readonly source?: Plugin.Source
   readonly features?: Plugin.Features
-  readonly experimental?: {
-    readonly file: string
-    readonly revision: string
-    readonly options: Plugin.ExperimentalBundle['options']
-  }
+  readonly experimental?: Plugin.ExperimentalBundle
 }
 
 export const Service = Context.Service<Interface>('@opencode/Plugin')

@@ -205,9 +205,10 @@ const rpcFromEffect = Effect.fn('Plugin.Rpc.fromEffect')(function* (host: HostRp
           ) => {
             const controller = new AbortController()
             const signal = options?.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal
-            void (async () => {
+            async function deliver() {
               for await (const event of subscribe(name, {signal})) await handler(event)
-            })().catch((error: unknown) => run(Effect.logError(error)))
+            }
+            void deliver().catch((error: unknown) => run(Effect.logError(error)))
             return () => controller.abort()
           },
         },

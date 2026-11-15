@@ -1,4 +1,4 @@
-import {createMemo, createSignal, lazy, onCleanup, Show, Suspense, untrack, type ParentProps} from 'solid-js'
+import {createMemo, createSignal, lazy, on, onCleanup, Show, Suspense, untrack, type ParentProps} from 'solid-js'
 import type {Entry} from '@conciv/plugin/experimental/host'
 import type {ConcivClient} from '@conciv/plugin'
 import {useRouteContext} from '@tanstack/solid-router'
@@ -79,18 +79,20 @@ export function PluginRoot(props: ParentProps) {
 
   first.promise.catch(() => undefined)
 
-  const bundle = createMemo(() => {
-    if (!trusted()) return
+  const bundle = createMemo(
+    on(trusted, (isTrusted) => {
+      if (!isTrusted) return
 
-    const created = createBundleSource({client: apis.engine.client, apiBase})
+      const created = createBundleSource({client: apis.engine.client, apiBase})
 
-    first.resolve(created)
-    onCleanup(created.manager.on((message) => listeners.forEach((listener) => listener(message))))
-    onCleanup(created.onPluginListChange(() => pluginListListeners.forEach((listener) => listener())))
-    onCleanup(created.dispose)
+      first.resolve(created)
+      onCleanup(created.manager.on((message) => listeners.forEach((listener) => listener(message))))
+      onCleanup(created.onPluginListChange(() => pluginListListeners.forEach((listener) => listener())))
+      onCleanup(created.dispose)
 
-    return created
-  })
+      return created
+    }),
+  )
 
   const installed: InstalledSource = {
     initial: first.promise.then((created) => created.manager.initial),

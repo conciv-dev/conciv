@@ -3,7 +3,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
 import {NodeFileSystem} from '@effect/platform-node'
-import {Cause, Effect, Exit, Layer} from 'effect'
+import {Cause, Effect, Exit, Layer, Schedule} from 'effect'
 import {testEffect} from '../lib/effect'
 import {EffectFlock} from '../../../src/util/effect-flock.js'
 import {FSUtil} from '../../../src/util/fs-util.js'
@@ -157,10 +157,14 @@ describe('util.effect-flock', () => {
       yield* Effect.scoped(
         Effect.gen(function* () {
           yield* flock.acquire('eflock:heartbeat', dir, {staleMs: 300})
-          yield* Effect.sleep(150)
-          const first = yield* Effect.promise(() => fs.stat(heartbeat))
-          yield* Effect.sleep(250)
-          const second = yield* Effect.promise(() => fs.stat(heartbeat))
+          const advancedPast = (mtimeMs: number) =>
+            Effect.promise(() => fs.stat(heartbeat)).pipe(
+              Effect.repeat({until: (info) => info.mtimeMs > mtimeMs, schedule: Schedule.spaced('10 millis')}),
+              Effect.timeout('2 seconds'),
+            )
+          const created = yield* Effect.promise(() => fs.stat(heartbeat))
+          const first = yield* advancedPast(created.mtimeMs)
+          const second = yield* advancedPast(first.mtimeMs)
 
           expect(second.mtimeMs).toBeGreaterThan(first.mtimeMs)
         }),
