@@ -8,21 +8,26 @@ import {
   writeFileSync,
   mkdirSync,
   utimesSync,
+  chmodSync,
 } from 'node:fs'
 import {once} from 'node:events'
 import {request as httpRequest} from 'node:http'
 import {createServer} from 'node:net'
 import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {createRequire} from 'node:module'
+import {dirname, join} from 'node:path'
+import {fileURLToPath} from 'node:url'
 import {text as bodyText} from 'node:stream/consumers'
 import {randomUUID} from 'node:crypto'
 import {setImmediate, setTimeout as wait} from 'node:timers/promises'
 import {describe, it, expect, afterEach, onTestFinished, test, vi} from 'vitest'
-import {makeTextAdapter} from '@conciv/ai/server'
+import {webSocket} from '@conciv/ai/client'
+import {makeTextAdapter, quickJSThreadDriver} from '@conciv/ai/server'
 import {createToolCallChunks, fakeText} from '@conciv/ai/testkit'
 import {
   createChatPlane,
   registryCapabilities,
+  toolDomainCapabilities,
   type ChatPlane,
   type CodeCapability,
   type FollowUpOutcome,
@@ -44,8 +49,11 @@ import {
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {
+  chatMetadata,
   chatRuns,
   hubConnections,
+  InstructionStateTable,
+  markers,
   openDb,
   readHomeDb,
   recordHubConnection,
@@ -54,6 +62,7 @@ import {
   withHomeDb,
   type ConcivDb,
 } from '@conciv/db'
+import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {
   createClientSettings,
   defineTool,
@@ -65,13 +74,56 @@ import {
 } from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {type HarnessAdapter, defineHarness, resolveHarnessModels} from '@conciv/harness'
-import {ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {
+  ChatEventType,
+  idleFailedEvent,
+  readApprovalAsk,
+  readApprovalSettled,
+  sessionRunEvent,
+  type ChatEvent,
+} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
-import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
+import type {HarnessModel} from '@conciv/protocol/harness-types'
+import {
+  CHAT_SSE_PATH,
+  CHAT_WS_PATH,
+  CONCIV_SESSION_HEADER,
+  HarnessSessionId,
+  SessionId,
+} from '@conciv/protocol/chat-types'
 import {ConcivConfigSchema} from '@conciv/protocol/config-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
-import {eq} from 'drizzle-orm'
-import {isEqual} from 'es-toolkit'
+import {eq, sql} from 'drizzle-orm'
+import {
+  Agent,
+  App,
+  Bus,
+  CodeModeCatalog,
+  Database,
+  Global,
+  Image,
+  InstructionEntry,
+  InstructionEntrySchema,
+  KV,
+  Location,
+  ManagedPolicy,
+  Model,
+  Permission,
+  PermissionSaved,
+  PluginHooks,
+  PluginHost,
+  Rpc,
+  Session,
+  SessionSchema,
+  SessionEvent,
+  SessionProjector,
+  Skill,
+  SkillInstructions,
+  Tool,
+} from '@conciv/plugin-host'
+import {Conciv, Plugin, Rpc as PluginRpc} from '@conciv/plugin'
+import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
+import {isEqual, once as onceOnly} from 'es-toolkit'
 import getPort from 'get-port'
 import {WSContext, defineWebSocketHelper} from 'hono/ws'
 import {z} from 'zod'
@@ -86,10 +138,13 @@ import {statePaths} from '../src/lib/state-paths.js'
 import {makeJournal, makePageBus} from '../src/page/page-bus.js'
 import {makePageQueues, startQueueFollowUp, type PageQueues} from '../src/page/page-queue.js'
 import {makeCoreRuntime} from '../src/runtime/core-runtime.js'
+import {provideHarnessModels} from '../src/runtime/harness-models.js'
 import {makeSessionPrimitives} from '../src/runtime/primitives.js'
 import {runWithSession} from '../src/runtime/session-context.js'
 import {start, composeSystemPrompt} from '../src/start.js'
 import {makeApp} from '../src/app.js'
+import {outsideRunCapabilities} from '../src/api/outside-run.js'
+import mcpApp, {type McpVars} from '../src/api/mcp.js'
 import {
   CODE_LIFETIME_MS,
   OPEN_PATHS,
@@ -101,7 +156,13 @@ import {
 } from '../src/engine-login.js'
 import {serveHono} from '@conciv/serve'
 import {Hono} from 'hono'
-import {exchangePrintedCode, loginThroughTerminal, requestPrintedCode} from '@conciv/harness-testkit'
+import {
+  createTestHarness,
+  createTestkit,
+  exchangePrintedCode,
+  loginThroughTerminal,
+  requestPrintedCode,
+} from '@conciv/harness-testkit'
 import {os} from '@orpc/server'
 import {createORPCClient} from '@orpc/client'
 import {RPCLink as FetchRpcLink} from '@orpc/client/fetch'
@@ -109,7 +170,35 @@ import {RPCLink as WebsocketRpcLink} from '@orpc/client/websocket'
 import {CONCIV_VERSION_HEADER, RPC_WS_PATH, rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
 import coreManifest from '../package.json' with {type: 'json'}
-import {chunkWithInlineMap, cleanupChunks, makeChatFixture} from './helpers.js'
+import {
+  currentRow,
+  ensureRow,
+  nativeIdFor,
+  recordNativeId,
+  rowById,
+  setMetadata,
+  setPermissions,
+} from '../src/sessions/session-rows.js'
+import {provideInstructionEntries} from '../src/runtime/instruction-entries.js'
+import {provideSessions} from '../src/runtime/plugin-sessions.js'
+import {createSessionSearch} from '../src/sessions/session-search.js'
+import {
+  provideApp,
+  provideBundlerSource,
+  provideConfiguredPolicies,
+  provideExtensionSlugs,
+  provideGlobalRoots,
+  provideHarnessSource,
+} from '../src/runtime/plugin-sources.js'
+import {
+  answerPermission,
+  decidePermissionCard,
+  followPermissionCards,
+  permissionSessions,
+  pluginInstructions,
+  sessionToolDomain,
+} from '../src/runtime/permission-cards.js'
+import {bootMadeApp, chunkWithInlineMap, cleanupChunks, makeChatFixture, requireClaude} from './helpers.js'
 
 const NO_CAPABILITIES = {
   resume: false,
@@ -193,23 +282,28 @@ describe('chat plane', () => {
     const schemas = {inputSchema: z.object({}), outputSchema: z.object({})}
     const tool = defineTool({name: 'unit_tool', description: 'unit', ...schemas, meta}).server(() => ({}))
     registry.register(tool, {owner: 'unit'})
-    const [capability] = registryCapabilities(registry.sandboxTools(), async () => null)
+    const [capability] = registryCapabilities(
+      registry.sandboxTools(),
+      async () => null,
+      () => undefined,
+    )
     expect(capability?.description).toMatch(/^Do the unit thing\. Prefer small inputs\.\n\nReturns JSON matching: /)
   })
 
-  it('a turn falls back to systemPromptText and logs an unreadable systemPromptFile, and a credential-shaped capability fails only its own run', async () => {
+  it('a turn falls back to systemPromptText and logs an unreadable systemPromptFile, a credential-shaped capability fails only its own run, plugin skills and the code-mode catalog reach the system prompt when the starting point resets and the user words in between, search finds a tool by its parameter, and with no isolate driver every tool reaches the model and the MCP listing directly with no catalog while an asking tool still needs approval', async () => {
     const root = tempDir()
     const cli = fakeCli()
     const log: string[] = []
     const missing = join(root, 'no-such-prompt.md')
     const echo: CodeCapability = {
       name: 'unit_echo',
+      path: 'unit_echo',
       description: 'Echo the text back.',
       errors: [],
       inputSchema: z.object({text: z.string()}),
-      execute: async (input) => input,
+      execute: async (input) => ({value: input, files: []}),
     }
-    const secret = {...echo, name: 'unit_secret', inputSchema: z.object({apiKey: z.string()})}
+    const secret = {...echo, name: 'unit_secret', path: 'unit_secret', inputSchema: z.object({apiKey: z.string()})}
     const chat = await plane(cliHarness(cli), root, {
       systemPrompt: {systemPromptFile: missing, systemPromptText: 'the fallback prompt'},
       log: (line) => log.push(line),
@@ -220,7 +314,316 @@ describe('chat plane', () => {
     expect(cli.systemPrompts.flat()).toContain('the fallback prompt')
     expect(log.some((line) => line.includes(missing))).toBe(true)
     const runner = await chat.codeRunner(sessionId('prompt'), () => undefined)
-    await expect(runner?.run('return await external_unit_secret({apiKey: "k"})', 'parent')).rejects.toThrow(/secret/i)
+    await expect(runner?.code?.run('return await external_unit_secret({apiKey: "k"})', 'parent')).rejects.toThrow(
+      /secret/i,
+    )
+
+    const skilled = sessionId('skills')
+    const builtins = sessionId('builtins')
+    const db = openDatabase(root)
+    await ensureRow(db, skilled, 'fake-cli', root)
+    await ensureRow(db, builtins, 'fake-cli', root)
+    const host = ManagedRuntime.make(
+      Layer.mergeAll(SkillInstructions.layer, SessionProjector.layer, Tool.layer).pipe(
+        Layer.provideMerge(
+          Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, Image.layer, permissionSessions(db)),
+        ),
+        Layer.provideMerge(Layer.mergeAll(Bus.configured(), KV.layer)),
+        Layer.provideMerge(
+          Layer.succeed(
+            Location.Service,
+            Location.Service.of(
+              Schema.decodeSync(Location.Info)({
+                directory: root,
+                project: {id: root, directory: root, canonical: root},
+              }),
+            ),
+          ),
+        ),
+        Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),
+      ),
+    )
+    onTestFinished(() => host.dispose())
+    await host.context()
+    const skillScope = host.runSync(Scope.make())
+    const addSkill = (id: string) =>
+      host.runPromise(
+        Skill.Service.use((skills) =>
+          skills.transform((editor) =>
+            editor.add(
+              Schema.decodeSync(Skill.Info)({
+                id,
+                name: id,
+                description: `The ${id} skill.`,
+                path: join(root, id, 'SKILL.md'),
+                content: `Do ${id}.`,
+              }),
+            ),
+          ),
+        ).pipe(Scope.provide(skillScope)),
+      )
+    const plugin = (
+      namespace: {name: string; description: string},
+      names: string[],
+      input = z.object({}),
+      scope = host.runSync(Scope.make()),
+    ) =>
+      host
+        .runPromise(
+          Tool.Service.use((tools) =>
+            tools.transform((editor) => {
+              editor.namespace(namespace)
+              names.forEach((name) =>
+                editor.add({
+                  name,
+                  description: `The ${name} tool.`,
+                  input,
+                  options: {namespace: namespace.name},
+                  execute: (given: object) => Effect.succeed({content: `${name} ${JSON.stringify(given)}`}),
+                }),
+              )
+            }),
+          ).pipe(Scope.provide(scope)),
+        )
+        .then(() => scope)
+    const capabilities = (id: SessionId): CodeCapability[] =>
+      toolDomainCapabilities(
+        id === builtins ? [echo, secret] : [],
+        host.runSync(sessionToolDomain(id)),
+        (effect, signal) => host.runPromiseExit(effect, {signal}),
+        () => undefined,
+      )
+    const told = fakeCli()
+    const instructed = {
+      capabilities,
+      pluginInstructions: (id: SessionId, reset: 'keep' | 'reset', inventory: CodeModeCatalog.Inventory | undefined) =>
+        host.runPromise(pluginInstructions(id, reset, inventory)),
+    }
+    const fresh = await plane(cliHarness(told), root, instructed)
+    const resumed = await plane(cliHarness(told, true), root, {
+      ...instructed,
+      sessions: sessionPort(HarnessSessionId.parse('native-skills')),
+    })
+    const listed = (...ids: string[]) => new RegExp(ids.map((id) => `<id>${id}</id>`).join('[\\s\\S]*'))
+    const noTools =
+      'No Code Mode tools are currently available. Later Code Mode catalog updates may add or remove tools. Do not call `execute_typescript` unless there is at least one available Code Mode tool.'
+    const preface = expect.stringContaining('Use `console.log()` for debugging (logs are captured)')
+    const projectTools = {name: 'tools', description: 'Project utilities'}
+
+    await fresh.followUp(builtins, 'what can you do')
+    const [catalog, ...rest] = told.systemPrompts.at(-1) ?? []
+    expect(catalog).toContain('## Code Mode tools (call only inside `execute_typescript`)')
+    expect(catalog).toContain('The catalog is complete.')
+    expect(catalog).toContain('external_unit_echo({\n  text: string;\n}): Promise<unknown> // Echo the text back.')
+    expect(catalog).toContain('external_unit_secret({\n  apiKey: string;\n}): Promise<unknown> // Echo the text back.')
+    expect(rest).toEqual([preface])
+    expect(rest.join('')).not.toContain('external_unit_echo')
+    expect(told.tools.at(-1)).toContain('execute_typescript')
+
+    await fresh.followUp(skilled, 'first')
+    expect(told.systemPrompts.at(-1)).toEqual([noTools])
+    expect(told.tools.at(-1)).not.toContain('execute_typescript')
+    expect(told.asked.at(-1)).toBe('first')
+
+    await addSkill('review')
+    await resumed.followUp(skilled, 'second')
+    expect(told.systemPrompts.at(-1)).toEqual([noTools])
+    expect(told.asked.at(-1)).toEqual([
+      {type: 'text', content: expect.stringMatching(listed('review'))},
+      {type: 'text', content: 'second'},
+    ])
+
+    await addSkill('triage')
+    told.steps.push('failing')
+    expect(await resumed.followUp(skilled, 'dropped')).toMatchObject({kind: 'failed'})
+    expect(told.asked.at(-1)).toEqual([
+      {type: 'text', content: expect.stringContaining('<id>triage</id>')},
+      {type: 'text', content: 'dropped'},
+    ])
+    await resumed.followUp(skilled, 'resent')
+    expect(told.asked.at(-1)).toEqual([
+      {type: 'text', content: expect.stringContaining('<id>triage</id>')},
+      {type: 'text', content: 'resent'},
+    ])
+
+    const registered = await plugin(projectTools, ['zeta', 'alpha'])
+    await resumed.followUp(skilled, 'third')
+    expect(JSON.stringify(told.asked.at(-1))).not.toContain('triage')
+    expect(told.systemPrompts.at(-1)).toEqual([noTools, preface])
+    expect(told.asked.at(-1)).toEqual([
+      {type: 'text', content: expect.stringContaining('This catalog supersedes the previous Code Mode tool catalog.')},
+      {type: 'text', content: 'third'},
+    ])
+    expect(JSON.stringify(told.asked.at(-1))).toContain('- tools (2 tools) // Project utilities')
+
+    await host.runPromise(Scope.close(registered, Exit.void))
+    await plugin(projectTools, ['alpha', 'zeta'])
+    await resumed.followUp(skilled, 'reordered')
+    expect(told.asked.at(-1)).toBe('reordered')
+
+    await plugin({name: 'sky', description: 'Sky readings'}, ['measure'], z.object({declination: z.string()}))
+    await resumed.followUp(skilled, 'fourth')
+    const [added] = z.array(z.object({content: z.string()})).parse(told.asked.at(-1))
+    expect(added?.content).toMatch(
+      /^The Code Mode tool catalog has changed\.\n\nNew tools are available:\n- sky \(1 tool\) \/\/ Sky readings\n  - external_sky_measure\(\{\n  declination: string;\n\}\): Promise<string \| null>/,
+    )
+    expect(added?.content).not.toContain('supersedes')
+    expect(added?.content).not.toContain('external_tools_alpha')
+
+    const skilledRunner = await resumed.codeRunner(skilled, () => undefined)
+    const found = z
+      .object({result: z.object({items: z.array(z.object({path: z.string()}))})})
+      .parse(await skilledRunner?.code?.run('return search({query: "declination"})', 'parent'))
+    expect(found.result.items.map((item) => item.path)).toEqual(['external_sky_measure'])
+    await expect(
+      skilledRunner?.code?.run(`return await ${found.result.items[0]?.path}({declination: "north"})`, 'parent'),
+    ).resolves.toMatchObject({result: 'measure {"declination":"north"}'})
+
+    await addSkill('deploy')
+    told.steps.push('failing')
+    await resumed.compact(skilled)
+    expect(told.systemPrompts.at(-1)?.[0]).toMatch(listed('deploy', 'review'))
+    await resumed.followUp(skilled, 'after a failed compact')
+    expect(told.systemPrompts.at(-1)).toEqual([noTools, preface])
+    expect(told.asked.at(-1)).toEqual([
+      {type: 'text', content: expect.stringContaining('<id>deploy</id>')},
+      {type: 'text', content: 'after a failed compact'},
+    ])
+
+    await resumed.compact(skilled)
+    expect(told.systemPrompts.at(-1)).toEqual([
+      expect.stringMatching(/- sky \(1 tool\) \/\/ Sky readings[\s\S]*- tools \(2 tools\) \/\/ Project utilities/),
+      preface,
+    ])
+    expect(told.systemPrompts.at(-1)?.[0]).toMatch(listed('deploy', 'review'))
+    expect(told.asked.at(-1)).toEqual(expect.not.stringContaining('<id>'))
+
+    await resumed.followUp(skilled, 'fifth')
+    expect(told.systemPrompts.at(-1)?.[0]).toMatch(listed('deploy', 'review'))
+    expect(told.asked.at(-1)).toBe('fifth')
+
+    await addSkill('lint')
+    await fresh.followUp(skilled, 'sixth')
+    expect(told.systemPrompts.at(-1)?.[0]).toMatch(listed('deploy', 'lint', 'review'))
+    expect(told.asked.at(-1)).toBe('sixth')
+
+    const codeless = sessionId('codeless')
+    await ensureRow(db, codeless, 'fake-cli', root)
+    const registry = createToolRegistry()
+    const ping = defineTool({
+      name: 'unit_ping',
+      description: 'Ping the text back.',
+      inputSchema: z.object({text: z.string()}),
+      outputSchema: z.object({pinged: z.string()}),
+      meta: {summary: 'Ping the text back'},
+    }).server((input) => ({pinged: input.text}))
+    registry.register(ping, {owner: 'unit'})
+    const risky = defineTool({
+      name: 'unit_risky',
+      description: 'Do a risky thing.',
+      inputSchema: z.object({target: z.string()}),
+      outputSchema: z.object({done: z.string()}),
+      meta: {summary: 'Do a risky thing'},
+      approval: 'ask',
+    }).server((input) => ({done: input.target}))
+    registry.register(risky, {owner: 'unit'})
+    const pinged = registryCapabilities(
+      registry.sandboxTools(),
+      (name, input, request) => registry.call(name, input, {request}),
+      () => 'unit',
+    )
+    const withoutDriver = await plane(cliHarness(told), root, {
+      ...instructed,
+      capabilities: (id) =>
+        toolDomainCapabilities(
+          pinged,
+          host.runSync(sessionToolDomain(id)),
+          (effect, signal) => host.runPromiseExit(effect, {signal}),
+          () => undefined,
+        ),
+      driver: null,
+    })
+    await withoutDriver.followUp(codeless, 'no sandbox')
+    expect(told.systemPrompts.at(-1)?.[0]).toMatch(listed('deploy', 'lint', 'review'))
+    expect(JSON.stringify(told.systemPrompts.at(-1))).not.toMatch(/Code Mode|external_|console\.log/)
+    expect(told.tools.at(-1)).toEqual(expect.arrayContaining(['unit_ping', 'sky_measure', 'tools_alpha', 'tools_zeta']))
+    expect(told.tools.at(-1)).not.toContain('execute_typescript')
+    expect(told.tools.at(-1)).not.toContain('discover_tools')
+    const instructionKeys = async (id: SessionId) => {
+      const [row] = await db.select().from(InstructionStateTable).where(eq(InstructionStateTable.session_id, id))
+      return Object.keys(row?.current_values ?? {})
+    }
+    expect(await instructionKeys(skilled)).toContain('core/codemode')
+    expect(await instructionKeys(codeless)).not.toContain('core/codemode')
+
+    const unchanged: EngineStaleness = {stale: false, changed: [], tracked: [], bootedAt: 0, fingerprint: 'test'}
+    const primitives = makeSessionPrimitives({
+      db,
+      root,
+      storeCapture: () => Promise.resolve(),
+      bundler: () => undefined,
+      openInEditor: () => {},
+      listTabs: async () => ({tabs: [], unreachable: []}),
+    })
+    const runtime = makeCoreRuntime({
+      primitives,
+      plane: withoutDriver,
+      db,
+      model: () => null,
+      staleness: () => unchanged,
+      interruptIdle: async () => false,
+    })
+    const mcp = new Hono<{Variables: McpVars}>()
+      .use(async (c, next) => {
+        c.set('mcp', {
+          codeRunner: (id, publish, given) => withoutDriver.codeRunner(id, publish, given),
+          hubCall: () => {},
+          hubReplied: () => {},
+          finishedQueues: () => [],
+          startedQueues: () => [],
+          outsideCapabilities: () => [],
+          admitCall: (id, call) => withoutDriver.admitCall(id, call),
+          resolveSession: async () => runtime.forSession(codeless),
+          admitOutside: async () => null,
+          hubRefusal: () => null,
+          staleness: () => unchanged,
+        })
+        await next()
+      })
+      .route('/', mcpApp)
+    const rpc = async (method: string, params: Record<string, unknown>) => {
+      const response = await mcp.request('http://127.0.0.1/', {
+        method: 'POST',
+        headers: {...JSON_TYPE, host: '127.0.0.1', accept: 'application/json, text/event-stream'},
+        body: JSON.stringify({jsonrpc: '2.0', id: 1, method, params}),
+      })
+      const text = await response.text()
+      const data = text.split('\n').find((line) => line.startsWith('data: '))
+      return JSON.parse(data === undefined ? text : data.slice('data: '.length))
+    }
+    const mcpListed = z
+      .object({result: z.object({tools: z.array(z.object({name: z.string()}))})})
+      .parse(await rpc('tools/list', {}))
+      .result.tools.map((tool) => tool.name)
+    expect(mcpListed).toEqual(expect.arrayContaining(['unit_ping', 'sky_measure', 'tools_alpha', 'tools_zeta']))
+    expect(mcpListed).not.toContain('execute_typescript')
+    expect(mcpListed).not.toContain('discover_tools')
+    const calledText = async (name: string, input: Record<string, unknown>) =>
+      z
+        .object({result: z.object({content: z.array(z.object({text: z.string()}))})})
+        .parse(await rpc('tools/call', {name, arguments: input}))
+        .result.content.map((part) => part.text)
+    expect(await calledText('sky_measure', {declination: 'north'})).toEqual([
+      '"measure {\\"declination\\":\\"north\\"}"',
+    ])
+    expect(await calledText('unit_ping', {text: 'pong'})).toEqual([expect.stringContaining('"pinged":"pong"')])
+    expect(mcpListed).toContain('unit_risky')
+    const refused = z
+      .object({result: z.object({content: z.array(z.object({text: z.string()})), isError: z.boolean().optional()})})
+      .parse(await rpc('tools/call', {name: 'unit_risky', arguments: {target: 'x'}})).result
+    expect(refused.isError).toBe(true)
+    expect(refused.content.map((part) => part.text).join('')).toMatch(/needs the user/)
+    expect((await withoutDriver.hydrate(codeless)).pendingApprovals.map((ask) => ask.toolName)).toEqual(['unit_risky'])
   })
 
   it('after a restart the finished and interrupted turns all show, and the interrupted run is aborted with a finish time', async () => {
@@ -369,9 +772,16 @@ describe('chat plane', () => {
     expect(await announced).toBe('late-push-run')
   }, 10_000)
 
-  type CliStep = 'reply' | 'partial' | 'streaming' | 'tooling'
+  type CliStep = 'reply' | 'partial' | 'streaming' | 'tooling' | 'failing'
 
-  type FakeCli = {steps: CliStep[]; systemPrompts: string[][]; gate: Promise<void>; release: () => void}
+  type FakeCli = {
+    steps: CliStep[]
+    systemPrompts: string[][]
+    tools: string[][]
+    asked: unknown[]
+    gate: Promise<void>
+    release: () => void
+  }
 
   const FIRST_DELTA = 'partial reply'
 
@@ -379,16 +789,18 @@ describe('chat plane', () => {
 
   function fakeCli(...steps: CliStep[]): FakeCli {
     const gate = Promise.withResolvers<void>()
-    return {steps, systemPrompts: [], gate: gate.promise, release: () => gate.resolve()}
+    return {steps, systemPrompts: [], tools: [], asked: [], gate: gate.promise, release: () => gate.resolve()}
   }
 
-  function cliHarness(cli: FakeCli): HarnessAdapter {
+  function cliHarness(cli: FakeCli, resume = false): HarnessAdapter {
     return defineHarness({
       id: 'fake-cli',
       binName: 'true',
       chatConfig: () => ({
         adapter: makeTextAdapter('fake-cli', async function* (options) {
           cli.systemPrompts.push([...(options.systemPrompts ?? [])].map(String))
+          cli.tools.push((options.tools ?? []).map((tool) => tool.name))
+          cli.asked.push(options.messages.findLast((message) => message.role === 'user')?.content)
           const step = cli.steps.shift() ?? 'reply'
           const run = {threadId: options.threadId ?? '', runId: options.runId ?? ''}
           const messageId = `${run.runId}-a`
@@ -396,6 +808,7 @@ describe('chat plane', () => {
           const heldOrAborted = () =>
             Promise.race([cli.gate, new Promise((settle) => signal?.addEventListener('abort', settle, {once: true}))])
           yield {type: ChatEventType.RUN_STARTED, ...run}
+          if (step === 'failing') throw new Error('the cli crashed')
           if (step === 'tooling') {
             yield* createToolCallChunks('Read', {file_path: 'a.ts'}, {parentMessageId: messageId})
             return await heldOrAborted()
@@ -411,7 +824,7 @@ describe('chat plane', () => {
           yield {type: ChatEventType.RUN_FINISHED, ...run}
         }),
       }),
-      capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
+      capabilities: {...NO_CAPABILITIES, resume, transcriptHistory: false},
     })
   }
 
@@ -458,6 +871,7 @@ describe('chat plane', () => {
     overrides: Partial<Parameters<typeof createChatPlane>[0]> = {},
   ): Promise<ChatPlane> {
     const db = openDatabase(root)
+    const {driver = quickJSDriver(), ...given} = overrides
     return createChatPlane({
       db,
       hubAccess: 'session',
@@ -469,10 +883,20 @@ describe('chat plane', () => {
       toolNames: new Set(),
       capabilities: () => [],
       attachmentExpanders: {},
+      prompt: async (event) => event,
+      promptHooked: async () => false,
+      pluginInstructions: async () => ({initial: '', update: '', told: async () => undefined}),
       firstOutputTimeoutMs: 30_000,
       log: () => undefined,
-      ...overrides,
+      driver,
+      ...given,
     })
+  }
+
+  function quickJSDriver() {
+    const driver = quickJSThreadDriver({timeout: 10_000, memoryLimit: 64, maxStackSize: 1024 * 1024}, () => undefined)
+    onTestFinished(() => driver.dispose())
+    return driver
   }
 
   const noUpgrade = defineWebSocketHelper(async () => undefined)
@@ -563,6 +987,22 @@ describe('config', () => {
     expect(parsed.plugins).toEqual(plugins)
     expect(resolveConfig(parsed, '/root').plugins).toEqual(plugins)
     expect(resolveConfig({}, '/root').plugins).toEqual([])
+  })
+
+  it('refuses a plugin option value that is not JSON, naming the plugin, and keeps nested JSON options as given', () => {
+    const nested = [
+      '@acme/nested',
+      {name: 'a', level: 2, on: true, off: null, list: [1, 'b', [false]], deep: {x: {y: null}}},
+    ]
+    expect(ConcivConfigSchema.parse({plugins: [nested]}).plugins).toEqual([nested])
+    const refused = ConcivConfigSchema.safeParse({plugins: [nested, ['@acme/hooks', {onLoad: () => 'loaded'}]]})
+    expect(refused.error?.issues.map((issue) => ({path: issue.path, message: issue.message}))).toEqual([
+      {
+        path: ['plugins', 1],
+        message:
+          'plugin "@acme/hooks": the entry must be [name, options] and every option value must be JSON (a string, number, boolean, null, array or object)',
+      },
+    ])
   })
 })
 
@@ -691,9 +1131,10 @@ describe('editor symbolicate', () => {
 })
 
 describe('engine boot writes .conciv/mcp-endpoint.json', () => {
-  it('start records the MCP endpoint a headless stdio bridge reads, and the endpoint answers', async () => {
+  it('start records the MCP endpoint a headless stdio bridge reads, the endpoint answers, and repeat opens launch the editor once', async () => {
     const root = tempDir()
-    const engine = await bootEngine(root)
+    const launched: unknown[] = []
+    const engine = await bootEngine(root, {launchEditor: (...call) => launched.push(call)})
     try {
       const file = join(statePaths(root).dir, 'mcp-endpoint.json')
       const {mcpUrl} = z.object({mcpUrl: z.string()}).parse(JSON.parse(readFileSync(file, 'utf8')))
@@ -707,6 +1148,20 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
       })
       expect(response.status).toBe(200)
       await response.body?.cancel()
+      const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+      const {sessionId} = await makeRpcClient(base).sessions.create(undefined)
+      const rpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+      const open = (column?: number) => rpc.editor.open({file: 'src/a.ts', line: 3, column})
+      await open(9)
+      await open(9)
+      expect(launched).toEqual([['src/a.ts', 3, 9]])
+      await open(4)
+      await open()
+      expect(launched).toEqual([
+        ['src/a.ts', 3, 9],
+        ['src/a.ts', 3, 4],
+        ['src/a.ts', 3, undefined],
+      ])
     } finally {
       await engine.stop()
     }
@@ -747,17 +1202,49 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
 })
 
 describe('configured session rows', () => {
-  it('the configured conciv and harness session rows exist once the engine resolves', async () => {
+  it('the configured conciv and harness session rows exist once the engine resolves, and the start leaves the database file mode alone', async () => {
     const root = tempDir()
+    const databaseFile = join(concivStateDir(root), 'conciv.db')
+    openDb(root).$client.close()
+    chmodSync(databaseFile, 0o644)
     const configured = {sessionId: 'conciv_configured', claudeSessionId: 'native-configured'}
     const made = await makeApp({cfg: resolveConfig(configured, root), cwd: root, openInEditor: () => {}})
     try {
       const rows = await made.chat.db.select().from(sessionTable)
       expect(rows.map((row) => row.id)).toContain('conciv_configured')
       expect(rows.map((row) => row.harnessSessionId)).toContain('native-configured')
+      expect([databaseFile, `${databaseFile}-wal`].map((file) => statSync(file).mode & 0o777)).toEqual([0o644, 0o644])
     } finally {
       await made.dispose()
     }
+  })
+
+  it('a start that fails once the plugin host is built closes every handle on the database', async () => {
+    const root = tempDir()
+    const databaseFile = join(concivStateDir(root), 'conciv.db')
+    const seeded = openDb(root)
+    seeded.run(
+      sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+    )
+    seeded.$client.close()
+    await expect(makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}})).rejects.toThrow()
+    expect(existsSync(`${databaseFile}-wal`)).toBe(false)
+  })
+})
+
+describe('session metadata', () => {
+  it('a session starts with no metadata, and each setMetadata replaces the whole record', async () => {
+    const root = tempDir()
+    const db = openDb(root)
+    const id = SessionId.parse('conciv_metadata')
+    await ensureRow(db, id, 'fake-cli', root)
+    expect((await rowById(db, id))?.metadata).toBeNull()
+
+    await setMetadata(db, id, {owner: 'review', tags: ['a', 'b']})
+    expect((await rowById(db, id))?.metadata).toEqual({owner: 'review', tags: ['a', 'b']})
+
+    await setMetadata(db, id, {round: 2, nested: {done: false}})
+    expect(currentRow(db, id)?.metadata).toEqual({round: 2, nested: {done: false}})
   })
 })
 
@@ -814,7 +1301,9 @@ describe('page bus and the session scope', () => {
   function pageQueues(bus: ReturnType<typeof makePageBus>, syncMs?: number): PageQueues {
     const db = openDb(tempDir())
     onTestFinished(() => db.$client.close())
-    return makePageQueues({bus, journal: makeJournal(db), syncMs})
+    const queues = makePageQueues({bus, journal: makeJournal(db), syncMs})
+    for (const callId of [HUB_CALL, 'call-1']) queues.hubCall(SESSION_A, callId)
+    return queues
   }
 
   function trackFinished(queues: PageQueues): (queueId: string) => Promise<void> {
@@ -830,11 +1319,12 @@ describe('page bus and the session scope', () => {
     return (queueId) => of(queueId).promise
   }
 
+  const HUB_CALL = 'hub-call'
+
   const queueStart = (actions: Record<string, unknown>[]) => ({
     agentId: SESSION_A,
     input: {actions},
-    outside: true,
-    toolCallId: undefined,
+    toolCallId: HUB_CALL,
   })
 
   it('queued replies that arrive out of order are each kept for their own action', async () => {
@@ -921,6 +1411,40 @@ describe('page bus and the session scope', () => {
       expect.objectContaining({queueId, status: 'finished', played: 2}),
     ])
     expect(queues.undelivered(SESSION_A, true)).toEqual([])
+  })
+
+  it('a hub call keeps the queues it started as hub work after it replies, until the session is deleted', async () => {
+    const bus = makePageBus(2000)
+    const tab = arrivingTab(bus)
+    const queues = pageQueues(bus)
+    const finished = trackFinished(queues)
+    const check = [{tool: 'page_check', selector: '#agree'}]
+    const playOut = async (index: number): Promise<void> => {
+      const frame = await tab.frame(index)
+      for (const reply of frame.queue.replies) bus.resolve(SESSION_A, reply, {ok: true, result: {}})
+    }
+    queues.hubCall(SESSION_A, 'hub-early')
+    const {queueId: early} = await queues.start(SESSION_A, {...queueStart(check), toolCallId: 'hub-early'})
+    await playOut(0)
+    await finished(early)
+    queues.hubReplied(SESSION_A, new Set(['hub-early']))
+    expect(queues.owedTurn(SESSION_A)).toEqual([])
+    expect(queues.undelivered(SESSION_A, true)).toEqual([expect.objectContaining({queueId: early})])
+    queues.hubCall(SESSION_A, 'hub-replied')
+    const {queueId: replied} = await queues.start(SESSION_A, {...queueStart(check), toolCallId: 'hub-replied'})
+    queues.hubReplied(SESSION_A, new Set(['hub-replied']))
+    queues.hubCall(SESSION_A, 'hub-running')
+    const {queueId: running} = await queues.start(SESSION_A, {...queueStart(check), toolCallId: 'hub-running'})
+    queues.release(SESSION_A)
+    await playOut(1)
+    await finished(replied)
+    await playOut(2)
+    await finished(running)
+    expect(queues.undelivered(SESSION_A, true)).toEqual([])
+    expect(queues.owedTurn(SESSION_A).map((record) => [record.queueId, record.result?.status])).toEqual([
+      [replied, 'finished'],
+      [running, 'finished'],
+    ])
   })
 
   it('undelivered results are never evicted: at 1000 owed a new queue is refused before it plays, and delivering one frees a place', async () => {
@@ -1023,8 +1547,8 @@ describe('page bus and the session scope', () => {
     const queues = pageQueues(bus)
     const finished = trackFinished(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
-    const played = async (outside: boolean): Promise<string> => {
-      const {queueId} = await queues.start(SESSION_A, {...queueStart(check), outside})
+    const played = async (hub: boolean): Promise<string> => {
+      const {queueId} = await queues.start(SESSION_A, {...queueStart(check), toolCallId: hub ? HUB_CALL : undefined})
       bus.resolve(SESSION_A, queued.at(-1)?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
       await finished(queueId)
       return queueId
@@ -1076,7 +1600,6 @@ describe('page bus and the session scope', () => {
       const {queueId} = await queues.start(fixture.sessionId, {
         agentId: fixture.sessionId,
         input: {actions: [{tool: 'page_check', selector: '#agree'}]},
-        outside: false,
         toolCallId: undefined,
       })
       await finished(queueId)
@@ -1443,7 +1966,14 @@ describe('page bus and the session scope', () => {
       }).client()
       primitives.registry.register(clicker, {owner: 'a fixture'})
       const {plane, db} = fixture
-      const runtime = makeCoreRuntime({primitives, plane, db, model: () => null, staleness: () => fresh})
+      const runtime = makeCoreRuntime({
+        primitives,
+        plane,
+        db,
+        model: () => null,
+        staleness: () => fresh,
+        interruptIdle: async () => false,
+      })
       const unsubscribe = primitives.page.bus.subscribe(SESSION_A, (frame) => {
         const requestId = readRequestId(frame)
         if (requestId === null) return
@@ -1986,7 +2516,7 @@ describe('settings storage', () => {
     }
   }, 30_000)
 
-  test('saved settings survive a restart, a corrupt file starts empty, and a namespace outside the folder is refused', async () => {
+  test('saved settings survive a restart, a corrupt file starts empty, and a namespace outside the folder or a key over 512 characters is refused', async () => {
     const [root, home] = [tempDir(), tempDir()]
     const folder = join(root, '.conciv', 'settings')
     mkdirSync(folder, {recursive: true})
@@ -2014,6 +2544,9 @@ describe('settings storage', () => {
       expect(
         await engine.rpc.settings.set({scope: 'project', namespace: 'release..prefs', key: 'on', value: true}),
       ).toMatchObject({value: {on: true}})
+      const longest = {...broken, key: 'k'.repeat(512), value: 1}
+      expect(await engine.rpc.settings.set(longest)).toMatchObject({value: {[longest.key]: 1}})
+      await expect(engine.rpc.settings.set({...longest, key: 'k'.repeat(513)})).rejects.toMatchObject(refusal(/512/))
       await expect(engine.rpc.settings.all({scope: 'project', namespace: 'acme/editor'})).rejects.toMatchObject(
         refusal(/settings folder/),
       )
@@ -2030,5 +2563,1434 @@ describe('settings storage', () => {
     } finally {
       await engine.stop()
     }
+  })
+})
+
+type MadeApp = Awaited<ReturnType<typeof bootMadeApp>>
+
+function sessionKey(made: MadeApp) {
+  const search = createSessionSearch({db: made.chat.db, cwd: made.chat.cwd, harnesses: made.chat.harnesses})
+  onTestFinished(() => search.dispose())
+  const queues = makePageQueues({bus: makePageBus(), journal: makeJournal(made.chat.db)})
+  const layer = provideSessions(() => ({
+    chat: made.chat,
+    runtime: made.runtime,
+    search,
+    pluginHost: made.pluginHost,
+    queues,
+  }))
+  return {
+    run: <Success, Failure>(use: (service: Session.Interface) => Effect.Effect<Success, Failure>) =>
+      Effect.runPromise(Session.Service.use(use).pipe(Effect.provide(layer))),
+    fail: <Success, Failure>(use: (service: Session.Interface) => Effect.Effect<Success, Failure>) =>
+      Effect.runPromise(Session.Service.use(use).pipe(Effect.flip, Effect.provide(layer))),
+  }
+}
+
+describe('plugin host bus', () => {
+  test('deleting a session delivers one session.deleted event to a bus subscriber and keeps none of its events, and a plugin host failure leaves the session in place', async () => {
+    const served = await serveCore(tempDir(), [], {})
+    try {
+      const rpc = makeRpcClient(`${served.origin}/t/${served.made.agentToken}`)
+      const db = served.made.chat.db
+      const {sessionId} = await rpc.sessions.create(undefined)
+      const heard: {type: string; data: unknown}[] = []
+      await served.made.pluginHost.runPromise(
+        Bus.Service.use((bus) => bus.listen((event) => Effect.sync(() => heard.push(event)))),
+      )
+      await rpc.sessions.delete({sessionId})
+      expect(heard.filter((event) => event.type === SessionEvent.Deleted.type)).toEqual([
+        expect.objectContaining({data: {sessionID: sessionId}}),
+      ])
+      expect(
+        db.all(
+          sql`SELECT aggregate_id FROM event WHERE aggregate_id = ${sessionId} UNION ALL SELECT aggregate_id FROM event_sequence WHERE aggregate_id = ${sessionId}`,
+        ),
+      ).toEqual([])
+      await rpc.sessions.restore({sessionId})
+      expect(
+        db.select({deletedAt: sessionTable.deletedAt}).from(sessionTable).where(eq(sessionTable.id, sessionId)).all(),
+      ).toEqual([{deletedAt: null}])
+
+      const kept = await rpc.sessions.create(undefined)
+      db.run(sql`DROP TABLE kv`)
+      await expect(rpc.sessions.delete({sessionId: kept.sessionId})).rejects.toThrow()
+      expect(
+        db
+          .select({deletedAt: sessionTable.deletedAt})
+          .from(sessionTable)
+          .where(eq(sessionTable.id, kept.sessionId))
+          .all(),
+      ).toEqual([{deletedAt: null}])
+    } finally {
+      await served.stop()
+    }
+  })
+
+  test('a plugin experimental.idle hook fires for a run that completes and not for one that fails or is stopped, while turnEnd fires for all three', async () => {
+    const stateRoot = tempDir()
+    const turnEnds: SessionId[] = []
+    const recorder = defineExtension({name: 'turn-ends'}).server(() => ({
+      context: {},
+      turnEnd: (sessionId) => void turnEnds.push(sessionId),
+    }))
+    const harness = createTestHarness(requireClaude())
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}}, {extensions: [recorder]})
+    const dispose = onceOnly(() => made.dispose())
+    onTestFinished(dispose)
+    const id = SessionId.parse('conciv_idle')
+    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    const idles: unknown[] = []
+    const laterIdles: unknown[] = []
+    const idleFailure: {message: string | null} = {message: null}
+    await made.pluginHost.runPromise(
+      PluginHooks.Service.use((hooks) =>
+        Effect.all([
+          hooks.register('session', 'experimental.idle', (event) =>
+            Effect.suspend(() => {
+              idles.push(event)
+              return idleFailure.message === null ? Effect.void : Effect.die(new Error(idleFailure.message))
+            }),
+          ),
+          hooks.register('session', 'experimental.idle', (event) => Effect.sync(() => laterIdles.push(event))),
+        ]),
+      ).pipe(Scope.provide(made.pluginHost.runSync(Scope.make()))),
+    )
+
+    expect(await made.plane.followUp(id, 'finish normally')).toEqual({kind: 'delivered'})
+    expect(idles).toEqual([{sessionId: id, background: []}])
+    expect(turnEnds).toEqual([id])
+
+    harness.script.scriptError('the harness could not launch')
+    expect(await made.plane.followUp(id, 'fail to launch')).toMatchObject({kind: 'failed'})
+    expect(idles).toHaveLength(1)
+    expect(turnEnds).toEqual([id, id])
+
+    harness.script.hold()
+    const started = Promise.withResolvers<void>()
+    const unlisten = made.runtime.forSession(id).stream.listen((chunk) => {
+      if (sessionRunEvent.parse(chunk) !== null) started.resolve()
+    })
+    onTestFinished(unlisten)
+    const following = made.plane.followUp(id, 'keep going until stopped')
+    await started.promise
+    await made.plane.stop(id)
+    harness.script.release()
+    expect(await following).toEqual({kind: 'stopped'})
+    expect(idles).toHaveLength(1)
+    expect(turnEnds).toEqual([id, id, id])
+
+    const published: ChatEvent[] = []
+    onTestFinished(made.runtime.forSession(id).stream.listen((chunk) => void published.push(chunk)))
+    idleFailure.message = 'judge unreachable'
+    harness.script.scriptTurn({text: 'the finished answer', toolCalls: []})
+    expect(await made.plane.followUp(id, 'answer, then the idle hook fails')).toEqual({kind: 'delivered'})
+    const failedIdle = await made.plane.hydrate(id)
+    expect(failedIdle.lastRun).toMatchObject({phase: 'completed', error: 'judge unreachable'})
+    expect(published.flatMap((chunk) => idleFailedEvent.parse(chunk) ?? [])).toEqual([
+      {runId: failedIdle.lastRun?.runId},
+    ])
+    expect(published.filter((chunk) => chunk.type === ChatEventType.RUN_ERROR)).toEqual([])
+    expect(failedIdle.messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      parts: expect.arrayContaining([{type: 'text', content: 'the finished answer'}]),
+    })
+    expect([idles.length, laterIdles.length]).toEqual([2, 1])
+
+    idleFailure.message = null
+    expect(await made.plane.followUp(id, 'answer, and the idle hook succeeds')).toEqual({kind: 'delivered'})
+    const succeededIdle = await made.plane.hydrate(id)
+    expect(succeededIdle.lastRun).toMatchObject({phase: 'completed', error: null})
+    expect(succeededIdle.lastRun?.runId).not.toBe(failedIdle.lastRun?.runId)
+    expect([idles.length, laterIdles.length]).toEqual([3, 2])
+    expect(published.flatMap((chunk) => idleFailedEvent.parse(chunk) ?? [])).toHaveLength(1)
+
+    const key = sessionKey(made)
+    const waitsOnItsOwnSession = () => {
+      const entered = Promise.withResolvers<void>()
+      const registration = made.pluginHost.runSync(Scope.make())
+      const registered = made.pluginHost.runPromise(
+        PluginHooks.Service.use((hooks) =>
+          hooks.register('session', 'experimental.idle', (event) =>
+            Effect.sync(() => entered.resolve()).pipe(
+              Effect.andThen(Effect.promise(() => key.run((sessions) => sessions.wait(event.sessionId)))),
+            ),
+          ),
+        ).pipe(Scope.provide(registration)),
+      )
+      return {
+        entered: entered.promise,
+        registered,
+        unregister: () => Effect.runPromise(Scope.close(registration, Exit.void)),
+      }
+    }
+    const selfWait = waitsOnItsOwnSession()
+    await selfWait.registered
+    const waiting = made.plane.followUp(id, 'answer, then the idle hook waits on its own session')
+    await selfWait.entered
+    expect(await made.runtime.forSession(id).run.stop()).toEqual({ok: true, stopped: true})
+    expect(await waiting).toEqual({kind: 'delivered'})
+    const stoppedIdle = await made.plane.hydrate(id)
+    expect(stoppedIdle.lastRun).toMatchObject({phase: 'completed', error: null})
+    expect(published.flatMap((chunk) => idleFailedEvent.parse(chunk) ?? [])).toHaveLength(1)
+    expect([idles.length, laterIdles.length]).toEqual([4, 3])
+    await selfWait.unregister()
+    expect(await made.plane.followUp(id, 'answer, and the idle hook fires again')).toEqual({kind: 'delivered'})
+    expect([idles.length, laterIdles.length]).toEqual([5, 4])
+
+    const compacting = waitsOnItsOwnSession()
+    await compacting.registered
+    const waitingThenCompacted = made.plane.followUp(id, 'answer, then the idle hook waits while a compact is sent')
+    await compacting.entered
+    await compacting.unregister()
+    expect(await made.runtime.forSession(id).run.compact()).toBeUndefined()
+    expect(await waitingThenCompacted).toEqual({kind: 'delivered'})
+    const compactedBoundaries = await made.chat.db.select().from(markers).where(eq(markers.sessionId, id))
+    expect(compactedBoundaries.filter((marker) => marker.kind === 'compact')).toHaveLength(1)
+    expect(published.flatMap((chunk) => idleFailedEvent.parse(chunk) ?? [])).toHaveLength(1)
+
+    const closing = waitsOnItsOwnSession()
+    await closing.registered
+    const waitingAtClose = made.plane.followUp(id, 'answer, then the idle hook waits until the engine closes')
+    await closing.entered
+    await dispose()
+    expect(await waitingAtClose).toEqual({kind: 'delivered'})
+  })
+  test('the session key interrupts a live run, waits for it to end, answers false with nothing to stop even when asked to resume, and compacts a session on its harness', async () => {
+    const stateRoot = tempDir()
+    const harness = createTestHarness(requireClaude())
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
+    onTestFinished(() => made.dispose())
+    const key = sessionKey(made)
+    const id = SessionId.parse('conciv_keyed_run')
+    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    const runs = async () => (await made.chat.db.select().from(chatRuns).where(eq(chatRuns.threadId, id))).length
+
+    harness.script.hold()
+    const started = Promise.withResolvers<void>()
+    const unlisten = made.runtime.forSession(id).stream.listen((chunk) => {
+      if (sessionRunEvent.parse(chunk) !== null) started.resolve()
+    })
+    onTestFinished(unlisten)
+    const following = made.plane.followUp(id, 'keep going until interrupted')
+    await started.promise
+    const waited = key.run((sessions) => sessions.wait(SessionSchema.Id.make(id)))
+    expect(await key.run((sessions) => sessions.interrupt(SessionSchema.Id.make(id)))).toBe(true)
+    harness.script.release()
+    expect(await following).toEqual({kind: 'stopped'})
+    await waited
+    expect(await made.plane.live(id)).toBe(false)
+
+    expect(await key.run((sessions) => sessions.interrupt(SessionSchema.Id.make(id)))).toBe(false)
+    const ranBefore = await runs()
+    expect(await key.run((sessions) => sessions.interrupt(SessionSchema.Id.make(id), {resume: true}))).toBe(false)
+    expect(await made.plane.live(id)).toBe(false)
+    expect(await runs()).toBe(ranBefore)
+
+    const before = Date.now()
+    const compaction = await key.run((sessions) => sessions.compact({sessionId: SessionSchema.Id.make(id)}))
+    const after = Date.now()
+    expect(compaction).toEqual({
+      id: undefined,
+      sessionId: id,
+      time: {created: expect.any(Number)},
+      type: 'compaction',
+      payload: {},
+      delivery: undefined,
+    })
+    expect(compaction.time.created).toBeGreaterThanOrEqual(before)
+    expect(compaction.time.created).toBeLessThanOrEqual(after)
+    await key.run((sessions) => sessions.wait(SessionSchema.Id.make(id)))
+    const boundaries = await made.chat.db.select().from(markers).where(eq(markers.sessionId, id))
+    expect(boundaries.filter((marker) => marker.kind === 'compact')).toHaveLength(1)
+    expect(await runs()).toBe(ranBefore + 1)
+    expect(
+      await key.fail((sessions) => sessions.compact({sessionId: SessionSchema.Id.make('conciv_no_such_session')})),
+    ).toMatchObject({_tag: 'Session.NotFoundError', sessionId: 'conciv_no_such_session'})
+  })
+})
+
+describe('session prompt hook', () => {
+  const NOTE = Buffer.from('a note the user attached').toString('base64')
+
+  function askedHarness(asked: unknown[]): HarnessAdapter {
+    return defineHarness({
+      id: 'asked-cli',
+      binName: 'true',
+      chatConfig: () => ({
+        adapter: makeTextAdapter('asked-cli', async function* (options) {
+          asked.push(options.messages.findLast((message) => message.role === 'user')?.content)
+          const run = {threadId: options.threadId ?? '', runId: options.runId ?? ''}
+          const messageId = `${run.runId}-a`
+          yield {type: ChatEventType.RUN_STARTED, ...run}
+          yield {type: ChatEventType.TEXT_MESSAGE_START, messageId, role: 'assistant'}
+          yield {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId, delta: 'answered'}
+          yield {type: ChatEventType.TEXT_MESSAGE_END, messageId}
+          yield {type: ChatEventType.RUN_FINISHED, ...run}
+        }),
+      }),
+      capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
+    })
+  }
+
+  async function promptKit(plugins: Plugin.Plugin[], started = true) {
+    const asked: unknown[] = []
+    const booted: MadeApp[] = []
+    const kit = await createTestkit(askedHarness(asked), async (env) => {
+      const made = await bootMadeApp(env, {plugins})
+      booted.push(made)
+      return made
+    }).setup()
+    onTestFinished(() => kit.cleanup())
+    const made = booted[0]
+    if (made === undefined) throw new Error('the prompt kit booted no app')
+    if (started) await made.startPlugins()
+    return {kit, made, asked}
+  }
+
+  const userTexts = (thread: {messages: ChatMessage[]}) =>
+    thread.messages
+      .filter((message) => message.role === 'user')
+      .map((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(''))
+
+  const noted = (text: string) => ({
+    role: 'user',
+    content: [
+      {type: 'text', content: text},
+      {type: 'document', source: {type: 'data', mimeType: 'text/plain', value: NOTE}},
+    ],
+  })
+
+  test('acquires Location only for new prompt preparation and persists before waking', async () => {
+    const calls: string[] = []
+    const plugin = Plugin.define({
+      id: 'prompt-context',
+      async setup(ctx) {
+        await ctx.session.hook('prompt', (event) => {
+          calls.push(event.prompt.text)
+          event.prompt.text += ' with context'
+        })
+      },
+    })
+    const {kit, asked} = await promptKit([plugin])
+    const session = await kit.session()
+
+    const first = await (await kit.turn(noted('Original'), {session, messageId: 'message-original'})).done()
+
+    expect(first.errors()).toEqual([])
+    expect(calls).toEqual(['Original'])
+    expect(asked).toEqual([
+      [
+        {type: 'text', content: 'Original with context'},
+        expect.objectContaining({type: 'document', source: {type: 'data', mimeType: 'text/plain', value: NOTE}}),
+      ],
+    ])
+    const stored = await kit.hydrate(session)
+    expect(userTexts(stored)).toEqual(['Original with context'])
+    expect(stored.messages[0]?.parts).toContainEqual(
+      expect.objectContaining({type: 'document', source: {type: 'data', mimeType: 'text/plain', value: NOTE}}),
+    )
+
+    await (await kit.turn(noted('Original'), {session, messageId: 'message-original'})).done()
+    expect(calls).toEqual(['Original'])
+    expect(userTexts(await kit.hydrate(session))).toEqual(['Original with context'])
+  })
+
+  test('keeps preparation interruptible without admitting input or committing a staged revert', async () => {
+    const entered = Promise.withResolvers<void>()
+    const plugin = Plugin.define({
+      id: 'prompt-forever',
+      async setup(ctx) {
+        await ctx.session.hook('prompt', () => {
+          entered.resolve()
+          return new Promise<void>(() => {})
+        })
+      },
+    })
+    const {kit, made, asked} = await promptKit([plugin])
+    const session = await kit.session()
+    const runId = randomUUID()
+
+    const turn = await kit.turn('Never admitted', {session, runId})
+    await entered.promise
+    await kit.rpc.chat.stop({sessionId: session, runIds: [runId]})
+    const ended = await turn.done()
+
+    expect(ended.errors()).toHaveLength(1)
+    expect(asked).toEqual([])
+    const stored = await kit.hydrate(session)
+    expect(stored.messages).toEqual([])
+    expect(stored.lastRun).toBeNull()
+    expect(made.plane.driving(SessionId.parse(session))).toBe(false)
+  })
+
+  test('runs prompt hooks from a cold Location before admitting a prompt', async () => {
+    const entered = Promise.withResolvers<void>()
+    const ready = Promise.withResolvers<void>()
+    const plugin = Plugin.define({
+      id: 'prompt-cold',
+      async setup(ctx) {
+        entered.resolve()
+        await ready.promise
+        await ctx.session.hook('prompt', (event) => {
+          event.prompt.text = `Prompt hook: ${event.prompt.text}`
+        })
+      },
+    })
+    const {kit, made, asked} = await promptKit([plugin], false)
+    const session = await kit.session()
+    const activating = made.startPlugins()
+    await entered.promise
+
+    const turn = await kit.turn('Original', {session})
+    await setImmediate()
+    expect(asked).toEqual([])
+    ready.resolve()
+    await activating
+    expect((await turn.done()).errors()).toEqual([])
+
+    expect(asked).toEqual([[{type: 'text', content: 'Prompt hook: Original'}]])
+    expect(userTexts(await kit.hydrate(session))).toEqual(['Prompt hook: Original'])
+  })
+
+  const partForPart: ChatMessage = {
+    id: 'message-parts',
+    role: 'user',
+    parts: [
+      {type: 'text', content: 'first line'},
+      {type: 'text', content: 'second line'},
+      {
+        type: 'document',
+        source: {type: 'data', mimeType: 'text/plain', value: NOTE},
+        metadata: {modelOnly: false, label: 'note'},
+      },
+    ],
+  }
+
+  async function sentPartForPart(wsBase: string, session: string, message: ChatMessage = partForPart) {
+    const abort = new AbortController()
+    onTestFinished(() => abort.abort())
+    const connection = webSocket(`${wsBase}${CHAT_WS_PATH}`)
+    const chunks = connection.subscribe(abort.signal)
+    void connection.send([message], {}, abort.signal, {threadId: session, runId: randomUUID()}).catch(() => {})
+    for await (const chunk of chunks) {
+      if (chunk.type === ChatEventType.RUN_FINISHED || chunk.type === ChatEventType.RUN_ERROR) return chunk.type
+    }
+    return 'closed'
+  }
+
+  test('stores and sends the user message part for part when no prompt hook is registered', async () => {
+    const {kit, asked} = await promptKit([])
+    const session = await kit.session()
+
+    expect(await sentPartForPart(kit.wsBase, session)).toBe(ChatEventType.RUN_FINISHED)
+    expect((await kit.hydrate(session)).messages[0]?.parts).toEqual(partForPart.parts)
+    expect(asked).toEqual([partForPart.parts])
+  })
+
+  test('stores and sends the user message part for part when no prompt hook changed it', async () => {
+    const seen: string[] = []
+    const plugin = Plugin.define({
+      id: 'prompt-reader',
+      async setup(ctx) {
+        await ctx.session.hook('prompt', (event) => {
+          seen.push(event.prompt.text)
+        })
+      },
+    })
+    const {kit, asked} = await promptKit([plugin])
+    const session = await kit.session()
+
+    expect(await sentPartForPart(kit.wsBase, session)).toBe(ChatEventType.RUN_FINISHED)
+    expect(seen).toEqual(['first line\nsecond line'])
+    expect((await kit.hydrate(session)).messages[0]?.parts).toEqual(partForPart.parts)
+    expect(asked).toEqual([partForPart.parts])
+  })
+
+  test('a prompt hook sees the metadata the client sent and its change lands on the stored message', async () => {
+    const seen: unknown[] = []
+    const plugin = Plugin.define({
+      id: 'prompt-metadata',
+      async setup(ctx) {
+        await ctx.session.hook('prompt', (event) => {
+          seen.push(structuredClone(event.metadata))
+          if (event.metadata?.note === 'from the client') event.metadata = {...event.metadata, tagged: 'by the hook'}
+        })
+      },
+    })
+    const {kit} = await promptKit([plugin])
+    const session = await kit.session()
+    const sent: ChatMessage = {...partForPart, id: 'message-metadata', metadata: {note: 'from the client'}}
+    const untouched: ChatMessage = {...partForPart, id: 'message-untouched', metadata: {note: 'left alone'}}
+    const storedMetadata = async (id: string) =>
+      (await kit.hydrate(session)).messages.find((message) => message.id === id)?.metadata
+
+    expect(await sentPartForPart(kit.wsBase, session, sent)).toBe(ChatEventType.RUN_FINISHED)
+    expect(seen).toEqual([{note: 'from the client'}])
+    expect(await storedMetadata('message-metadata')).toEqual({note: 'from the client', tagged: 'by the hook'})
+
+    expect(await sentPartForPart(kit.wsBase, session, untouched)).toBe(ChatEventType.RUN_FINISHED)
+    expect(seen).toEqual([{note: 'from the client'}, {note: 'left alone'}])
+    expect(await storedMetadata('message-untouched')).toEqual({note: 'left alone'})
+  })
+
+  test('a throwing prompt hook stops the later hooks, fails the prompt and stores nothing for that message id', async () => {
+    const failure = {message: 'the prompt hook refused'}
+    const later: string[] = []
+    const plugin = Plugin.define({
+      id: 'prompt-refusing',
+      async setup(ctx) {
+        await ctx.session.hook('prompt', () => {
+          if (failure.message !== '') throw new Error(failure.message)
+        })
+        await ctx.session.hook('prompt', (event) => {
+          later.push(event.prompt.text)
+        })
+      },
+    })
+    const {kit, made, asked} = await promptKit([plugin])
+    const session = await kit.session()
+
+    const refused = await (await kit.turn(noted('Refused'), {session, messageId: 'message-refused'})).done()
+
+    expect(refused.errors()).toEqual(['the prompt hook refused'])
+    expect([later, asked]).toEqual([[], []])
+    const stored = await kit.hydrate(session)
+    expect(stored.messages).toEqual([])
+    expect(stored.lastRun).toBeNull()
+    expect(made.plane.driving(SessionId.parse(session))).toBe(false)
+
+    failure.message = ''
+    const retried = await (await kit.turn(noted('Refused'), {session, messageId: 'message-refused'})).done()
+    expect(retried.errors()).toEqual([])
+    expect(later).toEqual(['Refused'])
+    expect(userTexts(await kit.hydrate(session))).toEqual(['Refused'])
+  })
+})
+
+describe('plugin rpc over the socket', () => {
+  const Acme = Rpc.define({
+    id: 'acme',
+    methods: {
+      search: {
+        input: Schema.Struct({query: Schema.String}),
+        output: Schema.Struct({hits: Schema.Array(Schema.String)}),
+        errors: {limited: Schema.Struct({retryAfter: Schema.Number})},
+      },
+      explode: {input: Schema.Undefined, output: Schema.String},
+      malformed: {input: Schema.Undefined, output: Schema.String.check(Schema.isMinLength(3))},
+    },
+    events: {indexed: {schema: Schema.Struct({count: Schema.Number})}},
+  })
+  const AcmeClient = PluginRpc.define({
+    id: 'acme',
+    methods: {
+      search: {
+        input: z.object({query: z.unknown()}),
+        output: z.object({hits: z.array(z.string())}),
+        errors: {limited: z.object({retryAfter: z.number()})},
+      },
+      missing: {input: z.undefined(), output: z.string()},
+      explode: {input: z.undefined(), output: z.string()},
+      malformed: {input: z.undefined(), output: z.string()},
+    },
+    events: {indexed: {schema: z.object({count: z.number()})}},
+  })
+  const Nobody = PluginRpc.define({
+    id: 'nobody',
+    methods: {search: {input: z.object({query: z.string()}), output: z.object({hits: z.array(z.string())})}},
+    events: {},
+  })
+
+  test('a registered contract answers a socket client, every failure keeps its text, and an event reaches two subscribers', async () => {
+    const served = await serveCore(tempDir(), [], {})
+    const client = makeBrowserRpcClient(served.origin)
+    const connection = browserRpcConnection(served.origin)
+    const host = served.made.pluginHost
+    try {
+      expect(await connection.trust.requestTrustWithToken(served.made.agentToken)).toBe(true)
+      const registration = await host.runPromise(
+        Rpc.Service.use((rpc) =>
+          rpc.register(Acme, {
+            search: (input, context) =>
+              input.query === 'slow'
+                ? Effect.fail(context.error('limited', 'try later', {retryAfter: 5}))
+                : Effect.succeed({hits: [input.query]}),
+            explode: () => Effect.die(new Error('handler defect')),
+            malformed: () => Effect.succeed('ab'),
+          }),
+        ).pipe(Scope.provide(host.runSync(Scope.make()))),
+      )
+      const conciv = Conciv.make(client.rpc)
+      const api = conciv.rpc
+      const acme = api(AcmeClient)
+      expect(await acme.search({query: 'docs'})).toEqual({hits: ['docs']})
+
+      const inProcess = (rpcId: string, method: string, input: unknown) =>
+        host.runPromise(Rpc.Service.use((rpc) => rpc.call(rpcId, method, input)).pipe(Effect.flip))
+      const failures: [string, string, unknown, string, () => Promise<unknown>][] = [
+        ['nobody', 'search', {query: 'docs'}, 'rpc.unavailable', () => api(Nobody).search({query: 'docs'})],
+        ['acme', 'missing', undefined, 'rpc.method_not_found', () => acme.missing()],
+        ['acme', 'search', {query: 1}, 'rpc.invalid_input', () => acme.search({query: 1})],
+        ['acme', 'explode', undefined, 'rpc.internal', () => acme.explode()],
+        ['acme', 'malformed', undefined, 'rpc.invalid_output', () => acme.malformed()],
+      ]
+      for (const [rpcId, method, input, type, call] of failures) {
+        const expected = await inProcess(rpcId, method, input)
+        expect(expected.type).toBe(type)
+        await expect(call()).rejects.toStrictEqual({type, message: expected.message})
+      }
+      await expect(acme.search({query: 'slow'})).rejects.toStrictEqual({
+        type: 'limited',
+        message: 'try later',
+        data: {retryAfter: 5},
+      })
+
+      const connected = conciv.event.subscribe()[Symbol.asyncIterator]()
+      expect(await connected.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
+      const typed = acme.events.subscribe('indexed')[Symbol.asyncIterator]()
+      const typedNext = typed.next()
+      const all = await client.rpc.event.subscribe({types: ['rpc.acme.indexed']})
+      expect(await all.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
+      await host.runPromise(registration.events.emit('indexed', {count: 3}))
+      const indexed = {done: false, value: expect.objectContaining({type: 'rpc.acme.indexed', data: {count: 3}})}
+      expect(await Promise.all([typedNext, all.next()])).toEqual([indexed, indexed])
+      await typed.return?.()
+      await all.return()
+      await connected.return?.()
+    } finally {
+      connection.release()
+      client.close()
+      await served.stop()
+    }
+  })
+})
+
+describe('plugin permission cards', () => {
+  async function readNextEvent<T>(events: AsyncGenerator<ChatEvent>, pick: (event: ChatEvent) => T | null): Promise<T> {
+    const next = await events.next()
+    if (next.done) throw new Error('the session stream ended before the expected event')
+    return pick(next.value) ?? readNextEvent(events, pick)
+  }
+
+  it('a plugin tool asks once on every client, an answer settles it without a turn, a gone request is cleared on click, another session cannot answer, session rules allow and hide, and a restart sweeps permission cards', async () => {
+    const fixture = await makeChatFixture()
+    const {plane, runtime, db, sessionId: id, stateRoot} = fixture
+    const other = SessionId.parse('conciv_other')
+    await ensureRow(db, other, fixture.harness.id, stateRoot)
+    const host = ManagedRuntime.make(
+      Layer.mergeAll(Tool.layer, Permission.layer).pipe(
+        Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(db))),
+        Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, Image.layer)),
+        Layer.provideMerge(Bus.configured()),
+        Layer.provideMerge(
+          Layer.succeed(
+            Location.Service,
+            Location.Service.of(
+              Schema.decodeSync(Location.Info)({
+                directory: stateRoot,
+                project: {id: stateRoot, directory: stateRoot, canonical: stateRoot},
+              }),
+            ),
+          ),
+        ),
+        Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),
+      ),
+    )
+    const clients = new AbortController()
+    onTestFinished(async () => {
+      clients.abort()
+      await host.dispose()
+      await fixture.dispose()
+    })
+    await host.context()
+    const logged: string[] = []
+    const scope = host.runSync(Scope.make())
+    await host.runPromise(
+      followPermissionCards({
+        plane,
+        publish: (sessionId, chunk) => runtime.forSession(sessionId).stream.publish(chunk),
+        log: (line) => logged.push(line),
+      }),
+    )
+    await host.runPromise(
+      Effect.gen(function* () {
+        const tools = yield* Tool.Service
+        const permission = yield* Permission.Service
+        yield* tools.transform((editor) => {
+          editor.add({
+            name: 'unit_read_env',
+            description: 'Read an env file.',
+            input: z.object({file: z.string()}),
+            execute: (input: {file: string}, context) =>
+              permission
+                .assert({
+                  ...Permission.invocation(context),
+                  action: 'read',
+                  resources: [input.file],
+                  save: [input.file],
+                  metadata: {file: input.file},
+                })
+                .pipe(Effect.orDie, Effect.as({content: `read ${input.file}`})),
+          })
+        })
+      }).pipe(Scope.provide(scope)),
+    )
+    const buildCapabilities = (sessionId: SessionId) =>
+      toolDomainCapabilities(
+        [],
+        host.runSync(sessionToolDomain(sessionId)),
+        (effect, signal) => host.runPromiseExit(effect, {signal}),
+        () => undefined,
+      )
+    const [readEnv] = buildCapabilities(id)
+    const call = (sessionId: SessionId, file: string) =>
+      readEnv?.execute({file}, {sessionId, agentId: sessionId, model: null, toolCallId: randomUUID()})
+    const answer = (sessionId: SessionId, requestId: string, reply: Permission.Reply) =>
+      host.runPromise(answerPermission(sessionId, requestId, reply))
+    const publish = (sessionId: SessionId, chunk: ChatEvent) => runtime.forSession(sessionId).stream.publish(chunk)
+    const decide = (sessionId: SessionId, approvalId: string, approved: boolean, lasting: 'once' | 'session') =>
+      decidePermissionCard({plane, answer, publish}, sessionId, {approvalId, approved, scope: lasting})
+    const first = runtime.forSession(id).stream.events(clients.signal)
+    const second = runtime.forSession(id).stream.events(clients.signal)
+
+    const reading = call(id, 'src/.env')
+    const shown = await readNextEvent(first, readApprovalAsk)
+    expect(shown).toMatchObject({toolName: 'read src/.env', input: {file: 'src/.env'}, permission: {always: true}})
+    expect(shown.approvalId).toMatch(/^per/)
+    expect(shown.toolCallId).toBe(shown.approvalId)
+    expect(await readNextEvent(second, readApprovalAsk)).toEqual(shown)
+    expect((await plane.hydrate(id)).pendingApprovals).toEqual([
+      {
+        approvalId: shown.approvalId,
+        toolCallId: shown.approvalId,
+        toolName: 'read src/.env',
+        input: {file: 'src/.env'},
+        runId: null,
+        permission: {always: true},
+      },
+    ])
+
+    expect(await decide(id, shown.approvalId, true, 'session')).toEqual({startsTurn: false})
+    await expect(reading).resolves.toEqual({value: 'read src/.env', files: []})
+    expect(await readNextEvent(second, readApprovalSettled)).toBe(shown.approvalId)
+    expect((await plane.hydrate(id)).pendingApprovals).toEqual([])
+    expect(await plane.decide(id, shown.approvalId, true, 'once')).toBeNull()
+    await expect(call(id, 'src/.env')).resolves.toEqual({value: 'read src/.env', files: []})
+
+    const foreign = call(other, 'other/.env')
+    const otherAsk = await readNextEvent(runtime.forSession(other).stream.events(clients.signal), readApprovalAsk)
+    expect(await answer(id, otherAsk.approvalId, 'once')).toBe('foreign')
+    expect(await decide(id, otherAsk.approvalId, true, 'once')).toBeNull()
+    expect(await decide(other, otherAsk.approvalId, false, 'once')).toEqual({startsTurn: false})
+    await expect(foreign).rejects.toThrow()
+
+    await setPermissions(db, other, [{action: 'read', resource: '*', effect: 'allow'}])
+    await expect(call(other, 'other/.env')).resolves.toEqual({value: 'read other/.env', files: []})
+    await setPermissions(db, other, [{action: 'unit_read_env', resource: '*', effect: 'deny'}])
+    expect(buildCapabilities(other)).toEqual([])
+    expect(buildCapabilities(id).map((capability) => capability.name)).toEqual(['unit_read_env'])
+
+    await plane.permissionAsked(id, {
+      approvalId: 'per_gone',
+      toolCallId: 'per_gone',
+      title: 'read gone',
+      input: {},
+      permission: {always: false},
+    })
+    expect(await decide(id, 'per_gone', true, 'once')).toBeNull()
+    expect(await readNextEvent(second, readApprovalSettled)).toBe('per_gone')
+    expect((await plane.hydrate(id)).pendingApprovals).toEqual([])
+
+    await plane.permissionAsked(id, {
+      approvalId: 'per_left',
+      toolCallId: 'per_left',
+      title: 'read left',
+      input: {},
+      permission: {always: false},
+    })
+    expect(
+      await plane.admitCall(id, {
+        toolName: 'unit_kept',
+        input: {},
+        publish: () => undefined,
+        until: AbortSignal.abort(),
+      }),
+    ).toMatchObject({reason: 'asked'})
+    const restarted = await bootMadeApp({stateRoot, cwd: stateRoot, harness: fixture.harness, print: () => {}})
+    onTestFinished(() => restarted.dispose())
+    expect((await restarted.plane.hydrate(id)).pendingApprovals.map((entry) => entry.toolName)).toEqual(['unit_kept'])
+    expect(logged).toEqual([])
+  })
+
+  it('a plugin tool asking from inside execute_typescript stops asking when its run is stopped, and a late approval runs nothing and clears the card', async () => {
+    const fixture = await makeChatFixture()
+    const {plane, runtime, pluginHost, sessionId: id} = fixture
+    const clients = new AbortController()
+    onTestFinished(async () => {
+      clients.abort()
+      await fixture.dispose()
+    })
+    const written: string[] = []
+    const scope = pluginHost.runSync(Scope.make())
+    await pluginHost.runPromise(
+      Effect.gen(function* () {
+        const tools = yield* Tool.Service
+        const permission = yield* Permission.Service
+        yield* tools.transform((editor) => {
+          editor.add({
+            name: 'unit_write_notes',
+            description: 'Write a notes file.',
+            input: z.object({file: z.string()}),
+            execute: (input: {file: string}, context) =>
+              permission
+                .assert({
+                  ...Permission.invocation(context),
+                  action: 'edit',
+                  resources: [input.file],
+                  metadata: {file: input.file},
+                })
+                .pipe(
+                  Effect.orDie,
+                  Effect.andThen(
+                    Effect.sync(() => {
+                      written.push(input.file)
+                      return {content: `wrote ${input.file}`}
+                    }),
+                  ),
+                ),
+          })
+        })
+      }).pipe(Scope.provide(scope)),
+    )
+    const answer = (sessionId: SessionId, requestId: string, reply: Permission.Reply) =>
+      pluginHost.runPromise(answerPermission(sessionId, requestId, reply))
+    const publish = (sessionId: SessionId, chunk: ChatEvent) => runtime.forSession(sessionId).stream.publish(chunk)
+    await setPermissions(fixture.db, id, [{action: 'edit', resource: '*', effect: 'ask'}])
+    const events = runtime.forSession(id).stream.events(clients.signal)
+    fixture.harness.script.scriptToolCall('execute_typescript', {
+      typescriptCode: "return await external_unit_write_notes({file: 'notes.md'})",
+    })
+
+    const running = plane.followUp(id, 'write the notes')
+    const shown = await readNextEvent(events, readApprovalAsk)
+    expect(shown).toMatchObject({toolName: 'edit notes.md', input: {file: 'notes.md'}})
+    await plane.stop(id)
+    await running
+    expect(
+      await decidePermissionCard({plane, answer, publish}, id, {
+        approvalId: shown.approvalId,
+        approved: true,
+        scope: 'once',
+      }),
+    ).toBeNull()
+    expect(written).toEqual([])
+    expect(await readNextEvent(events, readApprovalSettled)).toBe(shown.approvalId)
+    expect((await plane.hydrate(id)).pendingApprovals).toEqual([])
+  })
+
+  it('closing the engine clears a pending plugin card from storage before the database closes', async () => {
+    const fixture = await makeChatFixture()
+    const {plane, pluginHost, db, sessionId: id, stateRoot} = fixture
+    await setPermissions(db, id, [{action: 'edit', resource: '*', effect: 'ask'}])
+    const asked = await pluginHost.runPromise(
+      Effect.gen(function* () {
+        return yield* (yield* Permission.Service).ask({
+          sessionId: SessionSchema.Id.make(id),
+          action: 'edit',
+          resources: ['notes.md'],
+          metadata: {file: 'notes.md'},
+        })
+      }),
+    )
+    expect(asked.effect).toBe('ask')
+    await vi.waitFor(async () =>
+      expect((await plane.hydrate(id)).pendingApprovals.map((entry) => entry.approvalId)).toEqual([asked.id]),
+    )
+    await fixture.dispose()
+    const reopened = openDb(stateRoot)
+    onTestFinished(() => reopened.$client.close())
+    const stored = reopened
+      .select({value: chatMetadata.valueJson})
+      .from(chatMetadata)
+      .where(eq(chatMetadata.key, `${id}:pending-approvals`))
+      .all()
+    expect(stored).toEqual([{value: []}])
+  })
+})
+
+describe('direct tools on the MCP surface', () => {
+  const ToolsListed = z.object({result: z.object({tools: z.array(z.object({name: z.string()}))})})
+  const ToolsDescribed = z.object({
+    result: z.object({tools: z.array(z.object({name: z.string(), description: z.string()}))}),
+  })
+  const ToolCalled = z.object({
+    result: z.object({content: z.array(z.object({text: z.string()})), isError: z.boolean().optional()}),
+  })
+
+  it('a codemode false tool is its own MCP tool that runs without an approval card, an outside run keeps it, and a session that denies execute lists every plugin tool directly and no execute tool', async () => {
+    const root = tempDir()
+    const {made, origin, stop} = await serveCore(root, [], {})
+    onTestFinished(stop)
+    const id = SessionId.parse('conciv_mcp_direct')
+    await ensureRow(made.chat.db, id, made.chat.defaultHarness.id, root)
+    const scope = made.pluginHost.runSync(Scope.make())
+    await made.pluginHost.runPromise(
+      Effect.gen(function* () {
+        const tools = yield* Tool.Service
+        yield* tools.transform((editor) => {
+          editor.add({
+            name: 'unit_direct',
+            description: 'Echo the text directly.',
+            input: z.object({text: z.string()}),
+            options: {codemode: false},
+            execute: (input: {text: string}) => Effect.succeed({content: `direct ${input.text}`}),
+          })
+          editor.add({
+            name: 'unit_coded',
+            description: 'Echo the text in code mode.',
+            input: z.object({text: z.string()}),
+            execute: (input: {text: string}) => Effect.succeed({content: `coded ${input.text}`}),
+          })
+        })
+      }).pipe(Scope.provide(scope)),
+    )
+    const post = async (method: string, params: Record<string, unknown>) => {
+      const response = await fetch(`${origin}/t/${made.agentToken}/api/mcp`, {
+        method: 'POST',
+        headers: {
+          ...JSON_TYPE,
+          accept: 'application/json, text/event-stream',
+          [CONCIV_SESSION_HEADER]: id,
+        },
+        body: JSON.stringify({jsonrpc: '2.0', id: 1, method, params}),
+      })
+      const text = await response.text()
+      const data = text.split('\n').find((line) => line.startsWith('data: '))
+      return JSON.parse(data === undefined ? text : data.slice('data: '.length))
+    }
+    const listed = async () => ToolsListed.parse(await post('tools/list', {})).result.tools.map((tool) => tool.name)
+
+    const open = await listed()
+    expect(open).toContain('execute_typescript')
+    expect(open.filter((name) => name === 'unit_direct')).toEqual(['unit_direct'])
+    expect(open).not.toContain('unit_coded')
+    const described = ToolsDescribed.parse(await post('tools/list', {})).result.tools
+    const execute = described.find((tool) => tool.name === 'execute_typescript')?.description ?? ''
+    expect(execute.length).toBeLessThanOrEqual(4096)
+    expect(execute).toContain('Rules of the sandbox:')
+    expect(execute).toContain('## Code Mode tools (call only inside `execute_typescript`)')
+    expect(execute).not.toContain('More capabilities, by name only')
+    const bindings = ToolCalled.parse(
+      await post('tools/call', {
+        name: 'execute_typescript',
+        arguments: {typescriptCode: 'return Object.keys(globalThis).filter((key) => key.startsWith("external_"))'},
+      }),
+    )
+    const bound = z
+      .object({result: z.array(z.string())})
+      .parse(JSON.parse(bindings.result.content.map((part) => part.text).join('')))
+    expect(bound.result.toSorted()).toEqual([
+      'external_conciv_extensions',
+      'external_conciv_ui',
+      'external_open',
+      'external_page_addclass',
+      'external_page_attr',
+      'external_page_check',
+      'external_page_click',
+      'external_page_console',
+      'external_page_css',
+      'external_page_dom',
+      'external_page_effect',
+      'external_page_exists',
+      'external_page_fill',
+      'external_page_find',
+      'external_page_hmr',
+      'external_page_hover',
+      'external_page_insert',
+      'external_page_inspect',
+      'external_page_locate',
+      'external_page_override',
+      'external_page_press',
+      'external_page_query',
+      'external_page_queue',
+      'external_page_queue_async',
+      'external_page_reload',
+      'external_page_remove',
+      'external_page_removeattr',
+      'external_page_removeclass',
+      'external_page_route',
+      'external_page_screenshot',
+      'external_page_scroll',
+      'external_page_select',
+      'external_page_setattr',
+      'external_page_sethtml',
+      'external_page_setstyle',
+      'external_page_settext',
+      'external_page_snapshot',
+      'external_page_submit',
+      'external_page_text',
+      'external_page_track',
+      'external_page_tree',
+      'external_page_uncheck',
+      'external_page_value',
+      'external_page_wait',
+      'external_server_config',
+      'external_server_graph',
+      'external_server_resolve',
+      'external_server_transform',
+      'external_server_urls',
+      'external_tabs',
+      'external_unit_coded',
+    ])
+    expect(execute).toMatch(/^- page \(41 tools/m)
+    expect(execute).toMatch(/^- server \(5 tools/m)
+    expect(execute).toMatch(/^- conciv \(2 tools/m)
+    const searched = ToolCalled.parse(
+      await post('tools/call', {
+        name: 'execute_typescript',
+        arguments: {typescriptCode: 'return search({query: "unit_coded"})'},
+      }),
+    )
+    expect(searched.result.content.map((part) => part.text).join('')).toContain('external_unit_coded')
+    const called = ToolCalled.parse(await post('tools/call', {name: 'unit_direct', arguments: {text: 'hi'}}))
+    expect(called.result.isError).not.toBe(true)
+    expect(called.result.content.map((part) => part.text).join('')).toContain('direct hi')
+    expect((await made.plane.hydrate(id)).pendingApprovals).toEqual([])
+
+    const direct: CodeCapability = {
+      name: 'unit_kept_direct',
+      path: 'unit_kept_direct',
+      description: 'Direct.',
+      errors: [],
+      inputSchema: z.object({}),
+      direct: true,
+      execute: async () => ({value: 'kept', files: []}),
+    }
+    const [kept] = outsideRunCapabilities([direct])
+    await expect(kept?.execute({}, {sessionId: id, agentId: id, model: null})).resolves.toEqual({
+      value: 'kept',
+      files: [],
+    })
+
+    await setPermissions(made.chat.db, id, [{action: 'execute', resource: '*', effect: 'deny'}])
+    expect((await listed()).toSorted()).toEqual(['unit_coded', 'unit_direct'])
+    const shut = ToolCalled.parse(await post('tools/call', {name: 'unit_coded', arguments: {text: 'shut'}}))
+    expect(shut.result.content.map((part) => part.text).join('')).toContain('coded shut')
+
+    const builtIn = open.filter((name) => name !== 'unit_direct')
+    const searchedCoded = async () =>
+      ToolCalled.parse(
+        await post('tools/call', {
+          name: 'execute_typescript',
+          arguments: {typescriptCode: 'return search({query: "unit_coded"})'},
+        }),
+      )
+        .result.content.map((part) => part.text)
+        .join('')
+    await made.chat.db
+      .update(sessionTable)
+      .set({permissions: sql`'{not json'`})
+      .where(eq(sessionTable.id, id))
+    expect(await listed()).toEqual(builtIn)
+    expect(await searchedCoded()).not.toContain('external_unit_coded')
+    const rpc = makeRpcClient(`${origin}/t/${made.agentToken}`)
+    expect((await rpc.sessions.list(undefined)).sessions.map((session) => session.id)).toContain(id)
+    expect(await rpc.sessions.get({sessionId: id})).toMatchObject({id})
+    await made.chat.db
+      .update(sessionTable)
+      .set({permissions: sql`'[{"action":"unit_coded"}]'`})
+      .where(eq(sessionTable.id, id))
+    expect(await listed()).toEqual(builtIn)
+    expect(await searchedCoded()).not.toContain('external_unit_coded')
+  })
+})
+
+describe('plugin context keys provided by core', () => {
+  it('instruction entries are kept per session, reach the plugin instructions and leave them on remove, an oversized value is refused, the harness source reads its MCP url lazily, and the bundler, extension slugs, app and configured policies are provided, the model key answers from the harness models filled as opencode fills an unknown model, and the cache and state roots sit under the conciv home', async () => {
+    const root = tempDir()
+    const home = join(root, 'home')
+    const OPUS = {id: 'opus', name: 'Opus 5.5', contextWindow: 1_000_000}
+    const SONNET = {
+      id: 'sonnet',
+      name: 'Sonnet 5.5',
+      description: 'balanced',
+      group: 'Claude',
+      efforts: ['low' as const],
+    }
+    const RETIRED = {id: 'retired', name: 'Retired', disabled: true}
+    const listingHarness = (models: HarnessModel[], defaultModel?: string) =>
+      defineHarness({
+        id: 'listing-cli',
+        binName: 'listing-cli',
+        models,
+        defaultModel,
+        chatConfig: () => ({adapter: fakeText()}),
+        capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
+      })
+    const filled = (model: HarnessModel, variants: {id: string; settings: {effort: string}}[]) => {
+      const defaults = Model.Info.default(
+        Model.Info.fields.providerId.make('listing-cli'),
+        Model.Info.fields.id.make(model.id),
+      )
+      return {
+        ...defaults,
+        name: model.name,
+        limit: {context: model.contextWindow ?? defaults.limit.context, output: 0},
+        variants,
+      }
+    }
+    const sonnetVariants = [{id: 'low', settings: {effort: 'low'}}]
+    const db = openDb(root)
+    const id = SessionId.parse('conciv_entries')
+    const other = SessionId.parse('conciv_entries_other')
+    await ensureRow(db, id, 'fake-cli', root)
+    await ensureRow(db, other, 'fake-cli', root)
+    const base: {current: string | undefined} = {current: undefined}
+    const devServer = defineBundlerBridge({
+      id: 'unit-bundler',
+      config: () => ({root, base: '/', mode: 'development', aliases: [], plugins: []}),
+      resolve: async (spec) => ({id: spec}),
+      moduleGraph: () => [],
+      transform: async () => ({code: null}),
+      urls: () => ({local: [], network: []}),
+      reload: async () => undefined,
+      restart: async () => undefined,
+    })
+    const host = ManagedRuntime.make(
+      Layer.mergeAll(
+        SkillInstructions.layer,
+        SessionProjector.layer,
+        provideInstructionEntries,
+        provideHarnessSource({
+          harness: (sessionId) => ({id: `fake-cli:${sessionId}`}),
+          sessions: {
+            resumeToken: (sessionId) => nativeIdFor(db, sessionId),
+            recordToken: (sessionId, token) => recordNativeId(db, sessionId, 'fake-cli', token),
+          },
+          tokenScopedBase: () => base.current,
+        }),
+        provideBundlerSource(devServer),
+        provideExtensionSlugs(['page']),
+        provideApp(),
+        provideConfiguredPolicies([
+          {action: 'plugin.use', resource: 'blocked-*', effect: 'deny'},
+          {action: 'integration.use', resource: 'plugin:legacy', effect: 'deny'},
+        ]),
+        provideHarnessModels(listingHarness([OPUS, SONNET, RETIRED], 'sonnet')),
+        provideGlobalRoots(home),
+      ).pipe(
+        Layer.provideMerge(
+          Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, Image.layer, permissionSessions(db)),
+        ),
+        Layer.provideMerge(Layer.mergeAll(Bus.configured(), KV.layer)),
+        Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),
+      ),
+    )
+    onTestFinished(() => host.dispose())
+    const entries = (run: (service: InstructionEntry.Interface) => Effect.Effect<unknown, unknown>) =>
+      host.runPromise(InstructionEntry.Service.use(run))
+    const instructions = () => host.runPromise(pluginInstructions(id, 'keep', {tools: []}))
+
+    await entries((service) => service.put({sessionId: SessionSchema.Id.make(id), key: 'notes', value: {done: false}}))
+    await entries((service) => service.put({sessionId: SessionSchema.Id.make(id), key: 'brief', value: 'ship it'}))
+    expect(await entries((service) => service.list(SessionSchema.Id.make(id)))).toEqual([
+      {key: 'brief', value: 'ship it'},
+      {key: 'notes', value: {done: false}},
+    ])
+    expect(await entries((service) => service.list(SessionSchema.Id.make(other)))).toEqual([])
+
+    const first = await instructions()
+    expect(first.initial).toContain('<context key="brief">\nship it\n</context>')
+    expect(first.initial).toContain('<context key="notes">\n{\n  "done": false\n}\n</context>')
+    await first.told()
+
+    await entries((service) => service.remove({sessionId: SessionSchema.Id.make(id), key: 'notes'}))
+    expect(await entries((service) => service.list(SessionSchema.Id.make(id)))).toEqual([
+      {key: 'brief', value: 'ship it'},
+    ])
+    expect((await instructions()).update).toContain('The context under "notes" no longer applies. Disregard it.')
+
+    const refused = await host.runPromise(
+      InstructionEntry.Service.use((service) =>
+        service.put({
+          sessionId: SessionSchema.Id.make(id),
+          key: 'huge',
+          value: 'x'.repeat(InstructionEntrySchema.MaxValueBytes + 1),
+        }),
+      ).pipe(Effect.flip),
+    )
+    expect(refused).toMatchObject({
+      _tag: 'InstructionEntryValueTooLargeError',
+      maxBytes: InstructionEntrySchema.MaxValueBytes,
+    })
+    expect(await entries((service) => service.list(SessionSchema.Id.make(id)))).toEqual([
+      {key: 'brief', value: 'ship it'},
+    ])
+
+    const harness = await host.runPromise(PluginHost.HarnessSource)
+    expect(harness.mcpUrl).toBeUndefined()
+    base.current = 'http://127.0.0.1:4100/agent-token'
+    expect(harness.mcpUrl).toBe('http://127.0.0.1:4100/agent-token/api/mcp')
+    expect(harness.get(id).id).toBe(`fake-cli:${id}`)
+    await harness.recordToken(id, HarnessSessionId.parse('native-entries'))
+    expect(await harness.resumeToken(id)).toBe('native-entries')
+
+    const bundler = await host.runPromise(PluginHost.BundlerSource)
+    expect(bundler?.config().root).toBe(root)
+    expect(await host.runPromise(PluginHost.ExtensionSlugs)).toEqual(['page'])
+    expect(await host.runPromise(App.Service)).toMatchObject({name: 'conciv', version: coreManifest.version})
+    const policies = await host.runPromise(ManagedPolicy.ConfiguredPolicies)
+    expect(policies).toEqual([
+      {action: 'plugin.use', resource: 'blocked-*', effect: 'deny'},
+      {action: 'plugin.use', resource: 'legacy', effect: 'deny'},
+    ])
+    expect(ManagedPolicy.decision(policies, 'plugin.use', 'blocked-one')).toBe('deny')
+    expect(ManagedPolicy.decision(policies, 'plugin.use', 'kept')).toBe('allow')
+
+    const models = (run: (service: Model.Interface) => Effect.Effect<unknown>) =>
+      host.runPromise(Model.Service.use(run))
+    expect(await models((service) => service.available())).toEqual([filled(OPUS, []), filled(SONNET, sonnetVariants)])
+    expect(await models((service) => service.available(['chat', 'chat']))).toEqual([
+      filled(OPUS, []),
+      filled(SONNET, sonnetVariants),
+    ])
+    expect(await models((service) => service.available(['image']))).toEqual([])
+    expect(await models((service) => service.default())).toEqual(filled(SONNET, sonnetVariants))
+    const empty = (run: (service: Model.Interface) => Effect.Effect<unknown>) =>
+      Effect.runPromise(Model.Service.use(run).pipe(Effect.provide(provideHarnessModels(listingHarness([])))))
+    expect(await empty((service) => service.available())).toEqual([])
+    expect(await empty((service) => service.default())).toBeUndefined()
+    const listed = (
+      harnessModels: HarnessModel[],
+      defaultModel: string,
+      run: (service: Model.Interface) => Effect.Effect<unknown>,
+    ) =>
+      Effect.runPromise(
+        Model.Service.use(run).pipe(Effect.provide(provideHarnessModels(listingHarness(harnessModels, defaultModel)))),
+      )
+    expect(await listed([RETIRED, OPUS, SONNET], 'retired', (service) => service.default())).toEqual(filled(OPUS, []))
+    expect(await listed([RETIRED, OPUS, SONNET], 'retired', (service) => service.available())).toEqual([
+      filled(OPUS, []),
+      filled(SONNET, sonnetVariants),
+    ])
+    expect(await listed([RETIRED, SONNET, OPUS], 'unlisted', (service) => service.default())).toEqual(
+      filled(SONNET, sonnetVariants),
+    )
+
+    const roots = await host.runPromise(Global.Service)
+    expect(roots).toEqual({cache: join(home, 'cache'), config: home, state: join(home, 'state')})
+    expect(existsSync(roots.cache) && existsSync(roots.config) && existsSync(roots.state)).toBe(true)
+  })
+  it('the session key creates, reads, pages, renames, re-describes, switches and removes conciv sessions on their own rows', async () => {
+    const stateRoot = tempDir()
+    const harness = defineHarness({
+      id: 'listing-cli',
+      binName: 'listing-cli',
+      models: [
+        {id: 'opus', name: 'Opus 5.5'},
+        {id: 'sonnet', name: 'Sonnet 5.5', efforts: ['low', 'high']},
+        {id: 'retired', name: 'Retired', disabled: true},
+      ],
+      defaultModel: 'opus',
+      chatConfig: () => ({adapter: fakeText()}),
+      capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
+    })
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}}, {harnesses: [harness]})
+    onTestFinished(() => made.dispose())
+    const key = sessionKey(made)
+    const heard: {type: string}[] = []
+    await made.pluginHost.runPromise(
+      Bus.Service.use((bus) => bus.listen((event) => Effect.sync(() => heard.push(event)))),
+    )
+    const location = Schema.decodeSync(Location.Ref)({directory: stateRoot})
+
+    const created = await key.run((sessions) =>
+      sessions.create({
+        title: '  Plan\n the   port ',
+        metadata: {ticket: 7, tags: ['plugins']},
+        permissions: [{action: 'bash', resource: '*', effect: 'deny'}],
+        agent: null,
+        model: undefined,
+        location,
+      }),
+    )
+    const sessionId = created.id
+    expect(created).toEqual({
+      id: sessionId,
+      projectId: undefined,
+      agent: 'build',
+      cost: 0,
+      tokens: {input: 0, output: 0, reasoning: 0, cache: {read: 0, write: 0}},
+      time: {created: expect.any(Number), updated: expect.any(Number)},
+      title: 'Plan the port',
+      metadata: {ticket: 7, tags: ['plugins']},
+      permissions: [{action: 'bash', resource: '*', effect: 'deny'}],
+      location: {directory: stateRoot},
+    })
+    expect(created.time.created).toBeLessThanOrEqual(created.time.updated)
+    expect(await key.run((sessions) => sessions.get(sessionId))).toEqual(created)
+
+    await key.run((sessions) =>
+      sessions.switchModel({sessionId, model: {id: 'sonnet', providerId: 'listing-cli', variant: 'high'}}),
+    )
+    expect((await key.run((sessions) => sessions.get(sessionId))).model).toEqual({
+      id: 'sonnet',
+      providerId: 'listing-cli',
+      variant: 'high',
+    })
+
+    const second = await key.run((sessions) =>
+      sessions.create({model: {id: 'opus', providerId: 'listing-cli'}, location}),
+    )
+    expect(second.model).toEqual({id: 'opus', providerId: 'listing-cli'})
+    const listed = await key.run((sessions) => sessions.list())
+    expect(listed.data.map((session) => session.id).toSorted()).toEqual([sessionId, second.id].toSorted())
+    expect(listed.data.find((session) => session.id === sessionId)?.time.created).toBe(created.time.created)
+    expect(await key.fail((sessions) => sessions.create({title: 'Planned', agent: 'plan', location}))).toMatchObject({
+      _tag: 'Session.AgentNotFoundError',
+      sessionId: expect.stringMatching(/^conciv_/),
+      agent: 'plan',
+    })
+    expect(
+      await key.fail((sessions) => sessions.create({model: {id: 'gone', providerId: 'listing-cli'}, location})),
+    ).toMatchObject({_tag: 'Session.NotFoundError', sessionId: expect.stringMatching(/^conciv_/)})
+    expect((await key.run((sessions) => sessions.list())).data.map((session) => session.id).toSorted()).toEqual(
+      [sessionId, second.id].toSorted(),
+    )
+    const first = await key.run((sessions) => sessions.list({limit: 1}))
+    expect(first.data).toHaveLength(1)
+    expect(first.cursor.next).toEqual(expect.any(String))
+    const rest = await key.run((sessions) => sessions.list({limit: 1, cursor: first.cursor.next}))
+    expect([...first.data, ...rest.data].map((session) => session.id).toSorted()).toEqual(
+      [sessionId, second.id].toSorted(),
+    )
+    expect(
+      (await key.run((sessions) => sessions.list({search: 'plan the'}))).data.map((session) => session.id),
+    ).toEqual([sessionId])
+    expect(await key.fail((sessions) => sessions.list({cursor: 'not a cursor'}))).toMatchObject({
+      _tag: 'Session.InvalidListCursorError',
+    })
+
+    await key.run((sessions) => sessions.rename({sessionId, title: 'Ship the port'}))
+    await key.run((sessions) => sessions.setMetadata({sessionId, metadata: {reviewed: true}}))
+    await key.run((sessions) =>
+      sessions.setPermissions({sessionId, permissions: [{action: 'edit', resource: 'src/*', effect: 'allow'}]}),
+    )
+    expect(await key.run((sessions) => sessions.get(sessionId))).toMatchObject({
+      title: 'Ship the port',
+      metadata: {reviewed: true},
+      permissions: [{action: 'edit', resource: 'src/*', effect: 'allow'}],
+    })
+
+    await key.run((sessions) => sessions.switchAgent({sessionId, agent: 'build'}))
+    expect(await key.fail((sessions) => sessions.switchAgent({sessionId, agent: 'plan'}))).toMatchObject({
+      _tag: 'Session.AgentNotFoundError',
+      sessionId,
+      agent: 'plan',
+    })
+
+    const switchedTo = (model: {id: string; providerId: string | undefined; variant?: string}) =>
+      key.fail((sessions) => sessions.switchModel({sessionId, model}))
+    expect(await switchedTo({id: 'opus', providerId: 'claude'})).toMatchObject({_tag: 'Session.NotFoundError'})
+    expect(await switchedTo({id: 'gone', providerId: 'listing-cli'})).toMatchObject({_tag: 'Session.NotFoundError'})
+    expect(await switchedTo({id: 'retired', providerId: 'listing-cli'})).toMatchObject({_tag: 'Session.NotFoundError'})
+    expect(await switchedTo({id: 'opus', providerId: 'listing-cli', variant: 'high'})).toMatchObject({
+      _tag: 'Session.NotFoundError',
+    })
+    expect((await key.run((sessions) => sessions.get(sessionId))).model).toEqual({
+      id: 'sonnet',
+      providerId: 'listing-cli',
+      variant: 'high',
+    })
+    await key.run((sessions) => sessions.switchModel({sessionId, model: {id: 'opus', providerId: 'listing-cli'}}))
+    expect((await key.run((sessions) => sessions.get(sessionId))).model).toEqual({
+      id: 'opus',
+      providerId: 'listing-cli',
+    })
+
+    const entries = (run: (service: InstructionEntry.Interface) => Effect.Effect<unknown, unknown>) =>
+      made.pluginHost.runPromise(InstructionEntry.Service.use(run))
+    await entries((service) => service.put({sessionId: SessionSchema.Id.make(sessionId), key: 'brief', value: 'gone'}))
+    await entries((service) => service.put({sessionId: SessionSchema.Id.make(second.id), key: 'brief', value: 'kept'}))
+    expect(await entries((service) => service.list(SessionSchema.Id.make(sessionId)))).toEqual([
+      {key: 'brief', value: 'gone'},
+    ])
+    expect(await entries((service) => service.list(SessionSchema.Id.make(second.id)))).toEqual([
+      {key: 'brief', value: 'kept'},
+    ])
+
+    await key.run((sessions) => sessions.remove(sessionId))
+    expect(await key.fail((sessions) => sessions.get(sessionId))).toMatchObject({
+      _tag: 'Session.NotFoundError',
+      sessionId,
+    })
+    expect(await entries((service) => service.list(SessionSchema.Id.make(sessionId)))).toEqual([])
+    expect(await entries((service) => service.list(SessionSchema.Id.make(second.id)))).toEqual([
+      {key: 'brief', value: 'kept'},
+    ])
+    expect(await key.fail((sessions) => sessions.remove(sessionId))).toMatchObject({_tag: 'Session.NotFoundError'})
+    expect(heard.filter((event) => event.type === SessionEvent.Deleted.type)).toHaveLength(1)
+    expect((await key.run((sessions) => sessions.list())).data.map((session) => session.id)).toEqual([second.id])
+
+    const suppliedId = SessionSchema.Id.make('conciv_supplied_by_the_caller')
+    const supplied = await key.run((sessions) => sessions.create({id: suppliedId, title: 'Supplied', location}))
+    expect(supplied.id).toBe(suppliedId)
+    expect(
+      await key.run((sessions) =>
+        sessions.create({
+          id: suppliedId,
+          title: 'Overwritten',
+          model: {id: 'sonnet', providerId: 'listing-cli'},
+          metadata: {overwritten: true},
+          location,
+        }),
+      ),
+    ).toEqual(supplied)
+    expect(await key.run((sessions) => sessions.create({id: suppliedId, agent: 'plan', location}))).toEqual(supplied)
+    expect(await key.run((sessions) => sessions.get(suppliedId))).toEqual(supplied)
+    expect(
+      (await key.run((sessions) => sessions.list())).data
+        .map((session) => session.id)
+        .filter((id) => id === suppliedId),
+    ).toEqual([suppliedId])
+  })
+})
+
+describe('engine build keeps runtime packages external', () => {
+  const distDir = join(import.meta.dirname, '..', 'dist')
+  const chunks = readdirSync(distDir)
+    .filter((name) => name.endsWith('.js'))
+    .map((name) => ({name, source: readFileSync(join(distDir, name), 'utf8')}))
+  const definesDirname = /\b(?:const|let|var)\s+__dirname\b/
+
+  it('imports the code mode driver from @conciv/ai instead of inlining it, and no ESM chunk uses an undefined __dirname', () => {
+    expect(chunks.some((chunk) => /from\s*["']@conciv\/ai\/server["']/.test(chunk.source))).toBe(true)
+    expect(
+      chunks.filter((chunk) => chunk.source.includes('no usable isolate driver')).map((chunk) => chunk.name),
+    ).toEqual([])
+    expect(
+      chunks
+        .filter((chunk) => chunk.source.includes('__dirname') && !definesDirname.test(chunk.source))
+        .map((chunk) => chunk.name),
+    ).toEqual([])
+  })
+
+  it('loads photon from its own package and spawns the resize worker the plugin host ships beside it', () => {
+    const hostDir = dirname(fileURLToPath(import.meta.resolve('@conciv/plugin-host')))
+    const hostChunks = readdirSync(hostDir)
+      .filter((name) => name.endsWith('.js'))
+      .map((name) => ({name, source: readFileSync(join(hostDir, name), 'utf8')}))
+    expect(hostChunks.some((chunk) => /import\(\s*["']@silvia-odwyer\/photon-node["']\s*\)/.test(chunk.source))).toBe(
+      true,
+    )
+    expect(hostChunks.filter((chunk) => chunk.source.includes('__wbindgen')).map((chunk) => chunk.name)).toEqual([])
+    const spawning = hostChunks.filter((chunk) =>
+      chunk.source.includes('new URL("./photon-worker.js", import.meta.url)'),
+    )
+    expect(spawning.length).toBe(1)
+    expect(existsSync(join(hostDir, 'photon-worker.js'))).toBe(true)
+    const wasm = createRequire(join(hostDir, 'index.js')).resolve('@silvia-odwyer/photon-node/photon_rs_bg.wasm')
+    expect(existsSync(wasm)).toBe(true)
   })
 })

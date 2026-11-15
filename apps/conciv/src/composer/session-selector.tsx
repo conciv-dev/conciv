@@ -348,7 +348,7 @@ export function SessionSelector(props: {
                 unmountOnExit
                 class="flex shrink-0 size-7 items-center justify-center"
               >
-                <Loader.Root size="sm" class="p-0 gap-0" translations={{value: () => SEARCHING_LABEL}}>
+                <Loader.Root size="sm" bare translations={{value: () => SEARCHING_LABEL}}>
                   <Loader.Indicator class="size-4 text-chat-text-3" />
                 </Loader.Root>
               </Presence>
@@ -398,7 +398,7 @@ export function SessionSelector(props: {
               role="status"
             >
               <span>Couldn't load sessions</span>
-              <Button variant="outline" size="sm" onClick={() => void list.refetch()}>
+              <Button variant="outline" size="xs" onClick={() => void list.refetch()}>
                 Retry
               </Button>
             </div>
@@ -439,7 +439,7 @@ export function SessionSelector(props: {
                     role="status"
                   >
                     <span>Couldn't load more sessions</span>
-                    <Button variant="outline" size="sm" onClick={() => void list.fetchNextPage()}>
+                    <Button variant="outline" size="xs" onClick={() => void list.fetchNextPage()}>
                       Retry
                     </Button>
                   </div>

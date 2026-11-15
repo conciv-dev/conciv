@@ -104,7 +104,7 @@ export function createLatest<S extends KeyedSource, T>(
 
       onCleanup(() => controller.abort())
       setState({loading: true, error: undefined})
-      void new Promise<T>((resolve) => resolve(fetch(value, controller.signal))).then(
+      void Promise.try(() => fetch(value, controller.signal)).then(
         (latest) => {
           if (!controller.signal.aborted) setState({latest, loading: false, error: undefined})
         },

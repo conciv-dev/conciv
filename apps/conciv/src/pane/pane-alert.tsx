@@ -10,7 +10,7 @@ export function PaneAlert(props: {message: string; busy: boolean; onRetry: () =>
       <Button
         variant="outline-danger"
         size="sm"
-        class="shrink-0 min-h-8 font-semibold"
+        class="shrink-0 font-semibold"
         disabled={props.busy}
         aria-busy={props.busy}
         onClick={() => props.onRetry()}

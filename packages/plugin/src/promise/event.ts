@@ -1,7 +1,7 @@
 import type {ConcivEvent} from '../client/promise/index.js'
 import type {SelectedEvent, SubscribeOptions} from '../client/promise/api.js'
 
-type EventType = ConcivEvent['type']
+type EventType = Exclude<ConcivEvent['type'], 'server.connected'>
 
 export interface EventDomain {
   readonly subscribe: <Type extends EventType = EventType>(

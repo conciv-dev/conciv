@@ -1,5 +1,6 @@
 export * as ConfigPluginSource from './source.js'
 
+import type {PluginOptions} from '@conciv/plugin'
 import {ConfigPlugin} from '../../../schema/config/plugin.js'
 import {FSUtil} from '../../../util/fs-util.js'
 import * as Host from '@conciv/plugin/host'
@@ -14,7 +15,7 @@ export type Operation =
   | {
       readonly type: 'add'
       readonly target: string
-      readonly options: Record<string, unknown>
+      readonly options: PluginOptions
       readonly mtime?: number
     }
   | {

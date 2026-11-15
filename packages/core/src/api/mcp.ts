@@ -9,6 +9,7 @@ import {
   codeExecuteReply,
   queueNotice,
   safeStringify,
+  toolValueReply,
   type CodeDescriptions,
   type CodeDiscoverResult,
   type CodeExecuteResult,
@@ -28,8 +29,9 @@ import {
 import type {SessionScope} from '../runtime/scope-types.js'
 import {logError} from '../lib/debug.js'
 import corePackage from '../../package.json' with {type: 'json'}
-import type {ChatPlane, CodeCapability, CodeRunner, CodeTool} from '@conciv/chat'
+import type {ChatPlane, CodeCapability, CodeRunner, CodeSandbox, CodeTool} from '@conciv/chat'
 import {createMCPServer} from '@conciv/ai/server'
+import {CodeModeCatalog, CodeModeInstructions} from '@conciv/plugin-host'
 import {loopbackHostAllowlist} from '../lib/cors.js'
 import {callTrace} from './call-trace.js'
 import {EXECUTE_TOOL_NAME, ExecuteInputSchema, ExecuteResultSchema, type ExecuteResult} from './execute-schemas.js'
@@ -68,7 +70,7 @@ const STALE_SUFFIX =
 
 function stalenessNotice(staleness: EngineStaleness, room: number): string {
   if (!staleness.stale) return ''
-  const changed = fittedList(staleness.changed, room - STALE_PREFIX.length - STALE_SUFFIX.length, '')
+  const changed = fittedList(staleness.changed, room - STALE_PREFIX.length - STALE_SUFFIX.length)
   return `${STALE_PREFIX}${changed}${STALE_SUFFIX}`
 }
 
@@ -79,57 +81,40 @@ const SANDBOX_RULES = `Rules of the sandbox:
 
 const DESCRIPTION_BUDGET_CHARS = 4096
 
-const NAMES_ONLY_HEADER = '\n\nMore capabilities, by name only: '
-
 const NAME_SEPARATOR = ', '
 
-const LIST_ALL_HINT =
-  ' (list every name from inside execute_typescript: return Object.keys(globalThis).filter((key) => key.startsWith("external_")))'
+const LISTED_CHARACTERS_PER_TOKEN = 5
 
-type RunnerCapability = CodeRunner['capabilities'][number]
-
-function executeDescription(runner: CodeRunner, staleness: EngineStaleness): string {
-  const rest = `${EXECUTE_DESCRIPTION}\n\n${SANDBOX_RULES}\n\n${capabilitiesIntro(runner)}`
-  const names = runner.capabilities.map(sandboxName)
-  const namesReserve =
-    names.length === 0 ? 0 : NAMES_ONLY_HEADER.length + overflowTail(0, names.length, LIST_ALL_HINT).length
-  const head = `${stalenessNotice(staleness, DESCRIPTION_BUDGET_CHARS - rest.length - namesReserve)}${rest}`
-  const lines = runner.capabilities.map(capabilityLine)
-  const allNamesOnly = `${NAMES_ONLY_HEADER}${names.join(NAME_SEPARATOR)}`
-  const room = DESCRIPTION_BUDGET_CHARS - head.length
-  const described = lines.join('').length <= room ? lines.length : fittingCount(lines, room - allNamesOnly.length)
-  const body = `${head}${lines.slice(0, described).join('')}`
-  return `${body}${namesOnly(names.slice(described), DESCRIPTION_BUDGET_CHARS - body.length)}`
+function executeDescription(runner: CodeSandbox, staleness: EngineStaleness): string {
+  const rest = `${EXECUTE_DESCRIPTION}\n\n${SANDBOX_RULES}\n\n`
+  const floor = CodeModeCatalog.summarize(runner.inventory, {budget: 0})
+  const floorText = CodeModeInstructions.render(floor)
+  const head = `${stalenessNotice(staleness, DESCRIPTION_BUDGET_CHARS - rest.length - floorText.length)}${rest}`
+  const spare = Math.floor((DESCRIPTION_BUDGET_CHARS - head.length - floorText.length) / LISTED_CHARACTERS_PER_TOKEN)
+  const budget = chargedCost(floor) + Math.max(spare, 0)
+  return `${head}${CodeModeInstructions.render(CodeModeCatalog.summarize(runner.inventory, {budget}))}`
 }
 
-function capabilitiesIntro(runner: CodeRunner): string {
-  if (runner.discover === null) return 'Capabilities:'
-  return 'Capabilities (call discover_tools with their names for typed signatures; it is a separate tool call, not available inside the sandbox):'
+function chargedCost(floor: CodeModeCatalog.Summary): number {
+  return floor.namespaces.reduce(
+    (total, namespace) =>
+      total +
+      CodeModeCatalog.cost(CodeModeCatalog.namespaceLine({...namespace, entries: []})) +
+      namespace.entries.reduce((sum, entry) => sum + CodeModeCatalog.cost(entry.line), 0),
+    0,
+  )
 }
 
-function sandboxName(capability: RunnerCapability): string {
-  return `external_${capability.name}`
-}
-
-function capabilityLine(capability: RunnerCapability): string {
-  return `\n- ${sandboxName(capability)}: ${capability.description.split('\n')[0] ?? ''}`
-}
-
-function namesOnly(names: string[], room: number): string {
-  if (names.length === 0) return ''
-  return `${NAMES_ONLY_HEADER}${fittedList(names, room - NAMES_ONLY_HEADER.length, LIST_ALL_HINT)}`
-}
-
-function fittedList(items: readonly string[], room: number, hint: string): string {
+function fittedList(items: readonly string[], room: number): string {
   const pieces = items.map((item, index) => (index === 0 ? item : `${NAME_SEPARATOR}${item}`))
   const all = pieces.join('')
   if (all.length <= room) return all
-  const listed = fittingCount(pieces, room - overflowTail(1, items.length, hint).length)
-  return `${pieces.slice(0, listed).join('')}${overflowTail(listed, items.length - listed, hint)}`
+  const listed = fittingCount(pieces, room - overflowTail(1, items.length).length)
+  return `${pieces.slice(0, listed).join('')}${overflowTail(listed, items.length - listed)}`
 }
 
-function overflowTail(listed: number, hidden: number, hint: string): string {
-  return `${listed === 0 ? '' : NAME_SEPARATOR}and ${hidden} more${hint}`
+function overflowTail(listed: number, hidden: number): string {
+  return `${listed === 0 ? '' : NAME_SEPARATOR}and ${hidden} more`
 }
 
 function fittingCount(pieces: string[], room: number): number {
@@ -180,7 +165,7 @@ async function publishResult(calls: CallPublisher, reply: CodeReply): Promise<vo
 }
 
 async function runExecute(
-  runner: CodeRunner,
+  runner: CodeSandbox,
   typescriptCode: string,
   calls: CallPublisher,
 ): Promise<CodeExecuteResult> {
@@ -200,7 +185,7 @@ async function runExecute(
 async function runDirect(tool: CodeTool, input: unknown, calls: CallPublisher): Promise<CodeReply> {
   calls.publish(calls.trace.start(calls.run, tool.name, input))
   const reply: CodeReply = await tool.run(input, calls.trace.callId, calls.signal).then(
-    (value) => ({content: [{type: 'text', text: cappedText(safeStringify(value))}]}),
+    (value) => toolValueReply(value),
     (error: unknown) => ({
       content: [{type: 'text', text: cappedText(safeStringify({error: {message: String(error)}}))}],
       isError: true,
@@ -215,9 +200,10 @@ type McpDeps = {
     sessionId: SessionId,
     publish: (chunk: ChatEvent) => void,
     capabilities?: readonly CodeCapability[],
-    outside?: boolean,
   ) => Promise<CodeRunner | null>
-  finishedQueues: (sessionId: SessionId, outside: boolean) => PageQueueResult[]
+  hubCall: (sessionId: SessionId, callId: string) => void
+  hubReplied: (sessionId: SessionId, callIds: ReadonlySet<string>) => void
+  finishedQueues: (sessionId: SessionId, hub: boolean) => PageQueueResult[]
   startedQueues: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => PageQueueHandle[]
   outsideCapabilities: (sessionId: SessionId) => CodeCapability[]
   admitCall: ChatPlane['admitCall']
@@ -263,11 +249,17 @@ function withFinishedQueues(reply: CodeReply, finished: readonly PageQueueResult
 
 type CodeRun = {result: CodeExecuteResult; reply: CodeReply}
 
-export type CodeSession = {
-  runner: CodeRunner
+export type CodeSandboxSession = {
+  sandbox: CodeSandbox
   describe: () => CodeDescriptions
   execute: (typescriptCode: string) => Promise<CodeRun>
   discover: (toolNames: string[]) => Promise<CodeDiscoverResult>
+}
+
+export type CodeSession = {
+  runner: CodeRunner
+  sandbox: CodeSandboxSession | null
+  asked: (tool: CodeTool, input: unknown) => Promise<CodeReply>
   direct: (tool: CodeTool, input: unknown) => Promise<CodeReply>
 }
 
@@ -282,13 +274,13 @@ export async function openCodeSession(
   const childCalls = new Set<string>()
   const publish = (chunk: ChatEvent): void => {
     if (chunk.type === ChatEventType.TOOL_CALL_START) childCalls.add(chunk.toolCallId)
+    if (hub && chunk.type === ChatEventType.TOOL_CALL_START) deps.hubCall(scope.id, chunk.toolCallId)
     mirror.publish([caller.trace.mark(chunk)])
   }
   const runner = await deps.codeRunner(
     scope.id,
     publish,
     hub && caller.outside ? deps.outsideCapabilities(scope.id) : undefined,
-    hub,
   )
   if (runner === null) return null
   const calls: CallPublisher = {
@@ -299,33 +291,46 @@ export async function openCodeSession(
     signal: caller.signal,
   }
   const finished = (): PageQueueResult[] => (caller.signal.aborted ? [] : deps.finishedQueues(scope.id, hub))
-  return {
-    runner,
+  const hubRequest = async <Value>(work: () => Promise<Value>): Promise<Value> => {
+    if (!hub) return work()
+    deps.hubCall(scope.id, caller.trace.callId)
+    return work().finally(() => deps.hubReplied(scope.id, new Set([caller.trace.callId, ...childCalls])))
+  }
+  const sandbox = (code: CodeSandbox): CodeSandboxSession => ({
+    sandbox: code,
     describe: () => ({
-      execute: executeDescription(runner, deps.staleness()),
-      discover: runner.discover?.description ?? null,
+      execute: executeDescription(code, deps.staleness()),
+      discover: code.discover?.description ?? null,
     }),
-    execute: async (typescriptCode) => {
-      const executed = await runExecute(runner, typescriptCode, calls)
-      const started = deps.startedQueues(scope.id, childCalls)
-      const delivered = finished()
-      const finishedIds = new Set(delivered.map((result) => result.queueId))
-      const result = {
-        ...executed,
-        queued: started.filter((handle) => !finishedIds.has(handle.queueId)),
-        finished: delivered,
-      }
-      return {result, reply: codeExecuteReply(result)}
-    },
+    execute: (typescriptCode) =>
+      hubRequest(async () => {
+        const executed = await runExecute(code, typescriptCode, calls)
+        const started = deps.startedQueues(scope.id, childCalls)
+        const delivered = finished()
+        const finishedIds = new Set(delivered.map((result) => result.queueId))
+        const result = {
+          ...executed,
+          queued: started.filter((handle) => !finishedIds.has(handle.queueId)),
+          finished: delivered,
+        }
+        return {result, reply: codeExecuteReply(result)}
+      }),
     discover: async (toolNames) => {
-      if (runner.discover === null) throw new Error('no tools to discover')
-      const tools = cappedValue(await runner.discover.run(toolNames))
+      if (code.discover === null) throw new Error('no tools to discover')
+      const tools = cappedValue(await code.discover.run(toolNames))
       return {tools, finished: finished()}
     },
-    direct: async (tool, input) => {
-      const asking = caller.askBeforeCalls ? approvedFirst(deps, scope.id, tool, publish) : tool
-      return withFinishedQueues(await runDirect(asking, input, calls), finished())
-    },
+  })
+  return {
+    runner,
+    sandbox: runner.code === null ? null : sandbox(runner.code),
+    asked: (tool, input) =>
+      hubRequest(async () => {
+        const asking = caller.askBeforeCalls ? approvedFirst(deps, scope.id, tool, publish) : tool
+        return withFinishedQueues(await runDirect(asking, input, calls), finished())
+      }),
+    direct: (tool, input) =>
+      hubRequest(async () => withFinishedQueues(await runDirect(tool, input, calls), finished())),
   }
 }
 
@@ -333,9 +338,10 @@ type Delivery = Pick<CodeExecuteResult, 'queued' | 'finished'>
 
 function typedResult(result: ExecuteResult, declaredCodes: ReadonlySet<string>, delivery: Delivery): CodeExecuteResult {
   const logs = cappedLogs(result.logs ?? [])
-  if (result.success) return {ok: true, result: cappedValue(result.result), logs, ...delivery}
+  const files = result.files === undefined ? {} : {files: result.files}
+  if (result.success) return {ok: true, result: cappedValue(result.result), logs, ...files, ...delivery}
   const error = executeError(result, declaredCodes)
-  return {ok: false, error: {...error, message: cappedText(error.message)}, logs, ...delivery}
+  return {ok: false, error: {...error, message: cappedText(error.message)}, logs, ...files, ...delivery}
 }
 
 function cappedLogs(logs: string[]): string[] {
@@ -357,37 +363,48 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: CodeCall
     logError('[mcp] code mode is unavailable (no isolate driver or an empty registry); no tools registered')
     return []
   }
-  const discover = code.runner.discover
+  const sandbox = code.sandbox
+  const discover = code.runner.code?.discover ?? null
   const discoverTools =
-    discover === null
+    sandbox === null || discover === null
       ? []
       : [
           defineTool({
             name: DISCOVER_TOOL_NAME,
             description: discover.description,
             inputSchema: DiscoverInputSchema,
-          }).server(gated(admit, async (args) => codeDiscoverReply(await code.discover(args.toolNames)))),
+          }).server(gated(admit, async (args) => codeDiscoverReply(await sandbox.discover(args.toolNames)))),
         ]
   const askingTools = code.runner.asking.map((tool) =>
+    defineTool({name: tool.name, description: tool.description, inputSchema: tool.inputSchema}).server(
+      gated(admit, (args) => code.asked(tool, args)),
+    ),
+  )
+  const directTools = code.runner.direct.map((tool) =>
     defineTool({name: tool.name, description: tool.description, inputSchema: tool.inputSchema}).server(
       gated(admit, (args) => code.direct(tool, args)),
     ),
   )
-  const executeTool = defineTool({
-    name: EXECUTE_TOOL_NAME,
-    description: code.describe().execute,
-    inputSchema: ExecuteInputSchema,
-  }).server(
-    gated(admit, async (args) => {
-      try {
-        return (await code.execute(args.typescriptCode)).reply
-      } catch (error) {
-        logError(`[mcp] ${EXECUTE_TOOL_NAME} failed outside the sandbox: ${String(error)}`)
-        throw error
-      }
-    }),
-  )
-  return [...discoverTools, ...askingTools, executeTool]
+  const executeTools =
+    sandbox === null
+      ? []
+      : [
+          defineTool({
+            name: EXECUTE_TOOL_NAME,
+            description: sandbox.describe().execute,
+            inputSchema: ExecuteInputSchema,
+          }).server(
+            gated(admit, async (args) => {
+              try {
+                return (await sandbox.execute(args.typescriptCode)).reply
+              } catch (error) {
+                logError(`[mcp] ${EXECUTE_TOOL_NAME} failed outside the sandbox: ${String(error)}`)
+                throw error
+              }
+            }),
+          ),
+        ]
+  return [...discoverTools, ...askingTools, ...directTools, ...executeTools]
 }
 
 const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {

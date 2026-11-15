@@ -22,6 +22,45 @@ import type {createSettingsStorage} from '../../settings/settings-storage.js'
 import type {McpVars} from '../mcp.js'
 import type {createTabs} from '../tabs.js'
 import type {PageQueues} from '../../page/page-queue.js'
+import type {ManagedRuntime} from 'effect'
+import type {
+  Agent,
+  Bus,
+  Database,
+  InstructionEntry,
+  KV,
+  Location,
+  Permission,
+  PermissionSaved,
+  Plugin,
+  PluginHooks,
+  Rpc,
+  Skill,
+  SkillInstructions,
+  Tool,
+} from '@conciv/plugin-host'
+import type {PermissionAnswer} from '../../runtime/permission-cards.js'
+import type {EventFeed} from '../../event-feed.js'
+
+export type PluginHost = ManagedRuntime.ManagedRuntime<
+  | Tool.Interface
+  | Permission.Interface
+  | Agent.Interface
+  | PermissionSaved.Interface
+  | Permission.SessionsInterface
+  | PluginHooks.Interface
+  | Rpc.Interface
+  | KV.Interface
+  | InstructionEntry.Interface
+  | Skill.Interface
+  | SkillInstructions.Interface
+  | Bus.Interface
+  | Location.Interface
+  | Plugin.Interface
+  | Database.Interface
+  | EventFeed.Interface,
+  never
+>
 
 export type ChatContext = {
   defaultHarness: HarnessAdapter
@@ -48,7 +87,9 @@ export type RpcDeps = {
   assist: (sessionId: SessionId) => readonly ConcivServerTool[]
   code: McpVars['mcp']
   tabs: ReturnType<typeof createTabs>
-  queues: Pick<PageQueues, 'wait'>
+  queues: Pick<PageQueues, 'wait' | 'release'>
+  pluginHost: PluginHost
+  answerPermission: PermissionAnswer
 }
 
 export const os: Implementer<typeof contract, RpcContext, RpcContext> = implement(contract).$context<RpcContext>()
@@ -114,6 +155,14 @@ const HUB_PROCEDURES = new Set(['meta.connectHub', 'meta.disconnectHub'])
 
 const OUTSIDE_HUB_REFUSAL = "outside agents can't connect or disconnect agents; do it in the tab"
 
+const EVENT_PROCEDURES = new Set(['event.subscribe'])
+
+const OUTSIDE_EVENT_REFUSAL = "outside agents can't read the engine's event stream"
+
+const PLUGIN_PROCEDURES = new Set(['plugin.call', 'plugin.list', 'plugin.experimental'])
+
+const OUTSIDE_PLUGIN_REFUSAL = "outside agents can't use plugin routes; use the plugin in the tab"
+
 export function makeHubAdmission(deps: RpcDeps) {
   return plainOs.$context<RpcContext>().middleware(async ({context, next, signal, path}, input: unknown) => {
     const hub = callTrace((header) => rpcHeader(context, header)).hub
@@ -130,6 +179,8 @@ function refuseOutside(deps: RpcDeps, client: string | null, procedure: string):
   if (disconnected !== null) throw new ORPCError('APPROVAL_DENIED', {message: disconnected})
   if (DECIDING_PROCEDURES.has(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_DECISION_REFUSAL})
   if (HUB_PROCEDURES.has(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_HUB_REFUSAL})
+  if (EVENT_PROCEDURES.has(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_EVENT_REFUSAL})
+  if (PLUGIN_PROCEDURES.has(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_PLUGIN_REFUSAL})
 }
 
 async function admitHubCaller(

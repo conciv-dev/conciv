@@ -93,6 +93,8 @@ export const runLifecycleEvent = defineChatEvent('conciv.run-lifecycle', RunLife
 
 export const sessionRunEvent = defineChatEvent('conciv.session-run', z.object({runId: z.string().min(1)}))
 
+export const idleFailedEvent = defineChatEvent('conciv.idle-failed', z.object({runId: z.string().min(1)}))
+
 export const codeModeCallEvent = defineChatEvent(
   'conciv.code-mode-call',
   z.looseObject({callId: z.string().min(1), function: z.string(), args: z.unknown()}),

@@ -2,6 +2,7 @@ import type {SessionId} from '@conciv/protocol/chat-types'
 import type {RequestOptions} from '../client/promise/generated/client.js'
 import type {
   InstructionEntryInfo,
+  PromptMention,
   SessionCommandInput,
   SessionCreateInput,
   SessionInboxCompaction,
@@ -18,6 +19,43 @@ import type {Json} from '../experimental/core.js'
 import type {Hooks} from './registration.js'
 
 type SessionInput = {readonly sessionId: SessionId}
+
+type Mention = {-readonly [Key in keyof PromptMention]: PromptMention[Key]}
+
+export type PromptFileSource = {type: 'inline'} | {type: 'uri'; uri: string}
+
+export interface PromptInputFileAttachment {
+  uri: string
+  source?: PromptFileSource
+  name?: string
+  description?: string
+  mention?: Mention
+}
+
+export interface PromptAgentAttachment {
+  name: string
+  mention?: Mention
+}
+
+export interface PromptInputSkillAttachment {
+  id: string
+  mention?: Mention
+}
+
+export interface PromptInput {
+  text: string
+  files?: PromptInputFileAttachment[]
+  agents?: PromptAgentAttachment[]
+  skills?: PromptInputSkillAttachment[]
+}
+
+export interface SessionPrompt {
+  readonly sessionId: SessionId
+  readonly messageId: string
+  prompt: PromptInput
+  metadata?: Record<string, unknown>
+  delivery: SessionInboxDelivery
+}
 
 export type SessionIdleBackground =
   | {
@@ -42,11 +80,11 @@ export type SessionIdleBackground =
 
 export interface SessionIdle {
   readonly sessionId: SessionId
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly background: ReadonlyArray<SessionIdleBackground> | undefined
+  readonly background: ReadonlyArray<SessionIdleBackground>
 }
 
 export interface SessionHooks {
+  readonly prompt: SessionPrompt
   readonly 'experimental.idle': SessionIdle
 }
 
@@ -85,11 +123,13 @@ export interface SessionDomain {
     },
     requestOptions?: RequestOptions,
   ) => Promise<SessionInboxCompaction>
-  readonly synthetic: (input: SessionSyntheticInput, requestOptions?: RequestOptions) => Promise<SessionInboxSynthetic>
+  /** @remarks Not implemented yet. Always undefined in this version. */
+  readonly synthetic:
+    | ((input: SessionSyntheticInput, requestOptions?: RequestOptions) => Promise<SessionInboxSynthetic>)
+    | undefined
   readonly interrupt: (
     input: {
       readonly sessionId: SessionId
-      /** @remarks Not implemented yet. Always undefined in this version. */
       readonly resume?: boolean | undefined
     },
     requestOptions?: RequestOptions,

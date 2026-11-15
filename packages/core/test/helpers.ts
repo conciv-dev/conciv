@@ -6,6 +6,7 @@ import {afterAll, expect} from 'vitest'
 import {type ChatPlane} from '@conciv/chat'
 import {type ConcivDb} from '@conciv/db'
 import {type AnyExtension} from '@conciv/extension'
+import type {Plugin} from '@conciv/plugin'
 import {getHarness, type HarnessAdapter} from '@conciv/harness'
 import {
   type ChatMessage,
@@ -80,12 +81,13 @@ export type BootOverrides = {
   cwd?: string
   extensions?: AnyExtension[]
   extensionConfig?: Record<string, unknown>
-  openInEditor?: (file: string, line?: number) => void
+  openInEditor?: (file: string, line?: number, column?: number) => void
   bridge?: BundlerBridge
   firstChunkTimeoutMs?: number
   harnesses?: HarnessAdapter[]
   systemPromptText?: string
   home?: string
+  plugins?: readonly Plugin.Plugin[]
 }
 
 export function bootKit(overrides: BootOverrides = {}, harness: HarnessAdapter = requireClaude()): Promise<Kit> {
@@ -112,6 +114,7 @@ export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): 
     systemPrompt: '',
     hubAccess: 'session',
     plugins: [],
+    policies: [],
   }
   const made = await makeApp({
     print: env.print,
@@ -126,6 +129,7 @@ export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): 
     harnesses: overrides.harnesses,
     systemPromptText: overrides.systemPromptText,
     home: overrides.home,
+    plugins: overrides.plugins,
   })
   const tracked: MadeApp = {
     ...made,
@@ -152,6 +156,7 @@ export type ChatFixture = {
   sessionId: SessionId
   stateRoot: string
   runtime: MadeApp['runtime']
+  pluginHost: MadeApp['pluginHost']
   dispose: () => Promise<void>
 }
 
@@ -168,6 +173,7 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
     sessionId,
     stateRoot,
     runtime: made.runtime,
+    pluginHost: made.pluginHost,
     dispose: made.dispose,
   }
 }

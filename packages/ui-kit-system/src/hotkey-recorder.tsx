@@ -120,7 +120,6 @@ export function HotkeyRecorder(props: HotkeyRecorderProps): JSX.Element {
             }}
             variant="outline"
             size="sm"
-            class="min-h-7"
             id={field?.().ids.control}
             aria-labelledby={field ? `${recordTextId} ${field().ids.label}` : undefined}
             aria-describedby={field?.().ariaDescribedby}
@@ -177,15 +176,10 @@ export function HotkeyRecorder(props: HotkeyRecorderProps): JSX.Element {
             )}
           </Show>
           <div class={ACTIONS}>
-            <Button variant="ghost" size="sm" class="min-h-7" onClick={() => finish(undefined)}>
+            <Button variant="ghost" size="sm" onClick={() => finish(undefined)}>
               Cancel
             </Button>
-            <Button
-              size="sm"
-              class="min-h-7"
-              disabled={typeof state.draft !== 'string'}
-              onClick={() => finish(state.draft)}
-            >
+            <Button size="sm" disabled={typeof state.draft !== 'string'} onClick={() => finish(state.draft)}>
               Save
             </Button>
           </div>

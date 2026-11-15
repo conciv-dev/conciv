@@ -4,6 +4,7 @@ import {z} from 'zod'
 import {type ChatEvent, RunLifecycleSchema} from '@conciv/protocol/chat-event-types'
 import {
   ChatCommandsSchema,
+  ChatContentPartSchema,
   ChatHarnessesSchema,
   ChatHistorySchema,
   ChatModelsSchema,
@@ -97,7 +98,7 @@ const SettingsSnapshotSchema = z.object({
 export type SettingsSnapshot = z.infer<typeof SettingsSnapshotSchema>
 
 const SettingsInput = z.object({scope: SettingsScopeSchema, namespace: SettingsNamespaceSchema})
-const SettingsKeyInput = SettingsInput.extend({key: z.string().max(200)})
+const SettingsKeyInput = SettingsInput.extend({key: z.string().max(512)})
 const ChatPendingInterruptSchema = z.object({
   id: z.string(),
   reason: z.string(),
@@ -175,7 +176,11 @@ export const ToolCommandSignatureSchema = z.object({
 
 export type ToolCommandSignature = z.infer<typeof ToolCommandSignatureSchema>
 
-export const EditorOpenInputSchema = z.object({file: z.string(), line: z.number().int().min(1).optional()})
+export const EditorOpenInputSchema = z.object({
+  file: z.string(),
+  line: z.number().int().min(1).optional(),
+  column: z.number().int().min(1).optional(),
+})
 
 export const EngineStalenessSchema = z.object({
   stale: z.boolean(),
@@ -215,6 +220,7 @@ const CodeSessionInput = z.object({sessionId: SessionId.optional()})
 
 const CodeDelivery = {
   logs: z.array(z.string()),
+  files: z.array(ChatContentPartSchema).optional(),
   queued: z.array(PageQueueHandleSchema),
   finished: z.array(PageQueueResultSchema),
 }
@@ -241,6 +247,76 @@ export type CodeDescriptions = z.infer<typeof CodeDescriptionsSchema>
 const noCodeMode = {NO_CODE_MODE: {message: 'code mode is unavailable on this engine'}}
 
 const noQueue = {NO_QUEUE: {message: 'no such queue on this tab'}}
+
+const pluginRpcFailed = {
+  PLUGIN_RPC: {
+    message: 'the plugin rpc call failed',
+    data: z.object({type: z.string(), message: z.string(), data: z.unknown().optional()}),
+  },
+}
+
+const LocationPublicRefSchema = z.object({directory: z.string()})
+
+function locationResponse<Data extends z.ZodType>(data: Data) {
+  return z.object({location: LocationPublicRefSchema, data})
+}
+
+export const EventEnvelopeSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  created: z.number().optional(),
+  durable: z.object({aggregateID: z.string(), seq: z.number(), version: z.number()}).optional(),
+  data: z.record(z.string(), z.unknown()),
+  location: LocationPublicRefSchema.optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+})
+
+const pluginNotFound = {
+  PLUGIN_NOT_FOUND: {
+    status: 404,
+    message: 'no active plugin with a ./plugin-experimental bundle',
+    data: z.object({pluginId: z.string(), message: z.string()}),
+  },
+}
+
+const PluginIdSchema = z.string().min(1).max(256)
+
+const PluginSourceSchema = z.discriminatedUnion('type', [
+  z.object({type: z.literal('builtin')}),
+  z.object({
+    type: z.literal('package'),
+    target: z.string(),
+    version: z.string().optional(),
+    outdated: z.literal(true).optional(),
+    updating: z.literal(true).optional(),
+  }),
+  z.object({type: z.literal('local'), path: z.string()}),
+  z.object({type: z.literal('sdk')}),
+])
+
+const PluginFeaturesSchema = z.object({
+  server: z.literal(true).optional(),
+  rpc: z.literal(true).optional(),
+  experimental: z.literal(true).optional(),
+})
+
+const PluginStateSchema = z.discriminatedUnion('status', [
+  z.object({status: z.literal('active')}),
+  z.object({status: z.literal('failed'), error: z.string(), ref: z.string().optional()}),
+])
+
+const PluginInfoSchema = z.object({
+  id: z.string().optional(),
+  source: PluginSourceSchema,
+  features: PluginFeaturesSchema,
+  state: PluginStateSchema,
+})
+
+export const PluginExperimentalBundleSchema = z.object({
+  code: z.string(),
+  revision: z.string().min(1).max(256),
+  options: z.record(z.string(), z.json()),
+})
 
 export const contract = {
   auth: {
@@ -421,5 +497,22 @@ export const contract = {
     hubAgents: oc.output(eventIterator(HubAgentsSchema)),
     connectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),
     disconnectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),
+  },
+  plugin: {
+    call: oc
+      .errors({...pluginRpcFailed, ...approvalDenied})
+      .input(z.object({rpcId: z.string().min(1), method: z.string().min(1), input: z.unknown().optional()}))
+      .output(z.unknown()),
+    list: oc.errors(approvalDenied).output(locationResponse(z.array(PluginInfoSchema))),
+    experimental: oc
+      .errors({...pluginNotFound, ...approvalDenied})
+      .input(z.object({id: PluginIdSchema}))
+      .output(locationResponse(PluginExperimentalBundleSchema)),
+  },
+  event: {
+    subscribe: oc
+      .errors(approvalDenied)
+      .input(z.object({types: z.array(z.string().min(1)).optional()}).optional())
+      .output(eventIterator(EventEnvelopeSchema)),
   },
 }

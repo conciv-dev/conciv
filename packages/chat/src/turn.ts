@@ -1,13 +1,27 @@
 import {existsSync, readFileSync} from 'node:fs'
 import {readFile} from 'node:fs/promises'
-import {readApprovalAsk, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {
+  readApprovalAsk,
+  ChatEventType,
+  sessionRunEvent,
+  type ChatEvent,
+  type RunLifecycle,
+} from '@conciv/protocol/chat-event-types'
 import {tokenUsageToSnapshot, toTokenUsage, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {type ContentPart, type ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {Turn, TurnHooks} from '@conciv/ai/server'
 import type {AttachmentDocumentPart} from '@conciv/extension'
 import {transcriptPathWithin} from '@conciv/harness'
-import {isHarnessSessionId, SessionId, type HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
+import {isEqual} from 'es-toolkit'
+import {
+  ChatContentPartSchema,
+  isHarnessSessionId,
+  SessionId,
+  type HarnessSessionId,
+  type ReasoningEffort,
+} from '@conciv/protocol/chat-types'
 import type {HarnessAdapter} from '@conciv/harness'
+import type {CodeModeCatalog, PluginHooks} from '@conciv/plugin-host'
 import type {ApprovalStore, UiChannel} from './approvals.js'
 import {chatToolSet, type CodeCapability} from './code-mode.js'
 import {normalizedChunk, toolNameNormalizer, type TranscriptImporter} from './transcript.js'
@@ -28,11 +42,19 @@ export type SessionPort = {
   recordContextTokens: (sessionId: SessionId, contextTokens: number) => Promise<void>
   recordActivity: (sessionId: SessionId, title: string, at: number) => void
   onRunStart: (sessionId: SessionId) => Promise<void>
-  onRunEnd: (sessionId: SessionId) => Promise<void>
+  onRunEnd: (sessionId: SessionId, run: RunLifecycle) => Promise<void>
   publish: (sessionId: SessionId, chunk: ChatEvent) => void
 }
 
 export type SystemPromptSources = {systemPromptFile?: string; systemPromptText?: string}
+
+export type InstructionReset = 'keep' | 'reset'
+
+export type PluginInstructions = {initial: string; update: string; told: () => Promise<void>}
+
+export type SessionPrompt = PluginHooks.Domains['session']['prompt']
+
+type PromptFile = NonNullable<SessionPrompt['prompt']['files']>[number]
 
 export type AttachmentExpanders = Record<string, (part: AttachmentDocumentPart) => Promise<readonly ContentPart[]>>
 
@@ -45,6 +67,13 @@ export type TurnDeps = {
   toolNames: ReadonlySet<string>
   capabilities: (sessionId: SessionId) => CodeCapability[]
   attachmentExpanders: AttachmentExpanders
+  prompt: (event: SessionPrompt) => Promise<SessionPrompt>
+  promptHooked: () => Promise<boolean>
+  pluginInstructions: (
+    sessionId: SessionId,
+    reset: InstructionReset,
+    inventory: CodeModeCatalog.Inventory | undefined,
+  ) => Promise<PluginInstructions>
   log: (message: string) => void
 }
 
@@ -120,6 +149,43 @@ async function expandedMessage(message: ModelMessage, deps: TurnDeps): Promise<M
   return {...message, content: parts.flat()}
 }
 
+function promptFile(part: ContentPart): PromptFile[] {
+  if (part.type !== 'image' && part.type !== 'document') return []
+  if (part.source.type === 'data') return [{uri: `data:${part.source.mimeType};base64,${part.source.value}`}]
+  return [{uri: part.source.value}]
+}
+
+function promptEvent(sessionId: SessionId, messageId: string, message: ModelMessage): SessionPrompt {
+  const parts = contentParts(message.content)
+  const text = parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('\n')
+  const files = parts.flatMap(promptFile)
+  return {
+    sessionId,
+    messageId,
+    prompt: {text, ...(files.length === 0 ? {} : {files})},
+    ...(message.metadata === undefined ? {} : {metadata: message.metadata}),
+    delivery: 'queue',
+  }
+}
+
+const DATA_URI = /^data:([^;,]+);base64,(.*)$/s
+
+function attachmentPart(file: PromptFile): ContentPart {
+  const [, mimeType, value] = DATA_URI.exec(file.uri) ?? []
+  if (mimeType === undefined || value === undefined)
+    throw new Error(`Unsupported attachment URI: ${file.uri.slice(0, 64)}`)
+  const part: ContentPart = mimeType.startsWith('image/')
+    ? {type: 'image', source: {type: 'data', mimeType, value}}
+    : {type: 'document', source: {type: 'data', mimeType, value}}
+  if (!ChatContentPartSchema.safeParse(part).success) throw new Error(`Invalid attachment data: ${mimeType}`)
+  return part
+}
+
+function promptedMessage(message: ModelMessage, event: SessionPrompt): ModelMessage {
+  const text: ContentPart[] = event.prompt.text === '' ? [] : [{type: 'text', content: event.prompt.text}]
+  return {...message, content: [...text, ...(event.prompt.files ?? []).map(attachmentPart)], metadata: event.metadata}
+}
+
 function askedMessages(turn: Turn, messages: ModelMessage[], harness: HarnessAdapter): ModelMessage[] {
   if (turn.kind === 'compact') return [...messages, compactPrompt(harness)]
   if (turn.kind === 'page-queue') return [...messages, {role: 'user', content: turn.input}]
@@ -135,6 +201,21 @@ async function expandedLastUser(messages: ModelMessage[], deps: TurnDeps): Promi
   const target = messages[lastUser]
   if (target === undefined) return messages
   return messages.with(lastUser, await expandedMessage(target, deps))
+}
+
+function contentParts(content: ModelMessage['content']): ContentPart[] {
+  if (typeof content === 'string') return [{type: 'text', content}]
+  return content ?? []
+}
+
+function withUpdate(messages: ModelMessage[], update: string): ModelMessage[] {
+  const lastUser = messages.findLastIndex((message) => message.role === 'user')
+  const target = messages[lastUser]
+  if (update === '' || target === undefined) return messages
+  return messages.with(lastUser, {
+    ...target,
+    content: [{type: 'text', content: update}, ...contentParts(target.content)],
+  })
 }
 
 function fromLastUser(messages: ModelMessage[]): ModelMessage[] {
@@ -182,7 +263,7 @@ async function recordContext(deps: TurnDeps, sessionId: SessionId): Promise<void
 
 export function turnHooks(
   deps: TurnDeps,
-  context: {approvals: ApprovalStore; ui: UiChannel; transcripts: TranscriptImporter},
+  context: {approvals: ApprovalStore; ui: UiChannel; transcripts: TranscriptImporter; codeMode: boolean},
 ): TurnHooks {
   const normalize = toolNameNormalizer(deps.toolNames)
   return {
@@ -194,7 +275,13 @@ export function turnHooks(
       const own = ownRow(harness, row)
       const model = own?.model ?? null
       const resumeSessionId = resumableToken(deps, harness, row)
-      const toolSet = chatToolSet(deps.capabilities(sessionId), {sessionId, agentId: sessionId, model})
+      const reset: InstructionReset = turn.kind === 'compact' || resumeSessionId === null ? 'reset' : 'keep'
+      const instructions = Promise.withResolvers<PluginInstructions>()
+      const toolSet = chatToolSet(
+        deps.capabilities(sessionId),
+        {sessionId, agentId: sessionId, model},
+        context.codeMode,
+      )
       const config = harness.chatConfig({
         cwd: deps.cwd,
         sessionId,
@@ -203,19 +290,31 @@ export function turnHooks(
         effort: own?.effort ?? undefined,
         env: deps.harnessEnv?.(sessionId) ?? process.env,
         kind: turn.kind,
-        hasTools: toolSet.codeMode.length + toolSet.asking.length > 0,
+        hasTools: toolSet.codeMode.length + toolSet.asking.length + toolSet.direct.length > 0,
       })
       return {
         adapter: config.adapter,
         modelOptions: config.modelOptions,
-        systemPrompts: systemText === '' ? [] : [systemText],
+        systemPrompts: async () => [systemText, (await instructions.promise).initial].filter((text) => text !== ''),
         codeMode: toolSet.codeMode,
+        search: toolSet.search,
         asking: toolSet.asking,
+        direct: toolSet.direct,
         setup: async () => {
           await deps.sessions.ensure(sessionId)
           await deps.sessions.onRunStart(sessionId)
           await context.transcripts.sync(sessionId)
-          return context.approvals.forRun(sessionId)
+          const approvals = await context.approvals.forRun(sessionId)
+          instructions.resolve(deps.pluginInstructions(sessionId, reset, toolSet.inventory))
+          return approvals
+        },
+        prompt: async (message) => {
+          if (turn.kind !== 'chat' || message.id === undefined) return message
+          if (!(await deps.promptHooked())) return message
+          const event = promptEvent(sessionId, message.id, message)
+          const prompted = await deps.prompt(structuredClone(event))
+          if (isEqual(prompted, event)) return message
+          return promptedMessage(message, prompted)
         },
         expand: async (messages) => {
           const lastUser = messages.findLast((message) => message.role === 'user')
@@ -227,10 +326,12 @@ export function turnHooks(
         providerMessages: async (messages) => {
           const asked = askedMessages(turn, messages, harness)
           const prepared = resumeSessionId === null ? asked : fromLastUser(asked)
-          return config.prepareMessages?.(prepared) ?? prepared
+          const told = withUpdate(prepared, (await instructions.promise).update)
+          return config.prepareMessages?.(told) ?? told
         },
         chunk: async (chunk) => {
           const shaped = normalizedChunk(chunk, normalize)
+          if (chunk.type === ChatEventType.RUN_FINISHED) await (await instructions.promise).told()
           if (chunk.type === ChatEventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') {
             await recordContext(deps, sessionId)
           }
@@ -260,11 +361,11 @@ export function turnHooks(
     },
     started: (turn) =>
       deps.sessions.publish(SessionId.parse(turn.threadId), sessionRunEvent.create({runId: turn.runId})),
-    end: async (turn) => {
+    end: async (turn, run) => {
       const sessionId = SessionId.parse(turn.threadId)
       await context.transcripts.settle(sessionId)
       await recordContext(deps, sessionId)
-      await deps.sessions.onRunEnd(sessionId)
+      await deps.sessions.onRunEnd(sessionId, run)
     },
   }
 }

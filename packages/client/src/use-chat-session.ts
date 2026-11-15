@@ -1,3 +1,4 @@
+import {safe} from '@orpc/client'
 import {createChatSession, type ChatSession} from '@conciv/ai/client'
 import type {RpcClient} from '@conciv/contract'
 import {chatConnection, type ChatConnectionOptions} from './chat-connection.js'
@@ -42,6 +43,11 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
         joinsRun: session.joinsRun,
       }),
     stop: (runIds) => options.rpc.chat.stop({sessionId: options.sessionId, runIds}),
-    decide: (approvalId, approved, scope) => options.rpc.chat.permissionDecision({approvalId, approved, scope}),
+    decide: async (approvalId, approved, scope) => {
+      const answer = await safe(options.rpc.chat.permissionDecision({approvalId, approved, scope}))
+      if (answer.isSuccess) return answer.data
+      if (answer.isDefined && answer.error.code === 'UNKNOWN_REQUEST') return {startsTurn: false}
+      throw answer.error
+    },
   })
 }

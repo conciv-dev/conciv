@@ -1,5 +1,5 @@
 import {createORPCClient, ORPCError} from '@orpc/client'
-import {RPCLink} from '@orpc/client/fetch'
+import {RPCLink, type RPCLinkOptions} from '@orpc/client/fetch'
 import {ValidationError, type ContractRouterClient} from '@orpc/contract'
 import {ResponseValidationPlugin} from '@orpc/contract/plugins'
 import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
@@ -14,7 +14,10 @@ import {
 
 export type RpcClient = ContractRouterClient<typeof contract, RpcClientContext>
 
-export type RpcClientOptions = {headers?: Record<string, string>}
+export type RpcClientOptions = {
+  headers?: Record<string, string>
+  interceptors?: RPCLinkOptions<RpcClientContext>['interceptors']
+}
 
 export function abortableFetch(
   request: Request,
@@ -29,6 +32,7 @@ export function makeRpcClient(apiBase: string, options: RpcClientOptions = {}): 
     url: `${apiBase}/rpc`,
     fetch: abortableFetch,
     headers: {...options.headers, [CONCIV_VERSION_HEADER]: contractManifest.version},
+    interceptors: [...(options.interceptors ?? [])],
     plugins: [new ResponseValidationPlugin(contract)],
   })
   return createORPCClient(link)

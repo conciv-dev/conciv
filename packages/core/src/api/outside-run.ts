@@ -8,7 +8,7 @@ export function outsideRunCapabilities(capabilities: readonly CodeCapability[]):
   return capabilities
     .filter((capability) => capability.approval !== 'ask')
     .map((capability): CodeCapability => {
-      if (capability.name === BUILTIN_TABS_TOOL.name) return capability
+      if (capability.name === BUILTIN_TABS_TOOL.name || capability.direct === true) return capability
       return {
         ...capability,
         errors: [...capability.errors, {code: 'NO_TAB', message: NO_TAB_MESSAGE}],

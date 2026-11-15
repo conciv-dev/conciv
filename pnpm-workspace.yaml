@@ -15,6 +15,14 @@ syncInjectedDepsAfterScripts:
 # version here means every manifest's "catalog:" resolves to the same exact release.
 catalog:
   '@effect/sql-sqlite-node': 4.1.0
+  '@npmcli/arborist': 9.4.0
+  '@npmcli/config': 10.8.1
+  '@types/npm-package-arg': 6.1.4
+  '@types/npmcli__arborist': 6.3.3
+  '@types/pacote': 11.1.8
+  npm-package-arg: 13.0.2
+  pacote: 21.5.1
+  esbuild: 0.28.2
   '@modelcontextprotocol/sdk': ^1.32.2
   '@orpc/client': 1.16.1
   '@orpc/contract': 1.16.1
@@ -63,11 +71,13 @@ catalog:
   '@playwright/test': '^1.64.1'
   '@shikijs/langs-precompiled': 4.5.0
   '@shikijs/magic-move': '^4.5.0'
+  '@silvia-odwyer/photon-node': 0.3.4
   '@solid-primitives/date': '^2.1.8'
   '@solid-primitives/event-listener': '^2.4.6'
   '@solid-primitives/keyed': '^1.5.3'
   '@solid-primitives/map': '^0.7.4'
   '@solid-primitives/resize-observer': '^2.2.0'
+  '@solid-primitives/storage': '^4.4.0'
   '@solid-primitives/timer': '^1.4.4'
   '@solidjs/testing-library': '^0.8.10'
   '@standard-schema/spec': 1.1.0
@@ -121,6 +131,7 @@ catalog:
   class-variance-authority: '^0.7.1'
   culori: ^4.0.2
   defu: 6.1.7
+  detect-libc: 1.0.3
   drizzle-kit: '1.0.0-rc.5'
   drizzle-orm: '1.0.0-rc.5'
   effect: 4.1.0
@@ -129,10 +140,12 @@ catalog:
   eslint-plugin-playwright: 2.12.1
   eslint-plugin-solid: 0.18.1
   fast-check: 4.9.0
+  fuzzysort: 3.1.0
   get-port: '^7.2.0'
   glob: 13.0.5
   gsap: '^3.15.0'
   hono: '^4.13.14'
+  js-yaml: 5.5.0
   lucide-react: '^1.64.0'
   lucide-solid: '~1.66.0'
   marked: '^18.1.2'

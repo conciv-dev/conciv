@@ -2,6 +2,7 @@ import 'virtual:uno.css'
 import {afterEach, describe, expect, it, test, onTestFinished} from 'vitest'
 import {fitHeight, measureTextArea} from '../src/autosize.js'
 import {createSignal, For, Show, createRoot, type JSX} from 'solid-js'
+import {createStore} from 'solid-js/store'
 import {render} from '@solidjs/testing-library'
 import {page, userEvent} from 'vitest/browser'
 import {createClipboardCopy} from '../src/clipboard.js'
@@ -562,6 +563,89 @@ describe('dialog', () => {
   })
 })
 
+describe('dialog parts', () => {
+  afterEach(() => {
+    cleanupMounts()
+  })
+
+  it.each([
+    {mode: "Ark's default modal mode", modes: {}},
+    {mode: "the widget's non-modal, focus-trapping mode", modes: {modal: false, trapFocus: true}},
+  ])('opens stacked dialogs composed from the parts inside the shadow root in $mode', async ({modes}) => {
+    mountInShadow((root) => {
+      const [seen, setSeen] = createStore({focus: 'nothing', saves: 0})
+      const track = (name: string) => ({
+        onFocus: () => setSeen('focus', name),
+        onBlur: () => setSeen('focus', 'nothing'),
+      })
+      return (
+        <EnvironmentProvider value={() => root}>
+          <p>Focus is on {seen.focus}</p>
+          <p>Saves: {seen.saves}</p>
+          <Dialog.Root {...modes}>
+            <Dialog.Trigger {...track('the opener')}>Open plugin settings</Dialog.Trigger>
+            <Dialog.Portal>
+              <Dialog.Layer>
+                <Dialog.Backdrop />
+                <Dialog.Positioner>
+                  <Dialog.Content size="lg">
+                    <Dialog.Header>
+                      <Dialog.Title>Plugin settings</Dialog.Title>
+                      <Dialog.CloseTrigger {...track('the close button')} />
+                    </Dialog.Header>
+                    <Dialog.Body>
+                      <p>Choose what the plugin may read.</p>
+                      <Dialog.Root {...modes} closeOnInteractOutside={false}>
+                        <Dialog.Trigger>Open plugin details</Dialog.Trigger>
+                        <Dialog.Portal>
+                          <Dialog.Layer>
+                            <Dialog.Backdrop />
+                            <Dialog.Positioner>
+                              <Dialog.Content>
+                                <Dialog.Title>Plugin details</Dialog.Title>
+                              </Dialog.Content>
+                            </Dialog.Positioner>
+                          </Dialog.Layer>
+                        </Dialog.Portal>
+                      </Dialog.Root>
+                    </Dialog.Body>
+                    <Dialog.Footer>
+                      <button type="button" onClick={() => setSeen('saves', (saves) => saves + 1)}>
+                        Save
+                      </button>
+                    </Dialog.Footer>
+                  </Dialog.Content>
+                </Dialog.Positioner>
+              </Dialog.Layer>
+            </Dialog.Portal>
+          </Dialog.Root>
+        </EnvironmentProvider>
+      )
+    })
+    const save = page.getByRole('button', {name: 'Save', includeHidden: true})
+
+    await userEvent.click(page.getByRole('button', {name: 'Open plugin settings'}))
+    await expect.element(page.getByRole('dialog', {name: 'Plugin settings'})).toBeVisible()
+    await expect.element(page.getByText('Choose what the plugin may read.')).toBeVisible()
+    await expect.element(page.getByText('Focus is on the close button')).toBeVisible()
+
+    await userEvent.hover(save)
+    await userEvent.keyboard('{Tab}{Enter}')
+    await expect.element(page.getByRole('dialog', {name: 'Plugin details'})).toBeVisible()
+    await userEvent.pointer('[MouseLeft>][/MouseLeft]')
+    await expect.element(page.getByText('Saves: 0')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('dialog', {name: 'Plugin details'})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('dialog', {name: 'Plugin settings'})).toBeVisible()
+    await userEvent.pointer('[MouseLeft>][/MouseLeft]')
+    await expect.element(page.getByText('Saves: 1')).toBeVisible()
+
+    await userEvent.click(page.getByRole('button', {name: 'Close'}))
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
+    await expect.element(page.getByText('Focus is on the opener')).toBeVisible()
+  })
+})
+
 describe('resize', () => {
   const press = (key: string): KeyboardEvent => new KeyboardEvent('keydown', {key, cancelable: true})
 
@@ -863,16 +947,6 @@ describe('tooltip icon button', () => {
     expect(trigger.id).not.toBe(button.element().id)
   })
 
-  it('opens the tooltip when the button takes keyboard focus', async () => {
-    mount()
-    const button = page.getByRole('button', {name: NAME})
-    await expect.element(button).toBeVisible()
-
-    await userEvent.tab()
-
-    await expect.element(page.getByRole('tooltip')).toBeVisible()
-  })
-
   it('hides the tooltip once the menu it opens is showing', async () => {
     mount()
     const button = page.getByRole('button', {name: NAME})
@@ -921,6 +995,55 @@ describe('tooltip icon button', () => {
     await button.click()
 
     await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
+  })
+})
+
+describe('tooltip in a shadow root', () => {
+  afterEach(() => {
+    cleanupMounts()
+  })
+
+  it('opens as keyboard focus moves between triggers inside the root, and closes on Escape or moving on', async () => {
+    mountInShadow((root) => (
+      <EnvironmentProvider value={() => root}>
+        <button type="button">Before</button>
+        <TooltipIconButton tooltip="Pin">
+          <span aria-hidden="true">P</span>
+        </TooltipIconButton>
+        <Tooltip.Root>
+          <Tooltip.Trigger
+            asChild={(triggerProps) => (
+              <span {...triggerProps()}>
+                <button type="button">Wrapped</button>
+              </span>
+            )}
+          />
+          <Tooltip.Positioner>
+            <Tooltip.Content>Wrapped tip</Tooltip.Content>
+          </Tooltip.Positioner>
+        </Tooltip.Root>
+        <button type="button">After</button>
+      </EnvironmentProvider>
+    ))
+    const pin = page.getByRole('button', {name: 'Pin'})
+    await expect.element(pin).toBeVisible()
+
+    await userEvent.tab()
+    await userEvent.tab()
+
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Pin')
+    expect(pin.element().matches(':focus-visible')).toBe(true)
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
+
+    await userEvent.tab()
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Wrapped tip')
+    expect(page.getByRole('button', {name: 'Wrapped'}).element().matches(':focus-visible')).toBe(true)
+
+    await userEvent.tab()
+    await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: 'After'})).toBeVisible()
   })
 })
 

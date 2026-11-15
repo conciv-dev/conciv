@@ -8,8 +8,9 @@ import {PaneProvider} from '../app/pane-provider.js'
 import {ChatPane} from '../pane/chat-pane.js'
 import {RefreshButton} from '../shell/refresh-button.js'
 import {openPipWindow, type PipWindow} from '../shell/pip.js'
-import {NoticeContextProvider, NoticeSurface} from '../shell/notice-context.js'
+import {NoticeSurface} from '../shell/notice-context.js'
 import {EngineStaleNotice, EngineUnreachableNotice} from '../shell/engine-notice.js'
+import {PluginSession} from '../shell/plugin-surfaces.js'
 
 const PIP_ACTION = 'text-chat-text-2 leading-none size-8 hover:text-chat-text hover:bg-chat-fill-strong'
 const POPPED_OUT =
@@ -64,23 +65,22 @@ function PipSession(): JSX.Element {
         {(target) => (
           <Portal mount={target.wrap}>
             <EnvironmentProvider value={() => target.root}>
-              <NoticeContextProvider>
-                <Show when={paneKey()} keyed>
-                  {(key) => (
-                    <PaneProvider sessionId={key.sessionId}>
-                      <div class="flex flex-col h-full min-h-0 bg-chat-panel text-chat-text font-chat text-[0.875rem] leading-[1.45]">
-                        <NoticeSurface />
-                        <EngineStaleNotice />
-                        <EngineUnreachableNotice />
-                        <div class="flex justify-end px-2 pt-1">
-                          <RefreshButton class={PIP_ACTION} />
-                        </div>
-                        <ChatPane sessionId={key.sessionId} />
+              <Show when={paneKey()} keyed>
+                {(key) => (
+                  <PaneProvider sessionId={key.sessionId}>
+                    <PluginSession sessionId={key.sessionId} />
+                    <div class="flex flex-col h-full min-h-0 bg-chat-panel text-chat-text font-chat text-[0.875rem] leading-[1.45]">
+                      <NoticeSurface />
+                      <EngineStaleNotice />
+                      <EngineUnreachableNotice />
+                      <div class="flex justify-end px-2 pt-1">
+                        <RefreshButton class={PIP_ACTION} />
                       </div>
-                    </PaneProvider>
-                  )}
-                </Show>
-              </NoticeContextProvider>
+                      <ChatPane sessionId={key.sessionId} />
+                    </div>
+                  </PaneProvider>
+                )}
+              </Show>
             </EnvironmentProvider>
           </Portal>
         )}

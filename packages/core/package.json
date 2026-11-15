@@ -66,6 +66,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/ai": "workspace:^",
     "@conciv/chat": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/db": "workspace:^",
@@ -73,12 +74,14 @@
     "@conciv/extension-page": "workspace:^",
     "@conciv/harness": "workspace:^",
     "@conciv/harness-init": "workspace:^",
+    "@conciv/plugin": "workspace:^",
     "@conciv/plugin-host": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",
     "@conciv/solid-diffs": "workspace:^",
     "@conciv/tools": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",
+    "@effect/platform-node": "catalog:",
     "@jridgewell/trace-mapping": "0.3.31",
     "@orama/orama": "catalog:",
     "@orpc/client": "catalog:",
@@ -97,7 +100,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/ai": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
