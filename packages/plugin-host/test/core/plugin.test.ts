@@ -159,12 +159,15 @@ it.live("serves a local plugin's experimental bundle, and reloads it alone when 
     expect(yield* plugins.experimental(Plugin.Id.make('missing'))).toBeUndefined()
 
     yield* Effect.promise(() => writeFile(path.join(directory, 'plugin-experimental.js'), `${bundle}\n// edited`))
+    expect(yield* plugins.experimental(id)).toEqual(served)
     const edited = yield* load
     const published = updates.length
     yield* plugins.activate([edited])
+    const reloaded = yield* plugins.experimental(id)
 
     expect(edited.revision).toBe(first.revision)
-    expect((yield* plugins.experimental(id))?.revision).not.toBe(served?.revision)
+    expect(reloaded?.code).toBe(`${bundle}\n// edited`)
+    expect(reloaded?.revision).not.toBe(served?.revision)
     expect(updates.length).toBe(published + 1)
     expect(yield* Effect.promise(() => readFile(starts, 'utf8'))).toBe('x')
   }).pipe(Effect.scoped),
