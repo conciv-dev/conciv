@@ -1,6 +1,5 @@
 import {until} from '@conciv/harness-testkit/until'
 import {
-  mkdtempSync,
   rmSync,
   mkdirSync,
   writeFileSync,
@@ -150,6 +149,7 @@ import {
   userTexts,
   type FakeWidget,
 } from './helpers.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 function groupAlive(group: number): boolean {
   try {
@@ -233,7 +233,7 @@ describe('api engine staleness di', () => {
   })
 
   async function serveWithProbe(staleness: () => EngineStaleness): Promise<ServedApp> {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-staleness-di-'))
+    const root = tempDir('conciv-staleness-di-')
     dirs.push(root)
     const {fetch, dispose, agentToken} = await makeApp({
       cfg: resolveConfig({}, root),
@@ -349,7 +349,7 @@ describe('api extension mount isolation', () => {
         errors.push(String(chunk))
         return true
       })
-      const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-mount-'))
+      const stateRoot = tempDir('conciv-mount-')
       state.stateRoot = stateRoot
 
       const broken = defineExtension({name: 'broken'}).server(() => {
@@ -371,7 +371,7 @@ describe('api extension mount isolation', () => {
     }, 30_000)
 
     it('still fails boot loudly on a duplicate extension name (config error is not swallowed)', async () => {
-      const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-mount-dup-'))
+      const stateRoot = tempDir('conciv-mount-dup-')
       state.stateRoot = stateRoot
       const first = defineExtension({name: 'dup'}).server(() => ({context: {}}))
       const second = defineExtension({name: 'dup'}).server(() => ({context: {}}))
@@ -497,7 +497,7 @@ describe('api installed harnesses', () => {
   })
 
   it('offers a harness for switching only when its binary is on PATH, not for a config directory alone', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-installed-harnesses-'))
+    const root = tempDir('conciv-installed-harnesses-')
     const bin = join(root, 'bin')
     const home = join(root, 'home')
     mkdirSync(bin)
@@ -679,7 +679,7 @@ describe('connect hub', () => {
 
 describe('api codex turns', () => {
   const saved = {PATH: process.env.PATH, HOME: process.env.HOME, CODEX_HOME: process.env.CODEX_HOME}
-  const root = mkdtempSync(join(tmpdir(), 'conciv-codex-turns-'))
+  const root = tempDir('conciv-codex-turns-')
   const bin = join(root, 'bin')
   const fakeCodex = [
     '#!/bin/sh',
@@ -781,7 +781,7 @@ describe('api claude turns', () => {
     CLAUDE_CODE_EFFORT_LEVEL: process.env.CLAUDE_CODE_EFFORT_LEVEL,
     MAX_THINKING_TOKENS: process.env.MAX_THINKING_TOKENS,
   }
-  const root = mkdtempSync(join(tmpdir(), 'conciv-claude-turns-'))
+  const root = tempDir('conciv-claude-turns-')
   const bin = join(root, 'bin')
   const fakeClaude = [
     '#!/bin/sh',
@@ -1341,9 +1341,9 @@ describe('api native page', () => {
 
   describe('token-scoped native page', () => {
     it('serves the native page under /t/<token> with a prefix-relative bundle and its widget chunks, and unprefixed as an open page', async () => {
-      const root = mkdtempSync(join(tmpdir(), 'conciv-native-token-'))
-      const nativeDir = mkdtempSync(join(tmpdir(), 'conciv-native-dist-'))
-      const endpointDir = mkdtempSync(join(tmpdir(), 'conciv-native-ep-'))
+      const root = tempDir('conciv-native-token-')
+      const nativeDir = tempDir('conciv-native-dist-')
+      const endpointDir = tempDir('conciv-native-ep-')
       writeFileSync(join(nativeDir, BUNDLE), 'globalThis.__conciv_native_loaded = true')
       mkdirSync(join(nativeDir, 'widget'))
       writeFileSync(join(nativeDir, 'widget', 'mount-impl-Ab_9.js'), 'export const chunk = 1')
@@ -1632,7 +1632,7 @@ describe('rpc registry catalog cosmetics', () => {
 })
 
 describe('rpc symbolicate', () => {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-symbolicate-')))
+  const root = realpathSync(tempDir('conciv-symbolicate-'))
 
   async function chunk(name: string, source: string, line: number, column: number): Promise<string> {
     const gen = new GenMapping()
@@ -2656,7 +2656,7 @@ describe('rpc wire', () => {
 
         beforeAll(async () => {
           searched.bootedAt = Date.now()
-          searched.cwd = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-search-cwd-')))
+          searched.cwd = realpathSync(tempDir('conciv-search-cwd-'))
           writeClaudeTurn(claudeId('claude-early'), 'an early note', 'the dunlin flew')
           searched.kit = await bootKit(
             {cwd: searched.cwd, harnesses: [codexHarness, piHarness]},
@@ -3025,7 +3025,7 @@ describe('rpc wire', () => {
         })
 
         it('previewing a session in a folder outside the index adds that folder, so a later search finds its sessions', async () => {
-          const folder = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-preview-unindexed-')))
+          const folder = realpathSync(tempDir('conciv-preview-unindexed-'))
           const transcriptIn = (nativeId: string, ask: string, answer: string) => {
             const id = HarnessSessionId.parse(nativeId)
             const entries = [
@@ -3064,7 +3064,7 @@ describe('rpc wire', () => {
           expect(window.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
           await foundOnceIndexed('ringed', ['pi-plover-neighbour'], true)
 
-          const elsewhere = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-preview-elsewhere-')))
+          const elsewhere = realpathSync(tempDir('conciv-preview-elsewhere-'))
           const turnstone = claudeId('claude-turnstone-away')
           writeWhole(
             requireTranscriptPath(requireClaude())(elsewhere, HarnessSessionId.parse(turnstone)),
@@ -3078,7 +3078,7 @@ describe('rpc wire', () => {
         })
 
         it('searches this project unless asked for every project, reading each session from its own folder', async () => {
-          const elsewhere = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-search-elsewhere-')))
+          const elsewhere = realpathSync(tempDir('conciv-search-elsewhere-'))
           const home = claudeId('claude-avocet-home')
           const away = claudeId('claude-avocet-away')
           writeClaudeTurn(home, 'an avocet at home', 'it waded the lagoon')
@@ -4189,8 +4189,6 @@ describe('token charset', () => {
     rmSync(root, {recursive: true, force: true})
   })
 })
-
-const tempDir = (prefix: string): string => mkdtempSync(join(tmpdir(), prefix))
 
 function bootAt(
   homeDir: string,

@@ -1682,7 +1682,7 @@ describe('browser rpc over one websocket', () => {
   }
 
   test('an untrusted socket is refused until an auth call on that same socket trusts it, and nothing rides http', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const root = tempDir()
     const served = await engine(root)
     const client = makeBrowserRpcClient(served.origin)
     const connection = browserRpcConnection(served.origin)
@@ -1713,7 +1713,7 @@ describe('browser rpc over one websocket', () => {
   })
 
   test('an open changes stream keeps delivering after the engine restarts on the same port', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const root = tempDir()
     const first = await engine(root)
     const token = first.made.trustBrowser(requester, Date.now())
     const votes: boolean[] = []
@@ -1743,7 +1743,7 @@ describe('browser rpc over one websocket', () => {
   }, 20_000)
 
   test('a socket that closed before its auth call finished is never trusted afterwards', () => {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const root = tempDir()
     const browsers = watchTrustedBrowsers(concivStateDir(root))
     const agentToken = 'conciv-agent-token'
     try {
@@ -1762,10 +1762,7 @@ describe('browser rpc over one websocket', () => {
   })
 
   test('each api base keeps its own socket, and one closing client leaves the base open for the others', async () => {
-    const [firstRoot, secondRoot] = [
-      mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-')),
-      mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-')),
-    ]
+    const [firstRoot, secondRoot] = [tempDir(), tempDir()]
     const first = await engine(firstRoot)
     const second = await engine(secondRoot)
     const firstClient = makeBrowserRpcClient(first.origin)
@@ -1799,7 +1796,7 @@ describe('browser rpc over one websocket', () => {
   }, 20_000)
 
   test('a trust observer keeps hearing its base after the last client released it and a new client opened', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const root = tempDir()
     const served = await engine(root)
     const observer = browserRpcConnection(served.origin)
     const heard: TrustStatus[] = []
@@ -1825,7 +1822,7 @@ describe('browser rpc over one websocket', () => {
   })
 
   test('a revoked token closes the socket and the next call opens a fresh untrusted one', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const root = tempDir()
     const served = await engine(root)
     const {trust, release} = browserRpcConnection(served.origin)
     try {

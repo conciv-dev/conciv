@@ -1,4 +1,3 @@
-import {mkdtempSync} from 'node:fs'
 import {writeFile, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
@@ -26,6 +25,7 @@ import {z} from 'zod'
 import {makeApp, type MadeApp} from '../src/app.js'
 import {type ResolvedConcivConfig} from '../src/config.js'
 import {ensureRow} from '../src/sessions/session-rows.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 export function requireClaude(): HarnessAdapter {
   const adapter = getHarness('claude')
@@ -157,7 +157,7 @@ export type ChatFixture = {
 
 export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promise<ChatFixture> {
   const harness = createTestHarness(requireClaude())
-  const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-fixture-'))
+  const stateRoot = tempDir('conciv-fixture-')
   const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
   const sessionId = SessionId.parse('conciv_fixture')
   if (opts.seedSession !== false) await ensureRow(made.chat.db, sessionId, harness.id, stateRoot)
