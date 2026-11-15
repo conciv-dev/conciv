@@ -1,4 +1,4 @@
-import {mkdtempSync} from 'node:fs'
+import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 
@@ -14,6 +14,12 @@ type CiCoverage = {
 export function ciReporters(): CiReporterEntry[] {
   if (!process.env.GITHUB_ACTIONS) return ['default']
   return ['default', ['github-actions', {jobSummary: {enabled: false}}], ['json', {outputFile: 'test-results.json'}]]
+}
+
+export function processTempDir(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix))
+  process.once('exit', () => rmSync(dir, {recursive: true, force: true, maxRetries: 10}))
+  return dir
 }
 
 function forkCap(): number | undefined {
@@ -32,7 +38,7 @@ export function ciTest(): {
   env: {CONCIV_HOME: string}
 } {
   const maxWorkers = forkCap()
-  const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+  const home = processTempDir('conciv-home-')
   process.env.CONCIV_HOME = home
   return {
     reporters: ciReporters(),

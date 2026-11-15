@@ -1,6 +1,3 @@
-import {mkdtempSync} from 'node:fs'
-import {tmpdir} from 'node:os'
-import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {afterAll, beforeAll} from 'vitest'
 import type {Page} from 'playwright-core'
@@ -12,6 +9,7 @@ import {createCaptureControl} from '../src/server/capture-control.js'
 import {createRecordingStore} from '../src/server/recordings.js'
 import {createClientRings} from '../src/server/rings.js'
 import type {RecorderRuntime} from '../src/server/runtime.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 export async function startLiveCapture(api: ExtensionTestApi): Promise<{captureId: string}> {
   return z.object({captureId: z.string()}).parse(await api.callTool('recording_start', {}))
@@ -33,7 +31,7 @@ export function runtimeFixture(): RecorderRuntime {
     control: createCaptureControl(rings),
     config: {masking: 'none', windowMinutes: 10, console: true},
     useRenderer: async () => null,
-    recordings: createRecordingStore(mkdtempSync(join(tmpdir(), 'rec-'))),
+    recordings: createRecordingStore(tempDir('rec-')),
   }
 }
 

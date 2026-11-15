@@ -1,10 +1,10 @@
-import {mkdir, mkdtemp, rm, writeFile} from 'node:fs/promises'
-import {tmpdir} from 'node:os'
+import {mkdir, rm, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {onTestFinished} from 'vitest'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 export async function scaffoldWorkspaceRoot(prefix: string, packageGlobs: string[] = ['packages/*']): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), prefix))
+  const root = tempDir(prefix)
   onTestFinished(() => rm(root, {recursive: true, force: true}))
   await writeFile(
     join(root, 'pnpm-workspace.yaml'),

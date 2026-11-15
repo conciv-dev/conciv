@@ -1,6 +1,5 @@
 import {
   existsSync,
-  mkdtempSync,
   rmSync,
   readFileSync,
   readdirSync,
@@ -21,6 +20,7 @@ import {text as bodyText} from 'node:stream/consumers'
 import {randomUUID} from 'node:crypto'
 import {setImmediate, setTimeout as wait} from 'node:timers/promises'
 import {describe, it, expect, afterEach, onTestFinished, test, vi} from 'vitest'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {webSocket} from '@conciv/ai/client'
 import {makeTextAdapter, quickJSThreadDriver} from '@conciv/ai/server'
 import {createToolCallChunks, fakeText} from '@conciv/ai/testkit'
@@ -213,12 +213,6 @@ const NO_CAPABILITIES = {
 
 const JSON_TYPE = {'content-type': 'application/json'}
 
-function tempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'conciv-core-unit-'))
-  onTestFinished(() => rmSync(dir, {recursive: true, force: true}))
-  return dir
-}
-
 function bootEngine(root: string, overrides: Partial<Parameters<typeof start>[0]> = {}) {
   const options = {harnessBin: 'true', stateRoot: root, systemPrompt: false}
   return start({options, root, launchEditor: () => {}, ...overrides})
@@ -291,7 +285,7 @@ describe('chat plane', () => {
   })
 
   it('a turn falls back to systemPromptText and logs an unreadable systemPromptFile, a credential-shaped capability fails only its own run, plugin skills and the code-mode catalog reach the system prompt when the starting point resets and the user words in between, search finds a tool by its parameter, and with no isolate driver every tool reaches the model and the MCP listing directly with no catalog while an asking tool still needs approval', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const cli = fakeCli()
     const log: string[] = []
     const missing = join(root, 'no-such-prompt.md')
@@ -629,7 +623,7 @@ describe('chat plane', () => {
   })
 
   it('after a restart the finished and interrupted turns all show, and the interrupted run is aborted with a finish time', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const cli = fakeCli('reply', 'partial')
     const first = await plane(cliHarness(cli), root)
     const id = sessionId('durable')
@@ -661,7 +655,7 @@ describe('chat plane', () => {
       ]),
     }
     const sessions = sessionPort(HarnessSessionId.parse('native-session'), 'native')
-    const chat = await plane(nativeHarness(native), tempDir(), {sessions})
+    const chat = await plane(nativeHarness(native), tempDir('conciv-core-unit-'), {sessions})
     const id = sessionId('native-paged')
     const newest = await chat.hydrate(id, {limit: 2})
     const readsForNewest = native.reads
@@ -693,7 +687,7 @@ describe('chat plane', () => {
   })
 
   it('engine stop refuses new requests, ends a run held mid-stream as aborted, and never queries a closed database', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const cli = fakeCli('streaming')
     const written = vi.spyOn(process.stderr, 'write')
     const engine = await bootEngine(root, {harness: cliHarness(cli)})
@@ -717,7 +711,7 @@ describe('chat plane', () => {
   })
 
   it('an engine that died mid-run starts again on the same state, the cut run ends aborted once, and no turn follows it', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const cli = fakeCli('streaming')
     const died = await bootEngine(root, {harness: cliHarness(cli)})
     onTestFinished(async () => {
@@ -745,7 +739,7 @@ describe('chat plane', () => {
 
   it('a push socket that opens while a run is going is told about that run', async () => {
     const cli = fakeCli('streaming')
-    const engine = await bootEngine(tempDir(), {harness: cliHarness(cli)})
+    const engine = await bootEngine(tempDir('conciv-core-unit-'), {harness: cliHarness(cli)})
     onTestFinished(async () => {
       cli.release()
       await engine.stop()
@@ -869,7 +863,7 @@ describe('chat plane', () => {
 
   async function plane(
     harness: HarnessAdapter,
-    root = tempDir(),
+    root = tempDir('conciv-core-unit-'),
     overrides: Partial<Parameters<typeof createChatPlane>[0]> = {},
   ): Promise<ChatPlane> {
     const db = openDatabase(root)
@@ -1010,7 +1004,7 @@ describe('config', () => {
 
 describe('local state files', () => {
   it('the dev endpoint file is owner-only, reads null when missing or malformed, and only its owner pid removes it', () => {
-    const dir = tempDir()
+    const dir = tempDir('conciv-core-unit-')
     const file = join(dir, 'dev-endpoint.json')
     expect(readDevEndpoint(dir)).toBeNull()
     writeFileSync(file, 'not json')
@@ -1028,7 +1022,7 @@ describe('local state files', () => {
   })
 
   it('the staleness probe turns stale on a content change only, names that package, and mints a new fingerprint', () => {
-    const dir = tempDir()
+    const dir = tempDir('conciv-core-unit-')
     const [core, tools] = [join(dir, 'core.js'), join(dir, 'tools.js')]
     writeFileSync(core, 'export const a = 1')
     writeFileSync(tools, 'export const b = 1')
@@ -1049,7 +1043,7 @@ describe('local state files', () => {
 
   describe('home db reads', () => {
     it('yields every home db write made after the first value, from before the db exists until the abort', async () => {
-      const home = tempDir()
+      const home = tempDir('conciv-core-unit-')
       const stop = new AbortController()
       onTestFinished(() => stop.abort())
       const reads = homeDbReads(home, stop.signal, () => readHomeDb(home, hubConnections) ?? [])
@@ -1082,7 +1076,7 @@ describe('local state files', () => {
     }
 
     it('waits for the first live list, then answers from the saved one at once while a refresh, a failure or an empty list lands', async () => {
-      const dir = tempDir()
+      const dir = tempDir('conciv-core-unit-')
       const savedFile = () => JSON.parse(readFileSync(join(dir, 'listing-models.json'), 'utf8'))
       expect(await resolveHarnessModels(listing(dir, async () => [OPUS]))).toEqual([OPUS])
       expect(savedFile()).toEqual([OPUS])
@@ -1107,7 +1101,7 @@ describe('local state files', () => {
     it('reports the failure when nothing is saved and retries on the next call', async () => {
       const outcomes: Promise<Listed[]>[] = [Promise.reject(new Error('probe failed')), Promise.resolve([OPUS])]
       outcomes[0]?.catch(() => {})
-      const harness = listing(tempDir(), () => outcomes.shift() ?? Promise.resolve([]))
+      const harness = listing(tempDir('conciv-core-unit-'), () => outcomes.shift() ?? Promise.resolve([]))
       await expect(resolveHarnessModels(harness)).rejects.toThrow('probe failed')
       expect(await resolveHarnessModels(harness)).toEqual([OPUS])
     })
@@ -1134,7 +1128,7 @@ describe('editor symbolicate', () => {
 
 describe('engine boot writes .conciv/mcp-endpoint.json', () => {
   it('start records the MCP endpoint a headless stdio bridge reads, the endpoint answers, and repeat opens launch the editor once', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const launched: unknown[] = []
     const engine = await bootEngine(root, {launchEditor: (...call) => launched.push(call)})
     try {
@@ -1170,7 +1164,7 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
   })
 
   it('releases the port when the endpoint file cannot be written', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const port = await getPort()
     mkdirSync(join(statePaths(root).dir, 'mcp-endpoint.json'), {recursive: true})
     await expect(bootEngine(root, {port: {exact: port}})).rejects.toThrow()
@@ -1191,7 +1185,7 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
       },
     }))
     try {
-      const booting = bootEngine(tempDir(), {port: {exact: port}, extensions: [failingDispose]})
+      const booting = bootEngine(tempDir('conciv-core-unit-'), {port: {exact: port}, extensions: [failingDispose]})
       await expect(booting).rejects.toMatchObject({code: 'EADDRINUSE'})
       const logged = written.mock.calls.flat().map(String).join('\n')
       expect.soft(logged).toContain('conciv: cleanup after a failed start also failed')
@@ -1205,7 +1199,7 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
 
 describe('configured session rows', () => {
   it('the configured conciv and harness session rows exist once the engine resolves, and the start leaves the database file mode alone', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const databaseFile = join(concivStateDir(root), 'conciv.db')
     openDb(root).$client.close()
     chmodSync(databaseFile, 0o644)
@@ -1222,7 +1216,7 @@ describe('configured session rows', () => {
   })
 
   it('a start that fails once the plugin host is built closes every handle on the database', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const databaseFile = join(concivStateDir(root), 'conciv.db')
     const seeded = openDb(root)
     seeded.run(
@@ -1236,7 +1230,7 @@ describe('configured session rows', () => {
 
 describe('session metadata', () => {
   it('a session starts with no metadata, and each setMetadata replaces the whole record', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const db = openDb(root)
     const id = SessionId.parse('conciv_metadata')
     await ensureRow(db, id, 'fake-cli', root)
@@ -1301,7 +1295,7 @@ describe('page bus and the session scope', () => {
   }
 
   function pageQueues(bus: ReturnType<typeof makePageBus>, syncMs?: number): PageQueues {
-    const db = openDb(tempDir())
+    const db = openDb(tempDir('conciv-core-unit-'))
     onTestFinished(() => db.$client.close())
     const queues = makePageQueues({bus, journal: makeJournal(db), syncMs})
     for (const callId of [HUB_CALL, 'call-1']) queues.hubCall(SESSION_A, callId)
@@ -2065,7 +2059,7 @@ describe('engine login', () => {
   })
 
   test('the gate refuses until a printed code is exchanged, and the browser stays trusted across a restart', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const printed: string[] = []
     const clientRequests = {count: 0}
     const boot = () =>
@@ -2104,7 +2098,7 @@ describe('engine login', () => {
   })
 
   test('every route refuses an unknown caller except the declared open paths, and every response names the core version', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const probe = defineExtension({name: 'probe'}).server(() => ({
       context: {},
       app: new Hono().get('/ping', (c) => c.text('pong')),
@@ -2241,7 +2235,7 @@ describe('browser rpc over one websocket', () => {
   }
 
   test('an untrusted socket is refused until an auth call on that same socket trusts it, and nothing rides http', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const root = tempDir('conciv-core-unit-')
     const served = await engine(root)
     const client = makeBrowserRpcClient(served.origin)
     const connection = browserRpcConnection(served.origin)
@@ -2272,7 +2266,7 @@ describe('browser rpc over one websocket', () => {
   })
 
   test('an open changes stream keeps delivering after the engine restarts on the same port', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const root = tempDir('conciv-core-unit-')
     const first = await engine(root)
     const token = first.made.trustBrowser(requester, Date.now())
     const votes: boolean[] = []
@@ -2302,7 +2296,7 @@ describe('browser rpc over one websocket', () => {
   }, 20_000)
 
   test('a socket that closed before its auth call finished is never trusted afterwards', () => {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const root = tempDir('conciv-core-unit-')
     const browsers = watchTrustedBrowsers(concivStateDir(root))
     const agentToken = 'conciv-agent-token'
     try {
@@ -2321,10 +2315,7 @@ describe('browser rpc over one websocket', () => {
   })
 
   test('each api base keeps its own socket, and one closing client leaves the base open for the others', async () => {
-    const [firstRoot, secondRoot] = [
-      mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-')),
-      mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-')),
-    ]
+    const [firstRoot, secondRoot] = [tempDir('conciv-core-unit-'), tempDir('conciv-core-unit-')]
     const first = await engine(firstRoot)
     const second = await engine(secondRoot)
     const firstClient = makeBrowserRpcClient(first.origin)
@@ -2358,7 +2349,7 @@ describe('browser rpc over one websocket', () => {
   }, 20_000)
 
   test('a trust observer keeps hearing its base after the last client released it and a new client opened', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const root = tempDir('conciv-core-unit-')
     const served = await engine(root)
     const observer = browserRpcConnection(served.origin)
     const heard: TrustStatus[] = []
@@ -2384,7 +2375,7 @@ describe('browser rpc over one websocket', () => {
   })
 
   test('a revoked token closes the socket and the next call opens a fresh untrusted one', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const root = tempDir('conciv-core-unit-')
     const served = await engine(root)
     const {trust, release} = browserRpcConnection(served.origin)
     try {
@@ -2433,7 +2424,7 @@ describe('settings storage', () => {
   }
 
   test('the server store, the rpc client store and a second subscriber share one debounced file per scope', async () => {
-    const [root, home] = [tempDir(), tempDir()]
+    const [root, home] = [tempDir('conciv-core-unit-'), tempDir('conciv-core-unit-')]
     const projectFolder = join(root, '.conciv', 'settings')
     const globalFolder = join(home, 'settings')
     mkdirSync(projectFolder, {recursive: true})
@@ -2485,7 +2476,7 @@ describe('settings storage', () => {
   })
 
   test('a browser client keeps following a scope across an engine restart longer than the one-shot retry budget', async () => {
-    const [root, home] = [tempDir(), tempDir()]
+    const [root, home] = [tempDir('conciv-core-unit-'), tempDir('conciv-core-unit-')]
     const fixed = {agentToken: randomUUID(), port: await getPort()}
     const project = {scope: 'project', namespace: 'probe'} as const
     const first = await bootSettings(root, home, 'probe', fixed)
@@ -2519,7 +2510,7 @@ describe('settings storage', () => {
   }, 30_000)
 
   test('saved settings survive a restart, a corrupt file starts empty, and a namespace outside the folder or a key over 512 characters is refused', async () => {
-    const [root, home] = [tempDir(), tempDir()]
+    const [root, home] = [tempDir('conciv-core-unit-'), tempDir('conciv-core-unit-')]
     const folder = join(root, '.conciv', 'settings')
     mkdirSync(folder, {recursive: true})
     writeFileSync(join(folder, 'saved.json'), '{"__proto__": {"polluted": true}, "theme": "dark"}')
@@ -2591,7 +2582,7 @@ function sessionKey(made: MadeApp) {
 
 describe('plugin host bus', () => {
   test('deleting a session delivers one session.deleted event to a bus subscriber and keeps none of its events, and a plugin host failure leaves the session in place', async () => {
-    const served = await serveCore(tempDir(), [], {})
+    const served = await serveCore(tempDir('conciv-core-unit-'), [], {})
     try {
       const rpc = makeRpcClient(`${served.origin}/t/${served.made.agentToken}`)
       const db = served.made.chat.db
@@ -2630,7 +2621,7 @@ describe('plugin host bus', () => {
   })
 
   test('a plugin experimental.idle hook fires for a run that completes and not for one that fails or is stopped, while turnEnd fires for all three', async () => {
-    const stateRoot = tempDir()
+    const stateRoot = tempDir('conciv-core-unit-')
     const turnEnds: SessionId[] = []
     const recorder = defineExtension({name: 'turn-ends'}).server(() => ({
       context: {},
@@ -2759,7 +2750,7 @@ describe('plugin host bus', () => {
     expect(await waitingAtClose).toEqual({kind: 'delivered'})
   })
   test('the session key interrupts a live run, waits for it to end, answers false with nothing to stop even when asked to resume, and compacts a session on its harness', async () => {
-    const stateRoot = tempDir()
+    const stateRoot = tempDir('conciv-core-unit-')
     const harness = createTestHarness(requireClaude())
     const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
     onTestFinished(() => made.dispose())
@@ -3105,7 +3096,7 @@ describe('plugin rpc over the socket', () => {
   })
 
   test('a registered contract answers a socket client, every failure keeps its text, and an event reaches two subscribers', async () => {
-    const served = await serveCore(tempDir(), [], {})
+    const served = await serveCore(tempDir('conciv-core-unit-'), [], {})
     const client = makeBrowserRpcClient(served.origin)
     const connection = browserRpcConnection(served.origin)
     const host = served.made.pluginHost
@@ -3443,7 +3434,7 @@ describe('direct tools on the MCP surface', () => {
   })
 
   it('a codemode false tool is its own MCP tool that runs without an approval card, an outside run keeps it, and a session that denies execute lists every plugin tool directly and no execute tool', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const {made, origin, stop} = await serveCore(root, [], {})
     onTestFinished(stop)
     const id = SessionId.parse('conciv_mcp_direct')
@@ -3622,7 +3613,7 @@ describe('direct tools on the MCP surface', () => {
 
 describe('plugin context keys provided by core', () => {
   it('instruction entries are kept per session, reach the plugin instructions and leave them on remove, an oversized value is refused, the harness source reads its MCP url lazily, and the bundler, extension slugs, app and configured policies are provided, the model key answers from the harness models filled as opencode fills an unknown model, and the cache and state roots sit under the conciv home', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const home = join(root, 'home')
     const OPUS = {id: 'opus', name: 'Opus 5.5', contextWindow: 1_000_000}
     const SONNET = {
@@ -3797,7 +3788,7 @@ describe('plugin context keys provided by core', () => {
     expect(existsSync(roots.cache) && existsSync(roots.config) && existsSync(roots.state)).toBe(true)
   })
   it('the session key creates, reads, pages, renames, re-describes, switches and removes conciv sessions on their own rows', async () => {
-    const stateRoot = tempDir()
+    const stateRoot = tempDir('conciv-core-unit-')
     const harness = defineHarness({
       id: 'listing-cli',
       binName: 'listing-cli',

@@ -19,6 +19,7 @@
     ".": "./src/reporters.ts",
     "./pack": "./src/pack.ts",
     "./solid-cleanup": "./src/solid-cleanup-setup.ts",
+    "./temp-dir": "./src/temp-dir.ts",
     "./vite-lib": "./src/vite-lib.ts"
   },
   "scripts": {
