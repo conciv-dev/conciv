@@ -6560,6 +6560,8 @@ export const Deploy = Rpc.define({
   const DEPLOY_INDEX = `import {Plugin} from ${JSON.stringify(import.meta.resolve('@conciv/plugin'))}
 import {Deploy} from './rpc.js'
 
+const description = 'Deploy the current branch'
+
 const run = async ({env}: {env: 'staging' | 'prod'}) => ({url: \`https://\${env}.example.com\`})
 
 export default Plugin.define({
@@ -6568,11 +6570,20 @@ export default Plugin.define({
     await ctx.tool.transform((tools) => {
       tools.add({
         name: 'run',
-        description: 'Deploy the current branch',
+        description,
         input: Deploy.methods.run.input,
         output: Deploy.methods.run.output,
         options: {namespace: 'deploy'},
         execute: async (input) => ({output: await run(input)}),
+      })
+    })
+    await ctx.skill.transform((skills) => {
+      skills.add({
+        id: 'deploy',
+        name: 'Deploy',
+        description: \`\${description}.\`,
+        path: 'skill://deploy/SKILL.md',
+        content: 'You can deploy from code mode with \`external_deploy_run\`.',
       })
     })
     const registration = await ctx.rpc.register(Deploy, {run})
@@ -6581,7 +6592,7 @@ export default Plugin.define({
 })
 `
 
-  it('a plugin folder in the project offers its deploy tool to code mode and answers its deploy method', async () => {
+  it('a plugin folder in the project offers its deploy tool to code mode, answers its deploy method and teaches its skill', async () => {
     const root = tempDir('conciv-deploy-')
     mkdirSync(join(root, 'conciv', 'plugins', 'deploy'), {recursive: true})
     writeFileSync(join(root, 'conciv', 'plugins', 'deploy', 'index.ts'), DEPLOY_INDEX)
@@ -6617,6 +6628,11 @@ export default Plugin.define({
         {signal: AbortSignal.timeout(5000)},
       ),
     ).toEqual({url: 'https://prod.example.com'})
+    const mcp = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: sessionId})
+    onTestFinished(() => mcp.close())
+    expect(
+      JSON.stringify(await (await mcp.tools()).find((entry) => entry.name === 'skill')?.execute?.({id: 'deploy'})),
+    ).toContain('You can deploy from code mode with `external_deploy_run`.')
   })
 })
 

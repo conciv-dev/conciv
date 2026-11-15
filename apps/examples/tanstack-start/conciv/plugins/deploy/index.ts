@@ -1,6 +1,8 @@
 import {Plugin} from '@conciv/plugin'
 import {Deploy} from './rpc.js'
 
+const description = 'Deploy the current branch'
+
 const run = async ({env}: {env: 'staging' | 'prod'}) => ({url: `https://${env}.example.com`})
 
 export default Plugin.define({
@@ -9,11 +11,20 @@ export default Plugin.define({
     await ctx.tool.transform((tools) => {
       tools.add({
         name: 'run',
-        description: 'Deploy the current branch',
+        description,
         input: Deploy.methods.run.input,
         output: Deploy.methods.run.output,
         options: {namespace: 'deploy'},
         execute: async (input) => ({output: await run(input)}),
+      })
+    })
+    await ctx.skill.transform((skills) => {
+      skills.add({
+        id: 'deploy',
+        name: 'Deploy',
+        description: `${description}.`,
+        path: 'skill://deploy/SKILL.md',
+        content: 'You can deploy from code mode with `external_deploy_run`.',
       })
     })
     const registration = await ctx.rpc.register(Deploy, {run})
