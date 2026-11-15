@@ -16,6 +16,8 @@ import appManifest from '../package.json' with {type: 'json'}
 import {until} from '@conciv/harness-testkit/until'
 import {formatForDisplay} from '@tanstack/solid-hotkeys'
 import {ChatPane} from '../src/pane/chat-pane.js'
+import {createBrowserDraftStore} from '../src/runtime/persistence/drafts.js'
+import {persistStore} from '../src/runtime/persistence/persist.js'
 import {
   bootedCore,
   keptPane,
@@ -7856,3 +7858,84 @@ exports.big = big
       .toBeVisible()
   }, 60_000)
 })
+
+describe('the local draft store', () => {
+  const DraftDocumentSchema = z.object({text: z.string()})
+  const openRaw = () =>
+    new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('conciv-drafts')
+      request.addEventListener('success', () => resolve(request.result))
+      request.addEventListener('error', () => reject(request.error))
+    })
+  const rawRequest = <T,>(run: (blobs: IDBObjectStore) => IDBRequest<T>, mode: IDBTransactionMode) =>
+    openRaw().then(
+      (database) =>
+        new Promise<T>((resolve, reject) => {
+          const request = run(database.transaction('blobs', mode).objectStore('blobs'))
+          request.addEventListener('success', () => {
+            database.close()
+            resolve(request.result)
+          })
+          request.addEventListener('error', () => reject(request.error))
+        }),
+    )
+  const readText = async (store: ReturnType<typeof createBrowserDraftStore>, key: string) => {
+    const raw = await store.getItem(key)
+    return raw === null ? null : DraftDocumentSchema.parse(JSON.parse(raw)).text
+  }
+
+  test('writes a draft and reads it back, skips an unchanged save, drops a superseded one and sweeps orphan blobs on open', async () => {
+    const store = createBrowserDraftStore()
+    const key = `session:${crypto.randomUUID()}`
+    await store.setItem(key, JSON.stringify({text: 'first draft'}))
+    expect(await readText(store, key)).toBe('first draft')
+
+    await createRoot(async (dispose) => {
+      const [draft, setDraft] = createStore({text: ''})
+      const persisted = persistStore({
+        store: draft,
+        setStore: setDraft,
+        name: key,
+        storage: store,
+        serialize: JSON.stringify,
+        deserialize: (raw) => DraftDocumentSchema.parse(JSON.parse(raw)),
+        write: (value) => store.setDocument(key, value),
+      })
+      await persisted.init
+      await createBrowserDraftStore().setItem(key, JSON.stringify({text: 'written elsewhere'}))
+      setDraft('text', 'first draft')
+      persisted.flush()
+      dispose()
+    })
+    expect(await readText(store, key)).toBe('written elsewhere')
+
+    const image = await fetch(
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+    ).then((response) => response.blob())
+    const older = store.setDocument(key, {
+      text: 'older edit',
+      parts: [{type: 'image', dataUrl: await blobToDataUrl(image)}],
+    })
+    await store.setDocument(key, {text: 'newer edit'})
+    await older
+    expect(await readText(store, key)).toBe('newer edit')
+
+    const kept = await store.putBlob(new Blob(['kept bytes']))
+    await store.setDocument(key, {text: 'newer edit', parts: [{type: 'image', blob: {id: kept.id}}]})
+    const orphan = `orphan-${crypto.randomUUID()}`
+    await rawRequest((blobs) => blobs.put(new Blob(['nobody points here']), orphan), 'readwrite')
+    expect(await rawRequest((blobs) => blobs.getKey(orphan), 'readonly')).toBe(orphan)
+    await createBrowserDraftStore().getItem(key)
+    expect(await rawRequest((blobs) => blobs.getKey(orphan), 'readonly')).toBeUndefined()
+    expect(await rawRequest((blobs) => blobs.getKey(kept.id), 'readonly')).toBe(kept.id)
+  })
+})
+
+function blobToDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.addEventListener('load', () => resolve(z.string().parse(reader.result)))
+    reader.addEventListener('error', () => reject(reader.error))
+    reader.readAsDataURL(blob)
+  })
+}
