@@ -152,7 +152,12 @@ async function eventStream(
   const output = Stream.unwrap(
     feed.subscribe(types).pipe(Effect.map((live) => Stream.make(connected).pipe(Stream.concat(live)))),
   )
-  return relayEvents(Stream.toAsyncIterable(output)[Symbol.asyncIterator](), signal)
+  const heartbeat = Stream.tick('15 seconds').pipe(
+    Stream.drop(1),
+    Stream.map(() => ({id: Event.Id.create(), type: 'server.heartbeat', data: {}})),
+  )
+  const stream = output.pipe(Stream.merge(heartbeat, {haltStrategy: 'left'}))
+  return relayEvents(Stream.toAsyncIterable(stream)[Symbol.asyncIterator](), signal)
 }
 
 async function* relayEvents<Value>(events: AsyncIterator<Value>, signal: AbortSignal | undefined) {

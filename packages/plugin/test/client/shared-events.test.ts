@@ -408,9 +408,11 @@ describe('Conciv.make event stream', () => {
     location: {directory: '/workspace'},
     data: {count},
   })
+  type Frame = EventSubscribeOutput | {readonly id: string; readonly type: 'server.heartbeat'; readonly data: {}}
+  const heartbeat = (id: string): Frame => ({id, type: 'server.heartbeat', data: {}})
   const Acme = Rpc.define({id: 'acme', methods: {}, events: {indexed: {schema: z.object({count: z.number()})}}})
 
-  function engine(connect: (signal: AbortSignal) => AsyncIterable<EventSubscribeOutput>) {
+  function engine(connect: (signal: AbortSignal) => AsyncIterable<Frame>) {
     const serve: NonNullable<RpcClientOptions['interceptors']>[number] = async (options) => {
       if (options.path.join('.') !== 'event.subscribe' || options.signal === undefined) return options.next()
       return connect(options.signal)
@@ -419,7 +421,7 @@ describe('Conciv.make event stream', () => {
   }
 
   test('a direct reader sees server.connected again and the next event after the stream ends, fails or is refused', async () => {
-    const events = source<EventSubscribeOutput>()
+    const events = source<Frame>()
     const attempts = {count: 0}
     const client = engine((signal) => {
       attempts.count += 1
@@ -463,8 +465,40 @@ describe('Conciv.make event stream', () => {
     await fourth.closed
   })
 
+  test('a heartbeat reaches no reader and counts as activity, and a stream that goes silent is reopened', async () => {
+    const events = source<Frame>()
+    const client = engine((signal) => events.connect(signal))
+    const activity = {count: 0}
+    const reader = client.event
+      .subscribe({
+        onActivity: () => {
+          activity.count += 1
+        },
+      })
+      [Symbol.asyncIterator]()
+
+    const opening = reader.next()
+    const first = await events.at(0)
+    first.push(connected('first'))
+    expect(await opening).toEqual({done: false, value: connected('first')})
+    first.push(heartbeat('beat'))
+    first.push(indexed(1))
+    expect(await reader.next()).toEqual({done: false, value: indexed(1)})
+    expect(activity.count).toBe(3)
+
+    const afterStall = reader.next()
+    const second = await events.at(1)
+    expect(first.signal.reason).toEqual(new Error('Event stream stalled'))
+    second.push(connected('second'))
+    expect(await afterStall).toEqual({done: false, value: connected('second')})
+
+    await reader.return?.()
+    await second.closed
+    expect(second.signal.aborted).toBe(true)
+  }, 50_000)
+
   test('an events.on handler keeps receiving across a reopen and after it throws', async () => {
-    const events = source<EventSubscribeOutput>()
+    const events = source<Frame>()
     const client = engine((signal) => events.connect(signal))
     const delivered: number[] = []
     const waiting: {count: number; resolve: () => void}[] = []
