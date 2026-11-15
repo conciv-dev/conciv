@@ -4701,6 +4701,7 @@ module.exports = {
           expect(card?.body).toContain('@conciv/it/plugin/rollup')
           expect(card?.body).toContain('build-only no-op')
           expect(card?.body).toContain('Vite uses Rollup under the hood')
+          expect(card?.body).toContain('Full steps: https://conciv.dev/docs/quick-start/other-bundlers')
           expect(readdirSync(cwd).toSorted()).toEqual(filesBefore)
           expect(readFileSync(join(cwd, 'rollup.config.mjs'), 'utf8')).toBe(configBefore)
         })
@@ -4711,6 +4712,7 @@ module.exports = {
           if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
           expect(outcome.cards[0]?.body).toContain('@conciv/it/plugin/esbuild')
           expect(outcome.cards[0]?.body).toContain('build-only no-op')
+          expect(outcome.cards[0]?.body).toContain('Full steps: https://conciv.dev/docs/quick-start/other-bundlers')
         })
 
         it('cards an unknown project with the vite quick-start snippet', async () => {
