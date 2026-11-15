@@ -27,7 +27,10 @@ const bridge = defineBundlerBridge({
   }),
   resolve: async (spec, importer) => ({id: spec === 'missing' ? null : `/repo/src/${spec}${importer ? '?from' : ''}`}),
   moduleGraph: (file) => [{url: file, importers: ['/src/main.ts'], importedModules: ['/src/dep.ts']}],
-  transform: async (url) => ({code: url === '/src/gone.ts' ? null : `export const served = ${JSON.stringify(url)}`}),
+  transform: async (url) => {
+    if (url === '/src/broken.ts') throw new Error('transform failed for /src/broken.ts')
+    return {code: url === '/src/gone.ts' ? null : `export const served = ${JSON.stringify(url)}`}
+  },
   urls: () => ({local: ['http://localhost:5173/'], network: ['http://192.168.1.2:5173/']}),
   reload: async () => {},
   restart: async () => {},
@@ -62,7 +65,13 @@ describe('ServerTools', () => {
   it.effect('answers each server tool and its terminal method from one bundler, and fails both without one', () =>
     Effect.gen(function* () {
       const served = yield* activate(bridge)
-      expect(Array.from(served.snapshot.codeMode?.tools.keys() ?? [])).toEqual(['server_config', 'server_urls'])
+      expect(Array.from(served.snapshot.codeMode?.tools.keys() ?? [])).toEqual([
+        'server_config',
+        'server_urls',
+        'server_resolve',
+        'server_graph',
+        'server_transform',
+      ])
       expect(served.snapshot.codeMode?.namespaces.get('server')).toMatchObject({name: 'server'})
 
       const config = yield* served.call('server_config', {})
@@ -72,6 +81,29 @@ describe('ServerTools', () => {
       const urls = yield* served.call('server_urls', {})
       expect(urls).toMatchObject({output: bridge.urls()})
       expect(yield* served.method('urls')).toEqual(urls.output)
+
+      const resolved = yield* served.call('server_resolve', {spec: 'app.ts', importer: '/repo/src/main.ts'})
+      expect(resolved).toMatchObject({output: {id: '/repo/src/app.ts?from'}})
+      expect(yield* served.method('resolve', {spec: 'app.ts', importer: '/repo/src/main.ts'})).toEqual(resolved.output)
+      expect(yield* served.call('server_resolve', {spec: 'missing'})).toMatchObject({output: {id: null}})
+      expect(yield* served.method('resolve', {spec: 'app.ts'})).toEqual({id: '/repo/src/app.ts'})
+
+      const graph = yield* served.call('server_graph', {file: '/src/app.ts'})
+      expect(graph).toMatchObject({output: bridge.moduleGraph('/src/app.ts')})
+      expect(yield* served.method('graph', {file: '/src/app.ts'})).toEqual(graph.output)
+
+      const transformed = yield* served.call('server_transform', {url: '/src/app.ts'})
+      expect(transformed).toMatchObject({output: {code: 'export const served = "/src/app.ts"'}})
+      expect(yield* served.method('transform', {url: '/src/app.ts'})).toEqual(transformed.output)
+      expect(yield* served.call('server_transform', {url: '/src/gone.ts'})).toMatchObject({output: {code: null}})
+
+      const broken = yield* served.call('server_transform', {url: '/src/broken.ts'}).pipe(Effect.flip)
+      expect(broken).toMatchObject({message: 'Unable to transform /src/broken.ts'})
+      expect(broken.error).toMatchObject({message: 'transform failed for /src/broken.ts'})
+      expect(yield* served.method('transform', {url: '/src/broken.ts'}).pipe(Effect.flip)).toEqual({
+        type: 'rpc.internal',
+        message: 'RPC call failed',
+      })
     }),
   )
 

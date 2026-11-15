@@ -1443,6 +1443,24 @@ describe('cli', () => {
           code: 0,
           document: {ok: true, data: bridge.urls()},
         })
+        expect(
+          await pluginCall(attached.root, home, [
+            'server',
+            'resolve',
+            '--data',
+            '{"spec":"app.ts","importer":"/src/main.ts"}',
+          ]),
+        ).toEqual({code: 0, document: {ok: true, data: {id: '/repo/src/app.ts?from'}}})
+        expect(await pluginCall(attached.root, home, ['server', 'graph', '--data', '{"file":"/src/app.ts"}'])).toEqual({
+          code: 0,
+          document: {ok: true, data: bridge.moduleGraph('/src/app.ts')},
+        })
+        expect(
+          await pluginCall(attached.root, home, ['server', 'transform', '--data', '{"url":"/src/app.ts"}']),
+        ).toEqual({
+          code: 0,
+          document: {ok: true, data: {code: 'export const served = "/src/app.ts"'}},
+        })
         expect(await pluginCall(detached.root, home, ['server', 'config'])).toMatchObject({
           code: 1,
           document: {

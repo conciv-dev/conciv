@@ -27,6 +27,27 @@ const Config = Schema.Struct({
 
 const Urls = Schema.Struct({local: Schema.Array(Schema.String), network: Schema.Array(Schema.String)})
 
+const ResolveInput = Schema.Struct({
+  spec: Schema.String.annotate({description: 'the import specifier'}),
+  importer: Schema.optionalKey(Schema.String).annotate({description: 'resolve as if imported from this file'}),
+})
+
+const Resolved = Schema.Struct({id: Schema.NullOr(Schema.String)})
+
+const GraphInput = Schema.Struct({file: Schema.String.annotate({description: 'the file to inspect'})})
+
+const ModuleNode = Schema.Struct({
+  url: Schema.String,
+  importers: Schema.Array(Schema.String),
+  importedModules: Schema.Array(Schema.String),
+})
+
+const Graph = Schema.Array(ModuleNode)
+
+const TransformInput = Schema.Struct({url: Schema.String.annotate({description: 'the module url'})})
+
+const Transformed = Schema.Struct({code: Schema.NullOr(Schema.String)})
+
 const errors = {BUNDLER_UNAVAILABLE: Schema.Struct({})}
 
 const Definition = Rpc.define({
@@ -34,6 +55,9 @@ const Definition = Rpc.define({
   methods: {
     config: {input: Schema.Undefined, output: Config, errors},
     urls: {input: Schema.Undefined, output: Urls, errors},
+    resolve: {input: ResolveInput, output: Resolved, errors},
+    graph: {input: GraphInput, output: Graph, errors},
+    transform: {input: TransformInput, output: Transformed, errors},
   },
   events: {},
 })
@@ -75,6 +99,14 @@ export const Plugin = {
     const bundler = ctx.bundler
     const config = () => withBundler(bundler, 'Unable to read the dev server config', (current) => current.config())
     const urls = () => withBundler(bundler, 'Unable to read where the dev server listens', (current) => current.urls())
+    const resolve = (input: typeof ResolveInput.Type) =>
+      withBundler(bundler, `Unable to resolve ${input.spec}`, (current) => current.resolve(input.spec, input.importer))
+    const graph = (input: typeof GraphInput.Type) =>
+      withBundler(bundler, `Unable to read the module graph of ${input.file}`, (current) =>
+        current.moduleGraph(input.file),
+      )
+    const transform = (input: typeof TransformInput.Type) =>
+      withBundler(bundler, `Unable to transform ${input.url}`, (current) => current.transform(input.url))
     yield* ctx.tool
       .transform((editor) => {
         editor.namespace({
@@ -98,12 +130,41 @@ export const Plugin = {
           options,
           execute: () => toolAnswer(urls()),
         })
+        editor.add({
+          name: 'resolve',
+          description: 'report where an import specifier resolves',
+          input: ResolveInput,
+          output: Resolved,
+          options,
+          execute: (input) => toolAnswer(resolve(input)),
+        })
+        editor.add({
+          name: 'graph',
+          description: 'report the importers and imported modules of a file',
+          input: GraphInput,
+          output: Graph,
+          options,
+          execute: (input) => toolAnswer(graph(input)),
+        })
+        editor.add({
+          name: 'transform',
+          description: 'report the transformed code the dev server serves for a url',
+          input: TransformInput,
+          output: Transformed,
+          options,
+          execute: (input) => toolAnswer(transform(input)),
+        })
       })
       .pipe(Effect.orDie)
     yield* ctx.rpc
       .register(Definition, {
         config: (_input, {error}) => methodAnswer(config(), (message) => error('BUNDLER_UNAVAILABLE', message, {})),
         urls: (_input, {error}) => methodAnswer(urls(), (message) => error('BUNDLER_UNAVAILABLE', message, {})),
+        resolve: (input, {error}) =>
+          methodAnswer(resolve(input), (message) => error('BUNDLER_UNAVAILABLE', message, {})),
+        graph: (input, {error}) => methodAnswer(graph(input), (message) => error('BUNDLER_UNAVAILABLE', message, {})),
+        transform: (input, {error}) =>
+          methodAnswer(transform(input), (message) => error('BUNDLER_UNAVAILABLE', message, {})),
       })
       .pipe(Effect.orDie)
   }),
