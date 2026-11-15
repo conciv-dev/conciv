@@ -669,7 +669,7 @@ describe('chat pane', () => {
 
     await expect.element(notifications()).toMatchTextContent(/Internal Server Error|could not be sent/)
     await expect.element(input()).toHaveTextContent(typed)
-    await expect.element(input()).not.toHaveTextContent(new RegExp(`${typed}[\\s\\S]*${typed}`))
+    await expect.element(input()).not.toMatchTextContent(new RegExp(`${typed}[\\s\\S]*${typed}`))
     expect(turns().elements()).toHaveLength(0)
 
     await coreControl.releaseFault(refused)
