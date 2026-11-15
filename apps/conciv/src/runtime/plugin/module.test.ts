@@ -16,9 +16,15 @@ exports.default = sdk.Plugin.define({
 })
 `
 
+const refuse = (file: string) => Promise.reject(new Error(`no chunk ${file} in this test`))
+
 describe('plugin bundles in the page', () => {
   test("declare their definition before they start, with the app's module instances and Node built-ins inert", async () => {
-    const definition = await pluginDefinition('acme', bundle)
+    const definition = await pluginDefinition(
+      'acme',
+      {code: bundle, chunks: [], file: 'plugin-experimental.cjs'},
+      refuse,
+    )
     const added: {readonly registry: Registry<Command>; readonly item: Command}[] = []
 
     expect(definition.id).toBe('acme')
@@ -37,9 +43,29 @@ describe('plugin bundles in the page', () => {
   })
 
   test('fail only their own entry when they require a module the app does not share', async () => {
-    const definition = await pluginDefinition('acme', 'require("left-pad"); exports.default = { setup() {} }')
+    const definition = await pluginDefinition(
+      'acme',
+      {
+        code: 'require("left-pad"); exports.default = { setup() {} }',
+        chunks: [],
+        file: 'plugin-experimental.cjs',
+      },
+      refuse,
+    )
+    const early = await pluginDefinition(
+      'acme',
+      {
+        code: 'exports.default = { setup() {} }',
+        chunks: [{file: 'start-A.cjs', code: 'require("./plugin-experimental.cjs")'}],
+        file: 'plugin-experimental.cjs',
+      },
+      refuse,
+    )
 
     expect(definition.id).toBe('acme')
     await expect(definition.windowEntry?.()).rejects.toThrow('left-pad')
+    await expect(early.windowEntry?.()).rejects.toThrow(
+      "A plugin's ./plugin-experimental chunk start-A.cjs requires the entry plugin-experimental.cjs before it finished evaluating",
+    )
   })
 })
