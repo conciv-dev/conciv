@@ -166,6 +166,7 @@ export type InertModule = () => void
 export interface PluginBundle {
   readonly definition: Declarations
   readonly setup?: (ctx: never) => Cleanup | void
+  readonly exports: object
 }
 
 export interface PluginBundleHost {
@@ -186,7 +187,7 @@ export interface PluginBundleHost {
  *
  * @param code - The bundle's CommonJS code.
  * @param host - The page evaluating it.
- * @returns The checked plugin.
+ * @returns The checked plugin, with the bundle's exports for the chunks that require it.
  * @throws When evaluation throws, the default export is not a `Plugin.define` this app supports, or it has no setup.
  */
 export function evaluatePluginBundle(code: string, host: PluginBundleHost): PluginBundle {
@@ -204,7 +205,7 @@ export function evaluatePluginBundle(code: string, host: PluginBundleHost): Plug
 
   if (!plugin.setup) throw new Error("A plugin's ./plugin-experimental bundle must have a window `setup`")
 
-  return {definition: {stores: plugin.stores}, setup: plugin.setup}
+  return {definition: {stores: plugin.stores}, setup: plugin.setup, exports}
 }
 
 /**
@@ -307,6 +308,7 @@ export interface PluginChunk {
 export interface BridgePluginExperimental {
   readonly id: string
   readonly revision: string
+  readonly file: string
   readonly code: string
   readonly options: PluginOptions
   readonly chunks: readonly PluginChunk[]

@@ -32,6 +32,7 @@ export const Chunk = Schema.Struct({file: Schema.String, code: Schema.String}).a
 
 export interface ExperimentalBundle extends Schema.Schema.Type<typeof ExperimentalBundle> {}
 export const ExperimentalBundle = Schema.Struct({
+  file: Schema.String,
   code: Schema.String,
   revision: Schema.String,
   options: Schema.Record(Schema.String, Schema.Json),

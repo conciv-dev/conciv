@@ -61,6 +61,7 @@ export const layer = Layer.effect(
       const part = active.get(id)?.plugin.experimental
       if (!part) return undefined
       return {
+        file: path.basename(fileURLToPath(part.file)),
         code: part.code,
         revision: part.revision,
         options: part.options,

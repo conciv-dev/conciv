@@ -25,6 +25,7 @@ const id = text(256)
 const PluginExperimentalSchema = z.object({
   id,
   revision: text(256),
+  file: text(256),
   code: z.string(),
   options: z.record(z.string(), z.json()),
   chunks: z.array(z.object({file: text(256), code: z.string()})),

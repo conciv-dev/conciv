@@ -213,7 +213,7 @@ it.live("serves a local plugin's built chunks, each answer pinned to the bytes r
     const id = Plugin.Id.make('fixture.chunks')
 
     const served = yield* plugins.experimental(id)
-    expect(served?.chunks).toEqual([{file: 'shared-A.cjs', code: shared}])
+    expect(served).toMatchObject({file: 'plugin-experimental.js', chunks: [{file: 'shared-A.cjs', code: shared}]})
     const chunk = (file: string) => plugins.experimentalChunk(id, file)
     const refused = (file: string) => Effect.flip(chunk(file))
     expect(yield* chunk('lazy-B.cjs')).toEqual({
@@ -257,11 +257,10 @@ it.live("serves a local plugin's built chunks, each answer pinned to the bytes r
     expect(yield* refusal({'src/lazy.ts': {file: 'lazy-D.cjs', imports: ['_gone.cjs']}})).toBe(
       `${of} imports _gone.cjs, which it does not list`,
     )
-    const entryImport = {
-      'src/entry.ts': {file: 'x.js', isEntry: true},
-      'b.ts': {file: 'lazy-D.cjs', imports: ['src/entry.ts']},
-    }
-    expect(yield* refusal(entryImport)).toBe(`${of} imports src/entry.ts, whose file x.js is not a chunk`)
+    const entryImport = {e: {file: 'plugin-experimental.js', isEntry: true}, b: {file: 'lazy-D.cjs', imports: ['e']}}
+    yield* write({'plugin-experimental.js.manifest.json': JSON.stringify(entryImport)})
+    yield* reload
+    expect((yield* chunk('lazy-D.cjs'))?.chunks).toEqual([{file: 'lazy-D.cjs', code: 'exports.big = () => "second"'}])
     yield* Effect.promise(() => chmod(bundle, 0))
     expect(yield* refusal({})).toBe(`The ./plugin-experimental file ${bundle} can't be read`)
   }).pipe(Effect.scoped),

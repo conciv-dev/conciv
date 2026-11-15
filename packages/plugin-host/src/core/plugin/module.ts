@@ -196,8 +196,9 @@ const readChunks = Effect.fn('PluginModule.readChunks')(function* (entry: string
       }),
     ),
   )
+  const chunkKey = (key: string) => !records.get(key)?.isEntry
   const imported = (keys: readonly string[] = []) =>
-    Effect.forEach(keys, (key) => {
+    Effect.forEach(keys.filter(chunkKey), (key) => {
       const file = records.get(key)?.file
       if (file === undefined) return Effect.fail(refusal(`imports ${key}, which it does not list`))
       if (!ChunkFile.safeParse(file).success)

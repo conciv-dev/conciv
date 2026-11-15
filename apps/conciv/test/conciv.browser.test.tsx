@@ -6001,6 +6001,7 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
           code: bundle(label),
           options: {greeting: 'hi'},
           chunks: [],
+          file: 'plugin-experimental.js',
         },
       ],
       reserved: ['conciv'],
@@ -7272,7 +7273,9 @@ var entry_default = {setup(ctx) {
     load('Load a part outside the build', () => Promise.resolve().then(() => require('./${OUTSIDE}'))),
   ]})
 }}
+var label = 'from the entry'
 exports.default = entry_default
+exports.label = label
 `
   const manifest = JSON.stringify({
     [`_${SHARED}`]: {file: SHARED, name: 'shared'},
@@ -7284,7 +7287,13 @@ exports.default = entry_default
       imports: [`_${SHARED}`],
       dynamicImports: ['src/lazy.ts'],
     },
-    'src/lazy.ts': {file: LAZY, name: 'lazy', src: 'src/lazy.ts', isDynamicEntry: true, imports: [`_${SHARED}`]},
+    'src/lazy.ts': {
+      file: LAZY,
+      name: 'lazy',
+      src: 'src/lazy.ts',
+      isDynamicEntry: true,
+      imports: [`_${SHARED}`, 'src/plugin-experimental.tsx'],
+    },
   })
   const coreBase = bootedCore('plugin-chunks', {
     plugins: ['./chunked'],
@@ -7297,7 +7306,8 @@ exports.default = entry_default
 Object.defineProperty(exports, 'shared', {enumerable: true, get: function() { return shared }})
 `,
       [`chunked/${LAZY}`]: `const require_shared = require('./${SHARED}')
-function big() { return 'lazy part ' + require_shared.shared }
+const require_entry = require('./plugin-experimental.cjs')
+function big() { return 'lazy part ' + require_shared.shared + ' ' + require_entry.label }
 exports.big = big
 `,
     },
@@ -7318,7 +7328,7 @@ exports.big = big
     expect(await coreControl.rpcStartedOnceServed(BUNDLE, 1, [CHUNK])).toEqual([0])
 
     await control('Load the lazy part').click()
-    await expect.element(shown('lazy part shared')).toBeVisible()
+    await expect.element(shown('lazy part shared from the entry')).toBeVisible()
     expect(await coreControl.rpcCallCount(CHUNK, {id: 'chunked', file: LAZY})).toBe(1)
   }, 60_000)
 

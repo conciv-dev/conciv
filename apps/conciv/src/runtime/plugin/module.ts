@@ -20,11 +20,9 @@ const modules = {
 
 const chunkFile = /^\.\/([\w.-]+\.cjs)$/
 
-const entryKey = '.'
-
 export async function pluginDefinition(
   id: string,
-  experimental: Pick<BridgePluginExperimental, 'code' | 'chunks'>,
+  experimental: Pick<BridgePluginExperimental, 'code' | 'chunks' | 'file'>,
   fetchChunks: (file: string) => Promise<readonly PluginChunk[]>,
 ): Promise<Entry> {
   const loaded = new Map<string, object>(
@@ -39,6 +37,8 @@ export async function pluginDefinition(
     })
 
   const requireFrom = (requirer: string) => (name: string) => {
+    if (name === `./${experimental.file}`) return evaluated.get(experimental.file) ?? unfinishedEntry(requirer)
+
     const file = chunkFile.exec(name)?.[1]
 
     if (file !== undefined) return evaluated.get(file) ?? unloadedChunk(requirer, file)
@@ -52,10 +52,18 @@ export async function pluginDefinition(
     throw new Error(`A plugin's ./plugin-experimental bundle requires a module the app does not share: ${name}`)
   }
 
+  const described = (requirer: string) => (requirer === experimental.file ? 'bundle' : `chunk ${requirer}`)
+
+  const unfinishedEntry = (requirer: string) => {
+    throw new Error(
+      `A plugin's ./plugin-experimental ${described(requirer)} requires the entry ${experimental.file} before it finished evaluating`,
+    )
+  }
+
   const unloadedChunk = (requirer: string, file: string): Promise<object> => {
     if (!evaluated.has(requirer))
       throw new Error(
-        `A plugin's ./plugin-experimental ${requirer === entryKey ? 'bundle' : `chunk ${requirer}`} requires the chunk ${file}, which the engine did not send before it`,
+        `A plugin's ./plugin-experimental ${described(requirer)} requires the chunk ${file}, which the engine did not send before it`,
       )
 
     return fetchChunks(file).then((chunks) => {
@@ -67,8 +75,8 @@ export async function pluginDefinition(
 
   const bundle = await Promise.try(() => {
     evaluate(experimental.chunks)
-    const value = evaluatePluginBundle(experimental.code, {require: requireFrom(entryKey)})
-    evaluated.set(entryKey, value)
+    const value = evaluatePluginBundle(experimental.code, {require: requireFrom(experimental.file)})
+    evaluated.set(experimental.file, value.exports)
 
     return value
   }).then(

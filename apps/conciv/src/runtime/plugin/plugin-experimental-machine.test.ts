@@ -15,6 +15,7 @@ const experimental = (id: string, revision: string): BridgePluginExperimental =>
   code: '',
   options: {},
   chunks: [],
+  file: 'plugin-experimental.cjs',
 })
 
 const experimentals = (plugins: BridgePluginExperimental[], reserved: string[] = []): BridgePluginExperimentals => ({

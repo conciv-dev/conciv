@@ -328,6 +328,11 @@ const PluginChunkFileSchema = z
 const PluginChunkSchema = z.object({file: PluginChunkFileSchema, code: z.string()})
 
 export const PluginExperimentalBundleSchema = z.object({
+  file: z
+    .string()
+    .min(1)
+    .max(256)
+    .regex(/^[^/\\]+$/),
   code: z.string(),
   revision: z.string().min(1).max(256),
   options: z.record(z.string(), z.json()),

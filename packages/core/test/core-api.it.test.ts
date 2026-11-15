@@ -6515,6 +6515,7 @@ describe('engine plugin bundles', () => {
     expect(first.data.code).toBe(bundle('first'))
     expect(first.data.options).toEqual({greeting: 'hi'})
     expect(first.data.revision).toMatch(/^[0-9a-f]{64}$/)
+    expect(first.data.file).toBe('plugin-experimental.js')
     expect(typeof evaluatePluginBundle(first.data.code, {require: () => ({})}).setup).toBe('function')
 
     for (const id of ['nobody', 'plain']) {
