@@ -104,7 +104,10 @@ export const Route = createFileRoute('/panel/$sessionId')({
   },
   loader: async ({context, params}) => {
     await context.queryClient
-      .ensureQueryData(context.data.utils.sessions.get.queryOptions({input: {sessionId: params.sessionId}}))
+      .query({
+        ...context.data.utils.sessions.get.queryOptions({input: {sessionId: params.sessionId}}),
+        staleTime: 'static',
+      })
       .catch((error: unknown) => console.error('[conciv] the session row did not load before the panel', error))
   },
   component: PanelSession,
