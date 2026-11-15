@@ -56,6 +56,7 @@ import {ExtensionSurface} from '../extension/extension-slots.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {ComposerActions} from '../composer/actions.js'
 import {promptWithNotes} from '../composer/comment-note.js'
+import {ComposerNotes} from '../composer/note-card.js'
 import {ConnectedAgents} from '../composer/connected-agents.js'
 import {SessionModelPrompt, useModelMenu} from '../composer/model-selector.js'
 import {useEngineNotices} from '../shell/notice-context.js'
@@ -473,6 +474,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     inputLabel="Message the conciv agent"
                     attachmentAdapter={attachments().adapter}
                     AttachmentComponent={PaneAttachment}
+                    notes={<ComposerNotes session={pluginSession.view} onRemoved={focusInput} />}
                     onInputReady={setInputHandle}
                     onSelectionChange={draftStorage.noteSelection}
                     busy={compactingIndicator(compacting())}

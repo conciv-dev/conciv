@@ -6396,7 +6396,7 @@ describe('installed plugins in settings', () => {
 })
 
 describe('a fixture plugin driven like a user', () => {
-  const fixtureBundle = `const {Panel, Registry, Slot, Store, useDrawer, usePanel} = require('@conciv/plugin/experimental')
+  const fixtureBundle = `const {NoteCard, Panel, Registry, Slot, Store, useDrawer, usePanel} = require('@conciv/plugin/experimental')
 const {createComponent} = require('solid-js/web')
 const {createRenderEffect, createSignal} = require('solid-js')
 const {z} = require('zod')
@@ -6437,6 +6437,16 @@ module.exports = {default: {stores: {
   ctx.add(Slot, {at: 'window.bottom', render: () => drawnLine})
   const fixtureNote = (commentId, comment) =>
     ({type: 'note', origin: 'fixture', commentId, label: 'Fixture note', icon: 'terminal', subject: 'the fixture subject', comment})
+  const drawnNote = (commentId, comment) =>
+    ({type: 'note', origin: 'fixture-drawn', commentId, label: 'Drawn note', icon: 'pencil', subject: 'a drawn subject', comment})
+  ctx.add(NoteCard, {
+    origins: ['fixture-drawn'],
+    render: (props) => {
+      if (props.note.comment === 'a card it declines') return undefined
+      if (props.note.comment === 'a card that throws') throw new Error('the fixture card failed')
+      return Object.assign(document.createElement('p'), {textContent: 'Fixture card: ' + props.note.comment})
+    },
+  })
   const dialog = (title, body) =>
     ctx.dialogs.open(() => createComponent(ctx.ui.Dialog, {title, get children() { return body() }}))
   const second = () => dialog('Fixture second dialog', () => 'The second dialog is on top')
@@ -6455,6 +6465,11 @@ module.exports = {default: {stores: {
         props.screen.composer.attach(fixtureNote('c1', 'a second comment'))
         props.screen.composer.attach(fixtureNote('c2', 'the other comment'))
         props.screen.composer.insert('noted')
+      }),
+      button('Attach drawn notes', () => {
+        props.screen.composer.attach(drawnNote('d1', 'a card it draws'))
+        props.screen.composer.attach(drawnNote('d2', 'a card it declines'))
+        props.screen.composer.attach(drawnNote('d3', 'a card that throws'))
       }),
       button('Change the first note', () => props.screen.composer.update('c1', {comment: 'the changed comment'})),
       button('Detach the other note', () => props.screen.composer.detach('c2')),
@@ -6681,6 +6696,31 @@ module.exports = {default: {stores: {
         attachments: [],
       },
     })
+  }, 60_000)
+
+  test('its notes show as cards in the composer: the host chip by default, its own NoteCard for its origin, the chip again when its card declines or throws, and a removed note leaves the composer', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const notes = () => page.getByRole('list', {name: 'Notes'})
+    const card = (text: string) => notes().getByRole('listitem').filter({hasText: text})
+    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`)
+    await expect.element(control('Attach two notes'), {timeout: 15_000}).toBeVisible()
+    await control('Attach two notes').click()
+    await control('Attach drawn notes').click()
+    await tab('Chat').click()
+
+    await expect.element(card('the first comment')).toHaveTextContent('the first commentFixture note')
+    await expect.element(card('the other comment')).toHaveTextContent('the other commentFixture note')
+    await expect.element(card('Fixture card: a card it draws')).toBeVisible()
+    await expect.element(card('a card it declines')).toHaveTextContent('a card it declinesDrawn note')
+    await expect.element(card('a card that throws')).toHaveTextContent('a card that throwsDrawn note')
+    await expect.element(notes().getByRole('listitem').nth(4)).toBeVisible()
+    await expect.element(notes().getByRole('listitem').nth(5)).not.toBeInTheDocument()
+
+    await card('the other comment').getByRole('button', {name: 'Remove the other comment'}).click()
+    await expect.element(card('the other comment')).not.toBeInTheDocument()
+    await expect.element(notes().getByRole('listitem').nth(3)).toBeVisible()
+    await expect.element(notes().getByRole('listitem').nth(4)).not.toBeInTheDocument()
+    await expect.element(editor()).toHaveFocus()
   }, 60_000)
 
   const tabPath = (sessionId: string, key: string) => `/panel/${sessionId}/${encodeURIComponent(key)}`
