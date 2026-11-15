@@ -38,9 +38,33 @@ export function make(raw: RpcClient): Omit<RpcClient, 'event'> & {
   }
 }
 
+const reconnectDelay = 1_000
+
 async function* received(raw: RpcClient, signal: AbortSignal, onActivity: () => void) {
-  for await (const event of await raw.event.subscribe(undefined, {signal})) {
-    onActivity()
-    yield event as EventSubscribeOutput
+  while (!signal.aborted) {
+    try {
+      for await (const event of await raw.event.subscribe(undefined, {signal})) {
+        onActivity()
+        yield event as EventSubscribeOutput
+      }
+      if (!signal.aborted) console.warn('[conciv] the event stream ended; subscribing again')
+    } catch (error) {
+      if (signal.aborted) return
+      console.error('[conciv] the event stream failed; subscribing again', error)
+    }
+    if (signal.aborted) return
+    await wait(reconnectDelay, signal)
   }
+}
+
+function wait(delay: number, signal: AbortSignal) {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(done, delay)
+    signal.addEventListener('abort', done, {once: true})
+    function done() {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', done)
+      resolve()
+    }
+  })
 }

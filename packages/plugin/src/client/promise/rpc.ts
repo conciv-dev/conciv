@@ -122,7 +122,13 @@ export function makeRpc(
             const signal = options?.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal
             const source = subscribe(name, {signal})
             async function deliver() {
-              for await (const event of source) await handler(event)
+              for await (const event of source) {
+                try {
+                  await handler(event)
+                } catch (error) {
+                  console.error(error)
+                }
+              }
             }
             void deliver().catch((error: unknown) => console.error(error))
             return () => controller.abort()
