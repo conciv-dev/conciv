@@ -1,0 +1,99 @@
+---
+title: Your first five minutes
+description: From an installed widget to a first answer and a first approved action.
+---
+
+You ran [Install](/docs/get-started/install), or added conciv to your config by hand. Now use it.
+
+<Steps>
+<Step>
+
+### Start your dev server
+
+```bash
+pnpm dev
+```
+
+Use your package manager's `dev` script. The engine starts with the dev server.
+
+</Step>
+<Step>
+
+### Find the button
+
+Open your app in the browser. The conciv button sits in the corner of the page.
+
+<ImageZoom
+  src="/screenshots/widget-fab.png"
+  alt="The conciv robot button in the corner of a running app"
+  width={1920}
+  height={1080}
+/>
+
+</Step>
+<Step>
+
+### Log in
+
+A browser that has not logged in yet shows the button with a warning mark, labelled **Unauthorized**. Click it. The
+**Authorize conciv** dialog asks for a 6-digit code, and your dev server's terminal prints it in a box:
+
+```text title="dev server terminal"
+╭──────────────────────────────────────────────────────╮
+│ conciv: a browser asks to connect to this engine     │
+│ From:    Chrome 156 | macOS at http://localhost:5199 │
+│ Code:    541045                                      │
+│ Link:    http://localhost:5199/#conciv_otp=541045    │
+│ Expires: 13:48:32                                    │
+╰──────────────────────────────────────────────────────╯
+```
+
+Type the six digits. The chat opens, and this browser stays logged in. See [Logging in](/docs/what-you-get/logging-in).
+
+</Step>
+<Step>
+
+### Send a message
+
+The panel opens on a new session that asks "How can I help you today?". Type into the composer and press Enter.
+
+<ImageZoom src="/screenshots/panel-open.png" alt="The conciv chat panel open over the app" width={1920} height={1080} />
+
+Ask about the page you are on, or pick one of the starters such as **Explain this page**. The answer streams into
+the thread. See [Chat](/docs/what-you-get/chat).
+
+</Step>
+<Step>
+
+### Approve an action
+
+Some actions ask you first. With Claude, the default harness, a recursive delete such as `rm -rf dist` always asks.
+Try "Clear the old build output before the next build." A **Permission** card shows the command:
+
+<ImageZoom
+  src="/screenshots/approvals-permission.png"
+  alt="A Permission card in the chat asking to approve Bash: rm -rf dist, with Approve, Allow for session and Deny"
+  width={1920}
+  height={1080}
+/>
+
+Click **Approve** (or press ⌘ Enter or Ctrl Enter) and the command runs. **Deny** (or Escape) refuses it. See
+[Approvals](/docs/what-you-get/approvals) for what asks on each harness.
+
+</Step>
+</Steps>
+
+## Next
+
+<Cards>
+  <Card
+    title="Page control"
+    href="/docs/what-you-get/page-control"
+    description="Point at an element and let the agent change it."
+  />
+  <Card
+    title="Connect your agent"
+    href="/docs/get-started/agents"
+    description="Let the agent in your own terminal drive your open tabs."
+  />
+</Cards>
