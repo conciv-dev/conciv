@@ -12,6 +12,8 @@ import {CONCIV_VERSION_HEADER, type RpcContext, type RpcHeaders, type RpcSocketT
 
 const ADAPTER_REFUSED_STATUS = 500
 
+const SOCKET_OPEN = 1
+
 export const RPC_PREFIX = '/rpc'
 
 const ClientVersionSchema = z
@@ -107,6 +109,7 @@ export function rpcFetchMiddleware(router: AnyRouter): MiddlewareHandler {
 
 function responseWritten(outgoing: unknown): Promise<boolean> | undefined {
   if (!(outgoing instanceof ServerResponse)) return undefined
+  if (outgoing.closed) return Promise.resolve(outgoing.writableFinished)
   return new Promise((resolve) => outgoing.once('close', () => resolve(outgoing.writableFinished)))
 }
 
@@ -178,7 +181,7 @@ export function rpcWebsocketRoute(
         }
         const replying = Promise.withResolvers<boolean>()
         handler.message(peer, frame, {context: {...context, replied: replying.promise}}).then(
-          () => replying.resolve(true),
+          () => replying.resolve(ws.readyState === SOCKET_OPEN),
           (error: unknown) => {
             replying.resolve(false)
             options.onError?.(`rpc ws frame rejected: ${String(error)}`)
