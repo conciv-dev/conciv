@@ -192,8 +192,10 @@ export function provideSessions(started: () => SessionKeyDeps) {
       remove: (sessionId) =>
         found(sessionId).pipe(
           Effect.andThen(() => {
-            const {chat, pluginHost, queues} = started()
-            return Effect.promise(() => deleteSession({db: chat.db, plane: chat.plane, pluginHost, queues}, sessionId))
+            const {chat, runtime, pluginHost, queues} = started()
+            return Effect.promise(() =>
+              deleteSession({db: chat.db, plane: chat.plane, runtime, pluginHost, queues}, sessionId),
+            )
           }),
         ),
       switchAgent: (input) =>

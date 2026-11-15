@@ -2808,6 +2808,124 @@ describe('plugin host bus', () => {
       await key.fail((sessions) => sessions.compact({sessionId: SessionSchema.Id.make('conciv_no_such_session')})),
     ).toMatchObject({_tag: 'Session.NotFoundError', sessionId: 'conciv_no_such_session'})
   })
+  test('deleting a session stops its run, its idle hook and a preparing turn first, so plugins hear Deleted last with no run left and nothing of that session after it', async () => {
+    const harness = createTestHarness(requireClaude())
+    const booted: MadeApp[] = []
+    const kit = await createTestkit(harness, async (env) => {
+      const made = await bootMadeApp(env)
+      booted.push(made)
+      return made
+    }).setup()
+    onTestFinished(() => kit.cleanup())
+    const made = booted[0]
+    if (made === undefined) throw new Error('the deletion kit booted no app')
+    await made.startPlugins()
+    const created = async () => SessionId.parse((await kit.rpc.sessions.create(undefined)).sessionId)
+    const running = await created()
+    const idling = await created()
+    const preparing = await created()
+    const entries = (sessionId: SessionId) =>
+      made.pluginHost.runPromise(
+        InstructionEntry.Service.use((service) => service.list(SessionSchema.Id.make(sessionId))),
+      )
+    const brief = (sessionId: SessionId) =>
+      made.pluginHost.runPromise(
+        InstructionEntry.Service.use((service) =>
+          service.put({sessionId: SessionSchema.Id.make(sessionId), key: 'brief', value: 'ship it'}),
+        ),
+      )
+    await brief(running)
+    await brief(idling)
+    const seen: {sessionId: SessionId; what: string}[] = []
+    const heardBy = (sessionId: SessionId) =>
+      seen.filter((entry) => entry.sessionId === sessionId).map((entry) => entry.what)
+    const idleEntered = Promise.withResolvers<void>()
+    const idleHeld = Promise.withResolvers<void>()
+    const promptEntered = Promise.withResolvers<void>()
+    const scopedEvent = z.object({sessionID: z.string()})
+    await made.pluginHost.runPromise(
+      Bus.Service.use((bus) =>
+        bus.listen((event) =>
+          Effect.sync(() => {
+            const scoped = scopedEvent.safeParse(event.data)
+            if (!scoped.success) return
+            const sessionId = SessionId.parse(scoped.data.sessionID)
+            seen.push({
+              sessionId,
+              what: `${event.type} ${made.plane.driving(sessionId) ? 'during a run' : 'with no run'}`,
+            })
+            if (event.type === SessionEvent.Deleted.type) idleHeld.resolve()
+          }),
+        ),
+      ),
+    )
+    await made.pluginHost.runPromise(
+      PluginHooks.Service.use((hooks) =>
+        Effect.all([
+          hooks.register('session', 'experimental.idle', (event) =>
+            event.sessionId !== idling
+              ? Effect.void
+              : Effect.sync(() => idleEntered.resolve()).pipe(
+                  Effect.andThen(Effect.promise(() => idleHeld.promise)),
+                  Effect.ensuring(
+                    Effect.promise(async () => {
+                      const read = await entries(idling)
+                      seen.push({sessionId: idling, what: `idle hook ended reading ${JSON.stringify(read)}`})
+                    }),
+                  ),
+                ),
+          ),
+          hooks.register('session', 'prompt', (event) =>
+            event.sessionId !== preparing
+              ? Effect.void
+              : Effect.sync(() => {
+                  seen.push({sessionId: preparing, what: 'prompt hook entered'})
+                  promptEntered.resolve()
+                }).pipe(Effect.andThen(Effect.never)),
+          ),
+        ]),
+      ).pipe(Scope.provide(made.pluginHost.runSync(Scope.make()))),
+    )
+
+    const answered = made.plane.followUp(idling, 'answer, then the idle hook holds')
+    await idleEntered.promise
+    await kit.rpc.sessions.delete({sessionId: idling})
+    expect(heardBy(idling)).toEqual([
+      'session.instructions.updated during a run',
+      'idle hook ended reading [{"key":"brief","value":"ship it"}]',
+      'session.deleted with no run',
+    ])
+    await answered
+    expect(await entries(idling)).toEqual([])
+
+    const held = await kit.turn('never admitted', {session: preparing, runId: 'preparing-run'})
+    await promptEntered.promise
+    await kit.rpc.sessions.delete({sessionId: preparing})
+    expect(heardBy(preparing)).toEqual(['prompt hook entered', 'session.deleted with no run'])
+    expect((await held.done()).errors()).toHaveLength(1)
+    expect(made.plane.driving(preparing)).toBe(false)
+    const unadmitted = await made.plane.hydrate(preparing)
+    expect([unadmitted.messages, unadmitted.lastRun]).toEqual([[], null])
+
+    harness.script.hold()
+    const inFlight = await kit.turn('keep going until the session is deleted', {session: running, runId: 'deleted-run'})
+    await inFlight.waitForRunStart({runId: 'deleted-run'})
+    await kit.rpc.sessions.delete({sessionId: running})
+    expect(heardBy(running)).toEqual(['session.deleted with no run'])
+    expect(made.plane.driving(running)).toBe(false)
+    expect(await entries(running)).toEqual([])
+    await inFlight.done()
+    harness.script.release()
+
+    expect(seen).toEqual([
+      {sessionId: idling, what: 'session.instructions.updated during a run'},
+      {sessionId: idling, what: 'idle hook ended reading [{"key":"brief","value":"ship it"}]'},
+      {sessionId: idling, what: 'session.deleted with no run'},
+      {sessionId: preparing, what: 'prompt hook entered'},
+      {sessionId: preparing, what: 'session.deleted with no run'},
+      {sessionId: running, what: 'session.deleted with no run'},
+    ])
+  })
 })
 
 describe('session prompt hook', () => {

@@ -9,12 +9,14 @@ import {removeInstructionEntries} from '../runtime/instruction-entries.js'
 import {createRow, reuseDeletedRow, rowById, tombstoneRow, type FreshRowInput} from './session-rows.js'
 import type {createSessionSearch} from './session-search.js'
 import type {PageQueues} from '../page/page-queue.js'
+import type {CoreRuntime} from '../runtime/scope-types.js'
 
 type SessionRenaming = {db: ConcivDb; search: Pick<ReturnType<typeof createSessionSearch>, 'retitle'>}
 
 type SessionDeletion = {
   db: ConcivDb
-  plane: Pick<ChatPlane, 'clear'>
+  plane: Pick<ChatPlane, 'clear' | 'endRuns'>
+  runtime: Pick<CoreRuntime, 'forSession'>
   pluginHost: ManagedRuntime.ManagedRuntime<Bus.Interface | KV.Interface, never>
   queues: Pick<PageQueues, 'release'>
 }
@@ -83,6 +85,8 @@ export async function renameSession(
 }
 
 export async function deleteSession(deletion: SessionDeletion, sessionId: SessionId): Promise<void> {
+  await deletion.runtime.forSession(sessionId).run.stop()
+  await deletion.plane.endRuns(sessionId)
   await deletion.pluginHost.runPromise(KV.Service.use((kv) => removeInstructionEntries(kv, sessionId)))
   await deletion.pluginHost.runPromise(
     Bus.Service.use((bus) =>
