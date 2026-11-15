@@ -7,6 +7,7 @@ import {formatForDisplay} from '@tanstack/solid-hotkeys'
 import {useQuery} from '@conciv/client'
 import type {RpcClient} from '@conciv/contract'
 import {writeClipboardText} from '@conciv/ui-kit-system'
+import type {ComposerContextValue} from '@conciv/ui-kit-chat'
 import {Conciv, type ConcivClient} from '@conciv/plugin'
 import type {
   Layout,
@@ -77,7 +78,10 @@ type Attached = {
 }
 
 export type ComposerBinding = {
-  readonly composer: {readonly text: Accessor<string>; readonly setText: (value: string) => void}
+  readonly composer: {readonly text: Accessor<string>; readonly setText: (value: string) => void} & Pick<
+    ComposerContextValue,
+    'items' | 'addItem' | 'updateItem' | 'removeItem'
+  >
   readonly input: Accessor<ComposerInputHandle | undefined>
   readonly prompt: {readonly quotable: Accessor<boolean>; readonly focus: () => void; readonly focused: () => boolean}
 }

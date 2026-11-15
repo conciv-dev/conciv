@@ -565,6 +565,8 @@ describe('experimental', () => {
     expectTypeOf<undefined>().toExtend<Experimental.Desktop['reveal']>()
     expectTypeOf<undefined>().toExtend<Experimental.Layout['scroll']>()
     expectTypeOf<undefined>().not.toExtend<Experimental.Composer['setText']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.Composer['update']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.Composer['detach']>()
     expectTypeOf<undefined>().toExtend<Experimental.Tabs['move']>()
     expectTypeOf<undefined>().not.toExtend<Experimental.Links['exists']>()
   })

@@ -6435,6 +6435,8 @@ module.exports = {default: {stores: {
   })
   ctx.add(Slot, {at: 'window.bottom', render: () => askedLine})
   ctx.add(Slot, {at: 'window.bottom', render: () => drawnLine})
+  const fixtureNote = (commentId, comment) =>
+    ({type: 'note', origin: 'fixture', commentId, label: 'Fixture note', icon: 'terminal', subject: 'the fixture subject', comment})
   const dialog = (title, body) =>
     ctx.dialogs.open(() => createComponent(ctx.ui.Dialog, {title, get children() { return body() }}))
   const second = () => dialog('Fixture second dialog', () => 'The second dialog is on top')
@@ -6448,6 +6450,14 @@ module.exports = {default: {stores: {
     render: (props) => [
       button('Open the fixture dialog', first),
       button('Write a plain note', () => props.screen.composer.insert('plain note')),
+      button('Attach two notes', () => {
+        props.screen.composer.attach(fixtureNote('c1', 'the first comment'))
+        props.screen.composer.attach(fixtureNote('c1', 'a second comment'))
+        props.screen.composer.attach(fixtureNote('c2', 'the other comment'))
+        props.screen.composer.insert('noted')
+      }),
+      button('Change the first note', () => props.screen.composer.update('c1', {comment: 'the changed comment'})),
+      button('Detach the other note', () => props.screen.composer.detach('c2')),
       button('Open the listed tab', () => ctx.layout.open('fixture:opened', props.session)),
       button('Open the old tab', () => ctx.layout.open('fixture:old', props.session)),
       button('Open an unlisted tab', () => ctx.layout.open('fixture:missing', props.session)),
@@ -6581,6 +6591,45 @@ module.exports = {default: {stores: {
     await expect.element(editor()).toHaveTextContent('a drafted prompt')
     expect(harness.pathname()).toMatch(/^\/panel\/[^/]+$/)
     expect(harness.pathname()).not.toBe(`/panel/${sessionId}`)
+  }, 60_000)
+
+  test('its notes attach while the chat is not shown, a second attach of the same note keeps the first, and update and detach reach the saved draft', async () => {
+    const rpc = coreRpc(coreBase())
+    const sessionId = await createSession(rpc)
+    const note = (commentId: string, comment: string) => ({
+      key: `note:fixture:c=${commentId}`,
+      value: {
+        type: 'note',
+        origin: 'fixture',
+        commentId,
+        label: 'Fixture note',
+        icon: 'terminal',
+        subject: 'the fixture subject',
+        comment,
+      },
+    })
+    const savedOnChat = async () => {
+      const write = await faults.install({kind: 'gate', path: ['drafts', 'set']})
+      await tab('Chat').click()
+      await expect.element(editor()).toHaveTextContent('noted')
+      await coreControl.awaitFaultPending(write, 1)
+      await coreControl.releaseFault(write)
+      await coreControl.awaitFaultAnswered(write)
+      return rpc.drafts.get({sessionId})
+    }
+    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`)
+    await expect.element(control('Attach two notes'), {timeout: 15_000}).toBeVisible()
+
+    await control('Attach two notes').click()
+    expect(await savedOnChat()).toMatchObject({
+      text: 'noted',
+      items: [note('c1', 'the first comment'), note('c2', 'the other comment')],
+    })
+
+    await tab('Fixture tools').click()
+    await control('Change the first note').click()
+    await control('Detach the other note').click()
+    expect(await savedOnChat()).toMatchObject({text: 'noted', items: [note('c1', 'the changed comment')]})
   }, 60_000)
 
   const tabPath = (sessionId: string, key: string) => `/panel/${sessionId}/${encodeURIComponent(key)}`

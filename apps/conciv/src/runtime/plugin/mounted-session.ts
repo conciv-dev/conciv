@@ -12,7 +12,9 @@ import {
   untrack,
   type Accessor,
 } from 'solid-js'
-import type {Composer, MountedSession, SessionScreen} from '@conciv/plugin/experimental'
+import {z} from 'zod'
+import type {Composer, ComposerNote, MountedSession, SessionScreen} from '@conciv/plugin/experimental'
+import type {ComposerItem} from '@conciv/ui-kit-chat'
 import {useQuery} from '@conciv/client'
 import {useAppData, useConnected} from '../../app/context'
 import {usePluginAttachment} from './attachment'
@@ -31,7 +33,26 @@ type ComposerTarget = {
   readonly text: Accessor<string>
   readonly setText: (value: string) => void
   readonly insert: (text: string) => void
+  readonly items: Accessor<ComposerItem[]>
+  readonly addItem: (item: ComposerItem) => void
+  readonly updateItem: (key: string, value: ComposerItem['value']) => void
+  readonly removeItem: (key: string) => void
 }
+
+const NoteValueSchema = z.record(z.string(), z.json())
+
+const noteKey = (note: ComposerNote) => `note:${note.origin}:c=${note.commentId}`
+
+const jsonValue = (value: ComposerNote) => z.json().parse(JSON.parse(JSON.stringify(value)))
+
+const commentNotes = (items: readonly ComposerItem[], commentId: string) =>
+  items.flatMap((item) => {
+    const note = NoteValueSchema.safeParse(item.value)
+
+    return note.success && note.data.type === 'note' && note.data.commentId === commentId
+      ? [{key: item.key, note: note.data}]
+      : []
+  })
 
 type ComposerSlot = {
   readonly target: ComposerTarget
@@ -74,6 +95,10 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
         text: () => binding()?.composer.text() ?? '',
         setText: (value) => bindingFor().composer.setText(value),
         insert: insertAtCaret,
+        items: () => binding()?.composer.items() ?? [],
+        addItem: (item) => bindingFor().composer.addItem(item),
+        updateItem: (key, value) => bindingFor().composer.updateItem(key, value),
+        removeItem: (key) => bindingFor().composer.removeItem(key),
       },
       draft,
       ready: () => loaded.state === 'ready',
@@ -162,13 +187,27 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
     model: () => undefined,
     setModel: () => false,
     setVariant: () => false,
-    attach: (part) => console.error('[plugin] Composer.attach is not implemented yet', part.type),
+    attach(part) {
+      if (part.type !== 'note') return console.error('[plugin] Composer.attach is not implemented yet', part.type)
+
+      const item = {key: noteKey(part), value: jsonValue(part)}
+
+      write((draft) => draft.addItem(item))
+    },
     quotable: undefined,
     focus(commentId) {
       if (commentId === undefined) return binding()?.prompt.focus()
     },
-    update: undefined,
-    detach: undefined,
+    update(id, patch) {
+      const comment = patch.comment
+
+      if (comment === undefined) return
+
+      write((draft) =>
+        commentNotes(draft.items(), id).forEach((entry) => draft.updateItem(entry.key, {...entry.note, comment})),
+      )
+    },
+    detach: (id) => write((draft) => commentNotes(draft.items(), id).forEach((entry) => draft.removeItem(entry.key))),
     focused: undefined,
   }
 
