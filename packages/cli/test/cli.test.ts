@@ -2170,7 +2170,7 @@ describe('cli', () => {
       }
     })
 
-    it('with no usable engine among those that answered, the hub picks a slow one that answers when asked again', async () => {
+    it('when no engine that answered is usable, the hub picks a slow engine, whichever ask finds it', async () => {
       const {home, mcp} = fakeClaude()
       expect(mcp('connect', 'claude')).toMatchObject({status: 0})
       const old = await failingEngine(home, 404)
