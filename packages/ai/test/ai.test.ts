@@ -232,7 +232,6 @@ const watched = require('node:net').connect(data.socket, () => {
       firstOutputTimeoutMs?: number,
       startTimeoutMs?: number,
     ) {
-      // oxlint-disable-next-line conciv/no-hand-made-temp-dir -- the fake CLI's unix socket path must stay under the 104-byte limit, and onTestFinished below removes it
       const dir = mkdtempSync(join(tmpdir(), 'conciv-fake-claude-'))
       onTestFinished(() => rm(dir, {recursive: true, force: true, maxRetries: 10}))
       const files = {launches: join(dir, 'launches'), gate: join(dir, 'gate'), socket: join(dir, 'agent.sock')}

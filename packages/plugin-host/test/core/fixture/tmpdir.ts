@@ -29,7 +29,6 @@ export const withTempDir = <A, E, R>(body: (tmp: TempDir) => Effect.Effect<A, E,
     (dir) => Effect.tryPromise(() => remove(dir)).pipe(Effect.orDie),
   )
 
-// oxlint-disable-next-line conciv/no-hand-made-temp-dir -- ported from opencode as is; withTempDir's release removes the folder
 const make = async (prefix: string) => fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), prefix)))
 
 async function remove(dir: string, retries = 30): Promise<void> {

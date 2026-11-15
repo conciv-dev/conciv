@@ -1,4 +1,4 @@
-import {isIdentifier, isNode, walk} from './ast-walk.js'
+import {isIdentifier, walk} from './ast-walk.js'
 
 const TEST_FILE = /(^|[\\/])test[\\/].*\.[jt]sx?$|\.(?:test|spec)\.[jt]sx?$/
 const HELPER_FILE = /(^|[\\/])packages[\\/]vitest-config[\\/]src[\\/]/
@@ -27,21 +27,24 @@ function bindingsFrom(program) {
   }
 }
 
+function calledName(callee) {
+  if (isIdentifier(callee)) return callee.name
+  if (callee.type !== 'MemberExpression' || !isIdentifier(callee.property)) return undefined
+  return callee.property.name
+}
+
+function memberObjectName(callee) {
+  if (callee.type !== 'MemberExpression' || !isIdentifier(callee.object)) return undefined
+  return callee.object.name
+}
+
 function isMkdtempCallee(callee, bindings) {
   if (isIdentifier(callee)) return bindings.functions.has(callee.name)
-  if (callee.type !== 'MemberExpression' || callee.computed) return false
-  if (!isIdentifier(callee.object) || !isIdentifier(callee.property)) return false
-  return bindings.modules.has(callee.object.name) && MKDTEMP_NAMES.has(callee.property.name)
+  return bindings.modules.has(memberObjectName(callee)) && MKDTEMP_NAMES.has(calledName(callee))
 }
 
 function isTmpdirCall(node) {
-  if (node.type !== 'CallExpression') return false
-  if (isIdentifier(node.callee)) return node.callee.name === 'tmpdir'
-  return (
-    node.callee.type === 'MemberExpression' &&
-    isIdentifier(node.callee.property) &&
-    node.callee.property.name === 'tmpdir'
-  )
+  return node.type === 'CallExpression' && calledName(node.callee) === 'tmpdir'
 }
 
 function isBuiltOnTmpdir(argument) {
@@ -55,9 +58,8 @@ function isBuiltOnTmpdir(argument) {
 }
 
 function reportHandMade(node, bindings, context) {
-  if (node.type !== 'CallExpression' || !isMkdtempCallee(node.callee, bindings)) return
-  const [target] = node.arguments
-  if (!isNode(target) || !isBuiltOnTmpdir(target)) return
+  if (node.type !== 'CallExpression') return
+  if (!isMkdtempCallee(node.callee, bindings) || !isBuiltOnTmpdir(node.arguments[0])) return
   context.report({node, messageId: 'handMadeTempDir'})
 }
 

@@ -378,6 +378,28 @@
       }
     },
     {
+      "files": [
+        "packages/plugin-host/test/core/config-plugin-source.test.ts",
+        "packages/plugin-host/test/core/database-drizzle.test.ts",
+        "packages/plugin-host/test/core/fixture/tmpdir.ts"
+      ],
+      "rules": {
+        "conciv/no-hand-made-temp-dir": "off"
+      }
+    },
+    {
+      "files": ["apps/site/test/helpers.ts", "e2e/nextjs/test/packed-closure.spec.ts"],
+      "rules": {
+        "conciv/no-hand-made-temp-dir": "off"
+      }
+    },
+    {
+      "files": ["packages/ai/test/ai.test.ts"],
+      "rules": {
+        "conciv/no-hand-made-temp-dir": "off"
+      }
+    },
+    {
       "files": ["packages/cli/test/**"],
       "rules": {
         "conciv/no-timers-in-tests": "error"

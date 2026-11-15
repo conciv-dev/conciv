@@ -45,7 +45,6 @@ function fakeLock(entries: LockEntry[]): string {
 }
 
 function driftError(committed: LockEntry[], produced: LockEntry[]): string {
-  // oxlint-disable-next-line conciv/no-hand-made-temp-dir -- a Playwright spec has no vitest afterAll; the finally below removes the folder
   const root = mkdtempSync(join(tmpdir(), 'conciv-drift-guard-'))
   const committedPath = join(root, 'committed-lock.yaml')
   writeFileSync(committedPath, fakeLock(committed))

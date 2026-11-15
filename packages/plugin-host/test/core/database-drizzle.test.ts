@@ -138,7 +138,6 @@ test('rolls back explicit transaction rollback', async () => {
 })
 
 test('preserves failed transaction begin errors', async () => {
-  // oxlint-disable-next-line conciv/no-hand-made-temp-dir -- ported from opencode as is; the finally below removes the folder
   const dir = await mkdtemp(join(tmpdir(), 'effect-drizzle-sqlite-'))
   const filename = join(dir, 'locked.db')
   const holder = new DatabaseSync(filename)
