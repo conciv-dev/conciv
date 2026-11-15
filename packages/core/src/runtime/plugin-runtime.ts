@@ -143,7 +143,7 @@ type SessionPrompt = PluginHooks.Domains['session']['prompt']
 export type PluginRuntime = {
   runtime: PluginHost
   startPlugins: () => Promise<void>
-  prompt: (event: SessionPrompt) => Promise<SessionPrompt>
+  prompt: (event: SessionPrompt, signal: AbortSignal) => Promise<SessionPrompt>
   promptHooked: () => Promise<boolean>
   closeRpc: () => Promise<void>
   closePlugins: () => Promise<void>
@@ -160,11 +160,12 @@ export function makePluginRuntime(input: PluginRuntimeInput): PluginRuntime {
         Layer.buildWithScope(PluginSupervisor.layer, supervised).pipe(Effect.andThen(Plugin.awaitActivation)),
       ),
     ),
-    prompt: (event) =>
+    prompt: (event, signal) =>
       runtime.runPromise(
         Plugin.awaitActivation.pipe(
           Effect.andThen(PluginHooks.Service.use((hooks) => hooks.trigger('session', 'prompt', event))),
         ),
+        {signal},
       ),
     promptHooked: () =>
       runtime.runPromise(

@@ -39,18 +39,32 @@ export function make(raw: RpcClient): Omit<RpcClient, 'event'> & {
 }
 
 const reconnectDelay = 1_000
+const idleTimeout = 45_000
 
 async function* received(raw: RpcClient, signal: AbortSignal, onActivity: () => void) {
   while (!signal.aborted) {
+    const attempt = new AbortController()
+    const cancel = () => attempt.abort(signal.reason)
+    signal.addEventListener('abort', cancel, {once: true})
+    let watchdog: ReturnType<typeof setTimeout> | undefined
+    const touch = () => {
+      onActivity()
+      clearTimeout(watchdog)
+      watchdog = setTimeout(() => attempt.abort(new Error('Event stream stalled')), idleTimeout)
+    }
     try {
-      for await (const event of await raw.event.subscribe(undefined, {signal})) {
-        onActivity()
+      for await (const event of await raw.event.subscribe(undefined, {signal: attempt.signal})) {
+        touch()
+        if (event.type === 'server.heartbeat') continue
         yield event as EventSubscribeOutput
       }
       if (!signal.aborted) console.warn('[conciv] the event stream ended; subscribing again')
     } catch (error) {
       if (signal.aborted) return
       console.error('[conciv] the event stream failed; subscribing again', error)
+    } finally {
+      clearTimeout(watchdog)
+      signal.removeEventListener('abort', cancel)
     }
     if (signal.aborted) return
     await wait(reconnectDelay, signal)
