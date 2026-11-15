@@ -25,12 +25,15 @@ const Config = Schema.Struct({
   plugins: Schema.Array(Schema.String),
 })
 
+const Urls = Schema.Struct({local: Schema.Array(Schema.String), network: Schema.Array(Schema.String)})
+
 const errors = {BUNDLER_UNAVAILABLE: Schema.Struct({})}
 
 const Definition = Rpc.define({
   id: 'server',
   methods: {
     config: {input: Schema.Undefined, output: Config, errors},
+    urls: {input: Schema.Undefined, output: Urls, errors},
   },
   events: {},
 })
@@ -71,6 +74,7 @@ export const Plugin = {
   effect: Effect.fn('ServerTools.Plugin')(function* (ctx: Context) {
     const bundler = ctx.bundler
     const config = () => withBundler(bundler, 'Unable to read the dev server config', (current) => current.config())
+    const urls = () => withBundler(bundler, 'Unable to read where the dev server listens', (current) => current.urls())
     yield* ctx.tool
       .transform((editor) => {
         editor.namespace({
@@ -86,11 +90,20 @@ export const Plugin = {
           options,
           execute: () => toolAnswer(config()),
         })
+        editor.add({
+          name: 'urls',
+          description: 'report where the dev server listens',
+          input: Schema.Struct({}),
+          output: Urls,
+          options,
+          execute: () => toolAnswer(urls()),
+        })
       })
       .pipe(Effect.orDie)
     yield* ctx.rpc
       .register(Definition, {
         config: (_input, {error}) => methodAnswer(config(), (message) => error('BUNDLER_UNAVAILABLE', message, {})),
+        urls: (_input, {error}) => methodAnswer(urls(), (message) => error('BUNDLER_UNAVAILABLE', message, {})),
       })
       .pipe(Effect.orDie)
   }),

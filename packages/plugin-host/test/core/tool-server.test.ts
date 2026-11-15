@@ -62,12 +62,16 @@ describe('ServerTools', () => {
   it.effect('answers each server tool and its terminal method from one bundler, and fails both without one', () =>
     Effect.gen(function* () {
       const served = yield* activate(bridge)
-      expect(Array.from(served.snapshot.codeMode?.tools.keys() ?? [])).toEqual(['server_config'])
+      expect(Array.from(served.snapshot.codeMode?.tools.keys() ?? [])).toEqual(['server_config', 'server_urls'])
       expect(served.snapshot.codeMode?.namespaces.get('server')).toMatchObject({name: 'server'})
 
       const config = yield* served.call('server_config', {})
       expect(config).toMatchObject({output: bridge.config()})
       expect(yield* served.method('config')).toEqual(config.output)
+
+      const urls = yield* served.call('server_urls', {})
+      expect(urls).toMatchObject({output: bridge.urls()})
+      expect(yield* served.method('urls')).toEqual(urls.output)
     }),
   )
 
@@ -85,6 +89,10 @@ describe('ServerTools', () => {
         message: 'no dev server is attached to conciv',
         data: {},
       })
+      expect(yield* detached.call('server_urls', {}).pipe(Effect.flip)).toMatchObject({
+        metadata: {code: 'BUNDLER_UNAVAILABLE'},
+      })
+      expect(yield* detached.method('urls').pipe(Effect.flip)).toMatchObject({type: 'BUNDLER_UNAVAILABLE'})
     }),
   )
 })

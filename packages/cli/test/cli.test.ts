@@ -1439,6 +1439,10 @@ describe('cli', () => {
           code: 0,
           document: {ok: true, data: bridge.config()},
         })
+        expect(await pluginCall(attached.root, home, ['server', 'urls'])).toEqual({
+          code: 0,
+          document: {ok: true, data: bridge.urls()},
+        })
         expect(await pluginCall(detached.root, home, ['server', 'config'])).toMatchObject({
           code: 1,
           document: {
