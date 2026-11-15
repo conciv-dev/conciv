@@ -4,6 +4,7 @@ import type {BundlerDomain} from '@conciv/plugin'
 import type {Context} from '../../../plugin/effect/plugin.js'
 import {makeToolFailure} from '../../../ai/effect.js'
 import {Effect, Schema} from 'effect'
+import {Permission} from '../../permission.js'
 import {Rpc} from '../../rpc.js'
 import type {Tool} from '../../../schema/tool.js'
 
@@ -48,6 +49,12 @@ const TransformInput = Schema.Struct({url: Schema.String.annotate({description: 
 
 const Transformed = Schema.Struct({code: Schema.NullOr(Schema.String)})
 
+const RestartInput = Schema.Struct({
+  force: Schema.optionalKey(Schema.Boolean).annotate({description: 'force a full restart'}),
+})
+
+const Restarted = Schema.Struct({ok: Schema.Literal(true)})
+
 const errors = {BUNDLER_UNAVAILABLE: Schema.Struct({})}
 
 const Definition = Rpc.define({
@@ -58,6 +65,7 @@ const Definition = Rpc.define({
     resolve: {input: ResolveInput, output: Resolved, errors},
     graph: {input: GraphInput, output: Graph, errors},
     transform: {input: TransformInput, output: Transformed, errors},
+    restart: {input: RestartInput, output: Restarted, errors},
   },
   events: {},
 })
@@ -107,6 +115,16 @@ export const Plugin = {
       )
     const transform = (input: typeof TransformInput.Type) =>
       withBundler(bundler, `Unable to transform ${input.url}`, (current) => current.transform(input.url))
+    const restart = (input: typeof RestartInput.Type) =>
+      withBundler(bundler, 'Unable to restart the dev server', async (current): Promise<typeof Restarted.Type> => {
+        await current.restart(input.force ?? false)
+        return {ok: true}
+      })
+    yield* ctx.agent.transform((editor) =>
+      editor
+        .list()
+        .forEach((agent) => agent.permissions.push({action: 'server_restart', resource: '*', effect: 'ask'})),
+    )
     yield* ctx.tool
       .transform((editor) => {
         editor.namespace({
@@ -154,6 +172,24 @@ export const Plugin = {
           options,
           execute: (input) => toolAnswer(transform(input)),
         })
+        editor.add({
+          name: 'restart',
+          description: 'restart the dev server and re-bundle its dependencies',
+          input: RestartInput,
+          output: Restarted,
+          options,
+          execute: (input, context) =>
+            Effect.gen(function* () {
+              if (bundler === undefined) return yield* toolAnswer(restart(input))
+              yield* ctx.permission.assert({
+                action: 'server_restart',
+                resources: [bundler.id],
+                save: [bundler.id],
+                ...Permission.invocation(context),
+              })
+              return yield* toolAnswer(restart(input))
+            }),
+        })
       })
       .pipe(Effect.orDie)
     yield* ctx.rpc
@@ -165,6 +201,8 @@ export const Plugin = {
         graph: (input, {error}) => methodAnswer(graph(input), (message) => error('BUNDLER_UNAVAILABLE', message, {})),
         transform: (input, {error}) =>
           methodAnswer(transform(input), (message) => error('BUNDLER_UNAVAILABLE', message, {})),
+        restart: (input, {error}) =>
+          methodAnswer(restart(input), (message) => error('BUNDLER_UNAVAILABLE', message, {})),
       })
       .pipe(Effect.orDie)
   }),

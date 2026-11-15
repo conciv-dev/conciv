@@ -1,10 +1,14 @@
 import {describe, expect} from 'vitest'
-import {Effect} from 'effect'
+import {Effect, Fiber, Queue} from 'effect'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {Agent} from '../../src/core/agent.js'
+import {Location} from '../../src/core/location.js'
+import {Bus} from '../../src/core/bus.js'
+import {Permission} from '../../src/core/permission.js'
 import {Plugin} from '../../src/core/plugin.js'
 import {PluginHost} from '../../src/core/plugin/host.js'
 import {Rpc} from '../../src/core/rpc.js'
+import {Session as Sessions} from '../../src/core/session.js'
 import {Tool} from '../../src/core/tool.js'
 import {ServerTools} from '../../src/core/tool/plugin/server.js'
 import {Tool as ToolSchema} from '../../src/schema/tool.js'
@@ -15,6 +19,8 @@ import {PluginTestLayer} from './plugin/fixture'
 const it = testEffect(PluginTestLayer)
 
 const sessionId = Session.Id.make('conciv_server_tool_test')
+
+const restarts: boolean[] = []
 
 const bridge = defineBundlerBridge({
   id: 'server-tool-test',
@@ -33,7 +39,9 @@ const bridge = defineBundlerBridge({
   },
   urls: () => ({local: ['http://localhost:5173/'], network: ['http://192.168.1.2:5173/']}),
   reload: async () => {},
-  restart: async () => {},
+  restart: async (force) => {
+    restarts.push(force ?? false)
+  },
 })
 
 const activate = (bundler: typeof bridge | undefined) =>
@@ -71,6 +79,7 @@ describe('ServerTools', () => {
         'server_resolve',
         'server_graph',
         'server_transform',
+        'server_restart',
       ])
       expect(served.snapshot.codeMode?.namespaces.get('server')).toMatchObject({name: 'server'})
 
@@ -107,6 +116,44 @@ describe('ServerTools', () => {
     }),
   )
 
+  it.effect('server_restart asks before it restarts, and the terminal method restarts without asking', () =>
+    Effect.gen(function* () {
+      const location = yield* Location.Service
+      yield* (yield* Sessions.Service).create({
+        id: sessionId,
+        location: Location.Ref.make({directory: location.directory}),
+      })
+      const served = yield* activate(bridge)
+      const permission = yield* Permission.Service
+      const asked = yield* Queue.unbounded<void>()
+      const unsubscribe = yield* (yield* Bus.Service).listen((event) =>
+        event.type === Permission.Event.Asked.type ? Queue.offer(asked, undefined).pipe(Effect.asVoid) : Effect.void,
+      )
+      yield* Effect.addFinalizer(() => unsubscribe)
+      restarts.length = 0
+
+      const approved = yield* served.call('server_restart', {force: true}).pipe(Effect.forkScoped)
+      yield* Queue.take(asked)
+      const [request] = yield* permission.forSession(sessionId)
+      expect(request).toMatchObject({action: 'server_restart', resources: [bridge.id], save: [bridge.id]})
+      expect(restarts).toEqual([])
+      yield* permission.reply({requestId: request?.id ?? Permission.Id.create(), reply: 'once'})
+      expect(yield* Fiber.join(approved)).toMatchObject({output: {ok: true}})
+      expect(restarts).toEqual([true])
+
+      const refused = yield* served.call('server_restart', {}).pipe(Effect.flip, Effect.forkScoped)
+      yield* Queue.take(asked)
+      const [second] = yield* permission.forSession(sessionId)
+      yield* permission.reply({requestId: second?.id ?? Permission.Id.create(), reply: 'reject', message: 'not now'})
+      expect(yield* Fiber.join(refused)).toMatchObject({_tag: 'Tool.Error', message: 'not now'})
+      expect(restarts).toEqual([true])
+
+      expect(yield* served.method('restart', {})).toEqual({ok: true})
+      expect(yield* permission.forSession(sessionId)).toEqual([])
+      expect(restarts).toEqual([true, false])
+    }),
+  )
+
   it.effect('a missing bundler is BUNDLER_UNAVAILABLE on the tool and the method', () =>
     Effect.gen(function* () {
       const detached = yield* activate(undefined)
@@ -125,6 +172,10 @@ describe('ServerTools', () => {
         metadata: {code: 'BUNDLER_UNAVAILABLE'},
       })
       expect(yield* detached.method('urls').pipe(Effect.flip)).toMatchObject({type: 'BUNDLER_UNAVAILABLE'})
+      expect(yield* detached.call('server_restart', {}).pipe(Effect.flip)).toMatchObject({
+        metadata: {code: 'BUNDLER_UNAVAILABLE'},
+      })
+      expect(yield* detached.method('restart', {}).pipe(Effect.flip)).toMatchObject({type: 'BUNDLER_UNAVAILABLE'})
     }),
   )
 })

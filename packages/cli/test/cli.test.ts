@@ -1416,6 +1416,7 @@ describe('cli', () => {
 
     it('answers the server methods from a real bundler bridge as the tools do, and refuses them without one', async () => {
       const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const restarts: boolean[] = []
       const bridge = defineBundlerBridge({
         id: 'cli-server-methods',
         config: () => ({
@@ -1430,7 +1431,9 @@ describe('cli', () => {
         transform: async (url) => ({code: `export const served = ${JSON.stringify(url)}`}),
         urls: () => ({local: ['http://localhost:5173/'], network: ['http://192.168.1.2:5173/']}),
         reload: async () => {},
-        restart: async () => {},
+        restart: async (force) => {
+          restarts.push(force ?? false)
+        },
       })
       const attached = await engineWithTab(home, {bridge})
       const detached = await engineWithTab(home)
@@ -1461,6 +1464,15 @@ describe('cli', () => {
           code: 0,
           document: {ok: true, data: {code: 'export const served = "/src/app.ts"'}},
         })
+        expect(await pluginCall(attached.root, home, ['server', 'restart', '--data', '{"force":true}'])).toEqual({
+          code: 0,
+          document: {ok: true, data: {ok: true}},
+        })
+        expect(await pluginCall(attached.root, home, ['server', 'restart', '--data', '{}'])).toEqual({
+          code: 0,
+          document: {ok: true, data: {ok: true}},
+        })
+        expect(restarts).toEqual([true, false])
         expect(await pluginCall(detached.root, home, ['server', 'config'])).toMatchObject({
           code: 1,
           document: {
