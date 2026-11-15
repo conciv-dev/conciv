@@ -16,7 +16,7 @@ npx @conciv/cli@latest init
 
 init finds Next.js in your `package.json`, installs `@conciv/it`, wraps the default export of your next config with
 `withConciv`, and creates `instrumentation.ts` and `instrumentation-client.ts`. If it cannot read the shape of your
-config, it prints the snippet to paste instead. See [Quick start](/docs/quick-start) for what it asks.
+config, it prints the snippet to paste instead. See [Quick start](/docs/get-started) for what it asks.
 
 </Tab>
 
@@ -70,7 +70,7 @@ export default withConciv(nextConfig)
 ```
 
 Options go in the second argument: `withConciv(nextConfig, {port: 41800})`. See
-[Configuration](/docs/configuration).
+[Configuration](/docs/reference/configuration).
 
 </Step>
 <Step>
@@ -118,11 +118,11 @@ The engine listens on port `41700`. If that port is in use, it does not start: s
 ### Open your app and log in
 
 Click the conciv button. The first time, it asks for the 6-digit code your dev server just printed in its terminal.
-See [Logging in](/docs/usage/logging-in).
+See [Logging in](/docs/what-you-get/logging-in).
 
 </Step>
 </Steps>
 
 `next build` and `next start` do not start the engine.
 
-Next: [Usage](/docs/usage) to see what the agent can do.
+Next: [Usage](/docs/what-you-get) to see what the agent can do.

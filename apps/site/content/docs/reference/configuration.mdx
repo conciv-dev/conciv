@@ -141,7 +141,7 @@ conciv({widget: {modal: false}})
 
 `modal.position` is one of `top-left`, `top-right`, `middle-left`, `middle-right`, `bottom-left` or `bottom-right`
 (the default). The quick terminal hotkey is ``Mod+` `` by default. A `hotkey` set here replaces it and locks the
-setting in **Settings > Shortcuts**. See [Quick terminal](/docs/usage/quick-terminal).
+setting in **Settings > Shortcuts**. See [Quick terminal](/docs/what-you-get/quick-terminal).
 
 `widget: false` keeps the engine and adds nothing to the page. Use it when you render the widget yourself with
 `<ConcivWidget />` from `@conciv/react`, `@conciv/preact` or `@conciv/solid`, so the page does not get two:
@@ -167,7 +167,7 @@ export default defineConfig({
 />
 
 The engine writes the prompt to `.conciv/chat-system-prompt.txt` when it starts and gives it to the harness. Plugins
-add no prompt text: their guidance reaches the agent as [skills](/docs/skills). Claude gets it appended to Claude Code's own system prompt.
+add no prompt text: their guidance reaches the agent as [skills](/docs/what-you-get/skills). Claude gets it appended to Claude Code's own system prompt.
 
 ```ts
 conciv({systemPrompt: 'Prefer Tailwind classes over inline styles.'})

@@ -36,7 +36,7 @@ npx @conciv/cli@latest init
 ```
 
 init finds your bundler, package manager and agent CLIs, shows the plan, and asks once before it writes anything. See
-[Quick start](/docs/quick-start).
+[Quick start](/docs/get-started).
 
 <TypeTable
   type={{
@@ -62,7 +62,7 @@ conciv auth revoke --all
 
 `auth link` asks the engine of the current folder for a one-time code and prints `{link, expiresAt}`: open the link
 and that browser is logged in. `auth revoke` with no id lists the logged-in browsers; with an id, or `--all`, it logs
-them out. See [Logging in](/docs/usage/logging-in).
+them out. See [Logging in](/docs/what-you-get/logging-in).
 
 ## `conciv mcp`
 
@@ -74,7 +74,7 @@ conciv mcp list
 
 `<agent>` is `claude`, `codex`, `gemini-cli` or `opencode`. A connected agent gets two tools, `execute_typescript` and
 `discover_tools`, which reach the same tools the chat uses. Each takes an optional `tab`, a session id, to act on that
-tab on whichever engine holds it. See [Connect your agents](/docs/quick-start/agents).
+tab on whichever engine holds it. See [Connect your agents](/docs/get-started/agents).
 
 ## `conciv plugin call`
 
@@ -88,7 +88,7 @@ conciv plugin call hello greet --data '{"name":"Ada"}'
 
 `--data` (or `-d`) is the method's input as JSON. The call runs as the owner: nothing asks first. It takes no `--tab`:
 a plugin method learns no session from the caller, so an action on a tab names its session in `--data`. See
-[Calling a plugin from the terminal](/docs/plugins/terminal).
+[Calling a plugin from the terminal](/docs/build-a-plugin/terminal).
 
 ## What every command prints
 

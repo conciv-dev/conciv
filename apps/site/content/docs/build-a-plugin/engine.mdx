@@ -126,7 +126,7 @@ await ctx.rpc.register(Probe, {
 `ctx.rpc.register` resolves to a registration: `events.emit(name, data)` sends an event, which a browser half or
 another engine receives as `rpc.<id>.<name>`, and `dispose()` takes the methods down. A method answers your browser
 half (`ctx.client.rpc(Contract)`), a plugin in another engine (`ctx.servers.get(id)?.client.rpc(Contract)`) and the
-[terminal](/docs/plugins/terminal).
+[terminal](/docs/build-a-plugin/terminal).
 
 ## Asking permission
 
@@ -153,7 +153,7 @@ await ctx.permission.assert({
 
 `save` is what **Always allow** remembers for the project. A denied call tells the agent
 `The user denied running tool "<name>". Do not retry it; continue without it.` A method called from the terminal never
-asks: the terminal is the owner. See [Approvals](/docs/usage/approvals).
+asks: the terminal is the owner. See [Approvals](/docs/what-you-get/approvals).
 
 ## Skills
 
@@ -171,7 +171,7 @@ await ctx.skill.transform((editor) =>
 )
 ```
 
-Skills can also come from folders, with no plugin. See [Skills](/docs/skills).
+Skills can also come from folders, with no plugin. See [Skills](/docs/what-you-get/skills).
 
 ## Hooks
 

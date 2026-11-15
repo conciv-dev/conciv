@@ -4,7 +4,7 @@ description: What a plugin's browser half can add to the widget, the stores it k
 ---
 
 The browser half is the default export of `plugin-experimental.tsx`, made with `Plugin.define` from
-`@conciv/plugin/experimental` and built with the [Vite preset](/docs/plugins/your-first-plugin#the-browser-half). It
+`@conciv/plugin/experimental` and built with the [Vite preset](/docs/build-a-plugin/your-first-plugin#the-browser-half). It
 has no id: the widget gives it the engine half's id as `ctx.id`. `setup` is synchronous and runs in a Solid owner.
 Everything it adds goes away when the plugin reloads or stops.
 

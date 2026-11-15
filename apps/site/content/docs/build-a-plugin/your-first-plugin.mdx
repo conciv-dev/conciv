@@ -181,6 +181,6 @@ after each change to the browser half.
 A browser half may import only `@conciv/plugin/experimental`, `@conciv/plugin/rpc`, `zod`, `solid-js`,
 `solid-js/web` and `solid-js/store` from outside its own files, plus any package the bundle carries. Any other
 `@conciv/*` or `solid-js/*` import fails the build with `<module> is not a module the conciv app provides to plugins`.
-For buttons, menus and dialogs use `ctx.ui`. See [Browser SDK](/docs/plugins/browser).
+For buttons, menus and dialogs use `ctx.ui`. See [Browser SDK](/docs/build-a-plugin/browser).
 
 The browser half needs `Promise.try`: Chrome and Edge 128, Firefox 134, Safari 18.2 or newer.
