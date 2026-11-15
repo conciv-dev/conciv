@@ -9,12 +9,10 @@ description: Attach conciv to a native iOS app running in the simulator.
 </Callout>
 
 conciv drives a native iOS app the way it drives a web page. The Swift SDK floats a transparent overlay and the
-conciv button over your own UI, and loads the widget from the engine your dev server runs. The package needs iOS 17.
+conciv button over your own UI, and loads the widget from the engine your dev server runs. Your web dev server needs
+conciv in its config, as on the [Vite](/docs/frameworks/vite) page.
 
-<Steps>
-<Step>
-
-### Add the package
+## Install
 
 Add the SwiftPM mirror to your app. In `Package.swift`:
 
@@ -28,16 +26,11 @@ Then add the product to the target that shows your UI:
 .product(name: "ConcivWidget", package: "conciv-swift")
 ```
 
-In an Xcode project, use File > Add Package Dependencies and paste the same URL.
+In an Xcode project, use File > Add Package Dependencies and paste the same URL. The package needs iOS 17.
 
-</Step>
-<Step>
+## Add it
 
-### Attach
-
-Call `ConcivWidget.attach()` once, from your scene delegate or your SwiftUI `App` init. It finds the key window
-itself, reads the engine address from the `CONCIV_URL` environment variable, and finds the engine on its own when
-the variable is unset.
+Call `ConcivWidget.attach()` once, from your scene delegate or your SwiftUI `App` init. It finds the key window itself.
 
 ```swift title="App.swift"
 import ConcivWidget
@@ -45,50 +38,10 @@ import ConcivWidget
 ConcivWidget.attach()
 ```
 
-The button is the animated mascot by default (`launcher: .mascot`). Pass `.native` for a dark round `AI` button:
+## Run it
 
-```swift title="App.swift"
-ConcivWidget.attach(launcher: .native)
-```
-
-<Callout type="warn">
-  `attach()` does nothing in a Release build: no overlay, no web view, no engine address. Run a Debug build to see the
-  widget.
-</Callout>
-
-</Step>
-<Step>
-
-### Run
-
-Start your dev server with conciv in its config, then launch the app in the simulator. The overlay and the button
+Start your dev server, then launch a Debug build of the app in the simulator. The overlay and the conciv button
 appear over your UI.
-
-</Step>
-</Steps>
-
-## How the app finds the engine
-
-`CONCIV_URL` is the engine's address with no `/native` at the end, for example `http://127.0.0.1:4599`. The SDK adds
-`/native` itself. Without `CONCIV_URL`, the SDK:
-
-<Steps>
-  <Step>
-    Reads `~/.conciv/dev-endpoint.json`, which the engine writes when it starts, and uses it if its address answers `GET
-    /health`.
-  </Step>
-  <Step>
-    Otherwise tries `http://127.0.0.1` on ports 4599, 8787 and 3000, and takes the first that answers as a conciv
-    engine.
-  </Step>
-</Steps>
-
-<Callout>
-  The SDK reads only `~/.conciv/dev-endpoint.json`. If your config sets `devEndpointDir`, the engine writes the file
-  elsewhere and the app falls back to the port probe. Set `CONCIV_URL` to be sure which engine the app uses.
-</Callout>
-
-## What it looks like
 
 <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
   <figure className="m-0">
@@ -124,4 +77,50 @@ appear over your UI.
   </figure>
 </div>
 
+The app finds the engine in this order:
+
+<Steps>
+  <Step>
+    `CONCIV_URL` in the app's environment: the engine's address with no `/native` at the end, for example
+    `http://127.0.0.1:4599`. The SDK adds `/native` itself.
+  </Step>
+  <Step>
+    `~/.conciv/dev-endpoint.json`, which the engine writes when it starts, if its address answers `GET /health`.
+  </Step>
+  <Step>`http://127.0.0.1` on ports 4599, 8787 and 3000, the first that answers as a conciv engine.</Step>
+</Steps>
+
 The demo app lives in [`native/swift`](https://github.com/conciv-dev/conciv/tree/main/native/swift).
+
+## Options
+
+`attach` takes these arguments.
+
+<TypeTable
+  type={{
+    launcher: {
+      type: '.mascot | .native',
+      default: '.mascot',
+      description: 'The button: the animated mascot, or a dark round AI button.',
+    },
+    apiBase: {
+      type: 'URL',
+      default: 'found as above',
+      description: 'The engine address to use, skipping the search: ConcivWidget.attach(apiBase: url).',
+    },
+    token: {
+      type: 'String?',
+      default: 'nil',
+      description: 'An access token to go with apiBase.',
+    },
+  }}
+/>
+
+## If it does not show up
+
+- **You ran a Release build.** `attach()` does nothing in a Release build: no overlay, no web view, no engine address.
+- **The app cannot find the engine.** Set `CONCIV_URL` in the scheme's environment, or give the engine a fixed
+  `port: 4599` in your dev server's conciv options.
+- **Your config sets `devEndpointDir`.** The engine writes `dev-endpoint.json` elsewhere, and the SDK reads only
+  `~/.conciv/dev-endpoint.json`. Set `CONCIV_URL`.
+- **The panel says it couldn't reach the engine.** See [Troubleshooting](/docs/reference/troubleshooting#in-the-panel).
