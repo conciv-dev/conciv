@@ -49,7 +49,8 @@ describe('cli', () => {
 
 describe('connect', () => {
   beforeAll(() => {
-    vi.stubEnv('TMPDIR', tempDir('connect-workspaces-'))
+    const workspaces = tempDir('connect-workspaces-')
+    for (const name of ['TMPDIR', 'TEMP', 'TMP']) vi.stubEnv(name, workspaces)
   })
 
   afterAll(() => {
