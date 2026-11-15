@@ -117,8 +117,9 @@ describe('ServerTools', () => {
       expect(broken).toMatchObject({message: 'Unable to transform /src/broken.ts'})
       expect(broken.error).toMatchObject({message: 'transform failed for /src/broken.ts'})
       expect(yield* served.method('transform', {url: '/src/broken.ts'}).pipe(Effect.flip)).toEqual({
-        type: 'rpc.internal',
-        message: 'RPC call failed',
+        type: 'BUNDLER_FAILED',
+        message: 'Unable to transform /src/broken.ts',
+        data: {message: 'transform failed for /src/broken.ts'},
       })
 
       opened.length = 0

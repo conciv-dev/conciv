@@ -65,13 +65,15 @@ const OpenInput = z.object({
 
 const Opened = z.object({ok: z.literal(true), file: z.string(), line: z.number().optional()})
 
-const errors = {BUNDLER_UNAVAILABLE: Schema.Struct({})}
+const unavailable = {BUNDLER_UNAVAILABLE: Schema.Struct({})}
+
+const errors = {...unavailable, BUNDLER_FAILED: Schema.Struct({message: Schema.String})}
 
 const Definition = Rpc.define({
   id: 'server',
   methods: {
-    config: {input: Schema.Undefined, output: Config, errors},
-    urls: {input: Schema.Undefined, output: Urls, errors},
+    config: {input: Schema.Undefined, output: Config, errors: unavailable},
+    urls: {input: Schema.Undefined, output: Urls, errors: unavailable},
     resolve: {input: ResolveInput, output: Resolved, errors},
     graph: {input: GraphInput, output: Graph, errors},
     transform: {input: TransformInput, output: Transformed, errors},
@@ -105,10 +107,27 @@ const toolAnswer = <A>(answer: Effect.Effect<A, ServerFailure>) =>
     ),
   )
 
-const methodAnswer = <A, E>(answer: Effect.Effect<A, ServerFailure>, unavailable: (message: string) => E) =>
+const bundlerMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
+
+const readAnswer = <A, E>(answer: Effect.Effect<A, ServerFailure>, unavailable: (message: string) => E) =>
   answer.pipe(
     Effect.catch((failure) =>
       failure.kind === 'unavailable' ? Effect.fail(unavailable(failure.message)) : Effect.die(failure.error),
+    ),
+  )
+
+const methodAnswer = <A, Unavailable, Failed>(
+  answer: Effect.Effect<A, ServerFailure>,
+  unavailable: (message: string) => Unavailable,
+  failed: (message: string, bundler: string) => Failed,
+): Effect.Effect<A, Unavailable | Failed> =>
+  answer.pipe(
+    Effect.catch((failure) =>
+      Effect.fail(
+        failure.kind === 'unavailable'
+          ? unavailable(failure.message)
+          : failed(failure.message, bundlerMessage(failure.error)),
+      ),
     ),
   )
 
@@ -219,15 +238,32 @@ export const Plugin = {
       .pipe(Effect.orDie)
     yield* ctx.rpc
       .register(Definition, {
-        config: (_input, {error}) => methodAnswer(config(), (message) => error('BUNDLER_UNAVAILABLE', message, {})),
-        urls: (_input, {error}) => methodAnswer(urls(), (message) => error('BUNDLER_UNAVAILABLE', message, {})),
+        config: (_input, {error}) => readAnswer(config(), (message) => error('BUNDLER_UNAVAILABLE', message, {})),
+        urls: (_input, {error}) => readAnswer(urls(), (message) => error('BUNDLER_UNAVAILABLE', message, {})),
         resolve: (input, {error}) =>
-          methodAnswer(resolve(input), (message) => error('BUNDLER_UNAVAILABLE', message, {})),
-        graph: (input, {error}) => methodAnswer(graph(input), (message) => error('BUNDLER_UNAVAILABLE', message, {})),
+          methodAnswer(
+            resolve(input),
+            (message) => error('BUNDLER_UNAVAILABLE', message, {}),
+            (message, bundler) => error('BUNDLER_FAILED', message, {message: bundler}),
+          ),
+        graph: (input, {error}) =>
+          methodAnswer(
+            graph(input),
+            (message) => error('BUNDLER_UNAVAILABLE', message, {}),
+            (message, bundler) => error('BUNDLER_FAILED', message, {message: bundler}),
+          ),
         transform: (input, {error}) =>
-          methodAnswer(transform(input), (message) => error('BUNDLER_UNAVAILABLE', message, {})),
+          methodAnswer(
+            transform(input),
+            (message) => error('BUNDLER_UNAVAILABLE', message, {}),
+            (message, bundler) => error('BUNDLER_FAILED', message, {message: bundler}),
+          ),
         restart: (input, {error}) =>
-          methodAnswer(restart(input), (message) => error('BUNDLER_UNAVAILABLE', message, {})),
+          methodAnswer(
+            restart(input),
+            (message) => error('BUNDLER_UNAVAILABLE', message, {}),
+            (message, bundler) => error('BUNDLER_FAILED', message, {message: bundler}),
+          ),
         open,
       })
       .pipe(Effect.orDie)

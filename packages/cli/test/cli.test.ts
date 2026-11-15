@@ -1440,7 +1440,10 @@ describe('cli', () => {
         }),
         resolve: async (spec, importer) => ({id: `/repo/src/${spec}${importer === undefined ? '' : '?from'}`}),
         moduleGraph: (file) => [{url: file, importers: ['/src/main.ts'], importedModules: ['/src/dep.ts']}],
-        transform: async (url) => ({code: `export const served = ${JSON.stringify(url)}`}),
+        transform: async (url) => {
+          if (url === '/src/broken.ts') throw new Error('transform failed for /src/broken.ts')
+          return {code: `export const served = ${JSON.stringify(url)}`}
+        },
         urls: () => ({local: ['http://localhost:5173/'], network: ['http://192.168.1.2:5173/']}),
         reload: async () => {},
         restart: async (force) => {
@@ -1479,6 +1482,21 @@ describe('cli', () => {
         ).toEqual({
           code: 0,
           document: {ok: true, data: {code: 'export const served = "/src/app.ts"'}},
+        })
+        expect(
+          await pluginCall(attached.root, home, ['server', 'transform', '--data', '{"url":"/src/broken.ts"}']),
+        ).toEqual({
+          code: 1,
+          document: {
+            ok: false,
+            error: {
+              kind: 'user',
+              code: 'PLUGIN_RPC',
+              type: 'BUNDLER_FAILED',
+              message: 'Unable to transform /src/broken.ts',
+              data: {message: 'transform failed for /src/broken.ts'},
+            },
+          },
         })
         expect(await pluginCall(attached.root, home, ['server', 'restart', '--data', '{"force":true}'])).toEqual({
           code: 0,
