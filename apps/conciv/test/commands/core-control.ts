@@ -362,15 +362,16 @@ function requireCalls(ctx: BrowserCommandContext): RpcCallCursor {
   return calls
 }
 
-type Injector = {repair: () => void; dispose: () => Promise<void>}
+type Injector = {repair: () => void; dispose: () => Promise<void>; answered?: () => Promise<unknown>}
 
 function trackedFault(handle: string, kind: FaultSpec['kind'], injector: Injector): Fault {
   return {
     pending: () => 0,
     awaitCaptured: () =>
       Promise.reject(new Error(`the fault "${handle}" is a ${kind} fault, which never captures pending requests`)),
-    answered: () =>
-      Promise.reject(new Error(`the fault "${handle}" is a ${kind} fault, which has no single call to await`)),
+    answered:
+      injector.answered ??
+      (() => Promise.reject(new Error(`the fault "${handle}" is a ${kind} fault, which has no single call to await`))),
     release: () => {
       injector.repair()
       return Promise.resolve()

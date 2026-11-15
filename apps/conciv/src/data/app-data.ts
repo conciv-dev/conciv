@@ -1,8 +1,25 @@
 import {z} from 'zod'
-import {QueryMutationObserver, makeQueryUtils, type QueryUtils, type QueryClient, type QueryKey} from '@conciv/client'
+import {ORPCError} from '@orpc/client'
+import {
+  QueryMutationObserver,
+  isReachabilityError,
+  makeQueryUtils,
+  type QueryUtils,
+  type QueryClient,
+  type QueryKey,
+} from '@conciv/client'
 import {DraftRowSchema, type DraftRow, type RpcClient} from '@conciv/contract'
 
 type DraftInput = Omit<z.input<typeof DraftRowSchema>, 'updatedAt'>
+
+type DraftSaveContext = {previous: DraftRow | null | undefined}
+
+const DRAFT_SAVE_RETRIES = 3
+
+function retriableDraftSave(failureCount: number, error: unknown): boolean {
+  if (failureCount >= DRAFT_SAVE_RETRIES) return false
+  return isReachabilityError(error) || (error instanceof ORPCError && error.code === 'INTERNAL_SERVER_ERROR')
+}
 
 export type AppData = {
   utils: QueryUtils
@@ -22,25 +39,38 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient): AppData {
   }
   queryClient.setQueryDefaults(utils.drafts.get.key(), {staleTime: Infinity, gcTime: Infinity, retry: false})
   const draftQuery = (sessionId: string) => utils.drafts.get.queryOptions({input: {sessionId}})
+  queryClient.setMutationDefaults<unknown, Error, DraftInput, DraftSaveContext>(utils.drafts.set.mutationKey(), {
+    retry: retriableDraftSave,
+    onMutate: async (input) => {
+      const {queryKey} = draftQuery(input.sessionId)
+      await queryClient.cancelQueries({queryKey})
+      const previous = queryClient.getQueryData(queryKey)
+      queryClient.setQueryData(queryKey, DraftRowSchema.parse({...input, updatedAt: Date.now()}))
+      return {previous}
+    },
+    onError: (error, input, context) => {
+      console.error('[conciv] could not save the draft', error)
+      const {queryKey} = draftQuery(input.sessionId)
+      if (context?.previous === undefined) {
+        queryClient.removeQueries({queryKey, exact: true})
+        return
+      }
+      queryClient.setQueryData(queryKey, context.previous)
+    },
+    onSettled: (_data, _error, input) =>
+      queryClient.invalidateQueries({queryKey: draftQuery(input.sessionId).queryKey}),
+  })
   const saveDraft = (row: DraftInput): Promise<void> => {
     const observer = new QueryMutationObserver(
       queryClient,
-      utils.drafts.set.mutationOptions({
-        scope: {id: row.sessionId},
-        onMutate: (input) => {
-          queryClient.setQueryData(
-            draftQuery(input.sessionId).queryKey,
-            DraftRowSchema.parse({...input, updatedAt: Date.now()}),
-          )
-        },
-        onError: (error) => {
-          console.error('[conciv] could not save the draft', error)
-        },
-      }),
+      utils.drafts.set.mutationOptions({scope: {id: row.sessionId}}),
     )
     return observer
       .mutate(row)
-      .then(() => undefined)
+      .then(
+        () => undefined,
+        () => undefined,
+      )
       .finally(() => observer.reset())
   }
   const invalidate = async (queryKeys: QueryKey[]) => {

@@ -567,6 +567,31 @@ describe('chat pane', () => {
       await expect.element(input()).toHaveTextContent('typed just before a quick trip')
     })
 
+    describe('a draft save the engine refuses', () => {
+      const DRAFT_SET_PATH = ['drafts', 'set']
+
+      const reloadShell = (sessionId: string): void => {
+        shell.dispose()
+        shell.mountShell(`/panel/${sessionId}?open=true`)
+      }
+
+      test('is tried again, and once the engine takes it a reload shows the draft', async () => {
+        const {sessionId} = await newSession()
+        shell.mountShell(`/panel/${sessionId}?open=true`)
+        await expect.element(input()).toBeVisible()
+        const saved = await coreControl.rpcCallCount(DRAFT_SET_PATH)
+        const refusal = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+
+        await input().fill('kept through a refused save')
+        await coreControl.awaitFaultAnswered(refusal)
+        await coreControl.releaseFault(refusal)
+        await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, saved + 1, [])
+        reloadShell(sessionId)
+
+        await expect.element(input()).toHaveTextContent('kept through a refused save')
+      })
+    })
+
     test('a stalled draft read still renders a composer that accepts typing', async () => {
       const {sessionId} = await newSession()
       await faults.install({kind: 'gate', path: DRAFT_GET_PATH})

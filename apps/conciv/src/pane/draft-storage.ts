@@ -92,15 +92,13 @@ export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraft
   let writable = false
   const persist = (draft: PersistedDraft) => {
     const offsets = clampSelection(selection, draft.text)
-    appData
-      .saveDraft({
-        sessionId,
-        text: draft.text,
-        selectionStart: offsets.start,
-        selectionEnd: offsets.end,
-        attachments: draft.attachments,
-      })
-      .catch(() => undefined)
+    void appData.saveDraft({
+      sessionId,
+      text: draft.text,
+      selectionStart: offsets.start,
+      selectionEnd: offsets.end,
+      attachments: draft.attachments,
+    })
   }
   const cached = () => (cache === null ? null : parseDraft(cache))
   return {
