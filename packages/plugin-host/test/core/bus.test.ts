@@ -8,6 +8,7 @@ import {SessionEvent} from '../../src/schema/session-event.js'
 import {Database} from '../../src/core/database/database.js'
 import {EventSequenceTable, EventTable} from '../../src/core/event/sql.js'
 import {Location} from '../../src/core/location.js'
+import {ProjectId} from '../../src/schema/project-id.js'
 import {AbsolutePath} from '../../src/schema/schema.js'
 import {WorkspaceId} from '../../src/schema/workspace-id.js'
 import {eq} from 'drizzle-orm'
@@ -27,7 +28,11 @@ const databaseLayer = Layer.unwrap(
 
 const locationLayer = Layer.succeed(
   Location.Service,
-  Location.Service.of({directory: AbsolutePath.make('project'), workspaceId: WorkspaceId.make('wrk_test')}),
+  Location.Service.of({
+    directory: AbsolutePath.make('project'),
+    workspaceId: WorkspaceId.make('wrk_test'),
+    project: {id: ProjectId.global, directory: AbsolutePath.make('project'), canonical: AbsolutePath.make('project')},
+  }),
 )
 const Message = Bus.ephemeral({
   type: 'test.message',
@@ -846,6 +851,30 @@ describe('Bus', () => {
         .pipe(Effect.exit)
 
       expect(String(exit)).toContain('Sequence mismatch')
+    }),
+  )
+
+  it.effect('replay decodes synchronized transformed values before projection', () =>
+    Effect.gen(function* () {
+      const bus = yield* Bus.Service
+      const aggregateId = Session.Id.make('conciv_bus')
+      const received = new Array<typeof SessionEvent.InstructionsUpdated.Type>()
+      yield* bus.project(SessionEvent.InstructionsUpdated, (event) =>
+        Effect.sync(() => {
+          received.push(event)
+        }),
+      )
+
+      yield* bus.replay({
+        id: Event.Id.create(),
+        created: 0,
+        type: Bus.versionedType(SessionEvent.InstructionsUpdated.type, 2),
+        seq: 0,
+        aggregateID: aggregateId,
+        data: {sessionID: aggregateId, delta: {'core/context': '0'.repeat(64)}},
+      })
+
+      expect(received[0]?.created).toBe(0)
     }),
   )
 

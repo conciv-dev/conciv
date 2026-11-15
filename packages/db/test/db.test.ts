@@ -413,6 +413,51 @@ describe('db', () => {
     })
   })
 
+  describe('session metadata migration', () => {
+    it('gives an existing session an empty metadata record, which then holds a json record', () => {
+      const migration = readdirSync(drizzleDir).find((name) => name.endsWith('_session_metadata')) ?? 'missing'
+      const client = beforeMigration(migration)
+      client
+        .prepare(
+          'INSERT INTO sessions (id, harness_kind, origin, cwd, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+        )
+        .run('conciv_old', 'claude', 'chat', '/w', 1, 1)
+
+      migrationsFrom(migration).forEach((name) => applyMigration(client, name))
+
+      const db = drizzle({client})
+      expect(db.select({metadata: sessions.metadata}).from(sessions).all()).toEqual([{metadata: null}])
+      const metadata = {owner: 'review', round: 2, nested: {tags: ['a', 'b'], done: false}}
+      db.update(sessions).set({metadata}).where(eq(sessions.id, 'conciv_old')).run()
+      expect(db.select({metadata: sessions.metadata}).from(sessions).all()).toEqual([{metadata}])
+      client.close()
+    })
+  })
+
+  describe('plugin host tables migration', () => {
+    it('creates the plugin host tables, and a database a branch build already gave them keeps its rows', () => {
+      const migration = readdirSync(drizzleDir).find((name) => name.endsWith('_plugin_host_tables')) ?? 'missing'
+      const tables = (client: DatabaseSync) =>
+        client
+          .prepare(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('event_sequence', 'event', 'kv', 'permission') ORDER BY name",
+          )
+          .all()
+          .map((row) => row.name)
+      const fresh = beforeMigration(migration)
+      migrationsFrom(migration).forEach((name) => applyMigration(fresh, name))
+      expect(tables(fresh)).toEqual(['event', 'event_sequence', 'kv', 'permission'])
+      fresh.close()
+
+      const built = beforeMigration(migration)
+      applyMigration(built, migration)
+      built.prepare("INSERT INTO kv (key, value, time_created, time_updated) VALUES ('kept', '1', 1, 1)").run()
+      migrationsFrom(migration).forEach((name) => applyMigration(built, name))
+      expect(built.prepare('SELECT key FROM kv').all()).toEqual([{key: 'kept'}])
+      built.close()
+    })
+  })
+
   describe('openDb', () => {
     it('sessions round-trip through the typed orm', () => {
       const db = openDb(tempDir('conciv-db-'))

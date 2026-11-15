@@ -1,4 +1,4 @@
-import {Match, Show, Switch, type JSX} from 'solid-js'
+import {children, Match, Show, Switch, type JSX} from 'solid-js'
 import ShieldAlert from 'lucide-solid/icons/shield-alert'
 import {z} from 'zod'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
@@ -152,16 +152,9 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
   }
   const accent = () => CATEGORY_ACCENT[meta()?.category ?? ''] ?? NEUTRAL_ACCENT
   const bodySummary = () => summaryLine(props.part, meta())
-  return (
-    <CardShell
-      meta={meta()}
-      title={headline()}
-      metaBadge={meta()?.mutating === true ? MUTATING_BADGE : undefined}
-      part={props.part}
-      result={props.result}
-      durationMs={props.durationMs}
-      iconClass={accent()}
-    >
+  const body = children(() => props.body)
+  const ownBody = (): JSX.Element => (
+    <>
       <Show when={capture()}>
         {(value) => (
           <ElementPreview.Root capture={value()} css={props.capture?.css}>
@@ -182,6 +175,21 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
       </Show>
       <Show when={errorMessage() === undefined && raw().length > 0}>
         <ResultView outputSchema={meta()?.outputSchema} payload={payload()} raw={raw()} />
+      </Show>
+    </>
+  )
+  return (
+    <CardShell
+      meta={meta()}
+      title={headline()}
+      metaBadge={meta()?.mutating === true ? MUTATING_BADGE : undefined}
+      part={props.part}
+      result={props.result}
+      durationMs={props.durationMs}
+      iconClass={accent()}
+    >
+      <Show when={body()} fallback={ownBody()}>
+        {body()}
       </Show>
     </CardShell>
   )

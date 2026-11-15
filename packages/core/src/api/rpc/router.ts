@@ -8,17 +8,34 @@ import {resolveHarnessModels} from '@conciv/harness'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers} from '@conciv/db'
 import type {Router} from '@orpc/server'
-import {cappedText, safeStringify, type contract, type RegistryCallErrorName} from '@conciv/contract'
+import {Effect, Result, Stream} from 'effect'
+import {Event, Location, Plugin, Rpc} from '@conciv/plugin-host'
+import {EventFeed} from '../../event-feed.js'
+import {
+  cappedText,
+  PluginExperimentalBundleSchema,
+  safeStringify,
+  type contract,
+  type RegistryCallErrorName,
+} from '@conciv/contract'
 import {widgetCaller} from '../../lib/cors.js'
 import {listCommands} from '../../sessions/commands.js'
 import {session} from '../../runtime/session-context.js'
 import {chatRouter} from './chat.js'
 import {buildHarnessMenuEntry, buildHarnessMeta, sessionsRouter} from './sessions.js'
-import {admitOutsideCall, makeHubAdmission, makeSessionOs, makeToolCallOs, os, type RpcDeps} from './mount.js'
+import {
+  admitOutsideCall,
+  makeHubAdmission,
+  makeSessionOs,
+  makeToolCallOs,
+  os,
+  type PluginHost,
+  type RpcDeps,
+} from './mount.js'
 import type {SessionScope} from '../../runtime/scope-types.js'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {callTrace} from '../call-trace.js'
-import {openCodeSession, type CodeSession} from '../mcp.js'
+import {openCodeSession, type CodeSandboxSession} from '../mcp.js'
 import type {SessionId} from '@conciv/protocol/chat-types'
 
 export const PAGE_ERROR_NAME = {
@@ -79,8 +96,8 @@ async function hubTraced<Result>(
   name: string,
   input: unknown,
   run: () => Promise<Result>,
+  trace: ReturnType<typeof callTrace> = callTrace((header) => rpcHeader(context, header)),
 ): Promise<Result> {
-  const trace = callTrace((header) => rpcHeader(context, header))
   if (trace.hub === null) return run()
   const scope = context.session
   const mirrored = {threadId: scope.id, live: await scope.run.live()}
@@ -102,15 +119,11 @@ type CodeErrors = {NO_CODE_MODE: (options?: {message: string}) => Error}
 
 type CodeCall = {context: RpcContext; errors: CodeErrors; signal?: AbortSignal}
 
-function hubOrigin(context: RpcContext): boolean {
-  return callTrace((header) => rpcHeader(context, header)).hub !== null
-}
-
 async function resolveCodeSession(
   deps: RpcDeps,
   sessionId: SessionId | undefined,
   call: CodeCall,
-): Promise<CodeSession> {
+): Promise<CodeSandboxSession> {
   const trace = callTrace((header) => rpcHeader(call.context, header))
   const scope =
     sessionId === undefined ? await deps.code.resolveSession(null, null) : deps.runtime.forSession(sessionId)
@@ -120,8 +133,77 @@ async function resolveCodeSession(
     askBeforeCalls: trace.hub === null,
     signal: call.signal ?? new AbortController().signal,
   })
-  if (code === null) throw call.errors.NO_CODE_MODE()
-  return code
+  if (code === null || code.sandbox === null) throw call.errors.NO_CODE_MODE()
+  return code.sandbox
+}
+
+async function eventStream(
+  host: PluginHost,
+  types: ReadonlyArray<string> | undefined,
+  signal: AbortSignal | undefined,
+) {
+  const feed = await host.runPromise(EventFeed.Service.use(Effect.succeed))
+  const connected = {id: Event.Id.create(), type: 'server.connected', data: {}}
+  const output = Stream.unwrap(
+    feed.subscribe(types).pipe(Effect.map((live) => Stream.make(connected).pipe(Stream.concat(live)))),
+  )
+  return relayEvents(Stream.toAsyncIterable(output)[Symbol.asyncIterator](), signal)
+}
+
+async function* relayEvents<Value>(events: AsyncIterator<Value>, signal: AbortSignal | undefined) {
+  const stop = () => void events.return?.()
+  signal?.addEventListener('abort', stop, {once: true})
+  try {
+    for (;;) {
+      const step = await events.next()
+      if (step.done === true) return
+      yield step.value
+    }
+  } finally {
+    signal?.removeEventListener('abort', stop)
+    await events.return?.()
+  }
+}
+
+function locationResponse<Data, Failure>(data: Effect.Effect<Data, Failure, Plugin.Interface>) {
+  return Effect.gen(function* () {
+    const location = yield* Location.Service
+    return {location: {directory: location.directory}, data: yield* data}
+  })
+}
+
+function pluginList(host: PluginHost, signal: AbortSignal | undefined) {
+  return host.runPromise(locationResponse(Plugin.Service.use((plugins) => plugins.list())), {signal})
+}
+
+function pluginExperimental(host: PluginHost, id: string, signal: AbortSignal | undefined) {
+  return host.runPromise(
+    Effect.gen(function* () {
+      const plugins = yield* Plugin.Service
+      const bundle = yield* plugins.experimental(Plugin.Id.make(id))
+      if (!bundle) return undefined
+      return yield* locationResponse(Effect.succeed(PluginExperimentalBundleSchema.parse(bundle)))
+    }),
+    {signal},
+  )
+}
+
+async function pluginCall(
+  host: PluginHost,
+  input: {rpcId: string; method: string; input?: unknown},
+  signal?: AbortSignal,
+) {
+  return host.runPromise(
+    Rpc.Service.use((rpc) => rpc.call(input.rpcId, input.method, input.input)).pipe(
+      Effect.catchDefect((defect) =>
+        Effect.logError('rpc call failed', {rpc: input.rpcId, method: input.method, defect}).pipe(
+          Effect.andThen(Effect.fail({type: 'rpc.internal', message: 'RPC call failed'})),
+        ),
+      ),
+      Effect.result,
+    ),
+    {signal},
+  )
 }
 
 export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext> {
@@ -175,19 +257,46 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       call: toolCallOs.registry.call.handler(async ({input, context, errors, signal, path}) => {
         const assist = deps.assist(context.session.id).find((capability) => capability.name === input.name)
         if (assist === undefined && !context.session.tools.has(input.name)) throw errors.UNKNOWN_TOOL()
+        const trace = callTrace((header) => rpcHeader(context, header))
+        if (trace.hub !== null) deps.code.hubCall(context.session.id, trace.callId)
         const gate: RegistryCallGate = async (run) => {
           await admitOutsideCall(deps, context, context.session, signal, path.join('.'))
           await refuseUnapproved(deps, input.name, input.input, {context, errors, signal})
-          return hubTraced(context, input.name, input.input, run)
+          return hubTraced(context, input.name, input.input, run, trace)
         }
         const call = (): Promise<unknown> =>
           assist === undefined
-            ? context.session.tools.call(input.name, input.input, {signal, gate, outside: hubOrigin(context)})
+            ? context.session.tools.call(input.name, input.input, {
+                toolCallId: trace.callId,
+                signal,
+                gate,
+              })
             : gate(() => assist.execute(input.input))
-        return call().catch((error: unknown) => {
-          throw registryCallError(error, errors)
-        })
+        return call()
+          .catch((error: unknown) => {
+            throw registryCallError(error, errors)
+          })
+          .finally(() => {
+            if (trace.hub !== null) deps.code.hubReplied(context.session.id, new Set([trace.callId]))
+          })
       }),
+    },
+    plugin: {
+      call: os.plugin.call.handler(async ({input, errors, signal}) => {
+        const outcome = await pluginCall(deps.pluginHost, input, signal)
+        if (Result.isSuccess(outcome)) return outcome.success
+        throw errors.PLUGIN_RPC({message: outcome.failure.message, data: outcome.failure})
+      }),
+      list: os.plugin.list.handler(({signal}) => pluginList(deps.pluginHost, signal)),
+      experimental: os.plugin.experimental.handler(async ({input, errors, signal}) => {
+        const bundle = await pluginExperimental(deps.pluginHost, input.id, signal)
+        if (bundle !== undefined) return bundle
+        const message = `No active plugin with a ./plugin-experimental bundle: ${input.id}`
+        throw errors.PLUGIN_NOT_FOUND({message, data: {pluginId: input.id, message}})
+      }),
+    },
+    event: {
+      subscribe: os.event.subscribe.handler(({input, signal}) => eventStream(deps.pluginHost, input?.types, signal)),
     },
     captures: {
       list: os.captures.list.handler(({input}) => deps.runtime.forSession(input.sessionId).captures.list()),
@@ -204,7 +313,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       }),
       discover: os.code.discover.handler(async ({input, ...call}) => {
         const code = await resolveCodeSession(deps, input.sessionId, call)
-        if (code.runner.discover === null) throw call.errors.NO_CODE_MODE({message: 'no tools to discover'})
+        if (code.sandbox.discover === null) throw call.errors.NO_CODE_MODE({message: 'no tools to discover'})
         return code.discover(input.toolNames)
       }),
     },

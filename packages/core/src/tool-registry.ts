@@ -12,7 +12,7 @@ import {logError} from './lib/debug.js'
 export type BuiltinRegistryDeps = {
   page: PageEnv
   bundler: () => BundlerBridge | undefined
-  openInEditor: (file: string, line?: number) => void
+  openInEditor: (file: string, line?: number, column?: number) => void
   listTabs: () => Promise<TabsListing>
 }
 
@@ -51,7 +51,6 @@ function runQueueTool(env: PageEnv, tool: ForwardedPageTool, record: Record<stri
   const given = {
     agentId: request.agentId,
     input: record,
-    outside: request.outside === true,
     toolCallId: request.toolCallId,
   }
   if (tool.name === PAGE_QUEUE_TOOL) return env.queues.play(session().id, given, request.signal)

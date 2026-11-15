@@ -1,4 +1,5 @@
-import {join} from 'node:path'
+import {mkdirSync, writeFileSync} from 'node:fs'
+import {dirname, isAbsolute, join, relative, resolve, sep} from 'node:path'
 import {
   createFakeHarness,
   createTestkit,
@@ -13,11 +14,13 @@ import type {SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 import type {EngineStaleness} from '@conciv/contract'
 import {concivStateDir} from '@conciv/protocol/state-types'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
 
 export type CoreKit = Kit & {
   harness: FakeHarness
   forSession: (id: SessionId) => SessionScope
   home: string
+  writeProjectFile: (path: string, content: string) => void
 }
 
 export type AlternateHarness = {
@@ -42,6 +45,9 @@ export async function bootCoreKit(opts: {
   allowedOrigins?: string[]
   staleness?: () => EngineStaleness
   nativePageDir?: string
+  plugins?: NonNullable<ConcivConfig['plugins']>
+  files?: Readonly<Record<string, string>>
+  stateRoot?: string
 }): Promise<CoreKit> {
   const harness = createFakeHarness({
     id: opts.id,
@@ -54,38 +60,45 @@ export async function bootCoreKit(opts: {
     resumeBin: opts.resumeBin,
   })
   const captured: {runtime?: CoreRuntime} = {}
-  const kit = await createTestkit(harness, async (env) => {
-    const {fetch, dispose, runtime, agentToken} = await makeApp({
-      print: env.print,
-      cfg: {
-        enabled: true,
-        widgetUrl: undefined,
-        stateRoot: env.stateRoot,
-        harness: env.harness.id,
-        harnessBin: undefined,
-        sessionId: undefined,
-        harnessSessionId: undefined,
-        systemPrompt: '',
-        hubAccess: 'session',
-        plugins: [],
-      },
-      cwd: env.cwd,
-      openInEditor: () => {},
-      harness: env.harness,
-      harnesses: (opts.alternates ?? []).map((alternate) => createFakeHarness(alternate)),
-      extensions: opts.extensions,
-      allowedOrigins: opts.allowedOrigins,
-      staleness: opts.staleness,
-      nativePageDir: opts.nativePageDir,
-      home: kitHome(env.stateRoot),
-    })
-    captured.runtime = runtime
-    return {
-      fetch,
-      dispose,
-      agentToken,
-    }
-  }).setup()
+  const kit = await createTestkit(
+    harness,
+    async (env) => {
+      for (const [path, content] of Object.entries(opts.files ?? {})) writeInside(env.cwd, path, content)
+      const {fetch, dispose, runtime, agentToken, startPlugins} = await makeApp({
+        print: env.print,
+        cfg: {
+          enabled: true,
+          widgetUrl: undefined,
+          stateRoot: env.stateRoot,
+          harness: env.harness.id,
+          harnessBin: undefined,
+          sessionId: undefined,
+          harnessSessionId: undefined,
+          systemPrompt: '',
+          hubAccess: 'session',
+          plugins: opts.plugins ?? [],
+          policies: [],
+        },
+        cwd: env.cwd,
+        openInEditor: () => {},
+        harness: env.harness,
+        harnesses: (opts.alternates ?? []).map((alternate) => createFakeHarness(alternate)),
+        extensions: opts.extensions,
+        allowedOrigins: opts.allowedOrigins,
+        staleness: opts.staleness,
+        nativePageDir: opts.nativePageDir,
+        home: kitHome(env.stateRoot),
+      })
+      captured.runtime = runtime
+      await startPlugins()
+      return {
+        fetch,
+        dispose,
+        agentToken,
+      }
+    },
+    {stateRoot: opts.stateRoot},
+  ).setup()
   const runtime = captured.runtime
   if (!runtime) throw new Error('the core kit booted without capturing the core runtime')
   return {
@@ -93,7 +106,18 @@ export async function bootCoreKit(opts: {
     harness,
     forSession: runtime.forSession,
     home: kitHome(kit.stateRoot),
+    writeProjectFile: (path, content) => writeInside(kit.stateRoot, path, content),
   }
+}
+
+function writeInside(root: string, path: string, content: string): void {
+  const target = resolve(root, path)
+  const inside = relative(root, target)
+  if (inside === '' || inside === '..' || inside.startsWith(`..${sep}`) || isAbsolute(inside)) {
+    throw new Error(`the project file ${path} resolves outside the project root ${root}`)
+  }
+  mkdirSync(dirname(target), {recursive: true})
+  writeFileSync(target, content)
 }
 
 function kitHome(stateRoot: string): string {

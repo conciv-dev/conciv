@@ -1,6 +1,7 @@
 import {z} from 'zod'
 import {
   chat,
+  convertMessagesToModelMessages,
   defineChatMiddleware,
   EventType,
   requestRunCancel,
@@ -39,14 +40,15 @@ import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import {imageToolProvisioner} from './image-tool-results.js'
 import {childCards} from './child-cards.js'
 import {compactionStamp} from './compaction-stamp.js'
-import {codeModeTools, loadIsolateDriver, readSecretRefusal, stoppedWith} from './code-mode.js'
+import {codeModeTools, readSecretRefusal, stoppedWith} from './code-mode.js'
+import type {CodeDriver} from './quickjs-thread.js'
 import {createDelivery, endsTheRun, readTerminalPhase, type ChatDelivery, type Turn} from './delivery.js'
 import {guardedAdapter} from './run-guard.js'
 import {localSandbox} from './local-sandbox.js'
 import {toolHistory} from './tool-history.js'
 
 export type ChatStores = {
-  messages: MessageStore
+  messages: MessageStore & {loadMessage: (threadId: string, messageId: string) => Promise<ModelMessage | null>}
   runs: RunStore &
     Required<Pick<RunStore, 'listByThread' | 'listReclaimable'>> & {
       listRunning: () => Promise<RunRecord[]>
@@ -60,10 +62,13 @@ export type Approvals = ReadonlyMap<string, boolean>
 export type TurnPlan = {
   adapter: TextAdapter
   modelOptions?: Record<string, unknown>
-  systemPrompts: readonly string[]
+  systemPrompts: () => Promise<readonly string[]>
   codeMode: readonly ChatTool[]
+  search: ((input: unknown) => Promise<unknown>) | null
   asking: readonly ChatTool[]
+  direct: readonly ChatTool[]
   setup: () => Promise<Approvals>
+  prompt: (message: ModelMessage) => Promise<ModelMessage>
   expand: (messages: ModelMessage[]) => Promise<ModelMessage[]>
   providerMessages: (messages: ModelMessage[]) => Promise<ModelMessage[]>
   chunk: (chunk: ChatEvent) => Promise<ChatEvent[]>
@@ -84,6 +89,7 @@ export type ChatServerConfig = {
   startTimeoutMs: number
   firstOutputTimeoutMs: number
   log: (message: string) => void
+  driver: CodeDriver | null
 }
 
 const ThreadPageSchema = z.discriminatedUnion('truncated', [
@@ -110,14 +116,17 @@ export type CodeRunner = {
 export type CustomEventSink = (name: string, value: Record<string, unknown>) => void
 
 export type ChatServer = ChatDelivery & {
-  stop: (threadId: string, runIds?: readonly string[]) => Promise<void>
+  stop: (threadId: string, runIds?: readonly string[]) => Promise<boolean>
   endRuns: (threadId: string) => Promise<void>
   endAllRuns: () => Promise<void>
   settled: (threadId: string) => Promise<void>
   driving: (threadId: string) => boolean
   hydrate: (threadId: string, window?: ChatThreadWindow) => Promise<ChatThread>
   record: (threadId: string, chunks: readonly ChatEvent[]) => Promise<void>
-  codeRunner: (codeMode: readonly ChatTool[]) => CodeRunner | null
+  codeRunner: (
+    codeMode: readonly ChatTool[],
+    search: ((input: unknown) => Promise<unknown>) | null,
+  ) => CodeRunner | null
 }
 
 const PHASE_BY_STATUS: Record<RunRecord['status'], RunPhase> = {
@@ -128,11 +137,15 @@ const PHASE_BY_STATUS: Record<RunRecord['status'], RunPhase> = {
   aborted: 'aborted',
 }
 
+function endedPhase(phase: RunPhase, cancelRequested: boolean | undefined): RunPhase {
+  return phase === 'completed' && cancelRequested === true ? 'aborted' : phase
+}
+
 function buildLifecycle(record: RunRecord): RunLifecycle {
   const stopping = record.status === 'running' && record.cancelRequested === true
   return {
     runId: record.runId,
-    phase: stopping ? 'stopping' : PHASE_BY_STATUS[record.status],
+    phase: stopping ? 'stopping' : endedPhase(PHASE_BY_STATUS[record.status], record.cancelRequested),
     startedAt: record.startedAt,
     finishedAt: record.finishedAt ?? null,
     serverNow: Date.now(),
@@ -146,10 +159,13 @@ function failedPlan(error: unknown): TurnPlan {
     adapter: makeTextAdapter('failed-launch', async function* () {
       yield {type: EventType.RUN_ERROR, message, timestamp: Date.now()}
     }),
-    systemPrompts: [],
+    systemPrompts: async () => [],
     codeMode: [],
+    search: null,
     asking: [],
+    direct: [],
     setup: async () => new Map(),
+    prompt: async (user) => user,
     expand: async (messages) => messages,
     providerMessages: async (messages) => messages,
     chunk: async (chunk) => [chunk],
@@ -180,7 +196,7 @@ export function approvalNeeded(name: string): Error {
   )
 }
 
-function approvalDenied(name: string): Error {
+export function approvalDenied(name: string): Error {
   return new Error(`The user denied running tool "${name}". Do not retry it; continue without it.`)
 }
 
@@ -236,6 +252,7 @@ type LiveRun = {
   controller: AbortController
   ending: AbortController
   settled: PromiseWithResolvers<void>
+  stopping: boolean
 }
 
 type RunMessages = {full: ModelMessage[]}
@@ -294,6 +311,14 @@ async function saveShown(
   await messages.saveThread(threadId, [...kept, ...shown])
 }
 
+function untilAborted<Value>(work: Promise<Value>, signal: AbortSignal): Promise<Value> {
+  const aborted = Promise.withResolvers<never>()
+  const abort = () => aborted.reject(signal.reason)
+  if (signal.aborted) abort()
+  signal.addEventListener('abort', abort, {once: true})
+  return Promise.race([work, aborted.promise]).finally(() => signal.removeEventListener('abort', abort))
+}
+
 function silentCategories(logger: DebugConfig['logger']): DebugConfig {
   return {
     logger,
@@ -350,7 +375,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     fileEvents: false,
     lifecycle: {reuse: 'thread', destroyOnComplete: false},
   })
-  const driver = loadIsolateDriver(config.log)
+  const driver = config.driver
   await sweepAbandonedRuns(stores.runs, hooks)
 
   const lifecycleChunk = (lifecycle: RunLifecycle): ChatEvent => runLifecycleEvent.create(lifecycle)
@@ -365,7 +390,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     const now = Date.now()
     return lifecycleChunk({
       runId,
-      phase: phase === 'completed' && record?.cancelRequested === true ? 'aborted' : phase,
+      phase: endedPhase(phase, record?.cancelRequested),
       startedAt: record?.startedAt ?? now,
       finishedAt: now,
       serverNow: now,
@@ -379,6 +404,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   const endRuns = async (threadId: string, except?: string): Promise<void> => {
     const cancels = await Promise.allSettled(
       filterLiveRuns(threadId, except).map(async ([runId, entry]) => {
+        entry.stopping = true
         try {
           await requestRunCancel(stores.runs, runId)
         } finally {
@@ -437,6 +463,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         }
         if (ctx.phase !== 'init') return
         granted.approvals = await plan.setup()
+        const systemPrompts = [...(await plan.systemPrompts()), ...current.systemPrompts]
         const expanded = await plan.expand(current.messages)
         prepared.sent = expanded.length
         prepared.provider = await plan.providerMessages(expanded)
@@ -446,6 +473,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
             expanded.findLast((message) => message.role === 'user'),
           ),
           providerMessages: prepared.provider,
+          systemPrompts,
           resumeToolState: {
             ...current.resumeToolState,
             approvals: new Map([...(current.resumeToolState?.approvals ?? []), ...granted.approvals]),
@@ -488,21 +516,73 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     })
   }
 
+  const promptedMessages = async (
+    threadId: string,
+    messages: Array<ChatMessage | ModelMessage>,
+    plan: TurnPlan,
+    signal: AbortSignal,
+  ): Promise<Array<ChatMessage | ModelMessage>> => {
+    const index = messages.findLastIndex((message) => message.role === 'user')
+    const lastUser = messages[index]
+    if (lastUser?.id === undefined) return messages
+    const messageId = lastUser.id
+    const stored = await stores.messages.loadMessage(threadId, messageId)
+    if (stored !== null) return messages.with(index, stored)
+    const [converted] = convertMessagesToModelMessages([lastUser])
+    if (converted === undefined) return messages
+    const prompted = await untilAborted(plan.prompt(converted), signal)
+    if (prompted === converted) return messages
+    return messages.with(index, prompted)
+  }
+
   function run(turn: Turn, messages: Array<ChatMessage | ModelMessage>, controller: AbortController) {
     const entry: LiveRun = {
       threadId: turn.threadId,
       controller,
       ending: new AbortController(),
       settled: Promise.withResolvers(),
+      stopping: false,
     }
     live.set(turn.runId, entry)
-    const plan = planned(hooks, turn)
+    return admitted(turn, messages, controller, entry, planned(hooks, turn))
+  }
+
+  async function* admitted(
+    turn: Turn,
+    messages: Array<ChatMessage | ModelMessage>,
+    controller: AbortController,
+    entry: LiveRun,
+    plan: TurnPlan,
+  ): AsyncGenerator<ChatEvent> {
+    const prompted = await promptedMessages(turn.threadId, messages, plan, controller.signal).catch(
+      (error: unknown) => {
+        live.delete(turn.runId)
+        entry.settled.resolve()
+        throw error
+      },
+    )
+    yield* started(turn, prompted, controller, entry, plan)
+  }
+
+  function started(
+    turn: Turn,
+    messages: Array<ChatMessage | ModelMessage>,
+    controller: AbortController,
+    entry: LiveRun,
+    plan: TurnPlan,
+  ) {
     const granted: {approvals: Approvals} = {approvals: new Map()}
     const approvals = (): Approvals => granted.approvals
     const coded =
       driver === null
         ? null
-        : codeModeTools(stoppedWith(driver, controller.signal, config.log), plan.codeMode, config.codeModeResult, debug)
+        : codeModeTools(
+            stoppedWith(driver, controller.signal, config.log),
+            plan.codeMode,
+            plan.search,
+            config.codeModeResult,
+            debug,
+          )
     const seconds = (ms: number) => Math.round(ms / 1000)
     const failed = (message: string) => entry.ending.abort({type: EventType.RUN_ERROR, message, timestamp: Date.now()})
     const view: RunMessages = {full: []}
@@ -520,8 +600,8 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       messages,
       threadId: turn.threadId,
       runId: turn.runId,
-      systemPrompts: [...plan.systemPrompts, ...(coded === null ? [] : [coded.systemPrompt])],
-      tools: [...(coded?.tools ?? []), ...gatedTools(plan.asking, approvals)],
+      systemPrompts: coded === null ? [] : [coded.preface],
+      tools: [...(coded?.tools ?? []), ...gatedTools(plan.asking, approvals), ...plan.direct],
       lazyToolsConfig: {includeDescription: 'first-sentence'},
       retry: {maxRetries: 2},
       modelOptions: plan.modelOptions,
@@ -571,13 +651,18 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     }),
     stop: async (threadId, runIds) => {
       const active = await stores.runs.findActiveRun(threadId)
-      if (active === null) {
-        stopPreparing(threadId, runIds)
-        return
+      if (active === null) return stopPreparing(threadId, runIds)
+      if (runIds !== undefined && !runIds.includes(active.runId)) return false
+      if (active.cancelRequested === true) return false
+      const entry = live.get(active.runId)
+      if (entry?.stopping === true) return false
+      if (entry !== undefined) entry.stopping = true
+      try {
+        await requestRunCancel(stores.runs, active.runId)
+      } finally {
+        entry?.controller.abort(RUN_CANCEL_REASON)
       }
-      if (runIds !== undefined && !runIds.includes(active.runId)) return
-      await requestRunCancel(stores.runs, active.runId)
-      live.get(active.runId)?.controller.abort(RUN_CANCEL_REASON)
+      return true
     },
     endRuns: endThreadRuns,
     endAllRuns: async () => {
@@ -605,9 +690,9 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       await Promise.all(filterLiveRuns(threadId).map(([, entry]) => entry.settled.promise))
       await savingShown(threadId, () => saveShown(stores.messages, threadId, processor, (message) => message))
     },
-    codeRunner: (codeMode) => {
+    codeRunner: (codeMode, search) => {
       if (driver === null) return null
-      const coded = codeModeTools(driver, codeMode, (value) => value, debug)
+      const coded = codeModeTools(driver, codeMode, search, (value) => value, debug)
       if (coded === null) return null
       const execute = coded.execute.execute
       if (!execute) return null

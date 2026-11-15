@@ -1,4 +1,3 @@
-import {randomUUID} from 'node:crypto'
 import {platform} from 'node:os'
 import {and, eq, isNull} from 'drizzle-orm'
 import {uniqBy} from 'es-toolkit'
@@ -21,9 +20,8 @@ import type {
   TranscriptTailOptions,
 } from '@conciv/protocol/harness-types'
 import {resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
-import {clearPageChanges, deleteSessionCaptures, drafts, markers, readModel, sessions} from '@conciv/db'
+import {readModel, sessions} from '@conciv/db'
 import {
-  createRow,
   ensureRow,
   listSessionMetas,
   openNativeRow,
@@ -32,10 +30,11 @@ import {
   restoreRow,
   rowById,
   switchRowHarness,
-  tombstoneRow,
   type NativePage,
 } from '../../sessions/session-rows.js'
 import {logError} from '../../lib/debug.js'
+import {createChatSession, deleteSession, renameSession} from '../../sessions/session-actions.js'
+import type {createSessionSearch} from '../../sessions/session-search.js'
 import {os, type ChatContext, type RpcDeps} from './mount.js'
 
 async function loadNativePage(
@@ -102,7 +101,7 @@ export async function rpcSessionMeta(chat: ChatContext, sessionId: SessionId): P
 
 async function sessionPage(
   chat: ChatContext,
-  input: {includeHidden?: boolean; cursor?: HarnessListCursor | null; limit: number},
+  input: SessionPageInput,
   search: string | null,
   loadNativePages: (page: HarnessListPage) => Promise<NativePage[]>,
   returned: ListedHit[] = [],
@@ -140,14 +139,6 @@ function cmdQuote(value: string): string {
   return `"${value.replace(/"/g, '""')}"`
 }
 
-function cleanTitle(title: string): string {
-  return title
-    .replace(/\p{Cc}/gu, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 120)
-}
-
 export function buildHarnessMeta(harness: HarnessAdapter): HarnessMeta {
   return {
     id: harness.id,
@@ -171,65 +162,89 @@ export async function buildHarnessMenuEntry(harness: HarnessAdapter): Promise<Ha
   }
 }
 
+const sameModel = (model: string | null) => (model === null ? isNull(sessions.model) : eq(sessions.model, model))
+
+const sameEffort = (effort: ReasoningEffort | null) =>
+  effort === null ? isNull(sessions.effort) : eq(sessions.effort, effort)
+
+async function ensuredRow(chat: ChatContext, sessionId: SessionId): Promise<SessionRecord | null> {
+  await ensureRow(chat.db, sessionId, chat.defaultHarness.id, chat.cwd)
+  return rowById(chat.db, sessionId)
+}
+
+export async function switchSessionModel(
+  chat: ChatContext,
+  sessionId: SessionId,
+  model: string,
+): Promise<'switched' | 'missing' | 'unknown'> {
+  const row = await ensuredRow(chat, sessionId)
+  if (!row) return 'missing'
+  const models = await resolveHarnessModels(chat.harnessFor(sessionId))
+  const found = models.find((candidate) => candidate.id === model && !candidate.disabled)
+  if (!found) return 'unknown'
+  const effort = row.effort !== null && found.efforts?.includes(row.effort) ? row.effort : null
+  const written = await chat.db
+    .update(sessions)
+    .set({model, effort, updatedAt: Date.now()})
+    .where(and(eq(sessions.id, sessionId), eq(sessions.harnessKind, row.harnessKind), sameEffort(row.effort)))
+    .returning({id: sessions.id})
+  return written.length > 0 ? 'switched' : switchSessionModel(chat, sessionId, model)
+}
+
+export async function switchSessionEffort(
+  chat: ChatContext,
+  sessionId: SessionId,
+  effort: ReasoningEffort | null,
+): Promise<'switched' | 'missing' | 'unsupported'> {
+  const row = await ensuredRow(chat, sessionId)
+  if (!row) return 'missing'
+  if (effort !== null) {
+    const harness = chat.harnessFor(sessionId)
+    const models = await resolveHarnessModels(harness)
+    const modelId = row.model ?? harness.defaultModel ?? models[0]?.id
+    const current = models.find((model) => model.id === modelId)
+    if (!current?.efforts?.includes(effort)) return 'unsupported'
+  }
+  const written = await chat.db
+    .update(sessions)
+    .set({effort, updatedAt: Date.now()})
+    .where(and(eq(sessions.id, sessionId), eq(sessions.harnessKind, row.harnessKind), sameModel(row.model)))
+    .returning({id: sessions.id})
+  return written.length > 0 ? 'switched' : switchSessionEffort(chat, sessionId, effort)
+}
+
+type SessionSearch = ReturnType<typeof createSessionSearch>
+
+type SessionPageInput = {includeHidden?: boolean; cursor?: HarnessListCursor | null; limit: number}
+
+export async function listedSessionPage(
+  chat: ChatContext,
+  search: Pick<SessionSearch, 'listed'>,
+  input: SessionPageInput,
+): Promise<{sessions: ListedHit[]; next: HarnessListCursor | null}> {
+  const page = await sessionPage(chat, input, null, (cursorPage) => listedPages(chat, cursorPage))
+  search.listed()
+  return page
+}
+
+export function searchedSessionPage(
+  chat: ChatContext,
+  search: Pick<SessionSearch, 'pages'>,
+  input: SessionPageInput & {term: string; everywhere: boolean},
+): Promise<{sessions: ListedHit[]; next: HarnessListCursor | null}> {
+  return sessionPage(chat, input, input.term, (cursorPage) => search.pages(input.term, cursorPage, input.everywhere))
+}
+
 export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, RpcContext> {
   const chat = deps.chat
   const db = chat.db
   const scope = {db, harnessKind: chat.defaultHarness.id, cwd: chat.cwd}
   const search = deps.search
-  const ensuredRow = async (sessionId: SessionId) => {
-    await ensureRow(db, sessionId, scope.harnessKind, scope.cwd)
-    return rowById(db, sessionId)
-  }
-  const sameModel = (model: string | null) => (model === null ? isNull(sessions.model) : eq(sessions.model, model))
-  const sameEffort = (effort: ReasoningEffort | null) =>
-    effort === null ? isNull(sessions.effort) : eq(sessions.effort, effort)
-
-  async function switchModel(sessionId: SessionId, model: string): Promise<'switched' | 'missing' | 'unknown'> {
-    const row = await ensuredRow(sessionId)
-    if (!row) return 'missing'
-    const models = await resolveHarnessModels(chat.harnessFor(sessionId))
-    const found = models.find((candidate) => candidate.id === model && !candidate.disabled)
-    if (!found) return 'unknown'
-    const effort = row.effort !== null && found.efforts?.includes(row.effort) ? row.effort : null
-    const written = await db
-      .update(sessions)
-      .set({model, effort, updatedAt: Date.now()})
-      .where(and(eq(sessions.id, sessionId), eq(sessions.harnessKind, row.harnessKind), sameEffort(row.effort)))
-      .returning({id: sessions.id})
-    return written.length > 0 ? 'switched' : switchModel(sessionId, model)
-  }
-
-  async function switchEffort(
-    sessionId: SessionId,
-    effort: ReasoningEffort | null,
-  ): Promise<'switched' | 'missing' | 'unsupported'> {
-    const row = await ensuredRow(sessionId)
-    if (!row) return 'missing'
-    if (effort !== null) {
-      const harness = chat.harnessFor(sessionId)
-      const models = await resolveHarnessModels(harness)
-      const modelId = row.model ?? harness.defaultModel ?? models[0]?.id
-      const current = models.find((model) => model.id === modelId)
-      if (!current?.efforts?.includes(effort)) return 'unsupported'
-    }
-    const written = await db
-      .update(sessions)
-      .set({effort, updatedAt: Date.now()})
-      .where(and(eq(sessions.id, sessionId), eq(sessions.harnessKind, row.harnessKind), sameModel(row.model)))
-      .returning({id: sessions.id})
-    return written.length > 0 ? 'switched' : switchEffort(sessionId, effort)
-  }
   return {
-    list: os.sessions.list.handler(async ({input}) => {
-      const page = await sessionPage(chat, input, null, (cursorPage) => listedPages(chat, cursorPage))
-      search.listed()
-      return page
-    }),
+    list: os.sessions.list.handler(({input}) => listedSessionPage(chat, search, input)),
     changes: os.sessions.changes.handler(({signal}) => search.changes(signal)),
     search: os.sessions.search.handler(async ({input}) => {
-      const page = await sessionPage(chat, input, input.term, (cursorPage) =>
-        search.pages(input.term, cursorPage, input.everywhere),
-      )
+      const page = await searchedSessionPage(chat, search, input)
       return {...page, sessions: page.sessions.map((hit) => ({...hit, resume: formatResume(chat, hit)}))}
     }),
     get: os.sessions.get.handler(async ({input, errors}) => {
@@ -249,22 +264,7 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       if (input.cwd !== undefined) search.cover(input.cwd)
       return page
     }),
-    create: os.sessions.create.handler(async () => {
-      const sessionId = SessionId.parse(`conciv_${randomUUID()}`)
-      await createRow(db, {
-        id: sessionId,
-        harnessSessionId: null,
-        harnessKind: scope.harnessKind,
-        origin: 'chat',
-        title: null,
-        model: null,
-        usage: null,
-        cwd: scope.cwd,
-        deletedAt: null,
-      })
-      await db.insert(markers).values({id: randomUUID(), sessionId, afterMessageId: null, kind: 'new'})
-      return {sessionId}
-    }),
+    create: os.sessions.create.handler(() => createChatSession(db, scope)),
     resolve: os.sessions.resolve.handler(({input}) => resolveRow(scope, input)),
     open: os.sessions.open.handler(({input}) => openNativeRow(scope, input)),
     restore: os.sessions.restore.handler(async ({input}) => {
@@ -272,29 +272,22 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       return {sessionId: input.sessionId}
     }),
     rename: os.sessions.rename.handler(async ({input, errors}) => {
-      const row = await rowById(db, input.sessionId)
-      if (!row) throw errors.NOT_FOUND()
-      const title = cleanTitle(input.title)
-      await db.update(sessions).set({title, updatedAt: Date.now()}).where(eq(sessions.id, input.sessionId))
-      if (row.harnessSessionId !== null) await search.retitle(row.harnessKind, row.harnessSessionId, title)
-      return {title}
+      const outcome = await renameSession({db, search}, input.sessionId, input.title)
+      if (outcome === 'missing') throw errors.NOT_FOUND()
+      return outcome
     }),
     delete: os.sessions.delete.handler(async ({input}) => {
-      await tombstoneRow(db, input.sessionId)
-      await db.delete(drafts).where(eq(drafts.sessionId, input.sessionId))
-      await chat.plane.clear(input.sessionId)
-      await deleteSessionCaptures(db, input.sessionId)
-      await clearPageChanges(db, input.sessionId)
+      await deleteSession({db, plane: chat.plane, pluginHost: deps.pluginHost, queues: deps.queues}, input.sessionId)
       return {ok: true as const}
     }),
     model: os.sessions.model.handler(async ({input, errors}) => {
-      const outcome = await switchModel(input.sessionId, input.model)
+      const outcome = await switchSessionModel(chat, input.sessionId, input.model)
       if (outcome === 'missing') throw errors.NOT_FOUND()
       if (outcome === 'unknown') throw errors.UNKNOWN_MODEL()
       return {model: input.model}
     }),
     effort: os.sessions.effort.handler(async ({input, errors}) => {
-      const outcome = await switchEffort(input.sessionId, input.effort)
+      const outcome = await switchSessionEffort(chat, input.sessionId, input.effort)
       if (outcome === 'missing') throw errors.NOT_FOUND()
       if (outcome === 'unsupported') throw errors.UNSUPPORTED_EFFORT()
       return {effort: input.effort}

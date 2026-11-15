@@ -15,6 +15,7 @@ import {
   type Sessions,
 } from '../src/experimental/index.js'
 import type {ServerRef} from '../src/experimental/index.js'
+import {Conciv} from '../src/promise/index.js'
 
 function unused(): never {
   throw new Error('not used by this test')
@@ -26,12 +27,7 @@ const server: ServerRef = {
   id: 'sidecar',
   name: 'engine',
   url,
-  client: Object.assign(
-    new Proxy(makeRpcClient(url), {
-      get: (target, key) => (key === 'rpc' ? unused : Reflect.get(target, key)),
-    }),
-    {rpc: unused},
-  ),
+  client: Conciv.make(makeRpcClient(url)),
   local: true,
   builtin: true,
   compatible: true,
@@ -64,21 +60,21 @@ function pluginContext(id: string, sessions: Sessions = {list: () => [], current
     sessions,
     screen: {current: unused},
     storage: {store: unused, memory: unused, remove: unused},
-    system: {copy: unused, save: undefined, openExternal: undefined},
+    system: {copy: unused, save: unused, openExternal: unused},
     desktop: undefined,
     dialogs: {
       open: unused,
       active: unused,
-      confirm: undefined,
-      alert: undefined,
-      prompt: undefined,
-      select: undefined,
+      confirm: unused,
+      alert: unused,
+      prompt: unused,
+      select: unused,
     },
     toast: {show: unused},
     tabs: {list: unused, open: unused, focus: unused, move: undefined, close: unused},
     attention: undefined,
     commands: undefined,
-    links: {open: unused, exists: undefined},
+    links: {open: unused, exists: unused},
     ui: {
       Icon: unused,
       Button: unused,

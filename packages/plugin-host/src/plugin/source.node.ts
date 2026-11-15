@@ -1,6 +1,7 @@
-import {registerHooks} from 'node:module'
+import {statSync} from 'node:fs'
+import {registerHooks, type ResolveFnOutput, type ResolveHookContext} from 'node:module'
 import path from 'node:path'
-import {fileURLToPath} from 'node:url'
+import {fileURLToPath, pathToFileURL} from 'node:url'
 import {localSource} from './source.js'
 import {missingPackageTarget} from './source.package.js'
 import * as Host from '@conciv/plugin/host'
@@ -32,14 +33,7 @@ export async function prepareSource(entrypoint: string, track: (file: string, di
         }
       }
       if (fileURLToPath(local).split(path.sep).includes('node_modules')) return nextResolve(specifier, context)
-      const resolved = (() => {
-        try {
-          return nextResolve(specifier, context)
-        } catch (error) {
-          track(path.dirname(fileURLToPath(local)), true)
-          throw error
-        }
-      })()
+      const resolved = resolveLocal(specifier, context, nextResolve, local, track)
       if (!resolved.url.startsWith('file:')) return resolved
       const file = fileURLToPath(resolved.url)
       if (file.split(path.sep).includes('node_modules')) return resolved
@@ -49,4 +43,38 @@ export async function prepareSource(entrypoint: string, track: (file: string, di
   })
   const specifier = fresh(entrypoint)
   return {version: specifier, load: () => Host.load(specifier), dispose: () => hook.deregister()}
+}
+
+function resolveLocal(
+  specifier: string,
+  context: ResolveHookContext,
+  nextResolve: (specifier: string, context?: Partial<ResolveHookContext>) => ResolveFnOutput,
+  local: URL,
+  track: (file: string, directory?: boolean) => void,
+) {
+  try {
+    return nextResolve(specifier, context)
+  } catch (error) {
+    const candidate = bunCandidates(fileURLToPath(local)).find((file) =>
+      statSync(file, {throwIfNoEntry: false})?.isFile(),
+    )
+    if (candidate) return nextResolve(pathToFileURL(candidate).href, context)
+    track(path.dirname(fileURLToPath(local)), true)
+    throw error
+  }
+}
+
+const bunExtensions = ['.mts', '.ts', '.mjs', '.js', '.cts', '.cjs', '.json']
+
+const typescriptTwins: Partial<Record<string, readonly string[]>> = {
+  '.js': ['.ts'],
+  '.mjs': ['.mts'],
+}
+
+function bunCandidates(file: string) {
+  const extension = path.extname(file)
+  const twins = (typescriptTwins[extension] ?? []).map((twin) => file.slice(0, -extension.length) + twin)
+  const appended = bunExtensions.map((candidate) => file + candidate)
+  const indexes = bunExtensions.map((candidate) => path.join(file, `index${candidate}`))
+  return [...twins, ...appended, ...indexes]
 }

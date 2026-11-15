@@ -38,6 +38,7 @@ export function EngineStaleNotice(): JSX.Element {
     notices.remove(standing.fingerprint)
     standing.fingerprint = null
   }
+  onCleanup(clear)
   createEffect(() => {
     const reading = engine.data
     if (reading === undefined) return
@@ -55,10 +56,7 @@ export function EngineStaleNotice(): JSX.Element {
 
 export function EngineOutdatedNotice(): JSX.Element {
   const apiBase = useApiBase()
-  const engineVersion = useQuery(() => ({
-    queryKey: ['conciv', 'engine-version', apiBase()],
-    queryFn: async () => (await fetch(`${apiBase()}/health`)).headers.get(CONCIV_VERSION_HEADER),
-  }))
+  const engineVersion = useQuery(() => engineVersionQueryOptions(apiBase()))
   const outdated = (): boolean => engineVersion.isSuccess && engineOlderThanWidget(engineVersion.data)
   return (
     <Show when={outdated()}>
@@ -67,7 +65,14 @@ export function EngineOutdatedNotice(): JSX.Element {
   )
 }
 
-function engineOlderThanWidget(version: string | null): boolean {
+export function engineVersionQueryOptions(apiBase: string) {
+  return {
+    queryKey: ['conciv', 'engine-version', apiBase],
+    queryFn: async () => (await fetch(`${apiBase}/health`)).headers.get(CONCIV_VERSION_HEADER),
+  }
+}
+
+export function engineOlderThanWidget(version: string | null): boolean {
   const engine = version === null ? null : valid(version)
   return engine === null || lt(engine, appManifest.version)
 }
@@ -83,6 +88,7 @@ export function EngineUnreachableNotice(): JSX.Element {
     resetBrowserRpcConnection(apiBase())
     await router.invalidate()
   }
+  onCleanup(() => notices.remove(ENGINE_UNREACHABLE_KEY))
   createEffect(() => {
     if (!reachability.sustainedOffline()) {
       notices.remove(ENGINE_UNREACHABLE_KEY)

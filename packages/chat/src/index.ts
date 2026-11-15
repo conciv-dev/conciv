@@ -4,7 +4,14 @@ import {Hono} from 'hono'
 import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
 import {approvalRequestedEvent, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
-import {approvalNeeded, childCardChunks, createChatServer, drizzleChatStores, toolApprovalId} from '@conciv/ai/server'
+import {
+  approvalNeeded,
+  childCardChunks,
+  createChatServer,
+  drizzleChatStores,
+  toolApprovalId,
+  type CodeDriver,
+} from '@conciv/ai/server'
 import {cappedValue, type ChatHistoryWindow, type ChatHydration} from '@conciv/contract'
 import {chatRuns, markers, type ConcivDb} from '@conciv/db'
 import {CHAT_SSE_PATH, CHAT_WS_PATH, isSessionId, SessionId, type HubAccess} from '@conciv/protocol/chat-types'
@@ -12,17 +19,27 @@ import type {UiAnswer} from '@conciv/protocol/ui-types'
 import {
   createApprovalStore,
   createUiChannel,
+  dropPermissionCards,
   type Admission,
   type ApprovalDecision,
   type ApprovalAsked,
   type ApprovalScope,
 } from './approvals.js'
 import {chatToolSet, type CodeCapability} from './code-mode.js'
+import type {ChatTool} from '@conciv/protocol/chat-tool-types'
+import type {CodeModeCatalog} from '@conciv/plugin-host'
 import {clearThread, metadataKeysEndingWith, runningThreadIds} from './stores.js'
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
 import {firstUserTitle, turnHooks, type TurnDeps} from './turn.js'
 
-export {assistCapabilities, registryCapabilities, toolDomainCapabilities, type CodeCapability} from './code-mode.js'
+export {
+  assistCapabilities,
+  registryCapabilities,
+  toolDomainCapabilities,
+  type CapabilityResult,
+  type CodeCapability,
+  type ToolDomain,
+} from './code-mode.js'
 export type {AttachmentExpanders, SessionPort} from './turn.js'
 
 const FIRST_OUTPUT_TIMEOUT_MS = 30_000
@@ -35,6 +52,7 @@ type ChatPlaneDeps = TurnDeps & {
   hubAccess: HubAccess
   hubGeneration: () => number | null
   firstOutputTimeoutMs?: number
+  driver: CodeDriver | null
 }
 
 export type CodeTool = {
@@ -44,12 +62,18 @@ export type CodeTool = {
   run: (input: unknown, parentToolCallId: string, signal?: AbortSignal) => Promise<unknown>
 }
 
-export type CodeRunner = {
+export type CodeSandbox = {
   capabilities: {name: string; description: string}[]
+  inventory: CodeModeCatalog.Inventory
   run: (code: string, parentToolCallId: string | null, signal?: AbortSignal) => Promise<unknown>
   discover: {description: string; run: (toolNames: string[]) => Promise<unknown>} | null
-  asking: CodeTool[]
   declaredCodes: ReadonlySet<string>
+}
+
+export type CodeRunner = {
+  code: CodeSandbox | null
+  asking: CodeTool[]
+  direct: CodeTool[]
 }
 
 type AdmittedCall = {
@@ -68,13 +92,15 @@ export type ChatPlane = {
   routes: (upgrade: UpgradeWebSocket) => Hono
   hydrate: (sessionId: SessionId, window?: ChatHistoryWindow) => Promise<ChatHydration>
   history: (sessionId: SessionId) => Promise<ChatMessage[]>
-  stop: (sessionId: SessionId, runIds?: readonly string[]) => Promise<{ok: true}>
+  stop: (sessionId: SessionId, runIds?: readonly string[]) => Promise<{ok: true; stopped: boolean}>
   compact: (sessionId: SessionId) => Promise<void>
   clear: (sessionId: SessionId) => Promise<void>
   endAllRuns: () => Promise<void>
   live: (sessionId: SessionId) => Promise<boolean>
   record: (sessionId: SessionId, chunks: readonly ChatEvent[]) => Promise<void>
   driving: (sessionId: SessionId) => boolean
+  settled: (sessionId: SessionId) => Promise<void>
+  recordRunError: (sessionId: SessionId, runId: string, message: string) => Promise<void>
   running: () => Promise<ReadonlySet<string>>
   decide: (
     sessionId: SessionId,
@@ -88,7 +114,6 @@ export type ChatPlane = {
     sessionId: SessionId,
     publish: (chunk: ChatEvent) => void,
     capabilities?: readonly CodeCapability[],
-    outside?: boolean,
   ) => Promise<CodeRunner | null>
   followUp: (sessionId: SessionId, input: string) => Promise<FollowUpOutcome>
   admitCall: (sessionId: SessionId, call: AdmittedCall) => Promise<CallRefusal | null>
@@ -114,10 +139,13 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       }
     },
   })
-  const approvals = createApprovalStore(
-    {...stores.metadata, keysEndingWith: (namespace, suffix) => metadataKeysEndingWith(deps.db, namespace, suffix)},
-    deps.hubAccess,
-    deps.hubGeneration,
+  const approvalMetadata = {
+    ...stores.metadata,
+    keysEndingWith: (namespace: string, suffix: string) => metadataKeysEndingWith(deps.db, namespace, suffix),
+  }
+  const approvals = createApprovalStore(approvalMetadata, deps.hubAccess, deps.hubGeneration)
+  await dropPermissionCards(approvals, approvalMetadata).catch((error: unknown) =>
+    deps.log(`[chat] removing the permission cards of the previous engine failed: ${String(error)}`),
   )
   const ui = createUiChannel()
   const transcripts = createTranscriptImporter({
@@ -135,11 +163,12 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   const server = await createChatServer({
     stores,
     sandbox: {dir: deps.cwd},
-    hooks: turnHooks(deps, {approvals, ui, transcripts}),
+    hooks: turnHooks(deps, {approvals, ui, transcripts, codeMode: deps.driver !== null}),
     codeModeResult: cappedValue,
     startTimeoutMs: FIRST_START_TIMEOUT_MS,
     firstOutputTimeoutMs: deps.firstOutputTimeoutMs ?? FIRST_OUTPUT_TIMEOUT_MS,
     log: deps.log,
+    driver: deps.driver,
   })
   const normalize = toolNameNormalizer(deps.toolNames)
 
@@ -210,8 +239,8 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     hydrate,
     history: async (sessionId) => (await hydrate(sessionId)).messages,
     stop: async (sessionId, runIds) => {
-      await server.stop(sessionId, runIds)
-      return {ok: true}
+      const stopped = await server.stop(sessionId, runIds)
+      return {ok: true, stopped}
     },
     compact: async (sessionId) => {
       await server.stop(sessionId)
@@ -228,6 +257,12 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     live: async (sessionId) => (await stores.runs.findActiveRun(sessionId)) !== null,
     record: (sessionId, chunks) => server.record(sessionId, chunks),
     driving: (sessionId) => server.driving(sessionId),
+    settled: (sessionId) => server.settled(sessionId),
+    recordRunError: async (sessionId, runId, message) => {
+      const run = (await stores.runs.listByThread(sessionId)).find((stored) => stored.runId === runId)
+      if (run === undefined) throw new Error(`run ${runId} is not a run of session ${sessionId}`)
+      await stores.runs.update(runId, {error: {message}})
+    },
     running: () => runningThreadIds(deps.db),
     decide: (sessionId, approvalId, approved, scope) => approvals.decide(sessionId, approvalId, approved, scope),
     answerUi: (sessionId, toolCallId, value) => ui.answer(sessionId, toolCallId, value),
@@ -265,12 +300,12 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
         startingFollowUps.delete(sessionId)
       }
     },
-    codeRunner: async (sessionId, publish, given, outside) => {
+    codeRunner: async (sessionId, publish, given) => {
       const model = deps.sessions.row(sessionId)?.model ?? null
       const capabilities = given ?? deps.capabilities(sessionId)
-      const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model, ...(outside ? {outside} : {})})
-      const runner = server.codeRunner(toolSet.codeMode)
-      if (runner === null) return null
+      const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model}, deps.driver !== null)
+      const runner = server.codeRunner(toolSet.codeMode, toolSet.search)
+      if (runner === null && toolSet.direct.length === 0 && toolSet.asking.length === 0) return null
       const emitter = (parentToolCallId: string | null) => (name: string, value: Record<string, unknown>) => {
         const chunk: ChatEvent = {type: ChatEventType.CUSTOM, name, value, timestamp: Date.now()}
         for (const card of childCardChunks(chunk, parentToolCallId, cappedValue) ?? [chunk]) {
@@ -280,29 +315,46 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
           publish(card)
         }
       }
-      const asking = toolSet.asking.flatMap((tool): CodeTool[] => {
-        const execute = tool.execute
-        const capability = toolSet.asked.find((entry) => entry.name === tool.name)
-        if (!execute || capability === undefined) return []
-        return [
-          {
-            name: tool.name,
-            description: tool.description,
-            inputSchema: capability.inputSchema,
-            run: async (input, parentToolCallId, signal) =>
-              execute(input, {emitCustomEvent: emitter(parentToolCallId), abortSignal: signal}),
-          },
-        ]
-      })
+      const direct = codeTools(toolSet.direct, toolSet.directed, emitter)
+      const asking = codeTools(toolSet.asking, toolSet.asked, emitter)
+      const inventory = toolSet.inventory
+      if (runner === null || inventory === undefined) return {code: null, asking, direct}
       return {
-        capabilities: toolSet.codeMode.map((tool) => ({name: tool.name, description: tool.description})),
-        run: (code, parentToolCallId, signal) => runner.run(code, emitter(parentToolCallId), signal),
-        discover: runner.discover,
+        code: {
+          capabilities: toolSet.codeMode.map((tool) => ({name: tool.name, description: tool.description})),
+          inventory,
+          run: (code, parentToolCallId, signal) => runner.run(code, emitter(parentToolCallId), signal),
+          discover: runner.discover,
+          declaredCodes: new Set(capabilities.flatMap((capability) => capability.errors.map(({code}) => code))),
+        },
         asking,
-        declaredCodes: new Set(capabilities.flatMap((capability) => capability.errors.map(({code}) => code))),
+        direct,
       }
     },
   }
+}
+
+type Emitter = (parentToolCallId: string | null) => (name: string, value: Record<string, unknown>) => void
+
+function codeTools(tools: readonly ChatTool[], capabilities: readonly CodeCapability[], emitter: Emitter): CodeTool[] {
+  return tools.flatMap((tool): CodeTool[] => {
+    const execute = tool.execute
+    const capability = capabilities.find((entry) => entry.name === tool.name)
+    if (!execute || capability === undefined) return []
+    return [
+      {
+        name: tool.name,
+        description: tool.description,
+        inputSchema: capability.inputSchema,
+        run: async (input, parentToolCallId, signal) =>
+          execute(input, {
+            toolCallId: parentToolCallId,
+            emitCustomEvent: emitter(parentToolCallId),
+            abortSignal: signal,
+          }),
+      },
+    ]
+  })
 }
 
 type EndedRun = Awaited<ReturnType<ReturnType<typeof drizzleChatStores>['runs']['get']>>

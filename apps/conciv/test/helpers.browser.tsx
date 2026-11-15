@@ -8,7 +8,14 @@ import {
   type EngineTokenSource,
 } from '@conciv/contract'
 import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
-import type {BootCoreInput, BootCoreResult, FaultSpec, PointerDrag, PointerHover} from './commands/core-control.js'
+import type {
+  BootCoreInput,
+  BootCoreResult,
+  ChosenFile,
+  FaultSpec,
+  PointerDrag,
+  PointerHover,
+} from './commands/core-control.js'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {fetchServerSentEvents} from '@conciv/ai/client'
 import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
@@ -35,23 +42,30 @@ import {createInstances} from '../src/extension/create-instances.js'
 import {makeGrabStaging} from '../src/pane/grab-staging.js'
 import {makeRefreshCoordinator} from '../src/pane/refresh-coordinator.js'
 import {NoticeContextProvider, NoticeSurface} from '../src/shell/notice-context.js'
-import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
+import {RouterProvider, createMemoryHistory, createRootRoute, createRouter} from '@tanstack/solid-router'
 import {createConcivRouter, disposeConcivRouter} from '../src/router.js'
 import {createEngineLogin, engineConnected, startEngineLogin} from '../src/app/engine-login.js'
 import {afterAll, afterEach, beforeAll, expect} from 'vitest'
 import {VIRTUALIZE_THRESHOLD} from '@conciv/ui-kit-chat'
 import {ChatPane} from '../src/pane/chat-pane.js'
+import {DialogProvider} from '../src/runtime/plugin/dialog-stack.js'
+import {PluginAttachment, PluginRoot} from '../src/runtime/plugin/root.js'
 import {GRAB_FILE_NAME, GRAB_MIME, grabToPayload} from '@conciv/grab/grab-attachment'
 import type {WebStorage} from '@conciv/storage-history'
 
 declare module 'vitest/internal/browser' {
   interface BrowserCommands {
     bootCore: (input: BootCoreInput) => Promise<BootCoreResult>
+    chooseFiles: (name: string, chosen: ChosenFile[]) => Promise<void>
+    downloadFrom: (name: string) => Promise<{name: string; text: string}>
+    openedFrom: (name: string) => Promise<string>
     dragButton: (drag: PointerDrag) => Promise<void>
     hoverButton: (hover: PointerHover) => Promise<void>
     closeCore: () => Promise<void>
+    writeProjectFile: (path: string, content: string) => Promise<void>
     pushSocketsOpened: () => Promise<number>
     pushSocketsLive: () => Promise<number>
+    rpcSocketsOpened: () => Promise<number>
     printedCode: () => Promise<string>
     requestCode: () => Promise<string>
     revokeBrowsers: () => Promise<number>
@@ -70,7 +84,7 @@ declare module 'vitest/internal/browser' {
     scriptCustomEvent: (name: string, value: unknown) => Promise<void>
     fakeHubCli: (outcome: 'ok' | 'fail' | 'hold' | 'hold-remove' | null) => Promise<void>
     setHubConnection: (harness: string, connected: boolean) => Promise<void>
-    rpcCallCount: (path: string[]) => Promise<number>
+    rpcCallCount: (path: string[], input?: unknown) => Promise<number>
     rpcStartedOnceServed: (served: string[], count: number, started: string[][]) => Promise<number[]>
     installFault: (spec: FaultSpec) => Promise<string>
     releaseFault: (handle: string) => Promise<void>
@@ -86,8 +100,16 @@ type SeededDraft = {text?: string; attachments?: PersistedAttachment[]}
 
 type TurnHandle = {awaitTurnEnd: () => Promise<void>; awaitReply: () => Promise<void>; close: () => void}
 
+const helperClients: BrowserRpcClient[] = []
+
 export function coreRpc(base: string): RpcClient {
-  return makeBrowserRpcClient(base).rpc
+  const client = makeBrowserRpcClient(base)
+  helperClients.push(client)
+  return client.rpc
+}
+
+function closeHelperClients(): void {
+  for (const client of helperClients.splice(0)) client.close()
 }
 
 export async function createSession(rpc: RpcClient): Promise<string> {
@@ -313,30 +335,41 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     reachability: makeEngineReachability(() => options.base),
     dispose: disposeReachability,
   }))
-  const mounted = render(() => (
+  const tree = () => (
     <QueryClientProvider client={queryClient}>
       <AppContext.Provider value={app}>
         <EngineReachabilityContext.Provider value={reachabilityRoot.reachability}>
           <NoticeContextProvider>
-            <PaneContext.Provider value={pane}>
-              <HostApiProvider
-                rpc={rpc}
-                apiBase={() => options.base}
-                toast={(message) => app.announce(message)}
-                dialog={app.layers.track(Dialog)}
-              >
-                <div class="flex flex-col h-150" style={{width: `${width()}px`}}>
-                  {view(pane)}
-                  <NoticeSurface />
-                </div>
-                <AnnounceLog entries={announced} />
-              </HostApiProvider>
-            </PaneContext.Provider>
+            <DialogProvider>
+              <PluginRoot>
+                <PluginAttachment>
+                  <PaneContext.Provider value={pane}>
+                    <HostApiProvider
+                      rpc={rpc}
+                      apiBase={() => options.base}
+                      toast={(message) => app.announce(message)}
+                      dialog={app.layers.track(Dialog)}
+                    >
+                      <div class="flex flex-col h-150" style={{width: `${width()}px`}}>
+                        {view(pane)}
+                        <NoticeSurface />
+                      </div>
+                      <AnnounceLog entries={announced} />
+                    </HostApiProvider>
+                  </PaneContext.Provider>
+                </PluginAttachment>
+              </PluginRoot>
+            </DialogProvider>
           </NoticeContextProvider>
         </EngineReachabilityContext.Provider>
       </AppContext.Provider>
     </QueryClientProvider>
-  ))
+  )
+  const router = createRouter({
+    routeTree: createRootRoute({component: tree}),
+    history: createMemoryHistory({initialEntries: ['/']}),
+  })
+  const mounted = render(() => <RouterProvider router={router} />)
   return {
     dispose: () => {
       mounted.unmount()
@@ -563,8 +596,11 @@ export function registerCalmCore(id: string): void {
   }, 60_000)
 
   afterAll(async () => {
+    closeHelperClients()
     await coreControl.closeCore()
   }, 30_000)
+
+  afterEach(closeHelperClients)
 
   afterEach(async () => {
     active.watch?.stop()
@@ -745,7 +781,9 @@ export function bootedCore(id: string, extra: Omit<BootCoreInput, 'id' | 'allowe
     const booted = await coreControl.bootCore({...extra, id, allowedOrigins: [window.location.origin]})
     core.base = booted.base
   }, 60_000)
+  afterEach(closeHelperClients)
   afterAll(async () => {
+    closeHelperClients()
     await coreControl.closeCore()
   }, 30_000)
   return () => core.base

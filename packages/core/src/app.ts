@@ -8,6 +8,7 @@ import {upgradeWebSocket} from '@conciv/serve'
 import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter} from '@conciv/harness'
 import {concivStateDir} from '@conciv/protocol/state-types'
+import {idleFailedEvent, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {
@@ -52,11 +53,12 @@ import {
   type SessionPort,
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
-import {Layer, ManagedRuntime} from 'effect'
 import {memoize} from 'es-toolkit'
-import {PluginHooks, Tool} from '@conciv/plugin-host'
+import {Cause, Effect, Exit, Fiber, FiberMap, Scope} from 'effect'
+import {PluginHooks, SessionSchema} from '@conciv/plugin-host'
+import type {Plugin} from '@conciv/plugin'
 import {pushRoutes, type PushDeps} from './api/push.js'
-import {makeHubAdmission, type ChatContext, type RpcDeps} from './api/rpc/mount.js'
+import {makeHubAdmission, type ChatContext, type PluginHost, type RpcDeps} from './api/rpc/mount.js'
 import {concivHome, drafts, readModel, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
 import {createSettingsStorage, settingsOnDisk} from './settings/settings-storage.js'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
@@ -70,8 +72,15 @@ import {outsideRefusal} from './api/outside-refusal.js'
 import {outsideRunCapabilities} from './api/outside-run.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
-import {pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
+import {holdForNextReply, owesFollowUp, pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
+import {
+  answerPermission,
+  followPermissionCards,
+  pluginInstructions,
+  sessionToolDomain,
+} from './runtime/permission-cards.js'
+import {makePluginRuntime} from './runtime/plugin-runtime.js'
 import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
@@ -88,7 +97,8 @@ import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
 import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
-import {runInOrder} from './lib/shutdown.js'
+import {loadIsolateDriver} from '@conciv/ai/server'
+import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import {
   agentPath,
@@ -136,6 +146,10 @@ export type MakeAppOpts = {
   nativePageDir?: string
 
   nativeUrl?: () => string | undefined
+
+  tokenScopedBase?: () => string | undefined
+
+  plugins?: readonly Plugin.Plugin[]
 
   staleness?: () => EngineStaleness
 
@@ -388,6 +402,8 @@ export type MadeApp = {
   dispose: () => Promise<void>
   extensionContexts: Record<string, unknown>
   runtime: CoreRuntime
+  pluginHost: PluginHost
+  startPlugins: () => Promise<void>
 }
 
 function makeServerHarness(harness: HarnessAdapter, cwd: string): ServerHarness {
@@ -460,7 +476,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const scopedToolCall: ScopedToolCall = (name, input, request) =>
     runtime
       .forSession(request.sessionId)
-      .tools.call(name, input, {toolCallId: request.toolCallId, signal: request.signal, outside: request.outside})
+      .tools.call(name, input, {toolCallId: request.toolCallId, signal: request.signal})
 
   const serverSessions: ServerSessions = {
     resumeToken: (sessionId) => nativeIdFor(db, sessionId),
@@ -527,11 +543,43 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   )
   const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
   const turnEnds = mounted.flatMap((entry) => (entry.turnEnd ? [entry.turnEnd] : []))
-  const onRunEnd = async (sessionId: SessionId): Promise<void> => {
+  const idleFailed = async (sessionId: SessionId, runId: string, error: unknown): Promise<void> => {
+    logError(`[core] the experimental.idle hook failed: ${String(error)}`)
+    const message = error instanceof Error ? error.message : String(error)
+    await plane
+      .recordRunError(sessionId, runId, message)
+      .catch((recordError: unknown) =>
+        logError(`[core] recording the experimental.idle failure of run ${runId} failed: ${String(recordError)}`),
+      )
+    stream.publish(sessionId, idleFailedEvent.create({runId}))
+  }
+  const onRunEnd = async (sessionId: SessionId, run: RunLifecycle): Promise<void> => {
     const settled = await Promise.allSettled(turnEnds.map((hook) => hook(sessionId)))
     settled.forEach((outcome) => {
       if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
     })
+    if (run.phase === 'completed' && !owesFollowUp(primitives.page.queues, sessionId)) {
+      const idled = await pluginHost
+        .runPromiseExit(
+          FiberMap.run(
+            idleTriggers,
+            sessionId,
+            PluginHooks.Service.use((hooks) =>
+              hooks.trigger('session', 'experimental.idle', {
+                sessionId: SessionSchema.Id.make(sessionId),
+                background: [],
+              }),
+            ),
+          ).pipe(Effect.flatMap(Fiber.join)),
+        )
+        .catch((error: unknown) => Exit.die(error))
+      if (Exit.isFailure(idled) && !Cause.hasInterruptsOnly(idled.cause))
+        await idleFailed(sessionId, run.runId, Cause.squash(idled.cause))
+    }
+    if (run.phase === 'aborted') {
+      holdForNextReply(primitives.page.queues, sessionId)
+      return
+    }
     followUpOwedQueues(sessionId)
   }
   const sessionModel = (sessionId: SessionId): string | null => readModel(db, sessionId)
@@ -550,23 +598,75 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   registerExtensionTools(registry, mounted)
 
-  const pluginHost = ManagedRuntime.make(Tool.layer.pipe(Layer.provideMerge(PluginHooks.layer)))
+  const engineId = opts.engineId ?? randomUUID()
+  const plugins = makePluginRuntime({
+    db,
+    databaseFile: projectDatabaseFile(db),
+    cwd: opts.cwd,
+    home: concivHome({homeDir: opts.home, env: process.env}),
+    fallbackRoots: join(stateDir, 'plugin-host'),
+    engineId,
+    config: opts.cfg,
+    plugins: opts.plugins ?? [],
+    harness,
+    harnessSource: {
+      harness: serverHarness,
+      sessions: serverSessions,
+      tokenScopedBase: opts.tokenScopedBase ?? (() => undefined),
+    },
+    bundler: opts.bridge,
+    extensionSlugs: mounted.map((entry) => slug(entry.extensionName)),
+    sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: primitives.page.queues}),
+  })
+  const pluginHost: PluginHost = plugins.runtime
+  const startFailed =
+    (steps: ShutdownStep[]) =>
+    async (error: unknown): Promise<never> => {
+      await runInOrder(
+        [
+          plugins.closeRpc,
+          plugins.closePlugins,
+          plugins.closePermissions,
+          ...steps,
+          ...disposers,
+          settings.close,
+          () => browsers.close(),
+          () => pluginHost.dispose(),
+          () => db.$client.close(),
+        ],
+        'conciv: disposing after a failed start failed',
+      ).catch((failure: unknown) => logError(`[core] ${String(failure)}`))
+      throw error
+    }
+  await pluginHost.context().catch(startFailed([]))
+  const idleScope = Effect.runSync(Scope.make())
+  const idleTriggers = Effect.runSync(FiberMap.make<SessionId>().pipe(Scope.provide(idleScope)))
+  const interruptIdle = (sessionId: SessionId): Promise<boolean> =>
+    Effect.runPromise(
+      FiberMap.has(idleTriggers, sessionId).pipe(
+        Effect.tap((running) => (running ? FiberMap.remove(idleTriggers, sessionId) : Effect.void)),
+      ),
+    )
   const reportToolCollision = memoize((name: string) =>
     logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`),
   )
-  const withPluginTools = (capabilities: CodeCapability[]): CodeCapability[] =>
+  const withPluginTools = (sessionId: SessionId, capabilities: CodeCapability[]): CodeCapability[] =>
     toolDomainCapabilities(
       capabilities,
-      pluginHost.runSync(Tool.Service.use((tools) => tools.snapshot())),
-      (effect, signal) => pluginHost.runPromise(effect, {signal}),
+      pluginHost.runSync(sessionToolDomain(sessionId)),
+      (effect, signal) => pluginHost.runPromiseExit(effect, {signal}),
       reportToolCollision,
     )
 
+  const extensionFor = (name: string): string | undefined =>
+    mounted.find((entry) => entry.registryTools.some((tool) => tool.name === name))?.extensionName
+
   const codeModeCapabilities = (sessionId: SessionId): CodeCapability[] =>
-    withPluginTools([
+    withPluginTools(sessionId, [
       ...registryCapabilities(
         registry.whenPageConnected(() => primitives.page.bus.connected(sessionId)).sandboxTools(),
         scopedToolCall,
+        extensionFor,
       ),
       ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
     ])
@@ -576,6 +676,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   )
 
   const hub = createHubInstaller(opts.home)
+  const driver = loadIsolateDriver(logError)
   const plane = await createChatPlane({
     cwd: opts.cwd,
     hubAccess: opts.cfg.hubAccess,
@@ -598,10 +699,20 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     toolNames: new Set([...toolList.map((tool) => tool.name), ...concivSandboxToolNames()]),
     capabilities: codeModeCapabilities,
     attachmentExpanders,
+    prompt: plugins.prompt,
+    promptHooked: plugins.promptHooked,
+    pluginInstructions: (sessionId, reset, inventory) =>
+      pluginHost.runPromise(pluginInstructions(sessionId, reset, inventory)),
     firstOutputTimeoutMs: opts.firstChunkTimeoutMs,
     log: logError,
-  })
+    driver,
+  }).catch(startFailed([]))
   planeRef.current = plane
+  await pluginHost
+    .runPromise(
+      followPermissionCards({plane, publish: (sessionId, chunk) => stream.publish(sessionId, chunk), log: logError}),
+    )
+    .catch(startFailed([() => plane.endAllRuns()]))
   const chatDeps: ChatContext = {
     defaultHarness: harness,
     harnesses,
@@ -612,7 +723,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     plane,
   }
 
-  const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness})
+  const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness, interruptIdle})
 
   function followUpOwedQueues(sessionId: SessionId): void {
     if (planeRef.current === null) return
@@ -630,7 +741,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     void scope.run
       .record(chunks)
       .catch((error: unknown) => logError(`[core] recording queue ${result.queueId} failed: ${String(error)}`))
-    if (!record.outside) followUpOwedQueues(record.sessionId)
+    if (!primitives.page.queues.fromHub(record)) followUpOwedQueues(record.sessionId)
   })
 
   const admitOutside = async (
@@ -652,15 +763,16 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const search = createSessionSearch({db, cwd: chatDeps.cwd, harnesses: chatDeps.harnesses})
   const mcp: McpVars['mcp'] = {
-    codeRunner: (sessionId, publish, capabilities, outside) =>
-      plane.codeRunner(sessionId, publish, capabilities, outside),
-    finishedQueues: (sessionId, outside) => primitives.page.queues.undelivered(sessionId, outside),
+    codeRunner: (sessionId, publish, capabilities) => plane.codeRunner(sessionId, publish, capabilities),
+    hubCall: (sessionId, callId) => primitives.page.queues.hubCall(sessionId, callId),
+    hubReplied: (sessionId, callIds) => primitives.page.queues.hubReplied(sessionId, callIds),
+    finishedQueues: (sessionId, fromHub) => primitives.page.queues.undelivered(sessionId, fromHub),
     startedQueues: (sessionId, toolCallIds) => primitives.page.queues.startedBy(sessionId, toolCallIds),
     admitCall: (sessionId, call) => plane.admitCall(sessionId, call),
     outsideCapabilities: (sessionId) =>
       outsideRunCapabilities(
-        withPluginTools([
-          ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall),
+        withPluginTools(sessionId, [
+          ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall, extensionFor),
           ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
         ]),
       ),
@@ -678,6 +790,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       instructions: systemPromptText,
     }),
     queues: primitives.page.queues,
+    pluginHost,
     chat: chatDeps,
     search,
     settings,
@@ -689,6 +802,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     admitOutside,
     hub,
     assist: (sessionId) => concivSandboxTools(makeToolCtx(sessionId)),
+    answerPermission: (sessionId, requestId, reply) =>
+      pluginHost.runPromise(answerPermission(sessionId, requestId, reply)),
     auth: makeAuthRouter({
       codes: makeCodeStore({now: Date.now, print: opts.print ?? ((text) => console.log(text))}),
       trust,
@@ -697,7 +812,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     }),
   }
   const rpc = makeRpcRouter(rpcDeps)
-  const engineId = opts.engineId ?? randomUUID()
   const admittedOs = os.$context<RpcContext>().use(makeHubAdmission(rpcDeps))
 
   const compositeRpc = makeCompositeRpcRouter(
@@ -745,6 +859,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const dispose = (): Promise<void> =>
     runInOrder(
       [
+        plugins.closeRpc,
+        plugins.closePlugins,
+        () => Effect.runPromise(Scope.close(idleScope, Exit.void)),
+        plugins.closePermissions,
         () => plane.endAllRuns(),
         ...disposers,
         search.dispose,
@@ -780,6 +898,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     dispose,
     extensionContexts,
     runtime,
+    pluginHost,
+    startPlugins: plugins.startPlugins,
   }
 }
 
@@ -804,4 +924,10 @@ async function ensureConfiguredRows(rows: RowScope, cfg: ResolvedConcivConfig): 
 
 function outsideTitle(client: string | null): string {
   return `Allow ${client ?? 'an outside agent'} to use this tab`
+}
+
+function projectDatabaseFile(db: ConcivDb): string {
+  const file = db.$client.location()
+  if (file === null) throw new Error('conciv: the plugin host needs the project database on a file')
+  return file
 }

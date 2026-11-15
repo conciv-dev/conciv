@@ -19,6 +19,8 @@ import {
   approvalSettledEvent,
   readApprovalSettled,
   ChatEventType,
+  isRunPhaseTerminal,
+  runLifecycleEvent,
   type RunStatus,
 } from '../src/chat-event-types.js'
 import {
@@ -725,6 +727,27 @@ describe('chat event types', () => {
       expect(readApprovalSettled({...approvalRequestedEvent.create({approvalId: 'a', title: 't'}), timestamp: 3})).toBe(
         null,
       )
+    })
+  })
+
+  describe('run lifecycle', () => {
+    it('the lifecycle event round-trips and only completed, failed and aborted are terminal', () => {
+      const lifecycle = {
+        runId: 'r1',
+        phase: 'running' as const,
+        startedAt: 1,
+        finishedAt: null,
+        serverNow: 2,
+        error: null,
+      }
+      const event = runLifecycleEvent.create(lifecycle)
+      expect(event).toEqual({type: ChatEventType.CUSTOM, name: 'conciv.run-lifecycle', value: lifecycle})
+      expect(runLifecycleEvent.parse(event)).toEqual(lifecycle)
+      expect(isRunPhaseTerminal('running')).toBe(false)
+      expect(isRunPhaseTerminal('stopping')).toBe(false)
+      expect(isRunPhaseTerminal('completed')).toBe(true)
+      expect(isRunPhaseTerminal('failed')).toBe(true)
+      expect(isRunPhaseTerminal('aborted')).toBe(true)
     })
   })
 })

@@ -5,6 +5,7 @@ import {useHostTheme, usePreferences} from '../app/context.js'
 import {PreferencesForm} from '../settings/preferences-form.js'
 import {Group} from '../settings/settings-ui.js'
 import {writeLastTab} from '../settings/last-tab.js'
+import {PluginSettingsSections} from '../runtime/plugin/settings-page-view.js'
 
 const COLOR_MODES = [
   {value: 'page', label: 'Auto'},
@@ -73,6 +74,8 @@ function GeneralSettings(): JSX.Element {
               )}
             </form.AppField>
           </Group>
+          <PluginSettingsSections page="general" section="general" />
+          <PluginSettingsSections page="general" />
         </>
       )}
     </PreferencesForm>

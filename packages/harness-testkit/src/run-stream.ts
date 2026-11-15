@@ -1,4 +1,4 @@
-import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {ChatEventType, runLifecycleEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {collectToolCalls, makeRunEvents, type RunEvents, type SeenToolCall} from './run-events.js'
 
 export type RunStream = {
@@ -19,6 +19,20 @@ function isRunStart(chunk: ChatEvent, runId: string | undefined): boolean {
 function isTerminal(chunk: ChatEvent): boolean {
   if (chunk.type === ChatEventType.RUN_ERROR) return true
   return chunk.type === ChatEventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls'
+}
+
+function stoppedRunEnd(chunk: ChatEvent, before: ChatEvent[]): ChatEvent | null {
+  const lifecycle = runLifecycleEvent.parse(chunk)
+  if (lifecycle?.phase !== 'aborted') return null
+  const started = before.find((earlier) => isRunStart(earlier, lifecycle.runId))
+  if (started?.type !== ChatEventType.RUN_STARTED) return null
+  return {
+    type: ChatEventType.RUN_FINISHED,
+    threadId: started.threadId,
+    runId: lifecycle.runId,
+    finishReason: 'stop',
+    timestamp: Date.now(),
+  }
 }
 
 function summarize(seen: ChatEvent[]): string {
@@ -102,7 +116,10 @@ export function makeRunStream(source: AsyncIterable<ChatEvent>): RunStream {
       const index = doneCursor.index
       doneCursor.index += 1
       const chunk = seen[index]
-      if (chunk && isTerminal(chunk)) return makeRunEvents(seen.slice(0, doneCursor.index))
+      if (chunk === undefined) continue
+      if (isTerminal(chunk)) return makeRunEvents(seen.slice(0, doneCursor.index))
+      const stopped = stoppedRunEnd(chunk, seen.slice(0, index))
+      if (stopped !== null) return makeRunEvents([...seen.slice(0, doneCursor.index), stopped])
     }
     return null
   }

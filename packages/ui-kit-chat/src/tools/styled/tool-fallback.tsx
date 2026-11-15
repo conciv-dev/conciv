@@ -1,4 +1,4 @@
-import {createSignal, Show, type JSX} from 'solid-js'
+import {children, createSignal, Show, type JSX} from 'solid-js'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import {Collapsible} from '@conciv/ui-kit-system'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
@@ -173,15 +173,25 @@ function Approval(): JSX.Element {
 }
 
 function ToolFallbackImpl(props: ToolCardProps): JSX.Element {
+  const body = children(() => props.body)
   return (
     <ToolFallbackPrimitive.Root part={props.part} result={props.result} ctx={props.ctx} durationMs={props.durationMs}>
       <FallbackRoot>
         <Trigger />
         <Content>
-          <ToolError />
-          <Args />
-          <Approval />
-          <Result />
+          <Show
+            when={body()}
+            fallback={
+              <>
+                <ToolError />
+                <Args />
+                <Approval />
+                <Result />
+              </>
+            }
+          >
+            {body()}
+          </Show>
         </Content>
       </FallbackRoot>
     </ToolFallbackPrimitive.Root>

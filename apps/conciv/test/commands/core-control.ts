@@ -1,7 +1,8 @@
-import {existsSync, mkdirSync, rmSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
 import type {EngineStaleness} from '@conciv/contract'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {
   CHAT_SSE_PATH,
   CHAT_WS_PATH,
@@ -33,6 +34,8 @@ export type BootCoreInput = {
   models?: HarnessModel[]
   alternates?: AlternateHarness[]
   allowedOrigins?: string[]
+  plugins?: NonNullable<ConcivConfig['plugins']>
+  files?: Record<string, string>
 }
 
 export type BootCoreResult = {base: string; wsBase: string; origin: string; bootMs: number}
@@ -43,9 +46,12 @@ export type PointerDrag = {name: string; moves: PointerMove[]; escape?: boolean;
 
 export type PointerHover = {name: string; moves: PointerMove[]; settleMs: number}
 
+export type ChosenFile = {name: string; mimeType: string; text: string}
+
 export type FaultSpec =
   | {kind: 'fail'; path: string[]; status?: number}
   | {kind: 'abort'; path?: string[]}
+  | {kind: 'garble'; path: string[]; input?: unknown}
   | {kind: 'gate'; path?: string[]}
   | {kind: 'chat-refused'; status?: number}
   | {kind: 'offline'}
@@ -149,6 +155,8 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
     allowedOrigins: input.allowedOrigins,
     staleness: () => state.staleness.value,
     resumeBin: input.resumeBin,
+    plugins: input.plugins,
+    files: input.files,
   })
   holdTranscriptsWhen(kit, input.holdTranscripts)
   state.kit = kit
@@ -177,9 +185,15 @@ const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
   }
 }
 
+const writeProjectFile: BrowserCommand<[string, string]> = (ctx, path, content): void => {
+  requireKit(ctx).writeProjectFile(path, content)
+}
+
 const pushSocketsOpened: BrowserCommand<[]> = (ctx): number => requirePush(ctx).opened()
 
 const pushSocketsLive: BrowserCommand<[]> = (ctx): number => requirePush(ctx).liveSockets()
+
+const rpcSocketsOpened: BrowserCommand<[]> = (ctx): number => requireCalls(ctx).socketsSince()
 
 const printedCode: BrowserCommand<[]> = (ctx): string => {
   const code = [
@@ -319,7 +333,8 @@ function restoreHubCli(state: FileState): void {
   rmSync(current.root, {recursive: true, force: true})
 }
 
-const rpcCallCount: BrowserCommand<[string[]]> = (ctx, path): number => requireCalls(ctx).servedSince(path)
+const rpcCallCount: BrowserCommand<[string[], unknown?]> = (ctx, path, input): number =>
+  requireCalls(ctx).servedSince(path, input)
 
 const rpcStartedOnceServed: BrowserCommand<[string[], number, string[][]]> = async (
   ctx,
@@ -549,9 +564,10 @@ function statusOptions(status: number | undefined): {status?: number} {
 function brokenRpcCalls(
   testkit: CoreTestkit,
   ctx: BrowserCommandContext,
-  spec: Extract<FaultSpec, {kind: 'abort' | 'fail'}>,
+  spec: Extract<FaultSpec, {kind: 'abort' | 'fail' | 'garble'}>,
 ): ReturnType<CoreTestkit['abortRpcCalls']> {
   if (spec.kind === 'abort') return testkit.abortRpcCalls(ctx.page, pathOptions(spec.path))
+  if (spec.kind === 'garble') return testkit.garbleRpcReplies(ctx.page, {path: spec.path, input: spec.input})
   return testkit.failRpcCalls(ctx.page, {path: spec.path, ...statusOptions(spec.status)})
 }
 
@@ -642,13 +658,44 @@ const hoverButton: BrowserCommand<[hover: PointerHover]> = async (ctx, hover) =>
   await ctx.page.waitForTimeout(hover.settleMs)
 }
 
+const chooseFiles: BrowserCommand<[name: string, chosen: ChosenFile[]]> = async (ctx, name, chosen) => {
+  const chooser = ctx.page.waitForEvent('filechooser')
+  await ctx.iframe.getByRole('button', {name, exact: true}).click()
+  await (
+    await chooser
+  ).setFiles(chosen.map((file) => ({name: file.name, mimeType: file.mimeType, buffer: Buffer.from(file.text)})))
+}
+
+const downloadFrom: BrowserCommand<[name: string]> = async (ctx, name): Promise<{name: string; text: string}> => {
+  const download = ctx.page.waitForEvent('download')
+  await ctx.iframe.getByRole('button', {name, exact: true}).click()
+  const saved = await download
+  const path = await saved.path()
+  return {name: saved.suggestedFilename(), text: readFileSync(path, 'utf8')}
+}
+
+const openedFrom: BrowserCommand<[name: string]> = async (ctx, name): Promise<string> => {
+  const opened = ctx.page.context().waitForEvent('page')
+  await ctx.iframe.getByRole('button', {name, exact: true}).click()
+  const tab = await opened
+  await tab.waitForLoadState('domcontentloaded')
+  const url = tab.url()
+  await tab.close()
+  return url
+}
+
 export const coreCommands = {
+  chooseFiles,
+  openedFrom,
+  downloadFrom,
   dragButton,
   hoverButton,
   bootCore,
   closeCore,
+  writeProjectFile,
   pushSocketsOpened,
   pushSocketsLive,
+  rpcSocketsOpened,
   printedCode,
   requestCode,
   revokeBrowsers,
