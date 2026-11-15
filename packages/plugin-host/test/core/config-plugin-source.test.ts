@@ -12,6 +12,7 @@ import {FSUtil} from '../../src/util/fs-util.js'
 import {it} from './lib/effect'
 
 const temporaryProject = Effect.acquireRelease(
+  // oxlint-disable-next-line conciv/no-hand-made-temp-dir -- ported from opencode as is; the acquireRelease below removes the folder
   Effect.promise(async () => realpath(await mkdtemp(path.join(tmpdir(), 'config-plugin-source-')))),
   (directory) => Effect.promise(() => rm(directory, {recursive: true, force: true})),
 )

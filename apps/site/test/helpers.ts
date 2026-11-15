@@ -56,6 +56,7 @@ function whenReady(site: ChildProcess): Promise<void> {
 }
 
 async function startWranglerDev(options: {port: number; inspectorPort: number}): Promise<WranglerDev> {
+  // oxlint-disable-next-line conciv/no-hand-made-temp-dir -- wrangler's persist folder is removed by stop(), which runs on a failed boot and in afterAll
   const persistDirectory = await mkdtemp(join(tmpdir(), 'conciv-site-e2e-'))
   const site = spawn(
     'pnpm',
