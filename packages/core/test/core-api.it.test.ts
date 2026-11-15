@@ -6546,6 +6546,59 @@ export default {
     expect(await prompted('greet-run')).toContain('<id>greet</id>')
     expect(await load('greet')).toContain('Greet twice.')
   })
+
+  const DEPLOY_INDEX = `import {z} from ${JSON.stringify(import.meta.resolve('zod'))}
+import {Plugin} from ${JSON.stringify(import.meta.resolve('@conciv/plugin'))}
+
+const run = async ({env}: {env: 'staging' | 'prod'}) => ({url: \`https://\${env}.example.com\`})
+
+export default Plugin.define({
+  id: 'deploy',
+  async setup(ctx) {
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'run',
+        description: 'Deploy the current branch',
+        input: z.object({env: z.enum(['staging', 'prod'])}),
+        output: z.object({url: z.string()}),
+        options: {namespace: 'deploy'},
+        execute: async (input) => ({output: await run(input)}),
+      })
+    })
+  },
+})
+`
+
+  it('a plugin folder in the project offers its deploy tool to code mode', async () => {
+    const root = tempDir('conciv-deploy-')
+    mkdirSync(join(root, 'conciv', 'plugins', 'deploy'), {recursive: true})
+    writeFileSync(join(root, 'conciv', 'plugins', 'deploy', 'index.ts'), DEPLOY_INDEX)
+    const engine = await start({
+      options: {stateRoot: root},
+      root,
+      launchEditor: () => {},
+      harness: createFakeHarness(),
+      homeDir: tempDir('conciv-home-'),
+    })
+    onTestFinished(() => engine.stop())
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+
+    expect((await makeRpcClient(base).plugin.list()).data.find((plugin) => plugin.id === 'deploy')).toMatchObject({
+      id: 'deploy',
+      source: {type: 'local', path: join(root, 'conciv', 'plugins', 'deploy')},
+      state: {status: 'active'},
+    })
+    const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    expect(
+      JSON.stringify(
+        await executeOverMcp(
+          base,
+          {[CONCIV_SESSION_HEADER]: sessionId},
+          "return await external_deploy_run({env: 'staging'})",
+        ),
+      ),
+    ).toContain('https://staging.example.com')
+  })
 })
 
 describe('a plugin tool that asks, across a reload of its plugin', () => {

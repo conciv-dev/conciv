@@ -23,6 +23,7 @@ const STRUCTURE = [
   ['src/routes', 'One file per route, plus the generated route tree.'],
   ['src/components', 'Header, footer, and the theme toggle.'],
   ['src/lib', 'Small helpers with their own unit tests.'],
+  ['conciv/plugins', 'The conciv plugin this demo adds: a deploy tool.'],
 ]
 
 function About() {
