@@ -1346,6 +1346,7 @@ describe('cli', () => {
         echo: {input: z.object({word: z.string()}), output: z.string()},
         ping: {input: z.object({}), output: z.string()},
         counted: {input: z.object({}).optional(), output: z.number()},
+        limited: {input: z.object({}), output: z.string(), errors: {limited: z.object({retryAfter: z.number()})}},
       },
       events: {},
     }
@@ -1360,6 +1361,7 @@ describe('cli', () => {
             calls.counted += 1
             return calls.counted
           },
+          limited: async (_input, context) => context.error('limited', 'try later', {retryAfter: 5}),
         })
       },
     }
@@ -1405,6 +1407,13 @@ describe('cli', () => {
         expect(await pluginCall(root, home, ['probe', 'ping'])).toMatchObject({
           code: 1,
           document: {ok: false, error: {kind: 'user', code: 'PLUGIN_RPC'}},
+        })
+        expect(await pluginCall(root, home, ['probe', 'limited', '--data', '{}'])).toEqual({
+          code: 1,
+          document: {
+            ok: false,
+            error: {kind: 'user', code: 'PLUGIN_RPC', type: 'limited', message: 'try later', data: {retryAfter: 5}},
+          },
         })
       } finally {
         await engine.stop()
