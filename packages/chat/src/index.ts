@@ -314,7 +314,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     },
     codeRunner: async (sessionId, publish, given) => {
       const model = deps.sessions.row(sessionId)?.model ?? null
-      const capabilities = given ?? deps.capabilities(sessionId)
+      const capabilities = given ?? (await deps.capabilities(sessionId))
       const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model}, deps.driver !== null)
       const runner = server.codeRunner(toolSet.codeMode, toolSet.search)
       if (runner === null && toolSet.direct.length === 0 && toolSet.asking.length === 0) return null

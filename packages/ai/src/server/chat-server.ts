@@ -59,14 +59,18 @@ export type ChatStores = {
 
 export type Approvals = ReadonlyMap<string, boolean>
 
-export type TurnPlan = {
-  adapter: TextAdapter
-  modelOptions?: Record<string, unknown>
-  systemPrompts: () => Promise<readonly string[]>
+export type TurnTools = {
   codeMode: readonly ChatTool[]
   search: ((input: unknown) => Promise<unknown>) | null
   asking: readonly ChatTool[]
   direct: readonly ChatTool[]
+}
+
+export type TurnPlan = {
+  adapter: TextAdapter
+  modelOptions?: Record<string, unknown>
+  systemPrompts: () => Promise<readonly string[]>
+  tools: () => Promise<TurnTools>
   setup: () => Promise<Approvals>
   prompt: (message: ModelMessage) => Promise<ModelMessage>
   expand: (messages: ModelMessage[]) => Promise<ModelMessage[]>
@@ -160,10 +164,7 @@ function failedPlan(error: unknown): TurnPlan {
       yield {type: EventType.RUN_ERROR, message, timestamp: Date.now()}
     }),
     systemPrompts: async () => [],
-    codeMode: [],
-    search: null,
-    asking: [],
-    direct: [],
+    tools: async () => ({codeMode: [], search: null, asking: [], direct: []}),
     setup: async () => new Map(),
     prompt: async (user) => user,
     expand: async (messages) => messages,
@@ -216,6 +217,14 @@ function gatedTools(tools: readonly ChatTool[], approvals: () => Approvals): Cha
       },
     }
   })
+}
+
+type OfferedTools = {tools: ChatTool[]; preface: string | null}
+
+function prefaced<Prompt>(prompts: Prompt[], shown: Prompt | null, next: Prompt | null): Prompt[] {
+  if (shown === next) return prompts
+  const kept = prompts.filter((prompt) => prompt !== shown)
+  return next === null ? kept : [...kept, next]
 }
 
 function buildDiscovery(tool: ChatTool | null): CodeDiscovery | null {
@@ -437,8 +446,16 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     return preparing.length > 0
   }
 
-  function concivTurn(turn: Turn, plan: TurnPlan, granted: {approvals: Approvals}, view: RunMessages, entry: LiveRun) {
+  function concivTurn(
+    turn: Turn,
+    plan: TurnPlan,
+    granted: {approvals: Approvals},
+    view: RunMessages,
+    entry: LiveRun,
+    offered: () => Promise<OfferedTools>,
+  ) {
     const failure: {message: string | null} = {message: null}
+    const codePreface: {shown: string | null} = {shown: null}
     const prepared: {sent: number; provider: ModelMessage[]} = {sent: 0, provider: []}
     const shown = new StreamProcessor({})
     const settle = async (): Promise<void> => {
@@ -456,14 +473,25 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       name: 'conciv-turn',
       onConfig: async (ctx, current) => {
         if (ctx.phase === 'beforeModel') {
+          const next = await offered()
+          const systemPrompts = prefaced(current.systemPrompts, codePreface.shown, next.preface)
+          codePreface.shown = next.preface
           return {
             messages: [...ctx.messages],
             providerMessages: [...prepared.provider, ...current.messages.slice(prepared.sent)],
+            systemPrompts,
+            tools: next.tools,
           }
         }
         if (ctx.phase !== 'init') return
         granted.approvals = await plan.setup()
-        const systemPrompts = [...(await plan.systemPrompts()), ...current.systemPrompts]
+        const next = await offered()
+        codePreface.shown = next.preface
+        const systemPrompts = [
+          ...(await plan.systemPrompts()),
+          ...(next.preface === null ? [] : [next.preface]),
+          ...current.systemPrompts,
+        ]
         const expanded = await plan.expand(current.messages)
         prepared.sent = expanded.length
         prepared.provider = await plan.providerMessages(expanded)
@@ -474,6 +502,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
           ),
           providerMessages: prepared.provider,
           systemPrompts,
+          tools: next.tools,
           resumeToolState: {
             ...current.resumeToolState,
             approvals: new Map([...(current.resumeToolState?.approvals ?? []), ...granted.approvals]),
@@ -573,16 +602,16 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   ) {
     const granted: {approvals: Approvals} = {approvals: new Map()}
     const approvals = (): Approvals => granted.approvals
-    const coded =
-      driver === null
-        ? null
-        : codeModeTools(
-            stoppedWith(driver, controller.signal, config.log),
-            plan.codeMode,
-            plan.search,
-            config.codeModeResult,
-            debug,
-          )
+    const coding = driver === null ? null : stoppedWith(driver, controller.signal, config.log)
+    const offered = async (): Promise<OfferedTools> => {
+      const tools = await plan.tools()
+      const coded =
+        coding === null ? null : codeModeTools(coding, tools.codeMode, tools.search, config.codeModeResult, debug)
+      return {
+        tools: [...(coded?.tools ?? []), ...gatedTools(tools.asking, approvals), ...tools.direct],
+        preface: coded?.preface ?? null,
+      }
+    }
     const seconds = (ms: number) => Math.round(ms / 1000)
     const failed = (message: string) => entry.ending.abort({type: EventType.RUN_ERROR, message, timestamp: Date.now()})
     const view: RunMessages = {full: []}
@@ -600,8 +629,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       messages,
       threadId: turn.threadId,
       runId: turn.runId,
-      systemPrompts: coded === null ? [] : [coded.preface],
-      tools: [...(coded?.tools ?? []), ...gatedTools(plan.asking, approvals), ...plan.direct],
+      tools: [],
       lazyToolsConfig: {includeDescription: 'first-sentence'},
       retry: {maxRetries: 2},
       modelOptions: plan.modelOptions,
@@ -636,7 +664,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         }),
         withSandbox(sandbox, {locks}),
         toolHistory(),
-        concivTurn(turn, plan, granted, view, entry),
+        concivTurn(turn, plan, granted, view, entry, offered),
       ],
     })
     return endedWithItsRecord(stream, () => recordLifecycle(turn.runId))

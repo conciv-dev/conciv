@@ -104,7 +104,6 @@ export type HarnessChatDeps = {
   effort?: ReasoningEffort
   env: Record<string, string | undefined>
   kind: 'chat' | 'compact' | 'page-queue'
-  hasTools?: boolean
 }
 
 export type HarnessSessionMeta = {

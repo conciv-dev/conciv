@@ -1,6 +1,4 @@
-import {mkdtempSync, rmSync} from 'node:fs'
-import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {rmSync} from 'node:fs'
 import {describe, expect, it, onTestFinished} from 'vitest'
 import {quickJSThreadDriver, toolApprovalId} from '@conciv/ai/server'
 import {fakeText} from '@conciv/ai/testkit'
@@ -25,6 +23,7 @@ import {
   Tool,
 } from '@conciv/plugin-host'
 import {createChatPlane, toolDomainCapabilities, type CodeCapability} from '../src/index.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 const PIXEL_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
 
@@ -57,8 +56,14 @@ const harness = defineHarness({
   },
 })
 
+const NO_EXECUTE: Permission.Ruleset = [{action: 'execute', resource: '*', effect: 'deny'}]
+
+function currentDomain(agent: Agent.Id, rules: Permission.Ruleset = []) {
+  return Tool.Service.use((tools) => tools.snapshot(rules)).pipe(Effect.map((snapshot) => ({snapshot, agent})))
+}
+
 function openDatabase() {
-  const root = mkdtempSync(join(tmpdir(), 'conciv-chat-unit-'))
+  const root = tempDir('conciv-chat-unit-')
   const db = openDb(root)
   onTestFinished(() => {
     db.$client.close()
@@ -89,7 +94,7 @@ function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typ
       onRunEnd: async () => undefined,
     },
     toolNames: new Set(),
-    capabilities: () => [],
+    capabilities: async () => [],
     attachmentExpanders: {},
     prompt: async (event) => event,
     promptHooked: async () => false,
@@ -185,7 +190,8 @@ describe('plugin tools in code mode', () => {
     const capabilities = (): CodeCapability[] =>
       toolDomainCapabilities(
         [builtin],
-        {snapshot: host.runSync(Tool.Service.use((tools) => tools.snapshot())), agent: Agent.Id.make('plan')},
+        host.runSync(currentDomain(Agent.Id.make('plan'))),
+        currentDomain(Agent.Id.make('plan')),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         (name) => collisions.push(name),
       )
@@ -261,7 +267,7 @@ describe('plugin tools in code mode', () => {
     )
 
     const {root, db} = openDatabase()
-    const chat = await chatPlane(db, root, {capabilities})
+    const chat = await chatPlane(db, root, {capabilities: async () => capabilities()})
     const runner = await chat.codeRunner(SessionId.parse('conciv_plugin'), () => undefined)
     expect(runner?.code?.capabilities.map((capability) => capability.name)).toEqual([
       'unit_taken',
@@ -389,12 +395,13 @@ describe('plugin tools in code mode', () => {
     const capabilities = (): CodeCapability[] =>
       toolDomainCapabilities(
         [],
-        {snapshot: host.runSync(Tool.Service.use((tools) => tools.snapshot())), agent: Agent.defaultId},
+        host.runSync(currentDomain(Agent.defaultId)),
+        currentDomain(Agent.defaultId),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )
     const {root, db} = openDatabase()
-    const chat = await chatPlane(db, root, {capabilities})
+    const chat = await chatPlane(db, root, {capabilities: async () => capabilities()})
     const runner = await chat.codeRunner(SessionId.parse('conciv_search'), () => undefined)
     await expect(runner?.code?.run('return search({query: "quasar brightness"})', 'parent')).resolves.toMatchObject({
       success: true,
@@ -519,7 +526,8 @@ describe('refusal text', () => {
     )
     const [guarded, promised, wrapped] = toolDomainCapabilities(
       [],
-      {snapshot: host.runSync(Tool.Service.use((tools) => tools.snapshot())), agent: Agent.defaultId},
+      host.runSync(currentDomain(Agent.defaultId)),
+      currentDomain(Agent.defaultId),
       (effect, signal) => host.runPromiseExit(effect, {signal}),
       () => undefined,
     )
@@ -622,14 +630,8 @@ describe('direct tools', () => {
     const capabilities = (sessionId: SessionId): CodeCapability[] =>
       toolDomainCapabilities(
         [builtin],
-        {
-          snapshot: host.runSync(
-            Tool.Service.use((tools) =>
-              tools.snapshot(sessionId === closed ? [{action: 'execute', resource: '*', effect: 'deny'}] : []),
-            ),
-          ),
-          agent: Agent.Id.make('plan'),
-        },
+        host.runSync(currentDomain(Agent.Id.make('plan'), sessionId === closed ? NO_EXECUTE : [])),
+        currentDomain(Agent.Id.make('plan'), sessionId === closed ? NO_EXECUTE : []),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )
@@ -642,7 +644,7 @@ describe('direct tools', () => {
       {name: 'unit_direct_snap', direct: true},
     ])
     const {root, db} = openDatabase()
-    const chat = await chatPlane(db, root, {capabilities})
+    const chat = await chatPlane(db, root, {capabilities: async (sessionId) => capabilities(sessionId)})
     const runner = await chat.codeRunner(shared, () => undefined)
     expect(names(runner?.code?.capabilities)).toEqual(['unit_builtin', 'unit_coded'])
     expect(names(runner?.direct)).toEqual(['unit_direct', 'unit_direct_snap'])
@@ -702,7 +704,7 @@ describe('plugin instructions', () => {
     const inventories: (CodeModeCatalog.Inventory | undefined)[] = []
     const chat = await chatPlane(db, root, {
       systemPrompt: {systemPromptText: 'the base prompt'},
-      capabilities: () => [note],
+      capabilities: async () => [note],
       pluginInstructions: async (_sessionId, _reset, inventory) => {
         inventories.push(inventory)
         return told.shift() ?? {initial: '', update: '', told: settled}

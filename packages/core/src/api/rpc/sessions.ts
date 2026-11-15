@@ -264,7 +264,12 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       if (input.cwd !== undefined) search.cover(input.cwd)
       return page
     }),
-    create: os.sessions.create.handler(() => createChatSession(db, scope)),
+    create: os.sessions.create.handler(async () => {
+      const {sessionId} = await createChatSession(db, scope)
+      const session = await rpcSessionMeta(chat, sessionId)
+      if (session === null) throw new Error(`the session row ${sessionId} vanished right after it was created`)
+      return {sessionId, session}
+    }),
     resolve: os.sessions.resolve.handler(({input}) => resolveRow(scope, input)),
     open: os.sessions.open.handler(({input}) => openNativeRow(scope, input)),
     restore: os.sessions.restore.handler(async ({input}) => {

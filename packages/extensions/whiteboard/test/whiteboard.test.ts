@@ -1,6 +1,7 @@
-import {mkdtempSync, realpathSync} from 'node:fs'
-import {tmpdir} from 'node:os'
+import {spawnSync} from 'node:child_process'
+import {realpathSync} from 'node:fs'
 import {join} from 'node:path'
+import {fileURLToPath} from 'node:url'
 import {createORPCClient, safe} from '@orpc/client'
 import {RPCLink} from '@orpc/client/fetch'
 import type {RouterClient} from '@orpc/server'
@@ -30,6 +31,7 @@ import {
   readCanvas as read,
   testHost,
 } from './canvas-it-helpers.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 describe('canvas autocommit', () => {
   test('turn end commits an abandoned draft', async () => {
@@ -624,6 +626,16 @@ describe('inbox', () => {
   })
 })
 
+describe('migrations', () => {
+  test('drizzle-kit check passes against the shipped migrations with the package own drizzle-orm', () => {
+    const packageRoot = fileURLToPath(new URL('..', import.meta.url))
+    const drizzleKit = join(packageRoot, 'node_modules', '.bin', 'drizzle-kit')
+    const checked = spawnSync(drizzleKit, ['check'], {cwd: packageRoot, encoding: 'utf8'})
+    expect(checked.stdout).toContain("Everything's fine")
+    expect(checked.status).toBe(0)
+  })
+})
+
 describe('pin pan', () => {
   const projectedTop = (pin: Locator) => async (): Promise<number> =>
     pin.evaluate((element) => (element as HTMLElement).getBoundingClientRect().top)
@@ -707,7 +719,7 @@ describe('router', () => {
   }
 
   beforeAll(async () => {
-    store = await createStore(realpathSync(mkdtempSync(join(tmpdir(), 'wb-router-'))))
+    store = await createStore(realpathSync(tempDir('wb-router-')))
     served = await serveExtensionRpc({slug: 'whiteboard', router: makeWhiteboardRouter(store)})
     client = clientFor(ROOM_R1)
     attacker = clientFor(ROOM_ATTACKER)
@@ -929,7 +941,7 @@ describe('router', () => {
 describe('store', () => {
   const stores: Store[] = []
   const open = async (): Promise<Store> => {
-    const store = await createStore(realpathSync(mkdtempSync(join(tmpdir(), 'wb-store-'))))
+    const store = await createStore(realpathSync(tempDir('wb-store-')))
     stores.push(store)
     return store
   }
@@ -1010,7 +1022,7 @@ describe('store', () => {
     })
 
     it('persists across reopen from the same dataDir', async () => {
-      const dir = realpathSync(mkdtempSync(join(tmpdir(), 'wb-persist-')))
+      const dir = realpathSync(tempDir('wb-persist-'))
       const first = await createStore(dir)
       await first.upsertElement('live', {room: 'r1', elementId: 'e1', data: {}, version: 1})
       first.close()
