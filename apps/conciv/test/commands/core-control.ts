@@ -1,6 +1,5 @@
-import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {createServer, type Socket} from 'node:net'
-import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
 import type {EngineStaleness} from '@conciv/contract'
@@ -17,6 +16,7 @@ import {recordHubConnection, removeHubConnection, withHomeDb} from '@conciv/db'
 import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 import {revokeBrowsers as revokeTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
+import {processTempDir} from '@conciv/vitest-config'
 import type {FixtureSession, PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
 import type {AlternateHarness} from '@conciv/plugin-testkit/core-kit'
@@ -322,7 +322,7 @@ function hubCliRoot(state: FileState): string {
 
 function freshHubCli(): NonNullable<HubCliState> {
   return {
-    root: mkdtempSync(join(tmpdir(), 'conciv-hub-cli-')),
+    root: processTempDir('conciv-hub-cli-'),
     saved: {PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? ''},
   }
 }
@@ -543,7 +543,16 @@ async function gateChatFrames(ctx: BrowserCommandContext, onRelease: 'deliver' |
   }
 }
 
+const UNIX_SOCKET_PATH_LIMIT = 103
+
 async function gateProjectSocket(root: string, name: string): Promise<Fault> {
+  const path = join(root, name)
+  const bytes = Buffer.byteLength(path)
+  if (bytes > UNIX_SOCKET_PATH_LIMIT) {
+    throw new Error(
+      `the project socket gate's path is ${bytes} bytes, over the ${UNIX_SOCKET_PATH_LIMIT} a unix socket allows: ${path}`,
+    )
+  }
   const held: {open: boolean; sockets: Socket[]; waiters: {count: number; deliver: () => void}[]} = {
     open: false,
     sockets: [],
@@ -559,7 +568,7 @@ async function gateProjectSocket(root: string, name: string): Promise<Fault> {
   })
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
-    server.listen(join(root, name), resolve)
+    server.listen(path, resolve)
   })
   const open = (): Promise<void> => {
     held.open = true

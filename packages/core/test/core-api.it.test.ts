@@ -2,7 +2,6 @@ import {until} from '@conciv/harness-testkit/until'
 import {makeJournal, makePageBus} from '../src/page/page-bus.js'
 import {makePageQueues} from '../src/page/page-queue.js'
 import {
-  mkdtempSync,
   rmSync,
   mkdirSync,
   writeFileSync,
@@ -174,6 +173,7 @@ import {
   userTexts,
   type FakeWidget,
 } from './helpers.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 function groupAlive(group: number): boolean {
   try {
@@ -207,6 +207,49 @@ async function executeOverMcp(base: string, headers: Record<string, string>, typ
   } finally {
     await mcp.close()
   }
+}
+
+function sseTurn(base: string, sessionId: string, runId: string, text: string, signal: AbortSignal): Promise<Response> {
+  return fetch(`${base}${CHAT_SSE_PATH}`, {
+    method: 'POST',
+    headers: {'content-type': 'application/json'},
+    body: JSON.stringify({
+      threadId: sessionId,
+      runId,
+      messages: [{id: `${runId}-user`, role: 'user', content: text}],
+      tools: [],
+      context: [],
+    }),
+    signal,
+  })
+}
+
+function sseStream(response: Response) {
+  const body = response.body
+  if (body === null) throw new Error('the SSE response has no body')
+  const reader = body.pipeThrough(new TextDecoderStream()).getReader()
+  const read = {text: ''}
+  const ended = async (): Promise<string> => {
+    const next = await reader.read()
+    if (next.done) return read.text
+    read.text += next.value
+    return ended()
+  }
+  const reach = async (marker: string): Promise<string> => {
+    if (read.text.includes(marker)) return marker
+    const next = await reader.read()
+    if (next.done) return read.text
+    read.text += next.value
+    return reach(marker)
+  }
+  const cancel = () => reader.cancel()
+  return {reach, ended, cancel}
+}
+
+async function readSse(response: Response, stopType: string): Promise<void> {
+  const stream = sseStream(response)
+  await stream.reach(`"type":"${stopType}"`)
+  await stream.cancel()
 }
 
 describe('cors', () => {
@@ -257,7 +300,7 @@ describe('api engine staleness di', () => {
   })
 
   async function serveWithProbe(staleness: () => EngineStaleness): Promise<ServedApp> {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-staleness-di-'))
+    const root = tempDir('conciv-staleness-di-')
     dirs.push(root)
     const {fetch, dispose, agentToken} = await makeApp({
       cfg: resolveConfig({}, root),
@@ -375,7 +418,7 @@ describe('api extension mount isolation', () => {
         errors.push(String(chunk))
         return true
       })
-      const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-mount-'))
+      const stateRoot = tempDir('conciv-mount-')
       state.stateRoot = stateRoot
 
       const broken = defineExtension({name: 'broken'}).server(() => {
@@ -397,7 +440,7 @@ describe('api extension mount isolation', () => {
     }, 30_000)
 
     it('still fails boot loudly on a duplicate extension name (config error is not swallowed)', async () => {
-      const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-mount-dup-'))
+      const stateRoot = tempDir('conciv-mount-dup-')
       state.stateRoot = stateRoot
       const first = defineExtension({name: 'dup'}).server(() => ({context: {}}))
       const second = defineExtension({name: 'dup'}).server(() => ({context: {}}))
@@ -523,7 +566,7 @@ describe('api installed harnesses', () => {
   })
 
   it('offers a harness for switching only when its binary is on PATH, not for a config directory alone', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-installed-harnesses-'))
+    const root = tempDir('conciv-installed-harnesses-')
     const bin = join(root, 'bin')
     const home = join(root, 'home')
     mkdirSync(bin)
@@ -705,7 +748,7 @@ describe('connect hub', () => {
 
 describe('api codex turns', () => {
   const saved = {PATH: process.env.PATH, HOME: process.env.HOME, CODEX_HOME: process.env.CODEX_HOME}
-  const root = mkdtempSync(join(tmpdir(), 'conciv-codex-turns-'))
+  const root = tempDir('conciv-codex-turns-')
   const bin = join(root, 'bin')
   const fakeCodex = [
     '#!/bin/sh',
@@ -807,7 +850,7 @@ describe('api claude turns', () => {
     CLAUDE_CODE_EFFORT_LEVEL: process.env.CLAUDE_CODE_EFFORT_LEVEL,
     MAX_THINKING_TOKENS: process.env.MAX_THINKING_TOKENS,
   }
-  const root = mkdtempSync(join(tmpdir(), 'conciv-claude-turns-'))
+  const root = tempDir('conciv-claude-turns-')
   const bin = join(root, 'bin')
   const fakeClaude = [
     '#!/bin/sh',
@@ -1406,9 +1449,9 @@ describe('api native page', () => {
 
   describe('token-scoped native page', () => {
     it('serves the native page under /t/<token> with a prefix-relative bundle and its widget chunks, and unprefixed as an open page', async () => {
-      const root = mkdtempSync(join(tmpdir(), 'conciv-native-token-'))
-      const nativeDir = mkdtempSync(join(tmpdir(), 'conciv-native-dist-'))
-      const endpointDir = mkdtempSync(join(tmpdir(), 'conciv-native-ep-'))
+      const root = tempDir('conciv-native-token-')
+      const nativeDir = tempDir('conciv-native-dist-')
+      const endpointDir = tempDir('conciv-native-ep-')
       writeFileSync(join(nativeDir, BUNDLE), 'globalThis.__conciv_native_loaded = true')
       mkdirSync(join(nativeDir, 'widget'))
       writeFileSync(join(nativeDir, 'widget', 'mount-impl-Ab_9.js'), 'export const chunk = 1')
@@ -1707,7 +1750,7 @@ describe('rpc registry catalog cosmetics', () => {
 })
 
 describe('rpc symbolicate', () => {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-symbolicate-')))
+  const root = realpathSync(tempDir('conciv-symbolicate-'))
 
   async function chunk(name: string, source: string, line: number, column: number): Promise<string> {
     const gen = new GenMapping()
@@ -2784,7 +2827,7 @@ describe('rpc wire', () => {
 
         beforeAll(async () => {
           searched.bootedAt = Date.now()
-          searched.cwd = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-search-cwd-')))
+          searched.cwd = realpathSync(tempDir('conciv-search-cwd-'))
           writeClaudeTurn(claudeId('claude-early'), 'an early note', 'the dunlin flew')
           searched.kit = await bootKit(
             {cwd: searched.cwd, harnesses: [codexHarness, piHarness]},
@@ -3153,7 +3196,7 @@ describe('rpc wire', () => {
         })
 
         it('previewing a session in a folder outside the index adds that folder, so a later search finds its sessions', async () => {
-          const folder = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-preview-unindexed-')))
+          const folder = realpathSync(tempDir('conciv-preview-unindexed-'))
           const transcriptIn = (nativeId: string, ask: string, answer: string) => {
             const id = HarnessSessionId.parse(nativeId)
             const entries = [
@@ -3192,7 +3235,7 @@ describe('rpc wire', () => {
           expect(window.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
           await foundOnceIndexed('ringed', ['pi-plover-neighbour'], true)
 
-          const elsewhere = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-preview-elsewhere-')))
+          const elsewhere = realpathSync(tempDir('conciv-preview-elsewhere-'))
           const turnstone = claudeId('claude-turnstone-away')
           writeWhole(
             requireTranscriptPath(requireClaude())(elsewhere, HarnessSessionId.parse(turnstone)),
@@ -3206,7 +3249,7 @@ describe('rpc wire', () => {
         })
 
         it('searches this project unless asked for every project, reading each session from its own folder', async () => {
-          const elsewhere = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-search-elsewhere-')))
+          const elsewhere = realpathSync(tempDir('conciv-search-elsewhere-'))
           const home = claudeId('claude-avocet-home')
           const away = claudeId('claude-avocet-away')
           writeClaudeTurn(home, 'an avocet at home', 'it waded the lagoon')
@@ -3601,7 +3644,7 @@ return seen`
         const [overSocket, overSse] = [await newSession(), await newSession()]
         await finished(overSocket, 'same')
         await readSse(
-          await sseTurn(overSse, 'sse-run', 'same', new AbortController().signal),
+          await sseTurn(chatKit().base, overSse, 'sse-run', 'same', new AbortController().signal),
           ChatEventType.RUN_FINISHED,
         )
         expect(roleTexts(await thread(overSse))).toEqual(roleTexts(await thread(overSocket)))
@@ -4144,24 +4187,12 @@ return seen`
     }
   }
 
-  function sseTurn(sessionId: string, runId: string, text: string, signal: AbortSignal): Promise<Response> {
-    return fetch(`${chatKit().base}${CHAT_SSE_PATH}`, {
-      method: 'POST',
-      headers: {'content-type': 'application/json'},
-      body: JSON.stringify({
-        threadId: sessionId,
-        runId,
-        messages: [{id: `${runId}-user`, role: 'user', content: text}],
-        tools: [],
-        context: [],
-      }),
-      signal,
-    })
-  }
-
   async function leaveAfterFirstText(sessionId: string, runId: string): Promise<void> {
     const viewer = new AbortController()
-    await readSse(await sseTurn(sessionId, runId, 'nobody watches', viewer.signal), ChatEventType.TEXT_MESSAGE_CONTENT)
+    await readSse(
+      await sseTurn(chatKit().base, sessionId, runId, 'nobody watches', viewer.signal),
+      ChatEventType.TEXT_MESSAGE_CONTENT,
+    )
     viewer.abort()
   }
 
@@ -4196,30 +4227,6 @@ return seen`
     socket.addEventListener('close', () => closed.resolve(), {once: true})
     socket.close()
     await closed.promise
-  }
-
-  async function readSse(response: Response, stopType: string): Promise<string[]> {
-    const body = response.body
-    if (body === null) throw new Error('the SSE response has no body')
-    const reader = body.pipeThrough(new TextDecoderStream()).getReader()
-    const seen: string[] = []
-    const buffer = {text: ''}
-    for (;;) {
-      const next = await reader.read()
-      if (next.done) return seen
-      buffer.text += next.value
-      const frames = buffer.text.split('\n\n')
-      buffer.text = frames.pop() ?? ''
-      const types = frames
-        .flatMap((frame) => frame.split('\n'))
-        .flatMap((line) => (line.startsWith('data: ') ? [SseChunkSchema.safeParse(JSON.parse(line.slice(6)))] : []))
-        .flatMap((parsed) => (parsed.success ? [parsed.data.type] : []))
-      seen.push(...types)
-      if (types.includes(stopType)) {
-        await reader.cancel()
-        return seen
-      }
-    }
   }
 
   function fakeNativeId(sessionId: string): string {
@@ -4322,8 +4329,6 @@ describe('token charset', () => {
     rmSync(root, {recursive: true, force: true})
   })
 })
-
-const tempDir = (prefix: string): string => mkdtempSync(join(tmpdir(), prefix))
 
 function bootAt(
   homeDir: string,
@@ -6540,6 +6545,127 @@ export default {
     expect(await updates.next()).toMatchObject({value: {type: 'skill.updated'}})
     expect(await prompted('greet-run')).toContain('<id>greet</id>')
     expect(await load('greet')).toContain('Greet twice.')
+  })
+})
+
+describe('a plugin tool that asks, across a reload of its plugin', () => {
+  const asker = (look: string, shape: 'asks' | 'gated' | 'gone') => `import {existsSync, watch} from 'node:fs'
+import {join} from 'node:path'
+
+const Asker = {id: 'asker', methods: {}, events: {loading: {schema: {type: 'object', properties: {look: {type: 'string'}}}}}}
+
+const opened = (directory) =>
+  new Promise((resolve) => {
+    const gate = join(directory, 'asker-gate')
+    const watcher = watch(directory, () => {
+      if (!existsSync(gate)) return
+      watcher.close()
+      resolve()
+    })
+    if (!existsSync(gate)) return
+    watcher.close()
+    resolve()
+  })
+
+export default {
+  id: 'asker',
+  async setup(ctx) {
+    const registration = await ctx.rpc.register(Asker, {})
+    await registration.events.emit('loading', {look: '${look}'})
+    if ('${shape}' === 'gone') return
+    if ('${shape}' === 'gated') await opened(ctx.location.directory)
+    await ctx.agent.transform((editor) =>
+      editor.list().forEach((agent) => agent.permissions.push({action: 'asker_run', resource: '*', effect: 'ask'})),
+    )
+    await ctx.tool.transform((tools) =>
+      tools.add({
+        name: 'asker_run',
+        description: 'Runs once the user agrees',
+        input: {type: 'object', properties: {}},
+        execute: async (_input, context) => {
+          await ctx.permission.assert({action: 'asker_run', resources: ['now'], sessionId: context.sessionId, agent: context.agent})
+          return {content: 'asker ran'}
+        },
+      }),
+    )
+  },
+}
+`
+
+  async function askerEngine() {
+    const root = tempDir('conciv-asker-')
+    const plugin = join(root, 'conciv', 'plugins', 'asker.ts')
+    mkdirSync(dirname(plugin), {recursive: true})
+    writeFileSync(plugin, asker('first', 'asks'))
+    const harness = createFakeHarness()
+    const engine = await bootAt(tempDir('conciv-asker-home-'), root, 'session', harness)
+    onTestFinished(async () => {
+      writeFileSync(join(root, 'asker-gate'), '')
+      await engine.stop()
+    })
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    const events = await makeRpcClient(base).event.subscribe()
+    onTestFinished(async () => {
+      await events.return(undefined)
+    })
+    const next = async (type: string): Promise<unknown> => {
+      const event = await events.next()
+      if (event.done === true) return undefined
+      if (event.value.type === type) return event.value.data
+      return next(type)
+    }
+    const loading = async (look: string): Promise<void> => {
+      const data = z.object({look: z.string()}).safeParse(await next('rpc.asker.loading'))
+      if (data.success && data.data.look === look) return
+      return loading(look)
+    }
+    const runs = new Array<string>()
+    const turn = (runId: string) => {
+      runs.push(runId)
+      harness.script.scriptToolCall('execute_typescript', {typescriptCode: 'return await external_asker_run({})'})
+      return sseTurn(base, sessionId, runId, 'run the asker', new AbortController().signal).then(sseStream)
+    }
+    onTestFinished(async () => {
+      await makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}}).chat.stop({sessionId, runIds: runs})
+    })
+    const askedOrEnded = (ended: Promise<string>) =>
+      Promise.race([next('permission.asked'), ended.then((text) => ({endedWithoutAsking: text}))])
+    const asking = {sessionId, action: 'asker_run', resources: ['now']}
+    return {root, plugin, harness, turn, loading, askedOrEnded, asking}
+  }
+
+  it('a turn sent at once after the plugin is rewritten asks before the tool runs', async () => {
+    const engine = await askerEngine()
+    writeFileSync(engine.plugin, asker('second', 'asks'))
+    const turn = await engine.turn('rewritten-run')
+    expect(await engine.askedOrEnded(turn.ended())).toMatchObject(engine.asking)
+  })
+
+  it('a call that arrives while the plugin reloads waits for the reload, then asks', async () => {
+    const engine = await askerEngine()
+    engine.harness.script.holdTools()
+    const turn = await engine.turn('reloading-run')
+    expect(await turn.reach('RUN_STARTED')).toBe('RUN_STARTED')
+    writeFileSync(engine.plugin, asker('second', 'gated'))
+    await engine.loading('second')
+    engine.harness.script.releaseTools()
+    expect(await turn.reach('"toolCallName":"asker_run"')).toBe('"toolCallName":"asker_run"')
+    writeFileSync(join(engine.root, 'asker-gate'), '')
+    expect(await engine.askedOrEnded(turn.ended())).toMatchObject(engine.asking)
+  })
+
+  it('a turn whose plugin dropped the tool and its ask rule cannot run the tool from its old binding', async () => {
+    const engine = await askerEngine()
+    engine.harness.script.holdTools()
+    const turn = await engine.turn('dropped-run')
+    expect(await turn.reach('RUN_STARTED')).toBe('RUN_STARTED')
+    writeFileSync(engine.plugin, asker('second', 'gone'))
+    await engine.loading('second')
+    engine.harness.script.releaseTools()
+    const text = await turn.ended()
+    expect(text).toMatch(/No tool named \W+asker_run\W+ is currently available/)
+    expect(text).not.toContain('asker ran')
   })
 })
 

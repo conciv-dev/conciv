@@ -30,8 +30,7 @@ export function PaneProvider(props: {
   const grabProvider = useGrabProvider()
 
   const openNewSession = async () => {
-    const {sessionId} = await rpc.sessions.create(undefined)
-    void appData.invalidateSession(sessionId)
+    const {sessionId} = await appData.createSession()
     void router.navigate({to: '/panel/$sessionId', params: {sessionId}})
   }
 
