@@ -4,7 +4,6 @@ import {z} from 'zod'
 import {contract, ToolCommandSignatureSchema, type ToolCommandSignature} from '@conciv/contract'
 import {envelopeFlag} from './envelope.js'
 import {openCommand} from './open.js'
-import {pageChangesCommand} from './page.js'
 import {runRpc, type CliTarget} from './request.js'
 import {callServerOperation} from './server.js'
 import {tabFlag} from './tab-flag.js'
@@ -13,15 +12,11 @@ import {toolGroupRoute} from './tool-group.js'
 
 const SERVER_GROUP = 'server'
 
-const PAGE_GROUP = 'page'
-
-const REACT_CATEGORY = 'react'
-
 const OPEN_TOOL = 'open'
 
 export const toolsRoute = route(
   name('tools'),
-  description('inspect & drive the live dev server: every tool group it serves (page, react, server, ...)'),
+  description('inspect & drive the live dev server: every tool group it serves (server, ...)'),
   envelopeFlag,
   tabFlag,
   dynamic(z.array(ToolCommandSignatureSchema), (catalog) => extend(...catalogRoutes(catalog))),
@@ -35,26 +30,9 @@ function catalogRoutes(catalog: readonly ToolCommandSignature[]): AnyRoute[] {
       description: `the ${group} tools the running dev server serves; run --help for every capability`,
       signatures,
       call: group === SERVER_GROUP ? callServerTool : callRegistry,
-      extra: group === PAGE_GROUP ? [pageChangesCommand] : [],
     }),
   )
-  return [...groups, ...reactView(grouped), ...single.map(singleCommand)]
-}
-
-function reactView(grouped: readonly ToolCommandSignature[]): AnyRoute[] {
-  const signatures = grouped.filter(
-    (signature) => readGroup(signature) === PAGE_GROUP && signature.category === REACT_CATEGORY,
-  )
-  if (signatures.length === 0) return []
-  return [
-    toolGroupRoute({
-      name: REACT_CATEGORY,
-      description: 'inspect & edit live React components; run --help for every capability',
-      signatures,
-      call: callRegistry,
-      extra: [],
-    }),
-  ]
+  return [...groups, ...single.map(singleCommand)]
 }
 
 function singleCommand(signature: ToolCommandSignature): AnyRoute {

@@ -88,6 +88,45 @@ import {
   readSteps,
 } from './helpers.js'
 
+const elementTarget = {
+  selector: z.string().optional().describe('CSS selector for the target element'),
+  ref: z.string().optional().describe('element ref from the latest snapshot'),
+  name: z.string().optional().describe('component name (targets the first match)'),
+}
+
+const formTools = defineExtension({
+  name: 'acme-form',
+  tools: [
+    defineTool({
+      name: 'acme_click',
+      description: 'Click an element.',
+      inputSchema: z.object(elementTarget),
+      outputSchema: z.object({ok: z.boolean()}),
+      meta: {summary: 'click an element', positional: 'selector', mutating: true},
+    }).client(),
+    defineTool({
+      name: 'acme_fill',
+      description: 'Type a value into a form field.',
+      inputSchema: z.object({...elementTarget, value: z.string().describe('the value to type')}),
+      outputSchema: z.object({ok: z.boolean()}),
+      meta: {summary: 'type a value into a form field', positional: 'selector', mutating: true},
+    }).client(),
+    defineTool({
+      name: 'acme_override',
+      description: 'Patch a slice of a live component.',
+      inputSchema: z.object({
+        ...elementTarget,
+        target: z.enum(['props', 'state', 'hooks', 'context']).describe('which slice to override'),
+        path: z.string().optional().describe('dot-path inside the slice'),
+        hookId: z.coerce.number().optional().describe('hook id from inspect'),
+        json: z.string().optional().describe('new value as JSON'),
+      }),
+      outputSchema: z.object({ok: z.boolean()}),
+      meta: {summary: 'patch a slice of a live component', positional: 'selector', mutating: true},
+    }).client(),
+  ],
+})
+
 describe('cli', () => {
   const bin = fileURLToPath(new URL('../dist/bin.js', import.meta.url))
 
@@ -102,9 +141,9 @@ describe('cli', () => {
 
     describe('conciv CLI argument rejection', () => {
       it('rejects a mistyped flag with the closest known flag and never runs the verb', async () => {
-        const kit = await bootCli(cleanups)
+        const kit = await bootCli(cleanups, {extensions: [formTools]})
         const answer = await answerNextQuery(kit, {ok: true, result: {}})
-        const code = await runCli(cliMain, ['tools', 'page', 'click', '--refs', 'e12'])
+        const code = await runCli(cliMain, ['tools', 'acme', 'click', '--refs', 'e12'])
         expect(code).toBe(1)
         expect(answer.seen()).toBeNull()
         const text = failureText()
@@ -113,15 +152,15 @@ describe('cli', () => {
       })
 
       it('rejects a mistyped kebab spelling of a real flag and keeps accepting the real one', async () => {
-        const kit = await bootCli(cleanups)
-        expect(await runCli(cliMain, ['tools', 'react', 'override', '#a', '--hook-idx', '2'])).toBe(1)
+        const kit = await bootCli(cleanups, {extensions: [formTools]})
+        expect(await runCli(cliMain, ['tools', 'acme', 'override', '#a', '--hook-idx', '2'])).toBe(1)
         expect(failureText()).toContain('--hookId')
         written.length = 0
         const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, target: 'hooks', path: ''}})
         expect(
           await runCli(cliMain, [
             'tools',
-            'react',
+            'acme',
             'override',
             '#a',
             '--target',
@@ -133,66 +172,66 @@ describe('cli', () => {
           ]),
         ).toBe(0)
         expect(answer.seen()).toMatchObject({
-          name: 'page_override',
+          name: 'acme_override',
           input: {selector: '#a', target: 'hooks', hookId: 2, json: 'true'},
         })
       })
 
       it('rejects an unknown flag placed before the first or a nested subcommand instead of dropping it', async () => {
-        const kit = await bootCli(cleanups)
+        const kit = await bootCli(cleanups, {extensions: [formTools]})
         const answer = await answerNextQuery(kit, {ok: true, result: {}})
-        expect(await runCli(cliMain, ['tools', '--bogus', 'page', 'click', '#a'])).toBe(1)
+        expect(await runCli(cliMain, ['tools', '--bogus', 'acme', 'click', '#a'])).toBe(1)
         expect(failureText()).toContain('--bogus')
         written.length = 0
-        expect(await runCli(cliMain, ['--bogus', 'tools', 'page', 'click', '#a'])).toBe(1)
+        expect(await runCli(cliMain, ['--bogus', 'tools', 'acme', 'click', '#a'])).toBe(1)
         expect(failureText()).toContain('--bogus')
         expect(answer.seen()).toBeNull()
       })
 
       it('still accepts an envelope flag placed before a nested subcommand', async () => {
-        const kit = await bootCli(cleanups)
+        const kit = await bootCli(cleanups, {extensions: [formTools]})
         const answer = await answerNextQuery(kit, {ok: true, result: {ok: true}})
-        expect(await runCli(cliMain, ['tools', '--json', 'page', 'click', '#a'])).toBe(0)
-        expect(answer.seen()).toMatchObject({name: 'page_click'})
+        expect(await runCli(cliMain, ['tools', '--json', 'acme', 'click', '#a'])).toBe(0)
+        expect(answer.seen()).toMatchObject({name: 'acme_click'})
       })
 
       it('rejects an unknown subcommand with the closest verb', async () => {
-        await bootCli(cleanups)
-        expect(await runCli(cliMain, ['tools', 'page', 'clik', '#a'])).toBe(1)
+        await bootCli(cleanups, {extensions: [formTools]})
+        expect(await runCli(cliMain, ['tools', 'acme', 'clik', '#a'])).toBe(1)
         const text = failureText()
         expect(text).toContain('clik')
         expect(text).toContain('click')
       })
 
       it('rejects a subcommand-less parent instead of printing a bare stack', async () => {
-        await bootCli(cleanups)
-        expect(await runCli(cliMain, ['tools', 'page'])).toBe(1)
+        await bootCli(cleanups, {extensions: [formTools]})
+        expect(await runCli(cliMain, ['tools', 'acme'])).toBe(1)
         expect(failureText()).toContain('--help')
       })
 
       it('rejects a positional passed as a flag and says how to pass it', async () => {
-        const kit = await bootCli(cleanups)
+        const kit = await bootCli(cleanups, {extensions: [formTools]})
         const answer = await answerNextQuery(kit, {ok: true, result: {}})
-        expect(await runCli(cliMain, ['tools', 'page', 'click', '--selector', '#a'])).toBe(1)
+        expect(await runCli(cliMain, ['tools', 'acme', 'click', '--selector', '#a'])).toBe(1)
         expect(answer.seen()).toBeNull()
         expect(failureText()).toContain('selector')
       })
 
       it('rejects an extra positional instead of dropping it', async () => {
-        const kit = await bootCli(cleanups)
+        const kit = await bootCli(cleanups, {extensions: [formTools]})
         const answer = await answerNextQuery(kit, {ok: true, result: {}})
-        expect(await runCli(cliMain, ['tools', 'page', 'click', '#a', '#b'])).toBe(1)
+        expect(await runCli(cliMain, ['tools', 'acme', 'click', '#a', '#b'])).toBe(1)
         expect(answer.seen()).toBeNull()
         expect(failureText()).toContain('#b')
       })
 
       it('prints usage for --help and exits 0 without touching the rpc', async () => {
-        await bootCli(cleanups)
+        await bootCli(cleanups, {extensions: [formTools]})
         const logged: string[] = []
         vi.spyOn(console, 'log').mockImplementation((line: unknown) => {
           logged.push(String(line))
         })
-        expect(await runCli(cliMain, ['tools', 'page', 'click', '--help'])).toBe(0)
+        expect(await runCli(cliMain, ['tools', 'acme', 'click', '--help'])).toBe(0)
         expect(written).toEqual([])
         expect(logged.join('\n')).toContain('--ref')
       })
@@ -483,23 +522,23 @@ describe('cli', () => {
       })
 
       it('clears a field when the value is explicitly empty', async () => {
-        const kit = await bootCli(cleanups)
+        const kit = await bootCli(cleanups, {extensions: [formTools]})
         const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: ''}})
-        expect(await runCli(cliMain, ['tools', 'page', 'fill', '#email', '--value', ''])).toBe(0)
-        expect(answer.seen()).toMatchObject({name: 'page_fill', input: {selector: '#email', value: ''}})
+        expect(await runCli(cliMain, ['tools', 'acme', 'fill', '#email', '--value', ''])).toBe(0)
+        expect(answer.seen()).toMatchObject({name: 'acme_fill', input: {selector: '#email', value: ''}})
       })
 
       it('still refuses a required flag that was never passed at all', async () => {
-        const kit = await bootCli(cleanups)
+        const kit = await bootCli(cleanups, {extensions: [formTools]})
         const answer = await answerNextQuery(kit, {ok: true, result: {ok: true}})
-        expect(await runCli(cliMain, ['tools', 'page', 'fill', '#email'])).toBe(1)
+        expect(await runCli(cliMain, ['tools', 'acme', 'fill', '#email'])).toBe(1)
         expect(answer.seen()).toBeNull()
       })
 
       it("describes a verb by what it does, never by the verb's own command path", async () => {
-        await bootCli(cleanups)
-        const help = await helpText(['tools', 'page', '--help'])
-        expect(help).not.toMatch(/page fill/)
+        await bootCli(cleanups, {extensions: [formTools]})
+        const help = await helpText(['tools', 'acme', '--help'])
+        expect(help).not.toMatch(/acme fill/)
         expect(help).toContain('type a value into a form field')
       })
 

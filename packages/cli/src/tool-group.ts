@@ -1,4 +1,4 @@
-import {description, extend, name, route, type AnyRoute} from '@bomb.sh/router'
+import {description, extend, name, route} from '@bomb.sh/router'
 import type {ToolCommandSignature} from '@conciv/contract'
 import {envelopeFlag, type CliOutcome} from './envelope.js'
 import type {CliTarget} from './request.js'
@@ -10,7 +10,6 @@ type ToolGroup = {
   description: string
   signatures: readonly ToolCommandSignature[]
   call: (signature: ToolCommandSignature, input: Record<string, unknown>, target: CliTarget) => Promise<CliOutcome>
-  extra: readonly AnyRoute[]
 }
 
 export function toolGroupRoute(group: ToolGroup) {
@@ -19,7 +18,7 @@ export function toolGroupRoute(group: ToolGroup) {
     description(group.description),
     envelopeFlag,
     tabFlag,
-    extend(...group.signatures.map((signature) => verbCommand(group, signature)), ...group.extra),
+    extend(...group.signatures.map((signature) => verbCommand(group, signature))),
   )
 }
 

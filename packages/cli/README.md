@@ -27,19 +27,22 @@ conciv tools --help
 addresses. Every tool group comes from the server's live tool catalog, so an extension's tools appear
 as soon as the server mounts it; the CLI itself ships no extension code.
 
-- `conciv tools page` - read and drive the live page; `--help` lists every capability
-- `conciv tools react` - inspect and edit live React components
 - `conciv tools design` - match the live page to a design image (when the design extension is mounted)
 - `conciv tools server` - inspect and nudge the dev server; `--help` lists every capability
 - `conciv tools open` - open a file in the user's editor
 - `conciv tools tabs` - list every open conciv tab on this machine, from any folder
+
+The live page and its React components are the page plugin's: drive them with
+`conciv plugin call experimental.page run --data '{"sessionId":"conciv_...","action":{"type":"text","selector":"h1"}}'`
+(every page action, React ones included, is one `action`), and read or clear the live-edit journal with
+`conciv plugin call experimental.page changes` / `clearChanges` and `--data '{"sessionId":"conciv_..."}'`.
 
 Add `--tab <id>` (an id from `conciv tools tabs`) to any command to act on that tab, on whichever dev
 server holds it.
 
 ## Who is asked
 
-Some tools ask first: running code in the page, reloading or restarting the dev server, clearing or
+Some tools ask first: reloading or restarting the dev server, clearing or
 deleting on the whiteboard, resolving or deleting comments, building or running the iOS app. Who is
 asked depends on how the CLI found the dev server:
 
