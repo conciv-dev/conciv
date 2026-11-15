@@ -14,7 +14,7 @@ import {
 } from 'solid-js'
 import type {Composer, MountedSession, SessionScreen} from '@conciv/plugin/experimental'
 import {useQuery} from '@conciv/client'
-import {useAppData, useConnected} from '../../app/context'
+import {useAppData, useConnected, useLiveSessions} from '../../app/context'
 import {usePluginAttachment} from './attachment'
 import type {ComposerBinding} from './host-apis'
 import {
@@ -42,6 +42,7 @@ type ComposerSlot = {
 export function createMountedSession(session: {readonly id: Accessor<string>}) {
   const appData = useAppData()
   const connection = useConnected()
+  const liveSessions = useLiveSessions()
   const attachment = usePluginAttachment()
   const engine = attachment.engine
   const listed = useQuery(() => ({...appData.utils.tabs.list.queryOptions(), enabled: connection()}))
@@ -186,6 +187,16 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
       location: {directory},
       directory,
       local: undefined,
+      run: Object.freeze({
+        status: () => (liveSessions.runLive(id) ? 'running' : 'idle'),
+        interrupt() {
+          const interrupted = untrack(() => liveSessions.runLive(id))
+
+          if (interrupted) liveSessions.stop(id)
+
+          return Promise.resolve({interrupted})
+        },
+      }),
     })
 
     return view

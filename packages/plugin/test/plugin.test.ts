@@ -491,6 +491,8 @@ describe('experimental', () => {
   it('types panels, slots, tabs, live providers and icons', () => {
     expectTypeOf<Experimental.PanelProps['screen']>().toEqualTypeOf<Experimental.SessionScreen>()
     expectTypeOf<Parameters<Experimental.Panel['list']>[0]['session']>().toEqualTypeOf<Experimental.MountedSession>()
+    expectTypeOf<ReturnType<Experimental.MountedSession['run']['status']>>().toEqualTypeOf<'idle' | 'running'>()
+    expectTypeOf<ReturnType<Experimental.SessionRun['interrupt']>>().toEqualTypeOf<Promise<{interrupted: boolean}>>()
     expectTypeOf<Parameters<Experimental.Panel['list']>[0]['screen']>().toEqualTypeOf<Experimental.SessionScreen>()
     expectTypeOf<Parameters<NonNullable<Experimental.Panel['focus']>>[0]['restored']>().toEqualTypeOf<boolean>()
     expectTypeOf<

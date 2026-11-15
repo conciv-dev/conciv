@@ -6439,6 +6439,7 @@ module.exports = {default: {stores: {
     ctx.dialogs.open(() => createComponent(ctx.ui.Dialog, {title, get children() { return body() }}))
   const second = () => dialog('Fixture second dialog', () => 'The second dialog is on top')
   const first = () => dialog('Fixture dialog', () => button('Open the second dialog', second))
+  const [interruptAnswer, setInterruptAnswer] = createSignal('none')
   const tools = {id: 'tools', title: 'Fixture tools', pinned: true}
   const opened = {id: 'opened', title: 'Opened tab'}
   ctx.add(Panel, {
@@ -6446,6 +6447,11 @@ module.exports = {default: {stores: {
     region: 'pane',
     list: () => [tools],
     render: (props) => [
+      line(() => 'Run status: ' + props.session.run.status()),
+      line(() => 'Interrupted: ' + interruptAnswer()),
+      button('Interrupt the run', () =>
+        props.session.run.interrupt().then((answer) => setInterruptAnswer(String(answer.interrupted))),
+      ),
       button('Open the fixture dialog', first),
       button('Write a plain note', () => props.screen.composer.insert('plain note')),
       button('Open the listed tab', () => ctx.layout.open('fixture:opened', props.session)),
@@ -6584,6 +6590,34 @@ module.exports = {default: {stores: {
   }, 60_000)
 
   const tabPath = (sessionId: string, key: string) => `/panel/${sessionId}/${encodeURIComponent(key)}`
+
+  test('its panel reads the routed session idle, then running once a turn starts, and its interrupt stops the run and answers whether one was going', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const shown = (text: string) => page.getByText(text, {exact: true})
+    await coreControl.holdTurn()
+    onTestFinished(() => coreControl.releaseTurn())
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
+    await tab('Fixture tools').click()
+    await expect.element(shown('Run status: idle')).toBeVisible()
+
+    await tab('Chat').click()
+    await editor().click()
+    await userEvent.keyboard('start a run{Enter}')
+    await expect.element(page.getByRole('button', {name: 'Stop generating'})).toBeVisible()
+    await tab('Fixture tools').click()
+    await expect.element(shown('Run status: running')).toBeVisible()
+
+    await control('Interrupt the run').click()
+    await expect.element(shown('Interrupted: true')).toBeVisible()
+    await expect.element(shown('Run status: idle')).toBeVisible()
+
+    await control('Interrupt the run').click()
+    await expect.element(shown('Interrupted: false')).toBeVisible()
+    await expect.element(shown('Run status: idle')).toBeVisible()
+    await tab('Chat').click()
+    await expect.element(page.getByRole('separator', {name: 'Stopped'})).toBeVisible()
+  }, 60_000)
 
   test('a cold link to its tab shows the tab, and a cold link to its old tab key ends on the renamed tab', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
