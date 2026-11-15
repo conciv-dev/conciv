@@ -32,6 +32,7 @@ export type RpcSocketRule = (call: RpcSocketCall) => RpcSocketVerdict
 export type RpcSocketEvent =
   | {kind: 'request'; requestId: string; path: readonly string[]; input: unknown}
   | {kind: 'response'; requestId: string; status: number; served: boolean; output: unknown}
+  | {kind: 'abort'; requestId: string}
 
 export type RpcSocketListener = (event: RpcSocketEvent) => void
 
@@ -166,6 +167,9 @@ type Outbound = {
 
 async function sendOutbound(message: Message, socketId: string, outbound: Outbound): Promise<void> {
   const decoded = await decodeRequestMessage(message).catch(() => null)
+  if (decoded !== null && decoded[1] === MessageType.ABORT_SIGNAL) {
+    outbound.emit({kind: 'abort', requestId: `${socketId}:${decoded[0]}`})
+  }
   if (decoded === null || decoded[1] !== MessageType.REQUEST) {
     outbound.forward()
     return

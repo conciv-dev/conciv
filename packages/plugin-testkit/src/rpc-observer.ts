@@ -10,6 +10,7 @@ export type RpcCallRecord = {
   input: unknown
   status: number | null
   output: unknown
+  abandoned: boolean
 }
 
 export type RpcInputPattern = unknown
@@ -113,6 +114,7 @@ export function observeRpc(page: Page): RpcObserver {
           input: event.input,
           status: null,
           output: undefined,
+          abandoned: false,
         },
         startedAt: (sequence.next += 1),
         completedAt: null,
@@ -120,6 +122,11 @@ export function observeRpc(page: Page): RpcObserver {
         served: false,
       }
       calls.set(event.requestId, state)
+      return
+    }
+    if (event.kind === 'abort') {
+      const abandoned = calls.get(event.requestId)
+      if (abandoned && !abandoned.completed) abandoned.record.abandoned = true
       return
     }
     const state = calls.get(event.requestId)

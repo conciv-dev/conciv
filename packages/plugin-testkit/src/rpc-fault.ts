@@ -18,7 +18,10 @@ function answeredBy(page: Page, path: readonly string[] | undefined, status: num
     }
     return rpcObserverFor(page)
       .completed({path, status, since, timeout: ANSWER_TIMEOUT_MS})
-      .then((record) => record.output)
+      .then((record) => {
+        if (record.abandoned) throw new Error('the page gave up on this call before it was answered')
+        return record.output
+      })
   }
 }
 
