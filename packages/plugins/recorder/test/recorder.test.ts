@@ -278,6 +278,7 @@ describe('the recorder RPC', () => {
     }
     expect(await call(kit, 'recordings.save', {clientId: 'tail'})).toEqual({error: 'too-large'})
 
+    await writeFile(join(recordingsDir, `${saved.recordingId}.webm`), 'rendered', 'utf8')
     const kept = await Array.from({length: 50}).reduce<Promise<string[]>>(
       async (prior) => [
         ...(await prior),

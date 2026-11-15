@@ -1,12 +1,13 @@
 import {join} from 'node:path'
 import {Plugin, type Rpc} from '@conciv/plugin'
-import {Recorder} from './rpc.js'
+import {MAX_FILE_BYTES, Recorder} from './rpc.js'
 import {createCaptureControl} from './server/capture-control.js'
 import {distill} from './server/distill.js'
 import {createRecordingStore} from './server/recordings.js'
 import {createChromiumRenderer} from './server/render.js'
 import {createRendererCache} from './server/renderer-cache.js'
 import {createClientRings} from './server/rings.js'
+import {readVideoPiece, renderedVideo} from './server/video.js'
 import type {RecorderRuntime} from './server/runtime.js'
 import {recorderConfig} from './shared/protocol.js'
 import {info} from './skill.js'
@@ -17,6 +18,8 @@ const RESET_SNAPSHOT_WAIT_MS = 1500
 const OK: {ok: true} = {ok: true}
 
 const EXPIRED: {expired: true} = {expired: true}
+
+const VIDEO: {name: 'recording.webm'; mime: 'video/webm'} = {name: 'recording.webm', mime: 'video/webm'}
 
 function recordingsDirectory(projectDirectory: string): string {
   return join(projectDirectory, '.conciv', 'recorder', 'recordings')
@@ -62,6 +65,14 @@ function registerRpc(rpc: Plugin.Context['rpc'], runtime: RecorderRuntime, annou
     'recordings.get': async (input) => {
       const events = await runtime.recordings.get(input.recordingId)
       return events ? {events} : EXPIRED
+    },
+    'recordings.exportVideo': async (input, context) => {
+      const file = runtime.recordings.videoFile(input.id)
+      const events = await runtime.recordings.get(input.id)
+      if (!file || !events) return context.error('expired', `The recording ${input.id} has expired`)
+      if (!(await renderedVideo(file, events, runtime.useRenderer)))
+        return context.error('render-failed', `The recording ${input.id} could not be rendered to video`)
+      return {...(await readVideoPiece(file, input.offset, MAX_FILE_BYTES)), ...VIDEO}
     },
   })
 }

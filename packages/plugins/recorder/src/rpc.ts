@@ -35,6 +35,15 @@ const SaveOutput = z.union([
   z.object({error: z.enum(['too-large', 'empty', 'io-error'])}),
 ])
 
+export const MAX_FILE_BYTES = 5 * 1024 * 1024
+
+const VideoPieceOutput = z.strictObject({
+  data: z.base64().max(Math.ceil(MAX_FILE_BYTES / 3) * 4),
+  eof: z.boolean(),
+  name: z.literal('recording.webm'),
+  mime: z.literal('video/webm'),
+})
+
 const RecordingOutput = z.union([z.object({events: z.array(RrwebEventSchema)}), z.object({expired: z.literal(true)})])
 
 export const Recorder = Rpc.define({
@@ -51,6 +60,11 @@ export const Recorder = Rpc.define({
     log: {input: RangeInput, output: z.object({entries: z.array(ActionLogEntrySchema)})},
     'recordings.save': {input: RangeInput, output: SaveOutput},
     'recordings.get': {input: z.object({recordingId: z.string()}), output: RecordingOutput},
+    'recordings.exportVideo': {
+      input: z.object({clientId: ClientId, id: z.string().min(1).max(256), offset: z.number().int().nonnegative()}),
+      output: VideoPieceOutput,
+      errors: {expired: z.undefined(), 'render-failed': z.undefined()},
+    },
   },
   events: {
     control: {schema: RecorderControlSchema},

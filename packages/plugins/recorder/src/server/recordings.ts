@@ -15,7 +15,15 @@ export type SaveResult = {ok: true; recordingId: string} | {ok: false; reason: '
 export type RecordingStore = {
   save: (events: RrwebEvent[]) => Promise<SaveResult>
   get: (id: string) => Promise<RrwebEvent[] | null>
+  videoFile: (id: string) => string | null
   sweep: () => Promise<void>
+}
+
+const RECORDING_ID = /^[A-Za-z0-9-]+$/
+
+function removeRecording(dir: string, name: string): Promise<void> {
+  const video = join(dir, `${name.slice(0, -'.json'.length)}.webm`)
+  return Promise.all([unlink(join(dir, name)).catch(() => {}), unlink(video).catch(() => {})]).then(() => undefined)
 }
 
 function trimToCap(events: RrwebEvent[]): RrwebEvent[] | null {
@@ -49,7 +57,7 @@ async function prune(dir: string, reserved: {bytes: number; count: number}): Pro
     total += entry.bytes
     return index + reserved.count >= MAX_RECORDINGS || total > MAX_TOTAL_RECORDING_BYTES
   })
-  await Promise.all(doomed.map((entry) => unlink(join(dir, entry.name)).catch(() => {})))
+  await Promise.all(doomed.map((entry) => removeRecording(dir, entry.name)))
 }
 
 async function clearStrayTmp(dir: string): Promise<void> {
@@ -80,7 +88,7 @@ export function createRecordingStore(dir: string): RecordingStore {
       }
     },
     async get(id) {
-      if (!/^[A-Za-z0-9-]+$/.test(id)) return null
+      if (!RECORDING_ID.test(id)) return null
       const raw = await readFile(join(dir, `${id}.json`), 'utf8').catch(() => null)
       if (raw === null) return null
       try {
@@ -90,12 +98,15 @@ export function createRecordingStore(dir: string): RecordingStore {
         return null
       }
     },
+    videoFile(id) {
+      return RECORDING_ID.test(id) ? join(dir, `${id}.webm`) : null
+    },
     async sweep() {
       await clearStrayTmp(dir)
       const names = await listByRecency(dir)
       const cutoff = Date.now() - RECORDING_TTL_MS
       const expired = names.filter((name) => parseTimestamp(name) < cutoff)
-      await Promise.all(expired.map((name) => unlink(join(dir, name)).catch(() => {})))
+      await Promise.all(expired.map((name) => removeRecording(dir, name)))
       await prune(dir, {bytes: 0, count: 0})
     },
   }
