@@ -550,6 +550,13 @@ describe('page machine: session lifecycle', () => {
     expect(entry(next.state)).toBeUndefined()
   })
 
+  it('deleting a session while a queued action plays cancels it on the page and settles it as possibly run', () => {
+    const next = run(run(attached(), started('req_1')).state, {type: 'session.deleted', sessionId})
+    expect(controls(next.effects)).toEqual([{type: 'cancel', connectionId: 'conn_1', requestId: 'req_1'}])
+    expect(message(settlements(next.effects)[0])).toContain('the action may already have run')
+    expect(next.effects.at(-1)).toEqual({type: 'close-attachment', attempt: 1, outcome: 'closed'})
+  })
+
   it('deleting an attaching session ends after its grant settles, without a revoke', () => {
     const initial = PageMachine.createConnectionState()
     const first = run(initial, opening(initial, 'conn_1'))

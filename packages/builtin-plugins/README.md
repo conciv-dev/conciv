@@ -28,6 +28,11 @@ finishes may not see that result in their terminal; it stays in the queue's jour
 which answers the kept result again (`plugin-page/src/queue.ts` `wait` returns the result whatever its delivery; the
 newest 200 delivered queues are kept). The delivered-once guarantee belongs to the hub and the dedicated
 `page.queue.wait` forwarder.
+Deleting a session stops what its tabs are still playing: each request in flight gets the same `cancel` control a
+dropped request gets (`plugin-page/src/machine.ts` `cancelPending`), and the queue's next actions are never sent (the
+attachment is closed, so they settle `disconnected before dispatch`). The source only fails the request on delete
+(opencode `plugin-browser/src/machine.ts` `failPending`), without a cancel. A closed tab gets no cancel: nothing is
+left to receive it.
 
 Core activates the engine half last, in the host's post position (`core/src/app.ts` `post: [concivPage]`, through
 `InstancePlugins.bound(plugins, post)`), as the source activates its browser plugin last (opencode

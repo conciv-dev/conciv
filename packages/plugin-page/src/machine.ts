@@ -391,6 +391,9 @@ function transitionAttached(
       entry: undefined,
       nextAttempt,
       effects: [
+        ...Array.from(entry.attachments).flatMap(([connectionId, attachment]) =>
+          cancelPending(connectionId, attachment),
+        ),
         ...Array.from(entry.attachments.values()).flatMap(failPending),
         ...closeEvery(readAttempts(entry), 'closed'),
       ],
@@ -573,6 +576,13 @@ function settleRequest(
       }),
     }),
   ]
+}
+
+function cancelPending(connectionId: string, attachment: Attachment): ConnectionEffect[] {
+  return Array.from(attachment.pending.keys(), (requestId) => ({
+    type: 'emit-control',
+    control: {type: 'cancel', connectionId, requestId},
+  }))
 }
 
 function failPending(attachment: Attachment): ConnectionEffect[] {
