@@ -4,7 +4,9 @@ const SOURCE_EXTENSION = /\.[jt]sx?$/
 const TEST_SUFFIX = /\.(?:test|spec)\.[jt]sx?$/
 const HELPER_FILE = /(^|[\\/])packages[\\/]vitest-config[\\/]src[\\/]/
 const FS_SOURCES = new Set(['node:fs', 'node:fs/promises', 'fs', 'fs/promises'])
+const OS_SOURCES = new Set(['node:os', 'os'])
 const MKDTEMP_NAMES = new Set(['mkdtemp', 'mkdtempSync'])
+const TMPDIR_NAMES = new Set(['tmpdir'])
 
 function isTestFile(filename) {
   const segments = filename.split(/[\\/]/)
@@ -17,57 +19,63 @@ function appliesToFile(filename) {
   return isTestFile(filename) && !HELPER_FILE.test(filename)
 }
 
-function bindingsFrom(program) {
-  const declarations = program.body.filter(
-    (statement) => statement.type === 'ImportDeclaration' && FS_SOURCES.has(statement.source.value),
-  )
-  const specifiers = declarations.flatMap((declaration) => declaration.specifiers)
-  const named = specifiers.filter(
-    (specifier) =>
-      specifier.type === 'ImportSpecifier' &&
-      isIdentifier(specifier.imported) &&
-      MKDTEMP_NAMES.has(specifier.imported.name),
-  )
-  const modules = specifiers.filter((specifier) => specifier.type !== 'ImportSpecifier')
+function resolveImport(identifier, sourceCode) {
+  const reference = sourceCode.getScope(identifier).references.find((entry) => entry.identifier === identifier)
+  const definition = reference?.resolved?.defs[0]
+  if (definition?.type !== 'ImportBinding') return undefined
+  const specifier = definition.node
   return {
-    functions: new Set(named.map((specifier) => specifier.local.name)),
-    modules: new Set(modules.map((specifier) => specifier.local.name)),
+    source: definition.parent.source.value,
+    imported: specifier.type === 'ImportSpecifier' ? importedName(specifier.imported) : undefined,
   }
 }
 
-function calledName(callee) {
-  if (isIdentifier(callee)) return callee.name
-  if (callee.type !== 'MemberExpression' || !isIdentifier(callee.property)) return undefined
-  return callee.property.name
+function importedName(imported) {
+  return isIdentifier(imported) ? imported.name : imported.value
 }
 
-function memberObjectName(callee) {
-  if (callee.type !== 'MemberExpression' || !isIdentifier(callee.object)) return undefined
-  return callee.object.name
+function isImportedFunction(identifier, sourceCode, sources, names) {
+  const binding = resolveImport(identifier, sourceCode)
+  return binding !== undefined && sources.has(binding.source) && names.has(binding.imported)
 }
 
-function isMkdtempCallee(callee, bindings) {
-  if (isIdentifier(callee)) return bindings.functions.has(callee.name)
-  return bindings.modules.has(memberObjectName(callee)) && MKDTEMP_NAMES.has(calledName(callee))
+function isModuleObject(identifier, sourceCode, sources) {
+  const binding = resolveImport(identifier, sourceCode)
+  return binding !== undefined && sources.has(binding.source) && binding.imported === undefined
 }
 
-function isTmpdirCall(node) {
-  return node.type === 'CallExpression' && calledName(node.callee) === 'tmpdir'
+function hasNamedProperty(member, names) {
+  return isIdentifier(member.object) && isIdentifier(member.property) && names.has(member.property.name)
 }
 
-function isBuiltOnTmpdir(argument) {
+function isNamedMember(callee, names) {
+  return callee.type === 'MemberExpression' && !callee.computed && hasNamedProperty(callee, names)
+}
+
+function isModuleFunction(callee, sourceCode, sources, names) {
+  if (isIdentifier(callee)) return isImportedFunction(callee, sourceCode, sources, names)
+  return isNamedMember(callee, names) && isModuleObject(callee.object, sourceCode, sources)
+}
+
+function isTmpdirCall(node, sourceCode) {
+  return node.type === 'CallExpression' && isModuleFunction(node.callee, sourceCode, OS_SOURCES, TMPDIR_NAMES)
+}
+
+function isBuiltOnTmpdir(argument, sourceCode) {
   let found = false
   walk(argument, (node) => {
-    if (!isTmpdirCall(node)) return undefined
+    if (!isTmpdirCall(node, sourceCode)) return undefined
     found = true
     return 'skip'
   })
   return found
 }
 
-function reportHandMade(node, bindings, context) {
+function reportHandMade(node, context) {
   if (node.type !== 'CallExpression') return
-  if (!isMkdtempCallee(node.callee, bindings) || !isBuiltOnTmpdir(node.arguments[0])) return
+  const {sourceCode} = context
+  if (!isModuleFunction(node.callee, sourceCode, FS_SOURCES, MKDTEMP_NAMES)) return
+  if (!isBuiltOnTmpdir(node.arguments[0], sourceCode)) return
   context.report({node, messageId: 'handMadeTempDir'})
 }
 
@@ -84,8 +92,7 @@ export default {
     return {
       Program(node) {
         if (!appliesToFile(context.filename)) return
-        const bindings = bindingsFrom(node)
-        walk(node, (child) => reportHandMade(child, bindings, context))
+        walk(node, (child) => reportHandMade(child, context))
       },
     }
   },

@@ -518,6 +518,12 @@ describe('no hand-made temp dir', () => {
     expect(await lintFixture('packages/vitest-config/src/temp-dir.ts')).toEqual([])
   })
 
+  test('follows each import to its module, through aliases and namespaces, and ignores a shadowing parameter', async () => {
+    const aliased = await lintFixture('temp-dir/aliased.ts')
+    const shadowed = await lintFixture('temp-dir/shadowed.ts')
+    expect({aliased: aliased.length, shadowed: shadowed.length}).toEqual({aliased: 3, shadowed: 0})
+  })
+
   test('outside a test folder it flags a spec file and leaves a source file alone', async () => {
     const outside = async (file: string) =>
       (await lintDiagnostics('test/oxlintrc-temp-dir.json', `fixtures/temp-dir-outside/${file}`)).filter(
