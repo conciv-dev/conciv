@@ -699,6 +699,34 @@ describe('chat pane', () => {
     await expect.element(stoppedLine()).toBeVisible()
   })
 
+  describe('a Stop pressed before the engine has the run', () => {
+    const stoppingButton = () => page.getByRole('button', {name: 'Stopping the run'})
+    const threadText = (text: string) => page.getByRole('log').getByText(text, {exact: true})
+
+    test('over the chat socket it waits for the run and then stops it with the Stopped line', async () => {
+      const {sessionId} = await newSession()
+      await coreControl.holdTurn()
+      const frame = await faults.install({kind: 'chat-frame-gate', onRelease: 'deliver'})
+      mountChatPane(sessionId)
+      await input().fill('stop before the engine has it')
+      await userEvent.keyboard('{Enter}')
+      await coreControl.awaitFaultPending(frame, 1)
+
+      await stopButton().click()
+      await expect.element(stoppingButton()).toBeVisible()
+
+      await coreControl.releaseFault(frame)
+      await expect.element(stoppedLine()).toBeVisible()
+      await expect.element(stoppingButton()).not.toBeInTheDocument()
+      await expect.element(narration()).not.toBeInTheDocument()
+      await expect.element(stopButton()).not.toBeInTheDocument()
+      active.pane?.dispose()
+      mountChatPane(sessionId)
+      await expect.element(threadText('stop before the engine has it')).toBeVisible()
+      await expect.element(stoppedLine()).toBeVisible()
+    })
+  })
+
   test('Escape in the focused composer does what the stop button does and keeps the typed draft ahead of the queue', async () => {
     await startStreamingRun()
 
