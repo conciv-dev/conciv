@@ -90,6 +90,9 @@ catalogs:
     '@playwright/test':
       specifier: ^1.64.1
       version: 1.64.1
+    '@rrweb/types':
+      specifier: ^2.2.0
+      version: 2.2.0
     '@shikijs/langs-precompiled':
       specifier: 4.5.0
       version: 4.5.0
@@ -485,6 +488,9 @@ catalogs:
       version: 1.4.0
     rrweb:
       specifier: ^2.2.0
+      version: 2.2.0
+    rrweb-player:
+      specifier: 2.2.0
       version: 2.2.0
     rrweb-snapshot:
       specifier: 2.2.0
@@ -3383,7 +3389,7 @@ importers:
         specifier: ^2.2.0
         version: 2.2.0(@rrweb/utils@2.2.0)(rrweb@2.2.0)
       '@rrweb/types':
-        specifier: ^2.2.0
+        specifier: 'catalog:'
         version: 2.2.0
       '@solid-primitives/timer':
         specifier: 'catalog:'
@@ -3398,7 +3404,7 @@ importers:
         specifier: 'catalog:'
         version: 2.2.0
       rrweb-player:
-        specifier: 2.2.0
+        specifier: 'catalog:'
         version: 2.2.0
       zod:
         specifier: 'catalog:'
