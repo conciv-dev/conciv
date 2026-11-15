@@ -74,6 +74,7 @@ import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
 import {holdForNextReply, owesFollowUp, pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
+import concivPage, {symbolicateFrames} from '@conciv/plugin-page'
 import {
   answerPermission,
   followPermissionCards,
@@ -84,7 +85,6 @@ import {
 import {makePluginRuntime} from './runtime/plugin-runtime.js'
 import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
-import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
 import {makeRpcRouter} from './api/rpc/router.js'
 import {rpcSessionMeta} from './api/rpc/sessions.js'
 import {
@@ -207,15 +207,6 @@ function availableHarnesses(boot: HarnessAdapter, opts: MakeAppOpts, stateDir: s
     withSavedModels(adapter, stateDir),
   )
   return [boot, ...others.filter((adapter) => adapter.id !== boot.id)]
-}
-
-function symbolicable(frame: {
-  fileName?: string
-  line?: number
-  column?: number
-  fn?: string
-}): frame is SymbolicableFrame {
-  return typeof frame.fileName === 'string' && typeof frame.line === 'number'
 }
 
 function narrowExtensionApp(name: string, app: unknown): Hono | null {
@@ -522,7 +513,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         basePath,
         sessions: serverSessions,
         harness: serverHarness,
-        symbolicate: (frames) => symbolicateFrames(frames.filter(symbolicable), opts.cwd),
+        symbolicate: (frames) => symbolicateFrames(frames, opts.cwd),
         bundler: opts.bridge,
         nativeUrl,
         upgradeWebSocket: socketUpgrade,
@@ -608,7 +599,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     fallbackRoots: join(stateDir, 'plugin-host'),
     engineId,
     config: opts.cfg,
-    plugins: opts.plugins ?? [],
+    plugins: [concivPage, ...(opts.plugins ?? [])],
     harness,
     harnessSource: {
       harness: serverHarness,

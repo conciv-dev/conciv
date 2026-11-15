@@ -129,7 +129,7 @@ import {WSContext, defineWebSocketHelper} from 'hono/ws'
 import {z} from 'zod'
 import {hostDocument} from '../src/api/native-page.js'
 import {resolveConfig} from '../src/config.js'
-import {symbolicateFrame} from '../src/editor/symbolicate.js'
+import {symbolicateFrame} from '@conciv/plugin-page'
 import {readDevEndpoint, removeDevEndpoint, writeDevEndpoint} from '../src/lib/dev-endpoint.js'
 import {makeStalenessProbe} from '../src/lib/engine-stamp.js'
 import {homeDbReads} from '../src/lib/home-db-watch.js'
@@ -1123,6 +1123,16 @@ describe('editor symbolicate', () => {
     expect((await at('http://localhost:3000/src/App.tsx?x=1'))?.file).toBe('app/page.tsx')
     expect(await at('http://169.254.169.254/latest/meta-data')).toBeNull()
     expect(fetched.some((url) => url.includes('169.254'))).toBe(false)
+  })
+
+  it('answers null for a frame with no fileName and reads nothing', async () => {
+    const fetched: string[] = []
+    const fakeFetch: typeof fetch = async (input) => {
+      fetched.push(String(input))
+      return new Response('')
+    }
+    expect(await symbolicateFrame({line: 2, column: 1}, tmpdir(), fakeFetch)).toBeNull()
+    expect(fetched).toEqual([])
   })
 })
 

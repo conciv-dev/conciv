@@ -527,6 +527,7 @@
     "@conciv/unplugin",
     "@conciv/plugin",
     "@conciv/plugin-host",
+    "@conciv/plugin-page",
     "@conciv/preact",
     "@conciv/protocol",
     "@conciv/react",
