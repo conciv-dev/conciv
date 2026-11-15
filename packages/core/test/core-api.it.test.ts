@@ -16,8 +16,10 @@ import {
   chmodSync,
 } from 'node:fs'
 import {createHash, randomUUID} from 'node:crypto'
+import {registerHooks} from 'node:module'
+import {fileURLToPath, pathToFileURL} from 'node:url'
 import {on, once} from 'node:events'
-import {open, writeFile} from 'node:fs/promises'
+import {open, readFile, writeFile} from 'node:fs/promises'
 import {execFileSync} from 'node:child_process'
 import {createServer, request as httpRequest} from 'node:http'
 import {DatabaseSync} from 'node:sqlite'
@@ -147,6 +149,7 @@ import {RPCLink} from '@orpc/client/fetch'
 import {onError, ORPCError, os, type RouterClient} from '@orpc/server'
 import WebSocket from 'ws'
 import {Effect, ManagedRuntime, Schema} from 'effect'
+import * as Page from '@conciv/builtin-plugins/page/rpc'
 import {z} from 'zod'
 import {makeApp, type MadeApp} from '../src/app.js'
 import {callTrace} from '../src/api/call-trace.js'
@@ -6559,5 +6562,445 @@ describe('engine plugin bundles', () => {
     }
     expect(delivered).toEqual([updated, updated])
     expect(ended).toMatchObject({status: 'rejected', reason: {name: 'AbortError', message: 'Stream was cancelled'}})
+  })
+})
+
+describe('page connection', () => {
+  const tabId = `tab_${crypto.randomUUID()}`
+  const tab: Page.Tab = {id: tabId, url: 'https://example.com/', title: 'Example', focused: true, visible: true}
+
+  const PAGE_SOURCE = fileURLToPath(new URL('./', import.meta.resolve('@conciv/builtin-plugins/page')))
+
+  registerHooks({
+    resolve(specifier, context, nextResolve) {
+      const inPage = context.parentURL?.startsWith(pathToFileURL(PAGE_SOURCE).href) === true
+      if (!inPage || !specifier.startsWith('./') || !specifier.endsWith('.js')) return nextResolve(specifier, context)
+      return nextResolve(specifier.replace(/\.js$/u, '.ts'), context)
+    },
+  })
+
+  const ENGINE_FIXTURE = `export {default} from '${join(PAGE_SOURCE, 'index.ts')}'
+`
+
+  const TAB_FIXTURE = `import {Definition} from '${join(PAGE_SOURCE, 'rpc.ts')}'
+
+const method = {input: {type: 'object'}, output: {type: 'object'}}
+const Tabs = {
+  id: 'page-tabs',
+  methods: {open: method, close: method, report: method, next: method, reply: method, cancels: method, permissions: method, tool: method, asked: method, waiting: method, decide: method, ended: method, finished: method},
+  events: {},
+}
+
+export default {
+  id: 'page-tabs',
+  async setup(ctx) {
+    const page = ctx.rpc(Definition)
+    const open = new Map()
+    const received = []
+    const cancelled = []
+    const arrived = new EventTarget()
+    const stop = new AbortController()
+    const asks = []
+    const finished = []
+    const follow = async () => {
+      for await (const event of ctx.event.subscribe({types: ['permission.asked'], signal: stop.signal})) {
+        const {id, sessionId, action, resources} = event.data
+        asks.push({id, sessionId, action, resources})
+        arrived.dispatchEvent(new CustomEvent('control', {detail: {type: 'asked'}}))
+      }
+    }
+    follow().catch(() => {})
+    page.events.on('control', async (event) => {
+      const control = event.data
+      if (control.type === 'cancel') cancelled.push(control.requestId)
+      if (control.type === 'command') {
+        const tab = open.get(control.connectionId)
+        const command = await page.command({sessionId: tab.sessionId, connectionId: control.connectionId, requestId: control.requestId})
+        received.push({connectionId: control.connectionId, requestId: control.requestId, command})
+      }
+      arrived.dispatchEvent(new CustomEvent('control', {detail: control}))
+    }, {signal: stop.signal})
+    page.events.on('queue.finished', (event) => {
+      finished.push(event.data)
+      arrived.dispatchEvent(new CustomEvent('control', {detail: {type: 'finished'}}))
+    }, {signal: stop.signal})
+    const until = async (found) => {
+      for (;;) {
+        const value = found()
+        if (value) return value
+        await new Promise((resolve) => arrived.addEventListener('control', resolve, {once: true}))
+      }
+    }
+    await ctx.rpc.register(Tabs, {
+      open: async ({sessionId, connectionId}) => {
+        const controller = new AbortController()
+        const ended = page.attach({sessionId, connectionId, version: 1}, {signal: controller.signal}).then(
+          (outcome) => ({outcome}),
+          (error) => ({error: error.message ?? String(error)}),
+        )
+        open.set(connectionId, {sessionId, controller, ended})
+        const attached = new Promise((resolve) =>
+          arrived.addEventListener('control', function listen(event) {
+            if (event.detail.type !== 'attached' || event.detail.connectionId !== connectionId) return
+            arrived.removeEventListener('control', listen)
+            resolve({attached: true})
+          }),
+        )
+        return Promise.race([attached, ended])
+      },
+      close: async ({connectionId}) => {
+        const tab = open.get(connectionId)
+        tab.controller.abort()
+        await tab.ended
+        return {closed: true}
+      },
+      report: async ({sessionId, connectionId, tab}) => {
+        await page.state({sessionId, connectionId, state: tab})
+        return {}
+      },
+      next: async ({connectionId}) => {
+        const found = await until(() => received.find((entry) => entry.connectionId === connectionId))
+        received.splice(received.indexOf(found), 1)
+        return found
+      },
+      reply: async ({sessionId, connectionId, requestId, outcome}) =>
+        page.result({sessionId, connectionId, requestId, outcome}).then(
+          () => ({}),
+          (error) => ({error: error.message}),
+        ),
+      cancels: async ({requestId}) => {
+        await until(() => cancelled.includes(requestId))
+        return {}
+      },
+      permissions: async ({sessionId}) => ({permissions: (await ctx.session.get({sessionId})).permissions ?? []}),
+      asked: async () => until(() => asks.shift()),
+      waiting: async () => ({waiting: asks.length}),
+      finished: async () => until(() => finished.shift()),
+      ended: async ({connectionId}) => open.get(connectionId).ended,
+      decide: async ({sessionId, requestId, decision}) => {
+        await ctx.permission.reply({sessionId, requestId, decision})
+        return {}
+      },
+      tool: async ({sessionId, name, input, id}, call) => {
+        const found = (await ctx.tool.list()).find((entry) => [entry.options?.namespace, entry.name].join('.') === 'page.' + name)
+        try {
+          const result = await found.execute(input, {sessionId, agent: 'build', messageId: undefined, id: id ?? 'call_' + crypto.randomUUID(), signal: call.signal, progress: async () => {}})
+          return {ok: true, value: result.output ?? null}
+        } catch (error) {
+          return {ok: false, message: error.message, metadata: error.metadata ?? null}
+        }
+      },
+    })
+    return () => stop.abort()
+  },
+}
+`
+
+  const Received = z.object({connectionId: z.string(), requestId: z.string(), command: Page.Command})
+  const SOURCE_MAP = Buffer.from(
+    JSON.stringify({version: 3, sources: ['app/page.tsx'], names: [], mappings: ';AAgBI'}),
+  ).toString('base64')
+  const CHUNK = [
+    'render()',
+    'mount()',
+    ['//#', `sourceMappingURL=data:application/json;base64,${SOURCE_MAP}`].join(' '),
+  ].join('\n')
+  const Asked = z.object({id: z.string(), sessionId: z.string(), action: z.string(), resources: z.array(z.string())})
+  const Answer = z.union([
+    z.object({ok: z.literal(true), value: z.unknown()}),
+    z.object({ok: z.literal(false), message: z.string(), metadata: z.unknown()}),
+  ])
+
+  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, locate answers with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, and deleting the session ends its tabs and drops its records', async () => {
+    const [home, root] = [tempDir('conciv-home-'), tempDir('conciv-page-connection-')]
+    const files = {'page/server.ts': ENGINE_FIXTURE, 'tabs/server.ts': TAB_FIXTURE, 'chunk.js': CHUNK}
+    for (const [path, content] of Object.entries(files)) {
+      mkdirSync(dirname(join(root, path)), {recursive: true})
+      writeFileSync(join(root, path), content)
+    }
+    const engine = await start({
+      options: {stateRoot: root, hubAccess: 'session', plugins: ['./page', './tabs']},
+      root,
+      launchEditor: () => {},
+      harness: createFakeHarness({id: 'page-connection'}),
+      homeDir: home,
+    })
+    onTestFinished(async () => {
+      await engine.stop()
+      rmSync(root, {recursive: true, force: true})
+      rmSync(home, {recursive: true, force: true})
+    })
+    const rpc = makeRpcClient(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}`)
+    const session = SessionId.parse((await rpc.sessions.resolve({})).sessionId)
+    const call = (rpcId: string, method: string, input: Record<string, unknown>, signal?: AbortSignal) =>
+      rpc.plugin
+        .call({rpcId, method, input}, {signal: signal ?? AbortSignal.timeout(15_000)})
+        .catch((error: unknown) => {
+          throw new Error(`${rpcId}.${method} failed`, {cause: error})
+        })
+    const tabs = (method: string, input: Record<string, unknown>) => call('page-tabs', method, input)
+    const ask = ({type, ...input}: Page.Action, signal?: AbortSignal) =>
+      call('page-tabs', 'tool', {sessionId: session, name: type, input}, signal).then((answer) => Answer.parse(answer))
+    const next = async (connectionId: string) => Received.parse(await tabs('next', {connectionId}))
+    const reply = (connectionId: string, requestId: string, outcome: Page.Outcome) =>
+      tabs('reply', {sessionId: session, connectionId, requestId, outcome})
+    const succeeded = (value: Page.Result['value']): Page.Outcome => ({type: 'success', result: {value, files: []}})
+    const routed = (href: string) => succeeded({pathname: href, search: '', href, title: 'Example', state: 'visible'})
+    const granted = async () =>
+      z
+        .object({permissions: z.array(z.object({action: z.string(), effect: z.string()}))})
+        .parse(await tabs('permissions', {sessionId: session}))
+        .permissions.filter((rule) => rule.action === 'page' && rule.effect === 'allow')
+
+    expect(await tabs('open', {sessionId: 'conciv_missing', connectionId: 'conn_x'})).toEqual({
+      error: 'Session not found.',
+    })
+    expect(await ask({type: 'route'})).toMatchObject({
+      ok: false,
+      message: expect.stringContaining('[page.disconnected]'),
+    })
+
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_a'})).toEqual({attached: true})
+    expect(await granted()).toHaveLength(1)
+    const second = `tab_${crypto.randomUUID()}`
+    await tabs('report', {sessionId: session, connectionId: 'conn_a', tab})
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_b'})).toEqual({attached: true})
+    await tabs('report', {sessionId: session, connectionId: 'conn_b', tab: {...tab, id: second, focused: false}})
+    expect(await ask({type: 'tabs.list'})).toEqual({
+      ok: true,
+      value: {tabs: [tab, {...tab, id: second, focused: false}], focusedTabId: tabId},
+    })
+
+    const focused = ask({type: 'route'})
+    const onA = await next('conn_a')
+    expect(onA.command).toEqual({
+      action: {type: 'route'},
+      agentId: 'build',
+      timeoutMs: 5000,
+    })
+    expect(await reply('conn_a', onA.requestId, {type: 'failure', code: 'timeout', message: 'forged'})).toEqual({
+      error: 'The page cannot report timeout; only the engine does.',
+    })
+    await reply('conn_a', onA.requestId, routed('/a'))
+    expect(await focused).toMatchObject({ok: true, value: {href: '/a'}})
+
+    const named = ask({type: 'text', tabId: second, selector: 'h1'})
+    const onB = await next('conn_b')
+    expect(onB.command.action).toEqual({type: 'text', tabId: second, selector: 'h1'})
+    await reply('conn_b', onB.requestId, succeeded({text: 'Hi'}))
+    expect(await named).toEqual({ok: true, value: {text: 'Hi'}})
+
+    const moved = ask({type: 'snapshot'})
+    const lost = await next('conn_a')
+    expect(await tabs('close', {connectionId: 'conn_a'})).toEqual({closed: true})
+    const resent = await next('conn_b')
+    expect(resent.requestId).not.toBe(lost.requestId)
+    await reply('conn_b', resent.requestId, succeeded({nodes: []}))
+    expect(await moved).toEqual({ok: true, value: {nodes: []}})
+    expect(await granted()).toHaveLength(1)
+
+    const waiting = ask({type: 'route'})
+    await next('conn_b')
+    await tabs('close', {connectionId: 'conn_b'})
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_c'})).toEqual({attached: true})
+    const returned = await next('conn_c')
+    await reply('conn_c', returned.requestId, routed('/c'))
+    expect(await waiting).toMatchObject({ok: true, value: {href: '/c'}})
+
+    const first = ask({type: 'click', selector: '#one'})
+    const firstOnC = await next('conn_c')
+    const queued = ask({type: 'click', selector: '#two'})
+    const reading = ask({type: 'route'})
+    const readFirst = await next('conn_c')
+    expect(readFirst.command.action).toEqual({type: 'route'})
+    await reply('conn_c', readFirst.requestId, routed('/c'))
+    expect(await reading).toMatchObject({ok: true, value: {href: '/c'}})
+    await reply('conn_c', firstOnC.requestId, succeeded({ok: true}))
+    expect(await first).toEqual({ok: true, value: {ok: true}})
+    const secondOnC = await next('conn_c')
+    expect(secondOnC.command.action).toEqual({type: 'click', selector: '#two'})
+
+    expect(await tabs('close', {connectionId: 'conn_c'})).toEqual({closed: true})
+    expect(await queued).toMatchObject({ok: false, message: expect.stringContaining('the action may already have run')})
+    expect(await granted()).toHaveLength(0)
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_d'})).toEqual({attached: true})
+    const afterChange = ask({type: 'route'})
+    const firstOnD = await next('conn_d')
+    expect(firstOnD.command.action).toEqual({type: 'route'})
+    await reply('conn_d', firstOnD.requestId, routed('/d'))
+    expect(await afterChange).toMatchObject({ok: true, value: {href: '/d'}})
+
+    const silent = ask({type: 'wait', selector: 'body', timeout: 100})
+    const unanswered = await next('conn_d')
+    expect(unanswered.command.timeoutMs).toBe(1100)
+    expect(await silent).toMatchObject({ok: false, message: expect.stringContaining('[page.timeout] page.wait')})
+    await tabs('cancels', {requestId: unanswered.requestId})
+
+    const abort = new AbortController()
+    const aborted = ask({type: 'route'}, abort.signal)
+    const dropped = await next('conn_d')
+    abort.abort()
+    await expect(aborted).rejects.toThrow()
+    await tabs('cancels', {requestId: dropped.requestId})
+
+    const decide = async (code: string, decision: string) => {
+      const asked = Asked.parse(await tabs('asked', {}))
+      expect(asked).toMatchObject({sessionId: session, action: 'page_eval', resources: [code]})
+      await tabs('decide', {sessionId: session, requestId: asked.id, decision})
+    }
+    const refused = ask({type: 'eval', code: 'document.cookie'})
+    await decide('document.cookie', 'reject')
+    expect(await refused).toMatchObject({ok: false})
+    const always = ask({type: 'eval', code: 'document.title'})
+    await decide('document.title', 'always')
+    const onEval = await next('conn_d')
+    expect(onEval.command.action).toEqual({type: 'eval', code: 'document.title'})
+    await reply('conn_d', onEval.requestId, succeeded({result: 'Example'}))
+    expect(await always).toEqual({ok: true, value: {result: 'Example'}})
+    const remembered = ask({type: 'eval', code: 'document.title'})
+    const again = await next('conn_d')
+    await reply('conn_d', again.requestId, succeeded({result: 'Example'}))
+    expect(await remembered).toEqual({ok: true, value: {result: 'Example'}})
+    expect(await tabs('waiting', {})).toEqual({waiting: 0})
+
+    const locating = ask({type: 'locate', selector: 'h1'})
+    const onLocate = await next('conn_d')
+    await reply('conn_d', onLocate.requestId, succeeded({frames: [{fileName: 'chunk.js', line: 2, column: 1}]}))
+    expect(await locating).toMatchObject({ok: true, value: {source: {file: 'app/page.tsx', line: 17, column: 4}}})
+
+    const effecting = ask({type: 'effect', action: 'enable', effect: 'confetti'})
+    const onEffect = await next('conn_d')
+    await reply('conn_d', onEffect.requestId, {
+      type: 'failure',
+      code: 'raised',
+      message: 'effect failed',
+      raised: {code: 'UNKNOWN_EFFECT', message: ''},
+    })
+    expect(await effecting).toEqual({
+      ok: false,
+      message: 'no effect is registered under that name',
+      metadata: {code: 'UNKNOWN_EFFECT'},
+    })
+
+    const page = (method: string, input = {}) => call('experimental.page', method, {sessionId: session, ...input})
+    const descriptor = {tagName: 'H1', selectorPath: 'h1'}
+    const before = {kind: 'before' as const, ts: 1, descriptor}
+    const after = {kind: 'after' as const, ts: 2, descriptor, cssBundleId: 'css_1'}
+    const edited = call('page-tabs', 'tool', {
+      sessionId: session,
+      name: 'settext',
+      input: {selector: 'h1', text: 'Hello'},
+      id: 'call_settext',
+    })
+    const onEdit = await next('conn_d')
+    await reply('conn_d', onEdit.requestId, {
+      type: 'success',
+      result: {value: {ok: true}, files: [], capture: {before, after, cssBundles: [{hash: 'css_1', css: 'h1{}'}]}},
+    })
+    expect(await edited).toEqual({ok: true, value: {ok: true}})
+    expect(await page('changes')).toMatchObject([
+      {seq: 1, verb: 'page_click', selector: '#one', args: {}},
+      {seq: 2, verb: 'page_eval', args: {code: 'document.title'}},
+      {seq: 3, verb: 'page_eval', args: {code: 'document.title'}},
+      {seq: 4, verb: 'page_settext', selector: 'h1', args: {text: 'Hello'}},
+    ])
+    const captured = {
+      captures: [
+        {toolCallId: 'call_settext', kind: 'before', capture: before},
+        {toolCallId: 'call_settext', kind: 'after', capture: after},
+      ],
+      cssBundles: {css_1: 'h1{}'},
+    }
+    expect(await page('captures.list')).toEqual(captured)
+    expect(await page('clearChanges')).toEqual({ok: true})
+    expect(await page('changes')).toEqual([])
+
+    const actions = [
+      {tool: 'page_fill', selector: '#a', value: 'Ada'},
+      {tool: 'page_click', selector: '#go'},
+    ]
+    const queueing = call('page-tabs', 'tool', {sessionId: session, name: 'queue_async', input: {actions}, id: 'q1'})
+    const accepting = await next('conn_d')
+    const queueId = accepting.command.queued?.id ?? ''
+    expect(accepting.command).toMatchObject({action: {type: 'queue', actions}, queued: {index: -1, of: 2}})
+    expect(await queueing).toEqual({ok: true, value: {queueId, actions: 2}})
+    const single = ask({type: 'click', selector: '#after'})
+    await reply('conn_d', accepting.requestId, succeeded({queueId, status: 'playing', done: 0, of: 2}))
+    const firstQueued = await next('conn_d')
+    expect(firstQueued.command).toMatchObject({action: {type: 'fill', value: 'Ada'}, queued: {id: queueId, index: 0}})
+    expect(await page('queue.startedBy', {toolCallIds: ['q1']})).toEqual([{queueId, actions: 2}])
+    await reply('conn_d', firstQueued.requestId, succeeded({ok: true, value: 'Ada'}))
+    const secondQueued = await next('conn_d')
+    expect(secondQueued.command.queued).toEqual({id: queueId, index: 1, of: 2})
+    await reply('conn_d', secondQueued.requestId, {type: 'failure', code: 'invalid-args', message: 'no #go'})
+    const afterQueue = await next('conn_d')
+    expect(afterQueue.command.action).toEqual({type: 'click', selector: '#after'})
+    await reply('conn_d', afterQueue.requestId, succeeded({ok: true}))
+    expect(await single).toEqual({ok: true, value: {ok: true}})
+    const outcomes = [
+      {index: 0, tool: 'page_fill', ok: true, result: {ok: true, value: 'Ada'}},
+      {index: 1, tool: 'page_click', ok: false, error: '[page.invalid-args] no #go'},
+    ]
+    const result = {queueId, status: 'finished', outcomes, failed: 1, played: 2}
+    expect(await tabs('finished', {})).toEqual({sessionId: session, queueId, toolCallId: 'q1', result})
+    const owed = [{queueId, toolCallId: 'q1', result, before: 'owed'}]
+    expect(await page('queue.owed', {excludeToolCallIds: [], claim: false})).toEqual(owed)
+    expect(await page('queue.undelivered', {excludeToolCallIds: ['q1']})).toEqual([])
+    expect(await page('queue.owed', {excludeToolCallIds: [], claim: true})).toEqual(owed)
+    expect(await page('queue.settle', {queueIds: [queueId], delivery: 'nextReply'})).toEqual({ok: true})
+    expect(await page('queue.undelivered', {toolCallIds: ['q1']})).toEqual([result])
+    expect(await page('queue.wait', {queueId, waitMs: 0})).toEqual(result)
+    expect(await page('changes')).toMatchObject([
+      {verb: 'page_fill', selector: '#a', args: {value: 'Ada'}},
+      {verb: 'page_click', selector: '#after'},
+    ])
+
+    const shot = ask({type: 'screenshot'})
+    const onShot = await next('conn_d')
+    const image = {id: `file_${crypto.randomUUID()}`, name: 'screenshot.webp', mime: 'image/webp', data: 'UklGRg=='}
+    await tabs('reply', {
+      sessionId: session,
+      connectionId: 'conn_d',
+      requestId: onShot.requestId,
+      outcome: {type: 'success', result: {value: {width: 800, height: 600}, files: [image]}},
+    })
+    const saved = z
+      .object({
+        ok: z.literal(true),
+        value: z.object({width: z.number(), files: z.array(z.looseObject({path: z.string()}))}),
+      })
+      .parse(await shot)
+    expect(saved.value).toMatchObject({width: 800, files: [{id: image.id, mime: 'image/webp', bytes: 4}]})
+    expect(await readFile(saved.value.files[0]?.path ?? '', 'base64')).toBe('UklGRg==')
+
+    const stranded = ask({type: 'wait', selector: 'body', timeout: 100})
+    await next('conn_d')
+    await tabs('close', {connectionId: 'conn_d'})
+    expect(await stranded).toMatchObject({
+      ok: false,
+      message: expect.stringContaining('the action may already have run'),
+    })
+
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_q'})).toEqual({attached: true})
+    const clicks = ['#slow', '#gone'].map((selector) => ({tool: 'page_click', selector}))
+    await call('page-tabs', 'tool', {sessionId: session, name: 'queue_async', input: {actions: clicks}, id: 'q2'})
+    const stranding = await next('conn_q')
+    const strandedId = stranding.command.queued?.id ?? ''
+    await reply('conn_q', stranding.requestId, succeeded({queueId: strandedId, status: 'playing', done: 0, of: 2}))
+    await next('conn_q')
+    expect((await next('conn_q')).command.queued).toEqual({id: strandedId, index: 1, of: 2})
+    await tabs('close', {connectionId: 'conn_q'})
+    const lines = ['the page did not confirm page_click in time', 'the page reloaded or closed during page_click']
+    expect(await page('queue.wait', {queueId: strandedId, waitMs: 5000})).toMatchObject({
+      status: 'lost',
+      outcomes: lines.map((text) => ({tool: 'page_click', ok: false, error: `${text}; it may already have run`})),
+    })
+
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_e'})).toEqual({attached: true})
+    const ending = tabs('ended', {connectionId: 'conn_e'})
+    expect(await page('captures.list')).toEqual(captured)
+    await rpc.sessions.delete({sessionId: session})
+    expect(await ending).toEqual({outcome: 'closed'})
+    expect(await page('captures.list')).toEqual({captures: [], cssBundles: {}})
   })
 })

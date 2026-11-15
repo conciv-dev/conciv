@@ -38,7 +38,6 @@
   },
   "devDependencies": {
     "@conciv/extension-page": "workspace:^",
-    "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/ui-kit-chat": "workspace:*",
     "@conciv/ui-kit-system": "workspace:^",
