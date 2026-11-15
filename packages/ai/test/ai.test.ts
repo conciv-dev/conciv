@@ -456,7 +456,7 @@ const watched = require('node:net').connect(data.socket, () => {
     })
     const hooks = turnHooks(() => ({
       adapter: scriptedModel([{toolCalls: [{name: 'blocking', input: {}}]}]),
-      asking: [blocking],
+      tools: async () => ({codeMode: [], search: null, asking: [blocking], direct: []}),
       setup: async () => new Map([[toolApprovalId('blocking'), true]]),
     }))
     const server = await chatServer(hooks, () => undefined, db)
@@ -647,10 +647,7 @@ const watched = require('node:net').connect(data.socket, () => {
     return {
       plan: (turn) => ({
         systemPrompts: async () => [],
-        codeMode: [],
-        search: null,
-        asking: [],
-        direct: [],
+        tools: async () => ({codeMode: [], search: null, asking: [], direct: []}),
         setup: async () => new Map(),
         prompt: async (message) => message,
         expand: async (messages) => messages,

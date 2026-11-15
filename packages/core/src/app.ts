@@ -80,7 +80,6 @@ import {
   followPermissionCards,
   pluginInstructions,
   currentToolDomain,
-  sessionToolDomain,
 } from './runtime/permission-cards.js'
 import {makePluginRuntime} from './runtime/plugin-runtime.js'
 import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-types.js'
@@ -642,10 +641,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const reportToolCollision = memoize((name: string) =>
     logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`),
   )
-  const withPluginTools = (sessionId: SessionId, capabilities: CodeCapability[]): CodeCapability[] =>
+  const withPluginTools = async (sessionId: SessionId, capabilities: CodeCapability[]): Promise<CodeCapability[]> =>
     toolDomainCapabilities(
       capabilities,
-      pluginHost.runSync(sessionToolDomain(sessionId)),
+      await pluginHost.runPromise(currentToolDomain(sessionId)),
       currentToolDomain(sessionId),
       (effect, signal) => pluginHost.runPromiseExit(effect, {signal}),
       reportToolCollision,
@@ -654,7 +653,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const extensionFor = (name: string): string | undefined =>
     mounted.find((entry) => entry.registryTools.some((tool) => tool.name === name))?.extensionName
 
-  const codeModeCapabilities = (sessionId: SessionId): CodeCapability[] =>
+  const codeModeCapabilities = (sessionId: SessionId): Promise<CodeCapability[]> =>
     withPluginTools(sessionId, [
       ...registryCapabilities(
         registry.whenPageConnected(() => primitives.page.bus.connected(sessionId)).sandboxTools(),
@@ -762,9 +761,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     finishedQueues: (sessionId, fromHub) => primitives.page.queues.undelivered(sessionId, fromHub),
     startedQueues: (sessionId, toolCallIds) => primitives.page.queues.startedBy(sessionId, toolCallIds),
     admitCall: (sessionId, call) => plane.admitCall(sessionId, call),
-    outsideCapabilities: (sessionId) =>
+    outsideCapabilities: async (sessionId) =>
       outsideRunCapabilities(
-        withPluginTools(sessionId, [
+        await withPluginTools(sessionId, [
           ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall, extensionFor),
           ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
         ]),
