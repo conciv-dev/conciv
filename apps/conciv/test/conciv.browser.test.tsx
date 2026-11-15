@@ -6613,7 +6613,7 @@ module.exports = {default: {stores: {
     expect(harness.pathname()).not.toBe(`/panel/${sessionId}`)
   }, 60_000)
 
-  test('its notes travel the whole path: staged while the chat is hidden, drawn as cards in the composer, changed and removed, kept by a refused send, sent with one sentence each and their metadata, shown under the sent message, five until Show more, and kept after a reload', async () => {
+  test('its notes go from the composer cards to the sent message and stay after a reload', async () => {
     const rpc = coreRpc(coreBase())
     const sessionId = await createSession(rpc)
     const staged = (commentId: string, comment: string) => ({
