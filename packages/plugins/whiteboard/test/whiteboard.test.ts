@@ -275,12 +275,14 @@ function pinRow(cid: string) {
 }
 
 describe('the whiteboard plugin', () => {
-  it('is active and offers its twenty-two tools under the whiteboard namespace', async () => {
+  it('is active, serves its browser bundle and offers its twenty-two tools under the whiteboard namespace', async () => {
     const {kit, room} = await boot()
 
     const plugin = (await kit.rpc.plugin.list()).data.find((entry) => entry.id === 'whiteboard')
     expect(plugin?.state).toEqual({status: 'active'})
-    expect(plugin?.features).toMatchObject({server: true, rpc: true})
+    expect(plugin?.features).toMatchObject({server: true, rpc: true, experimental: true})
+    const bundle = (await kit.rpc.plugin.experimental({id: 'whiteboard'})).data
+    expect(bundle.code).toContain('exports')
 
     const discover = makeDiscoverTools(kit.base, room)
     const offered = await discover(OFFERED_TOOLS)
