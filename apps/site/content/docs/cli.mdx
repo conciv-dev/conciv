@@ -1,85 +1,126 @@
 ---
 title: CLI
-description: The conciv CLI the agent drives your app with. You can use it too.
+description: The conciv command. Set a project up, log browsers in, connect your agents, and call plugin methods.
 icon: SquareTerminal
 ---
 
-The agent's hands are a CLI. When it inspects your page or clicks a button,
-it is running `conciv` commands against the live dev server. The same binary is on your `PATH` in
-any repo with conciv installed, so everything the agent can do, you can script.
+`@conciv/cli` is the `conciv` command. Run it with `npx @conciv/cli@latest`, or as `conciv` in a project where conciv
+is installed.
+
+<TypeTable
+  type={{
+    init: {required: true, type: 'command', description: 'Sets a project up. See Quick start.'},
+    'auth link <url>': {required: true, type: 'command', description: 'Prints a link that logs a browser in.'},
+    'auth revoke [id] [--all]': {required: true, type: 'command', description: 'Lists or logs out logged-in browsers.'},
+    'mcp connect <agent>': {required: true, type: 'command', description: 'Adds conciv to an agent CLI.'},
+    'mcp disconnect <agent>': {required: true, type: 'command', description: 'Removes conciv from an agent CLI.'},
+    'mcp list': {required: true, type: 'command', description: 'The agents connected to conciv.'},
+    'mcp serve --agent <agent>': {
+      required: true,
+      type: 'command',
+      description: 'The MCP server a connected agent runs. You do not run it yourself.',
+    },
+    'plugin call <rpcId> <method>': {
+      required: true,
+      type: 'command',
+      description: "Calls a plugin's RPC method on the running engine.",
+    },
+  }}
+/>
+
+`--help` (or `-h`) prints the usage of any command. `conciv --version` (or `-v`) prints the CLI version.
+
+## `conciv init`
 
 ```bash
-conciv tools page snapshot        # accessibility snapshot of the live page
-conciv tools page click --name SubmitButton
-conciv tools server urls          # where the dev server listens
+npx @conciv/cli@latest init
 ```
 
-`tools` talks to the running app. Interactive cards in the chat thread are not a command: see the
-end of this page.
+init finds your bundler, package manager and agent CLIs, shows the plan, and asks once before it writes anything. See
+[Quick start](/docs/quick-start).
 
-## `conciv tools`
+<TypeTable
+  type={{
+    '--yes': {required: true, type: 'toggle', description: 'Approves the plan up front.'},
+    '--dry-run': {required: true, type: 'toggle', description: 'Prints the plan and exits.'},
+    '--json': {
+      required: true,
+      type: 'toggle',
+      description: 'Prints the result as JSON and never asks. Pair it with --yes or --dry-run.',
+    },
+    '--force': {required: true, type: 'toggle', description: 'Runs on a git tree with uncommitted changes.'},
+  }}
+/>
 
-### `page`
-
-Read and drive the live page. Element-targeting verbs take a CSS selector positionally, or
-`--ref` (an element ref from the latest snapshot), or `--name` (a React component name).
-The attribute verbs — `attr`, `setattr`, `removeattr` — name the attribute with `--attribute`,
-so `--name` always means the component.
-
-- **Read**: `route`, `dom`, `query`, `console`, `text`, `value`, `attr`, `exists`, `snapshot`,
-  `locate`, `css`
-- **Act**: `click`, `fill`, `select`, `check`, `uncheck`, `press`, `hover`, `scroll`, `submit`,
-  `wait`
-- **Edit live**: `setattr`, `removeattr`, `addclass`, `removeclass`, `setstyle`, `settext`,
-  `sethtml`, `remove`, `insert`, `eval`
-- **Journal**: `changes` lists every live edit made this session (`--clear` resets it)
+## `conciv auth`
 
 ```bash
-conciv tools page snapshot
-conciv tools page text .price
-conciv tools page changes --clear
+conciv auth link http://localhost:5173/
+conciv auth revoke
+conciv auth revoke <id>
+conciv auth revoke --all
 ```
 
-Live edits are ephemeral by design: they preview a change instantly, and the journal is how the
-agent knows what to persist to source afterwards. See
-[Page control](/docs/usage/page-control).
+`auth link` asks the engine of the current folder for a one-time code and prints `{link, expiresAt}`: open the link
+and that browser is logged in. `auth revoke` with no id lists the logged-in browsers; with an id, or `--all`, it logs
+them out. See [Logging in](/docs/usage/logging-in).
 
-### `react`
-
-Inspect and edit live React components by name: `inspect`, `tree`, `find`, `locate`, `override`,
-`track`.
+## `conciv mcp`
 
 ```bash
-conciv tools react inspect --name PricingCard
-conciv tools react override --name PricingCard --target props --path plan --json '"pro"'
+conciv mcp connect claude
+conciv mcp disconnect claude
+conciv mcp list
 ```
 
-`override` patches `props`, `state`, `hooks`, or `context` on the live instance and needs
-`--target`. `track` records re-renders page-wide: `--action start` begins recording, `--action report`
-(the default) lists them, `--name` narrows the report to one component, and `--action stop` ends
-recording.
+`<agent>` is `claude`, `codex`, `gemini-cli` or `opencode`. A connected agent gets two tools, `execute_typescript` and
+`discover_tools`, which reach the same tools the chat uses. Each takes an optional `tab`, a session id, to act on that
+tab on whichever engine holds it. See [Connect your agents](/docs/quick-start/agents).
 
-### `server`
-
-Ask the dev server about itself: `config`, `urls`, `resolve`, `graph`, `transform`, `reload`,
-`restart`.
+## `conciv plugin call`
 
 ```bash
-conciv tools server resolve @/components/Header --importer src/routes/index.tsx
-conciv tools server graph src/routes/index.tsx
+conciv plugin call hello greet --data '{"name":"Ada"}'
 ```
 
-An alias from tsconfig `paths` (`@/...`) resolves only with `--importer`; a package import (`#/...`) does not
-need one.
+```text title="output"
+{"ok":true,"data":{"message":"Hello, Ada!","count":1}}
+```
 
-### `open`
+`--data` (or `-d`) is the method's input as JSON. The call runs as the owner: nothing asks first. It takes no `--tab`:
+a plugin method learns no session from the caller, so an action on a tab names its session in `--data`. See
+[Calling a plugin from the terminal](/docs/plugins/terminal).
 
-Open a file in your editor, straight from a source location.
+## What every command prints
 
-Interactive questions need no CLI: the agent calls its built-in `conciv_ui` tool, which renders
-choices/confirm/diff/form in the chat thread and blocks until you answer. The cards are described
-in [Chat](/docs/usage/chat#generative-ui).
+One JSON document on stdout, except `--help` and `--version`.
 
-<Callout>
-  Every command prints JSON, so outputs compose with `jq` in scripts the same way the agent consumes them.
-</Callout>
+```text title="output"
+{"ok":true,"data":{"connected":"claude"}}
+{"ok":false,"error":{"kind":"user","message":"Unknown RPC method: hello.wave","code":"PLUGIN_RPC","type":"rpc.method_not_found"}}
+```
+
+The exit code is 0 for `ok: true` and 1 for an error. A wrong command or flag is an error too, with a hint:
+
+```bash
+conciv mcp lisst
+```
+
+```text title="output"
+{"ok":false,"error":{"kind":"user","message":"Unknown command 'lisst' for conciv mcp. Did you mean 'list'?","hint":"run conciv mcp --help to list its commands"}}
+```
+
+```bash
+conciv plugin call hello greet --tab conciv_x
+```
+
+```text title="output"
+{"ok":false,"error":{"kind":"user","message":"Unknown flag --tab for conciv plugin call. Did you mean --data?","hint":"run conciv plugin call --help to see the arguments it accepts"}}
+```
+
+A failure that is not yours, such as a crash, has `kind: "unexpected"` and a hint for reporting it.
+
+## Finding the engine
+
+`auth link` uses the engine of the current folder. `plugin call` uses `CONCIV_PORT`, then `.conciv/server.json` in
+the current folder or a parent, then the latest running engine on this machine, then port 5173.
