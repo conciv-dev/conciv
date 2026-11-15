@@ -1,23 +1,51 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
-import {Effect} from 'effect'
-import {cappedValue} from '@conciv/contract'
-import {Agent, Session, Tool, ToolRuntime} from '@conciv/plugin-host'
+import {Cause, Effect, Exit, Option, Result, Schema} from 'effect'
+import {approvalDenied, CodeFilesCapability, describeSchemas} from '@conciv/ai/server'
+import {cappedValue, safeStringify} from '@conciv/contract'
+import {
+  Agent,
+  CodeMode,
+  CodeModeCatalog,
+  CodeModeToolRuntime,
+  Permission,
+  SessionSchema,
+  Tool,
+  ToolRuntime,
+} from '@conciv/plugin-host'
 import {defineTool, type ChatTool} from '@conciv/protocol/chat-tool-types'
+import type {ChatContentPart} from '@conciv/protocol/chat-types'
 import type {ToolRequest} from '@conciv/extension'
 import {type SandboxTool} from '@conciv/extension/registry'
 import type {ConcivServerTool} from '@conciv/tools'
 
 type SchemaInput = NonNullable<Parameters<typeof defineTool>[0]['inputSchema']>
 
+type CodeNamespace = {name: string; description: string}
+
 export type CodeCapability = {
   name: string
+  path: string
+  namespaces?: readonly CodeNamespace[]
+  pinned?: true
   description: string
   approval?: 'ask'
+  direct?: true
   errors: {code: string; message: string}[]
   inputSchema: SchemaInput
-  execute: (input: unknown, request: ToolRequest) => Promise<unknown>
+  outputSchema?: SchemaInput
+  execute: (input: unknown, request: ToolRequest) => Promise<CapabilityResult>
 }
+
+export type CapabilityResult = {value: unknown; files: ChatContentPart[]}
+
+export type ToolDomain = {snapshot: Tool.Snapshot; agent: Agent.Id}
+
+const ATTACHED_FILE_TEXT = 'Attached document or image follows.'
+
+const JsonSchemaObject = z.record(z.string(), z.unknown())
+
+const PLUGIN_TEXT_OUTPUT: SchemaInput = {type: ['string', 'null']}
 
 export type CapabilityCall = (name: string, input: unknown, request: ToolRequest) => Promise<unknown>
 
@@ -31,28 +59,45 @@ function discoverableDescription(tool: SandboxTool): string {
   ].join('\n\n')
 }
 
-export function registryCapabilities(tools: readonly SandboxTool[], call: CapabilityCall): CodeCapability[] {
+function groupedPath(name: string, group: string | undefined): string {
+  const prefix = group ?? name.split('_', 1)[0] ?? name
+  return name.startsWith(`${prefix}_`) ? `${prefix}.${name.slice(prefix.length + 1)}` : name
+}
+
+export function registryCapabilities(
+  tools: readonly SandboxTool[],
+  call: CapabilityCall,
+  extensionFor: (name: string) => string | undefined,
+): CodeCapability[] {
   return tools.map((tool) => ({
     name: tool.name,
+    path: groupedPath(tool.name, extensionFor(tool.name)),
     description: discoverableDescription(tool),
     ...(tool.approval === undefined ? {} : {approval: tool.approval}),
     errors: tool.errors.map(({code, message}) => ({code, message})),
     inputSchema: tool.schema,
-    execute: (input, request) => call(tool.name, input, request),
+    ...registryOutput(tool.outputSchema),
+    execute: async (input, request) => ({value: await call(tool.name, input, request), files: []}),
   }))
+}
+
+function registryOutput(schema: unknown): {outputSchema?: SchemaInput} {
+  const parsed = JsonSchemaObject.safeParse(schema)
+  return parsed.success ? {outputSchema: parsed.data} : {}
 }
 
 export function assistCapabilities(tools: ConcivServerTool[]): CodeCapability[] {
   return tools.map((tool) => ({
     name: tool.name,
+    path: groupedPath(tool.name, undefined),
     description: tool.description,
     errors: [],
     inputSchema: tool.inputSchema,
-    execute: (input) => tool.execute(input),
+    execute: async (input) => ({value: await tool.execute(input), files: []}),
   }))
 }
 
-type EffectRun = <A, E>(effect: Effect.Effect<A, E>, signal: AbortSignal | undefined) => Promise<A>
+type EffectRun = <A, E>(effect: Effect.Effect<A, E>, signal: AbortSignal | undefined) => Promise<Exit.Exit<A, E>>
 
 function jsonSchemaOnly(schema: ReturnType<typeof ToolRuntime.definition>['inputSchema']): SchemaInput {
   return {...schema}
@@ -67,15 +112,66 @@ function waitForCancel(signal: AbortSignal): Effect.Effect<void> {
   })
 }
 
-function toolContext(request: ToolRequest): Tool.Context {
+function toolContext(request: ToolRequest, agent: Agent.Id): Tool.Context {
   return {
-    sessionId: Session.Id.make(request.sessionId),
-    agent: Agent.Id.make(request.agentId),
+    sessionId: SessionSchema.Id.make(request.sessionId),
+    agent,
     messageId: undefined,
     id: Tool.CallId.make(request.toolCallId ?? randomUUID()),
     progress: () => Effect.void,
     ...(request.signal === undefined ? {} : {cancel: waitForCancel(request.signal)}),
   }
+}
+
+const isDeclined = Schema.is(Permission.DeclinedError)
+const isBlocked = Schema.is(Permission.BlockedError)
+const isCorrected = Schema.is(Permission.CorrectedError)
+const isToolError = Schema.is(Tool.Error)
+
+type SessionError = {type: string; message: string}
+
+function toSessionError(error: unknown): SessionError {
+  if (error instanceof Error && isBlocked(error)) return {type: 'permission.rejected', message: error.message}
+  if (isCorrected(error)) return {type: 'permission.rejected', message: error.feedback}
+  if (isToolError(error)) {
+    if (error.error === undefined) return {type: 'tool.execution', message: error.message}
+    const unwrapped = toSessionError(error.error)
+    return unwrapped.message === '' ? {...unwrapped, type: 'tool.execution', message: error.message} : unwrapped
+  }
+  return {type: 'unknown', message: error instanceof Error ? error.message : String(error)}
+}
+
+function refusal(name: string, cause: Cause.Cause<Tool.Error>): unknown {
+  const defect = Cause.findDefect(cause)
+  if (Result.isSuccess(defect)) return isDeclined(defect.success) ? approvalDenied(name) : defect.success
+  const failure = Cause.findErrorOption(cause)
+  if (Option.isSome(failure) && isDeclined(failure.value.error)) return approvalDenied(name)
+  if (Option.isSome(failure)) {
+    const {type, message} = toSessionError(failure.value)
+    return Object.assign(new Error(message), {type})
+  }
+  return Cause.squash(cause)
+}
+
+async function runTool(
+  name: string,
+  run: EffectRun,
+  effect: Effect.Effect<Tool.NormalizedResult, Tool.Error>,
+  signal: AbortSignal | undefined,
+): Promise<CapabilityResult> {
+  const exit = await run(effect, signal)
+  if (Exit.isFailure(exit)) throw refusal(name, exit.cause)
+  return {value: resultValue(exit.value), files: outputFiles(exit.value.content)}
+}
+
+function outputFiles(content: Tool.NormalizedResult['content']): ChatContentPart[] {
+  return content.flatMap((part): ChatContentPart[] => {
+    if (part.type !== 'file') return []
+    const prefix = `data:${part.mime};base64,`
+    if (!part.uri.startsWith(prefix)) return []
+    if (!part.mime.startsWith('image/')) return [{type: 'text', content: ATTACHED_FILE_TEXT}]
+    return [{type: 'image', source: {type: 'data', value: part.uri.slice(prefix.length), mimeType: part.mime}}]
+  })
 }
 
 function resultValue(result: Tool.NormalizedResult): unknown {
@@ -84,30 +180,88 @@ function resultValue(result: Tool.NormalizedResult): unknown {
   return text === '' ? null : text
 }
 
+type CodeModeSnapshot = NonNullable<Tool.Snapshot['codeMode']>
+
+function qualifiedName(tool: Parameters<typeof ToolRuntime.effectiveName>[0]): string {
+  const normalized = ToolRuntime.normalizedName(tool)
+  const namespace = tool.options?.namespace
+  return namespace === undefined ? normalized : `${namespace}.${normalized}`
+}
+
+function enclosingNamespaces(namespaces: CodeModeSnapshot['namespaces'], path: string): CodeNamespace[] {
+  const segments = path.split('.')
+  return segments.flatMap((_, index) => {
+    const namespace = namespaces.get(segments.slice(0, index + 1).join('.'))
+    return namespace === undefined ? [] : [{name: namespace.name, description: namespace.description}]
+  })
+}
+
+function codeModeCapabilities(codeMode: CodeModeSnapshot, agent: Agent.Id, run: EffectRun): CodeCapability[] {
+  return [...codeMode.tools].map(([name, tool]) => {
+    const path = qualifiedName(tool)
+    const definition = ToolRuntime.definition(tool)
+    return {
+      name: CodeMode.capabilityName(path),
+      path,
+      namespaces: enclosingNamespaces(codeMode.namespaces, path),
+      ...(tool.options?.pinned === true ? {pinned: true} : {}),
+      description: tool.description,
+      errors: [],
+      inputSchema: jsonSchemaOnly(definition.inputSchema),
+      outputSchema: pluginOutput(definition.outputSchema),
+      execute: (input, request) =>
+        runTool(name, run, codeMode.execute(name, input, toolContext(request, agent)), request.signal),
+    }
+  })
+}
+
+function pluginOutput(schema: ReturnType<typeof ToolRuntime.definition>['outputSchema']): SchemaInput {
+  return schema === undefined ? PLUGIN_TEXT_OUTPUT : {...schema}
+}
+
+function directCapabilities(snapshot: Tool.Snapshot, agent: Agent.Id, run: EffectRun): CodeCapability[] {
+  return snapshot.definitions.map((definition) => ({
+    name: definition.name,
+    path: definition.name,
+    description: definition.description,
+    direct: true,
+    errors: [],
+    inputSchema: jsonSchemaOnly(definition.inputSchema),
+    execute: (input, request) =>
+      runTool(
+        definition.name,
+        run,
+        snapshot.execute(directCall(definition.name, input, toolContext(request, agent))),
+        request.signal,
+      ),
+  }))
+}
+
 export function toolDomainCapabilities(
   capabilities: readonly CodeCapability[],
-  snapshot: Tool.Snapshot,
+  {snapshot, agent}: ToolDomain,
   run: EffectRun,
   collided: (name: string) => void,
 ): CodeCapability[] {
   const codeMode = snapshot.codeMode
-  if (codeMode === undefined) return [...capabilities]
-  const tools = [...codeMode.tools]
-  const taken = (name: string) => capabilities.some((capability) => capability.name === name)
-  tools.filter(([name]) => taken(name)).forEach(([name]) => collided(name))
-  return [
-    ...capabilities,
-    ...tools
-      .filter(([name]) => !taken(name))
-      .map(([name, tool]): CodeCapability => ({
-        name,
-        description: tool.description,
-        errors: [],
-        inputSchema: jsonSchemaOnly(ToolRuntime.definition(tool).inputSchema),
-        execute: async (input, request) =>
-          resultValue(await run(codeMode.execute(name, input, toolContext(request)), request.signal)),
-      })),
+  const offered = codeMode === undefined ? [] : capabilities
+  const taken = (capability: CodeCapability) => offered.some((entry) => entry.name === capability.name)
+  const added = [
+    ...(codeMode === undefined ? [] : codeModeCapabilities(codeMode, agent, run)),
+    ...directCapabilities(snapshot, agent, run),
   ]
+  added.filter(taken).forEach((capability) => collided(capability.name))
+  return [...offered, ...added.filter((capability) => !taken(capability))]
+}
+
+function directCall(name: string, input: unknown, context: Tool.Context): Parameters<Tool.Snapshot['execute']>[0] {
+  return {
+    sessionId: context.sessionId,
+    agent: context.agent,
+    messageId: context.messageId,
+    call: {type: 'tool-call', id: context.id, name, input},
+    ...(context.cancel === undefined ? {} : {cancel: context.cancel}),
+  }
 }
 
 function readDeclaredCode(error: unknown): string | null {
@@ -124,7 +278,108 @@ function withDeclaredCode(error: unknown): Error {
   return new Error(`${code}: ${bare}`)
 }
 
-export type ChatToolSet = {codeMode: ChatTool[]; asking: ChatTool[]; asked: CodeCapability[]}
+type CatalogNode = {
+  tool?: CodeModeCatalog.Tool
+  namespace?: CodeNamespace
+  readonly children: Map<string, CatalogNode>
+}
+
+function getNode(root: CatalogNode, path: string): CatalogNode {
+  return path.split('.').reduce((parent, name) => {
+    const child: CatalogNode = parent.children.get(name) ?? {children: new Map()}
+    parent.children.set(name, child)
+    return child
+  }, root)
+}
+
+function renderCatalog(root: CatalogNode): ReadonlyArray<CodeModeCatalog.Tool | CodeModeCatalog.Namespace> {
+  return Array.from(root.children)
+    .toSorted(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+    .flatMap(([name, node]) => {
+      const tools = renderCatalog(node)
+      const namespace =
+        node.namespace === undefined && tools.length === 0
+          ? undefined
+          : {
+              type: 'namespace' as const,
+              name,
+              ...(node.namespace?.description === undefined ? {} : {description: node.namespace.description}),
+              tools,
+            }
+      if (node.tool === undefined) return namespace === undefined ? [] : [namespace]
+      if (namespace === undefined) return [node.tool]
+      return [node.tool, namespace]
+    })
+}
+
+function catalogInventory(
+  capabilities: readonly CodeCapability[],
+  catalog: readonly CodeModeToolRuntime.ToolDescription[],
+): CodeModeCatalog.Inventory {
+  const pinned = new Set(capabilities.filter((capability) => capability.pinned === true).map(({path}) => path))
+  const root: CatalogNode = {children: new Map()}
+  for (const namespace of capabilities.flatMap((capability) => capability.namespaces ?? []))
+    getNode(root, namespace.name).namespace = namespace
+  for (const tool of catalog)
+    getNode(root, tool.path).tool = {
+      type: 'tool',
+      name: tool.path.split('.').at(-1) ?? tool.path,
+      description: tool.description,
+      get signature() {
+        return tool.signature
+      },
+      pinned: pinned.has(tool.path),
+    }
+  return {tools: renderCatalog(root)}
+}
+
+function visibleTool(capability: CodeCapability): CodeModeToolRuntime.VisibleTool {
+  let schemas: ReturnType<typeof describeSchemas> | undefined
+  const described = () => (schemas ??= describeSchemas(capability.inputSchema, capability.outputSchema))
+  return {
+    description: {
+      path: capability.path,
+      description: capability.description,
+      get signature() {
+        const {input, parameters, output} = described()
+        const call = parameters.length === 0 ? '()' : `(${input})`
+        return `${CodeMode.toolExpression(capability.path)}${call}: Promise<${output}>`
+      },
+    },
+    get parameters() {
+      return described().parameters
+    },
+    namespaces: capability.namespaces ?? [],
+  }
+}
+
+type SandboxSearch = (input: unknown) => Promise<unknown>
+
+function sandboxDiscovery(capabilities: readonly CodeCapability[]): {
+  inventory: CodeModeCatalog.Inventory
+  search: SandboxSearch
+} {
+  const searchIndex = CodeModeToolRuntime.prepare(capabilities.map(visibleTool))
+  const searchTool = CodeModeToolRuntime.makeSearchTool(searchIndex)
+  const decode = Schema.decodeUnknownEffect(searchTool.input)
+  return {
+    inventory: catalogInventory(
+      capabilities,
+      searchIndex.map((entry) => entry.description),
+    ),
+    search: (input) => Effect.runPromise(decode(input).pipe(Effect.flatMap(searchTool.execute))),
+  }
+}
+
+export type ChatToolSet = {
+  inventory: CodeModeCatalog.Inventory | undefined
+  search: SandboxSearch | null
+  codeMode: ChatTool[]
+  asking: ChatTool[]
+  asked: CodeCapability[]
+  direct: ChatTool[]
+  directed: CodeCapability[]
+}
 
 function chatTool(capability: CodeCapability, request: ToolRequest, lazy: boolean): ChatTool {
   return defineTool({
@@ -137,24 +392,40 @@ function chatTool(capability: CodeCapability, request: ToolRequest, lazy: boolea
     try {
       const toolCallId = context?.toolCallId
       const signal = context?.abortSignal
-      const value = await capability.execute(args, {
+      const {value, files} = await capability.execute(args, {
         ...request,
         ...(toolCallId === undefined ? {} : {toolCallId}),
         ...(signal === undefined ? {} : {signal}),
       })
-      return lazy ? value : cappedValue(value)
+      if (!lazy) return cappedValue(files.length === 0 ? value : [...valueParts(value), ...files])
+      context?.getOptional?.(CodeFilesCapability)?.(files)
+      return value
     } catch (error) {
       throw withDeclaredCode(error)
     }
   })
 }
 
-export function chatToolSet(capabilities: readonly CodeCapability[], request: ToolRequest): ChatToolSet {
+function valueParts(value: unknown): ChatContentPart[] {
+  if (value === null) return []
+  return [{type: 'text', content: typeof value === 'string' ? value : safeStringify(value)}]
+}
+
+export function chatToolSet(
+  capabilities: readonly CodeCapability[],
+  request: ToolRequest,
+  codeMode: boolean,
+): ChatToolSet {
   const asked = capabilities.filter((capability) => capability.approval === 'ask')
-  const sandboxed = capabilities.filter((capability) => capability.approval !== 'ask')
+  const coded = (capability: CodeCapability) => codeMode && capability.direct !== true
+  const directed = capabilities.filter((capability) => capability.approval !== 'ask' && !coded(capability))
+  const sandboxed = capabilities.filter((capability) => capability.approval !== 'ask' && coded(capability))
   return {
+    ...(codeMode ? sandboxDiscovery(sandboxed) : {inventory: undefined, search: null}),
     codeMode: sandboxed.map((capability) => chatTool(capability, request, true)),
     asking: asked.map((capability) => chatTool(capability, request, false)),
     asked,
+    direct: directed.map((capability) => chatTool(capability, request, false)),
+    directed,
   }
 }

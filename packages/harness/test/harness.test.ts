@@ -250,9 +250,11 @@ describe('claude chat config', () => {
   })
 
   describe('CHAT_SYSTEM_PROMPT', () => {
-    it('points the agent at discover_tools, the tool that exists', () => {
-      expect(CHAT_SYSTEM_PROMPT).toContain('`discover_tools`')
+    it('leaves finding capabilities to the code-mode catalog and keeps the conciv guidance', () => {
+      expect(CHAT_SYSTEM_PROMPT).not.toContain('discover_tools')
       expect(CHAT_SYSTEM_PROMPT).not.toContain('external_catalog')
+      expect(CHAT_SYSTEM_PROMPT).toContain('`execute_typescript`')
+      expect(CHAT_SYSTEM_PROMPT).toContain('`await external_conciv_ui({...})`')
     })
   })
 

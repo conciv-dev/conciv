@@ -2,16 +2,31 @@ import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it, onTestFinished} from 'vitest'
-import {toolApprovalId} from '@conciv/ai/server'
+import {quickJSThreadDriver, toolApprovalId} from '@conciv/ai/server'
 import {fakeText} from '@conciv/ai/testkit'
 import {openDb, type ConcivDb} from '@conciv/db'
 import {defineHarness} from '@conciv/harness'
 import {readApprovalAsk, approvalRequestedEvent} from '@conciv/protocol/chat-event-types'
-import {SessionId} from '@conciv/protocol/chat-types'
-import {Effect, Layer, ManagedRuntime, Scope} from 'effect'
+import {CHAT_SSE_PATH, SessionId} from '@conciv/protocol/chat-types'
+import type {ModelMessage} from '@conciv/protocol/chat-message-types'
+import {Effect, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {z} from 'zod'
-import {PluginHooks, Tool} from '@conciv/plugin-host'
+import {defineWebSocketHelper} from 'hono/ws'
+import {
+  Agent,
+  Bus,
+  CodeModeCatalog,
+  Database,
+  Image,
+  Location,
+  Permission,
+  PermissionSaved,
+  PluginHooks,
+  Tool,
+} from '@conciv/plugin-host'
 import {createChatPlane, toolDomainCapabilities, type CodeCapability} from '../src/index.js'
+
+const PIXEL_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
 
 const model = fakeText()
 const answer = model.chatStream.bind(model)
@@ -53,6 +68,8 @@ function openDatabase() {
 }
 
 function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typeof createChatPlane>[0]> = {}) {
+  const driver = quickJSThreadDriver({timeout: 10_000, memoryLimit: 64, maxStackSize: 1024 * 1024}, () => undefined)
+  onTestFinished(() => driver.dispose())
   return createChatPlane({
     db,
     hubAccess: 'session',
@@ -74,7 +91,11 @@ function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typ
     toolNames: new Set(),
     capabilities: () => [],
     attachmentExpanders: {},
+    prompt: async (event) => event,
+    promptHooked: async () => false,
+    pluginInstructions: async () => ({initial: '', update: '', told: async () => undefined}),
     log: () => undefined,
+    driver,
     ...overrides,
   })
 }
@@ -147,22 +168,25 @@ describe('permission cards', () => {
 
 describe('plugin tools in code mode', () => {
   it('an empty tool domain changes no list, a plugin tool runs through code mode with its hooks, and a name a built-in capability has is left out', async () => {
-    const host = ManagedRuntime.make(Tool.layer.pipe(Layer.provideMerge(PluginHooks.layer)))
+    const host = ManagedRuntime.make(
+      Tool.layer.pipe(Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, Image.layer))),
+    )
     onTestFinished(() => host.dispose())
     const scope = host.runSync(Scope.make())
     const builtin: CodeCapability = {
       name: 'unit_taken',
+      path: 'unit_taken',
       description: 'Built in.',
       errors: [],
       inputSchema: z.object({}),
-      execute: async () => 'built in',
+      execute: async () => ({value: 'built in', files: []}),
     }
     const collisions: string[] = []
     const capabilities = (): CodeCapability[] =>
       toolDomainCapabilities(
         [builtin],
-        host.runSync(Tool.Service.use((tools) => tools.snapshot())),
-        (effect, signal) => host.runPromise(effect, {signal}),
+        {snapshot: host.runSync(Tool.Service.use((tools) => tools.snapshot())), agent: Agent.Id.make('plan')},
+        (effect, signal) => host.runPromiseExit(effect, {signal}),
         (name) => collisions.push(name),
       )
     expect(capabilities()).toEqual([builtin])
@@ -178,7 +202,7 @@ describe('plugin tools in code mode', () => {
             description: 'Shout the text.',
             input: z.object({text: z.string()}),
             execute: (input: {text: string}, context) =>
-              Effect.succeed({content: `${input.text.toUpperCase()} in ${context.sessionId}`}),
+              Effect.succeed({content: `${input.text.toUpperCase()} in ${context.sessionId} as ${context.agent}`}),
           })
           editor.add({
             name: 'unit_double',
@@ -196,6 +220,26 @@ describe('plugin tools in code mode', () => {
             description: 'Refuse every call.',
             input: z.object({}),
             execute: () => Effect.fail(Tool.makeError({message: 'the tool refused'})),
+          })
+          editor.add({
+            name: 'unit_send',
+            description: 'Send the draft.',
+            input: z.object({}),
+            output: z.object({sent: z.boolean()}),
+            execute: () => Effect.succeed({output: {sent: true}}),
+          })
+          editor.add({
+            name: 'unit_snap',
+            description: 'Snap the page.',
+            input: z.object({}),
+            execute: () =>
+              Effect.succeed({
+                content: [
+                  {type: 'text', text: 'untrusted page data'},
+                  {type: 'file', uri: `data:image/png;base64,${PIXEL_PNG}`, mime: 'image/png', name: 'page.png'},
+                  {type: 'file', uri: 'data:application/pdf;base64,JVBERi0=', mime: 'application/pdf'},
+                ],
+              }),
           })
           editor.add({
             name: 'unit_taken',
@@ -219,27 +263,584 @@ describe('plugin tools in code mode', () => {
     const {root, db} = openDatabase()
     const chat = await chatPlane(db, root, {capabilities})
     const runner = await chat.codeRunner(SessionId.parse('conciv_plugin'), () => undefined)
-    expect(runner?.capabilities.map((capability) => capability.name)).toEqual([
+    expect(runner?.code?.capabilities.map((capability) => capability.name)).toEqual([
       'unit_taken',
       'unit_shout',
       'unit_double',
       'unit_refuse',
+      'unit_send',
+      'unit_snap',
     ])
+    await expect(
+      runner?.code?.run('return (await search({})).items.map((item) => item.signature)', 'parent'),
+    ).resolves.toMatchObject({
+      result: [
+        'external_unit_double({\n  count: string;\n}): Promise<string | null>',
+        'external_unit_refuse(): Promise<string | null>',
+        'external_unit_send(): Promise<{\n  sent: boolean;\n}>',
+        'external_unit_shout({\n  text: string;\n}): Promise<string | null>',
+        'external_unit_snap(): Promise<string | null>',
+        'external_unit_taken(): Promise<unknown>',
+      ],
+    })
     expect(new Set(collisions)).toEqual(new Set(['unit_taken']))
-    await expect(runner?.run('return await external_unit_shout({text: "hi"})', 'parent')).resolves.toMatchObject({
-      result: 'CHANGED BY A HOOK in conciv_plugin',
+    await expect(runner?.code?.run('return await external_unit_shout({text: "hi"})', 'parent')).resolves.toMatchObject({
+      result: 'CHANGED BY A HOOK in conciv_plugin as plan',
     })
     expect(seen).toEqual(['before unit_shout without a message {"text":"hi"}', 'after unit_shout completed'])
-    await expect(runner?.run('return await external_unit_double({count: "2"})', 'parent')).resolves.toMatchObject({
-      result: '4',
-    })
+    await expect(runner?.code?.run('return await external_unit_double({count: "2"})', 'parent')).resolves.toMatchObject(
+      {
+        result: '4',
+      },
+    )
     expect(seen.slice(2)).toEqual(['before unit_double without a message {"count":"2"}', 'after unit_double completed'])
-    await expect(runner?.run('return await external_unit_refuse({})', 'parent')).resolves.toMatchObject({
+    await expect(runner?.code?.run('return await external_unit_refuse({})', 'parent')).resolves.toMatchObject({
       success: false,
       error: {message: expect.stringContaining('the tool refused')},
     })
-    await expect(runner?.run('return await external_unit_taken({})', 'parent')).resolves.toMatchObject({
+    await expect(runner?.code?.run('return await external_unit_taken({})', 'parent')).resolves.toMatchObject({
       result: 'built in',
     })
+    const snapFiles = [
+      {type: 'image', source: {type: 'data', value: PIXEL_PNG, mimeType: 'image/png'}},
+      {type: 'text', content: 'Attached document or image follows.'},
+    ]
+    await expect(runner?.code?.run('return await external_unit_snap({})', 'parent')).resolves.toEqual({
+      success: true,
+      result: 'untrusted page data',
+      logs: [],
+      files: snapFiles,
+    })
+    await expect(
+      runner?.code?.run(
+        'await external_unit_snap({}); await external_unit_shout({text: "a"}); return "done"',
+        'parent',
+      ),
+    ).resolves.toMatchObject({success: true, result: 'done', files: snapFiles})
+    await expect(
+      runner?.code?.run(
+        'await external_unit_snap({}); await external_unit_snap({}); throw new Error("boom")',
+        'parent',
+      ),
+    ).resolves.toMatchObject({
+      success: false,
+      error: {message: expect.stringContaining('boom')},
+      files: [...snapFiles, ...snapFiles],
+    })
+    await expect(runner?.code?.run('return "no files"', 'parent')).resolves.toEqual({
+      success: true,
+      result: 'no files',
+      logs: [],
+    })
+  })
+
+  it('a tool outside the listed budget is found by search and called through the returned path', async () => {
+    const host = ManagedRuntime.make(
+      Tool.layer.pipe(Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, Image.layer))),
+    )
+    onTestFinished(() => host.dispose())
+    const scope = host.runSync(Scope.make())
+    const helper = (index: number) =>
+      `Bulk helper ${index} reads, filters and reshapes the shared demo records for the weekly reporting pages.`
+    const target = 'Measure the quasar brightness of one sky region.'
+    await host.runPromise(
+      Effect.gen(function* () {
+        const tools = yield* Tool.Service
+        yield* tools.transform((editor) => {
+          editor.namespace({name: 'bulk', description: 'Bulk record helpers'})
+          Array.from({length: 120}, (_, index) =>
+            editor.add({
+              name: `helper_${index}`,
+              description: helper(index),
+              input: z.object({id: z.string()}),
+              options: {namespace: 'bulk'},
+              execute: (input: {id: string}) => Effect.succeed({content: input.id}),
+            }),
+          )
+          editor.add({
+            name: 'zz_quasar',
+            description: target,
+            input: z.object({region: z.string()}),
+            options: {namespace: 'bulk'},
+            execute: (input: {region: string}) => Effect.succeed({content: `bright ${input.region}`}),
+          })
+        })
+      }).pipe(Scope.provide(scope)),
+    )
+    const listed = CodeModeCatalog.summarize({
+      tools: [
+        {
+          type: 'namespace',
+          name: 'bulk',
+          tools: [
+            ...Array.from({length: 120}, (_, index) => ({
+              type: 'tool' as const,
+              name: `helper_${index}`,
+              description: helper(index),
+              signature: '',
+            })),
+            {type: 'tool', name: 'zz_quasar', description: target, signature: ''},
+          ],
+        },
+      ],
+    })
+    expect(listed.namespaces[0]?.entries.map((entry) => entry.path)).not.toContain('bulk.zz_quasar')
+
+    const capabilities = (): CodeCapability[] =>
+      toolDomainCapabilities(
+        [],
+        {snapshot: host.runSync(Tool.Service.use((tools) => tools.snapshot())), agent: Agent.defaultId},
+        (effect, signal) => host.runPromiseExit(effect, {signal}),
+        () => undefined,
+      )
+    const {root, db} = openDatabase()
+    const chat = await chatPlane(db, root, {capabilities})
+    const runner = await chat.codeRunner(SessionId.parse('conciv_search'), () => undefined)
+    await expect(runner?.code?.run('return search({query: "quasar brightness"})', 'parent')).resolves.toMatchObject({
+      success: true,
+      result: {
+        items: [
+          {
+            path: 'external_bulk_zz_quasar',
+            description: target,
+            signature: expect.stringContaining('region: string'),
+          },
+        ],
+      },
+    })
+    await expect(
+      runner?.code?.run('return await external_bulk_zz_quasar({region: "north"})', 'parent'),
+    ).resolves.toMatchObject({result: 'bright north'})
+  })
+})
+
+describe('refusal text', () => {
+  const isAsked = Schema.is(Schema.Struct({id: Permission.Id, action: Schema.String}))
+
+  it('a declined call says the user denied the tool, also when a promise tool rethrew the decline, and a blocked or corrected call says its own message', async () => {
+    const {root, db} = openDatabase()
+    const sessions = Layer.succeed(
+      Permission.PermissionSessions,
+      Permission.PermissionSessions.of({
+        get: () =>
+          Effect.succeed({
+            agent: Agent.defaultId,
+            permissions: [
+              {action: 'refused', resource: '*', effect: 'deny'},
+              {action: 'asked', resource: '*', effect: 'ask'},
+              {action: 'corrected', resource: '*', effect: 'ask'},
+            ],
+          }),
+      }),
+    )
+    const host = ManagedRuntime.make(
+      Layer.mergeAll(Tool.layer, Permission.layer).pipe(
+        Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, sessions)),
+        Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, Image.layer)),
+        Layer.provideMerge(Bus.configured()),
+        Layer.provideMerge(
+          Layer.succeed(
+            Location.Service,
+            Location.Service.of(
+              Schema.decodeSync(Location.Info)({
+                directory: root,
+                project: {id: root, directory: root, canonical: root},
+              }),
+            ),
+          ),
+        ),
+        Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),
+      ),
+    )
+    onTestFinished(() => host.dispose())
+    await host.context()
+    const scope = host.runSync(Scope.make())
+    await host.runPromise(
+      Effect.gen(function* () {
+        const tools = yield* Tool.Service
+        const permission = yield* Permission.Service
+        const bus = yield* Bus.Service
+        yield* bus.listen((event) => {
+          if (event.type !== Permission.Event.Asked.type || !isAsked(event.data)) return Effect.void
+          const message = event.data.action === 'corrected' ? {message: 'read the example file instead'} : {}
+          return permission.reply({requestId: event.data.id, reply: 'reject', ...message}).pipe(Effect.ignore)
+        })
+        yield* tools.transform((editor) => {
+          editor.add({
+            name: 'unit_guarded',
+            description: 'Assert a permission.',
+            input: z.object({action: z.string()}),
+            execute: (input: {action: string}, context) =>
+              permission
+                .assert({...Permission.invocation(context), action: input.action, resources: ['src/.env']})
+                .pipe(Effect.orDie, Effect.as({content: 'ran'})),
+          })
+          editor.add({
+            name: 'unit_promised',
+            description: 'Assert a permission from a promise and wrap what it rejects with.',
+            input: z.object({action: z.string()}),
+            execute: (input: {action: string}, context) =>
+              Effect.tryPromise({
+                try: () =>
+                  host.runPromise(
+                    permission.assert({
+                      ...Permission.invocation(context),
+                      action: input.action,
+                      resources: ['src/.env'],
+                    }),
+                  ),
+                catch: (error) =>
+                  Tool.makeError({message: error instanceof Error ? error.message : String(error), error}),
+              }).pipe(Effect.as({content: 'ran'})),
+          })
+          editor.add({
+            name: 'unit_wrapped',
+            description: 'Assert a permission and wrap its failure.',
+            input: z.object({action: z.string()}),
+            execute: (input: {action: string}, context) => {
+              if (input.action === 'missing')
+                return Effect.fail(Tool.makeError({message: 'Unable to load skill missing'}))
+              const asserted: Effect.Effect<void, unknown> =
+                input.action === 'empty'
+                  ? Effect.fail(new Error(''))
+                  : permission.assert({
+                      ...Permission.invocation(context),
+                      action: input.action,
+                      resources: ['src/.env'],
+                    })
+              return asserted.pipe(
+                Effect.mapError((error) => Tool.makeError({message: `Unable to load skill ${input.action}`, error})),
+                Effect.as({content: 'ran'}),
+              )
+            },
+          })
+        })
+      }).pipe(Scope.provide(scope)),
+    )
+    const [guarded, promised, wrapped] = toolDomainCapabilities(
+      [],
+      {snapshot: host.runSync(Tool.Service.use((tools) => tools.snapshot())), agent: Agent.defaultId},
+      (effect, signal) => host.runPromiseExit(effect, {signal}),
+      () => undefined,
+    )
+    const request = (action: string) => ({
+      sessionId: SessionId.parse('conciv_refusal'),
+      agentId: 'conciv_refusal',
+      model: null,
+      toolCallId: action,
+    })
+    const call = (action: string) => guarded?.execute({action}, request(action))
+
+    await expect(call('asked')).rejects.toThrow(
+      'The user denied running tool "unit_guarded". Do not retry it; continue without it.',
+    )
+    await expect(call('refused')).rejects.toThrow('Permission denied: refused')
+    await expect(call('corrected')).rejects.toThrow('read the example file instead')
+    expect(promised?.name).toBe('unit_promised')
+    await expect(promised?.execute({action: 'asked'}, request('promised-asked'))).rejects.toThrow(
+      'The user denied running tool "unit_promised". Do not retry it; continue without it.',
+    )
+    await expect(promised?.execute({action: 'corrected'}, request('promised-corrected'))).rejects.toMatchObject({
+      type: 'permission.rejected',
+      message: 'read the example file instead',
+    })
+    expect(wrapped?.name).toBe('unit_wrapped')
+    await expect(wrapped?.execute({action: 'missing'}, request('wrapped-missing'))).rejects.toMatchObject({
+      type: 'tool.execution',
+      message: 'Unable to load skill missing',
+    })
+    await expect(wrapped?.execute({action: 'refused'}, request('wrapped-refused'))).rejects.toMatchObject({
+      type: 'permission.rejected',
+      message: 'Permission denied: refused',
+    })
+    await expect(wrapped?.execute({action: 'corrected'}, request('wrapped-corrected'))).rejects.toMatchObject({
+      type: 'permission.rejected',
+      message: 'read the example file instead',
+    })
+    await expect(wrapped?.execute({action: 'empty'}, request('wrapped-empty'))).rejects.toMatchObject({
+      type: 'tool.execution',
+      message: 'Unable to load skill empty',
+    })
+  })
+})
+
+describe('direct tools', () => {
+  it('a codemode false tool reaches the turn and the runner as its own tool, and a session that denies execute gets every plugin tool directly and no code mode', async () => {
+    const host = ManagedRuntime.make(
+      Tool.layer.pipe(Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, Image.layer))),
+    )
+    onTestFinished(() => host.dispose())
+    const scope = host.runSync(Scope.make())
+    const ran: string[] = []
+    await host.runPromise(
+      Effect.gen(function* () {
+        const tools = yield* Tool.Service
+        yield* tools.transform((editor) => {
+          editor.add({
+            name: 'unit_direct',
+            description: 'Echo the text directly.',
+            input: z.object({text: z.string()}),
+            options: {codemode: false},
+            execute: (input: {text: string}, context) =>
+              Effect.sync(() => {
+                ran.push(`unit_direct ${input.text} ${context.sessionId}`)
+                return {content: `direct ${input.text}`}
+              }),
+          })
+          editor.add({
+            name: 'unit_direct_snap',
+            description: 'Snap the page directly.',
+            input: z.object({}),
+            options: {codemode: false},
+            execute: (_input, context) =>
+              Effect.succeed({
+                content: [
+                  {type: 'text', text: `untrusted page data for ${context.agent}`},
+                  {type: 'file', uri: `data:image/png;base64,${PIXEL_PNG}`, mime: 'image/png'},
+                ],
+              }),
+          })
+          editor.add({
+            name: 'unit_coded',
+            description: 'Echo the text in code mode.',
+            input: z.object({text: z.string()}),
+            execute: (input: {text: string}) => Effect.succeed({content: `coded ${input.text}`}),
+          })
+        })
+      }).pipe(Scope.provide(scope)),
+    )
+    const builtin: CodeCapability = {
+      name: 'unit_builtin',
+      path: 'unit_builtin',
+      description: 'Built in.',
+      errors: [],
+      inputSchema: z.object({}),
+      execute: async () => ({value: 'built in', files: []}),
+    }
+    const shared = SessionId.parse('conciv_direct')
+    const closed = SessionId.parse('conciv_no_execute')
+    const capabilities = (sessionId: SessionId): CodeCapability[] =>
+      toolDomainCapabilities(
+        [builtin],
+        {
+          snapshot: host.runSync(
+            Tool.Service.use((tools) =>
+              tools.snapshot(sessionId === closed ? [{action: 'execute', resource: '*', effect: 'deny'}] : []),
+            ),
+          ),
+          agent: Agent.Id.make('plan'),
+        },
+        (effect, signal) => host.runPromiseExit(effect, {signal}),
+        () => undefined,
+      )
+    const names = (list: readonly {name: string}[] | undefined) => list?.map((entry) => entry.name)
+
+    expect(capabilities(shared).map(({name, direct}) => ({name, direct}))).toEqual([
+      {name: 'unit_builtin', direct: undefined},
+      {name: 'unit_coded', direct: undefined},
+      {name: 'unit_direct', direct: true},
+      {name: 'unit_direct_snap', direct: true},
+    ])
+    const {root, db} = openDatabase()
+    const chat = await chatPlane(db, root, {capabilities})
+    const runner = await chat.codeRunner(shared, () => undefined)
+    expect(names(runner?.code?.capabilities)).toEqual(['unit_builtin', 'unit_coded'])
+    expect(names(runner?.direct)).toEqual(['unit_direct', 'unit_direct_snap'])
+    await expect(runner?.direct[0]?.run({text: 'hi'}, 'parent')).resolves.toBe('direct hi')
+    await expect(runner?.direct[1]?.run({}, 'parent')).resolves.toEqual([
+      {type: 'text', content: 'untrusted page data for plan'},
+      {type: 'image', source: {type: 'data', value: PIXEL_PNG, mimeType: 'image/png'}},
+    ])
+    expect(ran).toEqual(['unit_direct hi conciv_direct'])
+
+    const offered: string[][] = []
+    model.setResponses([
+      ({request}) => {
+        offered.push(names(request.tools) ?? [])
+        return {
+          toolCalls: [{name: 'unit_direct', input: {text: 'turn'}, id: 'call_direct'}],
+          finishReason: 'tool_calls',
+        }
+      },
+      {text: 'done'},
+    ])
+    await chat.followUp(shared, 'call it')
+    expect(offered[0]?.filter((name) => name === 'unit_direct')).toEqual(['unit_direct'])
+    expect(offered[0]).not.toContain('unit_coded')
+    expect(ran).toEqual(['unit_direct hi conciv_direct', 'unit_direct turn conciv_direct'])
+    expect((await chat.hydrate(shared)).pendingApprovals.map((entry) => entry.toolName)).toEqual(['turn ask'])
+
+    expect(capabilities(closed).map(({name, direct}) => ({name, direct}))).toEqual([
+      {name: 'unit_coded', direct: true},
+      {name: 'unit_direct', direct: true},
+      {name: 'unit_direct_snap', direct: true},
+    ])
+    const closedRunner = await chat.codeRunner(closed, () => undefined)
+    expect(closedRunner?.code).toBeNull()
+    expect(names(closedRunner?.direct)).toEqual(['unit_coded', 'unit_direct', 'unit_direct_snap'])
+    await expect(closedRunner?.direct[0]?.run({text: 'shut'}, 'parent')).resolves.toBe('coded shut')
+  })
+})
+
+describe('plugin instructions', () => {
+  it('the initial text is one more system prompt and an empty one adds none, the change text goes once in front of the user words, and the code-mode inventory reaches the instructions in place of the library listing', async () => {
+    const {root, db} = openDatabase()
+    const sessionId = SessionId.parse('conciv_instructions')
+    const settled = async () => undefined
+    const told = [
+      {initial: 'the skill list', update: 'a skill was added', told: settled},
+      {initial: '', update: '', told: settled},
+    ]
+    const note: CodeCapability = {
+      name: 'unit_note',
+      path: 'unit_note',
+      description: 'Note the text.',
+      errors: [],
+      inputSchema: z.object({text: z.string()}),
+      execute: async () => ({value: 'noted', files: []}),
+    }
+    const inventories: (CodeModeCatalog.Inventory | undefined)[] = []
+    const chat = await chatPlane(db, root, {
+      systemPrompt: {systemPromptText: 'the base prompt'},
+      capabilities: () => [note],
+      pluginInstructions: async (_sessionId, _reset, inventory) => {
+        inventories.push(inventory)
+        return told.shift() ?? {initial: '', update: '', told: settled}
+      },
+    })
+    const preface = expect.stringContaining('Use `console.log()` for debugging (logs are captured)')
+    const sent: {systemPrompts: unknown[]; messages: ModelMessage[]}[] = []
+    const recorded = ({request}: {request: {systemPrompts?: readonly unknown[]; messages: ModelMessage[]}}) => {
+      sent.push({systemPrompts: [...(request.systemPrompts ?? [])], messages: request.messages})
+      return {text: 'done'}
+    }
+    const lastUserContent = (index: number) =>
+      sent[index]?.messages.findLast((message) => message.role === 'user')?.content
+
+    model.setResponses([recorded])
+    await chat.followUp(sessionId, 'look around')
+    expect(sent[0]?.systemPrompts).toEqual(['the base prompt', 'the skill list', preface])
+    expect(JSON.stringify(sent[0]?.systemPrompts)).not.toContain('external_unit_note')
+    expect(inventories).toHaveLength(1)
+    expect(CodeModeCatalog.summarize(inventories[0] ?? {tools: []}).namespaces).toEqual([
+      {
+        name: 'unit_note',
+        tools: ['unit_note'],
+        entries: [
+          {
+            path: 'unit_note',
+            line: '  - external_unit_note({\n  text: string;\n}): Promise<unknown> // Note the text.',
+          },
+        ],
+      },
+    ])
+    expect(lastUserContent(0)).toEqual([
+      {type: 'text', content: 'a skill was added'},
+      {type: 'text', content: 'look around'},
+    ])
+    expect(JSON.stringify(sent[0]?.messages).split('a skill was added')).toHaveLength(2)
+
+    model.setResponses([recorded])
+    await chat.followUp(sessionId, 'and again')
+    expect(sent[1]?.systemPrompts).toEqual(['the base prompt', preface])
+    expect(lastUserContent(1)).toBe('and again')
+    expect(JSON.stringify(sent[1]?.messages)).not.toContain('a skill was added')
+  })
+})
+
+describe('the session prompt hook', () => {
+  it('a turn with no prompt hook never reaches the hook service, and a registered hook rewrites the words the model gets', async () => {
+    const host = ManagedRuntime.make(PluginHooks.layer)
+    onTestFinished(() => host.dispose())
+    const scope = host.runSync(Scope.make())
+    const triggered: string[] = []
+    const {root, db} = openDatabase()
+    const sessionId = SessionId.parse('conciv_prompt_hook')
+    const chat = await chatPlane(db, root, {
+      prompt: (event) => {
+        triggered.push(event.prompt.text)
+        return host.runPromise(PluginHooks.Service.use((hooks) => hooks.trigger('session', 'prompt', event)))
+      },
+      promptHooked: () => host.runPromise(PluginHooks.Service.use((hooks) => hooks.has('session', 'prompt'))),
+    })
+    const sent: unknown[] = []
+    const recorded = ({request}: {request: {messages: ModelMessage[]}}) => {
+      sent.push(request.messages.findLast((message) => message.role === 'user')?.content)
+      return {text: 'done'}
+    }
+    const routes = chat.routes(defineWebSocketHelper(async () => undefined))
+    const say = async (runId: string, text: string) => {
+      const response = await routes.request(CHAT_SSE_PATH, {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({
+          threadId: sessionId,
+          runId,
+          messages: [{id: `${runId}-user`, role: 'user', content: text}],
+          tools: [],
+          context: [],
+        }),
+      })
+      await response.text()
+    }
+
+    model.setResponses([recorded])
+    await say('run-plain', 'plain words')
+    expect(triggered).toEqual([])
+    expect(sent).toEqual(['plain words'])
+
+    await host.runPromise(
+      PluginHooks.Service.use((hooks) =>
+        hooks.register('session', 'prompt', (event) =>
+          Effect.sync(() => {
+            event.prompt.text += ' rewritten'
+          }),
+        ),
+      ).pipe(Scope.provide(scope)),
+    )
+    model.setResponses([recorded])
+    await say('run-hooked', 'hooked words')
+    expect(triggered).toEqual(['hooked words'])
+    expect(sent).toEqual(['plain words', [{type: 'text', content: 'hooked words rewritten'}]])
+  })
+})
+
+describe('stopping a run', () => {
+  it('a stop says whether it stopped a live run, a repeat stop does not, and the session settles once the run has ended', async () => {
+    const {root, db} = openDatabase()
+    const sessionId = SessionId.parse('conciv_stopping')
+    const chat = await chatPlane(db, root)
+    const reached = Promise.withResolvers<void>()
+    const released = Promise.withResolvers<void>()
+    model.setResponses([
+      async () => {
+        reached.resolve()
+        await released.promise
+        return {text: 'too late'}
+      },
+    ])
+
+    const turn = chat.followUp(sessionId, 'work for a while')
+    await reached.promise
+    expect(await chat.live(sessionId)).toBe(true)
+    let settledYet = false
+    const settling = chat.settled(sessionId).then(() => {
+      settledYet = true
+    })
+    expect(await chat.stop(sessionId, ['another run'])).toEqual({ok: true, stopped: false})
+    const together = await Promise.all([chat.stop(sessionId), chat.stop(sessionId)])
+    expect(together.map(({stopped}) => stopped).toSorted()).toEqual([false, true])
+    expect(await chat.stop(sessionId)).toEqual({ok: true, stopped: false})
+    expect(settledYet).toBe(false)
+
+    released.resolve()
+    await settling
+    expect(chat.driving(sessionId)).toBe(false)
+    expect(await chat.live(sessionId)).toBe(false)
+    expect(await turn).toEqual({kind: 'stopped'})
+
+    expect(await chat.stop(sessionId)).toEqual({ok: true, stopped: false})
+    await chat.settled(sessionId)
+    expect(chat.driving(sessionId)).toBe(false)
   })
 })

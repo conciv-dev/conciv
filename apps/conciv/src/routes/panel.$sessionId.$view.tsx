@@ -9,10 +9,19 @@ import {collectViews} from '../extension/extension-views.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {appendDraft} from '../pane/draft-storage.js'
 import {viewTabPanelAttributes} from '../pane/view-tab-ids.js'
+import {isPluginView} from '../runtime/plugin/panel-keys.js'
+import {PluginTabContent} from '../shell/plugin-surfaces.js'
 
 export const Route = createFileRoute('/panel/$sessionId/$view')({
   beforeLoad: ({context, params}) => {
-    if (collectViews(context.instances).some((view) => view.id === params.view)) return
+    const extensionViews = collectViews(context.instances)
+
+    if (extensionViews.some((view) => view.id === params.view)) return
+    if (
+      isPluginView(params.view, extensionViews) &&
+      context.pluginPanels.status({sessionId: params.sessionId, key: params.view}) !== 'unlisted'
+    )
+      return
     throw redirect({to: '/panel/$sessionId', params: {sessionId: params.sessionId}, replace: true})
   },
   component: PanelView,
@@ -96,6 +105,9 @@ function PanelView(): JSX.Element {
             </div>
           </HostApiProvider>
         )}
+      </Show>
+      <Show when={view() === undefined}>
+        <PluginTabContent />
       </Show>
       <Outlet />
     </>

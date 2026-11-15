@@ -25,7 +25,7 @@ function TooltipLabel(props: {tooltip: string; shortcut: string | undefined}): J
 }
 
 function iconButtonClass(variant: TooltipIconButtonVariant | undefined, size: string | undefined): string {
-  return `${BASE}  ${VARIANT[variant ?? 'ghost']}  ${size ?? 'size-9'}`
+  return `${BASE}  ${VARIANT[variant ?? 'ghost']}  ${size ?? 'size-8'}`
 }
 
 export type TooltipIconButtonProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> & {

@@ -1,5 +1,5 @@
 import {describe, expect} from 'vitest'
-import {Effect, Fiber, Layer, Stream} from 'effect'
+import {Effect, Fiber, Layer, Schema, Stream} from 'effect'
 import {eq} from 'drizzle-orm'
 import {openDb} from '@conciv/db'
 import {Bus} from '../../src/core/bus.js'
@@ -7,6 +7,7 @@ import {Database} from '../../src/core/database/database.js'
 import {Location} from '../../src/core/location.js'
 import {SessionTable} from '../../src/core/session/sql.js'
 import type {Event} from '../../src/schema/event.js'
+import {ProjectId} from '../../src/schema/project-id.js'
 import {AbsolutePath} from '../../src/schema/schema.js'
 import {SessionEvent} from '../../src/schema/session-event.js'
 import {SessionId} from '../../src/schema/session-id.js'
@@ -25,8 +26,15 @@ const databaseLayer = Layer.unwrap(
   }),
 )
 
-const engine = Location.Service.of({directory: AbsolutePath.make('project'), workspaceId: WorkspaceId.make('wrk_test')})
-const elsewhere = Location.Service.of({directory: AbsolutePath.make('elsewhere')})
+const engine = Location.Service.of({
+  directory: AbsolutePath.make('project'),
+  workspaceId: WorkspaceId.make('wrk_test'),
+  project: {id: ProjectId.global, directory: AbsolutePath.make('project'), canonical: AbsolutePath.make('project')},
+})
+const elsewhere = Location.Service.of({
+  directory: AbsolutePath.make('elsewhere'),
+  project: {id: ProjectId.global, directory: AbsolutePath.make('elsewhere'), canonical: AbsolutePath.make('elsewhere')},
+})
 
 const it = testEffect(
   Bus.configured({persist: true}).pipe(
@@ -34,6 +42,8 @@ const it = testEffect(
     Layer.provideMerge(databaseLayer),
   ),
 )
+
+const withoutEngine = testEffect(Bus.layer.pipe(Layer.provideMerge(databaseLayer)))
 
 const Done = Bus.ephemeral({type: 'test.routing.done', schema: {}})
 const owned = SessionId.make('conciv_routing')
@@ -68,6 +78,12 @@ const step = <A extends Event.Payload>(bus: Bus.Interface, publish: Effect.Effec
 describe('Bus Session routing', () => {
   it.effect('routes session events to the engine location through the session row', () =>
     Effect.gen(function* () {
+      const isSessionId = Schema.is(SessionId)
+      expect(isSessionId('conciv_has.dot')).toBe(false)
+      expect(isSessionId(`conciv_${'a'.repeat(129)}`)).toBe(false)
+      expect(isSessionId('conciv_')).toBe(false)
+      expect(isSessionId(`conciv_${crypto.randomUUID()}`)).toBe(true)
+
       const {db} = yield* Database.Service
       yield* db
         .insert(SessionTable)
@@ -105,6 +121,17 @@ describe('Bus Session routing', () => {
       expect(after.atEngine).toEqual([])
       expect(after.atElsewhere).toEqual([])
       expect(after.everywhere).toEqual([after.event])
+    }),
+  )
+
+  withoutEngine.effect('delivers a session event with no owner when no engine location exists', () =>
+    Effect.gen(function* () {
+      const bus = yield* Bus.Service
+      const everywhere = yield* watch(bus)
+      const renamed = yield* bus.publish(SessionEvent.Renamed, {sessionID: unknown, title: 'no engine'})
+      yield* bus.publish(Done, {})
+      expect(renamed).not.toHaveProperty('location')
+      expect(yield* Fiber.join(everywhere)).toEqual([renamed])
     }),
   )
 })

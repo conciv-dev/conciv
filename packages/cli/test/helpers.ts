@@ -16,7 +16,7 @@ import type {FileBackup} from '../src/init/interrupt.js'
 
 export type BootExtras = {
   bridge?: Parameters<typeof makeApp>[0]['bridge']
-  openInEditor?: (file: string, line?: number) => void
+  openInEditor?: (file: string, line?: number, column?: number) => void
   extensions?: Parameters<typeof makeApp>[0]['extensions']
 }
 
@@ -33,6 +33,7 @@ function bootCliApp(extras: BootExtras): BootApp {
       systemPrompt: '',
       hubAccess: 'session',
       plugins: [],
+      policies: [],
     }
     const {fetch, dispose, agentToken} = await makeApp({
       print: env.print,

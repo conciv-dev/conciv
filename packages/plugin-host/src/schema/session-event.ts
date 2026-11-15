@@ -3,6 +3,7 @@ export * as SessionEvent from './session-event.js'
 import {Schema} from 'effect'
 import {optional} from './schema.js'
 import {Event} from './event.js'
+import {Instruction} from './instruction.js'
 import {SessionId} from './session-id.js'
 
 const Base = {
@@ -75,6 +76,20 @@ export namespace Execution {
   export type Interrupted = typeof Interrupted.Type
 }
 
+export const InstructionsUpdated = Event.durable({
+  type: 'session.instructions.updated',
+  durable: {
+    aggregate: 'sessionID',
+    version: 2,
+  },
+  schema: {
+    ...Base,
+    delta: Instruction.Delta,
+    text: Schema.String.pipe(optional),
+  },
+})
+export type InstructionsUpdated = typeof InstructionsUpdated.Type
+
 export const Synthetic = Event.durable({
   type: 'session.synthetic',
   ...options,
@@ -96,6 +111,7 @@ export const Definitions = Event.inventory(
   Execution.Started,
   Execution.Succeeded,
   Execution.Interrupted,
+  InstructionsUpdated,
   Synthetic,
 )
 

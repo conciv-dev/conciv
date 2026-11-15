@@ -91,7 +91,6 @@ describe('define', () => {
         )
         const sessionId = SessionId.parse('conciv_session')
         await context.permission.assert({sessionId, action: 'acme', resources: ['page']})
-        await context.session.synthetic({sessionId, text: 'done', resume: true})
         const registration = await context.rpc.register(Echo, {echo: async (input) => ({text: input.text})})
         const token = await context.harness.resumeToken(sessionId)
         if (token) await context.harness.recordToken(sessionId, token)
@@ -106,7 +105,6 @@ describe('define', () => {
     expectTypeOf<Plugin.Context['agent']['transform']>().toEqualTypeOf<Transform<AgentEditor>>()
     expectTypeOf<Plugin.Context['event']['subscribe']>().toBeFunction()
     expectTypeOf<undefined>().not.toExtend<Plugin.Context['permission']['assert']>()
-    expectTypeOf<undefined>().not.toExtend<Plugin.Context['session']['synthetic']>()
     expectTypeOf<Plugin.Context['session']['update']>().parameter(0).toHaveProperty('permissions')
     expectTypeOf<Registration['dispose']>().toEqualTypeOf<() => Promise<void>>()
     expectTypeOf<ReturnType<Hooks<{readonly ping: {readonly count: number}}>>>().toEqualTypeOf<Promise<Registration>>()
@@ -123,10 +121,11 @@ describe('define', () => {
     expectTypeOf<undefined>().toExtend<Plugin.Context['experimental']['generate']>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['session']['generate']>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['session']['command']>()
+    expectTypeOf<undefined>().toExtend<Plugin.Context['session']['synthetic']>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['permission']['hook']>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['model']['transform']>()
-    expectTypeOf<undefined>().toExtend<Plugin.Context['location']['project']['id']>()
-    expectTypeOf<undefined>().toExtend<Plugin.Context['location']['project']['canonical']>()
+    expectTypeOf<Plugin.Context['location']['project']['id']>().toEqualTypeOf<string>()
+    expectTypeOf<Plugin.Context['location']['project']['canonical']>().toEqualTypeOf<string>()
   })
 
   it("types execute's input as the input schema's output and its output as the output schema's input from zod, any Standard Schema or a raw JSON Schema, as opencode does", () => {
@@ -216,7 +215,7 @@ describe('Rpc', () => {
     expectTypeOf<RpcEventPayload<typeof Acme>['data']>().toEqualTypeOf<{count: number}>()
     expectTypeOf<Rpc.EventInput<typeof Acme>>().toEqualTypeOf<[name: 'indexed', data: {count: number}]>()
     expectTypeOf<Plugin.Context['rpc']>().toEqualTypeOf<RpcDomain>()
-    expectTypeOf<ServerRef['client']['rpc']>().toEqualTypeOf<RpcApi>()
+    expectTypeOf<ServerRef['client']['rpc']>().toEqualTypeOf<RpcApi & {call: ServerRef['client']['plugin']['call']}>()
   })
 
   it('types a contract from any Standard Schema or a raw JSON Schema, as opencode does', () => {
@@ -244,11 +243,12 @@ describe('Rpc', () => {
 })
 
 describe('toolError', () => {
-  it('builds a value isToolError accepts that keeps its cause and metadata', () => {
+  it('builds an Error isToolError accepts that keeps its cause and metadata', () => {
     const cause = new Error('invalid url')
     const error = Tool.toolError({message: 'boom', error: cause, metadata: {code: 1}})
     expect(Tool.isToolError(error)).toBe(true)
-    expect(error).toEqual({_tag: 'Tool.Error', message: 'boom', error: cause, metadata: {code: 1}})
+    expect(error).toBeInstanceOf(Error)
+    expect(error).toMatchObject({_tag: 'Tool.Error', message: 'boom', error: cause, metadata: {code: 1}})
     const stray: {message: string; _tag: string} = {message: 'boom', _tag: 'Other'}
     expect(Tool.isToolError(Tool.toolError(stray))).toBe(true)
   })
@@ -550,22 +550,23 @@ describe('experimental', () => {
     expectTypeOf<undefined>().not.toExtend<Experimental.Context['dialogs']>()
     expectTypeOf<undefined>().not.toExtend<Experimental.Dialogs['open']>()
     expectTypeOf<undefined>().not.toExtend<Experimental.Dialogs['active']>()
-    expectTypeOf<undefined>().toExtend<Experimental.Dialogs['confirm']>()
-    expectTypeOf<undefined>().toExtend<Experimental.Dialogs['alert']>()
-    expectTypeOf<undefined>().toExtend<Experimental.Dialogs['prompt']>()
-    expectTypeOf<undefined>().toExtend<Experimental.Dialogs['select']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.Dialogs['confirm']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.Dialogs['alert']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.Dialogs['prompt']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.Dialogs['select']>()
     expectTypeOf<undefined>().toExtend<Parameters<NonNullable<Experimental.ServerEntry['cover']>>[0]['tab']>()
     expectTypeOf<undefined>().toExtend<Experimental.Context['commands']>()
     expectTypeOf<undefined>().not.toExtend<Experimental.Context['system']>()
     expectTypeOf<undefined>().not.toExtend<Experimental.System['copy']>()
-    expectTypeOf<undefined>().toExtend<Experimental.System['save']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.System['save']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.System['openExternal']>()
     expectTypeOf<undefined>().not.toExtend<Experimental.Layout['hide']>()
     expectTypeOf<undefined>().toExtend<Experimental.Context['attention']>()
     expectTypeOf<undefined>().toExtend<Experimental.Desktop['reveal']>()
     expectTypeOf<undefined>().toExtend<Experimental.Layout['scroll']>()
-    expectTypeOf<undefined>().toExtend<Experimental.Composer['setText']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.Composer['setText']>()
     expectTypeOf<undefined>().toExtend<Experimental.Tabs['move']>()
-    expectTypeOf<undefined>().toExtend<Experimental.Links['exists']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.Links['exists']>()
   })
 })
 
@@ -848,6 +849,7 @@ describe('host', () => {
         'stores: { count: { scope: "global", schema: {"~standard": {validate: 1}} } }',
         'schema',
       ],
+      ['a non-function encode', 'stores:{n:{scope:"global",schema:{"~standard":{validate:Map}},encode:1}}', 'encode'],
       ['a setup that is not a function', 'setup: true', 'setup'],
     ])('reject a plugin with %s', (_, field, named) => {
       const evaluated = () => evaluate(`exports.default = { ${field} }`)

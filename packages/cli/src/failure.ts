@@ -5,6 +5,8 @@ export type EnvelopeError = {
   message: string
   hint?: string
   code?: string
+  type?: string
+  data?: unknown
   stack?: string
 }
 
@@ -16,12 +18,17 @@ const TaggedSchema = z.object({
     message: z.string(),
     hint: z.string().optional(),
     code: z.string().optional(),
+    type: z.string().optional(),
+    data: z.unknown().optional(),
   }),
 })
 
 const ThrownSchema = z.object({message: z.string(), stack: z.string().optional()})
 
-export function userFailure(message: string, extra: {hint?: string; code?: string} = {}): Error {
+export function userFailure(
+  message: string,
+  extra: {hint?: string; code?: string; type?: string; data?: unknown} = {},
+): Error {
   return Object.assign(new Error(message), {concivFailure: {kind: 'user', message, ...extra}})
 }
 
