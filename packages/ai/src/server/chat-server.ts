@@ -350,7 +350,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     fileEvents: false,
     lifecycle: {reuse: 'thread', destroyOnComplete: false},
   })
-  const driver = await loadIsolateDriver(config.log)
+  const driver = loadIsolateDriver(config.log)
   await sweepAbandonedRuns(stores.runs, hooks)
 
   const lifecycleChunk = (lifecycle: RunLifecycle): ChatEvent => runLifecycleEvent.create(lifecycle)
