@@ -1,3 +1,4 @@
+import {z} from 'zod'
 import {useMutation, type CreateMutationResult, type ChatSession} from '@conciv/client'
 import type {RpcClient} from '@conciv/contract'
 import type {SendContent} from '@conciv/protocol/chat-message-types'
@@ -6,17 +7,19 @@ import type {AppData} from '../data/app-data.js'
 import type {EngineNotices} from '../shell/notice-context.js'
 import {checkSend, checkSendState, type SendState, type SendVerdict} from './send-checks.js'
 
-type SendRejection = {rejected: true; message: string | null; tone: 'info' | 'warn'}
+const SendRejectionSchema = z.object({
+  rejected: z.literal(true),
+  message: z.string().nullable(),
+  tone: z.enum(['info', 'warn']),
+})
+
+type SendRejection = z.infer<typeof SendRejectionSchema>
 
 function sendRejection(verdict: Extract<SendVerdict, {ok: false}>): SendRejection {
   return {rejected: true, message: verdict.message, tone: verdict.tone}
 }
 
 const WITHDRAWN: SendRejection = {rejected: true, message: null, tone: 'info'}
-
-function isSendRejection(failure: unknown): failure is SendRejection {
-  return typeof failure === 'object' && failure !== null && 'rejected' in failure && failure.rejected === true
-}
 
 function failureMessage(failure: unknown): string {
   if (failure instanceof Error && failure.message.length > 0) return failure.message
@@ -103,11 +106,12 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
   }
 
   const onSendError = (failure: unknown): void => {
-    if (isSendRejection(failure)) {
-      const message = failure.message
+    const rejection = SendRejectionSchema.safeParse(failure)
+    if (rejection.success) {
+      const {message, tone} = rejection.data
       if (!message) return
       notifyUnlessOffline(deps.reachability.sustainedOffline() && deps.reachability.locked() === null, () =>
-        deps.notices.notify(message, {tone: failure.tone === 'warn' ? 'warn' : 'info'}),
+        deps.notices.notify(message, {tone}),
       )
       return
     }
