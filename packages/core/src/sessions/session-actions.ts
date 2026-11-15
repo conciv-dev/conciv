@@ -18,7 +18,7 @@ type SessionDeletion = {
   plane: Pick<ChatPlane, 'clear' | 'endRuns'>
   runtime: Pick<CoreRuntime, 'forSession'>
   pluginHost: ManagedRuntime.ManagedRuntime<Bus.Interface | KV.Interface, never>
-  queues: Pick<PageQueues, 'release'>
+  queues: Pick<PageQueues, 'cancelSession'>
 }
 
 export const newSessionId = (): SessionId => SessionId.parse(`conciv_${randomUUID()}`)
@@ -87,6 +87,7 @@ export async function renameSession(
 export async function deleteSession(deletion: SessionDeletion, sessionId: SessionId): Promise<void> {
   await deletion.runtime.forSession(sessionId).run.stop()
   await deletion.plane.endRuns(sessionId)
+  deletion.queues.cancelSession(sessionId)
   await deletion.pluginHost.runPromise(KV.Service.use((kv) => removeInstructionEntries(kv, sessionId)))
   await deletion.pluginHost.runPromise(
     Bus.Service.use((bus) =>
@@ -98,7 +99,6 @@ export async function deleteSession(deletion: SessionDeletion, sessionId: Sessio
   await tombstoneRow(deletion.db, sessionId)
   await deletion.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
   await deletion.plane.clear(sessionId)
-  deletion.queues.release(sessionId)
   await deleteSessionCaptures(deletion.db, sessionId)
   await clearPageChanges(deletion.db, sessionId)
 }

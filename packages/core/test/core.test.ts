@@ -92,6 +92,7 @@ import {
   SessionId,
 } from '@conciv/protocol/chat-types'
 import {ConcivConfigSchema} from '@conciv/protocol/config-types'
+import {PAGE_QUEUE_ASYNC_TOOL} from '@conciv/protocol/page-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
 import {eq, sql} from 'drizzle-orm'
 import {
@@ -181,6 +182,7 @@ import {
 } from '../src/sessions/session-rows.js'
 import {provideInstructionEntries} from '../src/runtime/instruction-entries.js'
 import {provideSessions} from '../src/runtime/plugin-sessions.js'
+import {deleteSession} from '../src/sessions/session-actions.js'
 import {createSessionSearch} from '../src/sessions/session-search.js'
 import {
   provideApp,
@@ -1435,16 +1437,17 @@ describe('page bus and the session scope', () => {
     queues.hubReplied(SESSION_A, new Set(['hub-replied']))
     queues.hubCall(SESSION_A, 'hub-running')
     const {queueId: running} = await queues.start(SESSION_A, {...queueStart(check), toolCallId: 'hub-running'})
-    queues.release(SESSION_A)
-    await playOut(1)
-    await finished(replied)
-    await playOut(2)
-    await finished(running)
+    queues.cancelSession(SESSION_A)
+    const answered = async (index: number): Promise<boolean[]> => {
+      const frame = await tab.frame(index)
+      return frame.queue.replies.map((reply) => bus.resolve(SESSION_A, reply, {ok: true, result: {}}))
+    }
+    expect(await answered(1)).toEqual([true])
+    expect(await answered(2)).toEqual([true])
+    expect(queues.owedTurn(SESSION_A)).toEqual([])
     expect(queues.undelivered(SESSION_A, true)).toEqual([])
-    expect(queues.owedTurn(SESSION_A).map((record) => [record.queueId, record.result?.status])).toEqual([
-      [replied, 'finished'],
-      [running, 'finished'],
-    ])
+    await expect(queues.wait(SESSION_A, replied, 0)).rejects.toThrow(`no queue ${replied} on this tab`)
+    await expect(queues.wait(SESSION_A, running, 0)).rejects.toThrow(`no queue ${running} on this tab`)
   })
 
   it('undelivered results are never evicted: at 1000 owed a new queue is refused before it plays, and delivering one frees a place', async () => {
@@ -1716,6 +1719,38 @@ describe('page bus and the session scope', () => {
       kind: 'failed',
       error: expect.stringContaining('the harness could not launch'),
     })
+  })
+
+  it('a follow-up admitted in the same tick as the runs of its session end (not held in its read), or deleted while its turn is in flight, starts no other turn, and its queue is gone', async () => {
+    const {fixture, queues, played, runStatuses} = await followUpFixture()
+    const admitted = fixture.plane.followUp(fixture.sessionId, 'admitted just before the session ends')
+    const ended = fixture.plane.endRuns(fixture.sessionId)
+    expect(await admitted).toEqual({kind: 'stopped'})
+    await ended
+    expect(runStatuses()).toEqual([])
+    const owed = await played()
+    const turns: string[] = []
+    const answering = Promise.withResolvers<FollowUpOutcome>()
+    const entered = Promise.withResolvers<void>()
+    const plane = {
+      live: fixture.plane.live,
+      followUp: (sessionId: SessionId, input: string): Promise<FollowUpOutcome> => {
+        turns.push(input)
+        entered.resolve()
+        return turns.length === 1 ? answering.promise : fixture.plane.followUp(sessionId, input)
+      },
+    }
+    const following = startQueueFollowUp(queues, plane, fixture.sessionId)
+    await entered.promise
+    await deleteSession(
+      {db: fixture.db, plane: fixture.plane, runtime: fixture.runtime, pluginHost: fixture.pluginHost, queues},
+      fixture.sessionId,
+    )
+    answering.resolve({kind: 'failed', error: 'the harness could not launch'})
+    await following
+    expect(turns).toHaveLength(1)
+    expect(runStatuses()).toEqual([])
+    await expect(queues.wait(fixture.sessionId, owed, 0)).rejects.toThrow(`no queue ${owed} on this tab`)
   })
 
   it('a queue the page refuses plays nothing: it ends lost with no action counted as played', async () => {
@@ -2895,7 +2930,7 @@ describe('plugin host bus', () => {
       'idle hook ended reading [{"key":"brief","value":"ship it"}]',
       'session.deleted with no run',
     ])
-    await answered
+    expect(await answered).toEqual({kind: 'delivered'})
     expect(await entries(idling)).toEqual([])
 
     const held = await kit.turn('never admitted', {session: preparing, runId: 'preparing-run'})
@@ -2917,6 +2952,32 @@ describe('plugin host bus', () => {
     await inFlight.done()
     harness.script.release()
 
+    const queueing = await created()
+    const queueingScope = made.runtime.forSession(queueing)
+    const tabClosed = new AbortController()
+    onTestFinished(() => tabClosed.abort())
+    const queries = queueingScope.page.queries(tabClosed.signal)
+    const offered = queries.next()
+    const queueStarted = queueingScope.tools.call(PAGE_QUEUE_ASYNC_TOOL, {
+      actions: [{tool: 'page_check', selector: '#agree'}],
+    })
+    const offer = z
+      .object({requestId: z.string(), query: z.object({queue: z.object({replies: z.array(z.string())})})})
+      .parse((await offered).value)
+    expect(queueingScope.page.reply(offer.requestId, {ok: true, result: {}})).toBe(true)
+    const {queueId} = z.object({queueId: z.string()}).parse(await queueStarted)
+    await kit.rpc.sessions.delete({sessionId: queueing})
+    const publishedAfterDeleted: ChatEvent[] = []
+    onTestFinished(queueingScope.stream.listen((chunk) => void publishedAfterDeleted.push(chunk)))
+    await expect(kit.rpc.page.queue.wait({sessionId: queueing, queueId, waitMs: 0})).rejects.toMatchObject({
+      code: 'NO_QUEUE',
+    })
+    expect(queueingScope.page.reply(offer.query.queue.replies[0] ?? '', {ok: true, result: {checked: true}})).toBe(true)
+    await queries.return(undefined)
+
+    expect(publishedAfterDeleted).toEqual([])
+    const queueingAfter = await made.plane.hydrate(queueing)
+    expect([queueingAfter.messages, queueingAfter.lastRun]).toEqual([[], null])
     expect(seen).toEqual([
       {sessionId: idling, what: 'session.instructions.updated during a run'},
       {sessionId: idling, what: 'idle hook ended reading [{"key":"brief","value":"ship it"}]'},
@@ -2924,6 +2985,7 @@ describe('plugin host bus', () => {
       {sessionId: preparing, what: 'prompt hook entered'},
       {sessionId: preparing, what: 'session.deleted with no run'},
       {sessionId: running, what: 'session.deleted with no run'},
+      {sessionId: queueing, what: 'session.deleted with no run'},
     ])
   })
 })
