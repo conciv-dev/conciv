@@ -46,6 +46,13 @@ What you send while the agent works waits in a queue under the composer. The fir
 Each has **Steer**, which sends it now, and **Remove**. **Stop generating** stops the turn and puts the queued
 messages back in your draft, unsent.
 
+<ImageZoom
+  src="/screenshots/chat-queue.png"
+  alt="A running turn with two messages queued under the composer, each with Steer and Remove"
+  width={1920}
+  height={1080}
+/>
+
 ## When the agent asks you [#generative-ui]
 
 The agent can put real controls in the thread instead of asking in plain text:
@@ -66,6 +73,13 @@ The agent can put real controls in the thread instead of asking in plain text:
 The agent waits up to two minutes for your answer. After that it goes on without it, and your answer reaches it as a
 later message.
 
+<ImageZoom
+  src="/screenshots/chat-choices.png"
+  alt="A choices card in the thread: Where should the dark mode toggle go?, three options, a field for another answer and Submit"
+  width={1920}
+  height={1080}
+/>
+
 ## Sessions
 
 The session picker lists your sessions under Today, Yesterday and Earlier, and searches them on the engine. It lists
@@ -73,8 +87,22 @@ the harness's own sessions from this project too, such as a Claude Code session 
 harness keeps them (see [Harnesses](/docs/harnesses)). Hover a row for a preview. A match from another project copies
 the command that resumes it there. Rename a session by clicking its title in the panel header.
 
+<ImageZoom
+  src="/screenshots/chat-session-picker.png"
+  alt="The session picker open under Today, listing the sessions with their titles and when each was last edited"
+  width={1920}
+  height={1080}
+/>
+
 ## Model and harness
 
 The model menu lists the models of every harness conciv found, and the effort levels of the current model when it
 has them. Picking a model of another harness switches the session to that harness; in a chat that already has
 messages, conciv asks first and estimates how much history moves over.
+
+<ImageZoom
+  src="/screenshots/chat-model-menu.png"
+  alt="The model menu open with the Claude and Codex models and the effort levels of the current model"
+  width={1920}
+  height={1080}
+/>
