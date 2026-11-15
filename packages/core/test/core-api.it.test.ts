@@ -1815,7 +1815,6 @@ describe('rpc wire', () => {
                 ...(line === undefined ? {} : {line}),
                 ...(column === undefined ? {} : {column}),
               }),
-            startPlugins: true,
           },
           harness,
         ),
