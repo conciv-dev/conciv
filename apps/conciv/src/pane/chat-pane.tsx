@@ -39,7 +39,7 @@ import type {MarkerRow} from '@conciv/contract'
 import type {ChatMessage, SendContent} from '@conciv/protocol/chat-message-types'
 import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
-import {paneAttachments, returnQueueToDraft} from './pane-attachments.js'
+import {paneAttachments, returnQueueToDraft, type DraftSink} from './pane-attachments.js'
 import {useAnnounce, useAppData, useConnected, useInstances, useLiveSessions, useRpc} from '../app/context.js'
 import {useHarnesses, useSessionHarness} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
@@ -455,6 +455,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                   prompt={<SessionModelPrompt sessionId={sessionId} menu={modelMenu} running={narrating()} />}
                 >
                   <DraftRestore storage={draftStorage} draftKey={sessionId} input={inputHandle} />
+                  <LostQueueReceiver sessionId={sessionId} sink={{insert, addFile: attach}} />
                   <Suspense fallback={<ComposerActionsPending />}>
                     <ComposerActions
                       sessionId={sessionId}
@@ -515,6 +516,12 @@ function ConversationLoading(props: {reopened: boolean; sessionId: string}): JSX
       <LoadFailedAlert busy sessionId={props.sessionId} />
     </Show>
   )
+}
+
+function LostQueueReceiver(props: {sessionId: string; sink: DraftSink}): JSX.Element {
+  const liveSessions = useLiveSessions()
+  onMount(() => liveSessions.receiveLostQueue(props.sessionId, props.sink))
+  return <></>
 }
 
 function LoadFailedAlert(props: {busy: boolean; sessionId: string}): JSX.Element {
