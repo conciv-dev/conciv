@@ -236,6 +236,14 @@ const releaseTurn: BrowserCommand<[]> = (ctx): void => {
   requireKit(ctx).harness.script.release()
 }
 
+const holdStart: BrowserCommand<[]> = (ctx): void => {
+  requireKit(ctx).harness.script.holdStart()
+}
+
+const releaseStart: BrowserCommand<[]> = (ctx): void => {
+  requireKit(ctx).harness.script.releaseStart()
+}
+
 const releaseTranscripts: BrowserCommand<[]> = (ctx): void => {
   requireKit(ctx).harness.transcripts.release()
 }
@@ -646,6 +654,8 @@ export const coreCommands = {
   holdResults,
   releaseResults,
   releaseTurn,
+  holdStart,
+  releaseStart,
   releaseTranscripts,
   scriptTurn,
   scriptError,

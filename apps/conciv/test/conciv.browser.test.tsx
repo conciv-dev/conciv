@@ -380,6 +380,7 @@ describe('chat pane', () => {
 
   afterEach(async () => {
     await coreControl.releaseTurn()
+    await coreControl.releaseStart()
     active.pane?.dispose()
     active.pane = null
   })
@@ -746,6 +747,21 @@ describe('chat pane', () => {
       mountChatPane(sessionId)
       await expect.element(threadText('stop before the post lands')).toBeVisible()
       await expect.element(stoppedLine()).toBeVisible()
+    })
+
+    test('while the agent is slow to start it stops the run before any output', async () => {
+      const {sessionId} = await newSession()
+      await coreControl.holdStart()
+      mountChatPane(sessionId)
+      await input().fill('stop while the agent starts')
+      await userEvent.keyboard('{Enter}')
+
+      await stopButton().click()
+      await expect.element(stoppedLine()).toBeVisible()
+      await expect.element(threadText('stop while the agent starts')).toBeVisible()
+      await expect.element(page.getByText(UNSCRIPTED_REPLY)).not.toBeInTheDocument()
+      await expect.element(page.getByText(/the agent did not start/)).not.toBeInTheDocument()
+      await expect.element(stopButton()).not.toBeInTheDocument()
     })
 
     test('when the send fails it is taken back quietly, and a failed send with no Stop still says so', async () => {
