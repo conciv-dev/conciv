@@ -52,8 +52,8 @@ guessed, if changed. They were measured in Chromium only; Firefox uses the same 
 idle machine, and Firefox reports frame gaps in whole milliseconds.
 
 When either main run breaks a per-sample check (the sampled window or the count of frames over 33 ms, on any sample of
-any case, in either browser), the gate prints `this machine is too loaded to judge: main itself failed ... on <browser>
-before the branch` (or `after the branch`) with that run's samples and exits non-zero: that exit is neither a pass nor
+any case, in either browser), the gate prints `main itself failed ... on <browser> before the branch, so this session
+cannot judge the branch` (or `after the branch`) with that run's samples and exits non-zero: that exit is neither a pass nor
 a regression. Before the branch, nothing runs on the branch; after the branch, the gate says the branch's lines above
 are not a verdict. Main's median alone being over 20 ms is not a refusal. A branch that breaks a per-sample check while
 both main runs held is red.

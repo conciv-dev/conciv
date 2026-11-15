@@ -71,14 +71,14 @@ function readRecords(file) {
   return JSON.parse(readFileSync(file, 'utf8'))
 }
 
-function describeTooLoaded(file, when) {
+function describeMainFailure(file, when) {
   const records = readRecords(file)
   return PERF_BROWSERS.flatMap((browser) => {
     const failed = PERF_CASES.filter((name) => records[browser][name].broken.length > 0)
     if (failed.length === 0) return []
     const checks = failed.map((name) => `${records[browser][name].broken.join(', ')} on ${name}`).join('; ')
     return [
-      `this machine is too loaded to judge: main itself failed ${checks} on ${browser} ${when}`,
+      `main itself failed ${checks} on ${browser} ${when}, so this session cannot judge the branch`,
       ...PERF_CASES.map(
         (name) =>
           `  main ${when} ${browser} ${name} samples p50/p95/max/over33/sampled: ${records[browser][name].samples.join(' | ')}`,
@@ -216,8 +216,8 @@ async function measureMain(scratch, file, when) {
         "If the output above is a failed import, this branch's perf test needs product code the merge base lacks.",
     )
   }
-  const tooLoaded = describeTooLoaded(file, when)
-  if (tooLoaded.length > 0) throw new Error(tooLoaded.join('\n'))
+  const mainFailure = describeMainFailure(file, when)
+  if (mainFailure.length > 0) throw new Error(mainFailure.join('\n'))
 }
 
 async function main() {
