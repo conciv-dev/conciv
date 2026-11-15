@@ -98,7 +98,7 @@ import pageServerExtension from '@conciv/extension-page/server'
 import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
 import {loadIsolateDriver} from '@conciv/ai/server'
-import {runInOrder} from './lib/shutdown.js'
+import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import {
   agentPath,
@@ -619,7 +619,26 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: primitives.page.queues}),
   })
   const pluginHost: PluginHost = plugins.runtime
-  await pluginHost.context()
+  const startFailed =
+    (steps: ShutdownStep[]) =>
+    async (error: unknown): Promise<never> => {
+      await runInOrder(
+        [
+          plugins.closeRpc,
+          plugins.closePlugins,
+          plugins.closePermissions,
+          ...steps,
+          ...disposers,
+          settings.close,
+          () => browsers.close(),
+          () => pluginHost.dispose(),
+          () => db.$client.close(),
+        ],
+        'conciv: disposing after a failed start failed',
+      ).catch((failure: unknown) => logError(`[core] ${String(failure)}`))
+      throw error
+    }
+  await pluginHost.context().catch(startFailed([]))
   const idleScope = Effect.runSync(Scope.make())
   const idleTriggers = Effect.runSync(FiberMap.make<SessionId>().pipe(Scope.provide(idleScope)))
   const interruptIdle = (sessionId: SessionId): Promise<boolean> =>
@@ -657,6 +676,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   )
 
   const hub = createHubInstaller(opts.home)
+  const driver = await loadIsolateDriver(logError).catch(startFailed([]))
   const plane = await createChatPlane({
     cwd: opts.cwd,
     hubAccess: opts.cfg.hubAccess,
@@ -685,12 +705,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       pluginHost.runPromise(pluginInstructions(sessionId, reset, inventory)),
     firstOutputTimeoutMs: opts.firstChunkTimeoutMs,
     log: logError,
-    driver: await loadIsolateDriver(logError),
-  })
+    driver,
+  }).catch(startFailed([]))
   planeRef.current = plane
-  await pluginHost.runPromise(
-    followPermissionCards({plane, publish: (sessionId, chunk) => stream.publish(sessionId, chunk), log: logError}),
-  )
+  await pluginHost
+    .runPromise(
+      followPermissionCards({plane, publish: (sessionId, chunk) => stream.publish(sessionId, chunk), log: logError}),
+    )
+    .catch(startFailed([() => plane.endAllRuns()]))
   const chatDeps: ChatContext = {
     defaultHarness: harness,
     harnesses,

@@ -1167,6 +1167,18 @@ describe('configured session rows', () => {
       await made.dispose()
     }
   })
+
+  it('a start that fails once the plugin host is built closes every handle on the database', async () => {
+    const root = tempDir()
+    const databaseFile = join(concivStateDir(root), 'conciv.db')
+    const seeded = openDb(root)
+    seeded.run(
+      sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+    )
+    seeded.$client.close()
+    await expect(makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}})).rejects.toThrow()
+    expect(existsSync(`${databaseFile}-wal`)).toBe(false)
+  })
 })
 
 describe('session metadata', () => {
