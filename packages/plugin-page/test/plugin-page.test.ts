@@ -5,6 +5,7 @@ import {z} from 'zod'
 import {PAGE_TOOL_DEFS, pageVerbOfTool} from '@conciv/extension-page/defs'
 import {SessionId} from '@conciv/protocol/chat-types'
 import * as PageMachine from '../src/machine.js'
+import * as PageQueue from '../src/queue.js'
 import * as Page from '../src/rpc.js'
 import * as PageSkill from '../src/skill.js'
 
@@ -578,6 +579,37 @@ describe('page machine: disposal', () => {
     const late = PageMachine.transitionConnection(disposed, opening(disposed, 'conn_1'))
     expect(late.state).toBe(disposed)
     expect(late.effects).toEqual([])
+  })
+})
+
+describe('page queue: where it started', () => {
+  it('a terminal-started queue is never offered to the chat, and queue.wait still delivers it', async () => {
+    const finished: string[] = []
+    const bothFinished = Promise.withResolvers<void>()
+    const queues = PageQueue.fromPlay({
+      play: (_sessionId, play) =>
+        play.actions.map(async () => ({ok: true as const, result: {value: {ok: true}, files: []}})),
+      journal: async () => {},
+      finished: (record) => {
+        finished.push(record.toolCallId)
+        if (finished.length === 2) bothFinished.resolve()
+      },
+    })
+    const action = Page.Action.parse({type: 'queue_async', actions: [{tool: 'page_click', selector: '#go'}]})
+    if (action.type !== 'queue_async') throw new Error('the action is not a queue')
+    const terminal = queues.start(sessionId, {agentId: 'terminal', action, toolCallId: 'terminal-call'})
+    const chat = queues.start(sessionId, {agentId: 'build', action, toolCallId: 'chat-call'})
+    await bothFinished.promise
+
+    expect(queues.owed(sessionId, [], false).map((owed) => owed.queueId)).toEqual([chat.queueId])
+    expect(queues.owed(sessionId, [], true).map((owed) => owed.queueId)).toEqual([chat.queueId])
+    expect(queues.owed(sessionId, [], true)).toEqual([])
+    expect(queues.undelivered(sessionId, {excludeToolCallIds: []})).toEqual([])
+    expect(await queues.wait(sessionId, terminal.queueId, 0)).toMatchObject({
+      queueId: terminal.queueId,
+      status: 'finished',
+      played: 1,
+    })
   })
 })
 

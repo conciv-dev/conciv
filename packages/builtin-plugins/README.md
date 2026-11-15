@@ -15,6 +15,10 @@ in the role a tool call id plays, so its captures and any queue it starts are it
 belongs to no chat turn. `run` asks nobody, `eval` included: the terminal is the owner. Inside a chat turn the
 `eval` tool still asks the user first.
 
+A queue the terminal starts keeps that it was started there (`plugin-page/src/queue.ts` `startedBy`): `queue.owed`
+never offers or claims it, `queue.undelivered` returns it only when its id is asked for by name, so its finish starts
+no follow-up turn in the chat; `queue.wait` still delivers its result.
+
 ### Owed
 
 - **The halt inside a queued editor fill has no test.** `fillEditor` (`src/page/page-act.ts:104-120`) types by events,

@@ -225,7 +225,7 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
         const run = await runner.promise
         const output = await run(input.action, {
           sessionId: input.sessionId,
-          agent: 'terminal',
+          agent: Queue.TERMINAL_AGENT,
           id: crypto.randomUUID(),
           signal: call.signal,
         })

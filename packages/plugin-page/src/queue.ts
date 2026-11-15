@@ -25,6 +25,7 @@ export type QueueRecord = {
   queueId: string
   sessionId: SessionId
   toolCallId: string
+  startedBy: 'terminal' | 'agent'
   tools: string[]
   settled: (Settled | undefined)[]
   result: PageQueueResult | null
@@ -42,6 +43,8 @@ type Play = (
 ) => Promise<RequestSettlement>[]
 
 type Origin = {readonly toolCallIds?: readonly string[]; readonly excludeToolCallIds?: readonly string[]}
+
+export const TERMINAL_AGENT = 'terminal'
 
 const KEPT_QUEUES = 200
 
@@ -122,8 +125,9 @@ function awaitsDelivery(record: QueueRecord): boolean {
 }
 
 function fromOrigin(record: QueueRecord, origin: Origin): boolean {
-  if (origin.toolCallIds !== undefined && !origin.toolCallIds.includes(record.toolCallId)) return false
-  return origin.excludeToolCallIds?.includes(record.toolCallId) !== true
+  const included =
+    origin.toolCallIds === undefined ? record.startedBy !== 'terminal' : origin.toolCallIds.includes(record.toolCallId)
+  return included && origin.excludeToolCallIds?.includes(record.toolCallId) !== true
 }
 
 function toAction(queued: {tool: string}): Action {
@@ -186,6 +190,7 @@ export function fromPlay(deps: {
       queueId,
       sessionId,
       toolCallId: given.toolCallId,
+      startedBy: given.agentId === TERMINAL_AGENT ? 'terminal' : 'agent',
       tools: actions.map((action) => action.tool),
       settled: actions.map(() => undefined),
       result: null,
@@ -266,7 +271,7 @@ export function fromPlay(deps: {
 
   function owed(sessionId: SessionId, excludeToolCallIds: readonly string[], claim: boolean) {
     return [...records.values()].flatMap((record) => {
-      if (record.sessionId !== sessionId || excludeToolCallIds.includes(record.toolCallId)) return []
+      if (record.sessionId !== sessionId || !fromOrigin(record, {excludeToolCallIds})) return []
       if (!awaitsDelivery(record) || record.result === null) return []
       const before: 'owed' | 'nextReply' = record.delivery === 'owed' ? 'owed' : 'nextReply'
       if (claim) record.delivery = 'claimed'
