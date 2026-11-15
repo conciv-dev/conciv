@@ -31,7 +31,7 @@ function noteIcon(name: string): IconName {
   return isIconName(name) ? name : FALLBACK_ICON
 }
 
-export function noteHeading(note: NoteComment): string {
+function noteHeading(note: NoteComment): string {
   return note.comment.trim() || note.title?.trim() || note.label
 }
 
@@ -39,7 +39,7 @@ function noteSubtitle(note: NoteComment): string {
   return note.subtitle?.trim() || note.label
 }
 
-export function NoteChip(props: {note: NoteComment}): JSX.Element {
+function NoteChip(props: {note: NoteComment}): JSX.Element {
   return (
     <div class={CARD}>
       <TruncatedText class={HEADING} text={noteHeading(props.note)} />
@@ -51,7 +51,7 @@ export function NoteChip(props: {note: NoteComment}): JSX.Element {
   )
 }
 
-export function PluginNoteCard(props: {note: ComposerNote; session: MountedSession | undefined}): JSX.Element {
+function PluginNoteCard(props: {note: ComposerNote; session: MountedSession | undefined}): JSX.Element {
   const host = usePluginHost()
   const [state, setState] = createStore({declined: false})
   const decline = () => setState('declined', true)
