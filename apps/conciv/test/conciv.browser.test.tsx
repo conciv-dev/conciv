@@ -7442,7 +7442,7 @@ module.exports = {default: {setup(ctx) {
     await expect.element(shown('Visits: 1')).toBeVisible()
   }, 90_000)
 
-  test('its tool cards read the headline of the normal card, and a catalog that arrives late does not ask it again', async () => {
+  test("the row of a card it draws carries the normal card's header from the catalog, and a catalog that arrives late does not ask it again", async () => {
     const base = coreBase()
     const sessionId = await createSession(coreRpc(base))
     await coreControl.scriptTurn({
@@ -7472,7 +7472,8 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByRole('status', {name: 'Loading conversation'})).toBeVisible()
 
     await coreControl.releaseFault(catalogHeld)
-    await expect.element(shown('force a hot update of one module src/a.ts').nth(1), {timeout: 15_000}).toBeVisible()
+    await expect.element(shown('page edit').nth(1), {timeout: 15_000}).toBeVisible()
+    await expect.element(shown('force a hot update of one module')).toBeVisible()
     await expect.element(shown('Tool: server_reload')).not.toBeInTheDocument()
     await expect.element(shown('Fixture reloaded src/a.ts')).toBeVisible()
     await expect.element(shown('Drawn catalog call asked: 1')).toBeVisible()
