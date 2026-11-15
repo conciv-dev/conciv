@@ -1428,7 +1428,7 @@ describe('api native page', () => {
         const page = await fetch(pageUrl)
         expect(page.status).toBe(200)
         const html = await page.text()
-        const match = /<script src="([^"]+)"><\/script>/.exec(html)
+        const match = /<script\b[^>]*\bsrc="([^"]+)"/.exec(html)
         const src = match?.[1]
         expect(src).toBe(`native/${BUNDLE}`)
         if (src === undefined) throw new Error('no script src in native page')
