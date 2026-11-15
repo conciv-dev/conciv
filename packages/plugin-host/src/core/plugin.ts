@@ -1,8 +1,6 @@
 export * as Plugin from './plugin.js'
 export {Event, ExperimentalBundle, Id, Info, Source, State} from '../schema/plugin.js'
 
-import {readFile} from 'node:fs/promises'
-import {fileURLToPath} from 'node:url'
 import {Plugin} from '../schema/plugin.js'
 import {Cause, Context, Effect, Exit, Latch, Layer, Logger, Queue, References, Scope, Semaphore} from 'effect'
 import {Bus} from './bus.js'
@@ -47,14 +45,7 @@ export const layer = Layer.effect(
       return inventory
     })
     const experimental = Effect.fn('Plugin.experimental')(function* (id: Plugin.Id) {
-      const experimental = active.get(id)?.plugin.experimental
-      if (!experimental) return undefined
-      const code = yield* Effect.promise(() => readFile(fileURLToPath(experimental.file), 'utf8'))
-      return {
-        code,
-        revision: experimental.revision,
-        options: experimental.options,
-      } satisfies Plugin.ExperimentalBundle
+      return active.get(id)?.plugin.experimental
     })
     const hostContext = yield* Effect.context<Effect.Services<ReturnType<typeof PluginHost.make>>>()
     const load = Effect.fnUntraced(function* (plugin: Generation) {
