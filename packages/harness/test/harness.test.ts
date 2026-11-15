@@ -58,6 +58,7 @@ import {claudeSdkCommands, __commandsCacheSet} from '../src/claude/sdk.js'
 import {claudeTtyCommand} from '../src/claude/tty.js'
 import {codex} from '../src/codex/index.js'
 import {codexDefaultModel, codexHome, codexModels} from '../src/codex/models.js'
+import {codexRunAdapter} from '../src/codex/run-adapter.js'
 import {mkdir, open, realpath, symlink, writeFile} from 'node:fs/promises'
 import {DatabaseSync} from 'node:sqlite'
 import {rolloutPath, codexHistory, sessionsRoot, stateDbPath} from '../src/codex/history.js'
@@ -985,10 +986,10 @@ describe('codex chat config', () => {
       })
     })
 
-    it('auto-approves the bridged MCP server only when tools ride the run', () => {
-      const bridged = JSON.stringify(codex.chatConfig(deps({hasTools: true})).adapter)
+    it('auto-approves the tanstack MCP server only for a model step that offers tools', () => {
+      const bridged = JSON.stringify(codexRunAdapter(deps(), 1))
       expect(bridged).toContain('mcp_servers.tanstack.default_tools_approval_mode')
-      const bare = JSON.stringify(codex.chatConfig(deps()).adapter)
+      const bare = JSON.stringify(codexRunAdapter(deps(), 0))
       expect(bare).not.toContain('mcp_servers.tanstack')
     })
   })
