@@ -31,7 +31,8 @@ export type RpcSocketRule = (call: RpcSocketCall) => RpcSocketVerdict
 
 export type RpcSocketEvent =
   | {kind: 'request'; requestId: string; path: readonly string[]; input: unknown}
-  | {kind: 'response'; requestId: string; status: number; served: boolean}
+  | {kind: 'response'; requestId: string; status: number; served: boolean; output: unknown}
+  | {kind: 'abort'; requestId: string}
 
 export type RpcSocketListener = (event: RpcSocketEvent) => void
 
@@ -42,6 +43,8 @@ export type RpcSocket = {
   opened: () => number
   hold: () => void
   release: () => void
+  holdCloses: () => void
+  releaseCloses: () => void
 }
 
 type SocketState = {
@@ -50,6 +53,7 @@ type SocketState = {
   live: Set<WebSocketRoute>
   opened: number
   held: boolean
+  heldCloses: (() => void)[] | null
 }
 
 const sockets = new WeakMap<Page, RpcSocket>()
@@ -57,7 +61,14 @@ const sockets = new WeakMap<Page, RpcSocket>()
 export function rpcSocketFor(page: Page): RpcSocket {
   const existing = sockets.get(page)
   if (existing) return existing
-  const state: SocketState = {rules: [], listeners: new Set(), live: new Set(), opened: 0, held: false}
+  const state: SocketState = {
+    rules: [],
+    listeners: new Set(),
+    live: new Set(),
+    opened: 0,
+    held: false,
+    heldCloses: null,
+  }
   const installed = page.routeWebSocket(
     (url) => url.pathname.endsWith(RPC_WS_PATH),
     (route) => connect(route, state),
@@ -85,6 +96,14 @@ export function rpcSocketFor(page: Page): RpcSocket {
     },
     release: () => {
       state.held = false
+    },
+    holdCloses: () => {
+      state.heldCloses ??= []
+    },
+    releaseCloses: () => {
+      const held = state.heldCloses ?? []
+      state.heldCloses = null
+      for (const close of held) close()
     },
   }
   sockets.set(page, created)
@@ -116,6 +135,11 @@ function connect(route: WebSocketRoute, state: SocketState): void {
       .then(() => sendOutbound(message, socketId, {route, forward: () => server.send(message), state, emit}))
       .catch((error: unknown) => console.error('[extension-testkit] an rpc frame could not be routed', error))
   })
+  server.onClose((code, reason) => {
+    const close = (): void => void route.close({code, reason})
+    if (state.heldCloses === null) close()
+    else state.heldCloses.push(close)
+  })
   server.onMessage((message) => {
     inbound.tail = inbound.tail
       .then(() => observeInbound(message, socketId, emit))
@@ -143,6 +167,9 @@ type Outbound = {
 
 async function sendOutbound(message: Message, socketId: string, outbound: Outbound): Promise<void> {
   const decoded = await decodeRequestMessage(message).catch(() => null)
+  if (decoded !== null && decoded[1] === MessageType.ABORT_SIGNAL) {
+    outbound.emit({kind: 'abort', requestId: `${socketId}:${decoded[0]}`})
+  }
   if (decoded === null || decoded[1] !== MessageType.REQUEST) {
     outbound.forward()
     return
@@ -160,7 +187,7 @@ async function sendOutbound(message: Message, socketId: string, outbound: Outbou
     reply: async (status) => {
       const failure = await encodeResponseMessage(id, MessageType.RESPONSE, {status, headers: {}, body: FAILURE_BODY})
       if (typeof failure !== 'string') throw new Error('the injected rpc failure frame encoded to binary')
-      outbound.emit({kind: 'response', requestId, status, served: false})
+      outbound.emit({kind: 'response', requestId, status, served: false, output: undefined})
       outbound.route.send(failure)
     },
     cut: () => void outbound.route.close({code: CUT_CLOSE_CODE}),
@@ -173,5 +200,11 @@ async function observeInbound(message: Message, socketId: string, emit: (event: 
   const decoded = await decodeResponseMessage(message).catch(() => null)
   if (decoded === null || decoded[1] !== MessageType.RESPONSE) return
   const [id, , payload] = decoded
-  emit({kind: 'response', requestId: `${socketId}:${id}`, status: payload.status, served: true})
+  emit({
+    kind: 'response',
+    requestId: `${socketId}:${id}`,
+    status: payload.status,
+    served: true,
+    output: serializer.deserialize(payload.body),
+  })
 }

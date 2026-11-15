@@ -3,7 +3,14 @@ import 'virtual:uno.css'
 import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
 import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
-import {makeBrowserRpcClient, makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
+import {
+  browserRpcConnection,
+  makeBrowserRpcClient,
+  makeRpcClient,
+  subscribeRpcReachability,
+  type RpcClient,
+  type EngineStaleness,
+} from '@conciv/contract'
 import appManifest from '../package.json' with {type: 'json'}
 import {until} from '@conciv/harness-testkit/until'
 import {formatForDisplay} from '@tanstack/solid-hotkeys'
@@ -4189,6 +4196,160 @@ describe('engine login', () => {
     await expect.element(page.getByText(/couldn.t reach the engine/), {timeout: 8000}).toBeVisible()
     await expect.element(dialog()).not.toBeInTheDocument()
   }, 30_000)
+
+  describe('the login follows the connection', () => {
+    const watchConnection = () => {
+      const connection = browserRpcConnection(origin())
+      const seen: string[] = []
+      const stopTrust = connection.trust.subscribe((status) => seen.push(status))
+      const stopReachability = subscribeRpcReachability(origin(), (reachable) =>
+        seen.push(reachable ? 'socket open' : 'socket closed'),
+      )
+      return {
+        seen,
+        status: connection.trust.status,
+        trust: connection.trust,
+        stop: () => {
+          stopTrust()
+          stopReachability()
+          connection.release()
+        },
+      }
+    }
+
+    const unreachableUntilReleased = async (watch: ReturnType<typeof watchConnection>): Promise<void> => {
+      const offline = await faults.install({kind: 'offline'})
+      harness.mountShell('/', [], {login: {apiBase: origin()}})
+      await expect.poll(() => watch.seen).toContain('socket closed')
+      await expect.poll(() => watch.status(), {timeout: 8000}).toBe('unreachable')
+      await opener().click()
+      await expect
+        .element(page.getByRole('alert').filter({hasText: /couldn.t reach the engine/}), {timeout: 8000})
+        .toBeVisible()
+      await coreControl.releaseFault(offline)
+      await expect.poll(() => watch.seen, {timeout: 8000}).toContain('socket open')
+    }
+
+    test('a logged-in page whose engine was down at mount reaches the chat once the engine is back, with no reload and no Retry', async () => {
+      const minted = await makeRpcClient(origin()).auth.exchange({code: await coreControl.requestCode()})
+      if (!('token' in minted)) throw new Error(`the engine refused the test code: ${minted.refused}`)
+      localStorage.setItem(storageKey(), minted.token)
+      const watch = watchConnection()
+      try {
+        await unreachableUntilReleased(watch)
+        await expect.poll(() => watch.status(), {timeout: 8000}).toBe('trusted')
+        await expect.element(editor(), {timeout: 8000}).toBeVisible()
+      } finally {
+        watch.stop()
+      }
+    }, 30_000)
+
+    test('a logged-out page whose engine was down at mount asks to log in once the engine is back', async () => {
+      const watch = watchConnection()
+      try {
+        await unreachableUntilReleased(watch)
+        await expect.poll(() => watch.status(), {timeout: 8000}).toBe('untrusted')
+        await expect.element(loginNotice(), {timeout: 8000}).toBeVisible()
+      } finally {
+        watch.stop()
+      }
+    }, 30_000)
+
+    test('logging in while the trust ask the reopened socket sent is still unanswered keeps the page logged in once that ask is refused', async () => {
+      const watch = watchConnection()
+      try {
+        const offline = await faults.install({kind: 'offline'})
+        harness.mountShell('/', [], {login: {apiBase: origin()}})
+        await expect.poll(() => watch.status(), {timeout: 8000}).toBe('unreachable')
+        await opener().click()
+        await expect
+          .element(page.getByRole('alert').filter({hasText: /couldn.t reach the engine/}), {timeout: 8000})
+          .toBeVisible()
+        const trustAsk = await faults.install({kind: 'gate', path: ['auth', 'trust']})
+        await coreControl.releaseFault(offline)
+        await coreControl.awaitFaultPending(trustAsk, 1)
+        const heldAsk = watch.trust.requestTrust()
+        await expect.element(loginNotice(), {timeout: 8000}).toBeVisible()
+        await loginNotice().getByRole('button', {name: 'Log in'}).click()
+        await userEvent.type(firstDigit(), await coreControl.requestCode())
+        await expect.element(dialog()).not.toBeInTheDocument()
+        await expect.poll(() => watch.status()).toBe('trusted')
+        await coreControl.releaseFault(trustAsk)
+        expect(await heldAsk).toBe(false)
+        await watch.trust.requestAuthCode()
+        expect(await coreControl.awaitFaultAnswered(trustAsk)).toEqual({trusted: false})
+        expect(watch.status()).toBe('trusted')
+        await expect.element(loginNotice()).not.toBeInTheDocument()
+        await expect.element(editor()).toBeVisible()
+      } finally {
+        watch.stop()
+      }
+    }, 30_000)
+
+    test('logging in again after a revoke whose close arrives late sends the code request and the exchange on the reopened socket', async () => {
+      const lateClose = await faults.install({kind: 'late-close'})
+      harness.mountShell('/', [], {login: {apiBase: origin()}})
+      await unlock()
+      await expect.poll(() => coreControl.pushSocketsLive()).toBeGreaterThan(0)
+      const codeRequest = await faults.install({kind: 'gate', path: ['auth', 'requestCode']})
+      await coreControl.revokeBrowsers()
+      await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
+      await reloginNotice().getByRole('button', {name: 'Log in'}).click()
+      await expect.element(dialog()).toBeVisible()
+      await coreControl.awaitFaultPending(codeRequest, 1)
+      await coreControl.releaseFault(lateClose)
+      await coreControl.awaitFaultPending(codeRequest, 2)
+      await coreControl.releaseFault(codeRequest)
+      await coreControl.awaitFaultAnswered(codeRequest)
+      await userEvent.type(firstDigit(), await coreControl.requestCode())
+      await expect.element(dialog()).not.toBeInTheDocument()
+      await expect.element(reloginNotice()).not.toBeInTheDocument()
+      await expect.element(editor()).toHaveFocus()
+    }, 30_000)
+
+    test('a logged-in page whose trust check is never answered leaves checking, and its panel still opens onto a chat that answers', async () => {
+      const minted = await makeRpcClient(origin()).auth.exchange({code: await coreControl.requestCode()})
+      if (!('token' in minted)) throw new Error(`the engine refused the test code: ${minted.refused}`)
+      localStorage.setItem(storageKey(), minted.token)
+      const watch = watchConnection()
+      try {
+        const trustAsk = await faults.install({kind: 'gate', path: ['auth', 'trust']})
+        harness.mountShell('/', [], {login: {apiBase: origin()}})
+        await coreControl.awaitFaultPending(trustAsk, 1)
+        await expect.poll(() => watch.status(), {timeout: 8000}).toBe('unreachable')
+        await expect.element(locked()).not.toBeInTheDocument()
+        await opener().click()
+        await expect.element(editor(), {timeout: 8000}).toBeVisible()
+        await userEvent.click(editor())
+        await expect.element(editor()).toHaveFocus()
+        await coreControl.scriptTurn({toolCalls: [], text: 'answered past the silent trust check'})
+        for (const key of 'hello') await userEvent.keyboard(key)
+        await userEvent.keyboard('{Enter}')
+        await expect.element(page.getByText('answered past the silent trust check')).toBeVisible()
+        await coreControl.releaseFault(trustAsk)
+      } finally {
+        watch.stop()
+      }
+    }, 30_000)
+
+    test('a code request and a code exchange the engine never answers each say so in the login dialog', async () => {
+      const codeRequest = await faults.install({kind: 'gate', path: ['auth', 'requestCode']})
+      harness.mountShell('/', [], {login: {apiBase: origin()}})
+      await locked().click()
+      await expect.element(dialog()).toBeVisible()
+      await coreControl.awaitFaultPending(codeRequest, 1)
+      await expect
+        .element(dialog().getByRole('alert'), {timeout: 8000})
+        .toMatchTextContent('Could not ask the dev server for a code. Please try again.')
+      const exchange = await faults.install({kind: 'gate', path: ['auth', 'exchange']})
+      await userEvent.type(firstDigit(), await coreControl.requestCode())
+      await coreControl.awaitFaultPending(exchange, 1)
+      await expect
+        .element(dialog().getByRole('alert'), {timeout: 8000})
+        .toMatchTextContent('Something went wrong while authorizing. Please try again.')
+      await expect.element(firstDigit()).toHaveValue('')
+    }, 30_000)
+  })
 })
 
 describe('session picker after login', () => {

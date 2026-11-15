@@ -13,7 +13,7 @@ import {createInstances} from './extension/create-instances.js'
 import highlight from './extensions/highlight.js'
 import {PendingPane} from './shell/pending.js'
 import {defaultErrorComponent} from './shell/default-error-component.js'
-import {engineLocked, type EngineLogin} from './app/engine-login.js'
+import {becameTrusted, type EngineLogin} from './app/engine-login.js'
 
 export type ConcivEnvironment = {rootNode: ShadowRoot | Document; document: Document}
 
@@ -80,7 +80,7 @@ function watchEngine(apiBase: string, rerunRefused: () => void): () => void {
   const stopReachability = setupEngineReachability(apiBase)
   const connection = browserRpcConnection(apiBase)
   const stopTrust = connection.trust.subscribe((status, previous) => {
-    if (status === 'trusted' && engineLocked(previous)) rerunRefused()
+    if (becameTrusted(status, previous)) rerunRefused()
   })
   return () => {
     stopReachability()
