@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {once} from 'node:events'
 import {z} from 'zod'
+import {differenceBy} from 'es-toolkit'
 import {command, description, name, option, schema} from '@bomb.sh/router'
 import {ORPCError} from '@orpc/client'
 import {createMCPServer, type McpServer} from '@tanstack/ai-mcp/server'
@@ -24,6 +25,7 @@ import {HubAgentSchema} from './hub-agent.js'
 import cliManifest from '../package.json' with {type: 'json'}
 import type {CliOutcome} from './envelope.js'
 import {handler} from './router/handler.js'
+import {ENGINE_READ_MS} from './engine-read.js'
 
 const EXECUTE_TOOL_NAME = 'execute_typescript'
 
@@ -38,8 +40,6 @@ const CLIENT_CAPABILITIES = 'io.modelcontextprotocol/clientCapabilities'
 const TASK_POLL_MS = 1000
 
 const TASK_TTL_MS = 60 * 60_000
-
-const DESCRIBE_MS = 2_000
 
 const UNKNOWN_TASK = -32602
 
@@ -118,6 +118,12 @@ type TaskReply = {
 }
 
 type Routed<Value> = {reply: Reply; value: Value | null}
+
+type Checked = Awaited<ReturnType<typeof checkEngines>>
+
+type Silent = Checked['unreachable']
+
+type TabProbe = PromiseSettledResult<{row: EngineRow; answer: TabOpen}>
 
 async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<CliOutcome> {
   const home = concivHome({env})
@@ -375,10 +381,12 @@ export const serveCommand = command(
 )
 
 async function pickRunner(home: string, headers: Record<string, string>): Promise<Runner> {
-  const checked = await liveEngines(home)
-  if (checked.live.length === 0) {
+  const first = await liveEngines(home)
+  if (first.live.length === 0 && first.unreachable.length === 0) {
     throw new Error(`no conciv dev server is running; start one and open its page (conciv home folder read: ${home})`)
   }
+  const checked = first.live.length > 0 ? first : await askAgain(home, first.unreachable)
+  if (checked.live.length === 0) throw new Error(`no conciv dev server answered: ${silence(checked.unreachable)}`)
   return firstUsable(checked.live, headers, [])
 }
 
@@ -392,7 +400,7 @@ async function firstUsable(rows: EngineRow[], headers: Record<string, string>, u
 
 async function runnerAt(row: EngineRow, headers: Record<string, string>): Promise<Runner | {unusable: string}> {
   const rpc = makeRpcClient(row.apiBase, {headers})
-  return rpc.code.describe(undefined, {signal: AbortSignal.timeout(DESCRIBE_MS)}).then(
+  return rpc.code.describe(undefined, {signal: AbortSignal.timeout(ENGINE_READ_MS)}).then(
     (described) => ({root: row.root, rpc, described}),
     (error: unknown) => {
       if (engineTooOld(error)) return {unusable: TOO_OLD}
@@ -412,11 +420,34 @@ function toolDescriptions(described: CodeDescriptions | null): Record<ToolName, 
 }
 
 async function findOwner(home: string, tab: SessionId, headers: Record<string, string>): Promise<TabOwner> {
-  const checked = await liveEngines(home)
-  const probes = await Promise.allSettled(checked.live.map(async (row) => ({row, answer: await tabAnswer(row, tab)})))
-  const answers = probes.flatMap((probe) => (probe.status === 'fulfilled' ? [probe.value] : []))
-  const [only, second] = answers.filter(({answer}) => answer.open)
-  const failures = probes.flatMap((probe) => (probe.status === 'rejected' ? [probe.reason] : []))
+  const first = await liveEngines(home)
+  const probes = await tabProbes(first.live, tab, PROBE_MS)
+  if (openAnswers(probes).length > 0 || first.unreachable.length === 0) {
+    return ownerAmong(tab, probes, first.unreachable, headers)
+  }
+  const second = await askAgain(home, first.unreachable)
+  const later = await tabProbes(
+    differenceBy(second.live, first.live, (row) => row.id),
+    tab,
+    ENGINE_READ_MS,
+  )
+  return ownerAmong(tab, [...probes, ...later], second.unreachable, headers)
+}
+
+function tabProbes(rows: EngineRow[], tab: SessionId, timeoutMs: number): Promise<TabProbe[]> {
+  return Promise.allSettled(rows.map(async (row) => ({row, answer: await tabAnswer(row, tab, timeoutMs)})))
+}
+
+function openAnswers(probes: TabProbe[]): Array<{row: EngineRow; answer: TabOpen}> {
+  return probes.flatMap((probe) => (probe.status === 'fulfilled' && probe.value.answer.open ? [probe.value] : []))
+}
+
+function ownerAmong(tab: SessionId, probes: TabProbe[], silent: Silent, headers: Record<string, string>): TabOwner {
+  const [only, second] = openAnswers(probes)
+  const failures = [
+    ...probes.flatMap((probe) => (probe.status === 'rejected' ? [probe.reason] : [])),
+    ...silent.map((entry) => new Error(`${entry.root} did not answer (${entry.error})`)),
+  ]
   if (only === undefined) throw notOpen(tab, failures)
   if (second !== undefined) {
     throw new Error(
@@ -439,22 +470,38 @@ function notOpen(tab: SessionId, failures: unknown[]): Error {
   )
 }
 
-function liveEngines(home: string): ReturnType<typeof checkEngines> {
-  return checkEngines(home, {timeoutMs: PROBE_MS}).catch((error: unknown) => {
+function liveEngines(home: string): Promise<Checked> {
+  return readEngines(home, {timeoutMs: PROBE_MS})
+}
+
+function askAgain(home: string, silent: Silent): Promise<Checked> {
+  return readEngines(home, {timeoutMs: ENGINE_READ_MS, roots: silent.map((entry) => entry.root)})
+}
+
+function silence(silent: Silent): string {
+  return silent.map((entry) => `${entry.root} did not answer (${entry.error})`).join('; ')
+}
+
+function readEngines(home: string, options: {timeoutMs: number; roots?: string[]}): Promise<Checked> {
+  return checkEngines(home, options).catch((error: unknown) => {
     throw new Error(`cannot read the conciv home folder ${home}: ${errorText(error)}`, {cause: error})
   })
 }
 
-async function tabAnswer(engine: Pick<EngineRow, 'root' | 'apiBase'>, tab: SessionId): Promise<TabOpen> {
+async function tabAnswer(
+  engine: Pick<EngineRow, 'root' | 'apiBase'>,
+  tab: SessionId,
+  timeoutMs: number,
+): Promise<TabOpen> {
   return makeRpcClient(engine.apiBase)
-    .tabs.get({sessionId: tab}, {signal: AbortSignal.timeout(PROBE_MS)})
+    .tabs.get({sessionId: tab}, {signal: AbortSignal.timeout(timeoutMs)})
     .catch((error: unknown) => {
       throw new Error(`${engine.root} (${engineTooOld(error) ? TOO_OLD : errorText(error)})`, {cause: error})
     })
 }
 
 async function holdsTab(owner: TabOwner, tab: SessionId): Promise<boolean> {
-  return tabAnswer(owner, tab).then(
+  return tabAnswer(owner, tab, PROBE_MS).then(
     (answer) => answer.open,
     (error: unknown) => {
       logHub(`checking whether tab ${tab} is still open failed; the next call looks up its engine again`, error)

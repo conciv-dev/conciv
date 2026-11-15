@@ -1,11 +1,13 @@
 import {readFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {z} from 'zod'
+import {differenceBy} from 'es-toolkit'
 import {checkEngines, concivHome, type EngineRow} from '@conciv/db'
 import {makeRpcClient} from '@conciv/contract'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {userFailure} from './failure.js'
+import {ENGINE_READ_MS} from './engine-read.js'
 
 const DEFAULT_ENGINE_PORT = '5173'
 
@@ -38,14 +40,31 @@ export function discoveredEngine(directory: string): ServerState | undefined {
 
 type EngineOrigin = {origin: string; outside: boolean}
 
+type Checked = Awaited<ReturnType<typeof checkEngines>>
+
+type Silent = Checked['unreachable']
+
+type TabAnswer = {row: EngineRow; open: boolean; error: string | null}
+
+const SILENT_HINT =
+  'a dev server still starting answers once it is ready; run the command again, or restart the dev server if it stays silent.'
+
 export async function engineOrigin(cwd: string, env: NodeJS.ProcessEnv, tab: SessionId | null): Promise<EngineOrigin> {
-  if (tab !== null) return {origin: await tabOwner(await liveEngines(env), tab), outside: true}
+  const home = concivHome({env})
+  if (tab !== null) return {origin: await tabOwner(home, tab), outside: true}
   const discovered = discoveredEngine(cwd)
   const port = env.CONCIV_PORT ?? discovered?.port
   const token = env.CONCIV_TOKEN ?? discovered?.token
   if (port !== undefined) return {origin: scopedOrigin(port, token), outside: false}
-  const latest = (await liveEngines(env)).at(-1)
-  if (latest === undefined) return {origin: scopedOrigin(DEFAULT_ENGINE_PORT, token), outside: false}
+  const first = await checkEngines(home, {timeoutMs: PROBE_MS})
+  if (first.live.length === 0 && first.unreachable.length === 0) {
+    return {origin: scopedOrigin(DEFAULT_ENGINE_PORT, token), outside: false}
+  }
+  const checked = first.live.length > 0 ? first : await askAgain(home, first.unreachable)
+  const latest = checked.live.at(-1)
+  if (latest === undefined) {
+    throw userFailure(`no conciv dev server answered: ${silence(checked.unreachable)}.`, {hint: SILENT_HINT})
+  }
   return {origin: latest.apiBase, outside: true}
 }
 
@@ -54,16 +73,48 @@ export function scopedOrigin(port: string | number, token: string | undefined): 
   return token === undefined ? origin : `${origin}/t/${token}`
 }
 
-async function liveEngines(env: NodeJS.ProcessEnv): Promise<EngineRow[]> {
-  return (await checkEngines(concivHome({env}), {timeoutMs: PROBE_MS})).live
+function askAgain(home: string, silent: Silent): Promise<Checked> {
+  return checkEngines(home, {timeoutMs: ENGINE_READ_MS, roots: silent.map((entry) => entry.root)})
 }
 
-async function tabOwner(live: EngineRow[], tab: SessionId): Promise<string> {
-  const answers = await Promise.allSettled(live.map((row) => holdsTab(row, tab)))
-  const owners = live.filter((_row, index) => {
-    const answer = answers[index]
-    return answer?.status === 'fulfilled' && answer.value
-  })
+function silence(silent: Silent): string {
+  return silent.map((entry) => `${entry.root} did not answer (${entry.error})`).join('; ')
+}
+
+async function tabOwner(home: string, tab: SessionId): Promise<string> {
+  const first = await checkEngines(home, {timeoutMs: PROBE_MS})
+  if (first.live.length === 0 && first.unreachable.length === 0) {
+    throw userFailure(
+      `no conciv dev server is running; start one and open its page (conciv home folder read: ${home}).`,
+      {hint: 'start the dev server of a project set up with conciv init, open its page, then run the command again.'},
+    )
+  }
+  const answers = await tabAnswers(first.live, tab, PROBE_MS)
+  if (answers.some((answer) => answer.open) || first.unreachable.length === 0) {
+    return ownerAmong(tab, answers, first.unreachable)
+  }
+  const second = await askAgain(home, first.unreachable)
+  const later = await tabAnswers(
+    differenceBy(second.live, first.live, (row) => row.id),
+    tab,
+    ENGINE_READ_MS,
+  )
+  return ownerAmong(tab, [...answers, ...later], second.unreachable)
+}
+
+function tabAnswers(rows: EngineRow[], tab: SessionId, timeoutMs: number): Promise<TabAnswer[]> {
+  return Promise.all(
+    rows.map((row) =>
+      holdsTab(row, tab, timeoutMs).then(
+        (open) => ({row, open, error: null}),
+        (error: unknown) => ({row, open: false, error: error instanceof Error ? error.message : String(error)}),
+      ),
+    ),
+  )
+}
+
+function ownerAmong(tab: SessionId, answers: TabAnswer[], silent: Silent): string {
+  const owners = answers.filter((answer) => answer.open).map((answer) => answer.row)
   const [owner, ...others] = owners
   if (owner !== undefined && others.length === 0) return owner.apiBase
   if (owner !== undefined) {
@@ -72,13 +123,17 @@ async function tabOwner(live: EngineRow[], tab: SessionId): Promise<string> {
       hint: 'stop all but one of them, or reload the page so only one server holds the tab.',
     })
   }
-  const silent = answers.filter((answer) => answer.status === 'rejected').length
-  const unanswered = silent === 0 ? '' : ` (${silent} of them did not answer)`
-  throw userFailure(`tab ${tab} is not open in any of the ${live.length} running conciv dev servers${unanswered}.`, {
+  if (answers.length === 0) throw userFailure(`cannot find tab ${tab}: ${silence(silent)}.`, {hint: SILENT_HINT})
+  const failed = [
+    ...answers.flatMap((answer) => (answer.error === null ? [] : [{root: answer.row.root, error: answer.error}])),
+    ...silent,
+  ]
+  const unanswered = failed.length === 0 ? '' : `; ${silence(failed)}`
+  throw userFailure(`tab ${tab} is not open in any of the ${answers.length} running conciv dev servers${unanswered}.`, {
     hint: 'conciv tools tabs lists the open tabs; open the page again if it was closed.',
   })
 }
 
-async function holdsTab(row: EngineRow, tab: SessionId): Promise<boolean> {
-  return (await makeRpcClient(row.apiBase).tabs.get({sessionId: tab}, {signal: AbortSignal.timeout(PROBE_MS)})).open
+async function holdsTab(row: EngineRow, tab: SessionId, timeoutMs: number): Promise<boolean> {
+  return (await makeRpcClient(row.apiBase).tabs.get({sessionId: tab}, {signal: AbortSignal.timeout(timeoutMs)})).open
 }
