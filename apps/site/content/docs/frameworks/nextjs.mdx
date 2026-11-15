@@ -4,9 +4,11 @@ description: Add conciv to a Next.js app.
 ---
 
 Next.js needs three pieces: `withConciv` around your config, an `instrumentation.ts` that starts the engine, and an
-`instrumentation-client.ts` that adds the widget.
+`instrumentation-client.ts` that adds the widget. In a production build, none of them starts the engine or adds the widget.
 
-<Tabs items={['init', 'By hand']}>
+## Install
+
+<Tabs items={['init', 'pnpm', 'npm', 'yarn']}>
 
 <Tab value="init">
 
@@ -15,19 +17,11 @@ npx @conciv/cli@latest init
 ```
 
 init finds Next.js in your `package.json`, installs `@conciv/it`, wraps the default export of your next config with
-`withConciv`, and creates `instrumentation.ts` and `instrumentation-client.ts`. If it cannot read the shape of your
-config, it prints the snippet to paste instead. See [Install](/docs/get-started/install) for what it asks.
+`withConciv`, and creates `instrumentation.ts` and `instrumentation-client.ts` next to `package.json`. If it cannot
+read the shape of your config, or a file already exists with other content, it prints the snippet to paste instead.
+See [Install](/docs/get-started/install) for what it asks.
 
 </Tab>
-
-<Tab value="By hand">
-
-<Steps>
-<Step>
-
-### Install
-
-<Tabs items={['pnpm', 'npm', 'yarn']}>
 
 <Tab value="pnpm">
 
@@ -55,10 +49,7 @@ yarn add -D @conciv/it
 
 </Tabs>
 
-</Step>
-<Step>
-
-### Wrap your config
+## Add it
 
 ```ts title="next.config.ts"
 import type {NextConfig} from 'next'
@@ -69,14 +60,6 @@ const nextConfig: NextConfig = {}
 export default withConciv(nextConfig)
 ```
 
-Options go in the second argument: `withConciv(nextConfig, {port: 41800})`. See
-[Configuration](/docs/reference/configuration).
-
-</Step>
-<Step>
-
-### Add the instrumentation files
-
 ```ts title="instrumentation.ts"
 export {register} from '@conciv/it/plugin/nextjs'
 ```
@@ -85,10 +68,7 @@ export {register} from '@conciv/it/plugin/nextjs'
 import '@conciv/it/plugin/nextjs/widget'
 ```
 
-Put them in the folder that holds your `app` or `pages` folder: the project root, or `src/`.
-
-</Step>
-</Steps>
+Put the two instrumentation files in the folder that holds your `app` or `pages` folder: the project root, or `src/`.
 
 <Files>
   <File name="next.config.ts" />
@@ -97,32 +77,55 @@ Put them in the folder that holds your `app` or `pages` folder: the project root
   <Folder name="app" />
 </Files>
 
-</Tab>
-
-</Tabs>
-
-<Steps>
-<Step>
-
-### Start your dev server
+## Run it
 
 ```bash
 next dev
 ```
 
-The engine listens on port `41700`. If that port is in use, it does not start: set another with `port`.
+Open your app. The conciv button sits in the corner. The first time, it asks for the 6-digit code your dev server
+prints in its terminal: see [Your first five minutes](/docs/get-started/first-five-minutes).
 
-</Step>
-<Step>
+<ImageZoom
+  src="/screenshots/widget-fab.png"
+  alt="The conciv robot button in the corner of a running app"
+  width={1920}
+  height={1080}
+/>
 
-### Open your app and log in
+`next build` and `next start` start no engine and add no widget.
 
-Click the conciv button. The first time, it asks for the 6-digit code your dev server just printed in its terminal.
-See [Logging in](/docs/what-you-get/logging-in).
+## Options
 
-</Step>
-</Steps>
+Options are the second argument of `withConciv`: `withConciv(nextConfig, {port: 41800})`. These change how the
+Next.js integration behaves; every other option is on [Configuration](/docs/reference/configuration).
 
-`next build` and `next start` do not start the engine.
+<TypeTable
+  type={{
+    enabled: {
+      type: 'boolean',
+      default: 'true',
+      description:
+        'false adds no widget. The register line in instrumentation.ts still starts the engine: remove it too.',
+    },
+    port: {
+      type: 'number',
+      default: '41700',
+      description: 'The engine port. If it is in use, the engine does not start.',
+    },
+    widget: {
+      type: '{modal?, quickTerminal?} | false',
+      default: 'both layouts on',
+      description: 'Has no effect on Next.js: the widget always starts with both layouts on.',
+    },
+  }}
+/>
 
-Next: [Your first five minutes](/docs/get-started/first-five-minutes) to try it.
+## If it does not show up
+
+- **You ran `next start`.** conciv runs in `next dev` only.
+- **`instrumentation-client.ts` is missing or in the wrong folder.** It goes next to your `app` or `pages` folder.
+- **Port `41700` is in use.** The engine does not start. Stop what holds the port, or set another `port`.
+- **The button shows Unauthorized.** Log in with the code from your terminal. See
+  [Troubleshooting](/docs/reference/troubleshooting#in-the-panel).
+- **The panel says it couldn't reach the engine.** See [Troubleshooting](/docs/reference/troubleshooting#in-the-panel).
