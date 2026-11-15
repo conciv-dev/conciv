@@ -5672,6 +5672,26 @@ describe('page action queue delivery', () => {
     expect(JSON.stringify(await page.hub('return 1'))).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
   }, 5000)
 
+  it('a page.queue.wait its caller aborts as the queue finishes keeps the result owed, so it leads the next reply once', async () => {
+    const page = await engineWithTab()
+    const {queueId} = parseHandle(await page.hub(queued()))
+    const onTab = await page.nextQueue()
+    const caller = new AbortController()
+    const typed = makeRpcClient(page.base, {headers: HUB})
+    const waiting = typed.page.queue.wait({sessionId: page.sessionId, queueId, waitMs: 60_000}, {signal: caller.signal})
+    expect(await typed.tabs.get({sessionId: page.sessionId})).toMatchObject({open: true})
+    const first = page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+    const second = page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    caller.abort()
+    await expect(waiting).rejects.toMatchObject({name: 'AbortError'})
+    await Promise.all([first, second])
+    await page.finishedEvent(queueId)
+    const notice = `queue ${queueId} finished: 2 played, 0 failed`
+    expect(JSON.stringify(await page.hub('return 1'))).toContain(notice)
+    expect(JSON.stringify(await page.hub('return 2'))).not.toContain(notice)
+    expect(page.queueEvents().filter((event) => event.queueId === queueId)).toHaveLength(1)
+  }, 5000)
+
   it('a code.execute its caller aborts hands over no finished result, so that result leads the next reply', async () => {
     const page = await engineWithTab()
     const {queueId} = parseHandle(await page.hub(queued()))
