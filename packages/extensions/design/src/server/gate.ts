@@ -568,6 +568,8 @@ type PaintKind =
 
 const PX = designConfig.tolerances.geometryPx
 const LINE_PX = 0.5
+const AUTO_LINE_PX = designConfig.tolerances.autoLinePx
+const NORMAL_LINE = 1.2
 const COLOR_DELTA = designConfig.tolerances.colorDeltaE
 const distance = designConfig.colorMetrics.ciede2000
 const WEIGHT_STEP = 100
@@ -672,8 +674,20 @@ function textRows(seen: Seen): Compared[] {
           },
         ]),
     ...pxRow({kind: 'font size', expected: look.font_size, found: styles.fontSize, token}),
-    ...pxRow({kind: 'line height', expected: look.lineAuto ? null : look.line_height, found: styles.lineHeight, token}),
+    ...lineRows({look, styles, token}),
   ]
+}
+
+function lineRows(input: {look: Look; styles: LiveComponent['styles']; token: string | null}): Compared[] {
+  const {look, styles, token} = input
+  const found = styles.lineHeight
+  if (look.line === 'trimmed') return []
+  if (look.line === 'auto')
+    return found === null
+      ? []
+      : pxRow({kind: 'line height', expected: look.line_height, found, token, slack: AUTO_LINE_PX})
+  const shown = found ?? styles.fontSize * NORMAL_LINE
+  return pxRow({kind: 'line height', expected: look.line_height, found: shown, token, slack: LINE_PX})
 }
 
 function radiusRows(seen: Seen): Compared[] {
@@ -728,9 +742,14 @@ function endsOf(input: {gradient: NonNullable<Look['gradient']>; under: string})
   }
 }
 
-function pxRow(input: {kind: PaintKind; expected: number | null; found: number; token: string | null}): Compared[] {
-  const {kind, expected, found, token} = input
-  const slack = kind === 'line height' ? LINE_PX : PX
+function pxRow(input: {
+  kind: PaintKind
+  expected: number | null
+  found: number
+  token: string | null
+  slack?: number
+}): Compared[] {
+  const {kind, expected, found, token, slack = PX} = input
   if (expected === null || Math.abs(expected - found) <= slack) return []
   return [{kind, expected: `${expected}px`, found: `${found}px`, token, delta: found - expected}]
 }

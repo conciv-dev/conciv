@@ -333,7 +333,7 @@ export function createStore(input: {
           .onConflictDoUpdate({target: [targets.run_id, targets.target_id], set: omit(placed, ['lead'])})
           .run()
         tx.delete(nodes).where(keyed(nodes, placed)).run()
-        for (const {gradient: _gradient, lineAuto: _auto, ...look} of nodeLooks(design))
+        for (const {gradient: _gradient, line: _line, ...look} of nodeLooks(design))
           tx.insert(nodes)
             .values({...look, target_id: design.id, run_id: run, session})
             .run()

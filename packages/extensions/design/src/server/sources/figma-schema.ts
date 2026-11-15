@@ -55,6 +55,7 @@ const FigmaNodeSchema = z.looseObject({
       lineHeightPx: z.number().optional(),
       lineHeightUnit: z.string().optional(),
       lineHeightPercentFontSize: z.number().optional(),
+      leadingTrim: z.string().optional(),
       letterSpacing: z.number().optional(),
       textAlignHorizontal: z.string().optional(),
       textCase: z.string().optional(),

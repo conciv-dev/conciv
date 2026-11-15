@@ -79,7 +79,10 @@ function roundOf(checked: Checked): Exclude<Checked, {unsettled: true} | {compil
   return checked
 }
 
-async function checkedTexts(kept: (row: ReturnType<typeof roundOf>['rows'][number]) => boolean): Promise<string[]> {
+type Row = ReturnType<typeof roundOf>['rows'][number]
+
+async function checkedTexts(kept: (row: Row) => boolean, page?: string): Promise<string[]> {
+  if (page !== undefined) await kit.goto(page)
   const {rows} = roundOf(await call('design_check', {}))
   return rows.filter(kept).map((row) => row.text)
 }
@@ -156,35 +159,31 @@ describe('a Figma line', () => {
 
 describe('a Figma stroke', () => {
   it('is told with its alignment and sides, an inset outline, an inset or outset box-shadow or a side border draws it, on the element, a child in its box or a flush ancestor or child per side, and a bottom margin counts in the page height', async () => {
-    const texts = async (page: string, kept: (row: ReturnType<typeof roundOf>['rows'][number]) => boolean) => {
-      await kit.goto(page)
-      return checkedTexts(kept)
-    }
     const border = (node: string) => (row: {node: string; property?: string | null}) =>
       row.node === node && row.property === 'border'
     const height = (row: {text: string}) => row.text.startsWith('the page is')
     await kit.goto('input-field-bare')
     const field = await call('design_get', await sliced('input-field', '100-1418'))
-    const bare = await texts('input-field-bare', border('100:1418'))
-    const outlined = await texts('input-field-outline', border('100:1418'))
-    const shadowed = await texts('input-field-shadow', border('100:1418'))
-    const ringed = await texts('input-field-after', border('100:1418'))
+    const bare = await checkedTexts(border('100:1418'), 'input-field-bare')
+    const outlined = await checkedTexts(border('100:1418'), 'input-field-outline')
+    const shadowed = await checkedTexts(border('100:1418'), 'input-field-shadow')
+    const ringed = await checkedTexts(border('100:1418'), 'input-field-after')
     await kit.goto('input-field-input')
     const typed = roundOf(await call('design_check', {}))
     await kit.goto('process-row')
     const row = await call('design_get', await sliced('process-row', '50-876'))
-    const underlined = await texts('process-row', border('50:880'))
-    const boxed = await texts('process-row-boxed', border('50:880'))
+    const underlined = await checkedTexts(border('50:880'), 'process-row')
+    const boxed = await checkedTexts(border('50:880'), 'process-row-boxed')
     await kit.goto('form-stroke')
     await call('design_get', await sliced('form-stroke', '100-1693'))
-    const outset = await texts('form-stroke', border('100:1693'))
-    const wrapped = await texts('form-stroke-wrapped', border('100:1693'))
-    const sectioned = await texts('form-stroke-section', border('100:1693'))
-    const short = await texts('form-stroke-short', height)
-    const margined = await texts('form-stroke-margin', height)
+    const outset = await checkedTexts(border('100:1693'), 'form-stroke')
+    const wrapped = await checkedTexts(border('100:1693'), 'form-stroke-wrapped')
+    const sectioned = await checkedTexts(border('100:1693'), 'form-stroke-section')
+    const short = await checkedTexts(height, 'form-stroke-short')
+    const margined = await checkedTexts(height, 'form-stroke-margin')
     await kit.goto('process-column-ruled')
     await call('design_get', await sliced('process-column', '100-1535'))
-    const ruled = await texts('process-column-ruled', border('100:1535'))
+    const ruled = await checkedTexts(border('100:1535'), 'process-column-ruled')
     expect([
       field.nodes.find((node) => node.id === '100:1418')?.strokeAlign,
       field.rules.some((rule) => rule.includes('outline-offset')),
@@ -268,12 +267,11 @@ describe('an idle page while files outside the page change', () => {
 
 describe('a Figma effect', () => {
   it('is carried into the design and flagged when the page leaves it out', async () => {
-    const effectRows = async () => checkedTexts((row) => row.property === 'effect')
+    const effectRows = async (page?: string) => checkedTexts((row) => row.property === 'effect', page)
     await kit.goto('logo-tile')
     const got = await call('design_get', await sliced('logo-tile', '100-1683'))
     const glowing = await effectRows()
-    await kit.goto('logo-tile-flat')
-    const flat = await effectRows()
+    const flat = await effectRows('logo-tile-flat')
     expect([got.nodes.find((node) => node.id === '100:1683')?.effects, glowing, flat]).toEqual([
       [{type: 'inner-shadow', color: '#ffffff', opacity: 0.5, x: 0, y: 0, blur: 14, spread: 6}],
       [],
@@ -378,7 +376,7 @@ describe('a page that drifts from the design', () => {
 })
 
 describe('a page between two frames', () => {
-  it('is checked at its own breakpoints that fall between the frames, centred text whose box hugs it sits where the frame has it, and its frames stay its own when another session gets one', async () => {
+  it('is checked at its own breakpoints that fall between the frames, centred text whose box hugs it sits where the frame has it, an auto line is the whole pixel Figma lays out unless the page keeps the font line, and its frames stay its own when another session gets one', async () => {
     await kit.goto('hero-gap')
     await call('design_get', {
       figma: [
@@ -395,10 +393,14 @@ describe('a page between two frames', () => {
     const broken = await between()
     await kit.goto('hero-gap-fit')
     const fitted = await between()
-    await kit.goto('hero-hug')
-    const placed = VariantsSchema.parse(await call('design_check', {})).variants.map((variant) =>
-      variant.rows.filter((row) => row.text.includes('further')).map((row) => row.text),
-    )
+    const told = async (page: string, part: string) => {
+      await kit.goto(page)
+      return VariantsSchema.parse(await call('design_check', {})).variants.map((variant) =>
+        variant.rows.filter((row) => row.text.includes(part)).map((row) => row.text),
+      )
+    }
+    const placed = await told('hero-hug', 'further')
+    const leading = await told('hero-leading', 'line height')
     await makeRpcClient(kit.apiBase, {headers: {[CONCIV_SESSION_HEADER]: `conciv_${randomUUID()}`}}).registry.call({
       name: 'design_get',
       input: {
@@ -410,7 +412,7 @@ describe('a page between two frames', () => {
     })
     const again = await call('design_get', {route: '/?variant=hero-gap-fit'})
     const widths = z.object({variants: z.array(z.object({viewport: z.object({width: z.number()})}))}).safeParse(again)
-    expect([broken, fitted, placed, widths.data?.variants.map((variant) => variant.viewport.width)]).toEqual([
+    expect([broken, fitted, placed, leading, widths.data?.variants.map((variant) => variant.viewport.width)]).toEqual([
       [
         [],
         [
@@ -421,6 +423,10 @@ describe('a page between two frames', () => {
       ],
       [[], []],
       [[], []],
+      [
+        ['wrong line height at [100:1171]: 46px expected, 45.6px found'],
+        ['wrong line height at [100:1481]: 34px expected, 33.6px found'],
+      ],
       [1280, 358],
     ])
   })
@@ -469,10 +475,7 @@ describe('an image node drawn as a box with its icon inside', () => {
   it('passes when the drawn element looks like the asset, whatever the file is named or however slowly it loads, drawn in CSS around its icon or turned, and each button keeps its icon', async () => {
     await kit.goto('check-row')
     await call('design_get', await sliced('check-row', '83-30723'))
-    const imageRows = async (page?: string) => {
-      if (page !== undefined) await kit.goto(page)
-      return checkedTexts((row) => row.property === 'image')
-    }
+    const imageRows = async (page?: string) => checkedTexts((row) => row.property === 'image', page)
     const drawn = [...(await imageRows()), ...(await imageRows('check-row-stalled'))]
     const wrong = await imageRows('check-row-wrong')
     await kit.goto('social-buttons')
@@ -670,13 +673,9 @@ describe('catalog component rows', () => {
     ]).toEqual([[], true, []])
   })
 
+  const PILL_TEXT = "Tag was rendered by `Pill` and is now drawn by hand (`import {Pill} from './ui-kit/Pill.tsx'`)"
   function pillRow(frame: number) {
-    return [
-      `${frame}:2`,
-      'Pill',
-      './ui-kit/Pill.tsx',
-      "Tag was rendered by `Pill` and is now drawn by hand (`import {Pill} from './ui-kit/Pill.tsx'`)",
-    ]
+    return [`${frame}:2`, 'Pill', './ui-kit/Pill.tsx', PILL_TEXT]
   }
   async function roundsAcross(input: {on: Kit; frame: number; pages: string[]}) {
     const {on, frame} = input
@@ -737,12 +736,9 @@ describe('catalog component rows', () => {
 
   describe('a kit root that carries only its call site', () => {
     const SITE_LINK = 'https://www.figma.com/design/ItFixtureKey/x?node-id=19-1'
-    const BADGE_ROW = [
-      '19:3',
-      'Badge',
-      './ui-kit/Badge.tsx',
-      "Marker was rendered by `Badge` and is now drawn by hand (`import {Badge} from './ui-kit/Badge.tsx'`)",
-    ]
+    const BADGE_TEXT =
+      "Marker was rendered by `Badge` and is now drawn by hand (`import {Badge} from './ui-kit/Badge.tsx'`)"
+    const BADGE_ROW = ['19:3', 'Badge', './ui-kit/Badge.tsx', BADGE_TEXT]
     const SITE_DOCUMENT = documentOf({
       id: '19:1',
       children: [namedBox({id: '19:2', name: 'Tag', y: 40}), namedBox({id: '19:3', name: 'Marker', y: 160})],
@@ -848,6 +844,8 @@ describe('catalog component rows', () => {
 })
 
 describe('a component row where the component can be used', () => {
+  const AVATAR_ROW =
+    "Profile is drawn by hand; the design names `Avatar` (`import {Avatar} from '@conciv/ui-kit-system'`)"
   const opened: Array<() => Promise<void>> = []
 
   afterEach(async () => {
@@ -889,20 +887,13 @@ describe('a component row where the component can be used', () => {
       },
       children: [],
     }
+    const whole = {...box, w: 1280, h: 720}
     const design: Design = {
       id: 'used',
       source: {kind: 'figma', ref: 'ItFixtureKey/20:1'},
       viewport: {width: 1280, height: 720},
       scale: 1,
-      root: {
-        id: '20:1',
-        hash: '20:1',
-        box: {x: 0, y: 0, w: 1280, h: 720},
-        kind: 'box',
-        border: null,
-        radius: 0,
-        children: [node],
-      },
+      root: {id: '20:1', hash: '20:1', box: whole, kind: 'box', border: null, radius: 0, children: [node]},
     }
     const [file = '', line = '0', column = '0'] = input.source.split(':')
     const site: IdNode = {
@@ -926,17 +917,7 @@ describe('a component row where the component can be used', () => {
     expect([
       await rowsAt({component: 'Avatar', layer: 'Profile', source: `${CARD_SOURCE}:12:3`}),
       await rowsAt({component: 'Button', layer: 'Button', source: `${CARD_SOURCE}:12:3`}),
-    ]).toEqual([
-      [
-        [
-          '20:2',
-          'Avatar',
-          '@conciv/ui-kit-system',
-          "Profile is drawn by hand; the design names `Avatar` (`import {Avatar} from '@conciv/ui-kit-system'`)",
-        ],
-      ],
-      [],
-    ])
+    ]).toEqual([[['20:2', 'Avatar', '@conciv/ui-kit-system', AVATAR_ROW]], []])
   })
 
   async function builtKitHost(): Promise<string> {

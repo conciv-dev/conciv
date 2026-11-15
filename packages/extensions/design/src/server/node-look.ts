@@ -47,8 +47,10 @@ type NodeLook = {
   token_gap: string | null
   token_padding: string | null
   gradient: {from: Stop; to: Stop} | null
-  lineAuto: boolean
+  line: LineKind
 }
+
+type LineKind = 'fixed' | 'auto' | 'trimmed'
 
 type Stop = {color: string; opacity: number}
 
@@ -82,6 +84,7 @@ const FieldsSchema = z.object({
       size: z.number().optional(),
       weight: z.number().optional(),
       lineHeight: z.object({value: z.number(), unit: z.string().default(PIXELS)}).optional(),
+      trim: z.string().optional(),
       align: z.string().optional(),
     })
     .optional()
@@ -147,14 +150,25 @@ function paintLook(input: {fields: Fields; image: boolean; scale: number}) {
 
 function fontLook(input: {font: Fields['font']; scale: number}) {
   const {font, scale} = input
+  const line = lineKind(font)
   return {
     font_family: font?.family ?? null,
     font_weight: font?.weight ?? null,
     font_size: scaled(font?.size, scale),
-    line_height: scaled(font?.lineHeight?.value, scale),
+    line_height: laidLine({line, height: scaled(font?.lineHeight?.value, scale)}),
     text_align: font?.align ?? null,
-    lineAuto: font?.lineHeight !== undefined && font.lineHeight.unit.startsWith(INTRINSIC),
+    line,
   }
+}
+
+function laidLine(input: {line: LineKind; height: number | null}): number | null {
+  const {line, height} = input
+  return line === 'auto' && height !== null ? Math.round(height) : height
+}
+
+function lineKind(font: Fields['font']): LineKind {
+  if (font?.lineHeight === undefined || !font.lineHeight.unit.startsWith(INTRINSIC)) return 'fixed'
+  return font.trim === undefined ? 'auto' : 'trimmed'
 }
 
 function tokenLook(tokens: Fields['tokens']) {

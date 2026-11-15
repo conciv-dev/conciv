@@ -156,6 +156,7 @@ function fontOf(node: FigmaNode): Record<string, unknown> {
     ...(style.lineHeightPx === undefined
       ? {}
       : {lineHeight: {unit: style.lineHeightUnit ?? 'PIXELS', value: style.lineHeightPx}}),
+    ...leadingTrim(style.leadingTrim),
     ...(style.letterSpacing === undefined || style.letterSpacing === 0
       ? {}
       : {letterSpacing: {unit: 'PIXELS', value: style.letterSpacing}}),
@@ -163,6 +164,10 @@ function fontOf(node: FigmaNode): Record<string, unknown> {
     ...(style.textCase === undefined ? {} : {case: style.textCase}),
     ...(style.textDecoration === undefined ? {} : {decoration: style.textDecoration}),
   }
+}
+
+function leadingTrim(trim: string | undefined): {trim?: string} {
+  return trim === undefined || trim === NO_TRIM ? {} : {trim}
 }
 
 function layoutOf(node: FigmaNode): Record<string, unknown> {
@@ -220,6 +225,7 @@ const EFFECT_TYPES = new Map([
 const FLOWS = new Set(['HORIZONTAL', 'VERTICAL', 'GRID'])
 const REGULAR_WEIGHT = 400
 const NORMAL = 'NORMAL'
+const NO_TRIM = 'NONE'
 const FILL = 'FILL'
 const PERCENT = 100
 

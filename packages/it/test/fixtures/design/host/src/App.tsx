@@ -159,7 +159,13 @@ const HERO_GAP_CSS = [
 ].join(' ')
 const HERO_FIT_CSS = HERO_GAP_CSS.replace('width: 780px', 'width: 100%; max-width: 780px')
 const HERO_HUG_CSS = HERO_GAP_CSS.replace('width: 780px', 'width: fit-content')
-const HERO_CSS: Record<string, string> = {'hero-gap': HERO_GAP_CSS, 'hero-gap-fit': HERO_FIT_CSS, 'hero-hug': HERO_HUG_CSS}
+const HERO_LEADING_CSS = `${HERO_GAP_CSS} .hero-gap-heading { line-height: 1.2; } @media (width >= 600px) { .hero-gap-heading { font-size: 38px; } }`
+const HERO_CSS: Record<string, string> = {
+  'hero-gap': HERO_GAP_CSS,
+  'hero-gap-fit': HERO_FIT_CSS,
+  'hero-hug': HERO_HUG_CSS,
+  'hero-leading': HERO_LEADING_CSS,
+}
 const CONTACT_ITEMS = ['hello@squareup.com', '+91 91813 23 2309', 'Somewhere in the World']
 const CONTACT_ICONS = ['/design/100-1516.png', '/design/100-1520.png', '/design/100-1524.png']
 const CONTACT_BAR_CSS = [
@@ -437,10 +443,11 @@ export function App() {
       </main>
     )
   }
-  if (requested === 'hero-gap' || requested === 'hero-gap-fit' || requested === 'hero-hug') {
+  const heroCss = HERO_CSS[requested ?? '']
+  if (heroCss !== undefined) {
     return (
       <main style={{margin: -24, background: '#1a1a1a'}} data-conciv-key="hGmNaA">
-        <style data-conciv-key="hGsTyA">{HERO_CSS[requested]}</style>
+        <style data-conciv-key="hGsTyA">{heroCss}</style>
         <section className="hero-gap" data-conciv-key="hGsCnA">
           <h1 className="hero-gap-heading" data-conciv-key="hGhDgA">
             Process of Starting the Project
@@ -795,7 +802,7 @@ function FormThumb(props: {value: string}) {
     <span style={{position: 'relative', display: 'flex', borderRadius: 30, background: '#4c4c4d', padding: 4}} data-conciv-key="cFtHbA">
       <span style={{width: 12, height: 12, borderRadius: 6, background: '#9eff00'}} data-conciv-key="cFtDtA" />
       <span
-        style={{position: 'absolute', top: 27, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', fontSize: 14, fontWeight: 500, color: '#ffffff'}}
+        style={{position: 'absolute', top: 27, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', fontSize: 14, lineHeight: 'normal', fontWeight: 500, color: '#ffffff'}}
         data-conciv-key="cFtLbA"
       >
         {props.value}

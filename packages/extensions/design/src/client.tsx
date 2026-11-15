@@ -86,7 +86,6 @@ const [WIDGET_ROOT_SELECTOR = ''] = hiddenOverlays('hidden')
 const MIRROR_ATTR = 'data-conciv-mirror'
 const PLACEHOLDER_PSEUDO = '::placeholder'
 const MIRROR_EXCLUDE = ['style', 'link']
-const NORMAL_LINE_HEIGHT = 1.2
 const DATA_URL_COMMA = ','
 const CANVAS_FALLBACK = '#ffffff'
 const BORDER_SIDES = ['top', 'right', 'bottom', 'left'] as const
@@ -928,7 +927,7 @@ function readStyles(input: {
     background: toHex(style.backgroundColor),
     color: toHex(input.textStyle.color),
     fontSize,
-    lineHeight: Number.isFinite(lineHeight) ? lineHeight : fontSize * NORMAL_LINE_HEIGHT,
+    lineHeight: Number.isFinite(lineHeight) ? lineHeight : null,
     fontWeight: Number(style.fontWeight),
     fontFamily: style.fontFamily,
     textAlign: style.textAlign,

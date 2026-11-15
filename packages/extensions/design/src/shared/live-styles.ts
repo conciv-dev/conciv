@@ -8,7 +8,7 @@ export const LiveStylesSchema = z.object({
   background: z.string(),
   color: z.string(),
   fontSize: z.number(),
-  lineHeight: z.number(),
+  lineHeight: z.number().nullable().describe('the computed line-height in px, null when it is normal'),
   fontWeight: z.number(),
   fontFamily: z.string(),
   textAlign: z.string().describe('the computed text-align'),
