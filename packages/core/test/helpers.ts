@@ -20,7 +20,6 @@ import {
 import {type BundlerBridge} from '@conciv/protocol/bundler-types'
 import {type ChatEvent, ChatEventType} from '@conciv/protocol/chat-event-types'
 import {type HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
-import {type PageOutcome} from '@conciv/protocol/page-types'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
 import {z} from 'zod'
@@ -182,27 +181,6 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
 export async function hydratedSnapshot(kit: Kit, sessionId: string): Promise<SnapshotView> {
   const hydration = await kit.hydrate(sessionId)
   return asSnapshot(aguiSnapshotFor(hydration.messages))
-}
-
-export type FakeWidget = {end: () => void; seen: () => string[]}
-
-export async function connectWidget(kit: Kit, answerFor: (name: string) => PageOutcome): Promise<FakeWidget> {
-  const ctrl = new AbortController()
-  const seen: string[] = []
-  const iterator = await kit.rpc.page.queries(undefined, {signal: ctrl.signal})
-  void (async () => {
-    try {
-      for await (const {requestId, query} of iterator) {
-        const name =
-          typeof query === 'object' && query !== null && 'name' in query && typeof query.name === 'string'
-            ? query.name
-            : ''
-        seen.push(name)
-        void kit.rpc.page.reply({requestId, outcome: answerFor(name)}).catch(() => {})
-      }
-    } catch {}
-  })()
-  return {end: () => ctrl.abort(), seen: () => [...seen]}
 }
 
 export type ResumeScenarioOpts = {

@@ -10,6 +10,7 @@ import {
   isAttachedConnection,
   isConnectionDisposed,
   reconcilePagePermissions,
+  selectAttachedSessions,
   selectNextAttempt,
   selectPendingCommand,
   selectTabs,
@@ -240,6 +241,7 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
       return {ok: true as const}
     },
     'captures.list': (input) => records.captures(input.sessionId),
+    'sessions.attached': async () => selectAttachedSessions(machine.state),
     symbolicate: (input) => symbolicateFrames(input.frames, ctx.location.directory),
     'queue.wait': async (input, call) => {
       try {

@@ -773,7 +773,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const rpcDeps: RpcDeps = {
     code: mcp,
     tabs: createTabs({
-      bus: primitives.page.bus,
+      attachedSessions: pagePlugin.attachedSessions,
       pageTabs: pagePlugin.tabs,
       session: (sessionId) => rpcSessionMeta(chatDeps, sessionId),
       root: opts.cwd,

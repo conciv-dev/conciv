@@ -4,10 +4,9 @@ import {z} from 'zod'
 import type {SessionMeta} from '@conciv/contract'
 import type {SessionId, TabOpen, Tabs} from '@conciv/protocol/chat-types'
 import type {State} from '@conciv/plugin-page/rpc'
-import type {PageBus} from '../page/page-bus.js'
 
 type TabsDeps = {
-  bus: PageBus
+  attachedSessions: () => Promise<SessionId[]>
   pageTabs: (sessionId: SessionId) => Promise<State>
   session: (sessionId: SessionId) => Promise<SessionMeta | null>
   root: string
@@ -39,28 +38,28 @@ const GitdirSchema = z
 export function createTabs(deps: TabsDeps) {
   return {
     list: (): Promise<Tabs> => listTabs(deps),
-    get: (sessionId: SessionId): TabOpen => ({
-      open: deps.bus.openSessions().some((entry) => entry.sessionId === sessionId),
+    get: async (sessionId: SessionId): Promise<TabOpen> => ({
+      open: (await deps.pageTabs(sessionId)).tabs.length > 0,
       instructions: deps.instructions === '' ? null : deps.instructions,
     }),
   }
 }
 
 async function listTabs(deps: TabsDeps): Promise<Tabs> {
-  const open = deps.bus.openSessions()
+  const open = await deps.attachedSessions()
   const [metas, pages, name, branch] = await Promise.all([
-    Promise.all(open.map((entry) => deps.session(entry.sessionId))),
-    Promise.all(open.map((entry) => pageBrowserTabs(deps, entry.sessionId))),
+    Promise.all(open.map((sessionId) => deps.session(sessionId))),
+    Promise.all(open.map((sessionId) => pageBrowserTabs(deps, sessionId))),
     projectName(deps.root),
     gitBranch(deps.root),
   ])
-  const tabs = open.flatMap((entry, index) => {
+  const tabs = open.flatMap((sessionId, index) => {
     const meta = metas[index]
     if (meta === undefined || meta === null || meta.hidden) return []
     const browserTabs = pages[index] ?? []
     return [
       {
-        sessionId: entry.sessionId,
+        sessionId,
         harness: meta.harnessKind,
         browserTabs,
         session: {title: meta.title, updatedAt: meta.updatedAt, running: meta.running},

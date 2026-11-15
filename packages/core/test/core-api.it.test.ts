@@ -17,7 +17,7 @@ import {
 } from 'node:fs'
 import {createHash, randomUUID} from 'node:crypto'
 import {fileURLToPath} from 'node:url'
-import {on, once} from 'node:events'
+import {once} from 'node:events'
 import {open, readFile, writeFile} from 'node:fs/promises'
 import {execFileSync} from 'node:child_process'
 import {createServer, request as httpRequest} from 'node:http'
@@ -143,7 +143,6 @@ import {
   PageQueueResultSchema,
   PAGE_TRANSPORT_ERROR_CODES,
 } from '@conciv/protocol/page-types'
-import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
@@ -171,7 +170,6 @@ import {
   requireClaude,
   bootCoreApp,
   requireTranscriptPath,
-  connectWidget,
   chunkWithInlineMap,
   cleanupChunks,
   hydratedSnapshot,
@@ -206,9 +204,11 @@ type PageReply = z.input<typeof Page.Outcome>
 
 type PageAnswer = (command: Page.Command) => PageReply | undefined
 
-type PageTab = {end: () => void; seen: () => string[]}
+type PageTab = {end: () => void; seen: () => string[]; focus: (focused: boolean) => Promise<void>}
 
-type OpenTab = (sessionId: string, answerFor: PageAnswer) => Promise<PageTab>
+type TabLook = {url: string; title: string; focused: boolean; visible: boolean}
+
+type OpenTab = (sessionId: string, answerFor: PageAnswer, look?: Partial<TabLook>) => Promise<PageTab>
 
 function pageTabs(): {plugin: Plugin.Plugin; open: OpenTab} {
   const answering = new Map<string, {sessionId: SessionId; answerFor: PageAnswer; seen: string[]}>()
@@ -234,7 +234,7 @@ function pageTabs(): {plugin: Plugin.Plugin; open: OpenTab} {
         },
         {signal: stop.signal},
       )
-      ready.resolve(async (session, answerFor) => {
+      ready.resolve(async (session, answerFor, look = {}) => {
         const sessionId = SessionId.parse(session)
         const connectionId = `conn_${randomUUID()}`
         const closing = new AbortController()
@@ -249,14 +249,19 @@ function pageTabs(): {plugin: Plugin.Plugin; open: OpenTab} {
           title: 'Example',
           focused: true,
           visible: true,
+          ...look,
         }
         await page.state({sessionId, connectionId, state})
-        return {end: () => closing.abort(), seen: () => [...seen]}
+        return {
+          end: () => closing.abort(),
+          seen: () => [...seen],
+          focus: (focused) => page.state({sessionId, connectionId, state: {...state, focused}}),
+        }
       })
       return () => stop.abort()
     },
   })
-  return {plugin, open: async (sessionId, answerFor) => (await ready.promise)(sessionId, answerFor)}
+  return {plugin, open: async (sessionId, answerFor, look) => (await ready.promise)(sessionId, answerFor, look)}
 }
 
 function pageSuccess(
@@ -1593,7 +1598,7 @@ describe('api page page', () => {
       })
     })
 
-    it('registry.call reports PAGE_TIMEOUT when the page never replies', async () => {
+    it('run reports [page.timeout] when the page never replies', async () => {
       state.tab = await tabs.open(await kit().session(), () => undefined)
       await expect(run({type: 'wait', selector: 'body', timeout: 100})).rejects.toMatchObject({
         message: expect.stringContaining('[page.timeout]'),
@@ -4432,12 +4437,13 @@ describe('outside sessions', () => {
     const app = join(repo, 'apps', 'web')
     const instructions = 'be careful in this page'
     const route = {href: 'http://localhost:5173/settings', title: 'Settings', state: 'visible', pathname: '/settings'}
+    const tabs = pageTabs()
     const kit = sharedKit(() => {
       mkdirSync(join(repo, '.git'))
       mkdirSync(app, {recursive: true})
       writeFileSync(join(repo, '.git', 'HEAD'), 'ref: refs/heads/feature-x\n')
       writeFileSync(join(app, 'package.json'), JSON.stringify({name: 'tabs-fixture'}))
-      const boot = bootCoreApp({cwd: app, systemPromptText: instructions})
+      const boot = bootCoreApp({cwd: app, systemPromptText: instructions, plugins: [tabs.plugin]})
       return createTestkit(createFakeHarness({id: 'fake-tabs'}), boot).setup()
     })
     const pages: Array<() => void> = []
@@ -4451,14 +4457,9 @@ describe('outside sessions', () => {
       return TabsSchema.parse(await kit().rpc.tabs.list())
     }
 
-    async function joinPage(answers: boolean): Promise<void> {
-      if (answers) {
-        pages.push((await connectWidget(kit(), () => ({ok: true, result: {...route, search: ''}}))).end)
-        return
-      }
-      const abort = new AbortController()
-      await kit().rpc.page.queries(undefined, {signal: abort.signal})
-      pages.push(() => abort.abort())
+    async function joinPage(): Promise<void> {
+      const look = {url: route.href, title: route.title}
+      pages.push((await tabs.open(await kit().session(), () => pageSuccess({...route, search: ''}), look)).end)
     }
 
     it('tabs.list and /api/mcp refuse a missing or wrong token, and /health a malformed one', async () => {
@@ -4472,7 +4473,7 @@ describe('outside sessions', () => {
     it('tabs.list lists a joined page, and tabs.get answers open and not open with the engine prompt', async () => {
       const tabOpen = async () => TabOpenSchema.parse(await kit().rpc.tabs.get({sessionId: await kit().session()}))
       expect(await tabOpen()).toEqual({open: false, instructions})
-      await joinPage(true)
+      await joinPage()
       expect(await tabOpen()).toEqual({open: true, instructions})
       const session = {title: expect.any(String), updatedAt: expect.any(Number), running: false}
       const page = {href: route.href, title: route.title, state: route.state}
@@ -4482,7 +4483,7 @@ describe('outside sessions', () => {
           {
             sessionId: await kit().session(),
             harness: 'fake-tabs',
-            browserTabs: [{id: expect.stringMatching(/^b\d+$/), page}],
+            browserTabs: [{id: expect.stringMatching(/^tab_[0-9a-f-]{36}$/), page}],
             session,
             page,
           },
@@ -4492,47 +4493,40 @@ describe('outside sessions', () => {
 
     it('a page query goes to the one browser tab focused last, and the listing names every browser tab', async () => {
       const sessionId = await kit().session()
-      const asSession = makeRpcClient(kit().base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
       async function browserTab(pathname: string) {
         const heard: string[] = []
-        const answers = {silent: false}
-        const socket = new WebSocket(`${kit().wsBase}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`)
-        const listening = AbortSignal.timeout(10_000)
-        const frames = on(socket, 'message', {signal: listening})
-        await once(socket, 'open')
-        const report = (focused: boolean) =>
-          socket.send(JSON.stringify({channel: 'page-serving', serving: true, focus: {focused, visible: true}}))
-        report(false)
-        const Frame = z.object({channel: z.string(), requestId: z.string().optional()})
-        const ready = Promise.withResolvers<void>()
-        const answering = async () => {
-          for await (const [data] of frames) {
-            const frame = Frame.parse(JSON.parse(String(data)))
-            if (frame.channel === 'ready') ready.resolve()
-            if (frame.channel !== 'page' || frame.requestId === undefined) continue
+        const answers: {silent: PromiseWithResolvers<void> | undefined} = {silent: undefined}
+        const href = `http://localhost:5173${pathname}`
+        const tab = await tabs.open(
+          sessionId,
+          () => {
             heard.push(pathname)
-            if (answers.silent) continue
-            const result = {...route, href: `http://localhost:5173${pathname}`, pathname, search: ''}
-            await asSession.page.reply({requestId: frame.requestId, outcome: {ok: true, result}})
-          }
-        }
-        answering().catch((error: unknown) => {
-          if (!listening.aborted) throw error
-        })
-        await ready.promise
-        pages.push(() => socket.close())
+            if (answers.silent === undefined) return pageSuccess({...route, href, pathname, search: ''})
+            answers.silent.resolve()
+            return undefined
+          },
+          {url: href, focused: false},
+        )
+        pages.push(tab.end)
         const silence = () => {
-          answers.silent = true
+          answers.silent = Promise.withResolvers<void>()
+          return answers.silent.promise
         }
-        return {heard, report, silence, close: () => socket.close()}
+        return {heard, report: tab.focus, silence, close: tab.end}
       }
       const first = await browserTab('/first')
       const second = await browserTab('/second')
       const listedFirst = async () => (await listTabs()).tabs[0]?.browserTabs[0]?.page?.href
-      const routeCall = {name: 'page_route', input: {}}
-      const routed = async () => z.object({href: z.string()}).parse(await asSession.registry.call(routeCall)).href
-      second.report(true)
-      await vi.waitFor(async () => expect(await listedFirst()).toBe('http://localhost:5173/second'), {timeout: 3000})
+      const routed = async () =>
+        z.object({href: z.string()}).parse(
+          await kit().rpc.plugin.call({
+            rpcId: 'experimental.page',
+            method: 'run',
+            input: {sessionId, action: {type: 'route'}},
+          }),
+        ).href
+      await second.report(true)
+      expect(await listedFirst()).toBe('http://localhost:5173/second')
       const listing = await listTabs()
       expect(listing.tabs[0]?.browserTabs.map((entry) => entry.page?.href)).toEqual([
         'http://localhost:5173/second',
@@ -4542,16 +4536,19 @@ describe('outside sessions', () => {
       const [firstHeard, secondHeard] = [first.heard.length, second.heard.length]
       expect(await routed()).toBe('http://localhost:5173/second')
       expect([first.heard.length - firstHeard, second.heard.length - secondHeard]).toEqual([0, 1])
-      first.report(true)
-      await vi.waitFor(async () => expect(await listedFirst()).toBe('http://localhost:5173/first'), {timeout: 3000})
+      await first.report(true)
+      expect(await listedFirst()).toBe('http://localhost:5173/first')
       expect(await routed()).toBe('http://localhost:5173/first')
       first.close()
       await vi.waitFor(async () => expect((await listTabs()).tabs[0]?.browserTabs).toHaveLength(1), {timeout: 3000})
       expect(await routed()).toBe('http://localhost:5173/second')
-      second.silence()
+      const asked = second.silence()
       const waited = second.heard.length
-      const inFlight = expect(routed()).rejects.toThrow(/browser tab b\d+ closed before it replied/)
-      await vi.waitFor(() => expect(second.heard.length).toBe(waited + 1), {timeout: 3000})
+      const inFlight = expect(routed()).rejects.toThrow(
+        /^\[page\.disconnected\] The page connection closed; the action may already have run\./,
+      )
+      await asked
+      expect(second.heard.length).toBe(waited + 1)
       second.close()
       await inFlight
     })
@@ -4560,7 +4557,7 @@ describe('outside sessions', () => {
       'an unreadable package.json leaves the project name out and keeps every tab listed',
       async () => {
         const sessionId = await kit().session()
-        await joinPage(true)
+        await joinPage()
         chmodSync(join(app, 'package.json'), 0o000)
         try {
           const listing = await listTabs()

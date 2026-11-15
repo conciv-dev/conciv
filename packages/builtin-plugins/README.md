@@ -29,6 +29,13 @@ Core activates the engine half last, in the host's post position (`core/src/app.
 ask onto every agent, so it runs after every project plugin that adds one. The source lists that plugin in its own
 internal list; core cannot, because plugin-host would then import plugin-page, which imports the host's SDK.
 
+The engine half's `sessions.attached` answers the session ids with at least one tab attached
+(`plugin-page/src/machine.ts` `selectAttachedSessions`, beside `selectTabs`); core's `tabs.list` walks it and reads each
+session's tabs through `run {type: 'tabs.list'}`, and `tabs.get` answers open when that read has a tab. This is a
+conciv addition: the source has no cross-session listing because it has no tabs listing. Only callers that may call
+`plugin.call` reach it, and the RPC mount refuses `plugin.call` to an outside agent (`core/src/api/rpc/mount.ts`
+`PLUGIN_PROCEDURES`), so it is no wider than `tabs.list`.
+
 Page tools are offered while a tab is attached. They carry `permission: 'page'`; the engine half denies `page` on
 every agent and grants it to the session while one of its tabs is attached, so with no tab neither the chat nor an
 outside agent is offered a page tool, and they are gone again once the last tab goes.

@@ -100,6 +100,11 @@ export function makePagePlugin(host: () => PluginHost) {
         return NO_TABS
       }
     },
+    attachedSessions: async (): Promise<SessionId[]> =>
+      orNone(
+        call('sessions.attached', {}).then((listed) => Definition.methods['sessions.attached'].output.parse(listed)),
+        'the sessions with a page attached',
+      ),
     delivery,
     startedBy,
     undelivered: async (sessionId: SessionId, hub: boolean): Promise<PageQueueResult[]> =>
