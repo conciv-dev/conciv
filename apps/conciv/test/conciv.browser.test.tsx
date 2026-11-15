@@ -2348,6 +2348,7 @@ describe('connect agents', () => {
 describe('launcher activity', () => {
   const coreBase = bootedCore('launcher-activity')
   const harness = createShellHarness(coreBase)
+  const faults = trackedFaults()
 
   afterEach(async () => {
     await coreControl.releaseTurn()
@@ -2376,7 +2377,7 @@ describe('launcher activity', () => {
     await expect.element(launcher(), {timeout: 8000}).toHaveAttribute('aria-busy', 'false')
   }, 30_000)
 
-  test('a session that never ran shows no status and no task, and its first turn reads as running, then done', async () => {
+  test('a session that never ran shows no status and no task, still none after an unsend, and its first turn reads as running, then done', async () => {
     await page.viewport(1000, 900)
     const sessionId = await createSession(coreRpc(coreBase()))
     const statusBar = page.getByRole('toolbar', {name: 'Session status'})
@@ -2388,9 +2389,21 @@ describe('launcher activity', () => {
     await expect.element(statusBar.getByRole('status')).not.toBeInTheDocument()
     await expect.element(page.getByText(/TASK|^LAST$|^ACTIVE$/)).not.toBeInTheDocument()
 
+    const frame = await faults.install({kind: 'chat-frame-gate', onRelease: 'cut'})
+    await userEvent.click(composer())
+    await userEvent.keyboard('take this one back{Enter}')
+    await coreControl.awaitFaultPending(frame, 1)
+    await userEvent.click(page.getByRole('button', {name: 'Stop generating'}))
+    await expect.element(page.getByRole('button', {name: 'Stopping the run'})).toBeVisible()
+    await coreControl.releaseFault(frame)
+    await expect.element(composer()).toHaveTextContent('take this one back')
+    await expect.element(page.getByRole('button', {name: 'Send message', exact: true})).toBeVisible()
+    await expect.element(statusBar.getByRole('status')).not.toBeInTheDocument()
+    await expect.element(page.getByText(/TASK|^LAST$|^ACTIVE$/)).not.toBeInTheDocument()
+
     await coreControl.holdTurn()
     await userEvent.click(composer())
-    await userEvent.keyboard('rename the widget package{Enter}')
+    await userEvent.keyboard('{Enter}')
     await expect.element(statusBar.getByRole('status'), {timeout: 8000}).toHaveTextContent('RUNNING')
     await expect.element(page.getByText('CONCIV / ACTIVE TASK', {exact: true})).toBeVisible()
 
