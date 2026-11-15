@@ -12,5 +12,9 @@ export async function completeConnectHandshake(page: Page, apiBase: string, sess
     await page.evaluate((base) => window.dispatchEvent(new CustomEvent('embedtest:connect', {detail: {base}})), apiBase)
   })
   const rpc = makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: session}})
-  await rpc.registry.call({name: 'page_text', input: {selector: 'html'}})
+  await rpc.plugin.call({
+    rpcId: 'experimental.page',
+    method: 'run',
+    input: {sessionId: session, action: {type: 'text', selector: 'html'}},
+  })
 }
