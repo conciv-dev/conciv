@@ -6616,6 +6616,8 @@ module.exports = {default: {stores: {
       button('Count a visit', () => ctx.stores.visits.update((draft) => {
         draft.count += 1
       })),
+      button('Save a fixture file', () => ctx.system.save({name: 'fixture-note.txt', content: 'saved through the host'})),
+      button('Open the engine health page', () => ctx.system.openExternal(new URL('/health', props.session.server.url).href)),
     ],
   })
   ctx.add(Panel, {
@@ -6736,6 +6738,15 @@ module.exports = {default: {stores: {
     await expect.element(editor()).toHaveTextContent('a drafted prompt')
     expect(harness.pathname()).toMatch(/^\/panel\/[^/]+$/)
     expect(harness.pathname()).not.toBe(`/panel/${sessionId}`)
+
+    await tab('Fixture tools').click()
+    await expect.element(control('Save a fixture file')).toBeVisible()
+    expect(await coreControl.downloadFrom('Save a fixture file')).toEqual({
+      name: 'fixture-note.txt',
+      text: 'saved through the host',
+    })
+
+    expect(await coreControl.openedFrom('Open the engine health page')).toBe(new URL('/health', coreBase()).href)
   }, 60_000)
 
   const tabPath = (sessionId: string, key: string) => `/panel/${sessionId}/${encodeURIComponent(key)}`

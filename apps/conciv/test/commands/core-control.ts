@@ -1,4 +1,4 @@
-import {existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
@@ -607,8 +607,28 @@ const chooseFiles: BrowserCommand<[name: string, chosen: ChosenFile[]]> = async 
   ).setFiles(chosen.map((file) => ({name: file.name, mimeType: file.mimeType, buffer: Buffer.from(file.text)})))
 }
 
+const downloadFrom: BrowserCommand<[name: string]> = async (ctx, name): Promise<{name: string; text: string}> => {
+  const download = ctx.page.waitForEvent('download')
+  await ctx.iframe.getByRole('button', {name, exact: true}).click()
+  const saved = await download
+  const path = await saved.path()
+  return {name: saved.suggestedFilename(), text: readFileSync(path, 'utf8')}
+}
+
+const openedFrom: BrowserCommand<[name: string]> = async (ctx, name): Promise<string> => {
+  const opened = ctx.page.context().waitForEvent('page')
+  await ctx.iframe.getByRole('button', {name, exact: true}).click()
+  const tab = await opened
+  await tab.waitForLoadState('domcontentloaded')
+  const url = tab.url()
+  await tab.close()
+  return url
+}
+
 export const coreCommands = {
   chooseFiles,
+  openedFrom,
+  downloadFrom,
   dragButton,
   hoverButton,
   bootCore,
