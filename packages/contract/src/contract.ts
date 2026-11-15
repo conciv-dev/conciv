@@ -289,6 +289,14 @@ const pluginNotFound = {
   },
 }
 
+const pluginChunkNotFound = {
+  PLUGIN_CHUNK_NOT_FOUND: {
+    status: 404,
+    message: "no such chunk in the plugin's current build",
+    data: z.object({pluginId: z.string(), file: z.string()}),
+  },
+}
+
 const PluginIdSchema = z.string().min(1).max(256)
 
 const PluginSourceSchema = z.discriminatedUnion('type', [
@@ -322,10 +330,28 @@ const PluginInfoSchema = z.object({
   state: PluginStateSchema,
 })
 
+const PluginChunkFileSchema = z
+  .string()
+  .max(256)
+  .regex(/^[\w.-]+\.cjs$/)
+
+const PluginChunkSchema = z.object({file: PluginChunkFileSchema, code: z.string()})
+
 export const PluginExperimentalBundleSchema = z.object({
+  file: z
+    .string()
+    .min(1)
+    .max(256)
+    .regex(/^[^/\\]+\.c?js$/),
   code: z.string(),
   revision: z.string().min(1).max(256),
   options: z.record(z.string(), z.json()),
+  chunks: z.array(PluginChunkSchema),
+})
+
+export const PluginExperimentalChunksSchema = z.object({
+  revision: z.string().min(1).max(256),
+  chunks: z.array(PluginChunkSchema).min(1),
 })
 
 export const contract = {
@@ -515,9 +541,13 @@ export const contract = {
       .output(z.unknown()),
     list: oc.errors(approvalDenied).output(locationResponse(z.array(PluginInfoSchema))),
     experimental: oc
-      .errors({...pluginNotFound, ...approvalDenied})
+      .errors({...pluginNotFound, ...pluginChunkNotFound, ...approvalDenied})
       .input(z.object({id: PluginIdSchema}))
       .output(locationResponse(PluginExperimentalBundleSchema)),
+    experimentalChunk: oc
+      .errors({...pluginNotFound, ...pluginChunkNotFound, ...approvalDenied})
+      .input(z.object({id: PluginIdSchema, file: PluginChunkFileSchema}))
+      .output(locationResponse(PluginExperimentalChunksSchema)),
   },
   event: {
     subscribe: oc

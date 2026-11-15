@@ -101,9 +101,12 @@ export default Plugin.define({
 
 ### `@conciv/plugin/experimental/vite` (`experimental/vite.ts`)
 
-`experimental(options?)` returns the Vite plugins that build a browser part into one CommonJS bundle,
-`dist/plugin-experimental.cjs` from `src/plugin-experimental.tsx` by default. The build fails on an import of a
-`@conciv/*` or `solid-js/*` module the conciv app does not provide to plugins.
+`experimental(options?)` returns the Vite plugins that build a browser part into a CommonJS entry,
+`dist/plugin-experimental.cjs` from `src/plugin-experimental.tsx` by default, with Vite's manifest beside it
+(`dist/plugin-experimental.cjs.manifest.json`). An `import()` in the part gives an on-demand chunk: the app loads the
+entry with the chunks it requires at start, and each `import()`ed chunk the first time it runs, over the engine
+socket. The build fails on an import of a `@conciv/*` or `solid-js/*` module the conciv app does not provide to
+plugins.
 
 ### `@conciv/plugin/experimental/builtin` (`experimental/builtin.ts`)
 
@@ -166,6 +169,8 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 ### Evaluating a bundle (`experimental/host.ts`, `experimental/modules.ts`)
 
 - `PluginBundle` has `definition` and `setup` (no `main`); `definition` carries `stores` only (no `os`, no `i18n`).
+- `PluginBundle` also has `exports`, the bundle's `module.exports`: conciv loads a plugin's lazy chunks on demand and a chunk may require the entry (Vite writes `require("./plugin-experimental.cjs")` when the lazy part imports a value the entry exports), so the app hands a chunk the entry's exports; the source ships one file and never needs them.
+- `BridgePluginExperimental` also has `file`, the entry's file name (`plugin.experimental` answers it), for the same reason: the app maps a chunk's `require("./<file>")` to the entry's exports; the source ships one file.
 - `PluginBundleHost` has `require` only: `process` (`'window' | 'main'`) is absent, since it only tells the two processes apart and nothing reads it in the evaluator.
 - `evaluatePluginBundle` checks the definition with zod (`stores` entries need a `global`, `project` or `session` scope and a Standard Schema, a value whose `~standard.validate` is a function, where source checks `Schema.isSchema`; `setup` must be a function) and puts `z.prettifyError`'s field path in the message where source puts Effect's `Cause.pretty`. Its texts are source's with the entry name and package: "A plugin's ./plugin-experimental bundle must default-export a `Plugin.define` from `@conciv/plugin/experimental`: <problem>" and "A plugin's ./plugin-experimental bundle must have a window `setup`" (source: "A plugin's GUI must have a window `setup`, a `main` setup, or both").
 - A type guard over the zod check stands in for source's `Schema.is` plus its two `SAFETY` casts; source's `//` comments are dropped.
@@ -176,6 +181,12 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 
 - `experimental/vite.ts` ports `plugin/src/gui/vite.ts`: `gui()` is `experimental()`, `GuiOptions` is `ExperimentalOptions`, the Vite plugin is `conciv-experimental`, and the defaults are `src/plugin-experimental.tsx` and `dist/plugin-experimental.cjs`. The package export is `./experimental/vite`.
 - `electron` is not kept external: conciv has no desktop app.
+- opencode inlines every dynamic `import()` (`plugin/src/gui/vite.ts:50`) and the app evaluates one CommonJS text
+  with no chunks (`plugin/src/host.ts:60-63`). conciv writes a chunk per `import()` and Vite's manifest: the app gets
+  the entry's static-import closure with the entry at start (`plugin.experimental`) and each lazy chunk with its
+  closure on demand (`plugin.experimentalChunk`), so a large part such as the whiteboard island is not loaded at every
+  page load. The engine serves only the files the manifest lists and refuses a file whose bytes changed since the
+  plugin loaded (`PLUGIN_CHUNK_NOT_FOUND`).
 - The build fails on `@conciv/*` and `solid-js/*` modules outside the provided list; source's `effect/` prefix has no conciv counterpart (no Effect). So `@conciv/ui-kit*` fails here: `experimental()` is the outside-plugin build.
 - An installable plugin never imports the UI kit; it uses `ctx.ui`. `experimental()` has no first-party mode: any `@conciv/*` import outside the provided list fails the build, as in opencode. Only the built-in plugins compiled into the app import `@conciv/ui-kit*` directly.
 - The error reads "<module> is not a module the conciv app provides to plugins: <list>" (source: "<module> is not a module the OpenCode app provides to plugin GUIs: <list>").
