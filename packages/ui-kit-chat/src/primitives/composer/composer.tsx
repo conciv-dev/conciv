@@ -10,6 +10,7 @@ import {
   type ValidComponent,
 } from 'solid-js'
 import {createStore} from 'solid-js/store'
+import {uniqBy} from 'es-toolkit'
 import {Dynamic} from 'solid-js/web'
 import type {ChatMessage, SendContent} from '@conciv/protocol/chat-message-types'
 import {TextArea, type TextAreaProps} from '@conciv/ui-kit-system'
@@ -18,7 +19,7 @@ import {useChatContext, useComposer} from '../../store/chat-context.js'
 import {readComposerDraft} from '../../behaviors/composer-draft-storage.js'
 import {useComposerDraftPersistence} from '../../behaviors/use-composer-draft.js'
 import {Primitive} from '../util/primitive.js'
-import {ComposerProvider, useComposerContext, type ComposerDraft} from './composer-context.js'
+import {ComposerProvider, useComposerContext, type ComposerDraft, type ComposerItem} from './composer-context.js'
 import {AttachmentProvider} from '../attachment/attachment.js'
 import {
   fileMatchesAccept,
@@ -42,6 +43,7 @@ type FormProps = JSX.HTMLAttributes<HTMLFormElement> & {
 type ComposerState = {
   attachments: Attachment[]
   quote: string | null
+  items: ComposerItem[]
   editing: boolean
   dictating: boolean
   sendingAttachments: boolean
@@ -196,6 +198,7 @@ function Root(props: FormProps): JSX.Element {
   const [state, setState] = createStore<ComposerState>({
     attachments: [],
     quote: null,
+    items: [],
     editing: false,
     dictating: false,
     sendingAttachments: false,
@@ -268,34 +271,49 @@ function Root(props: FormProps): JSX.Element {
     draft: chat.view.draft,
     attachments: [...state.attachments],
     quote: state.quote,
+    items: [...state.items],
   })
-  const mergeAttachments = (original: ComposerDraft) => {
+  const mergeStaged = (original: ComposerDraft) => {
     setState('attachments', (current) => {
       const currentIds = new Set(current.map((value) => value.id))
       return [...current, ...original.attachments.filter((value) => !currentIds.has(value.id))]
     })
+    setState('items', (current) => uniqBy([...current, ...original.items], (item) => item.key))
   }
   const restoreDraft = (original: ComposerDraft) => {
-    mergeAttachments(original)
+    mergeStaged(original)
     if (chat.view.draft !== '' || state.quote !== null) return
     chat.setView('draft', original.draft)
     setState({quote: original.quote})
   }
   const putBackUnansweredSend = (original: ComposerDraft) => {
-    mergeAttachments(original)
+    mergeStaged(original)
     chat.setView('draft', [original.draft, chat.view.draft].filter((text) => text !== '').join('\n'))
     setState('quote', (current) => current ?? original.quote)
   }
   const clearDraft = () => {
     chat.setView('draft', '')
-    setState({attachments: [], quote: null})
+    setState({attachments: [], quote: null, items: []})
+  }
+  const setItem = (item: ComposerItem) => {
+    setState('items', (current) => {
+      const index = current.findIndex((value) => value.key === item.key)
+      if (index < 0) return [...current, item]
+      return current.toSpliced(index, 1, item)
+    })
+  }
+  const removeItem = (key: string) => {
+    setState('items', (current) => current.filter((value) => value.key !== key))
+  }
+  const updateItem = (key: string, value: ComposerItem['value']) => {
+    setState('items', (current) => current.map((item) => (item.key === key ? {key, value} : item)))
   }
   onMount(() => {
     const storage = local.draftStorage
     const restored = storage ? readComposerDraft(storage, draftKey()) : null
     if (!restored) return
     chat.setView('draft', restored.draft)
-    setState({attachments: restored.attachments, quote: restored.quote})
+    setState({attachments: restored.attachments, quote: restored.quote, items: restored.items})
   })
   useComposerDraftPersistence({storage: () => local.draftStorage, key: draftKey, draft: snapshotDraft})
   const markSendFailed = (error: unknown) => {
@@ -355,6 +373,10 @@ function Root(props: FormProps): JSX.Element {
         clearDraft,
         quote: () => state.quote,
         setQuote: (value) => setState('quote', value),
+        items: () => state.items,
+        setItem,
+        removeItem,
+        updateItem,
         editing: () => state.editing,
         setEditing: (value) => setState('editing', value),
         dictating: () => state.dictating,

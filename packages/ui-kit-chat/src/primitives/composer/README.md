@@ -7,7 +7,7 @@ Headless `Composer` compound: input, send/cancel, attachments with adapters, quo
 ## Interface
 
 - `composer.tsx:Composer` - `{Root, Input, Send, Cancel, AddAttachment, Attachments, AttachmentDropzone, If, Quote, QuoteDismiss, Dictate, StopDictation, DictationTranscript, Queue}`; exported as `ComposerPrimitive`. `Root` props include `attachmentAdapter`, `draftStorage`, `draftKey`; `Input` props include `submitMode` (`enter` | `ctrlEnter` | `none`) and `cancelOnEscape`.
-- `composer-context.tsx:ComposerProvider`, `useComposerContext`; types `ComposerDraft` (`draft`, `attachments`, `quote`), `ComposerContextValue`.
+- `composer-context.tsx:ComposerProvider`, `useComposerContext`; types `ComposerDraft` (`draft`, `attachments`, `quote`, `items`), `ComposerItem` (`key`, `value`), `ComposerContextValue`.
 - `composer-handlers.tsx:ComposerHandlersProvider`, `useComposerHandlers`, type `ComposerHandlers`.
 - `composer-actions.tsx:ComposerActions` - `{Action, ActionButton, ActionMenuItem, Inline, Leading, Trailing, Trigger}`; `composer-actions.tsx:ComposerActionsHost`.
 - `composer-actions-core.ts:createActionsCoordinator`; `composer-actions-fit.ts:computeVisibleAutoCount`, `ACTION_SLOT_PX` (38), `REGION_GAP_PX` (4), `FIT_HYSTERESIS_PX` (24).
@@ -19,6 +19,7 @@ Headless `Composer` compound: input, send/cancel, attachments with adapters, quo
 - A file not matching the adapter `accept` throws `File type ... is not accepted`; adding attachments without an adapter throws `Attachments are not supported`.
 - Drafts default to storage key `conciv-composer-draft` (`composer.tsx:DEFAULT_DRAFT_KEY`) and are restored only when `draftStorage` is passed.
 - A failed send puts the draft back in the composer only when the message never left: the send handler threw, or the chat reported an error and no assistant message with content follows the last user message (a run error with no reply yet leaves an empty assistant row, which does not count). When the engine had already started answering and the stream broke later, the draft stays empty (the message is in the conversation); `onSendError` fires either way. A message the engine received but had not answered with any content yet is still put back. The put-back message goes first and anything already in the composer (text typed while it was sending, or queued messages the app returned when the stream gave up) follows it on the next line, so neither is dropped; a quote already in the composer is kept.
+- Items are kept by `key`: `setItem` replaces an item with the same key in place, `updateItem` changes the value of the item with that key, `removeItem` drops it. The kit never reads `value`. Items travel with the draft: snapshot and restore, the put-back of a failed send, clear, and the persisted form.
 - `composer-actions-fit.ts:computeVisibleAutoCount` only grows the visible count when the extra space exceeds `FIT_HYSTERESIS_PX`, to avoid flicker.
 - `useComposerContext` throws `Composer.* must be used within a Composer.Root`.
 

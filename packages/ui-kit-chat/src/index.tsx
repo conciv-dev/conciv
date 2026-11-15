@@ -95,6 +95,7 @@ export {
   useComposerContext,
   type ComposerContextValue,
   type ComposerDraft,
+  type ComposerItem,
 } from './primitives/composer/composer-context.js'
 export {
   ComposerHandlersProvider,

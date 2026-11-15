@@ -993,6 +993,93 @@ describe('composer completion', () => {
     await expect.element(page.getByText('the run never started')).toBeVisible()
     await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('a message the run refuses')
   })
+
+  function ItemsProbe(props: {onReady: (context: ComposerContextValue) => void}): JSX.Element {
+    const context = useComposerContext()
+    untrack(() => props.onReady(context))
+    const shown = () =>
+      context
+        .items()
+        .map((item) => `${item.key}=${JSON.stringify(item.value)}`)
+        .join(' ')
+    return <p>items: {shown() || 'none'}</p>
+  }
+
+  function mountItemsComposer(
+    storage: WebStorage,
+    handlers: ComposerHandlers,
+  ): {
+    composer: ComposerContextValue
+    unmount: () => void
+  } {
+    let captured: ComposerContextValue | undefined
+    const mounted = render(() => (
+      <ChatHost handlers={handlers}>
+        <ComposerPrimitive.Root draftStorage={storage} draftKey={DRAFT_KEY}>
+          <ComposerPrimitive.Input aria-label="Message" />
+          <ComposerPrimitive.Send>Send</ComposerPrimitive.Send>
+          <ItemsProbe
+            onReady={(context) => {
+              captured = context
+            }}
+          />
+        </ComposerPrimitive.Root>
+      </ChatHost>
+    ))
+    if (!captured) throw new Error('expected the composer context to be captured')
+    return {composer: captured, unmount: mounted.unmount}
+  }
+
+  it('keeps its items by key through a restore, a failed send and a reload', async () => {
+    const probe = createProbeStorage()
+    const [sendError, setSendError] = createSignal('')
+    const handlers: ComposerHandlers = {
+      onSend: () => Promise.reject(new Error('the server rejected the send')),
+      onSendError: (error) => setSendError(error instanceof Error ? error.message : String(error)),
+    }
+    mountView(() => (
+      <>
+        <p>send failed: {sendError() || 'not yet'}</p>
+        <p>persisted: {probe.written() ?? 'nothing'}</p>
+      </>
+    ))
+    const first = mountItemsComposer(probe.storage, handlers)
+
+    first.composer.setItem({key: 'note:grab:c=1', value: {comment: 'make it blue'}})
+    first.composer.setItem({key: 'note:grab:c=1', value: {comment: 'make it red'}})
+    first.composer.setItem({key: 'note:recorder:c=2', value: ['a', 1, null]})
+    await expect
+      .element(page.getByText('items: note:grab:c=1={"comment":"make it red"} note:recorder:c=2=["a",1,null]'))
+      .toBeVisible()
+
+    first.composer.updateItem('note:grab:c=1', {comment: 'make it green'})
+    first.composer.removeItem('note:recorder:c=2')
+    await expect.element(page.getByText('items: note:grab:c=1={"comment":"make it green"}')).toBeVisible()
+
+    const snapshot = first.composer.snapshotDraft()
+    first.composer.clearDraft()
+    await expect.element(page.getByText('items: none')).toBeVisible()
+    first.composer.restoreDraft(snapshot)
+    await expect.element(page.getByText('items: note:grab:c=1={"comment":"make it green"}')).toBeVisible()
+
+    await page.getByRole('textbox', {name: 'Message'}).fill('a message the server refuses')
+    await page.getByRole('button', {name: 'Send'}).click()
+    await expect.element(page.getByText('send failed: the server rejected the send')).toBeVisible()
+    await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('a message the server refuses')
+    await expect.element(page.getByText('items: note:grab:c=1={"comment":"make it green"}')).toBeVisible()
+
+    await expect
+      .element(
+        page.getByText(
+          /persisted: .*"text":"a message the server refuses".*"items":\[\{"key":"note:grab:c=1","value":\{"comment":"make it green"\}\}\]/,
+        ),
+      )
+      .toBeVisible()
+    first.unmount()
+    mountItemsComposer(probe.storage, {})
+    await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('a message the server refuses')
+    await expect.element(page.getByText('items: note:grab:c=1={"comment":"make it green"}')).toBeVisible()
+  })
 })
 
 describe('composer send morph', () => {
