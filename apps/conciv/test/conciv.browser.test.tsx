@@ -880,6 +880,34 @@ describe('chat pane', () => {
       await expect.element(notifications()).toMatchTextContent(/Stream response body read failed|could not be sent/)
       await expect.element(input()).toHaveTextContent('take this one back')
     })
+
+    test('when the run starts while its early stop is still on the way, the two stops end it once', async () => {
+      const {sessionId} = await newSession()
+      await coreControl.holdTurn()
+      const frame = await faults.install({kind: 'chat-frame-gate', onRelease: 'deliver'})
+      const stops = await faults.install({kind: 'gate', path: ['chat', 'stop']})
+      mountChatPane(sessionId)
+      await input().fill('stopped once by two stops')
+      await userEvent.keyboard('{Enter}')
+      await coreControl.awaitFaultPending(frame, 1)
+
+      await stopButton().click()
+      await coreControl.awaitFaultPending(stops, 1)
+      await coreControl.releaseFault(frame)
+      await coreControl.awaitFaultPending(stops, 2)
+      await coreControl.releaseFault(stops)
+
+      await expect.element(stoppedLine()).toBeVisible()
+      await expect.element(stoppingButton()).not.toBeInTheDocument()
+      await expect.element(page.getByRole('alert')).not.toBeInTheDocument()
+      await expect.element(threadText('stopped once by two stops')).toBeVisible()
+      expect(stoppedLine().elements()).toHaveLength(1)
+      active.pane?.dispose()
+      mountChatPane(sessionId)
+      await expect.element(threadText('stopped once by two stops')).toBeVisible()
+      await expect.element(stoppedLine()).toBeVisible()
+      expect(stoppedLine().elements()).toHaveLength(1)
+    })
   })
 
   test('Escape in the focused composer does what the stop button does and keeps the typed draft ahead of the queue', async () => {
@@ -2975,6 +3003,75 @@ describe('a refusing prompt hook', () => {
     await expect.element(attached()).toBeVisible()
     await expect.element(page.getByRole('log').getByText('keep this request')).not.toBeInTheDocument()
   }, 30_000)
+})
+
+describe('a Stop pressed while a plugin prepares the prompt', () => {
+  const GATE = 'prompt-gate.sock'
+  const REPLY = 'a reply from a turn the engine started'
+  const MESSAGE = 'stop while the plugin prepares'
+  const HOLDING_PLUGIN = [
+    `import {connect} from 'node:net'`,
+    `import {join} from 'node:path'`,
+    `export default {`,
+    `  id: 'prompt-holding',`,
+    `  async setup(ctx) {`,
+    `    await ctx.session.hook('prompt', () => new Promise((resolve, reject) => {`,
+    `      const gate = connect(join(ctx.location.directory, '${GATE}'))`,
+    `      gate.once('error', reject)`,
+    `      gate.once('data', () => {`,
+    `        gate.end()`,
+    `        resolve()`,
+    `      })`,
+    `    }))`,
+    `  },`,
+    `}`,
+  ].join('\n')
+  const core = bootedCore('prompt-holding', {
+    text: REPLY,
+    files: {'prompt-holding/index.ts': HOLDING_PLUGIN},
+    plugins: ['./prompt-holding'],
+  })
+  const keep = keptPane()
+  const faults = trackedFaults()
+  const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
+  const stoppingButton = () => page.getByRole('button', {name: 'Stopping the run'})
+  const sendButton = () => page.getByRole('button', {name: 'Send message', exact: true})
+  const emptyThread = () => page.getByText('How can I help you today?', {exact: true})
+  const threadText = (text: string) => page.getByRole('log').getByText(text, {exact: true})
+
+  test('the message comes back to the composer, the thread stays empty, and releasing the hook starts nothing', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    const hold = await faults.install({kind: 'project-socket-gate', socket: GATE})
+    keep(mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />))
+    await userEvent.click(input())
+    await userEvent.keyboard(`${MESSAGE}{Enter}`)
+    await coreControl.awaitFaultPending(hold, 1)
+
+    await userEvent.click(stopButton())
+
+    await expect.element(input()).toHaveTextContent(MESSAGE)
+    await expect.element(emptyThread()).toBeVisible()
+    await expect.element(threadText(MESSAGE)).not.toBeInTheDocument()
+    await expect.element(sendButton()).toBeEnabled()
+    await expect.element(stoppingButton()).not.toBeInTheDocument()
+    await expect.element(page.getByText('Stopping…')).not.toBeInTheDocument()
+    await expect.element(page.getByRole('alert')).not.toBeInTheDocument()
+
+    await coreControl.releaseFault(hold)
+    await coreControl.awaitFaultAnswered(hold)
+    await expect.element(emptyThread()).toBeVisible()
+    await expect.element(threadText(MESSAGE)).not.toBeInTheDocument()
+    await expect.element(page.getByText(REPLY)).not.toBeInTheDocument()
+    await expect.element(stopButton()).not.toBeInTheDocument()
+    await expect.element(input()).toHaveTextContent(MESSAGE)
+
+    await userEvent.click(sendButton())
+    await expect.element(threadText(REPLY)).toBeVisible()
+    await expect.element(stopButton()).not.toBeInTheDocument()
+    expect(threadText(MESSAGE).elements()).toHaveLength(1)
+    expect(threadText(REPLY).elements()).toHaveLength(1)
+  })
 })
 
 const FOUND_API_BASE = 'http://found.test'
