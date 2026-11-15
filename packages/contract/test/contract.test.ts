@@ -123,9 +123,29 @@ describe('rows', () => {
         hidden: false,
         native: null,
         harnessKind: 'claude',
+        lastRunAt: null,
       })
       expect(parsed.hidden).toBe(false)
       expect(parsed.effort).toBeNull()
+      expect(parsed.lastRunAt).toBeNull()
+    })
+
+    it('a session meta says when its newest run started, and a row without that fact is refused', () => {
+      const meta = {
+        id: 'conciv_1',
+        title: 'hello',
+        updatedAt: 1,
+        running: false,
+        origin: 'conciv',
+        usage: null,
+        model: null,
+        effort: null,
+        hidden: false,
+        native: null,
+        harnessKind: 'claude',
+      }
+      expect(SessionMetaSchema.parse({...meta, lastRunAt: 1_700}).lastRunAt).toBe(1_700)
+      expect(SessionMetaSchema.safeParse(meta).success).toBe(false)
     })
 
     it('rejects an unknown marker kind', () => {

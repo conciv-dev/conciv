@@ -10,6 +10,7 @@ import {
   fileToDataSource,
 } from '../src/primitives/attachment/attachment-adapter.js'
 import {formatElapsed, runClock, type RunClockSource} from '../src/store/run-clock.js'
+import {deriveSessionStatus, type SessionStatusInput} from '../src/store/session-status.js'
 import {
   coalesceTurns,
   defaultGrouper,
@@ -199,6 +200,25 @@ describe('run clock', () => {
     it('never reports a negative elapsed time when the host clock steps backwards', () => {
       expect(runClock(source(), 499_000)).toEqual({elapsedMs: 0, frozen: false})
     })
+  })
+})
+
+describe('session status', () => {
+  const settled: SessionStatusInput = {
+    latestRollup: undefined,
+    isStreaming: false,
+    queueLength: 0,
+    stopping: false,
+    runError: null,
+    stopped: false,
+    ran: false,
+  }
+
+  it('reads a session that never ran as unstarted, its first turn as running, and its settle as done', () => {
+    expect(deriveSessionStatus(settled).kind).toBe('unstarted')
+    expect(deriveSessionStatus({...settled, isStreaming: true})).toEqual({kind: 'running', label: 'RUNNING'})
+    expect(deriveSessionStatus({...settled, ran: true})).toEqual({kind: 'done', label: 'DONE'})
+    expect(deriveSessionStatus({...settled, ran: true, stopped: true})).toEqual({kind: 'stopped', label: 'STOPPED'})
   })
 })
 

@@ -752,6 +752,28 @@ describe('query utils', () => {
       expect(renamed.title).toBe('named by mutation')
     })
 
+    it('every session row says when its newest run started: null before the first run, then that run', async () => {
+      const {sessionId, rpc} = await bootQueryFixture()
+      const created = await rpc.sessions.create(undefined)
+      expect(created.session).toMatchObject({id: created.sessionId, title: 'New session', lastRunAt: null})
+      await rpc.sessions.rename({sessionId, title: 'last run probe'})
+      const rows = async () => {
+        const listed = (await rpc.sessions.list()).sessions.find((meta: SessionMeta) => meta.id === sessionId)
+        const found = (await rpc.sessions.search({term: 'last run probe'})).sessions.find((hit) => hit.id === sessionId)
+        const got = await rpc.sessions.get({sessionId})
+        return {get: got.lastRunAt, list: listed?.lastRunAt, search: found?.lastRunAt}
+      }
+      expect(await rows()).toEqual({get: null, list: null, search: null})
+
+      const booted = kit
+      if (booted === undefined) throw new Error('the client kit did not boot')
+      const turn = await booted.turn('a first run', {session: sessionId, runId: 'last-run-probe'})
+      await turn.done()
+      const startedAt = (await rpc.chat.hydrate({sessionId})).lastRun?.startedAt
+      expect(startedAt).toEqual(expect.any(Number))
+      expect(await rows()).toEqual({get: startedAt, list: startedAt, search: startedAt})
+    }, 60_000)
+
     it('a refetch after a rename sees the change (live lists are gone by design)', async () => {
       const {sessionId, rpc, utils, queryClient} = await bootQueryFixture()
       await rpc.sessions.rename({sessionId, title: 'refetch-renamed'})

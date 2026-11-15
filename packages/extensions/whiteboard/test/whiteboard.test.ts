@@ -1,4 +1,7 @@
+import {spawnSync} from 'node:child_process'
 import {realpathSync} from 'node:fs'
+import {join} from 'node:path'
+import {fileURLToPath} from 'node:url'
 import {createORPCClient, safe} from '@orpc/client'
 import {RPCLink} from '@orpc/client/fetch'
 import type {RouterClient} from '@orpc/server'
@@ -620,6 +623,16 @@ describe('inbox', () => {
     } finally {
       await api.dispose()
     }
+  })
+})
+
+describe('migrations', () => {
+  test('drizzle-kit check passes against the shipped migrations with the package own drizzle-orm', () => {
+    const packageRoot = fileURLToPath(new URL('..', import.meta.url))
+    const drizzleKit = join(packageRoot, 'node_modules', '.bin', 'drizzle-kit')
+    const checked = spawnSync(drizzleKit, ['check'], {cwd: packageRoot, encoding: 'utf8'})
+    expect(checked.stdout).toContain("Everything's fine")
+    expect(checked.status).toBe(0)
   })
 })
 

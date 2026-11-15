@@ -1,0 +1,7 @@
+import {createEventBusClient, PANEL_PLUGIN_ID, type PanelCommandEventMap} from '@conciv/protocol/event-bus'
+
+export const panelCommands = createEventBusClient<PanelCommandEventMap>({
+  pluginId: PANEL_PLUGIN_ID,
+  reconnectEveryMs: 500,
+  maxRetries: 60,
+})
