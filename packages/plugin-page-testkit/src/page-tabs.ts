@@ -12,6 +12,8 @@ export type PageAnswer = (command: Page.Command, requestId: string) => PageReply
 export type PageTab = {
   end: () => void
   seen: () => string[]
+  joined: (count: number) => Promise<void>
+  holdRejoin: () => () => void
   focus: (focused: boolean) => Promise<void>
   requested: () => Promise<string>
   cancelled: (requestId: string) => Promise<void>
@@ -80,16 +82,24 @@ export function pageTabs(): {plugin: Plugin.Plugin; open: OpenTab} {
           visible: true,
           ...look,
         }
+        const joins = {count: 0}
         const joinPage = async () => {
           const joined = once(attached, connectionId, {signal: closing.signal}).then(() =>
             page.state({sessionId, connectionId, state}),
           )
-          const ended = page.attach({sessionId, connectionId, version: 1}, {signal: closing.signal}).catch(() => {})
-          await joined
-          return {ended}
+          const attaching = page.attach({sessionId, connectionId, version: 1}, {signal: closing.signal})
+          const endedFirst = attaching.then(() => {
+            throw new Error(`the page attach of ${connectionId} ended before it attached`)
+          })
+          await Promise.race([joined, endedFirst])
+          joins.count += 1
+          heard.dispatchEvent(new Event('joined'))
+          return {ended: attaching.catch(() => {})}
         }
+        const rejoin = {held: Promise.resolve()}
         const keep = async ({ended}: {ended: Promise<unknown>}): Promise<void> => {
           await ended
+          await rejoin.held
           if (closing.signal.aborted) return
           return keep(await joinPage())
         }
@@ -97,6 +107,15 @@ export function pageTabs(): {plugin: Plugin.Plugin; open: OpenTab} {
         return {
           end: () => closing.abort(),
           seen: () => [...seen],
+          joined: async (count) => {
+            while (joins.count < count) await once(heard, 'joined')
+          },
+          holdRejoin: () => {
+            const held = Promise.withResolvers<void>()
+            closing.signal.addEventListener('abort', () => held.resolve(), {once: true})
+            rejoin.held = held.promise
+            return () => held.resolve()
+          },
           focus: (focused) => page.state({sessionId, connectionId, state: {...state, focused}}),
           requested: async () => {
             const index = read.next

@@ -219,7 +219,13 @@ async function executeOverMcp(base: string, headers: Record<string, string>, typ
   }
 }
 
-function sseTurn(base: string, sessionId: string, runId: string, text: string, signal: AbortSignal): Promise<Response> {
+function sseTurn(
+  base: string,
+  sessionId: string,
+  runId: string,
+  text: string,
+  signal?: AbortSignal,
+): Promise<Response> {
   return fetch(`${base}${CHAT_SSE_PATH}`, {
     method: 'POST',
     headers: {'content-type': 'application/json'},
@@ -5559,18 +5565,7 @@ describe('page action queue delivery', () => {
     const close = async () => onTab.end()
     const inChat = (runId: string, typescriptCode: string) => {
       harness.script.scriptToolCall('execute_typescript', {typescriptCode})
-      return fetch(`${base}${CHAT_SSE_PATH}`, {
-        method: 'POST',
-        headers: {'content-type': 'application/json'},
-        body: JSON.stringify({
-          threadId: sessionId,
-          runId,
-          messages: [{id: `${runId}-user`, role: 'user', content: 'fill the form'}],
-          tools: [],
-          context: [],
-        }),
-        signal: pages.signal,
-      })
+      return sseTurn(base, sessionId, runId, 'fill the form', pages.signal)
     }
     void watching
     const discover = async (toolNames: string[]): Promise<unknown> => {
@@ -5588,6 +5583,7 @@ describe('page action queue delivery', () => {
       sessionId,
       engine,
       tab,
+      onTab,
       nextQueue,
       play,
       hub,
@@ -5977,7 +5973,7 @@ describe('page action queue delivery', () => {
     expect(idled).toEqual([page.sessionId])
   })
 
-  it('a chat turn sent at once after a project plugin reloads asks before page_eval on its own tool call', async () => {
+  it('a chat turn sent at once after a project plugin reloads runs no page_eval while the tab re-joins, and the next turn asks', async () => {
     const root = tempDir('conciv-queue-')
     const helper = join(root, 'conciv', 'plugins', 'helper.ts')
     const helperLooking = (look: string) =>
@@ -5992,17 +5988,35 @@ describe('page action queue delivery', () => {
       if (next.value.type === 'permission.asked') return next.value.data
       return asked()
     }
+    const evalCode = 'return await external_page_eval({code: "document.domain"})'
+    const asking = asked()
+    const releaseRejoin = page.onTab.holdRejoin()
     writeFileSync(helper, helperLooking('second look'))
-    const turn = page.inChat('eval-run', 'return await external_page_eval({code: "document.domain"})')
-    const endedFirst = turn.then((response) => response.clone().text()).then((text) => ({endedWithoutAsking: text}))
-    expect(await Promise.race([asked(), endedFirst])).toMatchObject({
+    const reloadTurn = sseStream(await page.inChat('eval-run', evalCode))
+    const endedFirst = reloadTurn.ended().then((text) => ({endedWithoutAsking: text}))
+    const first = await Promise.race([asking, endedFirst])
+    expect(first).toEqual({endedWithoutAsking: expect.any(String)})
+    const answered = (await page.tab.chat.hydrate({sessionId: page.sessionId})).messages.flatMap((message) =>
+      message.parts.flatMap((part) => (part.type === 'tool-result' ? [part.content] : [])),
+    )
+    const notOffered =
+      'No tool named "page_eval" is currently available. Please use a tool from the available tool list.'
+    const [program, call] = answered.map((content): unknown => JSON.parse(String(content)))
+    expect(answered).toHaveLength(2)
+    expect(program).toMatchObject({success: false, logs: [], error: {message: notOffered, name: 'Error'}})
+    expect(call).toEqual({error: notOffered})
+    expect(page.onTab.seen()).toEqual([])
+    releaseRejoin()
+    await page.onTab.joined(2)
+    const nextTurn = page.inChat('eval-again', evalCode)
+    expect(await asking).toMatchObject({
       sessionId: page.sessionId,
       action: 'page_eval',
       resources: ['document.domain'],
     })
     await events.return(undefined)
-    await page.tab.chat.stop({sessionId: page.sessionId, runIds: ['eval-run']})
-    await (await turn).text()
+    await page.tab.chat.stop({sessionId: page.sessionId, runIds: ['eval-again']})
+    await (await nextTurn).text()
   })
 
   it('a user stop starts no follow-up turn: the owed result arrives with the agent next reply', async () => {
@@ -6011,19 +6025,7 @@ describe('page action queue delivery', () => {
     harness.script.hold()
     const viewer = new AbortController()
     onTestFinished(() => viewer.abort())
-    const send = (runId: string, content: string) =>
-      fetch(`${page.base}${CHAT_SSE_PATH}`, {
-        method: 'POST',
-        headers: {'content-type': 'application/json'},
-        body: JSON.stringify({
-          threadId: page.sessionId,
-          runId,
-          messages: [{id: `${runId}-user`, role: 'user', content}],
-          tools: [],
-          context: [],
-        }),
-        signal: viewer.signal,
-      })
+    const send = (runId: string, content: string) => sseTurn(page.base, page.sessionId, runId, content, viewer.signal)
     const stopped = page.inChat('stopped-run', queued())
     const onTab = await page.nextQueue()
     const queueId = onTab.id
@@ -6439,18 +6441,7 @@ export default {
 
     const looking = (await widget.rpc.sessions.create(undefined)).sessionId
     const sessionClient = (session: string) => makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: session}})
-    const turn = (session: string, runId: string) =>
-      fetch(`${base}${CHAT_SSE_PATH}`, {
-        method: 'POST',
-        headers: {'content-type': 'application/json'},
-        body: JSON.stringify({
-          threadId: session,
-          runId,
-          messages: [{id: `${runId}-user`, role: 'user', content: 'look around'}],
-          tools: [],
-          context: [],
-        }),
-      })
+    const turn = (session: string, runId: string) => sseTurn(base, session, runId, 'look around')
     await (await turn(looking, 'looked-run')).text()
     expect((await sessionClient(looking).chat.hydrate({sessionId: looking})).lastRun).toMatchObject({
       runId: 'looked-run',
@@ -6543,17 +6534,7 @@ export default {
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
     const prompted = async (runId: string) => {
-      await fetch(`${base}${CHAT_SSE_PATH}`, {
-        method: 'POST',
-        headers: {'content-type': 'application/json'},
-        body: JSON.stringify({
-          threadId: sessionId,
-          runId,
-          messages: [{id: `${runId}-user`, role: 'user', content: 'say hello'}],
-          tools: [],
-          context: [],
-        }),
-      }).then((response) => response.text())
+      await sseTurn(base, sessionId, runId, 'say hello').then((response) => response.text())
       return prompts.at(-1)?.join('\n') ?? ''
     }
     const mcp = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: sessionId})
@@ -7045,17 +7026,12 @@ export default {
     }
     expect(await reloaded()).toEqual({look: 'second look'})
     await reloads.return(undefined)
-    const afterReload = await fetch(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}${CHAT_SSE_PATH}`, {
-      method: 'POST',
-      headers: {'content-type': 'application/json'},
-      body: JSON.stringify({
-        threadId: (await rpc.sessions.create(undefined)).sessionId,
-        runId: 'after-reload',
-        messages: [{id: 'after-reload-user', role: 'user', content: 'read the domain'}],
-        tools: [],
-        context: [],
-      }),
-    })
+    const afterReload = await sseTurn(
+      `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`,
+      (await rpc.sessions.create(undefined)).sessionId,
+      'after-reload',
+      'read the domain',
+    )
     await afterReload.text()
     const refusedAfterReload = ask({type: 'eval', code: 'document.domain'})
     await decide('document.domain', 'reject')
