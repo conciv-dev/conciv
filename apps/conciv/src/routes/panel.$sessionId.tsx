@@ -67,6 +67,7 @@ const RAIL_SEPARATOR = 'chat-rail-context-full [color:var(--chat-separator)] px-
 const RAIL_TITLE_ROW =
   'group flex items-center gap-1 min-w-0 min-h-7 [font-family:var(--chat-font-display)] text-[14.5px] leading-[1.25] font-semibold tracking-[-0.012em] [color:var(--chat-text-hi)]'
 const RAIL_TITLE = 'min-w-0 truncate'
+const RAIL_TITLE_LINE = 'flex items-center gap-2 min-w-0'
 const ROW_FAILED = 'Couldn’t load this session'
 const ROW_FAILED_LABEL = 'This session could not be loaded'
 const RAIL_TITLE_TRIGGER =
@@ -127,7 +128,8 @@ function SessionTitle(props: {
   }))
   const title = () => {
     if (rename.isPending && rename.variables?.sessionId === props.sessionId) return rename.variables.title
-    if (props.loading || props.failed) return ''
+    if (props.loading) return ''
+    if (props.failed) return 'Session'
     return props.savedTitle || 'New session'
   }
   const name = () => (props.failed ? ROW_FAILED_LABEL : title() || 'Session')
@@ -139,7 +141,7 @@ function SessionTitle(props: {
   }
   return (
     <Editable.Root
-      class={RAIL_TITLE_ROW}
+      class={props.failed ? RAIL_TITLE_ROW : `${RAIL_TITLE_ROW} flex-1`}
       activationMode="none"
       translations={{edit: 'Rename session', input: 'Session title'}}
       onValueCommit={(details) => commit(details.value)}
@@ -423,16 +425,18 @@ function PanelSession(): JSX.Element {
                 )}
               </Show>
             </span>
-            <SessionTitle
-              sessionId={params().sessionId}
-              savedTitle={row()?.title}
-              loading={session.isPending}
-              failed={session.isError}
-              refreshing={coordinator.isRefreshing()}
-            />
-            <Show when={session.isError}>
-              <PaneAlert message={ROW_FAILED} busy={session.isFetching} onRetry={() => void session.refetch()} />
-            </Show>
+            <div class={RAIL_TITLE_LINE}>
+              <SessionTitle
+                sessionId={params().sessionId}
+                savedTitle={row()?.title}
+                loading={session.isPending}
+                failed={session.isError}
+                refreshing={coordinator.isRefreshing()}
+              />
+              <Show when={session.isError}>
+                <PaneAlert message={ROW_FAILED} busy={session.isFetching} onRetry={() => void session.refetch()} />
+              </Show>
+            </div>
           </div>
           <Popover.Positioner>
             <Popover.Content aria-label="Session options" class={RAIL_MENU_CONTENT} style={RAIL_MENU_CONTENT_STYLE}>
