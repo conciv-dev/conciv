@@ -82,8 +82,8 @@ checker — `HarnessAdapter` is an intersection of three conditional pairs
 There is no matching compile-time link for `resume`, `permissionGate`, `compaction`, `systemPrompt`,
 `mcp`, or `imageInput` — those are read at runtime by `packages/chat/src/turn.ts` (e.g.
 `deps.harness.capabilities.resume` gates whether a resume token is used,
-`packages/chat/src/turn.ts:72-80`; `deps.harness.capabilities.compaction` picks `/compact` vs a
-fallback prompt, `packages/chat/src/turn.ts:115-117`). Declare them honestly: `resume: false` when
+`packages/chat/src/turn.ts:108-117`; `deps.harness.capabilities.compaction` picks `/compact` vs a
+fallback prompt, `packages/chat/src/turn.ts:194-196`). Declare them honestly: `resume: false` when
 your CLI has no session-resume flag, `mcp: 'none'` when it can't accept an MCP server URL, and so on —
 core branches on these values to decide what to even attempt.
 
@@ -149,7 +149,7 @@ translation; most adapters omit it.
 
 ## `chat()` owns the turn — you never spawn or decode the CLI in core/widget
 
-`packages/chat/src/turn.ts:186-194` is the only call site that invokes `chatConfig`; the plan it
+`packages/chat/src/turn.ts:284-293` is the only call site that invokes `chatConfig`; the plan it
 returns reaches `chat()` in `run` (`packages/ai/src/server/chat-server.ts:377-420`):
 
 ```ts
@@ -272,7 +272,7 @@ for streaming updates into an open chat pane, and enumerate past sessions for a 
 `transcriptPath` and `transcriptRoot` or neither, because core resolves one against the other and
 rejects a transcript that escapes the root (`transcriptPathWithin`,
 `packages/harness/src/_shared/contained-path.ts:30-35`, reached for resume liveness by
-`resumableToken` in `packages/chat/src/turn.ts:72-80`). Build `observe()` with the shared
+`resumableToken` in `packages/chat/src/turn.ts:103-117`). Build `observe()` with the shared
 `makeJsonlHandle()` helper if your CLI's transcript is JSONL-per-line (both `claude`
 and `codex` do this: `packages/harness/src/codex/history.ts:347-360`). See
 [transcript-history](references/transcript-history.md) for the full worked walkthrough (event folding, `verifyHead`
