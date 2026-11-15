@@ -2,17 +2,26 @@ import {Outlet, createFileRoute, redirect, useBlocker, useRouter} from '@tanstac
 import {Show, createMemo, createSignal, type JSX} from 'solid-js'
 import {HostApiProvider} from '@conciv/extension/host'
 import {MountedView} from '@conciv/extension/client'
-import {useAppData, useConnectionGeneration, useInstances, useRpc} from '../app/context.js'
+import {useAppData, useConnectionGeneration, useInstances} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'
 import {ExtensionBoundary} from '../extension/extension-boundary.js'
 import {collectViews} from '../extension/extension-views.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {appendDraft} from '../pane/draft-storage.js'
 import {viewTabPanelAttributes} from '../pane/view-tab-ids.js'
+import {isPluginView} from '../runtime/plugin/panel-keys.js'
+import {PluginTabContent} from '../shell/plugin-surfaces.js'
 
 export const Route = createFileRoute('/panel/$sessionId/$view')({
   beforeLoad: ({context, params}) => {
-    if (collectViews(context.instances).some((view) => view.id === params.view)) return
+    const extensionViews = collectViews(context.instances)
+
+    if (extensionViews.some((view) => view.id === params.view)) return
+    if (
+      isPluginView(params.view, extensionViews) &&
+      context.pluginPanels.status({sessionId: params.sessionId, key: params.view}) !== 'unlisted'
+    )
+      return
     throw redirect({to: '/panel/$sessionId', params: {sessionId: params.sessionId}, replace: true})
   },
   component: PanelView,
@@ -20,7 +29,6 @@ export const Route = createFileRoute('/panel/$sessionId/$view')({
 
 function PanelView(): JSX.Element {
   const params = Route.useParams()
-  const rpc = useRpc()
   const appData = useAppData()
   const instances = useInstances()
   const pane = usePane()
@@ -43,10 +51,9 @@ function PanelView(): JSX.Element {
   })
 
   const newSession = () => {
-    void rpc.sessions
-      .create(undefined)
+    void appData
+      .createSession()
       .then(({sessionId}) => {
-        void appData.invalidateSession(sessionId)
         void router.navigate({to: '/panel/$sessionId', params: {sessionId}})
       })
       .catch((error: unknown) => {
@@ -64,7 +71,7 @@ function PanelView(): JSX.Element {
             sessionId={() => params().sessionId}
             grab={makePaneGrabApi(pane.grabStaging, pane.grabProvider)}
             insert={(text) =>
-              void appendDraft(rpc, params().sessionId, text).catch((error: unknown) => {
+              void appendDraft(appData, params().sessionId, text).catch((error: unknown) => {
                 console.error('[conciv] could not insert into the draft', error)
               })
             }
@@ -96,6 +103,9 @@ function PanelView(): JSX.Element {
             </div>
           </HostApiProvider>
         )}
+      </Show>
+      <Show when={view() === undefined}>
+        <PluginTabContent />
       </Show>
       <Outlet />
     </>

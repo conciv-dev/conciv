@@ -12,7 +12,10 @@ export function chatRouter(deps: RpcDeps, sessionOs: SessionOs): Router<typeof c
     hydrate: os.chat.hydrate.handler(({input}) =>
       deps.runtime.forSession(input.sessionId).history.hydrate({limit: input.limit, before: input.before}),
     ),
-    stop: os.chat.stop.handler(({input}) => deps.runtime.forSession(input.sessionId).run.stop(input.runIds)),
+    stop: os.chat.stop.handler(async ({input}) => {
+      await deps.runtime.forSession(input.sessionId).run.stop(input.runIds)
+      return {ok: true}
+    }),
     permissionDecision: sessionOs.chat.permissionDecision.handler(async ({input, context, errors}) => {
       const decision = await decidePermissionCard(
         {

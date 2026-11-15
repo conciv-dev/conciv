@@ -81,9 +81,9 @@ checker — `HarnessAdapter` is an intersection of three conditional pairs
 
 There is no matching compile-time link for `resume`, `permissionGate`, `compaction`, `systemPrompt`,
 `mcp`, or `imageInput` — those are read at runtime by `packages/chat/src/turn.ts` (e.g.
-`deps.harness.capabilities.resume` gates whether a resume token is used,
-`packages/chat/src/turn.ts:72-80`; `deps.harness.capabilities.compaction` picks `/compact` vs a
-fallback prompt, `packages/chat/src/turn.ts:115-117`). Declare them honestly: `resume: false` when
+`harness.capabilities.resume` gates whether a resume token is used,
+`packages/chat/src/turn.ts:108-117`; `harness.capabilities.compaction` picks `/compact` vs a
+fallback prompt, `packages/chat/src/turn.ts:194-196`). Declare them honestly: `resume: false` when
 your CLI has no session-resume flag, `mcp: 'none'` when it can't accept an MCP server URL, and so on —
 core branches on these values to decide what to even attempt.
 
@@ -149,29 +149,60 @@ translation; most adapters omit it.
 
 ## `chat()` owns the turn — you never spawn or decode the CLI in core/widget
 
-`packages/chat/src/turn.ts:186-194` is the only call site that invokes `chatConfig`; the plan it
-returns reaches `chat()` in `run` (`packages/ai/src/server/chat-server.ts:377-420`):
+`packages/chat/src/turn.ts:284-293` is the only call site that invokes `chatConfig`; the plan it
+returns reaches `chat()` in `started` (`packages/ai/src/server/chat-server.ts:589-641`):
 
 ```ts
-return chat({
-  adapter: guardedAdapter(plan.adapter, guard),
+const stream = chat({
+  adapter: guardedAdapter(plan.adapter, {
+    ended: entry.ending.signal,
+    stopped: controller.signal,
+    startMs: config.startTimeoutMs,
+    firstOutputMs: config.firstOutputTimeoutMs,
+    onNotStarted: () => failed(`the agent did not start within ${seconds(config.startTimeoutMs)}s`),
+    onSilence: () => failed(`the agent produced no output within ${seconds(config.firstOutputTimeoutMs)}s`),
+    stop: () => controller.abort(RUN_CANCEL_REASON),
+    log: config.log,
+  }),
   messages,
   threadId: turn.threadId,
   runId: turn.runId,
-  systemPrompts,
-  tools,
+  systemPrompts: coded === null ? [] : [coded.preface],
+  tools: [...(coded?.tools ?? []), ...gatedTools(plan.asking, approvals), ...plan.direct],
   lazyToolsConfig: {includeDescription: 'first-sentence'},
+  retry: {maxRetries: 2},
   modelOptions: plan.modelOptions,
   abortController: controller,
   debug,
   middleware: [
-    steer,
+    defineChatMiddleware({
+      name: 'conciv-steer',
+      setup: () => endRuns(turn.threadId, turn.runId),
+    }),
+    defineChatMiddleware({
+      name: 'conciv-image-tools',
+      provides: [ToolBridgeProvisionerCapability],
+      setup: (ctx) => provideToolBridgeProvisioner(ctx, imageToolProvisioner),
+    }),
     withPersistence(persistence, {snapshotStreaming: true}),
     withLocks(locks),
-    threadView,
+    defineChatMiddleware({
+      name: 'conciv-thread-view',
+      onConfig: (_ctx, current) => {
+        view.full = current.messages
+      },
+    }),
     childCards(config.codeModeResult),
-    runRecord,
+    ...(turn.kind === 'compact' ? [compactionStamp(stores.messages)] : []),
+    defineChatMiddleware({
+      name: 'conciv-run-record',
+      setup: async (ctx) => {
+        await stores.runs.createOrResume({runId: turn.runId, threadId: turn.threadId, startedAt: Date.now()})
+        await getPendingTurn(ctx, {optional: true})?.snapshot()
+      },
+    }),
     withSandbox(sandbox, {locks}),
+    toolHistory(),
     concivTurn(turn, plan, granted, view, entry),
   ],
 })
@@ -181,8 +212,9 @@ The middleware is generic `@tanstack/ai` middleware that applies to every adapte
 has a per-harness variant. `withSandbox` is the published one from `@tanstack/ai-sandbox`, and conciv
 hands it a sandbox built once at engine start — `localProcessSandbox({dir})` behind a `default: 'ask'`
 policy, reused per thread (the `defineSandbox` call in `createChatServer`) — and no durability
-options: the agent CLI's stdout is read straight from its pipe, so the chat server's first-output
-timeout is the only limit on a silent CLI. A run outlives a client that disconnects because the
+options: the agent CLI's stdout is read straight from its pipe, so the chat server's two limits are
+the only bound on a silent CLI: a start limit until the adapter's first `RUN_STARTED`, then a silence
+limit until its first output. A run outlives a client that disconnects because the
 transport's own stream durability keeps driving it and replays it on resume, not because of
 `withSandbox`. `withSandbox` emits `sandbox.starting` from its `setup`, which makes `chat()` send
 `RUN_STARTED` before `withPersistence` stores anything, so the `runRecord` step (`conciv-run-record`)
@@ -271,7 +303,7 @@ for streaming updates into an open chat pane, and enumerate past sessions for a 
 `transcriptPath` and `transcriptRoot` or neither, because core resolves one against the other and
 rejects a transcript that escapes the root (`transcriptPathWithin`,
 `packages/harness/src/_shared/contained-path.ts:30-35`, reached for resume liveness by
-`resumableToken` in `packages/chat/src/turn.ts:72-80`). Build `observe()` with the shared
+`resumableToken` in `packages/chat/src/turn.ts:103-117`). Build `observe()` with the shared
 `makeJsonlHandle()` helper if your CLI's transcript is JSONL-per-line (both `claude`
 and `codex` do this: `packages/harness/src/codex/history.ts:347-360`). See
 [transcript-history](references/transcript-history.md) for the full worked walkthrough (event folding, `verifyHead`

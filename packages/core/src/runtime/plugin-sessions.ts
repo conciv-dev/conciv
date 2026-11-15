@@ -10,19 +10,27 @@ import {
   type SessionId,
   type SessionRecord,
 } from '@conciv/protocol/chat-types'
-import {Agent, type Bus, Session, SessionErrors} from '@conciv/plugin-host'
+import {Agent, type Bus, type KV, Session, SessionErrors} from '@conciv/plugin-host'
 import type {ChatContext} from '../api/rpc/mount.js'
 import {listedSessionPage, searchedSessionPage, switchSessionEffort, switchSessionModel} from '../api/rpc/sessions.js'
-import {createChatSession, deleteSession, renameSession} from '../sessions/session-actions.js'
+import {
+  createChatSession,
+  deleteSession,
+  newSessionId,
+  renameSession,
+  reuseDeletedChatSession,
+} from '../sessions/session-actions.js'
 import type {createSessionSearch} from '../sessions/session-search.js'
 import {rowById, setMetadata, setPermissions} from '../sessions/session-rows.js'
 import type {CoreRuntime} from './scope-types.js'
+import type {PageQueues} from '../page/page-queue.js'
 
 type SessionKeyDeps = {
   chat: ChatContext
   runtime: Pick<CoreRuntime, 'forSession'>
   search: Pick<ReturnType<typeof createSessionSearch>, 'retitle' | 'pages' | 'listed'>
-  pluginHost: ManagedRuntime.ManagedRuntime<Bus.Interface, never>
+  pluginHost: ManagedRuntime.ManagedRuntime<Bus.Interface | KV.Interface, never>
+  queues: Pick<PageQueues, 'release'>
 }
 
 type SessionInfo = Effect.Success<ReturnType<Session.Interface['get']>>
@@ -64,7 +72,7 @@ function sessionInfo(chat: ChatContext, row: SessionRecord): SessionInfo {
       reasoning: usage.reasoningTokens,
       cache: {read: usage.cacheReadTokens, write: usage.cacheWriteTokens},
     },
-    time: {created: undefined, updated: row.updatedAt},
+    time: {created: row.createdAt, updated: row.updatedAt},
     title: row.title ?? undefined,
     metadata: row.metadata ?? undefined,
     permissions: row.permissions ?? undefined,
@@ -94,14 +102,16 @@ function applyModelChoice(chat: ChatContext, sessionId: SessionId, choice: Model
   })
 }
 
-function createdModel(chat: ChatContext, input: CreateInput) {
+function createdModel(chat: ChatContext, input: CreateInput, sessionId: SessionId) {
   return Effect.gen(function* () {
     const agent = given(input.agent) ?? Agent.defaultId
-    if (agent !== Agent.defaultId) return yield* Effect.die(new Error(`Agent not found: "${agent}"`))
+    if (agent !== Agent.defaultId) {
+      return yield* Effect.fail(SessionErrors.makeAgentNotFoundError({sessionId, agent: Agent.Id.make(agent)}))
+    }
     const model = given(input.model)
     if (model === undefined) return null
     const choice = yield* modelChoice(chat.defaultHarness, model)
-    if (choice === null) return yield* Effect.die(new Error(`Model not found: "${model.providerId}/${model.id}"`))
+    if (choice === null) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
     return choice
   })
 }
@@ -162,9 +172,16 @@ export function provideSessions(started: () => SessionKeyDeps) {
       create: (input) =>
         Effect.gen(function* () {
           const {chat, search} = started()
-          const choice = yield* createdModel(chat, input)
-          const {sessionId} = yield* Effect.promise(() =>
-            createChatSession(chat.db, {harnessKind: chat.defaultHarness.id, cwd: chat.cwd}),
+          const supplied = input.id
+          const recorded = supplied === undefined ? null : yield* Effect.promise(() => rowById(chat.db, supplied))
+          if (recorded !== null && recorded.deletedAt === null) return sessionInfo(chat, recorded)
+          const sessionId = supplied ?? newSessionId()
+          const choice = yield* createdModel(chat, input, sessionId)
+          const scope = {harnessKind: chat.defaultHarness.id, cwd: chat.cwd}
+          yield* Effect.promise(() =>
+            recorded === null
+              ? createChatSession(chat.db, scope, sessionId)
+              : reuseDeletedChatSession(chat.db, scope, sessionId),
           )
           yield* Effect.promise(() => describeCreated({db: chat.db, search}, sessionId, input))
           if (choice !== null && !(yield* applyModelChoice(chat, sessionId, choice))) {
@@ -175,8 +192,8 @@ export function provideSessions(started: () => SessionKeyDeps) {
       remove: (sessionId) =>
         found(sessionId).pipe(
           Effect.andThen(() => {
-            const {chat, pluginHost} = started()
-            return Effect.promise(() => deleteSession({db: chat.db, plane: chat.plane, pluginHost}, sessionId))
+            const {chat, pluginHost, queues} = started()
+            return Effect.promise(() => deleteSession({db: chat.db, plane: chat.plane, pluginHost, queues}, sessionId))
           }),
         ),
       switchAgent: (input) =>
@@ -243,7 +260,9 @@ export function provideSessions(started: () => SessionKeyDeps) {
       wait: (sessionId) =>
         found(sessionId).pipe(Effect.andThen(() => Effect.promise(() => started().chat.plane.settled(sessionId)))),
       interrupt: (sessionId) =>
-        Effect.promise(() => started().chat.plane.stop(sessionId)).pipe(Effect.map(({stopped}) => stopped)),
+        Effect.promise(() => started().runtime.forSession(sessionId).run.stop()).pipe(
+          Effect.map(({stopped}) => stopped),
+        ),
     }),
   )
 }

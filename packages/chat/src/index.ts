@@ -32,10 +32,18 @@ import {clearThread, metadataKeysEndingWith, runningThreadIds} from './stores.js
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
 import {firstUserTitle, turnHooks, type TurnDeps} from './turn.js'
 
-export {assistCapabilities, registryCapabilities, toolDomainCapabilities, type CodeCapability} from './code-mode.js'
+export {
+  assistCapabilities,
+  registryCapabilities,
+  toolDomainCapabilities,
+  type CapabilityResult,
+  type CodeCapability,
+  type ToolDomain,
+} from './code-mode.js'
 export type {AttachmentExpanders, SessionPort} from './turn.js'
 
 const FIRST_OUTPUT_TIMEOUT_MS = 30_000
+const FIRST_START_TIMEOUT_MS = 30_000
 
 const OUTSIDE_DENIED = 'the user denied outside agents for this session'
 
@@ -92,6 +100,7 @@ export type ChatPlane = {
   record: (sessionId: SessionId, chunks: readonly ChatEvent[]) => Promise<void>
   driving: (sessionId: SessionId) => boolean
   settled: (sessionId: SessionId) => Promise<void>
+  recordRunError: (sessionId: SessionId, runId: string, message: string) => Promise<void>
   running: () => Promise<ReadonlySet<string>>
   decide: (
     sessionId: SessionId,
@@ -105,7 +114,6 @@ export type ChatPlane = {
     sessionId: SessionId,
     publish: (chunk: ChatEvent) => void,
     capabilities?: readonly CodeCapability[],
-    outside?: boolean,
   ) => Promise<CodeRunner | null>
   followUp: (sessionId: SessionId, input: string) => Promise<FollowUpOutcome>
   admitCall: (sessionId: SessionId, call: AdmittedCall) => Promise<CallRefusal | null>
@@ -157,6 +165,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     sandbox: {dir: deps.cwd},
     hooks: turnHooks(deps, {approvals, ui, transcripts, codeMode: deps.driver !== null}),
     codeModeResult: cappedValue,
+    startTimeoutMs: FIRST_START_TIMEOUT_MS,
     firstOutputTimeoutMs: deps.firstOutputTimeoutMs ?? FIRST_OUTPUT_TIMEOUT_MS,
     log: deps.log,
     driver: deps.driver,
@@ -249,6 +258,11 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     record: (sessionId, chunks) => server.record(sessionId, chunks),
     driving: (sessionId) => server.driving(sessionId),
     settled: (sessionId) => server.settled(sessionId),
+    recordRunError: async (sessionId, runId, message) => {
+      const run = (await stores.runs.listByThread(sessionId)).find((stored) => stored.runId === runId)
+      if (run === undefined) throw new Error(`run ${runId} is not a run of session ${sessionId}`)
+      await stores.runs.update(runId, {error: {message}})
+    },
     running: () => runningThreadIds(deps.db),
     decide: (sessionId, approvalId, approved, scope) => approvals.decide(sessionId, approvalId, approved, scope),
     answerUi: (sessionId, toolCallId, value) => ui.answer(sessionId, toolCallId, value),
@@ -286,14 +300,10 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
         startingFollowUps.delete(sessionId)
       }
     },
-    codeRunner: async (sessionId, publish, given, outside) => {
+    codeRunner: async (sessionId, publish, given) => {
       const model = deps.sessions.row(sessionId)?.model ?? null
       const capabilities = given ?? deps.capabilities(sessionId)
-      const toolSet = chatToolSet(
-        capabilities,
-        {sessionId, agentId: sessionId, model, ...(outside ? {outside} : {})},
-        deps.driver !== null,
-      )
+      const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model}, deps.driver !== null)
       const runner = server.codeRunner(toolSet.codeMode, toolSet.search)
       if (runner === null && toolSet.direct.length === 0 && toolSet.asking.length === 0) return null
       const emitter = (parentToolCallId: string | null) => (name: string, value: Record<string, unknown>) => {
@@ -337,7 +347,11 @@ function codeTools(tools: readonly ChatTool[], capabilities: readonly CodeCapabi
         description: tool.description,
         inputSchema: capability.inputSchema,
         run: async (input, parentToolCallId, signal) =>
-          execute(input, {emitCustomEvent: emitter(parentToolCallId), abortSignal: signal}),
+          execute(input, {
+            toolCallId: parentToolCallId,
+            emitCustomEvent: emitter(parentToolCallId),
+            abortSignal: signal,
+          }),
       },
     ]
   })

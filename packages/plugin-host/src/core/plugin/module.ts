@@ -8,10 +8,12 @@ import {Hash} from '../../util/hash.js'
 import {Npm} from '../../util/npm.js'
 import {Deferred, Effect, FiberSet, PubSub, Schema, Stream} from 'effect'
 import path from 'path'
+import {existsSync} from 'node:fs'
 import {readFile, stat} from 'node:fs/promises'
+import {z} from 'zod'
 import {fileURLToPath, pathToFileURL} from 'url'
 import type {ConfigPluginSource} from '../config/plugin/source.js'
-import type {Generation} from '../plugin.js'
+import type {Chunks, Generation} from './service.js'
 import {PluginPromise} from './promise.js'
 import {ManagedPolicy} from '../managed-policy.js'
 import {Watcher} from '../filesystem/watcher.js'
@@ -127,16 +129,9 @@ const load = Effect.fn('PluginModule.load')(function* (
     effect: () => Effect.void,
   }
   const revision = JSON.stringify([operation, server ? server.version : installed?.revision])
-  const experimental = local && entrypoints.experimental ? fileURLToPath(entrypoints.experimental) : undefined
-  if (experimental) yield* watch(experimental)
-  const bundle = experimental ? Hash.sha256(yield* Effect.promise(() => readFile(experimental))) : undefined
-  const experimentalOptions = entrypoints.experimental
-    ? yield* Schema.decodeUnknownEffect(ExperimentalOptions)(operation.options).pipe(
-        Effect.mapError((cause) =>
-          makeLoadError({message: 'Plugin options must be JSON to reach its ./plugin-experimental', cause}),
-        ),
-      )
-    : {}
+  const experimental = entrypoints.experimental
+    ? yield* loadExperimental(entrypoints.experimental, local ? watch : undefined, revision, operation.options)
+    : undefined
   return {
     id: plugin.id,
     features: {
@@ -144,17 +139,90 @@ const load = Effect.fn('PluginModule.load')(function* (
       ...(entrypoint && entrypoints.rpc ? {rpc: true as const} : {}),
       ...(entrypoints.experimental ? {experimental: true as const} : {}),
     },
-    experimental: entrypoints.experimental
-      ? {
-          file: entrypoints.experimental,
-          revision: Hash.sha256(JSON.stringify([revision, bundle])),
-          options: experimentalOptions,
-        }
-      : undefined,
+    experimental,
     revision,
     source: source(operation.target, installed?.version),
     effect: (host) => plugin.effect({...host, options: operation.options}),
   } satisfies Generation
+})
+
+const loadExperimental = Effect.fn('PluginModule.loadExperimental')(function* (
+  file: string,
+  watch: ((file: string) => Effect.Effect<void>) | undefined,
+  revision: string,
+  options: unknown,
+) {
+  const entry = fileURLToPath(file)
+  if (watch) yield* watch(entry)
+  const code = yield* Effect.tryPromise({
+    try: () => readFile(entry, 'utf8'),
+    catch: (cause) => makeLoadError({message: `The ./plugin-experimental file ${entry} can't be read`, cause}),
+  })
+  return {
+    file,
+    code,
+    revision: Hash.sha256(JSON.stringify([revision, watch ? Hash.sha256(code) : undefined])),
+    options: yield* Schema.decodeUnknownEffect(ExperimentalOptions)(options).pipe(
+      Effect.mapError((cause) =>
+        makeLoadError({message: 'Plugin options must be JSON to reach its ./plugin-experimental', cause}),
+      ),
+    ),
+    chunks: yield* readChunks(entry),
+  }
+})
+
+const ChunkFile = z.string().regex(/^[\w.-]+\.cjs$/)
+
+const ChunkImports = z.array(z.string()).optional()
+
+const Manifest = z.record(
+  z.string(),
+  z.union([
+    z.object({file: z.string(), isEntry: z.literal(true), imports: ChunkImports}),
+    z.object({file: ChunkFile, isEntry: z.literal(false).optional(), imports: ChunkImports}),
+  ]),
+)
+
+const readChunks = Effect.fn('PluginModule.readChunks')(function* (entry: string) {
+  const manifest = `${entry}.manifest.json`
+  if (!existsSync(manifest)) return {start: [], files: new Map()} satisfies Chunks
+  const refusal = (problem: string, cause?: unknown) =>
+    makeLoadError({message: `The chunk manifest of ${entry} ${problem}`, cause})
+  const records = new Map(
+    Object.entries(
+      yield* Effect.tryPromise({
+        try: async () => Manifest.parse(JSON.parse(await readFile(manifest, 'utf8'))),
+        catch: (cause) => refusal('is malformed', cause),
+      }),
+    ),
+  )
+  const chunkKey = (key: string) => !records.get(key)?.isEntry
+  const imported = (keys: readonly string[] = []) =>
+    Effect.forEach(keys.filter(chunkKey), (key) => {
+      const file = records.get(key)?.file
+      if (file === undefined) return Effect.fail(refusal(`imports ${key}, which it does not list`))
+      if (!ChunkFile.safeParse(file).success)
+        return Effect.fail(refusal(`imports ${key}, whose file ${file} is not a chunk`))
+      return Effect.succeed(file)
+    })
+  const listed = [...records.values()]
+  const start = yield* Effect.forEach(
+    listed.filter((record) => record.isEntry),
+    (record) => imported(record.imports),
+  )
+  const files = yield* Effect.forEach(
+    listed.filter((record) => !record.isEntry),
+    (record) =>
+      Effect.all({
+        sha256: Effect.tryPromise({
+          try: () => readFile(path.join(path.dirname(manifest), record.file)),
+          catch: (cause) => refusal(`lists ${record.file}, which can't be read`, cause),
+        }).pipe(Effect.map(Hash.sha256)),
+        imports: imported(record.imports),
+      }).pipe(Effect.map((chunk) => [record.file, chunk] as const)),
+    {concurrency: 'unbounded'},
+  )
+  return {start: start.flat(), files: new Map(files)} satisfies Chunks
 })
 
 const loadServer = Effect.fn('PluginModule.loadServer')(function* (

@@ -1,8 +1,8 @@
 import {existsSync} from 'node:fs'
-import {mkdtemp, rm} from 'node:fs/promises'
-import os from 'node:os'
+import {rm} from 'node:fs/promises'
 import {join} from 'node:path'
 import {describe, expect} from 'vitest'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {Effect, Layer} from 'effect'
 import {openDb} from '@conciv/db'
 import {Database} from '../../src/core/database/database.js'
@@ -100,7 +100,7 @@ describe('KV', () => {
 describe('PluginHost.storage', () => {
   it.effect('makes the plugin directory on first read and remembers it', () =>
     Effect.acquireUseRelease(
-      Effect.promise(() => mkdtemp(join(os.tmpdir(), 'conciv-plugin-storage-'))),
+      Effect.sync(() => tempDir('conciv-plugin-storage-')),
       (root) =>
         Effect.gen(function* () {
           const storage = PluginHost.storage(yield* KV.Service, 'kv', root)

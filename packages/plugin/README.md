@@ -23,6 +23,7 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 - ESM only (`type: module`); `solid-js` is a peer, `vite` and `vite-plugin-solid` are optional peers (only
   `./experimental/vite` needs them).
+- The browser part needs `Promise.try`: Chrome and Edge 128, Firefox 134, Safari and iOS Safari 18.2 (Node 23.0.0 for tooling that evaluates it), source MDN browser-compat-data (`javascript.builtins.Promise.try`).
 
 ## Side Effects
 

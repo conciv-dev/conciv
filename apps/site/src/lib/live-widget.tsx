@@ -1,11 +1,13 @@
 import {useEffect} from 'react'
+import {useRouter} from '@tanstack/react-router'
 import {mountLiveWidget} from '@/lib/mount-live-widget'
 
-export default function LiveWidget({open, tryParam}: {open: boolean; tryParam: boolean}) {
+export default function LiveWidget({open}: {open: boolean}) {
+  const router = useRouter()
   useEffect(() => {
-    mountLiveWidget({widgetOpen: open, tryParam}).catch((error: unknown) =>
+    mountLiveWidget({widgetOpen: open, router}).catch((error: unknown) =>
       console.error('conciv live widget mount failed', error),
     )
-  }, [open, tryParam])
+  }, [open, router])
   return null
 }

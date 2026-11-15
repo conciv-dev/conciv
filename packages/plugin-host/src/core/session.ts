@@ -21,8 +21,7 @@ import type {
 type SessionId = SessionInfo['id']
 type Metadata = NonNullable<SessionInfo['metadata']>
 
-type CreateInput = SessionCreateInput &
-  (
+type CreateInput = Omit<SessionCreateInput, 'id'> & {id?: SessionId} & (
     | {location: Location.Ref; parentId?: never}
     | {parentId: Exclude<SessionCreateInput['parentId'], undefined>; location?: never}
   )
@@ -37,7 +36,7 @@ export interface Interface {
     },
     InvalidListCursorError
   >
-  readonly create: (input: CreateInput) => Effect.Effect<SessionInfo, NotFoundError>
+  readonly create: (input: CreateInput) => Effect.Effect<SessionInfo, NotFoundError | AgentNotFoundError>
   readonly get: (sessionId: SessionId) => Effect.Effect<SessionInfo, NotFoundError>
   readonly remove: (sessionId: SessionId) => Effect.Effect<void, NotFoundError>
   readonly switchAgent: (input: {

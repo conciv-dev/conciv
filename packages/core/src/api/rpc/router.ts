@@ -7,13 +7,14 @@ import type {RegistryCallGate} from '@conciv/extension/registry'
 import {resolveHarnessModels} from '@conciv/harness'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers} from '@conciv/db'
-import {EventPublisher, type Router} from '@orpc/server'
-import {Effect, Fiber, Result, Stream} from 'effect'
-import {Bus, Location, Plugin, Rpc} from '@conciv/plugin-host'
+import type {Router} from '@orpc/server'
+import {Effect, Result, Stream} from 'effect'
+import {Event, Location, Plugin, Rpc} from '@conciv/plugin-host'
+import {EventFeed} from '../../event-feed.js'
 import {
   cappedText,
   PluginExperimentalBundleSchema,
-  PluginRpcEventSchema,
+  PluginExperimentalChunksSchema,
   safeStringify,
   type contract,
   type RegistryCallErrorName,
@@ -96,8 +97,8 @@ async function hubTraced<Result>(
   name: string,
   input: unknown,
   run: () => Promise<Result>,
+  trace: ReturnType<typeof callTrace> = callTrace((header) => rpcHeader(context, header)),
 ): Promise<Result> {
-  const trace = callTrace((header) => rpcHeader(context, header))
   if (trace.hub === null) return run()
   const scope = context.session
   const mirrored = {threadId: scope.id, live: await scope.run.live()}
@@ -119,10 +120,6 @@ type CodeErrors = {NO_CODE_MODE: (options?: {message: string}) => Error}
 
 type CodeCall = {context: RpcContext; errors: CodeErrors; signal?: AbortSignal}
 
-function hubOrigin(context: RpcContext): boolean {
-  return callTrace((header) => rpcHeader(context, header)).hub !== null
-}
-
 async function resolveCodeSession(
   deps: RpcDeps,
   sessionId: SessionId | undefined,
@@ -141,58 +138,31 @@ async function resolveCodeSession(
   return code.sandbox
 }
 
-type PluginEventsInput = {rpcId: string; types?: string[] | undefined}
-
-async function busEvents<Payload>(
+async function eventStream(
   host: PluginHost,
-  select: (bus: Bus.Interface) => Stream.Stream<Payload>,
+  types: ReadonlyArray<string> | undefined,
   signal: AbortSignal | undefined,
 ) {
-  const publisher = new EventPublisher<{event: Payload}>()
-  const delivered = publisher.subscribe('event', {signal})
-  const fiber = await host.runPromise(
-    Effect.gen(function* () {
-      const bus = yield* Bus.Service
-      return yield* Effect.forkDetach(
-        Stream.runForEach(select(bus), (event) => Effect.sync(() => publisher.publish('event', event))),
-        {startImmediately: true},
-      )
-    }),
+  const feed = await host.runPromise(EventFeed.Service.use(Effect.succeed))
+  const connected = {id: Event.Id.create(), type: 'server.connected', data: {}}
+  const output = Stream.unwrap(
+    feed.subscribe(types).pipe(Effect.map((live) => Stream.make(connected).pipe(Stream.concat(live)))),
   )
-  const stop = () => Effect.runPromise(Fiber.interrupt(fiber))
-  signal?.addEventListener('abort', () => void stop(), {once: true})
-  return {delivered, stop}
+  return relayEvents(Stream.toAsyncIterable(output)[Symbol.asyncIterator](), signal)
 }
 
-async function pluginEvents(host: PluginHost, input: PluginEventsInput, signal: AbortSignal | undefined) {
-  const prefix = `rpc.${input.rpcId}.`
-  const {delivered, stop} = await busEvents(
-    host,
-    (bus) => {
-      const [first, ...rest] = (input.types ?? []).map((name) => Rpc.eventDefinition(`rpc.${input.rpcId}.${name}`))
-      return first === undefined
-        ? bus.subscribe().pipe(Stream.filter((event) => event.type.startsWith(prefix)))
-        : bus.subscribe([first, ...rest])
-    },
-    signal,
-  )
-  return relay(delivered, stop, (event) => PluginRpcEventSchema.parse(event))
-}
-
-async function pluginChanges(host: PluginHost, signal: AbortSignal | undefined) {
-  const {delivered, stop} = await busEvents(host, (bus) => bus.subscribe(Plugin.Event.Updated), signal)
-  return relay(delivered, stop, (event) => event.data)
-}
-
-async function* relay<Payload, Item>(
-  delivered: AsyncIterable<Payload>,
-  stop: () => Promise<void>,
-  item: (event: Payload) => Item,
-) {
+async function* relayEvents<Value>(events: AsyncIterator<Value>, signal: AbortSignal | undefined) {
+  const stop = () => void events.return?.()
+  signal?.addEventListener('abort', stop, {once: true})
   try {
-    for await (const event of delivered) yield item(event)
+    for (;;) {
+      const step = await events.next()
+      if (step.done === true) return
+      yield step.value
+    }
   } finally {
-    await stop()
+    signal?.removeEventListener('abort', stop)
+    await events.return?.()
   }
 }
 
@@ -214,9 +184,30 @@ function pluginExperimental(host: PluginHost, id: string, signal: AbortSignal | 
       const bundle = yield* plugins.experimental(Plugin.Id.make(id))
       if (!bundle) return undefined
       return yield* locationResponse(Effect.succeed(PluginExperimentalBundleSchema.parse(bundle)))
-    }),
+    }).pipe(Effect.result),
     {signal},
   )
+}
+
+function pluginExperimentalChunk(host: PluginHost, input: {id: string; file: string}, signal: AbortSignal | undefined) {
+  return host.runPromise(
+    Effect.gen(function* () {
+      const plugins = yield* Plugin.Service
+      const chunks = yield* plugins.experimentalChunk(Plugin.Id.make(input.id), input.file)
+      if (!chunks) return undefined
+      return yield* locationResponse(Effect.succeed(PluginExperimentalChunksSchema.parse(chunks)))
+    }).pipe(Effect.result),
+    {signal},
+  )
+}
+
+function missingChunk(pluginId: string, file: string) {
+  return {message: `No chunk ${file} in the current build of the plugin ${pluginId}`, data: {pluginId, file}}
+}
+
+function missingPlugin(pluginId: string) {
+  const message = `No active plugin with a ./plugin-experimental bundle: ${pluginId}`
+  return {message, data: {pluginId, message}}
 }
 
 async function pluginCall(
@@ -288,35 +279,55 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       call: toolCallOs.registry.call.handler(async ({input, context, errors, signal, path}) => {
         const assist = deps.assist(context.session.id).find((capability) => capability.name === input.name)
         if (assist === undefined && !context.session.tools.has(input.name)) throw errors.UNKNOWN_TOOL()
+        const trace = callTrace((header) => rpcHeader(context, header))
+        if (trace.hub !== null) deps.code.hubCall(context.session.id, trace.callId)
         const gate: RegistryCallGate = async (run) => {
           await admitOutsideCall(deps, context, context.session, signal, path.join('.'))
           await refuseUnapproved(deps, input.name, input.input, {context, errors, signal})
-          return hubTraced(context, input.name, input.input, run)
+          return hubTraced(context, input.name, input.input, run, trace)
         }
         const call = (): Promise<unknown> =>
           assist === undefined
-            ? context.session.tools.call(input.name, input.input, {signal, gate, outside: hubOrigin(context)})
+            ? context.session.tools.call(input.name, input.input, {
+                toolCallId: trace.callId,
+                signal,
+                gate,
+              })
             : gate(() => assist.execute(input.input))
-        return call().catch((error: unknown) => {
-          throw registryCallError(error, errors)
-        })
+        return call()
+          .catch((error: unknown) => {
+            throw registryCallError(error, errors)
+          })
+          .finally(() => {
+            if (trace.hub !== null) deps.code.hubReplied(context.session.id, new Set([trace.callId]))
+          })
       }),
     },
     plugin: {
       call: os.plugin.call.handler(async ({input, errors, signal}) => {
         const outcome = await pluginCall(deps.pluginHost, input, signal)
         if (Result.isSuccess(outcome)) return outcome.success
-        throw errors.PLUGIN_RPC({message: outcome.failure.message, data: outcome.failure})
+        const {type, message} = outcome.failure
+        if (type === 'rpc.internal' || type === 'rpc.invalid_output')
+          throw errors.PLUGIN_RPC_INTERNAL({message, data: {type, message}})
+        throw errors.PLUGIN_RPC({message, data: outcome.failure})
       }),
-      events: os.plugin.events.handler(({input, signal}) => pluginEvents(deps.pluginHost, input, signal)),
       list: os.plugin.list.handler(({signal}) => pluginList(deps.pluginHost, signal)),
       experimental: os.plugin.experimental.handler(async ({input, errors, signal}) => {
-        const bundle = await pluginExperimental(deps.pluginHost, input.id, signal)
-        if (bundle !== undefined) return bundle
-        const message = `No active plugin with a ./plugin-experimental bundle: ${input.id}`
-        throw errors.PLUGIN_NOT_FOUND({message, data: {pluginId: input.id, message}})
+        const outcome = await pluginExperimental(deps.pluginHost, input.id, signal)
+        if (Result.isFailure(outcome)) throw errors.PLUGIN_CHUNK_NOT_FOUND(missingChunk(input.id, outcome.failure.file))
+        if (outcome.success !== undefined) return outcome.success
+        throw errors.PLUGIN_NOT_FOUND(missingPlugin(input.id))
       }),
-      changes: os.plugin.changes.handler(({signal}) => pluginChanges(deps.pluginHost, signal)),
+      experimentalChunk: os.plugin.experimentalChunk.handler(async ({input, errors, signal}) => {
+        const outcome = await pluginExperimentalChunk(deps.pluginHost, input, signal)
+        if (Result.isFailure(outcome)) throw errors.PLUGIN_CHUNK_NOT_FOUND(missingChunk(input.id, outcome.failure.file))
+        if (outcome.success !== undefined) return outcome.success
+        throw errors.PLUGIN_NOT_FOUND(missingPlugin(input.id))
+      }),
+    },
+    event: {
+      subscribe: os.event.subscribe.handler(({input, signal}) => eventStream(deps.pluginHost, input?.types, signal)),
     },
     captures: {
       list: os.captures.list.handler(({input}) => deps.runtime.forSession(input.sessionId).captures.list()),

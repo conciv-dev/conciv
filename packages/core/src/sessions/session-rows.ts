@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {and, desc, eq, getTableColumns, inArray, isNull, lt, notInArray, or, sql} from 'drizzle-orm'
+import {and, desc, eq, getTableColumns, inArray, isNotNull, isNull, lt, max, notInArray, or, sql} from 'drizzle-orm'
 import {keyBy, mapValues, uniqBy} from 'es-toolkit'
 import {z} from 'zod'
 import type {SessionHit, SessionMeta} from '@conciv/contract'
@@ -25,7 +25,7 @@ import type {
   HarnessSessionMeta,
   HarnessSessionPage,
 } from '@conciv/protocol/harness-types'
-import {anchorKey, chatMetadata, sessions, TRANSCRIPT_NAMESPACE, type ConcivDb} from '@conciv/db'
+import {anchorKey, chatMetadata, chatRuns, markers, sessions, TRANSCRIPT_NAMESPACE, type ConcivDb} from '@conciv/db'
 import {realpathOrSelf, sameCwd} from '@conciv/harness/cwd'
 import {pageAfter} from '@conciv/harness/page'
 import {logError} from '../lib/debug.js'
@@ -102,13 +102,31 @@ export async function rowByNativeRef(db: ConcivDb, ref: NativeSessionRef): Promi
   return rows[0] ? sessionRecord(rows[0]) : null
 }
 
-export async function createRow(
-  db: ConcivDb,
-  input: Omit<SessionRecordInput, 'createdAt' | 'updatedAt'>,
-): Promise<SessionRecord> {
+export type FreshRowInput = Omit<SessionRecordInput, 'createdAt' | 'updatedAt'>
+
+function freshRecord(input: FreshRowInput): SessionRecord {
   const now = Date.now()
-  const record = SessionRecordSchema.parse({...input, createdAt: now, updatedAt: now})
+  return SessionRecordSchema.parse({...input, createdAt: now, updatedAt: now})
+}
+
+export async function createRow(db: ConcivDb, input: FreshRowInput): Promise<SessionRecord> {
+  const record = freshRecord(input)
   await db.insert(sessions).values(record)
+  return record
+}
+
+export function reuseDeletedRow(db: ConcivDb, input: FreshRowInput): SessionRecord {
+  const record = freshRecord(input)
+  db.transaction((tx) => {
+    tx.delete(markers).where(eq(markers.sessionId, record.id)).run()
+    tx.delete(chatMetadata)
+      .where(and(eq(chatMetadata.namespace, EARLIER_NATIVES_NAMESPACE), eq(chatMetadata.key, record.id)))
+      .run()
+    tx.update(sessions)
+      .set(record)
+      .where(and(eq(sessions.id, record.id), isNotNull(sessions.deletedAt)))
+      .run()
+  })
   return record
 }
 
@@ -370,9 +388,13 @@ export async function listSessionMetas(
   const covered = frontier === null ? entries : entries.filter((entry) => !olderThan(entry.cursor, frontier))
   const merged = pageAfter(covered, input.page, (entry) => entry.cursor)
   const listed = await listedSessions(merged.items, input)
+  const lastRuns = await lastRunStarts(
+    input.db,
+    listed.map((session) => session.row.id),
+  )
   return {
     sessions: listed.map((session) => ({
-      ...rowMeta(session, input),
+      ...rowMeta(session, input, lastRuns[session.row.id] ?? null),
       cwd: sameCwd(session.row.cwd, input.cwd) ? null : session.row.cwd,
       ...session.found,
       preview: session.preview,
@@ -381,8 +403,23 @@ export async function listSessionMetas(
   }
 }
 
-export function buildSessionMeta(context: MetaContext, session: ListedSession): SessionMeta {
-  return rowMeta(session, context)
+export async function buildSessionMeta(context: MetaContext, session: ListedSession): Promise<SessionMeta> {
+  const lastRuns = await lastRunStarts(context.db, [session.row.id])
+  return rowMeta(session, context, lastRuns[session.row.id] ?? null)
+}
+
+async function lastRunStarts(db: ConcivDb, sessionIds: readonly string[]): Promise<Record<string, number>> {
+  if (sessionIds.length === 0) return {}
+  const newest = await db
+    .select({threadId: chatRuns.threadId, startedAt: max(chatRuns.startedAt)})
+    .from(chatRuns)
+    .where(inArray(chatRuns.threadId, [...sessionIds]))
+    .groupBy(chatRuns.threadId)
+  const started = newest.flatMap(({threadId, startedAt}) => (startedAt === null ? [] : [{threadId, startedAt}]))
+  return mapValues(
+    keyBy(started, (run) => run.threadId),
+    (run) => run.startedAt,
+  )
 }
 
 function nativeEntries(pages: NativePage[]): PageEntry[] {
@@ -590,9 +627,10 @@ const buildNativeKey = (native: NativeSession): string => nativeKey(native.harne
 
 const nativeKey = (harnessKind: string, nativeId: string): string => JSON.stringify([harnessKind, nativeId])
 
-function rowMeta(session: ListedSession, context: MetaContext): SessionMeta {
+function rowMeta(session: ListedSession, context: MetaContext, lastRunAt: number | null): SessionMeta {
   const row = session.row
   return {
+    lastRunAt,
     ...rowFacts(row, session.native),
     harnessKind: row.harnessKind,
     id: row.id,

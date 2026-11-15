@@ -4,6 +4,7 @@ import {z} from 'zod'
 import {type ChatEvent, RunLifecycleSchema} from '@conciv/protocol/chat-event-types'
 import {
   ChatCommandsSchema,
+  ChatContentPartSchema,
   ChatHarnessesSchema,
   ChatHistorySchema,
   ChatModelsSchema,
@@ -97,7 +98,7 @@ const SettingsSnapshotSchema = z.object({
 export type SettingsSnapshot = z.infer<typeof SettingsSnapshotSchema>
 
 const SettingsInput = z.object({scope: SettingsScopeSchema, namespace: SettingsNamespaceSchema})
-const SettingsKeyInput = SettingsInput.extend({key: z.string().max(200)})
+const SettingsKeyInput = SettingsInput.extend({key: z.string().max(512)})
 const ChatPendingInterruptSchema = z.object({
   id: z.string(),
   reason: z.string(),
@@ -175,7 +176,11 @@ export const ToolCommandSignatureSchema = z.object({
 
 export type ToolCommandSignature = z.infer<typeof ToolCommandSignatureSchema>
 
-export const EditorOpenInputSchema = z.object({file: z.string(), line: z.number().int().min(1).optional()})
+export const EditorOpenInputSchema = z.object({
+  file: z.string(),
+  line: z.number().int().min(1).optional(),
+  column: z.number().int().min(1).optional(),
+})
 
 export const EngineStalenessSchema = z.object({
   stale: z.boolean(),
@@ -215,6 +220,7 @@ const CodeSessionInput = z.object({sessionId: SessionId.optional()})
 
 const CodeDelivery = {
   logs: z.array(z.string()),
+  files: z.array(ChatContentPartSchema).optional(),
   queued: z.array(PageQueueHandleSchema),
   finished: z.array(PageQueueResultSchema),
 }
@@ -244,8 +250,18 @@ const noQueue = {NO_QUEUE: {message: 'no such queue on this tab'}}
 
 const pluginRpcFailed = {
   PLUGIN_RPC: {
+    status: 400,
     message: 'the plugin rpc call failed',
     data: z.object({type: z.string(), message: z.string(), data: z.unknown().optional()}),
+  },
+  PLUGIN_RPC_INTERNAL: {
+    status: 500,
+    message: 'the plugin rpc call failed inside the plugin',
+    data: z.object({
+      type: z.enum(['rpc.internal', 'rpc.invalid_output']),
+      message: z.string(),
+      data: z.unknown().optional(),
+    }),
   },
 }
 
@@ -255,12 +271,13 @@ function locationResponse<Data extends z.ZodType>(data: Data) {
   return z.object({location: LocationPublicRefSchema, data})
 }
 
-export const PluginRpcEventSchema = z.object({
+export const EventEnvelopeSchema = z.object({
   id: z.string(),
   type: z.string(),
-  created: z.number(),
+  created: z.number().optional(),
+  durable: z.object({aggregateID: z.string(), seq: z.number(), version: z.number()}).optional(),
   data: z.record(z.string(), z.unknown()),
-  location: LocationPublicRefSchema,
+  location: LocationPublicRefSchema.optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 })
 
@@ -269,6 +286,14 @@ const pluginNotFound = {
     status: 404,
     message: 'no active plugin with a ./plugin-experimental bundle',
     data: z.object({pluginId: z.string(), message: z.string()}),
+  },
+}
+
+const pluginChunkNotFound = {
+  PLUGIN_CHUNK_NOT_FOUND: {
+    status: 404,
+    message: "no such chunk in the plugin's current build",
+    data: z.object({pluginId: z.string(), file: z.string()}),
   },
 }
 
@@ -305,10 +330,28 @@ const PluginInfoSchema = z.object({
   state: PluginStateSchema,
 })
 
+const PluginChunkFileSchema = z
+  .string()
+  .max(256)
+  .regex(/^[\w.-]+\.cjs$/)
+
+const PluginChunkSchema = z.object({file: PluginChunkFileSchema, code: z.string()})
+
 export const PluginExperimentalBundleSchema = z.object({
+  file: z
+    .string()
+    .min(1)
+    .max(256)
+    .regex(/^[^/\\]+\.c?js$/),
   code: z.string(),
   revision: z.string().min(1).max(256),
   options: z.record(z.string(), z.json()),
+  chunks: z.array(PluginChunkSchema),
+})
+
+export const PluginExperimentalChunksSchema = z.object({
+  revision: z.string().min(1).max(256),
+  chunks: z.array(PluginChunkSchema).min(1),
 })
 
 export const contract = {
@@ -333,7 +376,7 @@ export const contract = {
       .input(SessionIdInput)
       .output(SessionMetaSchema),
     preview: oc.errors(notFound).input(SessionPreviewInput).output(SessionPreviewSchema),
-    create: oc.output(SessionIdInput),
+    create: oc.output(SessionIdInput.extend({session: SessionMetaSchema})),
     resolve: oc.input(z.object({id: z.string().optional()})).output(SessionIdInput),
     open: oc.input(NativeSessionRefSchema).output(SessionIdInput),
     restore: oc.errors(approvalDenied).input(SessionIdInput).output(SessionIdInput),
@@ -493,17 +536,23 @@ export const contract = {
   },
   plugin: {
     call: oc
-      .errors(pluginRpcFailed)
+      .errors({...pluginRpcFailed, ...approvalDenied})
       .input(z.object({rpcId: z.string().min(1), method: z.string().min(1), input: z.unknown().optional()}))
       .output(z.unknown()),
-    events: oc
-      .input(z.object({rpcId: z.string().min(1), types: z.array(z.string().min(1)).optional()}))
-      .output(eventIterator(PluginRpcEventSchema)),
-    list: oc.output(locationResponse(z.array(PluginInfoSchema))),
+    list: oc.errors(approvalDenied).output(locationResponse(z.array(PluginInfoSchema))),
     experimental: oc
-      .errors(pluginNotFound)
+      .errors({...pluginNotFound, ...pluginChunkNotFound, ...approvalDenied})
       .input(z.object({id: PluginIdSchema}))
       .output(locationResponse(PluginExperimentalBundleSchema)),
-    changes: oc.output(eventIterator(z.object({}))),
+    experimentalChunk: oc
+      .errors({...pluginNotFound, ...pluginChunkNotFound, ...approvalDenied})
+      .input(z.object({id: PluginIdSchema, file: PluginChunkFileSchema}))
+      .output(locationResponse(PluginExperimentalChunksSchema)),
+  },
+  event: {
+    subscribe: oc
+      .errors(approvalDenied)
+      .input(z.object({types: z.array(z.string().min(1)).optional()}).optional())
+      .output(eventIterator(EventEnvelopeSchema)),
   },
 }

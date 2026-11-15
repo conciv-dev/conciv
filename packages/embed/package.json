@@ -49,6 +49,7 @@
     "@conciv/grab": "workspace:^",
     "@conciv/mascot": "workspace:^",
     "@conciv/page": "workspace:^",
+    "@conciv/plugin": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/solid-diffs": "workspace:^",
     "@conciv/solid-streamdown": "workspace:^",
@@ -66,6 +67,7 @@
   },
   "devDependencies": {
     "@conciv/app": "workspace:*",
+    "@conciv/browser-fixture": "workspace:*",
     "@conciv/extension-recorder": "workspace:^",
     "@conciv/extension-tanstack": "workspace:^",
     "@conciv/extension-terminal": "workspace:^",

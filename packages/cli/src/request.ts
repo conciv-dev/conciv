@@ -37,6 +37,10 @@ const RemoteSchema = z.object({status: z.number(), code: z.string()})
 
 const APPROVAL_DENIED = 'APPROVAL_DENIED'
 
+const PLUGIN_RPC_CODES: readonly string[] = ['PLUGIN_RPC', 'PLUGIN_RPC_INTERNAL']
+
+const PluginFailureSchema = z.object({type: z.string(), data: z.unknown().optional()})
+
 function declaredSessionId(): SessionId | null {
   const raw = process.env.CONCIV_SESSION_ID?.trim()
   if (!raw) return null
@@ -104,7 +108,9 @@ function rejectedByServer(error: unknown): boolean {
 }
 
 function rpcFailure(error: ORPCError<string, unknown>): Error {
-  return userFailure(error.message, {code: error.code})
+  const plugin = PLUGIN_RPC_CODES.includes(error.code) ? PluginFailureSchema.safeParse(error.data) : null
+  if (plugin === null || !plugin.success) return userFailure(error.message, {code: error.code})
+  return userFailure(error.message, {code: error.code, type: plugin.data.type, data: plugin.data.data})
 }
 
 function offlineFailure(origin: string): Error {

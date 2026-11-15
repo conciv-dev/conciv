@@ -25,7 +25,7 @@ function TooltipLabel(props: {tooltip: string; shortcut: string | undefined}): J
 }
 
 function iconButtonClass(variant: TooltipIconButtonVariant | undefined, size: string | undefined): string {
-  return `${BASE}  ${VARIANT[variant ?? 'ghost']}  ${size ?? 'size-9'}`
+  return `${BASE}  ${VARIANT[variant ?? 'ghost']}  ${size ?? 'size-8'}`
 }
 
 export type TooltipIconButtonProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -137,8 +137,8 @@ export function TooltipIconButtonSlot(props: TooltipIconButtonSlotProps): JSX.El
               <span
                 {...triggerProps()}
                 class={`inline-flex ${local.wrapperClass ?? ''}`}
-                onFocusIn={(event) => event.target.matches(':focus-visible') && api().setOpen(true)}
-                onFocusOut={() => api().setOpen(false)}
+                on:focusin={(event) => event.target.matches(':focus-visible') && api().setOpen(true)}
+                on:focusout={() => api().setOpen(false)}
               >
                 {local.children(() => buttonProps(triggerProps()['aria-describedby']))}
               </span>

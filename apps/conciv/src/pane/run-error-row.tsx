@@ -10,7 +10,7 @@ const CONTEXT_OVERFLOW_MESSAGE = 'This conversation is too long for the model. C
 type RunErrorRowProps = {
   error: Error
   compacting: boolean
-  onRetry: () => void
+  onRetry?: () => void
   onCompact: () => void
 }
 
@@ -22,9 +22,13 @@ export function RunErrorRow(props: RunErrorRowProps): JSX.Element {
       <Show
         when={overflowed()}
         fallback={
-          <Button variant="plain" size="none" class={ACTION} onClick={() => props.onRetry()}>
-            Retry
-          </Button>
+          <Show when={props.onRetry}>
+            {(retry) => (
+              <Button variant="plain" size="none" class={ACTION} onClick={() => retry()()}>
+                Retry
+              </Button>
+            )}
+          </Show>
         }
       >
         <Button

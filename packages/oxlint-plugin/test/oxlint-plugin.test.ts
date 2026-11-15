@@ -265,6 +265,26 @@ describe('tool card shell', () => {
   })
 })
 
+describe('no delegated focus', () => {
+  async function lintFixture(fixture: string): Promise<string[]> {
+    const diagnostics = await lintDiagnostics('test/oxlintrc-delegated-focus.json', `test/fixtures/${fixture}`)
+    return diagnostics
+      .filter((diagnostic) => diagnostic.code === 'conciv(no-delegated-focus)')
+      .map((diagnostic) => String(diagnostic.message))
+  }
+
+  test('flags every casing of a delegated focusin or focusout prop and names the direct listener', async () => {
+    const findings = await lintFixture('delegated-focus/delegated.tsx')
+    expect(findings).toHaveLength(3)
+    expect(findings[0]).toContain('on:focusin')
+    expect(findings[0]).toContain('nativeFocusPart')
+  })
+
+  test('leaves direct on:focusin, on:focusout, onFocus and onBlur alone', async () => {
+    expect(await lintFixture('delegated-focus/native.tsx')).toEqual([])
+  })
+})
+
 describe('vocabulary', () => {
   type Finding = {message: string}
 
@@ -338,6 +358,11 @@ describe('vocabulary', () => {
     test('exempts the files copied from opencode', async () => {
       expect(await lintFixture('of-suffix/packages/plugin-host/src/copied.ts', 'conciv(no-of-suffix)')).toEqual([])
       expect(await lintFixture('of-suffix/packages/plugin/src/copied.ts', 'conciv(no-of-suffix)')).toEqual([])
+      for (const folder of ['plugin', 'persistence']) {
+        expect(
+          await lintFixture(`of-suffix/apps/conciv/src/runtime/${folder}/copied.ts`, 'conciv(no-of-suffix)'),
+        ).toEqual([])
+      }
     })
   })
 
@@ -473,5 +498,38 @@ describe('no comments', () => {
 
   test('without keepDocComments reports every doc comment too', async () => {
     expect(await lintFixture('doc-comments.ts')).toHaveLength(9)
+  })
+})
+
+describe('no hand-made temp dir', () => {
+  async function lintFixture(fixture: string): Promise<string[]> {
+    const diagnostics = await lintDiagnostics('test/oxlintrc-temp-dir.json', `test/fixtures/${fixture}`)
+    return diagnostics
+      .filter((diagnostic) => diagnostic.code === 'conciv(no-hand-made-temp-dir)')
+      .map((diagnostic) => String(diagnostic.message))
+  }
+
+  test('flags a temp folder a test makes under the OS temp dir by hand, and leaves the helpers alone', async () => {
+    const findings = await lintFixture('temp-dir/hand-made.ts')
+    expect(findings).toHaveLength(3)
+    expect(findings[0]).toContain('tempDir(prefix)')
+    expect(findings[0]).toContain('processTempDir(prefix)')
+    expect(await lintFixture('temp-dir/helpers.ts')).toEqual([])
+    expect(await lintFixture('packages/vitest-config/src/temp-dir.ts')).toEqual([])
+  })
+
+  test('follows each import to its module, through aliases and namespaces, and ignores a shadowing parameter', async () => {
+    const aliased = await lintFixture('temp-dir/aliased.ts')
+    const shadowed = await lintFixture('temp-dir/shadowed.ts')
+    expect({aliased: aliased.length, shadowed: shadowed.length}).toEqual({aliased: 3, shadowed: 0})
+  })
+
+  test('outside a test folder it flags a spec file and leaves a source file alone', async () => {
+    const outside = async (file: string) =>
+      (await lintDiagnostics('test/oxlintrc-temp-dir.json', `fixtures/temp-dir-outside/${file}`)).filter(
+        (diagnostic) => diagnostic.code === 'conciv(no-hand-made-temp-dir)',
+      )
+    expect(await outside('hand-made.spec.ts')).toHaveLength(3)
+    expect(await outside('hand-made.ts')).toEqual([])
   })
 })

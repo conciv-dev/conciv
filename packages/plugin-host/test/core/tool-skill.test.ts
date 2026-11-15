@@ -8,6 +8,7 @@ import {AbsolutePath} from '../../src/schema/schema.js'
 import {Session} from '../../src/schema/session.js'
 import {Skill} from '../../src/core/skill.js'
 import {SkillTool} from '../../src/core/tool/plugin/skill.js'
+import {Image} from '../../src/core/image.js'
 import {Tool} from '../../src/core/tool.js'
 import {PluginHooks} from '../../src/core/plugin/hooks.js'
 import {tmpdirScoped} from './fixture/tmpdir'
@@ -67,6 +68,7 @@ describe('SkillTool', () => {
             Layer.provide(
               Layer.mergeAll(
                 PluginHooks.layer,
+                Image.layer,
                 FSUtil.layer.pipe(Layer.provide(NodeFileSystem.layer)),
                 skills,
                 permission,

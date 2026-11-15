@@ -1,5 +1,6 @@
 import {splitProps, type ComponentProps} from 'solid-js'
 import {Listbox as Ark} from '@ark-ui/solid/listbox'
+import {nativeFocusPart} from './native-focus.js'
 
 const CONTENT = 'flex flex-col outline-none rounded-chat-surface-sm focus-ring'
 const ITEM =
@@ -15,4 +16,8 @@ function Item(props: ComponentProps<typeof Ark.Item>) {
   return <Ark.Item {...rest} class={`${ITEM}  ${local.class ?? ''}`} />
 }
 
-export const Listbox = Object.assign({}, Ark, {Content, Item})
+export const Listbox = Object.assign({}, Ark, {
+  Content: nativeFocusPart(Content, 'div'),
+  Item,
+  Input: nativeFocusPart(Ark.Input, 'input'),
+})

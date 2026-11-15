@@ -13,9 +13,13 @@ import {createInstances} from './extension/create-instances.js'
 import highlight from './extensions/highlight.js'
 import {PendingPane} from './shell/pending.js'
 import {defaultErrorComponent} from './shell/default-error-component.js'
-import {engineLocked, type EngineLogin} from './app/engine-login.js'
+import {becameTrusted, type EngineLogin} from './app/engine-login.js'
 
 export type ConcivEnvironment = {rootNode: ShadowRoot | Document; document: Document}
+
+export type PanelKeyStatus = 'listed' | 'unlisted' | 'pending'
+
+type PanelKeyLookup = (input: {readonly sessionId: string; readonly key: string}) => PanelKeyStatus
 
 export type ConcivRouterContext = {
   rpc: RpcClient
@@ -36,6 +40,10 @@ export type ConcivRouterContext = {
   disposeInstances: () => void
   notifyInteractive: () => void
   login?: EngineLogin
+  pluginPanels: {
+    bind: (lookup: PanelKeyLookup) => () => void
+    status: PanelKeyLookup
+  }
 }
 
 export type ConcivRouterConfig = {
@@ -80,12 +88,27 @@ function watchEngine(apiBase: string, rerunRefused: () => void): () => void {
   const stopReachability = setupEngineReachability(apiBase)
   const connection = browserRpcConnection(apiBase)
   const stopTrust = connection.trust.subscribe((status, previous) => {
-    if (status === 'trusted' && engineLocked(previous)) rerunRefused()
+    if (becameTrusted(status, previous)) rerunRefused()
   })
   return () => {
     stopReachability()
     stopTrust()
     connection.release()
+  }
+}
+
+function createPluginPanels(): ConcivRouterContext['pluginPanels'] {
+  const bound: {lookup?: PanelKeyLookup} = {}
+
+  return {
+    bind(lookup) {
+      bound.lookup = lookup
+
+      return () => {
+        if (bound.lookup === lookup) bound.lookup = undefined
+      }
+    },
+    status: (input) => bound.lookup?.(input) ?? 'pending',
   }
 }
 
@@ -150,6 +173,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       disposeInstances,
       notifyInteractive: config.notifyInteractive ?? (() => {}),
       login: config.login,
+      pluginPanels: createPluginPanels(),
     },
   })
 }

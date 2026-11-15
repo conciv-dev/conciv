@@ -25,6 +25,7 @@ import {Session} from '../../../src/core/session.js'
 import {SessionErrors} from '../../../src/core/session/error.js'
 import {InstructionEntry} from '../../../src/core/session/instruction-entry.js'
 import {Skill} from '../../../src/core/skill.js'
+import {Image} from '../../../src/core/image.js'
 import {Tool} from '../../../src/core/tool.js'
 import {InstructionEntry as InstructionEntrySchema} from '../../../src/schema/instruction-entry.js'
 import {ProjectId} from '../../../src/schema/project-id.js'
@@ -50,7 +51,11 @@ const locationLayer = (directory: AbsolutePath) =>
 export const temporaryGlobalLayer = Layer.unwrap(
   tmpdirScoped().pipe(
     Effect.map((temporary) =>
-      Global.layerWith({cache: path.join(temporary.path, 'cache'), state: path.join(temporary.path, 'state')}),
+      Global.layerWith({
+        cache: path.join(temporary.path, 'cache'),
+        config: path.join(temporary.path, 'config'),
+        state: path.join(temporary.path, 'state'),
+      }),
     ),
   ),
 )
@@ -206,6 +211,7 @@ const pluginLayer = (directory: AbsolutePath) =>
         KV.layer,
         PermissionSaved.layer,
         PluginHooks.layer,
+        Image.layer,
         permissionSessionsLayer,
       ),
     ),

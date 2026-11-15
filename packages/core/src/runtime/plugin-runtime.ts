@@ -17,6 +17,7 @@ import {
   Permission,
   PermissionSaved,
   Plugin,
+  Image,
   PluginHooks,
   PluginPromise,
   PluginSupervisor,
@@ -34,6 +35,7 @@ import {once} from 'es-toolkit'
 import type {PluginHost} from '../api/rpc/mount.js'
 import type {ResolvedConcivConfig} from '../config.js'
 import {logError} from '../lib/debug.js'
+import {EventFeed} from '../event-feed.js'
 import {provideHarnessModels} from './harness-models.js'
 import {provideInstructionEntries} from './instruction-entries.js'
 import {permissionSessions} from './permission-cards.js'
@@ -102,8 +104,8 @@ function pluginHostLayer(input: PluginRuntimeInput) {
       ),
     ),
     Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(input.db), Skill.layer)),
-    Layer.provideMerge(PluginHooks.layer),
-    Layer.provideMerge(Layer.mergeAll(Rpc.layer, KV.layer)),
+    Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, Image.layer)),
+    Layer.provideMerge(Layer.mergeAll(Rpc.layer, KV.layer, EventFeed.layer)),
     Layer.provideMerge(Bus.configured()),
     Layer.provideMerge(
       Layer.mergeAll(
@@ -132,9 +134,13 @@ function pluginHostLayer(input: PluginRuntimeInput) {
   )
 }
 
+type SessionPrompt = PluginHooks.Domains['session']['prompt']
+
 export type PluginRuntime = {
   runtime: PluginHost
   startPlugins: () => Promise<void>
+  prompt: (event: SessionPrompt) => Promise<SessionPrompt>
+  promptHooked: () => Promise<boolean>
   closeRpc: () => Promise<void>
   closePlugins: () => Promise<void>
   closePermissions: () => Promise<void>
@@ -150,6 +156,16 @@ export function makePluginRuntime(input: PluginRuntimeInput): PluginRuntime {
         Layer.buildWithScope(PluginSupervisor.layer, supervised).pipe(Effect.andThen(Plugin.awaitActivation)),
       ),
     ),
+    prompt: (event) =>
+      runtime.runPromise(
+        Plugin.awaitActivation.pipe(
+          Effect.andThen(PluginHooks.Service.use((hooks) => hooks.trigger('session', 'prompt', event))),
+        ),
+      ),
+    promptHooked: () =>
+      runtime.runPromise(
+        Plugin.awaitActivation.pipe(Effect.andThen(PluginHooks.Service.use((hooks) => hooks.has('session', 'prompt')))),
+      ),
     closeRpc: () => runtime.runPromise(Rpc.Service.use((rpc) => rpc.close)),
     closePlugins: () => Effect.runPromise(Scope.close(supervised, Exit.void)),
     closePermissions: () => runtime.runPromise(Permission.Service.use((permission) => permission.close)),

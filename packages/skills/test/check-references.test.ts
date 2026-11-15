@@ -1,11 +1,11 @@
-import {mkdir, mkdtemp, rm, writeFile} from 'node:fs/promises'
-import {tmpdir} from 'node:os'
+import {mkdir, rm, writeFile} from 'node:fs/promises'
 import {dirname, join} from 'node:path'
 import {expect, test} from 'vitest'
 import {runCheck} from '../src/check-references.ts'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 async function withTempRepo(run: (root: string) => Promise<void>): Promise<void> {
-  const root = await mkdtemp(join(tmpdir(), 'skills-check-'))
+  const root = tempDir('skills-check-')
   try {
     await scaffoldOtherGlobs(root)
     await run(root)
@@ -133,7 +133,7 @@ test('paragraph with no eligible identifiers only checks citation bounds', async
 })
 
 test('a skillGlobs entry matching zero files is flagged empty-glob', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'skills-check-'))
+  const root = tempDir('skills-check-')
   try {
     await scaffoldOtherGlobs(root)
     const finding = expectSingleFinding(root, 'empty-glob')

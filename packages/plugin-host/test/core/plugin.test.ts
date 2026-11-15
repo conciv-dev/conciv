@@ -1,8 +1,9 @@
 import {expect} from 'vitest'
-import {mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
+import {chmod, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {Deferred, Effect, Fiber, Logger, Stream} from 'effect'
+import {Deferred, Effect, Fiber, Logger, Schema, Stream} from 'effect'
+import {Tool as PluginTool} from '@conciv/plugin'
 import {Agent} from '../../src/core/agent.js'
 import {Bus} from '../../src/core/bus.js'
 import {Watcher} from '../../src/core/filesystem/watcher.js'
@@ -11,9 +12,11 @@ import {PluginHost} from '../../src/core/plugin/host.js'
 import {PluginModule} from '../../src/core/plugin/module.js'
 import {Rpc} from '../../src/core/rpc.js'
 import {Session} from '../../src/core/session.js'
+import {Skill} from '../../src/core/skill.js'
 import {Tool} from '../../src/core/tool.js'
 import {fromPromise} from '../../src/plugin/promise/adapter.js'
 import {Session as SessionSchema} from '../../src/schema/session.js'
+import {Skill as SkillSchema} from '../../src/schema/skill.js'
 import {testEffect} from './lib/effect'
 import {PluginTestLayer} from './plugin/fixture'
 
@@ -156,14 +159,110 @@ it.live("serves a local plugin's experimental bundle, and reloads it alone when 
     expect(yield* plugins.experimental(Plugin.Id.make('missing'))).toBeUndefined()
 
     yield* Effect.promise(() => writeFile(path.join(directory, 'plugin-experimental.js'), `${bundle}\n// edited`))
+    expect(yield* plugins.experimental(id)).toEqual(served)
     const edited = yield* load
     const published = updates.length
     yield* plugins.activate([edited])
+    const reloaded = yield* plugins.experimental(id)
 
     expect(edited.revision).toBe(first.revision)
-    expect((yield* plugins.experimental(id))?.revision).not.toBe(served?.revision)
+    expect(reloaded?.code).toBe(`${bundle}\n// edited`)
+    expect(reloaded?.revision).not.toBe(served?.revision)
     expect(updates.length).toBe(published + 1)
     expect(yield* Effect.promise(() => readFile(starts, 'utf8'))).toBe('x')
+  }).pipe(Effect.scoped),
+)
+
+it.live("serves a local plugin's built chunks, each answer pinned to the bytes read when it loaded", () =>
+  Effect.gen(function* () {
+    const plugins = yield* Plugin.Service
+    yield* plugins.awaitActivation
+    const directory = yield* Effect.acquireRelease(
+      Effect.promise(() => mkdtemp(path.join(tmpdir(), 'opencode-plugin-chunks-'))),
+      (created) => Effect.promise(() => rm(created, {recursive: true, force: true})),
+    )
+    const shared = 'exports.shared = "shared"'
+    const entry = (lazy: string) =>
+      `const require_shared = require("./shared-A.cjs")\nexports.default = {setup() { return Promise.resolve().then(() => require("./${lazy}")) }}`
+    const manifest = (lazy: string) =>
+      JSON.stringify({
+        '_shared-A.cjs': {file: 'shared-A.cjs'},
+        '_deep-C.cjs': {file: 'deep-C.cjs', imports: ['_shared-A.cjs']},
+        'src/entry.ts': {file: 'plugin-experimental.js', isEntry: true, imports: ['_shared-A.cjs']},
+        'src/lazy.ts': {file: lazy, isDynamicEntry: true, imports: ['_deep-C.cjs', '_shared-A.cjs']},
+      })
+    const write = (files: Record<string, string>) =>
+      Effect.promise(() =>
+        Promise.all(Object.entries(files).map(([name, text]) => writeFile(path.join(directory, name), text))),
+      )
+    yield* write({
+      'index.ts': 'export default {id: "fixture.chunks", setup() {}}',
+      'shared-A.cjs': shared,
+      'deep-C.cjs': 'exports.deep = require("./shared-A.cjs").shared',
+      'lazy-B.cjs': 'exports.big = () => require("./deep-C.cjs").deep',
+      'plugin-experimental.js': entry('lazy-B.cjs'),
+      'plugin-experimental.js.manifest.json': manifest('lazy-B.cjs'),
+    })
+    const modules = yield* PluginModule.make().pipe(Effect.provide(Watcher.testLayer))
+    const reload = Effect.gen(function* () {
+      const definition = yield* modules.load({type: 'add', target: directory, options: {}})
+      if ('pending' in definition || 'blocked' in definition) return yield* Effect.die('Local plugin was not loaded')
+      yield* plugins.activate([definition])
+    })
+    yield* reload
+    const id = Plugin.Id.make('fixture.chunks')
+
+    const served = yield* plugins.experimental(id)
+    expect(served).toMatchObject({file: 'plugin-experimental.js', chunks: [{file: 'shared-A.cjs', code: shared}]})
+    const chunk = (file: string) => plugins.experimentalChunk(id, file)
+    const refused = (file: string) => Effect.flip(chunk(file))
+    expect(yield* chunk('lazy-B.cjs')).toEqual({
+      revision: served?.revision,
+      chunks: [
+        {file: 'shared-A.cjs', code: shared},
+        {file: 'deep-C.cjs', code: 'exports.deep = require("./shared-A.cjs").shared'},
+        {file: 'lazy-B.cjs', code: 'exports.big = () => require("./deep-C.cjs").deep'},
+      ],
+    })
+    expect(yield* plugins.experimentalChunk(Plugin.Id.make('missing'), 'lazy-B.cjs')).toBeUndefined()
+    for (const file of ['../package.json', 'plugin-experimental.js', 'plugin-experimental.js.manifest.json', 'x.cjs'])
+      expect(yield* refused(file)).toEqual({_tag: 'Plugin.ChunkNotFound', file})
+
+    yield* write({'lazy-B.cjs': 'exports.big = () => "rewritten"'})
+    expect(yield* refused('lazy-B.cjs')).toEqual({_tag: 'Plugin.ChunkNotFound', file: 'lazy-B.cjs'})
+    yield* write({'shared-A.cjs': 'exports.shared = "rewritten"'})
+    expect(yield* Effect.flip(plugins.experimental(id))).toEqual({_tag: 'Plugin.ChunkNotFound', file: 'shared-A.cjs'})
+
+    yield* write({
+      'lazy-D.cjs': 'exports.big = () => "second"',
+      'plugin-experimental.js': entry('lazy-D.cjs'),
+      'plugin-experimental.js.manifest.json': manifest('lazy-D.cjs'),
+    })
+    yield* reload
+    expect((yield* chunk('lazy-D.cjs'))?.chunks).toEqual([
+      {file: 'shared-A.cjs', code: 'exports.shared = "rewritten"'},
+      {file: 'deep-C.cjs', code: 'exports.deep = require("./shared-A.cjs").shared'},
+      {file: 'lazy-D.cjs', code: 'exports.big = () => "second"'},
+    ])
+    expect(yield* refused('lazy-B.cjs')).toEqual({_tag: 'Plugin.ChunkNotFound', file: 'lazy-B.cjs'})
+
+    const refusal = (records: object) =>
+      write({'plugin-experimental.js.manifest.json': JSON.stringify(records)}).pipe(
+        Effect.andThen(Effect.flip(modules.load({type: 'add', target: directory, options: {}}))),
+        Effect.map((error) => error.message),
+      )
+    const bundle = path.join(directory, 'plugin-experimental.js')
+    const of = `The chunk manifest of ${bundle}`
+    expect(yield* refusal({'src/lazy.ts': {file: '../lazy-D.cjs'}})).toBe(`${of} is malformed`)
+    expect(yield* refusal({'src/lazy.ts': {file: 'lazy-D.cjs', imports: ['_gone.cjs']}})).toBe(
+      `${of} imports _gone.cjs, which it does not list`,
+    )
+    const entryImport = {e: {file: 'plugin-experimental.js', isEntry: true}, b: {file: 'lazy-D.cjs', imports: ['e']}}
+    yield* write({'plugin-experimental.js.manifest.json': JSON.stringify(entryImport)})
+    yield* reload
+    expect((yield* chunk('lazy-D.cjs'))?.chunks).toEqual([{file: 'lazy-D.cjs', code: 'exports.big = () => "second"'}])
+    yield* Effect.promise(() => chmod(bundle, 0))
+    expect(yield* refusal({})).toBe(`The ./plugin-experimental file ${bundle} can't be read`)
   }).pipe(Effect.scoped),
 )
 it.effect('unloading a plugin removes its tools and runs cleanup', () =>
@@ -228,6 +327,7 @@ it.effect('disables a plugin whose transform fails after setup without publishin
   Effect.gen(function* () {
     const plugins = yield* Plugin.Service
     const tools = yield* Tool.Service
+    const skills = yield* Skill.Service
     let cleaned = false
     yield* plugins.activate([
       {
@@ -246,6 +346,16 @@ it.effect('disables a plugin whose transform fails after setup without publishin
         effect: (ctx) =>
           Effect.gen(function* () {
             yield* Effect.addFinalizer(() => Effect.sync(() => void (cleaned = true)))
+            yield* ctx.skill.transform((editor) =>
+              editor.add(
+                Schema.decodeUnknownSync(SkillSchema.Info)({
+                  id: 'broken',
+                  name: 'Broken',
+                  path: '/broken/SKILL.md',
+                  content: 'partial',
+                }),
+              ),
+            )
             yield* ctx.tool.transform((editor) => {
               editor.add({name: 'shared', description: 'partial', input: {}, execute: () => Effect.succeed({})})
               throw new Error('replay failed')
@@ -272,6 +382,7 @@ it.effect('disables a plugin whose transform fails after setup without publishin
       ref: expect.stringMatching(/^err_/),
     })
     expect(yield* get(tools, 'shared')).toMatchObject({description: 'original'})
+    expect(yield* skills.get(SkillSchema.Id.make('broken'))).toBeUndefined()
     expect(yield* get(tools, 'healthy')).toBeDefined()
   }),
 )
@@ -521,14 +632,114 @@ it.live("retains Promise plugin groups for later registrations and ignores a dis
 it.effect('normalizes Promise plugin API inputs through JSON', () =>
   Effect.gen(function* () {
     const plugins = yield* Plugin.Service
+    const sessions = yield* Session.Service
     const created: boolean[] = []
+    const refused: unknown[] = []
+    const reads = new Map<string, unknown>()
+    const writes = new Map<string, unknown>()
+    const entries = new Map<string, unknown>()
+    const outcome = (call: Promise<unknown>) =>
+      call.then(
+        (value) => ({value}),
+        (error: unknown) => ({error}),
+      )
+    const refusal = (field: string) => ({
+      error: expect.objectContaining({name: 'SchemaError', message: expect.stringContaining(`["${field}"]`)}),
+    })
     yield* plugins.activate([
       {
         ...fromPromise({
           id: 'promise-input',
           async setup(ctx) {
-            await ctx.session.create({title: 'Promise session', agent: undefined})
+            const first = await ctx.session.create({title: 'Promise session', agent: undefined})
             created.push(true)
+            refused.push(
+              await ctx.session.create({id: 'conciv_has.dot'}).then(
+                () => 'created',
+                (error) => error,
+              ),
+            )
+            const supplied = await ctx.session.create({
+              id: 'conciv_promise_input',
+              title: 'Supplied',
+              metadata: {ticket: 7, ratio: Number.NaN},
+            })
+            const notASession = {sessionId: 'not-a-session'}
+            const withNote = {sessionId: supplied.id, note: 'kept'}
+            // @ts-expect-error untyped JavaScript plugins can still pass any session id
+            reads.set('get bad id', await outcome(ctx.session.get(notASession)))
+            reads.set('get with note', await outcome(ctx.session.get(withNote)))
+            // @ts-expect-error untyped JavaScript plugins can still pass any session id
+            reads.set('wait bad id', await outcome(ctx.session.wait(notASession)))
+            reads.set('wait with note', await outcome(ctx.session.wait(withNote)))
+            // @ts-expect-error untyped JavaScript plugins can still pass a number as the search
+            reads.set('list bad search', await outcome(ctx.session.list({search: 5})))
+            reads.set('list bad limit', await outcome(ctx.session.list({limit: 0})))
+            const listWithNote = {search: 'Supplied', note: 'kept'}
+            reads.set('list with note', await outcome(ctx.session.list(listWithNote)))
+            reads.set('list cursor passed through', await outcome(ctx.session.list({cursor: 'next-page'})))
+            const firstWithNote = {sessionId: first.id, note: 'kept'}
+            // @ts-expect-error untyped JavaScript plugins can still pass any session id
+            writes.set('switchAgent bad id', await outcome(ctx.session.switchAgent({...notASession, agent: 'plan'})))
+            // @ts-expect-error untyped JavaScript plugins can still pass a number as the agent
+            writes.set('switchAgent bad agent', await outcome(ctx.session.switchAgent({sessionId: first.id, agent: 5})))
+            writes.set(
+              'switchModel bad model',
+              // @ts-expect-error untyped JavaScript plugins can still pass a null model
+              await outcome(ctx.session.switchModel({sessionId: first.id, model: null})),
+            )
+            // @ts-expect-error untyped JavaScript plugins can still pass any session id
+            writes.set('compact bad id', await outcome(ctx.session.compact(notASession)))
+            writes.set(
+              'compact bad message id',
+              await outcome(ctx.session.compact({sessionId: first.id, id: 'not-a-message'})),
+            )
+            // @ts-expect-error untyped JavaScript plugins can still pass any session id
+            writes.set('interrupt bad id', await outcome(ctx.session.interrupt(notASession)))
+            writes.set(
+              'interrupt bad resume',
+              // @ts-expect-error untyped JavaScript plugins can still pass a string as resume
+              await outcome(ctx.session.interrupt({sessionId: first.id, resume: 'yes'})),
+            )
+            // @ts-expect-error untyped JavaScript plugins can still pass any session id
+            writes.set('update bad id', await outcome(ctx.session.update({...notASession, title: 'Renamed'})))
+            // @ts-expect-error untyped JavaScript plugins can still pass a number as the title
+            writes.set('update bad title', await outcome(ctx.session.update({sessionId: first.id, title: 5})))
+            // @ts-expect-error untyped JavaScript plugins can still pass a number as the metadata
+            writes.set('update bad metadata', await outcome(ctx.session.update({sessionId: first.id, metadata: 5})))
+            writes.set(
+              'update bad permissions',
+              // @ts-expect-error untyped JavaScript plugins can still pass a malformed rule
+              await outcome(ctx.session.update({sessionId: first.id, permissions: [{action: 1}]})),
+            )
+            // @ts-expect-error untyped JavaScript plugins can still pass any session id
+            writes.set('remove bad id', await outcome(ctx.session.remove(notASession)))
+            writes.set(
+              'switchAgent with note',
+              await outcome(ctx.session.switchAgent({...firstWithNote, agent: 'plan'})),
+            )
+            writes.set('update with note', await outcome(ctx.session.update({...firstWithNote, title: 'Renamed'})))
+            writes.set('interrupt with note', await outcome(ctx.session.interrupt(firstWithNote)))
+            writes.set(
+              'compact delivery passed through',
+              await outcome(ctx.session.compact({...firstWithNote, delivery: 'queue'})),
+            )
+            writes.set('after the writes', await outcome(ctx.session.get(firstWithNote)))
+            writes.set('remove with note', await outcome(ctx.session.remove(firstWithNote)))
+            writes.set('after the remove', await outcome(ctx.session.get(firstWithNote)))
+            const entry = ctx.session.instructions.entry
+            // @ts-expect-error untyped JavaScript plugins can still pass any session id
+            entries.set('list bad id', await outcome(entry.list(notASession)))
+            // @ts-expect-error untyped JavaScript plugins can still pass any session id
+            entries.set('put bad id', await outcome(entry.put({...notASession, key: 'ticket', value: 7})))
+            // @ts-expect-error untyped JavaScript plugins can still leave the value out
+            entries.set('put without value', await outcome(entry.put({sessionId: supplied.id, key: 'ticket'})))
+            // @ts-expect-error untyped JavaScript plugins can still pass any session id
+            entries.set('remove bad id', await outcome(entry.remove({...notASession, key: 'ticket'})))
+            entries.set('put with note', await outcome(entry.put({...withNote, key: 'ticket', value: 7})))
+            entries.set('list with note', await outcome(entry.list(withNote)))
+            entries.set('remove with note', await outcome(entry.remove({...withNote, key: 'ticket'})))
+            entries.set('after the remove', await outcome(entry.list(withNote)))
           },
         }),
         revision: '1',
@@ -537,6 +748,107 @@ it.effect('normalizes Promise plugin API inputs through JSON', () =>
     yield* plugins.awaitActivation
 
     expect(created).toEqual([true])
+    expect(refused).toEqual([
+      expect.objectContaining({name: 'SchemaError', message: expect.stringContaining('["id"]')}),
+    ])
+    expect(Object.fromEntries(reads)).toEqual({
+      'get bad id': refusal('sessionId'),
+      'get with note': {value: expect.objectContaining({id: 'conciv_promise_input'})},
+      'wait bad id': refusal('sessionId'),
+      'wait with note': {value: undefined},
+      'list bad search': refusal('search'),
+      'list bad limit': refusal('limit'),
+      'list with note': {value: {data: [expect.objectContaining({id: 'conciv_promise_input'})], cursor: {}}},
+      'list cursor passed through': {error: expect.objectContaining({name: 'Session.InvalidListCursorError'})},
+    })
+    expect(Object.fromEntries(writes)).toEqual({
+      'switchAgent bad id': refusal('sessionId'),
+      'switchAgent bad agent': refusal('agent'),
+      'switchModel bad model': refusal('model'),
+      'compact bad id': refusal('sessionId'),
+      'compact bad message id': refusal('id'),
+      'interrupt bad id': refusal('sessionId'),
+      'interrupt bad resume': refusal('resume'),
+      'update bad id': refusal('sessionId'),
+      'update bad title': refusal('title'),
+      'update bad metadata': refusal('metadata'),
+      'update bad permissions': refusal('permissions'),
+      'remove bad id': refusal('sessionId'),
+      'switchAgent with note': {value: undefined},
+      'update with note': {value: undefined},
+      'interrupt with note': {value: {interrupted: false}},
+      'compact delivery passed through': {value: expect.objectContaining({type: 'compaction', delivery: 'queue'})},
+      'after the writes': {
+        value: expect.objectContaining({
+          agent: 'plan',
+          title: 'Renamed',
+          model: undefined,
+          metadata: undefined,
+          permissions: undefined,
+        }),
+      },
+      'remove with note': {value: undefined},
+      'after the remove': {error: expect.objectContaining({name: 'Session.NotFoundError'})},
+    })
+    expect(Object.fromEntries(entries)).toEqual({
+      'list bad id': refusal('sessionId'),
+      'put bad id': refusal('sessionId'),
+      'put without value': refusal('value'),
+      'remove bad id': refusal('sessionId'),
+      'put with note': {value: undefined},
+      'list with note': {value: [{key: 'ticket', value: 7}]},
+      'remove with note': {value: undefined},
+      'after the remove': {value: []},
+    })
+    expect(yield* sessions.get(SessionSchema.Id.make('conciv_promise_input'))).toMatchObject({
+      id: 'conciv_promise_input',
+      title: 'Supplied',
+      metadata: {ticket: 7, ratio: null},
+    })
+  }),
+)
+
+it.effect("a Promise plugin tool's toolError reaches the host as a Tool.Error with its message and metadata", () =>
+  Effect.gen(function* () {
+    const plugins = yield* Plugin.Service
+    const tools = yield* Tool.Service
+    yield* plugins.activate([
+      {
+        ...fromPromise({
+          id: 'promise-failure',
+          async setup(ctx) {
+            await ctx.tool.transform((editor) => {
+              editor.add({
+                name: 'promise_fail',
+                description: 'Fails with metadata.',
+                input: {type: 'object', properties: {}},
+                execute: async () => {
+                  throw PluginTool.toolError({message: 'the probe broke', metadata: {code: 'X_CODE'}})
+                },
+              })
+            })
+          },
+        }),
+        revision: '1',
+      },
+    ])
+    yield* plugins.awaitActivation
+    const tool = yield* get(tools, 'promise_fail')
+    if (!tool) return yield* Effect.die('promise_fail is not registered')
+    const failure = yield* tool
+      .execute(
+        {},
+        {
+          sessionId: SessionSchema.Id.make('conciv_plugin'),
+          agent: Agent.Id.make('build'),
+          messageId: undefined,
+          id: Tool.CallId.make('call_promise_fail'),
+          progress: () => Effect.void,
+        },
+      )
+      .pipe(Effect.flip)
+
+    expect(failure).toMatchObject({_tag: 'Tool.Error', message: 'the probe broke', metadata: {code: 'X_CODE'}})
   }),
 )
 
@@ -631,6 +943,28 @@ it.effect('host event subscriptions deliver requested rpc types and ignore unkno
     expect(Array.from(yield* Fiber.join(fiber)).map((event) => [event.type, event.data])).toEqual([
       ['rpc.test.ping', {value: 1}],
     ])
+
+    const definition = (id: string) =>
+      Rpc.define({id, methods: {ping: {input: Schema.Undefined, output: Schema.String}}, events: {}})
+    const mounted = definition('page')
+    const plugins = yield* Plugin.Service
+    const pluginHost = (pluginId: string) =>
+      PluginHost.make(plugins, pluginId).pipe(Effect.provideService(PluginHost.ExtensionSlugs, ['page']))
+    const first = yield* pluginHost('first')
+    const second = yield* pluginHost('second')
+    const refusal = (context: typeof first) =>
+      context.rpc.register(mounted, {ping: () => Effect.succeed('mounted')}).pipe(Effect.flip)
+    expect(yield* refusal(first)).toEqual(
+      new Error('Plugin first cannot register RPC page: the extension page is mounted'),
+    )
+    expect(yield* refusal(second)).toEqual(
+      new Error('Plugin second cannot register RPC page: the extension page is mounted'),
+    )
+
+    yield* first.rpc.register(definition('first-echo'), {ping: () => Effect.succeed('from first')})
+    yield* second.rpc.register(definition('second-echo'), {ping: () => Effect.succeed('from second')})
+    expect(yield* first.rpc(definition('second-echo')).ping(undefined)).toBe('from second')
+    expect(yield* second.rpc(definition('first-echo')).ping(undefined)).toBe('from first')
   }),
 )
 

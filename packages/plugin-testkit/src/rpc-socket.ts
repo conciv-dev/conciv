@@ -13,6 +13,7 @@ const NORMAL_CLOSE_CODE = 1000
 const APPLICATION_CLOSE_MIN = 3000
 const APPLICATION_CLOSE_MAX = 4999
 const FAILURE_BODY = {json: {}, meta: []}
+const GARBLED_BODY = {json: {}, meta: [[0, 'value']]}
 
 const serializer = new StandardRPCSerializer(new StandardRPCJsonSerializer())
 
@@ -20,8 +21,10 @@ type Message = string | Buffer
 
 export type RpcSocketCall = {
   path: readonly string[]
+  input: unknown
   forward: () => void
   reply: (status: number) => Promise<void>
+  garble: () => Promise<void>
   cut: () => void
 }
 
@@ -31,7 +34,8 @@ export type RpcSocketRule = (call: RpcSocketCall) => RpcSocketVerdict
 
 export type RpcSocketEvent =
   | {kind: 'request'; requestId: string; path: readonly string[]; input: unknown}
-  | {kind: 'response'; requestId: string; status: number; served: boolean}
+  | {kind: 'response'; requestId: string; status: number; served: boolean; output: unknown}
+  | {kind: 'abort'; requestId: string}
 
 export type RpcSocketListener = (event: RpcSocketEvent) => void
 
@@ -42,6 +46,8 @@ export type RpcSocket = {
   opened: () => number
   hold: () => void
   release: () => void
+  holdCloses: () => void
+  releaseCloses: () => void
 }
 
 type SocketState = {
@@ -50,6 +56,7 @@ type SocketState = {
   live: Set<WebSocketRoute>
   opened: number
   held: boolean
+  heldCloses: (() => void)[] | null
 }
 
 const sockets = new WeakMap<Page, RpcSocket>()
@@ -57,7 +64,14 @@ const sockets = new WeakMap<Page, RpcSocket>()
 export function rpcSocketFor(page: Page): RpcSocket {
   const existing = sockets.get(page)
   if (existing) return existing
-  const state: SocketState = {rules: [], listeners: new Set(), live: new Set(), opened: 0, held: false}
+  const state: SocketState = {
+    rules: [],
+    listeners: new Set(),
+    live: new Set(),
+    opened: 0,
+    held: false,
+    heldCloses: null,
+  }
   const installed = page.routeWebSocket(
     (url) => url.pathname.endsWith(RPC_WS_PATH),
     (route) => connect(route, state),
@@ -85,6 +99,14 @@ export function rpcSocketFor(page: Page): RpcSocket {
     },
     release: () => {
       state.held = false
+    },
+    holdCloses: () => {
+      state.heldCloses ??= []
+    },
+    releaseCloses: () => {
+      const held = state.heldCloses ?? []
+      state.heldCloses = null
+      for (const close of held) close()
     },
   }
   sockets.set(page, created)
@@ -116,6 +138,11 @@ function connect(route: WebSocketRoute, state: SocketState): void {
       .then(() => sendOutbound(message, socketId, {route, forward: () => server.send(message), state, emit}))
       .catch((error: unknown) => console.error('[extension-testkit] an rpc frame could not be routed', error))
   })
+  server.onClose((code, reason) => {
+    const close = (): void => void route.close({code, reason})
+    if (state.heldCloses === null) close()
+    else state.heldCloses.push(close)
+  })
   server.onMessage((message) => {
     inbound.tail = inbound.tail
       .then(() => observeInbound(message, socketId, emit))
@@ -143,6 +170,9 @@ type Outbound = {
 
 async function sendOutbound(message: Message, socketId: string, outbound: Outbound): Promise<void> {
   const decoded = await decodeRequestMessage(message).catch(() => null)
+  if (decoded !== null && decoded[1] === MessageType.ABORT_SIGNAL) {
+    outbound.emit({kind: 'abort', requestId: `${socketId}:${decoded[0]}`})
+  }
   if (decoded === null || decoded[1] !== MessageType.REQUEST) {
     outbound.forward()
     return
@@ -153,25 +183,42 @@ async function sendOutbound(message: Message, socketId: string, outbound: Outbou
     .split('/')
     .filter((segment) => segment !== '')
     .map(decodeURIComponent)
-  outbound.emit({kind: 'request', requestId, path, input: serializer.deserialize(payload.body)})
+  const input = serializer.deserialize(payload.body)
+  outbound.emit({kind: 'request', requestId, path, input})
   const call: RpcSocketCall = {
     path,
+    input,
     forward: outbound.forward,
-    reply: async (status) => {
-      const failure = await encodeResponseMessage(id, MessageType.RESPONSE, {status, headers: {}, body: FAILURE_BODY})
-      if (typeof failure !== 'string') throw new Error('the injected rpc failure frame encoded to binary')
-      outbound.emit({kind: 'response', requestId, status, served: false})
-      outbound.route.send(failure)
-    },
+    reply: (status) => injectReply(outbound, id, requestId, status, FAILURE_BODY),
+    garble: () => injectReply(outbound, id, requestId, 200, GARBLED_BODY),
     cut: () => void outbound.route.close({code: CUT_CLOSE_CODE}),
   }
   if (outbound.state.rules.some((rule) => rule(call) === 'handled')) return
   outbound.forward()
 }
 
+async function injectReply(
+  outbound: Outbound,
+  id: string,
+  requestId: string,
+  status: number,
+  body: typeof FAILURE_BODY | typeof GARBLED_BODY,
+): Promise<void> {
+  const frame = await encodeResponseMessage(id, MessageType.RESPONSE, {status, headers: {}, body})
+  if (typeof frame !== 'string') throw new Error('the injected rpc reply frame encoded to binary')
+  outbound.emit({kind: 'response', requestId, status, served: false, output: undefined})
+  outbound.route.send(frame)
+}
+
 async function observeInbound(message: Message, socketId: string, emit: (event: RpcSocketEvent) => void) {
   const decoded = await decodeResponseMessage(message).catch(() => null)
   if (decoded === null || decoded[1] !== MessageType.RESPONSE) return
   const [id, , payload] = decoded
-  emit({kind: 'response', requestId: `${socketId}:${id}`, status: payload.status, served: true})
+  emit({
+    kind: 'response',
+    requestId: `${socketId}:${id}`,
+    status: payload.status,
+    served: true,
+    output: serializer.deserialize(payload.body),
+  })
 }

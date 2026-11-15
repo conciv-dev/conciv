@@ -1,6 +1,5 @@
 import {expect} from 'vitest'
 import {access, mkdir, writeFile} from 'node:fs/promises'
-import {setTimeout} from 'node:timers/promises'
 import path from 'node:path'
 import {NodeFileSystem} from '@effect/platform-node'
 import {Deferred, Effect, Exit, Fiber, Layer, Schedule, Scope, Stream} from 'effect'
@@ -77,6 +76,7 @@ it.live('interrupts pending watcher setup when the loader scope closes during mo
     const entry = path.join(directory.path, 'index.ts')
     const entered = path.join(directory.path, 'entered')
     const release = path.join(directory.path, 'release')
+    const left = path.join(directory.path, 'left')
     const started = yield* Deferred.make<void>()
     const stopped = yield* Deferred.make<void>()
     const gate = yield* Deferred.make<void>()
@@ -95,6 +95,7 @@ it.live('interrupts pending watcher setup when the loader scope closes during mo
         import { setTimeout } from "node:timers/promises"
         await writeFile(${JSON.stringify(entered)}, "entered")
         while (!(await access(${JSON.stringify(release)}).then(() => true, () => false))) await setTimeout(5)
+        await writeFile(${JSON.stringify(left)}, "left")
         export default { id: "pending", async setup() {} }
       `,
       ),
@@ -119,11 +120,14 @@ it.live('interrupts pending watcher setup when the loader scope closes during mo
     yield* Scope.close(scope, Exit.void)
     expect(yield* Deferred.isDone(stopped)).toBe(true)
     yield* Effect.promise(() => writeFile(release, 'release'))
-    yield* Effect.promise(() => setTimeout(50))
+    yield* Effect.promise(() => exists(left)).pipe(
+      Effect.repeat({until: (found) => found, schedule: Schedule.spaced('5 millis')}),
+      Effect.timeout('2 seconds'),
+    )
   }),
 )
 
-it.live('blocks a local plugin before module initialization and honors replacement policies', () =>
+it.live('a loader made under a deny policy blocks a local plugin, one made under no policy loads it', () =>
   Effect.gen(function* () {
     const directory = yield* tmpdirScoped()
     const entered = path.join(directory.path, 'entered')
@@ -153,9 +157,11 @@ it.live('loads an experimental-only package under its package name without runni
   Effect.gen(function* () {
     const directory = yield* tmpdirScoped()
     const experimental = path.join(directory.path, 'experimental')
+    const empty = path.join(directory.path, 'acme-empty')
     const evaluated = 'throw new Error("A client part must not run on the server")'
     yield* Effect.promise(() =>
       Promise.all([
+        write(path.join(empty, 'notes.txt'), 'no plugin entry here'),
         write(
           path.join(experimental, 'package.json'),
           JSON.stringify({
@@ -176,6 +182,8 @@ it.live('loads an experimental-only package under its package name without runni
       experimental: {options: {region: 'eu'}},
       source: {type: 'local', path: experimental},
     })
+    const missing = yield* modules.load({type: 'add', target: empty, options: {}}).pipe(Effect.flip)
+    expect(missing.message).toBe(`Plugin entrypoint not found: ${empty}`)
     if ('pending' in loaded || 'blocked' in loaded) return yield* Effect.die(new Error('The plugin was not loaded'))
 
     yield* plugins.activate([loaded])
@@ -206,32 +214,47 @@ for (const target of ['policy-fixture@1.2.3', '@scope/policy-fixture@1.2.3']) {
   )
 }
 
-it.live('loads a local TypeScript plugin with an enum, a .tsx module and a ./helper.js import of helper.ts', () =>
+it.live('loads a local TypeScript plugin by type stripping, resolving its Bun-style imports, and reloads it', () =>
   Effect.gen(function* () {
     const directory = yield* tmpdirScoped()
     const pluginDirectory = path.join(directory.path, 'typescript-plugin')
     yield* Effect.promise(() =>
       Promise.all([
+        write(path.join(pluginDirectory, 'helper.ts'), 'export const Mode: { Ready: string } = { Ready: "ready" }'),
+        write(path.join(pluginDirectory, 'view.ts'), 'export const view: { type: string } = { type: "strong" }'),
+        write(path.join(pluginDirectory, 'plain.ts'), 'export const plain: string = "plain"'),
+        write(path.join(pluginDirectory, 'lib/index.ts'), 'export const lib: string = "lib"'),
+        write(path.join(pluginDirectory, 'twin.mts'), 'export const twin: string = "twin"'),
+        write(path.join(pluginDirectory, 'kind.mts'), 'export const Kind: { Value: string } = { Value: "kind" }'),
         write(
-          path.join(pluginDirectory, 'node_modules/react/package.json'),
-          '{"name":"react","type":"module","exports":{"./jsx-runtime":"./jsx-runtime.js"}}',
+          path.join(pluginDirectory, 'count.cts'),
+          'const Count: { Value: string } = { Value: "count" }; module.exports = { Count }',
         ),
-        write(
-          path.join(pluginDirectory, 'node_modules/react/jsx-runtime.js'),
-          'export const jsx = (type, props) => ({ type, props }); export const jsxs = jsx; export const Fragment = "fragment"',
-        ),
-        write(path.join(pluginDirectory, 'helper.ts'), 'export enum Mode { Ready = "ready" }'),
-        write(path.join(pluginDirectory, 'view.tsx'), 'export const view: { type: string } = <strong>ready</strong>'),
         write(
           path.join(pluginDirectory, 'index.ts'),
           `import { Mode } from "./helper.js"
 import { view } from "./view.js"
-export default { id: \`typescript-\${Mode.Ready}-\${view.type}\`, effect: () => undefined }`,
+import { plain } from "./plain"
+import { lib } from "./lib"
+import { twin } from "./twin.mjs"
+import { Kind } from "./kind.mts"
+import counted from "./count.cts"
+export default { id: [\`typescript-\${Mode.Ready}-\${view.type}\`, plain, lib, twin, Kind.Value, counted.Count.Value].join("-"), effect: () => undefined }`,
         ),
       ]),
     )
     const modules = yield* PluginModule.make()
-    const loaded = yield* modules.load({type: 'add', target: pluginDirectory, options: {}})
-    expect(loaded).toMatchObject({id: 'typescript-ready-strong', features: {server: true}})
+    const operation = {type: 'add' as const, target: pluginDirectory, options: {}}
+    const loaded = yield* modules.load(operation)
+    expect(loaded).toMatchObject({id: 'typescript-ready-strong-plain-lib-twin-kind-count', features: {server: true}})
+    const changed = yield* modules.changes().pipe(Stream.runHead, Effect.forkScoped({startImmediately: true}))
+    yield* Effect.promise(() =>
+      write(path.join(pluginDirectory, 'plain.ts'), 'export const plain: string = "edited"'),
+    ).pipe(
+      Effect.andThen(Fiber.join(changed).pipe(Effect.timeout('500 millis'))),
+      Effect.retry(Schedule.forever),
+      Effect.timeout('5 seconds'),
+    )
+    expect(yield* modules.load(operation)).toMatchObject({id: 'typescript-ready-strong-edited-lib-twin-kind-count'})
   }),
 )

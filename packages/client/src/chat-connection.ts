@@ -8,6 +8,7 @@ import {type ModelMessage, type ChatMessage} from '@conciv/protocol/chat-message
 import {
   type ChatEvent,
   ChatEventType,
+  idleFailedEvent,
   runLifecycleEvent,
   sessionRunEvent,
   type RunLifecycle,
@@ -229,7 +230,7 @@ function notice(chunk: ChatEvent, options: ChatConnectionOptions): void {
   if (ask) options.onApprovalAsk?.(ask)
   const settled = readApprovalSettled(chunk)
   if (settled) options.onApprovalSettled?.(settled)
-  if (chunk.type === ChatEventType.RUN_ERROR) options.onRunError?.()
+  if (chunk.type === ChatEventType.RUN_ERROR || idleFailedEvent.parse(chunk) !== null) options.onRunError?.()
 }
 
 async function* noticing(source: AsyncIterable<ChatEvent>, options: ChatConnectionOptions): AsyncGenerator<ChatEvent> {

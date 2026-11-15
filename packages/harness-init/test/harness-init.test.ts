@@ -1,7 +1,6 @@
 import {spawn} from 'node:child_process'
-import {mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync, cpSync} from 'node:fs'
+import {mkdirSync, realpathSync, rmSync, writeFileSync, cpSync} from 'node:fs'
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
-import {tmpdir} from 'node:os'
 import {dirname, join, relative} from 'node:path'
 import {createInterface} from 'node:readline'
 import {afterAll, afterEach, beforeAll, describe, expect, it} from 'vitest'
@@ -19,6 +18,7 @@ import {claudeConnectServesProject, claudePluginCacheDir} from '../src/claude/in
 import {CLAUDE_CONNECT_INSTALL_TARGET, claudeConnectDir, claudeConnectPluginFiles} from '../src/claude/plugin-files.js'
 import {inside} from '../src/paths.js'
 import harnessInitManifest from '../package.json' with {type: 'json'}
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 describe('bridge', () => {
   const CLAUDE_SESSION = 'sess-1'
@@ -94,7 +94,7 @@ describe('bridge', () => {
   }
 
   function makeProject(name: string): string {
-    const dir = realpathSync(mkdtempSync(join(tmpdir(), `conciv-project-${name}-`)))
+    const dir = realpathSync(tempDir(`conciv-project-${name}-`))
     projects.push(dir)
     return dir
   }
@@ -203,7 +203,7 @@ describe('bridge', () => {
   }
 
   beforeAll(() => {
-    scratch.dir = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-bridge-')))
+    scratch.dir = realpathSync(tempDir('conciv-bridge-'))
     scratch.bridge = join(scratch.dir, 'conciv-mcp-bridge.mjs')
     writeFileSync(scratch.bridge, claudeConnectBridgeSource())
   })
@@ -463,7 +463,7 @@ describe('install state', () => {
   const scratch: string[] = []
 
   function makeDir(name: string): string {
-    const dir = mkdtempSync(join(tmpdir(), `conciv-${name}-`))
+    const dir = tempDir(`conciv-${name}-`)
     scratch.push(dir)
     return dir
   }
@@ -626,7 +626,13 @@ describe('plugin files', () => {
       expect(body).toContain('### When to use conciv instead of the browser MCP')
       expect(body).toContain('tools design diff')
       expect(body).toContain('`.conciv/bin/conciv tools react locate <selector>`')
-      expect(body).toContain('`.conciv/bin/conciv tools server graph|transform|reload`')
+      expect(body).toContain('`.conciv/bin/conciv tools server graph <file>`')
+      expect(body).toContain('`.conciv/bin/conciv tools server transform <url>`')
+      expect(body).toContain('`.conciv/bin/conciv tools server reload <file>`')
+      expect(body).toContain('`.conciv/bin/conciv tools react find --name <ComponentName>`')
+      expect(body).toContain(
+        '`.conciv/bin/conciv tools react track --action start`, reproduce, then `.conciv/bin/conciv tools react track --action report [--name <ComponentName>]`, then `.conciv/bin/conciv tools react track --action stop`',
+      )
       expect(body).not.toMatch(/`conciv /)
     })
 

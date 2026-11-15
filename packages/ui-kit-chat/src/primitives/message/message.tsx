@@ -1,6 +1,6 @@
 import {createMemo, Index, Show, splitProps, type Component, type JSX, type ParentProps} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import type {ChatPart as Part, ThinkingPart, ToolCallPart} from '@conciv/protocol/chat-message-types'
+import type {ChatPart as Part, ThinkingPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ToolCardEntry, ToolUIComponent} from '@conciv/protocol/tool-view-types'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import {Primitive, type Slottable} from '../util/primitive.js'
@@ -19,6 +19,7 @@ import {
 import type {CompleteAttachment} from '../attachment/attachment-adapter.js'
 import {AttachmentProvider} from '../attachment/attachment.js'
 import {partIsModelOnly} from '../message-part/part-visibility.js'
+import {findToolEntry} from '../../tools/primitives/define-toolkit.js'
 import {PartProvider, useMessage} from './message-context.js'
 
 type DivProps = JSX.HTMLAttributes<HTMLDivElement> & Slottable<JSX.HTMLAttributes<HTMLDivElement>>
@@ -57,10 +58,14 @@ type PartsProps =
   | {components?: PartsComponents; children?: never}
   | {children: (part: () => Part, index: () => number) => JSX.Element; components?: never}
 
-function resolveToolComponent(part: ToolCallPart, tools: PartsComponents['tools']): ToolUIComponent | null {
+function resolveToolComponent(
+  part: ToolCallPart,
+  result: ToolResultPart | undefined,
+  tools: PartsComponents['tools'],
+): ToolUIComponent | null {
   if (!tools) return null
   if ('Override' in tools) return tools.Override
-  const entry = tools.entries?.find((candidate) => candidate.names.includes(part.name))
+  const entry = findToolEntry(tools.entries, part, result)
   return entry?.render ?? tools.Fallback ?? null
 }
 
@@ -140,7 +145,7 @@ function DispatchPart(props: {
       </Show>
       <Show when={asToolCall()} keyed>
         {(toolCall) => (
-          <Show when={resolveToolComponent(toolCall, components().tools)}>
+          <Show when={resolveToolComponent(toolCall, message.parts.resultFor(toolCall.id), components().tools)}>
             {(render) => (
               <Dynamic
                 component={render()}
@@ -382,9 +387,13 @@ function readToolEntries(tools: PartsComponents['tools']): ReadonlyArray<ToolCar
   return tools.entries
 }
 
-function partRenders(part: Part | undefined, components: GroupedComponents): boolean {
+function partRenders(
+  part: Part | undefined,
+  components: GroupedComponents,
+  resultFor: (toolCallId: string) => ToolResultPart | undefined,
+): boolean {
   if (part === undefined || partIsModelOnly(part)) return false
-  if (part.type === 'tool-call') return resolveToolComponent(part, components.tools) !== null
+  if (part.type === 'tool-call') return resolveToolComponent(part, resultFor(part.id), components.tools) !== null
   if (part.type === 'structured-output') return components.StructuredOutput !== undefined
   return part.type === 'text' || part.type === 'thinking' || part.type === 'image'
 }
@@ -398,7 +407,7 @@ function GroupedParts(props: {components?: GroupedComponents; grouping?: Groupin
     props.grouping?.context ?? {toolEntries: readToolEntries(components().tools)}
   const nodes = createMemo(() => groupParts(message.message().parts, grouper(), groupContext()))
   const groupRenders = (group: GroupNodeGroup): boolean =>
-    group.indices.some((index) => partRenders(message.message().parts[index], components()))
+    group.indices.some((index) => partRenders(message.message().parts[index], components(), message.parts.resultFor))
   const NodesView = (nodesProps: {nodes: readonly GroupNode[]}): JSX.Element => (
     <Index each={nodesProps.nodes}>
       {(node) => (

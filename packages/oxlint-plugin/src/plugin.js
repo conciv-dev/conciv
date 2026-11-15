@@ -2,6 +2,8 @@ import bannedVocabulary from './banned-vocabulary.js'
 import corePurity from './core-purity.js'
 import lucidePerIcon from './lucide-per-icon.js'
 import noComments from './no-comments.js'
+import noDelegatedFocus from './no-delegated-focus.js'
+import noHandMadeTempDir from './no-hand-made-temp-dir.js'
 import noLocatorPoll from './no-locator-poll.js'
 import noOfSuffix from './no-of-suffix.js'
 import noPredicateWaits from './no-predicate-waits.js'
@@ -19,6 +21,8 @@ export default {
     'core-purity': corePurity,
     'lucide-per-icon': lucidePerIcon,
     'no-comments': noComments,
+    'no-delegated-focus': noDelegatedFocus,
+    'no-hand-made-temp-dir': noHandMadeTempDir,
     'no-locator-poll': noLocatorPoll,
     'no-of-suffix': noOfSuffix,
     'no-predicate-waits': noPredicateWaits,

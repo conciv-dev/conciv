@@ -12,10 +12,10 @@ export interface ExperimentalOptions {
 const provided = new Set<string>([...pluginSharedModules, ...pluginWindowModules])
 
 /**
- * Builds a plugin's `./plugin-experimental` bundle with Vite: compiles Solid JSX, writes one CommonJS file with every
- * dynamic `import()` inlined, since the app loads no second chunk, and keeps the modules the app provides external,
- * with Node built-ins. Another module of Solid or conciv fails the build: the app does not provide it, and a bundled
- * copy would not share the app's instance.
+ * Builds a plugin's `./plugin-experimental` bundle with Vite: compiles Solid JSX, writes a CommonJS entry plus one
+ * chunk per dynamic `import()`, which the app loads on demand over its engine socket, with Vite's manifest beside the
+ * entry, and keeps the modules the app provides external, with Node built-ins. Another module of Solid or conciv fails
+ * the build: the app does not provide it, and a bundled copy would not share the app's instance.
  *
  * @param options - The entry and the bundle to write.
  * @returns The Vite plugins.
@@ -38,12 +38,13 @@ export function experimental(options: ExperimentalOptions = {}): Plugin[] {
         build: {
           outDir: path.dirname(outFile),
           emptyOutDir: false,
+          manifest: `${path.basename(outFile)}.manifest.json`,
           lib: {
             entry: options.entry ?? 'src/plugin-experimental.tsx',
             formats: ['cjs'],
             fileName: () => path.basename(outFile),
           },
-          rollupOptions: {output: {exports: 'named', inlineDynamicImports: true}},
+          rollupOptions: {output: {exports: 'named', chunkFileNames: '[name]-[hash].cjs'}},
         },
       }),
       resolveId(source) {

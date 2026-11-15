@@ -1,4 +1,3 @@
-import {mkdtempSync} from 'node:fs'
 import {writeFile, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
@@ -6,6 +5,7 @@ import {afterAll, expect} from 'vitest'
 import {type ChatPlane} from '@conciv/chat'
 import {type ConcivDb} from '@conciv/db'
 import {type AnyExtension} from '@conciv/extension'
+import type {Plugin} from '@conciv/plugin'
 import {getHarness, type HarnessAdapter} from '@conciv/harness'
 import {
   type ChatMessage,
@@ -26,6 +26,7 @@ import {z} from 'zod'
 import {makeApp, type MadeApp} from '../src/app.js'
 import {type ResolvedConcivConfig} from '../src/config.js'
 import {ensureRow} from '../src/sessions/session-rows.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 export function requireClaude(): HarnessAdapter {
   const adapter = getHarness('claude')
@@ -80,12 +81,13 @@ export type BootOverrides = {
   cwd?: string
   extensions?: AnyExtension[]
   extensionConfig?: Record<string, unknown>
-  openInEditor?: (file: string, line?: number) => void
+  openInEditor?: (file: string, line?: number, column?: number) => void
   bridge?: BundlerBridge
   firstChunkTimeoutMs?: number
   harnesses?: HarnessAdapter[]
   systemPromptText?: string
   home?: string
+  plugins?: readonly Plugin.Plugin[]
 }
 
 export function bootKit(overrides: BootOverrides = {}, harness: HarnessAdapter = requireClaude()): Promise<Kit> {
@@ -127,6 +129,7 @@ export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): 
     harnesses: overrides.harnesses,
     systemPromptText: overrides.systemPromptText,
     home: overrides.home,
+    plugins: overrides.plugins,
   })
   const tracked: MadeApp = {
     ...made,
@@ -159,7 +162,7 @@ export type ChatFixture = {
 
 export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promise<ChatFixture> {
   const harness = createTestHarness(requireClaude())
-  const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-fixture-'))
+  const stateRoot = tempDir('conciv-fixture-')
   const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
   const sessionId = SessionId.parse('conciv_fixture')
   if (opts.seedSession !== false) await ensureRow(made.chat.db, sessionId, harness.id, stateRoot)

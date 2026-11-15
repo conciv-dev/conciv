@@ -1,11 +1,12 @@
-import {existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
-import {tmpdir} from 'node:os'
+import {existsSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {createServer, type Socket} from 'node:net'
 import {join} from 'node:path'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
 import type {EngineStaleness} from '@conciv/contract'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {
   CHAT_SSE_PATH,
+  CHAT_WS_PATH,
   CONCIV_CLIENT_HEADER,
   CONCIV_ORIGIN_HEADER,
   CONCIV_SESSION_HEADER,
@@ -15,6 +16,7 @@ import {recordHubConnection, removeHubConnection, withHomeDb} from '@conciv/db'
 import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 import {revokeBrowsers as revokeTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
+import {processTempDir} from '@conciv/vitest-config'
 import type {FixtureSession, PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
 import type {AlternateHarness} from '@conciv/plugin-testkit/core-kit'
@@ -45,21 +47,27 @@ export type PointerDrag = {name: string; moves: PointerMove[]; escape?: boolean;
 
 export type PointerHover = {name: string; moves: PointerMove[]; settleMs: number}
 
+export type ChosenFile = {name: string; mimeType: string; text: string}
+
 export type FaultSpec =
   | {kind: 'fail'; path: string[]; status?: number}
   | {kind: 'abort'; path?: string[]}
+  | {kind: 'garble'; path: string[]; input?: unknown}
   | {kind: 'gate'; path?: string[]}
   | {kind: 'chat-refused'; status?: number}
   | {kind: 'offline'}
+  | {kind: 'late-close'}
   | {kind: 'detached-sockets'}
   | {kind: 'chat-gate'}
+  | {kind: 'chat-frame-gate'; onRelease: 'deliver' | 'cut'}
+  | {kind: 'project-socket-gate'; socket: string}
   | {kind: 'cut-on-release'; path: string[]}
   | {kind: 'pre-version-engine'}
 
 type Fault = {
   pending: () => number
   awaitCaptured: (count: number) => Promise<void>
-  answered: () => Promise<void>
+  answered: () => Promise<unknown>
   release: () => Promise<void>
   dispose: () => Promise<void>
 }
@@ -187,6 +195,8 @@ const pushSocketsOpened: BrowserCommand<[]> = (ctx): number => requirePush(ctx).
 
 const pushSocketsLive: BrowserCommand<[]> = (ctx): number => requirePush(ctx).liveSockets()
 
+const rpcSocketsOpened: BrowserCommand<[]> = (ctx): number => requireCalls(ctx).socketsSince()
+
 const printedCode: BrowserCommand<[]> = (ctx): string => {
   const code = [
     ...requireKit(ctx)
@@ -312,7 +322,7 @@ function hubCliRoot(state: FileState): string {
 
 function freshHubCli(): NonNullable<HubCliState> {
   return {
-    root: mkdtempSync(join(tmpdir(), 'conciv-hub-cli-')),
+    root: processTempDir('conciv-hub-cli-'),
     saved: {PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? ''},
   }
 }
@@ -325,7 +335,8 @@ function restoreHubCli(state: FileState): void {
   rmSync(current.root, {recursive: true, force: true})
 }
 
-const rpcCallCount: BrowserCommand<[string[]]> = (ctx, path): number => requireCalls(ctx).servedSince(path)
+const rpcCallCount: BrowserCommand<[string[], unknown?]> = (ctx, path, input): number =>
+  requireCalls(ctx).servedSince(path, input)
 
 const rpcStartedOnceServed: BrowserCommand<[string[], number, string[][]]> = async (
   ctx,
@@ -383,6 +394,19 @@ async function takeEngineOffline(ctx: BrowserCommandContext): Promise<Injector> 
     dispose: () => {
       rpcSocket.release()
       return ctx.page.unroute(matcher)
+    },
+  }
+}
+
+async function holdEngineCloses(ctx: BrowserCommandContext): Promise<Injector> {
+  const rpcSocket = (await importTestkit(ctx)).rpcSocketFor(ctx.page)
+  await rpcSocket.installed
+  rpcSocket.holdCloses()
+  return {
+    repair: rpcSocket.releaseCloses,
+    dispose: () => {
+      rpcSocket.releaseCloses()
+      return Promise.resolve()
     },
   }
 }
@@ -465,6 +489,107 @@ function ignoreHandledRoute(error: unknown): void {
   throw error
 }
 
+type SocketRoute = Parameters<Parameters<BrowserCommandContext['page']['routeWebSocket']>[1]>[0]
+
+type HeldFrame = {socket: SocketRoute; server: SocketRoute; message: string | Buffer}
+
+function isRunSocket(url: URL, host: string): boolean {
+  return (
+    url.host === host &&
+    url.pathname.endsWith(CHAT_WS_PATH) &&
+    url.searchParams.has('runId') &&
+    !url.searchParams.has('offset')
+  )
+}
+
+function settleFrame(frame: HeldFrame, onRelease: 'deliver' | 'cut'): void {
+  if (onRelease === 'deliver') return frame.server.send(frame.message)
+  void frame.server.close()
+  void frame.socket.close()
+}
+
+async function gateChatFrames(ctx: BrowserCommandContext, onRelease: 'deliver' | 'cut'): Promise<Fault> {
+  const host = new URL(requireKit(ctx).origin).host
+  const held: {open: boolean; frames: HeldFrame[]; waiters: {count: number; deliver: () => void}[]} = {
+    open: false,
+    frames: [],
+    waiters: [],
+  }
+  await ctx.page.routeWebSocket(
+    (url) => isRunSocket(url, host),
+    (socket) => {
+      const server = socket.connectToServer()
+      socket.onMessage((message) => {
+        if (held.open) return server.send(message)
+        held.frames.push({socket, server, message})
+        for (const waiter of held.waiters.filter((entry) => held.frames.length >= entry.count)) waiter.deliver()
+      })
+    },
+  )
+  const open = (): Promise<void> => {
+    held.open = true
+    for (const frame of held.frames.splice(0)) settleFrame(frame, onRelease)
+    return Promise.resolve()
+  }
+  return {
+    pending: () => held.frames.length,
+    awaitCaptured: (count) =>
+      held.frames.length >= count
+        ? Promise.resolve()
+        : new Promise((resolve) => held.waiters.push({count, deliver: resolve})),
+    answered: () => Promise.reject(new Error('a held frame fault has no single call to await')),
+    release: open,
+    dispose: open,
+  }
+}
+
+const UNIX_SOCKET_PATH_LIMIT = 103
+
+async function gateProjectSocket(root: string, name: string): Promise<Fault> {
+  const path = join(root, name)
+  const bytes = Buffer.byteLength(path)
+  if (bytes > UNIX_SOCKET_PATH_LIMIT) {
+    throw new Error(
+      `the project socket gate's path is ${bytes} bytes, over the ${UNIX_SOCKET_PATH_LIMIT} a unix socket allows: ${path}`,
+    )
+  }
+  const held: {open: boolean; sockets: Socket[]; waiters: {count: number; deliver: () => void}[]} = {
+    open: false,
+    sockets: [],
+    waiters: [],
+  }
+  const resumed = Promise.withResolvers<void>()
+  const server = createServer((socket) => {
+    socket.on('error', () => socket.destroy())
+    socket.on('close', () => resumed.resolve())
+    if (held.open) return socket.write('release')
+    held.sockets.push(socket)
+    for (const waiter of held.waiters.filter((entry) => held.sockets.length >= entry.count)) waiter.deliver()
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(path, resolve)
+  })
+  const open = (): Promise<void> => {
+    held.open = true
+    for (const socket of held.sockets.splice(0)) socket.write('release')
+    return Promise.resolve()
+  }
+  return {
+    pending: () => held.sockets.length,
+    awaitCaptured: (count) =>
+      held.sockets.length >= count
+        ? Promise.resolve()
+        : new Promise((resolve) => held.waiters.push({count, deliver: resolve})),
+    answered: () => resumed.promise,
+    release: open,
+    dispose: async () => {
+      await open()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    },
+  }
+}
+
 function gateChatTurns(ctx: BrowserCommandContext): Promise<Fault> {
   return holdPosts(
     ctx,
@@ -488,9 +613,10 @@ function statusOptions(status: number | undefined): {status?: number} {
 function brokenRpcCalls(
   testkit: CoreTestkit,
   ctx: BrowserCommandContext,
-  spec: Extract<FaultSpec, {kind: 'abort' | 'fail'}>,
+  spec: Extract<FaultSpec, {kind: 'abort' | 'fail' | 'garble'}>,
 ): ReturnType<CoreTestkit['abortRpcCalls']> {
   if (spec.kind === 'abort') return testkit.abortRpcCalls(ctx.page, pathOptions(spec.path))
+  if (spec.kind === 'garble') return testkit.garbleRpcReplies(ctx.page, {path: spec.path, input: spec.input})
   return testkit.failRpcCalls(ctx.page, {path: spec.path, ...statusOptions(spec.status)})
 }
 
@@ -498,9 +624,12 @@ async function createFault(ctx: BrowserCommandContext, handle: string, spec: Fau
   const testkit = await importTestkit(ctx)
   if (spec.kind === 'gate') return testkit.gateRpcCalls(ctx.page, pathOptions(spec.path))
   if (spec.kind === 'chat-gate') return gateChatTurns(ctx)
+  if (spec.kind === 'chat-frame-gate') return gateChatFrames(ctx, spec.onRelease)
+  if (spec.kind === 'project-socket-gate') return gateProjectSocket(requireKit(ctx).stateRoot, spec.socket)
   if (spec.kind === 'cut-on-release') return cutOnRelease(ctx, spec.path)
   if (spec.kind === 'detached-sockets') return trackedFault(handle, spec.kind, await detachEngineSockets(ctx))
   if (spec.kind === 'offline') return trackedFault(handle, spec.kind, await takeEngineOffline(ctx))
+  if (spec.kind === 'late-close') return trackedFault(handle, spec.kind, await holdEngineCloses(ctx))
   if (spec.kind === 'pre-version-engine') return trackedFault(handle, spec.kind, await preVersionEngine(ctx))
   if (spec.kind === 'chat-refused') {
     return trackedFault(handle, spec.kind, await testkit.failChatTurns(ctx.page, statusOptions(spec.status)))
@@ -520,9 +649,8 @@ const releaseFault: BrowserCommand<[string]> = async (ctx, handle): Promise<void
   await requireFault(ctx, handle).release()
 }
 
-const awaitFaultAnswered: BrowserCommand<[string]> = async (ctx, handle): Promise<void> => {
-  await requireFault(ctx, handle).answered()
-}
+const awaitFaultAnswered: BrowserCommand<[string]> = (ctx, handle): Promise<unknown> =>
+  requireFault(ctx, handle).answered()
 
 const faultPending: BrowserCommand<[string]> = (ctx, handle): number => requireFault(ctx, handle).pending()
 
@@ -580,7 +708,36 @@ const hoverButton: BrowserCommand<[hover: PointerHover]> = async (ctx, hover) =>
   await ctx.page.waitForTimeout(hover.settleMs)
 }
 
+const chooseFiles: BrowserCommand<[name: string, chosen: ChosenFile[]]> = async (ctx, name, chosen) => {
+  const chooser = ctx.page.waitForEvent('filechooser')
+  await ctx.iframe.getByRole('button', {name, exact: true}).click()
+  await (
+    await chooser
+  ).setFiles(chosen.map((file) => ({name: file.name, mimeType: file.mimeType, buffer: Buffer.from(file.text)})))
+}
+
+const downloadFrom: BrowserCommand<[name: string]> = async (ctx, name): Promise<{name: string; text: string}> => {
+  const download = ctx.page.waitForEvent('download')
+  await ctx.iframe.getByRole('button', {name, exact: true}).click()
+  const saved = await download
+  const path = await saved.path()
+  return {name: saved.suggestedFilename(), text: readFileSync(path, 'utf8')}
+}
+
+const openedFrom: BrowserCommand<[name: string]> = async (ctx, name): Promise<string> => {
+  const opened = ctx.page.context().waitForEvent('page')
+  await ctx.iframe.getByRole('button', {name, exact: true}).click()
+  const tab = await opened
+  await tab.waitForLoadState('domcontentloaded')
+  const url = tab.url()
+  await tab.close()
+  return url
+}
+
 export const coreCommands = {
+  chooseFiles,
+  openedFrom,
+  downloadFrom,
   dragButton,
   hoverButton,
   bootCore,
@@ -588,6 +745,7 @@ export const coreCommands = {
   writeProjectFile,
   pushSocketsOpened,
   pushSocketsLive,
+  rpcSocketsOpened,
   printedCode,
   requestCode,
   revokeBrowsers,

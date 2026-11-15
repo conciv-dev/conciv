@@ -1,5 +1,5 @@
 import {describe, expect} from 'vitest'
-import {Effect, Fiber, Layer, Stream} from 'effect'
+import {Effect, Fiber, Layer, Schema, Stream} from 'effect'
 import {eq} from 'drizzle-orm'
 import {openDb} from '@conciv/db'
 import {Bus} from '../../src/core/bus.js'
@@ -43,7 +43,7 @@ const it = testEffect(
   ),
 )
 
-const withoutEngine = testEffect(Bus.layer.pipe(Layer.provideMerge(Database.layer())))
+const withoutEngine = testEffect(Bus.layer.pipe(Layer.provideMerge(databaseLayer)))
 
 const Done = Bus.ephemeral({type: 'test.routing.done', schema: {}})
 const owned = SessionId.make('conciv_routing')
@@ -78,6 +78,12 @@ const step = <A extends Event.Payload>(bus: Bus.Interface, publish: Effect.Effec
 describe('Bus Session routing', () => {
   it.effect('routes session events to the engine location through the session row', () =>
     Effect.gen(function* () {
+      const isSessionId = Schema.is(SessionId)
+      expect(isSessionId('conciv_has.dot')).toBe(false)
+      expect(isSessionId(`conciv_${'a'.repeat(129)}`)).toBe(false)
+      expect(isSessionId('conciv_')).toBe(false)
+      expect(isSessionId(`conciv_${crypto.randomUUID()}`)).toBe(true)
+
       const {db} = yield* Database.Service
       yield* db
         .insert(SessionTable)

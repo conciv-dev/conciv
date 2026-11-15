@@ -1,12 +1,15 @@
 import {splitProps, type ComponentProps} from 'solid-js'
 import {Tabs as Ark} from '@ark-ui/solid/tabs'
+import {nativeFocusPart} from './native-focus.js'
 
 const LIST = 'relative flex items-center gap-1 border-b border-chat-line'
 const TRIGGER =
-  'relative inline-flex items-center gap-1.5 py-2 px-3 text-[0.8125rem] font-chat text-chat-text-3 cursor-pointer select-none trans-btn hover:text-chat-text-2 data-[selected]:text-chat-text focus-ring disabled:opacity-50 disabled:cursor-not-allowed'
+  'relative inline-flex items-center gap-1.5 py-1.5 px-3 text-[0.8125rem] leading-5 font-chat text-chat-text-3 cursor-pointer select-none trans-btn hover:text-chat-text-2 data-[selected]:text-chat-text focus-ring disabled:opacity-50 disabled:cursor-not-allowed'
 const CONTENT = 'pt-3 focus-visible:outline-none'
 const INDICATOR =
   'absolute bottom-0 h-0.5 bg-chat-accent [width:var(--width)] [left:var(--left)] [--transition-duration:240ms] [--transition-timing-function:var(--chat-ease-expo)] motion-reduce:[--transition-duration:0ms]'
+
+const NativeTrigger = nativeFocusPart(Ark.Trigger, 'button')
 
 function List(props: ComponentProps<typeof Ark.List>) {
   const [local, rest] = splitProps(props, ['class'])
@@ -15,7 +18,7 @@ function List(props: ComponentProps<typeof Ark.List>) {
 
 function Trigger(props: ComponentProps<typeof Ark.Trigger>) {
   const [local, rest] = splitProps(props, ['class'])
-  return <Ark.Trigger {...rest} class={`${TRIGGER}  ${local.class ?? ''}`} />
+  return <NativeTrigger {...rest} class={`${TRIGGER}  ${local.class ?? ''}`} />
 }
 
 function Content(props: ComponentProps<typeof Ark.Content>) {
@@ -30,4 +33,4 @@ function Indicator(props: ComponentProps<typeof Ark.Indicator>) {
 
 export const Tabs = Object.assign({}, Ark, {List, Trigger, Content, Indicator})
 
-export const TabsPrimitive = Ark
+export const TabsPrimitive = Object.assign({}, Ark, {Trigger: NativeTrigger})

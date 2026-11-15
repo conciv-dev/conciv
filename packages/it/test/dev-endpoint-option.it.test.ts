@@ -1,15 +1,15 @@
-import {existsSync, mkdtempSync, rmSync} from 'node:fs'
-import {tmpdir} from 'node:os'
+import {existsSync} from 'node:fs'
+import {createRequire} from 'node:module'
 import {join} from 'node:path'
 import {afterEach, describe, expect, it} from 'vitest'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {createServer, type ViteDevServer} from 'vite'
 import {unplugin} from '../src/plugin-instance.js'
 
 const ENDPOINT_FILE = 'dev-endpoint.json'
 
-const state: {server: ViteDevServer | undefined; dirs: string[]; home: string | undefined} = {
+const state: {server: ViteDevServer | undefined; home: string | undefined} = {
   server: undefined,
-  dirs: [],
   home: undefined,
 }
 
@@ -26,20 +26,19 @@ async function bootDevServer(root: string, devEndpointDir: string | undefined): 
   return server
 }
 
-function tempDir(prefix: string): string {
-  const dir = mkdtempSync(join(tmpdir(), prefix))
-  state.dirs.push(dir)
-  return dir
-}
-
 afterEach(async () => {
   await state.server?.close()
   state.server = undefined
   if (state.home !== undefined) process.env.HOME = state.home
   state.home = undefined
   await new Promise((resolve) => setTimeout(resolve, 300))
-  for (const dir of state.dirs) rmSync(dir, {recursive: true, force: true})
-  state.dirs = []
+})
+
+describe('a CommonJS bundler config', () => {
+  it.each(['webpack', 'rspack'])('requires @conciv/it/plugin/%s and builds the plugin with .default()', (bundler) => {
+    const required: {default: () => {apply: unknown}} = createRequire(import.meta.url)(`@conciv/it/plugin/${bundler}`)
+    expect(typeof required.default().apply).toBe('function')
+  })
 })
 
 describe('the dev endpoint dir the conciv plugin boots a core with', () => {

@@ -5,9 +5,13 @@ import {createStore} from 'solid-js/store'
 import {browserRpcConnection, type RpcClient} from '@conciv/contract'
 import {isRunPhaseTerminal, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import type {AppData} from '../data/app-data.js'
-import {engineLocked} from './engine-login.js'
+import {returnQueueToDraft, type DraftSink, type QueueOwner} from '../pane/pane-attachments.js'
+import {draftCacheSink} from '../pane/draft-storage.js'
+import {becameTrusted} from './engine-login.js'
 
 export type PaneActivity = 'unmounted' | 'idle' | 'running'
+
+type LostQueueListener = (owner: QueueOwner) => void
 
 export type LiveSessions = {
   activityIn: (sessionId: string | null) => PaneActivity
@@ -16,6 +20,7 @@ export type LiveSessions = {
   open: (sessionId: Accessor<string>) => Accessor<ChatSession>
   reopen: (sessionId: string) => void
   stop: (sessionId: string) => void
+  receiveLostQueue: (sessionId: string, sink: DraftSink) => void
 }
 
 export type LiveSessionsDeps = {
@@ -47,10 +52,12 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
     openers: Accessor<string>[]
     runs: Record<string, RunWatch>
     retired: Record<string, ChatSession>
+    lostQueueListeners: Partial<Record<string, LostQueueListener>>
   }>({
     openers: [],
     runs: {},
     retired: {},
+    lostQueueListeners: {},
   })
   const opened = createMemo(() => state.openers.map((sessionId) => sessionId()))
   const watched = createMemo(() =>
@@ -62,6 +69,8 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
   })
 
   const readRun = (sessionId: string): RunWatch => state.runs[sessionId] ?? IDLE_RUN
+
+  const retire = (sessionId: string, chat: ChatSession): void => setState('retired', {[sessionId]: chat})
 
   const start = (sessionId: string, lifecycle: RunLifecycle) => {
     const run = readRun(sessionId)
@@ -86,6 +95,12 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
     if (lastRun.runId === readRun(sessionId).live) finish(sessionId, lastRun, false)
   }
 
+  const returnLostQueue = (sessionId: string, session: ChatSession): void => {
+    const listener = state.lostQueueListeners[sessionId]
+    if (listener) return listener(session)
+    returnQueueToDraft(session, draftCacheSink(deps.appData, sessionId))
+  }
+
   const liveChat = (sessionId: string, dispose: () => void): LiveChat => {
     const chat = createMemo(
       on(
@@ -108,6 +123,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
       sessionId,
       onError: () => {
         if (reopened && session.loadFailed()) deps.announce('conciv could not load this conversation. Try again.')
+        returnLostQueue(sessionId, session)
       },
       connection: {
         transport,
@@ -124,8 +140,9 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
     })
     const connection = browserRpcConnection(apiBase)
     const stopTrust = connection.trust.subscribe((status, previous) => {
-      if (status === 'trusted' && engineLocked(previous))
-        session.refresh().catch((error: unknown) => console.error('[conciv] re-hydrating the chat failed', error))
+      if (!becameTrusted(status, previous)) return
+      if (session.loadFailed()) return retire(sessionId, session)
+      session.refresh().catch((error: unknown) => console.error('[conciv] re-hydrating the chat failed', error))
     })
     onCleanup(() => {
       stopTrust()
@@ -171,10 +188,19 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
     },
     reopen(sessionId) {
       const entry = findChat(sessionId)
-      if (entry) setState('retired', {[sessionId]: entry.chat()})
+      if (entry) retire(sessionId, entry.chat())
     },
     stop(sessionId) {
       void findChat(sessionId)?.chat().stop()
+    },
+    receiveLostQueue(sessionId, sink) {
+      const listener: LostQueueListener = (owner) => returnQueueToDraft(owner, sink)
+      setState('lostQueueListeners', sessionId, () => listener)
+      onCleanup(() =>
+        setState('lostQueueListeners', sessionId, (current: LostQueueListener | undefined) =>
+          current === listener ? undefined : current,
+        ),
+      )
     },
   }
 }

@@ -21,6 +21,7 @@ export type CoreRuntimeDeps = {
   db: ConcivDb
   model: (sessionId: SessionId) => string | null
   staleness: () => EngineStaleness
+  interruptIdle: (sessionId: SessionId) => Promise<boolean>
 }
 
 function catalogSignatures(catalog: ToolCatalog): ToolCommandSignature[] {
@@ -76,13 +77,12 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
   const model = deps.model(id)
   const view = registry.whenPageConnected(() => page.bus.connected(id))
   const agentId: string = id
-  const requestFor = (options: {toolCallId?: string; signal?: AbortSignal; outside?: boolean} = {}): ToolRequest => ({
+  const requestFor = (options: {toolCallId?: string; signal?: AbortSignal} = {}): ToolRequest => ({
     sessionId: id,
     agentId,
     model,
     ...(options.toolCallId === undefined ? {} : {toolCallId: options.toolCallId}),
     ...(options.signal === undefined ? {} : {signal: options.signal}),
-    ...(options.outside === true ? {outside: true} : {}),
   })
   return {
     id,
@@ -119,8 +119,15 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
       hydrate: (window) => deps.plane.hydrate(id, window),
     },
     run: {
-      stop: (runIds) => deps.plane.stop(id, runIds),
-      compact: () => deps.plane.compact(id),
+      stop: async (runIds) => {
+        const {stopped} = await deps.plane.stop(id, runIds)
+        const interrupted = await deps.interruptIdle(id)
+        return {ok: true, stopped: stopped || interrupted}
+      },
+      compact: async () => {
+        await deps.interruptIdle(id)
+        await deps.plane.compact(id)
+      },
       live: () => deps.plane.live(id),
       record: (chunks) => deps.plane.record(id, chunks),
     },

@@ -7,6 +7,7 @@ import {Tool} from '../schema/tool.js'
 import {Context, Effect, Layer, Result, Schema, SchemaIssue, Types} from 'effect'
 import type {Agent} from '../schema/agent.js'
 import {Permission} from '../schema/permission.js'
+import {Image} from './image.js'
 import {PluginHooks} from './plugin/hooks.js'
 import {SessionMessage} from '../schema/session-message.js'
 import {Session as SessionSchema} from '../schema/session.js'
@@ -78,6 +79,37 @@ export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const hooks = yield* PluginHooks.Service
+    const image = yield* Image.Service
+
+    type NormalizedItem = Tool.Content | 'decode' | 'size'
+    const normalizeImages = Effect.fnUntraced(function* (content: ReadonlyArray<Tool.Content>) {
+      const normalized = yield* Effect.forEach(content, (item): Effect.Effect<NormalizedItem> => {
+        if (item.type !== 'file' || !item.mime.startsWith('image/')) return Effect.succeed(item)
+        const base64 = /^data:[^,]*;base64,(.*)$/s.exec(item.uri)?.[1]
+        if (base64 === undefined) return Effect.succeed(item)
+        const resource = item.name ?? `${item.mime} tool output`
+        return image.normalize(resource, {uri: resource, content: base64, encoding: 'base64', mime: item.mime}).pipe(
+          Effect.map((result) => ({
+            ...item,
+            uri: `data:${result.mime};base64,${result.content}`,
+            mime: result.mime,
+          })),
+          Effect.catchTag('Image.ResizerUnavailableError', () => Effect.succeed(item)),
+          Effect.catchTag('Image.DecodeError', () => Effect.succeed<NormalizedItem>('decode')),
+          Effect.catchTag('Image.SizeError', () => Effect.succeed<NormalizedItem>('size')),
+        )
+      })
+      const note = (reason: 'decode' | 'size', text: string): Tool.Content[] => {
+        const count = normalized.filter((item) => item === reason).length
+        if (count === 0) return []
+        return [{type: 'text', text: `[${count} image${count === 1 ? '' : 's'} omitted: ${text}]`}]
+      }
+      return [
+        ...normalized.filter((item) => typeof item !== 'string'),
+        ...note('decode', 'could not be decoded.'),
+        ...note('size', 'could not be resized below the image size limit.'),
+      ]
+    })
 
     const beforeExecute = (name: string, input: unknown, context: Tool.Context) =>
       hooks.trigger('tool', 'execute.before', {
@@ -132,7 +164,7 @@ export const layer = Layer.effect(
         },
       }
       yield* hooks.trigger('tool', 'execute.after', afterEvent)
-      const afterContent = normalizeContent(afterEvent.result.content, afterEvent.result.output)
+      const afterContent = yield* normalizeImages(normalizeContent(afterEvent.result.content, afterEvent.result.output))
       return {
         ...(afterEvent.result.output === undefined ? {} : {output: afterEvent.result.output}),
         content: afterContent,
