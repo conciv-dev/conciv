@@ -4618,7 +4618,13 @@ describe('outside agent consent', () => {
   const DENIED = 'The user denied codex access to the conciv tab'
   const OUTSIDE_ASK = {toolName: 'Allow codex to use this tab', input: {client: 'codex'}}
   const ROUTE = {href: 'http://localhost:5173/a', title: 'A', state: 'visible', pathname: '/a', search: ''}
-  type Booted = {base: string; stopped: AbortSignal; answering: Array<Promise<void>>; stop: () => Promise<void>}
+  type Booted = {
+    base: string
+    stopped: AbortSignal
+    answering: Array<Promise<void>>
+    tabs: ReturnType<typeof pageTabs> | undefined
+    stop: () => Promise<void>
+  }
   const engines: Booted[] = []
   const pages = new AbortController()
   afterAll(async () => {
@@ -4628,13 +4634,14 @@ describe('outside agent consent', () => {
     if (failures.length > 0) throw new AggregateError(failures, 'stopping the consent engines failed')
   })
 
-  function track(engine: Engine): string {
+  function track(engine: Engine, tabs?: ReturnType<typeof pageTabs>): string {
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const stopped = new AbortController()
     const booted: Booted = {
       base,
       stopped: stopped.signal,
       answering: [],
+      tabs,
       stop: async () => {
         engines.splice(engines.indexOf(booted), 1)
         stopped.abort()
@@ -4657,33 +4664,25 @@ describe('outside agent consent', () => {
 
   async function boot(hubAccess: HubAccess = 'session', home = tempDir('conciv-home-')): Promise<string> {
     connectedHome(home)
-    return track(await bootAt(home, tempDir('conciv-consent-'), hubAccess))
+    const tabs = pageTabs()
+    return track(await bootAt(home, tempDir('conciv-consent-'), hubAccess, createFakeHarness(), [tabs.plugin]), tabs)
   }
 
   async function openTab(base: string, silent?: () => void, heard: string[] = []): Promise<string> {
     const engine = engines.find((booted) => booted.base === base)
-    if (engine === undefined) throw new Error(`no engine was booted at ${base}`)
+    if (engine?.tabs === undefined) throw new Error(`no engine with a page plugin was booted at ${base}`)
     const sessionId = await newSession(base)
-    const listening = AbortSignal.any([pages.signal, engine.stopped])
-    const queries = await createSessionRpc(base, sessionId).page.queries(undefined, {signal: listening})
-    const replies = async () => {
-      for await (const {requestId, query} of queries) {
-        heard.push(queryName(query))
-        if (silent) silent()
-        else
-          await createSessionRpc(base, sessionId).page.reply({
-            requestId,
-            outcome: {ok: true, result: pageAnswer(query)},
-          })
-      }
+    const answerFor = (command: Page.Command): PageReply | undefined => {
+      heard.push(`page_${command.action.type}`)
+      if (silent === undefined) return pageAnswer(command)
+      silent()
+      return undefined
     }
-    engine.answering.push(
-      replies().catch((error: unknown) => {
-        if (!listening.aborted) throw error
-      }),
-    )
+    const tab = await engine.tabs.open(sessionId, answerFor, {url: ROUTE.href, title: ROUTE.title})
+    const closing = AbortSignal.any([pages.signal, engine.stopped])
+    closing.addEventListener('abort', () => tab.end(), {once: true})
     const tabOpen = async () => TabOpenSchema.parse(await makeRpcClient(base).tabs.get({sessionId}))
-    await vi.waitFor(async () => expect((await tabOpen()).open).toBe(true), {timeout: 3000})
+    expect((await tabOpen()).open).toBe(true)
     return sessionId
   }
 
@@ -4691,9 +4690,16 @@ describe('outside agent consent', () => {
 
   const SCREENSHOT = {image: 'UklGRhYAAABXRUJQVlA4', width: 1, height: 1}
 
-  const queryName = (query: unknown) => z.object({name: z.string()}).safeParse(query).data?.name ?? ''
-
-  const pageAnswer = (query: unknown) => (queryName(query) === 'page_screenshot' ? SCREENSHOT : ROUTE)
+  const pageAnswer = (command: Page.Command): PageReply =>
+    command.action.type === 'screenshot'
+      ? {
+          type: 'success',
+          result: {
+            value: {width: SCREENSHOT.width, height: SCREENSHOT.height},
+            files: [{id: `file_${randomUUID()}`, name: 'screenshot.webp', mime: 'image/webp', data: SCREENSHOT.image}],
+          },
+        }
+      : pageSuccess(ROUTE)
 
   const createSessionRpc = (base: string, sessionId: string) =>
     makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
@@ -4754,7 +4760,6 @@ describe('outside agent consent', () => {
       'discover_tools',
       'server_reload',
       'server_restart',
-      'page_eval',
       'skill',
       'execute_typescript',
     ])
@@ -4821,7 +4826,7 @@ describe('outside agent consent', () => {
     expect(listed).toContain(`"tab":"${theirs}"`)
     expect(listed).toContain(`"unreachable":[{"root":"${hungRoot}"`)
     expect(listed).not.toMatch(new RegExp(`${new URL(runner).pathname}|${new URL(owner).pathname}`))
-    expect(await outside(runner, 'return await external_page_route({})')).toContain(
+    expect(await outside(runner, 'return await external_server_urls({})')).toContain(
       'NO_TAB: pass tab to execute_typescript; external_tabs({}) lists the open tabs',
     )
     const onTab = (code: string) => executeOverMcp(owner, {[CONCIV_SESSION_HEADER]: theirs, ...HUB}, code)
@@ -5188,7 +5193,7 @@ export default {
     connectedHome(home)
     const tab = await openTab(base)
     const overRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: tab, ...HUB}})
-      .registry.call({name: 'page_route', input: {}})
+      .registry.call({name: 'tabs', input: {}})
       .then(String, String)
     await vi.waitFor(async () => expect(await loadPending(base, tab)).toHaveLength(1), {timeout: 3000})
     forget()
@@ -5264,12 +5269,12 @@ export default {
     await waiting
   })
 
-  it('a stopped engine leaves the listing, a page that never answers lists no href, and a corrupt home db names the folder', async () => {
+  it('a stopped engine leaves the listing, a page that never answers is listed with the href its tab reported, and a corrupt home db names the folder', async () => {
     const home = tempDir('conciv-home-')
     const [runner, owner] = [await boot('open', home), await boot('open', home)]
     const silent = await openTab(owner, () => {})
     const listing = await outside(runner, 'return await external_tabs({})')
-    expect([listing.includes(`"tab":"${silent}"`), listing.includes('href')]).toEqual([true, false])
+    expect([listing.includes(`"tab":"${silent}"`), listing.includes(`"href":"${ROUTE.href}"`)]).toEqual([true, true])
     await engines.at(-1)?.stop()
     expect(await outside(runner, 'return await external_tabs({})')).toContain('{"tabs":[],"unreachable":[]}')
     writeFileSync(join(home, 'home.db'), 'garbage '.repeat(512))
@@ -5279,9 +5284,11 @@ export default {
   it('a hub-origin rpc tool call waits for the allow and runs marked, a caller that leaves stops waiting, a plain rpc call never asks, project policy allows every session', async () => {
     const base = await boot('project')
     const sessionId = await openTab(base)
-    const route = {name: 'page_route', input: {}}
+    const route = {name: 'tabs', input: {}}
     const hubRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB}})
-    expect(await createSessionRpc(base, sessionId).registry.call(route)).toMatchObject({href: ROUTE.href})
+    expect(await createSessionRpc(base, sessionId).registry.call(route)).toMatchObject({
+      tabs: expect.arrayContaining([expect.objectContaining({tab: sessionId, href: ROUTE.href})]),
+    })
     expect(await loadPending(base, sessionId)).toEqual([])
     const leaving = new AbortController()
     const left = hubRpc.registry.call(route, {signal: leaving.signal})
@@ -5292,11 +5299,13 @@ export default {
     const starts = await toolStarts(base, sessionId, 2)
     const waiting = hubRpc.registry.call(route)
     await decideOutside(base, sessionId, true)
-    expect(await waiting).toMatchObject({href: ROUTE.href})
+    expect(await waiting).toMatchObject({
+      tabs: expect.arrayContaining([expect.objectContaining({tab: sessionId, href: ROUTE.href})]),
+    })
     await expect(hubRpc.server.urls()).rejects.toMatchObject({code: 'NO_BUNDLER'})
     expect(await starts()).toEqual([
       expect.objectContaining({
-        toolCallName: 'page_route',
+        toolCallName: 'tabs',
         metadata: {conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}},
       }),
       expect.objectContaining({toolCallName: 'server_urls'}),
