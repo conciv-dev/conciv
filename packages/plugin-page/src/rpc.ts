@@ -479,7 +479,11 @@ export const Operations = [
 
 export type Operation = (typeof Operations)[number]
 export type Method = Operation['name']
-export const Action = z.union(Operations.map((entry) => entry.action))
+const [firstOperation, ...otherOperations] = Operations
+export const Action = z.discriminatedUnion('type', [
+  firstOperation.action,
+  ...otherOperations.map((entry) => entry.action),
+])
 export type Action = z.infer<typeof Action>
 export const Target = z.object({resources: z.array(text), key: text})
 export type Target = z.infer<typeof Target>
