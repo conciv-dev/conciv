@@ -6358,7 +6358,7 @@ describe('plugin settings page links while plugins are not yet known', () => {
 
   afterEach(harness.dispose)
 
-  test('with zero plugins an unknown page lands on General, and with the engine unreachable a page link keeps its address under the lost connection notice until Retry finds the page gone', async () => {
+  test('with zero plugins an unknown page lands on General, and with the engine unreachable a page link keeps its address under the lost connection notice and lands on General once the engine is back', async () => {
     await page.viewport(1000, 900)
     const sessionId = await createSession(coreRpc(coreBase()))
     const pagePath = (key: string) => `/panel/${sessionId}/settings/plugins/${encodeURIComponent(key)}?open=true`
@@ -6382,9 +6382,8 @@ describe('plugin settings page links while plugins are not yet known', () => {
     harness.mountShell(pagePath('alpha:prefs'), [], {login: {apiBase: origin}})
     await trustChecked
     await expect.element(lostConnection(), {timeout: 15_000}).toBeVisible()
-    await coreControl.releaseFault(offline)
     expect(harness.pathname()).toBe(`/panel/${sessionId}/settings/plugins/${encodeURIComponent('alpha:prefs')}`)
-    await lostConnection().getByRole('button', {name: 'Retry'}).click()
+    await coreControl.releaseFault(offline)
     await expect.element(page.getByRole('heading', {name: 'Appearance'}), {timeout: 15_000}).toBeVisible()
     expect(harness.pathname()).toBe(`/panel/${sessionId}/settings/general`)
   }, 90_000)
@@ -6922,7 +6921,7 @@ module.exports = {default: {setup(ctx) {
     expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:tools'))
   }, 60_000)
 
-  test('a cold link to a tab no panel lists ends on the chat, and a cold link to its tab with the engine unreachable keeps its address under the lost connection notice and opens the tab after Retry', async () => {
+  test('a cold link to a tab no panel lists ends on the chat, and a cold link to its tab with the engine unreachable keeps its address under the lost connection notice and opens the tab once the engine is back', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(`${tabPath(sessionId, 'fixture:missing')}?open=true`)
     await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
@@ -6948,9 +6947,8 @@ module.exports = {default: {setup(ctx) {
     await trustChecked
     await expect.element(lostConnection(), {timeout: 15_000}).toBeVisible()
     await expect.element(tab('Chat')).toHaveAttribute('aria-selected', 'false')
-    await coreControl.releaseFault(offline)
     expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:tools'))
-    await lostConnection().getByRole('button', {name: 'Retry'}).click()
+    await coreControl.releaseFault(offline)
     await expect.element(control('Write a plain note'), {timeout: 15_000}).toBeVisible()
     await expect.element(tab('Fixture tools')).toHaveAttribute('aria-selected', 'true')
     expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:tools'))
