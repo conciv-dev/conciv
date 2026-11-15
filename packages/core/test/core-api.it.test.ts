@@ -5699,7 +5699,7 @@ describe('page action queue delivery', () => {
     expect(page.cards(queueId)).toHaveLength(1)
   }, 5000)
 
-  it('a page.queue.wait over the websocket whose peer closes as the queue finishes keeps the result owed, so it leads the next reply once', async () => {
+  it('a page.queue.wait over the websocket its caller aborts before the queue finishes keeps the result owed, so it leads the next reply once', async () => {
     const page = await engineWithTab()
     const {queueId} = parseHandle(await page.hub(queued()))
     const onTab = await page.nextQueue()
@@ -5710,15 +5710,20 @@ describe('page action queue delivery', () => {
     const overSocket = createORPCClient<ReturnType<typeof makeRpcClient>>(
       new WebsocketRpcLink({websocket: socket, headers: HUB}),
     )
-    const waiting = overSocket.page.queue.wait({sessionId: page.sessionId, queueId, waitMs: 60_000})
+    const caller = new AbortController()
+    const waiting = overSocket.page.queue.wait(
+      {sessionId: page.sessionId, queueId, waitMs: 60_000},
+      {signal: caller.signal},
+    )
     expect(await overSocket.tabs.get({sessionId: page.sessionId})).toMatchObject({open: true})
-    const first = page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
-    const second = page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    caller.abort()
+    await expect(waiting).rejects.toMatchObject({name: 'AbortError'})
+    expect(await overSocket.tabs.get({sessionId: page.sessionId})).toMatchObject({open: true})
     const closed = once(socket, 'close')
     socket.close()
     await closed
-    await expect(waiting).rejects.toThrow()
-    await Promise.all([first, second])
+    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
     await page.finishedEvent(queueId)
     const notice = `queue ${queueId} finished: 2 played, 0 failed`
     expect(JSON.stringify(await page.hub('return 1'))).toContain(notice)
