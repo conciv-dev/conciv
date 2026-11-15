@@ -83,14 +83,14 @@ export async function renameSession(
 }
 
 export async function deleteSession(deletion: SessionDeletion, sessionId: SessionId): Promise<void> {
+  await deletion.pluginHost.runPromise(KV.Service.use((kv) => removeInstructionEntries(kv, sessionId)))
+  await deletion.pluginHost.runPromise(
+    Bus.Service.use((bus) => bus.publish(SessionEvent.Deleted, {sessionID: SessionSchema.Id.make(sessionId)})),
+  )
   await tombstoneRow(deletion.db, sessionId)
   await deletion.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
   await deletion.plane.clear(sessionId)
   deletion.queues.release(sessionId)
   await deleteSessionCaptures(deletion.db, sessionId)
   await clearPageChanges(deletion.db, sessionId)
-  await deletion.pluginHost.runPromise(KV.Service.use((kv) => removeInstructionEntries(kv, sessionId)))
-  await deletion.pluginHost.runPromise(
-    Bus.Service.use((bus) => bus.publish(SessionEvent.Deleted, {sessionID: SessionSchema.Id.make(sessionId)})),
-  )
 }
