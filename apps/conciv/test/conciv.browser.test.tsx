@@ -4180,6 +4180,7 @@ describe('engine login', () => {
         await expect.element(dialog()).not.toBeInTheDocument()
         await expect.poll(() => watch.status()).toBe('trusted')
         await coreControl.releaseFault(trustAsk)
+        expect(await coreControl.awaitFaultAnswered(trustAsk)).toEqual({trusted: false})
         expect(await heldAsk).toBe(false)
         expect(watch.status()).toBe('trusted')
         await expect.element(loginNotice()).not.toBeInTheDocument()
