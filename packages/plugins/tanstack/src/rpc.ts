@@ -72,6 +72,13 @@ export const AppError = z.object({
 })
 export type AppError = z.infer<typeof AppError>
 
+const RouteInfo = z.object({
+  path: z.string(),
+  kind: z.enum(['page', 'layout', 'api', 'middleware']),
+  dynamic: z.boolean(),
+  file: z.string().nullable(),
+})
+
 export const Definition = Rpc.define({
   id: 'experimental.tanstack',
   methods: {
@@ -79,6 +86,11 @@ export const Definition = Rpc.define({
       input: z.object({}),
       output: z.array(AppError),
       errors: {BUNDLER_UNAVAILABLE: z.object({})},
+    },
+    routeManifest: {
+      input: z.object({}),
+      output: z.array(RouteInfo),
+      errors: {MANIFEST_UNREADABLE: z.object({})},
     },
   },
   events: {},

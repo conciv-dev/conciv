@@ -16,6 +16,13 @@ export default Plugin.define({
           return error('BUNDLER_UNAVAILABLE', failureMessage(cause), {})
         }
       },
+      routeManifest: async (_input, {error}) => {
+        try {
+          return await tanstack.routeManifest()
+        } catch (cause) {
+          return error('MANIFEST_UNREADABLE', failureMessage(cause), {})
+        }
+      },
     })
     await ctx.skill.transform((editor) => editor.add(info))
     return async () => {

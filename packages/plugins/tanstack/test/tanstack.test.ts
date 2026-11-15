@@ -155,6 +155,7 @@ describe('the tanstack plugin without a bundler', () => {
     expect(about?.dynamic).toBe(false)
     expect(about?.file?.endsWith('.tsx')).toBe(true)
     expect(routes.find((route) => route.path === '/form')?.file?.endsWith('routes/form')).toBe(true)
+    expect(await terminalCall(kit, 'routeManifest', '{}')).toEqual({ok: true, data: routes})
 
     kit.writeProjectFile(
       'src/routeTree.gen.ts',
@@ -170,6 +171,10 @@ describe('the tanstack plugin without a bundler', () => {
     const unreadable = await toolFailure(useTool(kit, 'route_manifest'))
     expect(unreadable).toContain('ENOENT')
     expect(unreadable).toContain('routeTree.gen.ts')
+    expect(await terminalCall(kit, 'routeManifest', '{}')).toEqual({
+      ok: false,
+      error: {kind: 'user', message: unreadable, code: 'PLUGIN_RPC'},
+    })
 
     expect(await toolFailure(useTool(kit, 'build_errors'))).toBe('bundler bridge unavailable')
     expect(await terminalCall(kit, 'buildErrors', '{}')).toEqual({

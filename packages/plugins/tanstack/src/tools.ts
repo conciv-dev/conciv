@@ -7,13 +7,6 @@ import {makeServerFnTraceRing} from './server/serverfn-trace.js'
 
 const options = {namespace: 'tanstack', codemode: true}
 
-const RouteInfo = z.object({
-  path: z.string(),
-  kind: z.enum(['page', 'layout', 'api', 'middleware']),
-  dynamic: z.boolean(),
-  file: z.string().nullable(),
-})
-
 const ServerFnTraces = z.object({
   traces: z.array(
     z.object({
@@ -84,8 +77,8 @@ export async function register(tool: ToolDomain, tanstack: Capabilities) {
       name: 'route_manifest',
       description:
         "Read the app's route manifest from routeTree.gen (all defined routes, paths, dynamic segments). Use it to see what routes exist, not just the matched ones.",
-      input: z.object({}),
-      output: z.array(RouteInfo),
+      input: Definition.methods.routeManifest.input,
+      output: Definition.methods.routeManifest.output,
       options,
       execute: () => answer('MANIFEST_UNREADABLE', tanstack.routeManifest),
     })
