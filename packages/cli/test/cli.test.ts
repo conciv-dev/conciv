@@ -1,4 +1,6 @@
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, test, vi} from 'vitest'
+import {randomUUID} from 'node:crypto'
+import {isEqual} from 'es-toolkit'
 import {main as cliMain} from '../src/main.js'
 import {runCli} from '../src/run.js'
 import {execFile, execFileSync, spawn, spawnSync} from 'node:child_process'
@@ -25,7 +27,7 @@ import {
   TabOpenSchema,
 } from '@conciv/protocol/chat-types'
 import {readApprovalAsk, type ChatEvent, ChatEventType, pageQueueEvent} from '@conciv/protocol/chat-event-types'
-import {PageQuerySchema} from '@conciv/protocol/page-types'
+import {pageTabs, type PageAnswer, type PageReply} from '@conciv/plugin-page-testkit/page-tabs'
 import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PageServingFrame} from '@conciv/protocol/push-types'
 import {grantBrowser, isTrustedBrowser, readTrustedBrowsers} from '@conciv/protocol/engine-trust'
@@ -495,32 +497,6 @@ describe('cli', () => {
         })
       })
 
-      it('sends the effect argument to the server instead of dropping it', async () => {
-        const kit = await bootCli(cleanups)
-        const answer = await answerNextQuery(kit, {ok: true, result: {effect: 'confetti', enabled: true}})
-        expect(await runCli(cliMain, ['tools', 'page', 'effect', '--action', 'enable', '--effect', 'confetti'])).toBe(0)
-        expect(answer.seen()).toMatchObject({name: 'page_effect', input: {action: 'enable', effect: 'confetti'}})
-      })
-
-      it('accepts every action value the protocol declares, not only the first three', async () => {
-        const kit = await bootCli(cleanups)
-        const answer = await answerNextQuery(kit, {ok: true, result: {}})
-        expect(await runCli(cliMain, ['tools', 'react', 'track', '--action', 'toggle'])).toBe(0)
-        expect(answer.seen()).toMatchObject({name: 'page_track', input: {action: 'toggle'}})
-      })
-
-      it('names the attribute of an edit separately from the React component name', async () => {
-        const kit = await bootCli(cleanups)
-        const answer = await answerNextQuery(kit, {ok: true, result: {ok: true}})
-        expect(
-          await runCli(cliMain, ['tools', 'page', 'setattr', '#a', '--attribute', 'data-state', '--value', 'open']),
-        ).toBe(0)
-        expect(answer.seen()).toMatchObject({
-          name: 'page_setattr',
-          input: {selector: '#a', attribute: 'data-state', value: 'open'},
-        })
-      })
-
       it('clears a field when the value is explicitly empty', async () => {
         const kit = await bootCli(cleanups, {extensions: [formTools]})
         const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: ''}})
@@ -540,22 +516,6 @@ describe('cli', () => {
         const help = await helpText(['tools', 'acme', '--help'])
         expect(help).not.toMatch(/acme fill/)
         expect(help).toContain('type a value into a form field')
-      })
-
-      it('offers the screenshot verb under page, derived from its declaration', async () => {
-        await bootCli(cleanups)
-        const help = await helpText(['tools', 'page', '--help'])
-        expect(help).toContain('screenshot')
-        expect(help).toContain('capture the visible viewport as a webp image')
-      })
-
-      it('offers the hot update wait under page, derived from its declaration', async () => {
-        await bootCli(cleanups)
-        const help = await helpText(['tools', 'page', '--help'])
-        expect(help).toMatch(/^\s+hmr\s/m)
-        expect(help.replaceAll(/\s+/g, ' ')).toContain(
-          'after editing a file, wait for the hot update to land before reading the page',
-        )
       })
 
       it('derives a dev-server operation and its positional from the declaration', async () => {
@@ -1173,10 +1133,12 @@ describe('cli', () => {
       extensions?: Parameters<typeof startEngine>[0]['extensions']
       plugins?: Parameters<typeof startEngine>[0]['plugins']
       hubAccess?: 'session' | 'open'
-      queued?: (queue: {id: string; replies: string[]}) => void
+      queued?: (queue: {id: string; of: number}) => void
+      answer?: PageAnswer
     } = {},
   ) {
     const root = given.shared?.root ?? mkdtempSync(join(tmpdir(), 'conciv-hub-'))
+    const tabs = pageTabs()
     const engine = await startEngine({
       options: {
         harnessBin: 'true',
@@ -1188,36 +1150,38 @@ describe('cli', () => {
       launchEditor: () => {},
       homeDir: home,
       extensions: given.extensions,
-      plugins: given.plugins,
+      plugins: [tabs.plugin, ...(given.plugins ?? [])],
     })
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const sessionId = given.shared?.sessionId ?? (await makeRpcClient(base).sessions.create(undefined)).sessionId
     const page = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
-    const stopped = new AbortController()
-    const listening = AbortSignal.any([pages.signal, stopped.signal])
-    const queries = await page.page.queries(undefined, {signal: listening})
     const route = {href: `http://localhost${root}`, title: root, state: 'visible', pathname: root, search: ''}
-    const answer = async () => {
-      for await (const {requestId, query} of queries) {
-        const queue = PageQuerySchema.parse(query).queue
-        const result = queue === undefined ? route : {queueId: queue.id, actions: queue.replies.length}
-        await page.page.reply({requestId, outcome: {ok: true, result}})
-        if (queue !== undefined) given.queued?.(queue)
+    const held = new Map<string, string>()
+    const arrivals = new EventTarget()
+    const answerFor: PageAnswer = (command, requestId) => {
+      if (command.queued === undefined)
+        return given.answer?.(command, requestId) ?? {type: 'success', result: {value: route, files: []}}
+      const {id, index, of} = command.queued
+      if (index >= 0) {
+        held.set(`${id}/${index}`, requestId)
+        arrivals.dispatchEvent(new Event('held'))
+        return undefined
       }
+      given.queued?.({id, of})
+      return {type: 'success', result: {value: {queueId: id, actions: of}, files: []}}
     }
-    const answering = answer().catch((error: unknown) => {
-      if (error !== listening.reason) throw error
-    })
+    const tab = await tabs.open(sessionId, answerFor, {url: route.href, title: root})
+    const heldRequest = async (key: string): Promise<string> => {
+      const requestId = held.get(key)
+      if (requestId !== undefined) return requestId
+      await once(arrivals, 'held')
+      return heldRequest(key)
+    }
     const stop = async () => {
-      stopped.abort()
-      const [answered] = await Promise.allSettled([answering])
-      const [engineStopped] = await Promise.allSettled([engine.stop()])
-      const failures = [answered, engineStopped].flatMap((result) =>
-        result.status === 'rejected' ? [result.reason] : [],
-      )
-      if (failures.length > 0) throw new AggregateError(failures, 'stopping the engine with a tab failed')
+      tab.end()
+      await engine.stop()
     }
-    return {engine: {...engine, stop}, sessionId, base, page, root}
+    return {engine: {...engine, stop}, sessionId, base, page, root, tab, heldRequest, open: tabs.open}
   }
 
   async function askRaised(page: ReturnType<typeof makeRpcClient>, sessionId: string, signal: AbortSignal) {
@@ -1424,6 +1388,209 @@ describe('cli', () => {
     const refused = (message: string | RegExp, type?: string) => ({
       code: 1,
       document: {ok: false, error: {kind: 'user', message, ...(type === undefined ? {} : {type})}},
+    })
+
+    const ok = {ok: true}
+    type RowValue = Extract<PageReply, {type: 'success'}>['result']['value']
+    const PAGE_ROWS: Array<{row: string; action: {type: string} & Record<string, unknown>; value: RowValue}> = [
+      {
+        row: 'conciv tools page route',
+        action: {type: 'route'},
+        value: {pathname: '/', search: '', href: 'http://localhost/', title: 'Home', state: 'visible'},
+      },
+      {row: 'conciv tools page dom', action: {type: 'dom', selector: 'main'}, value: {html: '<main></main>'}},
+      {
+        row: 'conciv tools page query',
+        action: {type: 'query', selector: 'a'},
+        value: {count: 1, elements: [{tag: 'a'}]},
+      },
+      {
+        row: 'conciv tools page console',
+        action: {type: 'console', since: 0},
+        value: {entries: [{level: 'log', ts: 1, text: 'hi'}]},
+      },
+      {row: 'conciv tools page text', action: {type: 'text', selector: 'h1'}, value: {text: 'Hello'}},
+      {row: 'conciv tools page value', action: {type: 'value', selector: 'input'}, value: {value: 'typed'}},
+      {
+        row: 'conciv tools page attr',
+        action: {type: 'attr', selector: 'a', attribute: 'href'},
+        value: {value: '/next'},
+      },
+      {row: 'conciv tools page exists', action: {type: 'exists', selector: 'nav'}, value: {exists: true, count: 1}},
+      {row: 'conciv tools page snapshot', action: {type: 'snapshot'}, value: {nodes: [{ref: 'e1', role: 'button'}]}},
+      {
+        row: 'offers the screenshot verb under page, derived from its declaration',
+        action: {type: 'screenshot', exclude: ['#devtools']},
+        value: {width: 1, height: 1},
+      },
+      {
+        row: 'offers the hot update wait under page, derived from its declaration',
+        action: {type: 'hmr', timeout: 100},
+        value: {supported: true, applied: true, waitedMs: 3, error: null},
+      },
+      {
+        row: 'conciv tools page locate',
+        action: {type: 'locate', selector: 'button'},
+        value: {component: 'Button', stack: ['Button', 'App']},
+      },
+      {row: 'conciv tools page tree', action: {type: 'tree', name: 'App'}, value: {root: {name: 'App'}}},
+      {
+        row: 'conciv tools page inspect',
+        action: {type: 'inspect', name: 'Button', path: 'props.label'},
+        value: {component: 'Button', value: 'Go'},
+      },
+      {
+        row: 'conciv tools page override',
+        action: {type: 'override', name: 'Button', target: 'props', path: 'label', json: '"Stop"'},
+        value: {ok: true, target: 'props', path: 'label'},
+      },
+      {row: 'conciv tools page find', action: {type: 'find', name: 'Button'}, value: {instances: [{name: 'Button'}]}},
+      {
+        row: 'conciv tools page track',
+        action: {type: 'track', action: 'start', name: 'Button'},
+        value: {tracking: true},
+      },
+      {
+        row: 'accepts every action value the protocol declares, not only the first three',
+        action: {type: 'track', action: 'toggle'},
+        value: {},
+      },
+      {
+        row: 'conciv tools page effect',
+        action: {type: 'effect', action: 'list'},
+        value: {effects: [{name: 'confetti', description: 'paper rain', enabled: false}]},
+      },
+      {
+        row: 'sends the effect argument to the server instead of dropping it',
+        action: {type: 'effect', action: 'enable', effect: 'confetti'},
+        value: {effect: 'confetti', enabled: true},
+      },
+      {
+        row: 'conciv tools page wait',
+        action: {type: 'wait', selector: '.done', state: 'visible', timeout: 1000},
+        value: {ok: true, state: 'visible'},
+      },
+      {row: 'conciv tools page reload', action: {type: 'reload'}, value: {ok: true, initiated: true}},
+      {row: 'conciv tools page click', action: {type: 'click', selector: 'button'}, value: ok},
+      {
+        row: 'conciv tools page fill',
+        action: {type: 'fill', selector: 'input', value: 'hi'},
+        value: {ok: true, value: 'hi'},
+      },
+      {
+        row: 'conciv tools page select',
+        action: {type: 'select', selector: 'select', value: 'b'},
+        value: {ok: true, value: 'b'},
+      },
+      {row: 'conciv tools page check', action: {type: 'check', selector: '#box'}, value: {ok: true, checked: true}},
+      {
+        row: 'conciv tools page uncheck',
+        action: {type: 'uncheck', selector: '#box'},
+        value: {ok: true, checked: false},
+      },
+      {row: 'conciv tools page press', action: {type: 'press', selector: 'input', key: 'Enter'}, value: ok},
+      {row: 'conciv tools page hover', action: {type: 'hover', selector: 'a'}, value: ok},
+      {row: 'conciv tools page scroll', action: {type: 'scroll', selector: 'footer'}, value: ok},
+      {row: 'conciv tools page submit', action: {type: 'submit', selector: 'form'}, value: ok},
+      {
+        row: 'conciv tools page queue',
+        action: {type: 'queue', actions: [{tool: 'page_click', selector: 'button'}]},
+        value: ok,
+      },
+      {
+        row: 'conciv tools page queue_async',
+        action: {type: 'queue_async', actions: [{tool: 'page_click', selector: 'button'}]},
+        value: ok,
+      },
+      {
+        row: 'conciv tools page setattr',
+        action: {type: 'setattr', selector: 'a', attribute: 'title', value: 'x'},
+        value: ok,
+      },
+      {
+        row: 'names the attribute of an edit separately from the React component name',
+        action: {type: 'setattr', selector: '#a', attribute: 'data-state', value: 'open'},
+        value: ok,
+      },
+      {
+        row: 'conciv tools page removeattr',
+        action: {type: 'removeattr', selector: 'a', attribute: 'title'},
+        value: ok,
+      },
+      {row: 'conciv tools page addclass', action: {type: 'addclass', selector: 'a', class: 'on'}, value: ok},
+      {row: 'conciv tools page removeclass', action: {type: 'removeclass', selector: 'a', class: 'on'}, value: ok},
+      {
+        row: 'conciv tools page setstyle',
+        action: {type: 'setstyle', selector: 'a', prop: 'color', value: 'red'},
+        value: ok,
+      },
+      {row: 'conciv tools page settext', action: {type: 'settext', selector: 'h1', text: 'Bye'}, value: ok},
+      {row: 'conciv tools page sethtml', action: {type: 'sethtml', selector: 'p', html: '<b>x</b>'}, value: ok},
+      {row: 'conciv tools page remove', action: {type: 'remove', selector: 'aside'}, value: ok},
+      {row: 'conciv tools page insert', action: {type: 'insert', selector: 'p', html: '<i>x</i>'}, value: ok},
+      {row: 'conciv tools page css', action: {type: 'css', text: 'body{color:red}'}, value: ok},
+      {row: 'conciv tools page eval', action: {type: 'eval', code: 'document.title'}, value: {result: 'Example'}},
+    ]
+
+    describe('every conciv tools page row runs through conciv plugin call experimental.page run', () => {
+      const seen = new Map<string, unknown>()
+      const queues = new EventTarget()
+      const accepted: Array<{id: string; of: number}> = []
+      const held: {engine?: Awaited<ReturnType<typeof engineWithTab>>; home: string} = {
+        home: mkdtempSync(join(tmpdir(), 'conciv-home-')),
+      }
+      const answerPlayed = async (queueId: string) => {
+        const {engine} = held
+        if (engine === undefined) throw new Error('the engine with a tab did not start')
+        const requestId = await engine.heldRequest(`${queueId}/0`)
+        await engine.tab.reply(requestId, {type: 'success', result: {value: ok, files: []}})
+      }
+      const nextQueue = async (): Promise<{id: string; of: number}> => {
+        const queue = accepted.shift()
+        if (queue !== undefined) return queue
+        await once(queues, 'queued')
+        return nextQueue()
+      }
+      beforeAll(async () => {
+        held.engine = await engineWithTab(held.home, {
+          queued: (queue) => {
+            accepted.push(queue)
+            queues.dispatchEvent(new Event('queued'))
+          },
+          answer: (command) => {
+            seen.set(command.action.type, command.action)
+            const row = PAGE_ROWS.findLast((entry) => isEqual(entry.action, command.action))
+            const files =
+              command.action.type === 'screenshot'
+                ? [{id: `file_${randomUUID()}`, name: 'screenshot.webp', mime: 'image/webp', data: 'AAAA'}]
+                : []
+            return {type: 'success', result: {value: row?.value ?? {}, files}}
+          },
+        })
+      })
+      afterAll(async () => held.engine?.engine.stop())
+
+      it.each(PAGE_ROWS)('$row', async ({action, value}) => {
+        const {engine} = held
+        if (engine === undefined) throw new Error('the engine with a tab did not start')
+        const data = JSON.stringify({sessionId: engine.sessionId, action})
+        const calling = pluginCall(engine.root, held.home, ['experimental.page', 'run', '--data', data])
+        if (action.type === 'queue') await answerPlayed((await nextQueue()).id)
+        if (action.type === 'queue_async') expect(await nextQueue()).toMatchObject({of: 1})
+        const answered = await calling
+        expect(answered).toMatchObject({code: 0, document: {ok: true}})
+        if (action.type === 'queue' || action.type === 'queue_async') return
+        expect(seen.get(action.type)).toEqual(action)
+        if (action.type !== 'screenshot') return expect(answered.document).toEqual({ok: true, data: value})
+        expect(answered.document).toMatchObject({
+          ok: true,
+          data: {
+            width: 1,
+            height: 1,
+            files: [{name: 'screenshot.webp', mime: 'image/webp', bytes: 3, path: expect.stringContaining(tmpdir())}],
+          },
+        })
+      })
     })
 
     it('answers a plugin method from the project and from anywhere as the owner, prints engine errors, and refuses bad --data before any call', async () => {
@@ -1817,7 +1984,7 @@ describe('cli', () => {
       const sessionId = (await makeRpcClient(holder.base).sessions.create(undefined)).sessionId
       const page = makeRpcClient(holder.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
       const listening = new AbortController()
-      const queries = await page.page.queries(undefined, {signal: listening.signal})
+      const silent = await holder.open(sessionId, () => undefined)
       const events = await page.chat.events({sessionId}, {signal: listening.signal})
       const client = await createMCPClient({
         transport: stdioTransport({
@@ -1836,7 +2003,7 @@ describe('cli', () => {
           {typescriptCode, tab: sessionId},
           {signal: cancelling.signal},
         )
-        const asked = await queries.next()
+        const requestId = await silent.requested()
         cancelling.abort()
         await expect(running).rejects.toThrow()
         const seen: unknown[] = []
@@ -1845,11 +2012,10 @@ describe('cli', () => {
           if (chunk.type === ChatEventType.RUN_FINISHED) break
         }
         expect(JSON.stringify(seen.at(-2))).toMatch(/abort/i)
-        const requestId = asked.done === true ? '' : asked.value.requestId
-        await expect(page.page.reply({requestId, outcome: {ok: true, result: {}}})).rejects.toMatchObject({
-          code: 'UNKNOWN_REQUEST',
-        })
+        await silent.cancelled(requestId)
+        await expect(silent.command(requestId)).rejects.toThrow('Page request is no longer available.')
       } finally {
+        silent.end()
         listening.abort()
         await client.close()
         await holder.engine.stop()
@@ -2290,7 +2456,7 @@ describe('cli', () => {
       async function queueTab() {
         const {home, mcp} = fakeClaude()
         expect(mcp('connect', 'claude')).toMatchObject({status: 0})
-        const accepted: Array<{id: string; replies: string[]}> = []
+        const accepted: Array<{id: string; of: number}> = []
         const arrivals = new EventEmitter()
         const engine = await engineWithTab(home, {
           hubAccess: 'open',
@@ -2314,7 +2480,7 @@ describe('cli', () => {
           await collecting
           await engine.engine.stop()
         }
-        const queueAt = async (index: number): Promise<{id: string; replies: string[]}> => {
+        const queueAt = async (index: number): Promise<{id: string; of: number}> => {
           const queue = accepted[index]
           if (queue !== undefined) return queue
           await once(arrivals, 'queued')
@@ -2327,8 +2493,9 @@ describe('cli', () => {
         }
         const playInCall = async (index: number) => {
           const queue = await queueAt(index)
-          for (const requestId of queue.replies) {
-            await engine.page.page.reply({requestId, outcome: {ok: true, result: {ok: true}}})
+          for (const index of Array.from({length: queue.of}, (_, at) => at)) {
+            const requestId = await engine.heldRequest(`${queue.id}/${index}`)
+            await engine.tab.reply(requestId, {type: 'success', result: {value: {ok: true}, files: []}})
           }
           return queue.id
         }
