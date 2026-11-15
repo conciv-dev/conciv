@@ -350,7 +350,7 @@ function makeEngineTrust(key: string, state: TrustState, link: ClientLink<RpcCli
     return asked
   }
   const askWithToken = async (token: string): Promise<boolean> => {
-    const {trusted} = await auth.trust({token}, {context: {retry: 0}})
+    const {trusted} = await auth.trust({token}, {signal: AbortSignal.timeout(CALL_DEADLINE_MS), context: {retry: 0}})
     if (trusted) {
       trustWith(token)
       return true
@@ -402,12 +402,12 @@ function makeEngineTrust(key: string, state: TrustState, link: ClientLink<RpcCli
     requestTrust,
     requestTrustWithToken: (token) => pending(askWithToken(token)),
     requestTrustWithCode: async (code) => {
-      const result = await auth.exchange({code})
+      const result = await auth.exchange({code}, {signal: AbortSignal.timeout(CALL_DEADLINE_MS)})
       if ('token' in result) trustWith(result.token)
       return result
     },
     requestAuthCode: async (options = {}) => {
-      await auth.requestCode({reissue: options.reissue ?? false})
+      await auth.requestCode({reissue: options.reissue ?? false}, {signal: AbortSignal.timeout(CALL_DEADLINE_MS)})
     },
     ensureTrusted: (timeoutMs = ENSURE_TRUSTED_TIMEOUT_MS) =>
       new Promise<boolean>((resolve) => {

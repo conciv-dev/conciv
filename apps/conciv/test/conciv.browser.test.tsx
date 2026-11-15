@@ -4169,6 +4169,49 @@ describe('engine login', () => {
       await expect.element(reloginNotice()).not.toBeInTheDocument()
       await expect.element(editor()).toHaveFocus()
     }, 30_000)
+
+    test('a logged-in page whose trust check is never answered leaves checking, and its panel still opens onto a chat that answers', async () => {
+      const minted = await makeRpcClient(origin()).auth.exchange({code: await coreControl.requestCode()})
+      if (!('token' in minted)) throw new Error(`the engine refused the test code: ${minted.refused}`)
+      localStorage.setItem(storageKey(), minted.token)
+      const watch = watchConnection()
+      try {
+        const trustAsk = await faults.install({kind: 'gate', path: ['auth', 'trust']})
+        harness.mountShell('/', [], {login: {apiBase: origin()}})
+        await coreControl.awaitFaultPending(trustAsk, 1)
+        await expect.poll(() => watch.status(), {timeout: 8000}).toBe('unreachable')
+        await expect.element(locked()).not.toBeInTheDocument()
+        await opener().click()
+        await expect.element(editor(), {timeout: 8000}).toBeVisible()
+        await userEvent.click(editor())
+        await expect.element(editor()).toHaveFocus()
+        await coreControl.scriptTurn({toolCalls: [], text: 'answered past the silent trust check'})
+        for (const key of 'hello') await userEvent.keyboard(key)
+        await userEvent.keyboard('{Enter}')
+        await expect.element(page.getByText('answered past the silent trust check')).toBeVisible()
+        await coreControl.releaseFault(trustAsk)
+      } finally {
+        watch.stop()
+      }
+    }, 30_000)
+
+    test('a code request and a code exchange the engine never answers each say so in the login dialog', async () => {
+      const codeRequest = await faults.install({kind: 'gate', path: ['auth', 'requestCode']})
+      harness.mountShell('/', [], {login: {apiBase: origin()}})
+      await locked().click()
+      await expect.element(dialog()).toBeVisible()
+      await coreControl.awaitFaultPending(codeRequest, 1)
+      await expect
+        .element(dialog().getByRole('alert'), {timeout: 8000})
+        .toMatchTextContent('Could not ask the dev server for a code. Please try again.')
+      const exchange = await faults.install({kind: 'gate', path: ['auth', 'exchange']})
+      await userEvent.type(firstDigit(), await coreControl.requestCode())
+      await coreControl.awaitFaultPending(exchange, 1)
+      await expect
+        .element(dialog().getByRole('alert'), {timeout: 8000})
+        .toMatchTextContent('Something went wrong while authorizing. Please try again.')
+      await expect.element(firstDigit()).toHaveValue('')
+    }, 30_000)
   })
 })
 
