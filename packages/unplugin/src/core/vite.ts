@@ -153,7 +153,7 @@ function widgetSettings(widget: ConcivConfig['widget'], docked: boolean): Conciv
 
 export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}): DevToolsPlugin {
   const clientEntries = (options.extensions ?? []).map((extension) => extension.client)
-  let engine: Engine | null = null
+  const engines: Engine[] = []
   let apiBase: string | undefined
 
   let managedExcludes: string[] = []
@@ -177,6 +177,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
           name: 'conciv:engine-token',
           type: 'action',
           handler: () => {
+            const engine = engines.at(-1)
             if (!engine || !devServer) throw new Error('the conciv engine has not started yet')
             return engine.trustBrowser(
               {browser: 'via Vite DevTools', origin: devOrigins(devServer)[0] ?? 'Vite DevTools'},
@@ -232,6 +233,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
       order: 'pre',
       handler(_html, ctx) {
         const cfg = resolveConfig(options, ctx.server?.config.root ?? process.cwd())
+        const engine = engines.at(-1)
         if (!cfg.enabled || !engine) return []
         return htmlTags(engine.port, {
           widget: widgetSettings(options.widget, docked),
@@ -243,7 +245,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
       const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return
       const installed = await loadExtensionPackages(options.extensions)
-      engine = await bootEngine(
+      const booted = await bootEngine(
         server,
         options,
         installConcivBinShim(concivStateDir(cfg.stateRoot)),
@@ -251,11 +253,16 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
         installed.config,
         builtins.nativePageDir,
       )
-      const booted = engine
+      engines.push(booted)
       apiBase = `http://127.0.0.1:${booted.port}`
       devServer = server
       mountWidget(server, apiBase, options.widget)
-      server.httpServer?.on('close', () => void booted.stop())
+    },
+    async closeServer() {
+      await engines
+        .shift()
+        ?.stop()
+        .catch((error: unknown) => console.error('conciv: stopping the engine failed', error))
     },
   }
 }
