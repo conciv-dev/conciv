@@ -2540,13 +2540,16 @@ describe('launcher activity', () => {
 
   test('a session whose row fails to load says so where the title is, keeps its menu and its chat, and Retry brings the title back', async () => {
     await page.viewport(1000, 900)
-    const rpc = coreRpc(coreBase())
-    const sessionId = await createSession(rpc)
-    await rpc.sessions.rename({sessionId, title: 'a row that failed to load'})
+    const sessionId = await sessionThatRan('a row that failed to load')
     const broken = await faults.install({kind: 'fail', path: ['sessions', 'get'], status: 500})
 
     harness.mountShell(`/panel/${sessionId}?open=true`)
     const rowAlert = page.getByRole('alert').filter({hasText: 'Couldn’t load this session'})
+    await expect.element(titleButton('Session'), {timeout: 8000}).toBeVisible()
+    await expect.element(page.getByText('Hello from conciv')).toBeVisible()
+    await userEvent.click(composer())
+    await userEvent.keyboard('still talking while the row is failed')
+    await expect.element(composer()).toHaveTextContent('still talking while the row is failed')
     await expect.element(rowAlert, {timeout: 20_000}).toBeVisible()
     await expect.element(rowAlert.getByRole('button', {name: 'Retry'})).toBeVisible()
     await expect.element(titleButton('This session could not be loaded')).toBeVisible()
@@ -2558,8 +2561,9 @@ describe('launcher activity', () => {
     await expect.element(page.getByRole('dialog', {name: 'Session options'})).not.toBeInTheDocument()
 
     await userEvent.click(composer())
-    await userEvent.keyboard('still talking while the row is failed{Enter}')
-    await expect.element(page.getByText('Hello from conciv'), {timeout: 8000}).toBeVisible()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByRole('log').getByText('still talking while the row is failed')).toBeVisible()
+    await expect.element(page.getByText('Hello from conciv').nth(1), {timeout: 8000}).toBeVisible()
     await expect.element(rowAlert).toBeVisible()
 
     await coreControl.releaseFault(broken)
