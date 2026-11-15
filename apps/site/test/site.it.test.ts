@@ -302,7 +302,7 @@ describe('mobile gating', () => {
   test.describe('the live widget mounts site-wide and the root widget param decides the panel', () => {
     test('shows the launcher with the panel closed on a docs page on desktop', async ({browser}) => {
       const page = await browser.newPage()
-      await page.goto(`${ORIGIN}/docs/quick-start`, {waitUntil: 'domcontentloaded'})
+      await page.goto(`${ORIGIN}/docs/get-started`, {waitUntil: 'domcontentloaded'})
 
       await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 20_000})
       await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeHidden()
@@ -370,7 +370,7 @@ describe('mobile gating', () => {
 
     test('opens the panel on a docs page when ?widget=true is explicit', async ({browser}) => {
       const page = await browser.newPage()
-      await page.goto(`${ORIGIN}/docs/quick-start?widget=true`, {waitUntil: 'domcontentloaded'})
+      await page.goto(`${ORIGIN}/docs/get-started?widget=true`, {waitUntil: 'domcontentloaded'})
 
       await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 20_000})
 
@@ -439,7 +439,7 @@ describe('seo metadata', () => {
     it.each([
       ['/', `${SITE}/`],
       ['/docs', `${SITE}/docs`],
-      ['/docs/quick-start', `${SITE}/docs/quick-start`],
+      ['/docs/get-started', `${SITE}/docs/get-started`],
     ])('%s self-canonicalizes and reports its own og:url', async (path, expectedUrl) => {
       const {html} = await fetchHtml(path)
 
@@ -454,7 +454,7 @@ describe('seo metadata', () => {
       const [landing, docsIndex, quickStart] = await Promise.all([
         fetchHtml('/'),
         fetchHtml('/docs'),
-        fetchHtml('/docs/quick-start'),
+        fetchHtml('/docs/get-started'),
       ])
 
       const titles = [landing, docsIndex, quickStart].map(({html}) => extractTag(html, /<title>([^<]*)<\/title>/))
@@ -468,7 +468,7 @@ describe('seo metadata', () => {
       expect(html).toMatch(/<a[^>]*href="\/docs"/)
     })
 
-    it.each([['/'], ['/docs/quick-start']])('renders a server-side GitHub star link anchor on %s', async (path) => {
+    it.each([['/'], ['/docs/get-started']])('renders a server-side GitHub star link anchor on %s', async (path) => {
       const {html} = await fetchHtml(path)
       expect(html).toContain('<a href="https://github.com/conciv-dev/conciv"')
     })
@@ -512,15 +512,15 @@ describe('seo metadata', () => {
     })
 
     it('emits a TechArticle for a docs page with a matching url', async () => {
-      const {html} = await fetchHtml('/docs/quick-start')
+      const {html} = await fetchHtml('/docs/get-started')
       const article = extractLdJson(html, 'TechArticle')
 
-      expect(article?.url).toBe(`${SITE}/docs/quick-start`)
+      expect(article?.url).toBe(`${SITE}/docs/get-started`)
     })
   })
 
   describe('per-page OG images', () => {
-    it.each([['/og.png'], ['/og/quick-start.png'], ['/og/index.png']])(
+    it.each([['/og.png'], ['/og/get-started.png'], ['/og/index.png']])(
       'renders a PNG for %s',
       async (path) => {
         const response = await fetch(`${ORIGIN}${path}`)
@@ -540,10 +540,10 @@ describe('seo metadata', () => {
     })
 
     it('points the docs og:image meta at the generated OG image URL', async () => {
-      const {html} = await fetchHtml('/docs/quick-start')
+      const {html} = await fetchHtml('/docs/get-started')
       const ogImage = extractTag(html, /<meta property="og:image" content="([^"]*)"/)
 
-      expect(ogImage).toBe(`${SITE}/og/quick-start.png`)
+      expect(ogImage).toBe(`${SITE}/og/get-started.png`)
     })
   })
 

@@ -20,7 +20,7 @@ export function InstallChip() {
       <Magnet padding={44} magnetStrength={3}>
         <Link
           to="/docs/$"
-          params={{_splat: 'quick-start'}}
+          params={{_splat: 'get-started'}}
           className="text-[13.5px] font-semibold text-primary hover:underline"
         >
           Quick start →
