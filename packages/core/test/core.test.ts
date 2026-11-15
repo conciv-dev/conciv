@@ -2846,8 +2846,21 @@ describe('plugin host bus', () => {
   test('deleting a session stops its run, its idle hook and a preparing turn first, so plugins hear Deleted last with no run left and nothing of that session after it', async () => {
     const harness = createTestHarness(requireClaude())
     const booted: MadeApp[] = []
+    const ending = SessionId.parse('conciv_deleted_while_its_turn_ends')
+    const endingGates: {entered: PromiseWithResolvers<void>; held: PromiseWithResolvers<void>}[] = []
+    const endingIdleHolds: Promise<void>[] = []
+    const turnEndHolder = defineExtension({name: 'turn-end-holder'}).server(() => ({
+      context: {},
+      turnEnd: async (sessionId) => {
+        if (sessionId !== ending) return
+        const gate = endingGates.shift()
+        if (gate === undefined) return
+        gate.entered.resolve()
+        await gate.held.promise
+      },
+    }))
     const kit = await createTestkit(harness, async (env) => {
-      const made = await bootMadeApp(env)
+      const made = await bootMadeApp(env, {extensions: [turnEndHolder]})
       booted.push(made)
       return made
     }).setup()
@@ -2918,6 +2931,13 @@ describe('plugin host bus', () => {
                   promptEntered.resolve()
                 }).pipe(Effect.andThen(Effect.never)),
           ),
+          hooks.register('session', 'experimental.idle', (event) =>
+            event.sessionId !== ending
+              ? Effect.void
+              : Effect.sync(() => seen.push({sessionId: ending, what: 'idle hook entered'})).pipe(
+                  Effect.andThen(Effect.promise(() => endingIdleHolds.shift() ?? Promise.resolve())),
+                ),
+          ),
         ]),
       ).pipe(Scope.provide(made.pluginHost.runSync(Scope.make()))),
     )
@@ -2975,10 +2995,36 @@ describe('plugin host bus', () => {
     expect(queueingScope.page.reply(offer.query.queue.replies[0] ?? '', {ok: true, result: {checked: true}})).toBe(true)
     await queries.return(undefined)
 
+    await ensureRow(made.chat.db, ending, harness.id, made.chat.cwd)
+    const stoppedGate = {entered: Promise.withResolvers<void>(), held: Promise.withResolvers<void>()}
+    endingGates.push(stoppedGate)
+    const stoppedWhileEnding = made.plane.followUp(ending, 'answer, then a stop arrives while the turn ends')
+    await stoppedGate.entered.promise
+    expect(await made.runtime.forSession(ending).run.stop()).toEqual({ok: true, stopped: true})
+    stoppedGate.held.resolve()
+    expect(await stoppedWhileEnding).toEqual({kind: 'delivered'})
+    expect(heardBy(ending)).toEqual(['session.instructions.updated during a run'])
+
+    const heardBeforeDelete = heardBy(ending).length
+    const deletedGate = {entered: Promise.withResolvers<void>(), held: Promise.withResolvers<void>()}
+    const idleHeldPastDelete = Promise.withResolvers<void>()
+    onTestFinished(() => idleHeldPastDelete.resolve())
+    endingGates.push(deletedGate)
+    endingIdleHolds.push(idleHeldPastDelete.promise)
+    const deletedWhileEnding = made.plane.followUp(ending, 'answer, then the session is deleted while the turn ends')
+    await deletedGate.entered.promise
+    const deleting = kit.rpc.sessions.delete({sessionId: ending})
+    deletedGate.held.resolve()
+    await deleting
+    expect([['session.deleted with no run'], ['idle hook entered', 'session.deleted with no run']]).toContainEqual(
+      heardBy(ending).slice(heardBeforeDelete),
+    )
+    expect(await deletedWhileEnding).toEqual({kind: 'delivered'})
+
     expect(publishedAfterDeleted).toEqual([])
     const queueingAfter = await made.plane.hydrate(queueing)
     expect([queueingAfter.messages, queueingAfter.lastRun]).toEqual([[], null])
-    expect(seen).toEqual([
+    expect(seen.filter((entry) => entry.sessionId !== ending)).toEqual([
       {sessionId: idling, what: 'session.instructions.updated during a run'},
       {sessionId: idling, what: 'idle hook ended reading [{"key":"brief","value":"ship it"}]'},
       {sessionId: idling, what: 'session.deleted with no run'},
