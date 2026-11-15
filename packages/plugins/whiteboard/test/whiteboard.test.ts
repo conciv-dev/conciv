@@ -1,5 +1,4 @@
-import {existsSync, mkdtempSync, rmSync} from 'node:fs'
-import {tmpdir} from 'node:os'
+import {existsSync} from 'node:fs'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {randomUUID} from 'node:crypto'
@@ -9,6 +8,7 @@ import {makeDiscoverTools, makeRpcClient} from '@conciv/harness-testkit'
 import {readApprovalAsk} from '@conciv/protocol/chat-event-types'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 const OTHER_ROOM = 'conciv_other_room'
@@ -354,8 +354,7 @@ describe('the whiteboard store and its rpc', () => {
   })
 
   it('keeps its database in the project folder, where a second engine on that folder reads the board back', async () => {
-    const folder = mkdtempSync(join(tmpdir(), 'conciv-whiteboard-reopen-'))
-    onTestFinished(() => rmSync(folder, {recursive: true, force: true, maxRetries: 10, retryDelay: 50}))
+    const folder = tempDir('conciv-whiteboard-reopen-')
 
     const first = await bootCoreKit({id: 'fake', plugins: [PACKAGE_DIR], stateRoot: folder})
     const room = await first.session()
