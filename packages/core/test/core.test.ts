@@ -297,7 +297,7 @@ describe('chat plane', () => {
   })
 
   it('an engine that died mid-run starts again on the same state, the cut run ends aborted once, and no turn follows it', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const cli = fakeCli('streaming')
     const died = await bootEngine(root, {harness: cliHarness(cli)})
     onTestFinished(async () => {
