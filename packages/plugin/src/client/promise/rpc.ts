@@ -51,7 +51,7 @@ export interface RpcApi<Options = RpcCallOptions> {
 
 const RpcError = z.object({
   defined: z.literal(true),
-  code: z.literal('PLUGIN_RPC'),
+  code: z.enum(['PLUGIN_RPC', 'PLUGIN_RPC_INTERNAL']),
   data: z.object({type: z.string(), message: z.string(), data: z.unknown().optional()}),
 })
 
