@@ -5583,6 +5583,7 @@ describe('page action queue delivery', () => {
       tab,
       onTab,
       nextQueue,
+      heldRequest,
       play,
       hub,
       discover,
@@ -5654,6 +5655,16 @@ describe('page action queue delivery', () => {
       status: 'finished',
       played: 2,
     })
+  })
+
+  it('deleting a session while its queue plays cancels the action in flight on the tab', async () => {
+    const page = await engineWithTab()
+    const typed = makeRpcClient(page.base, {headers: HUB})
+    await typed.code.execute({sessionId: page.sessionId, typescriptCode: queued()})
+    const onTab = await page.nextQueue()
+    const requestId = await page.heldRequest(`${onTab.id}/0`)
+    await makeRpcClient(page.base).sessions.delete({sessionId: page.sessionId})
+    await page.onTab.cancelled(requestId)
   })
 
   it('external_page_queue_async answers with a queue id before the tab has played anything', async () => {
