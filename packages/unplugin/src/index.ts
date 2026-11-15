@@ -1,4 +1,5 @@
 import {createUnplugin, type UnpluginInstance, type UnpluginOptions} from 'unplugin'
+import {z} from 'zod'
 import type {Engine} from '@conciv/core/start'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import type {Builtins} from '@conciv/extension-compiler/extensions'
@@ -14,13 +15,11 @@ type WatchingCompiler = {
   }
 }
 
-function isAddressInUse(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && error.code === 'EADDRINUSE'
-}
+const AddressInUse = z.object({code: z.literal('EADDRINUSE')})
 
 function reportStartFailure(port: number | undefined): (error: unknown) => undefined {
   return (error) => {
-    if (isAddressInUse(error)) {
+    if (AddressInUse.safeParse(error).success) {
       console.error(
         `conciv: port ${port} is already in use, the engine did not start. Free the port or pass another port to conciv()`,
       )
