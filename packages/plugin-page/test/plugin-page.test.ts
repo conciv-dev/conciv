@@ -256,6 +256,19 @@ describe('page machine: one attachment per tab', () => {
     expect(controls(done.effects)).toEqual([{type: 'attached', connectionId: 'conn_2', version: 1}])
   })
 
+  it('a call while a tab re-attaches over the revoke in flight, its allow rules still in place, answers still connecting', () => {
+    const closed = run(attached(), {type: 'attach.closed', sessionId, attempt: 1})
+    const reopened = run(closed.state, opening(closed.state, 'conn_2'))
+    expect(entry(reopened.state)).toMatchObject({status: 'attaching', sync: {allow: false}})
+    expect(PageMachine.selectTarget(reopened.state, sessionId, {type: 'route'})).toEqual({
+      ok: false,
+      error: expect.objectContaining({
+        message:
+          '[page.disconnected] The page is still connecting to this session; no action ran. Call page.tabs.list({}) once it finishes connecting.',
+      }),
+    })
+  })
+
   it('two tabs attaching at once share the grant in flight and both get attached', () => {
     const initial = PageMachine.createConnectionState()
     const first = run(initial, opening(initial, 'conn_1'))
