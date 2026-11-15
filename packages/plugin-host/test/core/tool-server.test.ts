@@ -10,6 +10,7 @@ import {PluginHost} from '../../src/core/plugin/host.js'
 import {Rpc} from '../../src/core/rpc.js'
 import {Session as Sessions} from '../../src/core/session.js'
 import {Tool} from '../../src/core/tool.js'
+import {definition} from '../../src/core/tool/runtime.js'
 import {ServerTools} from '../../src/core/tool/plugin/server.js'
 import {Tool as ToolSchema} from '../../src/schema/tool.js'
 import {Session} from '../../src/schema/session.js'
@@ -89,6 +90,21 @@ describe('ServerTools', () => {
         'open',
       ])
       expect(served.snapshot.codeMode?.namespaces.get('server')).toMatchObject({name: 'server'})
+      const described = Array.from(served.snapshot.codeMode?.tools ?? []).flatMap(([name, tool]) =>
+        Object.entries(definition(tool).inputSchema.properties ?? {})
+          .filter(([, field]) => typeof field === 'object' && field !== null && 'description' in field)
+          .map(([field]) => `${name}.${field}`),
+      )
+      expect(described).toEqual([
+        'server_resolve.spec',
+        'server_resolve.importer',
+        'server_graph.file',
+        'server_transform.url',
+        'server_restart.force',
+        'open.file',
+        'open.line',
+        'open.column',
+      ])
 
       const config = yield* served.call('server_config', {})
       expect(config).toMatchObject({output: bridge.config()})
