@@ -25,7 +25,16 @@ import {HubAgentSchema} from './hub-agent.js'
 import cliManifest from '../package.json' with {type: 'json'}
 import type {CliOutcome} from './envelope.js'
 import {handler} from './router/handler.js'
-import {ENGINE_READ_MS} from './engine-read.js'
+import {
+  askAgain,
+  askTab,
+  askTabs,
+  ENGINE_READ_MS,
+  silence,
+  type Checked,
+  type Silent,
+  type TabAsk,
+} from './engine-read.js'
 
 const EXECUTE_TOOL_NAME = 'execute_typescript'
 
@@ -118,12 +127,6 @@ type TaskReply = {
 }
 
 type Routed<Value> = {reply: Reply; value: Value | null}
-
-type Checked = Awaited<ReturnType<typeof checkEngines>>
-
-type Silent = Checked['unreachable']
-
-type TabProbe = {row: EngineRow; answer: TabOpen | null; failure: unknown}
 
 type Candidate = {runner: Runner; unusable: null} | {runner: null; unusable: string}
 
@@ -391,7 +394,7 @@ async function pickRunner(home: string, headers: Record<string, string>): Promis
   }
   const picked = await firstUsable(first.live, headers, [])
   if (picked.runner !== null) return picked.runner
-  const second = await askAgain(home, first.unreachable)
+  const second = await homeRead(home, askAgain(home, first.unreachable))
   const later = await firstUsable(
     differenceBy(second.live, first.live, (row) => row.id),
     headers,
@@ -438,20 +441,20 @@ function toolDescriptions(described: CodeDescriptions | null): Record<ToolName, 
 
 async function findOwner(home: string, tab: SessionId, headers: Record<string, string>): Promise<TabOwner> {
   const first = await liveEngines(home)
-  const probes = await tabProbes(first.live, tab, PROBE_MS)
+  const probes = await askTabs(first.live, tab, PROBE_MS)
   const [settled, unsettled] = partition(probes, (probe) => probe.answer !== null)
   if (openAnswers(probes).length > 0 || (first.unreachable.length === 0 && unsettled.length === 0)) {
     return ownerAmong(tab, probes, first.unreachable, headers)
   }
   const [second, retried] = await Promise.all([
-    askAgain(home, first.unreachable),
-    tabProbes(
+    homeRead(home, askAgain(home, first.unreachable)),
+    askTabs(
       unsettled.map((probe) => probe.row),
       tab,
       ENGINE_READ_MS,
     ),
   ])
-  const later = await tabProbes(
+  const later = await askTabs(
     differenceBy(second.live, first.live, (row) => row.id),
     tab,
     ENGINE_READ_MS,
@@ -459,28 +462,17 @@ async function findOwner(home: string, tab: SessionId, headers: Record<string, s
   return ownerAmong(tab, [...settled, ...retried, ...later], second.unreachable, headers)
 }
 
-function tabProbes(rows: EngineRow[], tab: SessionId, timeoutMs: number): Promise<TabProbe[]> {
-  return Promise.all(
-    rows.map((row) =>
-      tabAnswer(row, tab, timeoutMs).then(
-        (answer): TabProbe => ({row, answer, failure: null}),
-        (failure: unknown): TabProbe => ({row, answer: null, failure}),
-      ),
-    ),
-  )
-}
-
-function openAnswers(probes: TabProbe[]): Array<{row: EngineRow; answer: TabOpen}> {
+function openAnswers(probes: TabAsk[]): Array<{row: EngineRow; answer: TabOpen}> {
   return probes.flatMap((probe) =>
     probe.answer !== null && probe.answer.open ? [{row: probe.row, answer: probe.answer}] : [],
   )
 }
 
-function ownerAmong(tab: SessionId, probes: TabProbe[], silent: Silent, headers: Record<string, string>): TabOwner {
+function ownerAmong(tab: SessionId, probes: TabAsk[], silent: Silent, headers: Record<string, string>): TabOwner {
   const [only, second] = openAnswers(probes)
   const failures = [
-    ...probes.flatMap((probe) => (probe.answer === null ? [probe.failure] : [])),
-    ...silent.map((entry) => new Error(`${entry.root} did not answer (${entry.error})`)),
+    ...probes.flatMap((probe) => (probe.answer === null ? [failedProbe(probe.row.root, probe.failure)] : [])),
+    ...silent.map((entry) => new Error(silence([entry]))),
   ]
   if (only === undefined) throw notOpen(tab, failures)
   if (second !== undefined) {
@@ -505,43 +497,27 @@ function notOpen(tab: SessionId, failures: unknown[]): Error {
 }
 
 function liveEngines(home: string): Promise<Checked> {
-  return readEngines(home, {timeoutMs: PROBE_MS})
+  return homeRead(home, checkEngines(home, {timeoutMs: PROBE_MS}))
 }
 
-function askAgain(home: string, silent: Silent): Promise<Checked> {
-  return readEngines(home, {timeoutMs: ENGINE_READ_MS, roots: silent.map((entry) => entry.root)})
-}
-
-function silence(silent: Silent): string {
-  return silent.map((entry) => `${entry.root} did not answer (${entry.error})`).join('; ')
-}
-
-function readEngines(home: string, options: {timeoutMs: number; roots?: string[]}): Promise<Checked> {
-  return checkEngines(home, options).catch((error: unknown) => {
+function homeRead(home: string, reading: Promise<Checked>): Promise<Checked> {
+  return reading.catch((error: unknown) => {
     throw new Error(`cannot read the conciv home folder ${home}: ${errorText(error)}`, {cause: error})
   })
 }
 
-async function tabAnswer(
-  engine: Pick<EngineRow, 'root' | 'apiBase'>,
-  tab: SessionId,
-  timeoutMs: number,
-): Promise<TabOpen> {
-  return makeRpcClient(engine.apiBase)
-    .tabs.get({sessionId: tab}, {signal: AbortSignal.timeout(timeoutMs)})
-    .catch((error: unknown) => {
-      throw new Error(`${engine.root} (${engineTooOld(error) ? TOO_OLD : errorText(error)})`, {cause: error})
-    })
+function failedProbe(root: string, failure: unknown): Error {
+  return new Error(`${root} (${engineTooOld(failure) ? TOO_OLD : errorText(failure)})`, {cause: failure})
 }
 
 async function holdsTab(owner: TabOwner, tab: SessionId): Promise<boolean> {
-  return tabAnswer(owner, tab, PROBE_MS).then(
-    (answer) => answer.open,
-    (error: unknown) => {
-      logHub(`checking whether tab ${tab} is still open failed; the next call looks up its engine again`, error)
-      return false
-    },
+  const asked = await askTab(owner, tab, PROBE_MS)
+  if (asked.answer !== null) return asked.answer.open
+  logHub(
+    `checking whether tab ${tab} is still open failed; the next call looks up its engine again`,
+    failedProbe(owner.root, asked.failure),
   )
+  return false
 }
 
 function greeted(entry: TabEntry, owner: TabOwner, reply: Reply): Reply {
