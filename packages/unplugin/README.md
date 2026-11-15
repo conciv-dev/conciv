@@ -12,7 +12,7 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 ## Invariants
 
-- webpack and rspack boot the engine only when `enabled !== false`; the Next.js widget starts only in a browser with `NEXT_PUBLIC_CONCIV_PORT` set and `NODE_ENV` not `production`. Full list in [src/README.md](./src/README.md#invariants).
+- webpack and rspack boot the engine only when `enabled !== false` and only while the bundler watches; a taken `port` logs one line and leaves the bundler running; the Next.js widget starts only in a browser with `NEXT_PUBLIC_CONCIV_PORT` set and `NODE_ENV` not `production`. Full list in [src/README.md](./src/README.md#invariants).
 
 ## Side Effects
 

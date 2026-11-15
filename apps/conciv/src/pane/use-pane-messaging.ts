@@ -1,3 +1,4 @@
+import {z} from 'zod'
 import {useMutation, type CreateMutationResult, type ChatSession} from '@conciv/client'
 import type {RpcClient} from '@conciv/contract'
 import type {SendContent} from '@conciv/protocol/chat-message-types'
@@ -6,15 +7,19 @@ import type {AppData} from '../data/app-data.js'
 import type {EngineNotices} from '../shell/notice-context.js'
 import {checkSend, checkSendState, type SendState, type SendVerdict} from './send-checks.js'
 
-type SendRejection = {rejected: true; message: string | null; tone: 'info' | 'warn'}
+const SendRejectionSchema = z.object({
+  rejected: z.literal(true),
+  message: z.string().nullable(),
+  tone: z.enum(['info', 'warn']),
+})
+
+type SendRejection = z.infer<typeof SendRejectionSchema>
 
 function sendRejection(verdict: Extract<SendVerdict, {ok: false}>): SendRejection {
   return {rejected: true, message: verdict.message, tone: verdict.tone}
 }
 
-function isSendRejection(failure: unknown): failure is SendRejection {
-  return typeof failure === 'object' && failure !== null && 'rejected' in failure && failure.rejected === true
-}
+const WITHDRAWN: SendRejection = {rejected: true, message: null, tone: 'info'}
 
 function failureMessage(failure: unknown): string {
   if (failure instanceof Error && failure.message.length > 0) return failure.message
@@ -90,7 +95,9 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
   const onSend = async (content: string | SendContent): Promise<void> => {
     const verdict = checkSend(content, sendState())
     if (!verdict.ok) throw sendRejection(verdict)
-    await deps.chat.sendMessage(content)
+    await deps.chat.sendMessage(content).catch((error: unknown) => {
+      throw deps.chat.withdrawn() ? WITHDRAWN : error
+    })
   }
 
   const onSteer = (): void => {
@@ -99,11 +106,12 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
   }
 
   const onSendError = (failure: unknown): void => {
-    if (isSendRejection(failure)) {
-      const message = failure.message
+    const rejection = SendRejectionSchema.safeParse(failure)
+    if (rejection.success) {
+      const {message, tone} = rejection.data
       if (!message) return
       notifyUnlessOffline(deps.reachability.sustainedOffline() && deps.reachability.locked() === null, () =>
-        deps.notices.notify(message, {tone: failure.tone === 'warn' ? 'warn' : 'info'}),
+        deps.notices.notify(message, {tone}),
       )
       return
     }
