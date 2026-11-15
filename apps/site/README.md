@@ -10,11 +10,7 @@ This is a Tanstack Start application generated with
 Run development server:
 
 ```bash
-npm run dev
-# or
 pnpm dev
-# or
-yarn dev
 ```
 
 Deploys to [conciv.dev](https://conciv.dev) via Cloudflare Workers Builds on push to `main`
