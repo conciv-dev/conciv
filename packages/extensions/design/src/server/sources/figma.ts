@@ -254,7 +254,7 @@ function painted(input: {node: DesignNode; raster: Raster; config: DesignConfig}
   const {node, raster, config} = input
   const children = node.children.map((child) => painted({...input, node: child}))
   if (node.kind !== 'box' || node.paint !== undefined) return {...node, children}
-  const [background = ''] = raster.fills({box: node.box, glyphs: [], color: config.color})
+  const background = raster.background(node.box)
   const holes = node.children.map((child) => boxes.expand({box: child.box, by: TOLERANCES.glyphHalo}))
   const shape = fillShape({
     raster,

@@ -27,7 +27,7 @@ function rasterOf(pixels: Pixels): Raster {
     crop: (input) => region(input).raster,
     scaled,
     rgb,
-    fills,
+    background,
     median,
     png,
     pixels: () => data,
@@ -116,12 +116,9 @@ function rasterOf(pixels: Pixels): Raster {
     return {area: {x, y, w, h}, size: w * h, cells}
   }
 
-  function fills(input: {box: Box; glyphs: Box[]; color: string}): string[] {
-    const tile = region({box: input.box})
-    const cut = pixelsOf(tile.raster)
-    const background = designConfig.hex(medianRgb({pixels: cut, exclude: edgeMap(cut)}))
-    const foreground = glyphCore({tile, glyphs: input.glyphs, background, color: designConfig.colorMetrics.ciede2000})
-    return foreground === null ? [background] : [background, foreground]
+  function background(box: Box): string {
+    const cut = pixelsOf(region({box}).raster)
+    return designConfig.hex(medianRgb({pixels: cut, exclude: edgeMap(cut)}))
   }
 
   function median(exclude: Box[]): Rgb {
@@ -192,33 +189,6 @@ function channelMedian(input: {histogram: Uint32Array; count: number}): number {
   const cumulative = [...histogram].reduce<number[]>((sums, value) => [...sums, (sums.at(-1) ?? 0) + value], [])
   const found = cumulative.findIndex((seen) => seen >= count / 2)
   return found === -1 ? 0 : found
-}
-
-function glyphCore(input: {
-  tile: {raster: Raster; box: Box}
-  glyphs: Box[]
-  background: string
-  color: (input: {a: string; b: string}) => number
-}): string | null {
-  const {tile, glyphs, background, color} = input
-  if (glyphs.length === 0) return null
-  const {raster, box: area} = tile
-  const known = new Map<number, number>()
-  const distances = Float64Array.from(range(raster.width * raster.height), (index) => {
-    const x = (index % area.w) + area.x
-    const y = Math.floor(index / area.w) + area.y
-    if (!glyphs.some((glyph) => x >= glyph.x && x < glyph.x + glyph.w && y >= glyph.y && y < glyph.y + glyph.h))
-      return -1
-    const [r, g, b] = raster.rgb(index)
-    const key = (r << 16) | (g << 8) | b
-    const measured = known.get(key) ?? color({a: designConfig.hex([r, g, b]), b: background})
-    known.set(key, measured)
-    return measured
-  })
-  const peak = distances.reduce((top, value) => Math.max(top, value), 0)
-  if (peak <= TOLERANCES.colorDeltaE) return null
-  const exclude = Uint8Array.from(distances, (value) => (value >= 0 && value >= peak - TOLERANCES.colorDeltaE ? 0 : 1))
-  return designConfig.hex(medianRgb({pixels: pixelsOf(raster), exclude}))
 }
 
 function pixelsOf(raster: Raster): Pixels {

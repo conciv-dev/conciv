@@ -608,7 +608,7 @@ export type Raster = {
   crop(input: {box: Box; margin?: number}): Raster
   scaled(scale: number): Raster
   rgb(index: number): Rgb
-  fills(input: {box: Box; glyphs: Box[]; color: string}): string[]
+  background(box: Box): string
   median(exclude: Box[]): Rgb
   png(): Uint8Array
   pixels(): Uint8Array
