@@ -550,22 +550,23 @@ describe('experimental', () => {
     expectTypeOf<undefined>().not.toExtend<Experimental.Context['dialogs']>()
     expectTypeOf<undefined>().not.toExtend<Experimental.Dialogs['open']>()
     expectTypeOf<undefined>().not.toExtend<Experimental.Dialogs['active']>()
-    expectTypeOf<undefined>().toExtend<Experimental.Dialogs['confirm']>()
-    expectTypeOf<undefined>().toExtend<Experimental.Dialogs['alert']>()
-    expectTypeOf<undefined>().toExtend<Experimental.Dialogs['prompt']>()
-    expectTypeOf<undefined>().toExtend<Experimental.Dialogs['select']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.Dialogs['confirm']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.Dialogs['alert']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.Dialogs['prompt']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.Dialogs['select']>()
     expectTypeOf<undefined>().toExtend<Parameters<NonNullable<Experimental.ServerEntry['cover']>>[0]['tab']>()
     expectTypeOf<undefined>().toExtend<Experimental.Context['commands']>()
     expectTypeOf<undefined>().not.toExtend<Experimental.Context['system']>()
     expectTypeOf<undefined>().not.toExtend<Experimental.System['copy']>()
-    expectTypeOf<undefined>().toExtend<Experimental.System['save']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.System['save']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.System['openExternal']>()
     expectTypeOf<undefined>().not.toExtend<Experimental.Layout['hide']>()
     expectTypeOf<undefined>().toExtend<Experimental.Context['attention']>()
     expectTypeOf<undefined>().toExtend<Experimental.Desktop['reveal']>()
     expectTypeOf<undefined>().toExtend<Experimental.Layout['scroll']>()
-    expectTypeOf<undefined>().toExtend<Experimental.Composer['setText']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.Composer['setText']>()
     expectTypeOf<undefined>().toExtend<Experimental.Tabs['move']>()
-    expectTypeOf<undefined>().toExtend<Experimental.Links['exists']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.Links['exists']>()
   })
 })
 
@@ -848,6 +849,7 @@ describe('host', () => {
         'stores: { count: { scope: "global", schema: {"~standard": {validate: 1}} } }',
         'schema',
       ],
+      ['a non-function encode', 'stores:{n:{scope:"global",schema:{"~standard":{validate:Map}},encode:1}}', 'encode'],
       ['a setup that is not a function', 'setup: true', 'setup'],
     ])('reject a plugin with %s', (_, field, named) => {
       const evaluated = () => evaluate(`exports.default = { ${field} }`)

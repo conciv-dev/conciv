@@ -42,6 +42,24 @@ These commands, and their `--help`, need the dev server running; without one the
 (`{"ok":true,"data":...}` or `{"ok":false,"error":...}`); `--help` prints usage instead and
 `conciv --version` (or `-v`) prints the CLI version.
 
+## Call a plugin method
+
+```bash
+conciv plugin call <rpcId> <method> --data '{"word":"hi"}'
+```
+
+Calls a method a plugin registered with `ctx.rpc.register` on the running dev server and prints its
+output as `{"ok":true,"data":<output>}`. You name the plugin's RPC id and the method; the CLI does
+not list them. `--data` (or `-d`) is the method's input as JSON, checked before anything is sent;
+without it the call carries no input. An unknown plugin, an unknown method or a failing method
+prints the engine's error and exits 1. It finds the dev server like `conciv tools` does, from the
+project or, from any other folder, the latest running one.
+
+The engine token is the one credential, so whoever holds it is the owner: this command reads the
+token the dev server wrote and calls as the owner, never as an outside agent. The engine refuses
+plugin calls, and listing plugins or reading their options, only to callers that announce
+themselves as outside, such as agents connected through `conciv mcp`.
+
 Docs: [conciv.dev](https://conciv.dev/docs/quick-start). Part of
 [conciv](https://github.com/conciv-dev/conciv).
 

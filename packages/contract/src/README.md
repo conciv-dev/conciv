@@ -35,7 +35,7 @@ Defines the oRPC `contract` router between conciv core and its clients (sessions
 - `chat.stop` requires `runIds` to be non-empty strings; `chat.permissionDecision`, `chat.uiReply` and `page.reply` declare `UNKNOWN_REQUEST` (`contract.ts`).
 - Every `server.*` procedure declares `NO_BUNDLER`; `server.reload` and `server.restart` also declare `APPROVAL_DENIED`; `restart.force` defaults to `false` (`contract.ts`).
 - `registry.call` requires a non-empty `name` and `input` as `record<string, unknown>`, and declares the `registryCallErrors` set (`contract.ts`).
-- `editor.open` requires `line` to be an integer >= 1 when present (`EditorOpenInputSchema`).
+- `editor.open` requires `line` and `column` to be integers >= 1 when present (`EditorOpenInputSchema`); the engine ignores a column without a line.
 - `ToolCommandSignatureSchema` applies `.catch(undefined)` to `icon` and `label` (invalid values become `undefined`); `errors` defaults to `[]` (`contract.ts`).
 - `StreamChunkSchema` checks only that a chunk is a non-null object, then casts it to `ChatEvent` (`contract.ts`).
 - `DraftRowSchema` requires `selectionStart` / `selectionEnd` to be integers >= 0 and maps null `attachments` to `[]`; `drafts.set` input omits `updatedAt` (`rows.ts`, `contract.ts`). `MarkerRowSchema.afterMessageId` is the id of the message the marker follows, `null` before the first message (`rows.ts`).

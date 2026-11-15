@@ -28,7 +28,7 @@ function Demo() {
     <Combobox.Root openOnClick collection={collection()} onInputValueChange={(d) => filter(d.inputValue)} class="w-64">
       <Combobox.Control class="relative">
         <Combobox.Input
-          class="text-chat-text font-chat px-3 border border-chat-line-2 rounded-chat-surface-md bg-chat-fill h-9 w-full [outline:none]"
+          class="text-chat-text font-chat px-3 border border-chat-line-2 rounded-chat-surface-md bg-chat-fill h-8 w-full [outline:none]"
           placeholder="Pick a model"
         />
       </Combobox.Control>

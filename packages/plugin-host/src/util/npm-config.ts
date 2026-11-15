@@ -6,9 +6,9 @@ import {Effect} from 'effect'
 export const load = (dir: string) =>
   Effect.tryPromise({
     try: async () => {
-      // @ts-expect-error
+      // @ts-expect-error npm does not publish types for this internal config API.
       const {default: Config} = await import('@npmcli/config')
-      // @ts-expect-error
+      // @ts-expect-error npm does not publish types for this internal config API.
       const {default: npmDefinitions} = await import('@npmcli/config/lib/definitions/index.js')
       const {definitions, flatten, nerfDarts, shorthands} = npmDefinitions
       const config = new Config({

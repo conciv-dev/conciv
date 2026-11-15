@@ -4,11 +4,12 @@ import {NumberInput as Ark} from '@ark-ui/solid/number-input'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import ChevronUp from 'lucide-solid/icons/chevron-up'
 import {INPUT_FRAME} from './input-frame.js'
+import {nativeFocusPart} from './native-focus.js'
 
 const ROOT = 'inline-flex min-w-0'
 const CONTROL = `${INPUT_FRAME} w-full data-[invalid]:border-chat-danger`
 const INPUT =
-  'flex-1 w-full min-w-0 bg-transparent [border:none] px-2.5 py-2 text-inherit font-chat-mono text-[0.75rem] tabular-nums focus-visible:outline-none read-only:cursor-default'
+  'flex-1 w-full min-w-0 bg-transparent [border:none] px-2.5 py-1.25 text-inherit font-chat-mono text-[0.75rem] leading-5 tabular-nums focus-visible:outline-none read-only:cursor-default'
 const UNIT = 'flex items-center pe-1.5 text-chat-text-3 text-[0.6875rem] font-chat-mono whitespace-nowrap'
 const STEPS = 'flex flex-col shrink-0 w-6 [border-inline-start:1px_solid_var(--chat-line-soft)]'
 const STEP =
@@ -28,6 +29,8 @@ type NumberInputProps = {
   class?: string
   'aria-label'?: string
 }
+
+const Input = nativeFocusPart(Ark.Input, 'input')
 
 const PAGE_KEYS: Partial<Record<string, number>> = {PageUp: 1, PageDown: -1}
 
@@ -77,7 +80,7 @@ export function NumberInput(props: NumberInputProps): JSX.Element {
       <Ark.Control class={CONTROL}>
         <Ark.Context>
           {(api) => (
-            <Ark.Input
+            <Input
               class={INPUT}
               aria-label={local['aria-label']}
               onKeyDown={(event) => {

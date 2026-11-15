@@ -1,10 +1,14 @@
 import {For, Show, createMemo, mergeProps, splitProps, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {TreeView, useTreeViewNodeContext} from '@ark-ui/solid/tree-view'
+import {nativeFocusPart} from './native-focus.js'
 import {JsonTreeView, useJsonTreeView} from '@ark-ui/solid/json-tree-view'
 import {createVirtualizer} from '@tanstack/solid-virtual'
 import {getAccessibleDescription, jsonNodeToElement, keyPathToKey} from '@zag-js/json-tree-utils'
 import type {JsonNode, JsonNodeHastElement, JsonNodePreviewOptions} from '@zag-js/json-tree-utils'
+
+const TreeItem = nativeFocusPart(TreeView.Item, 'div')
+const TreeBranchControl = nativeFocusPart(TreeView.BranchControl, 'div')
 
 const ROW_HEIGHT = 20
 const OVERSCAN = 10
@@ -78,22 +82,22 @@ function JsonRow(props: {node: JsonNode; arrow?: JSX.Element; options: JsonTreeO
     <Show
       when={nodeState().isBranch}
       fallback={
-        <TreeView.Item {...SCOPE} aria-label={description()}>
+        <TreeItem {...SCOPE} aria-label={description()}>
           <TreeView.ItemText {...SCOPE}>
             <JsonLabel node={props.node} options={props.options} />
           </TreeView.ItemText>
-        </TreeView.Item>
+        </TreeItem>
       }
     >
       <TreeView.Branch {...SCOPE}>
-        <TreeView.BranchControl {...SCOPE} aria-label={description()}>
+        <TreeBranchControl {...SCOPE} aria-label={description()}>
           <Show when={props.arrow}>
             <TreeView.BranchIndicator {...SCOPE}>{props.arrow}</TreeView.BranchIndicator>
           </Show>
           <TreeView.BranchText {...SCOPE}>
             <JsonLabel node={props.node} options={props.options} />
           </TreeView.BranchText>
-        </TreeView.BranchControl>
+        </TreeBranchControl>
       </TreeView.Branch>
     </Show>
   )

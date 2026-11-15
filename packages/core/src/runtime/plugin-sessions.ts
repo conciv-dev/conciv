@@ -23,12 +23,14 @@ import {
 import type {createSessionSearch} from '../sessions/session-search.js'
 import {rowById, setMetadata, setPermissions} from '../sessions/session-rows.js'
 import type {CoreRuntime} from './scope-types.js'
+import type {PageQueues} from '../page/page-queue.js'
 
 type SessionKeyDeps = {
   chat: ChatContext
   runtime: Pick<CoreRuntime, 'forSession'>
   search: Pick<ReturnType<typeof createSessionSearch>, 'retitle' | 'pages' | 'listed'>
   pluginHost: ManagedRuntime.ManagedRuntime<Bus.Interface | KV.Interface, never>
+  queues: Pick<PageQueues, 'release'>
 }
 
 type SessionInfo = Effect.Success<ReturnType<Session.Interface['get']>>
@@ -190,8 +192,8 @@ export function provideSessions(started: () => SessionKeyDeps) {
       remove: (sessionId) =>
         found(sessionId).pipe(
           Effect.andThen(() => {
-            const {chat, pluginHost} = started()
-            return Effect.promise(() => deleteSession({db: chat.db, plane: chat.plane, pluginHost}, sessionId))
+            const {chat, pluginHost, queues} = started()
+            return Effect.promise(() => deleteSession({db: chat.db, plane: chat.plane, pluginHost, queues}, sessionId))
           }),
         ),
       switchAgent: (input) =>
@@ -258,7 +260,9 @@ export function provideSessions(started: () => SessionKeyDeps) {
       wait: (sessionId) =>
         found(sessionId).pipe(Effect.andThen(() => Effect.promise(() => started().chat.plane.settled(sessionId)))),
       interrupt: (sessionId) =>
-        Effect.promise(() => started().chat.plane.stop(sessionId)).pipe(Effect.map(({stopped}) => stopped)),
+        Effect.promise(() => started().runtime.forSession(sessionId).run.stop()).pipe(
+          Effect.map(({stopped}) => stopped),
+        ),
     }),
   )
 }

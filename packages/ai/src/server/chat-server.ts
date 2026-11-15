@@ -1,6 +1,7 @@
 import {z} from 'zod'
 import {
   chat,
+  convertMessagesToModelMessages,
   defineChatMiddleware,
   EventType,
   requestRunCancel,
@@ -67,6 +68,7 @@ export type TurnPlan = {
   asking: readonly ChatTool[]
   direct: readonly ChatTool[]
   setup: () => Promise<Approvals>
+  prompt: (message: ModelMessage) => Promise<ModelMessage>
   expand: (messages: ModelMessage[]) => Promise<ModelMessage[]>
   providerMessages: (messages: ModelMessage[]) => Promise<ModelMessage[]>
   chunk: (chunk: ChatEvent) => Promise<ChatEvent[]>
@@ -84,6 +86,7 @@ export type ChatServerConfig = {
   sandbox: {dir: string}
   hooks: TurnHooks
   codeModeResult: (value: unknown) => unknown
+  startTimeoutMs: number
   firstOutputTimeoutMs: number
   log: (message: string) => void
   driver: CodeDriver | null
@@ -162,6 +165,7 @@ function failedPlan(error: unknown): TurnPlan {
     asking: [],
     direct: [],
     setup: async () => new Map(),
+    prompt: async (user) => user,
     expand: async (messages) => messages,
     providerMessages: async (messages) => messages,
     chunk: async (chunk) => [chunk],
@@ -307,6 +311,14 @@ async function saveShown(
   await messages.saveThread(threadId, [...kept, ...shown])
 }
 
+function untilAborted<Value>(work: Promise<Value>, signal: AbortSignal): Promise<Value> {
+  const aborted = Promise.withResolvers<never>()
+  const abort = () => aborted.reject(signal.reason)
+  if (signal.aborted) abort()
+  signal.addEventListener('abort', abort, {once: true})
+  return Promise.race([work, aborted.promise]).finally(() => signal.removeEventListener('abort', abort))
+}
+
 function silentCategories(logger: DebugConfig['logger']): DebugConfig {
   return {
     logger,
@@ -419,6 +431,12 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     if (cancelled.status === 'rejected') throw cancelled.reason
   }
 
+  const stopPreparing = (threadId: string, runIds: readonly string[] | undefined): boolean => {
+    const preparing = filterLiveRuns(threadId).filter(([runId]) => runIds === undefined || runIds.includes(runId))
+    for (const [, entry] of preparing) entry.controller.abort(RUN_CANCEL_REASON)
+    return preparing.length > 0
+  }
+
   function concivTurn(turn: Turn, plan: TurnPlan, granted: {approvals: Approvals}, view: RunMessages, entry: LiveRun) {
     const failure: {message: string | null} = {message: null}
     const prepared: {sent: number; provider: ModelMessage[]} = {sent: 0, provider: []}
@@ -498,6 +516,25 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     })
   }
 
+  const promptedMessages = async (
+    threadId: string,
+    messages: Array<ChatMessage | ModelMessage>,
+    plan: TurnPlan,
+    signal: AbortSignal,
+  ): Promise<Array<ChatMessage | ModelMessage>> => {
+    const index = messages.findLastIndex((message) => message.role === 'user')
+    const lastUser = messages[index]
+    if (lastUser?.id === undefined) return messages
+    const messageId = lastUser.id
+    const stored = (await stores.messages.loadThread(threadId)).find((message) => message.id === messageId)
+    if (stored !== undefined) return messages.with(index, stored)
+    const [converted] = convertMessagesToModelMessages([lastUser])
+    if (converted === undefined) return messages
+    const prompted = await untilAborted(plan.prompt(converted), signal)
+    if (prompted === converted) return messages
+    return messages.with(index, prompted)
+  }
+
   function run(turn: Turn, messages: Array<ChatMessage | ModelMessage>, controller: AbortController) {
     const entry: LiveRun = {
       threadId: turn.threadId,
@@ -507,7 +544,33 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       stopping: false,
     }
     live.set(turn.runId, entry)
-    const plan = planned(hooks, turn)
+    return admitted(turn, messages, controller, entry, planned(hooks, turn))
+  }
+
+  async function* admitted(
+    turn: Turn,
+    messages: Array<ChatMessage | ModelMessage>,
+    controller: AbortController,
+    entry: LiveRun,
+    plan: TurnPlan,
+  ): AsyncGenerator<ChatEvent> {
+    const prompted = await promptedMessages(turn.threadId, messages, plan, controller.signal).catch(
+      (error: unknown) => {
+        live.delete(turn.runId)
+        entry.settled.resolve()
+        throw error
+      },
+    )
+    yield* started(turn, prompted, controller, entry, plan)
+  }
+
+  function started(
+    turn: Turn,
+    messages: Array<ChatMessage | ModelMessage>,
+    controller: AbortController,
+    entry: LiveRun,
+    plan: TurnPlan,
+  ) {
     const granted: {approvals: Approvals} = {approvals: new Map()}
     const approvals = (): Approvals => granted.approvals
     const coded =
@@ -520,19 +583,17 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
             config.codeModeResult,
             debug,
           )
-    const seconds = Math.round(config.firstOutputTimeoutMs / 1000)
+    const seconds = (ms: number) => Math.round(ms / 1000)
+    const failed = (message: string) => entry.ending.abort({type: EventType.RUN_ERROR, message, timestamp: Date.now()})
     const view: RunMessages = {full: []}
     const stream = chat({
       adapter: guardedAdapter(plan.adapter, {
         ended: entry.ending.signal,
         stopped: controller.signal,
+        startMs: config.startTimeoutMs,
         firstOutputMs: config.firstOutputTimeoutMs,
-        onSilence: () =>
-          entry.ending.abort({
-            type: EventType.RUN_ERROR,
-            message: `the agent produced no output within ${seconds}s`,
-            timestamp: Date.now(),
-          }),
+        onNotStarted: () => failed(`the agent did not start within ${seconds(config.startTimeoutMs)}s`),
+        onSilence: () => failed(`the agent produced no output within ${seconds(config.firstOutputTimeoutMs)}s`),
         stop: () => controller.abort(RUN_CANCEL_REASON),
         log: config.log,
       }),
@@ -590,7 +651,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     }),
     stop: async (threadId, runIds) => {
       const active = await stores.runs.findActiveRun(threadId)
-      if (active === null) return false
+      if (active === null) return stopPreparing(threadId, runIds)
       if (runIds !== undefined && !runIds.includes(active.runId)) return false
       if (active.cancelRequested === true) return false
       const entry = live.get(active.runId)
