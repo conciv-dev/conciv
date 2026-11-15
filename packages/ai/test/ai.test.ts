@@ -35,7 +35,7 @@ import {createTextChunks, fakeText, storyConnection} from '../src/testkit.js'
 import {localSandbox} from '../src/server/local-sandbox.js'
 import type {FakeResponse, FakeResponseStep} from '@tanstack/ai/testing'
 import {existsSync, mkdtempSync, readdirSync, readFileSync, renameSync, watch, writeFileSync} from 'node:fs'
-import {readFile} from 'node:fs/promises'
+import {readFile, rm} from 'node:fs/promises'
 import {execFileSync} from 'node:child_process'
 import {tmpdir} from 'node:os'
 import {fileURLToPath} from 'node:url'
@@ -48,6 +48,7 @@ import {Worker} from 'node:worker_threads'
 import {closePool, openPool} from '../src/server/quickjs-thread.js'
 import {createChatSession} from '../src/client.js'
 import {createRoot} from 'solid-js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 describe('chat stores', () => {
   function chatDb() {
@@ -254,6 +255,7 @@ const watched = require('node:net').connect(data.socket, () => {
       startTimeoutMs?: number,
     ) {
       const dir = mkdtempSync(join(tmpdir(), 'conciv-fake-claude-'))
+      onTestFinished(() => rm(dir, {recursive: true, force: true, maxRetries: 10}))
       const files = {launches: join(dir, 'launches'), gate: join(dir, 'gate'), socket: join(dir, 'agent.sock')}
       const line = (value: unknown) => `${JSON.stringify(value)}\n`
       writeFileSync(
@@ -302,7 +304,7 @@ const watched = require('node:net').connect(data.socket, () => {
         }),
         {end: async (_turn, run) => ended.resolve(run)},
       )
-      const sandbox = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
+      const sandbox = tempDir('conciv-ai-')
       return {
         db,
         sandbox,
@@ -674,7 +676,7 @@ const watched = require('node:net').connect(data.socket, () => {
     log: (message: string) => void,
     db = chatDb(),
     firstOutputTimeoutMs = 30_000,
-    sandbox = mkdtempSync(join(tmpdir(), 'conciv-ai-')),
+    sandbox = tempDir('conciv-ai-'),
     startTimeoutMs = 30_000,
     driver: CodeDriver | null = null,
   ) {
@@ -967,7 +969,7 @@ describe('local sandbox', () => {
     'forgets a finished run, so a destroy that names no cancelled run stops the live one, even a child that outlives SIGTERM',
     {timeout: 15_000},
     async () => {
-      const provider = localSandbox({dir: mkdtempSync(join(tmpdir(), 'conciv-local-sandbox-'))})
+      const provider = localSandbox({dir: tempDir('conciv-local-sandbox-')})
       const finished = await provider.create({})
       await (await finished.process.spawn('true')).wait()
       const live = await provider.create({})
