@@ -1,4 +1,5 @@
 import {existsSync} from 'node:fs'
+import {createRequire} from 'node:module'
 import {join} from 'node:path'
 import {afterEach, describe, expect, it} from 'vitest'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
@@ -31,6 +32,13 @@ afterEach(async () => {
   if (state.home !== undefined) process.env.HOME = state.home
   state.home = undefined
   await new Promise((resolve) => setTimeout(resolve, 300))
+})
+
+describe('a CommonJS bundler config', () => {
+  it.each(['webpack', 'rspack'])('requires @conciv/it/plugin/%s and builds the plugin with .default()', (bundler) => {
+    const required: {default: () => {apply: unknown}} = createRequire(import.meta.url)(`@conciv/it/plugin/${bundler}`)
+    expect(typeof required.default().apply).toBe('function')
+  })
 })
 
 describe('the dev endpoint dir the conciv plugin boots a core with', () => {
