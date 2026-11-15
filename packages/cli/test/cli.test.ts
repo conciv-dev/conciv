@@ -1204,18 +1204,18 @@ describe('cli', () => {
     response.end(Buffer.from(await answer.arrayBuffer()))
   }
 
-  async function startFront(home: string, engine: {root: string; base: string}, given: {holdHealth?: boolean} = {}) {
+  async function startFront(home: string, engine: {root: string; base: string}, given: {hold?: string} = {}) {
     const upstream = new URL(engine.base)
-    const health = new EventEmitter()
-    const mode = {dropCalls: false, holdWaits: false, health: Promise.withResolvers<void>()}
-    if (given.holdHealth !== true) mode.health.resolve()
+    const held = new EventEmitter()
+    const mode = {dropCalls: false, holdWaits: false, held: Promise.withResolvers<void>()}
+    if (given.hold === undefined) mode.held.resolve()
     const front = createHttpServer(async (request, response) => {
       const chunks: Buffer[] = []
       for await (const chunk of request) chunks.push(Buffer.from(chunk))
       const body = Buffer.concat(chunks)
-      if (request.url === '/health') {
-        health.emit('ask')
-        await mode.health.promise
+      if (given.hold !== undefined && request.url?.endsWith(given.hold)) {
+        held.emit('ask')
+        await mode.held.promise
       }
       if (mode.holdWaits && request.url?.endsWith('/rpc/page/queue/wait')) return
       if (mode.dropCalls && request.url?.endsWith('/rpc/code/execute')) {
@@ -1238,15 +1238,15 @@ describe('cli', () => {
       holdWaits: (hold: boolean) => {
         mode.holdWaits = hold
       },
-      healthAskedTwice: async () => {
-        const asks = on(health, 'ask')
+      askedTwice: async () => {
+        const asks = on(held, 'ask')
         await asks.next()
         await asks.next()
         await asks.return?.()
       },
-      answerHealth: () => mode.health.resolve(),
-      holdHealth: () => {
-        mode.health = Promise.withResolvers<void>()
+      answerHeld: () => mode.held.resolve(),
+      holdAgain: () => {
+        mode.held = Promise.withResolvers<void>()
       },
       close: async () => {
         front.closeAllConnections()
@@ -1347,14 +1347,14 @@ describe('cli', () => {
       const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
       const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
       const holder = await engineWithTab(home)
-      const front = await startFront(home, holder, {holdHealth: true})
+      const front = await startFront(home, holder, {hold: '/health'})
       const watched = new AbortController()
       try {
         const asked = askRaised(holder.page, holder.sessionId, AbortSignal.any([watched.signal, pages.signal]))
-        const healthAsked = front.healthAskedTwice()
+        const healthAsked = front.askedTwice()
         const waiting = conciv(elsewhere, home, ['tools', 'tabs'])
         await Promise.race([healthAsked, waiting])
-        front.answerHealth()
+        front.answerHeld()
         await expect(Promise.race([asked, waiting])).rejects.toThrow('the CLI asked "Allow terminal to use this tab"')
         const [ask] = (await holder.page.chat.hydrate({sessionId: holder.sessionId})).pendingApprovals
         await holder.page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: false})
@@ -1434,7 +1434,7 @@ describe('cli', () => {
         },
       })
       const holder = await engineWithTab(home, {hubAccess: 'open'})
-      const front = await startFront(home, holder, {holdHealth: true})
+      const front = await startFront(home, holder, {hold: '/health'})
       try {
         const silent = await conciv(elsewhere, home, viaTab(holder.sessionId))
         expect(silent).toMatchObject({
@@ -1451,13 +1451,38 @@ describe('cli', () => {
           error: {kind: 'user', message: expect.stringContaining(`no conciv dev server answered: ${holder.root}`)},
         })
         expect(JSON.stringify(unguessed)).not.toContain('5173')
-        const asked = front.healthAskedTwice()
+        const asked = front.askedTwice()
         const answering = conciv(elsewhere, home, viaTab(holder.sessionId))
         await Promise.race([asked, answering])
-        front.answerHealth()
+        front.answerHeld()
         expect(await answering).toMatchObject({
           ok: true,
           data: {tabs: [expect.objectContaining({tab: holder.sessionId})]},
+        })
+      } finally {
+        await front.close()
+        await holder.engine.stop()
+      }
+    })
+
+    it('--tab asks an engine whose tab check timed out once more, and names it when it never answers', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const holder = await engineWithTab(home, {hubAccess: 'open'})
+      const front = await startFront(home, holder, {hold: '/rpc/tabs/get'})
+      try {
+        const asked = front.askedTwice()
+        const answering = conciv(elsewhere, home, ['tools', 'tabs', '--tab', holder.sessionId])
+        await Promise.race([asked, answering])
+        front.answerHeld()
+        expect(await answering).toMatchObject({
+          ok: true,
+          data: {tabs: [expect.objectContaining({tab: holder.sessionId})]},
+        })
+        front.holdAgain()
+        expect(await conciv(elsewhere, home, ['tools', 'tabs', '--tab', holder.sessionId])).toMatchObject({
+          ok: false,
+          error: {kind: 'user', message: expect.stringContaining(`${holder.root} did not answer (`)},
         })
       } finally {
         await front.close()
@@ -2019,7 +2044,7 @@ describe('cli', () => {
       const {home, mcp} = fakeClaude()
       expect(mcp('connect', 'claude')).toMatchObject({status: 0})
       const holder = await engineWithTab(home, {hubAccess: 'open'})
-      const front = await startFront(home, holder, {holdHealth: true})
+      const front = await startFront(home, holder, {hold: '/health'})
       const client = await hub(home)
       try {
         const silent = await run(client, 'return 1 + 1')
@@ -2030,23 +2055,66 @@ describe('cli', () => {
         )
         expect(onTab).toContain(`${holder.root} did not answer (`)
         expect(onTab).not.toContain('TAB_NOT_OPEN')
-        const asked = front.healthAskedTwice()
+        const asked = front.askedTwice()
         const answering = run(client, 'return 1 + 1')
         await Promise.race([asked, answering])
-        front.answerHealth()
+        front.answerHeld()
         expect(await answering).toContain('\\"result\\":2')
-        front.holdHealth()
-        const askedOnTab = front.healthAskedTwice()
+        front.holdAgain()
+        const askedOnTab = front.askedTwice()
         const answeringOnTab = client.callTool('execute_typescript', {
           typescriptCode: 'return 1 + 1',
           tab: holder.sessionId,
         })
         await Promise.race([askedOnTab, answeringOnTab])
-        front.answerHealth()
+        front.answerHeld()
         expect(JSON.stringify(await answeringOnTab)).toContain('\\"result\\":2')
       } finally {
         await client.close()
         await front.close()
+        await holder.engine.stop()
+      }
+    })
+
+    it('a tab whose check timed out on its engine is asked once more before the hub answers', async () => {
+      const {home, mcp} = fakeClaude()
+      expect(mcp('connect', 'claude')).toMatchObject({status: 0})
+      const holder = await engineWithTab(home, {hubAccess: 'open'})
+      const front = await startFront(home, holder, {hold: '/rpc/tabs/get'})
+      const client = await hub(home)
+      try {
+        const asked = front.askedTwice()
+        const answering = client.callTool('execute_typescript', {typescriptCode: 'return 1 + 1', tab: holder.sessionId})
+        await Promise.race([asked, answering])
+        front.answerHeld()
+        expect(JSON.stringify(await answering)).toContain('\\"result\\":2')
+      } finally {
+        await client.close()
+        await front.close()
+        await holder.engine.stop()
+      }
+    })
+
+    it('with no usable engine among those that answered, the hub asks a slow one once more and names each it cannot use', async () => {
+      const {home, mcp} = fakeClaude()
+      expect(mcp('connect', 'claude')).toMatchObject({status: 0})
+      const old = await failingEngine(home, 404)
+      const holder = await engineWithTab(home, {hubAccess: 'open'})
+      const front = await startFront(home, holder, {hold: '/health'})
+      const client = await hub(home)
+      try {
+        const unusable = await run(client, 'return 1 + 1')
+        expect(unusable).toContain(`${old.root} (engine too old; upgrade its @conciv packages)`)
+        expect(unusable).toContain(`${holder.root} did not answer (`)
+        const asked = front.askedTwice()
+        const answering = run(client, 'return 1 + 1')
+        await Promise.race([asked, answering])
+        front.answerHeld()
+        expect(await answering).toContain('\\"result\\":2')
+      } finally {
+        await client.close()
+        await front.close()
+        await old.close()
         await holder.engine.stop()
       }
     })
