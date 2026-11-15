@@ -112,7 +112,7 @@ test('connect hub registers conciv-hub in the harness CLI config', async ({page}
   }
   expect(await connected.json()).toEqual({json: {ok: true}})
 
-  const home = harnessHome(projectName)
+  const home = harnessHome(testInfo.project.outputDir, projectName)
   const env = {...process.env, HOME: home, CODEX_HOME: join(home, '.codex')}
   const run = spawnSync(bin, args, {env, encoding: 'utf8', timeout: 60_000})
   expect(run.status).toBe(0)

@@ -1,5 +1,3 @@
-import {mkdtempSync, rmSync} from 'node:fs'
-import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {defineConfig, devices, type ReporterDescription} from '@playwright/test'
 import {E2E_PORTS, HARNESS_E2E_PORTS, type E2EApp, type HarnessApp} from './ports.js'
@@ -11,13 +9,22 @@ function reporters(): ReporterDescription[] {
   return [['line'], ['json', {outputFile: 'test-results.json'}]]
 }
 
-export function e2eServerLog(port: number): string {
-  return join(tmpdir(), `conciv-e2e-server-${port}.log`)
+function playwrightOutputDir(configDir: string): string {
+  return join(configDir, 'test-results')
 }
 
-function serverEntry(command: string, port: number, env: {CONCIV_HOME: string} & Record<string, string>) {
+export function e2eServerLog(outputDir: string, port: number): string {
+  return join(outputDir, `server-${port}.log`)
+}
+
+function serverEntry(
+  outputDir: string,
+  command: string,
+  port: number,
+  env: {CONCIV_HOME: string} & Record<string, string>,
+) {
   return {
-    command: `(${command}) 2>&1 | tee ${e2eServerLog(port)}`,
+    command: `mkdir -p '${outputDir}' && (${command}) 2>&1 | tee '${e2eServerLog(outputDir, port)}'`,
     url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,
     stdout: 'pipe' as const,
@@ -26,40 +33,43 @@ function serverEntry(command: string, port: number, env: {CONCIV_HOME: string} &
   }
 }
 
-function isolatedConcivHome(): {CONCIV_HOME: string} {
-  const home = mkdtempSync(join(tmpdir(), 'conciv-e2e-home-'))
-  process.once('exit', () => rmSync(home, {recursive: true, force: true, maxRetries: 10}))
+function runConcivHome(outputDir: string): {CONCIV_HOME: string} {
+  const home = join(outputDir, 'conciv-home')
   process.env.CONCIV_HOME = home
   return {CONCIV_HOME: home}
 }
 
 export function e2eConfig(
   app: E2EApp,
-  opts: {command: (port: number) => string; timeout?: number; reuseExistingServer?: boolean},
+  opts: {dir: string; command: (port: number) => string; timeout?: number; reuseExistingServer?: boolean},
 ): ReturnType<typeof defineConfig> {
   const port = E2E_PORTS[app]
   const timeout = opts.timeout ?? 90_000
+  const outputDir = playwrightOutputDir(opts.dir)
   return defineConfig({
     testDir: './test',
     testIgnore: PACKED_SPECS,
+    outputDir,
     workers: 1,
     timeout,
     expect: {timeout},
     reporter: reporters(),
     use: {baseURL: `http://localhost:${port}`},
     webServer: {
-      ...serverEntry(`rm -rf .conciv && ${opts.command(port)}`, port, isolatedConcivHome()),
+      ...serverEntry(outputDir, `rm -rf .conciv && ${opts.command(port)}`, port, runConcivHome(outputDir)),
       ...(opts.reuseExistingServer === undefined ? {} : {reuseExistingServer: opts.reuseExistingServer}),
     },
     projects: [{name: 'chromium', use: {...devices['Desktop Chrome']}}],
   })
 }
 
-export function packedE2eConfig(): ReturnType<typeof defineConfig> {
-  isolatedConcivHome()
+export function packedE2eConfig(opts: {dir: string}): ReturnType<typeof defineConfig> {
+  const outputDir = playwrightOutputDir(opts.dir)
+  runConcivHome(outputDir)
   return defineConfig({
     testDir: './test',
     testMatch: PACKED_SPECS,
+    outputDir,
     workers: 1,
     timeout: 90_000,
     expect: {timeout: 90_000},
@@ -84,29 +94,33 @@ function selectedHarnesses(): [HarnessApp, number][] {
   return entries.filter(([harness]) => harness === filter)
 }
 
-export function harnessHome(harness: HarnessApp): string {
-  return join(tmpdir(), `conciv-e2e-${harness}-home`)
+export function harnessHome(outputDir: string, harness: HarnessApp): string {
+  return join(outputDir, `${harness}-home`)
 }
 
-function isolatedHome(harness: HarnessApp): {CONCIV_HOME: string} & Record<string, string> {
-  const home = harnessHome(harness)
+function isolatedHome(outputDir: string, harness: HarnessApp): {CONCIV_HOME: string} & Record<string, string> {
+  const home = harnessHome(outputDir, harness)
   return {HOME: home, CODEX_HOME: join(home, '.codex'), CONCIV_HOME: join(home, '.conciv-home')}
 }
 
 export function harnessMatrixConfig(opts: {
+  dir: string
   command: (harness: HarnessApp, port: number) => string
 }): ReturnType<typeof defineConfig> {
   const entries = selectedHarnesses()
+  const outputDir = playwrightOutputDir(opts.dir)
   return defineConfig({
     testDir: './test',
+    outputDir,
     workers: 1,
     timeout: 150_000,
     reporter: reporters(),
     webServer: entries.map(([harness, port]) =>
       serverEntry(
-        `rm -rf .conciv-${harness} '${harnessHome(harness)}' && mkdir -p '${join(harnessHome(harness), '.codex')}' && ${opts.command(harness, port)}`,
+        outputDir,
+        `rm -rf .conciv-${harness} && mkdir -p '${join(harnessHome(outputDir, harness), '.codex')}' && ${opts.command(harness, port)}`,
         port,
-        isolatedHome(harness),
+        isolatedHome(outputDir, harness),
       ),
     ),
     projects: entries.map(([harness, port]) => ({

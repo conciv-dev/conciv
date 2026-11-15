@@ -1,5 +1,5 @@
 import {readFileSync} from 'node:fs'
-import {expect, type ConsoleMessage, type Page} from '@playwright/test'
+import {expect, test, type ConsoleMessage, type Page} from '@playwright/test'
 import {magicLink, recordedEngineBase, trustedBrowserToken} from '@conciv/harness-testkit/login'
 import {e2eServerLog} from './config.js'
 
@@ -127,7 +127,7 @@ function printedCodes(logPath: string): string[] {
 
 export async function openLoginFromLockedLauncher(page: Page, path = '/'): Promise<string> {
   await engineOrigin(page, path)
-  const logPath = e2eServerLog(Number(new URL(page.url()).port))
+  const logPath = e2eServerLog(test.info().project.outputDir, Number(new URL(page.url()).port))
   const seen = printedCodes(logPath).length
   await page.getByRole('button', {name: 'Unauthorized. Authorize conciv'}).click()
   await expect(page.getByRole('dialog', {name: 'Authorize conciv'})).toBeVisible()
