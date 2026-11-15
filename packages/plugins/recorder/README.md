@@ -1,8 +1,11 @@
 # @conciv/plugin-recorder
 
-The conciv recorder plugin, engine part. The page's rrweb events reach the engine over the plugin's RPC and are kept in
-a sliding window per page client; the agent pulls a distilled action log (and keyframes rendered in a headless
-Chromium) from code mode.
+The conciv recorder plugin. Its engine part keeps the page's rrweb events, which reach the engine over the plugin's RPC,
+in a sliding window per page client; the agent pulls a distilled action log (and keyframes rendered in a headless
+Chromium) from code mode. Its browser part adds a Recorder tab to the panel: it replays the recording live, starts a
+New recording, and exports the recording as a video (Export video).
+
+Not shipped yet: capture in the page. Until it lands, the old `@conciv/extension-recorder` is what records the page.
 
 ```ts
 plugins: ['@conciv/plugin-recorder']
