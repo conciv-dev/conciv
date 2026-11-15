@@ -126,7 +126,7 @@ export function observeRpc(page: Page): RpcObserver {
     }
     if (event.kind === 'abort') {
       const abandoned = calls.get(event.requestId)
-      if (abandoned && !abandoned.completed) abandoned.record.abandoned = true
+      if (abandoned) abandoned.record.abandoned = true
       return
     }
     const state = calls.get(event.requestId)
