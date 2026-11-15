@@ -209,7 +209,7 @@ describe('webpack and rspack hooks', () => {
   it.each(['webpack', 'rspack'] as const)(
     '%s starts the engine on the first watch run only, and stops it when watching closes',
     async (framework) => {
-      const root = mkdtempSync(join(tmpdir(), `conciv-${framework}-hook-`))
+      const root = tempDir(`conciv-${framework}-hook-`)
       const serverFile = join(concivStateDir(root), 'server.json')
       try {
         const port = await getPort()
@@ -234,7 +234,7 @@ describe('webpack and rspack hooks', () => {
   it.each(['webpack', 'rspack'] as const)(
     '%s keeps watching without an engine when the configured port is taken',
     async (framework) => {
-      const root = mkdtempSync(join(tmpdir(), `conciv-${framework}-taken-`))
+      const root = tempDir(`conciv-${framework}-taken-`)
       const taken = await getPort()
       const release = await holdPort(taken)
       try {
