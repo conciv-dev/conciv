@@ -680,6 +680,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     capabilities: codeModeCapabilities,
     attachmentExpanders,
     prompt: plugins.prompt,
+    promptHooked: plugins.promptHooked,
     pluginInstructions: (sessionId, reset, inventory) =>
       pluginHost.runPromise(pluginInstructions(sessionId, reset, inventory)),
     firstOutputTimeoutMs: opts.firstChunkTimeoutMs,

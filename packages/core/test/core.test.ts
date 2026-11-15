@@ -850,6 +850,7 @@ describe('chat plane', () => {
       capabilities: () => [],
       attachmentExpanders: {},
       prompt: async (event) => event,
+      promptHooked: async () => false,
       pluginInstructions: async () => ({initial: '', update: '', told: async () => undefined}),
       firstOutputTimeoutMs: 30_000,
       log: () => undefined,
