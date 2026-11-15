@@ -38,7 +38,7 @@ import type {MarkerRow} from '@conciv/contract'
 import type {ChatMessage, SendContent} from '@conciv/protocol/chat-message-types'
 import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
-import {paneAttachments, returnQueueToDraft, type DraftSink} from './pane-attachments.js'
+import {paneAttachments, putBackInDraft, returnQueueToDraft, type DraftSink} from './pane-attachments.js'
 import {useAnnounce, useAppData, useConnected, useInstances, useLiveSessions, useRpc} from '../app/context.js'
 import {useHarnesses, useSessionHarness} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
@@ -300,6 +300,11 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     inputHandle()?.append(text)
     focusInput()
   }
+  const insertFirst = (text: string) => {
+    inputHandle()?.select({start: 0, end: 0})
+    inputHandle()?.insert(`${text}\n`)
+    focusInput()
+  }
   const attach = (file: File) => {
     const api = composerApi.current
     if (!api) {
@@ -528,7 +533,10 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
               onSend: sendOrRunCommand,
               onSendError: messaging.onSendError,
               onSteer: messaging.onSteer,
-              onSteerError: messaging.onSendError,
+              onSteerError: (error, item) => {
+                putBackInDraft([item], {insert: insertFirst, addFile: attach})
+                messaging.onSendError(error)
+              },
               onCancel: () => {
                 returnQueueToDraft(chat, {insert, addFile: attach})
                 void chat.stop()

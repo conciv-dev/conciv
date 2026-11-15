@@ -686,6 +686,43 @@ describe('chat pane', () => {
     expect(replies().elements()).toHaveLength(1)
   })
 
+  test('a refused steer puts its text back first in the composer, leaves no turn, and a resend makes one', async () => {
+    const {sessionId} = await newSession()
+    await coreControl.holdTurn()
+    mountChatPane(sessionId, {transport: 'fetch'})
+    const steered = 'steer this one'
+    const waiting = 'wait in line'
+    const queueRow = (text: string) => page.getByRole('listitem').filter({hasText: text})
+    const turns = () => page.getByRole('log').getByText(new RegExp(steered))
+    const replies = () => page.getByRole('log').getByText(UNSCRIPTED_REPLY, {exact: true})
+
+    await userEvent.click(input())
+    await userEvent.keyboard('first turn{Enter}')
+    await expect.element(stopButton()).toBeVisible()
+    await expect.element(replies()).toBeVisible()
+    await userEvent.keyboard(`${steered}{Enter}`)
+    await expect.element(queueRow(steered)).toBeVisible()
+    await userEvent.keyboard(`${waiting}{Enter}`)
+    await expect.element(queueRow(waiting)).toBeVisible()
+    const refused = await faults.install({kind: 'chat-refused', status: 500})
+
+    await userEvent.click(queueRow(steered).getByRole('button', {name: 'Steer'}))
+
+    await expect.element(notifications()).toMatchTextContent(/Internal Server Error|could not be sent/)
+    await expect.element(input()).toMatchTextContent(new RegExp(`${steered}[\\s\\S]*${waiting}`))
+    await expect.element(input()).not.toMatchTextContent(new RegExp(`${steered}[\\s\\S]*${steered}`))
+    await expect.element(page.getByRole('button', {name: 'Remove from queue'})).not.toBeInTheDocument()
+    expect(turns().elements()).toHaveLength(0)
+
+    await coreControl.releaseFault(refused)
+    await coreControl.releaseTurn()
+    await expect.element(stopButton()).not.toBeInTheDocument()
+    await userEvent.click(input())
+    await userEvent.keyboard('{Enter}')
+    await expect.poll(() => replies().elements()).toHaveLength(2)
+    expect(turns().elements()).toHaveLength(1)
+  })
+
   test('a send refused while the connection is lost adds a row only until the lost-connection notice stands', async () => {
     const {sessionId} = await newSession()
     const [connection, setConnection] = createStore({online: false, sustainedOffline: false})

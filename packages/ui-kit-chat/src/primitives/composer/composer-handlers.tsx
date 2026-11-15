@@ -1,12 +1,12 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
-import type {SendContent} from '@conciv/protocol/chat-message-types'
+import type {QueuedMessage, SendContent} from '@conciv/protocol/chat-message-types'
 
 export type ComposerHandlers = {
   onSend?: (content: string | SendContent) => void | Promise<unknown>
   onSendError?: (error: unknown) => void
   onCancel?: () => void
   onSteer?: () => void | Promise<unknown>
-  onSteerError?: (error: unknown) => void
+  onSteerError?: (error: unknown, item: QueuedMessage) => void
   onStartDictation?: () => void
   onStopDictation?: () => void
   transcript?: Accessor<string>
