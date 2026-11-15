@@ -440,7 +440,6 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                 <ExtensionSurface name="footer" instances={instances} />
               </div>
               <QueueStrip queue={chat.queue()} />
-              <LostQueueReceiver sessionId={sessionId} sink={{insert, addFile: attach}} />
               <Suspense>
                 <PaneComposer
                   draftStorage={draftStorage.storage}
@@ -456,6 +455,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                   prompt={<SessionModelPrompt sessionId={sessionId} menu={modelMenu} running={narrating()} />}
                 >
                   <DraftRestore storage={draftStorage} draftKey={sessionId} input={inputHandle} />
+                  <LostQueueReceiver sessionId={sessionId} sink={{insert, addFile: attach}} />
                   <Suspense fallback={<ComposerActionsPending />}>
                     <ComposerActions
                       sessionId={sessionId}
