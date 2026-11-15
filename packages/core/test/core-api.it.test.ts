@@ -317,13 +317,14 @@ describe('api engine staleness di', () => {
       expect(description.length).toBeLessThanOrEqual(4096)
       expect(description).toContain('## Code Mode tools (call only inside `execute_typescript`)')
       expect(description).toContain('The catalog is partial.')
-      expect(description).toContain('- page (41 tools')
-      expect(sandboxNames).toContain('external_page_insert')
+      expect(description).toContain('- server (5 tools')
+      expect(sandboxNames).toContain('external_server_transform')
+      expect(sandboxNames.filter((name) => name.startsWith('external_page_'))).toEqual([])
       expect(
         sandboxNames.filter((name) => !description.includes(`- ${name.slice('external_'.length).split('_', 1)[0]} (`)),
       ).toEqual([])
       expect(discoverDescription.length).toBeLessThanOrEqual(4096)
-      expect(discoverDescription).not.toContain('external_page_insert')
+      expect(discoverDescription).not.toContain('external_server_transform')
       expect(calls.count).toBeGreaterThanOrEqual(3)
     }, 20_000)
 
@@ -6273,6 +6274,7 @@ export default {
     expect(seen.directory).toBe(root)
     expect(seen.plugins.map((plugin) => plugin.id).toSorted()).toEqual([
       'broken',
+      'conciv.page',
       'conciv.tool.skill',
       'configured',
       'embedded',
