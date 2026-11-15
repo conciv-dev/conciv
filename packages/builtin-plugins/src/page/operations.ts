@@ -45,7 +45,7 @@ import {startConsoleBuffer, type ConsoleEntry} from './console-buffer.js'
 import {badArgs, fail} from './page-failure.js'
 import {isJsonSerializable, rethrow} from './page-tool-outcome.js'
 import {actionable, fill, focusedElement, hover, isDisabled, isHtml, press, select, setChecked} from './page-act.js'
-import {Operations, type Action, type Command, type File, type Outcome} from './rpc.js'
+import {Operations, type Action, type Command, type File, type Outcome} from '@conciv/plugin-page/rpc'
 import {screenshot} from './screenshot.js'
 import {watchHotUpdates} from './hmr.js'
 import {

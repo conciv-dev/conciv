@@ -12,8 +12,7 @@
   },
   "type": "module",
   "exports": {
-    "./page": "./src/page/index.ts",
-    "./page/rpc": "./src/page/rpc.ts"
+    "./renderer": "./src/renderer.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -21,23 +20,20 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@conciv/contract": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/page": "workspace:^",
     "@conciv/plugin": "workspace:^",
+    "@conciv/plugin-page": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "@jridgewell/trace-mapping": "catalog:",
     "@solid-primitives/map": "catalog:",
     "@tanstack/hotkeys": "catalog:",
     "@tanstack/solid-pacer": "catalog:",
     "@zumer/snapdom": "catalog:",
     "ai-motion": "catalog:",
-    "es-toolkit": "catalog:",
     "solid-js": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/extension-page": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/ui-kit-chat": "workspace:*",
     "@conciv/ui-kit-system": "workspace:^",

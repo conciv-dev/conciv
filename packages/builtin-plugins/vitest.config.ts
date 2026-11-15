@@ -14,14 +14,6 @@ export default defineConfig({
     ...ciTest(),
     projects: [
       {
-        test: {
-          ...ciTest(),
-          name: 'builtin-plugins',
-          environment: 'node',
-          include: ['test/**/*.test.ts'],
-        },
-      },
-      {
         plugins: [solidPlugin()],
         resolve: {conditions: ['browser', 'development']},
         optimizeDeps: {

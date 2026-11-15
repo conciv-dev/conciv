@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {Operation} from './rpc.js'
+import type {Operation} from '@conciv/plugin-page/rpc'
 
 type HotUpdateWait = z.output<Extract<Operation, {readonly name: 'hmr'}>['output']>
 
