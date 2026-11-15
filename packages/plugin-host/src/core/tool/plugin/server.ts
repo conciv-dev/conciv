@@ -4,6 +4,8 @@ import type {BundlerDomain} from '@conciv/plugin'
 import type {Context} from '../../../plugin/effect/plugin.js'
 import {makeToolFailure} from '../../../ai/effect.js'
 import {Effect, Schema} from 'effect'
+import {z} from 'zod'
+import {EditorSource} from '../../plugin/host.js'
 import {Permission} from '../../permission.js'
 import {Rpc} from '../../rpc.js'
 import type {Tool} from '../../../schema/tool.js'
@@ -55,6 +57,14 @@ const RestartInput = Schema.Struct({
 
 const Restarted = Schema.Struct({ok: Schema.Literal(true)})
 
+const OpenInput = z.object({
+  file: z.string().min(1).describe('the file to open'),
+  line: z.coerce.number().int().min(1).optional().describe('line number to jump to'),
+  column: z.coerce.number().int().min(1).optional().describe('column to jump to, used only with a line'),
+})
+
+const Opened = z.object({ok: z.literal(true), file: z.string(), line: z.number().optional()})
+
 const errors = {BUNDLER_UNAVAILABLE: Schema.Struct({})}
 
 const Definition = Rpc.define({
@@ -66,6 +76,7 @@ const Definition = Rpc.define({
     graph: {input: GraphInput, output: Graph, errors},
     transform: {input: TransformInput, output: Transformed, errors},
     restart: {input: RestartInput, output: Restarted, errors},
+    open: {input: OpenInput, output: Opened},
   },
   events: {},
 })
@@ -105,6 +116,12 @@ export const Plugin = {
   id: 'conciv.tool.server',
   effect: Effect.fn('ServerTools.Plugin')(function* (ctx: Context) {
     const bundler = ctx.bundler
+    const openInEditor = yield* EditorSource
+    const open = (input: z.infer<typeof OpenInput>) =>
+      Effect.sync((): z.infer<typeof Opened> => {
+        openInEditor(input.file, input.line, input.line === undefined ? undefined : input.column)
+        return input.line === undefined ? {ok: true, file: input.file} : {ok: true, file: input.file, line: input.line}
+      })
     const config = () => withBundler(bundler, 'Unable to read the dev server config', (current) => current.config())
     const urls = () => withBundler(bundler, 'Unable to read where the dev server listens', (current) => current.urls())
     const resolve = (input: typeof ResolveInput.Type) =>
@@ -190,6 +207,14 @@ export const Plugin = {
               return yield* toolAnswer(restart(input))
             }),
         })
+        editor.add({
+          name: 'open',
+          description: "open a source file in the user's editor",
+          input: OpenInput,
+          output: Opened,
+          options: {codemode: true},
+          execute: (input) => open(input).pipe(Effect.map((output) => ({output}))),
+        })
       })
       .pipe(Effect.orDie)
     yield* ctx.rpc
@@ -203,6 +228,7 @@ export const Plugin = {
           methodAnswer(transform(input), (message) => error('BUNDLER_UNAVAILABLE', message, {})),
         restart: (input, {error}) =>
           methodAnswer(restart(input), (message) => error('BUNDLER_UNAVAILABLE', message, {})),
+        open,
       })
       .pipe(Effect.orDie)
   }),

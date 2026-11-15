@@ -22,6 +22,12 @@ const sessionId = Session.Id.make('conciv_server_tool_test')
 
 const restarts: boolean[] = []
 
+const opened: Array<{file: string; line?: number; column?: number}> = []
+
+const openInEditor = (file: string, line?: number, column?: number) => {
+  opened.push({file, ...(line === undefined ? {} : {line}), ...(column === undefined ? {} : {column})})
+}
+
 const bridge = defineBundlerBridge({
   id: 'server-tool-test',
   config: () => ({
@@ -50,7 +56,7 @@ const activate = (bundler: typeof bridge | undefined) =>
     const context = yield* PluginHost.make(plugins, ServerTools.Plugin.id).pipe(
       Effect.provideService(PluginHost.BundlerSource, bundler),
     )
-    yield* ServerTools.Plugin.effect(context)
+    yield* ServerTools.Plugin.effect(context).pipe(Effect.provideService(PluginHost.EditorSource, openInEditor))
     const snapshot = yield* (yield* Tool.Service).snapshot()
     const rpc = yield* Rpc.Service
     const call = (name: string, input: unknown) =>
@@ -80,6 +86,7 @@ describe('ServerTools', () => {
         'server_graph',
         'server_transform',
         'server_restart',
+        'open',
       ])
       expect(served.snapshot.codeMode?.namespaces.get('server')).toMatchObject({name: 'server'})
 
@@ -113,6 +120,27 @@ describe('ServerTools', () => {
         type: 'rpc.internal',
         message: 'RPC call failed',
       })
+
+      opened.length = 0
+      expect(yield* served.call('open', {file: 'src/thing.ts', line: 7})).toMatchObject({
+        output: {ok: true, file: 'src/thing.ts', line: 7},
+      })
+      expect(yield* served.method('open', {file: 'src/thing.ts', line: 7, column: 3})).toEqual({
+        ok: true,
+        file: 'src/thing.ts',
+        line: 7,
+      })
+      expect(yield* served.call('open', {file: 'src/other.ts', column: 3})).toMatchObject({
+        output: {ok: true, file: 'src/other.ts'},
+      })
+      expect(opened).toEqual([
+        {file: 'src/thing.ts', line: 7},
+        {file: 'src/thing.ts', line: 7, column: 3},
+        {file: 'src/other.ts'},
+      ])
+      expect(yield* served.call('open', {file: ''}).pipe(Effect.flip)).toMatchObject({_tag: 'Tool.Error'})
+      expect(yield* served.method('open', {file: ''}).pipe(Effect.flip)).toMatchObject({type: 'rpc.invalid_input'})
+      expect(opened).toHaveLength(3)
     }),
   )
 

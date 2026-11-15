@@ -5,12 +5,13 @@ import type {Generation} from './service.js'
 import {Context, Effect, Scope} from 'effect'
 import {FSUtil} from '../../util/fs-util.js'
 import {Permission} from '../permission.js'
+import {EditorSource} from './host.js'
 import {Skill} from '../skill.js'
 import {ServerTools} from '../tool/plugin/server.js'
 import {SkillTool} from '../tool/plugin/skill.js'
 import {Tool} from '../tool.js'
 
-const services = [FSUtil.Service, Permission.Service, Skill.Service, Tool.Service] as const
+const services = [EditorSource, FSUtil.Service, Permission.Service, Skill.Service, Tool.Service] as const
 
 export type Requirements = Context.Service.Identifier<(typeof services)[number]>
 

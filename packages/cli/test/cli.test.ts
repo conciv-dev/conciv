@@ -1435,7 +1435,11 @@ describe('cli', () => {
           restarts.push(force ?? false)
         },
       })
-      const attached = await engineWithTab(home, {bridge})
+      const launched: Array<{file: string; line: number; column?: number}> = []
+      const attached = await engineWithTab(home, {
+        bridge,
+        launchEditor: (file, line, column) => launched.push({file, line, ...(column === undefined ? {} : {column})}),
+      })
       const detached = await engineWithTab(home)
       try {
         expect(await pluginCall(attached.root, home, ['server', 'config'])).toEqual({
@@ -1473,6 +1477,22 @@ describe('cli', () => {
           document: {ok: true, data: {ok: true}},
         })
         expect(restarts).toEqual([true, false])
+        expect(
+          await pluginCall(attached.root, home, [
+            'server',
+            'open',
+            '--data',
+            '{"file":"src/thing.ts","line":7,"column":3}',
+          ]),
+        ).toEqual({code: 0, document: {ok: true, data: {ok: true, file: 'src/thing.ts', line: 7}}})
+        expect(await pluginCall(attached.root, home, ['server', 'open', '--data', '{"file":"src/other.ts"}'])).toEqual({
+          code: 0,
+          document: {ok: true, data: {ok: true, file: 'src/other.ts'}},
+        })
+        expect(launched).toEqual([
+          {file: 'src/thing.ts', line: 7, column: 3},
+          {file: 'src/other.ts', line: 1},
+        ])
         expect(await pluginCall(detached.root, home, ['server', 'config'])).toMatchObject({
           code: 1,
           document: {

@@ -615,6 +615,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       tokenScopedBase: opts.tokenScopedBase ?? (() => undefined),
     },
     bundler: opts.bridge,
+    openInEditor: opts.openInEditor,
     extensionSlugs: mounted.map((entry) => slug(entry.extensionName)),
     sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: primitives.page.queues}),
   })

@@ -19,7 +19,13 @@ import {PluginHooks} from '../../../src/core/plugin/hooks.js'
 import {InstancePlugins} from '../../../src/core/plugin/instance.js'
 import {PluginSupervisor} from '../../../src/core/plugin/supervisor.js'
 import {PluginUpdate} from '../../../src/core/plugin/update.js'
-import {BundlerSource, ExtensionSlugs, HarnessSource, ServersSource} from '../../../src/core/plugin/host.js'
+import {
+  BundlerSource,
+  EditorSource,
+  ExtensionSlugs,
+  HarnessSource,
+  ServersSource,
+} from '../../../src/core/plugin/host.js'
 import {Rpc} from '../../../src/core/rpc.js'
 import {Session} from '../../../src/core/session.js'
 import {SessionErrors} from '../../../src/core/session/error.js'
@@ -188,6 +194,7 @@ const sourcesLayer = Layer.mergeAll(
   }),
   Layer.succeed(BundlerSource, undefined),
   Layer.succeed(ExtensionSlugs, []),
+  Layer.succeed(EditorSource, () => {}),
   Layer.succeed(ManagedPolicy.ConfiguredPolicies, []),
   Layer.succeed(ConfigPluginSource.ConfiguredPlugins, []),
 )
