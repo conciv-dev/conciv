@@ -7030,6 +7030,7 @@ export default {
       {tool: 'page_fill', selector: '#a', value: 'Ada'},
       {tool: 'page_click', selector: '#go'},
     ]
+    const following = await rpc.chat.events({sessionId: session}, {signal: AbortSignal.timeout(15_000)})
     const queueing = call('page-tabs', 'tool', {sessionId: session, name: 'queue_async', input: {actions}, id: 'q1'})
     const accepting = await next('conn_d')
     const queueId = accepting.command.queued?.id ?? ''
@@ -7054,12 +7055,27 @@ export default {
     ]
     const result = {queueId, status: 'finished', outcomes, failed: 1, played: 2}
     expect(await tabs('finished', {})).toEqual({sessionId: session, queueId, toolCallId: 'q1', result})
-    const owed = [{queueId, toolCallId: 'q1', result, before: 'owed'}]
-    expect(await page('queue.owed', {excludeToolCallIds: [], claim: false})).toEqual(owed)
-    expect(await page('queue.undelivered', {excludeToolCallIds: ['q1']})).toEqual([])
-    expect(await page('queue.owed', {excludeToolCallIds: [], claim: true})).toEqual(owed)
-    expect(await page('queue.settle', {queueIds: [queueId], delivery: 'nextReply'})).toEqual({ok: true})
-    expect(await page('queue.undelivered', {toolCallIds: ['q1']})).toEqual([result])
+    const followUpRun = async (): Promise<string> => {
+      const step = await following.next()
+      if (step.done === true) throw new Error('the chat events ended before the follow-up turn started')
+      return sessionRunEvent.parse(step.value)?.runId ?? followUpRun()
+    }
+    const runId = await followUpRun()
+    await following.return?.()
+    const joined = webSocket(`ws://127.0.0.1:${engine.port}/t/${engine.agentToken}${CHAT_WS_PATH}`)
+    for await (const chunk of joined.joinRun(runId, AbortSignal.timeout(15_000))) {
+      if (chunk.type === ChatEventType.RUN_ERROR) break
+      if (chunk.type === ChatEventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') break
+    }
+    const hydrated = await rpc.chat.hydrate({sessionId: session})
+    const replies = hydrated.messages
+      .filter((message) => message.role === 'assistant')
+      .flatMap((message) => message.parts)
+      .filter((part) => part.type === 'text')
+    expect(replies).toEqual([{type: 'text', content: 'ok'}])
+    expect(hydrated.activeRun).toBeNull()
+    expect(await page('queue.owed', {excludeToolCallIds: [], claim: false})).toEqual([])
+    expect(await page('queue.undelivered', {toolCallIds: ['q1']})).toEqual([])
     expect(await page('queue.wait', {queueId, waitMs: 0})).toEqual(result)
     expect(await page('changes')).toMatchObject([
       {verb: 'page_fill', selector: '#a', args: {value: 'Ada'}},

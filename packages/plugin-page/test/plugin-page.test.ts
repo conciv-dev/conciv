@@ -611,6 +611,37 @@ describe('page queue: where it started', () => {
       played: 1,
     })
   })
+
+  it('a finished chat queue is owed until claimed, a settle to nextReply hands it to the next reply once, and queue.wait still delivers it', async () => {
+    const finished = Promise.withResolvers<void>()
+    const queues = PageQueue.fromPlay({
+      play: (_sessionId, play) =>
+        play.actions.map(async () => ({ok: true as const, result: {value: {ok: true}, files: []}})),
+      journal: async () => {},
+      finished: () => finished.resolve(),
+    })
+    const action = Page.Action.parse({
+      type: 'queue_async',
+      actions: [
+        {tool: 'page_fill', selector: '#a', value: 'Ada'},
+        {tool: 'page_click', selector: '#go'},
+      ],
+    })
+    if (action.type !== 'queue_async') throw new Error('the action is not a queue')
+    const {queueId} = queues.start(sessionId, {agentId: 'build', action, toolCallId: 'q1'})
+    await finished.promise
+    const offered = queues.owed(sessionId, [], false)
+    const result = offered[0]?.result
+    expect(result).toMatchObject({queueId, status: 'finished', played: 2, failed: 0})
+    const owed = [{queueId, toolCallId: 'q1', result, before: 'owed'}]
+    expect(offered).toEqual(owed)
+    expect(queues.undelivered(sessionId, {excludeToolCallIds: ['q1']})).toEqual([])
+    expect(queues.owed(sessionId, [], true)).toEqual(owed)
+    queues.settle(sessionId, [queueId], 'nextReply')
+    expect(queues.undelivered(sessionId, {toolCallIds: ['q1']})).toEqual([result])
+    expect(queues.undelivered(sessionId, {toolCallIds: ['q1']})).toEqual([])
+    expect(await queues.wait(sessionId, queueId, 0)).toEqual(result)
+  })
 })
 
 describe('page tools', () => {
