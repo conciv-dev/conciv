@@ -16,8 +16,11 @@ import type {EngineStaleness} from '@conciv/contract'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 
+export type EditorOpen = {file: string; line?: number; column?: number}
+
 export type CoreKit = Kit & {
   harness: FakeHarness
+  editorOpened: () => ReadonlyArray<EditorOpen>
   forSession: (id: SessionId) => SessionScope
   home: string
   writeProjectFile: (path: string, content: string) => void
@@ -60,6 +63,7 @@ export async function bootCoreKit(opts: {
     resumeBin: opts.resumeBin,
   })
   const captured: {runtime?: CoreRuntime} = {}
+  const editorOpens: EditorOpen[] = []
   const kit = await createTestkit(
     harness,
     async (env) => {
@@ -80,7 +84,9 @@ export async function bootCoreKit(opts: {
           policies: [],
         },
         cwd: env.cwd,
-        openInEditor: () => {},
+        openInEditor: (file, line, column) => {
+          editorOpens.push({file, ...(line === undefined ? {} : {line}), ...(column === undefined ? {} : {column})})
+        },
         harness: env.harness,
         harnesses: (opts.alternates ?? []).map((alternate) => createFakeHarness(alternate)),
         extensions: opts.extensions,
@@ -104,6 +110,7 @@ export async function bootCoreKit(opts: {
   return {
     ...kit,
     harness,
+    editorOpened: () => editorOpens,
     forSession: runtime.forSession,
     home: kitHome(kit.stateRoot),
     writeProjectFile: (path, content) => writeInside(kit.stateRoot, path, content),

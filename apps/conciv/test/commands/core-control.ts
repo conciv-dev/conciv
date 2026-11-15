@@ -17,7 +17,7 @@ import {revokeBrowsers as revokeTrustedBrowsers} from '@conciv/protocol/engine-t
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {FixtureSession, PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
-import type {AlternateHarness} from '@conciv/plugin-testkit/core-kit'
+import type {AlternateHarness, EditorOpen} from '@conciv/plugin-testkit/core-kit'
 import type {PushWireWatch} from '@conciv/plugin-testkit/push-wire'
 import type {RpcCallCursor} from '@conciv/plugin-testkit/rpc-counts'
 
@@ -615,6 +615,8 @@ const downloadFrom: BrowserCommand<[name: string]> = async (ctx, name): Promise<
   return {name: saved.suggestedFilename(), text: readFileSync(path, 'utf8')}
 }
 
+const editorOpened: BrowserCommand<[]> = (ctx): ReadonlyArray<EditorOpen> => requireKit(ctx).editorOpened()
+
 const openedFrom: BrowserCommand<[name: string]> = async (ctx, name): Promise<string> => {
   const opened = ctx.page.context().waitForEvent('page')
   await ctx.iframe.getByRole('button', {name, exact: true}).click()
@@ -627,6 +629,7 @@ const openedFrom: BrowserCommand<[name: string]> = async (ctx, name): Promise<st
 
 export const coreCommands = {
   chooseFiles,
+  editorOpened,
   openedFrom,
   downloadFrom,
   dragButton,

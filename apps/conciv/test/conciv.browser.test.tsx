@@ -6551,6 +6551,8 @@ describe('installed plugins in settings', () => {
 })
 
 describe('a fixture plugin driven like a user', () => {
+  const PLUGIN_CALL = ['plugin', 'call']
+
   const fixtureBundle = `const {Panel, Registry, SettingsPage, Slot, Store, useDrawer, usePanel} = require('@conciv/plugin/experimental')
 const {createComponent} = require('solid-js/web')
 const {createRenderEffect, createSignal} = require('solid-js')
@@ -6619,6 +6621,7 @@ module.exports = {default: {stores: {
       })),
       button('Save a fixture file', () => ctx.system.save({name: 'fixture-note.txt', content: 'saved through the host'})),
       button('Open the engine health page', () => ctx.system.openExternal(new URL('/health', props.session.server.url).href)),
+      button('Open the fixture source', () => ctx.desktop?.launch('src/fixture.ts', {line: 12, column: 3})),
     ],
   })
   ctx.add(Panel, {
@@ -6789,6 +6792,13 @@ module.exports = {default: {setup(ctx) {
     })
 
     expect(await coreControl.openedFrom('Open the engine health page')).toBe(new URL('/health', coreBase()).href)
+
+    const pluginCalls = await coreControl.rpcCallCount(PLUGIN_CALL)
+    await tab('Fixture tools').click()
+    await control('Open the fixture source').click()
+    await coreControl.rpcStartedOnceServed(PLUGIN_CALL, pluginCalls + 1, [])
+    expect(await coreControl.rpcCallCount(PLUGIN_CALL, {rpcId: 'server', method: 'open'})).toBe(1)
+    expect(await coreControl.editorOpened()).toEqual([{file: 'src/fixture.ts', line: 12, column: 3}])
 
     await tab('Fixture tools').click()
     await control('Open the fixture settings').click()
