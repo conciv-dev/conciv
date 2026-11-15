@@ -405,6 +405,12 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     if (cancelled.status === 'rejected') throw cancelled.reason
   }
 
+  const stopPreparing = (threadId: string, runIds: readonly string[] | undefined): boolean => {
+    const preparing = filterLiveRuns(threadId).filter(([runId]) => runIds === undefined || runIds.includes(runId))
+    for (const [, entry] of preparing) entry.controller.abort(RUN_CANCEL_REASON)
+    return preparing.length > 0
+  }
+
   function concivTurn(turn: Turn, plan: TurnPlan, granted: {approvals: Approvals}, view: RunMessages, entry: LiveRun) {
     const failure: {message: string | null} = {message: null}
     const prepared: {sent: number; provider: ModelMessage[]} = {sent: 0, provider: []}
@@ -565,7 +571,10 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     }),
     stop: async (threadId, runIds) => {
       const active = await stores.runs.findActiveRun(threadId)
-      if (active === null) return
+      if (active === null) {
+        stopPreparing(threadId, runIds)
+        return
+      }
       if (runIds !== undefined && !runIds.includes(active.runId)) return
       await requestRunCancel(stores.runs, active.runId)
       live.get(active.runId)?.controller.abort(RUN_CANCEL_REASON)
