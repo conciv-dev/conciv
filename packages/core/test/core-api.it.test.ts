@@ -201,6 +201,7 @@ type PageReply = z.input<typeof Page.Outcome>
 type PageAnswer = (command: Page.Command, requestId: string) => PageReply | undefined
 
 type PageTab = {
+  wake: () => void
   end: () => void
   seen: () => string[]
   focus: (focused: boolean) => Promise<void>
@@ -266,10 +267,8 @@ function pageTabs(): {plugin: Plugin.Plugin; open: OpenTab} {
         const cancels: string[] = []
         const heard = new EventTarget()
         const read = {next: 0}
+        const wakes = new EventTarget()
         answering.set(connectionId, {sessionId, answerFor, seen, requests, cancels, heard})
-        const joined = once(attached, connectionId)
-        void page.attach({sessionId, connectionId, version: 1}, {signal: closing.signal}).catch(() => {})
-        await joined
         const state = {
           id: `tab_${randomUUID()}`,
           url: 'https://example.com/',
@@ -278,8 +277,23 @@ function pageTabs(): {plugin: Plugin.Plugin; open: OpenTab} {
           visible: true,
           ...look,
         }
-        await page.state({sessionId, connectionId, state})
+        const attachOnce = async () => {
+          const joined = once(attached, connectionId, {signal: closing.signal}).then(() =>
+            page.state({sessionId, connectionId, state}),
+          )
+          const ended = page.attach({sessionId, connectionId, version: 1}, {signal: closing.signal}).catch(() => {})
+          await joined
+          return {ended}
+        }
+        const keep = async ({ended}: {ended: Promise<unknown>}): Promise<void> => {
+          await ended
+          if (closing.signal.aborted) return
+          await once(wakes, 'wake', {signal: closing.signal})
+          return keep(await attachOnce())
+        }
+        void keep(await attachOnce()).catch(() => {})
         return {
+          wake: () => wakes.dispatchEvent(new Event('wake')),
           end: () => closing.abort(),
           seen: () => [...seen],
           focus: (focused) => page.state({sessionId, connectionId, state: {...state, focused}}),
@@ -5574,11 +5588,15 @@ describe('page action queue delivery', () => {
 
   type QueuedOnTab = {id: string; of: number}
 
-  async function engineWithTab(harness = createFakeHarness(), plugins: readonly Plugin.Plugin[] = []) {
+  async function engineWithTab(
+    harness = createFakeHarness(),
+    plugins: readonly Plugin.Plugin[] = [],
+    root = tempDir('conciv-queue-'),
+  ) {
     const home = tempDir('conciv-queue-home-')
     withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
     const tabs = pageTabs()
-    const engine = await bootAt(home, tempDir('conciv-queue-'), 'open', harness, [tabs.plugin, ...plugins])
+    const engine = await bootAt(home, root, 'open', harness, [tabs.plugin, ...plugins])
     engines.push(engine)
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
@@ -5680,6 +5698,7 @@ describe('page action queue delivery', () => {
       sessionId,
       engine,
       tab,
+      wake: onTab.wake,
       nextQueue,
       play,
       hub,
@@ -6067,6 +6086,35 @@ describe('page action queue delivery', () => {
     expect(page.runIds().filter((runId) => runId !== 'queueing-run')).toHaveLength(1)
     expect((await page.tab.chat.hydrate({sessionId: page.sessionId})).activeRun).toBeNull()
     expect(idled).toEqual([page.sessionId])
+  })
+
+  it('a chat turn sent at once after a project plugin reloads asks before page_eval on its own tool call', async () => {
+    const root = tempDir('conciv-queue-')
+    const helper = join(root, 'conciv', 'plugins', 'helper.ts')
+    const helperLooking = (look: string) =>
+      `const LOOK = '${look}'\nexport default {id: 'helper', async setup() {}, look: LOOK}\n`
+    mkdirSync(dirname(helper), {recursive: true})
+    writeFileSync(helper, helperLooking('first look'))
+    const page = await engineWithTab(createFakeHarness(), [], root)
+    const events = await makeRpcClient(page.base).event.subscribe()
+    const asked = async (): Promise<unknown> => {
+      const next = await events.next()
+      if (next.done === true) return undefined
+      if (next.value.type === 'permission.asked') return next.value.data
+      return asked()
+    }
+    writeFileSync(helper, helperLooking('second look'))
+    page.wake()
+    const turn = page.inChat('eval-run', 'return await external_page_eval({code: "document.domain"})')
+    const endedFirst = turn.then((response) => response.clone().text()).then((text) => ({endedWithoutAsking: text}))
+    expect(await Promise.race([asked(), endedFirst])).toMatchObject({
+      sessionId: page.sessionId,
+      action: 'page_eval',
+      resources: ['document.domain'],
+    })
+    await events.return(undefined)
+    await page.tab.chat.stop({sessionId: page.sessionId, runIds: ['eval-run']})
+    await (await turn).text()
   })
 
   it('a user stop starts no follow-up turn: the owed result arrives with the agent next reply', async () => {
