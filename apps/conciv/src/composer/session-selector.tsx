@@ -233,6 +233,7 @@ export function SessionSelector(props: {
     const elsewhere = readElsewhere(session)
     if (elsewhere !== null) return openElsewhere(id, elsewhere)
     const switching = id !== activeId()
+    if (session) void appData.seedSession(session)
     props.onActivate(id)
     if (switching) announce(`Switched to ${session?.title ?? id}`)
   }

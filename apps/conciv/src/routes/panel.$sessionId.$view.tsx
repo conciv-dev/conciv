@@ -2,7 +2,7 @@ import {Outlet, createFileRoute, redirect, useBlocker, useRouter} from '@tanstac
 import {Show, createMemo, createSignal, type JSX} from 'solid-js'
 import {HostApiProvider} from '@conciv/extension/host'
 import {MountedView} from '@conciv/extension/client'
-import {useAppData, useConnectionGeneration, useInstances, useRpc} from '../app/context.js'
+import {useAppData, useConnectionGeneration, useInstances} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'
 import {ExtensionBoundary} from '../extension/extension-boundary.js'
 import {collectViews} from '../extension/extension-views.js'
@@ -20,7 +20,6 @@ export const Route = createFileRoute('/panel/$sessionId/$view')({
 
 function PanelView(): JSX.Element {
   const params = Route.useParams()
-  const rpc = useRpc()
   const appData = useAppData()
   const instances = useInstances()
   const pane = usePane()
@@ -43,10 +42,9 @@ function PanelView(): JSX.Element {
   })
 
   const newSession = () => {
-    void rpc.sessions
-      .create(undefined)
+    void appData
+      .createSession()
       .then(({sessionId}) => {
-        void appData.invalidateSession(sessionId)
         void router.navigate({to: '/panel/$sessionId', params: {sessionId}})
       })
       .catch((error: unknown) => {

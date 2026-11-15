@@ -98,6 +98,11 @@ export const Route = createFileRoute('/panel/$sessionId')({
     const {sessionId} = await context.rpc.sessions.resolve({id: params.sessionId})
     throw redirect({to: '/panel/$sessionId', params: {sessionId}, replace: true})
   },
+  loader: async ({context, params}) => {
+    await context.queryClient
+      .ensureQueryData(context.data.utils.sessions.get.queryOptions({input: {sessionId: params.sessionId}}))
+      .catch((error: unknown) => console.error('[conciv] the session row did not load before the panel', error))
+  },
   component: PanelSession,
 })
 
@@ -322,8 +327,7 @@ function PanelSession(): JSX.Element {
 
   const activate = sessionMenu.activate
   const newSession = async () => {
-    const {sessionId} = await rpc.sessions.create(undefined)
-    void appData.invalidateSession(sessionId)
+    const {sessionId} = await appData.createSession()
     activate(sessionId)
     announce('Started a new session')
   }
@@ -354,7 +358,7 @@ function PanelSession(): JSX.Element {
     stopping: chat().stopping(),
     runError: chat().runError(),
     stopped: chat().stopped(),
-    ran: chat().runSource() !== null,
+    ran: (row()?.lastRunAt ?? null) !== null || chat().runSource() !== null,
   }))
   // oxlint-disable-next-line solid/reactivity
   const diff = sessionTotals(() => turns())
