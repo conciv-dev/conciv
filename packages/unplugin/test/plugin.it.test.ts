@@ -231,6 +231,27 @@ describe('webpack and rspack hooks', () => {
     },
     60_000,
   )
+
+  it.each(['webpack', 'rspack'] as const)(
+    '%s keeps watching without an engine when the configured port is taken',
+    async (framework) => {
+      const root = mkdtempSync(join(tmpdir(), `conciv-${framework}-taken-`))
+      const taken = await getPort()
+      const release = await holdPort(taken)
+      try {
+        const taps = applyHook(framework, {port: taken, stateRoot: root})
+        expect(taps.watchRun).toHaveLength(1)
+        await expect(runAll(taps.watchRun)).resolves.toBeUndefined()
+        await expect(runAll(taps.watchRun)).resolves.toBeUndefined()
+        expect(existsSync(join(concivStateDir(root), 'server.json'))).toBe(false)
+        await expect(runAll(taps.watchClose)).resolves.toBeUndefined()
+      } finally {
+        await release()
+        rmSync(root, {recursive: true, force: true})
+      }
+    },
+    60_000,
+  )
 })
 
 describe('engine port fallback', () => {

@@ -14,13 +14,33 @@ type WatchingCompiler = {
   }
 }
 
+function isAddressInUse(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && error.code === 'EADDRINUSE'
+}
+
+function reportStartFailure(port: number | undefined): (error: unknown) => undefined {
+  return (error) => {
+    if (isAddressInUse(error)) {
+      console.error(
+        `conciv: port ${port} is already in use, the engine did not start. Free the port or pass another port to conciv()`,
+      )
+      return undefined
+    }
+    console.error('conciv: the engine failed to start', error)
+    return undefined
+  }
+}
+
 export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<ConcivConfig | undefined> {
   return createUnplugin<ConcivConfig | undefined>((options = {}) => {
-    const state: {engine: Promise<Engine> | null} = {engine: null}
-    const startEngine = () => (state.engine ??= makeEngineBooter(options, process.cwd(), builtins, 'exact')())
+    const state: {engine: Promise<Engine | undefined> | null} = {engine: null}
+    const startEngine = () =>
+      (state.engine ??= makeEngineBooter(options, process.cwd(), builtins, 'exact')().catch(
+        reportStartFailure(options.port),
+      ))
     const stopEngine = () =>
       state.engine
-        ?.then((engine) => engine.stop())
+        ?.then((engine) => engine?.stop())
         .catch((error: unknown) => console.error('conciv: stopping the engine failed', error))
     const startWhileWatching = (compiler: WatchingCompiler) => {
       if (options.enabled === false) return
