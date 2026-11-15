@@ -199,7 +199,7 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
 
   const mounted = createMemo<MountedSession | undefined>((previous) => {
     const id = session.id()
-    const directory = listed.data?.project.root
+    const directory = listed.isSuccess ? listed.data?.project.root : undefined
     const tab = id
 
     if (directory === undefined) return

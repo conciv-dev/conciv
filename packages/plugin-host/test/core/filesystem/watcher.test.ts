@@ -282,4 +282,38 @@ describeNative('LocationWatcher', () => {
       }).pipe(Effect.provide(watcherLayer)),
     ),
   )
+
+  it.live('skips changes inside a nested ignored directory while reporting its sibling', () =>
+    withTmp((directory) =>
+      Effect.gen(function* () {
+        const fs = yield* FSUtil.Service
+        const watcher = yield* Watcher.Service
+        const ignored = path.join(directory, 'nested', 'node_modules', 'dependency.js')
+        const sibling = path.join(directory, 'nested', 'source.ts')
+        yield* fs.ensureDir(path.dirname(ignored))
+        const ready = yield* Deferred.make<void>()
+        const updates = yield* watcher.subscribe(
+          {path: directory, type: 'directory', ignore: FSUtil.ignoreGlobs},
+          Deferred.succeed(ready, undefined),
+        )
+        const collected = yield* updates.pipe(
+          Stream.takeUntil((update) => update.path === sibling),
+          Stream.runCollect,
+          Effect.forkScoped({startImmediately: true}),
+        )
+        yield* Deferred.await(ready)
+        yield* fs.writeFileString(ignored, 'ignored')
+        const writes = yield* Effect.suspend(() => fs.writeFileString(sibling, `sibling-${Math.random()}`)).pipe(
+          Effect.repeat(Schedule.spaced('10 millis')),
+          Effect.forkScoped,
+        )
+        const paths = (yield* Fiber.join(collected).pipe(Effect.ensuring(Fiber.interrupt(writes)))).map(
+          (update) => update.path,
+        )
+
+        expect(paths.at(-1)).toBe(sibling)
+        expect(paths.filter((entry) => FSUtil.contains(path.dirname(ignored), entry))).toEqual([])
+      }).pipe(Effect.provide(watcherLayer)),
+    ),
+  )
 })

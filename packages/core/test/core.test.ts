@@ -50,10 +50,15 @@ import {concivStateDir} from '@conciv/protocol/state-types'
 import {
   chatMetadata,
   chatRuns,
+  hubConnections,
   InstructionStateTable,
   markers,
   openDb,
+  readHomeDb,
+  recordHubConnection,
+  removeHubConnection,
   sessions as sessionTable,
+  withHomeDb,
   type ConcivDb,
 } from '@conciv/db'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
@@ -126,6 +131,7 @@ import {resolveConfig} from '../src/config.js'
 import {symbolicateFrame} from '../src/editor/symbolicate.js'
 import {readDevEndpoint, removeDevEndpoint, writeDevEndpoint} from '../src/lib/dev-endpoint.js'
 import {makeStalenessProbe} from '../src/lib/engine-stamp.js'
+import {homeDbReads} from '../src/lib/home-db-watch.js'
 import {withSavedModels} from '../src/lib/saved-models.js'
 import {statePaths} from '../src/lib/state-paths.js'
 import {makeJournal, makePageBus} from '../src/page/page-bus.js'
@@ -1008,6 +1014,24 @@ describe('local state files', () => {
     writeFileSync(tools, 'export const b = 2')
     expect(probe()).toMatchObject({stale: true, changed: ['@conciv/tools']})
     expect(probe().fingerprint).not.toBe(fresh.fingerprint)
+  })
+
+  describe('home db reads', () => {
+    it('yields every home db write made after the first value, from before the db exists until the abort', async () => {
+      const home = tempDir()
+      const stop = new AbortController()
+      onTestFinished(() => stop.abort())
+      const reads = homeDbReads(home, stop.signal, () => readHomeDb(home, hubConnections) ?? [])
+      expect((await reads.next()).value).toEqual([])
+      withHomeDb(home, (db) => recordHubConnection(db, 'claude', 1))
+      expect((await reads.next()).value).toEqual([{harness: 'claude', connectedAt: 1}])
+      withHomeDb(home, (db) => removeHubConnection(db, 'claude'))
+      expect((await reads.next()).value).toEqual([])
+      const waiting = reads.next()
+      stop.abort()
+      expect(await waiting).toEqual({done: true, value: undefined})
+      expect(existsSync(join(home, 'home.db-wal'))).toBe(false)
+    })
   })
 
   describe('saved harness models', () => {

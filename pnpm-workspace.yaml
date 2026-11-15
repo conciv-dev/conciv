@@ -41,7 +41,6 @@ catalog:
   '@tanstack/ai-event-client': 1.0.1
   '@tanstack/ai-persistence': 1.0.1
   '@tanstack/ai-code-mode': 1.1.0
-  '@tanstack/ai-isolate-node': 1.1.0
   '@tanstack/ai-isolate-quickjs': 1.1.0
   '@tanstack/ai-solid': 1.0.1
   '@tanstack/ai-sandbox': 1.2.0
@@ -62,7 +61,6 @@ catalog:
   '@iconify-json/ph': '^1.2.2'
   '@orama/orama': 3.1.18
   '@oxlint/plugins': 1.90.0
-  '@parcel/watcher': 2.5.1
   '@parcel/watcher-darwin-arm64': 2.5.1
   '@parcel/watcher-darwin-x64': 2.5.1
   '@parcel/watcher-linux-arm64-glibc': 2.5.1
@@ -162,6 +160,7 @@ catalog:
   p-queue: '^10.0.0'
   p-timeout: '^8.0.0'
   partysocket: '^1.3.0'
+  picomatch: 4.0.7
   piscina: '^5.3.2'
   pixelmatch: ^8.0.0
   playwright: '^1.64.1'
@@ -262,8 +261,6 @@ allowBuilds:
   # Node-side ONNX runtime pulled in by @huggingface/transformers; the site demo runs
   # inference in the browser (onnxruntime-web), so the native binary is never used.
   onnxruntime-node: false
-  # Native isolate sandbox used by @tanstack/ai-isolate-node (core Code Mode): must compile.
-  isolated-vm: true
   # Replaced by @lydell/node-pty (prebuilds, no install script); upstream must stay blocked.
   node-pty: false
 

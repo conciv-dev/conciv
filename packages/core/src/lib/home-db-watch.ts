@@ -1,26 +1,32 @@
-import {statSync} from 'node:fs'
-import {mkdir, watch} from 'node:fs/promises'
+import {lstatSync} from 'node:fs'
 import {join} from 'node:path'
+import {setTimeout} from 'node:timers/promises'
 import {isEqual} from 'es-toolkit'
+import {z} from 'zod'
+import {closeHomeDb, openHomeDb, type HomeDb} from '@conciv/db'
 
-const HOME_DB = 'home.db'
+const HOME_DB_POLL_MS = 1000
+
+const DataVersionSchema = z.object({data_version: z.number()})
 
 export async function* homeDbReads<T>(
   folder: string,
   signal: AbortSignal | undefined,
   read: () => T,
 ): AsyncGenerator<T, void, void> {
-  await mkdir(folder, {recursive: true, mode: 0o700})
-  const changes = watch(folder, {signal})
-  let written = homeDbStamp(folder)
-  let current = read()
-  yield current
+  let db: HomeDb | undefined
   try {
-    for await (const change of changes) {
-      if (change.filename?.startsWith(HOME_DB) === false) continue
-      const stamp = homeDbStamp(folder)
-      if (stamp === written) continue
-      written = stamp
+    db = openWhenPresent(folder)
+    let seen = db === undefined ? undefined : dataVersion(db)
+    let current = read()
+    yield current
+    for (;;) {
+      await setTimeout(HOME_DB_POLL_MS, undefined, {signal, ref: false})
+      db ??= openWhenPresent(folder)
+      if (db === undefined) continue
+      const version = dataVersion(db)
+      if (version === seen) continue
+      seen = version
       const next = read()
       if (isEqual(next, current)) continue
       current = next
@@ -29,14 +35,16 @@ export async function* homeDbReads<T>(
   } catch (error) {
     if (signal?.aborted === true) return
     throw error
+  } finally {
+    if (db !== undefined) closeHomeDb(db)
   }
 }
 
-function homeDbStamp(folder: string): string {
-  return [HOME_DB, `${HOME_DB}-wal`]
-    .map((file) => {
-      const found = statSync(join(folder, file), {throwIfNoEntry: false})
-      return found === undefined ? 'absent' : `${found.mtimeMs}:${found.size}`
-    })
-    .join('|')
+function openWhenPresent(folder: string): HomeDb | undefined {
+  if (lstatSync(join(folder, 'home.db'), {throwIfNoEntry: false}) === undefined) return undefined
+  return openHomeDb(folder)
+}
+
+function dataVersion(db: HomeDb): number {
+  return DataVersionSchema.parse(db.$client.prepare('PRAGMA data_version').get()).data_version
 }
