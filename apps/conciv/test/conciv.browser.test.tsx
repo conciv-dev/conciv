@@ -689,7 +689,13 @@ describe('chat pane', () => {
   test('a refused steer puts its text back first in the composer, leaves no turn, and a resend makes one', async () => {
     const {sessionId} = await newSession()
     await coreControl.holdTurn()
-    mountChatPane(sessionId, {transport: 'fetch'})
+    const [connection, setConnection] = createStore({online: true})
+    const reachability = {online: () => connection.online, sustainedOffline: () => false, locked: () => null}
+    active.pane = mountPane({base: core(), sessionId, transport: 'fetch'}, () => (
+      <EngineReachabilityContext.Provider value={reachability}>
+        <ChatPane sessionId={sessionId} />
+      </EngineReachabilityContext.Provider>
+    ))
     const steered = 'steer this one'
     const waiting = 'wait in line'
     const queueRow = (text: string) => page.getByRole('listitem').filter({hasText: text})
@@ -704,6 +710,13 @@ describe('chat pane', () => {
     await expect.element(queueRow(steered)).toBeVisible()
     await userEvent.keyboard(`${waiting}{Enter}`)
     await expect.element(queueRow(waiting)).toBeVisible()
+
+    setConnection('online', false)
+    await userEvent.click(queueRow(steered).getByRole('button', {name: 'Steer'}))
+    await expect.element(notifications()).toMatchTextContent(/lost connection to the engine/)
+    await expect.element(queueRow(steered)).toBeVisible()
+    await expect.element(input()).not.toMatchTextContent(new RegExp(steered))
+    setConnection('online', true)
     const refused = await faults.install({kind: 'chat-refused', status: 500})
 
     await userEvent.click(queueRow(steered).getByRole('button', {name: 'Steer'}))

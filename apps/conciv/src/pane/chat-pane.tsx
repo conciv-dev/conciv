@@ -534,7 +534,8 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
               onSendError: messaging.onSendError,
               onSteer: messaging.onSteer,
               onSteerError: (error, item) => {
-                putBackInDraft([item], {insert: insertFirst, addFile: attach})
+                const left = chat.queue().every((queued) => queued.id !== item.id)
+                if (left) putBackInDraft([item], {insert: insertFirst, addFile: attach})
                 messaging.onSendError(error)
               },
               onCancel: () => {
