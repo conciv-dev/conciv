@@ -8,6 +8,7 @@ import {
   writeFileSync,
   mkdirSync,
   utimesSync,
+  chmodSync,
 } from 'node:fs'
 import {once} from 'node:events'
 import {request as httpRequest} from 'node:http'
@@ -856,6 +857,7 @@ describe('chat plane', () => {
       capabilities: () => [],
       attachmentExpanders: {},
       prompt: async (event) => event,
+      promptHooked: async () => false,
       pluginInstructions: async () => ({initial: '', update: '', told: async () => undefined}),
       firstOutputTimeoutMs: 30_000,
       log: () => undefined,
@@ -1173,17 +1175,33 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
 })
 
 describe('configured session rows', () => {
-  it('the configured conciv and harness session rows exist once the engine resolves', async () => {
+  it('the configured conciv and harness session rows exist once the engine resolves, and the start leaves the database file mode alone', async () => {
     const root = tempDir()
+    const databaseFile = join(concivStateDir(root), 'conciv.db')
+    openDb(root).$client.close()
+    chmodSync(databaseFile, 0o644)
     const configured = {sessionId: 'conciv_configured', claudeSessionId: 'native-configured'}
     const made = await makeApp({cfg: resolveConfig(configured, root), cwd: root, openInEditor: () => {}})
     try {
       const rows = await made.chat.db.select().from(sessionTable)
       expect(rows.map((row) => row.id)).toContain('conciv_configured')
       expect(rows.map((row) => row.harnessSessionId)).toContain('native-configured')
+      expect([databaseFile, `${databaseFile}-wal`].map((file) => statSync(file).mode & 0o777)).toEqual([0o644, 0o644])
     } finally {
       await made.dispose()
     }
+  })
+
+  it('a start that fails once the plugin host is built closes every handle on the database', async () => {
+    const root = tempDir()
+    const databaseFile = join(concivStateDir(root), 'conciv.db')
+    const seeded = openDb(root)
+    seeded.run(
+      sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+    )
+    seeded.$client.close()
+    await expect(makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}})).rejects.toThrow()
+    expect(existsSync(`${databaseFile}-wal`)).toBe(false)
   })
 })
 
@@ -2543,10 +2561,11 @@ function sessionKey(made: MadeApp) {
 }
 
 describe('plugin host bus', () => {
-  test('deleting a session delivers one session.deleted event to a bus subscriber', async () => {
+  test('deleting a session delivers one session.deleted event to a bus subscriber and keeps none of its events, and a plugin host failure leaves the session in place', async () => {
     const served = await serveCore(tempDir(), [], {})
     try {
       const rpc = makeRpcClient(`${served.origin}/t/${served.made.agentToken}`)
+      const db = served.made.chat.db
       const {sessionId} = await rpc.sessions.create(undefined)
       const heard: {type: string; data: unknown}[] = []
       await served.made.pluginHost.runPromise(
@@ -2556,6 +2575,26 @@ describe('plugin host bus', () => {
       expect(heard.filter((event) => event.type === SessionEvent.Deleted.type)).toEqual([
         expect.objectContaining({data: {sessionID: sessionId}}),
       ])
+      expect(
+        db.all(
+          sql`SELECT aggregate_id FROM event WHERE aggregate_id = ${sessionId} UNION ALL SELECT aggregate_id FROM event_sequence WHERE aggregate_id = ${sessionId}`,
+        ),
+      ).toEqual([])
+      await rpc.sessions.restore({sessionId})
+      expect(
+        db.select({deletedAt: sessionTable.deletedAt}).from(sessionTable).where(eq(sessionTable.id, sessionId)).all(),
+      ).toEqual([{deletedAt: null}])
+
+      const kept = await rpc.sessions.create(undefined)
+      db.run(sql`DROP TABLE kv`)
+      await expect(rpc.sessions.delete({sessionId: kept.sessionId})).rejects.toThrow()
+      expect(
+        db
+          .select({deletedAt: sessionTable.deletedAt})
+          .from(sessionTable)
+          .where(eq(sessionTable.id, kept.sessionId))
+          .all(),
+      ).toEqual([{deletedAt: null}])
     } finally {
       await served.stop()
     }
