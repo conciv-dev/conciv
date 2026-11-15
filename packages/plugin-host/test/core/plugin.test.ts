@@ -1,5 +1,5 @@
 import {expect} from 'vitest'
-import {mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
+import {chmod, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {Deferred, Effect, Fiber, Logger, Schema, Stream} from 'effect'
@@ -251,7 +251,8 @@ it.live("serves a local plugin's built chunks, each answer pinned to the bytes r
         Effect.andThen(Effect.flip(modules.load({type: 'add', target: directory, options: {}}))),
         Effect.map((error) => error.message),
       )
-    const of = `The chunk manifest of ${path.join(directory, 'plugin-experimental.js')}`
+    const bundle = path.join(directory, 'plugin-experimental.js')
+    const of = `The chunk manifest of ${bundle}`
     expect(yield* refusal({'src/lazy.ts': {file: '../lazy-D.cjs'}})).toBe(`${of} is malformed`)
     expect(yield* refusal({'src/lazy.ts': {file: 'lazy-D.cjs', imports: ['_gone.cjs']}})).toBe(
       `${of} imports _gone.cjs, which it does not list`,
@@ -261,6 +262,8 @@ it.live("serves a local plugin's built chunks, each answer pinned to the bytes r
       'b.ts': {file: 'lazy-D.cjs', imports: ['src/entry.ts']},
     }
     expect(yield* refusal(entryImport)).toBe(`${of} imports src/entry.ts, whose file x.js is not a chunk`)
+    yield* Effect.promise(() => chmod(bundle, 0))
+    expect(yield* refusal({})).toBe(`The ./plugin-experimental file ${bundle} can't be read`)
   }).pipe(Effect.scoped),
 )
 it.effect('unloading a plugin removes its tools and runs cleanup', () =>

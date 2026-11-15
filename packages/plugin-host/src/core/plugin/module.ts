@@ -154,7 +154,10 @@ const loadExperimental = Effect.fn('PluginModule.loadExperimental')(function* (
 ) {
   const entry = fileURLToPath(file)
   if (watch) yield* watch(entry)
-  const code = yield* Effect.promise(() => readFile(entry, 'utf8'))
+  const code = yield* Effect.tryPromise({
+    try: () => readFile(entry, 'utf8'),
+    catch: (cause) => makeLoadError({message: `The ./plugin-experimental file ${entry} can't be read`, cause}),
+  })
   return {
     file,
     code,
