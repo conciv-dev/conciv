@@ -1595,6 +1595,33 @@ describe('cli', () => {
           },
         })
       })
+      it('conciv plugin call experimental.page queue.wait is a peek: a second call answers the result the first delivered', async () => {
+        const {engine} = held
+        if (engine === undefined) throw new Error('the engine with a tab did not start')
+        const action = {type: 'queue_async', actions: [{tool: 'page_click', selector: 'button'}]}
+        const starting = pluginCall(engine.root, held.home, [
+          'experimental.page',
+          'run',
+          '--data',
+          JSON.stringify({sessionId: engine.sessionId, action}),
+        ])
+        const queue = await nextQueue()
+        expect(await starting).toMatchObject({code: 0, document: {ok: true}})
+        await answerPlayed(queue.id)
+        const waitFor = (waitMs: number) =>
+          pluginCall(engine.root, held.home, [
+            'experimental.page',
+            'queue.wait',
+            '--data',
+            JSON.stringify({sessionId: engine.sessionId, queueId: queue.id, waitMs}),
+          ])
+        const delivered = await waitFor(60_000)
+        expect(delivered).toMatchObject({
+          code: 0,
+          document: {ok: true, data: {queueId: queue.id, status: 'finished', played: 1}},
+        })
+        expect(await waitFor(0)).toEqual(delivered)
+      })
     })
 
     it('answers a plugin method from the project and from anywhere as the owner, prints engine errors, and refuses bad --data before any call', async () => {

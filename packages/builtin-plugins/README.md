@@ -22,6 +22,12 @@ await.
 A queue the terminal starts keeps that it was started there (`plugin-page/src/queue.ts` `startedBy`): `queue.owed`
 never offers or claims it, `queue.undelivered` returns it only when its id is asked for by name, so its finish starts
 no follow-up turn in the chat; `queue.wait` still delivers its result.
+`conciv plugin call experimental.page queue.wait` from a terminal is a peek: a caller who leaves (Ctrl-C) as the queue
+finishes may not see that result in their terminal; it stays in the queue's journal and card and can be read again with
+`conciv plugin call experimental.page queue.wait --data '{"sessionId":"<sessionId>","queueId":"<queueId>","waitMs":0}'`,
+which answers the kept result again (`plugin-page/src/queue.ts` `wait` returns the result whatever its delivery; the
+newest 200 delivered queues are kept). The delivered-once guarantee belongs to the hub and the dedicated
+`page.queue.wait` forwarder.
 
 Core activates the engine half last, in the host's post position (`core/src/app.ts` `post: [concivPage]`, through
 `InstancePlugins.bound(plugins, post)`), as the source activates its browser plugin last (opencode
