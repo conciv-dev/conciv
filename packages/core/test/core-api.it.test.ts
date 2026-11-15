@@ -140,11 +140,12 @@ import {
   PAGE_TRANSPORT_ERROR_CODES,
 } from '@conciv/protocol/page-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
-import {type RpcContext} from '@conciv/protocol/rpc-types'
+import {RPC_WS_PATH, type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
 import {createORPCClient} from '@orpc/client'
 import {RPCLink} from '@orpc/client/fetch'
+import {RPCLink as WebsocketRpcLink} from '@orpc/client/websocket'
 import {onError, ORPCError, os, type RouterClient} from '@orpc/server'
 import WebSocket from 'ws'
 import {Effect, ManagedRuntime, Schema} from 'effect'
@@ -5689,6 +5690,34 @@ describe('page action queue delivery', () => {
     const second = page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
     caller.abort()
     await expect(waiting).rejects.toMatchObject({name: 'AbortError'})
+    await Promise.all([first, second])
+    await page.finishedEvent(queueId)
+    const notice = `queue ${queueId} finished: 2 played, 0 failed`
+    expect(JSON.stringify(await page.hub('return 1'))).toContain(notice)
+    expect(JSON.stringify(await page.hub('return 2'))).not.toContain(notice)
+    expect(page.queueEvents().filter((event) => event.queueId === queueId)).toHaveLength(1)
+    expect(page.cards(queueId)).toHaveLength(1)
+  }, 5000)
+
+  it('a page.queue.wait over the websocket whose peer closes as the queue finishes keeps the result owed, so it leads the next reply once', async () => {
+    const page = await engineWithTab()
+    const {queueId} = parseHandle(await page.hub(queued()))
+    const onTab = await page.nextQueue()
+    const socket = new WebSocket(`ws://127.0.0.1:${page.engine.port}${RPC_WS_PATH}`, {
+      headers: {authorization: `Bearer ${page.engine.agentToken}`},
+    })
+    await once(socket, 'open')
+    const overSocket = createORPCClient<ReturnType<typeof makeRpcClient>>(
+      new WebsocketRpcLink({websocket: socket, headers: HUB}),
+    )
+    const waiting = overSocket.page.queue.wait({sessionId: page.sessionId, queueId, waitMs: 60_000})
+    expect(await overSocket.tabs.get({sessionId: page.sessionId})).toMatchObject({open: true})
+    const first = page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+    const second = page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    const closed = once(socket, 'close')
+    socket.close()
+    await closed
+    await expect(waiting).rejects.toThrow()
     await Promise.all([first, second])
     await page.finishedEvent(queueId)
     const notice = `queue ${queueId} finished: 2 played, 0 failed`
