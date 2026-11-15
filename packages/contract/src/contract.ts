@@ -312,10 +312,18 @@ const PluginInfoSchema = z.object({
   state: PluginStateSchema,
 })
 
+const PluginChunkFileSchema = z
+  .string()
+  .max(256)
+  .regex(/^[\w.-]+\.cjs$/)
+
+const PluginChunkSchema = z.object({file: PluginChunkFileSchema, code: z.string()})
+
 export const PluginExperimentalBundleSchema = z.object({
   code: z.string(),
   revision: z.string().min(1).max(256),
   options: z.record(z.string(), z.json()),
+  chunks: z.array(PluginChunkSchema),
 })
 
 export const contract = {

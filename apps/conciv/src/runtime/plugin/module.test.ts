@@ -18,7 +18,7 @@ exports.default = sdk.Plugin.define({
 
 describe('plugin bundles in the page', () => {
   test("declare their definition before they start, with the app's module instances and Node built-ins inert", async () => {
-    const definition = await pluginDefinition('acme', bundle)
+    const definition = await pluginDefinition('acme', {code: bundle, chunks: []})
     const added: {readonly registry: Registry<Command>; readonly item: Command}[] = []
 
     expect(definition.id).toBe('acme')
@@ -37,7 +37,10 @@ describe('plugin bundles in the page', () => {
   })
 
   test('fail only their own entry when they require a module the app does not share', async () => {
-    const definition = await pluginDefinition('acme', 'require("left-pad"); exports.default = { setup() {} }')
+    const definition = await pluginDefinition('acme', {
+      code: 'require("left-pad"); exports.default = { setup() {} }',
+      chunks: [],
+    })
 
     expect(definition.id).toBe('acme')
     await expect(definition.windowEntry?.()).rejects.toThrow('left-pad')

@@ -28,11 +28,14 @@ export const Features = Schema.Struct({
 }).annotate({identifier: 'Plugin.Features'})
 export type Features = typeof Features.Type
 
+export const Chunk = Schema.Struct({file: Schema.String, code: Schema.String}).annotate({identifier: 'Plugin.Chunk'})
+
 export interface ExperimentalBundle extends Schema.Schema.Type<typeof ExperimentalBundle> {}
 export const ExperimentalBundle = Schema.Struct({
   code: Schema.String,
   revision: Schema.String,
   options: Schema.Record(Schema.String, Schema.Json),
+  chunks: Schema.Array(Chunk),
 }).annotate({identifier: 'Plugin.ExperimentalBundle'})
 
 export const State = Schema.Union([

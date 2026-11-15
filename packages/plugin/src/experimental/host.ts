@@ -190,10 +190,8 @@ export interface PluginBundleHost {
  * @throws When evaluation throws, the default export is not a `Plugin.define` this app supports, or it has no setup.
  */
 export function evaluatePluginBundle(code: string, host: PluginBundleHost): PluginBundle {
-  const module: BundleModule = {exports: {}}
-
-  new Function('require', 'module', 'exports', code)(host.require, module, module.exports)
-  const plugin = 'default' in module.exports ? module.exports.default : module.exports
+  const exports = evaluatePluginChunk(code, host)
+  const plugin = 'default' in exports ? exports.default : exports
 
   if (!matchesPlugin(plugin)) {
     const decoded = BundleDefinition.safeParse(plugin)
@@ -207,6 +205,23 @@ export function evaluatePluginBundle(code: string, host: PluginBundleHost): Plug
   if (!plugin.setup) throw new Error("A plugin's ./plugin-experimental bundle must have a window `setup`")
 
   return {definition: {stores: plugin.stores}, setup: plugin.setup}
+}
+
+/**
+ * Evaluates one chunk of a plugin's `./plugin-experimental` build: a CommonJS module the bundle or another chunk
+ * requires by its file name. The host calls it with its own `require`, as for the bundle.
+ *
+ * @param code - The chunk's CommonJS code.
+ * @param host - The page evaluating it.
+ * @returns The chunk's exports.
+ * @throws When evaluation throws.
+ */
+export function evaluatePluginChunk(code: string, host: PluginBundleHost): object {
+  const module: BundleModule = {exports: {}}
+
+  new Function('require', 'module', 'exports', code)(host.require, module, module.exports)
+
+  return module.exports
 }
 
 type BundleModule = {exports: object}
@@ -284,11 +299,17 @@ export function shipsPluginExperimental(plugin: PluginInfo): plugin is PluginInf
   )
 }
 
+export interface PluginChunk {
+  readonly file: string
+  readonly code: string
+}
+
 export interface BridgePluginExperimental {
   readonly id: string
   readonly revision: string
   readonly code: string
   readonly options: PluginOptions
+  readonly chunks: readonly PluginChunk[]
 }
 
 export interface BridgePluginExperimentals {

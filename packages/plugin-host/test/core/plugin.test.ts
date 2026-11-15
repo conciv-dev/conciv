@@ -169,6 +169,49 @@ it.live("serves a local plugin's experimental bundle, and reloads it alone when 
     expect(yield* Effect.promise(() => readFile(starts, 'utf8'))).toBe('x')
   }).pipe(Effect.scoped),
 )
+
+it.live("serves a local plugin's built chunks, each answer pinned to the bytes read when it loaded", () =>
+  Effect.gen(function* () {
+    const plugins = yield* Plugin.Service
+    yield* plugins.awaitActivation
+    const directory = yield* Effect.acquireRelease(
+      Effect.promise(() => mkdtemp(path.join(tmpdir(), 'opencode-plugin-chunks-'))),
+      (created) => Effect.promise(() => rm(created, {recursive: true, force: true})),
+    )
+    const shared = 'exports.shared = "shared"'
+    const entry = (lazy: string) =>
+      `const require_shared = require("./shared-A.cjs")\nexports.default = {setup() { return Promise.resolve().then(() => require("./${lazy}")) }}`
+    const manifest = (lazy: string) =>
+      JSON.stringify({
+        '_shared-A.cjs': {file: 'shared-A.cjs'},
+        '_deep-C.cjs': {file: 'deep-C.cjs', imports: ['_shared-A.cjs']},
+        'src/entry.ts': {file: 'plugin-experimental.js', isEntry: true, imports: ['_shared-A.cjs']},
+        'src/lazy.ts': {file: lazy, isDynamicEntry: true, imports: ['_deep-C.cjs', '_shared-A.cjs']},
+      })
+    const write = (files: Record<string, string>) =>
+      Effect.promise(() =>
+        Promise.all(Object.entries(files).map(([name, text]) => writeFile(path.join(directory, name), text))),
+      )
+    yield* write({
+      'index.ts': 'export default {id: "fixture.chunks", setup() {}}',
+      'shared-A.cjs': shared,
+      'deep-C.cjs': 'exports.deep = require("./shared-A.cjs").shared',
+      'lazy-B.cjs': 'exports.big = () => require("./deep-C.cjs").deep',
+      'plugin-experimental.js': entry('lazy-B.cjs'),
+      'plugin-experimental.js.manifest.json': manifest('lazy-B.cjs'),
+    })
+    const modules = yield* PluginModule.make().pipe(Effect.provide(Watcher.testLayer))
+    const reload = Effect.gen(function* () {
+      const definition = yield* modules.load({type: 'add', target: directory, options: {}})
+      if ('pending' in definition || 'blocked' in definition) return yield* Effect.die('Local plugin was not loaded')
+      yield* plugins.activate([definition])
+    })
+    yield* reload
+    const id = Plugin.Id.make('fixture.chunks')
+
+    expect((yield* plugins.experimental(id))?.chunks).toEqual([{file: 'shared-A.cjs', code: shared}])
+  }).pipe(Effect.scoped),
+)
 it.effect('unloading a plugin removes its tools and runs cleanup', () =>
   Effect.gen(function* () {
     const plugins = yield* Plugin.Service

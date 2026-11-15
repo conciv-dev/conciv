@@ -119,6 +119,6 @@ async function evaluate(plugin: BridgePluginExperimental): Promise<LoadedPluginE
     id: plugin.id,
     revision: plugin.revision,
     options: plugin.options,
-    definition: await pluginDefinition(plugin.id, plugin.code),
+    definition: await pluginDefinition(plugin.id, plugin),
   }
 }

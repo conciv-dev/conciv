@@ -2,12 +2,13 @@ export * as Plugin from './plugin.js'
 export {Event, ExperimentalBundle, Id, Info, Source, State} from '../schema/plugin.js'
 
 import {readFile} from 'node:fs/promises'
+import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {Plugin} from '../schema/plugin.js'
 import {Cause, Context, Effect, Exit, Latch, Layer, Logger, Queue, References, Scope, Semaphore} from 'effect'
 import {Bus} from './bus.js'
 import {PluginHost} from './plugin/host.js'
-import {type Failure, type Generation, Service} from './plugin/service.js'
+import {type Chunks, type Failure, type Generation, Service} from './plugin/service.js'
 import {State} from './state.js'
 
 export {awaitActivation, type Failure, type Generation, type Interface, Service} from './plugin/service.js'
@@ -49,11 +50,18 @@ export const layer = Layer.effect(
     const experimental = Effect.fn('Plugin.experimental')(function* (id: Plugin.Id) {
       const experimental = active.get(id)?.plugin.experimental
       if (!experimental) return undefined
-      const code = yield* Effect.promise(() => readFile(fileURLToPath(experimental.file), 'utf8'))
+      const entry = fileURLToPath(experimental.file)
+      const code = yield* Effect.promise(() => readFile(entry, 'utf8'))
+      const chunks = yield* Effect.forEach(closure(experimental.chunks, experimental.chunks.start), (file) =>
+        Effect.promise(() => readFile(path.join(path.dirname(entry), file), 'utf8')).pipe(
+          Effect.map((chunk) => ({file, code: chunk})),
+        ),
+      )
       return {
         code,
         revision: experimental.revision,
         options: experimental.options,
+        chunks,
       } satisfies Plugin.ExperimentalBundle
     })
     const hostContext = yield* Effect.context<Effect.Services<ReturnType<typeof PluginHost.make>>>()
@@ -285,6 +293,15 @@ type PendingFailure = {
   readonly refresh: Effect.Effect<void>
   readonly ref: string
   readonly release: Effect.Effect<void>
+}
+
+function closure(chunks: Chunks, roots: readonly string[]): readonly string[] {
+  const visit = (order: readonly string[], file: string, trail: readonly string[]): readonly string[] => {
+    if (order.includes(file) || trail.includes(file)) return order
+    const imports = chunks.files.get(file)?.imports ?? []
+    return [...imports.reduce((done, dependency) => visit(done, dependency, [...trail, file]), order), file]
+  }
+  return roots.reduce((order: readonly string[], root) => visit(order, root, []), [])
 }
 
 function slotInfo(slot: Slot): Plugin.Info {

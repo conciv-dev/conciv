@@ -8,10 +8,12 @@ import {Hash} from '../../util/hash.js'
 import {Npm} from '../../util/npm.js'
 import {Deferred, Effect, FiberSet, PubSub, Schema, Stream} from 'effect'
 import path from 'path'
+import {existsSync} from 'node:fs'
 import {readFile, stat} from 'node:fs/promises'
+import {z} from 'zod'
 import {fileURLToPath, pathToFileURL} from 'url'
 import type {ConfigPluginSource} from '../config/plugin/source.js'
-import type {Generation} from '../plugin.js'
+import type {Chunks, Generation} from './service.js'
 import {PluginPromise} from './promise.js'
 import {ManagedPolicy} from '../managed-policy.js'
 import {Watcher} from '../filesystem/watcher.js'
@@ -127,16 +129,9 @@ const load = Effect.fn('PluginModule.load')(function* (
     effect: () => Effect.void,
   }
   const revision = JSON.stringify([operation, server ? server.version : installed?.revision])
-  const experimental = local && entrypoints.experimental ? fileURLToPath(entrypoints.experimental) : undefined
-  if (experimental) yield* watch(experimental)
-  const bundle = experimental ? Hash.sha256(yield* Effect.promise(() => readFile(experimental))) : undefined
-  const experimentalOptions = entrypoints.experimental
-    ? yield* Schema.decodeUnknownEffect(ExperimentalOptions)(operation.options).pipe(
-        Effect.mapError((cause) =>
-          makeLoadError({message: 'Plugin options must be JSON to reach its ./plugin-experimental', cause}),
-        ),
-      )
-    : {}
+  const experimental = entrypoints.experimental
+    ? yield* loadExperimental(entrypoints.experimental, local ? watch : undefined, revision, operation.options)
+    : undefined
   return {
     id: plugin.id,
     features: {
@@ -144,18 +139,64 @@ const load = Effect.fn('PluginModule.load')(function* (
       ...(entrypoint && entrypoints.rpc ? {rpc: true as const} : {}),
       ...(entrypoints.experimental ? {experimental: true as const} : {}),
     },
-    experimental: entrypoints.experimental
-      ? {
-          file: entrypoints.experimental,
-          revision: Hash.sha256(JSON.stringify([revision, bundle])),
-          options: experimentalOptions,
-        }
-      : undefined,
+    experimental,
     revision,
     source: source(operation.target, installed?.version),
     effect: (host) => plugin.effect({...host, options: operation.options}),
   } satisfies Generation
 })
+
+const loadExperimental = Effect.fn('PluginModule.loadExperimental')(function* (
+  file: string,
+  watch: ((file: string) => Effect.Effect<void>) | undefined,
+  revision: string,
+  options: unknown,
+) {
+  const entry = fileURLToPath(file)
+  if (watch) yield* watch(entry)
+  const bundle = watch ? Hash.sha256(yield* Effect.promise(() => readFile(entry))) : undefined
+  return {
+    file,
+    revision: Hash.sha256(JSON.stringify([revision, bundle])),
+    options: yield* Schema.decodeUnknownEffect(ExperimentalOptions)(options).pipe(
+      Effect.mapError((cause) =>
+        makeLoadError({message: 'Plugin options must be JSON to reach its ./plugin-experimental', cause}),
+      ),
+    ),
+    chunks: yield* readChunks(entry),
+  }
+})
+
+const Manifest = z.record(
+  z.string(),
+  z.object({file: z.string(), isEntry: z.boolean().optional(), imports: z.array(z.string()).optional()}),
+)
+
+const readChunks = Effect.fn('PluginModule.readChunks')(function* (entry: string) {
+  const manifest = `${entry}.manifest.json`
+  if (!existsSync(manifest)) return {start: [], files: new Map()} satisfies Chunks
+  return yield* Effect.tryPromise({
+    try: () => manifestChunks(manifest),
+    catch: (cause) => makeLoadError({message: `Plugin chunk manifest is malformed: ${manifest}`, cause}),
+  })
+})
+
+async function manifestChunks(manifest: string): Promise<Chunks> {
+  const records = new Map(Object.entries(Manifest.parse(JSON.parse(await readFile(manifest, 'utf8')))))
+  const files = (keys: readonly string[] = []) =>
+    keys.map((key) => {
+      const record = records.get(key)
+      if (!record) throw new Error(`the manifest imports ${key}, which it does not list`)
+      return record.file
+    })
+  const listed = [...records.values()]
+  return {
+    start: listed.flatMap((record) => (record.isEntry ? files(record.imports) : [])),
+    files: new Map(
+      listed.flatMap((record) => (record.isEntry ? [] : [[record.file, {imports: files(record.imports)}] as const])),
+    ),
+  }
+}
 
 const loadServer = Effect.fn('PluginModule.loadServer')(function* (
   entrypoint: string,
