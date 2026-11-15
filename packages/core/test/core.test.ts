@@ -390,6 +390,7 @@ describe('chat plane', () => {
       toolDomainCapabilities(
         id === builtins ? [echo, secret] : [],
         host.runSync(sessionToolDomain(id)),
+        sessionToolDomain(id),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )
@@ -538,6 +539,7 @@ describe('chat plane', () => {
         toolDomainCapabilities(
           pinged,
           host.runSync(sessionToolDomain(id)),
+          sessionToolDomain(id),
           (effect, signal) => host.runPromiseExit(effect, {signal}),
           () => undefined,
         ),
@@ -3251,6 +3253,7 @@ describe('plugin permission cards', () => {
       toolDomainCapabilities(
         [],
         host.runSync(sessionToolDomain(sessionId)),
+        sessionToolDomain(sessionId),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )

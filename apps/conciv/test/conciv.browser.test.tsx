@@ -2532,6 +2532,7 @@ describe('connect agents', () => {
 describe('launcher activity', () => {
   const coreBase = bootedCore('launcher-activity')
   const harness = createShellHarness(coreBase)
+  const faults = trackedFaults()
 
   afterEach(async () => {
     await coreControl.releaseTurn()
@@ -2559,6 +2560,184 @@ describe('launcher activity', () => {
 
     await expect.element(launcher(), {timeout: 8000}).toHaveAttribute('aria-busy', 'false')
   }, 30_000)
+
+  const statusBar = () => page.getByRole('toolbar', {name: 'Session status'})
+  const chip = () => statusBar().getByRole('status')
+  const pendingPane = () => page.getByText('Loading conciv…', {exact: true})
+  const titleButton = (title: string) => page.getByRole('button', {name: `${title}, session options`})
+
+  async function sessionThatRan(title: string): Promise<string> {
+    const rpc = coreRpc(coreBase())
+    const sessionId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId, title})
+    const turn = await sendTurn(coreBase(), sessionId, 'a run before the panel opens')
+    await turn.awaitTurnEnd()
+    return sessionId
+  }
+
+  test('before its conversation loads, a fresh session reads no status and a session that ran reads DONE and LAST TASK', async () => {
+    await page.viewport(1000, 900)
+    const ranId = await sessionThatRan('a session that ran')
+    const freshId = await createSession(coreRpc(coreBase()))
+
+    const freshHydrate = await faults.install({kind: 'gate', path: ['chat', 'hydrate']})
+    harness.mountShell(`/panel/${freshId}?open=true`)
+    await coreControl.awaitFaultPending(freshHydrate, 1)
+    await expect.element(statusBar().getByRole('tab', {name: 'Chat', exact: true}), {timeout: 8000}).toBeVisible()
+    await expect.element(page.getByText(/^CONCIV/)).toBeVisible()
+    await expect.element(chip()).not.toBeInTheDocument()
+    await expect.element(page.getByText(/TASK|^LAST$|^ACTIVE$/)).not.toBeInTheDocument()
+    await coreControl.releaseFault(freshHydrate)
+    harness.dispose()
+
+    const ranHydrate = await faults.install({kind: 'gate', path: ['chat', 'hydrate']})
+    harness.mountShell(`/panel/${ranId}?open=true`)
+    await coreControl.awaitFaultPending(ranHydrate, 1)
+    await expect.element(chip(), {timeout: 8000}).toHaveTextContent('DONE')
+    await expect.element(page.getByText('CONCIV / LAST TASK', {exact: true})).toBeVisible()
+  }, 30_000)
+
+  test('a session opened from the picker draws at once from its list row with its status, then takes the real row', async () => {
+    await page.viewport(1000, 900)
+    const rpc = coreRpc(coreBase())
+    const ranId = await sessionThatRan('picked from the list')
+    const startId = await createSession(rpc)
+    harness.mountShell(`/panel/${startId}?open=true`)
+    await expect.element(composer(), {timeout: 8000}).toBeVisible()
+    await userEvent.click(titleButton('New session'))
+    await userEvent.click(page.getByRole('button', {name: /^Session: /}))
+    const option = page.getByRole('option', {name: /^picked from the list,/})
+    await expect.element(option, {timeout: 8000}).toBeVisible()
+
+    await rpc.sessions.rename({sessionId: ranId, title: 'renamed after the list loaded'})
+    const row = await faults.install({kind: 'gate', path: ['sessions', 'get']})
+    const hydrate = await faults.install({kind: 'gate', path: ['chat', 'hydrate']})
+    await userEvent.click(option)
+    await coreControl.awaitFaultPending(row, 1)
+    await expect.element(titleButton('picked from the list')).toBeVisible()
+    await expect.element(pendingPane()).not.toBeInTheDocument()
+    await expect.element(chip()).toHaveTextContent('DONE')
+    await expect.element(page.getByText('CONCIV / LAST TASK', {exact: true})).toBeVisible()
+
+    await coreControl.releaseFault(row)
+    await expect.element(titleButton('renamed after the list loaded'), {timeout: 8000}).toBeVisible()
+    await expect.element(chip()).toHaveTextContent('DONE')
+    await coreControl.releaseFault(hydrate)
+  }, 30_000)
+
+  test('a new session from the picker draws at once with no status and no task', async () => {
+    await page.viewport(1000, 900)
+    const ranId = await sessionThatRan('a session that ran')
+    harness.mountShell(`/panel/${ranId}?open=true`)
+    await expect.element(chip(), {timeout: 8000}).toHaveTextContent('DONE')
+    await userEvent.click(titleButton('a session that ran'))
+    await userEvent.click(page.getByRole('button', {name: /^Session: /}))
+
+    const row = await faults.install({kind: 'gate', path: ['sessions', 'get']})
+    const hydrate = await faults.install({kind: 'gate', path: ['chat', 'hydrate']})
+    await userEvent.click(page.getByRole('button', {name: 'New session', exact: true}))
+    await coreControl.awaitFaultPending(row, 1)
+    await expect.element(titleButton('New session'), {timeout: 8000}).toBeVisible()
+    await expect.element(pendingPane()).not.toBeInTheDocument()
+    await expect.element(statusBar().getByRole('tab', {name: 'Chat', exact: true})).toBeVisible()
+    await expect.element(chip()).not.toBeInTheDocument()
+    await expect.element(page.getByText(/TASK|^LAST$|^ACTIVE$/)).not.toBeInTheDocument()
+    await coreControl.releaseFault(row)
+    await coreControl.releaseFault(hydrate)
+  }, 30_000)
+
+  test('a deep link to a session that ran waits behind the loading screen, then reads DONE before its conversation loads', async () => {
+    await page.viewport(1000, 900)
+    const ranId = await sessionThatRan('a session that ran')
+    const row = await faults.install({kind: 'gate', path: ['sessions', 'get']})
+    const hydrate = await faults.install({kind: 'gate', path: ['chat', 'hydrate']})
+
+    harness.mountShell(`/panel/${ranId}?open=true`)
+    await coreControl.awaitFaultPending(row, 1)
+    await expect.element(pendingPane(), {timeout: 8000}).toBeVisible()
+    await expect.element(statusBar()).not.toBeInTheDocument()
+
+    await coreControl.releaseFault(row)
+    await expect.element(chip(), {timeout: 8000}).toHaveTextContent('DONE')
+    await expect.element(page.getByText('CONCIV / LAST TASK', {exact: true})).toBeVisible()
+    await coreControl.releaseFault(hydrate)
+  }, 30_000)
+
+  test('a session that never ran shows no status and no task, still none after an unsend, and its first turn reads as running, then done', async () => {
+    await page.viewport(1000, 900)
+    const rpc = coreRpc(coreBase())
+    const sessionId = await createSession(rpc)
+
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(composer(), {timeout: 8000}).toBeVisible()
+    await expect.element(statusBar().getByRole('tab', {name: 'Chat', exact: true})).toBeVisible()
+    await expect.element(page.getByText(/^CONCIV/)).toBeVisible()
+    await expect.element(statusBar().getByRole('status')).not.toBeInTheDocument()
+    await expect.element(page.getByText(/TASK|^LAST$|^ACTIVE$/)).not.toBeInTheDocument()
+
+    const frame = await faults.install({kind: 'chat-frame-gate', onRelease: 'cut'})
+    await userEvent.click(composer())
+    await userEvent.keyboard('take this one back{Enter}')
+    await coreControl.awaitFaultPending(frame, 1)
+    await userEvent.click(page.getByRole('button', {name: 'Stop generating'}))
+    await expect.element(page.getByRole('button', {name: 'Stopping the run'})).toBeVisible()
+    await coreControl.releaseFault(frame)
+    await expect.element(composer()).toHaveTextContent('take this one back')
+    await expect.element(page.getByRole('button', {name: 'Send message', exact: true})).toBeVisible()
+    await expect.element(statusBar().getByRole('status')).not.toBeInTheDocument()
+    await expect.element(page.getByText(/TASK|^LAST$|^ACTIVE$/)).not.toBeInTheDocument()
+    expect({
+      row: (await rpc.sessions.get({sessionId})).lastRunAt,
+      run: (await rpc.chat.hydrate({sessionId})).lastRun,
+    }).toEqual({row: null, run: null})
+
+    await coreControl.holdTurn()
+    await userEvent.click(composer())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(statusBar().getByRole('status'), {timeout: 8000}).toHaveTextContent('RUNNING')
+    await expect.element(page.getByText('CONCIV / ACTIVE TASK', {exact: true})).toBeVisible()
+
+    await coreControl.releaseTurn()
+    await expect.element(statusBar().getByRole('status'), {timeout: 8000}).toHaveTextContent('DONE')
+    await expect.element(page.getByText('CONCIV / LAST TASK', {exact: true})).toBeVisible()
+    const lastRun = (await rpc.chat.hydrate({sessionId})).lastRun
+    expect(lastRun).not.toBeNull()
+    expect((await rpc.sessions.get({sessionId})).lastRunAt).toBe(lastRun?.startedAt)
+  }, 30_000)
+
+  test('a session whose row fails to load says so where the title is, keeps its menu and its chat, and Retry brings the title back', async () => {
+    await page.viewport(1000, 900)
+    const sessionId = await sessionThatRan('a row that failed to load')
+    const broken = await faults.install({kind: 'fail', path: ['sessions', 'get'], status: 500})
+
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    const rowAlert = page.getByRole('alert').filter({hasText: 'Couldn’t load this session'})
+    await expect.element(titleButton('Session'), {timeout: 8000}).toBeVisible()
+    await expect.element(page.getByText('Hello from conciv')).toBeVisible()
+    await userEvent.click(composer())
+    await userEvent.keyboard('still talking while the row is failed')
+    await expect.element(composer()).toHaveTextContent('still talking while the row is failed')
+    await expect.element(rowAlert, {timeout: 20_000}).toBeVisible()
+    await expect.element(rowAlert.getByRole('button', {name: 'Retry'})).toBeVisible()
+    await expect.element(titleButton('This session could not be loaded')).toBeVisible()
+    await expect.element(titleButton('New session')).not.toBeInTheDocument()
+
+    await userEvent.click(titleButton('This session could not be loaded'))
+    await expect.element(page.getByRole('dialog', {name: 'Session options'})).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('dialog', {name: 'Session options'})).not.toBeInTheDocument()
+
+    await userEvent.click(composer())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByRole('log').getByText('still talking while the row is failed')).toBeVisible()
+    await expect.element(page.getByText('Hello from conciv').nth(1), {timeout: 8000}).toBeVisible()
+    await expect.element(rowAlert).toBeVisible()
+
+    await coreControl.releaseFault(broken)
+    await userEvent.click(rowAlert.getByRole('button', {name: 'Retry'}))
+    await expect.element(titleButton('a row that failed to load'), {timeout: 8000}).toBeVisible()
+    await expect.element(rowAlert).not.toBeInTheDocument()
+  }, 45_000)
 })
 
 describe('launcher drag', () => {
@@ -7404,6 +7583,16 @@ module.exports = {default: {setup(ctx) {
     await expect.element(entries().nth(3)).toHaveAccessibleName('Fixture tools')
     await expect.element(entries().nth(4)).not.toBeInTheDocument()
     await expect.element(tab('Phone tab')).not.toBeInTheDocument()
+    const statusBar = () => page.getByRole('toolbar', {name: 'Session status'})
+    const sessionChip = () => statusBar().getByRole('status')
+    await expect.element(sessionChip()).not.toBeInTheDocument()
+    await expect.element(statusBar().getByText('--', {exact: true})).toBeInViewport({ratio: 1})
+    await expect.element(entries().nth(3)).toBeInViewport({ratio: 1})
+
+    await editor().click()
+    await userEvent.keyboard('one finished turn on a phone{Enter}')
+    await expect.element(sessionChip(), {timeout: 8000}).toHaveTextContent('DONE')
+    await expect.element(sessionChip()).toBeInViewport({ratio: 1})
 
     await tab('Count').click()
     await expect.element(tab('Count')).toHaveAttribute('aria-selected', 'true')
@@ -7437,7 +7626,6 @@ module.exports = {default: {setup(ctx) {
     expect(harness.pathname()).toBe(`/panel/${sessionId}`)
     await editor().click()
     await expect.element(editor()).toHaveFocus()
-    const sessionChip = () => page.getByRole('toolbar', {name: 'Session status'}).getByRole('status')
     await expect.element(sessionChip()).toBeInViewport({ratio: 1})
     await tab('Fixture tools').click()
     await expect.element(tab('Fixture tools')).toHaveAttribute('aria-selected', 'true')
