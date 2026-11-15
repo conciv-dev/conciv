@@ -6396,7 +6396,7 @@ describe('installed plugins in settings', () => {
 })
 
 describe('a fixture plugin driven like a user', () => {
-  const fixtureBundle = `const {Panel, Registry, Slot, Store, useDrawer, usePanel} = require('@conciv/plugin/experimental')
+  const fixtureBundle = `const {Panel, Registry, SettingsPage, Slot, Store, useDrawer, usePanel} = require('@conciv/plugin/experimental')
 const {createComponent} = require('solid-js/web')
 const {createRenderEffect, createSignal} = require('solid-js')
 const {z} = require('zod')
@@ -6451,6 +6451,7 @@ module.exports = {default: {stores: {
       button('Open the listed tab', () => ctx.layout.open('fixture:opened', props.session)),
       button('Open the old tab', () => ctx.layout.open('fixture:old', props.session)),
       button('Open an unlisted tab', () => ctx.layout.open('fixture:missing', props.session)),
+      button('Open the fixture settings', () => ctx.layout.settings('prefs')),
       button('Open a draft session', () =>
         ctx.layout.draft({server: props.session.server.id, directory: props.session.directory, prompt: 'a drafted prompt'}),
       ),
@@ -6499,6 +6500,11 @@ module.exports = {default: {stores: {
   ctx.add(Slot, {
     at: 'window.bottom',
     render: () => button('Write a held note', () => ctx.screen.current()?.composer.insert(' held note')),
+  })
+  ctx.add(SettingsPage, {
+    id: 'prefs',
+    title: 'Fixture prefs',
+    render: () => Object.assign(document.createElement('p'), {textContent: 'The fixture prefs page'}),
   })
 }}}
 `
@@ -6581,6 +6587,13 @@ module.exports = {default: {stores: {
     await expect.element(editor()).toHaveTextContent('a drafted prompt')
     expect(harness.pathname()).toMatch(/^\/panel\/[^/]+$/)
     expect(harness.pathname()).not.toBe(`/panel/${sessionId}`)
+    const draftedPath = harness.pathname()
+
+    await tab('Fixture tools').click()
+    await control('Open the fixture settings').click()
+    await expect.element(page.getByText('The fixture prefs page', {exact: true})).toBeVisible()
+    await expect.element(page.getByRole('tab', {name: 'Fixture prefs', exact: true, selected: true})).toBeVisible()
+    expect(harness.pathname()).toBe(`${draftedPath}/settings/plugins/${encodeURIComponent('fixture:prefs')}`)
   }, 60_000)
 
   const tabPath = (sessionId: string, key: string) => `/panel/${sessionId}/${encodeURIComponent(key)}`
