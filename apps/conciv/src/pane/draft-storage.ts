@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {DraftRow} from '@conciv/contract'
+import {DraftItemSchema, type DraftRow} from '@conciv/contract'
 import type {WebStorage} from '@conciv/storage-history'
 import type {AppData} from '../data/app-data.js'
 import type {SelectionOffsets} from './composer-input-adapter.js'
@@ -16,6 +16,7 @@ const PersistedAttachmentSchema = z.object({
 const PersistedDraftSchema = z.object({
   text: z.string().catch(''),
   attachments: z.array(PersistedAttachmentSchema).catch([]),
+  items: z.array(DraftItemSchema).catch([]),
 })
 
 type PersistedDraft = z.infer<typeof PersistedDraftSchema>
@@ -38,7 +39,7 @@ function parseDraft(raw: string): PersistedDraft | null {
 }
 
 function isCleared(draft: PersistedDraft): boolean {
-  return draft.text === '' && draft.attachments.length === 0
+  return draft.text === '' && draft.attachments.length === 0 && draft.items.length === 0
 }
 
 function clampSelection(offsets: SelectionOffsets | null, text: string): SelectionOffsets {
@@ -47,7 +48,7 @@ function clampSelection(offsets: SelectionOffsets | null, text: string): Selecti
 }
 
 function serializeRow(row: DraftRow): string {
-  return JSON.stringify({text: row.text, quote: null, attachments: row.attachments})
+  return JSON.stringify({text: row.text, quote: null, attachments: row.attachments, items: row.items})
 }
 
 function serverDraft(row: DraftRow): ServerDraft {
@@ -70,6 +71,7 @@ export async function appendDraft(appData: AppData, sessionId: string, text: str
     selectionStart: nextText.length,
     selectionEnd: nextText.length,
     attachments: row?.attachments ?? [],
+    items: row?.items ?? [],
   })
 }
 
@@ -99,6 +101,7 @@ export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraft
         selectionStart: offsets.start,
         selectionEnd: offsets.end,
         attachments: draft.attachments,
+        items: draft.items,
       })
       .catch(() => undefined)
   }

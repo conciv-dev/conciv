@@ -56,8 +56,10 @@ describe('draft storage', () => {
     return makeAppData(makeRpcClient(base), new QueryClient())
   }
 
-  function composerDraft(text: string): string {
-    return JSON.stringify({text, quote: null, attachments: []})
+  type ComposerItem = {key: string; value: unknown}
+
+  function composerDraft(text: string, items: ComposerItem[] = []): string {
+    return JSON.stringify({text, quote: null, attachments: [], items})
   }
 
   async function storedDraft(rpc: RpcClient, sessionId: string): Promise<StoredDraft | null> {
@@ -138,6 +140,39 @@ describe('draft storage', () => {
       selectionStart: 26,
       selectionEnd: 26,
     })
+  })
+
+  test('the composer items reach the server draft, outlive an appended line and come back on a reload', async ({
+    kit,
+    core,
+    sessionId,
+  }) => {
+    const staged = [{key: 'note:grab:c=1', value: {comment: 'make it blue', nested: {tags: ['a'], done: false}}}]
+    const updated = [{key: 'note:grab:c=1', value: {comment: 'make it red'}}]
+    const draftStorage = makeDraftStorage(draftApp(core.base), sessionId)
+    await draftStorage.restore(() => {}, new AbortController().signal)
+
+    draftStorage.storage.setItem('any', composerDraft('a noted draft', staged))
+    await core.awaitRequest(DRAFTS_SET_PATH)
+    expect(await kit.rpc.drafts.get({sessionId})).toMatchObject({text: 'a noted draft', items: staged})
+
+    draftStorage.storage.setItem('any', composerDraft('', staged))
+    await core.awaitRequest(DRAFTS_SET_PATH)
+    draftStorage.storage.setItem('any', composerDraft('', updated))
+    await core.awaitRequest(DRAFTS_SET_PATH)
+    expect(await kit.rpc.drafts.get({sessionId})).toMatchObject({text: '', items: updated})
+
+    await appendDraft(draftApp(core.base), sessionId, 'a queued line')
+    expect(await kit.rpc.drafts.get({sessionId})).toMatchObject({text: 'a queued line', items: updated})
+
+    const restored: ServerDraft[] = []
+    await makeDraftStorage(draftApp(core.base), sessionId).restore(
+      (draft) => restored.push(draft),
+      new AbortController().signal,
+    )
+    expect(restored.map((draft) => JSON.parse(draft.snapshot.getItem('any') ?? 'null'))).toEqual([
+      {text: 'a queued line', quote: null, attachments: [], items: updated},
+    ])
   })
 
   test('survives a failed initial read and still accepts writes', async ({kit, core, sessionId}) => {
