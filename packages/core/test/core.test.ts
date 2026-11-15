@@ -301,7 +301,7 @@ describe('chat plane', () => {
     const chat = await plane(cliHarness(cli), root, {
       systemPrompt: {systemPromptFile: missing, systemPromptText: 'the fallback prompt'},
       log: (line) => log.push(line),
-      capabilities: () => [echo, secret],
+      capabilities: async () => [echo, secret],
     })
     const seen = await readUntil(await startTurn(chat, sessionId('prompt'), 'prompt-run', 'hi'), 'end')
     expect(seen).toContain(ChatEventType.RUN_FINISHED)
@@ -380,7 +380,7 @@ describe('chat plane', () => {
           ).pipe(Scope.provide(scope)),
         )
         .then(() => scope)
-    const capabilities = (id: SessionId): CodeCapability[] =>
+    const capabilities = async (id: SessionId): Promise<CodeCapability[]> =>
       toolDomainCapabilities(
         id === builtins ? [echo, secret] : [],
         host.runSync(sessionToolDomain(id)),
@@ -529,7 +529,7 @@ describe('chat plane', () => {
     )
     const withoutDriver = await plane(cliHarness(told), root, {
       ...instructed,
-      capabilities: (id) =>
+      capabilities: async (id) =>
         toolDomainCapabilities(
           pinged,
           host.runSync(sessionToolDomain(id)),
@@ -578,7 +578,7 @@ describe('chat plane', () => {
           hubReplied: async () => {},
           finishedQueues: async () => [],
           startedQueues: async () => [],
-          outsideCapabilities: () => [],
+          outsideCapabilities: async () => [],
           admitCall: (id, call) => withoutDriver.admitCall(id, call),
           resolveSession: async () => runtime.forSession(codeless),
           admitOutside: async () => null,
@@ -878,7 +878,7 @@ describe('chat plane', () => {
       systemPrompt: {},
       sessions: sessionPort(),
       toolNames: new Set(),
-      capabilities: () => [],
+      capabilities: async () => [],
       attachmentExpanders: {},
       prompt: async (event) => event,
       promptHooked: async () => false,
