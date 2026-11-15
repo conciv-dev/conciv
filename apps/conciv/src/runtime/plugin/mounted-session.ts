@@ -12,12 +12,12 @@ import {
   untrack,
   type Accessor,
 } from 'solid-js'
-import {z} from 'zod'
-import type {Composer, ComposerNote, MountedSession, SessionScreen} from '@conciv/plugin/experimental'
+import type {Composer, MountedSession, SessionScreen} from '@conciv/plugin/experimental'
 import type {ComposerItem} from '@conciv/ui-kit-chat'
 import {useQuery} from '@conciv/client'
 import {useAppData, useConnected} from '../../app/context'
 import {usePluginAttachment} from './attachment'
+import {contextItemKey, NoteContextItem, noteValue} from '../../composer/note-schema'
 import type {ComposerBinding} from './host-apis'
 import {
   createComposerWriteState,
@@ -39,19 +39,11 @@ type ComposerTarget = {
   readonly removeItem: (key: string) => void
 }
 
-const NoteValueSchema = z.record(z.string(), z.json())
-
-const noteKey = (note: ComposerNote) => `note:${note.origin}:c=${note.commentId}`
-
-const jsonValue = (value: ComposerNote) => z.json().parse(JSON.parse(JSON.stringify(value)))
-
 const commentNotes = (items: readonly ComposerItem[], commentId: string) =>
   items.flatMap((item) => {
-    const note = NoteValueSchema.safeParse(item.value)
+    const note = NoteContextItem.safeParse(item.value)
 
-    return note.success && note.data.type === 'note' && note.data.commentId === commentId
-      ? [{key: item.key, note: note.data}]
-      : []
+    return note.success && note.data.commentId === commentId ? [{key: item.key, note: note.data}] : []
   })
 
 type ComposerSlot = {
@@ -190,7 +182,8 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
     attach(part) {
       if (part.type !== 'note') return console.error('[plugin] Composer.attach is not implemented yet', part.type)
 
-      const item = {key: noteKey(part), value: jsonValue(part)}
+      const note = NoteContextItem.parse(part)
+      const item = {key: contextItemKey(note), value: noteValue(note)}
 
       write((draft) => draft.addItem(item))
     },
@@ -204,7 +197,9 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
       if (comment === undefined) return
 
       write((draft) =>
-        commentNotes(draft.items(), id).forEach((entry) => draft.updateItem(entry.key, {...entry.note, comment})),
+        commentNotes(draft.items(), id).forEach((entry) =>
+          draft.updateItem(entry.key, noteValue({...entry.note, comment})),
+        ),
       )
     },
     detach: (id) => write((draft) => commentNotes(draft.items(), id).forEach((entry) => draft.removeItem(entry.key))),

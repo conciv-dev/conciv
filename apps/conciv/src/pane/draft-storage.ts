@@ -1,9 +1,10 @@
 import {z} from 'zod'
-import {DraftItemSchema, type DraftRow} from '@conciv/contract'
+import {DraftItemSchema, type DraftItem, type DraftRow} from '@conciv/contract'
 import type {WebStorage} from '@conciv/storage-history'
 import type {AppData} from '../data/app-data.js'
 import type {SelectionOffsets} from './composer-input-adapter.js'
 import type {DraftSink} from './pane-attachments.js'
+import {durableNote, NoteContextItem, noteValue} from '../composer/note-schema.js'
 
 const PersistedAttachmentSchema = z.object({
   id: z.string(),
@@ -51,8 +52,14 @@ function serializeRow(row: DraftRow): string {
   return JSON.stringify({text: row.text, quote: null, attachments: row.attachments, items: row.items})
 }
 
+function durableItem(item: DraftItem): DraftItem {
+  const note = NoteContextItem.safeParse(item.value)
+
+  return note.success ? {key: item.key, value: noteValue(durableNote(note.data))} : item
+}
+
 function serverDraft(row: DraftRow): ServerDraft {
-  const serialized = serializeRow(row)
+  const serialized = serializeRow({...row, items: row.items.map(durableItem)})
   return {
     snapshot: {getItem: () => serialized, setItem: () => {}},
     selection: clampSelection({start: row.selectionStart, end: row.selectionEnd}, row.text),

@@ -11,6 +11,8 @@ import {QuickSearchSchema, quickPaneIds, quickSearchFor} from '../src/lib/quick-
 import {WS_RPC_PAYLOAD_BUDGET_BYTES} from '@conciv/protocol/rpc-types'
 import {checkSend, MAX_CONTENT_PARTS} from '../src/pane/send-checks.js'
 import {parseConcivSettings} from '../src/data/settings.js'
+import {contextItemKey, durableNote} from '../src/composer/note-schema.js'
+import {formatNoteComment, noteComment, readPromptPresentation} from '../src/composer/comment-note.js'
 import {
   clamp,
   cornerAt,
@@ -175,6 +177,38 @@ describe('draft storage', () => {
     ])
   })
 
+  test('a staged note read back from the server draft drops its live part', async ({kit, core, sessionId}) => {
+    const note = {
+      type: 'note',
+      origin: 'fixture',
+      commentId: 'c1',
+      label: 'Fixture note',
+      icon: 'terminal',
+      subject: 'the fixture subject',
+      live: {subject: 'the live subject'},
+      comment: 'make it blue',
+    }
+    const other = {key: 'file:a', value: {live: 'kept'}}
+    await kit.rpc.drafts.set({
+      sessionId,
+      text: 'noted',
+      selectionStart: 5,
+      selectionEnd: 5,
+      attachments: [],
+      items: [{key: 'note:fixture:c=c1', value: note}, other],
+    })
+
+    const restored: ServerDraft[] = []
+    await makeDraftStorage(draftApp(core.base), sessionId).restore(
+      (draft) => restored.push(draft),
+      new AbortController().signal,
+    )
+
+    expect(restored.map((draft) => JSON.parse(draft.snapshot.getItem('any') ?? 'null').items)).toEqual([
+      [{key: 'note:fixture:c=c1', value: {...note, live: undefined}}, other],
+    ])
+  })
+
   test('survives a failed initial read and still accepts writes', async ({kit, core, sessionId}) => {
     await seedDraft(kit.rpc, sessionId, {text: 'unreachable at boot'})
     core.fail(DRAFTS_GET_PATH)
@@ -197,6 +231,70 @@ describe('draft storage', () => {
       text: 'after the outage',
       selectionStart: 16,
       selectionEnd: 16,
+    })
+  })
+})
+
+describe('composer notes', () => {
+  const item = {
+    type: 'note' as const,
+    origin: 'fixture',
+    commentId: 'c1',
+    label: 'Fixture note',
+    icon: 'terminal',
+    subject: 'the fixture subject',
+    comment: ' make it blue ',
+  }
+
+  test('a note is keyed, sent, read and worded as the source', () => {
+    expect(contextItemKey(item)).toBe('note:fixture:c=c1')
+
+    const sent = noteComment(item, 'make it blue')
+    expect(sent).toEqual({
+      type: 'note',
+      origin: 'fixture',
+      label: 'Fixture note',
+      icon: 'terminal',
+      subject: 'the fixture subject',
+      comment: 'make it blue',
+    })
+    const full = noteComment(
+      {...item, title: 'A title', subtitle: 'A subtitle', href: '', live: {subject: 'the live subject'}},
+      '',
+    )
+    expect(full).toEqual({
+      ...sent,
+      title: 'A title',
+      subtitle: 'A subtitle',
+      live: {subject: 'the live subject'},
+      comment: '',
+    })
+    expect(durableNote(full)).toEqual({...sent, title: 'A title', subtitle: 'A subtitle', comment: ''})
+
+    expect(formatNoteComment(sent)).toBe(
+      'The user made the following comment regarding the fixture subject: make it blue',
+    )
+    expect(formatNoteComment({...sent, comment: '  '})).toBe('The user referenced the fixture subject.')
+    expect(formatNoteComment(full)).toBe('The user referenced the live subject.')
+
+    expect(readPromptPresentation({displayText: 'typed'})).toBeUndefined()
+    expect(readPromptPresentation(undefined)).toBeUndefined()
+    expect(
+      readPromptPresentation({
+        displayText: 'typed',
+        comments: [sent, {type: 'note', origin: 'fixture'}, 'not a note'],
+        attachments: [{name: 'a.txt', mime: 'text/plain', path: '/workspace/a.txt'}, {name: 'broken'}],
+        conciv: {kept: true},
+      }),
+    ).toEqual({
+      displayText: 'typed',
+      comments: [sent],
+      attachments: [{name: 'a.txt', mime: 'text/plain', path: '/workspace/a.txt'}],
+    })
+    expect(readPromptPresentation({displayText: '', comments: []})).toEqual({
+      displayText: '',
+      comments: [],
+      attachments: [],
     })
   })
 })
