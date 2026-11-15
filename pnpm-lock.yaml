@@ -4670,12 +4670,21 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
+      '@rrweb/types':
+        specifier: 'catalog:'
+        version: 2.2.0
+      '@solid-primitives/timer':
+        specifier: 'catalog:'
+        version: 1.4.4(solid-js@1.9.17)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
       playwright:
         specifier: 'catalog:'
         version: 1.64.1
+      rrweb-player:
+        specifier: 'catalog:'
+        version: 2.2.0
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
