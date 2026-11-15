@@ -1,3 +1,4 @@
+import {ServerResponse} from 'node:http'
 import {ORPCError, type AnyRouter} from '@orpc/server'
 import {RPCHandler} from '@orpc/server/fetch'
 import {RPCHandler as WebsocketRPCHandler, type MinimalWebsocket} from '@orpc/server/websocket'
@@ -94,11 +95,19 @@ export function rpcFetchMiddleware(router: AnyRouter): MiddlewareHandler {
   return async (c, next) => {
     const {matched, response} = await handler.handle(c.req.raw, {
       prefix: RPC_PREFIX,
-      context: rpcConnectionContext(c.req.url, c.req.header('origin') ?? null),
+      context: {
+        ...rpcConnectionContext(c.req.url, c.req.header('origin') ?? null),
+        replied: responseWritten(c.env?.outgoing),
+      },
     })
     if (matched && response) return c.newResponse(response.body, response)
     await next()
   }
+}
+
+function responseWritten(outgoing: unknown): Promise<boolean> | undefined {
+  if (!(outgoing instanceof ServerResponse)) return undefined
+  return new Promise((resolve) => outgoing.once('close', () => resolve(outgoing.writableFinished)))
 }
 
 function peerFrame(data: WSMessageReceive): string | ArrayBuffer | null {
@@ -167,11 +176,16 @@ export function rpcWebsocketRoute(
           gate?.present(token)
           return
         }
-        handler.message(peer, frame, {context}).catch((error: unknown) => {
-          options.onError?.(`rpc ws frame rejected: ${String(error)}`)
-          handler.close(peer)
-          ws.close(1011, 'rpc frame rejected')
-        })
+        const replying = Promise.withResolvers<boolean>()
+        handler.message(peer, frame, {context: {...context, replied: replying.promise}}).then(
+          () => replying.resolve(true),
+          (error: unknown) => {
+            replying.resolve(false)
+            options.onError?.(`rpc ws frame rejected: ${String(error)}`)
+            handler.close(peer)
+            ws.close(1011, 'rpc frame rejected')
+          },
+        )
       },
       onClose: () => {
         gate?.close()

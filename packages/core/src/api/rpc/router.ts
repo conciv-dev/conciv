@@ -120,6 +120,10 @@ type CodeErrors = {NO_CODE_MODE: (options?: {message: string}) => Error}
 
 type CodeCall = {context: RpcContext; errors: CodeErrors; signal?: AbortSignal}
 
+function replyWentOut(context: RpcContext, signal: AbortSignal | undefined): Promise<boolean> | undefined {
+  return context.replied?.then((sent) => sent && signal?.aborted !== true)
+}
+
 async function resolveCodeSession(
   deps: RpcDeps,
   sessionId: SessionId | undefined,
@@ -133,6 +137,7 @@ async function resolveCodeSession(
     outside: trace.hub !== null && sessionId === undefined,
     askBeforeCalls: trace.hub === null,
     signal: call.signal ?? new AbortController().signal,
+    replied: replyWentOut(call.context, call.signal),
   })
   if (code === null || code.sandbox === null) throw call.errors.NO_CODE_MODE()
   return code.sandbox
@@ -350,11 +355,13 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     },
     page: {
       queue: {
-        wait: os.page.queue.wait.handler(({input, errors, signal}) =>
-          deps.queues.wait(input.sessionId, input.queueId, input.waitMs, signal).catch((error: unknown) => {
-            if (signal?.aborted === true) throw error
-            throw errors.NO_QUEUE({message: error instanceof Error ? error.message : String(error)})
-          }),
+        wait: os.page.queue.wait.handler(({input, context, errors, signal}) =>
+          deps.queues
+            .wait(input.sessionId, input.queueId, input.waitMs, signal, replyWentOut(context, signal))
+            .catch((error: unknown) => {
+              if (signal?.aborted === true) throw error
+              throw errors.NO_QUEUE({message: error instanceof Error ? error.message : String(error)})
+            }),
         ),
       },
       symbolicate: os.page.symbolicate.handler(({input}) => engine.symbolicate(input.frames)),

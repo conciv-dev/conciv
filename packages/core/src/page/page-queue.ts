@@ -55,8 +55,9 @@ export type PageQueues = {
     queueId: string,
     waitMs: number,
     signal?: AbortSignal,
+    replied?: Promise<boolean>,
   ) => Promise<PageQueueResult | PageQueueProgress>
-  undelivered: (sessionId: SessionId, hub: boolean) => PageQueueResult[]
+  undelivered: (sessionId: SessionId, hub: boolean, replied?: Promise<boolean>) => PageQueueResult[]
   startedBy: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => PageQueueHandle[]
   claim: (record: QueueRecord) => boolean
   confirm: (record: QueueRecord, delivery: Exclude<Delivery, 'claimed'>) => void
@@ -194,7 +195,7 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
   }
 
   const announce = (record: QueueRecord): void => {
-    if (record.delivery !== 'owed') return
+    if (record.delivery === 'delivered') return
     for (const listener of listeners) {
       try {
         listener(record)
@@ -261,6 +262,7 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
     queueId: string,
     waitMs: number,
     signal?: AbortSignal,
+    replied?: Promise<boolean>,
   ): Promise<PageQueueResult | PageQueueProgress> {
     const record = records.get(queueId)
     if (record === undefined || record.sessionId !== sessionId) {
@@ -271,7 +273,8 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
     }
     signal?.throwIfAborted()
     if (record.result !== null) {
-      markDelivered(record)
+      if (replied === undefined) markDelivered(record)
+      else handOver(record, replied)
       return record.result
     }
     return {
@@ -310,10 +313,11 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
     forget(inFlightHubCalls, sessionId, callIds)
   }
 
-  function undelivered(sessionId: SessionId, hub: boolean): PageQueueResult[] {
+  function undelivered(sessionId: SessionId, hub: boolean, replied?: Promise<boolean>): PageQueueResult[] {
     return [...records.values()].flatMap((record) => {
       if (record.sessionId !== sessionId || hubCalled(record) !== hub || record.result === null) return []
-      return deliver(record) ? [record.result] : []
+      const handed = replied === undefined ? deliver(record) : handOver(record, replied)
+      return handed ? [record.result] : []
     })
   }
 
@@ -331,6 +335,13 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
   function deliver(record: QueueRecord): boolean {
     if (!awaitsDelivery(record)) return false
     markDelivered(record)
+    return true
+  }
+
+  function handOver(record: QueueRecord, replied: Promise<boolean>): boolean {
+    const before = record.delivery === 'nextReply' ? 'nextReply' : 'owed'
+    if (!claim(record)) return false
+    void replied.catch(() => false).then((sent) => confirm(record, sent ? 'delivered' : before))
     return true
   }
 
