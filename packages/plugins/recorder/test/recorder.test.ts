@@ -1,13 +1,13 @@
 import {existsSync} from 'node:fs'
 import {randomBytes} from 'node:crypto'
-import {chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile} from 'node:fs/promises'
-import {tmpdir} from 'node:os'
+import {chmod, mkdir, readFile, readdir, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {describe, expect, it, onTestFinished} from 'vitest'
 import {z} from 'zod'
 import {connectMcpClient, makeDiscoverTools} from '@conciv/harness-testkit'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 
@@ -319,8 +319,7 @@ describe('the recorder RPC', () => {
     expect(await call(kit, 'reset')).toEqual({ok: true})
     expect(EventWindowSchema.parse(await call(kit, 'window', {clientId: 'mine'})).events).toEqual([])
 
-    const folder = await mkdtemp(join(tmpdir(), 'conciv-recorder-reopen-'))
-    onTestFinished(() => rm(folder, {recursive: true, force: true}))
+    const folder = tempDir('conciv-recorder-reopen-')
     const first = await bootCoreKit({...RECORDER_KIT, stateRoot: folder})
     const reopenEvents = fixtureStream(Date.now())
     const reopened = await flushAndSave(first, 'reopen', reopenEvents).finally(() => first.cleanup())
@@ -510,8 +509,7 @@ describe('the recording video export', () => {
   })
 
   it('reads a stored video larger than the cap back byte-identical in pieces within the cap, answers a read past the end as empty and done, and refuses an unknown recording', async () => {
-    const folder = await mkdtemp(join(tmpdir(), 'conciv-recorder-pieces-'))
-    onTestFinished(() => rm(folder, {recursive: true, force: true}))
+    const folder = tempDir('conciv-recorder-pieces-')
     const recordingsDir = join(folder, '.conciv', 'recorder', 'recordings')
     await mkdir(recordingsDir, {recursive: true})
     const id = `${Date.now()}-000001-stored`
