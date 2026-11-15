@@ -1346,6 +1346,7 @@ describe('cli', () => {
         echo: {input: z.object({word: z.string()}), output: z.string()},
         ping: {input: z.object({}), output: z.string()},
         counted: {input: z.object({}).optional(), output: z.number()},
+        limited: {input: z.object({}), output: z.string(), errors: {limited: z.object({retryAfter: z.number()})}},
       },
       events: {},
     }
@@ -1360,6 +1361,7 @@ describe('cli', () => {
             calls.counted += 1
             return calls.counted
           },
+          limited: async (_input, context) => context.error('limited', 'try later', {retryAfter: 5}),
         })
       },
     }
@@ -1369,7 +1371,10 @@ describe('cli', () => {
           resolve({code: error === null ? 0 : error.code, document: JSON.parse(stdout)}),
         ),
       )
-    const refused = (message: string | RegExp) => ({code: 1, document: {ok: false, error: {kind: 'user', message}}})
+    const refused = (message: string | RegExp, type?: string) => ({
+      code: 1,
+      document: {ok: false, error: {kind: 'user', message, ...(type === undefined ? {} : {type})}},
+    })
 
     it('answers a plugin method from the project and from anywhere as the owner, prints engine errors, and refuses bad --data before any call', async () => {
       const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
@@ -1390,10 +1395,10 @@ describe('cli', () => {
           message: "outside agents can't use plugin routes; use the plugin in the tab",
         })
         expect(await pluginCall(root, home, ['nope', 'ping', '--data', '{}'])).toMatchObject(
-          refused('RPC is unavailable: nope'),
+          refused('RPC is unavailable: nope', 'rpc.unavailable'),
         )
         expect(await pluginCall(root, home, ['probe', 'nope', '--data', '{}'])).toMatchObject(
-          refused('Unknown RPC method: probe.nope'),
+          refused('Unknown RPC method: probe.nope', 'rpc.method_not_found'),
         )
         expect(await pluginCall(root, home, ['probe', 'counted', '--data', '{nope'])).toMatchObject(
           refused(/--data is not JSON/),
@@ -1404,7 +1409,14 @@ describe('cli', () => {
         expect(await pluginCall(root, home, ['probe', 'counted'])).toEqual({code: 0, document: {ok: true, data: 1}})
         expect(await pluginCall(root, home, ['probe', 'ping'])).toMatchObject({
           code: 1,
-          document: {ok: false, error: {kind: 'user', code: 'PLUGIN_RPC'}},
+          document: {ok: false, error: {kind: 'user', code: 'PLUGIN_RPC', type: 'rpc.invalid_input'}},
+        })
+        expect(await pluginCall(root, home, ['probe', 'limited', '--data', '{}'])).toEqual({
+          code: 1,
+          document: {
+            ok: false,
+            error: {kind: 'user', code: 'PLUGIN_RPC', type: 'limited', message: 'try later', data: {retryAfter: 5}},
+          },
         })
       } finally {
         await engine.stop()
@@ -4638,16 +4650,19 @@ export default defineConfig({plugins: [conciv()]})`
       ]
 
       describe('webpackFamilyStep', () => {
-        it('wires a CJS webpack config with a require line and conciv.default(), still carding widgetUrl', async () => {
+        it('wires a CJS webpack config with a require line and conciv.default(), carding that the widget is not added', async () => {
           const {cwd, detected, ctx} = project('webpack', 'webpack.config.js', 'webpack.config.cjs.js')
           const step = webpackFamilyStep(detected)
           expect(step.id).toBe('framework')
           expect(await step.detect(ctx)).toBe('missing')
           const outcome = await step.apply(ctx)
           if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
-          expect(outcome.cards.map((card) => card.title)).toEqual(['Inject the widget'])
-          expect(outcome.cards[0]?.body).toContain('@conciv/widget/global')
-          expect(outcome.cards[0]?.body).toContain('widgetUrl')
+          expect(outcome.cards.map((card) => card.title)).toEqual(['The widget is not added for you'])
+          const body = outcome.cards[0]?.body ?? ''
+          expect(body).toContain('does not add the widget to your page')
+          expect(body).toContain('https://conciv.dev/docs/quick-start/webpack')
+          expect(body).not.toContain('@conciv/widget')
+          expect(body).not.toContain('widgetUrl')
           const written = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
           expect(written).toContain("const conciv = require('@conciv/it/plugin/webpack')")
           expect(written).toContain('plugins: [new DefinePlugin({DEV: true}), conciv.default()],')
@@ -4666,7 +4681,7 @@ export default defineConfig({plugins: [conciv()]})`
           const {cwd, detected, ctx} = project('webpack', 'webpack.config.js', 'webpack.config.esm.js')
           const outcome = await webpackFamilyStep(detected).apply(ctx)
           if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
-          expect(outcome.cards.map((card) => card.title)).toEqual(['Inject the widget'])
+          expect(outcome.cards.map((card) => card.title)).toEqual(['The widget is not added for you'])
           const written = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
           expect(written).toContain("import conciv from '@conciv/it/plugin/webpack'")
           expect(written).toContain('plugins: [new TerserPlugin(), conciv()],')
@@ -4678,7 +4693,7 @@ export default defineConfig({plugins: [conciv()]})`
             'webpack.config.js',
             'webpack.config.esm-mentions-module-exports.js',
           )
-          expect(await unwiredCardTitles(detected, ctx)).toEqual(['Inject the widget'])
+          expect(await unwiredCardTitles(detected, ctx)).toEqual(['The widget is not added for you'])
           const written = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
           expect(written).toContain("import conciv from '@conciv/it/plugin/webpack'")
           expect(written).toContain('conciv()')
@@ -4695,7 +4710,7 @@ export default defineConfig({plugins: [conciv()]})`
           const before = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
           expect(await unwiredCardTitles(detected, ctx)).toEqual([
             'Wire the conciv webpack plugin',
-            'Inject the widget',
+            'The widget is not added for you',
           ])
           expect(readFileSync(join(cwd, 'webpack.config.js'), 'utf8')).toBe(before)
         })
@@ -4707,7 +4722,7 @@ export default defineConfig({plugins: [conciv()]})`
           const written = readFileSync(join(cwd, 'rspack.config.js'), 'utf8')
           expect(written).toContain("import conciv from '@conciv/it/plugin/rspack'")
           expect(written).toContain('plugins: [conciv()],')
-          expect(outcome.cards[0]?.body).toContain('rspack')
+          expect(outcome.cards[0]?.body).toContain('https://conciv.dev/docs/quick-start/rspack')
         })
 
         it('treats a lone plugin require as unwired and lands the call', async () => {
@@ -4727,7 +4742,7 @@ export default defineConfig({plugins: [conciv()]})`
             const before = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
             expect(await unwiredCardTitles(detected, ctx)).toEqual([
               'Wire the conciv webpack plugin',
-              'Inject the widget',
+              'The widget is not added for you',
             ])
             expect(readFileSync(join(cwd, 'webpack.config.js'), 'utf8')).toBe(before)
           })
@@ -4740,7 +4755,7 @@ export default defineConfig({plugins: [conciv()]})`
           if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
           expect(outcome.cards.map((card) => card.title)).toEqual([
             'Wire the conciv webpack plugin',
-            'Inject the widget',
+            'The widget is not added for you',
           ])
           expect(outcome.cards[0]?.snippet).toBe(`const conciv = require('@conciv/it/plugin/webpack')
 
@@ -4756,7 +4771,7 @@ module.exports = {
           if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
           expect(outcome.cards.map((card) => card.title)).toEqual([
             'Wire the conciv rspack plugin',
-            'Inject the widget',
+            'The widget is not added for you',
           ])
           expect(outcome.cards[0]?.snippet).toContain("require('@conciv/it/plugin/rspack')")
         })

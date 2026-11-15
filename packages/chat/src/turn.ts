@@ -69,6 +69,7 @@ export type TurnDeps = {
   capabilities: (sessionId: SessionId) => CodeCapability[]
   attachmentExpanders: AttachmentExpanders
   prompt: (event: SessionPrompt) => Promise<SessionPrompt>
+  promptHooked: () => Promise<boolean>
   pluginInstructions: (
     sessionId: SessionId,
     reset: InstructionReset,
@@ -315,6 +316,7 @@ export function turnHooks(
         },
         prompt: async (message) => {
           if (turn.kind !== 'chat' || message.id === undefined) return message
+          if (!(await deps.promptHooked())) return message
           const event = promptEvent(sessionId, message.id, message)
           const prompted = await deps.prompt(structuredClone(event))
           if (isEqual(prompted, event)) return message

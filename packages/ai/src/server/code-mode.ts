@@ -29,46 +29,16 @@ const QUICKJS_MAX_STACK_BYTES = 2 * 1024 * 1024
 
 type Log = (message: string) => void
 
-type DriverCandidate = {name: string; create: (log: Log) => Promise<CodeDriver | null>}
-
-const DRIVER_CANDIDATES: readonly DriverCandidate[] = [
-  {
-    name: '@tanstack/ai-isolate-node',
-    create: async () => {
-      const loaded = await import('@tanstack/ai-isolate-node')
-      if (!loaded.probeIsolatedVm().compatible) return null
-      const driver = loaded.createNodeIsolateDriver({timeout: CODE_MODE_TIMEOUT_MS})
-      return {createContext: (config) => driver.createContext(config), dispose: async () => undefined}
-    },
-  },
-  {
-    name: '@tanstack/ai-isolate-quickjs in a worker thread',
-    create: async (log) =>
-      quickJSThreadDriver(
-        {timeout: CODE_MODE_TIMEOUT_MS, memoryLimit: QUICKJS_MEMORY_LIMIT_MB, maxStackSize: QUICKJS_MAX_STACK_BYTES},
-        log,
-      ),
-  },
-]
-
-async function attempt(candidate: DriverCandidate, log: Log): Promise<CodeDriver | null> {
+export function loadIsolateDriver(log: Log): CodeDriver | null {
   try {
-    const driver = await candidate.create(log)
-    if (driver === null) log(`[ai] the code mode driver ${candidate.name} is incompatible with this platform`)
-    return driver
+    return quickJSThreadDriver(
+      {timeout: CODE_MODE_TIMEOUT_MS, memoryLimit: QUICKJS_MEMORY_LIMIT_MB, maxStackSize: QUICKJS_MAX_STACK_BYTES},
+      log,
+    )
   } catch (error) {
-    log(`[ai] the code mode driver ${candidate.name} failed to load: ${String(error)}`)
+    log(`[ai] the code mode driver @tanstack/ai-isolate-quickjs failed to start: ${String(error)}`)
     return null
   }
-}
-
-export async function loadIsolateDriver(log: Log): Promise<CodeDriver | null> {
-  for (const candidate of DRIVER_CANDIDATES) {
-    const driver = await attempt(candidate, log)
-    if (driver !== null) return driver
-  }
-  log('[ai] code mode found no usable isolate driver')
-  return null
 }
 
 export function stoppedWith(driver: IsolateDriver, signal: AbortSignal, log: Log): IsolateDriver {

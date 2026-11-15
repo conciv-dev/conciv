@@ -457,6 +457,30 @@ describe('db', () => {
     })
   })
 
+  describe('plugin host tables migration', () => {
+    it('creates the plugin host tables, and a database a branch build already gave them keeps its rows', () => {
+      const migration = readdirSync(drizzleDir).find((name) => name.endsWith('_plugin_host_tables')) ?? 'missing'
+      const tables = (client: DatabaseSync) =>
+        client
+          .prepare(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('event_sequence', 'event', 'kv', 'permission') ORDER BY name",
+          )
+          .all()
+          .map((row) => row.name)
+      const fresh = beforeMigration(migration)
+      migrationsFrom(migration).forEach((name) => applyMigration(fresh, name))
+      expect(tables(fresh)).toEqual(['event', 'event_sequence', 'kv', 'permission'])
+      fresh.close()
+
+      const built = beforeMigration(migration)
+      applyMigration(built, migration)
+      built.prepare("INSERT INTO kv (key, value, time_created, time_updated) VALUES ('kept', '1', 1, 1)").run()
+      migrationsFrom(migration).forEach((name) => applyMigration(built, name))
+      expect(built.prepare('SELECT key FROM kv').all()).toEqual([{key: 'kept'}])
+      built.close()
+    })
+  })
+
   describe('openDb', () => {
     it('sessions round-trip through the typed orm', () => {
       const db = openDb(mkdtempSync(join(tmpdir(), 'conciv-db-')))

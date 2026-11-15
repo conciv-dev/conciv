@@ -28,11 +28,13 @@
     },
     "./plugin/webpack": {
       "types": "./dist/plugin/webpack.d.ts",
-      "import": "./dist/webpack.js"
+      "import": "./dist/webpack.js",
+      "default": "./dist/webpack.js"
     },
     "./plugin/rspack": {
       "types": "./dist/plugin/rspack.d.ts",
-      "import": "./dist/rspack.js"
+      "import": "./dist/rspack.js",
+      "default": "./dist/rspack.js"
     },
     "./plugin/rollup": {
       "types": "./dist/plugin/rollup.d.ts",
