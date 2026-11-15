@@ -57,7 +57,7 @@ export type PageQueues = {
     signal?: AbortSignal,
     replied?: Promise<boolean>,
   ) => Promise<PageQueueResult | PageQueueProgress>
-  undelivered: (sessionId: SessionId, hub: boolean, replied?: Promise<boolean>) => PageQueueResult[]
+  undelivered: (sessionId: SessionId, hub: boolean) => PageQueueResult[]
   startedBy: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => PageQueueHandle[]
   claim: (record: QueueRecord) => boolean
   confirm: (record: QueueRecord, delivery: Exclude<Delivery, 'claimed'>) => void
@@ -313,10 +313,10 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
     forget(inFlightHubCalls, sessionId, callIds)
   }
 
-  function undelivered(sessionId: SessionId, hub: boolean, replied?: Promise<boolean>): PageQueueResult[] {
+  function undelivered(sessionId: SessionId, hub: boolean): PageQueueResult[] {
     return [...records.values()].flatMap((record) => {
       if (record.sessionId !== sessionId || hubCalled(record) !== hub || record.result === null) return []
-      const handed = replied === undefined ? deliver(record) : handOver(record, replied)
+      const handed = deliver(record)
       return handed ? [record.result] : []
     })
   }

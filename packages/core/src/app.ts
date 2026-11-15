@@ -768,7 +768,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     codeRunner: (sessionId, publish, capabilities) => plane.codeRunner(sessionId, publish, capabilities),
     hubCall: (sessionId, callId) => primitives.page.queues.hubCall(sessionId, callId),
     hubReplied: (sessionId, callIds) => primitives.page.queues.hubReplied(sessionId, callIds),
-    finishedQueues: (sessionId, fromHub, replied) => primitives.page.queues.undelivered(sessionId, fromHub, replied),
+    finishedQueues: (sessionId, fromHub) => primitives.page.queues.undelivered(sessionId, fromHub),
     startedQueues: (sessionId, toolCallIds) => primitives.page.queues.startedBy(sessionId, toolCallIds),
     admitCall: (sessionId, call) => plane.admitCall(sessionId, call),
     outsideCapabilities: (sessionId) =>

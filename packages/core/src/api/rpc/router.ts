@@ -137,7 +137,6 @@ async function resolveCodeSession(
     outside: trace.hub !== null && sessionId === undefined,
     askBeforeCalls: trace.hub === null,
     signal: call.signal ?? new AbortController().signal,
-    replied: replyWentOut(call.context, call.signal),
   })
   if (code === null || code.sandbox === null) throw call.errors.NO_CODE_MODE()
   return code.sandbox

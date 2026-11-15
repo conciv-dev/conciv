@@ -1,4 +1,3 @@
-import type {ServerResponse} from 'node:http'
 import {Hono} from 'hono'
 import {z} from 'zod'
 import {defineTool} from '@conciv/protocol/chat-tool-types'
@@ -204,7 +203,7 @@ type McpDeps = {
   ) => Promise<CodeRunner | null>
   hubCall: (sessionId: SessionId, callId: string) => void
   hubReplied: (sessionId: SessionId, callIds: ReadonlySet<string>) => void
-  finishedQueues: (sessionId: SessionId, hub: boolean, replied?: Promise<boolean>) => PageQueueResult[]
+  finishedQueues: (sessionId: SessionId, hub: boolean) => PageQueueResult[]
   startedQueues: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => PageQueueHandle[]
   outsideCapabilities: (sessionId: SessionId) => CodeCapability[]
   admitCall: ChatPlane['admitCall']
@@ -224,13 +223,7 @@ function gated<Args>(admit: () => Promise<string | null>, run: (args: Args) => P
   }
 }
 
-type CodeCaller = {
-  trace: CallTrace
-  outside: boolean
-  askBeforeCalls: boolean
-  signal: AbortSignal
-  replied?: Promise<boolean>
-}
+type CodeCaller = {trace: CallTrace; outside: boolean; askBeforeCalls: boolean; signal: AbortSignal}
 
 function approvedFirst(
   deps: McpDeps,
@@ -297,8 +290,7 @@ export async function openCodeSession(
     run,
     signal: caller.signal,
   }
-  const finished = (): PageQueueResult[] =>
-    caller.signal.aborted ? [] : deps.finishedQueues(scope.id, hub, caller.replied)
+  const finished = (): PageQueueResult[] => (caller.signal.aborted ? [] : deps.finishedQueues(scope.id, hub))
   const hubRequest = async <Value>(work: () => Promise<Value>): Promise<Value> => {
     if (!hub) return work()
     deps.hubCall(scope.id, caller.trace.callId)
@@ -415,12 +407,7 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: CodeCall
   return [...discoverTools, ...askingTools, ...directTools, ...executeTools]
 }
 
-function replyWritten(outgoing: ServerResponse | undefined): Promise<boolean> | undefined {
-  if (outgoing === undefined) return undefined
-  return new Promise((resolve) => outgoing.once('close', () => resolve(outgoing.writableFinished)))
-}
-
-const app = new Hono<{Variables: McpVars; Bindings: {outgoing?: ServerResponse}}>().post('/', async (c) => {
+const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
   if (loopbackHostAllowlist(c.req.header('host') ?? null).length === 0) return c.text('forbidden host', 403)
   const header = sessionIdFromHeaders(c.req.raw.headers)
   const nativeId = nativeIdFromHeaders(c.req.raw.headers)
@@ -431,7 +418,6 @@ const app = new Hono<{Variables: McpVars; Bindings: {outgoing?: ServerResponse}}
     outside: trace.hub !== null && header === null && nativeId === null,
     askBeforeCalls: trace.hub === null && (header !== null || nativeId === null),
     signal: c.req.raw.signal,
-    replied: replyWritten(c.env?.outgoing),
   }
   const server = createMCPServer({
     name: 'conciv',
