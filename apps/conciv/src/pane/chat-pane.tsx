@@ -71,6 +71,7 @@ import {QueueStrip} from './queue-strip.js'
 import {
   createPaneSession,
   SessionComposerBinding,
+  SessionComposerPills,
   SessionHeaderSlot,
   SessionLinks,
   SessionStatusSlot,
@@ -458,6 +459,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                   </Suspense>
                   <ExtensionSurface name="status" instances={instances} />
                   <SessionStatusSlot pane={pluginSession} />
+                  <SessionComposerPills pane={pluginSession} />
                   <ExtensionSurface name="footer" instances={instances} />
                 </div>
                 <QueueStrip queue={chat.queue()} />

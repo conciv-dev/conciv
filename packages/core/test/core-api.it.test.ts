@@ -184,6 +184,14 @@ function groupAlive(group: number): boolean {
   }
 }
 
+async function nextEvent<Value extends {readonly type: string}>(
+  events: AsyncIterator<Value, unknown>,
+): Promise<IteratorResult<Value, unknown>> {
+  const next = await events.next()
+  if (next.done !== true && next.value.type === 'server.heartbeat') return nextEvent(events)
+  return next
+}
+
 function sharedKit(boot: () => Promise<Kit>): () => Kit {
   const held: {kit: Kit | undefined} = {kit: undefined}
   beforeAll(async () => {
@@ -6368,11 +6376,11 @@ export default {
       durable: {aggregateID: sessionId, seq: expect.any(Number), version: 2},
       data: {sessionID: sessionId},
     }
-    expect(await everything.next()).toEqual({done: false, value: announced})
-    expect(await everything.next()).toEqual({done: false, value: deleted})
-    expect(await deletions.next()).toEqual({done: false, value: deleted})
-    expect(await socketEvents.next()).toEqual({done: false, value: announced})
-    expect(await socketEvents.next()).toEqual({done: false, value: deleted})
+    expect(await nextEvent(everything)).toEqual({done: false, value: announced})
+    expect(await nextEvent(everything)).toEqual({done: false, value: deleted})
+    expect(await nextEvent(deletions)).toEqual({done: false, value: deleted})
+    expect(await nextEvent(socketEvents)).toEqual({done: false, value: announced})
+    expect(await nextEvent(socketEvents)).toEqual({done: false, value: deleted})
     await socketEvents.return(undefined)
 
     const outside = makeRpcClient(base, {headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'terminal'}})
@@ -6542,7 +6550,7 @@ export default {
     const folder = join(root, 'conciv', 'skills', 'greet')
     mkdirSync(folder, {recursive: true})
     writeFileSync(join(folder, 'SKILL.md'), '---\nname: greet\ndescription: How to greet the user\n---\nGreet twice.\n')
-    expect(await updates.next()).toMatchObject({value: {type: 'skill.updated'}})
+    expect(await nextEvent(updates)).toMatchObject({value: {type: 'skill.updated'}})
     expect(await prompted('greet-run')).toContain('<id>greet</id>')
     expect(await load('greet')).toContain('Greet twice.')
   })
@@ -6592,11 +6600,11 @@ export default {
 }
 `
 
-  async function askerEngine() {
+  async function askerEngine(first: 'asks' | 'gone' = 'asks') {
     const root = tempDir('conciv-asker-')
     const plugin = join(root, 'conciv', 'plugins', 'asker.ts')
     mkdirSync(dirname(plugin), {recursive: true})
-    writeFileSync(plugin, asker('first', 'asks'))
+    writeFileSync(plugin, asker('first', first))
     const harness = createFakeHarness()
     const engine = await bootAt(tempDir('conciv-asker-home-'), root, 'session', harness)
     onTestFinished(async () => {
@@ -6626,14 +6634,22 @@ export default {
       harness.script.scriptToolCall('execute_typescript', {typescriptCode: 'return await external_asker_run({})'})
       return sseTurn(base, sessionId, runId, 'run the asker', new AbortController().signal).then(sseStream)
     }
+    const twoSteps = (runId: string, secondStep: string) => {
+      runs.push(runId)
+      harness.script.scriptToolCall('execute_typescript', {typescriptCode: "return ['the first', 'step'].join(' ')"})
+      harness.script.scriptToolCall('execute_typescript', {typescriptCode: secondStep})
+      return sseTurn(base, sessionId, runId, 'run the asker', new AbortController().signal).then(sseStream)
+    }
     onTestFinished(async () => {
       await makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}}).chat.stop({sessionId, runIds: runs})
     })
     const askedOrEnded = (ended: Promise<string>) =>
       Promise.race([next('permission.asked'), ended.then((text) => ({endedWithoutAsking: text}))])
     const asking = {sessionId, action: 'asker_run', resources: ['now']}
-    return {root, plugin, harness, turn, loading, askedOrEnded, asking}
+    return {root, plugin, harness, turn, twoSteps, loading, askedOrEnded, asking}
   }
+
+  const offeredCheck = "return ['asker is', typeof external_asker_run].join(' ')"
 
   it('a turn sent at once after the plugin is rewritten asks before the tool runs', async () => {
     const engine = await askerEngine()
@@ -6646,7 +6662,7 @@ export default {
     const engine = await askerEngine()
     engine.harness.script.holdTools()
     const turn = await engine.turn('reloading-run')
-    expect(await turn.reach('RUN_STARTED')).toBe('RUN_STARTED')
+    expect(await turn.reach('fake.session-id')).toBe('fake.session-id')
     writeFileSync(engine.plugin, asker('second', 'gated'))
     await engine.loading('second')
     engine.harness.script.releaseTools()
@@ -6659,13 +6675,39 @@ export default {
     const engine = await askerEngine()
     engine.harness.script.holdTools()
     const turn = await engine.turn('dropped-run')
-    expect(await turn.reach('RUN_STARTED')).toBe('RUN_STARTED')
+    expect(await turn.reach('fake.session-id')).toBe('fake.session-id')
     writeFileSync(engine.plugin, asker('second', 'gone'))
     await engine.loading('second')
     engine.harness.script.releaseTools()
     const text = await turn.ended()
     expect(text).toMatch(/No tool named \W+asker_run\W+ is currently available/)
     expect(text).not.toContain('asker ran')
+  })
+
+  it('a tool a reload adds mid-turn is offered at the next model step of the same turn', async () => {
+    const engine = await askerEngine('gone')
+    engine.harness.script.holdTools()
+    const turn = await engine.twoSteps('added-run', offeredCheck)
+    expect(await turn.reach('fake.session-id')).toBe('fake.session-id')
+    writeFileSync(engine.plugin, asker('second', 'asks'))
+    await engine.loading('second')
+    engine.harness.script.releaseTools()
+    const text = await turn.ended()
+    expect(text).toContain('the first step')
+    expect(text).toContain('asker is function')
+  })
+
+  it('a tool a reload removes mid-turn is no longer offered at the next model step of the same turn', async () => {
+    const engine = await askerEngine()
+    engine.harness.script.holdTools()
+    const turn = await engine.twoSteps('removed-run', offeredCheck)
+    expect(await turn.reach('fake.session-id')).toBe('fake.session-id')
+    writeFileSync(engine.plugin, asker('second', 'gone'))
+    await engine.loading('second')
+    engine.harness.script.releaseTools()
+    const text = await turn.ended()
+    expect(text).toContain('the first step')
+    expect(text).toContain('asker is undefined')
   })
 })
 
@@ -6745,6 +6787,7 @@ describe('engine plugin bundles', () => {
     const arrivals = [secondArrival, thirdArrival]
     const consume = async () => {
       for await (const change of changes) {
+        if (change.type === 'server.heartbeat') continue
         delivered.push(change)
         arrivals[delivered.length - 1]?.resolve()
       }
