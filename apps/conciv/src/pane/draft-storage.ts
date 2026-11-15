@@ -1,4 +1,5 @@
 import {z} from 'zod'
+import {isEqual} from 'es-toolkit'
 import type {DraftRow} from '@conciv/contract'
 import type {WebStorage} from '@conciv/storage-history'
 import type {AppData} from '../data/app-data.js'
@@ -90,15 +91,24 @@ export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraft
   let cache: string | null = null
   let selection: SelectionOffsets | null = null
   let writable = false
-  const persist = (draft: PersistedDraft) => {
+  const draftRow = (draft: PersistedDraft) => {
     const offsets = clampSelection(selection, draft.text)
-    void appData.saveDraft({
+    return {
       sessionId,
       text: draft.text,
       selectionStart: offsets.start,
       selectionEnd: offsets.end,
       attachments: draft.attachments,
-    })
+    }
+  }
+  const persist = (draft: PersistedDraft) => {
+    void appData.saveDraft(draftRow(draft))
+  }
+  const savedAlready = (draft: PersistedDraft): boolean => {
+    const saved = appData.cachedDraft(sessionId)
+    if (!saved) return false
+    const {updatedAt: _updatedAt, ...savedRow} = saved
+    return isEqual(savedRow, draftRow(draft))
   }
   const cached = () => (cache === null ? null : parseDraft(cache))
   return {
@@ -113,6 +123,7 @@ export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraft
         const parsed = parseDraft(value)
         if (!parsed || !writable) return
         if (isCleared(parsed) && stored && isCleared(stored)) return
+        if (savedAlready(parsed)) return
         persist(parsed)
       },
     },

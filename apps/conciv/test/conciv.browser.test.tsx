@@ -618,6 +618,26 @@ describe('chat pane', () => {
       })
     })
 
+    test('a restored draft is not saved back to the engine, while the next edit is', async () => {
+      const DRAFT_SET_PATH = ['drafts', 'set']
+      const SEEDED = 'restored and never written back'
+      const {rpc, sessionId} = await newSession()
+      await seedDraft(rpc, sessionId, {text: SEEDED})
+      const saves = await coreControl.rpcCallCount(DRAFT_SET_PATH)
+      shell.mountShell(`/panel/${sessionId}?open=true`)
+      await expect.element(input()).toHaveTextContent(SEEDED)
+      await userEvent.click(page.getByRole('link', {name: 'Settings'}))
+      await userEvent.click(page.getByRole('button', {name: 'Back to chat'}))
+      await expect.element(input()).toHaveTextContent(SEEDED)
+
+      await userEvent.click(input())
+      await userEvent.keyboard('{End}!')
+      await expect.element(input()).toHaveTextContent(`${SEEDED}!`)
+      await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, saves + 1, [])
+
+      expect(await coreControl.rpcCallCount(DRAFT_SET_PATH, {sessionId, text: SEEDED})).toBe(1)
+    })
+
     test('a stalled draft read still renders a composer that accepts typing', async () => {
       const {sessionId} = await newSession()
       await faults.install({kind: 'gate', path: DRAFT_GET_PATH})
