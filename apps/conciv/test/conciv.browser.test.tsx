@@ -3072,6 +3072,21 @@ describe('a Stop pressed while a plugin prepares the prompt', () => {
     expect(threadText(MESSAGE).elements()).toHaveLength(1)
     expect(threadText(REPLY).elements()).toHaveLength(1)
   })
+
+  test('a gate whose socket path is too long for a unix socket says so before it listens', async () => {
+    const name = 'x'.repeat(100)
+    const message = await faults.install({kind: 'project-socket-gate', socket: name}).then(
+      () => 'the gate installed',
+      (error: unknown) => (error instanceof Error ? error.message : String(error)),
+    )
+    const named = /the project socket gate's path is (\d+) bytes, over the 103 a unix socket allows: (\/\S+)$/.exec(
+      message,
+    )
+
+    expect(message).toMatch(/the project socket gate's path is/)
+    expect(named?.[2]).toMatch(new RegExp(`/${name}$`))
+    expect(Number(named?.[1])).toBe(new TextEncoder().encode(named?.[2]).length)
+  })
 })
 
 const FOUND_API_BASE = 'http://found.test'
