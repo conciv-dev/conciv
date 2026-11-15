@@ -601,8 +601,19 @@ const downloadFrom: BrowserCommand<[name: string]> = async (ctx, name): Promise<
   return {name: saved.suggestedFilename(), text: readFileSync(path, 'utf8')}
 }
 
+const openedFrom: BrowserCommand<[name: string]> = async (ctx, name): Promise<string> => {
+  const opened = ctx.page.context().waitForEvent('page')
+  await ctx.iframe.getByRole('button', {name, exact: true}).click()
+  const tab = await opened
+  await tab.waitForLoadState('domcontentloaded')
+  const url = tab.url()
+  await tab.close()
+  return url
+}
+
 export const coreCommands = {
   chooseFiles,
+  openedFrom,
   downloadFrom,
   dragButton,
   hoverButton,

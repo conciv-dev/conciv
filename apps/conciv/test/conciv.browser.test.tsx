@@ -6462,6 +6462,7 @@ module.exports = {default: {stores: {
         draft.count += 1
       })),
       button('Save a fixture file', () => ctx.system.save({name: 'fixture-note.txt', content: 'saved through the host'})),
+      button('Open the engine health page', () => ctx.system.openExternal(new URL('/health', props.session.server.url).href)),
     ],
   })
   ctx.add(Panel, {
@@ -6589,6 +6590,8 @@ module.exports = {default: {stores: {
       name: 'fixture-note.txt',
       text: 'saved through the host',
     })
+
+    expect(await coreControl.openedFrom('Open the engine health page')).toBe(new URL('/health', coreBase()).href)
   }, 60_000)
 
   const tabPath = (sessionId: string, key: string) => `/panel/${sessionId}/${encodeURIComponent(key)}`
