@@ -1,5 +1,7 @@
 import {z} from 'zod'
-import {NoteComment, type NoteContextItem} from './note-schema'
+import type {SendContent} from '@conciv/protocol/chat-message-types'
+import type {ComposerDraft} from '@conciv/ui-kit-chat'
+import {NoteComment, NoteContextItem} from './note-schema'
 
 const PromptAttachmentReference = z.object({name: z.string(), mime: z.string(), path: z.string()})
 
@@ -53,4 +55,29 @@ export function formatNoteComment(input: NoteComment) {
   if (!input.comment.trim()) return `The user referenced ${input.live?.subject ?? input.subject}.`
 
   return `The user made the following comment regarding ${input.live?.subject ?? input.subject}: ${input.comment}`
+}
+
+export function promptWithNotes(content: string | SendContent, draft: ComposerDraft): string | SendContent {
+  const notes = decoded(
+    NoteContextItem,
+    draft.items.map((item) => item.value),
+  )
+
+  if (notes.length === 0) return content
+
+  const comments = notes.map((note) => noteComment(note, note.comment.trim()))
+  const sentences = comments.map(formatNoteComment)
+  const displayText = draft.draft.trim()
+  const metadata = {displayText, comments, attachments: []}
+
+  if (typeof content === 'string') return {content: [displayText, ...sentences].filter(Boolean).join('\n'), metadata}
+
+  const parts =
+    typeof content.content === 'string' ? [{type: 'text' as const, content: content.content}] : content.content
+
+  return {
+    ...content,
+    content: [...parts, {type: 'text', content: sentences.join('\n')}],
+    metadata: {...content.metadata, ...metadata},
+  }
 }

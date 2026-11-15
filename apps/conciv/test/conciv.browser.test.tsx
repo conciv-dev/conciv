@@ -6513,6 +6513,7 @@ module.exports = {default: {stores: {
 }}}
 `
   const coreBase = bootedCore('plugin-fixture-journey', {
+    text: 'the fixture reply',
     plugins: ['./fixture'],
     files: {
       'fixture/index.ts': `export default {id: 'fixture', async setup() {}}
@@ -6630,6 +6631,56 @@ module.exports = {default: {stores: {
     await control('Change the first note').click()
     await control('Detach the other note').click()
     expect(await savedOnChat()).toMatchObject({text: 'noted', items: [note('c1', 'the changed comment')]})
+  }, 60_000)
+
+  test('its notes travel with a send: a refused send keeps them, and the sent message carries one sentence per note and the notes in its metadata', async () => {
+    const rpc = coreRpc(coreBase())
+    const sessionId = await createSession(rpc)
+    const sentNote = (comment: string) => ({
+      type: 'note',
+      origin: 'fixture',
+      label: 'Fixture note',
+      icon: 'terminal',
+      subject: 'the fixture subject',
+      comment,
+    })
+    const refused = await faults.install({kind: 'chat-refused', status: 500})
+    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, [], {transport: 'fetch'})
+    await expect.element(control('Attach two notes'), {timeout: 15_000}).toBeVisible()
+    await control('Attach two notes').click()
+    await tab('Chat').click()
+    await expect.element(editor()).toHaveTextContent('noted')
+
+    await userEvent.click(editor())
+    await userEvent.keyboard('{Enter}')
+    await expect
+      .element(page.getByRole('region', {name: /Notifications/}))
+      .toMatchTextContent(/Internal Server Error|could not be sent/)
+    await expect.element(editor()).toHaveTextContent('noted')
+
+    await coreControl.releaseFault(refused)
+    await userEvent.click(editor())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByText('the fixture reply')).toBeVisible()
+    const asked = (await rpc.chat.hydrate({sessionId})).messages.filter((message) => message.role === 'user')
+    expect(asked).toHaveLength(1)
+    expect(asked[0]).toMatchObject({
+      parts: [
+        {
+          type: 'text',
+          content: [
+            'noted',
+            'The user made the following comment regarding the fixture subject: the first comment',
+            'The user made the following comment regarding the fixture subject: the other comment',
+          ].join('\n'),
+        },
+      ],
+      metadata: {
+        displayText: 'noted',
+        comments: [sentNote('the first comment'), sentNote('the other comment')],
+        attachments: [],
+      },
+    })
   }, 60_000)
 
   const tabPath = (sessionId: string, key: string) => `/panel/${sessionId}/${encodeURIComponent(key)}`

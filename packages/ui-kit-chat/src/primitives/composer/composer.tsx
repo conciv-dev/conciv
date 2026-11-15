@@ -66,16 +66,17 @@ function invokeSubmit(handler: FormProps['onSubmit'], event: SubmitEvent): void 
   if (typeof handler === 'function') handler(event)
 }
 
-function canSubmit(canSend: boolean, attachmentCount: number, unavailable: boolean): boolean {
-  return !unavailable && (canSend || attachmentCount > 0)
+function canSubmit(canSend: boolean, stagedCount: number, unavailable: boolean): boolean {
+  return !unavailable && (canSend || stagedCount > 0)
 }
 
 async function sendContent(
-  handler: ((content: string | SendContent) => void | Promise<unknown>) | undefined,
+  handler: ((content: string | SendContent, draft: ComposerDraft) => void | Promise<unknown>) | undefined,
   fallback: (content: string | SendContent) => Promise<unknown>,
   content: string | SendContent,
+  draft: ComposerDraft,
 ): Promise<void> {
-  if (handler) await handler(content)
+  if (handler) await handler(content, draft)
   else await fallback(content)
 }
 
@@ -327,10 +328,10 @@ function Root(props: FormProps): JSX.Element {
       setState('sendingAttachments', false)
     }
   }
-  const runSend = async (content: string | SendContent): Promise<SendOutcome> => {
+  const runSend = async (content: string | SendContent, original: ComposerDraft): Promise<SendOutcome> => {
     const before = chat.error()
     try {
-      await sendContent(handlers.onSend, (value) => chat.sendMessage(value), content)
+      await sendContent(handlers.onSend, (value) => chat.sendMessage(value), content, original)
     } catch (error) {
       return {failure: sendFailure(error), answered: false}
     }
@@ -343,7 +344,7 @@ function Root(props: FormProps): JSX.Element {
     const content = await completedContent(original)
     if (content === null) return
     clearDraft()
-    const outcome = await runSend(content)
+    const outcome = await runSend(content, original)
     if (!outcome.failure) return
     if (!outcome.answered) putBackUnansweredSend(original)
     handlers.onSendError?.(outcome.failure)
@@ -351,8 +352,8 @@ function Root(props: FormProps): JSX.Element {
   const submit = async (event: SubmitEvent) => {
     event.preventDefault()
     invokeSubmit(local.onSubmit, event)
-    if (!canSubmit(composer.canSend(), state.attachments.length, state.sendingAttachments || composer.isStopping()))
-      return
+    const staged = state.attachments.length + state.items.length
+    if (!canSubmit(composer.canSend(), staged, state.sendingAttachments || composer.isStopping())) return
     await sendFromUser(deliverDraft)
   }
   return (
@@ -480,7 +481,7 @@ function Send(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>): JSX.Element {
         local.disabled ||
         context.sendingAttachments() ||
         composer.isStopping() ||
-        (!composer.canSend() && context.attachments().length === 0)
+        (!composer.canSend() && context.attachments().length + context.items().length === 0)
       }
       {...rest}
       type="submit"

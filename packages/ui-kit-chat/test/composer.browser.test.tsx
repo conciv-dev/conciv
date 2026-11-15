@@ -1030,9 +1030,10 @@ describe('composer completion', () => {
     return {composer: captured, unmount: mounted.unmount}
   }
 
-  it('attaching the same key twice keeps the first, and the items outlive a restore, a failed send and a reload', async () => {
+  it('attaching the same key twice keeps the first, the items outlive a restore, a failed send and a reload, and a draft of items alone is sent with them', async () => {
     const probe = createProbeStorage()
     const [sendError, setSendError] = createSignal('')
+    const [sent, setSent] = createSignal('nothing')
     const handlers: ComposerHandlers = {
       onSend: () => Promise.reject(new Error('the server rejected the send')),
       onSendError: (error) => setSendError(error instanceof Error ? error.message : String(error)),
@@ -1041,6 +1042,7 @@ describe('composer completion', () => {
       <>
         <p>send failed: {sendError() || 'not yet'}</p>
         <p>persisted: {probe.written() ?? 'nothing'}</p>
+        <p>sent: {sent()}</p>
       </>
     ))
     const first = mountItemsComposer(probe.storage, handlers)
@@ -1076,9 +1078,23 @@ describe('composer completion', () => {
       )
       .toBeVisible()
     first.unmount()
-    mountItemsComposer(probe.storage, {})
+    mountItemsComposer(probe.storage, {
+      onSend: (content, draft) => {
+        setSent(`${JSON.stringify(content)} with ${JSON.stringify(draft.items)}`)
+      },
+    })
     await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('a message the server refuses')
     await expect.element(page.getByText('items: note:grab:c=1={"comment":"make it green"}')).toBeVisible()
+
+    await userEvent.click(page.getByRole('textbox', {name: 'Message'}))
+    await userEvent.keyboard('{ControlOrMeta>}a{/ControlOrMeta}{Backspace}')
+    await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('')
+    await expect.element(page.getByRole('button', {name: 'Send'})).toBeEnabled()
+    await page.getByRole('button', {name: 'Send'}).click()
+    await expect
+      .element(page.getByText('sent: "" with [{"key":"note:grab:c=1","value":{"comment":"make it green"}}]'))
+      .toBeVisible()
+    await expect.element(page.getByText('items: none')).toBeVisible()
   })
 })
 

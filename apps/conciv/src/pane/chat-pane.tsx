@@ -24,6 +24,7 @@ import {
   ToolProvider,
   useComposerContext,
   useThread,
+  type ComposerDraft,
   type PageSessionConfig,
   type TurnItem,
   type TurnPrefixSource,
@@ -54,6 +55,7 @@ import {guardedToolCards} from '../extension/extension-boundary.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {ComposerActions} from '../composer/actions.js'
+import {promptWithNotes} from '../composer/comment-note.js'
 import {ConnectedAgents} from '../composer/connected-agents.js'
 import {SessionModelPrompt, useModelMenu} from '../composer/model-selector.js'
 import {useEngineNotices} from '../shell/notice-context.js'
@@ -293,9 +295,10 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     sessionId,
     openModelMenu: () => modelMenu.popover().setOpen(true),
   })
-  const sendOrRunCommand = async (content: string | SendContent): Promise<void> => {
-    if (typeof content === 'string' && commandSources.runTyped(content)) return
-    await messaging.onSend(content)
+  const sendOrRunCommand = async (content: string | SendContent, draft: ComposerDraft): Promise<void> => {
+    const prompt = promptWithNotes(content, draft)
+    if (typeof prompt === 'string' && commandSources.runTyped(prompt)) return
+    await messaging.onSend(prompt)
   }
   const insert = (text: string) => {
     inputHandle()?.append(text)
