@@ -12,6 +12,8 @@ import {DraftRowSchema, type DraftRow, type RpcClient} from '@conciv/contract'
 
 type DraftInput = Omit<z.input<typeof DraftRowSchema>, 'updatedAt'>
 
+const DraftSessionSchema = z.object({sessionId: z.string()})
+
 type DraftSaveContext = {previous: DraftRow | null | undefined}
 
 const DRAFT_SAVE_RETRIES = 3
@@ -41,6 +43,7 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient): AppData {
   const draftQuery = (sessionId: string) => utils.drafts.get.queryOptions({input: {sessionId}})
   queryClient.setMutationDefaults<unknown, Error, DraftInput, DraftSaveContext>(utils.drafts.set.mutationKey(), {
     retry: retriableDraftSave,
+    gcTime: Infinity,
     onMutate: async (input) => {
       const {queryKey} = draftQuery(input.sessionId)
       await queryClient.cancelQueries({queryKey})
@@ -56,6 +59,16 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient): AppData {
         return
       }
       queryClient.setQueryData(queryKey, context.previous)
+    },
+    onSuccess: (_data, input) => {
+      const mutationCache = queryClient.getMutationCache()
+      const settled = mutationCache.findAll({
+        mutationKey: utils.drafts.set.mutationKey(),
+        predicate: (mutation) =>
+          mutation.state.status !== 'pending' &&
+          DraftSessionSchema.safeParse(mutation.state.variables).data?.sessionId === input.sessionId,
+      })
+      for (const mutation of settled) mutationCache.remove(mutation)
     },
     onSettled: (_data, _error, input) =>
       queryClient.invalidateQueries({queryKey: draftQuery(input.sessionId).queryKey}),

@@ -590,6 +590,32 @@ describe('chat pane', () => {
 
         await expect.element(input()).toHaveTextContent('kept through a refused save')
       })
+
+      test('every time raises a notice whose Retry saves the draft once the engine takes it', async () => {
+        const {sessionId} = await newSession()
+        shell.mountShell(`/panel/${sessionId}?open=true`)
+        await expect.element(input()).toBeVisible()
+        const saved = await coreControl.rpcCallCount(DRAFT_SET_PATH)
+        const refusal = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+        const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
+
+        await input().fill('kept through every refused save')
+        await expect
+          .element(
+            unsaved.getByText(
+              'conciv could not save your draft. It is still in the composer, but a reload would lose it.',
+            ),
+            {timeout: 20_000},
+          )
+          .toBeVisible()
+        await coreControl.releaseFault(refusal)
+        await userEvent.click(unsaved.getByRole('button', {name: 'Retry'}))
+        await expect.element(unsaved).not.toBeInTheDocument()
+        await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, saved + 1, [])
+        reloadShell(sessionId)
+
+        await expect.element(input()).toHaveTextContent('kept through every refused save')
+      })
     })
 
     test('a stalled draft read still renders a composer that accepts typing', async () => {

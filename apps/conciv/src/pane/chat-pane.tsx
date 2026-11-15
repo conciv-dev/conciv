@@ -58,6 +58,7 @@ import {ConnectedAgents} from '../composer/connected-agents.js'
 import {SessionModelPrompt, useModelMenu} from '../composer/model-selector.js'
 import {useEngineNotices} from '../shell/notice-context.js'
 import {makeDraftStorage, type PaneDraftStorage} from './draft-storage.js'
+import {DraftUnsavedNotice} from './draft-unsaved-notice.js'
 import {useSessionCaptures} from './session-captures.js'
 import {makeToolViewCtx} from './tool-view-ctx.js'
 import {PendingApprovals} from './pending-approvals.js'
@@ -461,6 +462,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                   <SessionStatusSlot pane={pluginSession} />
                   <ExtensionSurface name="footer" instances={instances} />
                 </div>
+                <DraftUnsavedNotice sessionId={sessionId} />
                 <QueueStrip queue={chat.queue()} />
                 <Suspense>
                   <PaneComposer
