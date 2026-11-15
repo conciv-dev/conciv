@@ -184,6 +184,14 @@ function groupAlive(group: number): boolean {
   }
 }
 
+async function nextEvent<Value extends {readonly type: string}>(
+  events: AsyncIterator<Value, unknown>,
+): Promise<IteratorResult<Value, unknown>> {
+  const next = await events.next()
+  if (next.done !== true && next.value.type === 'server.heartbeat') return nextEvent(events)
+  return next
+}
+
 function sharedKit(boot: () => Promise<Kit>): () => Kit {
   const held: {kit: Kit | undefined} = {kit: undefined}
   beforeAll(async () => {
@@ -6368,11 +6376,11 @@ export default {
       durable: {aggregateID: sessionId, seq: expect.any(Number), version: 2},
       data: {sessionID: sessionId},
     }
-    expect(await everything.next()).toEqual({done: false, value: announced})
-    expect(await everything.next()).toEqual({done: false, value: deleted})
-    expect(await deletions.next()).toEqual({done: false, value: deleted})
-    expect(await socketEvents.next()).toEqual({done: false, value: announced})
-    expect(await socketEvents.next()).toEqual({done: false, value: deleted})
+    expect(await nextEvent(everything)).toEqual({done: false, value: announced})
+    expect(await nextEvent(everything)).toEqual({done: false, value: deleted})
+    expect(await nextEvent(deletions)).toEqual({done: false, value: deleted})
+    expect(await nextEvent(socketEvents)).toEqual({done: false, value: announced})
+    expect(await nextEvent(socketEvents)).toEqual({done: false, value: deleted})
     await socketEvents.return(undefined)
 
     const outside = makeRpcClient(base, {headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'terminal'}})
@@ -6542,7 +6550,7 @@ export default {
     const folder = join(root, 'conciv', 'skills', 'greet')
     mkdirSync(folder, {recursive: true})
     writeFileSync(join(folder, 'SKILL.md'), '---\nname: greet\ndescription: How to greet the user\n---\nGreet twice.\n')
-    expect(await updates.next()).toMatchObject({value: {type: 'skill.updated'}})
+    expect(await nextEvent(updates)).toMatchObject({value: {type: 'skill.updated'}})
     expect(await prompted('greet-run')).toContain('<id>greet</id>')
     expect(await load('greet')).toContain('Greet twice.')
   })
@@ -6779,6 +6787,7 @@ describe('engine plugin bundles', () => {
     const arrivals = [secondArrival, thirdArrival]
     const consume = async () => {
       for await (const change of changes) {
+        if (change.type === 'server.heartbeat') continue
         delivered.push(change)
         arrivals[delivered.length - 1]?.resolve()
       }
