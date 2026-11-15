@@ -718,72 +718,6 @@ describe('cli', () => {
     }
 
     describe('conciv CLI (IT, real served core, typed rpc)', () => {
-      it('page fill drives registry.call and prints one success envelope with exit 0, --json or not', async () => {
-        const kit = await bootCli(cleanups)
-        const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: 'a@b.c'}})
-        const code = await runCli(cliMain, ['tools', 'page', 'fill', '#email', '--value', 'a@b.c', '--json'])
-        expect(answer.seen()).toMatchObject({name: 'page_fill', input: {selector: '#email', value: 'a@b.c'}})
-        expect(code).toBe(0)
-        expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true, value: 'a@b.c'}})
-      })
-
-      it('a page verb the browser refuses fails as a user error with the declared code and exit 1', async () => {
-        const kit = await bootCli(cleanups)
-        const answer = await answerNextQuery(kit, {
-          ok: false,
-          error: {code: 'invalid-args', message: 'no element for selector #email'},
-        })
-        const code = await runCli(cliMain, ['tools', 'page', 'fill', '#email', '--value', 'a@b.c'])
-        expect(answer.seen()).toMatchObject({name: 'page_fill', input: {selector: '#email'}})
-        expect(code).toBe(1)
-        expect(onlyDocument(written)).toEqual({
-          ok: false,
-          error: {kind: 'user', code: 'INVALID_ARGS', message: 'page_fill: no element for selector #email'},
-        })
-      })
-
-      it('page snapshot with no widget fails as a user error with the declared code and exit 1', async () => {
-        await bootCli(cleanups)
-        const code = await runCli(cliMain, ['tools', 'page', 'snapshot'])
-        expect(code).toBe(1)
-        expect(onlyDocument(written)).toMatchObject({
-          ok: false,
-          error: {
-            kind: 'user',
-            code: 'NO_PAGE_CLIENT',
-            message: expect.stringContaining('page_snapshot: no widget connected to session'),
-          },
-        })
-      })
-
-      it('page wait with an invalid --state is a user error before any rpc call', async () => {
-        const kit = await bootCli(cleanups)
-        const answer = await answerNextQuery(kit, {ok: true, result: {ok: true}})
-        const code = await runCli(cliMain, ['tools', 'page', 'wait', '#x', '--state', 'bogus'])
-        expect(code).toBe(1)
-        expect(answer.seen()).toBeNull()
-        const failure = onlyDocument(written)
-        expect(failure).toMatchObject({ok: false, error: {kind: 'user'}})
-        expect(JSON.stringify(failure)).toContain('visible')
-        expect(JSON.stringify(failure)).not.toContain('\\n    at ')
-      })
-
-      it('page changes lists the journal in an envelope and --clear resets it', async () => {
-        const kit = await bootCli(cleanups)
-        const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: 'Ada'}})
-        await runCli(cliMain, ['tools', 'page', 'fill', '#name', '--value', 'Ada'])
-        expect(answer.seen()).toMatchObject({name: 'page_fill'})
-        written.length = 0
-        expect(await runCli(cliMain, ['tools', 'page', 'changes'])).toBe(0)
-        expect(onlyDocument(written)).toMatchObject({ok: true, data: [{verb: 'page_fill', selector: '#name'}]})
-        written.length = 0
-        expect(await runCli(cliMain, ['tools', 'page', 'changes', '--clear'])).toBe(0)
-        expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true}})
-        written.length = 0
-        expect(await runCli(cliMain, ['tools', 'page', 'changes'])).toBe(0)
-        expect(onlyDocument(written)).toEqual({ok: true, data: []})
-      })
-
       it('server restart is refused through the session and an approval lets the retry run', async () => {
         const bridge = restartCapableBridge()
         const kit = await bootCli(cleanups, {bridge})
@@ -1625,6 +1559,108 @@ describe('cli', () => {
           document: {ok: true, data: {queueId: queue.id, status: 'finished', played: 1}},
         })
         expect(await waitFor(0)).toEqual(delivered)
+      })
+    })
+
+    describe('conciv CLI (IT, real served core, typed rpc)', () => {
+      const answering: {next?: PageReply; seen: Array<Parameters<PageAnswer>[0]>} = {seen: []}
+      const held: {engine?: Awaited<ReturnType<typeof engineWithTab>>; home: string} = {
+        home: tempDir('conciv-home-'),
+      }
+      const run = async (action: Record<string, unknown>, sessionId?: string) => {
+        const {engine} = held
+        if (engine === undefined) throw new Error('the engine with a tab did not start')
+        const data = JSON.stringify({sessionId: sessionId ?? engine.sessionId, action})
+        return pluginCall(engine.root, held.home, ['experimental.page', 'run', '--data', data])
+      }
+      const method = async (name: string) => {
+        const {engine} = held
+        if (engine === undefined) throw new Error('the engine with a tab did not start')
+        const data = JSON.stringify({sessionId: engine.sessionId})
+        return pluginCall(engine.root, held.home, ['experimental.page', name, '--data', data])
+      }
+      beforeAll(async () => {
+        held.engine = await engineWithTab(held.home, {
+          answer: (command) => {
+            answering.seen.push(command)
+            const reply = answering.next ?? {type: 'success', result: {value: ok, files: []}}
+            answering.next = undefined
+            return reply
+          },
+        })
+      })
+      beforeEach(async () => {
+        answering.seen.length = 0
+        expect(await method('clearChanges')).toMatchObject({code: 0})
+      })
+      afterAll(async () => held.engine?.engine.stop())
+
+      it('page fill drives registry.call and prints one success envelope with exit 0, --json or not', async () => {
+        answering.next = {type: 'success', result: {value: {ok: true, value: 'a@b.c'}, files: []}}
+        const answered = await run({type: 'fill', selector: '#email', value: 'a@b.c'})
+        expect(answering.seen).toMatchObject([{action: {type: 'fill', selector: '#email', value: 'a@b.c'}}])
+        expect(answered).toEqual({code: 0, document: {ok: true, data: {ok: true, value: 'a@b.c'}}})
+      })
+
+      it('a page verb the browser refuses fails as a user error with the declared code and exit 1', async () => {
+        answering.next = {type: 'failure', code: 'invalid-args', message: 'no element for selector #email'}
+        const answered = await run({type: 'fill', selector: '#email', value: 'a@b.c'})
+        expect(answering.seen).toMatchObject([{action: {type: 'fill', selector: '#email'}}])
+        expect(answered).toEqual({
+          code: 1,
+          document: {
+            ok: false,
+            error: {
+              kind: 'user',
+              code: 'PLUGIN_RPC',
+              type: 'unavailable',
+              data: {},
+              message: '[page.invalid-args] no element for selector #email',
+            },
+          },
+        })
+      })
+
+      it('page snapshot with no widget fails as a user error with the declared code and exit 1', async () => {
+        const {engine} = held
+        if (engine === undefined) throw new Error('the engine with a tab did not start')
+        const {sessionId} = await makeRpcClient(engine.base).sessions.create(undefined)
+        const answered = await run({type: 'snapshot'}, sessionId)
+        expect(answering.seen).toEqual([])
+        expect(answered).toMatchObject({
+          code: 1,
+          document: {
+            ok: false,
+            error: {
+              kind: 'user',
+              code: 'PLUGIN_RPC',
+              type: 'unavailable',
+              data: {},
+              message: expect.stringContaining('[page.disconnected] No page is open in this session'),
+            },
+          },
+        })
+      })
+
+      it('page wait with an invalid --state is a user error before any rpc call', async () => {
+        const answered = await run({type: 'wait', selector: '#x', state: 'bogus'})
+        expect(answered.code).toBe(1)
+        expect(answering.seen).toEqual([])
+        expect(answered.document).toMatchObject({ok: false, error: {kind: 'user'}})
+        expect(JSON.stringify(answered.document)).toContain('visible')
+        expect(JSON.stringify(answered.document)).not.toContain('\\n    at ')
+      })
+
+      it('page changes lists the journal in an envelope and --clear resets it', async () => {
+        answering.next = {type: 'success', result: {value: {ok: true, value: 'Ada'}, files: []}}
+        await run({type: 'fill', selector: '#name', value: 'Ada'})
+        expect(answering.seen).toMatchObject([{action: {type: 'fill'}}])
+        expect(await method('changes')).toMatchObject({
+          code: 0,
+          document: {ok: true, data: [{verb: 'page_fill', selector: '#name'}]},
+        })
+        expect(await method('clearChanges')).toEqual({code: 0, document: {ok: true, data: {ok: true}}})
+        expect(await method('changes')).toEqual({code: 0, document: {ok: true, data: []}})
       })
     })
 
