@@ -86,8 +86,9 @@ None of these is on until you add it.
     },
     '@conciv/plugin-test-runner': {
       required: true,
-      type: "{runner?: 'vitest' | 'playwright'}",
-      description: 'Lists and runs your tests in a separate process, vitest by default. See Live tests.',
+      type: "{runner?: 'vitest' | 'playwright' | 'jest' | 'node-test'}",
+      description:
+        'Lists and runs your tests in a separate process, vitest by default. jest and node-test have no runner yet. See Live tests.',
     },
     '@conciv/plugin-recorder': {
       required: true,
