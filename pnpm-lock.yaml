@@ -372,6 +372,9 @@ catalogs:
     hono:
       specifier: ^4.13.14
       version: 4.13.14
+    js-yaml:
+      specifier: 5.5.0
+      version: 5.5.0
     lucide-react:
       specifier: ^1.64.0
       version: 1.64.0
@@ -4477,6 +4480,9 @@ importers:
       glob:
         specifier: 'catalog:'
         version: 13.0.5
+      js-yaml:
+        specifier: 'catalog:'
+        version: 5.5.0
       npm-package-arg:
         specifier: 'catalog:'
         version: 13.0.2
@@ -4711,7 +4717,7 @@ importers:
         specifier: ^10.2.1
         version: 10.2.1
       js-yaml:
-        specifier: 5.5.0
+        specifier: 'catalog:'
         version: 5.5.0
       minimatch:
         specifier: 10.2.6
