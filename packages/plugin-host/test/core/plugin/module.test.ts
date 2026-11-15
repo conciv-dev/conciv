@@ -210,27 +210,22 @@ for (const target of ['policy-fixture@1.2.3', '@scope/policy-fixture@1.2.3']) {
   )
 }
 
-it.live('loads a local TypeScript plugin with an enum, a .tsx module and a ./helper.js import of helper.ts', () =>
+it.live('loads a local TypeScript plugin by type stripping, resolving its Bun-style imports, and reloads it', () =>
   Effect.gen(function* () {
     const directory = yield* tmpdirScoped()
     const pluginDirectory = path.join(directory.path, 'typescript-plugin')
     yield* Effect.promise(() =>
       Promise.all([
-        write(
-          path.join(pluginDirectory, 'node_modules/react/package.json'),
-          '{"name":"react","type":"module","exports":{"./jsx-runtime":"./jsx-runtime.js"}}',
-        ),
-        write(
-          path.join(pluginDirectory, 'node_modules/react/jsx-runtime.js'),
-          'export const jsx = (type, props) => ({ type, props }); export const jsxs = jsx; export const Fragment = "fragment"',
-        ),
-        write(path.join(pluginDirectory, 'helper.ts'), 'export enum Mode { Ready = "ready" }'),
-        write(path.join(pluginDirectory, 'view.tsx'), 'export const view: { type: string } = <strong>ready</strong>'),
+        write(path.join(pluginDirectory, 'helper.ts'), 'export const Mode: { Ready: string } = { Ready: "ready" }'),
+        write(path.join(pluginDirectory, 'view.ts'), 'export const view: { type: string } = { type: "strong" }'),
         write(path.join(pluginDirectory, 'plain.ts'), 'export const plain: string = "plain"'),
         write(path.join(pluginDirectory, 'lib/index.ts'), 'export const lib: string = "lib"'),
         write(path.join(pluginDirectory, 'twin.mts'), 'export const twin: string = "twin"'),
-        write(path.join(pluginDirectory, 'kind.mts'), 'export enum Kind { Value = "kind" }'),
-        write(path.join(pluginDirectory, 'count.cts'), 'export enum Count { Value = "count" }'),
+        write(path.join(pluginDirectory, 'kind.mts'), 'export const Kind: { Value: string } = { Value: "kind" }'),
+        write(
+          path.join(pluginDirectory, 'count.cts'),
+          'const Count: { Value: string } = { Value: "count" }; module.exports = { Count }',
+        ),
         write(
           path.join(pluginDirectory, 'index.ts'),
           `import { Mode } from "./helper.js"
