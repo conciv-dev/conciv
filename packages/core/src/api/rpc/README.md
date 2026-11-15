@@ -8,7 +8,7 @@ oRPC router that implements the `@conciv/contract` procedures for sessions, chat
 
 - `makeRpcRouter(deps)` (`router.ts`): builds the full router
 - RPC `sessions.list`, `.preview`, `.create`, `.resolve`, `.open`, `.restore`, `.rename`, `.delete`, `.model`, `.effort`, `.compact`, `.switchHarness` (`sessions.ts`, `sessionsRouter`)
-- RPC `chat.events` (streaming), `chat.hydrate`, `chat.stop`, `chat.permissionDecision`, `chat.uiReply` (`chat.ts`, `chatRouter`)
+- RPC `chat.events` (streaming), `chat.hydrate`, `chat.stop`, `chat.permissionDecision`, `chat.uiReply` (`chat.ts`, `chatRouter`); `chat.stop` awaits the session runtime's `run.stop` and answers `{ok: true}`, as the contract declares: the `stopped` that `run.stop` computes is read in-process only, by a plugin's `ctx.session.interrupt`
 - RPC `settings.all`, `settings.set`, `settings.delete`, `settings.changes` (streaming) (`router.ts`): one `{scope: 'global' | 'project', namespace}` settings file each, every answer the full `{generation, version, value}` snapshot
 - RPC `drafts.get`, `drafts.set`, `markers.list`, `navigation.get`, `navigation.set`, `captures.list` (`router.ts`)
 - RPC `registry.catalog`, `registry.call` (`router.ts`)
@@ -38,7 +38,7 @@ oRPC router that implements the `@conciv/contract` procedures for sessions, chat
 - `page.reply`, `chat.permissionDecision`, `chat.uiReply` (`router.ts`, `chat.ts`): UNKNOWN_REQUEST when nothing is pending
 - `sessions.rename` (`sessions.ts`): NOT_FOUND without a row; `sessions.model` / `sessions.effort` create the row first (`ensureRow`, as a turn does), so a session that has not run a turn can switch; `model` throws UNKNOWN_MODEL for a missing or disabled model and resets the session effort to null when the new model does not list it; `sessions.effort` throws UNSUPPORTED_EFFORT unless the session's model (row model, else the harness default, else the first listed) lists the effort, and null always clears it
 - `cleanTitle` (`sessions.ts`): strips control characters, collapses whitespace, truncates to 120 characters
-- `sessions.create` (`sessions.ts`): ids are `conciv_<uuid>` validated with `SessionId.parse`; the row takes the boot (default) harness
+- `sessions.create` (`sessions.ts`): ids are `conciv_<uuid>` validated with `SessionId.parse`; the row takes the boot (default) harness; it answers the new row (`rpcSessionMeta`) beside the id
 - `sessions.switchHarness` (`sessions.ts`): NOT_FOUND without a row, UNKNOWN_HARNESS outside the available set, a no-op for the current harness (an optional `model` is ignored then), SESSION_RUNNING while a run is active, UNKNOWN_MODEL when `model` is not an enabled model of the target harness; otherwise one transaction sets the harness and the given model (else null), clears the native id and effort, and drops the transcript anchor
 - `buildHarnessMenuEntry` (`sessions.ts`): a harness whose model list throws is logged and listed with no models, `defaultModel` from the adapter (else null) and `modelsFailed: true`; the others still answer
 - `switchSessionModel` / `switchSessionEffort` / `listedSessionPage` / `searchedSessionPage` (`sessions.ts`): what `sessions.model`, `sessions.effort`, `sessions.list` and `sessions.search` do, shared with the plugin host's `Session` key (`runtime/plugin-sessions.ts`)

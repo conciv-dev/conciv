@@ -3428,6 +3428,9 @@ importers:
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
+      '@conciv/vitest-config':
+        specifier: workspace:*
+        version: link:../../vitest-config
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)

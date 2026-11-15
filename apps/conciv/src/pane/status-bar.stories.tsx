@@ -28,6 +28,7 @@ function statusStory(status: SessionStatus, diff = {files: 3, adds: 42, dels: 11
   }
 }
 
+export const Unstarted: Story = statusStory({kind: 'unstarted', label: ''}, {files: 0, adds: 0, dels: 0}, '--')
 export const Running: Story = statusStory({kind: 'running', label: 'RUNNING'})
 export const RunningQueued: Story = statusStory({kind: 'running', label: 'RUNNING 1/3'})
 export const Waiting: Story = statusStory({kind: 'waiting', label: 'WAITING'})

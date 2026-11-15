@@ -13,6 +13,8 @@ coverage/
 .playwright-cli/
 # conciv runtime state the vite plugin writes into a consuming app's root
 .conciv/
+# state each e2e app's web server keeps beside its playwright config (home, server log, harness homes)
+.conciv-e2e/
 # stale runtime state from the old `aidx` tool name (pre-rename); never commit
 .aidx/
 # Claude Code local worktrees (git worktrees created under the repo)
