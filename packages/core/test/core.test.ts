@@ -3105,7 +3105,7 @@ describe('plugin rpc over the socket', () => {
     events: {},
   })
 
-  test('a registered contract answers a socket client, every failure keeps its text, and an event reaches two subscribers', async () => {
+  test('a registered contract answers a socket client, every failure keeps its text, an event reaches two subscribers, and a quiet filtered stream hears the heartbeat', async () => {
     const served = await serveCore(tempDir('conciv-core-unit-'), [], {})
     const client = makeBrowserRpcClient(served.origin)
     const connection = browserRpcConnection(served.origin)
@@ -3169,6 +3169,10 @@ describe('plugin rpc over the socket', () => {
       await host.runPromise(registration.events.emit('indexed', {count: 3}))
       const indexed = {done: false, value: expect.objectContaining({type: 'rpc.acme.indexed', data: {count: 3}})}
       expect(await Promise.all([typedNext, all.next()])).toEqual([indexed, indexed])
+      expect(await all.next()).toEqual({
+        done: false,
+        value: {id: expect.stringMatching(/^evt_/), type: 'server.heartbeat', data: {}},
+      })
       await typed.return?.()
       await all.return()
       await connected.return?.()
