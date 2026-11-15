@@ -11,7 +11,6 @@ import {
   type JSX,
 } from 'solid-js'
 import {useQuery, type ChatSession} from '@conciv/client'
-import {Button} from '@conciv/ui-kit-system'
 import {z} from 'zod'
 import {
   activeToolCall,
@@ -66,6 +65,7 @@ import {PaneComposer} from './pane-composer.js'
 import {OlderMessages} from './older-messages.js'
 import {usePaneMessaging} from './use-pane-messaging.js'
 import {RunErrorRow} from './run-error-row.js'
+import {PaneAlert} from './pane-alert.js'
 import {viewTabPanelAttributes} from './view-tab-ids.js'
 import {QueueStrip} from './queue-strip.js'
 
@@ -82,7 +82,6 @@ const THINKING_TITLE = 'Thinking…'
 const RESPONDING_TITLE = 'Responding…'
 const HARNESS_LABEL =
   'self-start ps-[var(--chat-trace-gutter)] text-chat-micro leading-loose [font-family:var(--chat-mono)] text-chat-faint'
-const ERROR = 'flex gap-2 items-center text-chat-danger text-chat-sm anim-msg'
 const LOAD_FAILED = 'Couldn’t load this conversation'
 
 function resetSlideOnSelf(reset: () => void) {
@@ -527,22 +526,4 @@ function LostQueueReceiver(props: {sessionId: string; sink: DraftSink}): JSX.Ele
 function LoadFailedAlert(props: {busy: boolean; sessionId: string}): JSX.Element {
   const liveSessions = useLiveSessions()
   return <PaneAlert message={LOAD_FAILED} busy={props.busy} onRetry={() => liveSessions.reopen(props.sessionId)} />
-}
-
-function PaneAlert(props: {message: string; busy: boolean; onRetry: () => void}): JSX.Element {
-  return (
-    <div class={ERROR} role="alert">
-      <span class="flex-1">{props.message}</span>
-      <Button
-        variant="outline-danger"
-        size="sm"
-        class="shrink-0 min-h-8 font-semibold"
-        disabled={props.busy}
-        aria-busy={props.busy}
-        onClick={() => props.onRetry()}
-      >
-        {props.busy ? 'Retrying…' : 'Retry'}
-      </Button>
-    </div>
-  )
 }
