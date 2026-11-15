@@ -1,13 +1,16 @@
 import {z} from 'zod'
 import {defineTool, toolError} from '@conciv/extension/tool'
-import type {ServerToolPageAccess} from '@conciv/extension/registry'
-import {HOT_UPDATE_WAIT_MS, HotUpdateWaitSchema, hmrDef} from '@conciv/extension-page/defs'
 import {BundlerConfigSchema, ModuleNodeSchema, type BundlerBridge} from '@conciv/protocol/bundler-types'
-import {TabsListingSchema, type TabsListing} from '@conciv/protocol/chat-types'
+import {TabsListingSchema, type SessionId, type TabsListing} from '@conciv/protocol/chat-types'
 import {OkResult, type BuiltinCategory} from './shared.js'
 import {OpenInput} from './open-input.js'
 
-export type ServerToolContext = {bundler: () => BundlerBridge | undefined}
+type HotUpdateWait = {applied: boolean; waitedMs: number}
+
+export type ServerToolContext = {
+  bundler: () => BundlerBridge | undefined
+  hotUpdate: (sessionId: SessionId, timeout: number) => Promise<HotUpdateWait>
+}
 
 export type OpenToolContext = {openInEditor: (file: string, line?: number, column?: number) => void}
 
@@ -35,7 +38,7 @@ function serverTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   run: (
     input: z.infer<z.ZodObject<Shape>>,
     bundler: BundlerBridge,
-    page: ServerToolPageAccess,
+    hotUpdate: () => Promise<HotUpdateWait>,
   ) => Promise<z.infer<Out>> | z.infer<Out>
 }) {
   const category: BuiltinCategory = 'server'
@@ -53,7 +56,9 @@ function serverTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
       keywords: spec.keywords ?? [],
       positional: spec.positional,
     },
-  }).server((input, ctx: ServerToolContext, _request, page) => spec.run(input, requireBundler(ctx), page))
+  }).server((input, ctx: ServerToolContext, request) =>
+    spec.run(input, requireBundler(ctx), () => waitForHotUpdate(ctx, request.sessionId)),
+  )
 }
 
 const configTool = serverTool({
@@ -107,13 +112,12 @@ const transformTool = serverTool({
   run: (input, bundler) => bundler.transform(input.url),
 })
 
-const NOT_WAITED = {applied: false, waitedMs: 0}
+const HOT_UPDATE_WAIT_MS = 5000
 
-async function waitForHotUpdate(page: ServerToolPageAccess): Promise<{applied: boolean; waitedMs: number}> {
-  const answer = await page.call(hmrDef.name, {timeout: HOT_UPDATE_WAIT_MS}).catch(() => null)
-  if (answer === null) return NOT_WAITED
-  const {applied, waitedMs} = HotUpdateWaitSchema.parse(answer)
-  return {applied, waitedMs}
+const NOT_WAITED: HotUpdateWait = {applied: false, waitedMs: 0}
+
+function waitForHotUpdate(ctx: ServerToolContext, sessionId: SessionId): Promise<HotUpdateWait> {
+  return ctx.hotUpdate(sessionId, HOT_UPDATE_WAIT_MS).catch(() => NOT_WAITED)
 }
 
 const reloadTool = serverTool({
@@ -129,9 +133,9 @@ const reloadTool = serverTool({
     applied: z.boolean().describe('the page applied the hot update before this returned'),
     waitedMs: z.number(),
   }),
-  run: async (input, bundler, page): Promise<{ok: true; applied: boolean; waitedMs: number}> => {
+  run: async (input, bundler, hotUpdate): Promise<{ok: true; applied: boolean; waitedMs: number}> => {
     await bundler.reload(input.file)
-    return {ok: true, ...(await waitForHotUpdate(page))}
+    return {ok: true, ...(await hotUpdate())}
   },
 })
 

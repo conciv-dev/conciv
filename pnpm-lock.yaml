@@ -5236,9 +5236,6 @@ importers:
       '@conciv/extension':
         specifier: workspace:^
         version: link:../extension
-      '@conciv/extension-page':
-        specifier: workspace:^
-        version: link:../extensions/page
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol

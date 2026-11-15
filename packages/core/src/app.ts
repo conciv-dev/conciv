@@ -72,6 +72,7 @@ import {outsideRefusal} from './api/outside-refusal.js'
 import {outsideRunCapabilities} from './api/outside-run.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
+import {makePagePlugin} from './page/page-plugin.js'
 import {holdForNextReply, owesFollowUp, pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
 import {
@@ -464,6 +465,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     root: opts.cwd,
     storeCapture: (params) => writeToolCapture(db, params),
     bundler: () => opts.bridge,
+    hotUpdate: (sessionId: SessionId, timeout: number) => pagePlugin.hmrWait({sessionId, timeout}),
     openInEditor: opts.openInEditor,
     listTabs: outsideTabs.list,
   })
@@ -619,6 +621,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: primitives.page.queues}),
   })
   const pluginHost: PluginHost = plugins.runtime
+  const pagePlugin = makePagePlugin(() => pluginHost)
   await pluginHost.context()
   const idleScope = Effect.runSync(Scope.make())
   const idleTriggers = Effect.runSync(FiberMap.make<SessionId>().pipe(Scope.provide(idleScope)))

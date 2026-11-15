@@ -31,7 +31,7 @@ Builtin tools for an agent working against a dev server: seven `server_*` tools 
 ## Side Effects
 
 - `server_reload` / `server_restart` trigger a hot update or a dev-server restart through the `BundlerBridge`.
-- `server_reload` calls the page RPC `hmrDef.name` with timeout `HOT_UPDATE_WAIT_MS` (`@conciv/extension-page/defs`) (`waitForHotUpdate`).
+- `server_reload` asks its context's `hotUpdate(sessionId, HOT_UPDATE_WAIT_MS)` (5000 ms), which core answers from the page plugin's `hmr.wait` (`waitForHotUpdate`); a failed wait answers `{applied: false, waitedMs: 0}`.
 - `open` calls `ctx.openInEditor(file, line)`.
 
 ## Verification

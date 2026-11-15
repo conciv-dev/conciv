@@ -555,6 +555,7 @@ describe('chat plane', () => {
       root,
       storeCapture: () => Promise.resolve(),
       bundler: () => undefined,
+      hotUpdate: async () => ({applied: false, waitedMs: 0}),
       openInEditor: () => {},
       listTabs: async () => ({tabs: [], unreachable: []}),
     })
@@ -1885,6 +1886,7 @@ describe('page bus and the session scope', () => {
         root: fixture.stateRoot,
         storeCapture: () => Promise.resolve(),
         bundler: () => undefined,
+        hotUpdate: async () => ({applied: false, waitedMs: 0}),
         openInEditor: () => {},
         listTabs: async () => ({tabs: [], unreachable: []}),
       })
