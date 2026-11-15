@@ -10,7 +10,7 @@ Landing page sections: nav, hero with the demo, framework install tabs with pre-
 - `Hero` (`hero.tsx`): hero with the lazy `Demo` from `./demo/demo`
 - `FrameworkTabs` (`framework-tabs.tsx`): compound `Root`, `List`, `Trigger`, `Panel`, `FileBar`, `Copy`, `Code`, `Note`
 - `CopyButton` (`copy-button.tsx`): compound `Root`, `Trigger`, `Feedback`
-- `TryLiveButton` (`try-live-button.tsx`): opens the widget panel through `panelCommands.emit('open')`
+- `TryLiveButton` (`try-live-button.tsx`): a router link to `/?try=1`; the widget panel follows that param, so a click before hydration still opens it
 - `SiteNav`, `SiteFooter`, `FeaturesSection`, `HowItWorks`, `BundlerBand`, `InstallChip`, `GitHubStarLink`, `RobotFab`, `SparkMark`, `ThemeToggle`
 - `SmoothScroll`, `useSmoothAnchor` (`smooth-scroll.tsx`): Lenis smooth scrolling
 - `LandingMotion` (`lazy-motion.tsx`): lazy `domMax` motion features from `motion-features.ts`

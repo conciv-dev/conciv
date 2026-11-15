@@ -97,7 +97,9 @@ export function assistCapabilities(tools: ConcivServerTool[]): CodeCapability[] 
   }))
 }
 
-type EffectRun = <A, E>(effect: Effect.Effect<A, E>, signal: AbortSignal | undefined) => Promise<Exit.Exit<A, E>>
+type EffectRun<R> = <A, E>(effect: Effect.Effect<A, E, R>, signal: AbortSignal | undefined) => Promise<Exit.Exit<A, E>>
+
+type CurrentDomain<R> = Effect.Effect<ToolDomain, never, R>
 
 function jsonSchemaOnly(schema: ReturnType<typeof ToolRuntime.definition>['inputSchema']): SchemaInput {
   return {...schema}
@@ -153,10 +155,10 @@ function refusal(name: string, cause: Cause.Cause<Tool.Error>): unknown {
   return Cause.squash(cause)
 }
 
-async function runTool(
+async function runTool<R>(
   name: string,
-  run: EffectRun,
-  effect: Effect.Effect<Tool.NormalizedResult, Tool.Error>,
+  run: EffectRun<R>,
+  effect: Effect.Effect<Tool.NormalizedResult, Tool.Error, R>,
   signal: AbortSignal | undefined,
 ): Promise<CapabilityResult> {
   const exit = await run(effect, signal)
@@ -196,7 +198,21 @@ function enclosingNamespaces(namespaces: CodeModeSnapshot['namespaces'], path: s
   })
 }
 
-function codeModeCapabilities(codeMode: CodeModeSnapshot, agent: Agent.Id, run: EffectRun): CodeCapability[] {
+function currentExecute(
+  {snapshot, agent}: ToolDomain,
+  name: string,
+  input: unknown,
+  request: ToolRequest,
+): Effect.Effect<Tool.NormalizedResult, Tool.Error> {
+  const context = toolContext(request, agent)
+  return snapshot.codeMode?.execute(name, input, context) ?? snapshot.execute(directCall(name, input, context))
+}
+
+function codeModeCapabilities<R>(
+  codeMode: CodeModeSnapshot,
+  current: CurrentDomain<R>,
+  run: EffectRun<R>,
+): CodeCapability[] {
   return [...codeMode.tools].map(([name, tool]) => {
     const path = qualifiedName(tool)
     const definition = ToolRuntime.definition(tool)
@@ -210,7 +226,12 @@ function codeModeCapabilities(codeMode: CodeModeSnapshot, agent: Agent.Id, run: 
       inputSchema: jsonSchemaOnly(definition.inputSchema),
       outputSchema: pluginOutput(definition.outputSchema),
       execute: (input, request) =>
-        runTool(name, run, codeMode.execute(name, input, toolContext(request, agent)), request.signal),
+        runTool(
+          name,
+          run,
+          Effect.flatMap(current, (domain) => currentExecute(domain, name, input, request)),
+          request.signal,
+        ),
     }
   })
 }
@@ -219,7 +240,11 @@ function pluginOutput(schema: ReturnType<typeof ToolRuntime.definition>['outputS
   return schema === undefined ? PLUGIN_TEXT_OUTPUT : {...schema}
 }
 
-function directCapabilities(snapshot: Tool.Snapshot, agent: Agent.Id, run: EffectRun): CodeCapability[] {
+function directCapabilities<R>(
+  snapshot: Tool.Snapshot,
+  current: CurrentDomain<R>,
+  run: EffectRun<R>,
+): CodeCapability[] {
   return snapshot.definitions.map((definition) => ({
     name: definition.name,
     path: definition.name,
@@ -231,24 +256,27 @@ function directCapabilities(snapshot: Tool.Snapshot, agent: Agent.Id, run: Effec
       runTool(
         definition.name,
         run,
-        snapshot.execute(directCall(definition.name, input, toolContext(request, agent))),
+        Effect.flatMap(current, (domain) =>
+          domain.snapshot.execute(directCall(definition.name, input, toolContext(request, domain.agent))),
+        ),
         request.signal,
       ),
   }))
 }
 
-export function toolDomainCapabilities(
+export function toolDomainCapabilities<R>(
   capabilities: readonly CodeCapability[],
-  {snapshot, agent}: ToolDomain,
-  run: EffectRun,
+  {snapshot}: ToolDomain,
+  current: CurrentDomain<R>,
+  run: EffectRun<R>,
   collided: (name: string) => void,
 ): CodeCapability[] {
   const codeMode = snapshot.codeMode
   const offered = codeMode === undefined ? [] : capabilities
   const taken = (capability: CodeCapability) => offered.some((entry) => entry.name === capability.name)
   const added = [
-    ...(codeMode === undefined ? [] : codeModeCapabilities(codeMode, agent, run)),
-    ...directCapabilities(snapshot, agent, run),
+    ...(codeMode === undefined ? [] : codeModeCapabilities(codeMode, current, run)),
+    ...directCapabilities(snapshot, current, run),
   ]
   added.filter(taken).forEach((capability) => collided(capability.name))
   return [...offered, ...added.filter((capability) => !taken(capability))]

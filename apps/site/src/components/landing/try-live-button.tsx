@@ -1,13 +1,12 @@
 import {useSyncExternalStore} from 'react'
+import {Link} from '@tanstack/react-router'
 import {Button} from '@/components/ui/button'
 import {
   CONNECTION_CHANGED_EVENT,
-  createEventBusClient,
-  PANEL_PLUGIN_ID,
   type EventBusClientState,
-  type PanelCommandEventMap,
   type WidgetConnectionChangedDetail,
 } from '@conciv/protocol/event-bus'
+import {panelCommands} from '@/lib/panel-commands'
 import {tryButtonLabel} from '@/lib/try-state'
 
 declare global {
@@ -35,12 +34,6 @@ function useConcivConnected(): boolean {
   )
 }
 
-const panelCommands = createEventBusClient<PanelCommandEventMap>({
-  pluginId: PANEL_PLUGIN_ID,
-  reconnectEveryMs: 500,
-  maxRetries: 60,
-})
-
 function useBusState(): EventBusClientState {
   return useSyncExternalStore(panelCommands.subscribe, panelCommands.getState, () => 'idle')
 }
@@ -48,12 +41,13 @@ function useBusState(): EventBusClientState {
 export function TryLiveButton() {
   const isConnected = useConcivConnected()
   const busState = useBusState()
-  const open = () => panelCommands.emit('open', undefined)
   return (
     <div className="mt-6">
-      <Button variant="default" onClick={open} aria-busy={busState === 'connecting'}>
-        <span className="size-1.5 rounded-full bg-primary-foreground" aria-hidden />
-        {tryButtonLabel({connected: isConnected, pending: busState === 'connecting'})}
+      <Button variant="default" asChild aria-busy={busState === 'connecting'}>
+        <Link to="/" search={(previous) => ({...previous, try: 1})} resetScroll={false}>
+          <span className="size-1.5 rounded-full bg-primary-foreground" aria-hidden />
+          {tryButtonLabel({connected: isConnected, pending: busState === 'connecting'})}
+        </Link>
       </Button>
     </div>
   )
