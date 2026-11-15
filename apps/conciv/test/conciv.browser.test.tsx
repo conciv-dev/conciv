@@ -764,14 +764,16 @@ describe('chat pane', () => {
       await expect.element(page.getByRole('button', {name: 'Send message', exact: true})).toBeVisible()
       await expect.element(threadText('take this one back')).not.toBeInTheDocument()
       await expect.element(page.getByRole('button', {name: 'Retry'})).not.toBeInTheDocument()
-      await expect.element(notifications().getByText(/could not be sent|connection closed/)).not.toBeInTheDocument()
+      await expect
+        .element(notifications().getByText(/Stream response body read failed|could not be sent/))
+        .not.toBeInTheDocument()
 
       const unstopped = await faults.install({kind: 'chat-frame-gate', onRelease: 'cut'})
       await userEvent.click(input())
       await userEvent.keyboard('{Enter}')
       await coreControl.awaitFaultPending(unstopped, 1)
       await coreControl.releaseFault(unstopped)
-      await expect.element(notifications()).toMatchTextContent(/could not be sent|connection closed/)
+      await expect.element(notifications()).toMatchTextContent(/Stream response body read failed|could not be sent/)
       await expect.element(input()).toHaveTextContent('take this one back')
     })
   })
