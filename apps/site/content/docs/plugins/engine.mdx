@@ -1,0 +1,206 @@
+---
+title: Engine SDK
+description: What a plugin's engine half can do. Tools, RPC methods and events, asking permission, skills, hooks and storage.
+---
+
+The engine half is the default export of `index.ts` (or the `./server` export of a package), made with
+`Plugin.define` from `@conciv/plugin`. `setup(ctx)` runs when the plugin loads and may return a cleanup, which runs
+when it reloads or stops.
+
+```ts
+import {Plugin} from '@conciv/plugin'
+
+export default Plugin.define({
+  id: 'hello',
+  async setup(ctx) {
+    const registration = await ctx.rpc.register(Hello, {greet: async ({name}) => greet(name)})
+    return () => registration.dispose()
+  },
+})
+```
+
+## The context
+
+<TypeTable
+  type={{
+    tool: {required: true, type: 'ToolDomain', description: 'Add, change or remove tools; hook their calls.'},
+    rpc: {required: true, type: 'RpcDomain', description: 'Register the methods and events of an RPC contract.'},
+    permission: {required: true, type: 'PermissionDomain', description: 'Ask the user before an action runs.'},
+    agent: {required: true, type: 'AgentDomain', description: "Add permission rules to the session's agent."},
+    skill: {required: true, type: 'SkillDomain', description: 'Add skills the agent loads when it needs them.'},
+    session: {
+      required: true,
+      type: 'SessionDomain',
+      description: 'List, read and stop sessions; hook a new prompt and a finished run.',
+    },
+    storage: {
+      required: true,
+      type: 'StorageDomain',
+      description: "The plugin's own key-value store, and storage.directory, a folder made for the plugin.",
+    },
+    options: {required: true, type: 'PluginOptions', description: 'The options from its [name, options] entry.'},
+    location: {required: true, type: 'Location.Info', description: 'location.directory is the project root.'},
+    bundler: {
+      required: true,
+      type: 'BundlerDomain | undefined',
+      description: 'Build diagnostics from your dev server. Undefined when the engine runs without one.',
+    },
+    servers: {
+      required: true,
+      type: 'Servers',
+      description: 'Every running conciv engine on this machine, this one included, each with a client.',
+    },
+    harness: {
+      required: true,
+      type: 'HarnessDomain',
+      description: "Which agent CLI runs a session, its own session tokens, and the engine's MCP address.",
+    },
+    event: {required: true, type: 'EventDomain', description: "Subscribe to the engine's events."},
+    model: {required: true, type: 'ModelDomain', description: "The models of the session's harness."},
+  }}
+/>
+
+## Tools
+
+`ctx.tool.transform` hands you the tool list; `add` puts a tool on it.
+
+```ts
+await ctx.tool.transform((tools) => {
+  tools.add({
+    name: 'hello_greet',
+    description: 'Greet someone by name',
+    input: z.object({name: z.string()}),
+    output: z.object({message: z.string(), count: z.number()}),
+    execute: async ({name}) => ({output: await greet(name)}),
+  })
+})
+```
+
+<TypeTable
+  type={{
+    name: {required: true, type: 'string', description: 'Letters, digits and underscores.'},
+    description: {required: true, type: 'string', description: 'What the agent reads to decide when to call it.'},
+    input: {required: true, type: 'Standard Schema | JSON Schema', description: 'Checked before execute runs.'},
+    output: {type: 'Standard Schema | JSON Schema', description: 'The shape of result.output.'},
+    'execute(input, context)': {
+      required: true,
+      type: 'Promise<{output?, content?, metadata?}>',
+      description: 'context carries sessionId, agent, id (the call id), signal and progress(metadata).',
+    },
+    options: {
+      type: '{namespace?, codemode?, pinned?, permission?}',
+      description: 'Where the tool is listed for the agent. See below.',
+    },
+  }}
+/>
+
+The agent reaches a tool through code mode as `external_<name>`, or `external_<namespace>_<name>` with a
+`namespace`. `pinned: true` lists it before the others. `codemode: false` offers it to the agent as a tool of its
+own. To fail a call with a message the agent reads, throw `Tool.toolError({message})`:
+
+```ts
+import {Tool} from '@conciv/plugin'
+
+throw Tool.toolError({message: 'no canvas is open to draw into'})
+```
+
+## RPC methods and events
+
+A contract names its methods, their input and output, the errors a method may answer and the events it may send.
+Error names that start with `rpc.` are reserved.
+
+```ts
+const Probe = Rpc.define({
+  id: 'probe',
+  methods: {
+    limited: {input: z.object({}), output: z.string(), errors: {limited: z.object({retryAfter: z.number()})}},
+  },
+  events: {},
+})
+
+await ctx.rpc.register(Probe, {
+  limited: async (_input, context) => context.error('limited', 'try later', {retryAfter: 5}),
+})
+```
+
+`ctx.rpc.register` resolves to a registration: `events.emit(name, data)` sends an event, which a browser half or
+another engine receives as `rpc.<id>.<name>`, and `dispose()` takes the methods down. A method answers your browser
+half (`ctx.client.rpc(Contract)`), a plugin in another engine (`ctx.servers.get(id)?.client.rpc(Contract)`) and the
+[terminal](/docs/plugins/terminal).
+
+## Asking permission
+
+Add an ask rule for your action to every agent, then assert it inside `execute`. The user gets a **Permission**
+card; the call goes on once they approve and fails when they deny. From the whiteboard plugin:
+
+```ts
+await ctx.agent.transform((editor) =>
+  editor
+    .list()
+    .forEach((agent) => agent.permissions.push({action: 'whiteboard_canvas_clear', resource: '*', effect: 'ask'})),
+)
+
+await ctx.permission.assert({
+  action: 'whiteboard_canvas_clear',
+  resources: ['*'],
+  save: ['*'],
+  metadata,
+  sessionId: tool.sessionId,
+  agent: tool.agent,
+  source: {type: 'tool', messageId: tool.messageId, id: tool.id},
+})
+```
+
+`save` is what **Always allow** remembers for the project. A denied call tells the agent
+`The user denied running tool "<name>". Do not retry it; continue without it.` A method called from the terminal never
+asks: the terminal is the owner. See [Approvals](/docs/usage/approvals).
+
+## Skills
+
+A skill is guidance the agent loads when its description matches the task. From the TanStack plugin:
+
+```ts
+await ctx.skill.transform((editor) =>
+  editor.add({
+    id: 'tanstack',
+    name: 'TanStack',
+    description: "Read a TanStack Router or Start app's dev server. Load it before your first tanstack tool call.",
+    path: 'skill://tanstack/SKILL.md',
+    content: '# TanStack\n\n...',
+  }),
+)
+```
+
+Skills can also come from folders, with no plugin. See [Skills](/docs/skills).
+
+## Hooks
+
+`ctx.session.hook('prompt', ...)` runs on each new user message before it is stored and sent to the agent. A hook
+may change the text:
+
+```ts
+await ctx.session.hook('prompt', (event) => {
+  event.prompt.text += ' with context'
+})
+```
+
+`ctx.session.hook('experimental.idle', ...)` runs when a run completes; not after a stopped or failed run.
+`ctx.tool.hook('execute.before', ...)` and `'execute.after'` run around every tool call.
+
+```ts
+await ctx.session.hook('experimental.idle', async ({sessionId}) => {
+  await autoCommitDraft(store, sessionId)
+})
+```
+
+## Storage
+
+Each plugin has its own key-value store in the project database. Values are JSON.
+
+```ts
+const count = Number((await ctx.storage.get('count')) ?? 0) + 1
+await ctx.storage.set('count', count)
+```
+
+`remove(key)` deletes one key and `scan({prefix, after?, limit?})` pages through keys. For files, use
+`ctx.storage.directory`, a folder the engine makes for the plugin.

@@ -1,0 +1,86 @@
+---
+title: Skills
+description: The skills conciv gives the agent, and your own skills from a folder.
+icon: BookOpen
+---
+
+A skill is guidance the agent loads when a task matches its description, through conciv's `skill` tool. It is not
+added to every prompt.
+
+## Built in
+
+<TypeTable
+  type={{
+    conciv: {
+      required: true,
+      type: 'skill://conciv/SKILL.md',
+      description:
+        'For any question about conciv itself: setup, configuration, harnesses, the widget, the CLI, extending conciv and troubleshooting. Points the agent at these docs.',
+    },
+    report: {
+      required: true,
+      type: 'skill://report/SKILL.md',
+      description:
+        "For reporting a conciv issue with the GitHub CLI. Ends with a snapshot of conciv's version, Node, the OS and your configured plugins.",
+    },
+  }}
+/>
+
+Plugins add skills of their own, such as `tanstack` or `test-runner`. See [Engine SDK](/docs/plugins/engine#skills).
+
+## Your own skills
+
+Put a skill in one of these folders. The engine reads them in this order, so a project skill replaces a home skill
+with the same id.
+
+<TypeTable
+  type={{
+    '<home>/skill/ and <home>/skills/': {
+      required: true,
+      type: 'every project',
+      description: "conciv's home folder, homeDir or CONCIV_HOME. See Configuration.",
+    },
+    'conciv/skill/ and conciv/skills/': {required: true, type: 'this project', description: 'In your project root.'},
+  }}
+/>
+
+<Files>
+  <Folder name="conciv" defaultOpen>
+    <Folder name="skills" defaultOpen>
+      <Folder name="release" defaultOpen>
+        <File name="SKILL.md" />
+      </Folder>
+      <File name="style.md" />
+    </Folder>
+  </Folder>
+</Files>
+
+A skill is a folder holding a `SKILL.md`, found up to six folders deep, or a `.md` file at the top of the folder. Its
+id is the folder name (`release`) or the file name (`style`).
+
+```md title="conciv/skills/release/SKILL.md"
+---
+name: release
+description: Use when the user asks to cut a release of this app.
+---
+
+# Release
+
+Run the checks, bump the version, and write the changelog entry.
+```
+
+<TypeTable
+  type={{
+    name: {type: 'string', default: 'the id', description: 'The name the agent sees.'},
+    description: {type: 'string', description: 'When to load it. The agent decides from this line.'},
+    'disable-model-invocation': {
+      type: 'boolean',
+      description: 'true: the agent does not load it on its own.',
+    },
+  }}
+/>
+
+Add, edit or remove a skill and the running engine picks it up: no restart. A file whose frontmatter does not parse is
+skipped. Folders whose name starts with `.` are skipped.
+
+Skills in `.claude/skills` and `.agents/skills` are left to the agent CLI, which already loads them.

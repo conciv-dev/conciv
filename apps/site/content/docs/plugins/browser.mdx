@@ -1,0 +1,208 @@
+---
+title: Browser SDK
+description: What a plugin's browser half can add to the widget, the stores it keeps, and the host APIs and ui kit on its context.
+---
+
+The browser half is the default export of `plugin-experimental.tsx`, made with `Plugin.define` from
+`@conciv/plugin/experimental` and built with the [Vite preset](/docs/plugins/your-first-plugin#the-browser-half). It
+has no id: the widget gives it the engine half's id as `ctx.id`. `setup` is synchronous and runs in a Solid owner.
+Everything it adds goes away when the plugin reloads or stops.
+
+```tsx
+import {z} from 'zod'
+import {createLatest, Panel, Plugin, Slot, Store} from '@conciv/plugin/experimental'
+import {Tanstack} from './rpc.js'
+
+export default Plugin.define({
+  stores: {prefs: Store.global(z.object({open: z.boolean()}), {open: false})},
+  setup(ctx) {
+    const routes = createLatest(
+      () => ctx.id,
+      (_id, signal) => ctx.client.rpc(Tanstack).routes({}, {signal}),
+    )
+    ctx.add(Slot, {at: 'session.status', render: () => <span>{routes.latest?.routes.length ?? 0} routes</span>})
+    ctx.add(Panel, {id: 'routes', region: 'pane', list: () => [{id: 'routes', title: 'Routes'}], render: () => <p />})
+  },
+})
+```
+
+`ctx.client.rpc(Contract)` calls the plugin's own engine half. `createLatest(key, load)` keeps the latest answer of a
+load that reruns when `key` changes.
+
+## What a plugin adds
+
+`ctx.add(Registry, item)` adds one item.
+
+<TypeTable
+  type={{
+    Panel: {
+      required: true,
+      type: "{id, region: 'pane', list, render}",
+      description: "Tabs in the pane's status bar. An open plugin tab takes the chat's place.",
+    },
+    Slot: {
+      required: true,
+      type: '{at, render}',
+      description: 'A part drawn at a fixed place in the widget. Places below.',
+    },
+    ComposerPill: {
+      required: true,
+      type: '{id, order?, show, menu?}',
+      description: 'A pill above the composer: a button, a menu of rows, or a popover.',
+    },
+    SettingsPage: {
+      required: true,
+      type: '{id, title, render, page?, section?, icon?}',
+      description: 'A settings tab of its own, or with page: general a section on the General page.',
+    },
+    LinkHandler: {
+      required: true,
+      type: '{match, open, priority?}',
+      description: 'Opens links in chat messages that it matches.',
+    },
+    CodeBlock: {
+      required: true,
+      type: '{languages, render}',
+      description: 'Draws fenced code blocks of the languages it lists.',
+    },
+  }}
+/>
+
+### Slot places
+
+<TypeTable
+  type={{
+    'session.status': {
+      required: true,
+      type: '{screen, session}',
+      description: "The session's status line, beside the composer.",
+    },
+    'session.header': {required: true, type: 'session input', description: 'The top of a session.'},
+    'window.bottom': {required: true, type: '{}', description: 'The bottom of the widget.'},
+    'page.overlay': {
+      required: true,
+      type: '{}',
+      description: 'Over your page. With hides: true the widget hides while the overlay is up.',
+    },
+  }}
+/>
+
+### Composer pills
+
+`show` runs for each open composer and returns the pill, or `undefined` for none. With `run` the pill is a button;
+with `rows` it opens a menu; with `menu` it opens a popover you render. `order` sorts pills, lowest first.
+
+```ts
+ctx.add(ComposerPill, {
+  id: 'checks',
+  order: 1,
+  show: () => ({
+    label: 'Checks',
+    title: 'Checks pill',
+    icon: 'list-checks',
+    tone: 'success',
+    rows: [
+      {
+        label: 'Run the checks',
+        detail: '3 left',
+        icon: 'terminal',
+        run: () => ctx.toast.show({title: 'Checks started'}),
+      },
+      {label: 'Locked check', icon: 'lock'},
+    ],
+  }),
+})
+```
+
+A row without `run` is shown disabled. `tone` is `success`, `warning` or `danger`.
+
+### Settings pages
+
+```ts
+ctx.add(SettingsPage, {id: 'prefs', title: 'Alpha prefs', render: () => <p>Alpha prefs body</p>})
+ctx.add(SettingsPage, {id: 'block', page: 'general', title: 'Block', render: () => <p>Alpha section on general</p>})
+```
+
+The first is a tab under **Settings** of its own. The second joins the General page as a section.
+
+## Stores
+
+Declare stores in `stores`; read and write them on `ctx.stores`. A store's schema is any Standard Schema with an object
+output, and its second argument is the initial value.
+
+<TypeTable
+  type={{
+    'Store.global(schema, initial)': {
+      required: true,
+      type: 'store',
+      description: 'One value, not tied to a project or a session.',
+    },
+    'Store.project(schema, initial)': {
+      required: true,
+      type: 'store',
+      description: 'One value for the project, kept with its project settings.',
+    },
+    'Store.session(schema, initial)': {required: true, type: 'store', description: 'One value per session.'},
+  }}
+/>
+
+```ts
+ctx.stores.note.set({text: 'saved note'})
+ctx.stores.visits.update((draft) => {
+  draft.count += 1
+})
+```
+
+`value` reads the current value. A stored value that fails the schema keeps its valid fields; each failing field
+takes the initial value.
+
+## Host APIs
+
+<TypeTable
+  type={{
+    'ctx.ui': {
+      required: true,
+      type: 'components',
+      description:
+        "The widget's own parts: Icon, Button, IconButton, Tooltip, Menu, MenuItem, MenuGroup, MenuSub, Loader, Dialog, Switch, TextInput, Keybind, Markdown, Code, SettingsLayout, SettingsSection, SettingsRow.",
+    },
+    'ctx.toast': {
+      required: true,
+      type: 'show(options)',
+      description: 'A toast with title, description, variant, icon and actions.',
+    },
+    'ctx.dialogs': {
+      required: true,
+      type: 'open, confirm, alert, prompt, select',
+      description: 'Dialogs on the widget, stacked; open takes a render function.',
+    },
+    'ctx.screen.composer': {
+      required: true,
+      type: 'insert, setText, focus',
+      description: "Write into the session's composer. insert goes at the caret and takes focus.",
+    },
+    'ctx.layout': {
+      required: true,
+      type: 'open, settings, draft, ...',
+      description: 'Open a plugin tab, a settings page, or a draft session with a prompt.',
+    },
+    'ctx.system': {
+      required: true,
+      type: 'copy, save, openExternal',
+      description: 'Clipboard, a file download, a new tab.',
+    },
+    'ctx.servers': {
+      required: true,
+      type: 'Servers',
+      description: 'Every running conciv engine; servers.get(id)?.client.rpc(Contract) calls a plugin there.',
+    },
+  }}
+/>
+
+```ts
+ctx.dialogs.open(() => <ctx.ui.Dialog title="Fixture dialog">The dialog body</ctx.ui.Dialog>)
+ctx.layout.open('fixture:opened', props.session)
+ctx.system.save({name: 'fixture-note.txt', content: 'saved through the host'})
+```
+
+Use `ctx.ui` for every button, menu and dialog: a plugin never imports conciv's UI kit, and the build refuses it.

@@ -1,0 +1,99 @@
+---
+title: Calling a plugin from the terminal
+description: conciv plugin call, what it prints, its errors, and who is asked.
+---
+
+Every RPC method a plugin registers can be called from your terminal.
+
+```bash
+conciv plugin call <rpcId> <method> --data '<json>'
+```
+
+You name the plugin's RPC id and the method; the CLI does not list them. `--data` (or `-d`) is the method's input as
+JSON. Leave it out to send no input.
+
+```bash
+conciv plugin call hello greet --data '{"name":"Ada"}'
+```
+
+```text title="output"
+{"ok":true,"data":{"message":"Hello, Ada!","count":1}}
+```
+
+## Built-in methods
+
+<TypeTable
+  type={{
+    'server config': {required: true, type: 'no input', description: "The dev server's resolved config."},
+    'server urls': {required: true, type: 'no input', description: 'Where the dev server listens.'},
+    'server resolve': {
+      required: true,
+      type: '{spec, importer?}',
+      description: 'Resolves an import the way the dev server does.',
+    },
+    'server graph': {required: true, type: '{file}', description: 'The module graph around one file.'},
+    'server transform': {required: true, type: '{url}', description: 'The code the dev server serves for a url.'},
+    'server restart': {required: true, type: '{force?}', description: 'Restarts the dev server.'},
+    'server open': {required: true, type: '{file, line?, column?}', description: 'Opens a file in your editor.'},
+    'experimental.page run': {
+      required: true,
+      type: '{sessionId, action}',
+      description: 'Runs one page action in the tab of a session. See Page control.',
+    },
+  }}
+/>
+
+```bash
+conciv plugin call server resolve --data '{"spec":"app.ts","importer":"/src/main.ts"}'
+conciv plugin call server open --data '{"file":"src/thing.ts","line":7,"column":3}'
+conciv plugin call experimental.page run --data '{"sessionId":"conciv_...","action":{"type":"text","selector":"h1"}}'
+```
+
+Installed plugins have their own: for example `conciv plugin call experimental.tanstack routeManifest`. Each plugin's
+README names its methods.
+
+## What it prints
+
+One JSON document on stdout: `{"ok":true,"data":...}` and exit code 0, or `{"ok":false,"error":...}` and exit code 1.
+
+<TypeTable
+  type={{
+    'rpc.unavailable': {
+      required: true,
+      type: 'PLUGIN_RPC',
+      description: 'RPC is unavailable: <rpcId>. No plugin registered that id.',
+    },
+    'rpc.method_not_found': {required: true, type: 'PLUGIN_RPC', description: 'Unknown RPC method: <rpcId>.<method>.'},
+    'rpc.invalid_input': {
+      required: true,
+      type: 'PLUGIN_RPC',
+      description: "The input does not match the method's schema; the message names the field.",
+    },
+    'an error the method declares': {
+      required: true,
+      type: 'PLUGIN_RPC',
+      description: "The method's own error, with its name as type and its data.",
+    },
+    '--data is not JSON': {required: true, type: 'no code', description: 'Refused before anything is sent.'},
+  }}
+/>
+
+```text title="output"
+{"ok":false,"error":{"kind":"user","message":"Unknown RPC method: hello.wave","code":"PLUGIN_RPC","type":"rpc.method_not_found"}}
+{"ok":false,"error":{"kind":"user","message":"Invalid input: expected string, received undefined","code":"PLUGIN_RPC","type":"rpc.invalid_input"}}
+{"ok":false,"error":{"kind":"user","message":"--data is not JSON: {name","hint":"pass the method's input as JSON, for example --data '{}'"}}
+```
+
+## Which engine it calls
+
+From your project folder, the engine of that project. From any other folder, the latest running conciv engine on
+this machine. With no engine running it fails with `No conciv dev server on <host>`.
+
+## Who is asked
+
+Nobody. The CLI reads the engine token your dev server wrote and calls as the owner, so a method runs without a
+permission card, `eval` included: `conciv plugin call experimental.page run` with an `eval` action runs the script.
+The same action from the agent inside a chat turn still asks you first.
+
+Agents connected from outside through [`conciv mcp`](/docs/cli#conciv-mcp) cannot call plugin methods: the engine
+answers them `outside agents can't use plugin routes; use the plugin in the tab`.

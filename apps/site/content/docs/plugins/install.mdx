@@ -1,0 +1,130 @@
+---
+title: Install a plugin
+description: The plugins list in your conciv config, plugin options, turning a plugin off, and the plugins conciv publishes.
+---
+
+Add the package, then name it in `plugins` where you add conciv.
+
+```bash
+pnpm add -D @conciv/plugin-tanstack
+```
+
+<Tabs items={['Vite', 'Next.js']}>
+
+<Tab value="Vite">
+
+```ts title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [conciv({plugins: ['@conciv/plugin-tanstack']})],
+})
+```
+
+</Tab>
+
+<Tab value="Next.js">
+
+```ts title="next.config.ts"
+import type {NextConfig} from 'next'
+import {withConciv} from '@conciv/it/plugin/nextjs'
+
+const nextConfig: NextConfig = {}
+
+export default withConciv(nextConfig, {plugins: ['@conciv/plugin-tanstack']})
+```
+
+</Tab>
+
+</Tabs>
+
+A package in the list that is not installed is installed by the engine when it starts. Restart the dev server after
+you change the list: the engine reads it once, when it starts.
+
+## Options
+
+Pass options as a `[name, options]` pair. Every option value must be JSON.
+
+```ts
+conciv({plugins: [['@conciv/plugin-test-runner', {runner: 'playwright'}]]})
+```
+
+## Local paths
+
+An entry that starts with `./`, `../` or `file://` is a folder, resolved from your project root. Files and folders in
+`conciv/plugins/` and `conciv/plugin/` need no entry. See [Your first plugin](/docs/plugins/your-first-plugin).
+
+```ts
+conciv({plugins: ['./tools/release-plugin']})
+```
+
+## Turn a plugin off
+
+An entry that starts with `-` turns off the plugin with that id. Project plugins load before the list, so this turns
+off `conciv/plugins/hello`:
+
+```ts
+conciv({plugins: ['-hello']})
+```
+
+`-*` turns off every plugin loaded before it, built-in ones included, and `-<prefix>.*` every id that starts with the
+prefix. A plugin with a
+browser half also has a switch in **Settings > Plugins**.
+
+## Plugins conciv publishes
+
+None of these is on until you add it.
+
+<TypeTable
+  type={{
+    '@conciv/plugin-tanstack': {
+      required: true,
+      type: 'no options',
+      description:
+        "TanStack Router and Start: the dev server's build errors, every route in src/routeTree.gen.ts, and recent server-function calls.",
+    },
+    '@conciv/plugin-test-runner': {
+      required: true,
+      type: "{runner?: 'vitest' | 'playwright'}",
+      description: 'Lists and runs your tests in a separate process, vitest by default. See Live tests.',
+    },
+    '@conciv/plugin-recorder': {
+      required: true,
+      type: "{masking?: 'none' | 'inputs' | 'sensitive', windowMinutes?: number, console?: boolean}",
+      description:
+        'Keeps a window of the page session and gives the agent its action log and keyframes. Defaults: no masking, a 10 minute window (60 at most), console on. Saved recordings go in .conciv/recorder/recordings.',
+    },
+    '@conciv/plugin-whiteboard': {
+      required: true,
+      type: 'no options',
+      description:
+        'The whiteboard tools: canvas, comments and pins, kept in .conciv/whiteboard/whiteboard.db. See Whiteboard.',
+    },
+  }}
+/>
+
+## Built in
+
+Always on, nothing to install.
+
+<TypeTable
+  type={{
+    page: {
+      required: true,
+      type: 'RPC experimental.page',
+      description: 'Reads and drives your live page for the agent. See Page control.',
+    },
+    server: {
+      required: true,
+      type: 'RPC server',
+      description:
+        "The dev server's config, urls, module resolution, module graph and served code, a restart, and opening a file in your editor.",
+    },
+    skills: {
+      required: true,
+      type: 'conciv/skills/',
+      description: 'The skill tool, the conciv and report skills, and your own skills from folders. See Skills.',
+    },
+  }}
+/>

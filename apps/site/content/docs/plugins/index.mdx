@@ -1,0 +1,106 @@
+---
+title: Plugins
+description: What a plugin is, where conciv finds plugins, and where you see them.
+---
+
+A plugin adds tools, skills and RPC methods to the engine, and panels and buttons to the widget. conciv's own
+features are plugins too, written with the same SDK, `@conciv/plugin`.
+
+## The two halves
+
+<Cards>
+  <Card
+    title="Engine half"
+    description="Runs inside the engine. Adds tools for the agent, skills, hooks and RPC methods. Every plugin has one."
+  />
+  <Card
+    title="Browser half"
+    description="Runs in the widget. Adds panels, slots, composer pills and settings pages. Optional."
+  />
+</Cards>
+
+The two halves talk through the plugin's RPC contract, a file both import. The same contract is what you call from
+the terminal with [`conciv plugin call`](/docs/plugins/terminal).
+
+```ts title="rpc.ts"
+import {z} from 'zod'
+import {Rpc} from '@conciv/plugin/rpc'
+
+export const Hello = Rpc.define({
+  id: 'hello',
+  methods: {
+    greet: {input: z.object({name: z.string()}), output: z.object({message: z.string(), count: z.number()})},
+  },
+  events: {},
+})
+```
+
+## Where plugins come from
+
+<TypeTable
+  type={{
+    'built in': {
+      required: true,
+      type: 'always on',
+      description: 'Ship with conciv: page control, the dev server methods and the skills.',
+    },
+    installed: {
+      required: true,
+      type: 'conciv({plugins: [...]})',
+      description:
+        'Packages you add to the plugins list. Nothing optional is on until you add it. See Install a plugin.',
+    },
+    'project plugins': {
+      required: true,
+      type: 'conciv/plugins/ or conciv/plugin/',
+      description: 'A file or a folder in your project. Loaded from TypeScript source, reloaded when you save.',
+    },
+  }}
+/>
+
+<Files>
+  <Folder name="conciv" defaultOpen>
+    <Folder name="plugins" defaultOpen>
+      <Folder name="hello" defaultOpen>
+        <File name="index.ts" />
+        <File name="rpc.ts" />
+        <File name="plugin-experimental.cjs" />
+      </Folder>
+      <File name="notes.ts" />
+    </Folder>
+  </Folder>
+</Files>
+
+A project plugin is one `.ts` or `.js` file (engine half only) or a folder. In a folder, `index.ts` is the engine half,
+`rpc.ts` the contract and `plugin-experimental.cjs` the prebuilt browser half.
+
+## See your plugins
+
+Open **Settings > Plugins** in the widget. It lists your installed and project plugins by id. A plugin with a browser
+half also gets a **Server** badge (it has an engine half too), **Reload**, which loads it again, and a switch that
+turns it off and on. A plugin with only an engine half shows its id alone; turn it off with a [`-id`
+entry](/docs/plugins/install#turn-a-plugin-off) instead. A plugin that failed to load shows its error, with **Show
+details** for the full text. Built-in plugins are listed only when one fails, with a **Built-in** badge.
+
+<Cards>
+  <Card
+    title="Your first plugin"
+    href="/docs/plugins/your-first-plugin"
+    description="A tool and an RPC method in a project plugin, then a browser half."
+  />
+  <Card
+    title="Install a plugin"
+    href="/docs/plugins/install"
+    description="The plugins list and the plugins conciv publishes."
+  />
+  <Card
+    title="Engine SDK"
+    href="/docs/plugins/engine"
+    description="Tools, RPC, permission, skills, hooks and storage."
+  />
+  <Card
+    title="Browser SDK"
+    href="/docs/plugins/browser"
+    description="Panels, slots, composer pills, settings pages, dialogs and the ui kit."
+  />
+</Cards>

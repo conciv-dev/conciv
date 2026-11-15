@@ -1,0 +1,186 @@
+---
+title: Your first plugin
+description: A project plugin with a tool for the agent and a method you call from the terminal, then a button in the widget.
+---
+
+This page builds `hello`, a project plugin. Its engine half gives the agent a `hello_greet` tool and the terminal a
+`greet` method. Its browser half adds a button to the chat.
+
+## The engine half
+
+<Steps>
+<Step>
+
+Add the SDK and a schema library. Tool and RPC schemas take any Standard Schema (zod, Valibot, ArkType) or a JSON
+Schema object.
+
+```bash
+pnpm add -D @conciv/plugin zod
+```
+
+</Step>
+<Step>
+
+Write the contract both halves share.
+
+```ts title="conciv/plugins/hello/rpc.ts"
+import {z} from 'zod'
+import {Rpc} from '@conciv/plugin/rpc'
+
+export const Hello = Rpc.define({
+  id: 'hello',
+  methods: {
+    greet: {input: z.object({name: z.string()}), output: z.object({message: z.string(), count: z.number()})},
+  },
+  events: {},
+})
+```
+
+</Step>
+<Step>
+
+Write the engine half. `setup` adds the tool, registers the method and returns a cleanup. Both count greetings in the
+plugin's own storage.
+
+```ts title="conciv/plugins/hello/index.ts"
+import {z} from 'zod'
+import {Plugin} from '@conciv/plugin'
+import {Hello} from './rpc.js'
+
+export default Plugin.define({
+  id: 'hello',
+  async setup(ctx) {
+    const greet = async (name: string) => {
+      const count = Number((await ctx.storage.get('count')) ?? 0) + 1
+      await ctx.storage.set('count', count)
+      return {message: `Hello, ${name}!`, count}
+    }
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'hello_greet',
+        description: 'Greet someone by name',
+        input: z.object({name: z.string()}),
+        output: z.object({message: z.string(), count: z.number()}),
+        execute: async ({name}) => ({output: await greet(name)}),
+      })
+    })
+    const registration = await ctx.rpc.register(Hello, {greet: async ({name}) => greet(name)})
+    return () => registration.dispose()
+  },
+})
+```
+
+</Step>
+<Step>
+
+Start your dev server. The engine loads every file and folder in `conciv/plugins/` and `conciv/plugin/`. Call the
+method from the project folder:
+
+```bash
+conciv plugin call hello greet --data '{"name":"Ada"}'
+```
+
+```text title="output"
+{"ok":true,"data":{"message":"Hello, Ada!","count":1}}
+```
+
+</Step>
+<Step>
+
+Ask the agent to greet someone. In code mode it calls the tool as `external_hello_greet`. After two greetings from
+the terminal, its result reads:
+
+```text title="output"
+{"ok":true,"result":{"message":"Hello, Lin!","count":3},"logs":[],"queued":[],"finished":[]}
+```
+
+</Step>
+<Step>
+
+Edit `index.ts` and save. The engine reloads the plugin; the next call runs the new code, and the storage keeps its
+count.
+
+</Step>
+</Steps>
+
+<Callout title="TypeScript without a build">
+  The engine half loads with Node's own type stripping. Syntax that needs a transform (enums, namespaces with code,
+  parameter properties) and `.tsx` files do not load: the plugin fails and the engine log carries Node's error. Import
+  your own files as `./rpc.js`: the engine finds `rpc.ts`.
+</Callout>
+
+## The browser half
+
+The browser half is a prebuilt CommonJS file. You build it with the SDK's Vite preset, which compiles Solid JSX and
+keeps the modules the widget provides out of the bundle.
+
+<Steps>
+<Step>
+
+Add the build tools.
+
+```bash
+pnpm add -D solid-js vite vite-plugin-solid
+```
+
+</Step>
+<Step>
+
+Write the browser half. It calls the engine half's `greet` and shows the answer as a toast.
+
+```tsx title="conciv/plugins/hello/src/plugin-experimental.tsx"
+import {Plugin, Slot} from '@conciv/plugin/experimental'
+import {Hello} from '../rpc.js'
+
+export default Plugin.define({
+  setup(ctx) {
+    const greet = async () => {
+      const {message} = await ctx.client.rpc(Hello).greet({name: 'from the widget'})
+      ctx.toast.show({title: message})
+    }
+    ctx.add(Slot, {at: 'session.status', render: () => <ctx.ui.Button onClick={greet}>Say hello</ctx.ui.Button>})
+  },
+})
+```
+
+</Step>
+<Step>
+
+Point the preset at the folder root, where the engine looks for `plugin-experimental.cjs`.
+
+```ts title="conciv/plugins/hello/vite.config.ts"
+import {defineConfig} from 'vite'
+import {experimental} from '@conciv/plugin/experimental/vite'
+
+export default defineConfig({
+  plugins: [experimental({outFile: 'plugin-experimental.cjs'})],
+})
+```
+
+</Step>
+<Step>
+
+Build it from the plugin folder.
+
+```bash
+cd conciv/plugins/hello
+npx vite build
+```
+
+```txt
+/plugin-experimental.cjs  0.64 kB │ gzip: 0.41 kB
+✓ built in 89ms
+```
+
+The engine picks up the new file and the widget loads it: **Say hello** shows in the chat's status line. Build again
+after each change to the browser half.
+
+</Step>
+</Steps>
+
+A browser half may import only `@conciv/plugin/experimental`, `@conciv/plugin/rpc`, `zod`, `solid-js`,
+`solid-js/web` and `solid-js/store` from outside its own files, plus any package the bundle carries. Any other
+`@conciv/*` or `solid-js/*` import fails the build with `<module> is not a module the conciv app provides to plugins`.
+For buttons, menus and dialogs use `ctx.ui`. See [Browser SDK](/docs/plugins/browser).
+
+The browser half needs `Promise.try`: Chrome and Edge 128, Firefox 134, Safari 18.2 or newer.
