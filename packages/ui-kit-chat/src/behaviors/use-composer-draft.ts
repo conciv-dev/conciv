@@ -1,4 +1,4 @@
-import {createEffect} from 'solid-js'
+import {createEffect, onCleanup} from 'solid-js'
 import {AsyncDebouncer} from '@tanstack/pacer'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import type {WebStorage} from '@conciv/storage-history'
@@ -35,4 +35,5 @@ export function useComposerDraftPersistence(options: ComposerDraftPersistenceOpt
     return draft
   })
   makeEventListener(window, 'pagehide', () => void writer.flush())
+  onCleanup(() => void writer.flush())
 }

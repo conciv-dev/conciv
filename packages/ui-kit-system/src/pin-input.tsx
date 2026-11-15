@@ -1,5 +1,6 @@
-import {Index, splitProps, type JSX} from 'solid-js'
+import {Index, type JSX} from 'solid-js'
 import {PinInput as Ark, usePinInput} from '@ark-ui/solid/pin-input'
+import {nativeFocusPart} from './native-focus.js'
 
 const ROOT = 'flex flex-col gap-1'
 const LABEL = 'text-[0.75rem] text-chat-text-2 font-chat'
@@ -7,28 +8,7 @@ const CONTROL = 'flex gap-2'
 const INPUT =
   'size-11 min-w-0 text-center font-chat text-base tabular-nums rounded-chat-surface-md bg-chat-fill text-chat-text [border:1px_solid_var(--chat-line)] focus-ring placeholder:text-chat-text-3 data-[invalid]:[border-color:var(--chat-danger)]'
 
-type InputProps = JSX.InputHTMLAttributes<HTMLInputElement>
-type FocusHandler = InputProps['onFocusIn']
-type FocusArgument = Parameters<JSX.FocusEventHandler<HTMLInputElement, FocusEvent>>[0]
-
-function forwardFocus(handler: FocusHandler, event: FocusArgument): void {
-  if (typeof handler === 'function') {
-    handler(event)
-    return
-  }
-  handler?.[0](handler[1], event)
-}
-
-function DigitInput(props: InputProps): JSX.Element {
-  const [focus, rest] = splitProps(props, ['onFocusIn', 'onFocusOut'])
-  return (
-    <input
-      {...rest}
-      on:focusin={(event) => forwardFocus(focus.onFocusIn, event)}
-      on:focusout={(event) => forwardFocus(focus.onFocusOut, event)}
-    />
-  )
-}
+const Input = nativeFocusPart(Ark.Input, 'input')
 
 export type PinInputControls = {clear: () => void}
 
@@ -57,9 +37,7 @@ export function PinInput(props: PinInputProps): JSX.Element {
       <Ark.Label class={LABEL}>{props.label}</Ark.Label>
       <Ark.Control class={CONTROL}>
         <Index each={Array.from({length: props.length}, (_, index) => index)}>
-          {(index) => (
-            <Ark.Input index={index()} class={INPUT} asChild={(inputProps) => <DigitInput {...inputProps()} />} />
-          )}
+          {(index) => <Input index={index()} class={INPUT} />}
         </Index>
       </Ark.Control>
       <Ark.HiddenInput />

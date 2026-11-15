@@ -1,8 +1,8 @@
 import {describe, it, expect} from 'vitest'
-import {createSignal} from 'solid-js'
+import {createSignal, For, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
-import {page} from 'vitest/browser'
-import {Streamdown, type HastElement} from '../src/streamdown.js'
+import {page, userEvent} from 'vitest/browser'
+import {Streamdown, type HastElement, type HighlightCode} from '../src/streamdown.js'
 import '../src/styles.css'
 
 describe('highlighted fence stability', () => {
@@ -179,6 +179,220 @@ describe('streamed text stability', () => {
       const currentNodes = new Set(renderedNodes(paragraph))
       expect(settledNodes.filter((node) => !currentNodes.has(node))).toEqual([])
       expect(removed.filter((node) => settledNodes.includes(node))).toEqual([])
+    })
+  })
+})
+
+describe('local file links', () => {
+  const reply =
+    'Open [the entry](src/app.ts:42), read `src/existing.ts` and `src/missing.ts`, then `src/late.ts` and `src/broken.ts`, or see [the docs](https://example.com/docs).'
+
+  function OpenedFiles(props: {paths: string[]}): JSX.Element {
+    return (
+      <ul aria-label="Opened files">
+        <For each={props.paths}>{(path) => <li>{path}</li>}</For>
+      </ul>
+    )
+  }
+
+  describe('Streamdown local file links', () => {
+    it('hands links and existing paths to the host, leaves missing paths and web links alone', async () => {
+      const [opened, setOpened] = createSignal<string[]>([])
+      const asked: string[] = []
+      const late = Promise.withResolvers<boolean>()
+      const before = window.location.href
+      render(() => (
+        <>
+          <section aria-label="With host">
+            <Streamdown
+              openLocalFile={(path) => setOpened((paths) => [...paths, path])}
+              localFileExists={(path) => {
+                asked.push(path)
+                if (path === 'src/late.ts') return late.promise
+                if (path === 'src/broken.ts') return Promise.reject(new Error('check failed'))
+                return path === 'src/existing.ts'
+              }}
+            >
+              {reply}
+            </Streamdown>
+            <OpenedFiles paths={opened()} />
+          </section>
+          <section aria-label="Without host">
+            <Streamdown>{reply}</Streamdown>
+          </section>
+        </>
+      ))
+      const host = page.getByRole('region', {name: 'With host'})
+      const plain = page.getByRole('region', {name: 'Without host'})
+      const openedList = host.getByRole('list', {name: 'Opened files'})
+
+      const entry = host.getByRole('link', {name: 'the entry'})
+      await entry.click()
+      await expect.element(openedList).toHaveTextContent('src/app.ts#L42')
+      await expect.element(entry).toHaveFocus()
+      expect(window.location.href).toBe(before)
+
+      await userEvent.keyboard('{Enter}')
+      await expect.element(openedList.getByRole('listitem').nth(1)).toHaveTextContent('src/app.ts#L42')
+
+      await userEvent.keyboard('{Tab}')
+      const existing = host.getByRole('link', {name: 'src/existing.ts'})
+      await expect.element(existing).toHaveFocus()
+      await userEvent.keyboard('{Enter}')
+      await expect.element(openedList.getByRole('listitem').nth(2)).toHaveTextContent('src/existing.ts')
+      await userEvent.keyboard(' ')
+      await expect.element(openedList.getByRole('listitem').nth(3)).toHaveTextContent('src/existing.ts')
+      await userEvent.keyboard('{Tab}')
+      await expect.element(host.getByRole('link', {name: 'the docs'})).toHaveFocus()
+
+      await host.getByText('src/missing.ts', {exact: true}).click()
+      await host.getByText('src/broken.ts', {exact: true}).click()
+      await existing.click()
+      await expect.element(openedList.getByRole('listitem').nth(4)).toHaveTextContent('src/existing.ts')
+      await expect.element(openedList.getByRole('listitem').nth(5)).not.toBeInTheDocument()
+
+      late.resolve(true)
+      await late.promise
+      await host.getByRole('link', {name: 'src/late.ts'}).click()
+      await expect.element(openedList.getByRole('listitem').nth(5)).toHaveTextContent('src/late.ts')
+      await expect.element(host.getByRole('link', {name: 'src/broken.ts'})).not.toBeInTheDocument()
+      expect(asked).toEqual(['src/existing.ts', 'src/missing.ts', 'src/late.ts', 'src/broken.ts'])
+
+      await expect.element(host.getByRole('link', {name: 'the docs'})).toBeVisible()
+      await expect.element(plain.getByRole('link', {name: 'the docs'})).toBeVisible()
+      await expect.element(plain.getByText('the entry [blocked]')).toBeVisible()
+      await expect.element(plain.getByRole('link', {name: 'the entry'})).not.toBeInTheDocument()
+      expect(window.location.href).toBe(before)
+    })
+
+    it('asks about the paths of the block still streaming only once streaming ends, animated or not', async () => {
+      const [streaming, setStreaming] = createSignal(true)
+      const asked: string[] = []
+      render(() => (
+        <Streamdown
+          animated={false}
+          isAnimating={streaming()}
+          openLocalFile={() => undefined}
+          localFileExists={(path) => {
+            asked.push(path)
+            return true
+          }}
+        >
+          {'Read `src/first.ts` first.\n\nThen `src/last.ts` next.'}
+        </Streamdown>
+      ))
+
+      await expect.element(page.getByRole('link', {name: 'src/first.ts'})).toBeVisible()
+      expect(asked).toEqual(['src/first.ts'])
+
+      setStreaming(false)
+
+      await expect.element(page.getByRole('link', {name: 'src/last.ts'})).toBeVisible()
+      expect(asked).toEqual(['src/first.ts', 'src/last.ts'])
+    })
+  })
+})
+
+describe('fence view fallback', () => {
+  function DecliningView(props: {code: string; fallback: () => void}): JSX.Element {
+    return (
+      <figure aria-label="Fence view">
+        <figcaption>{props.code}</figcaption>
+        <button type="button" onClick={() => props.fallback()}>
+          Show the code
+        </button>
+      </figure>
+    )
+  }
+
+  function ThrowingView(): JSX.Element {
+    throw new Error('the view failed')
+  }
+
+  function InnerView(props: {code: string}): JSX.Element {
+    return <figure aria-label="Inner view">{props.code}</figure>
+  }
+
+  function tokens(code: string): HastElement {
+    const words = code.trim().split(' ')
+    return {
+      type: 'element',
+      tagName: 'pre',
+      properties: {},
+      children: [
+        {
+          type: 'element',
+          tagName: 'code',
+          properties: {},
+          children: words.map((word) => ({
+            type: 'element',
+            tagName: 'span',
+            properties: {},
+            children: [{type: 'text', value: word}],
+          })),
+        },
+      ],
+    }
+  }
+
+  const fenced: HighlightCode = (code, language) => {
+    if (language === 'ts') return tokens(code)
+    if (language === 'claimed') return {view: DecliningView, fallback: tokens(code)}
+    if (language === 'nested') return {view: DecliningView, fallback: InnerView}
+    return undefined
+  }
+
+  describe('Streamdown fence view fallback', () => {
+    it('shows the code once a view falls back or throws, and mounts the view again for new code', async () => {
+      const [code, setCode] = createSignal('first block')
+      render(() => (
+        <>
+          <section aria-label="Declining">
+            <Streamdown highlightCode={(_, language) => (language === 'demo' ? DecliningView : undefined)}>
+              {['```demo', code(), '```'].join('\n')}
+            </Streamdown>
+          </section>
+          <section aria-label="Throwing">
+            <Streamdown highlightCode={(_, language) => (language === 'boom' ? ThrowingView : undefined)}>
+              {['```boom', 'thrown block', '```'].join('\n')}
+            </Streamdown>
+          </section>
+          <section aria-label="Claimed">
+            <Streamdown highlightCode={fenced}>{['```claimed', 'alphaToken betaToken', '```'].join('\n')}</Streamdown>
+          </section>
+          <section aria-label="Unclaimed">
+            <Streamdown highlightCode={fenced}>{['```ts', 'alphaToken betaToken', '```'].join('\n')}</Streamdown>
+          </section>
+          <section aria-label="Nested">
+            <Streamdown highlightCode={fenced}>{['```nested', 'inner block', '```'].join('\n')}</Streamdown>
+          </section>
+        </>
+      ))
+      const declining = page.getByRole('region', {name: 'Declining'})
+      const throwing = page.getByRole('region', {name: 'Throwing'})
+
+      await expect.element(declining.getByRole('figure', {name: 'Fence view'}).getByText('first block')).toBeVisible()
+      await declining.getByRole('button', {name: 'Show the code'}).click()
+      await expect.element(declining.getByRole('figure', {name: 'Fence view'})).not.toBeInTheDocument()
+      await expect.element(declining.getByText('first block')).toBeVisible()
+
+      setCode('second block')
+      await expect.element(declining.getByRole('figure', {name: 'Fence view'}).getByText('second block')).toBeVisible()
+      await expect.element(declining.getByRole('button', {name: 'Show the code'})).toBeVisible()
+
+      await expect.element(throwing.getByText('thrown block')).toBeVisible()
+
+      const claimed = page.getByRole('region', {name: 'Claimed'})
+      const unclaimed = page.getByRole('region', {name: 'Unclaimed'})
+      await expect.element(unclaimed.getByText('alphaToken', {exact: true})).toBeVisible()
+      await claimed.getByRole('button', {name: 'Show the code'}).click()
+      await expect.element(claimed.getByRole('figure', {name: 'Fence view'})).not.toBeInTheDocument()
+      await expect.element(claimed.getByText('alphaToken', {exact: true})).toBeVisible()
+      await expect.element(claimed.getByText('betaToken', {exact: true})).toBeVisible()
+
+      const nested = page.getByRole('region', {name: 'Nested'})
+      await nested.getByRole('button', {name: 'Show the code'}).click()
+      await expect.element(nested.getByRole('figure', {name: 'Inner view'}).getByText('inner block')).toBeVisible()
     })
   })
 })

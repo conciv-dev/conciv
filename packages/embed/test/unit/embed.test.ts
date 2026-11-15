@@ -2,6 +2,7 @@ import {readdirSync, readFileSync} from 'node:fs'
 import {fileURLToPath} from 'node:url'
 import {Script} from 'node:vm'
 import {describe, expect, it} from 'vitest'
+import {z} from 'zod'
 import {createConciv, mountConciv} from '../../src/mount.js'
 
 const widgetDistDir = fileURLToPath(new URL('../../dist/', import.meta.url))
@@ -117,6 +118,32 @@ describe('mount externals', () => {
 
     it('keeps the mount entry free of static runtime imports (SSR-safe)', () => {
       expect(/^import\s/m.test(entry)).toBe(false)
+    })
+  })
+
+  describe('embed manifest declares every @conciv package its mount chunks import bare', () => {
+    const manifest = z
+      .object({
+        dependencies: z.record(z.string(), z.string()),
+        peerDependencies: z.record(z.string(), z.string()).optional(),
+      })
+      .parse(JSON.parse(readFileSync(fileURLToPath(new URL('../../package.json', import.meta.url)), 'utf8')))
+    const declared = new Set([...Object.keys(manifest.dependencies), ...Object.keys(manifest.peerDependencies ?? {})])
+    const mountChunks = readdirSync(distDir).filter((name) => name.endsWith('.js') && !name.endsWith('.global.js'))
+    const importedPackages = [
+      ...new Set(
+        mountChunks.flatMap((name) =>
+          referencedChunks(
+            readFileSync(distDir + name, 'utf8'),
+            /(?:from|import)\s*\(?\s*["'`](@conciv\/[\w.-]+)(?:\/[^"'`]*)?["'`]/g,
+          ),
+        ),
+      ),
+    ]
+
+    it('so a host that installs the embed resolves each external @conciv import', () => {
+      expect(importedPackages).toContain('@conciv/client')
+      expect(importedPackages.filter((name) => !declared.has(name))).toEqual([])
     })
   })
 })

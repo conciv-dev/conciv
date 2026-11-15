@@ -1,6 +1,6 @@
 # @conciv/core
 
-The conciv engine: a Hono server (served through `@conciv/serve` and `@hono/node-server`) exposing `/health`, `/rpc/*`, `/api/mcp` and the chat and push routes, with a harness registry seam.
+The conciv engine: a Hono server (served through `@conciv/serve`) exposing `/health`, `/rpc/*`, `/api/mcp` and the chat and push routes, with a harness registry seam.
 
 Part of [conciv](https://github.com/conciv-dev/conciv).
 

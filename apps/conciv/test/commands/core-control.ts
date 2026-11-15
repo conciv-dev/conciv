@@ -45,9 +45,12 @@ export type PointerDrag = {name: string; moves: PointerMove[]; escape?: boolean;
 
 export type PointerHover = {name: string; moves: PointerMove[]; settleMs: number}
 
+export type ChosenFile = {name: string; mimeType: string; text: string}
+
 export type FaultSpec =
   | {kind: 'fail'; path: string[]; status?: number}
   | {kind: 'abort'; path?: string[]}
+  | {kind: 'garble'; path: string[]; input?: unknown}
   | {kind: 'gate'; path?: string[]}
   | {kind: 'chat-refused'; status?: number}
   | {kind: 'offline'}
@@ -325,7 +328,8 @@ function restoreHubCli(state: FileState): void {
   rmSync(current.root, {recursive: true, force: true})
 }
 
-const rpcCallCount: BrowserCommand<[string[]]> = (ctx, path): number => requireCalls(ctx).servedSince(path)
+const rpcCallCount: BrowserCommand<[string[], unknown?]> = (ctx, path, input): number =>
+  requireCalls(ctx).servedSince(path, input)
 
 const rpcStartedOnceServed: BrowserCommand<[string[], number, string[][]]> = async (
   ctx,
@@ -488,9 +492,10 @@ function statusOptions(status: number | undefined): {status?: number} {
 function brokenRpcCalls(
   testkit: CoreTestkit,
   ctx: BrowserCommandContext,
-  spec: Extract<FaultSpec, {kind: 'abort' | 'fail'}>,
+  spec: Extract<FaultSpec, {kind: 'abort' | 'fail' | 'garble'}>,
 ): ReturnType<CoreTestkit['abortRpcCalls']> {
   if (spec.kind === 'abort') return testkit.abortRpcCalls(ctx.page, pathOptions(spec.path))
+  if (spec.kind === 'garble') return testkit.garbleRpcReplies(ctx.page, {path: spec.path, input: spec.input})
   return testkit.failRpcCalls(ctx.page, {path: spec.path, ...statusOptions(spec.status)})
 }
 
@@ -580,7 +585,16 @@ const hoverButton: BrowserCommand<[hover: PointerHover]> = async (ctx, hover) =>
   await ctx.page.waitForTimeout(hover.settleMs)
 }
 
+const chooseFiles: BrowserCommand<[name: string, chosen: ChosenFile[]]> = async (ctx, name, chosen) => {
+  const chooser = ctx.page.waitForEvent('filechooser')
+  await ctx.iframe.getByRole('button', {name, exact: true}).click()
+  await (
+    await chooser
+  ).setFiles(chosen.map((file) => ({name: file.name, mimeType: file.mimeType, buffer: Buffer.from(file.text)})))
+}
+
 export const coreCommands = {
+  chooseFiles,
   dragButton,
   hoverButton,
   bootCore,

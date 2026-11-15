@@ -11,14 +11,12 @@ import {useApiBase, useAppData, useConnected} from '../app/context.js'
 import {useEngineReachability} from '../app/reachability.js'
 import {useNotices} from './notice-context.js'
 import {StandingNotice} from './notices.js'
-import {EngineLoginDialog, engineLocked, type EngineLogin} from '../app/engine-login.js'
+import {EngineLoginDialog, type EngineLogin} from '../app/engine-login.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
+import {lockedMessage} from './engine-lock-messages.js'
 
 const ENGINE_STALE_MESSAGE =
   'Engine is running outdated code: the server code on disk is newer than the running engine. Restart the dev server.'
-
-const ENGINE_REVOKED_MESSAGE = 'This browser is no longer authorized to use conciv.'
-const ENGINE_LOGGED_OUT_MESSAGE = 'Log in to use conciv on this page.'
 
 const ENGINE_OUTDATED_MESSAGE = `This widget is version ${appManifest.version} but the conciv engine is older. Update your @conciv packages to ${appManifest.version}, then restart your dev server.`
 
@@ -40,6 +38,7 @@ export function EngineStaleNotice(): JSX.Element {
     notices.remove(standing.fingerprint)
     standing.fingerprint = null
   }
+  onCleanup(clear)
   createEffect(() => {
     const reading = engine.data
     if (reading === undefined) return
@@ -57,10 +56,7 @@ export function EngineStaleNotice(): JSX.Element {
 
 export function EngineOutdatedNotice(): JSX.Element {
   const apiBase = useApiBase()
-  const engineVersion = useQuery(() => ({
-    queryKey: ['conciv', 'engine-version', apiBase()],
-    queryFn: async () => (await fetch(`${apiBase()}/health`)).headers.get(CONCIV_VERSION_HEADER),
-  }))
+  const engineVersion = useQuery(() => engineVersionQueryOptions(apiBase()))
   const outdated = (): boolean => engineVersion.isSuccess && engineOlderThanWidget(engineVersion.data)
   return (
     <Show when={outdated()}>
@@ -69,7 +65,14 @@ export function EngineOutdatedNotice(): JSX.Element {
   )
 }
 
-function engineOlderThanWidget(version: string | null): boolean {
+export function engineVersionQueryOptions(apiBase: string) {
+  return {
+    queryKey: ['conciv', 'engine-version', apiBase],
+    queryFn: async () => (await fetch(`${apiBase}/health`)).headers.get(CONCIV_VERSION_HEADER),
+  }
+}
+
+export function engineOlderThanWidget(version: string | null): boolean {
   const engine = version === null ? null : valid(version)
   return engine === null || lt(engine, appManifest.version)
 }
@@ -102,14 +105,19 @@ export function EngineUnreachableNotice(): JSX.Element {
 
 export function EngineLockedNotice(): JSX.Element {
   const login = useRouteContext({strict: false, select: (context) => context.login})
+  const reachability = useEngineReachability()
   const lockedLogin = (): EngineLogin | undefined => {
     const current = login()
-    return current !== undefined && engineLocked(current.status()) ? current : undefined
+    return current !== undefined && reachability.locked() !== null ? current : undefined
   }
-  return <Show when={lockedLogin()}>{(current) => <LockedNotice login={current()} />}</Show>
+  return (
+    <Show when={lockedLogin()}>
+      {(current) => <LockedNotice login={current()} message={lockedMessage(reachability.locked()) ?? ''} />}
+    </Show>
+  )
 }
 
-function LockedNotice(props: {login: EngineLogin}): JSX.Element {
+function LockedNotice(props: {login: EngineLogin; message: string}): JSX.Element {
   const composerFocus = usePanelComposerFocus()
   const [view, setView] = createStore({loggingIn: false})
   onCleanup(() => {
@@ -117,10 +125,7 @@ function LockedNotice(props: {login: EngineLogin}): JSX.Element {
   })
   return (
     <>
-      <StandingNotice
-        message={props.login.status() === 'revoked' ? ENGINE_REVOKED_MESSAGE : ENGINE_LOGGED_OUT_MESSAGE}
-        action={{label: 'Log in', run: () => setView('loggingIn', true)}}
-      />
+      <StandingNotice message={props.message} action={{label: 'Log in', run: () => setView('loggingIn', true)}} />
       <Show when={view.loggingIn}>
         <EngineLoginDialog trust={props.login.trust()} onClose={() => setView('loggingIn', false)} />
       </Show>

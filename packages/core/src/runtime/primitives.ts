@@ -6,13 +6,11 @@ import {createSessionBus, type SessionBus} from '../sessions/session-bus.js'
 import {makeJournal, makePageBus, type CaptureSink, type PageEnv} from '../page/page-bus.js'
 import {makeBuiltinRegistry} from '../tool-registry.js'
 import {makePageQueues} from '../page/page-queue.js'
-import {makeHubCalls, type HubCalls} from '../api/call-trace.js'
 
 export type SessionPrimitives = {
   stream: SessionBus
   page: PageEnv
   registry: ToolRegistry
-  hubCalls: HubCalls
 }
 
 export type SessionPrimitivesDeps = {
@@ -20,24 +18,22 @@ export type SessionPrimitivesDeps = {
   root: string
   storeCapture: CaptureSink
   bundler: () => BundlerBridge | undefined
-  openInEditor: (file: string, line?: number) => void
+  openInEditor: (file: string, line?: number, column?: number) => void
   listTabs: () => Promise<TabsListing>
 }
 
 export function makeSessionPrimitives(deps: SessionPrimitivesDeps): SessionPrimitives {
   const journal = makeJournal(deps.db)
   const bus = makePageBus()
-  const hubCalls = makeHubCalls()
   const page: PageEnv = {
     journal,
     root: deps.root,
     bus,
     storeCapture: deps.storeCapture,
-    queues: makePageQueues({bus, journal, hubCalls}),
+    queues: makePageQueues({bus, journal}),
   }
   return {
     stream: createSessionBus(),
-    hubCalls,
     page,
     registry: makeBuiltinRegistry({
       page,
