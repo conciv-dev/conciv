@@ -1,7 +1,7 @@
-import {describe, expect, it, afterAll, beforeAll} from 'vitest'
+import {describe, expect, it, afterAll, beforeAll, vi} from 'vitest'
 import {attachCommand, plainLines} from '../src/cli.js'
 import {createServer, type Server} from 'node:http'
-import {realpathSync, existsSync, mkdtempSync, readFileSync} from 'node:fs'
+import {realpathSync, existsSync, readFileSync} from 'node:fs'
 import {randomUUID} from 'node:crypto'
 import {createFakeHarness, harnessAvailable} from '@conciv/harness-testkit'
 import {makeExtRpcClient} from '@conciv/extension'
@@ -11,9 +11,9 @@ import {CONNECT_FIRST_PORT, CONNECT_LAST_PORT} from '@conciv/protocol/connect-po
 import {claude} from '@conciv/harness/claude'
 import {runConnect, type ConnectEvent} from '../src/connect.js'
 import {type Engine} from '@conciv/core/start'
-import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {seedWorkspace} from '../src/seed-workspace.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 describe('cli', () => {
   describe('plainLines', () => {
@@ -48,6 +48,15 @@ describe('cli', () => {
 })
 
 describe('connect', () => {
+  beforeAll(() => {
+    const workspaces = tempDir('connect-workspaces-')
+    for (const name of ['TMPDIR', 'TEMP', 'TMP']) vi.stubEnv(name, workspaces)
+  })
+
+  afterAll(() => {
+    vi.unstubAllEnvs()
+  })
+
   describe('conciv connect', () => {
     let shared: Engine
     const engines: Engine[] = []
@@ -241,7 +250,7 @@ describe('seed workspace', () => {
       const origin = await serveManifest(
         JSON.stringify({'src/components/landing/hero.tsx': 'export function Hero() {}\n', 'package.json': '{}\n'}),
       )
-      const root = mkdtempSync(join(tmpdir(), 'conciv-seed-'))
+      const root = tempDir('conciv-seed-')
       const seeded = await seedWorkspace(origin, root)
       expect(seeded).toBe(true)
       expect(readFileSync(join(root, 'src/components/landing/hero.tsx'), 'utf8')).toContain('Hero')
@@ -260,7 +269,7 @@ describe('seed workspace', () => {
           'package.json': '{}\n',
         }),
       )
-      const root = mkdtempSync(join(tmpdir(), 'conciv-seed-'))
+      const root = tempDir('conciv-seed-')
       const seeded = await seedWorkspace(origin, root)
       expect(seeded).toBe(true)
       expect(existsSync(join(root, 'src/ok.ts'))).toBe(true)
@@ -273,27 +282,27 @@ describe('seed workspace', () => {
 
     it('skips non-string manifest values and non-object payloads', async () => {
       const origin = await serveManifest(JSON.stringify({'src/ok.ts': 'export const ok = 1\n', 'src/bad.ts': 123}))
-      const root = mkdtempSync(join(tmpdir(), 'conciv-seed-'))
+      const root = tempDir('conciv-seed-')
       expect(await seedWorkspace(origin, root)).toBe(true)
       expect(existsSync(join(root, 'src/ok.ts'))).toBe(true)
       expect(existsSync(join(root, 'src/bad.ts'))).toBe(false)
 
       const arrayOrigin = await serveManifest(JSON.stringify(['src/x.ts']))
-      const arrayRoot = mkdtempSync(join(tmpdir(), 'conciv-seed-'))
+      const arrayRoot = tempDir('conciv-seed-')
       expect(await seedWorkspace(arrayOrigin, arrayRoot)).toBe(true)
       expect(existsSync(join(arrayRoot, 'src/x.ts'))).toBe(false)
     })
 
     it('returns false and writes nothing when the manifest is missing', async () => {
       const origin = await serveManifest('not found', 404)
-      const root = mkdtempSync(join(tmpdir(), 'conciv-seed-'))
+      const root = tempDir('conciv-seed-')
       const seeded = await seedWorkspace(origin, root)
       expect(seeded).toBe(false)
       expect(existsSync(join(root, 'AGENTS.md'))).toBe(false)
     })
 
     it('returns false when the origin is unreachable', async () => {
-      const root = mkdtempSync(join(tmpdir(), 'conciv-seed-'))
+      const root = tempDir('conciv-seed-')
       const seeded = await seedWorkspace('http://127.0.0.1:1', root)
       expect(seeded).toBe(false)
       expect(existsSync(join(root, 'AGENTS.md'))).toBe(false)
@@ -301,7 +310,7 @@ describe('seed workspace', () => {
 
     it('rejects a manifest larger than the size cap', async () => {
       const origin = await serveManifest(JSON.stringify({'src/big.ts': 'x'.repeat(9 * 1024 * 1024)}))
-      const root = mkdtempSync(join(tmpdir(), 'conciv-seed-'))
+      const root = tempDir('conciv-seed-')
       const seeded = await seedWorkspace(origin, root)
       expect(seeded).toBe(false)
       expect(existsSync(join(root, 'AGENTS.md'))).toBe(false)

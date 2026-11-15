@@ -1,6 +1,6 @@
-import {afterEach, expect, test, vi, describe} from 'vitest'
+import {afterEach, beforeEach, expect, test, vi, describe} from 'vitest'
 import {ciReporters, ciTest} from '../src/reporters.ts'
-import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {
@@ -19,7 +19,7 @@ import {
   TARGET_SHARD_MS,
   type WorkspacePackage,
 } from '../src/shards.ts'
-import {mkdir, mkdtemp, rm, writeFile} from 'node:fs/promises'
+import {mkdir, rm, writeFile} from 'node:fs/promises'
 import {
   loadSummaries,
   mergeSummaries,
@@ -29,8 +29,13 @@ import {
   renderSummary,
 } from '../src/summary.ts'
 import {assertLockNotDrifted} from '../src/pack.ts'
+import {tempDir} from '../src/temp-dir.ts'
 
 describe('reporters', () => {
+  beforeEach(() => {
+    vi.stubEnv('TMPDIR', tempDir('reporters-'))
+  })
+
   afterEach(() => {
     vi.unstubAllEnvs()
   })
@@ -96,7 +101,7 @@ describe('shards', () => {
   }
 
   test('discoverPackages finds workspace packages', () => {
-    const root = mkdtempSync(join(tmpdir(), 'shards-'))
+    const root = tempDir('shards-')
     writeManifest(root, 'packages/embed', {name: '@x/embed', devDependencies: {playwright: '^1'}})
     writeManifest(root, 'packages/core', {name: '@x/core', devDependencies: {vitest: '^4'}})
     writeManifest(root, 'packages/ui', {name: '@x/ui', devDependencies: {'@vitest/browser-playwright': '^4'}})
@@ -111,7 +116,7 @@ describe('shards', () => {
   })
 
   test('discoverPackages rejects package names that could smuggle turbo arguments', () => {
-    const root = mkdtempSync(join(tmpdir(), 'shards-'))
+    const root = tempDir('shards-')
     writeManifest(root, 'packages/evil', {name: '--filter=... --continue'})
     expect(() => discoverPackages(root, ['packages'])).toThrow(/invalid package name/)
   })
@@ -184,14 +189,14 @@ describe('shards', () => {
   })
 
   test('a package with a dedicated CI job is kept out of the shard matrix', () => {
-    const root = mkdtempSync(join(tmpdir(), 'shards-'))
+    const root = tempDir('shards-')
     writeManifest(root, 'apps/storybook', {name: 'conciv-storybook', version: '1.0.0'})
     writeManifest(root, 'apps/conciv', {name: '@conciv/app', version: '1.0.0'})
     expect(plannedPackages(root).map((entry) => entry.name)).toEqual(['@conciv/app'])
   })
 
   test('e2ePackages keeps only workspace packages that actually define a test:e2e script', () => {
-    const root = mkdtempSync(join(tmpdir(), 'shards-'))
+    const root = tempDir('shards-')
     writeManifest(root, 'e2e/vite-react', {name: 'x-e2e-vite-react', scripts: {'test:e2e': 'playwright test'}})
     writeManifest(root, 'e2e/e2e-utils', {name: '@x/e2e-utils', scripts: {build: 'tsc'}})
     writeManifest(root, 'apps/site', {name: 'site', scripts: {'test:e2e': 'vitest run'}})
@@ -236,7 +241,7 @@ describe('shards', () => {
   })
 
   test('a package.json without a usable name fails the plan instead of vanishing from it', () => {
-    const root = mkdtempSync(join(tmpdir(), 'shards-'))
+    const root = tempDir('shards-')
     writeManifest(root, 'packages/nameless', {version: '1.0.0'})
     expect(() => discoverPackages(root, ['packages'])).toThrow(/nameless/)
   })
@@ -361,7 +366,7 @@ describe('summary', () => {
   })
 
   test('parseReport splits one report by the workspace package owning each test file', async () => {
-    root = await mkdtemp(join(tmpdir(), 'conciv-ci-summary-'))
+    root = tempDir('conciv-ci-summary-')
     for (const {dir, name} of [
       {dir: 'packages/ui-kit-chat', name: '@conciv/ui-kit-chat'},
       {dir: 'packages/ui-kit-system', name: '@conciv/ui-kit-system'},
@@ -544,7 +549,7 @@ describe('summary', () => {
   })
 
   test('loadSummaries discovers reports, attaches per-package coverage, and renders one table', async () => {
-    root = await mkdtemp(join(tmpdir(), 'conciv-ci-summary-'))
+    root = tempDir('conciv-ci-summary-')
     for (const {dir, name, status} of [
       {dir: 'packages/green', name: '@conciv/green', status: 'passed'},
       {dir: 'packages/red', name: '@conciv/red', status: 'failed'},
@@ -691,7 +696,7 @@ describe('summary', () => {
   })
 
   test('loadSummaries never descends into node_modules', async () => {
-    root = await mkdtemp(join(tmpdir(), 'conciv-ci-summary-'))
+    root = tempDir('conciv-ci-summary-')
     await mkdir(join(root, 'packages/victim/node_modules/malicious'), {recursive: true})
     await writeFile(join(root, 'packages/victim/package.json'), JSON.stringify({name: '@conciv/victim'}))
     await writeFile(join(root, 'packages/victim/test-results.json'), report({}))
@@ -768,7 +773,7 @@ describe('packed fixture lock drift', () => {
   }
 
   function checkDrift(committed: string[], produced: string[]): string | undefined {
-    const root = mkdtempSync(join(tmpdir(), 'packed-lock-'))
+    const root = tempDir('packed-lock-')
     const lockPath = join(root, 'fixture-lock.yaml')
     writeFileSync(lockPath, lockText(committed))
     writeFileSync(join(root, 'pnpm-lock.yaml'), lockText(produced))

@@ -1,10 +1,11 @@
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, test, vi} from 'vitest'
 import {main as cliMain} from '../src/main.js'
 import {runCli} from '../src/run.js'
 import {execFile, execFileSync, spawn, spawnSync} from 'node:child_process'
 import {EventEmitter, once} from 'node:events'
 import {createServer} from 'node:net'
-import {chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {delimiter, dirname, join, relative, resolve as resolvePath} from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -229,7 +230,7 @@ describe('cli', () => {
     }
 
     beforeAll(async () => {
-      cwd = mkdtempSync(join(tmpdir(), 'conciv-cli-bin-'))
+      cwd = tempDir('conciv-cli-bin-')
       closedPort = await freedPort()
     })
 
@@ -358,7 +359,7 @@ describe('cli', () => {
         const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
         const answer = await answerNextQuery(kit, {ok: true, result: {painted: true}})
         const home = process.cwd()
-        const dir = mkdtempSync(join(tmpdir(), 'conciv-path-flag-'))
+        const dir = tempDir('conciv-path-flag-')
         writeFileSync(join(dir, 'u1.png'), Buffer.from(ONE_PIXEL_PNG, 'base64'))
         process.chdir(dir)
         cleanups.push(async () => {
@@ -946,7 +947,7 @@ describe('cli', () => {
     })
 
     function projectWith(serverJson: string | null): {root: string; nested: string} {
-      const root = mkdtempSync(join(tmpdir(), 'conciv-engine-origin-'))
+      const root = tempDir('conciv-engine-origin-')
       roots.push(root)
       const nested = join(root, 'src', 'deep')
       mkdirSync(nested, {recursive: true})
@@ -958,7 +959,7 @@ describe('cli', () => {
     }
 
     const originFor = async (cwd: string, env: NodeJS.ProcessEnv) =>
-      (await engineOrigin(cwd, {CONCIV_HOME: mkdtempSync(join(tmpdir(), 'conciv-home-')), ...env}, null)).origin
+      (await engineOrigin(cwd, {CONCIV_HOME: tempDir('conciv-home-'), ...env}, null)).origin
 
     test('finds the engine port in .conciv/server.json walking up from a nested cwd, and CONCIV_PORT wins over it', async () => {
       const project = projectWith(JSON.stringify({port: 41234}))
@@ -1083,7 +1084,7 @@ describe('cli', () => {
       queued?: (queue: {id: string; replies: string[]}) => void
     } = {},
   ) {
-    const root = given.shared?.root ?? mkdtempSync(join(tmpdir(), 'conciv-hub-'))
+    const root = given.shared?.root ?? tempDir('conciv-hub-')
     const engine = await startEngine({
       options: {
         harnessBin: 'true',
@@ -1151,8 +1152,8 @@ describe('cli', () => {
       )
 
     it('names the calling agent from its shell env, so a disconnected Codex is refused before any Allow card', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
-      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const home = tempDir('conciv-home-')
+      const elsewhere = tempDir('conciv-elsewhere-')
       const {engine, sessionId, page} = await engineWithTab(home)
       try {
         const refused = await conciv(elsewhere, home, ['tools', 'tabs', '--tab', sessionId], {
@@ -1168,8 +1169,8 @@ describe('cli', () => {
     })
 
     it('lists every tab from the home db anywhere, and --tab acts on its tab only after allow', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
-      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const home = tempDir('conciv-home-')
+      const elsewhere = tempDir('conciv-elsewhere-')
       const {engine, sessionId, page} = await engineWithTab(home)
       try {
         const listed = {ok: true, data: {tabs: [expect.objectContaining({tab: sessionId})]}}
@@ -1198,7 +1199,7 @@ describe('cli', () => {
         })
         const malformed = {ok: false, error: {kind: 'user', message: expect.stringContaining('--tab')}}
         expect(await conciv(elsewhere, home, ['tools', 'tabs', '--tab', 'nope'])).toMatchObject(malformed)
-        const project = mkdtempSync(join(tmpdir(), 'conciv-project-'))
+        const project = tempDir('conciv-project-')
         mkdirSync(join(project, '.conciv'))
         writeFileSync(join(project, '.conciv', 'server.json'), JSON.stringify({port: 9}))
         expect(await conciv(project, home, ['tools', 'tabs'])).toMatchObject({
@@ -1211,8 +1212,8 @@ describe('cli', () => {
     })
 
     it('a call that found its engine through the home db asks the tab like --tab does, and a deny refuses it', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
-      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const home = tempDir('conciv-home-')
+      const elsewhere = tempDir('conciv-elsewhere-')
       const {engine, sessionId, page} = await engineWithTab(home)
       try {
         const waiting = conciv(elsewhere, home, ['tools', 'tabs'])
@@ -1229,8 +1230,8 @@ describe('cli', () => {
     })
 
     it('a root --tab and a verb --tab naming different tabs are refused instead of acting on the first', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
-      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const home = tempDir('conciv-home-')
+      const elsewhere = tempDir('conciv-elsewhere-')
       const {engine, sessionId, page} = await engineWithTab(home)
       try {
         const watched = new AbortController()
@@ -1249,7 +1250,7 @@ describe('cli', () => {
     })
 
     it('--tab after the verb loads the verbs of the engine that holds the tab, not of the cwd engine', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const home = tempDir('conciv-home-')
       const lantern = defineTool({
         name: 'page_lantern',
         description: 'Light the lantern over the page.',
@@ -1259,7 +1260,7 @@ describe('cli', () => {
       }).client()
       const cwdEngine = await engineWithTab(home)
       const holder = await engineWithTab(home, {extensions: [defineExtension({name: 'lantern', tools: [lantern]})]})
-      const project = mkdtempSync(join(tmpdir(), 'conciv-project-'))
+      const project = tempDir('conciv-project-')
       mkdirSync(join(project, '.conciv'))
       const recorded = {port: cwdEngine.engine.port, token: cwdEngine.engine.agentToken}
       writeFileSync(join(project, '.conciv', 'server.json'), JSON.stringify(recorded))
@@ -1280,7 +1281,7 @@ describe('cli', () => {
     })
 
     it('--tab refuses to guess when two running servers hold the same tab, naming both', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const home = tempDir('conciv-home-')
       const first = await engineWithTab(home)
       const second = await engineWithTab(home, {shared: first})
       try {
@@ -1335,8 +1336,8 @@ describe('cli', () => {
     })
 
     it('answers a plugin method from the project and from anywhere as the owner, prints engine errors, and refuses bad --data before any call', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
-      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const home = tempDir('conciv-home-')
+      const elsewhere = tempDir('conciv-elsewhere-')
       const {engine, base, root} = await engineWithTab(home, {plugins: [probe]})
       try {
         expect(await pluginCall(root, home, ['probe', 'echo', '--data', '{"word":"hi"}'])).toEqual({
@@ -1382,7 +1383,7 @@ describe('cli', () => {
     })
 
     it('answers the server methods from a real bundler bridge as the tools do, and refuses them without one', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const home = tempDir('conciv-home-')
       const restarts: boolean[] = []
       const bridge = defineBundlerBridge({
         id: 'cli-server-methods',
@@ -1531,8 +1532,8 @@ describe('cli', () => {
       })
 
     const fakeClaude = () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
-      const binDir = mkdtempSync(join(tmpdir(), 'conciv-agent-bin-'))
+      const home = tempDir('conciv-home-')
+      const binDir = tempDir('conciv-agent-bin-')
       const log = join(binDir, 'calls.log')
       writeFileSync(join(binDir, 'claude'), `#!/bin/sh\necho "$*" >> '${log}'\n`)
       chmodSync(join(binDir, 'claude'), 0o755)
@@ -1584,7 +1585,7 @@ describe('cli', () => {
       JSON.stringify(await client.callTool('execute_typescript', {typescriptCode}))
 
     it('a connect still waiting on the agent CLI never reconnects an agent disconnected meanwhile', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const home = tempDir('conciv-home-')
       const adding = Promise.withResolvers<void>()
       const release = Promise.withResolvers<void>()
       const connections = createHubConnections(home, async (argv) => {
@@ -1608,7 +1609,7 @@ describe('cli', () => {
     })
 
     it('a reconnect waits out a slow remove, so the remove never deletes the entry the reconnect installed', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const home = tempDir('conciv-home-')
       const entries = new Set<string>()
       const removing = Promise.withResolvers<void>()
       const release = Promise.withResolvers<void>()
@@ -1638,7 +1639,7 @@ describe('cli', () => {
     })
 
     it('a lease lasts as long as its process or the agent CLI it spawned, up to a ten minute ceiling against pid reuse', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const home = tempDir('conciv-home-')
       const leased = createHubConnections(home, async () => ({ok: true, output: '', message: ''}))
       const lease = (pid: number, childPid: number | null, age: number) =>
         withHomeDb(home, (db) =>
@@ -1664,7 +1665,7 @@ describe('cli', () => {
     it.skipIf(process.getuid?.() === 0)(
       'an agent CLI the lease cannot record is refused, so no untracked change outlives its owner',
       async () => {
-        const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+        const home = tempDir('conciv-home-')
         withHomeDb(home, (db) => recordHubConnection(db, 'codex', 1))
         const untracked = createHubConnections(home, async (argv, options) => {
           chmodSync(join(home, 'home.db'), 0o000)
@@ -1686,7 +1687,7 @@ describe('cli', () => {
     )
 
     it('an agent CLI whose lease was taken over meanwhile is refused, so it never runs untracked', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const home = tempDir('conciv-home-')
       const overtaken = createHubConnections(home, async (argv, options) => {
         withHomeDb(home, (db) =>
           takeHubOperation(db, {harness: 'claude', pid: process.pid, childPid: null, startedAt: 1}, () => true),
@@ -1705,7 +1706,7 @@ describe('cli', () => {
     it.skipIf(process.getuid?.() === 0)(
       'an unreadable home fails closed: no generation, and connect answers instead of throwing',
       async () => {
-        const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+        const home = tempDir('conciv-home-')
         withHomeDb(home, (db) => recordHubConnection(db, 'codex', 1))
         const unreadable = createHubConnections(home, async () => ({ok: true, output: '', message: ''}))
         try {
@@ -1913,7 +1914,7 @@ describe('cli', () => {
       server.listen(0, '127.0.0.1')
       await once(server, 'listening')
       const port = z.object({port: z.number()}).parse(server.address()).port
-      const root = mkdtempSync(join(tmpdir(), 'conciv-failing-'))
+      const root = tempDir('conciv-failing-')
       withHomeDb(home, (db) => registerEngine(db, {id, pid: process.pid, root, apiBase: `http://127.0.0.1:${port}`}))
       return {
         root,
@@ -1956,14 +1957,14 @@ describe('cli', () => {
     it('skips and removes engine rows whose process or root folder is gone, so calls without a tab and external_tabs land on the live engine', async () => {
       const {home, mcp} = fakeClaude()
       expect(mcp('connect', 'claude')).toMatchObject({status: 0})
-      const removedRoot = mkdtempSync(join(tmpdir(), 'conciv-removed-'))
+      const removedRoot = tempDir('conciv-removed-')
       rmSync(removedRoot, {recursive: true})
       const closers = [
         await staleEngine(home, {id: 'root-gone', pid: process.pid, root: removedRoot}),
         await staleEngine(home, {
           id: 'pid-gone',
           pid: await deadPid(),
-          root: mkdtempSync(join(tmpdir(), 'conciv-dead-')),
+          root: tempDir('conciv-dead-'),
         }),
       ]
       const live = await engineWithTab(home, {hubAccess: 'open'})
@@ -2015,7 +2016,7 @@ describe('cli', () => {
     })
 
     it('with no engine running a call names the home folder, and the tools still say how to pick a tab', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const home = tempDir('conciv-home-')
       const client = await hub(home)
       try {
         const execute = (await client.tools()).find((tool) => tool.name === 'execute_typescript')
@@ -2031,7 +2032,7 @@ describe('cli', () => {
     it.skipIf(process.getuid?.() === 0)(
       'an unreadable home folder is named as such, never reported as no dev server running',
       async () => {
-        const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+        const home = tempDir('conciv-home-')
         withHomeDb(home, listEngines)
         chmodSync(join(home, 'home.db'), 0o000)
         try {
@@ -2426,7 +2427,7 @@ describe('cli', () => {
 
       async function engineWithoutCodeMode(home: string) {
         const id = 'engine-without-code-mode'
-        const root = mkdtempSync(join(tmpdir(), 'conciv-codeless-'))
+        const root = tempDir('conciv-codeless-')
         const server = createHttpServer((request, response) => {
           const url = new URL(request.url ?? '/', 'http://127.0.0.1')
           if (url.pathname === '/health') {
@@ -2450,7 +2451,7 @@ describe('cli', () => {
 
       async function engineBeforeOrpcTabs(home: string) {
         const id = 'engine-before-orpc-tabs'
-        const root = mkdtempSync(join(tmpdir(), 'conciv-before-orpc-'))
+        const root = tempDir('conciv-before-orpc-')
         const server = createHttpServer((request, response) => {
           const url = new URL(request.url ?? '/', 'http://127.0.0.1')
           const json = (body: unknown) =>
@@ -2575,7 +2576,7 @@ describe('init', () => {
   })
 
   describe('init detect', () => {
-    const dir = (): string => mkdtempSync(join(tmpdir(), 'conciv-detect-'))
+    const dir = (): string => tempDir('conciv-detect-')
 
     const seed = (cwd: string, manifest: object): void => {
       writeFileSync(join(cwd, 'package.json'), JSON.stringify(manifest))
@@ -2684,7 +2685,7 @@ describe('init', () => {
   })
 
   describe('init harness detect', () => {
-    const dir = (label: string): string => mkdtempSync(join(tmpdir(), `conciv-harness-${label}-`))
+    const dir = (label: string): string => tempDir(`conciv-harness-${label}-`)
 
     const shim = (binDir: string, name: string): void => {
       const file = join(binDir, name)
@@ -2797,7 +2798,7 @@ describe('init', () => {
 
   describe('init interrupt', () => {
     function scratchFile(name: string, content: string): string {
-      const dir = mkdtempSync(join(tmpdir(), 'conciv-interrupt-'))
+      const dir = tempDir('conciv-interrupt-')
       const path = join(dir, name)
       writeFileSync(path, content)
       return path
@@ -2843,7 +2844,7 @@ describe('init', () => {
       })
 
       it('removes a file the run created when the captured backup recorded it as absent', () => {
-        const dir = mkdtempSync(join(tmpdir(), 'conciv-interrupt-'))
+        const dir = tempDir('conciv-interrupt-')
         const created = join(dir, 'AGENTS.md')
         const guard = guardBackups()
         guard.remember(captureFile(created))
@@ -3282,7 +3283,7 @@ describe('init', () => {
   })
 
   describe('init preflight', () => {
-    const dir = (): string => mkdtempSync(join(tmpdir(), 'conciv-init-'))
+    const dir = (): string => tempDir('conciv-init-')
 
     describe('preflight', () => {
       it('refuses without package.json', async () => {
@@ -3865,7 +3866,7 @@ describe('steps', () => {
     const intentStartOnly = '<!-- intent-skills:start -->\nguidance, no end marker\n'
 
     function project(manifest: object, feed: (line: string) => void = () => {}): InitContext {
-      const cwd = mkdtempSync(join(tmpdir(), 'conciv-docs-pack-'))
+      const cwd = tempDir('conciv-docs-pack-')
       writeFileSync(join(cwd, 'package.json'), JSON.stringify(manifest))
       return {cwd, yes: true, dryRun: false, report: () => {}, note: () => {}, backup: () => {}, feed}
     }
@@ -4080,7 +4081,7 @@ describe('steps', () => {
   describe('framework', () => {
     describe('config edit', () => {
       function renderChange(before: string, after: string): string {
-        const cwd = mkdtempSync(join(tmpdir(), 'conciv-config-edit-'))
+        const cwd = tempDir('conciv-config-edit-')
         const path = join(cwd, 'vite.config.ts')
         writeFileSync(path, before)
         const {notes, ctx} = stepContext(cwd)
@@ -4440,7 +4441,7 @@ export default defineConfig({
       const clientContent = "import '@conciv/it/plugin/nextjs/widget'\n"
 
       function project(fixtureName: string | null): {cwd: string; detected: Detected} & ReturnType<typeof stepContext> {
-        const cwd = mkdtempSync(join(tmpdir(), 'conciv-nextjs-'))
+        const cwd = tempDir('conciv-nextjs-')
         writeFileSync(join(cwd, 'package.json'), JSON.stringify({name: 'app', dependencies: {next: '^15.0.0'}}))
         const configFile = fixtureName === null ? null : 'next.config.ts'
         if (fixtureName !== null) {
@@ -4577,7 +4578,7 @@ export default defineConfig({
 export default defineConfig({plugins: [conciv()]})`
 
       function project(fixtureName: string | null): {cwd: string; detected: Detected} & ReturnType<typeof stepContext> {
-        const cwd = mkdtempSync(join(tmpdir(), 'conciv-vite-'))
+        const cwd = tempDir('conciv-vite-')
         writeFileSync(join(cwd, 'package.json'), JSON.stringify({name: 'app', devDependencies: {vite: '^7.0.0'}}))
         const configFile = fixtureName === null ? null : 'vite.config.ts'
         if (fixtureName !== null) {
@@ -4712,7 +4713,7 @@ export default defineConfig({plugins: [conciv()]})`
       type Project = {cwd: string; detected: Detected} & ReturnType<typeof stepContext>
 
       function project(framework: Framework, configFile: string | null, fixtureName: string | null): Project {
-        const cwd = mkdtempSync(join(tmpdir(), 'conciv-webpack-family-'))
+        const cwd = tempDir('conciv-webpack-family-')
         writeFileSync(
           join(cwd, 'package.json'),
           JSON.stringify({name: 'app', devDependencies: {[framework]: '^1.0.0'}}),
@@ -4926,7 +4927,7 @@ export default defineConfig({plugins: [conciv()]})`)
       const consented: HarnessId[] = ['claude', 'codex']
 
       function project(): {cwd: string} & ReturnType<typeof stepContext> {
-        const cwd = mkdtempSync(join(tmpdir(), 'conciv-agents-'))
+        const cwd = tempDir('conciv-agents-')
         return {cwd, ...stepContext(cwd)}
       }
 
@@ -5139,8 +5140,8 @@ export default defineConfig({plugins: [conciv()]})`)
       }
 
       function fixture(opts: {exitCode: number; cwdPrefix?: string}): Fixture {
-        const cwd = mkdtempSync(join(tmpdir(), opts.cwdPrefix ?? 'conciv-claude-step-'))
-        const home = mkdtempSync(join(tmpdir(), 'conciv-claude-home-'))
+        const cwd = tempDir(opts.cwdPrefix ?? 'conciv-claude-step-')
+        const home = tempDir('conciv-claude-home-')
         const binDir = join(home, 'shim-bin')
         const recordFile = join(home, 'claude-argv.log')
         mkdirSync(binDir, {recursive: true})
@@ -5151,7 +5152,7 @@ export default defineConfig({plugins: [conciv()]})`)
       }
 
       function siblingProject(source: Fixture): Fixture {
-        const cwd = mkdtempSync(join(tmpdir(), 'conciv-claude-other-'))
+        const cwd = tempDir('conciv-claude-other-')
         return {...source, cwd, harness: stepContext(cwd)}
       }
 
@@ -5366,7 +5367,7 @@ export default defineConfig({plugins: [conciv()]})`)
 
   describe('install it', () => {
     function project(manifest: object): InitContext {
-      const cwd = mkdtempSync(join(tmpdir(), 'conciv-install-'))
+      const cwd = tempDir('conciv-install-')
       writeFileSync(join(cwd, 'package.json'), JSON.stringify(manifest))
       return {cwd, yes: true, dryRun: false, report: () => {}, note: () => {}, backup: () => {}, feed: () => {}}
     }
