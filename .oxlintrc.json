@@ -27,6 +27,7 @@
     "conciv/banned-vocabulary": "error",
     "conciv/lucide-per-icon": "error",
     "conciv/no-comments": "error",
+    "conciv/no-hand-made-temp-dir": "error",
     "conciv/no-locator-poll": "error",
     "conciv/no-of-suffix": "error",
     "conciv/no-signal-ref": "error",
@@ -374,6 +375,31 @@
       "files": ["**/until.ts", "**/run-stream.ts"],
       "rules": {
         "conciv/no-predicate-waits": "off"
+      }
+    },
+    {
+      "files": [
+        "packages/plugin-host/test/core/config-plugin-source.test.ts",
+        "packages/plugin-host/test/core/database-drizzle.test.ts",
+        "packages/plugin-host/test/core/fixture/tmpdir.ts",
+        "packages/plugin-host/test/core/plugin.test.ts",
+        "packages/plugin-host/test/core/util/effect-flock.test.ts",
+        "packages/plugin-host/test/util/global.test.ts"
+      ],
+      "rules": {
+        "conciv/no-hand-made-temp-dir": "off"
+      }
+    },
+    {
+      "files": ["apps/site/test/helpers.ts", "e2e/nextjs/test/packed-closure.spec.ts"],
+      "rules": {
+        "conciv/no-hand-made-temp-dir": "off"
+      }
+    },
+    {
+      "files": ["packages/ai/test/ai.test.ts"],
+      "rules": {
+        "conciv/no-hand-made-temp-dir": "off"
       }
     },
     {

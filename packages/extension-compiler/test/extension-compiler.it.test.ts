@@ -1,3 +1,4 @@
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {describe, expect, it, test, afterAll} from 'vitest'
 import {
   EXTENSIONS_VIRTUAL_ID,
@@ -14,7 +15,6 @@ import {dirname, join} from 'node:path'
 import {splitExtension} from '../src/split-extension.js'
 import {compileExtensionSolid} from '../src/compile-extension.js'
 import {mkdtempSync, writeFileSync, mkdirSync, rmSync} from 'node:fs'
-import {tmpdir} from 'node:os'
 import {defineExtension} from '@conciv/extension'
 import {scaffold} from '@conciv/extension/catalog'
 
@@ -172,7 +172,7 @@ describe('extensions', () => {
 
   describe('generic extension wiring', () => {
     it('returns the injected built-in server extensions when a project has no user extensions', async () => {
-      const emptyProject = mkdtempSync(join(tmpdir(), 'conciv-noext-'))
+      const emptyProject = tempDir('conciv-noext-')
       const builders = await loadServerExtensions(emptyProject, [fixture])
       expect(builders.map((builder) => builder.name)).toEqual(['fixture-ext'])
     })

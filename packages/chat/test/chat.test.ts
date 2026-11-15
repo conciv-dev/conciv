@@ -1,6 +1,4 @@
-import {mkdtempSync, rmSync} from 'node:fs'
-import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {rmSync} from 'node:fs'
 import {describe, expect, it, onTestFinished} from 'vitest'
 import {quickJSThreadDriver, toolApprovalId} from '@conciv/ai/server'
 import {fakeText} from '@conciv/ai/testkit'
@@ -25,6 +23,7 @@ import {
   Tool,
 } from '@conciv/plugin-host'
 import {createChatPlane, toolDomainCapabilities, type CodeCapability} from '../src/index.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 const PIXEL_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
 
@@ -64,7 +63,7 @@ function currentDomain(agent: Agent.Id, rules: Permission.Ruleset = []) {
 }
 
 function openDatabase() {
-  const root = mkdtempSync(join(tmpdir(), 'conciv-chat-unit-'))
+  const root = tempDir('conciv-chat-unit-')
   const db = openDb(root)
   onTestFinished(() => {
     db.$client.close()

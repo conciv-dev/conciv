@@ -1,5 +1,4 @@
-import {mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync} from 'node:fs'
-import {tmpdir} from 'node:os'
+import {mkdirSync, readFileSync, readdirSync, writeFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {describe, expect, it} from 'vitest'
@@ -44,6 +43,7 @@ import {
 } from '../src/server/tools.js'
 import type {RunResult, SimctlRunner} from '../src/server/simctl-runner.js'
 import iosExtension from '../src/server.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 type RunOptions = NonNullable<Parameters<SimctlRunner['run']>[2]>
 
@@ -449,7 +449,7 @@ describe('server tools', () => {
   }
 
   function tempSwiftProject(): string {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-ios-'))
+    const root = tempDir('conciv-ios-')
     mkdirSync(join(root, 'Sources'), {recursive: true})
     writeFileSync(join(root, 'Sources', 'Broken.swift'), 'let x: Int = "no"\n')
     writeFileSync(join(root, 'Info.plist'), '<plist></plist>')
@@ -457,7 +457,7 @@ describe('server tools', () => {
   }
 
   function tempTwoRootSwiftProject(): {root: string; extraSourceDir: string} {
-    const parent = mkdtempSync(join(tmpdir(), 'conciv-ios-roots-'))
+    const parent = tempDir('conciv-ios-roots-')
     const root = join(parent, 'ConcivDemo')
     mkdirSync(join(root, 'Sources'), {recursive: true})
     writeFileSync(join(root, 'Sources', 'App.swift'), 'let app = 1\n')
@@ -739,7 +739,7 @@ describe('server tools', () => {
     })
 
     it('fails the build when Info.plist is missing rather than reporting an uninstallable bundle', async () => {
-      const root = mkdtempSync(join(tmpdir(), 'conciv-ios-'))
+      const root = tempDir('conciv-ios-')
       mkdirSync(join(root, 'Sources'), {recursive: true})
       writeFileSync(join(root, 'Sources', 'App.swift'), 'let value = 1\n')
       const {runner, calls} = fakeRunner([
@@ -934,8 +934,8 @@ describe('tool catalog', () => {
 
   async function boot(): Promise<{base: string; engine: Engine}> {
     const engine = await start({
-      options: {systemPrompt: false, stateRoot: mkdtempSync(join(tmpdir(), 'conciv-ios-catalog-state-'))},
-      root: mkdtempSync(join(tmpdir(), 'conciv-ios-catalog-root-')),
+      options: {systemPrompt: false, stateRoot: tempDir('conciv-ios-catalog-state-')},
+      root: tempDir('conciv-ios-catalog-root-'),
       launchEditor: () => {},
       extensions,
     })

@@ -17,6 +17,9 @@
       }
     ]
   },
+  "env": {
+    "FALLOW_AUDIT_BASE": "origin/main"
+  },
   "enabledPlugins": {
     "fallow@fallow-skills": true
   }

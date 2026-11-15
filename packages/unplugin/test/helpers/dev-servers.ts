@@ -1,6 +1,5 @@
-import {cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync} from 'node:fs'
+import {cpSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync} from 'node:fs'
 import {findPackageJSON} from 'node:module'
-import {tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
 import {pathToFileURL} from 'node:url'
 import {createLogger, createServer, type ViteDevServer} from 'vite'
@@ -8,8 +7,8 @@ import {magicLink, recordedEngineBase} from '@conciv/harness-testkit/login'
 import type {ConcivConfig, ExtensionPackage} from '@conciv/protocol/config-types'
 import type {Builtins} from '@conciv/extension-compiler/extensions'
 import {makeViteHook} from '../../src/core/vite.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
-const PORT_RELEASE_MS = 300
 const FIXTURE_EXTENSION_DIR = join(import.meta.dirname, '..', 'fixtures', 'extension')
 
 export type StartedDevServer = {server: ViteDevServer; root: string}
@@ -24,8 +23,8 @@ export function devServers(): DevServers {
   const running: ViteDevServer[] = []
   const dirs: string[] = []
 
-  const tempDir = (prefix: string): string => {
-    const dir = mkdtempSync(join(tmpdir(), prefix))
+  const trackedTempDir = (prefix: string): string => {
+    const dir = tempDir(prefix)
     dirs.push(dir)
     return dir
   }
@@ -49,11 +48,10 @@ export function devServers(): DevServers {
 
   const stopAll = async (): Promise<void> => {
     for (const server of running.splice(0)) await server.close()
-    await new Promise((resolve) => setTimeout(resolve, PORT_RELEASE_MS))
     for (const dir of dirs.splice(0)) rmSync(dir, {recursive: true, force: true})
   }
 
-  return {start, tempDir, stopAll}
+  return {start, tempDir: trackedTempDir, stopAll}
 }
 
 export function fixtureExtension(dir = FIXTURE_EXTENSION_DIR): ExtensionPackage {
