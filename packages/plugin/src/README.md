@@ -257,7 +257,9 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 
 ### Skill and servers
 
-- `Skill.DirectorySource`, `Skill.UrlSource`, `Skill.EmbeddedSource`, `Skill.Source` and `Skill.Event` are not ported: conciv loads no skill folders or URLs and emits no skill events.
+- `Skill.DirectorySource`, `Skill.UrlSource`, `Skill.EmbeddedSource`, `Skill.Source` and `Skill.Event` are not ported to the author SDK: a plugin adds skills through `ctx.skill.transform` and never names a source.
+- Where skills come from, besides plugins: the engine's `conciv.config.skill` plugin (a port of opencode's `ConfigSkillPlugin`, `core/src/config/plugin/skill.ts`) scans `skill/` and `skills/` in conciv's home (opencode's global config directory) and in the project's `conciv/` folder (opencode's `.opencode/`), in that order, so a project skill replaces a home skill of the same id. A skill is a folder holding `SKILL.md` (searched six folders deep) or a loose `*.md` at the root of one of those folders; its id is the folder (or file) name. Frontmatter `name`, `description`, `disable-model-invocation` and `metadata["conciv/autoinvoke"]` (opencode's `opencode/autoinvoke`) are read, with `js-yaml` where opencode uses `gray-matter`. A change in a watched folder rescans after 100 ms.
+- Not ported from opencode's skill sources: the walk up from the project to find more `conciv/` folders, opencode's managed system directory, the `skills` config key (paths and URLs, with `SkillDiscovery`), and the rescan on `config.updated` (conciv has no config service). `ConfigCompatibilityPlugin` (`.claude/skills`, `.agents/skills`) is not ported either: the agent CLIs conciv runs load those folders themselves, so listing them again would offer every such skill twice.
 
 ### Scope
 

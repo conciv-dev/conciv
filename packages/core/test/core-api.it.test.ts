@@ -6268,6 +6268,7 @@ export default {
     expect(seen.directory).toBe(root)
     expect(seen.plugins.map((plugin) => plugin.id).toSorted()).toEqual([
       'broken',
+      'conciv.config.skill',
       'conciv.tool.skill',
       'configured',
       'embedded',
@@ -6470,6 +6471,61 @@ export default {
     expect(z.object({mcpUrl: z.string()}).parse(await call(againBase, 'seer', 'seen')).mcpUrl).toBe(
       `${againBase}/api/mcp`,
     )
+  })
+
+  it('an engine offers the skills in the project conciv/skills folder to the model and through the skill tool, and drops a removed one', async () => {
+    const root = tempDir('conciv-skills-')
+    const folder = join(root, 'conciv', 'skills', 'greet')
+    mkdirSync(folder, {recursive: true})
+    writeFileSync(join(folder, 'SKILL.md'), '---\nname: greet\ndescription: How to greet the user\n---\nGreet twice.\n')
+    const prompts: string[][] = []
+    const fake = createFakeHarness()
+    const harness: FakeHarness = {
+      ...fake,
+      chatConfig: (deps: HarnessChatDeps) => ({
+        adapter: makeTextAdapter(fake.id, async function* (options) {
+          prompts.push([...(options.systemPrompts ?? [])].map(String))
+          yield* fake.script.chatStream(deps, options)
+        }),
+      }),
+    }
+    const engine = await start({
+      options: {stateRoot: root},
+      root,
+      launchEditor: () => {},
+      harness,
+      homeDir: tempDir('conciv-home-'),
+    })
+    onTestFinished(() => engine.stop())
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    const turn = (runId: string) =>
+      fetch(`${base}${CHAT_SSE_PATH}`, {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({
+          threadId: sessionId,
+          runId,
+          messages: [{id: `${runId}-user`, role: 'user', content: 'say hello'}],
+          tools: [],
+          context: [],
+        }),
+      }).then((response) => response.text())
+    await turn('skills-run')
+    expect(prompts.flat().join('\n')).toContain('<id>greet</id>')
+
+    const mcp = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: sessionId})
+    onTestFinished(() => mcp.close())
+    const load = async (id: string) =>
+      JSON.stringify(await (await mcp.tools()).find((entry) => entry.name === 'skill')?.execute?.({id}))
+    expect(await load('greet')).toContain('Greet twice.')
+
+    const updates = await makeRpcClient(base).event.subscribe({types: ['skill.updated']})
+    onTestFinished(() => updates.return(undefined))
+    expect(await updates.next()).toMatchObject({value: {type: 'server.connected'}})
+    rmSync(folder, {recursive: true})
+    expect(await updates.next()).toMatchObject({value: {type: 'skill.updated'}})
+    await expect(load('greet')).rejects.toThrow('Unable to load skill greet')
   })
 })
 
