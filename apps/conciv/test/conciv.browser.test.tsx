@@ -880,6 +880,34 @@ describe('chat pane', () => {
       await expect.element(notifications()).toMatchTextContent(/Stream response body read failed|could not be sent/)
       await expect.element(input()).toHaveTextContent('take this one back')
     })
+
+    test('when the run starts while its early stop is still on the way, the two stops end it once', async () => {
+      const {sessionId} = await newSession()
+      await coreControl.holdTurn()
+      const frame = await faults.install({kind: 'chat-frame-gate', onRelease: 'deliver'})
+      const stops = await faults.install({kind: 'gate', path: ['chat', 'stop']})
+      mountChatPane(sessionId)
+      await input().fill('stopped once by two stops')
+      await userEvent.keyboard('{Enter}')
+      await coreControl.awaitFaultPending(frame, 1)
+
+      await stopButton().click()
+      await coreControl.awaitFaultPending(stops, 1)
+      await coreControl.releaseFault(frame)
+      await coreControl.awaitFaultPending(stops, 2)
+      await coreControl.releaseFault(stops)
+
+      await expect.element(stoppedLine()).toBeVisible()
+      await expect.element(stoppingButton()).not.toBeInTheDocument()
+      await expect.element(page.getByRole('alert')).not.toBeInTheDocument()
+      await expect.element(threadText('stopped once by two stops')).toBeVisible()
+      expect(stoppedLine().elements()).toHaveLength(1)
+      active.pane?.dispose()
+      mountChatPane(sessionId)
+      await expect.element(threadText('stopped once by two stops')).toBeVisible()
+      await expect.element(stoppedLine()).toBeVisible()
+      expect(stoppedLine().elements()).toHaveLength(1)
+    })
   })
 
   test('Escape in the focused composer does what the stop button does and keeps the typed draft ahead of the queue', async () => {
@@ -2485,6 +2513,7 @@ describe('connect agents', () => {
 describe('launcher activity', () => {
   const coreBase = bootedCore('launcher-activity')
   const harness = createShellHarness(coreBase)
+  const faults = trackedFaults()
 
   afterEach(async () => {
     await coreControl.releaseTurn()
@@ -2512,6 +2541,184 @@ describe('launcher activity', () => {
 
     await expect.element(launcher(), {timeout: 8000}).toHaveAttribute('aria-busy', 'false')
   }, 30_000)
+
+  const statusBar = () => page.getByRole('toolbar', {name: 'Session status'})
+  const chip = () => statusBar().getByRole('status')
+  const pendingPane = () => page.getByText('Loading conciv…', {exact: true})
+  const titleButton = (title: string) => page.getByRole('button', {name: `${title}, session options`})
+
+  async function sessionThatRan(title: string): Promise<string> {
+    const rpc = coreRpc(coreBase())
+    const sessionId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId, title})
+    const turn = await sendTurn(coreBase(), sessionId, 'a run before the panel opens')
+    await turn.awaitTurnEnd()
+    return sessionId
+  }
+
+  test('before its conversation loads, a fresh session reads no status and a session that ran reads DONE and LAST TASK', async () => {
+    await page.viewport(1000, 900)
+    const ranId = await sessionThatRan('a session that ran')
+    const freshId = await createSession(coreRpc(coreBase()))
+
+    const freshHydrate = await faults.install({kind: 'gate', path: ['chat', 'hydrate']})
+    harness.mountShell(`/panel/${freshId}?open=true`)
+    await coreControl.awaitFaultPending(freshHydrate, 1)
+    await expect.element(statusBar().getByRole('tab', {name: 'Chat', exact: true}), {timeout: 8000}).toBeVisible()
+    await expect.element(page.getByText(/^CONCIV/)).toBeVisible()
+    await expect.element(chip()).not.toBeInTheDocument()
+    await expect.element(page.getByText(/TASK|^LAST$|^ACTIVE$/)).not.toBeInTheDocument()
+    await coreControl.releaseFault(freshHydrate)
+    harness.dispose()
+
+    const ranHydrate = await faults.install({kind: 'gate', path: ['chat', 'hydrate']})
+    harness.mountShell(`/panel/${ranId}?open=true`)
+    await coreControl.awaitFaultPending(ranHydrate, 1)
+    await expect.element(chip(), {timeout: 8000}).toHaveTextContent('DONE')
+    await expect.element(page.getByText('CONCIV / LAST TASK', {exact: true})).toBeVisible()
+  }, 30_000)
+
+  test('a session opened from the picker draws at once from its list row with its status, then takes the real row', async () => {
+    await page.viewport(1000, 900)
+    const rpc = coreRpc(coreBase())
+    const ranId = await sessionThatRan('picked from the list')
+    const startId = await createSession(rpc)
+    harness.mountShell(`/panel/${startId}?open=true`)
+    await expect.element(composer(), {timeout: 8000}).toBeVisible()
+    await userEvent.click(titleButton('New session'))
+    await userEvent.click(page.getByRole('button', {name: /^Session: /}))
+    const option = page.getByRole('option', {name: /^picked from the list,/})
+    await expect.element(option, {timeout: 8000}).toBeVisible()
+
+    await rpc.sessions.rename({sessionId: ranId, title: 'renamed after the list loaded'})
+    const row = await faults.install({kind: 'gate', path: ['sessions', 'get']})
+    const hydrate = await faults.install({kind: 'gate', path: ['chat', 'hydrate']})
+    await userEvent.click(option)
+    await coreControl.awaitFaultPending(row, 1)
+    await expect.element(titleButton('picked from the list')).toBeVisible()
+    await expect.element(pendingPane()).not.toBeInTheDocument()
+    await expect.element(chip()).toHaveTextContent('DONE')
+    await expect.element(page.getByText('CONCIV / LAST TASK', {exact: true})).toBeVisible()
+
+    await coreControl.releaseFault(row)
+    await expect.element(titleButton('renamed after the list loaded'), {timeout: 8000}).toBeVisible()
+    await expect.element(chip()).toHaveTextContent('DONE')
+    await coreControl.releaseFault(hydrate)
+  }, 30_000)
+
+  test('a new session from the picker draws at once with no status and no task', async () => {
+    await page.viewport(1000, 900)
+    const ranId = await sessionThatRan('a session that ran')
+    harness.mountShell(`/panel/${ranId}?open=true`)
+    await expect.element(chip(), {timeout: 8000}).toHaveTextContent('DONE')
+    await userEvent.click(titleButton('a session that ran'))
+    await userEvent.click(page.getByRole('button', {name: /^Session: /}))
+
+    const row = await faults.install({kind: 'gate', path: ['sessions', 'get']})
+    const hydrate = await faults.install({kind: 'gate', path: ['chat', 'hydrate']})
+    await userEvent.click(page.getByRole('button', {name: 'New session', exact: true}))
+    await coreControl.awaitFaultPending(row, 1)
+    await expect.element(titleButton('New session'), {timeout: 8000}).toBeVisible()
+    await expect.element(pendingPane()).not.toBeInTheDocument()
+    await expect.element(statusBar().getByRole('tab', {name: 'Chat', exact: true})).toBeVisible()
+    await expect.element(chip()).not.toBeInTheDocument()
+    await expect.element(page.getByText(/TASK|^LAST$|^ACTIVE$/)).not.toBeInTheDocument()
+    await coreControl.releaseFault(row)
+    await coreControl.releaseFault(hydrate)
+  }, 30_000)
+
+  test('a deep link to a session that ran waits behind the loading screen, then reads DONE before its conversation loads', async () => {
+    await page.viewport(1000, 900)
+    const ranId = await sessionThatRan('a session that ran')
+    const row = await faults.install({kind: 'gate', path: ['sessions', 'get']})
+    const hydrate = await faults.install({kind: 'gate', path: ['chat', 'hydrate']})
+
+    harness.mountShell(`/panel/${ranId}?open=true`)
+    await coreControl.awaitFaultPending(row, 1)
+    await expect.element(pendingPane(), {timeout: 8000}).toBeVisible()
+    await expect.element(statusBar()).not.toBeInTheDocument()
+
+    await coreControl.releaseFault(row)
+    await expect.element(chip(), {timeout: 8000}).toHaveTextContent('DONE')
+    await expect.element(page.getByText('CONCIV / LAST TASK', {exact: true})).toBeVisible()
+    await coreControl.releaseFault(hydrate)
+  }, 30_000)
+
+  test('a session that never ran shows no status and no task, still none after an unsend, and its first turn reads as running, then done', async () => {
+    await page.viewport(1000, 900)
+    const rpc = coreRpc(coreBase())
+    const sessionId = await createSession(rpc)
+
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(composer(), {timeout: 8000}).toBeVisible()
+    await expect.element(statusBar().getByRole('tab', {name: 'Chat', exact: true})).toBeVisible()
+    await expect.element(page.getByText(/^CONCIV/)).toBeVisible()
+    await expect.element(statusBar().getByRole('status')).not.toBeInTheDocument()
+    await expect.element(page.getByText(/TASK|^LAST$|^ACTIVE$/)).not.toBeInTheDocument()
+
+    const frame = await faults.install({kind: 'chat-frame-gate', onRelease: 'cut'})
+    await userEvent.click(composer())
+    await userEvent.keyboard('take this one back{Enter}')
+    await coreControl.awaitFaultPending(frame, 1)
+    await userEvent.click(page.getByRole('button', {name: 'Stop generating'}))
+    await expect.element(page.getByRole('button', {name: 'Stopping the run'})).toBeVisible()
+    await coreControl.releaseFault(frame)
+    await expect.element(composer()).toHaveTextContent('take this one back')
+    await expect.element(page.getByRole('button', {name: 'Send message', exact: true})).toBeVisible()
+    await expect.element(statusBar().getByRole('status')).not.toBeInTheDocument()
+    await expect.element(page.getByText(/TASK|^LAST$|^ACTIVE$/)).not.toBeInTheDocument()
+    expect({
+      row: (await rpc.sessions.get({sessionId})).lastRunAt,
+      run: (await rpc.chat.hydrate({sessionId})).lastRun,
+    }).toEqual({row: null, run: null})
+
+    await coreControl.holdTurn()
+    await userEvent.click(composer())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(statusBar().getByRole('status'), {timeout: 8000}).toHaveTextContent('RUNNING')
+    await expect.element(page.getByText('CONCIV / ACTIVE TASK', {exact: true})).toBeVisible()
+
+    await coreControl.releaseTurn()
+    await expect.element(statusBar().getByRole('status'), {timeout: 8000}).toHaveTextContent('DONE')
+    await expect.element(page.getByText('CONCIV / LAST TASK', {exact: true})).toBeVisible()
+    const lastRun = (await rpc.chat.hydrate({sessionId})).lastRun
+    expect(lastRun).not.toBeNull()
+    expect((await rpc.sessions.get({sessionId})).lastRunAt).toBe(lastRun?.startedAt)
+  }, 30_000)
+
+  test('a session whose row fails to load says so where the title is, keeps its menu and its chat, and Retry brings the title back', async () => {
+    await page.viewport(1000, 900)
+    const sessionId = await sessionThatRan('a row that failed to load')
+    const broken = await faults.install({kind: 'fail', path: ['sessions', 'get'], status: 500})
+
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    const rowAlert = page.getByRole('alert').filter({hasText: 'Couldn’t load this session'})
+    await expect.element(titleButton('Session'), {timeout: 8000}).toBeVisible()
+    await expect.element(page.getByText('Hello from conciv')).toBeVisible()
+    await userEvent.click(composer())
+    await userEvent.keyboard('still talking while the row is failed')
+    await expect.element(composer()).toHaveTextContent('still talking while the row is failed')
+    await expect.element(rowAlert, {timeout: 20_000}).toBeVisible()
+    await expect.element(rowAlert.getByRole('button', {name: 'Retry'})).toBeVisible()
+    await expect.element(titleButton('This session could not be loaded')).toBeVisible()
+    await expect.element(titleButton('New session')).not.toBeInTheDocument()
+
+    await userEvent.click(titleButton('This session could not be loaded'))
+    await expect.element(page.getByRole('dialog', {name: 'Session options'})).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('dialog', {name: 'Session options'})).not.toBeInTheDocument()
+
+    await userEvent.click(composer())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByRole('log').getByText('still talking while the row is failed')).toBeVisible()
+    await expect.element(page.getByText('Hello from conciv').nth(1), {timeout: 8000}).toBeVisible()
+    await expect.element(rowAlert).toBeVisible()
+
+    await coreControl.releaseFault(broken)
+    await userEvent.click(rowAlert.getByRole('button', {name: 'Retry'}))
+    await expect.element(titleButton('a row that failed to load'), {timeout: 8000}).toBeVisible()
+    await expect.element(rowAlert).not.toBeInTheDocument()
+  }, 45_000)
 })
 
 describe('launcher drag', () => {
@@ -2975,6 +3182,90 @@ describe('a refusing prompt hook', () => {
     await expect.element(attached()).toBeVisible()
     await expect.element(page.getByRole('log').getByText('keep this request')).not.toBeInTheDocument()
   }, 30_000)
+})
+
+describe('a Stop pressed while a plugin prepares the prompt', () => {
+  const GATE = 'prompt-gate.sock'
+  const REPLY = 'a reply from a turn the engine started'
+  const MESSAGE = 'stop while the plugin prepares'
+  const HOLDING_PLUGIN = [
+    `import {connect} from 'node:net'`,
+    `import {join} from 'node:path'`,
+    `export default {`,
+    `  id: 'prompt-holding',`,
+    `  async setup(ctx) {`,
+    `    await ctx.session.hook('prompt', () => new Promise((resolve, reject) => {`,
+    `      const gate = connect(join(ctx.location.directory, '${GATE}'))`,
+    `      gate.once('error', reject)`,
+    `      gate.once('data', () => {`,
+    `        gate.end()`,
+    `        resolve()`,
+    `      })`,
+    `    }))`,
+    `  },`,
+    `}`,
+  ].join('\n')
+  const core = bootedCore('prompt-holding', {
+    text: REPLY,
+    files: {'prompt-holding/index.ts': HOLDING_PLUGIN},
+    plugins: ['./prompt-holding'],
+  })
+  const keep = keptPane()
+  const faults = trackedFaults()
+  const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
+  const stoppingButton = () => page.getByRole('button', {name: 'Stopping the run'})
+  const sendButton = () => page.getByRole('button', {name: 'Send message', exact: true})
+  const emptyThread = () => page.getByText('How can I help you today?', {exact: true})
+  const threadText = (text: string) => page.getByRole('log').getByText(text, {exact: true})
+
+  test('the message comes back to the composer, the thread stays empty, and releasing the hook starts nothing', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    const hold = await faults.install({kind: 'project-socket-gate', socket: GATE})
+    keep(mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />))
+    await userEvent.click(input())
+    await userEvent.keyboard(`${MESSAGE}{Enter}`)
+    await coreControl.awaitFaultPending(hold, 1)
+
+    await userEvent.click(stopButton())
+
+    await expect.element(input()).toHaveTextContent(MESSAGE)
+    await expect.element(emptyThread()).toBeVisible()
+    await expect.element(threadText(MESSAGE)).not.toBeInTheDocument()
+    await expect.element(sendButton()).toBeEnabled()
+    await expect.element(stoppingButton()).not.toBeInTheDocument()
+    await expect.element(page.getByText('Stopping…')).not.toBeInTheDocument()
+    await expect.element(page.getByRole('alert')).not.toBeInTheDocument()
+
+    await coreControl.releaseFault(hold)
+    await coreControl.awaitFaultAnswered(hold)
+    await expect.element(emptyThread()).toBeVisible()
+    await expect.element(threadText(MESSAGE)).not.toBeInTheDocument()
+    await expect.element(page.getByText(REPLY)).not.toBeInTheDocument()
+    await expect.element(stopButton()).not.toBeInTheDocument()
+    await expect.element(input()).toHaveTextContent(MESSAGE)
+
+    await userEvent.click(sendButton())
+    await expect.element(threadText(REPLY)).toBeVisible()
+    await expect.element(stopButton()).not.toBeInTheDocument()
+    expect(threadText(MESSAGE).elements()).toHaveLength(1)
+    expect(threadText(REPLY).elements()).toHaveLength(1)
+  })
+
+  test('a gate whose socket path is too long for a unix socket says so before it listens', async () => {
+    const name = 'x'.repeat(100)
+    const message = await faults.install({kind: 'project-socket-gate', socket: name}).then(
+      () => 'the gate installed',
+      (error: unknown) => (error instanceof Error ? error.message : String(error)),
+    )
+    const named = /the project socket gate's path is (\d+) bytes, over the 103 a unix socket allows: (\/\S+)$/.exec(
+      message,
+    )
+
+    expect(message).toMatch(/the project socket gate's path is/)
+    expect(named?.[2]).toMatch(new RegExp(`/${name}$`))
+    expect(Number(named?.[1])).toBe(new TextEncoder().encode(named?.[2]).length)
+  })
 })
 
 const FOUND_API_BASE = 'http://found.test'
@@ -6091,7 +6382,14 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
     const pane = (label: string) => ({
       type: 'pluginExperimentals',
       plugins: [
-        {id: 'pane', revision: expect.stringMatching(/^[0-9a-f]{64}$/), code: bundle(label), options: {greeting: 'hi'}},
+        {
+          id: 'pane',
+          revision: expect.stringMatching(/^[0-9a-f]{64}$/),
+          code: bundle(label),
+          options: {greeting: 'hi'},
+          chunks: [],
+          file: 'plugin-experimental.js',
+        },
       ],
       reserved: ['conciv'],
     })
@@ -7266,6 +7564,16 @@ module.exports = {default: {setup(ctx) {
     await expect.element(entries().nth(3)).toHaveAccessibleName('Fixture tools')
     await expect.element(entries().nth(4)).not.toBeInTheDocument()
     await expect.element(tab('Phone tab')).not.toBeInTheDocument()
+    const statusBar = () => page.getByRole('toolbar', {name: 'Session status'})
+    const sessionChip = () => statusBar().getByRole('status')
+    await expect.element(sessionChip()).not.toBeInTheDocument()
+    await expect.element(statusBar().getByText('--', {exact: true})).toBeInViewport({ratio: 1})
+    await expect.element(entries().nth(3)).toBeInViewport({ratio: 1})
+
+    await editor().click()
+    await userEvent.keyboard('one finished turn on a phone{Enter}')
+    await expect.element(sessionChip(), {timeout: 8000}).toHaveTextContent('DONE')
+    await expect.element(sessionChip()).toBeInViewport({ratio: 1})
 
     await tab('Count').click()
     await expect.element(tab('Count')).toHaveAttribute('aria-selected', 'true')
@@ -7299,7 +7607,6 @@ module.exports = {default: {setup(ctx) {
     expect(harness.pathname()).toBe(`/panel/${sessionId}`)
     await editor().click()
     await expect.element(editor()).toHaveFocus()
-    const sessionChip = () => page.getByRole('toolbar', {name: 'Session status'}).getByRole('status')
     await expect.element(sessionChip()).toBeInViewport({ratio: 1})
     await tab('Fixture tools').click()
     await expect.element(tab('Fixture tools')).toHaveAttribute('aria-selected', 'true')
@@ -7335,4 +7642,98 @@ module.exports = {default: {setup(ctx) {
     await expect.element(entries().nth(2)).toHaveAccessibleName('Phone tab')
     await expect.element(entries().nth(3)).not.toBeInTheDocument()
   }, 90_000)
+})
+
+describe('a fixture plugin built into chunks', () => {
+  const SHARED = 'shared-Bq3nWgtP.cjs'
+  const LAZY = 'lazy-D1x9cTqA.cjs'
+  const OUTSIDE = 'outside-Zz9yXw8V.cjs'
+  const entry = `Object.defineProperties(exports, {__esModule: {value: true}, [Symbol.toStringTag]: {value: 'Module'}})
+const require_shared = require('./${SHARED}')
+const {Slot} = require('@conciv/plugin/experimental')
+const {createComponent} = require('solid-js/web')
+var entry_default = {setup(ctx) {
+  const line = Object.assign(document.createElement('p'), {textContent: 'Shared at start: ' + require_shared.shared})
+  const load = (label, part) => createComponent(ctx.ui.Button, {
+    onClick: () => part().then(
+      (loaded) => { line.textContent = loaded.big() },
+      (error) => { line.textContent = error.code + ': ' + error.message },
+    ),
+    children: label,
+  })
+  ctx.add(Slot, {at: 'window.bottom', render: () => [
+    line,
+    load('Load the lazy part', () => Promise.resolve().then(() => require('./${LAZY}'))),
+    load('Load a part outside the build', () => Promise.resolve().then(() => require('./${OUTSIDE}'))),
+  ]})
+}}
+var label = 'from the entry'
+exports.default = entry_default
+exports.label = label
+`
+  const manifest = JSON.stringify({
+    [`_${SHARED}`]: {file: SHARED, name: 'shared'},
+    'src/plugin-experimental.tsx': {
+      file: 'plugin-experimental.cjs',
+      name: 'plugin-experimental',
+      src: 'src/plugin-experimental.tsx',
+      isEntry: true,
+      imports: [`_${SHARED}`],
+      dynamicImports: ['src/lazy.ts'],
+    },
+    'src/lazy.ts': {
+      file: LAZY,
+      name: 'lazy',
+      src: 'src/lazy.ts',
+      isDynamicEntry: true,
+      imports: [`_${SHARED}`, 'src/plugin-experimental.tsx'],
+    },
+  })
+  const coreBase = bootedCore('plugin-chunks', {
+    plugins: ['./chunked'],
+    files: {
+      'chunked/index.ts': `export default {id: 'chunked', async setup() {}}
+`,
+      'chunked/plugin-experimental.cjs': entry,
+      'chunked/plugin-experimental.cjs.manifest.json': manifest,
+      [`chunked/${SHARED}`]: `var shared = 'shared'
+Object.defineProperty(exports, 'shared', {enumerable: true, get: function() { return shared }})
+`,
+      [`chunked/${LAZY}`]: `const require_shared = require('./${SHARED}')
+const require_entry = require('./plugin-experimental.cjs')
+function big() { return 'lazy part ' + require_shared.shared + ' ' + require_entry.label }
+exports.big = big
+`,
+    },
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  const shown = (text: string) => page.getByText(text, {exact: true})
+  const control = (name: string) => page.getByRole('button', {name, exact: true})
+  const BUNDLE = ['plugin', 'experimental']
+  const CHUNK = ['plugin', 'experimentalChunk']
+
+  test('its slot shows at start with the module its entry shares with a lazy part, and the lazy part loads only when the user asks for it', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(shown('Shared at start: shared'), {timeout: 15_000}).toBeVisible()
+    expect(await coreControl.rpcStartedOnceServed(BUNDLE, 1, [CHUNK])).toEqual([0])
+
+    await control('Load the lazy part').click()
+    await expect.element(shown('lazy part shared from the entry')).toBeVisible()
+    expect(await coreControl.rpcCallCount(CHUNK, {id: 'chunked', file: LAZY})).toBe(1)
+  }, 60_000)
+
+  test('a lazy part its build did not write is refused, and its slot shows the refusal', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(shown('Shared at start: shared'), {timeout: 15_000}).toBeVisible()
+
+    await control('Load a part outside the build').click()
+    await expect
+      .element(shown(`PLUGIN_CHUNK_NOT_FOUND: No chunk ${OUTSIDE} in the current build of the plugin chunked`))
+      .toBeVisible()
+  }, 60_000)
 })

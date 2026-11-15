@@ -226,14 +226,18 @@ overrides:
   # @tailwindcss/typography (incl. latest 0.5.20) pins postcss-selector-parser 6.0.10 exact.
   postcss-selector-parser@<6.1.5: '>=6.1.5 <7'
 
-# drizzle-kit 1.0.0-rc ships without a drizzle-orm dependency/peer yet requires
-# `drizzle-orm/_relations` at runtime, assuming a flat node_modules. Under pnpm's isolated
-# layout that require falls back to the hidden-hoisted drizzle-orm, which can be the
-# whiteboard extension's stable 0.45.x (no `_relations` export) and crashes. Declare the
-# missing peer so each consumer's own drizzle-orm is linked beside its drizzle-kit.
-# Scoped to the 1.0 line (@conciv/db pins 1.0.0-rc.4); drop when drizzle-kit 1.0 stable
-# fixes its manifest.
+# drizzle-kit ships without a drizzle-orm dependency (0.31.x declares no peer at all; the 1.0 rc
+# line declared none until rc.5) yet imports drizzle-orm at runtime, assuming a flat node_modules.
+# Under pnpm's isolated layout that import falls back to the hidden-hoisted drizzle-orm in
+# node_modules/.pnpm/node_modules, which is whichever copy pnpm hoisted, not the consumer's own:
+# the 1.0 rc crashes on the whiteboard's stable 0.45.x (no `_relations` export), and the
+# whiteboard's drizzle-kit 0.31 refuses @conciv/db's 1.0 rc ("This version of drizzle-kit is
+# outdated"). Declare the missing peer on both lines so each consumer's own drizzle-orm is linked
+# beside its drizzle-kit. Drop each entry when that drizzle-kit line declares the peer itself.
 packageExtensions:
+  'drizzle-kit@<1.0.0-0':
+    peerDependencies:
+      drizzle-orm: '*'
   'drizzle-kit@>=1.0.0-0 <2':
     peerDependencies:
       drizzle-orm: '*'
