@@ -17,7 +17,7 @@ import {createServer as createNetServer} from 'node:net'
 import {tmpdir} from 'node:os'
 import {dirname, isAbsolute, join, relative} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it} from 'vitest'
+import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished} from 'vitest'
 import getPort from 'get-port'
 import {chromium, type Browser, type Page} from 'playwright'
 import {expect as expectLocator} from 'playwright/test'
@@ -670,6 +670,9 @@ describe('native page vite boot', () => {
       await page.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 15_000})
     }
 
+    const importSettled = (page: Page, href: string) =>
+      page.evaluate(`import(${JSON.stringify(href)}).then(() => null, () => null)`)
+
     it('mounts the widget without a CommonJS interop error', async () => {
       const page = state.page
       if (page === undefined) throw new Error('dev server did not start')
@@ -705,6 +708,7 @@ describe('native page vite boot', () => {
     it('restores the open chat, keeps it usable and names the content blocker when every rrweb module is blocked', async () => {
       const opener = await state.browser?.newPage()
       if (opener === undefined) throw new Error('dev server did not start')
+      onTestFinished(() => opener.close())
       const saves = rpcObserverFor(opener)
       const beforeOpen = saves.mark()
       await openChat(opener)
@@ -713,14 +717,19 @@ describe('native page vite boot', () => {
       const url = await trustedUrl()
       const blockedPage = await state.browser?.newPage()
       if (blockedPage === undefined) throw new Error('dev server did not start')
+      onTestFinished(() => blockedPage.close())
       await blockedPage.route(/rrweb/, (route) => route.abort('blockedbyclient'))
       await blockedPage.goto(url, {waitUntil: 'domcontentloaded'})
+      const blockerNotice = blockedPage.getByText(/content blocker.*rrweb-snapshot/)
+      await expectLocator(blockerNotice).toBeVisible({timeout: 45_000})
       const chat = blockedPage.getByRole('dialog', {name: 'conciv chat agent'})
       const composer = chat.getByRole('textbox', {name: 'Message the conciv agent'})
       await composer.fill('still usable', {timeout: 45_000})
       await expectLocator(composer).toHaveText('still usable')
       await chat.getByRole('tab', {name: 'Fixture'}).click()
       await expectLocator(chat.getByText('The fixture extension view')).toBeVisible()
+      await expectLocator(blockerNotice).toBeHidden()
+      const stillBlocked = blockedPage.waitForEvent('requestfailed', (request) => /rrweb-snapshot/.test(request.url()))
       const outcome = await blockedPage.evaluate(() =>
         Reflect.get(window, '__CONCIV_PAGE_DRIVER__').execute({
           agentId: 'plugin-it',
@@ -728,10 +737,10 @@ describe('native page vite boot', () => {
           input: {selector: '#probe', text: 'rewritten'},
         }),
       )
-      await expectLocator(blockedPage.getByText(/content blocker.*rrweb-snapshot/)).toBeVisible()
       expect(outcome).toMatchObject({ok: true, capture: {after: {descriptor: {accessibleName: 'rewritten'}}}})
       expect(outcome.capture.after.node).toBeUndefined()
-      await blockedPage.close()
+      await importSettled(blockedPage, (await stillBlocked).url())
+      expect(await blockerNotice.count()).toBe(0)
     }, 90_000)
 
     it('runs a page tool once and promptly while rrweb-snapshot is still loading', async () => {
@@ -778,20 +787,17 @@ describe('native page vite boot', () => {
           }),
         )
 
-      const importSettled = (href: string) =>
-        blockedPage.evaluate(`import(${JSON.stringify(href)}).then(() => null, () => null)`)
-
       const stillBlocked = blockedPage.waitForEvent('requestfailed', (request) => /rrweb-snapshot/.test(request.url()))
       expect((await rewrite()).capture.after.node).toBeUndefined()
       const failedImport = (await stillBlocked).url()
-      await importSettled(failedImport)
+      await importSettled(blockedPage, failedImport)
       expect(await blockerNotice.count()).toBe(0)
 
       gate.open = true
       const unblocked = blockedPage.waitForResponse(/rrweb-snapshot/)
       await rewrite()
       const loadedImport = (await unblocked).url()
-      await importSettled(loadedImport)
+      await importSettled(blockedPage, loadedImport)
       expect((await rewrite()).capture.after.node).toBeDefined()
       await blockedPage.close()
     }, 90_000)
