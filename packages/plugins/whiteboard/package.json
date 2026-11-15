@@ -50,9 +50,9 @@
   },
   "dependencies": {
     "@conciv/protocol": "workspace:^",
-    "@libsql/client": "^0.18.0",
-    "@takumi-rs/core": "^2.18.2",
-    "@takumi-rs/helpers": "^2.18.2",
+    "@libsql/client": "catalog:",
+    "@takumi-rs/core": "catalog:",
+    "@takumi-rs/helpers": "catalog:",
     "drizzle-orm": "^0.45.4",
     "oxc-parser": "catalog:",
     "zod": "catalog:"

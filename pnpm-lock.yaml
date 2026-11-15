@@ -33,6 +33,9 @@ catalogs:
     '@iconify-json/ph':
       specifier: ^1.2.2
       version: 1.2.2
+    '@libsql/client':
+      specifier: ^0.18.0
+      version: 0.18.0
     '@modelcontextprotocol/sdk':
       specifier: ^1.32.2
       version: 1.32.2
@@ -138,6 +141,12 @@ catalogs:
     '@tailwindcss/vite':
       specifier: ^4.3.3
       version: 4.3.3
+    '@takumi-rs/core':
+      specifier: ^2.18.2
+      version: 2.18.2
+    '@takumi-rs/helpers':
+      specifier: ^2.18.2
+      version: 2.18.2
     '@tanstack/ai':
       specifier: 1.2.0
       version: 1.2.0
@@ -3881,7 +3890,7 @@ importers:
         specifier: 3.0.0
         version: 3.0.0
       '@libsql/client':
-        specifier: ^0.18.0
+        specifier: 'catalog:'
         version: 0.18.0
       '@orpc/client':
         specifier: 'catalog:'
@@ -3893,10 +3902,10 @@ importers:
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
       '@takumi-rs/core':
-        specifier: ^2.18.2
+        specifier: 'catalog:'
         version: 2.18.2(csstype@3.2.3)(preact@11.1.0)(react@19.3.1)
       '@takumi-rs/helpers':
-        specifier: ^2.18.2
+        specifier: 'catalog:'
         version: 2.18.2(preact@11.1.0)(react@19.3.1)
       '@tanstack/pacer':
         specifier: 'catalog:'
@@ -4632,13 +4641,13 @@ importers:
         specifier: workspace:^
         version: link:../../protocol
       '@libsql/client':
-        specifier: ^0.18.0
+        specifier: 'catalog:'
         version: 0.18.0
       '@takumi-rs/core':
-        specifier: ^2.18.2
+        specifier: 'catalog:'
         version: 2.18.2(csstype@3.2.3)(preact@11.1.0)(react@19.3.1)
       '@takumi-rs/helpers':
-        specifier: ^2.18.2
+        specifier: 'catalog:'
         version: 2.18.2(preact@11.1.0)(react@19.3.1)
       drizzle-orm:
         specifier: ^0.45.4
