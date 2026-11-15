@@ -610,6 +610,14 @@
       "exports": ["make"]
     },
     {
+      "file": "packages/plugin-host/src/core/config/markdown.ts",
+      "exports": ["parse"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/config/plugin/skill-file.ts",
+      "exports": ["parse"]
+    },
+    {
       "file": "packages/plugin-host/src/core/filesystem.ts",
       "exports": ["Content"]
     },
@@ -676,6 +684,14 @@
       "exports": ["Failure"]
     },
     {
+      "file": "packages/plugin-host/src/core/config/plugin/skill.ts",
+      "exports": ["Plugin"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/plugin/skill.ts",
+      "exports": ["Plugin"]
+    },
+    {
       "file": "packages/plugin-host/src/core/rpc.ts",
       "exports": ["Rpc"]
     },
@@ -714,6 +730,10 @@
     {
       "file": "packages/plugin-host/src/core/tool.ts",
       "exports": ["Editor", "Snapshot"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/tool/plugin/server.ts",
+      "exports": ["Plugin"]
     },
     {
       "file": "packages/plugin-host/src/core/tool/plugin/skill.ts",

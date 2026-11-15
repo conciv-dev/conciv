@@ -403,7 +403,7 @@
     {
       "files": ["packages/plugin-host/**"],
       "rules": {
-        "conciv/test-file-budget": ["error", {"max": 35}]
+        "conciv/test-file-budget": ["error", {"max": 39}]
       }
     },
     {

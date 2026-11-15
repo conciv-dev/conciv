@@ -52,5 +52,5 @@ export function provideConfiguredPolicies(policies: ConcivConfig['policies']) {
 }
 
 export function provideGlobalRoots(home: string) {
-  return Global.layerWith({cache: join(home, 'cache'), state: join(home, 'state')})
+  return Global.layerWith({cache: join(home, 'cache'), config: home, state: join(home, 'state')})
 }

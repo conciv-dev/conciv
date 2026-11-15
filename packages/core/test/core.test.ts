@@ -3779,8 +3779,8 @@ describe('plugin context keys provided by core', () => {
     )
 
     const roots = await host.runPromise(Global.Service)
-    expect(roots).toEqual({cache: join(home, 'cache'), state: join(home, 'state')})
-    expect(existsSync(roots.cache) && existsSync(roots.state)).toBe(true)
+    expect(roots).toEqual({cache: join(home, 'cache'), config: home, state: join(home, 'state')})
+    expect(existsSync(roots.cache) && existsSync(roots.config) && existsSync(roots.state)).toBe(true)
   })
   it('the session key creates, reads, pages, renames, re-describes, switches and removes conciv sessions on their own rows', async () => {
     const stateRoot = tempDir()

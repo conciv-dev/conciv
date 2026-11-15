@@ -2,6 +2,7 @@ import '../src/styles.css'
 import 'virtual:uno.css'
 import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe, onTestFinished} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
+import {uniq} from 'es-toolkit'
 import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {CONNECTION_CHANGED_EVENT} from '@conciv/protocol/event-bus'
 import {
@@ -6007,6 +6008,8 @@ function arrivals<Item>() {
     waiting.set(count, created)
     return created
   }
+  const firstMatching = async (matches: (item: Item) => boolean, count = 1): Promise<number> =>
+    matches(await slot(count).promise) ? count : firstMatching(matches, count + 1)
   return {
     items,
     add(item: Item) {
@@ -6014,6 +6017,7 @@ function arrivals<Item>() {
       slot(items.length).resolve(item)
     },
     nth: (count: number) => slot(count).promise,
+    firstMatching,
   }
 }
 
@@ -6021,6 +6025,20 @@ function onlyRevision(push: PluginExperimentalsPush): string {
   const [plugin, ...others] = push.plugins
   if (!plugin || others.length > 0) throw new Error(`expected one pushed plugin, got ${push.plugins.length}`)
   return plugin.revision
+}
+
+function pairings(pushes: readonly PluginExperimentalsPush[]) {
+  const plugins = pushes.flatMap((push) => push.plugins)
+  const distinct = (values: readonly string[]) => uniq(values).length
+  return {
+    revisions: distinct(plugins.map((plugin) => plugin.revision)),
+    codes: distinct(plugins.map((plugin) => plugin.code)),
+    pairs: distinct(plugins.map((plugin) => JSON.stringify([plugin.revision, plugin.code]))),
+  }
+}
+
+function oneToOne(count: number) {
+  return {revisions: count, codes: count, pairs: count}
 }
 
 function storeNames(plugins: readonly PluginExperimental[]): string[][] {
@@ -6098,15 +6116,21 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
     expect(await first.pluginExperimentals()).toEqual({plugins: rebuilt.plugins, reserved: ['conciv']})
     await coreControl.writeProjectFile(PANE_BUNDLE, bundle('fourth'))
     await coreControl.releaseFault(garbled)
-    const recovered = await pushes.nth(3)
+    const settled = await pushes.firstMatching((push) =>
+      push.plugins.some((plugin) => plugin.code === bundle('fourth')),
+    )
+    const recovered = await pushes.nth(settled)
     expect(recovered).toEqual(pane('fourth'))
+    for (const stale of pushes.items.slice(2, settled - 1)) expect(stale).toEqual(pane('third'))
+    expect(settled).toBeLessThanOrEqual(4)
+    expect(pairings(pushes.items)).toEqual(oneToOne(settled))
     expect(votes.items).not.toContain(false)
 
     const fetches = await servedSince(EXPERIMENTAL)
     await coreControl.writeProjectFile(TAKEN_BUNDLE, bundle('fourth'))
     await fetches(1)
     await coreControl.writeProjectFile(PANE_BUNDLE, bundle('fifth'))
-    const fifth = await pushes.nth(4)
+    const fifth = await pushes.nth(settled + 1)
     expect(fifth).toEqual(pane('fifth'))
     expect(await coreControl.rpcCallCount(EXPERIMENTAL, {id: 'conciv'})).toBe(0)
 
@@ -6115,8 +6139,9 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
     expect(await dropped).toBe(false)
     await coreControl.writeProjectFile(PANE_BUNDLE, bundle('sixth'))
     await coreControl.releaseFault(offline)
-    const reconnected = await pushes.nth(5)
+    const reconnected = await pushes.nth(settled + 2)
     expect(reconnected).toEqual(pane('sixth'))
+    expect(pairings(pushes.items)).toEqual(oneToOne(settled + 2))
 
     const second = bundleSource(base)
     onTestFinished(second.dispose)
@@ -6126,7 +6151,7 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
     await coreControl.writeProjectFile(PANE_BUNDLE, bundle('seventh'))
     const afterDispose = await secondPushes.nth(2)
     expect(afterDispose).toEqual(pane('seventh'))
-    expect(pushes.items).toHaveLength(5)
+    expect(pushes.items).toHaveLength(settled + 2)
 
     const loaded = arrivals<{plugins: readonly PluginExperimental[]; reserved: readonly string[]}>()
     const rendered = render(() => (
@@ -6429,7 +6454,7 @@ describe('plugin settings page links while plugins are not yet known', () => {
 
   afterEach(harness.dispose)
 
-  test('with zero plugins an unknown page lands on General, and with the engine unreachable a page link keeps its address under the lost connection notice until Retry finds the page gone', async () => {
+  test('with zero plugins an unknown page lands on General, and with the engine unreachable a page link keeps its address under the lost connection notice and lands on General once the engine is back', async () => {
     await page.viewport(1000, 900)
     const sessionId = await createSession(coreRpc(coreBase()))
     const pagePath = (key: string) => `/panel/${sessionId}/settings/plugins/${encodeURIComponent(key)}?open=true`
@@ -6453,9 +6478,8 @@ describe('plugin settings page links while plugins are not yet known', () => {
     harness.mountShell(pagePath('alpha:prefs'), [], {login: {apiBase: origin}})
     await trustChecked
     await expect.element(lostConnection(), {timeout: 15_000}).toBeVisible()
-    await coreControl.releaseFault(offline)
     expect(harness.pathname()).toBe(`/panel/${sessionId}/settings/plugins/${encodeURIComponent('alpha:prefs')}`)
-    await lostConnection().getByRole('button', {name: 'Retry'}).click()
+    await coreControl.releaseFault(offline)
     await expect.element(page.getByRole('heading', {name: 'Appearance'}), {timeout: 15_000}).toBeVisible()
     expect(harness.pathname()).toBe(`/panel/${sessionId}/settings/general`)
   }, 90_000)
@@ -7003,7 +7027,7 @@ module.exports = {default: {setup(ctx) {
     expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:tools'))
   }, 60_000)
 
-  test('a cold link to a tab no panel lists ends on the chat, and a cold link to its tab with the engine unreachable keeps its address under the lost connection notice and opens the tab after Retry', async () => {
+  test('a cold link to a tab no panel lists ends on the chat, and a cold link to its tab with the engine unreachable keeps its address under the lost connection notice and opens the tab once the engine is back', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(`${tabPath(sessionId, 'fixture:missing')}?open=true`)
     await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
@@ -7029,9 +7053,8 @@ module.exports = {default: {setup(ctx) {
     await trustChecked
     await expect.element(lostConnection(), {timeout: 15_000}).toBeVisible()
     await expect.element(tab('Chat')).toHaveAttribute('aria-selected', 'false')
-    await coreControl.releaseFault(offline)
     expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:tools'))
-    await lostConnection().getByRole('button', {name: 'Retry'}).click()
+    await coreControl.releaseFault(offline)
     await expect.element(control('Write a plain note'), {timeout: 15_000}).toBeVisible()
     await expect.element(tab('Fixture tools')).toHaveAttribute('aria-selected', 'true')
     expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:tools'))

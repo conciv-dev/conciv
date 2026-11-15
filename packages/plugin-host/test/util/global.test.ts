@@ -11,6 +11,7 @@ describe('global', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opencode-global-layer-'))
     const directories = {
       cache: path.join(root, 'cache'),
+      config: path.join(root, 'config'),
       state: path.join(root, 'state'),
     }
 
@@ -19,6 +20,7 @@ describe('global', () => {
     Object.values(directories).forEach((directory) => expect(fs.statSync(directory).isDirectory()).toBe(true))
     expect(Context.get(context, Global.Service).state).toBe(directories.state)
     expect(Context.get(context, Global.Service).cache).toBe(directories.cache)
+    expect(Context.get(context, Global.Service).config).toBe(directories.config)
     fs.rmSync(root, {recursive: true, force: true})
   })
 
@@ -26,6 +28,7 @@ describe('global', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opencode-global-flock-'))
     const directories = {
       cache: path.join(root, 'cache'),
+      config: path.join(root, 'config'),
       state: path.join(root, 'state'),
     }
 
