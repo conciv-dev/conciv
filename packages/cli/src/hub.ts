@@ -491,7 +491,7 @@ function ownerAmong(tab: SessionId, probes: TabAsk[], silent: Silent, headers: R
 function notOpen(tab: SessionId, failures: unknown[]): Error {
   if (failures.length === 0) return new Error(`TAB_NOT_OPEN: tab ${tab} is not open; call external_tabs({})`)
   return new Error(
-    `cannot tell whether tab ${tab} is open: no engine that answered has it, and the tab probe failed on ${failures.map(errorText).join('; ')}; nothing ran`,
+    `cannot tell whether tab ${tab} is open: no engine that answered has it, and ${failures.map(errorText).join('; ')}; nothing ran`,
     {cause: new AggregateError(failures, 'the tab probes failed')},
   )
 }
@@ -507,7 +507,8 @@ function homeRead(home: string, reading: Promise<Checked>): Promise<Checked> {
 }
 
 function failedProbe(root: string, failure: unknown): Error {
-  return new Error(`${root} (${engineTooOld(failure) ? TOO_OLD : errorText(failure)})`, {cause: failure})
+  if (engineTooOld(failure)) return new Error(`${root} (${TOO_OLD})`, {cause: failure})
+  return new Error(silence([{root, error: errorText(failure)}]), {cause: failure})
 }
 
 async function holdsTab(owner: TabOwner, tab: SessionId): Promise<boolean> {
