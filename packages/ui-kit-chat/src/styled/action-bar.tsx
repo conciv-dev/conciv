@@ -71,7 +71,11 @@ const AUTOHIDE_VISIBILITY =
 
 const ASSISTANT_BAR_CLASS = `flex gap-0.5 pointer-events-auto ${AUTOHIDE_VISIBILITY}`
 
-export function AssistantActionBar(props: {readOnly?: boolean; copyText?: string}): JSX.Element {
+export function AssistantActionBar(props: {
+  readOnly?: boolean
+  refreshDisabled?: boolean
+  copyText?: string
+}): JSX.Element {
   return (
     <ActionBar.Root
       hideWhenRunning
@@ -85,6 +89,7 @@ export function AssistantActionBar(props: {readOnly?: boolean; copyText?: string
         <ActionBar.Copy text={props.copyText} render={(buttonProps) => <CopyButton buttonProps={buttonProps} />} />
         <Show when={!props.readOnly}>
           <ActionBar.Reload
+            disabled={props.refreshDisabled}
             render={(buttonProps) => (
               <TooltipIconButton {...buttonProps} tooltip="Refresh" class="size-6">
                 <RefreshCw size={ICON} />

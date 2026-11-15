@@ -94,6 +94,7 @@ export type ThreadMessagesProps = {
   grouping?: Grouping
   groupEntries?: readonly GroupEntry[]
   readOnly?: boolean
+  refreshDisabled?: boolean
 }
 
 const PLAN_LABEL = 'plan'
@@ -361,6 +362,7 @@ function AssistantTurn(props: {
         <div class={ANSWER_ACTION_ROW_CLASS}>
           <AssistantActionBar
             readOnly={config.readOnly() || outside()}
+            refreshDisabled={config.refreshDisabled()}
             copyText={outside() ? outsideRunText() : undefined}
           />
         </div>
@@ -418,6 +420,7 @@ type ThreadConfig = {
   grouping: () => Grouping | undefined
   groupEntries: () => readonly GroupEntry[]
   readOnly: () => boolean
+  refreshDisabled: () => boolean
 }
 
 const ThreadConfigContext = createContext<ThreadConfig>({
@@ -430,6 +433,7 @@ const ThreadConfigContext = createContext<ThreadConfig>({
   grouping: () => undefined,
   groupEntries: () => [],
   readOnly: () => false,
+  refreshDisabled: () => false,
 })
 
 function TurnPrefix(): JSX.Element {
@@ -545,6 +549,7 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
         grouping: () => props.grouping,
         groupEntries: () => props.groupEntries ?? [],
         readOnly: () => props.readOnly ?? false,
+        refreshDisabled: () => props.refreshDisabled ?? false,
       }}
     >
       <TurnEstimateProvider value={estimator}>

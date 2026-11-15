@@ -29,6 +29,7 @@ import {type Detected, detectFramework, detectProject, type Framework} from '../
 import {execFileOutcome} from '../src/init/exec.js'
 import {detectHarnesses} from '@conciv/harness-init/detect'
 import {createHubConnections} from '@conciv/harness-init/hub'
+import {CONCIV_BIN, CONCIV_COMMAND_GUIDE} from '@conciv/harness-init/agent-guide'
 import {listEngines, recordHubConnection, registerEngine, takeHubOperation, withHomeDb} from '@conciv/db'
 import type {HarnessId} from '../src/init/harness-detect.js'
 import {type ConfirmedSelections, type InitOutput, interactiveTerminal, type PlanPrompts} from '../src/init/wizard.js'
@@ -806,6 +807,43 @@ describe('cli', () => {
           ok: true,
           data: [{url: '/x.ts', importers: [], importedModules: ['dep.ts']}],
         })
+      })
+
+      it('runs every command the agent guide teaches exactly as the guide spells it, except the design commands: this engine has no design extension', async () => {
+        const placeholders: Record<string, string> = {
+          '<selector>': '#a',
+          '<ComponentName>': 'Header',
+          '<expression>': 'document.title',
+          '<file>': 'src/a.ts',
+          '<url>': '/src/a.ts',
+        }
+        const everyTaught = CONCIV_COMMAND_GUIDE.split('`')
+          .filter((span, index) => index % 2 === 1 && span.startsWith(`${CONCIV_BIN} tools `))
+          .map((span) => span.slice(CONCIV_BIN.length + 1))
+        const needsDesignExtension = everyTaught.filter((command) => command.startsWith('tools design '))
+        expect(needsDesignExtension).toEqual([
+          'tools design target <image> --route <route> --width <px>',
+          'tools design diff',
+          'tools design status',
+        ])
+        const taught = everyTaught.filter((command) => !needsDesignExtension.includes(command))
+        expect(taught).toEqual(expect.arrayContaining(['tools page snapshot', 'tools page console']))
+        await bootCli(cleanups, {bridge: restartCapableBridge()})
+        const outcomes: Array<{command: string; reached: boolean; document: unknown}> = []
+        for (const command of taught) {
+          const argv = command
+            .replace(/[[\]]/g, '')
+            .split(' ')
+            .map((word) => placeholders[word] ?? word)
+          expect(argv.filter((word) => word.startsWith('<'))).toEqual([])
+          written.length = 0
+          await runCli(cliMain, argv)
+          const document = z
+            .object({ok: z.boolean(), error: z.object({code: z.string().optional(), message: z.string()}).optional()})
+            .parse(onlyDocument(written))
+          outcomes.push({command, reached: document.ok || document.error?.code !== undefined, document})
+        }
+        expect(outcomes.filter((outcome) => !outcome.reached)).toEqual([])
       })
 
       it('tools open reaches the editor opener over rpc', async () => {
@@ -4708,7 +4746,8 @@ export default defineConfig({plugins: [conciv()]})`)
           expect(sandbox).toBeGreaterThan(table)
           expect(section).toContain('`.conciv/bin/conciv tools page snapshot`')
           expect(section).toContain('`.conciv/bin/conciv tools react inspect <selector>`')
-          expect(section).toContain('`.conciv/bin/conciv tools server graph|transform|reload`')
+          expect(section).toContain('`.conciv/bin/conciv tools server graph <file>`')
+          expect(section).toContain('`.conciv/bin/conciv tools server reload <file>`')
           expect(section).toContain('`.conciv/bin/conciv tools --help`')
         })
 
