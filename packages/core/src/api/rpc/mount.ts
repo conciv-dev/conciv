@@ -159,7 +159,7 @@ const EVENT_PROCEDURES = new Set(['event.subscribe'])
 
 const OUTSIDE_EVENT_REFUSAL = "outside agents can't read the engine's event stream"
 
-const PLUGIN_PROCEDURES = new Set(['plugin.call', 'plugin.list', 'plugin.experimental'])
+const PLUGIN_PROCEDURES = new Set(['plugin.call', 'plugin.list', 'plugin.experimental', 'plugin.experimentalChunk'])
 
 const OUTSIDE_PLUGIN_REFUSAL = "outside agents can't use plugin routes; use the plugin in the tab"
 

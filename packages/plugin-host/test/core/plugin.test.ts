@@ -209,7 +209,39 @@ it.live("serves a local plugin's built chunks, each answer pinned to the bytes r
     yield* reload
     const id = Plugin.Id.make('fixture.chunks')
 
-    expect((yield* plugins.experimental(id))?.chunks).toEqual([{file: 'shared-A.cjs', code: shared}])
+    const served = yield* plugins.experimental(id)
+    expect(served?.chunks).toEqual([{file: 'shared-A.cjs', code: shared}])
+    const chunk = (file: string) => plugins.experimentalChunk(id, file)
+    const refused = (file: string) => Effect.flip(chunk(file))
+    expect(yield* chunk('lazy-B.cjs')).toEqual({
+      revision: served?.revision,
+      chunks: [
+        {file: 'shared-A.cjs', code: shared},
+        {file: 'deep-C.cjs', code: 'exports.deep = require("./shared-A.cjs").shared'},
+        {file: 'lazy-B.cjs', code: 'exports.big = () => require("./deep-C.cjs").deep'},
+      ],
+    })
+    expect(yield* plugins.experimentalChunk(Plugin.Id.make('missing'), 'lazy-B.cjs')).toBeUndefined()
+    for (const file of ['../package.json', 'plugin-experimental.js', 'plugin-experimental.js.manifest.json', 'x.cjs'])
+      expect(yield* refused(file)).toEqual({_tag: 'Plugin.ChunkNotFound', file})
+
+    yield* write({'lazy-B.cjs': 'exports.big = () => "rewritten"'})
+    expect(yield* refused('lazy-B.cjs')).toEqual({_tag: 'Plugin.ChunkNotFound', file: 'lazy-B.cjs'})
+    yield* write({'shared-A.cjs': 'exports.shared = "rewritten"'})
+    expect(yield* Effect.flip(plugins.experimental(id))).toEqual({_tag: 'Plugin.ChunkNotFound', file: 'shared-A.cjs'})
+
+    yield* write({
+      'lazy-D.cjs': 'exports.big = () => "second"',
+      'plugin-experimental.js': entry('lazy-D.cjs'),
+      'plugin-experimental.js.manifest.json': manifest('lazy-D.cjs'),
+    })
+    yield* reload
+    expect((yield* chunk('lazy-D.cjs'))?.chunks).toEqual([
+      {file: 'shared-A.cjs', code: 'exports.shared = "rewritten"'},
+      {file: 'deep-C.cjs', code: 'exports.deep = require("./shared-A.cjs").shared'},
+      {file: 'lazy-D.cjs', code: 'exports.big = () => "second"'},
+    ])
+    expect(yield* refused('lazy-B.cjs')).toEqual({_tag: 'Plugin.ChunkNotFound', file: 'lazy-B.cjs'})
   }).pipe(Effect.scoped),
 )
 it.effect('unloading a plugin removes its tools and runs cleanup', () =>

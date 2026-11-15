@@ -1,10 +1,20 @@
 export * as Plugin from './plugin.js'
-export {Event, ExperimentalBundle, Id, Info, Source, State} from '../schema/plugin.js'
+export {
+  ChunkNotFound,
+  Event,
+  ExperimentalBundle,
+  ExperimentalChunks,
+  Id,
+  Info,
+  Source,
+  State,
+} from '../schema/plugin.js'
 
 import {readFile} from 'node:fs/promises'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {Plugin} from '../schema/plugin.js'
+import {Hash} from '../util/hash.js'
 import {Cause, Context, Effect, Exit, Latch, Layer, Logger, Queue, References, Scope, Semaphore} from 'effect'
 import {Bus} from './bus.js'
 import {PluginHost} from './plugin/host.js'
@@ -48,21 +58,26 @@ export const layer = Layer.effect(
       return inventory
     })
     const experimental = Effect.fn('Plugin.experimental')(function* (id: Plugin.Id) {
-      const experimental = active.get(id)?.plugin.experimental
-      if (!experimental) return undefined
-      const entry = fileURLToPath(experimental.file)
+      const part = active.get(id)?.plugin.experimental
+      if (!part) return undefined
+      const entry = fileURLToPath(part.file)
       const code = yield* Effect.promise(() => readFile(entry, 'utf8'))
-      const chunks = yield* Effect.forEach(closure(experimental.chunks, experimental.chunks.start), (file) =>
-        Effect.promise(() => readFile(path.join(path.dirname(entry), file), 'utf8')).pipe(
-          Effect.map((chunk) => ({file, code: chunk})),
-        ),
-      )
+      const chunks = yield* servedChunks(entry, part.chunks, part.chunks.start)
       return {
         code,
-        revision: experimental.revision,
-        options: experimental.options,
+        revision: part.revision,
+        options: part.options,
         chunks,
       } satisfies Plugin.ExperimentalBundle
+    })
+    const experimentalChunk = Effect.fn('Plugin.experimentalChunk')(function* (id: Plugin.Id, file: string) {
+      const part = active.get(id)?.plugin.experimental
+      if (!part) return undefined
+      if (!part.chunks.files.has(file)) return yield* Effect.fail(Plugin.ChunkNotFound.make({file}))
+      return {
+        revision: part.revision,
+        chunks: yield* servedChunks(fileURLToPath(part.file), part.chunks, [file]),
+      } satisfies Plugin.ExperimentalChunks
     })
     const hostContext = yield* Effect.context<Effect.Services<ReturnType<typeof PluginHost.make>>>()
     const load = Effect.fnUntraced(function* (plugin: Generation) {
@@ -270,6 +285,7 @@ export const layer = Layer.effect(
       hold,
       list,
       experimental,
+      experimentalChunk,
     })
   }),
 )
@@ -293,6 +309,21 @@ type PendingFailure = {
   readonly refresh: Effect.Effect<void>
   readonly ref: string
   readonly release: Effect.Effect<void>
+}
+
+function servedChunks(entry: string, chunks: Chunks, roots: readonly string[]) {
+  return Effect.forEach(closure(chunks, roots), (file) =>
+    Effect.tryPromise({
+      try: () => readFile(path.join(path.dirname(entry), file)),
+      catch: () => Plugin.ChunkNotFound.make({file}),
+    }).pipe(
+      Effect.flatMap((bytes) =>
+        Hash.sha256(bytes) === chunks.files.get(file)?.sha256
+          ? Effect.succeed({file, code: bytes.toString('utf8')})
+          : Effect.fail(Plugin.ChunkNotFound.make({file})),
+      ),
+    ),
+  )
 }
 
 function closure(chunks: Chunks, roots: readonly string[]): readonly string[] {

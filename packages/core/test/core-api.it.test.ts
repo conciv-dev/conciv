@@ -6383,6 +6383,9 @@ export default {
     await expect(outside.plugin.list()).rejects.toMatchObject(pluginRefusal)
     expect((await makeRpcClient(base).plugin.list()).data.map((plugin) => plugin.id)).toContain('embedded')
     await expect(outside.plugin.experimental({id: 'configured'})).rejects.toMatchObject(pluginRefusal)
+    await expect(outside.plugin.experimentalChunk({id: 'configured', file: 'x.cjs'})).rejects.toMatchObject(
+      pluginRefusal,
+    )
     await expect(makeRpcClient(base).plugin.experimental({id: 'configured'})).rejects.toMatchObject({
       code: 'PLUGIN_NOT_FOUND',
       data: {pluginId: 'configured'},
@@ -6521,6 +6524,19 @@ describe('engine plugin bundles', () => {
         data: {pluginId: id, message: `No active plugin with a ./plugin-experimental bundle: ${id}`},
       })
     }
+    await expect(rpc.plugin.experimentalChunk({id: 'pane', file: 'x.cjs'}, options)).rejects.toMatchObject({
+      code: 'PLUGIN_CHUNK_NOT_FOUND',
+      status: 404,
+      data: {pluginId: 'pane', file: 'x.cjs'},
+    })
+    await expect(rpc.plugin.experimentalChunk({id: 'nobody', file: 'x.cjs'}, options)).rejects.toMatchObject({
+      code: 'PLUGIN_NOT_FOUND',
+      data: {pluginId: 'nobody'},
+    })
+    for (const file of ['../package.json', '/x.cjs', 'plugin-experimental.js', `${'a'.repeat(253)}.cjs`])
+      await expect(rpc.plugin.experimentalChunk({id: 'pane', file}, options)).rejects.toMatchObject({
+        code: 'BAD_REQUEST',
+      })
 
     const changes = await rpc.event.subscribe({types: ['plugin.updated']}, options)
     expect(await changes.next()).toEqual({

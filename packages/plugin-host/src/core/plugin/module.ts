@@ -182,6 +182,7 @@ const readChunks = Effect.fn('PluginModule.readChunks')(function* (entry: string
 })
 
 async function manifestChunks(manifest: string): Promise<Chunks> {
+  const directory = path.dirname(manifest)
   const records = new Map(Object.entries(Manifest.parse(JSON.parse(await readFile(manifest, 'utf8')))))
   const files = (keys: readonly string[] = []) =>
     keys.map((key) => {
@@ -193,7 +194,20 @@ async function manifestChunks(manifest: string): Promise<Chunks> {
   return {
     start: listed.flatMap((record) => (record.isEntry ? files(record.imports) : [])),
     files: new Map(
-      listed.flatMap((record) => (record.isEntry ? [] : [[record.file, {imports: files(record.imports)}] as const])),
+      await Promise.all(
+        listed
+          .filter((record) => !record.isEntry)
+          .map(
+            async (record) =>
+              [
+                record.file,
+                {
+                  sha256: Hash.sha256(await readFile(path.join(directory, record.file))),
+                  imports: files(record.imports),
+                },
+              ] as const,
+          ),
+      ),
     ),
   }
 }

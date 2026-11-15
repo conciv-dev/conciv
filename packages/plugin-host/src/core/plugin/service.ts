@@ -7,7 +7,11 @@ import {Context, type Effect, type Exit} from 'effect'
 export interface Interface {
   readonly activate: (plugins: readonly Generation[], failures?: readonly Failure[]) => Effect.Effect<void>
   readonly list: () => Effect.Effect<Plugin.Info[]>
-  readonly experimental: (id: Plugin.Id) => Effect.Effect<Plugin.ExperimentalBundle | undefined>
+  readonly experimental: (id: Plugin.Id) => Effect.Effect<Plugin.ExperimentalBundle | undefined, Plugin.ChunkNotFound>
+  readonly experimentalChunk: (
+    id: Plugin.Id,
+    file: string,
+  ) => Effect.Effect<Plugin.ExperimentalChunks | undefined, Plugin.ChunkNotFound>
   readonly close: (exit: Exit.Exit<unknown, unknown>) => Effect.Effect<void>
   readonly awaitActivation: Effect.Effect<void>
   readonly hold: () => Effect.Effect<Effect.Effect<void>>
@@ -29,7 +33,7 @@ export type Generation = PluginDefinition & {
 
 export type Chunks = {
   readonly start: readonly string[]
-  readonly files: ReadonlyMap<string, {readonly imports: readonly string[]}>
+  readonly files: ReadonlyMap<string, {readonly sha256: string; readonly imports: readonly string[]}>
 }
 
 export const Service = Context.Service<Interface>('@opencode/Plugin')

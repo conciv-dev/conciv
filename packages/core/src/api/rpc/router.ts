@@ -14,6 +14,7 @@ import {EventFeed} from '../../runtime/event-feed.js'
 import {
   cappedText,
   PluginExperimentalBundleSchema,
+  PluginExperimentalChunksSchema,
   safeStringify,
   type contract,
   type RegistryCallErrorName,
@@ -183,9 +184,30 @@ function pluginExperimental(host: PluginHost, id: string, signal: AbortSignal | 
       const bundle = yield* plugins.experimental(Plugin.Id.make(id))
       if (!bundle) return undefined
       return yield* locationResponse(Effect.succeed(PluginExperimentalBundleSchema.parse(bundle)))
-    }),
+    }).pipe(Effect.result),
     {signal},
   )
+}
+
+function pluginExperimentalChunk(host: PluginHost, input: {id: string; file: string}, signal: AbortSignal | undefined) {
+  return host.runPromise(
+    Effect.gen(function* () {
+      const plugins = yield* Plugin.Service
+      const chunks = yield* plugins.experimentalChunk(Plugin.Id.make(input.id), input.file)
+      if (!chunks) return undefined
+      return yield* locationResponse(Effect.succeed(PluginExperimentalChunksSchema.parse(chunks)))
+    }).pipe(Effect.result),
+    {signal},
+  )
+}
+
+function missingChunk(pluginId: string, file: string) {
+  return {message: `No chunk ${file} in the current build of the plugin ${pluginId}`, data: {pluginId, file}}
+}
+
+function missingPlugin(pluginId: string) {
+  const message = `No active plugin with a ./plugin-experimental bundle: ${pluginId}`
+  return {message, data: {pluginId, message}}
 }
 
 async function pluginCall(
@@ -289,10 +311,16 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       }),
       list: os.plugin.list.handler(({signal}) => pluginList(deps.pluginHost, signal)),
       experimental: os.plugin.experimental.handler(async ({input, errors, signal}) => {
-        const bundle = await pluginExperimental(deps.pluginHost, input.id, signal)
-        if (bundle !== undefined) return bundle
-        const message = `No active plugin with a ./plugin-experimental bundle: ${input.id}`
-        throw errors.PLUGIN_NOT_FOUND({message, data: {pluginId: input.id, message}})
+        const outcome = await pluginExperimental(deps.pluginHost, input.id, signal)
+        if (Result.isFailure(outcome)) throw errors.PLUGIN_CHUNK_NOT_FOUND(missingChunk(input.id, outcome.failure.file))
+        if (outcome.success !== undefined) return outcome.success
+        throw errors.PLUGIN_NOT_FOUND(missingPlugin(input.id))
+      }),
+      experimentalChunk: os.plugin.experimentalChunk.handler(async ({input, errors, signal}) => {
+        const outcome = await pluginExperimentalChunk(deps.pluginHost, input, signal)
+        if (Result.isFailure(outcome)) throw errors.PLUGIN_CHUNK_NOT_FOUND(missingChunk(input.id, outcome.failure.file))
+        if (outcome.success !== undefined) return outcome.success
+        throw errors.PLUGIN_NOT_FOUND(missingPlugin(input.id))
       }),
     },
     event: {
