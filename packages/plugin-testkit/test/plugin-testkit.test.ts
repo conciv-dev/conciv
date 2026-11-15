@@ -276,3 +276,58 @@ describe('rpc observer dispose', () => {
     },
   )
 })
+
+describe('rpc gate abandoned calls', () => {
+  browserTest(
+    'a call the page aborts after its answer arrived is reported as given up, once a later frame on the socket is seen',
+    async ({browser}) => {
+      const router = {echo: os.handler(() => 'answered')}
+      const served = await serveRpcRouter({router})
+      const page = await browser.newPage()
+      try {
+        await page.goto(served.base)
+        const gate = await gateRpcCalls(page, {path: ['echo']})
+        const body = new StandardRPCSerializer(new StandardRPCJsonSerializer()).serialize(undefined)
+        const request = (id: string) =>
+          encodeRequestMessage(id, MessageType.REQUEST, {
+            url: new URL('http://orpc/echo'),
+            method: 'POST',
+            headers: {},
+            body,
+          })
+        const held = await request('1')
+        const barrier = await request('2')
+        const abort = await encodeRequestMessage('1', MessageType.ABORT_SIGNAL, undefined)
+        if (typeof held !== 'string' || typeof barrier !== 'string' || typeof abort !== 'string') {
+          throw new Error('an rpc frame encoded to binary')
+        }
+        const exchange = page.evaluate(
+          ({url, held, barrier, abort}) =>
+            new Promise<number>((resolve) => {
+              const socket = new WebSocket(url)
+              const received = {count: 0}
+              socket.addEventListener('message', () => {
+                received.count += 1
+                if (received.count === 1) {
+                  socket.send(abort)
+                  socket.send(barrier)
+                  return
+                }
+                resolve(received.count)
+              })
+              socket.addEventListener('open', () => socket.send(held))
+            }),
+          {url: served.wsUrl, held, barrier, abort},
+        )
+        await gate.awaitCaptured(1)
+        await gate.release()
+        expect(await exchange).toBe(2)
+        await expect(gate.answered()).rejects.toThrow('the page gave up on this call before it was answered')
+      } finally {
+        await page.close()
+        await served.close()
+      }
+    },
+    15_000,
+  )
+})

@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {eq} from 'drizzle-orm'
-import type {ManagedRuntime} from 'effect'
+import {Effect, type ManagedRuntime} from 'effect'
 import type {ChatPlane} from '@conciv/chat'
 import {clearPageChanges, deleteSessionCaptures, drafts, markers, sessions, type ConcivDb} from '@conciv/db'
 import {SessionId} from '@conciv/protocol/chat-types'
@@ -83,14 +83,18 @@ export async function renameSession(
 }
 
 export async function deleteSession(deletion: SessionDeletion, sessionId: SessionId): Promise<void> {
+  await deletion.pluginHost.runPromise(KV.Service.use((kv) => removeInstructionEntries(kv, sessionId)))
+  await deletion.pluginHost.runPromise(
+    Bus.Service.use((bus) =>
+      bus
+        .publish(SessionEvent.Deleted, {sessionID: SessionSchema.Id.make(sessionId)})
+        .pipe(Effect.andThen(bus.remove(sessionId))),
+    ),
+  )
   await tombstoneRow(deletion.db, sessionId)
   await deletion.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
   await deletion.plane.clear(sessionId)
   deletion.queues.release(sessionId)
   await deleteSessionCaptures(deletion.db, sessionId)
   await clearPageChanges(deletion.db, sessionId)
-  await deletion.pluginHost.runPromise(KV.Service.use((kv) => removeInstructionEntries(kv, sessionId)))
-  await deletion.pluginHost.runPromise(
-    Bus.Service.use((bus) => bus.publish(SessionEvent.Deleted, {sessionID: SessionSchema.Id.make(sessionId)})),
-  )
 }

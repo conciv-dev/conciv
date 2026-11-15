@@ -230,12 +230,6 @@
         "reason": "copied from opencode packages/app/src/runtime/plugin/host-apis.tsx: createPluginAttachment keeps the source's shape; edited under ruling A, Night rulings 22, 52, 67, Day ruling 82; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/host-layout-machine.ts"],
-        "functions": ["transitionMobileView"],
-        "maxCognitive": 20,
-        "reason": "copied from opencode packages/app/src/runtime/plugin/host-layout-machine.ts: transitionMobileView keeps the source's shape; Day ruling 113. The file and its copied test stay unread: the route is the state, DECIDED by Omri MV-1; removal awaits his word (Day ruling 118 Q3)"
-      },
-      {
         "files": ["apps/conciv/src/runtime/plugin/host-machine.test.ts"],
         "functions": ["describe(\"plugin host follow\")"],
         "maxUnitSize": 109,
@@ -395,19 +389,6 @@
         "functions": ["persistedHandle"],
         "maxUnitSize": 66,
         "reason": "copied from opencode packages/app/src/runtime/plugin/stores.ts: persistedHandle keeps the source's shape; Day ruling 113"
-      },
-      {
-        "files": ["apps/conciv/src/runtime/server/plugin-machine.ts"],
-        "functions": ["transitionPluginServer"],
-        "maxCognitive": 19,
-        "reason": "copied from opencode packages/app/src/runtime/server/plugin-machine.ts: transitionPluginServer keeps the source's shape; Day ruling 113"
-      },
-      {
-        "files": ["apps/conciv/src/runtime/server/plugin-machine.ts"],
-        "functions": ["updated"],
-        "maxCognitive": 16,
-        "maxCrap": 38,
-        "reason": "copied from opencode packages/app/src/runtime/server/plugin-machine.ts: updated keeps the source's shape; Day ruling 113"
       },
       {
         "files": ["packages/plugin-host/src/**"],
@@ -594,12 +575,8 @@
       "exports": ["DIALOG_EXIT_MS"]
     },
     {
-      "file": "apps/conciv/src/runtime/plugin/host-apis.tsx",
-      "exports": ["usePluginAttachment"]
-    },
-    {
       "file": "apps/conciv/src/runtime/plugin/host-machine.ts",
-      "exports": ["WATCH_RETRY_MS", "LIST_TIMEOUT_MS", "sameHostEndpoint"]
+      "exports": ["WATCH_RETRY_MS", "LIST_TIMEOUT_MS"]
     },
     {
       "file": "apps/conciv/src/runtime/plugin/mobile.tsx",
@@ -615,64 +592,241 @@
     },
     {
       "file": "packages/plugin/src/**",
-      "exports": ["Info", "Ref", "define", "Cleanup", "Id", "Name", "PluginOptions", "make"]
+      "exports": ["Info", "Ref", "define", "Cleanup", "Id", "Name", "PluginOptions"]
     },
     {
       "file": "packages/plugin-host/src/**",
       "exports": [
         "Id",
         "Interface",
-        "Service",
-        "layer",
-        "Delta",
-        "Hash",
-        "Key",
-        "Removed",
-        "Source",
-        "Values",
-        "removed",
-        "Event",
         "Options",
+        "Service",
         "Tool",
-        "Info",
-        "Request",
+        "layer",
         "Durable",
+        "Location",
         "durable",
         "ephemeral",
-        "versionedType",
-        "configured",
-        "Agent",
-        "Color",
-        "Location",
-        "Name",
-        "NotFoundError",
-        "PermissionSaved",
-        "makeNotFoundError",
-        "Editor",
-        "Skill",
-        "DirectorySource",
-        "UrlSource",
-        "EmbeddedSource",
-        "toModelOutput",
-        "Rpc",
-        "Definition",
-        "make",
-        "Ref",
-        "Settings",
-        "InstructionEntry",
-        "Model",
-        "State",
-        "Plugin",
-        "Snapshot",
-        "Entry",
-        "define",
-        "Context",
-        "Data",
-        "Failure",
-        "Session",
-        "match",
-        "Content"
+        "versionedType"
       ]
+    },
+    {
+      "file": "packages/plugin-host/src/core/agent.ts",
+      "exports": ["Agent", "Color", "Editor", "Event", "Info", "Name"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/app.ts",
+      "exports": ["Info", "make"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/codemode/instructions.ts",
+      "exports": ["make"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/config/markdown.ts",
+      "exports": ["parse"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/config/plugin/skill-file.ts",
+      "exports": ["parse"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/filesystem.ts",
+      "exports": ["Content"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/image.ts",
+      "exports": ["Editor"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/image/photon-normalize.ts",
+      "exports": ["Content"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/instructions/index.ts",
+      "exports": ["Delta", "Hash", "Key", "Removed", "Source", "Values", "make", "removed"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/kv.ts",
+      "exports": ["Entry"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/location.ts",
+      "exports": ["Info"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/managed-policy.ts",
+      "exports": ["match"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/model.ts",
+      "exports": ["Info", "Model"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/permission.ts",
+      "exports": [
+        "Effect",
+        "Error",
+        "Event",
+        "NotFoundError",
+        "Permission",
+        "Reply",
+        "Request",
+        "Source",
+        "makeNotFoundError"
+      ]
+    },
+    {
+      "file": "packages/plugin-host/src/core/permission/saved.ts",
+      "exports": ["Info", "NotFoundError", "PermissionSaved", "makeNotFoundError"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/plugin.ts",
+      "exports": ["Event", "Info", "Plugin"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/plugin/host.ts",
+      "exports": ["make"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/plugin/module.ts",
+      "exports": ["make"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/plugin/service.ts",
+      "exports": ["Failure"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/config/plugin/skill.ts",
+      "exports": ["Plugin"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/plugin/skill.ts",
+      "exports": ["Plugin"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/rpc.ts",
+      "exports": ["Rpc"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/session.ts",
+      "exports": ["Session"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/session/error.ts",
+      "exports": ["NotFoundError", "makeNotFoundError"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/session/instruction-entry.ts",
+      "exports": ["Info", "InstructionEntry", "Key"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/skill.ts",
+      "exports": [
+        "Data",
+        "DirectorySource",
+        "Editor",
+        "EmbeddedSource",
+        "Event",
+        "Info",
+        "Name",
+        "Skill",
+        "Source",
+        "UrlSource",
+        "toModelOutput"
+      ]
+    },
+    {
+      "file": "packages/plugin-host/src/core/state.ts",
+      "exports": ["Failure", "State"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/tool.ts",
+      "exports": ["Editor", "Snapshot"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/tool/plugin/skill.ts",
+      "exports": ["toModelOutput"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/util/wildcard.ts",
+      "exports": ["match"]
+    },
+    {
+      "file": "packages/plugin-host/src/plugin/effect/plugin.ts",
+      "exports": ["Context", "define"]
+    },
+    {
+      "file": "packages/plugin-host/src/schema/agent.ts",
+      "exports": ["Agent", "Color", "Event", "Info", "Name"]
+    },
+    {
+      "file": "packages/plugin-host/src/schema/config/plugin.ts",
+      "exports": ["Entry", "Plugin"]
+    },
+    {
+      "file": "packages/plugin-host/src/schema/event.ts",
+      "exports": ["Data", "Definition", "Event"]
+    },
+    {
+      "file": "packages/plugin-host/src/schema/instruction-entry.ts",
+      "exports": ["Info", "InstructionEntry", "Key", "Snapshot"]
+    },
+    {
+      "file": "packages/plugin-host/src/schema/instruction.ts",
+      "exports": ["Delta", "Hash", "Key", "Removed", "Values", "removed"]
+    },
+    {
+      "file": "packages/plugin-host/src/schema/location.ts",
+      "exports": ["Info", "Ref"]
+    },
+    {
+      "file": "packages/plugin-host/src/schema/model.ts",
+      "exports": ["Info", "Model", "Ref", "Settings"]
+    },
+    {
+      "file": "packages/plugin-host/src/schema/permission-saved.ts",
+      "exports": ["Info", "PermissionSaved"]
+    },
+    {
+      "file": "packages/plugin-host/src/schema/permission.ts",
+      "exports": ["Effect", "Event", "Permission", "Reply", "Request", "Source"]
+    },
+    {
+      "file": "packages/plugin-host/src/schema/plugin.ts",
+      "exports": ["Event", "Info", "Plugin", "Source", "State"]
+    },
+    {
+      "file": "packages/plugin-host/src/schema/provider.ts",
+      "exports": ["Request", "Settings"]
+    },
+    {
+      "file": "packages/plugin-host/src/schema/rpc.ts",
+      "exports": ["Definition", "Rpc", "define"]
+    },
+    {
+      "file": "packages/plugin-host/src/schema/session-event.ts",
+      "exports": ["Event"]
+    },
+    {
+      "file": "packages/plugin-host/src/schema/session.ts",
+      "exports": ["Session"]
+    },
+    {
+      "file": "packages/plugin-host/src/schema/skill.ts",
+      "exports": ["DirectorySource", "EmbeddedSource", "Event", "Info", "Name", "Skill", "Source", "UrlSource"]
+    },
+    {
+      "file": "packages/plugin-host/src/schema/tool.ts",
+      "exports": ["Context", "Error", "Info"]
+    },
+    {
+      "file": "packages/plugin/src/client/promise/client.ts",
+      "exports": ["make"]
+    },
+    {
+      "file": "packages/plugin/src/client/shared-events.ts",
+      "exports": ["make"]
     },
     {
       "file": "packages/ui-kit-chat/src/tools/primitives/tool-fallback.tsx",
@@ -684,12 +838,7 @@
     }
   ],
   "entry": [
-    "packages/plugin-host/src/core/location.ts",
-    "packages/plugin-host/src/core/skill/instructions.ts",
     "packages/plugin-host/src/core/database/**",
-    "packages/plugin-host/src/core/permission.ts",
-    "packages/plugin-host/src/plugin/effect/rpc.ts",
-    "packages/plugin-host/src/core/schema.ts",
     "packages/plugin-host/test/core/fixture/*-worker.ts",
     "packages/brand-react/src/conciv-lockup.tsx",
     "packages/brand/src/brand-guidelines.mdx",

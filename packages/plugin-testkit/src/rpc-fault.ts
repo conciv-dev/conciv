@@ -8,14 +8,14 @@ const RELEASED_GATE_STATUS = 200
 
 type CallMatcher = (call: RpcSocketCall) => boolean
 
-export type RpcFaultInjector = {repair: () => void; dispose: () => Promise<void>; answered: () => Promise<void>}
+export type RpcFaultInjector = {repair: () => void; dispose: () => Promise<void>; answered: () => Promise<unknown>}
 
 function answeredBy(
   page: Page,
   path: readonly string[] | undefined,
   status: number,
   input?: RpcInputPattern,
-): () => Promise<void> {
+): () => Promise<unknown> {
   const since = rpcObserverFor(page).mark()
   return () => {
     if (!path) {
@@ -23,7 +23,10 @@ function answeredBy(
     }
     return rpcObserverFor(page)
       .completed({path, input, status, since, timeout: ANSWER_TIMEOUT_MS})
-      .then(() => undefined)
+      .then((record) => {
+        if (record.abandoned) throw new Error('the page gave up on this call before it was answered')
+        return record.output
+      })
   }
 }
 
@@ -41,7 +44,7 @@ function callMatcher(path: readonly string[] | undefined, input: RpcInputPattern
 async function brokenWhile(
   page: Page,
   matches: CallMatcher,
-  answered: () => Promise<void>,
+  answered: () => Promise<unknown>,
   breakCall: (call: RpcSocketCall) => void,
 ): Promise<RpcFaultInjector> {
   const socket = rpcSocketFor(page)
@@ -77,7 +80,7 @@ export function failRpcCalls(
 }
 
 export function abortRpcCalls(page: Page, options: {path?: readonly string[]} = {}): Promise<RpcFaultInjector> {
-  const answered = (): Promise<void> =>
+  const answered = (): Promise<unknown> =>
     Promise.reject(new Error('an aborted rpc call never reaches the server, so it is never answered'))
   return brokenWhile(page, pathMatcher(options.path), answered, (call) => call.cut())
 }
@@ -104,7 +107,7 @@ export async function holdRpcCalls(page: Page): Promise<RpcHold> {
 export type RpcGate = {
   pending: () => number
   awaitCaptured: (count: number) => Promise<void>
-  answered: () => Promise<void>
+  answered: () => Promise<unknown>
   release: () => Promise<void>
   dispose: () => Promise<void>
 }

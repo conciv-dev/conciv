@@ -2,7 +2,8 @@ import {describe, expect} from 'vitest'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {setTimeout} from 'node:timers/promises'
-import {Deferred, Duration, Effect, Fiber, Layer, LayerMap, Schedule} from 'effect'
+import {Cause, Deferred, Duration, Effect, Fiber, Layer, LayerMap, Logger, Schedule} from 'effect'
+import {z} from 'zod'
 import {TestClock} from 'effect/testing'
 import {Bus} from '../../../src/core/bus.js'
 import {Watcher} from '../../../src/core/filesystem/watcher.js'
@@ -342,6 +343,49 @@ describe('PluginSupervisor reload', () => {
           expect(peak).toBe(1)
         }).pipe(Effect.scoped, Effect.provide(locations.get(directory.path)))
       }),
+    30_000,
+  )
+})
+
+const LoadWarning = z.tuple([
+  z.literal('failed to load plugin'),
+  z.object({target: z.string(), ref: z.string(), cause: z.custom<Cause.Cause<unknown>>(Cause.isCause)}),
+])
+
+describe('PluginSupervisor load failure', () => {
+  it.live(
+    "a local plugin with an enum fails to load: the list shows the generic error, the log entry with its reference carries Node's reason",
+    () => {
+      const warnings: Array<z.infer<typeof LoadWarning>[1]> = []
+      const logger = Logger.make((entry) => {
+        const warning = LoadWarning.safeParse(entry.message)
+        if (warning.success) warnings.push(warning.data[1])
+      })
+      return Effect.gen(function* () {
+        const directory = yield* tmpdirScoped()
+        const file = path.join(directory.path, 'conciv/plugins/greeter.ts')
+        yield* Effect.promise(() =>
+          write(file, 'enum Mode { Ready = "ready" }\nexport default { id: Mode.Ready, async setup() {} }'),
+        )
+        const locations = yield* instances()
+        yield* Effect.gen(function* () {
+          const plugins = yield* Plugin.Service
+          yield* plugins.awaitActivation
+          const failure = yield* failed(plugins)
+          expect(failure).toEqual({
+            source: {type: 'local', path: file},
+            state: {status: 'failed', error: 'Plugin failed to load', ref: expect.stringMatching(/^err_[0-9a-f]{8}$/)},
+            features: {server: true},
+          })
+          const ref = failure.state.status === 'failed' ? failure.state.ref : undefined
+          const logged = warnings.find((warning) => warning.ref === ref)
+          expect(logged?.target).toBe(file)
+          expect(String(logged && Cause.squash(logged.cause))).toContain(
+            'TypeScript enum is not supported in strip-only mode',
+          )
+        }).pipe(Effect.scoped, Effect.provide(locations.get(directory.path)))
+      }).pipe(Effect.provide(Logger.layer([logger])))
+    },
     30_000,
   )
 })

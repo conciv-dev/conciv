@@ -10,7 +10,7 @@ import {drafts, markers} from '@conciv/db'
 import type {Router} from '@orpc/server'
 import {Effect, Result, Stream} from 'effect'
 import {Event, Location, Plugin, Rpc} from '@conciv/plugin-host'
-import {EventFeed} from '../../runtime/event-feed.js'
+import {EventFeed} from '../../event-feed.js'
 import {
   cappedText,
   PluginExperimentalBundleSchema,

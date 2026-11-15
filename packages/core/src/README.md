@@ -14,6 +14,7 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `CoreRuntime`, `EngineScope`, `SessionScope`, `ScopedToolCall`, `session` (`runtime.ts`)
 - `CodeRunCard`, `codeRunTool`, `EXECUTE_TOOL_NAME`, `coreToolCards` (`cards.tsx`)
 - `makeBuiltinRegistry(deps)` / `toolFailureFromPage` (`tool-registry.ts`)
+- `EventFeed` (`event-feed.ts`): opencode's `server/src/event-feed.ts` copied on `Bus.listen`: `layer`, `make(observe, {capacity?, encode?})`, `Service`, `subscribe(types?)` (a scoped stream of encoded events), `encode`, `SubscriberCapacity` (4096), `SubscriberOverflowError`, `EncodingError`. One edit from the source: it yields each encoded event object (the contract's `EventEnvelopeSchema`), not an SSE text frame, since the transport is oRPC; `encode` uses the host's own Effect definitions (`EventManifest.ServerDefinitions`, `Rpc.eventDefinition` for `rpc.*`)
 - Subdirectories:
   - api: [./api/README.md](./api/README.md) - MCP, tabs, push and native-page routes
   - cards: [./cards/README.md](./cards/README.md) - execute_typescript tool card
@@ -43,6 +44,7 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `/api/shutdown` (`app.ts`): 404 without `onShutdown`
 - `resolveConfig` (`config.ts`): session ids must pass `isSessionId` / `isHarnessSessionId`; harness defaults to 'claude'
 - `runClientTool` (`tool-registry.ts`): mutating page tools append a journal entry after success
+- `EventFeed` (`event-feed.ts`): only public events pass (`server.connected`, `EventManifest` server events, `rpc.*`), so internal events take no subscriber capacity; a subscriber with `types` gets only those types (filtered on the server); each event is encoded once and the same object goes to every subscriber; a subscriber whose queue holds 4096 undelivered events is removed and its stream fails with `SubscriberOverflowError`, the others go on; an encoding failure is logged and fails every current subscriber with `EncodingError`, later subscribers are served; a subscriber is removed and its queue shut down when its scope closes
 
 ## Side Effects
 
@@ -51,7 +53,7 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `start` (`start.ts`): registers `{id, pid, root, apiBase}` in the home db (`homeDir`, else `CONCIV_HOME`, else the platform folder) after the port is known, checks the other rows once in the background, and `stop` retires the row; every home db failure is logged and never stops the engine
 - `stop` (`start.ts`): closes the listener first, then disposes the app; `dispose` (`app.ts`) closes the plugin RPC (pending calls fail `rpc.unavailable`), closes the plugin registry (cleanups run, later plugins first), interrupts every in-flight `experimental.idle` trigger and waits for it to end (so ending the live runs next finds them settled), closes permissions (pending asks are rejected), ends every live run, runs the extension disposers, disposes the plugin host runtime, then closes the database; each step runs even when an earlier one fails and the failures are rethrown as one `AggregateError` (`lib/shutdown.ts:runInOrder`)
 - `harnessEnv` (`start.ts`): reads process.env and adds CONCIV_SESSION_ID for child harness processes
-- `makeApp` (`app.ts`): opens the SQLite DB, sweeps empty rows, records usage, titles and native ids; runs extension `__server` factories; the chat plane spawns harness processes
+- `makeApp` (`app.ts`): opens the SQLite DB, sweeps empty rows, records usage, titles and native ids; runs extension `__server` factories; the chat plane spawns harness processes; a run a previous engine left running is marked `aborted` while the chat plane is created, and its turn-end hooks run then, before any page queue can exist, so no follow-up turn is started for it
 - `resolveConfig` (`config.ts`): reads CONCIV_WIDGET_URL, CONCIV_STATE_ROOT, CONCIV_HARNESS, CONCIV_HARNESS_BIN, CONCIV_CLAUDE_PATH, CONCIV_SESSION_ID, CONCIV_CLAUDE_SESSION_ID
 - `storeCapture` (`tool-registry.ts`): writes captures to the DB
 

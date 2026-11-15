@@ -1,5 +1,6 @@
 import {existsSync, mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
+import {createRequire} from 'node:module'
 import {join} from 'node:path'
 import {afterEach, describe, expect, it} from 'vitest'
 import {createServer, type ViteDevServer} from 'vite'
@@ -40,6 +41,13 @@ afterEach(async () => {
   await new Promise((resolve) => setTimeout(resolve, 300))
   for (const dir of state.dirs) rmSync(dir, {recursive: true, force: true})
   state.dirs = []
+})
+
+describe('a CommonJS bundler config', () => {
+  it.each(['webpack', 'rspack'])('requires @conciv/it/plugin/%s and builds the plugin with .default()', (bundler) => {
+    const required: {default: () => {apply: unknown}} = createRequire(import.meta.url)(`@conciv/it/plugin/${bundler}`)
+    expect(typeof required.default().apply).toBe('function')
+  })
 })
 
 describe('the dev endpoint dir the conciv plugin boots a core with', () => {

@@ -88,6 +88,7 @@ export function EngineUnreachableNotice(): JSX.Element {
     resetBrowserRpcConnection(apiBase())
     await router.invalidate()
   }
+  onCleanup(() => notices.remove(ENGINE_UNREACHABLE_KEY))
   createEffect(() => {
     if (!reachability.sustainedOffline()) {
       notices.remove(ENGINE_UNREACHABLE_KEY)

@@ -51,7 +51,11 @@ const locationLayer = (directory: AbsolutePath) =>
 export const temporaryGlobalLayer = Layer.unwrap(
   tmpdirScoped().pipe(
     Effect.map((temporary) =>
-      Global.layerWith({cache: path.join(temporary.path, 'cache'), state: path.join(temporary.path, 'state')}),
+      Global.layerWith({
+        cache: path.join(temporary.path, 'cache'),
+        config: path.join(temporary.path, 'config'),
+        state: path.join(temporary.path, 'state'),
+      }),
     ),
   ),
 )

@@ -100,7 +100,7 @@ import concivPage from '@conciv/plugin-page'
 import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
 import {loadIsolateDriver} from '@conciv/ai/server'
-import {runInOrder} from './lib/shutdown.js'
+import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import {
   agentPath,
@@ -631,7 +631,26 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   })
   const pluginHost: PluginHost = plugins.runtime
   const pagePlugin = makePagePlugin(() => pluginHost)
-  await pluginHost.context()
+  const startFailed =
+    (steps: ShutdownStep[]) =>
+    async (error: unknown): Promise<never> => {
+      await runInOrder(
+        [
+          plugins.closeRpc,
+          plugins.closePlugins,
+          plugins.closePermissions,
+          ...steps,
+          ...disposers,
+          settings.close,
+          () => browsers.close(),
+          () => pluginHost.dispose(),
+          () => db.$client.close(),
+        ],
+        'conciv: disposing after a failed start failed',
+      ).catch((failure: unknown) => logError(`[core] ${String(failure)}`))
+      throw error
+    }
+  await pluginHost.context().catch(startFailed([]))
   const idleScope = Effect.runSync(Scope.make())
   const idleTriggers = Effect.runSync(FiberMap.make<SessionId>().pipe(Scope.provide(idleScope)))
   const interruptIdle = (sessionId: SessionId): Promise<boolean> =>
@@ -669,6 +688,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   )
 
   const hub = createHubInstaller(opts.home)
+  const driver = loadIsolateDriver(logError)
   const plane = await createChatPlane({
     cwd: opts.cwd,
     hubAccess: opts.cfg.hubAccess,
@@ -692,16 +712,19 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     capabilities: codeModeCapabilities,
     attachmentExpanders,
     prompt: plugins.prompt,
+    promptHooked: plugins.promptHooked,
     pluginInstructions: (sessionId, reset, inventory) =>
       pluginHost.runPromise(pluginInstructions(sessionId, reset, inventory)),
     firstOutputTimeoutMs: opts.firstChunkTimeoutMs,
     log: logError,
-    driver: await loadIsolateDriver(logError),
-  })
+    driver,
+  }).catch(startFailed([]))
   planeRef.current = plane
-  await pluginHost.runPromise(
-    followPermissionCards({plane, publish: (sessionId, chunk) => stream.publish(sessionId, chunk), log: logError}),
-  )
+  await pluginHost
+    .runPromise(
+      followPermissionCards({plane, publish: (sessionId, chunk) => stream.publish(sessionId, chunk), log: logError}),
+    )
+    .catch(startFailed([() => plane.endAllRuns()]))
   const chatDeps: ChatContext = {
     defaultHarness: harness,
     harnesses,
@@ -715,7 +738,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness, interruptIdle})
 
   function followUpOwedQueues(sessionId: SessionId): void {
-    void startQueueFollowUp(pagePlugin.delivery, plane, sessionId).catch((error: unknown) =>
+    if (planeRef.current === null) return
+    void startQueueFollowUp(pagePlugin.delivery, planeRef.current, sessionId).catch((error: unknown) =>
       logError(`[core] the page queue follow-up turn for ${sessionId} could not start: ${String(error)}`),
     )
   }
