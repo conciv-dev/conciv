@@ -6547,8 +6547,18 @@ export default {
     expect(await load('greet')).toContain('Greet twice.')
   })
 
-  const DEPLOY_INDEX = `import {z} from ${JSON.stringify(import.meta.resolve('zod'))}
-import {Plugin} from ${JSON.stringify(import.meta.resolve('@conciv/plugin'))}
+  const DEPLOY_RPC = `import {z} from ${JSON.stringify(import.meta.resolve('zod'))}
+import {Rpc} from ${JSON.stringify(import.meta.resolve('@conciv/plugin/rpc'))}
+
+export const Deploy = Rpc.define({
+  id: 'deploy',
+  methods: {run: {input: z.object({env: z.enum(['staging', 'prod'])}), output: z.object({url: z.string()})}},
+  events: {},
+})
+`
+
+  const DEPLOY_INDEX = `import {Plugin} from ${JSON.stringify(import.meta.resolve('@conciv/plugin'))}
+import {Deploy} from './rpc.js'
 
 const run = async ({env}: {env: 'staging' | 'prod'}) => ({url: \`https://\${env}.example.com\`})
 
@@ -6559,20 +6569,23 @@ export default Plugin.define({
       tools.add({
         name: 'run',
         description: 'Deploy the current branch',
-        input: z.object({env: z.enum(['staging', 'prod'])}),
-        output: z.object({url: z.string()}),
+        input: Deploy.methods.run.input,
+        output: Deploy.methods.run.output,
         options: {namespace: 'deploy'},
         execute: async (input) => ({output: await run(input)}),
       })
     })
+    const registration = await ctx.rpc.register(Deploy, {run})
+    return () => registration.dispose()
   },
 })
 `
 
-  it('a plugin folder in the project offers its deploy tool to code mode', async () => {
+  it('a plugin folder in the project offers its deploy tool to code mode and answers its deploy method', async () => {
     const root = tempDir('conciv-deploy-')
     mkdirSync(join(root, 'conciv', 'plugins', 'deploy'), {recursive: true})
     writeFileSync(join(root, 'conciv', 'plugins', 'deploy', 'index.ts'), DEPLOY_INDEX)
+    writeFileSync(join(root, 'conciv', 'plugins', 'deploy', 'rpc.ts'), DEPLOY_RPC)
     const engine = await start({
       options: {stateRoot: root},
       root,
@@ -6598,6 +6611,12 @@ export default Plugin.define({
         ),
       ),
     ).toContain('https://staging.example.com')
+    expect(
+      await makeRpcClient(base).plugin.call(
+        {rpcId: 'deploy', method: 'run', input: {env: 'prod'}},
+        {signal: AbortSignal.timeout(5000)},
+      ),
+    ).toEqual({url: 'https://prod.example.com'})
   })
 })
 
