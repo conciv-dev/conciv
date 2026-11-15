@@ -74,6 +74,7 @@
     "@conciv/serve": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@types/node": "catalog:",
     "@vitest/browser-playwright": "catalog:",

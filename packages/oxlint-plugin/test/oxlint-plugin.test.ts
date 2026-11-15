@@ -500,3 +500,36 @@ describe('no comments', () => {
     expect(await lintFixture('doc-comments.ts')).toHaveLength(9)
   })
 })
+
+describe('no hand-made temp dir', () => {
+  async function lintFixture(fixture: string): Promise<string[]> {
+    const diagnostics = await lintDiagnostics('test/oxlintrc-temp-dir.json', `test/fixtures/${fixture}`)
+    return diagnostics
+      .filter((diagnostic) => diagnostic.code === 'conciv(no-hand-made-temp-dir)')
+      .map((diagnostic) => String(diagnostic.message))
+  }
+
+  test('flags a temp folder a test makes under the OS temp dir by hand, and leaves the helpers alone', async () => {
+    const findings = await lintFixture('temp-dir/hand-made.ts')
+    expect(findings).toHaveLength(3)
+    expect(findings[0]).toContain('tempDir(prefix)')
+    expect(findings[0]).toContain('processTempDir(prefix)')
+    expect(await lintFixture('temp-dir/helpers.ts')).toEqual([])
+    expect(await lintFixture('packages/vitest-config/src/temp-dir.ts')).toEqual([])
+  })
+
+  test('follows each import to its module, through aliases and namespaces, and ignores a shadowing parameter', async () => {
+    const aliased = await lintFixture('temp-dir/aliased.ts')
+    const shadowed = await lintFixture('temp-dir/shadowed.ts')
+    expect({aliased: aliased.length, shadowed: shadowed.length}).toEqual({aliased: 3, shadowed: 0})
+  })
+
+  test('outside a test folder it flags a spec file and leaves a source file alone', async () => {
+    const outside = async (file: string) =>
+      (await lintDiagnostics('test/oxlintrc-temp-dir.json', `fixtures/temp-dir-outside/${file}`)).filter(
+        (diagnostic) => diagnostic.code === 'conciv(no-hand-made-temp-dir)',
+      )
+    expect(await outside('hand-made.spec.ts')).toHaveLength(3)
+    expect(await outside('hand-made.ts')).toEqual([])
+  })
+})
