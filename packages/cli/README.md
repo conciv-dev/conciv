@@ -35,7 +35,31 @@ as soon as the server mounts it; the CLI itself ships no extension code.
 - `conciv tools tabs` - list every open conciv tab on this machine, from any folder
 
 Add `--tab <id>` (an id from `conciv tools tabs`) to any command to act on that tab, on whichever dev
-server holds it. The tab's page asks the user to allow the CLI the first time.
+server holds it.
+
+## Who is asked
+
+Some tools ask first: running code in the page, reloading or restarting the dev server, clearing or
+deleting on the whiteboard, resolving or deleting comments, building or running the iOS app. Who is
+asked depends on how the CLI found the dev server:
+
+- Inside the project, the CLI acts on your latest chat (an agent conciv started acts on its own). An
+  asking tool shows the Approve card in the tab, and the CLI gets an error saying the call needs the
+  user. Run the command again once they approve.
+- With `--tab`, the CLI is an outside agent that named its tab. Nobody is asked: an asking tool runs
+  with no Approve card.
+- From a folder with no dev server of its own, the CLI uses the most recently started one on this
+  machine and acts on that server's latest chat. It is an outside agent that named no tab, so an
+  asking tool still shows the Approve card in the tab.
+
+Outside agents get one more card only when the project sets `hubAccess` to `'session'` (an Allow card
+the first time an outside agent uses each tab) or `'project'` (once for the project); the call waits
+for the answer. The default, `'open'`, asks nothing.
+
+Whoever holds the engine's token is the owner. The CLI reads it from the project's `.conciv` folder,
+and conciv hands it to the agents it starts. The Approve and Allow cards guard against the model's
+mistakes inside a chat turn, not against another program running as you on this machine. The engine
+listens on this machine only.
 
 These commands, and their `--help`, need the dev server running; without one they print the
 "No conciv dev server" error with how to start it. Every command prints one JSON document on stdout
