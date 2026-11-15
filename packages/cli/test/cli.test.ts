@@ -90,6 +90,9 @@ import {
   readSteps,
 } from './helpers.js'
 
+const PAGE_TOOLS_NOTE =
+  'Page tools (external_page_*) are offered only for a tab whose page is open and connected: if none are listed, that page is closed or still connecting, so ask the user to open the app in the browser and call again with that tab.'
+
 const elementTarget = {
   selector: z.string().optional().describe('CSS selector for the target element'),
   ref: z.string().optional().describe('element ref from the latest snapshot'),
@@ -1948,8 +1951,17 @@ describe('cli', () => {
           {type: 'text', text: 'TAB_NOT_OPEN: tab conciv_gone is not open; call external_tabs({})'},
         ])
         expect(await run(client, route)).toContain(
-          'NO_TAB: pass tab to execute_typescript; external_tabs({}) lists the open tabs',
+          JSON.stringify(
+            JSON.stringify({error: {message: "'external_page_route' is not defined", name: 'ReferenceError'}}),
+          ).slice(1, -1),
         )
+        const undiscovered = JSON.stringify(
+          (await client.callTool('discover_tools', {toolNames: ['page_route']})).content,
+        )
+        expect(undiscovered).toContain(
+          String.raw`{\"tools\":[],\"errors\":[\"Unknown tool: 'page_route'. Discoverable tools: [external_server_config`,
+        )
+        expect(undiscovered).not.toContain('external_page_')
         expect(await run(client, 'return await external_tabs({})')).toContain(older.sessionId)
         const headers = {[CONCIV_ORIGIN_HEADER]: 'hub'}
         const direct = await createMCPClient({transport: {type: 'http', url: `${older.base}/api/mcp`, headers}})
@@ -2141,6 +2153,7 @@ describe('cli', () => {
       try {
         const execute = (await client.tools()).find((tool) => tool.name === 'execute_typescript')
         expect(execute?.description).toContain('pass its id as tab')
+        expect(execute?.description).toContain(` ${PAGE_TOOLS_NOTE}`)
         const reply = await run(client, 'return 1')
         expect(reply).toContain('no conciv dev server is running; start one and open its page')
         expect(reply).toContain(home)
@@ -2383,6 +2396,7 @@ describe('cli', () => {
         try {
           const execute = (await client.tools()).find((tool) => tool.name === 'execute_typescript')
           expect(execute?.description).toContain('Rules of the sandbox')
+          expect(execute?.description).toContain(`\n\n${PAGE_TOOLS_NOTE}`)
         } finally {
           await client.close()
           await engine.engine.stop()

@@ -70,9 +70,11 @@ const TaskIdParamsSchema = z.object({taskId: z.string().min(1)})
 
 const TaskRequestSchema = z.object({params: TaskIdParamsSchema})
 
+const PAGE_TOOLS_NOTE =
+  'Page tools (external_page_*) are offered only for a tab whose page is open and connected: if none are listed, that page is closed or still connecting, so ask the user to open the app in the browser and call again with that tab.'
+
 const FALLBACK_DESCRIPTIONS = {
-  [EXECUTE_TOOL_NAME]:
-    'Run TypeScript in the sandbox of a running conciv dev server. Every capability is an async external_* function. external_tabs({}) lists the open conciv tabs (live pages running the conciv widget); pick the one the user means and pass its id as tab on every execute_typescript and discover_tools call. Return a value to pass results back.',
+  [EXECUTE_TOOL_NAME]: `Run TypeScript in the sandbox of a running conciv dev server. Every capability is an async external_* function. external_tabs({}) lists the open conciv tabs (live pages running the conciv widget); pick the one the user means and pass its id as tab on every execute_typescript and discover_tools call. Return a value to pass results back. ${PAGE_TOOLS_NOTE}`,
   [DISCOVER_TOOL_NAME]:
     'Typed signatures for the named external_* capabilities of execute_typescript; pass the same tab as on execute_typescript.',
 }
@@ -406,7 +408,7 @@ async function runnerAt(row: EngineRow, headers: Record<string, string>): Promis
 function toolDescriptions(described: CodeDescriptions | null): Record<ToolName, string> {
   if (described === null) return FALLBACK_DESCRIPTIONS
   return {
-    [EXECUTE_TOOL_NAME]: described.execute,
+    [EXECUTE_TOOL_NAME]: `${described.execute}\n\n${PAGE_TOOLS_NOTE}`,
     [DISCOVER_TOOL_NAME]: described.discover ?? FALLBACK_DESCRIPTIONS[DISCOVER_TOOL_NAME],
   }
 }
