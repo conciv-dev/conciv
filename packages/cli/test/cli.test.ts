@@ -91,6 +91,10 @@ import {
   readSteps,
 } from './helpers.js'
 
+const DiscoverTextSchema = z.tuple([z.object({type: z.literal('text'), text: z.string()})])
+
+const DiscoverErrorsSchema = z.object({tools: z.array(z.unknown()), errors: z.array(z.string())})
+
 const PAGE_TOOLS_NOTE =
   'Page tools (external_page_*) are offered only for a tab whose page is open and connected: if none are listed, that page is closed or still connecting, so ask the user to open the app in the browser and call again with that tab.'
 
@@ -1983,13 +1987,20 @@ describe('cli', () => {
             JSON.stringify({error: {message: "'external_page_route' is not defined", name: 'ReferenceError'}}),
           ).slice(1, -1),
         )
-        const undiscovered = JSON.stringify(
-          (await client.callTool('discover_tools', {toolNames: ['page_route']})).content,
-        )
-        expect(undiscovered).toContain(
-          String.raw`{\"tools\":[],\"errors\":[\"Unknown tool: 'page_route'. Discoverable tools: [external_server_config`,
-        )
-        expect(undiscovered).not.toContain('external_page_')
+        const discoverErrors = async (toolName: string) => {
+          const [part] = DiscoverTextSchema.parse(
+            (await client.callTool('discover_tools', {toolNames: [toolName]})).content,
+          )
+          return DiscoverErrorsSchema.parse(JSON.parse(part.text))
+        }
+        const undiscovered = await discoverErrors('page_route')
+        const [listing, ...notes] = undiscovered.errors
+        expect(undiscovered.tools).toEqual([])
+        expect(listing).toMatch(/^Unknown tool: 'page_route'\. Discoverable tools: \[external_server_config/)
+        expect(listing).not.toContain('external_page_')
+        expect(notes).toEqual([PAGE_TOOLS_NOTE])
+        expect((await discoverErrors('external_page_route')).errors.at(-1)).toBe(PAGE_TOOLS_NOTE)
+        expect((await discoverErrors('server_nope')).errors).not.toContain(PAGE_TOOLS_NOTE)
         expect(await run(client, 'return await external_tabs({})')).toContain(older.sessionId)
         const headers = {[CONCIV_ORIGIN_HEADER]: 'hub'}
         const direct = await createMCPClient({transport: {type: 'http', url: `${older.base}/api/mcp`, headers}})

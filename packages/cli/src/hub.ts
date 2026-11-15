@@ -14,6 +14,7 @@ import {
   makeRpcClient,
   queueNotice,
   type CodeDescriptions,
+  type CodeDiscoverResult,
   type CodeReply,
   type RpcClient,
 } from '@conciv/contract'
@@ -70,8 +71,11 @@ const TaskIdParamsSchema = z.object({taskId: z.string().min(1)})
 
 const TaskRequestSchema = z.object({params: TaskIdParamsSchema})
 
-const PAGE_TOOLS_NOTE =
-  'Page tools (external_page_*) are offered only for a tab whose page is open and connected: if none are listed, that page is closed or still connecting, so ask the user to open the app in the browser and call again with that tab.'
+const PAGE_TOOL_PREFIX = 'page_'
+
+const PAGE_TOOLS_NOTE = `Page tools (external_${PAGE_TOOL_PREFIX}*) are offered only for a tab whose page is open and connected: if none are listed, that page is closed or still connecting, so ask the user to open the app in the browser and call again with that tab.`
+
+const DiscoverErrorsSchema = z.looseObject({errors: z.array(z.string()).min(1)})
 
 const FALLBACK_DESCRIPTIONS = {
   [EXECUTE_TOOL_NAME]: `Run TypeScript in the sandbox of a running conciv dev server. Every capability is an async external_* function. external_tabs({}) lists the open conciv tabs (live pages running the conciv widget); pick the one the user means and pass its id as tab on every execute_typescript and discover_tools call. Return a value to pass results back. ${PAGE_TOOLS_NOTE}`,
@@ -326,7 +330,7 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
     const discovered = await routed(
       tab,
       (rpc, aborted) => rpc.code.discover({...buildSessionInput(tab), toolNames}, {signal: aborted}),
-      codeDiscoverReply,
+      (value) => codeDiscoverReply(notePageTools(value, toolNames)),
       signal,
     )
     settleDelivered(discovered.value?.finished ?? [])
@@ -548,4 +552,11 @@ function logHub(message: string, error: unknown): void {
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function notePageTools(discovered: CodeDiscoverResult, toolNames: string[]): CodeDiscoverResult {
+  const refused = DiscoverErrorsSchema.safeParse(discovered.tools)
+  const askedPage = toolNames.some((toolName) => toolName.replace(/^external_/, '').startsWith(PAGE_TOOL_PREFIX))
+  if (!refused.success || !askedPage) return discovered
+  return {...discovered, tools: {...refused.data, errors: [...refused.data.errors, PAGE_TOOLS_NOTE]}}
 }
