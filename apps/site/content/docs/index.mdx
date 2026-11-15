@@ -1,13 +1,13 @@
 ---
 title: What is conciv
-description: Claude Code, living inside your running app. Chat, page control, and live tests, injected via a build plugin.
+description: An AI dev agent inside your running app. Chat, page control and your dev server, added to your dev build from your bundler config.
 icon: Rocket
 ---
 
-conciv puts an AI dev agent inside the app you are already running. Add one plugin, and a conciv button
-appears in your dev build. Open it to chat with an agent that sees the page you are on, drives and
-edits it, and runs your tests, without leaving the app. The name is the pitch: say `@conciv/it` out
-loud, and conceive it.
+conciv puts an AI dev agent inside the app you are already running. Add conciv to your Vite config, and a conciv
+button appears in your dev build. Open it to chat with an agent that sees the page you are on, drives and edits it,
+and reads your dev server, without leaving the app. The name is the pitch: say `@conciv/it` out loud, and conceive
+it.
 
 ```ts title="vite.config.ts"
 import {defineConfig} from 'vite'
@@ -24,37 +24,37 @@ export default defineConfig({
   <Card
     title="Chat"
     href="/docs/usage/chat"
-    description="Talk to the agent about the page you are looking at. It grounds on the real DOM."
+    description="Talk to the agent about the page you are looking at. It reads the live page when you say this or here."
   />
   <Card
     title="Page control"
     href="/docs/usage/page-control"
-    description="The agent reads and drives your live page, then persists the change to source."
+    description="The agent reads and drives your live page, previews a change, then edits your source."
+  />
+  <Card
+    title="Dev server"
+    href="/docs/usage/dev-server"
+    description="It reads your Vite config and module graph, restarts the dev server, and opens files in your editor."
   />
   <Card
     title="Live tests"
     href="/docs/usage/live-tests"
-    description="Ask it to run your tests and watch results stream into a card."
+    description="Turn on the test runner plugin and the agent runs your tests."
   />
   <Card
     title="Whiteboard"
     href="/docs/usage/whiteboard"
-    description="A shared Excalidraw canvas. You sketch, the AI draws back real elements."
+    description="Turn on the whiteboard plugin for a shared Excalidraw canvas."
   />
   <Card
-    title="Approvals"
-    href="/docs/usage/approvals"
-    description="Risky commands surface an Approve or Deny card before they run."
-  />
-  <Card
-    title="Extensions"
-    href="/docs/extending"
-    description="Teach the agent new tools with one file in conciv/extensions/."
+    title="Plugins"
+    href="/docs/plugins"
+    description="Turn on more of conciv, or write your own plugin with tools, a skill and UI."
   />
 </Cards>
 
 <Callout>
-  conciv is in beta and mounts in dev builds only. The chat needs a harness CLI on your `PATH`, `claude` by default.
+  conciv is in beta and runs in dev builds only. The chat needs a harness CLI on your `PATH`, `claude` by default.
 </Callout>
 
 ## Next
