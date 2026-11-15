@@ -38,6 +38,9 @@ engine. The engine runs the harness.
   <Card title="Harness" description="The agent CLI behind the chat, such as Claude Code. See Harnesses." />
 </Cards>
 
+What the agent can do comes from plugins: page control and the dev server methods are built in, and you can add
+more. See [Plugins](/docs/plugins).
+
 ## How they talk
 
 The engine serves these routes on its port:
@@ -64,8 +67,8 @@ Every route except `/health`, the login calls and the iOS page needs a token. A 
 <Steps>
   <Step>You ask something in the chat. The engine starts the harness in your project folder with conciv's prompt.</Step>
   <Step>
-    The harness reads and drives your live page through conciv's tools, and edits your source files. Its output streams
-    into the panel.
+    The harness reads and drives your live page through the tools plugins give it, and edits your source files. Its
+    output streams into the panel.
   </Step>
   <Step>Anything that asks first shows a permission card. See [Approvals](/docs/usage/approvals).</Step>
 </Steps>

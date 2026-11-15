@@ -77,7 +77,7 @@ export function HowItWorks() {
               <span className="text-primary">$</span> npm i -D @conciv/it
             </Code>
           </Step>
-          <Step number="2" title="Add the plugin" body="Pick your build. Every entry is one import.">
+          <Step number="2" title="Add conciv to your build" body="Pick your build. Every entry is one import.">
             <FrameworkTabs.Root snippets={FRAMEWORK_SNIPPETS}>
               <FrameworkTabs.List />
               <FrameworkTabs.Panel>

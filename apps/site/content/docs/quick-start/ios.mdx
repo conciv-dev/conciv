@@ -67,56 +67,6 @@ appear over your UI.
 </Step>
 </Steps>
 
-## Let the agent build and run the app
-
-Add `@conciv/extension-ios` and the agent can build, launch, screenshot and read the logs of the app for you. This is
-the config of the demo app in the conciv repo:
-
-```ts title="vite.config.ts"
-import {fileURLToPath} from 'node:url'
-import {defineConfig} from 'vite'
-import conciv from '@conciv/it/plugin/vite'
-import ios from '@conciv/extension-ios'
-
-export default defineConfig({
-  server: {watch: {ignored: ['**/ConcivDemo/**', '**/ConcivWidget/**']}},
-  plugins: [
-    conciv({
-      port: 4599,
-      extensions: [
-        ios({
-          projectRoot: fileURLToPath(new URL('./ConcivDemo', import.meta.url)),
-          bundleId: 'dev.conciv.ConcivDemo',
-          simulator: 'iPhone 17 Pro',
-          buildMode: 'swiftc',
-          extraSourceDirs: ['../ConcivWidget/Sources/ConcivWidget'],
-        }),
-      ],
-    }),
-  ],
-})
-```
-
-<TypeTable
-  type={{
-    projectRoot: {type: 'string', required: true, description: 'The folder of your native project.'},
-    bundleId: {type: 'string', required: true, description: 'The app bundle id to install and launch.'},
-    scheme: {type: 'string', description: 'The Xcode scheme to build.'},
-    simulator: {type: 'string', default: '"iPhone 17 Pro"', description: 'The simulator to boot.'},
-    buildMode: {type: '"xcodebuild" | "swiftc"', default: '"xcodebuild"', description: 'How ios_build compiles.'},
-    developerDir: {type: 'string', description: 'The Xcode developer folder to use.'},
-    extraSourceDirs: {type: 'string[]', description: 'More Swift source folders to compile.'},
-    concivUrl: {
-      type: 'string',
-      description: 'The engine address the app gets. Default: the address of the engine that runs the tool.',
-    },
-  }}
-/>
-
-The agent gets four tools: `ios_build`, `ios_run`, `ios_screenshot` and `ios_logs`. `ios_build` and `ios_run` ask
-first: see [Approvals](/docs/usage/approvals). `ios_run` passes the engine address to the app as
-`SIMCTL_CHILD_CONCIV_URL`, which the app reads as `CONCIV_URL`.
-
 ## How the app finds the engine
 
 `CONCIV_URL` is the engine's address with no `/native` at the end, for example `http://127.0.0.1:4599`. The SDK adds
@@ -174,5 +124,4 @@ first: see [Approvals](/docs/usage/approvals). `ios_run` passes the engine addre
   </figure>
 </div>
 
-The demo app lives in [`native/swift`](https://github.com/conciv-dev/conciv/tree/main/native/swift), and the
-extension in [`packages/extensions/ios`](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/ios).
+The demo app lives in [`native/swift`](https://github.com/conciv-dev/conciv/tree/main/native/swift).

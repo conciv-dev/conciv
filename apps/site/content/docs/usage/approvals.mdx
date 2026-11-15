@@ -3,7 +3,7 @@ title: Approvals
 description: What asks before it runs, per harness, and how the permission card works.
 ---
 
-Two things can ask you before they run: the harness itself, and a few of conciv's own tools. Either way the
+Two things can ask you before they run: the harness itself, and a few tools that plugins give the agent. Either way the
 question shows as a **Permission** card in the chat, and the action runs only once you approve it.
 
 ## The harness
@@ -18,50 +18,47 @@ What the harness asks about is up to the harness. conciv shows its questions as 
 | Gemini CLI | What Gemini CLI asks about.                                                                                                                                                                                                                                                                                                            |
 | Pi         | Pi has no chat yet.                                                                                                                                                                                                                                                                                                                    |
 
-## conciv's own tools
+## Plugin tools
 
-These tools ask on every call, on every harness.
+These tools ask before they run, on every harness. The type is the plugin that owns the tool.
 
 <TypeTable
   type={{
-    page_eval: {required: true, type: 'built in', description: 'Runs JavaScript in your page.'},
-    server_reload: {required: true, type: 'built in', description: 'Forces a hot update of one module.'},
+    page_eval: {required: true, type: 'page (built in)', description: 'Runs JavaScript in your page.'},
     server_restart: {
       required: true,
-      type: 'built in',
-      description: 'Restarts the dev server and re-bundles its dependencies.',
+      type: 'server (built in)',
+      description: 'Restarts the dev server.',
     },
-    canvas_delete: {
+    whiteboard_canvas_delete: {
       required: true,
-      type: '@conciv/extension-whiteboard',
+      type: '@conciv/plugin-whiteboard',
       description: 'Removes an element from the canvas.',
     },
-    canvas_clear: {
+    whiteboard_canvas_clear: {
       required: true,
-      type: '@conciv/extension-whiteboard',
+      type: '@conciv/plugin-whiteboard',
       description: 'Removes every element from the canvas.',
     },
-    comment_resolve: {required: true, type: '@conciv/extension-whiteboard', description: 'Marks a comment resolved.'},
-    comment_delete: {
+    whiteboard_comment_resolve: {
       required: true,
-      type: '@conciv/extension-whiteboard',
+      type: '@conciv/plugin-whiteboard',
+      description: 'Marks a comment resolved.',
+    },
+    whiteboard_comment_delete: {
+      required: true,
+      type: '@conciv/plugin-whiteboard',
       description: 'Removes a comment, or the whole thread when it is the first comment.',
-    },
-    ios_build: {
-      required: true,
-      type: '@conciv/extension-ios',
-      description: 'Compiles the iOS project for the simulator.',
-    },
-    ios_run: {
-      required: true,
-      type: '@conciv/extension-ios',
-      description: 'Boots the simulator, installs the app and launches it.',
     },
   }}
 />
 
-The tools from an extension package exist only when you add that package to `extensions`. See
-[Configuration](/docs/configuration#extensions).
+The whiteboard tools exist only when you add `@conciv/plugin-whiteboard` to `plugins`. See
+[Install a plugin](/docs/plugins/install). A plugin you write can ask the same way: see
+[Asking permission](/docs/plugins/engine#asking-permission).
+
+The same actions called from your terminal with `conciv plugin call` do not ask: the terminal is the owner. See
+[Calling a plugin from the terminal](/docs/plugins/terminal#who-is-asked).
 
 ## The card
 
@@ -77,7 +74,8 @@ The tools from an extension package exist only when you add that package to `ext
     'Always allow': {
       required: true,
       type: 'button',
-      description: 'Allows this in this project from now on. Shown when the harness offers it.',
+      description:
+        "Allows this in this project from now on. Shown on a plugin tool's card, and when the harness offers it.",
     },
   }}
 />

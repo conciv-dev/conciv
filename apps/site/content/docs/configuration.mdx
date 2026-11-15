@@ -28,11 +28,10 @@ Options are the second argument of `withConciv`.
 ```ts title="next.config.ts"
 import type {NextConfig} from 'next'
 import {withConciv} from '@conciv/it/plugin/nextjs'
-import terminal from '@conciv/extension-terminal'
 
 const nextConfig: NextConfig = {}
 
-export default withConciv(nextConfig, {extensions: [terminal()]})
+export default withConciv(nextConfig, {plugins: ['@conciv/plugin-tanstack']})
 ```
 
 </Tab>
@@ -69,10 +68,15 @@ export default withConciv(nextConfig, {extensions: [terminal()]})
       default: "conciv's built-in prompt",
       description: 'The prompt conciv gives the harness. See below.',
     },
-    extensions: {
-      type: 'array',
+    plugins: {
+      type: 'Array<string | [string, options]>',
       default: '[]',
-      description: 'Packages that add tools and UI to conciv, such as terminal() from @conciv/extension-terminal.',
+      description: 'The plugins to load, by package name or path, and "-id" entries that turn one off. See below.',
+    },
+    policies: {
+      type: "Array<{action, resource, effect: 'allow' | 'deny'}>",
+      default: '[]',
+      description: 'Allow and deny statements. action plugin.use with effect deny keeps that plugin from loading.',
     },
     hubAccess: {
       type: '"open" | "session" | "project"',
@@ -163,28 +167,31 @@ export default defineConfig({
   }}
 />
 
-The engine adds each extension's own prompt after it, writes the result to `.conciv/chat-system-prompt.txt` when it
-starts, and gives it to the harness. Claude gets it appended to Claude Code's own system prompt.
+The engine writes the prompt to `.conciv/chat-system-prompt.txt` when it starts and gives it to the harness. Plugins
+add no prompt text: their guidance reaches the agent as [skills](/docs/skills). Claude gets it appended to Claude Code's own system prompt.
 
 ```ts
 conciv({systemPrompt: 'Prefer Tailwind classes over inline styles.'})
 conciv({systemPrompt: false})
 ```
 
-### extensions
+### plugins
 
-Each package exports a function; call it in the list.
+Each entry is a package name, a path (`./`, `../` or `file://`, from the project root), or a `[name, options]` pair
+whose options are JSON. An entry `-<id>` turns that plugin off. Plugins in `conciv/plugins/` and `conciv/plugin/` load
+without an entry.
 
 ```ts title="vite.config.ts"
 import {defineConfig} from 'vite'
 import react from '@vitejs/plugin-react'
 import conciv from '@conciv/it/plugin/vite'
-import terminal from '@conciv/extension-terminal'
 
 export default defineConfig({
-  plugins: [react(), conciv({extensions: [terminal()]})],
+  plugins: [react(), conciv({plugins: [['@conciv/plugin-test-runner', {runner: 'playwright'}]]})],
 })
 ```
+
+See [Install a plugin](/docs/plugins/install).
 
 ## Environment variables
 

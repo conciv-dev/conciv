@@ -53,9 +53,9 @@ capable as the tool you already trust.
 
 - 💬 &nbsp;**Chat in-app**: talk to an agent that sees your running page, streams its reasoning, and calls tools live.
 - 🕹️ &nbsp;**Page control**: it grabs elements, clicks, fills, inspects React props/state, and live-edits the DOM to preview changes.
-- 🧪 &nbsp;**Live tests**: add the test runner extension, run Vitest or Playwright, and watch pass/fail result cards render right inside the app.
-- 🧩 &nbsp;**Extensions**: drop a `.tsx` file in `conciv/extensions/` and get a new agent tool with its own card and composer UI.
-- 🎨 &nbsp;**Shared whiteboard**: add the whiteboard extension for an Excalidraw canvas you and the AI draw on together, with source-anchored comments.
+- 🧪 &nbsp;**Live tests**: add the test runner plugin and the agent runs your Vitest or Playwright tests and reads the results.
+- 🧩 &nbsp;**Plugins**: drop a plugin in `conciv/plugins/` and the agent gets a new tool and RPC methods you can call from the terminal, plus panels and buttons in the widget if you build a browser half.
+- 🎨 &nbsp;**Shared whiteboard**: add the whiteboard plugin for a canvas you and the AI draw on together, with source-anchored comments.
 - ✅ &nbsp;**Approvals**: when the agent asks for permission, a card in the thread lets you approve or deny it.
 - 🔌 &nbsp;**Vite and Next.js**: dev-only, never in your production bundle. webpack and Rspack start the engine without the widget, in dev and also during a production build.
 - 🤝 &nbsp;**Harness-agnostic**: Claude Code, Codex, OpenCode and Gemini CLI behind one capability interface.
@@ -103,37 +103,51 @@ export default defineConfig({
 Install and log in to the agent CLI you want (Claude Code by default), start your dev server, click
 the conciv button in the corner of your app, and type the code your terminal prints.
 
-Override defaults via `conciv({harness, extensions, widget, …})`. Next.js uses
+Override defaults via `conciv({harness, plugins, widget, …})`. Next.js uses
 `@conciv/it/plugin/nextjs`; see the [quick start](https://conciv.dev/docs/quick-start).
 
-## Extensions
+## Plugins
 
-Teach the agent new tricks with a single file. Drop a `.tsx` into `conciv/extensions/` and it's
-discovered automatically. One `defineTool` gives the agent a callable tool (`.server` runs in
-node), a rendered result card, and optional widget UI (`.render` + `useSlot`), all typed
-end-to-end with zod:
+Teach the agent new tricks with a plugin in `conciv/plugins/`. The engine loads it from
+TypeScript source and reloads it when you save. A tool goes to the agent; an RPC method is
+callable from your browser half and from the terminal:
 
-```tsx
+```ts
 import {z} from 'zod'
-import {defineExtension, defineTool} from '@conciv/extension'
+import {Plugin} from '@conciv/plugin'
+import {Hello} from './rpc.js'
 
-const deployRun = defineTool({
-  name: 'deploy_run',
-  description: 'Deploy the current branch',
-  inputSchema: z.object({env: z.enum(['staging', 'prod'])}),
+export default Plugin.define({
+  id: 'hello',
+  async setup(ctx) {
+    const greet = async (name: string) => {
+      const count = Number((await ctx.storage.get('count')) ?? 0) + 1
+      await ctx.storage.set('count', count)
+      return {message: `Hello, ${name}!`, count}
+    }
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'hello_greet',
+        description: 'Greet someone by name',
+        input: z.object({name: z.string()}),
+        output: z.object({message: z.string(), count: z.number()}),
+        execute: async ({name}) => ({output: await greet(name)}),
+      })
+    })
+    const registration = await ctx.rpc.register(Hello, {greet: async ({name}) => greet(name)})
+    return () => registration.dispose()
+  },
 })
-  .server(({env}) => ({url: `https://${env}.example.com`}))
-  .render((props) => <DeployCard {...props} />)
-
-export default defineExtension({name: 'deploy', tools: [deployRun]})
 ```
 
-Extensions are plain Solid JSX, compiled as a Solid zone even inside a React host app.
+```sh
+conciv plugin call hello greet --data '{"name":"Ada"}'
+# {"ok":true,"data":{"message":"Hello, Ada!","count":1}}
+```
 
-Two first-party extensions, each a separate install, show what the contract can do:
-
-- 🎨 &nbsp;[**Whiteboard**](./packages/extensions/whiteboard): a shared Excalidraw canvas over your dev app. You sketch, the AI draws back (real editable elements, mermaid included), with source-anchored comments and pins on a self-hosted libSQL store (TanStack DB).
-- 🧪 &nbsp;[**Test runner**](./packages/extensions/test-runner): runner-agnostic test execution (Vitest and Playwright) with live result cards in the thread.
+Installable plugins go in `conciv({plugins: [...]})`: `@conciv/plugin-tanstack`,
+`@conciv/plugin-test-runner`, `@conciv/plugin-recorder` and `@conciv/plugin-whiteboard`. See
+[Plugins](https://conciv.dev/docs/plugins).
 
 ## Supported tools
 
@@ -147,24 +161,25 @@ Two first-party extensions, each a separate install, show what the contract can 
 
 Install these:
 
-| Package                                     | What it is                                                                                             |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| [`@conciv/it`](./packages/it)               | **The one you install.** Thin umbrella: `@conciv/it/plugin/vite`, `/nextjs`, `/webpack`, `/rspack`.    |
-| [`@conciv/extension`](./packages/extension) | The extension authoring contract: `defineExtension`/`defineTool` + typed `useSlot`/`useContext` hooks. |
-| [`@conciv/try`](./packages/try)             | `npx @conciv/try --token <t>`: try conciv live on conciv.dev with the agent already on your machine.   |
+| Package                               | What it is                                                                                                |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| [`@conciv/it`](./packages/it)         | **The one you install.** Thin umbrella: `@conciv/it/plugin/vite`, `/nextjs`, `/webpack`, `/rspack`.       |
+| [`@conciv/plugin`](./packages/plugin) | The plugin SDK: `Plugin.define` for the engine and browser halves, `Rpc.define`, stores, the Vite preset. |
+| [`@conciv/try`](./packages/try)       | `npx @conciv/try --token <t>`: try conciv live on conciv.dev with the agent already on your machine.      |
 
 Under the hood:
 
-| Package                                                              | What it is                                                                                                               |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| [`@conciv/protocol`](./packages/protocol)                            | Shared wire types + `define*` factories (chat, generative UI, test, page, harness). Zero-runtime.                        |
-| [`@conciv/core`](./packages/core)                                    | The framework-free hono engine: every `/api/*` route, session, uiBus, harness + test registries.                         |
-| [`@conciv/harness`](./packages/harness)                              | Harness adapters behind a capability interface: Claude, Codex, OpenCode, Gemini CLI, plus a Pi stub.                     |
-| [`@conciv/unplugin`](./packages/unplugin)                            | The build integration: Vite and Next.js boot core and inject the widget; webpack and Rspack boot core only.              |
-| [`@conciv/embed`](./packages/embed)                                  | The browser half: mounts the conciv Solid app into an open Shadow DOM, with the chat UI, cards, and page-control driver. |
-| [`@conciv/cli`](./packages/cli)                                      | The `conciv` CLI the agent calls from Bash: `tools server / page / test / open`.                                         |
-| [`@conciv/extension-whiteboard`](./packages/extensions/whiteboard)   | Separate install: the shared Excalidraw canvas with AI drawing and source-anchored comments.                             |
-| [`@conciv/extension-test-runner`](./packages/extensions/test-runner) | Separate install: runner-agnostic test execution with live result cards.                                                 |
+| Package                                                        | What it is                                                                                                               |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| [`@conciv/protocol`](./packages/protocol)                      | Shared wire types + `define*` factories (chat, generative UI, test, page, harness). Zero-runtime.                        |
+| [`@conciv/core`](./packages/core)                              | The framework-free hono engine: every `/api/*` route, session, uiBus, harness + test registries.                         |
+| [`@conciv/harness`](./packages/harness)                        | Harness adapters behind a capability interface: Claude, Codex, OpenCode, Gemini CLI, plus a Pi stub.                     |
+| [`@conciv/unplugin`](./packages/unplugin)                      | The build integration: Vite and Next.js boot core and inject the widget; webpack and Rspack boot core only.              |
+| [`@conciv/embed`](./packages/embed)                            | The browser half: mounts the conciv Solid app into an open Shadow DOM, with the chat UI, cards, and page-control driver. |
+| [`@conciv/cli`](./packages/cli)                                | The `conciv` CLI: `init`, `auth`, `mcp`, and `plugin call` for plugin methods.                                           |
+| [`@conciv/plugin-host`](./packages/plugin-host)                | The engine's plugin host: loads, reloads and supervises plugins, their tools, skills and RPC.                            |
+| [`@conciv/plugin-whiteboard`](./packages/plugins/whiteboard)   | Separate install: the shared canvas with AI drawing and source-anchored comments.                                        |
+| [`@conciv/plugin-test-runner`](./packages/plugins/test-runner) | Separate install: runs your Vitest or Playwright tests for the agent.                                                    |
 
 ## Documentation
 
@@ -186,15 +201,15 @@ Every package, app and source directory carries a `README.md` with its interface
 ### Global Invariants
 
 - Everything is ESM, Node >= 26, one pnpm workspace with catalog-pinned dependencies and turbo as the task graph.
-- Code shared between the browser and Node lives in a contract package (`protocol`, `contract`, `extension`, `grab`) or an extension's `shared/` directory; the browser never imports a server entry.
-- Extensions are declared once with `defineExtension` and split at build time by `extension-compiler` into a browser half and a Node half. The public package set is `PUBLIC_PACKAGES` in `packages/publish`, and every other `@conciv/*` package is internal to `@conciv/it`.
+- Code shared between the browser and Node lives in a contract package (`protocol`, `contract`, `grab`) or a plugin's `rpc.ts` contract; the browser never imports a server entry.
+- A plugin is an engine half, an optional RPC contract and an optional prebuilt browser half (`plugin-experimental.cjs`), as opencode's plugins are. The public package set is `PUBLIC_PACKAGES` in `packages/publish`, and every other `@conciv/*` package is internal to `@conciv/it`.
 - The engine binds loopback only; cross-origin access is gated by the Host/Origin middleware in `packages/core/src/lib`.
 
 ### Global Side Effects
 
 - The engine writes its SQLite database, port file and endpoint discovery file under the project's state directory and `~/.conciv`.
 - Harness adapters read the user's agent transcripts (`~/.claude`, `~/.codex`, `~/.pi`, opencode's database) and spawn the agent binaries.
-- The Vite plugin boots the engine process, injects the widget meta tags and script into served HTML and serves the generated extensions module from the dev server.
+- The conciv build integration boots the engine process and injects the widget meta tags and script into served HTML.
 - `conciv-publish` publishes to npm, pushes git tags and force-pushes the `conciv-swift` mirror.
 
 ### System Verification

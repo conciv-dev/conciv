@@ -9,8 +9,8 @@ factory in `@conciv/contract` is the only place that picks the transport:
 
 1. At boot (and again after a `rebind()` to a new engine base) it dials `/rpc-ws` with a bounded open
    timeout.
-2. If the socket opens, that tab rides the websocket for core rpc AND every extension router
-   (`ext.<slug>`) for the rest of its life. Mid-session drops never change transport: the
+2. If the socket opens, that tab rides the websocket for every rpc call, plugin calls (`plugin.call`)
+   included, for the rest of its life. Mid-session drops never change transport: the
    reconnecting wrapper re-dials the websocket and `ClientRetryPlugin` re-issues the calls.
 3. If the socket does not open, the tab sticks to fetch/SSE and logs a warning naming the base, so an
    active fallback is never silent.

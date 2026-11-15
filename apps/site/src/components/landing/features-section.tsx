@@ -33,8 +33,8 @@ const CAPABILITIES: Capability[] = [
   },
   {
     icon: PlugConnectedIcon,
-    title: 'Extensions',
-    body: 'Drop a .tsx in conciv/extensions/ and the agent grows a new tool with its own UI.',
+    title: 'Plugins',
+    body: 'Drop a plugin in conciv/plugins/ and the agent gets a new tool, with a button or panel in the widget if you add one.',
   },
   {
     icon: PenIcon,
