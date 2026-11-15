@@ -1,4 +1,5 @@
 import type {AsyncStorage} from '@solid-primitives/storage'
+import {z} from 'zod'
 import {
   createDraftRetentionState,
   isCurrentSave,
@@ -11,6 +12,18 @@ import {
   transitionDraftRetention,
   type DraftRetentionEvent,
 } from './drafts-machine'
+
+const StoredDocumentSchema = z
+  .string()
+  .transform((raw, context): unknown => {
+    try {
+      return JSON.parse(raw)
+    } catch {
+      context.addIssue({code: 'custom', message: 'the stored draft is not JSON'})
+      return z.NEVER
+    }
+  })
+  .pipe(z.record(z.string(), z.json()))
 
 export type BlobReference = {id: string; url: string}
 
@@ -371,12 +384,15 @@ export function createDraftStore(driver: Driver, options: {grace?: number} = {})
       const value = await driver.get(key)
 
       if (value === null) return null
-      const parsed = parseJson(value)
+      const parsed = StoredDocumentSchema.safeParse(value)
 
-      if (!parsed.ok) return value
-      dispatch({type: 'load.succeeded', storeId, key, revision, ids: imageIDs(parsed.value), graceMs: grace})
+      if (!parsed.success) {
+        console.error(`[persistence] draft ${key} is not a stored document, read as absent`, parsed.error)
+        return null
+      }
+      dispatch({type: 'load.succeeded', storeId, key, revision, ids: imageIDs(parsed.data), graceMs: grace})
 
-      return JSON.stringify(await decode(parsed.value))
+      return JSON.stringify(await decode(parsed.data))
     },
     setItem: (key, value) => setDocument(key, JSON.parse(value)),
     setDocument,
@@ -523,12 +539,4 @@ export async function blobDataUrl(blob: BlobReference, mime: string) {
     })
     reader.readAsDataURL(data)
   })
-}
-
-function parseJson(value: string): {ok: true; value: unknown} | {ok: false} {
-  try {
-    return {ok: true, value: JSON.parse(value)}
-  } catch {
-    return {ok: false}
-  }
 }

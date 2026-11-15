@@ -7867,11 +7867,15 @@ describe('the local draft store', () => {
       request.addEventListener('success', () => resolve(request.result))
       request.addEventListener('error', () => reject(request.error))
     })
-  const rawRequest = <T,>(run: (blobs: IDBObjectStore) => IDBRequest<T>, mode: IDBTransactionMode) =>
+  const rawRequest = <T,>(
+    run: (objects: IDBObjectStore) => IDBRequest<T>,
+    mode: IDBTransactionMode,
+    name: 'blobs' | 'documents' = 'blobs',
+  ) =>
     openRaw().then(
       (database) =>
         new Promise<T>((resolve, reject) => {
-          const request = run(database.transaction('blobs', mode).objectStore('blobs'))
+          const request = run(database.transaction(name, mode).objectStore(name))
           request.addEventListener('success', () => {
             database.close()
             resolve(request.result)
@@ -7890,6 +7894,7 @@ describe('the local draft store', () => {
     await store.setItem(key, JSON.stringify({text: 'first draft'}))
     expect(await readText(store, key)).toBe('first draft')
 
+    const rewrites: string[] = []
     await createRoot(async (dispose) => {
       const [draft, setDraft] = createStore({text: ''})
       const persisted = persistStore({
@@ -7899,15 +7904,17 @@ describe('the local draft store', () => {
         storage: store,
         serialize: JSON.stringify,
         deserialize: (raw) => DraftDocumentSchema.parse(JSON.parse(raw)),
-        write: (value) => store.setDocument(key, value),
+        write: (value, serialized) => {
+          rewrites.push(serialized)
+          return store.setDocument(key, value)
+        },
       })
       await persisted.init
-      await createBrowserDraftStore().setItem(key, JSON.stringify({text: 'written elsewhere'}))
-      setDraft('text', 'first draft')
+      persisted.setStore('text', 'first draft')
       persisted.flush()
       dispose()
     })
-    expect(await readText(store, key)).toBe('written elsewhere')
+    expect(rewrites).toEqual([])
 
     const image = await fetch(
       'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
@@ -7928,6 +7935,34 @@ describe('the local draft store', () => {
     await createBrowserDraftStore().getItem(key)
     expect(await rawRequest((blobs) => blobs.getKey(orphan), 'readonly')).toBeUndefined()
     expect(await rawRequest((blobs) => blobs.getKey(kept.id), 'readonly')).toBe(kept.id)
+  })
+
+  test('treats a corrupt stored document as absent, so the draft starts empty and the next edit is saved', async () => {
+    const store = createBrowserDraftStore()
+    const key = `session:${crypto.randomUUID()}`
+    await store.getItem(key)
+    await rawRequest((documents) => documents.put('{"text": "cut off', key), 'readwrite', 'documents')
+    expect(await store.getItem(key)).toBeNull()
+    const saved = Promise.withResolvers<void>()
+
+    await createRoot(async (dispose) => {
+      const [draft, setDraft] = createStore({text: ''})
+      const persisted = persistStore({
+        store: draft,
+        setStore: setDraft,
+        name: key,
+        storage: store,
+        serialize: JSON.stringify,
+        deserialize: (raw) => DraftDocumentSchema.parse(JSON.parse(raw)),
+        write: (value) => store.setDocument(key, value).then(saved.resolve),
+      })
+      await persisted.init
+      persisted.setStore('text', 'typed after the corrupt one')
+      persisted.flush()
+      dispose()
+    })
+    await saved.promise
+    expect(await readText(store, key)).toBe('typed after the corrupt one')
   })
 })
 
