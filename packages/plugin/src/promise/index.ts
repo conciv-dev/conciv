@@ -22,7 +22,18 @@ export type {ModelDomain, ModelEditor} from './model.js'
 export type {PermissionDomain, PermissionEvaluation, PermissionHooks} from './permission.js'
 export type {RpcCallContext, RpcDomain, RpcHandlers, RpcRegistration} from './rpc.js'
 export type {ServerRef, Servers} from './servers.js'
-export type {SessionDomain, SessionHooks, SessionIdle, SessionIdleBackground} from './session.js'
+export type {
+  PromptAgentAttachment,
+  PromptFileSource,
+  PromptInput,
+  PromptInputFileAttachment,
+  PromptInputSkillAttachment,
+  SessionDomain,
+  SessionHooks,
+  SessionIdle,
+  SessionIdleBackground,
+  SessionPrompt,
+} from './session.js'
 export type {SkillDomain, SkillEditor} from './skill.js'
 export type {StorageDomain} from './storage.js'
 export type {Info, ToolContext, ToolDomain, ToolEditor} from './tool.js'

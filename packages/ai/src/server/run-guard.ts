@@ -5,14 +5,37 @@ import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 export type RunGuard = {
   ended: AbortSignal
   stopped: AbortSignal
+  startMs: number
   firstOutputMs: number
+  onNotStarted: () => void
   onSilence: () => void
   stop: () => void
   log: (message: string) => void
 }
 
+type Watch = {phase: 'starting' | 'silent' | 'speaking'; disarm: () => void}
+
+const SPEAKING: Watch = {phase: 'speaking', disarm: () => undefined}
+
 function isHarnessOutput(chunk: ChatEvent): boolean {
   return chunk.type !== EventType.RUN_STARTED && chunk.type !== EventType.CUSTOM
+}
+
+function armed(phase: Watch['phase'], ms: number, fire: () => void): Watch {
+  const timeout = AbortSignal.timeout(ms)
+  timeout.addEventListener('abort', fire, {once: true})
+  return {phase, disarm: () => timeout.removeEventListener('abort', fire)}
+}
+
+function advanced(watch: Watch, chunk: ChatEvent, guard: RunGuard): Watch {
+  if (watch.phase === 'speaking') return watch
+  if (isHarnessOutput(chunk)) {
+    watch.disarm()
+    return SPEAKING
+  }
+  if (watch.phase === 'silent' || chunk.type !== EventType.RUN_STARTED) return watch
+  watch.disarm()
+  return armed('silent', guard.firstOutputMs, guard.onSilence)
 }
 
 async function* stopped(ending: ChatEvent, guard: RunGuard): AsyncIterable<ChatEvent> {
@@ -36,8 +59,7 @@ async function* guarded(start: () => AsyncIterable<ChatEvent>, guard: RunGuard):
   const finished = Promise.withResolvers<IteratorReturnResult<undefined>>()
   const finish = () => finished.resolve({done: true, value: undefined})
   guard.stopped.addEventListener('abort', finish, {once: true})
-  const silence = AbortSignal.timeout(guard.firstOutputMs)
-  silence.addEventListener('abort', guard.onSilence, {once: true})
+  let watch = armed('starting', guard.startMs, guard.onNotStarted)
   try {
     for (;;) {
       const next = await Promise.race([iterator.next(), ending.promise, finished.promise])
@@ -46,11 +68,11 @@ async function* guarded(start: () => AsyncIterable<ChatEvent>, guard: RunGuard):
         return
       }
       if (next.done) return
-      if (isHarnessOutput(next.value)) silence.removeEventListener('abort', guard.onSilence)
+      watch = advanced(watch, next.value, guard)
       yield next.value
     }
   } finally {
-    silence.removeEventListener('abort', guard.onSilence)
+    watch.disarm()
     guard.ended.removeEventListener('abort', end)
     guard.stopped.removeEventListener('abort', finish)
     Promise.resolve(iterator.return?.()).catch((error: unknown) => {

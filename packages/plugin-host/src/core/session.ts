@@ -21,8 +21,7 @@ import type {
 type SessionId = SessionInfo['id']
 type Metadata = NonNullable<SessionInfo['metadata']>
 
-type CreateInput = SessionCreateInput &
-  (
+type CreateInput = Omit<SessionCreateInput, 'id'> & {id?: SessionId} & (
     | {location: Location.Ref; parentId?: never}
     | {parentId: Exclude<SessionCreateInput['parentId'], undefined>; location?: never}
   )

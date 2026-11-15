@@ -49,6 +49,7 @@ import {makeLayerStack} from '../shell/dialogs.js'
 import {ShellFab} from '../shell/fab.js'
 import {EngineLoginDialog, engineConnected, engineLocked} from '../app/engine-login.js'
 import {EffectsSurface} from '../shell/effects-surface.js'
+import {NoticeContextProvider} from '../shell/notice-context.js'
 import {createDraggablePosition, type PanelFrame} from '../lib/draggable-position.js'
 import {createElementSize} from '@solid-primitives/resize-observer'
 import {toRawHotkey} from '../lib/hotkey.js'
@@ -61,6 +62,9 @@ import {PanelChromeContext} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
 import {applySchemeClass, applySkinClass, createHostTheme, themeClasses} from '../lib/color-scheme.js'
 import {createPreferences} from '../settings/create-preferences.js'
+import {DialogProvider} from '../runtime/plugin/dialog-stack.js'
+import {PluginAttachment, PluginRoot} from '../runtime/plugin/root.js'
+import {PluginOverlay, PluginPanelKeys} from '../shell/plugin-surfaces.js'
 import '../styles.css'
 import 'virtual:uno.css'
 
@@ -198,38 +202,48 @@ function AppRoot() {
     window.dispatchEvent(new CustomEvent(CONNECTION_CHANGED_EVENT, {detail: {connected: isConnected}}))
   })
 
-  const reachability = makeEngineReachability()
+  const reachability = makeEngineReachability(app.apiBase)
 
   return (
     <EnvironmentProvider value={() => app.environment.rootNode}>
       <QueryClientProvider client={app.queryClient}>
         <AppContext.Provider value={value}>
           <EngineReachabilityContext.Provider value={reachability}>
-            <HostApiProvider
-              rpc={app.rpc}
-              apiBase={app.apiBase}
-              toast={showToast}
-              openEditor={(file, line) =>
-                void app.rpc.editor
-                  .open({file, line})
-                  .catch(() => showToast(`could not open ${file} in the editor`, 'error'))
-              }
-              registerLayer={(isOpen, hides) => layers.register(isOpen, hides)}
-              dialog={layers.track(Dialog)}
-              popover={Object.assign({}, Popover, {Root: layers.track(Popover.Root)})}
-              sessionId={activeSession}
-              colorScheme={colorScheme}
-            >
-              <RootChrome
-                fab={fab}
-                activeSession={activeSession}
-                politeMessage={politeMessage}
-                assertiveMessage={assertiveMessage}
-              />
-              <Show when={app.login === undefined || engineConnected(app.login.status())}>
-                <EffectsSurface instances={app.instances} />
-              </Show>
-            </HostApiProvider>
+            <NoticeContextProvider>
+              <DialogProvider>
+                <PluginRoot>
+                  <PluginAttachment>
+                    <PluginPanelKeys />
+                    <HostApiProvider
+                      rpc={app.rpc}
+                      apiBase={app.apiBase}
+                      toast={showToast}
+                      openEditor={(file, line) =>
+                        void app.rpc.editor
+                          .open({file, line})
+                          .catch(() => showToast(`could not open ${file} in the editor`, 'error'))
+                      }
+                      registerLayer={(isOpen, hides) => layers.register(isOpen, hides)}
+                      dialog={layers.track(Dialog)}
+                      popover={Object.assign({}, Popover, {Root: layers.track(Popover.Root)})}
+                      sessionId={activeSession}
+                      colorScheme={colorScheme}
+                    >
+                      <RootChrome
+                        fab={fab}
+                        activeSession={activeSession}
+                        politeMessage={politeMessage}
+                        assertiveMessage={assertiveMessage}
+                      />
+                      <Show when={app.login === undefined || engineConnected(app.login.status())}>
+                        <EffectsSurface instances={app.instances} />
+                      </Show>
+                      <PluginOverlay />
+                    </HostApiProvider>
+                  </PluginAttachment>
+                </PluginRoot>
+              </DialogProvider>
+            </NoticeContextProvider>
           </EngineReachabilityContext.Provider>
         </AppContext.Provider>
       </QueryClientProvider>

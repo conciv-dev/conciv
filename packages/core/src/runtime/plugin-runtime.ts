@@ -134,9 +134,12 @@ function pluginHostLayer(input: PluginRuntimeInput) {
   )
 }
 
+type SessionPrompt = PluginHooks.Domains['session']['prompt']
+
 export type PluginRuntime = {
   runtime: PluginHost
   startPlugins: () => Promise<void>
+  prompt: (event: SessionPrompt) => Promise<SessionPrompt>
   closeRpc: () => Promise<void>
   closePlugins: () => Promise<void>
   closePermissions: () => Promise<void>
@@ -152,6 +155,12 @@ export function makePluginRuntime(input: PluginRuntimeInput): PluginRuntime {
         Layer.buildWithScope(PluginSupervisor.layer, supervised).pipe(Effect.andThen(Plugin.awaitActivation)),
       ),
     ),
+    prompt: (event) =>
+      runtime.runPromise(
+        Plugin.awaitActivation.pipe(
+          Effect.andThen(PluginHooks.Service.use((hooks) => hooks.trigger('session', 'prompt', event))),
+        ),
+      ),
     closeRpc: () => runtime.runPromise(Rpc.Service.use((rpc) => rpc.close)),
     closePlugins: () => Effect.runPromise(Scope.close(supervised, Exit.void)),
     closePermissions: () => runtime.runPromise(Permission.Service.use((permission) => permission.close)),

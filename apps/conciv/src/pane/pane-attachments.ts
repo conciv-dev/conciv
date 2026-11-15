@@ -29,9 +29,9 @@ export function paneAttachments(
   return {cards, chips: guardedAttachmentCards(extensions, 'chip'), adapter}
 }
 
-type DraftSink = {insert: (text: string) => void; addFile: (file: File) => void}
+export type DraftSink = {insert: (text: string) => void; addFile: (file: File) => void}
 
-type QueueOwner = {queue: () => readonly QueuedMessage[]; cancelQueued: (id: string) => void}
+export type QueueOwner = {queue: () => readonly QueuedMessage[]; cancelQueued: (id: string) => void}
 
 function visibleParts(content: QueuedMessage['content']): ContentPart[] {
   const body = typeof content === 'string' ? content : content.content

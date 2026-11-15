@@ -1,8 +1,6 @@
 export interface Ref {
   readonly id: string
-  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly providerId: string | undefined
-  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly variant?: string
 }
 

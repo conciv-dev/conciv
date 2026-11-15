@@ -93,7 +93,7 @@ ${s} {
 }
 @media (prefers-reduced-motion: reduce) {
   ${s} {
-    opacity: 0.4;
+    background: color-mix(in srgb, currentColor 50%, transparent);
     animation: none;
   }
 }

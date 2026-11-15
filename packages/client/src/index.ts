@@ -7,6 +7,7 @@ export {
   QueryClient,
   QueryClientProvider,
   keepPreviousData,
+  MutationObserver as QueryMutationObserver,
   useInfiniteQuery,
   useIsFetching,
   useMutation,

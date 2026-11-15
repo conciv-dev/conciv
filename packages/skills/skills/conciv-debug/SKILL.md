@@ -85,11 +85,15 @@ by two different paths.
   (`sessionGrantable`, `packages/chat/src/approvals.ts:48-55`). Asking again is the design, not a lost
   decision.
 - **First-response hang with no tool call involved.** `guardedAdapter`
-  (`packages/ai/src/server/run-guard.ts:44-49`) bounds the wait for the harness's first output,
-  `FIRST_OUTPUT_TIMEOUT_MS` by default (`packages/chat/src/index.ts:30`), and fails the run with
-  `the agent produced no output within Ns` (`packages/ai/src/server/chat-server.ts:381-386`). That is
-  a harness/CLI problem (wrong binary, CLI stuck on its own prompt), not an approval; see the
-  conciv-harness skill if you're debugging a specific adapter.
+  (`packages/ai/src/server/run-guard.ts:24-38`, `:62-71`) bounds the wait with two limits. Until the
+  harness's first `RUN_STARTED` the start limit runs, `FIRST_START_TIMEOUT_MS` (30s,
+  `packages/chat/src/index.ts:29`), and fails the run with `the agent did not start within Ns`. From
+  that `RUN_STARTED` to the first output the silence limit runs, `FIRST_OUTPUT_TIMEOUT_MS` by default
+  (`packages/chat/src/index.ts:28`), and fails the run with `the agent produced no output within Ns`
+  (both messages: `packages/ai/src/server/chat-server.ts:509-510`). "Did not start" means the CLI never
+  got going (wrong binary, missing install); "no output" means it started and went silent (stuck on
+  its own prompt). Either is a harness/CLI problem, not an approval; see the conciv-harness skill if
+  you're debugging a specific adapter.
 
 ## Failure scenario 4: an approval never resolves
 

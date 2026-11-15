@@ -1,11 +1,15 @@
 import {For, Show, splitProps, type JSX} from 'solid-js'
 import {useFieldContext} from '@ark-ui/solid/field'
 import {TagsInput as Ark} from '@ark-ui/solid/tags-input'
+import {nativeFocusPart} from './native-focus.js'
 import X from 'lucide-solid/icons/x'
 import {INPUT_FRAME} from './input-frame.js'
 import {TooltipIconButton} from './tooltip-icon-button.js'
 
-const CONTROL = `${INPUT_FRAME} flex-wrap items-center gap-1 py-1.5 px-1.5 data-[readonly]:!opacity-100 data-[readonly]:bg-chat-fill-soft data-[readonly]:text-chat-text-2`
+const Input = nativeFocusPart(Ark.Input, 'input')
+const ItemInput = nativeFocusPart(Ark.ItemInput, 'input')
+
+const CONTROL = `${INPUT_FRAME} flex-wrap items-center gap-1 py-0.75 px-1.5 data-[readonly]:!opacity-100 data-[readonly]:bg-chat-fill-soft data-[readonly]:text-chat-text-2`
 const ITEM_PREVIEW =
   'inline-flex items-center gap-0.5 h-6 ps-2 pe-2 has-[button]:pe-0.5 rounded-chat-chip bg-chat-fill-strong [border:1px_solid_var(--chat-line-2)] font-chat-mono text-[0.6875rem] text-chat-text-hi data-[highlighted]:border-chat-accent data-[highlighted]:bg-chat-accent-20'
 const INPUT =
@@ -72,11 +76,11 @@ export function TagsInput(props: TagsInputProps): JSX.Element {
                   />
                 </Show>
               </Ark.ItemPreview>
-              <Ark.ItemInput class={INPUT} />
+              <ItemInput class={INPUT} />
             </Ark.Item>
           )}
         </For>
-        <Ark.Input
+        <Input
           class={INPUT}
           placeholder={local.placeholder}
           aria-label={local['aria-label']}

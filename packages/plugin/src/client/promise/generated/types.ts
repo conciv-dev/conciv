@@ -158,8 +158,7 @@ export interface SessionListInput {
 }
 
 export interface SessionCreateInput {
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly id?: string | null | undefined
+  readonly id?: string | undefined
   /** @remarks Not implemented yet. Always undefined in this version. */
   readonly parentId?: string | null | undefined
   readonly title?: string | null | undefined

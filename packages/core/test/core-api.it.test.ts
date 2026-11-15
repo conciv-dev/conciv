@@ -1,4 +1,6 @@
 import {until} from '@conciv/harness-testkit/until'
+import {makeJournal, makePageBus} from '../src/page/page-bus.js'
+import {makePageQueues} from '../src/page/page-queue.js'
 import {
   mkdtempSync,
   rmSync,
@@ -22,7 +24,19 @@ import {DatabaseSync} from 'node:sqlite'
 import {crc32, deflateSync} from 'node:zlib'
 import {tmpdir} from 'node:os'
 import {basename, join, dirname} from 'node:path'
-import {afterAll, beforeAll, describe, expect, it, afterEach, onTestFinished, test, vi, beforeEach} from 'vitest'
+import {
+  afterAll,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  afterEach,
+  onTestFailed,
+  onTestFinished,
+  test,
+  vi,
+  beforeEach,
+} from 'vitest'
 import {createMCPClient, imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
 import {foldChatEvents} from '@conciv/ai/testkit'
 import {
@@ -86,7 +100,7 @@ import {
 } from '@conciv/harness-testkit'
 import {Plugin, Rpc as PluginRpc, type RpcRegistration} from '@conciv/plugin'
 import {evaluatePluginBundle} from '@conciv/plugin/experimental/host'
-import {PluginHost} from '@conciv/plugin-host'
+import {InstructionEntry, Location, PluginHost, Session} from '@conciv/plugin-host'
 import {claude} from '@conciv/harness/claude'
 import {codex as codexHarness} from '@conciv/harness/codex'
 import {pi as piHarness} from '@conciv/harness/pi'
@@ -96,6 +110,7 @@ import {
   type ChatEvent,
   ChatEventType,
   pageQueueEvent,
+  runLifecycleEvent,
   sessionRunEvent,
 } from '@conciv/protocol/chat-event-types'
 import {webSocket} from '@conciv/ai/client'
@@ -131,14 +146,16 @@ import {createORPCClient} from '@orpc/client'
 import {RPCLink} from '@orpc/client/fetch'
 import {onError, ORPCError, os, type RouterClient} from '@orpc/server'
 import WebSocket from 'ws'
-import {Effect, ManagedRuntime} from 'effect'
+import {Effect, ManagedRuntime, Schema} from 'effect'
 import {z} from 'zod'
 import {makeApp, type MadeApp} from '../src/app.js'
 import {callTrace} from '../src/api/call-trace.js'
 import {resolveConfig} from '../src/config.js'
 import {openSourceFromFrames} from '../src/editor/open-source.js'
 import {originAllowed} from '../src/lib/cors.js'
+import {provideSessions} from '../src/runtime/plugin-sessions.js'
 import {provideServersSource} from '../src/runtime/servers-source.js'
+import {createSessionSearch} from '../src/sessions/session-search.js'
 import {start, type Engine} from '../src/start.js'
 import {sampleServerExtension, sampleState} from './fixtures/sample-server-extension.js'
 import corePackage from '../package.json' with {type: 'json'}
@@ -1133,6 +1150,45 @@ describe('api harness switching', () => {
     expect(row(sessionId)?.deletedAt).not.toBeNull()
     expect(await listings(false)).toEqual({owner: 1, phantoms: 0})
     expect(row(sessionId)?.deletedAt).toBeNull()
+
+    const app = made.app
+    if (app === null) throw new Error('the app did not boot')
+    const search = createSessionSearch({db: app.chat.db, cwd: app.chat.cwd, harnesses: app.chat.harnesses})
+    onTestFinished(() => search.dispose())
+    const sessionKey = provideSessions(() => ({
+      chat: app.chat,
+      runtime: app.runtime,
+      search,
+      pluginHost: app.pluginHost,
+      queues: makePageQueues({bus: makePageBus(), journal: makeJournal(app.chat.db)}),
+    }))
+    const key = <Success, Failure>(use: (service: Session.Interface) => Effect.Effect<Success, Failure>) =>
+      Effect.runPromise(Session.Service.use(use).pipe(Effect.provide(sessionKey)))
+    const id = SessionId.parse(sessionId)
+    const oldMarkers = (await kit().rpc.markers.list({sessionId})).map((marker) => marker.id)
+    expect(oldMarkers).not.toEqual([])
+    await key((sessions) => sessions.setMetadata({sessionId: id, metadata: {ticket: 7}}))
+    await key((sessions) =>
+      sessions.setPermissions({sessionId: id, permissions: [{action: 'bash', resource: '*', effect: 'deny'}]}),
+    )
+    const old = await key((sessions) => sessions.get(id))
+    expect(old).toMatchObject({metadata: {ticket: 7}, permissions: [{action: 'bash', resource: '*', effect: 'deny'}]})
+    const entries = (run: (service: InstructionEntry.Interface) => Effect.Effect<unknown, unknown>) =>
+      app.pluginHost.runPromise(InstructionEntry.Service.use(run))
+    await entries((service) => service.put({sessionId: id, key: 'brief', value: 'the old session'}))
+    expect(await entries((service) => service.list(id))).toEqual([{key: 'brief', value: 'the old session'}])
+    await key((sessions) => sessions.remove(id))
+    const location = Schema.decodeSync(Location.Ref)({directory: app.chat.cwd})
+    const reused = await key((sessions) => sessions.create({id, title: 'A new session on an old id', location}))
+    expect(reused).toMatchObject({id, title: 'A new session on an old id', metadata: undefined, permissions: undefined})
+    expect(reused.time.created).toEqual(expect.any(Number))
+    expect(reused.time.created).toBeGreaterThanOrEqual(old.time.updated)
+    expect(await key((sessions) => sessions.get(id))).toEqual(reused)
+    expect(await entries((service) => service.list(id))).toEqual([])
+    expect(row(sessionId)).toMatchObject({harnessKind: 'alpha', harnessSessionId: null, deletedAt: null})
+    const newMarkers = (await kit().rpc.markers.list({sessionId})).map((marker) => marker.id)
+    expect(newMarkers.filter((marker) => oldMarkers.includes(marker))).toEqual([])
+    expect(await listings(false)).toEqual({owner: 1, phantoms: 1})
   })
 
   it('lists the native sessions of every available harness, labelled by harness', async () => {
@@ -1748,10 +1804,20 @@ describe('rpc wire', () => {
     })
 
     describe('on one app with an editor opener', () => {
-      const opened: Array<{file: string; line?: number}> = []
+      const opened: Array<{file: string; line?: number; column?: number}> = []
       const harness = createTestHarness(requireClaude())
       const kit = sharedKit(() =>
-        bootKit({openInEditor: (file, line) => opened.push({file, ...(line === undefined ? {} : {line})})}, harness),
+        bootKit(
+          {
+            openInEditor: (file, line, column) =>
+              opened.push({
+                file,
+                ...(line === undefined ? {} : {line}),
+                ...(column === undefined ? {} : {column}),
+              }),
+          },
+          harness,
+        ),
       )
 
       beforeEach(() => {
@@ -1775,6 +1841,12 @@ describe('rpc wire', () => {
           session,
         )
         expect(viaFrames).toBe('no-source')
+        const rpc = makeRpcClient(kit().base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+        opened.splice(0)
+        expect(await rpc.editor.open({file: 'src/b.ts', line: 3, column: 9})).toEqual({ok: true})
+        expect(opened).toEqual([{file: 'src/b.ts', line: 3, column: 9}])
+        await rpc.editor.open({file: 'src/c.ts', column: 4})
+        expect(opened).toEqual([{file: 'src/b.ts', line: 3, column: 9}, {file: 'src/c.ts'}])
       })
 
       it('a scripted code-mode call executes the real open capability inside the turn', async () => {
@@ -2054,6 +2126,23 @@ describe('rpc wire', () => {
         script().release()
         expect((await finished(sessionId, 'right after', {runId: 'after-stop'})).text()).toBe('ok')
         expect((await chatKit().hydrate(sessionId)).lastRun).toMatchObject({runId: 'after-stop', phase: 'completed'})
+
+        const earlySession = await newSession()
+        script().hold()
+        const early = await send(earlySession, 'stop before any answer', {runId: 'stopped-early'})
+        await early.waitForRunStart({runId: 'stopped-early'})
+        await chatKit().rpc.chat.stop({sessionId: earlySession, runIds: ['stopped-early']})
+        script().release()
+        const stopped = await early.done()
+        expect(stopped.all.map((chunk) => runLifecycleEvent.parse(chunk)?.phase)).toContain('aborted')
+        expect(stopped.all).toContainEqual(
+          expect.objectContaining({type: ChatEventType.RUN_FINISHED, runId: 'stopped-early', finishReason: 'stop'}),
+        )
+        expect(stopped.runs()).toBe(1)
+        expect(await chatKit().hydrate(earlySession)).toMatchObject({
+          activeRun: null,
+          lastRun: {runId: 'stopped-early', phase: 'aborted'},
+        })
       })
 
       it('a stop that names only an earlier run leaves the next turn running', async () => {
@@ -2565,6 +2654,10 @@ describe('rpc wire', () => {
         const second = await send(sessionId, 'resent', {runId: 'steer-second'})
         const first = await turn.done().finally(() => script().release())
         expect(first.all.some((chunk) => chunk.type === ChatEventType.RUN_FINISHED)).toBe(true)
+        const sent = await turn.waitFor(
+          (chunk) => chunk.type === ChatEventType.RUN_FINISHED && chunk.runId === 'steer-first',
+        )
+        expect(first.all.findLast((chunk) => chunk.type === ChatEventType.RUN_FINISHED)).not.toBe(sent)
         expect(collectEventRunIds(await second.done(), ChatEventType.RUN_STARTED)).toContain('steer-second')
       })
     })
@@ -4236,6 +4329,7 @@ function bootAt(
   root = tempDir('conciv-outside-'),
   hubAccess: HubAccess = 'session',
   harness = createFakeHarness(),
+  plugins: readonly Plugin.Plugin[] = [],
 ): Promise<Engine> {
   return start({
     options: {stateRoot: root, hubAccess},
@@ -4243,6 +4337,7 @@ function bootAt(
     launchEditor: () => {},
     harness,
     homeDir,
+    plugins,
   })
 }
 
@@ -4702,7 +4797,43 @@ export default {
 }
 `,
     )
-    const first = await boot('session', home)
+    const relaying = tempDir('conciv-relay-')
+    mkdirSync(join(relaying, 'conciv', 'plugins'), {recursive: true})
+    writeFileSync(
+      join(relaying, 'conciv', 'plugins', 'relay.ts'),
+      `const Relay = {id: 'relay', methods: {relay: {input: {type: 'object'}, output: {type: 'object'}}}, events: {}}
+const Pinger = {
+  id: 'pinger',
+  methods: {ping: {input: {type: 'object'}, output: {type: 'object'}}},
+  events: {pinged: {schema: {type: 'object', properties: {count: {type: 'number'}}}}},
+}
+
+export default {
+  id: 'relay',
+  async setup(ctx) {
+    await ctx.rpc.register(Relay, {
+      relay: async ({id}) => {
+        const server = ctx.servers.get(id)
+        if (server === undefined) return {listed: ctx.servers.list()}
+        const stream = server.client.event.subscribe()[Symbol.asyncIterator]()
+        const connected = await stream.next()
+        const answer = await server.client.rpc(Pinger).ping({})
+        const pinged = async () => {
+          const next = await stream.next()
+          if (next.done || next.value.type === 'rpc.pinger.pinged') return next.value
+          return pinged()
+        }
+        const event = await pinged()
+        await stream.return()
+        return {connected: connected.value.type, answer, event}
+      },
+    })
+  },
+}
+`,
+    )
+    connectedHome(home)
+    const first = track(await bootAt(home, relaying))
     const second = track(await bootAt(home, pinging))
     const healthId = async (base: string): Promise<string> =>
       z.object({id: z.string()}).parse(await (await fetch(`${new URL(base).origin}/health`)).json()).id
@@ -4806,6 +4937,26 @@ export default {
     })
     await pinged.return?.()
     await stream.return?.()
+    const relay = () =>
+      makeRpcClient(first).plugin.call(
+        {rpcId: 'relay', method: 'relay', input: {id: secondId}},
+        {signal: AbortSignal.timeout(5000)},
+      )
+    await vi.waitFor(
+      async () =>
+        expect(await relay()).toEqual({
+          connected: 'server.connected',
+          answer: {},
+          event: {
+            id: expect.stringMatching(/^evt_/),
+            type: 'rpc.pinger.pinged',
+            created: expect.any(Number),
+            location: {directory: pinging},
+            data: {count: 1},
+          },
+        }),
+      {timeout: 25_000},
+    )
     await engines.find((booted) => booted.base === second)?.stop()
     await listed([firstId], {event: 'the second engine stopped', at: performance.now()})
     expect(servers.get(secondId)).toBeUndefined()
@@ -5008,7 +5159,7 @@ export default {
     }
   })
 
-  it('an allowed outside agent still cannot answer permission requests: its decision and allow are refused and the card stays', async () => {
+  it('an allowed outside agent still cannot answer permission requests or call plugin RPC methods: its decision, allow and plugin call are refused and the card stays', async () => {
     const base = await boot()
     const sessionId = await newSession(base)
     const allowed = hubCall(base, sessionId)
@@ -5024,6 +5175,10 @@ export default {
     const refusal = "outside agents can't answer permission requests; decide it in the tab"
     expect(await hubRpc.chat.permissionDecision(decision).then(String, String)).toContain(refusal)
     expect(await hubRpc.chat.allowOutside({sessionId}).then(String, String)).toContain(refusal)
+    await expect(hubRpc.plugin.call({rpcId: 'embedded', method: 'ping', input: {}})).rejects.toMatchObject({
+      code: 'APPROVAL_DENIED',
+      message: "outside agents can't use plugin routes; use the plugin in the tab",
+    })
     expect(await loadPending(base, sessionId)).toEqual([card])
     await own.chat.permissionDecision({approvalId: card?.approvalId ?? '', approved: false})
     await waiting
@@ -5321,10 +5476,10 @@ describe('page action queue delivery', () => {
 
   type QueuedOnTab = {id: string; replies: string[]}
 
-  async function engineWithTab(harness = createFakeHarness()) {
+  async function engineWithTab(harness = createFakeHarness(), plugins: readonly Plugin.Plugin[] = []) {
     const home = tempDir('conciv-queue-home-')
     withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
-    const engine = await bootAt(home, tempDir('conciv-queue-'), 'open', harness)
+    const engine = await bootAt(home, tempDir('conciv-queue-'), 'open', harness, plugins)
     engines.push(engine)
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
@@ -5531,18 +5686,61 @@ describe('page action queue delivery', () => {
     expect(JSON.stringify(await page.hub('return 1'))).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
   }, 5000)
 
-  it('a page_queue_async a hub caller starts through registry.call is outside work: its result leads the next hub reply', async () => {
+  it('a queue a hub request starts stays hub work after a fast finish, an aborted request and a thousand later hub calls', async () => {
     const page = await engineWithTab()
     const typed = makeRpcClient(page.base, {headers: {...HUB, [CONCIV_SESSION_HEADER]: page.sessionId}})
-    const {queueId} = z
-      .object({queueId: z.string()})
-      .parse(await typed.registry.call({name: 'page_queue_async', input: {actions: ACTIONS}}))
+    const playAll = async (onTab: QueuedOnTab): Promise<void> => {
+      await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+      await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    }
+    const nextHubReply = async (): Promise<string> => JSON.stringify(await page.hub('return 1'))
+    const notice = (queueId: string) => `queue ${queueId} finished: 2 played, 0 failed`
+
+    const calling = typed.registry.call({name: 'page_queue_async', input: {actions: ACTIONS}})
+    await playAll(await page.nextQueue())
+    const fast = z.object({queueId: z.string()}).parse(await calling).queueId
+    await page.finishedEvent(fast)
+    expect(await nextHubReply()).toContain(notice(fast))
+    expect(page.runIds()).toEqual([])
+
+    const caller = new AbortController()
+    const aborted = typed.code.execute(
+      {
+        sessionId: page.sessionId,
+        typescriptCode: `await external_page_queue_async({actions: ${JSON.stringify(ACTIONS)}}); ${played}`,
+      },
+      {signal: caller.signal},
+    )
+    const during = await page.nextQueue()
+    await playAll(during)
+    await page.finishedEvent(during.id)
+    const blocking = await page.nextQueue()
+    caller.abort()
+    await expect(aborted).rejects.toMatchObject({name: 'AbortError'})
+    await page.seenChunk(
+      (chunk) =>
+        chunk.type === ChatEventType.TOOL_CALL_RESULT &&
+        JSON.stringify(chunk.content).includes('Code execution was stopped'),
+    )
+    await playAll(blocking)
+    await page.finishedEvent(blocking.id)
+    const afterAbort = await nextHubReply()
+    expect(afterAbort).toContain(notice(during.id))
+    expect(afterAbort).toContain(notice(blocking.id))
+    expect(page.runIds()).toEqual([])
+
+    const long = parseHandle(await page.hub(queued())).queueId
     const onTab = await page.nextQueue()
-    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
-    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
-    await page.finishedEvent(queueId)
-    expect(JSON.stringify(await page.hub('return 1'))).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
-  }, 5000)
+    expect(
+      await page.hub(
+        "for (let call = 0; call < 1001; call += 1) await external_page_queue_async({actions: 'none'}).catch(() => null); return 'called'",
+      ),
+    ).toContain('called')
+    await playAll(onTab)
+    await page.finishedEvent(long)
+    expect(await nextHubReply()).toContain(notice(long))
+    expect(page.runIds()).toEqual([])
+  }, 20000)
 
   it('the next reply for that session carries the finished result once, and the reply after does not', async () => {
     const page = await engineWithTab()
@@ -5726,7 +5924,14 @@ describe('page action queue delivery', () => {
 
   it('an in-page queue that finishes while its run is live starts the follow-up turn once that run ends', async () => {
     const harness = createFakeHarness()
-    const page = await engineWithTab(harness)
+    const idled: string[] = []
+    const idleCounter = Plugin.define({
+      id: 'idle-counter',
+      async setup(ctx) {
+        await ctx.session.hook('experimental.idle', (event) => void idled.push(event.sessionId))
+      },
+    })
+    const page = await engineWithTab(harness, [idleCounter])
     harness.script.hold()
     const viewer = new AbortController()
     onTestFinished(() => viewer.abort())
@@ -5754,6 +5959,7 @@ describe('page action queue delivery', () => {
     await page.followUpFinished(['queueing-run'])
     expect(page.runIds().filter((runId) => runId !== 'queueing-run')).toHaveLength(1)
     expect((await page.tab.chat.hydrate({sessionId: page.sessionId})).activeRun).toBeNull()
+    expect(idled).toEqual([page.sessionId])
   })
 
   it('a user stop starts no follow-up turn: the owed result arrives with the agent next reply', async () => {
@@ -5808,7 +6014,13 @@ describe('engine plugins', () => {
   const SEER = `import {appendFileSync, readFileSync} from 'node:fs'
 import {join} from 'node:path'
 
-const Seer = {id: 'seer', methods: {seen: {input: {type: 'object'}, output: {type: 'object'}}}, events: {}}
+const LOOK = 'first look'
+
+const Seer = {
+  id: 'seer',
+  methods: {seen: {input: {type: 'object'}, output: {type: 'object'}}, look: {input: {type: 'object'}, output: {type: 'string'}}},
+  events: {loaded: {schema: {type: 'object', properties: {look: {type: 'string'}}}}},
+}
 
 export default {
   id: 'seer',
@@ -5848,7 +6060,16 @@ export default {
         execute: async (_input, context) => ({content: 'called as ' + context.id}),
       })
     })
-    await ctx.rpc.register(Seer, {
+    await ctx.skill.transform((skills) => {
+      skills.add({
+        id: 'seer-look',
+        name: 'seer-look',
+        description: 'How the seer looks',
+        path: join(ctx.location.directory, 'seer-look', 'SKILL.md'),
+        content: 'Look twice.',
+      })
+    })
+    const registration = await ctx.rpc.register(Seer, {
       seen: async () => ({
         mcpUrl,
         app: ctx.app,
@@ -5856,7 +6077,9 @@ export default {
         servers: ctx.servers.list(),
         plugins: (await ctx.plugin.list()).data,
       }),
+      look: async () => LOOK,
     })
+    await registration.events.emit('loaded', {look: LOOK})
     return () => appendFileSync(join(ctx.location.directory, 'cleanups.log'), 'seer\\n')
   },
 }
@@ -5882,7 +6105,12 @@ export default {
 `
   const Embedded = PluginRpc.define({
     id: 'embedded',
-    methods: {ping: {input: z.object({}), output: z.string()}, announce: {input: z.object({}), output: z.string()}},
+    methods: {
+      ping: {input: z.object({}), output: z.string()},
+      announce: {input: z.object({}), output: z.string()},
+      deleted: {input: z.object({}), output: z.string()},
+      counted: {input: z.object({}), output: z.number()},
+    },
     events: {announced: {schema: z.object({})}},
   })
 
@@ -5944,15 +6172,32 @@ export default {
         return image.success ? [{mimeType: image.data.source.mimeType, ...jpegSize(image.data.source.value)}] : []
       })
 
-  function bootWithPlugins(home: string, root: string): Promise<Engine> {
+  function bootWithPlugins(
+    home: string,
+    root: string,
+    harness: FakeHarness = createFakeHarness(),
+    idled: string[] = [],
+  ): Promise<Engine> {
     const embedded = Plugin.define({
       id: 'embedded',
       async setup(ctx) {
+        await ctx.session.hook('experimental.idle', (event) => void idled.push(event.sessionId))
+        const deletedSessions = ctx.event.subscribe({types: ['session.deleted']})
+        const firstDeletion = deletedSessions[Symbol.asyncIterator]().next()
+        const calls = {counted: 0}
         const registration: Promise<RpcRegistration<typeof Embedded>> = ctx.rpc.register(Embedded, {
           ping: async () => 'pong',
           announce: async () => {
             await (await registration).events.emit('announced', {})
             return 'announced'
+          },
+          deleted: async () => {
+            const result = await firstDeletion
+            return result.done ? 'closed' : result.value.data.sessionID
+          },
+          counted: async () => {
+            calls.counted += 1
+            return calls.counted
           },
         })
         await registration
@@ -5968,7 +6213,7 @@ export default {
       },
       root,
       launchEditor: () => {},
-      harness: createFakeHarness(),
+      harness,
       homeDir: home,
       plugins: [embedded],
     })
@@ -5979,7 +6224,23 @@ export default {
 
   it('an engine loads its project, configured and embedded plugins once it listens, lists a failing one, cleans up on stop and loads them again', async () => {
     const [home, root] = [tempDir('conciv-home-'), projectWithPlugins()]
-    const engine = await bootWithPlugins(home, root)
+    const prompts: Array<{sessionId: string; systemPrompts: string[]; tools: string[]}> = []
+    const fake = createFakeHarness()
+    const harness: FakeHarness = {
+      ...fake,
+      chatConfig: (deps: HarnessChatDeps) => ({
+        adapter: makeTextAdapter(fake.id, async function* (options) {
+          prompts.push({
+            sessionId: deps.sessionId,
+            systemPrompts: [...(options.systemPrompts ?? [])].map(String),
+            tools: (options.tools ?? []).map((tool) => tool.name),
+          })
+          yield* fake.script.chatStream(deps, options)
+        }),
+      }),
+    }
+    const idled: string[] = []
+    const engine = await bootWithPlugins(home, root, harness, idled)
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const stopped = {current: false}
     onTestFinished(async () => {
@@ -6064,13 +6325,28 @@ export default {
     expect(namedCards).toHaveLength(1)
     expect(namedReply).toContain(`called as ${namedCards[0]}`)
 
+    const origin = `http://127.0.0.1:${engine.port}`
+    const login = browserRpcConnection(origin)
+    onTestFinished(() => login.release())
+    expect(await login.trust.requestTrustWithToken(engine.agentToken)).toBe(true)
+    const widget = makeBrowserRpcClient(origin)
+    onTestFinished(() => widget.close())
+    const overSocket = (rpcId: string, method: string) =>
+      widget.rpc.plugin.call({rpcId, method, input: {}}, {signal: AbortSignal.timeout(5000)})
+    expect(await overSocket('embedded', 'ping')).toBe('pong')
+    expect(await overSocket('seer', 'look')).toBe('first look')
+
     const everything = await makeRpcClient(base).event.subscribe()
     const deletions = await makeRpcClient(base).event.subscribe({types: ['session.deleted']})
+    const socketEvents = await widget.rpc.event.subscribe()
     const connected = {done: false, value: {id: expect.stringMatching(/^evt_/), type: 'server.connected', data: {}}}
     expect(await everything.next()).toEqual(connected)
     expect(await deletions.next()).toEqual(connected)
-    expect(await call(base, 'embedded', 'announce')).toBe('announced')
+    expect(await socketEvents.next()).toEqual(connected)
+    expect(await overSocket('embedded', 'announce')).toBe('announced')
+    const pluginReadDeletion = call(base, 'embedded', 'deleted')
     await makeRpcClient(base).sessions.delete({sessionId})
+    expect(await pluginReadDeletion).toBe(sessionId)
     const announced = {
       id: expect.stringMatching(/^evt_/),
       type: 'rpc.embedded.announced',
@@ -6087,18 +6363,106 @@ export default {
     expect(await everything.next()).toEqual({done: false, value: announced})
     expect(await everything.next()).toEqual({done: false, value: deleted})
     expect(await deletions.next()).toEqual({done: false, value: deleted})
+    expect(await socketEvents.next()).toEqual({done: false, value: announced})
+    expect(await socketEvents.next()).toEqual({done: false, value: deleted})
+    await socketEvents.return(undefined)
 
     const outside = makeRpcClient(base, {headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'terminal'}})
     await expect(outside.event.subscribe()).rejects.toMatchObject({
       code: 'APPROVAL_DENIED',
       message: "outside agents can't read the engine's event stream",
     })
+    const pluginRefusal = {
+      code: 'APPROVAL_DENIED',
+      message: "outside agents can't use plugin routes; use the plugin in the tab",
+    }
+    await expect(outside.plugin.call({rpcId: 'embedded', method: 'counted', input: {}})).rejects.toMatchObject(
+      pluginRefusal,
+    )
+    expect(await call(base, 'embedded', 'counted')).toBe(1)
+    await expect(outside.plugin.list()).rejects.toMatchObject(pluginRefusal)
+    expect((await makeRpcClient(base).plugin.list()).data.map((plugin) => plugin.id)).toContain('embedded')
+    await expect(outside.plugin.experimental({id: 'configured'})).rejects.toMatchObject(pluginRefusal)
+    await expect(makeRpcClient(base).plugin.experimental({id: 'configured'})).rejects.toMatchObject({
+      code: 'PLUGIN_NOT_FOUND',
+      data: {pluginId: 'configured'},
+    })
     await everything.return(undefined)
     await deletions.return(undefined)
 
+    const looking = (await widget.rpc.sessions.create(undefined)).sessionId
+    const sessionClient = (session: string) => makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: session}})
+    const turn = (session: string, runId: string) =>
+      fetch(`${base}${CHAT_SSE_PATH}`, {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({
+          threadId: session,
+          runId,
+          messages: [{id: `${runId}-user`, role: 'user', content: 'look around'}],
+          tools: [],
+          context: [],
+        }),
+      })
+    await (await turn(looking, 'looked-run')).text()
+    expect((await sessionClient(looking).chat.hydrate({sessionId: looking})).lastRun).toMatchObject({
+      runId: 'looked-run',
+      phase: 'completed',
+    })
+    expect(prompts).toEqual([
+      {sessionId: looking, systemPrompts: expect.any(Array), tools: expect.arrayContaining(['seer_direct_shot'])},
+    ])
+    const prompted = prompts.flatMap((prompt) => prompt.systemPrompts).join('\n')
+    expect(prompted).toContain('<id>seer-look</id>')
+    expect(prompted).toContain('external_seer_echo')
+    expect(idled).toEqual([looking])
+
+    const held = (await widget.rpc.sessions.create(undefined)).sessionId
+    const heldEvents = await sessionClient(held).chat.events({sessionId: held})
+    harness.script.hold()
+    const stopping = turn(held, 'stopped-run')
+    for await (const chunk of heldEvents) if (sessionRunEvent.parse(chunk)?.runId === 'stopped-run') break
+    await sessionClient(held).chat.stop({sessionId: held, runIds: ['stopped-run']})
+    harness.script.release()
+    await (await stopping).text()
+    expect((await sessionClient(held).chat.hydrate({sessionId: held})).lastRun).toMatchObject({
+      runId: 'stopped-run',
+      phase: 'aborted',
+    })
+    expect(idled).toEqual([looking])
+    await (await turn(held, 'after-stop-run')).text()
+    expect(idled).toEqual([looking, held])
+
+    const reloads = await widget.rpc.event.subscribe()
+    expect(await reloads.next()).toEqual(connected)
+    const reloading = {arrived: false, seen: new Array<string>()}
+    onTestFailed(() => {
+      if (reloading.arrived) return
+      const cleanups = readFileSync(join(root, 'cleanups.log'), 'utf8')
+      throw new Error(
+        `the edited seer never published rpc.seer.loaded; events since the edit: ${JSON.stringify(reloading.seen)}; cleanups: ${JSON.stringify(cleanups)}`,
+      )
+    })
+    writeFileSync(
+      join(root, 'conciv', 'plugins', 'seer.ts'),
+      SEER.replace("const LOOK = 'first look'", "const LOOK = 'second look'"),
+    )
+    const reloaded = async (): Promise<unknown> => {
+      const next = await reloads.next()
+      if (next.done === true) return next
+      reloading.seen.push(next.value.type)
+      if (next.value.type === 'rpc.seer.loaded') return next.value.data
+      return reloaded()
+    }
+    expect(await reloaded()).toEqual({look: 'second look'})
+    reloading.arrived = true
+    expect(readFileSync(join(root, 'cleanups.log'), 'utf8')).toBe('configured\nseer\n')
+    expect(await overSocket('seer', 'look')).toBe('second look')
+    await reloads.return(undefined)
+
     stopped.current = true
     await engine.stop()
-    expect(readFileSync(join(root, 'cleanups.log'), 'utf8')).toBe('configured\nseer\nembedded\n')
+    expect(readFileSync(join(root, 'cleanups.log'), 'utf8')).toBe('configured\nseer\nconfigured\nseer\nembedded\n')
 
     const again = await bootWithPlugins(home, root)
     onTestFinished(() => again.stop())

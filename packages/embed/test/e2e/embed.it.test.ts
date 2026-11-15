@@ -1,4 +1,4 @@
-import {expect, test, type Locator, type Page} from '@playwright/test'
+import {expect, test, type Locator, type Page, type WebSocketRoute} from '@playwright/test'
 import {
   bootEmbedKit,
   type EmbedKit,
@@ -31,6 +31,8 @@ import {
   browserBase,
   openLoggedIn,
   logInFromPanelNotice,
+  logInFromPanelNoticeWithCode,
+  requestLoginCode,
   serveWidgetHost,
 } from '../helpers.js'
 import {currentHref} from '@conciv/plugin-testkit/navigation-state'
@@ -39,7 +41,7 @@ import {GRAB_MIME, parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-a
 import {watchChatWire} from '@conciv/plugin-testkit/chat-wire'
 import recorderServer, {type RecorderRouter} from '@conciv/extension-recorder/server'
 import type {SessionCaptures} from '@conciv/protocol/element-capture-types'
-import {SessionId} from '@conciv/protocol/chat-types'
+import {CHAT_WS_PATH, SessionId} from '@conciv/protocol/chat-types'
 import {holdRpcCalls, failRpcCalls, gateRpcCalls} from '@conciv/plugin-testkit/rpc-fault'
 import {fileURLToPath} from 'node:url'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
@@ -51,6 +53,8 @@ import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {z} from 'zod'
 import {completeConnectHandshake} from '@conciv/plugin-testkit/connect-handshake'
 import {makeExtRpcClient} from '@conciv/extension'
+import {revokeBrowsers} from '@conciv/protocol/engine-trust'
+import {concivStateDir} from '@conciv/protocol/state-types'
 
 test.describe('embed boot', () => {
   const ASSISTANT_TEXT = 'Hello from conciv'
@@ -694,6 +698,228 @@ test.describe('forced drop', () => {
       expect(pageErrors).toEqual([])
     })
   })
+
+  test.describe('a queued message survives the chat stream giving up', () => {
+    const RUNNING_TEXT = 'keep this run going'
+    const QUEUED_TEXT = 'queued while the run goes'
+
+    test('the queued text is back in the composer, the answered message is not, and Enter sends the queued text once', async ({
+      page,
+    }) => {
+      test.setTimeout(180_000)
+      await openLoggedIn(page, suite.kit(), suite.host().base)
+      await page.getByRole('button', {name: 'Open conciv chat'}).click()
+      const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
+      const composer = chatBox(page)
+      await expect(composer).toBeVisible({timeout: MOUNT_TIMEOUT_MS})
+      const stop = panel.getByRole('button', {name: 'Stop generating'})
+      const queued = panel.getByRole('listitem').filter({hasText: QUEUED_TEXT})
+      const gaveUp = /reconnect ceiling/
+      const errorRow = panel
+        .getByRole('alert')
+        .filter({hasText: gaveUp, has: page.getByRole('button', {name: 'Retry'})})
+      let reopened: ProxyCore | null = null
+      suite.kit().harness.script.hold()
+      try {
+        await composer.click()
+        await composer.pressSequentially(RUNNING_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(stop).toBeVisible()
+        await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1)
+        await composer.click()
+        await composer.pressSequentially(QUEUED_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(queued).toBeVisible()
+
+        const port = suite.core().port
+        await suite.core().close()
+        await expect(page.getByText(gaveUp).first()).toBeVisible()
+        reopened = await proxyTo(suite.kit().base, {port})
+        suite.kit().harness.script.release()
+        await expect(errorRow).toBeVisible()
+
+        await expect(queued).toBeHidden()
+        await expect(composer).toHaveText(QUEUED_TEXT)
+        await expect(composer).not.toContainText(RUNNING_TEXT)
+
+        await composer.click()
+        await page.keyboard.press('Enter')
+        await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(2)
+        await expect(chatLog(page).getByText(QUEUED_TEXT)).toHaveCount(1)
+        await expect(chatLog(page).getByText(RUNNING_TEXT)).toHaveCount(1)
+        await expect(composer).toHaveText('')
+
+        const UNANSWERED_TEXT = 'sent but never answered'
+        const QUEUED_AFTER_TEXT = 'queued behind the unanswered send'
+        suite.kit().harness.script.holdStart()
+        await composer.click()
+        await composer.pressSequentially(UNANSWERED_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(stop).toBeVisible()
+        await expect(chatLog(page).getByText(UNANSWERED_TEXT)).toHaveCount(1)
+        await composer.click()
+        await composer.pressSequentially(QUEUED_AFTER_TEXT)
+        await page.keyboard.press('Enter')
+        const queuedAfter = panel.getByRole('listitem').filter({hasText: QUEUED_AFTER_TEXT})
+        await expect(queuedAfter).toBeVisible()
+        const closing = reopened
+        reopened = null
+        await closing.close()
+        await expect(queuedAfter).toBeHidden()
+        await expect(stop).toBeHidden()
+        await expect(composer).toHaveText(new RegExp(`^${UNANSWERED_TEXT}\\s*${QUEUED_AFTER_TEXT}$`))
+      } finally {
+        suite.kit().harness.script.releaseStart()
+        suite.kit().harness.script.release()
+        if (reopened) await reopened.close()
+      }
+    })
+
+    test('a queue lost while the pane shows another session is in the composer on the way back, and an answered message is never put back', async ({
+      page,
+    }) => {
+      test.setTimeout(240_000)
+      const ANSWERED_TEXT = 'answered before the cut'
+      const kit = suite.kit()
+      const away = await kit.rpc.sessions.create()
+      const awayTitle = `session away ${away.sessionId.slice(-12)}`
+      await kit.rpc.sessions.rename({sessionId: away.sessionId, title: awayTitle})
+      const refusing = {value: false}
+      const chatSockets: WebSocketRoute[] = []
+      await page.routeWebSocket(
+        (url) => url.pathname.endsWith(CHAT_WS_PATH),
+        (socket) => {
+          if (refusing.value) return socket.close()
+          chatSockets.push(socket)
+          socket.connectToServer()
+        },
+      )
+      const cutChatStream = async (): Promise<void> => {
+        refusing.value = true
+        await Promise.all(chatSockets.splice(0).map((socket) => socket.close()))
+      }
+      const sessionId = SessionId.parse(await openPanelOnNewSession(page, suite))
+      const title = `session under test ${sessionId.slice(-12)}`
+      const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
+      const composer = chatBox(page)
+      const stop = panel.getByRole('button', {name: 'Stop generating'})
+      const queued = panel.getByRole('listitem').filter({hasText: QUEUED_TEXT})
+      const gaveUp = /reconnect ceiling/
+      kit.harness.script.hold()
+      try {
+        await composer.click()
+        await composer.pressSequentially(RUNNING_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(stop).toBeVisible()
+        await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1)
+        await composer.click()
+        await composer.pressSequentially(QUEUED_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(queued).toBeVisible()
+
+        await switchToSessionByTitle(page, awayTitle)
+        await expect(chatLog(page).getByText(RUNNING_TEXT)).toHaveCount(0)
+        await cutChatStream()
+        await until(async () => (await kit.rpc.drafts.get({sessionId}))?.text.includes(QUEUED_TEXT) === true, {
+          hangGuardMs: 60_000,
+          intervalMs: 100,
+        })
+        refusing.value = false
+        kit.harness.script.release()
+
+        await switchToSessionByTitle(page, title)
+        await expect(composer).toHaveText(QUEUED_TEXT)
+        await expect(queued).toBeHidden()
+        await composer.click()
+        await page.keyboard.press('Enter')
+        await expect(chatLog(page).getByText(QUEUED_TEXT)).toHaveCount(1)
+        await expect(chatLog(page).getByText(RUNNING_TEXT)).toHaveCount(1)
+        await expect(stop).toBeHidden()
+        await expect(composer).toHaveText('')
+
+        kit.harness.script.hold()
+        await composer.click()
+        await composer.pressSequentially(ANSWERED_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(stop).toBeVisible()
+        await expect(chatLog(page).getByText(ANSWERED_TEXT)).toHaveCount(1)
+        await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(3)
+        await cutChatStream()
+        const gaveUpNotice = page
+          .getByRole('alert')
+          .filter({hasText: gaveUp, has: page.getByRole('button', {name: 'Dismiss'})})
+        await expect(gaveUpNotice).toBeVisible()
+        await expect(composer).toHaveText('')
+      } finally {
+        refusing.value = false
+        kit.harness.script.release()
+      }
+    })
+
+    test('a queue lost while the pane is away is kept as the draft when its draft read was held from mount and then failed', async ({
+      page,
+    }) => {
+      test.setTimeout(240_000)
+      const kit = suite.kit()
+      const away = await kit.rpc.sessions.create()
+      const awayTitle = `draft read held ${away.sessionId.slice(-12)}`
+      await kit.rpc.sessions.rename({sessionId: away.sessionId, title: awayTitle})
+      const draftRead = await gateRpcCalls(page, {path: ['drafts', 'get'], onRelease: 'cut'})
+      const refusing = {value: false}
+      const chatSockets: WebSocketRoute[] = []
+      await page.routeWebSocket(
+        (url) => url.pathname.endsWith(CHAT_WS_PATH),
+        (socket) => {
+          if (refusing.value) return socket.close()
+          chatSockets.push(socket)
+          socket.connectToServer()
+        },
+      )
+      const sessionId = SessionId.parse(await openPanelOnNewSession(page, suite))
+      const title = `session under test ${sessionId.slice(-12)}`
+      const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
+      const composer = chatBox(page)
+      const stop = panel.getByRole('button', {name: 'Stop generating'})
+      const queued = panel.getByRole('listitem').filter({hasText: QUEUED_TEXT})
+      const failingReads: {dispose: () => Promise<void>}[] = []
+      kit.harness.script.hold()
+      try {
+        await draftRead.awaitCaptured(1)
+        await composer.click()
+        await composer.pressSequentially(RUNNING_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(stop).toBeVisible()
+        await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1)
+        await composer.click()
+        await composer.pressSequentially(QUEUED_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(queued).toBeVisible()
+
+        await switchToSessionByTitle(page, awayTitle)
+        await expect(chatLog(page).getByText(RUNNING_TEXT)).toHaveCount(0)
+        failingReads.push(await failRpcCalls(page, {path: ['drafts', 'get']}))
+        await draftRead.dispose()
+        refusing.value = true
+        await Promise.all(chatSockets.splice(0).map((socket) => socket.close()))
+        await until(async () => (await kit.rpc.drafts.get({sessionId}))?.text === QUEUED_TEXT, {
+          hangGuardMs: 60_000,
+          intervalMs: 100,
+        })
+        refusing.value = false
+        kit.harness.script.release()
+
+        await switchToSessionByTitle(page, title)
+        await expect(composer).toHaveText(QUEUED_TEXT)
+        await expect(queued).toBeHidden()
+        await expect(chatLog(page).getByText(QUEUED_TEXT)).toHaveCount(0)
+      } finally {
+        refusing.value = false
+        kit.harness.script.release()
+        await draftRead.dispose()
+        for (const fault of failingReads) await fault.dispose()
+      }
+    })
+  })
 })
 
 test.describe('host hotkey isolation', () => {
@@ -1307,6 +1533,15 @@ test.describe('rebind', () => {
   const ASSISTANT_TEXT = 'Rebound reply'
   const USER_TEXT = 'first message before the drift'
   const SECOND_USER_TEXT = 'second message after the drift'
+  const TYPED_TEXT = 'typed while logged out'
+  const RUNNING_TEXT = 'keep this run going'
+  const QUEUED_TEXT = 'steer toward this instead'
+  const STARTER_TEXT = 'Explain this page'
+  const LOGGED_OUT_SENTENCE = 'Log in to use conciv on this page.'
+  const REVOKED_SENTENCE = 'This browser is no longer authorized to use conciv.'
+  const STREAM_READ_FAILED = 'Stream response body read failed'
+  const RUN_FAILED = 'upstream is overloaded'
+  const FAILING_TEXT = 'this run fails upstream'
 
   let kit: EmbedKit
   let host: {base: string; close: () => Promise<void>}
@@ -1379,6 +1614,9 @@ test.describe('rebind', () => {
 
       await expect(chatLog(page).getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
       await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
+      const reboundPanel = page.getByRole('dialog', {name: 'conciv chat agent'})
+      await expect(reboundPanel.getByText('this connection is not trusted')).toHaveCount(0)
+      await expect(reboundPanel.getByRole('button', {name: 'Retry'})).toHaveCount(0)
 
       await sendChatMessage(page, SECOND_USER_TEXT)
       await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(2, {timeout: 30_000})
@@ -1389,6 +1627,139 @@ test.describe('rebind', () => {
       expect(await panelSession()).toBe(sessionBefore)
       expect(sessionBefore).not.toBeNull()
       expect(pageErrors).toEqual([])
+    })
+
+    test('an empty conversation that failed to load on the untrusted port loads by itself after login', async ({
+      page,
+    }) => {
+      test.setTimeout(240_000)
+      await openLoggedIn(page, kit, host.base)
+      await mountHandle(page, proxyA.base)
+      await openChatPanel(page)
+
+      await rebindHandle(page, proxyB.base)
+      await proxyA.close()
+      const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
+      const loginNotice = panel.getByRole('alert').filter({hasText: 'Log in to use conciv on this page.'})
+      const loadFailed = panel.getByText('Couldn’t load this conversation')
+      await expect(loginNotice).toBeVisible({timeout: 30_000})
+      await expect(loadFailed).toBeVisible({timeout: 30_000})
+
+      const composer = chatBox(page)
+      const loggedOutSend = panel.getByRole('button', {name: LOGGED_OUT_SENTENCE, exact: true})
+      const loggedOutRefusal = page.getByRole('status').filter({hasText: LOGGED_OUT_SENTENCE})
+      await composer.click()
+      await composer.pressSequentially(TYPED_TEXT)
+      await expect(composer).toHaveText(TYPED_TEXT)
+      await expect(loggedOutSend).toBeDisabled({timeout: 30_000})
+      await expect(loggedOutRefusal).toHaveCount(0)
+      await page.keyboard.press('Enter')
+      await expect(loggedOutRefusal.getByText(LOGGED_OUT_SENTENCE, {exact: true})).toBeVisible({timeout: 30_000})
+      await expect(composer).toHaveText(TYPED_TEXT)
+      await expect(loggedOutSend).toBeDisabled()
+      await expect(chatLog(page).getByText(TYPED_TEXT)).toHaveCount(0)
+      await expect(panel.getByText(STREAM_READ_FAILED)).toHaveCount(0)
+      await loggedOutRefusal.getByRole('button', {name: 'Dismiss'}).click()
+      await expect(loggedOutRefusal).toHaveCount(0)
+
+      await logInFromPanelNotice(page, kit, 'Log in to use conciv on this page.')
+      await expect(loginNotice).toBeHidden({timeout: 30_000})
+      await expect(loadFailed).toBeHidden({timeout: 30_000})
+      await expect(chatBox(page)).toBeVisible({timeout: 30_000})
+
+      const send = panel.getByRole('button', {name: 'Send message', exact: true})
+      await expect(send).toBeEnabled({timeout: 30_000})
+      await expect(composer).toHaveText(TYPED_TEXT)
+
+      const starter = panel.getByRole('button', {name: STARTER_TEXT})
+      const revokedNotice = panel.getByRole('alert').filter({hasText: REVOKED_SENTENCE})
+      const revokedRefusal = page.getByRole('status').filter({hasText: REVOKED_SENTENCE})
+      await expect(starter).toBeVisible({timeout: 30_000})
+      revokeBrowsers(concivStateDir(kit.stateRoot), 'all')
+      await expect(revokedNotice).toBeVisible({timeout: 30_000})
+      await expect(revokedRefusal).toHaveCount(0)
+      await starter.click()
+      await expect(revokedRefusal.getByText(REVOKED_SENTENCE, {exact: true})).toBeVisible({timeout: 30_000})
+      await expect(starter).toBeVisible()
+      await expect(composer).toHaveText(TYPED_TEXT)
+      await revokedRefusal.getByRole('button', {name: 'Dismiss'}).click()
+      await expect(revokedRefusal).toHaveCount(0)
+
+      await logInFromPanelNotice(page, kit, REVOKED_SENTENCE)
+      await expect(revokedNotice).toBeHidden({timeout: 30_000})
+      await starter.click()
+      await expect(chatLog(page).getByText(STARTER_TEXT)).toHaveCount(1, {timeout: 30_000})
+      await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
+
+      await expect(composer).toHaveText(TYPED_TEXT)
+      await composer.click()
+      await page.keyboard.press('Enter')
+      await expect(chatLog(page).getByText(TYPED_TEXT)).toHaveCount(1, {timeout: 30_000})
+      await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(2, {timeout: 30_000})
+      await expect(panel.getByText('Couldn’t load this conversation')).toHaveCount(0)
+      await expect(panel.getByText('this connection is not trusted')).toHaveCount(0)
+      await expect(panel.getByText(STREAM_READ_FAILED)).toHaveCount(0)
+      await expect(panel.getByRole('button', {name: 'Retry'})).toHaveCount(0)
+
+      const queued = panel.getByRole('listitem').filter({hasText: QUEUED_TEXT})
+      const steer = queued.getByRole('button', {name: 'Steer'})
+      const stop = panel.getByRole('button', {name: 'Stop generating'})
+      kit.harness.script.hold()
+      try {
+        await composer.click()
+        await composer.pressSequentially(RUNNING_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(stop).toBeVisible({timeout: 30_000})
+        await expect(chatLog(page).getByText(RUNNING_TEXT)).toHaveCount(1, {timeout: 30_000})
+        await composer.click()
+        await composer.pressSequentially(QUEUED_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(queued).toBeVisible({timeout: 30_000})
+
+        const steerLoginCode = await requestLoginCode(kit)
+        revokeBrowsers(concivStateDir(kit.stateRoot), 'all')
+        await expect(revokedNotice).toBeVisible({timeout: 30_000})
+        await expect(revokedRefusal).toHaveCount(0)
+        await steer.click()
+        await expect(revokedRefusal.getByText(REVOKED_SENTENCE, {exact: true})).toBeVisible({timeout: 30_000})
+        await expect(queued).toBeVisible()
+        await expect(steer).toBeEnabled()
+        await expect(stop).toBeVisible()
+        await expect(chatLog(page).getByText(QUEUED_TEXT)).toHaveCount(0)
+
+        await logInFromPanelNoticeWithCode(page, REVOKED_SENTENCE, steerLoginCode)
+        await expect(revokedNotice).toBeHidden({timeout: 30_000})
+        await steer.click()
+        await expect(queued).toBeHidden({timeout: 30_000})
+        await expect(chatLog(page).getByText(QUEUED_TEXT)).toHaveCount(1, {timeout: 30_000})
+      } finally {
+        kit.harness.script.release()
+      }
+      await expect(stop).toBeHidden({timeout: 30_000})
+      await expect(send).toBeVisible({timeout: 30_000})
+
+      const refresh = panel
+        .getByRole('toolbar', {name: 'Message actions'})
+        .first()
+        .getByRole('button', {name: 'Refresh'})
+      const retry = panel.getByRole('alert').filter({hasText: RUN_FAILED}).getByRole('button', {name: 'Retry'})
+      kit.harness.script.scriptError(RUN_FAILED)
+      await composer.click()
+      await composer.pressSequentially(FAILING_TEXT)
+      await page.keyboard.press('Enter')
+      await expect(retry).toBeVisible({timeout: 30_000})
+      await expect(refresh).toBeEnabled()
+
+      const resendLoginCode = await requestLoginCode(kit)
+      revokeBrowsers(concivStateDir(kit.stateRoot), 'all')
+      await expect(revokedNotice).toBeVisible({timeout: 30_000})
+      await expect(retry).toHaveCount(0)
+      await expect(refresh).toBeDisabled()
+
+      await logInFromPanelNoticeWithCode(page, REVOKED_SENTENCE, resendLoginCode)
+      await expect(revokedNotice).toBeHidden({timeout: 30_000})
+      await expect(retry).toBeVisible({timeout: 30_000})
+      await expect(refresh).toBeEnabled()
     })
   })
 })

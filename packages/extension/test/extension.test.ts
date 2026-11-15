@@ -22,7 +22,11 @@ import {
 } from '../src/types.js'
 import {Hono} from 'hono'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {readFile} from 'node:fs/promises'
+import {mkdir, mkdtemp, readFile, realpath, rm, writeFile} from 'node:fs/promises'
+import {tmpdir} from 'node:os'
+import {dirname, join} from 'node:path'
+import {createServer} from 'vite'
+import {makeViteBridge} from '../src/vite-bridge.js'
 import {fileURLToPath} from 'node:url'
 import {pageVerbError, isPageVerbError} from '../src/page-errors.js'
 import {os, createRouterClient, onError, type AnyRouter} from '@orpc/server'
@@ -1359,5 +1363,79 @@ describe('tool registry', () => {
     registry.register(bareServerTool('canvas_svg', 'draw an svg on the canvas'), {owner: 'a test registrant'})
     expect(registry.catalog.list().map((entry) => entry.name)).toEqual(['canvas_svg'])
     await expect(registry.call('canvas_svg', {}, {request: TEST_REQUEST})).resolves.toEqual({})
+  })
+})
+
+describe('vite bridge', () => {
+  it('finds a module by a path relative to the project, by its /src url and by its absolute path, and names a file it does not know', async () => {
+    const root = await realpath(await mkdtemp(join(await realpath(tmpdir()), 'conciv-vite-bridge-')))
+    await mkdir(join(root, 'src'))
+    await writeFile(join(root, 'index.html'), '<!doctype html><script type="module" src="/src/main.ts"></script>')
+    await writeFile(join(root, 'src/main.ts'), "import {dep} from './dep'\nexport const main = dep\n")
+    await writeFile(join(root, 'src/dep.ts'), 'export const dep = 1\n')
+    const nestedDep = join(root, root, 'src/dep.ts')
+    await mkdir(dirname(nestedDep), {recursive: true})
+    await writeFile(nestedDep, 'export const dep = 2\n')
+    const server = await createServer({
+      root,
+      configFile: false,
+      logLevel: 'silent',
+      server: {host: '127.0.0.1', port: 0},
+    })
+    try {
+      await server.listen()
+      const address = server.httpServer?.address()
+      const port = typeof address === 'object' && address ? address.port : 0
+      const socket = new WebSocket(`ws://127.0.0.1:${port}/`, 'vite-hmr')
+      const payloads: string[] = []
+      const arrivals: Array<() => void> = []
+      socket.addEventListener('message', (event) => {
+        const type = z.object({type: z.string()}).parse(JSON.parse(String(event.data))).type
+        if (type === 'connected' || type === 'ping') return
+        payloads.push(type)
+        for (const arrived of arrivals.splice(0)) arrived()
+      })
+      await new Promise((opened) => socket.addEventListener('open', opened))
+      const nextPayload = () => new Promise<void>((arrived) => arrivals.push(arrived))
+      await fetch(`http://127.0.0.1:${port}/src/main.ts`).then((response) => response.text())
+      await fetch(`http://127.0.0.1:${port}/src/dep.ts`).then((response) => response.text())
+      await fetch(`http://127.0.0.1:${port}/@fs${nestedDep}`).then((response) => response.text())
+      const bridge = makeViteBridge(server)
+      const depNode = {url: '/src/dep.ts', importers: ['/src/main.ts'], importedModules: []}
+      const lastReload = () =>
+        [...(server.moduleGraph.getModulesByFile(join(root, 'src/dep.ts')) ?? [])].map((node) => node.lastHMRTimestamp)
+      const nestedLastReload = () =>
+        [...(server.moduleGraph.getModulesByFile(nestedDep) ?? [])].map((node) => node.lastHMRTimestamp)
+
+      expect(bridge.moduleGraph('src/dep.ts')).toEqual([depNode])
+      expect(bridge.moduleGraph('/src/dep.ts')).toEqual([depNode])
+      expect(bridge.moduleGraph(join(root, 'src/dep.ts'))).toEqual([depNode])
+
+      expect(lastReload()).toEqual([0])
+      expect(nestedLastReload()).toEqual([0])
+      const relativeReloaded = nextPayload()
+      await bridge.reload('src/dep.ts')
+      await relativeReloaded
+      expect(payloads).toEqual(['full-reload'])
+      const [afterRelative = 0] = lastReload()
+      expect(afterRelative).toBeGreaterThan(0)
+
+      const absoluteReloaded = nextPayload()
+      await bridge.reload(join(root, 'src/dep.ts'))
+      await absoluteReloaded
+      expect(payloads).toEqual(['full-reload', 'full-reload'])
+      expect(nestedLastReload()).toEqual([0])
+
+      expect(() => bridge.moduleGraph('src/missing.ts')).toThrow(
+        "no module for src/missing.ts in the dev server's module graph",
+      )
+      await expect(bridge.reload('src/missing.ts')).rejects.toThrow(
+        "no module for src/missing.ts in the dev server's module graph",
+      )
+      socket.close()
+    } finally {
+      await server.close()
+      await rm(root, {recursive: true, force: true})
+    }
   })
 })

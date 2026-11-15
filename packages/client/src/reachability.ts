@@ -24,6 +24,10 @@ function defaultBrowserSetup(setOnline: (online: boolean) => void): (() => void)
   }
 }
 
+function browserOnline(): boolean {
+  return typeof navigator === 'undefined' || navigator.onLine !== false
+}
+
 type ReachabilityHub = {
   setOnline: ((online: boolean) => void) | undefined
   detachNative: (() => void) | undefined
@@ -50,7 +54,9 @@ function registerReachabilitySource(): () => void {
     if (released) return
     released = true
     hub.registrationCount -= 1
-    if (hub.registrationCount === 0) onlineManager.setEventListener(defaultBrowserSetup)
+    if (hub.registrationCount > 0) return
+    onlineManager.setEventListener(defaultBrowserSetup)
+    onlineManager.setOnline(browserOnline())
   }
 }
 

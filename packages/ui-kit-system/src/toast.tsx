@@ -1,6 +1,7 @@
 import {Show, type JSX} from 'solid-js'
 import {Toast as Ark, Toaster as ArkToaster, createToaster, type CreateToasterReturn} from '@ark-ui/solid/toast'
 import XIcon from 'lucide-solid/icons/x'
+import {nativeFocusPart} from './native-focus.js'
 
 const ROOT =
   'relative w-80 max-w-[calc(100vw-2rem)] flex flex-col gap-1 items-start py-3 pl-3.5 pr-9 rounded-chat-surface-md bg-chat-panel text-chat-text border border-chat-line shadow-chat-lg [translate:var(--x)_var(--y)] [scale:var(--scale)] [z-index:var(--z-index)] [height:var(--height)] [opacity:var(--opacity)] [transition:translate_400ms_var(--chat-ease),scale_400ms_var(--chat-ease),opacity_240ms_var(--chat-ease),height_400ms_var(--chat-ease)] data-[type=error]:[border-color:var(--chat-danger)] data-[type=success]:[border-color:var(--chat-success)]'
@@ -11,9 +12,11 @@ const CLOSE =
 
 type ToasterInstance = CreateToasterReturn
 
+const ToastGroup = nativeFocusPart(ArkToaster, 'div')
+
 function Toaster(props: {toaster: ToasterInstance}): JSX.Element {
   return (
-    <ArkToaster toaster={props.toaster}>
+    <ToastGroup toaster={props.toaster}>
       {(toast) => (
         <Ark.Root class={ROOT}>
           <Ark.Title class={TITLE}>{toast().title}</Ark.Title>
@@ -25,10 +28,10 @@ function Toaster(props: {toaster: ToasterInstance}): JSX.Element {
           </Ark.CloseTrigger>
         </Ark.Root>
       )}
-    </ArkToaster>
+    </ToastGroup>
   )
 }
 
 export const Toast = Object.assign({}, Ark, {Toaster, createToaster})
-export {ArkToaster as ToastGroup, createToaster}
+export {ToastGroup, createToaster}
 export type {ToasterInstance}

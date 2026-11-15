@@ -56,6 +56,8 @@ import {collectViews} from '../extension/extension-views.js'
 import {arrangeViews} from '../settings/arrange-views.js'
 import {useNotices} from '../shell/notice-context.js'
 import {openPipTarget} from '../shell/pip.js'
+import {createMountedSession} from '../runtime/plugin/mounted-session.js'
+import {createPluginTabs, PluginRegion, PluginWindowBottom} from '../shell/plugin-surfaces.js'
 
 const RAIL =
   'flex h-15 shrink-0 box-border items-center gap-2.5 pe-3 ps-5 pt-[13px] pb-[13px] [border-block-end:1px_solid_var(--chat-line-soft)]'
@@ -301,24 +303,31 @@ function PanelSession(): JSX.Element {
   const setLockedFor = (id: string) => (locked: boolean) => setViewLocks((prev) => ({...prev, [id]: locked}))
   const viewLocked = () => activeView() !== 'chat' && Boolean(viewLocks()[activeView()])
 
-  const tabIndex = (id: string) => (id === 'chat' ? 0 : views().findIndex((view) => view.id === id) + 1)
+  const tabIndex = (id: string) => statusBarViews().findIndex((view) => view.id === id)
   const [slideDir, setSlideDir] = createSignal<'left' | 'right' | null>(null)
   const slideClass = () => SLIDE_CLASS[slideDir() ?? 'none']
+
+  const showChat = () =>
+    void router.navigate({to: '/panel/$sessionId', params: {sessionId: params().sessionId}, replace: true})
+  const showView = (view: string) =>
+    void router.navigate({to: '/panel/$sessionId/$view', params: {sessionId: params().sessionId, view}, replace: true})
 
   const switchView = (next: string) => {
     if (next === activeView()) return
     setSlideDir(tabIndex(next) > tabIndex(activeView()) ? 'right' : 'left')
-    const view = views().find((candidate) => candidate.id === next)
+    const view = statusBarViews().find((candidate) => candidate.id === next)
     announce(view ? view.label : 'Chat')
-    if (next === 'chat')
-      void router.navigate({to: '/panel/$sessionId', params: {sessionId: params().sessionId}, replace: true})
-    else
-      void router.navigate({
-        to: '/panel/$sessionId/$view',
-        params: {sessionId: params().sessionId, view: next},
-        replace: true,
-      })
+    if (next === 'chat') return showChat()
+    showView(next)
   }
+
+  const mounted = createMountedSession({id: () => params().sessionId})
+  const pluginTabs = createPluginTabs({
+    view: activeView,
+    extensionViews: views,
+    chat: showChat,
+    show: showView,
+  })
 
   const activate = sessionMenu.activate
   const newSession = async () => {
@@ -371,6 +380,7 @@ function PanelSession(): JSX.Element {
       label: view.label,
       icon: view.icon && guardedComponent(view.instance.extension.name, 'silent', view.icon),
     })),
+    ...pluginTabs.views(),
   ])
 
   const paneValue: PaneContextValue = {
@@ -461,6 +471,9 @@ function PanelSession(): JSX.Element {
         <SettingsLink sessionId={params().sessionId} />
         <CloseChatButton />
       </header>
+      <Show when={mounted.view()}>
+        {(view) => <PluginRegion view={view} screen={mounted.screen} tabs={() => pluginTabs.tabs} />}
+      </Show>
       <Outlet />
       <StatusBar
         status={sessionStatus()}
@@ -471,6 +484,7 @@ function PanelSession(): JSX.Element {
         onSelectView={switchView}
         disabled={viewLocked()}
       />
+      <PluginWindowBottom />
     </PaneContext.Provider>
   )
 }

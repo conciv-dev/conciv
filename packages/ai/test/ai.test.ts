@@ -34,10 +34,12 @@ import {UsageSnapshotSchema, contextUsedTokens, tokenUsageToSnapshot} from '@con
 import {createTextChunks, fakeText, storyConnection} from '../src/testkit.js'
 import {localSandbox} from '../src/server/local-sandbox.js'
 import type {FakeResponse, FakeResponseStep} from '@tanstack/ai/testing'
-import {mkdtempSync, readdirSync, readFileSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdtempSync, readdirSync, readFileSync, renameSync, watch, writeFileSync} from 'node:fs'
+import {readFile} from 'node:fs/promises'
+import {execFileSync} from 'node:child_process'
 import {tmpdir} from 'node:os'
 import {fileURLToPath} from 'node:url'
-import {join} from 'node:path'
+import {dirname, join} from 'node:path'
 import {createServer} from 'node:net'
 import {once} from 'node:events'
 import {parseSync} from 'oxc-parser'
@@ -202,8 +204,17 @@ const data = JSON.parse(fs.readFileSync(require('node:path').join(__dirname, 'cl
 fs.appendFileSync(data.launches, process.pid + '\\n')
 const watched = require('node:net').connect(data.socket, () => {
   watched.unref()
+  if (data.startsOn === 'connect') process.stdout.write(data.init)
+  if (data.startsOn === 'gate') {
+    const opened = setInterval(() => {
+      if (!fs.existsSync(data.gate)) return
+      clearInterval(opened)
+      process.stdout.write(data.init + data.answer + data.result)
+    }, 20)
+    return
+  }
   setTimeout(() => {
-    process.stdout.write(data.init)
+    if (data.startsOn !== 'connect') process.stdout.write(data.init)
     if (data.afterSilence === 'answer') process.stdout.write(data.answer + data.result)
     if (data.afterSilence === 'answer') return
     if (data.afterSilence === 'hang') process.stdout.write(data.answer)
@@ -217,8 +228,9 @@ const watched = require('node:net').connect(data.socket, () => {
 `
 
     async function cliAgent(
-      behaviour: {silentMs: number; afterSilence: 'answer' | 'gate' | 'hang'},
+      behaviour: {silentMs: number; afterSilence: 'answer' | 'gate' | 'hang'; startsOn?: 'connect' | 'gate'},
       firstOutputTimeoutMs?: number,
+      startTimeoutMs?: number,
     ) {
       const dir = mkdtempSync(join(tmpdir(), 'conciv-fake-claude-'))
       const files = {launches: join(dir, 'launches'), gate: join(dir, 'gate'), socket: join(dir, 'agent.sock')}
@@ -247,7 +259,9 @@ const watched = require('node:net').connect(data.socket, () => {
       )
       writeFileSync(join(dir, 'claude'), FAKE_CLAUDE, {mode: 0o755})
       const gone = Promise.withResolvers<void>()
+      const connected = Promise.withResolvers<void>()
       const watcher = createServer((connection) => {
+        connected.resolve()
         connection.on('error', () => gone.resolve())
         connection.once('close', () => gone.resolve())
       })
@@ -267,13 +281,17 @@ const watched = require('node:net').connect(data.socket, () => {
         }),
         {end: async (_turn, run) => ended.resolve(run)},
       )
+      const sandbox = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
       return {
         db,
-        server: await chatServer(hooks, () => undefined, db, firstOutputTimeoutMs),
+        sandbox,
+        server: await chatServer(hooks, () => undefined, db, firstOutputTimeoutMs, sandbox, startTimeoutMs),
         ended: ended.promise,
         answered: answered.promise,
         gone: gone.promise,
-        launches: () => readFileSync(files.launches, 'utf8').trim().split('\n').length,
+        connected: connected.promise,
+        launches: () =>
+          existsSync(files.launches) ? readFileSync(files.launches, 'utf8').split('\n').filter(Boolean).length : 0,
         open: () => writeFileSync(files.gate, ''),
       }
     }
@@ -290,7 +308,7 @@ const watched = require('node:net').connect(data.socket, () => {
     })
 
     it('an agent silent past the first-output timeout fails with it and is gone', {timeout: 10_000}, async () => {
-      const agent = await cliAgent({silentMs: 600_000, afterSilence: 'answer'}, 5_000)
+      const agent = await cliAgent({silentMs: 600_000, afterSilence: 'answer', startsOn: 'connect'}, 5_000)
       await say(agent.server, 'silent', 'silent')
       const run = await agent.ended
       await agent.gone
@@ -298,6 +316,20 @@ const watched = require('node:net').connect(data.socket, () => {
         error: 'the agent produced no output within 5s',
         launches: 1,
       })
+    })
+
+    it('an agent slow to start that then speaks at once is not failed for silence', {timeout: 10_000}, async () => {
+      const agent = await cliAgent({silentMs: 0, afterSilence: 'answer', startsOn: 'gate'}, 300)
+      const driven = say(agent.server, 'slow-boot', 'slow-boot')
+      await Promise.race([agent.connected, agent.ended])
+      agent.open()
+      await driven
+      const run = await agent.ended
+      expect({
+        run: {phase: run.phase, error: run.error},
+        launches: agent.launches(),
+        answers: await texts(agent.server, 'slow-boot', 'assistant'),
+      }).toEqual({run: {phase: 'completed', error: null}, launches: 1, answers: [ANSWER]})
     })
 
     it(
@@ -340,6 +372,33 @@ const watched = require('node:net').connect(data.socket, () => {
           replayedText: ANSWER,
           replayedFinishes: 1,
           answers: [ANSWER],
+        })
+      },
+    )
+
+    it(
+      'a stop before the agent CLI is launched ends the run aborted and never launches it',
+      {timeout: 10_000},
+      async () => {
+        const agent = await cliAgent({silentMs: 600_000, afterSilence: 'answer'})
+        const runner = join(agent.sandbox, 'tanstack-claude-run-early.mjs')
+        const argv = join(agent.sandbox, 'tanstack-claude-argv-early.json')
+        execFileSync('mkfifo', [argv])
+        const driven = say(agent.server, 'early', 'early')
+        await Promise.race([untilExists(runner, true), agent.connected])
+        expect({runner: existsSync(runner), launches: agent.launches()}).toEqual({runner: true, launches: 0})
+        await agent.server.stop('early', ['early'])
+        await driven
+        const run = await agent.ended
+        const runnerRemoved = untilExists(runner, false)
+        const written = await readFile(argv, 'utf8')
+        writeFileSync(`${argv}.file`, written)
+        renameSync(`${argv}.file`, argv)
+        await Promise.race([runnerRemoved, agent.connected])
+        expect({argv: Array.isArray(JSON.parse(written)), phase: run.phase, launches: agent.launches()}).toEqual({
+          argv: true,
+          phase: 'aborted',
+          launches: 0,
         })
       },
     )
@@ -523,6 +582,26 @@ const watched = require('node:net').connect(data.socket, () => {
     expect({calls: seen.calls, phase: run.phase}).toEqual({calls: 2, phase: 'completed'})
   })
 
+  it('an agent that never starts fails with the start limit', {timeout: 10_000}, async () => {
+    const ended = Promise.withResolvers<RunLifecycle>()
+    const hooks = turnHooks(
+      () => ({
+        adapter: makeTextAdapter('never-starts', async function* (options) {
+          await new Promise((resolve) => options.request?.signal?.addEventListener('abort', resolve, {once: true}))
+          yield* []
+        }),
+      }),
+      {end: async (_turn, run) => ended.resolve(run)},
+    )
+    const server = await chatServer(hooks, () => undefined, chatDb(), 30_000, undefined, 1_000)
+    await say(server, 'thread', 'never-started')
+    const run = await ended.promise
+    expect({phase: run.phase, error: run.error}).toEqual({
+      phase: 'failed',
+      error: 'the agent did not start within 1s',
+    })
+  })
+
   function scriptedModel(responses: FakeResponseStep[]) {
     const model = fakeText()
     model.setResponses(responses)
@@ -550,6 +629,7 @@ const watched = require('node:net').connect(data.socket, () => {
         asking: [],
         direct: [],
         setup: async () => new Map(),
+        prompt: async (message) => message,
         expand: async (messages) => messages,
         providerMessages: async (messages) => messages,
         chunk: async (chunk) => [chunk],
@@ -573,13 +653,16 @@ const watched = require('node:net').connect(data.socket, () => {
     log: (message: string) => void,
     db = chatDb(),
     firstOutputTimeoutMs = 30_000,
+    sandbox = mkdtempSync(join(tmpdir(), 'conciv-ai-')),
+    startTimeoutMs = 30_000,
     driver: CodeDriver | null = null,
   ) {
     const server = await createChatServer({
       stores: drizzleChatStores(db, {readHarness: () => 'test-harness'}),
-      sandbox: {dir: mkdtempSync(join(tmpdir(), 'conciv-ai-'))},
+      sandbox: {dir: sandbox},
       hooks,
       codeModeResult: (value) => value,
+      startTimeoutMs,
       firstOutputTimeoutMs,
       log,
       driver,
@@ -800,6 +883,8 @@ const watched = require('node:net').connect(data.socket, () => {
         log,
         chatDb(),
         30_000,
+        undefined,
+        undefined,
         await loadIsolateDriver(log),
       )
       const onQuickJS = logged.some((message) => message.includes('@tanstack/ai-isolate-node'))
@@ -844,6 +929,16 @@ function processAlive(pid: number): boolean {
   } catch {
     return false
   }
+}
+
+function untilExists(path: string, present: boolean): Promise<void> {
+  const reached = Promise.withResolvers<void>()
+  const check = () => {
+    if (existsSync(path) === present) reached.resolve()
+  }
+  const watcher = watch(dirname(path), check)
+  check()
+  return reached.promise.finally(() => watcher.close())
 }
 
 describe('local sandbox', () => {

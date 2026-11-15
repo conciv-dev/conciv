@@ -1,7 +1,7 @@
 {
   "name": "@conciv/core",
   "version": "0.0.22",
-  "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv engine: a framework-free hono + @hono/node-server server exposing the /__pw HTTP surface, with a harness registry seam.",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv engine: a Hono server, served through @conciv/serve, exposing /health, /rpc/*, /api/mcp and the chat and push routes, with a harness registry seam.",
   "keywords": [
     "ai",
     "conciv",
