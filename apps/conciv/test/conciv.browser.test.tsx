@@ -3975,6 +3975,42 @@ describe('panel view tabs', () => {
       await expect.element(chatPanel().getByText('a follow-up that waits in the queue')).toBeVisible()
     }, 30_000)
 
+    test('a steer refused after leaving its session is told and its text waits first in the composer on return', async () => {
+      const {running, titles} = await twoSessions('steered')
+      const steered = 'steer this one away'
+      const waiting = 'wait in line away'
+      const queueRow = (text: string) => page.getByRole('listitem').filter({hasText: text})
+      await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
+      await coreControl.holdTurn()
+      harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+      await composer().fill('start a long turn')
+      await userEvent.keyboard('{Enter}')
+      await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
+      await composer().fill(steered)
+      await userEvent.keyboard('{Enter}')
+      await expect.element(queueRow(steered)).toBeVisible()
+      await composer().fill(waiting)
+      await userEvent.keyboard('{Enter}')
+      await expect.element(queueRow(waiting)).toBeVisible()
+      const refused = await faults.install({kind: 'chat-refused', status: 500})
+      const held = await faults.install({kind: 'chat-gate'})
+
+      await queueRow(steered).getByRole('button', {name: 'Steer'}).click()
+      await coreControl.awaitFaultPending(held, 1)
+      await switchToOther(titles)
+      await coreControl.releaseFault(held)
+
+      await expect
+        .element(page.getByRole('region', {name: /Notifications/}))
+        .toMatchTextContent(/Internal Server Error|could not be sent/)
+      await coreControl.releaseFault(refused)
+      await openSessions(titles.other)
+      await option(new RegExp(`^${titles.running}`)).click()
+      await expect.element(composer(), {timeout: 8000}).toMatchTextContent(new RegExp(`${steered}[\\s\\S]*${waiting}`))
+      await expect.element(composer()).not.toMatchTextContent(new RegExp(`${steered}[\\s\\S]*${steered}`))
+      expect(page.getByRole('log').getByText(new RegExp(steered)).elements()).toHaveLength(0)
+    }, 30_000)
+
     test('a run that ends while the connection is down settles once the replacement client hydrates', async () => {
       const {running, titles} = await twoSessions('offline')
       const [connection, setConnection] = createStore({apiBase: coreBase()})
