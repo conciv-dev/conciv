@@ -437,11 +437,7 @@
       }
     },
     {
-      "files": [
-        "apps/conciv/src/runtime/plugin/**",
-        "apps/conciv/src/runtime/persistence/**",
-        "apps/conciv/src/runtime/server/**"
-      ],
+      "files": ["apps/conciv/src/runtime/plugin/**", "apps/conciv/src/runtime/persistence/**"],
       "rules": {
         "unicorn/no-useless-spread": "off",
         "no-unassigned-vars": "off",

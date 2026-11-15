@@ -391,19 +391,6 @@
         "reason": "copied from opencode packages/app/src/runtime/plugin/stores.ts: persistedHandle keeps the source's shape; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/server/plugin-machine.ts"],
-        "functions": ["transitionPluginServer"],
-        "maxCognitive": 19,
-        "reason": "copied from opencode packages/app/src/runtime/server/plugin-machine.ts: transitionPluginServer keeps the source's shape; Day ruling 113"
-      },
-      {
-        "files": ["apps/conciv/src/runtime/server/plugin-machine.ts"],
-        "functions": ["updated"],
-        "maxCognitive": 16,
-        "maxCrap": 38,
-        "reason": "copied from opencode packages/app/src/runtime/server/plugin-machine.ts: updated keeps the source's shape; Day ruling 113"
-      },
-      {
         "files": ["packages/plugin-host/src/**"],
         "maxCognitive": 24,
         "maxCrap": 110,
