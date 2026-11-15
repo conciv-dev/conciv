@@ -6543,7 +6543,7 @@ module.exports = {default: {setup(ctx) {
 })
 
 describe('the page contracts reach a plugin', () => {
-  const sourceMap = btoa(JSON.stringify({version: 3, sources: ['src/app.tsx'], names: [], mappings: 'AAAA'}))
+  const sourceMap = JSON.stringify({version: 3, sources: ['src/app.tsx'], names: [], mappings: 'AAAA'})
   const readerBundle = `const {Panel, createKeyed} = require('@conciv/plugin/experimental')
 const {Page, ReactTree} = require('@conciv/plugin/experimental/page')
 module.exports = {default: {setup(ctx) {
@@ -6578,8 +6578,8 @@ module.exports = {default: {setup(ctx) {
 `,
       'reader/plugin-experimental.js': readerBundle,
       'dist/chunk.js': `console.log('chunk')
-//# sourceMappingURL=data:application/json;base64,${sourceMap}
 `,
+      'dist/chunk.js.map': sourceMap,
     },
   })
   const harness = createShellHarness(coreBase)

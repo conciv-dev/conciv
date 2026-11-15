@@ -113,6 +113,19 @@ plugins.
 The first-party tier, for conciv's own plugins only: `onIdle` and the `ToolCall` registry, which fills the body of a
 finished tool call's card (`ToolCallProps`).
 
+### `@conciv/plugin/experimental/page` (`experimental/page.ts`)
+
+What the built-in page plugin offers other plugins' browser parts, shaped as opencode's `gui/browser.ts` (interface and
+const of one name): the `Page` contract (`symbolicate`, `toast`, `capture` with `exclude` and `plugins`, snapdom's own
+`SnapdomPlugin` type, so `@zumer/snapdom` is a dependency) and the `ReactTree` contract (`page.react`: `rootFibers`,
+`dehydrate`, `describe`, `locate`, `frames`), with `PageToastTone`, `PageCapture`, `DehydrateOptions`, `ReactFiber` and
+`ReactComponentInfo`.
+
+### `@conciv/plugin/experimental/grab` (`experimental/grab.ts`)
+
+`GrabFrame`, one unresolved stack frame (`fileName`, `line`, `column?`): the input of `Page.symbolicate`, which
+`@conciv/grab` re-exports.
+
 ### `@conciv/plugin/host` (`host.ts`)
 
 For the engine-side host only: `resolve(target)` finds a plugin's `server`, `rpc` and `experimental` entry files,
@@ -176,7 +189,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - `evaluatePluginBundle` checks the definition with zod (`stores` entries need a `global`, `project` or `session` scope and a Standard Schema, a value whose `~standard.validate` is a function, where source checks `Schema.isSchema`; `setup` must be a function) and puts `z.prettifyError`'s field path in the message where source puts Effect's `Cause.pretty`. Its texts are source's with the entry name and package: "A plugin's ./plugin-experimental bundle must default-export a `Plugin.define` from `@conciv/plugin/experimental`: <problem>" and "A plugin's ./plugin-experimental bundle must have a window `setup`" (source: "A plugin's GUI must have a window `setup`, a `main` setup, or both").
 - A type guard over the zod check stands in for source's `Schema.is` plus its two `SAFETY` casts; source's `//` comments are dropped.
 - `mainOnlyModule` and `inertModule` are kept: the page's `require` gives a bundle an inert placeholder for Node built-ins, as opencode's window does. `mainOnlyModule` no longer counts `electron` (no desktop app). JSDoc speaks of the browser in place of the window and main processes.
-- `modules.ts` keeps source's split: `pluginSharedModules` is `@conciv/plugin/experimental`, `@conciv/plugin/rpc`, `zod`; `pluginWindowModules` is `solid-js`, `solid-js/web`, `solid-js/store` (the spec's list for outside plugins). With no main process the split only separates Solid from the rest. Absent: `effect`, `@opencode/plugin/gui/main`, `@opencode/schema/rpc` (conciv's contract module is `@conciv/plugin/rpc`), `@opencode/client`, `@opencode/client/effect`, `@opencode/client/solid`, and the `gui/file`, `gui/review`, `gui/browser` contract modules (not ported).
+- `modules.ts` keeps source's split: `pluginSharedModules` is `@conciv/plugin/experimental`, `@conciv/plugin/rpc`, `zod`; `pluginWindowModules` is `solid-js`, `solid-js/web`, `solid-js/store` (the spec's list for outside plugins) and the contract module `@conciv/plugin/experimental/page` (source lists `gui/browser` there). With no main process the split only separates Solid and the window contracts from the rest. Absent: `effect`, `@opencode/plugin/gui/main`, `@opencode/schema/rpc` (conciv's contract module is `@conciv/plugin/rpc`), `@opencode/client`, `@opencode/client/effect`, `@opencode/client/solid`, and the `gui/file`, `gui/review`, `gui/browser` contract modules (not ported; conciv's page contracts are its own).
 
 ### Building an app part (`experimental/vite.ts`)
 
