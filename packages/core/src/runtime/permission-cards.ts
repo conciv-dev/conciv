@@ -17,6 +17,7 @@ import {
   InstructionState,
   KV,
   Permission,
+  Plugin,
   SessionSchema,
   SkillInstructions,
   Tool,
@@ -100,6 +101,16 @@ export function sessionToolDomain(
     const {agent, rules} = yield* sessionRules(sessionId)
     return {snapshot: yield* (yield* Tool.Service).snapshot(rules), agent}
   })
+}
+
+export function currentToolDomain(
+  sessionId: SessionId,
+): Effect.Effect<
+  ToolDomain,
+  never,
+  Plugin.Interface | Tool.Interface | Agent.Interface | Permission.SessionsInterface
+> {
+  return Plugin.awaitActivation.pipe(Effect.andThen(sessionToolDomain(sessionId)))
 }
 
 function isMarker(value: unknown): value is Instructions.Unavailable | Instructions.Removed {
