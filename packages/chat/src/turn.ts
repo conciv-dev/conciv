@@ -65,7 +65,7 @@ export type TurnDeps = {
   systemPrompt: SystemPromptSources
   sessions: SessionPort
   toolNames: ReadonlySet<string>
-  capabilities: (sessionId: SessionId) => CodeCapability[]
+  capabilities: (sessionId: SessionId) => Promise<CodeCapability[]>
   attachmentExpanders: AttachmentExpanders
   prompt: (event: SessionPrompt) => Promise<SessionPrompt>
   promptHooked: () => Promise<boolean>
@@ -277,11 +277,8 @@ export function turnHooks(
       const resumeSessionId = resumableToken(deps, harness, row)
       const reset: InstructionReset = turn.kind === 'compact' || resumeSessionId === null ? 'reset' : 'keep'
       const instructions = Promise.withResolvers<PluginInstructions>()
-      const toolSet = chatToolSet(
-        deps.capabilities(sessionId),
-        {sessionId, agentId: sessionId, model},
-        context.codeMode,
-      )
+      const toolSet = async () =>
+        chatToolSet(await deps.capabilities(sessionId), {sessionId, agentId: sessionId, model}, context.codeMode)
       const config = harness.chatConfig({
         cwd: deps.cwd,
         sessionId,
@@ -290,22 +287,19 @@ export function turnHooks(
         effort: own?.effort ?? undefined,
         env: deps.harnessEnv?.(sessionId) ?? process.env,
         kind: turn.kind,
-        hasTools: toolSet.codeMode.length + toolSet.asking.length + toolSet.direct.length > 0,
       })
       return {
         adapter: config.adapter,
         modelOptions: config.modelOptions,
         systemPrompts: async () => [systemText, (await instructions.promise).initial].filter((text) => text !== ''),
-        codeMode: toolSet.codeMode,
-        search: toolSet.search,
-        asking: toolSet.asking,
-        direct: toolSet.direct,
+        tools: toolSet,
         setup: async () => {
           await deps.sessions.ensure(sessionId)
           await deps.sessions.onRunStart(sessionId)
           await context.transcripts.sync(sessionId)
           const approvals = await context.approvals.forRun(sessionId)
-          instructions.resolve(deps.pluginInstructions(sessionId, reset, toolSet.inventory))
+          const {inventory} = await toolSet()
+          instructions.resolve(deps.pluginInstructions(sessionId, reset, inventory))
           return approvals
         },
         prompt: async (message) => {
