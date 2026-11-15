@@ -67,20 +67,95 @@ function missingMedians(file) {
   )
 }
 
-function describeTooLoaded(file) {
-  const medians = JSON.parse(readFileSync(file, 'utf8'))
+function readRecords(file) {
+  return JSON.parse(readFileSync(file, 'utf8'))
+}
+
+function describeTooLoaded(file, when) {
+  const records = readRecords(file)
   return PERF_BROWSERS.flatMap((browser) => {
-    const failed = PERF_CASES.filter((name) => medians[browser][name].broken.length > 0)
+    const failed = PERF_CASES.filter((name) => records[browser][name].broken.length > 0)
     if (failed.length === 0) return []
-    const checks = failed.map((name) => `${medians[browser][name].broken.join(', ')} on ${name}`).join('; ')
+    const checks = failed.map((name) => `${records[browser][name].broken.join(', ')} on ${name}`).join('; ')
     return [
-      `this machine is too loaded to judge: main itself failed ${checks} on ${browser}`,
+      `this machine is too loaded to judge: main itself failed ${checks} on ${browser} ${when}`,
       ...PERF_CASES.map(
         (name) =>
-          `  main ${browser} ${name} samples p50/p95/max/over33/sampled: ${medians[browser][name].samples.join(' | ')}`,
+          `  main ${when} ${browser} ${name} samples p50/p95/max/over33/sampled: ${records[browser][name].samples.join(' | ')}`,
       ),
     ]
   })
+}
+
+function hundredths(value) {
+  return Math.round(value * 100) / 100
+}
+
+function describeVerdict(passes) {
+  return passes ? 'PASS' : 'FAIL'
+}
+
+function describeBrokenChecks(broken) {
+  if (broken.length === 0) return ''
+  return `; the branch itself failed ${broken.join(', ')}`
+}
+
+function describeDisagreement(medianPasses, firstPasses, firstLimit) {
+  if (firstPasses === medianPasses) return ''
+  return (
+    `; the in-test check against main before the branch alone (limit ${firstLimit}) said ` +
+    `${describeVerdict(firstPasses)}: this two-run verdict decides`
+  )
+}
+
+function judgeCase(browser, name, records) {
+  const branch = records.branch[browser][name]
+  const before = records.before[browser][name].median
+  const after = records.after[browser][name].median
+  const twoRun = hundredths((before + after) / 2)
+  const limit = hundredths(Math.max(branch.budgetMs, twoRun + branch.toleranceMs))
+  const firstLimit = hundredths(Math.max(branch.budgetMs, before + branch.toleranceMs))
+  const medianPasses = branch.median <= limit
+  const passes = medianPasses && branch.broken.length === 0
+  const verdict =
+    `test:perf: ${describeVerdict(passes)} ${browser} ${name}: branch median p95 ${branch.median}, ` +
+    `main ${before} before and ${after} after the branch, two-run main ${twoRun}, limit ${limit}`
+  const disagreement = describeDisagreement(medianPasses, branch.median <= firstLimit, firstLimit)
+  return {passes, line: `${verdict}${describeBrokenChecks(branch.broken)}${disagreement}`}
+}
+
+function reportVerdicts(verdicts, branchCode) {
+  for (const verdict of verdicts) console.info(verdict.line)
+  if (verdicts.some((verdict) => !verdict.passes)) {
+    console.info('test:perf: FAIL')
+    return 1
+  }
+  if (branchCode !== 0) {
+    console.info(
+      "test:perf: PASS: the branch run's own median check against main before the branch failed, " +
+        'the two-run rule passes every case and the branch held every per-sample check',
+    )
+    return 0
+  }
+  console.info('test:perf: PASS')
+  return 0
+}
+
+function judgeBranch(scratch, branchCode) {
+  const missing = missingMedians(scratch.branch)
+  if (missing.length > 0) {
+    console.error(`test:perf: FAIL: the branch run recorded no median for: ${missing.join(', ')}`)
+    return Math.max(branchCode, 1)
+  }
+  const records = {
+    before: readRecords(scratch.before),
+    branch: readRecords(scratch.branch),
+    after: readRecords(scratch.after),
+  }
+  return reportVerdicts(
+    PERF_BROWSERS.flatMap((browser) => PERF_CASES.map((name) => judgeCase(browser, name, records))),
+    branchCode,
+  )
 }
 
 function removeCheckout(scratch) {
@@ -108,7 +183,6 @@ async function abort(scratch, signal) {
 }
 
 async function prepareMain(base, scratch) {
-  const scratchApp = join(scratch.checkout, relative(git(['rev-parse', '--show-toplevel']), APP_DIR))
   console.info(`test:perf: preparing the merge base ${base} in ${scratch.checkout}`)
   await mustRun('creating the scratch checkout', 'git', ['worktree', 'add', '--detach', scratch.checkout, base], {
     cwd: APP_DIR,
@@ -117,27 +191,23 @@ async function prepareMain(base, scratch) {
     cwd: scratch.checkout,
   })
   await mustRun('building the merge base', 'pnpm', BUILD_ARGS, {cwd: scratch.checkout})
-  for (const path of BRANCH_TEST_FILES) cpSync(join(APP_DIR, path), join(scratchApp, path), {recursive: true})
-  return scratchApp
+  for (const path of BRANCH_TEST_FILES) cpSync(join(APP_DIR, path), join(scratch.app, path), {recursive: true})
 }
 
-async function measureMain(scratchApp, scratch) {
-  const measured = await run('measuring the merge base', 'pnpm', PERF_ARGS, {
-    cwd: scratchApp,
-    env: {CONCIV_PERF_RECORD: scratch.medians},
+async function measureMain(scratch, file, when) {
+  const measured = await run(`measuring the merge base ${when}`, 'pnpm', PERF_ARGS, {
+    cwd: scratch.app,
+    env: {CONCIV_PERF_RECORD: file},
   })
-  const missing = missingMedians(scratch.medians)
+  const missing = missingMedians(file)
   if (missing.length > 0) {
     throw new Error(
-      `${stepFailure(measured).message}\nThe merge base recorded no median for: ${missing.join(', ')}. ` +
+      `${stepFailure(measured).message}\nThe merge base recorded no median ${when} for: ${missing.join(', ')}. ` +
         "If the output above is a failed import, this branch's perf test needs product code the merge base lacks.",
     )
   }
-  const tooLoaded = describeTooLoaded(scratch.medians)
+  const tooLoaded = describeTooLoaded(file, when)
   if (tooLoaded.length > 0) throw new Error(tooLoaded.join('\n'))
-  console.info(
-    `test:perf: main's medians (its own verdicts are printed above): ${readFileSync(scratch.medians, 'utf8')}`,
-  )
 }
 
 async function main() {
@@ -149,14 +219,22 @@ async function main() {
     await mustRun('building', 'pnpm', BUILD_ARGS, {cwd: APP_DIR})
     return (await run('the perf run', 'pnpm', PERF_ARGS, {cwd: APP_DIR})).code
   }
-  const dir = mkdtempSync(join(dirname(git(['rev-parse', '--show-toplevel'])), 'conciv-perf-main-'))
-  const scratch = {dir, checkout: join(dir, 'checkout'), medians: join(dir, 'medians.json')}
+  const root = git(['rev-parse', '--show-toplevel'])
+  const dir = mkdtempSync(join(dirname(root), 'conciv-perf-main-'))
+  const scratch = {
+    dir,
+    checkout: join(dir, 'checkout'),
+    app: join(dir, 'checkout', relative(root, APP_DIR)),
+    before: join(dir, 'main-before.json'),
+    branch: join(dir, 'branch.json'),
+    after: join(dir, 'main-after.json'),
+  }
   process.once('SIGINT', () => abort(scratch, 'SIGINT'))
   process.once('SIGTERM', () => abort(scratch, 'SIGTERM'))
   try {
-    const scratchApp = await prepareMain(base, scratch)
+    await prepareMain(base, scratch)
     await mustRun('building the branch', 'pnpm', BUILD_ARGS, {cwd: APP_DIR})
-    await measureMain(scratchApp, scratch)
+    await measureMain(scratch, scratch.before, 'before the branch')
   } catch (error) {
     removeScratch(scratch)
     throw new Error(`${error.message}\nNo branch run happened.`, {cause: error})
@@ -164,9 +242,17 @@ async function main() {
   try {
     const branch = await run('the branch perf run', 'pnpm', PERF_ARGS, {
       cwd: APP_DIR,
-      env: {CONCIV_PERF_BASELINE: scratch.medians},
+      env: {CONCIV_PERF_BASELINE: scratch.before, CONCIV_PERF_RECORD: scratch.branch},
     })
-    return branch.code
+    try {
+      await measureMain(scratch, scratch.after, 'after the branch')
+    } catch (error) {
+      throw new Error(
+        `${error.message}\nThe branch's lines above are not a verdict: neither a pass nor a regression.`,
+        {cause: error},
+      )
+    }
+    return judgeBranch(scratch, branch.code)
   } finally {
     removeScratch(scratch)
   }

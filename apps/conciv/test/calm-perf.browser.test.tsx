@@ -60,6 +60,8 @@ async function expectSmooth(scenario: string, samples: ReadonlyArray<FrameGaps>)
   const median = medianP95(samples)
   await commands.recordPerfMedian(server.browser, scenario, {
     median,
+    budgetMs: FRAME_P95_BUDGET_MS,
+    toleranceMs: PERF_MAIN_TOLERANCE_MS,
     broken: listBrokenChecks(samples),
     samples: samples.map(describeSample),
   })

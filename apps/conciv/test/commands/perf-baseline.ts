@@ -2,7 +2,13 @@ import {existsSync, readFileSync, writeFileSync} from 'node:fs'
 import type {BrowserCommand} from 'vitest/node'
 import {z} from 'zod'
 
-const PerfRecordSchema = z.object({median: z.number(), broken: z.array(z.string()), samples: z.array(z.string())})
+const PerfRecordSchema = z.object({
+  median: z.number(),
+  budgetMs: z.number(),
+  toleranceMs: z.number(),
+  broken: z.array(z.string()),
+  samples: z.array(z.string()),
+})
 
 const PerfMediansSchema = z.record(z.string(), z.record(z.string(), PerfRecordSchema))
 
