@@ -4,13 +4,18 @@ import {describe} from 'vitest'
 import {expect} from 'playwright/test'
 import {test} from '@conciv/browser-fixture'
 import {openPluginWidget} from '@conciv/plugin-testkit/widget-suite'
+import {rpcSocketFor, type RpcSocketCall} from '@conciv/plugin-testkit/rpc-socket'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 
 const WIDGET_BUNDLE = path.join(PACKAGE_DIR, 'node_modules/@conciv/embed/dist/conciv-widget.global.js')
 
+function isRecordingWindowRead(call: RpcSocketCall): boolean {
+  return call.path.join('.') === 'plugin.call' && (JSON.stringify(call.input) ?? '').includes('"method":"window"')
+}
+
 describe('the recorder in the widget', () => {
-  test('is an active plugin with a browser part, and with the old extension Recorder view hidden shows its Recorder tab with nothing recorded yet for this page', async ({
+  test('is an active plugin with a browser part, and with the old extension Recorder view hidden shows its Recorder tab loading the recording in the panel, then with nothing recorded yet for this page', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -20,6 +25,15 @@ describe('the recorder in the widget', () => {
     })
     try {
       const page = widget.page
+      const socket = rpcSocketFor(page)
+      await socket.installed
+      const windowRead = Promise.withResolvers<void>()
+      socket.rule((call) => {
+        if (!isRecordingWindowRead(call)) return 'pass'
+        void windowRead.promise.then(() => call.forward())
+        return 'handled'
+      })
+      await page.reload({waitUntil: 'domcontentloaded'})
       await page.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 30_000})
       await page.getByRole('link', {name: 'Settings'}).click({timeout: 30_000})
       await page.getByRole('tab', {name: 'Plugins', exact: true}).click({timeout: 30_000})
@@ -36,6 +50,9 @@ describe('the recorder in the widget', () => {
       const recorderTab = page.getByRole('tab', {name: 'Recorder', exact: true})
       await recorderTab.click()
       await expect(page.getByRole('tab', {name: 'Recorder', exact: true, selected: true})).toBeVisible()
+      await expect(page.getByText('Loading recording…', {exact: true})).toBeVisible({timeout: 30_000})
+      await expect(page.getByText('Reconnecting to your workspace.', {exact: true})).toBeHidden()
+      windowRead.resolve()
       await expect(page.getByText('No recording yet: interact with the page first.', {exact: true})).toBeVisible({
         timeout: 30_000,
       })
