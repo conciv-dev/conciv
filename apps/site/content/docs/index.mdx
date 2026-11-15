@@ -1,12 +1,20 @@
 ---
 title: What is conciv
-description: An AI dev agent inside your running app. Chat, page control and your dev server, added to your dev build from your bundler config.
+description: The coding agent you already use, in a panel inside your running app. It sees the page you are on and drives it.
 ---
 
-conciv puts an AI dev agent inside the app you are already running. Add conciv to your Vite config, and a conciv
-button appears in your dev build. Open it to chat with an agent that sees the page you are on, drives and edits it,
-and reads your dev server, without leaving the app. The name is the pitch: say `@conciv/it` out loud, and conceive
-it.
+conciv puts the coding agent you already use, such as Claude Code or Codex, into the app you are building. Add conciv
+to your dev server's config, and a conciv button appears in the corner of your app. Open it to chat with an agent that
+sees the page you are on, drives and edits it, and reads your dev server, without leaving the app.
+
+It is for developers who build web apps with a coding agent and want it to work on the running page, not only on files.
+
+<ImageZoom
+  src="/screenshots/panel-open.png"
+  alt="The conciv chat panel open over a running app"
+  width={1920}
+  height={1080}
+/>
 
 ```ts title="vite.config.ts"
 import {defineConfig} from 'vite'
@@ -17,48 +25,55 @@ export default defineConfig({
 })
 ```
 
-## What you can do
+## Always there
 
 <Cards>
   <Card
     title="Chat"
     href="/docs/what-you-get/chat"
-    description="Talk to the agent about the page you are looking at. It reads the live page when you say this or here."
+    description="Talk to the agent about the page you are looking at."
   />
   <Card
     title="Page control"
     href="/docs/what-you-get/page-control"
-    description="The agent reads and drives your live page, previews a change, then edits your source."
+    description="The agent reads and drives your live page, then edits your source."
   />
   <Card
     title="Dev server"
     href="/docs/what-you-get/dev-server"
-    description="It reads your Vite config and module graph, restarts the dev server, and opens files in your editor."
+    description="It reads your Vite config and module graph, and restarts the dev server."
   />
+</Cards>
+
+## Plugins you add
+
+These are not on until you add their plugin to your config.
+
+<Cards>
   <Card
     title="Live tests"
     href="/docs/plugins/live-tests"
-    description="Turn on the test runner plugin and the agent runs your tests."
+    description="A plugin you add: the agent runs your tests and reads the result."
   />
   <Card
     title="Whiteboard"
     href="/docs/plugins/whiteboard"
-    description="Turn on the whiteboard plugin for a shared Excalidraw canvas."
+    description="A plugin you add: a canvas you and the agent draw on."
   />
-  <Card
-    title="Plugins"
-    href="/docs/plugins"
-    description="Turn on more of conciv, or write your own plugin with tools, a skill and UI."
-  />
+  <Card title="Install a plugin" href="/docs/plugins/install" description="How to add a plugin, and which exist." />
 </Cards>
 
 <Callout>
-  conciv is in beta and runs in dev builds only. The chat needs a harness CLI on your `PATH`, `claude` by default.
+  conciv is in beta and runs in your dev server only. The chat needs an agent CLI on your `PATH`, `claude` by default.
 </Callout>
 
 ## Next
 
 <Cards>
   <Card title="Install" href="/docs/get-started/install" description="One command sets your app up for conciv." />
-  <Card title="How it works" href="/docs/reference/how-it-works" description="The pieces behind the widget." />
+  <Card
+    title="Your first five minutes"
+    href="/docs/get-started/first-five-minutes"
+    description="Log in, send a first message, approve a first action."
+  />
 </Cards>
