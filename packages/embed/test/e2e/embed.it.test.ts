@@ -1318,6 +1318,8 @@ test.describe('rebind', () => {
   const LOGGED_OUT_SENTENCE = 'Log in to use conciv on this page.'
   const REVOKED_SENTENCE = 'This browser is no longer authorized to use conciv.'
   const STREAM_READ_FAILED = 'Stream response body read failed'
+  const RUN_FAILED = 'upstream is overloaded'
+  const FAILING_TEXT = 'this run fails upstream'
 
   let kit: EmbedKit
   let host: {base: string; close: () => Promise<void>}
@@ -1513,6 +1515,29 @@ test.describe('rebind', () => {
       }
       await expect(stop).toBeHidden({timeout: 30_000})
       await expect(send).toBeVisible({timeout: 30_000})
+
+      const refresh = panel
+        .getByRole('toolbar', {name: 'Message actions'})
+        .first()
+        .getByRole('button', {name: 'Refresh'})
+      const retry = panel.getByRole('alert').filter({hasText: RUN_FAILED}).getByRole('button', {name: 'Retry'})
+      kit.harness.script.scriptError(RUN_FAILED)
+      await composer.click()
+      await composer.pressSequentially(FAILING_TEXT)
+      await page.keyboard.press('Enter')
+      await expect(retry).toBeVisible({timeout: 30_000})
+      await expect(refresh).toBeEnabled()
+
+      const resendLoginCode = await requestLoginCode(kit)
+      revokeBrowsers(concivStateDir(kit.stateRoot), 'all')
+      await expect(revokedNotice).toBeVisible({timeout: 30_000})
+      await expect(retry).toHaveCount(0)
+      await expect(refresh).toBeDisabled()
+
+      await logInFromPanelNoticeWithCode(page, REVOKED_SENTENCE, resendLoginCode)
+      await expect(revokedNotice).toBeHidden({timeout: 30_000})
+      await expect(retry).toBeVisible({timeout: 30_000})
+      await expect(refresh).toBeEnabled()
     })
   })
 })
