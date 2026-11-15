@@ -88,6 +88,7 @@ export type BootOverrides = {
   systemPromptText?: string
   home?: string
   plugins?: readonly Plugin.Plugin[]
+  startPlugins?: boolean
 }
 
 export function bootKit(overrides: BootOverrides = {}, harness: HarnessAdapter = requireClaude()): Promise<Kit> {
@@ -144,7 +145,8 @@ export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): 
 
 export function bootCoreApp(overrides: BootOverrides = {}): BootApp {
   return async (env) => {
-    const {fetch, dispose, agentToken} = await bootMadeApp(env, overrides)
+    const {fetch, dispose, agentToken, startPlugins} = await bootMadeApp(env, overrides)
+    if (overrides.startPlugins === true) await startPlugins()
     return {fetch, dispose, agentToken}
   }
 }
