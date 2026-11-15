@@ -5,7 +5,6 @@ import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser
 import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {
   browserRpcConnection,
-  makeBrowserRpcClient,
   makeRpcClient,
   subscribeRpcReachability,
   type RpcClient,
@@ -1474,7 +1473,7 @@ describe('engine version', () => {
 
   test('an engine from before release versions still answers the widget, and the widget asks to update it', async () => {
     await coreControl.installFault({kind: 'pre-version-engine'})
-    const sessionId = await createSession(makeBrowserRpcClient(core()).rpc)
+    const sessionId = await createSession(coreRpc(core()))
     keep(mountPane({base: core(), sessionId}, () => <EngineOutdatedNotice />))
 
     await expect
@@ -1482,6 +1481,24 @@ describe('engine version', () => {
       .toHaveTextContent(
         `This widget is version ${appManifest.version} but the conciv engine is older. Update your @conciv packages to ${appManifest.version}, then restart your dev server.`,
       )
+  })
+})
+
+describe('helper rpc clients', () => {
+  const core = bootedCore('helper-rpc-clients')
+
+  async function socketsOpenedBySession(): Promise<number> {
+    const opened = await coreControl.rpcSocketsOpened()
+    await createSession(coreRpc(core()))
+    return (await coreControl.rpcSocketsOpened()) - opened
+  }
+
+  test('a helper client opens its own connection to the core', async () => {
+    expect(await socketsOpenedBySession()).toBeGreaterThan(0)
+  })
+
+  test('the next test opens a new connection, because the last test closed its helper clients', async () => {
+    expect(await socketsOpenedBySession()).toBeGreaterThan(0)
   })
 })
 
