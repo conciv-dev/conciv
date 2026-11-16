@@ -100,7 +100,7 @@ async function* attempted(
     watchdog = setTimeout(() => attempt.abort(new Error('Event stream stalled')), idleTimeout)
   }
   try {
-    for await (const event of await raw.event.subscribe(undefined, {signal: attempt.signal})) {
+    for await (const event of await raw.event.subscribe(undefined, {signal: attempt.signal, context: {retry: 0}})) {
       touch()
       if (event.type === 'server.heartbeat') continue
       if (event.type === 'server.connected') setStatus('connected')
