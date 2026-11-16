@@ -49,6 +49,7 @@ import {
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {
+  appendPageChange,
   chatMetadata,
   chatRuns,
   hubConnections,
@@ -2755,6 +2756,146 @@ describe('plugin host bus', () => {
     } finally {
       await served.stop()
     }
+  })
+
+  test('a listener that reads a session back on session.deleted finds it already gone with its draft, as a reader does after the delete', async () => {
+    const served = await serveCore(tempDir('conciv-core-unit-'), [], {})
+    onTestFinished(() => served.stop())
+    const rpc = makeRpcClient(`${served.origin}/t/${served.made.agentToken}`)
+    const key = sessionKey(served.made)
+    const {sessionId} = await rpc.sessions.create(undefined)
+    await rpc.drafts.set({sessionId, text: 'an unsent draft', selectionStart: 0, selectionEnd: 0})
+    const readBack = () =>
+      Promise.all([
+        key.run((sessions) =>
+          sessions.get(sessionId).pipe(
+            Effect.match({
+              onFailure: (error) => ({gone: error}),
+              onSuccess: (session) => ({alive: session.id}),
+            }),
+          ),
+        ),
+        rpc.drafts.get({sessionId}),
+      ])
+    const heardAt: Awaited<ReturnType<typeof readBack>>[] = []
+    await served.made.pluginHost.runPromise(
+      Bus.Service.use((bus) =>
+        bus.listen((event) =>
+          event.type === SessionEvent.Deleted.type
+            ? Effect.promise(async () => void heardAt.push(await readBack()))
+            : Effect.void,
+        ),
+      ),
+    )
+    await rpc.sessions.delete({sessionId})
+    const afterDelete = await readBack()
+    expect(afterDelete).toEqual([{gone: expect.objectContaining({_tag: 'Session.NotFoundError', sessionId})}, null])
+    expect(heardAt).toEqual([afterDelete])
+  })
+
+  test('a delete whose session.deleted publish fails still clears the messages, captures and page changes, and rejects with the publish failure', async () => {
+    const stateRoot = tempDir('conciv-core-unit-')
+    const harness = createTestHarness(requireClaude())
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
+    onTestFinished(() => made.dispose())
+    const key = sessionKey(made)
+    const id = SessionId.parse('conciv_deleted_while_the_bus_is_broken')
+    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    expect(await made.plane.followUp(id, 'leave a message behind')).toEqual({kind: 'delivered'})
+    const scope = made.runtime.forSession(id)
+    await scope.captures.store('call-1', {
+      after: {kind: 'after', ts: 1, descriptor: {tagName: 'input', selectorPath: '#agree'}},
+    })
+    await appendPageChange(made.chat.db, id, {verb: 'check', selector: '#agree', args: {}}, 1)
+    const left = async () => [
+      (await made.plane.hydrate(id)).messages.length,
+      (await scope.captures.list()).captures.length,
+      (await scope.page.changes()).length,
+    ]
+    expect(await left()).toEqual([1, 1, 1])
+    made.chat.db.run(sql`DROP TABLE event_sequence`)
+    await expect(key.run((sessions) => sessions.remove(SessionSchema.Id.make(id)))).rejects.toThrow(/event_sequence/)
+    expect(await key.fail((sessions) => sessions.get(SessionSchema.Id.make(id)))).toMatchObject({
+      _tag: 'Session.NotFoundError',
+    })
+    expect(await left()).toEqual([0, 0, 0])
+  })
+
+  test('a delete whose session.deleted publish and captures cleanup both fail still clears the messages and page changes, and rejects with both failures, the publish first', async () => {
+    const stateRoot = tempDir('conciv-core-unit-')
+    const harness = createTestHarness(requireClaude())
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
+    onTestFinished(() => made.dispose())
+    const key = sessionKey(made)
+    const id = SessionId.parse('conciv_deleted_while_the_bus_and_captures_are_broken')
+    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    expect(await made.plane.followUp(id, 'leave a message behind')).toEqual({kind: 'delivered'})
+    const scope = made.runtime.forSession(id)
+    await appendPageChange(made.chat.db, id, {verb: 'check', selector: '#agree', args: {}}, 1)
+    const left = async () => [(await made.plane.hydrate(id)).messages.length, (await scope.page.changes()).length]
+    expect(await left()).toEqual([1, 1])
+    made.chat.db.run(sql`DROP TABLE event_sequence`)
+    made.chat.db.run(sql`DROP TABLE tool_captures`)
+    const failure = await key
+      .run((sessions) => sessions.remove(SessionSchema.Id.make(id)))
+      .then(
+        () => null,
+        (error: unknown) => error,
+      )
+    expect(failure).toBeInstanceOf(AggregateError)
+    expect(failure).toMatchObject({
+      errors: [
+        expect.objectContaining({message: expect.stringMatching(/event_sequence/)}),
+        expect.objectContaining({message: expect.stringMatching(/tool_captures/)}),
+      ],
+    })
+    expect(await key.fail((sessions) => sessions.get(SessionSchema.Id.make(id)))).toMatchObject({
+      _tag: 'Session.NotFoundError',
+    })
+    expect(await left()).toEqual([0, 0])
+  })
+
+  test('a delete whose drafts delete fails still publishes session.deleted and clears the messages, captures and page changes, and rejects with the drafts failure', async () => {
+    const stateRoot = tempDir('conciv-core-unit-')
+    const harness = createTestHarness(requireClaude())
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
+    onTestFinished(() => made.dispose())
+    const key = sessionKey(made)
+    const id = SessionId.parse('conciv_deleted_while_drafts_are_broken')
+    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    expect(await made.plane.followUp(id, 'leave a message behind')).toEqual({kind: 'delivered'})
+    const scope = made.runtime.forSession(id)
+    await scope.captures.store('call-1', {
+      after: {kind: 'after', ts: 1, descriptor: {tagName: 'input', selectorPath: '#agree'}},
+    })
+    await appendPageChange(made.chat.db, id, {verb: 'check', selector: '#agree', args: {}}, 1)
+    const left = async () => [
+      (await made.plane.hydrate(id)).messages.length,
+      (await scope.captures.list()).captures.length,
+      (await scope.page.changes()).length,
+    ]
+    expect(await left()).toEqual([1, 1, 1])
+    const heard: {type: string; data: unknown}[] = []
+    await made.pluginHost.runPromise(
+      Bus.Service.use((bus) => bus.listen((event) => Effect.sync(() => heard.push(event)))),
+    )
+    made.chat.db.run(sql`DROP TABLE drafts`)
+    const failure = await key
+      .run((sessions) => sessions.remove(SessionSchema.Id.make(id)))
+      .then(
+        () => null,
+        (error: unknown) => error,
+      )
+    expect(failure).toBeInstanceOf(Error)
+    expect(failure).not.toBeInstanceOf(AggregateError)
+    expect(failure).toMatchObject({message: expect.stringMatching(/drafts/)})
+    expect(heard.filter((event) => event.type === SessionEvent.Deleted.type)).toEqual([
+      expect.objectContaining({data: {sessionID: id}}),
+    ])
+    expect(await key.fail((sessions) => sessions.get(SessionSchema.Id.make(id)))).toMatchObject({
+      _tag: 'Session.NotFoundError',
+    })
+    expect(await left()).toEqual([0, 0, 0])
   })
 
   test('a plugin experimental.idle hook fires for a run that completes and not for one that fails or is stopped, while turnEnd fires for all three', async () => {
