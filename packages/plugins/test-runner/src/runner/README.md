@@ -22,7 +22,9 @@ contract.ts defines the manager and adapter types and the tagged runner-unavaila
 - `driveChild` (`driver.ts`) rejects with unavailable 'runner did not expose its event channel (fd 3)' if `child.stdio[3]` is not a Readable
 - `driveChild` (`driver.ts`): a child `error` message makes the run reject with that reason when the child closes. Lines that are blank, invalid JSON or fail the schema are dropped silently.
 - `driveChild` (`driver.ts`) rejects with 'child exited without producing results (exit code X, signal Y)' only when no messages arrived and the exit was non-zero or caused by a signal
-- `updateCache` (`driver.ts`): `run-start` clears the file cache and the replay buffer, `file-end` records pass or fail, and `run-end` replaces `cache.last`
+- `updateCache` (`driver.ts`): `run-start` clears the file cache, the last start failure and the replay buffer, `file-end` records pass or fail, and `run-end` replaces `cache.last`
+- `run` (`driver.ts`) remembers the reason of a run that could not start (a runner-unavailable error) until the next `run-start`, and drops the replay buffer of a run that ended without `run-end`
+- `current` (`driver.ts`) returns the buffered events of the run in progress, or null when no run is going, and the last start failure, or null
 - `subscribeRaw` (`driver.ts`) replays the current run's buffered events to each new subscriber
 - `emitSnapshot` (`driver.ts`) always reports `watching:false`, and `openUiServer` always returns `{available:false}`
 - `cleanEnv` (`driver.ts`) removes `NODE_OPTIONS` and every `VIBE_*` env var before spawning
