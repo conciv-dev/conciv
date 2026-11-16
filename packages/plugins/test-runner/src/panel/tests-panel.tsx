@@ -1,9 +1,18 @@
 import {createUniqueId, For, Show, type JSX} from 'solid-js'
 import type {IconName, Ui} from '@conciv/plugin/experimental'
 import type {Summary, TestError, TestRow} from '../shared/events.js'
+import {
+  counts,
+  duration,
+  failingLabel,
+  failedCount,
+  failureLocation,
+  groupByFile,
+  relativePath,
+  STATE_LABEL,
+  type FileGroup,
+} from '../view.js'
 import type {RunPhase, RunState} from './run-state.js'
-
-type FileGroup = {readonly file: string; readonly tests: readonly TestRow[]}
 
 export type TestsPanelProps = {
   readonly ui: Ui
@@ -13,11 +22,6 @@ export type TestsPanelProps = {
   readonly onOpen: (error: TestError) => void
   readonly onFix: (error: TestError) => void
 }
-
-const COUNT = new Intl.NumberFormat()
-const SECONDS = new Intl.NumberFormat(undefined, {style: 'unit', unit: 'second', maximumFractionDigits: 1})
-const MILLISECONDS = new Intl.NumberFormat(undefined, {style: 'unit', unit: 'millisecond', maximumFractionDigits: 0})
-const PLURAL = new Intl.PluralRules('en')
 
 const STATE_ICON: Record<TestRow['state'], IconName> = {
   pass: 'circle-check-big',
@@ -29,44 +33,11 @@ const STATE_TONE: Record<TestRow['state'], string> = {
   fail: 'text-chat-danger',
   skip: 'text-chat-text-3',
 }
-const STATE_LABEL: Record<TestRow['state'], string> = {pass: 'passed', fail: 'failed', skip: 'skipped'}
-
-function relativePath(file: string, directory: string): string {
-  const prefix = directory.endsWith('/') ? directory : `${directory}/`
-  return directory && file.startsWith(prefix) ? file.slice(prefix.length) : file
-}
-
-function failureLocation(error: TestError, directory: string): string {
-  const path = relativePath(error.file, directory)
-  return error.line === undefined ? path : `${path}:${error.line}`
-}
-
-export function fixPrompt(error: TestError, directory: string): string {
-  return `The test "${error.name}" in ${relativePath(error.file, directory)} is failing:\n${error.message}\nPlease look into it.`
-}
-
-function counts(summary: Summary): string {
-  return `${COUNT.format(summary.passed)} passed, ${COUNT.format(summary.failed)} failed, ${COUNT.format(summary.skipped)} skipped`
-}
-
 function statusSentence(phase: RunPhase, summary: Summary): string {
   if (phase === 'running') return `Running tests: ${counts(summary)}`
   if (phase === 'done') return `Test run finished: ${counts(summary)}`
   if (phase === 'unavailable') return 'The test runner is unavailable'
   return 'No test run yet'
-}
-
-function duration(ms: number): string {
-  if (!Number.isFinite(ms) || ms <= 0) return ''
-  return ms < 1000 ? MILLISECONDS.format(Math.round(ms)) : SECONDS.format(ms / 1000)
-}
-
-function failingLabel(count: number): string {
-  return `${COUNT.format(count)} failing ${PLURAL.select(count) === 'one' ? 'test' : 'tests'}`
-}
-
-function groupByFile(tests: readonly TestRow[]): FileGroup[] {
-  return Object.entries(Object.groupBy(tests, (test) => test.file)).map(([file, rows]) => ({file, tests: rows ?? []}))
 }
 
 function TestLine(props: {ui: Ui; test: TestRow}): JSX.Element {
@@ -85,7 +56,7 @@ function TestLine(props: {ui: Ui; test: TestRow}): JSX.Element {
 }
 
 function FileRow(props: {ui: Ui; group: FileGroup; directory: string; running: boolean}): JSX.Element {
-  const failed = () => props.group.tests.filter((test) => test.state === 'fail').length
+  const failed = () => failedCount(props.group)
   const icon = (): IconName => {
     if (failed() > 0) return 'circle-x'
     return props.running ? 'loader-circle' : 'circle-check-big'

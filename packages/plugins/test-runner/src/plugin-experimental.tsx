@@ -12,7 +12,8 @@ import {
 import {TestRunner} from './rpc.js'
 import {TestEventSchema, type TestError} from './shared/events.js'
 import {initialRunState, transitionRun, type RunAction} from './panel/run-state.js'
-import {fixPrompt, TestsPanel} from './panel/tests-panel.js'
+import {TestsPanel} from './panel/tests-panel.js'
+import {fixPrompt} from './view.js'
 
 type Client = Context['client']
 
