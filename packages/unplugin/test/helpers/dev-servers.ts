@@ -1,7 +1,9 @@
 import {cpSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync} from 'node:fs'
+import {rm} from 'node:fs/promises'
 import {findPackageJSON} from 'node:module'
 import {dirname, join} from 'node:path'
 import {pathToFileURL} from 'node:url'
+import {onTestFinished} from 'vitest'
 import {createLogger, createServer, type ViteDevServer} from 'vite'
 import {magicLink, recordedEngineBase} from '@conciv/harness-testkit/login'
 import type {ConcivConfig, ExtensionPackage} from '@conciv/protocol/config-types'
@@ -19,6 +21,16 @@ export type DevServers = {
   stopAll: () => Promise<void>
 }
 
+function createDevServer(options: Omit<ConcivConfig, 'stateRoot'>, builtins: Builtins, root: string) {
+  return createServer({
+    root,
+    configFile: false,
+    customLogger: createLogger('silent'),
+    server: {host: '127.0.0.1', port: 0},
+    plugins: [makeViteHook({enabled: true, stateRoot: root, ...options}, builtins)],
+  })
+}
+
 export function devServers(): DevServers {
   const running: ViteDevServer[] = []
   const dirs: string[] = []
@@ -34,13 +46,7 @@ export function devServers(): DevServers {
     builtins: Builtins = {},
     root = tempDir('conciv-vite-root-'),
   ) => {
-    const server = await createServer({
-      root,
-      configFile: false,
-      customLogger: createLogger('silent'),
-      server: {host: '127.0.0.1', port: 0},
-      plugins: [makeViteHook({enabled: true, stateRoot: root, ...options}, builtins)],
-    })
+    const server = await createDevServer(options, builtins, root)
     running.push(server)
     await server.listen()
     return {server, root}
@@ -52,6 +58,27 @@ export function devServers(): DevServers {
   }
 
   return {start, tempDir: trackedTempDir, stopAll}
+}
+
+export function testTempDir(prefix: string): string {
+  const dir = realpathSync(tempDir(prefix))
+  onTestFinished(() => rm(dir, {recursive: true, force: true, maxRetries: 10}))
+  return dir
+}
+
+export function closeWhenTestFinishes(server: ViteDevServer): ViteDevServer {
+  onTestFinished(() => server.close())
+  return server
+}
+
+export async function startTestDevServer(
+  options: Omit<ConcivConfig, 'stateRoot'> = {},
+  builtins: Builtins = {},
+  root = testTempDir('conciv-vite-root-'),
+): Promise<StartedDevServer> {
+  const server = closeWhenTestFinishes(await createDevServer(options, builtins, root))
+  await server.listen()
+  return {server, root}
 }
 
 export function fixtureExtension(dir = FIXTURE_EXTENSION_DIR): ExtensionPackage {
