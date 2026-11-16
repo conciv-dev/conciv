@@ -46,16 +46,30 @@ every host hook.
 
 ## Your first extension, trimmed for brevity
 
-Two real, current example extensions ship in this repo's Vite example app. Read both before writing
-your own — the real file additionally defines the inline SVG `RocketIcon` the button renders, trimmed
-below:
+The example below is the whole file, shown inline. One real extension remains in this repo,
+`apps/conciv/src/extensions/highlight.tsx`. Read both before writing your own:
 
-```tsx title="apps/examples/tanstack-start/conciv/extensions/deploy-button.tsx:1-53 (trimmed)"
+```tsx title="conciv/extensions/deploy-button.tsx"
 import {z} from 'zod'
 import {defineExtension, defineTool, getExtensionApi} from '@conciv/extension'
 import {ComposerActions} from '@conciv/ui-kit-chat'
 
 const DEPLOY_NAME = 'deploy'
+
+const RocketIcon = (props: {class?: string}) => (
+  <svg
+    class={props.class}
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+  >
+    <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" />
+    <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" />
+  </svg>
+)
 
 const deployRun = defineTool({
   name: 'deploy_run',
@@ -92,15 +106,13 @@ function DeploySurface() {
 }
 ```
 
-The real file's `deployRun` has no `approval: 'ask'` — it's added above because `mutating: true` tools
-should ask by default (see the red flags below); the `RocketIcon` component the quote references is
-declared in the real file between `DEPLOY_NAME` and `deployRun`. The composer slot never renders a raw
+`deployRun` sets `approval: 'ask'` because `mutating: true` tools should ask by default (see the red
+flags below). The composer slot never renders a raw
 `<button>`: a `ComposerActions.ActionButton` declares the action once, and the host renders it inline
 or — from that same registration, no extra JSX — as a menu item once the row runs out of room.
 conciv's own composer sets `maxInlineAuto={0}`, so every `visible="auto"` button (the default) always
-lands in the menu there; `visible="always"` is what reaches the row. Drop the
-file (or your own version of it) into `conciv/extensions/` at your
-project root — create
+lands in the menu there; `visible="always"` is what reaches the row. To try it, save the sample (or
+your own version of it) as a file under `conciv/extensions/` at your project root — create
 the directory if it does not exist. No registration, no config: conciv discovers every file there.
 Restart your dev server (`.server(...)` code and top-level `systemPrompt` load at boot; `Component`
 and `.render(...)` hot-reload). Ask the widget to "deploy this to staging" and the agent calls
@@ -390,7 +402,6 @@ non-installed extensions).
 - `packages/extension-testkit/src/get-extension-test-api.ts`
 - `packages/extension-testkit/src/fixture-host.ts`
 - `packages/protocol/src/tool-view-types.ts`
-- `apps/examples/tanstack-start/conciv/extensions/deploy-button.tsx`
 - `packages/extensions/whiteboard/src/client.tsx`
 - `packages/extensions/whiteboard/src/tool/comment/def.ts`
 - `packages/extensions/terminal/src/client.tsx`
