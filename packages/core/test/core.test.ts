@@ -3163,8 +3163,10 @@ describe('plugin host bus', () => {
         message: {content: 'written in the terminal after the delete'},
       }),
     )
-    await made.plane.hydrate(quiet)
+    const quietHydration = await made.plane.hydrate(quiet)
     expect(currentRow(made.chat.db, quiet)?.updatedAt).toBe(tombstone?.updatedAt)
+    expect(quietHydration.messages).toEqual([])
+    expect((await kit.rpc.chat.hydrate({sessionId: quiet})).messages).toEqual([])
 
     const openBooted: MadeApp[] = []
     const openKit = await createTestkit(harness, async (env) => {

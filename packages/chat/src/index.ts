@@ -200,7 +200,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   const hydrate = async (sessionId: SessionId, window?: ChatHistoryWindow): Promise<ChatHydration> => {
     if ((await stores.runs.findActiveRun(sessionId)) === null) {
       await server.settled(sessionId)
-      if (window?.before === undefined) await transcripts.sync(sessionId)
+      if (window?.before === undefined && !sessionDeleted(deps.sessions, sessionId)) await transcripts.sync(sessionId)
     }
     const thread = await server.hydrate(sessionId, window)
     const messages = normalizedMessages(thread.messages, normalize)

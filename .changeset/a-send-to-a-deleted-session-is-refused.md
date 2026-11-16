@@ -15,3 +15,5 @@ A turn or compaction refused because its session is deleted carries the code `SE
 The RPC `sessions.compact` now declares the contract's `NOT_FOUND` error and answers it for a session that does not exist or is deleted, where it answered an internal server error before.
 
 With hub access `open`, an outside call (an MCP client's `code.execute` or a hub `registry.call`) on a deleted session is refused with `session "<id>" does not exist` too: it no longer runs, and nothing of it is recorded in the deleted session's chat.
+
+Opening a deleted session no longer imports its harness transcript into its thread: the history of a deleted session stays as the delete left it.
