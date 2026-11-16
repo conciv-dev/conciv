@@ -114,6 +114,7 @@ export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): 
     hubAccess: 'session',
     plugins: [],
     policies: [],
+    permissions: [],
   }
   const made = await makeApp({
     print: env.print,

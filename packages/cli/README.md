@@ -74,6 +74,20 @@ These commands, and their `--help`, need the dev server running; without one the
 (`{"ok":true,"data":...}` or `{"ok":false,"error":...}`); `--help` prints usage instead and
 `conciv --version` (or `-v`) prints the CLI version.
 
+## Headless and CI
+
+With nobody at the tab to answer an Approve card, decide ahead of time in the project config.
+`permission` takes three short forms: one effect for every tool (`permission: 'allow'`), one effect
+per tool (`permission: {page_eval: 'deny'}`), or one effect per tool and resource
+(`permission: {page_eval: {'document.title': 'allow'}}`). `permissions` takes the full rules,
+`[{action, resource, effect}]`, with `allow`, `deny` or `ask` as the effect. The short forms come
+first and `permissions` after them; when two rules match, the later one wins.
+
+These rules are a project default for every agent. Approvals given in the tab come after them, and
+the page's own guard comes after both: a config rule never opens the page tools to a chat whose tab
+has not connected. For now a `page_eval` rule in the config is still overridden by the page's own
+ask, so running code in the page asks until that ask moves onto the tool itself.
+
 ## Call a plugin method
 
 ```bash

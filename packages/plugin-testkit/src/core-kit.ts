@@ -78,6 +78,7 @@ export async function bootCoreKit(opts: {
           hubAccess: 'session',
           plugins: opts.plugins ?? [],
           policies: [],
+          permissions: [],
         },
         cwd: env.cwd,
         openInEditor: () => {},
