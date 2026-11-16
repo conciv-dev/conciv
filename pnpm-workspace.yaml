@@ -59,6 +59,7 @@ catalog:
   '@effect/platform-node': 4.1.0
   '@hono/node-server': '^2.1.5'
   '@iconify-json/ph': '^1.2.2'
+  '@libsql/client': '^0.18.0'
   '@orama/orama': 3.1.18
   '@oxlint/plugins': 1.90.0
   '@parcel/watcher-darwin-arm64': 2.5.1
@@ -87,6 +88,8 @@ catalog:
   '@storybook/addon-docs': '^10.6.5'
   '@tailwindcss/typography': '^0.5.20'
   '@tailwindcss/vite': '^4.3.3'
+  '@takumi-rs/core': '^2.18.2'
+  '@takumi-rs/helpers': '^2.18.2'
   '@tanstack/devtools-bundler-core': '0.1.3'
   '@tanstack/devtools-vite': '^0.8.5'
   '@tanstack/pacer': '^0.23.1'

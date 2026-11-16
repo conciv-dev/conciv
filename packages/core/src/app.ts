@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {accessSync, constants, existsSync} from 'node:fs'
 import {delimiter, join} from 'node:path'
+import {setTimeout as delay} from 'node:timers/promises'
 import {Hono} from 'hono'
 import {z} from 'zod'
 import {EngineStalenessSchema, type EngineStaleness} from '@conciv/contract'
@@ -26,7 +27,7 @@ import {
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness, listHarnesses, transcriptPathWithin} from '@conciv/harness'
-import {withSavedModels} from './lib/saved-models.js'
+import {withSavedModels, type SavedModelsHarness} from './lib/saved-models.js'
 import {createSessionSearch} from './sessions/session-search.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '@conciv/tools'
@@ -97,7 +98,7 @@ import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
 import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
-import {loadIsolateDriver} from '@conciv/ai/server'
+import {GROUP_EXIT_TIMEOUT_MS, loadIsolateDriver} from '@conciv/ai/server'
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import {
@@ -201,11 +202,16 @@ function detectedHarnesses(): HarnessAdapter[] {
   return listHarnesses().filter((adapter) => onPath(adapter.binName))
 }
 
-function availableHarnesses(boot: HarnessAdapter, opts: MakeAppOpts, stateDir: string): HarnessAdapter[] {
+function availableHarnesses(
+  boot: SavedModelsHarness,
+  opts: MakeAppOpts,
+  stateDir: string,
+  signal: AbortSignal,
+): SavedModelsHarness[] {
   const others = (opts.harnesses ?? (opts.harness ? [] : detectedHarnesses())).map((adapter) =>
-    withSavedModels(adapter, stateDir),
+    withSavedModels(adapter, stateDir, signal),
   )
-  return [boot, ...others.filter((adapter) => adapter.id !== boot.id)]
+  return [boot, ...others.filter((other) => other.harness.id !== boot.harness.id)]
 }
 
 function narrowExtensionApp(name: string, app: unknown): Hono | null {
@@ -432,13 +438,26 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   assertUniqueExtensionSlugs(extensions)
 
   const stateDir = concivStateDir(opts.cfg.stateRoot)
-  const harness = withSavedModels(opts.harness ?? requireHarness(opts.cfg.harness), stateDir)
+  const engineLife = new AbortController()
+  const boot = withSavedModels(opts.harness ?? requireHarness(opts.cfg.harness), stateDir, engineLife.signal)
+  const harness = boot.harness
   const agentToken = opts.agentToken ?? randomUUID()
   const basePath = agentPath(agentToken)
   const browsers = watchTrustedBrowsers(stateDir)
   const trust = makeConnectionTrust(agentToken, browsers)
   const socketUpgrade = trustingUpgrade(upgradeWebSocket, trust)
-  const harnesses = availableHarnesses(harness, opts, stateDir)
+  const listings = availableHarnesses(boot, opts, stateDir, engineLife.signal)
+  const harnesses = listings.map((listing) => listing.harness)
+  const print = opts.print ?? ((text: string) => console.log(text))
+  const endListing = async (listing: SavedModelsHarness): Promise<void> => {
+    const ended = listing.settled().then(() => true)
+    if (await Promise.race([ended, delay(GROUP_EXIT_TIMEOUT_MS, false, {ref: false})])) return
+    print(`[core] the ${listing.harness.id} model listing did not end when the engine stopped; closing without it`)
+  }
+  const endListings = async (): Promise<void> => {
+    engineLife.abort(new Error('conciv: the engine stopped'))
+    await Promise.all(listings.map(endListing))
+  }
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb(opts.cfg.stateRoot)
   const planeRef: {current: ChatPlane | null} = {current: null}
@@ -601,6 +620,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     config: opts.cfg,
     plugins: [concivPage, ...(opts.plugins ?? [])],
     harness,
+    signal: engineLife.signal,
     harnessSource: {
       harness: serverHarness,
       sessions: serverSessions,
@@ -616,6 +636,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     async (error: unknown): Promise<never> => {
       await runInOrder(
         [
+          endListings,
           plugins.closeRpc,
           plugins.closePlugins,
           plugins.closePermissions,
@@ -723,6 +744,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     basePath,
     db,
     plane,
+    signal: engineLife.signal,
   }
 
   const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness, interruptIdle})
@@ -807,7 +829,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     answerPermission: (sessionId, requestId, reply) =>
       pluginHost.runPromise(answerPermission(sessionId, requestId, reply)),
     auth: makeAuthRouter({
-      codes: makeCodeStore({now: Date.now, print: opts.print ?? ((text) => console.log(text))}),
+      codes: makeCodeStore({now: Date.now, print}),
       trust,
       browsers,
       now: Date.now,
@@ -861,6 +883,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const dispose = (): Promise<void> =>
     runInOrder(
       [
+        endListings,
         plugins.closeRpc,
         plugins.closePlugins,
         () => Effect.runPromise(Scope.close(idleScope, Exit.void)),

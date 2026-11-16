@@ -62,6 +62,7 @@
     "@solid-primitives/event-listener": "catalog:",
     "@tanstack/solid-router": "catalog:",
     "bippy": "catalog:",
+    "effect": "catalog:",
     "react-grab": "catalog:",
     "solid-js": "catalog:"
   },
