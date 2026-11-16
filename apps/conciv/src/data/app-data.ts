@@ -1,8 +1,13 @@
 import {z} from 'zod'
 import {QueryMutationObserver, makeQueryUtils, type QueryUtils, type QueryClient, type QueryKey} from '@conciv/client'
+import {Definition as PageDefinition} from '@conciv/plugin-page/rpc'
 import {DraftRowSchema, SessionMetaSchema, type DraftRow, type RpcClient, type SessionMeta} from '@conciv/contract'
 
 type DraftInput = Omit<z.input<typeof DraftRowSchema>, 'updatedAt'>
+
+export function sessionCapturesCall(sessionId: string) {
+  return {rpcId: PageDefinition.id, method: 'captures.list', input: {sessionId}}
+}
 
 export type AppData = {
   utils: QueryUtils
