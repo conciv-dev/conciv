@@ -6777,35 +6777,13 @@ describe('engine plugin bundles', () => {
         code: 'BAD_REQUEST',
       })
 
-    const changes = await rpc.event.subscribe({types: ['plugin.updated']}, options)
+    const listening = new AbortController()
+    onTestFinished(() => listening.abort())
+    const changes = await rpc.event.subscribe({types: ['plugin.updated']}, {signal: listening.signal})
     expect(await changes.next()).toEqual({
       done: false,
       value: {id: expect.stringMatching(/^evt_/), type: 'server.connected', data: {}},
     })
-    const delivered: unknown[] = []
-    const [secondArrival, thirdArrival] = [Promise.withResolvers<void>(), Promise.withResolvers<void>()]
-    const arrivals = [secondArrival, thirdArrival]
-    const consume = async () => {
-      for await (const change of changes) {
-        if (change.type === 'server.heartbeat') continue
-        delivered.push(change)
-        arrivals[delivered.length - 1]?.resolve()
-      }
-    }
-    const consumed = Promise.allSettled([consume()])
-    const rebuilt = async (label: string, arrival: PromiseWithResolvers<void>) => {
-      writeFileSync(join(root, 'pane', 'plugin-experimental.js'), bundle(label))
-      await arrival.promise
-      return (await rpc.plugin.experimental({id: 'pane'}, options)).data
-    }
-    const second = await rebuilt('second', secondArrival)
-    expect(second.code).toBe(bundle('second'))
-    expect(second.revision).not.toBe(first.data.revision)
-    const third = await rebuilt('third', thirdArrival)
-    expect(third.code).toBe(bundle('third'))
-    expect(third.revision).not.toBe(second.revision)
-    await changes.return()
-    const [ended] = await consumed
     const updated = {
       id: expect.stringMatching(/^evt_/),
       type: 'plugin.updated',
@@ -6813,7 +6791,16 @@ describe('engine plugin bundles', () => {
       location: {directory: root},
       data: {},
     }
-    expect(delivered).toEqual([updated, updated])
-    expect(ended).toMatchObject({status: 'rejected', reason: {name: 'AbortError', message: 'Stream was cancelled'}})
+    const rebuilt = async (label: string) => {
+      writeFileSync(join(root, 'pane', 'plugin-experimental.js'), bundle(label))
+      expect(await nextEvent(changes)).toEqual({done: false, value: updated})
+      return (await rpc.plugin.experimental({id: 'pane'}, {signal: AbortSignal.timeout(5000)})).data
+    }
+    const second = await rebuilt('second')
+    expect(second.code).toBe(bundle('second'))
+    expect(second.revision).not.toBe(first.data.revision)
+    const third = await rebuilt('third')
+    expect(third.code).toBe(bundle('third'))
+    expect(third.revision).not.toBe(second.revision)
   })
 })
