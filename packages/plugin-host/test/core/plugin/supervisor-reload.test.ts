@@ -2,7 +2,7 @@ import {describe, expect} from 'vitest'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {setTimeout} from 'node:timers/promises'
-import {Cause, Deferred, Duration, Effect, Fiber, Layer, LayerMap, Logger, Queue, Schedule} from 'effect'
+import {Cause, Deferred, Duration, Effect, Exit, Fiber, Layer, LayerMap, Logger, Queue, Schedule} from 'effect'
 import {z} from 'zod'
 import {TestClock} from 'effect/testing'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
@@ -489,6 +489,187 @@ describe('a rule pushed onto every agent', () => {
           expect(yield* get(tools, 'later_v1')).toBeUndefined()
           expect(yield* restartAsLater('call-next-generation')).toBe('asked')
           expect(restarts).toEqual([false, false])
+        }).pipe(Effect.scoped, Effect.provide(locations.get(directory.path)))
+      }),
+    30_000,
+  )
+
+  it.live(
+    'server_restart still asks when a reload removes the server plugin while the call waits in a before hook',
+    () =>
+      Effect.gen(function* () {
+        const directory = yield* tmpdirScoped()
+        const callEntered = yield* Deferred.make<void>()
+        const callGate = yield* Deferred.make<void>()
+        const reloadEntered = yield* Deferred.make<void>()
+        const reloadGate = yield* Deferred.make<void>()
+        const sdk = yield* SdkPlugins.Service
+        yield* sdk.register(
+          define({
+            id: 'holds-the-call',
+            effect: (ctx) =>
+              Effect.gen(function* () {
+                yield* ctx.agent.transform((editor) => editor.update('held', () => {}))
+                yield* ctx.tool.hook('execute.before', (event) =>
+                  event.tool === 'server_restart'
+                    ? Deferred.succeed(callEntered, undefined).pipe(Effect.andThen(Deferred.await(callGate)))
+                    : Effect.void,
+                )
+              }),
+          }),
+        )
+        yield* sdk.register(define({id: 'reloaded', effect: () => Effect.void}))
+        const bus = yield* Bus.Service
+        const locations = yield* LayerMap.make((root: string) => supervisorLayer(root, {bundler}), {
+          idleTimeToLive: Duration.infinity,
+        })
+        yield* Effect.gen(function* () {
+          const plugins = yield* Plugin.Service
+          const tools = yield* Tool.Service
+          const permission = yield* Permission.Service
+          const location = yield* Location.Service
+          const sessionId = Session.Id.make('conciv_held_call_test')
+          yield* (yield* Sessions.Service).create({
+            id: sessionId,
+            location: Location.Ref.make({directory: location.directory}),
+          })
+          const asked = yield* Queue.unbounded<void>()
+          const unsubscribe = yield* bus.listen((event) =>
+            event.type === Permission.Event.Asked.type
+              ? Queue.offer(asked, undefined).pipe(Effect.asVoid)
+              : Effect.void,
+          )
+          yield* Effect.addFinalizer(() => unsubscribe)
+          const restartTool = Effect.map(
+            tools.snapshot(),
+            (snapshot) => snapshot.codeMode?.tools.has('server_restart') === true,
+          )
+          restarts.length = 0
+          yield* plugins.awaitActivation
+          expect(yield* restartTool).toBe(true)
+
+          const codeMode = (yield* tools.snapshot()).codeMode
+          if (!codeMode) return yield* Effect.die(new Error('code mode is off'))
+          const running = yield* codeMode
+            .execute(
+              'server_restart',
+              {},
+              {
+                sessionId,
+                agent: Agent.Id.make('held'),
+                messageId: undefined,
+                id: ToolSchema.CallId.make('call-held-in-before-hook'),
+                progress: () => Effect.void,
+              },
+            )
+            .pipe(Effect.forkScoped({startImmediately: true}))
+          yield* Deferred.await(callEntered)
+
+          yield* sdk.register(
+            define({
+              id: 'reloaded',
+              effect: () => Deferred.succeed(reloadEntered, undefined).pipe(Effect.andThen(Deferred.await(reloadGate))),
+            }),
+          )
+          yield* Deferred.await(reloadEntered)
+          expect(yield* restartTool).toBe(false)
+          expect(restarts).toEqual([])
+
+          yield* Deferred.succeed(callGate, undefined)
+          const first = yield* Effect.raceFirst(
+            Queue.take(asked).pipe(Effect.as('asked')),
+            Fiber.await(running).pipe(Effect.as('ran without asking')),
+          )
+          const restartsAtDecision = [...restarts]
+          yield* Deferred.succeed(reloadGate, undefined)
+          const [request] = yield* permission.forSession(sessionId)
+          if (request) yield* permission.reply({requestId: request.id, reply: 'once'})
+          yield* Fiber.join(running)
+          yield* plugins.awaitActivation
+          expect(yield* restartTool).toBe(true)
+          expect({first, restartsAtDecision}).toEqual({first: 'asked', restartsAtDecision: []})
+        }).pipe(Effect.scoped, Effect.provide(locations.get(directory.path)))
+      }),
+    30_000,
+  )
+
+  it.live(
+    "an agent rule a plugin pushes for server_restart beats the tool's own ask, in either direction",
+    () =>
+      Effect.gen(function* () {
+        const directory = yield* tmpdirScoped()
+        const sdk = yield* SdkPlugins.Service
+        const pushRule = (effect: 'allow' | 'deny') =>
+          sdk.register(
+            define({
+              id: 'user-rules',
+              effect: (ctx) =>
+                ctx.agent.transform((editor) =>
+                  editor
+                    .list()
+                    .forEach((agent) => agent.permissions.push({action: 'server_restart', resource: '*', effect})),
+                ),
+            }),
+          )
+        yield* pushRule('allow')
+        const bus = yield* Bus.Service
+        const locations = yield* LayerMap.make((root: string) => supervisorLayer(root, {bundler}), {
+          idleTimeToLive: Duration.infinity,
+        })
+        yield* Effect.gen(function* () {
+          const plugins = yield* Plugin.Service
+          const tools = yield* Tool.Service
+          const agents = yield* Agent.Service
+          const location = yield* Location.Service
+          const sessionId = Session.Id.make('conciv_user_rule_test')
+          yield* (yield* Sessions.Service).create({
+            id: sessionId,
+            location: Location.Ref.make({directory: location.directory}),
+          })
+          const asked = yield* Queue.unbounded<void>()
+          const unsubscribe = yield* bus.listen((event) =>
+            event.type === Permission.Event.Asked.type
+              ? Queue.offer(asked, undefined).pipe(Effect.asVoid)
+              : Effect.void,
+          )
+          yield* Effect.addFinalizer(() => unsubscribe)
+          const restartAsBuild = (call: string) =>
+            Effect.gen(function* () {
+              const codeMode = (yield* tools.snapshot()).codeMode
+              if (!codeMode) return yield* Effect.die(new Error('code mode is off'))
+              const running = yield* codeMode
+                .execute(
+                  'server_restart',
+                  {},
+                  {
+                    sessionId,
+                    agent: Agent.defaultId,
+                    messageId: undefined,
+                    id: ToolSchema.CallId.make(call),
+                    progress: () => Effect.void,
+                  },
+                )
+                .pipe(Effect.forkScoped)
+              return yield* Effect.raceFirst(
+                Queue.take(asked).pipe(Effect.as('asked')),
+                Fiber.await(running).pipe(Effect.map((exit) => (Exit.isSuccess(exit) ? 'ran' : 'refused'))),
+              )
+            })
+          restarts.length = 0
+          yield* plugins.awaitActivation
+          expect(yield* restartAsBuild('call-allowed')).toBe('ran')
+          expect(restarts).toEqual([false])
+
+          yield* pushRule('deny')
+          yield* agents.get(Agent.defaultId).pipe(
+            Effect.flatMap((agent) =>
+              agent?.permissions.at(-1)?.effect === 'deny' ? Effect.void : Effect.fail('activation pending'),
+            ),
+            Effect.retry({times: 80, schedule: Schedule.spaced('25 millis')}),
+          )
+          yield* plugins.awaitActivation
+          expect(yield* restartAsBuild('call-denied')).toBe('refused')
+          expect(restarts).toEqual([false])
         }).pipe(Effect.scoped, Effect.provide(locations.get(directory.path)))
       }),
     30_000,
