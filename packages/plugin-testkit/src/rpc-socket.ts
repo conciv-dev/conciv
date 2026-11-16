@@ -48,7 +48,13 @@ export type RpcSocket = {
   release: () => void
   holdCloses: () => void
   releaseCloses: () => void
+  holdHandshakes: () => void
+  releaseHandshakes: () => void
+  heldHandshakes: () => number
+  awaitHandshakes: (count: number) => Promise<void>
 }
+
+type HandshakeWaiter = {count: number; deliver: () => void}
 
 type SocketState = {
   rules: RpcSocketRule[]
@@ -57,6 +63,9 @@ type SocketState = {
   opened: number
   held: boolean
   heldCloses: (() => void)[] | null
+  heldHandshakes: (() => void)[] | null
+  handshakesSinceHold: number
+  handshakeWaiters: HandshakeWaiter[]
 }
 
 const sockets = new WeakMap<Page, RpcSocket>()
@@ -71,6 +80,9 @@ export function rpcSocketFor(page: Page): RpcSocket {
     opened: 0,
     held: false,
     heldCloses: null,
+    heldHandshakes: null,
+    handshakesSinceHold: 0,
+    handshakeWaiters: [],
   }
   const installed = page.routeWebSocket(
     (url) => url.pathname.endsWith(RPC_WS_PATH),
@@ -108,16 +120,41 @@ export function rpcSocketFor(page: Page): RpcSocket {
       state.heldCloses = null
       for (const close of held) close()
     },
+    holdHandshakes: () => {
+      state.heldHandshakes ??= []
+      state.handshakesSinceHold = 0
+    },
+    releaseHandshakes: () => {
+      const held = state.heldHandshakes ?? []
+      state.heldHandshakes = null
+      for (const open of held) open()
+    },
+    heldHandshakes: () => state.handshakesSinceHold,
+    awaitHandshakes: (count) =>
+      state.handshakesSinceHold >= count
+        ? Promise.resolve()
+        : new Promise((resolve) => state.handshakeWaiters.push({count, deliver: resolve})),
   }
   sockets.set(page, created)
   return created
 }
 
-function connect(route: WebSocketRoute, state: SocketState): void {
+function heldHandshake(state: SocketState): Promise<void> {
+  const held = state.heldHandshakes
+  if (held === null) return Promise.resolve()
+  state.handshakesSinceHold += 1
+  const reached = state.handshakeWaiters.filter((waiter) => state.handshakesSinceHold >= waiter.count)
+  state.handshakeWaiters = state.handshakeWaiters.filter((waiter) => !reached.includes(waiter))
+  for (const waiter of reached) waiter.deliver()
+  return new Promise((resolve) => held.push(resolve))
+}
+
+async function connect(route: WebSocketRoute, state: SocketState): Promise<void> {
   if (state.held) {
     void route.close({code: CUT_CLOSE_CODE})
     return
   }
+  await heldHandshake(state)
   state.opened += 1
   const socketId = `ws-${state.opened}`
   state.live.add(route)
