@@ -5500,25 +5500,53 @@ describe('page action queue delivery', () => {
     {tool: 'page_check', selector: '#agree'},
   ]
   const QueueHandleSchema = z.object({result: z.object({queueId: z.string(), actions: z.number()})})
+  const WINDOW_LONGER_THAN_THE_CASE_MS = 60_000
   const pages = new AbortController()
-  const engines: Engine[] = []
+  const stops: Array<() => Promise<void>> = []
   afterAll(async () => {
     pages.abort()
-    await Promise.all(engines.map((engine) => engine.stop()))
+    await Promise.all(stops.map((stop) => stop()))
   })
 
   type QueuedOnTab = {id: string; replies: string[]}
+  type ServedEngine = {origin: string; token: string}
+  type ServeEngine = (
+    home: string,
+    harness: ReturnType<typeof createFakeHarness>,
+    plugins: readonly Plugin.Plugin[],
+  ) => Promise<ServedEngine>
 
-  async function engineWithTab(harness = createFakeHarness(), plugins: readonly Plugin.Plugin[] = []) {
+  const servedByStart: ServeEngine = async (home, harness, plugins) => {
+    const engine = await bootAt(home, tempDir('conciv-queue-'), 'open', harness, plugins)
+    stops.push(engine.stop)
+    return {origin: `http://127.0.0.1:${engine.port}`, token: engine.agentToken}
+  }
+
+  const servedWithWindowsLongerThanTheCase: ServeEngine = async (home, harness, plugins) => {
+    const boot = bootCoreApp({
+      home,
+      plugins,
+      hubAccess: 'open',
+      pageReplyTimeoutMs: WINDOW_LONGER_THAN_THE_CASE_MS,
+      queuedActionTimeoutMs: WINDOW_LONGER_THAN_THE_CASE_MS,
+    })
+    const kit = await createTestkit(harness, boot).setup()
+    stops.push(kit.cleanup)
+    return {origin: kit.origin, token: kit.token}
+  }
+
+  async function engineWithTab(
+    harness = createFakeHarness(),
+    plugins: readonly Plugin.Plugin[] = [],
+    serve: ServeEngine = servedByStart,
+  ) {
     const home = tempDir('conciv-queue-home-')
     withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
-    const engine = await bootAt(home, tempDir('conciv-queue-'), 'open', harness, plugins)
-    engines.push(engine)
-    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const {origin, token} = await serve(home, harness, plugins)
+    const base = `${origin}/t/${token}`
     const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
-    const origin = `http://127.0.0.1:${engine.port}`
     const browser = makeBrowserRpcClient(origin, {session: () => sessionId})
-    expect(await browserRpcConnection(origin).trust.requestTrustWithToken(engine.agentToken)).toBe(true)
+    expect(await browserRpcConnection(origin).trust.requestTrustWithToken(token)).toBe(true)
     onTestFinished(() => browser.close())
     const tab = browser.rpc
     const closed = new AbortController()
@@ -5575,7 +5603,7 @@ describe('page action queue delivery', () => {
     const followUpFinished = async (earlier: readonly string[] = []): Promise<void> => {
       await seenChunk(() => runIds().some((runId) => !earlier.includes(runId)))
       const runId = runIds().find((known) => !earlier.includes(known)) ?? ''
-      const joined = webSocket(`ws://127.0.0.1:${engine.port}/t/${engine.agentToken}${CHAT_WS_PATH}`)
+      const joined = webSocket(`${base.replace('http', 'ws')}${CHAT_WS_PATH}`)
       for await (const chunk of joined.joinRun(runId, pages.signal)) {
         if (chunk.type === ChatEventType.RUN_ERROR) return
         if (chunk.type === ChatEventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') return
@@ -5601,8 +5629,9 @@ describe('page action queue delivery', () => {
     }
     return {
       base,
+      origin,
+      token,
       sessionId,
-      engine,
       tab,
       nextQueue,
       play,
@@ -5686,7 +5715,7 @@ describe('page action queue delivery', () => {
   })
 
   it('a page.queue.wait its caller aborts stops waiting, so the result it never handed over leads the next reply', async () => {
-    const page = await engineWithTab()
+    const page = await engineWithTab(createFakeHarness(), [], servedWithWindowsLongerThanTheCase)
     const {queueId} = parseHandle(await page.hub(queued()))
     const onTab = await page.nextQueue()
     const caller = new AbortController()
@@ -5700,10 +5729,10 @@ describe('page action queue delivery', () => {
     await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
     await page.finishedEvent(queueId)
     expect(JSON.stringify(await page.hub('return 1'))).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
-  }, 5000)
+  })
 
   it('a page.queue.wait its caller aborts before any play starts keeps the result owed, so it leads the next reply once, with one finished event and one card, while a result a live waiter took gets none', async () => {
-    const page = await engineWithTab()
+    const page = await engineWithTab(createFakeHarness(), [], servedWithWindowsLongerThanTheCase)
     const typed = makeRpcClient(page.base, {headers: HUB})
     const taken = parseHandle(await page.hub(queued())).queueId
     const takenOnTab = await page.nextQueue()
@@ -5730,14 +5759,14 @@ describe('page action queue delivery', () => {
     expect(page.cards(queueId)).toHaveLength(1)
     expect(page.queueEvents().filter((event) => event.queueId === taken)).toHaveLength(0)
     expect(page.cards(taken)).toHaveLength(0)
-  }, 5000)
+  })
 
   it('a page.queue.wait over the websocket its caller aborts before the queue finishes keeps the result owed, so it leads the next reply once', async () => {
-    const page = await engineWithTab()
+    const page = await engineWithTab(createFakeHarness(), [], servedWithWindowsLongerThanTheCase)
     const {queueId} = parseHandle(await page.hub(queued()))
     const onTab = await page.nextQueue()
-    const socket = new WebSocket(`ws://127.0.0.1:${page.engine.port}${RPC_WS_PATH}`, {
-      headers: {authorization: `Bearer ${page.engine.agentToken}`},
+    const socket = new WebSocket(`${page.origin.replace('http', 'ws')}${RPC_WS_PATH}`, {
+      headers: {authorization: `Bearer ${page.token}`},
     })
     await once(socket, 'open')
     const overSocket = createORPCClient<ReturnType<typeof makeRpcClient>>(
@@ -5763,10 +5792,10 @@ describe('page action queue delivery', () => {
     expect(JSON.stringify(await page.hub('return 2'))).not.toContain(notice)
     expect(page.queueEvents().filter((event) => event.queueId === queueId)).toHaveLength(1)
     expect(page.cards(queueId)).toHaveLength(1)
-  }, 5000)
+  })
 
   it('a code.execute its caller aborts hands over no finished result, so that result leads the next reply', async () => {
-    const page = await engineWithTab()
+    const page = await engineWithTab(createFakeHarness(), [], servedWithWindowsLongerThanTheCase)
     const {queueId} = parseHandle(await page.hub(queued()))
     const first = await page.nextQueue()
     await page.play(first, 0, {ok: true, result: {ok: true, value: 'Ada'}})
@@ -5785,7 +5814,7 @@ describe('page action queue delivery', () => {
     )
     expect(blocking.id).not.toBe(queueId)
     expect(JSON.stringify(await page.hub('return 1'))).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
-  }, 5000)
+  })
 
   it('a queue a hub request starts stays hub work after a fast finish, an aborted request and a thousand later hub calls', async () => {
     const page = await engineWithTab()
@@ -5831,15 +5860,15 @@ describe('page action queue delivery', () => {
     expect(page.runIds()).toEqual([])
 
     const long = parseHandle(await page.hub(queued())).queueId
-    const onTab = await page.nextQueue()
-    expect(
+    await playAll(await page.nextQueue())
+    await page.finishedEvent(long)
+    const called = JSON.stringify(
       await page.hub(
         "for (let call = 0; call < 1001; call += 1) await external_page_queue_async({actions: 'none'}).catch(() => null); return 'called'",
       ),
-    ).toContain('called')
-    await playAll(onTab)
-    await page.finishedEvent(long)
-    expect(await nextHubReply()).toContain(notice(long))
+    )
+    expect(called).toContain('called')
+    expect(called).toContain(notice(long))
     expect(page.runIds()).toEqual([])
   }, 20000)
 

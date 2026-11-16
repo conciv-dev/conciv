@@ -147,6 +147,10 @@ export type MakeAppOpts = {
 
   eventHeartbeatIntervalMs?: number
 
+  pageReplyTimeoutMs?: number
+
+  queuedActionTimeoutMs?: number
+
   nativePageDir?: string
 
   nativeUrl?: () => string | undefined
@@ -480,6 +484,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     bundler: () => opts.bridge,
     openInEditor: opts.openInEditor,
     listTabs: outsideTabs.list,
+    pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
+    queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
   })
   const {registry, stream} = primitives
   const rows = {db, harnessKind: harness.id, cwd: opts.cwd}
