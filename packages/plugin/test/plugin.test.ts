@@ -8,6 +8,7 @@ import * as SolidStore from 'solid-js/store'
 import * as SolidWeb from 'solid-js/web'
 import {build} from 'vite'
 import * as Zod from 'zod'
+import * as Effect from 'effect'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {StandardSchemaV1} from '@standard-schema/spec'
@@ -947,6 +948,7 @@ describe('experimental() build', () => {
   const provided: Record<PluginModule, object> = {
     '@conciv/plugin/experimental': Experimental,
     '@conciv/plugin/rpc': RpcEntry,
+    effect: Effect,
     zod: Zod,
     'solid-js': SolidJs,
     'solid-js/web': SolidWeb,
@@ -985,13 +987,11 @@ describe('experimental() build', () => {
     expect(evaluatePluginBundle(code, {require: provider(real)}).setup).toBeTypeOf('function')
   }, 60_000)
 
-  it('the preset fails the build on a conciv or Solid module the app does not provide', async () => {
-    const root = await project({
-      'src/plugin-experimental.tsx':
-        'import { Button } from "@conciv/ui-kit-system"\nexport default { id: "acme", Button }',
-    })
-
-    await expect(bundle(root)).rejects.toThrow('@conciv/ui-kit-system is not a module the conciv app provides')
+  it('the preset fails the build on an Effect, conciv or Solid module the app does not provide', async () => {
+    for (const source of ['@conciv/ui-kit-system', 'effect/Schema']) {
+      const root = await project({'src/plugin-experimental.tsx': `export * from "${source}"`})
+      await expect(bundle(root)).rejects.toThrow(`${source} is not a module the conciv app provides`)
+    }
   }, 60_000)
 })
 
