@@ -1,6 +1,6 @@
 export * as PluginInternal from './internal.js'
 
-import type {Plugin} from '../../plugin/effect/plugin.js'
+import type {Plugin} from '@conciv/plugin/effect/plugin'
 import type {Generation} from './service.js'
 import {Context, Effect, Scope} from 'effect'
 import {FSUtil} from '../../util/fs-util.js'

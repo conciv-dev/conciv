@@ -3,7 +3,7 @@ import {RUN_CANCEL_REASON} from '@tanstack/ai'
 import type {SandboxHandle, SandboxProvider, SpawnHandle} from '@tanstack/ai-sandbox'
 import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
 
-const GROUP_EXIT_TIMEOUT_MS = 5_000
+export const GROUP_EXIT_TIMEOUT_MS = 5_000
 
 const GROUP_POLL_MS = 100
 
@@ -56,7 +56,7 @@ function finished(entry: Minted): boolean {
   return entry.spawned.every((spawned) => !groupAlive(spawned.pid))
 }
 
-async function killLeftovers(spawned: SpawnHandle): Promise<void> {
+export async function killLeftovers(spawned: {pid: number; kill: (signal: NodeJS.Signals) => unknown}): Promise<void> {
   if (await groupExited(spawned.pid)) return
   await spawned.kill('SIGKILL')
   await groupExited(spawned.pid)

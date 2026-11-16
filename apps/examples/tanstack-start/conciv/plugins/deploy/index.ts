@@ -1,4 +1,5 @@
-import {Plugin} from '@conciv/plugin'
+import {Plugin, Skill} from '@conciv/plugin'
+import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import {Deploy} from './rpc.js'
 
 const description = 'Deploy the current branch'
@@ -20,10 +21,10 @@ export default Plugin.define({
     })
     await ctx.skill.transform((skills) => {
       skills.add({
-        id: 'deploy',
-        name: 'Deploy',
+        id: Skill.Id.make('deploy'),
+        name: Skill.Name.make('Deploy'),
         description: `${description}.`,
-        path: 'skill://deploy/SKILL.md',
+        path: AbsolutePath.make('skill://deploy/SKILL.md'),
         content: 'You can deploy from code mode with `external_deploy_run`.',
       })
     })

@@ -6739,6 +6739,100 @@ export default Plugin.define({
       JSON.stringify(await (await mcp.tools()).find((entry) => entry.name === 'skill')?.execute?.({id: 'deploy'})),
     ).toContain('You can deploy from code mode with `external_deploy_run`.')
   })
+
+  const LANTERN = (marks: string, look: string) => `import {appendFileSync} from 'node:fs'
+import {z} from ${JSON.stringify(import.meta.resolve('zod'))}
+import {Effect} from ${JSON.stringify(import.meta.resolve('effect'))}
+import {Plugin} from ${JSON.stringify(import.meta.resolve('@conciv/plugin/effect'))}
+import {Rpc} from ${JSON.stringify(import.meta.resolve('@conciv/plugin/rpc'))}
+
+const Lantern = Rpc.define({
+  id: 'lantern',
+  methods: {look: {input: z.object({}), output: z.string()}},
+  events: {lit: {schema: z.object({look: z.string()})}},
+})
+
+export default Plugin.define({
+  id: 'lantern',
+  effect: (ctx) =>
+    Effect.gen(function* () {
+      yield* Effect.addFinalizer(() => Effect.sync(() => appendFileSync(${JSON.stringify(marks)}, 'closed\\n')))
+      const registration = yield* ctx.rpc.register(Lantern, {look: () => Effect.succeed('${look}')})
+      yield* ctx.tool.transform((tools) =>
+        tools.add({
+          name: 'shine',
+          description: 'Shines the lantern',
+          input: z.object({}),
+          options: {namespace: 'lantern'},
+          execute: () => registration.events.emit('lit', {look: '${look}'}).pipe(Effect.as({content: 'shining ${look}'})),
+        }),
+      )
+    }),
+})
+`
+
+  const LIT_WATCHER = (seen: string) => `import {appendFileSync} from 'node:fs'
+
+const record = async (events) => {
+  for await (const event of events) appendFileSync(${JSON.stringify(seen)}, JSON.stringify(event) + '\\n')
+}
+
+export default {
+  id: 'lit-watcher',
+  async setup(ctx) {
+    void record(ctx.event.subscribe({types: ['rpc.lantern.lit']}))
+  },
+}
+`
+
+  it('a plugin written on the Effect entry offers its tool and method, and its scope closes on reload and on unload', async () => {
+    const root = tempDir('conciv-lantern-')
+    const folder = join(root, 'conciv', 'plugins', 'lantern')
+    const marks = join(root, 'marks.log')
+    mkdirSync(folder, {recursive: true})
+    const seen = join(root, 'seen.log')
+    writeFileSync(join(folder, 'index.ts'), LANTERN(marks, 'first'))
+    writeFileSync(join(root, 'conciv', 'plugins', 'lit-watcher.ts'), LIT_WATCHER(seen))
+    const engine = await start({
+      options: {stateRoot: root},
+      root,
+      launchEditor: () => {},
+      harness: createFakeHarness(),
+      homeDir: tempDir('conciv-home-'),
+    })
+    onTestFinished(() => engine.stop())
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const rpc = makeRpcClient(base)
+    const sessionId = (await rpc.sessions.create(undefined)).sessionId
+    const shine = async () =>
+      JSON.stringify(
+        await executeOverMcp(base, {[CONCIV_SESSION_HEADER]: sessionId}, 'return await external_lantern_shine({})'),
+      )
+    const status = async () => (await rpc.plugin.list()).data.find((plugin) => plugin.id === 'lantern')?.state.status
+
+    expect(await status()).toBe('active')
+    expect(await shine()).toContain('shining first')
+    await vi.waitFor(() => expect(existsSync(seen)).toBe(true), {timeout: 5000})
+    expect(JSON.parse(readFileSync(seen, 'utf8'))).toEqual({
+      id: expect.stringMatching(/^evt_/),
+      type: 'rpc.lantern.lit',
+      created: expect.any(Number),
+      location: {directory: root},
+      data: {look: 'first'},
+    })
+    expect(await call(base, 'lantern', 'look')).toBe('first')
+
+    writeFileSync(join(folder, 'index.ts'), LANTERN(marks, 'second'))
+    await vi.waitFor(async () => expect(await call(base, 'lantern', 'look')).toBe('second'), {timeout: 10_000})
+    expect(readFileSync(marks, 'utf8')).toBe('closed\n')
+    expect(await shine()).toContain('shining second')
+
+    rmSync(folder, {recursive: true})
+    await vi.waitFor(async () => expect(await status()).toBeUndefined(), {timeout: 10_000})
+    await expect(call(base, 'lantern', 'look')).rejects.toThrow('RPC is unavailable: lantern')
+    expect(readFileSync(marks, 'utf8')).toBe('closed\nclosed\n')
+    await expect(shine()).rejects.toThrow("'external_lantern_shine' is not defined")
+  })
 })
 
 describe('a plugin tool that asks, across a reload of its plugin', () => {

@@ -1,13 +1,13 @@
 export * as ServerTools from './server.js'
 
 import type {BundlerDomain} from '@conciv/plugin'
-import type {Context} from '../../../plugin/effect/plugin.js'
+import type {Context} from '@conciv/plugin/effect/plugin'
 import {makeToolFailure} from '../../../ai/effect.js'
 import {Effect, Schema} from 'effect'
 import {EditorSource} from '../../plugin/host.js'
 import {Permission} from '../../permission.js'
 import {Rpc} from '../../rpc.js'
-import type {Tool} from '../../../schema/tool.js'
+import type {Tool} from '@conciv/plugin/schema/tool'
 
 const unavailableMessage = 'no dev server is attached to conciv'
 

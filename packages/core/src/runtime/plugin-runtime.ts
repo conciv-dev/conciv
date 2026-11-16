@@ -61,6 +61,7 @@ export type PluginRuntimeInput = {
   config: Pick<ResolvedConcivConfig, 'plugins' | 'policies'>
   plugins: readonly PluginDefinition.Plugin[]
   harness: HarnessAdapter
+  signal: AbortSignal
   harnessSource: Parameters<typeof provideHarnessSource>[0]
   bundler: BundlerBridge | undefined
   openInEditor: (file: string, line?: number, column?: number) => void
@@ -120,7 +121,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
         provideExtensionSlugs(input.extensionSlugs),
         provideConfiguredPolicies(input.config.policies),
         Layer.succeed(ConfigPluginSource.ConfiguredPlugins, input.config.plugins),
-        provideHarnessModels(input.harness),
+        provideHarnessModels(input.harness, input.signal),
         provideSessions(input.sessions),
         Watcher.layer().pipe(Layer.provide(Watcher.nativeLayer)),
         Npm.layer.pipe(Layer.provide(EffectFlock.layer)),

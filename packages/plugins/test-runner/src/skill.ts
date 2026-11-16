@@ -1,11 +1,12 @@
-import type {Skill} from '@conciv/plugin'
+import {Skill} from '@conciv/plugin'
+import {AbsolutePath} from '@conciv/plugin/schema/schema'
 
 export const info: Skill.Info = {
-  id: 'test-runner',
-  name: 'Test runner',
+  id: Skill.Id.make('test-runner'),
+  name: Skill.Name.make('Test runner'),
   description:
     "Run the project's tests: list the test files, run all of them or the files matching a pattern, and read the last result. Load it before your first test_runner tool call.",
-  path: 'skill://test-runner/SKILL.md',
+  path: AbsolutePath.make('skill://test-runner/SKILL.md'),
   content: [
     '# Test runner',
     '',

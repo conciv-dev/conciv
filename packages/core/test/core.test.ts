@@ -9,6 +9,7 @@ import {
   utimesSync,
   chmodSync,
 } from 'node:fs'
+import {spawn, type ChildProcess} from 'node:child_process'
 import {once} from 'node:events'
 import {request as httpRequest} from 'node:http'
 import {connect, createServer, type Socket} from 'node:net'
@@ -49,6 +50,7 @@ import {
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {
+  appendPageChange,
   chatMetadata,
   chatRuns,
   hubConnections,
@@ -123,6 +125,7 @@ import {
   Tool,
 } from '@conciv/plugin-host'
 import {Conciv, Plugin, Rpc as PluginRpc} from '@conciv/plugin'
+import {Model as ModelSchema} from '@conciv/plugin/schema/model'
 import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {isEqual, once as onceOnly} from 'es-toolkit'
 import getPort from 'get-port'
@@ -214,6 +217,8 @@ const NO_CAPABILITIES = {
 } as const
 
 const JSON_TYPE = {'content-type': 'application/json'}
+
+const UNSTOPPED = new AbortController().signal
 
 function bootEngine(root: string, overrides: Partial<Parameters<typeof start>[0]> = {}) {
   const options = {harnessBin: 'true', stateRoot: root, systemPrompt: false}
@@ -1073,29 +1078,39 @@ describe('local state files', () => {
         chatConfig: () => ({adapter: fakeText()}),
         capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
       })
-      return withSavedModels(harness, dir)
+      return withSavedModels(harness, dir, UNSTOPPED).harness
     }
 
     it('waits for the first live list, then answers from the saved one at once while a refresh, a failure or an empty list lands', async () => {
       const dir = tempDir('conciv-core-unit-')
       const savedFile = () => JSON.parse(readFileSync(join(dir, 'listing-models.json'), 'utf8'))
-      expect(await resolveHarnessModels(listing(dir, async () => [OPUS]))).toEqual([OPUS])
+      expect(
+        await resolveHarnessModels(
+          listing(dir, async () => [OPUS]),
+          {signal: UNSTOPPED},
+        ),
+      ).toEqual([OPUS])
       expect(savedFile()).toEqual([OPUS])
-      expect(await resolveHarnessModels(listing(dir, () => Promise.reject(new Error('probe failed'))))).toEqual([OPUS])
+      expect(
+        await resolveHarnessModels(
+          listing(dir, () => Promise.reject(new Error('probe failed'))),
+          {signal: UNSTOPPED},
+        ),
+      ).toEqual([OPUS])
       expect(savedFile()).toEqual([OPUS])
       const grown = Promise.withResolvers<Listed[]>()
       const growing = listing(dir, () => grown.promise)
-      expect(await resolveHarnessModels(growing)).toEqual([OPUS])
+      expect(await resolveHarnessModels(growing, {signal: UNSTOPPED})).toEqual([OPUS])
       grown.resolve([OPUS, SONNET])
       await setImmediate()
       expect(savedFile()).toEqual([OPUS, SONNET])
-      expect(await resolveHarnessModels(growing)).toEqual([OPUS, SONNET])
+      expect(await resolveHarnessModels(growing, {signal: UNSTOPPED})).toEqual([OPUS, SONNET])
       const emptied = Promise.withResolvers<Listed[]>()
       const emptying = listing(dir, () => emptied.promise)
-      expect(await resolveHarnessModels(emptying)).toEqual([OPUS, SONNET])
+      expect(await resolveHarnessModels(emptying, {signal: UNSTOPPED})).toEqual([OPUS, SONNET])
       emptied.resolve([])
       await setImmediate()
-      expect(await resolveHarnessModels(emptying)).toEqual([])
+      expect(await resolveHarnessModels(emptying, {signal: UNSTOPPED})).toEqual([])
       expect(savedFile()).toEqual([])
     })
 
@@ -1103,8 +1118,69 @@ describe('local state files', () => {
       const outcomes: Promise<Listed[]>[] = [Promise.reject(new Error('probe failed')), Promise.resolve([OPUS])]
       outcomes[0]?.catch(() => {})
       const harness = listing(tempDir('conciv-core-unit-'), () => outcomes.shift() ?? Promise.resolve([]))
-      await expect(resolveHarnessModels(harness)).rejects.toThrow('probe failed')
-      expect(await resolveHarnessModels(harness)).toEqual([OPUS])
+      await expect(resolveHarnessModels(harness, {signal: UNSTOPPED})).rejects.toThrow('probe failed')
+      expect(await resolveHarnessModels(harness, {signal: UNSTOPPED})).toEqual([OPUS])
+    })
+
+    it('closing the engine ends a listing still running: its child has exited and nothing is saved', async () => {
+      const root = tempDir('conciv-core-unit-')
+      const spawned = Promise.withResolvers<ChildProcess>()
+      const ended: {signal?: NodeJS.Signals | null} = {}
+      const harness = defineHarness({
+        id: 'listing',
+        binName: 'listing',
+        models: ({signal}) =>
+          new Promise<Listed[]>((resolve) => {
+            const child = spawn(process.execPath, ['-e', 'process.stdin.resume()'], {
+              signal,
+              stdio: ['pipe', 'ignore', 'ignore'],
+            })
+            child.on('error', () => {})
+            child.on('spawn', () => spawned.resolve(child))
+            child.on('exit', (_code, exitSignal) => {
+              ended.signal = exitSignal
+              resolve([OPUS])
+            })
+          }),
+        chatConfig: () => ({adapter: fakeText()}),
+        capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
+      })
+      const made = await makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}, harness})
+      const listing = expect(resolveHarnessModels(made.chat.defaultHarness, {signal: UNSTOPPED})).rejects.toThrow(
+        'the engine stopped',
+      )
+      const child = await spawned.promise
+      onTestFinished(() => {
+        child.kill()
+      })
+      await made.dispose()
+      expect(ended).toEqual({signal: 'SIGTERM'})
+      await listing
+      expect(existsSync(join(concivStateDir(root), 'listing-models.json'))).toBe(false)
+    })
+
+    it('closing two engines that share a listing which ignores the stop ends both after the grace and names the harness', async () => {
+      const stuck = new Promise<Listed[]>(() => {})
+      const harness = defineHarness({
+        id: 'stuck-listing',
+        binName: 'stuck-listing',
+        models: () => stuck,
+        chatConfig: () => ({adapter: fakeText()}),
+        capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
+      })
+      const printed: string[] = []
+      const boot = (root: string) =>
+        makeApp({
+          cfg: resolveConfig({}, root),
+          cwd: root,
+          openInEditor: () => {},
+          harness,
+          print: (text) => printed.push(text),
+        })
+      const engines = [await boot(tempDir('conciv-core-unit-')), await boot(tempDir('conciv-core-unit-'))]
+      engines.forEach((made) => void resolveHarnessModels(made.chat.defaultHarness, {signal: UNSTOPPED}))
+      await Promise.all(engines.map((made) => made.dispose()))
+      expect(printed.filter((text) => text.includes('stuck-listing'))).toHaveLength(2)
     })
   })
 })
@@ -2760,6 +2836,146 @@ describe('plugin host bus', () => {
     }
   })
 
+  test('a listener that reads a session back on session.deleted finds it already gone with its draft, as a reader does after the delete', async () => {
+    const served = await serveCore(tempDir('conciv-core-unit-'), [], {})
+    onTestFinished(() => served.stop())
+    const rpc = makeRpcClient(`${served.origin}/t/${served.made.agentToken}`)
+    const key = sessionKey(served.made)
+    const {sessionId} = await rpc.sessions.create(undefined)
+    await rpc.drafts.set({sessionId, text: 'an unsent draft', selectionStart: 0, selectionEnd: 0})
+    const readBack = () =>
+      Promise.all([
+        key.run((sessions) =>
+          sessions.get(sessionId).pipe(
+            Effect.match({
+              onFailure: (error) => ({gone: error}),
+              onSuccess: (session) => ({alive: session.id}),
+            }),
+          ),
+        ),
+        rpc.drafts.get({sessionId}),
+      ])
+    const heardAt: Awaited<ReturnType<typeof readBack>>[] = []
+    await served.made.pluginHost.runPromise(
+      Bus.Service.use((bus) =>
+        bus.listen((event) =>
+          event.type === SessionEvent.Deleted.type
+            ? Effect.promise(async () => void heardAt.push(await readBack()))
+            : Effect.void,
+        ),
+      ),
+    )
+    await rpc.sessions.delete({sessionId})
+    const afterDelete = await readBack()
+    expect(afterDelete).toEqual([{gone: expect.objectContaining({_tag: 'Session.NotFoundError', sessionId})}, null])
+    expect(heardAt).toEqual([afterDelete])
+  })
+
+  test('a delete whose session.deleted publish fails still clears the messages, captures and page changes, and rejects with the publish failure', async () => {
+    const stateRoot = tempDir('conciv-core-unit-')
+    const harness = createTestHarness(requireClaude())
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
+    onTestFinished(() => made.dispose())
+    const key = sessionKey(made)
+    const id = SessionId.parse('conciv_deleted_while_the_bus_is_broken')
+    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    expect(await made.plane.followUp(id, 'leave a message behind')).toEqual({kind: 'delivered'})
+    const scope = made.runtime.forSession(id)
+    await scope.captures.store('call-1', {
+      after: {kind: 'after', ts: 1, descriptor: {tagName: 'input', selectorPath: '#agree'}},
+    })
+    await appendPageChange(made.chat.db, id, {verb: 'check', selector: '#agree', args: {}}, 1)
+    const left = async () => [
+      (await made.plane.hydrate(id)).messages.length,
+      (await scope.captures.list()).captures.length,
+      (await scope.page.changes()).length,
+    ]
+    expect(await left()).toEqual([1, 1, 1])
+    made.chat.db.run(sql`DROP TABLE event_sequence`)
+    await expect(key.run((sessions) => sessions.remove(SessionSchema.Id.make(id)))).rejects.toThrow(/event_sequence/)
+    expect(await key.fail((sessions) => sessions.get(SessionSchema.Id.make(id)))).toMatchObject({
+      _tag: 'Session.NotFoundError',
+    })
+    expect(await left()).toEqual([0, 0, 0])
+  })
+
+  test('a delete whose session.deleted publish and captures cleanup both fail still clears the messages and page changes, and rejects with both failures, the publish first', async () => {
+    const stateRoot = tempDir('conciv-core-unit-')
+    const harness = createTestHarness(requireClaude())
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
+    onTestFinished(() => made.dispose())
+    const key = sessionKey(made)
+    const id = SessionId.parse('conciv_deleted_while_the_bus_and_captures_are_broken')
+    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    expect(await made.plane.followUp(id, 'leave a message behind')).toEqual({kind: 'delivered'})
+    const scope = made.runtime.forSession(id)
+    await appendPageChange(made.chat.db, id, {verb: 'check', selector: '#agree', args: {}}, 1)
+    const left = async () => [(await made.plane.hydrate(id)).messages.length, (await scope.page.changes()).length]
+    expect(await left()).toEqual([1, 1])
+    made.chat.db.run(sql`DROP TABLE event_sequence`)
+    made.chat.db.run(sql`DROP TABLE tool_captures`)
+    const failure = await key
+      .run((sessions) => sessions.remove(SessionSchema.Id.make(id)))
+      .then(
+        () => null,
+        (error: unknown) => error,
+      )
+    expect(failure).toBeInstanceOf(AggregateError)
+    expect(failure).toMatchObject({
+      errors: [
+        expect.objectContaining({message: expect.stringMatching(/event_sequence/)}),
+        expect.objectContaining({message: expect.stringMatching(/tool_captures/)}),
+      ],
+    })
+    expect(await key.fail((sessions) => sessions.get(SessionSchema.Id.make(id)))).toMatchObject({
+      _tag: 'Session.NotFoundError',
+    })
+    expect(await left()).toEqual([0, 0])
+  })
+
+  test('a delete whose drafts delete fails still publishes session.deleted and clears the messages, captures and page changes, and rejects with the drafts failure', async () => {
+    const stateRoot = tempDir('conciv-core-unit-')
+    const harness = createTestHarness(requireClaude())
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
+    onTestFinished(() => made.dispose())
+    const key = sessionKey(made)
+    const id = SessionId.parse('conciv_deleted_while_drafts_are_broken')
+    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    expect(await made.plane.followUp(id, 'leave a message behind')).toEqual({kind: 'delivered'})
+    const scope = made.runtime.forSession(id)
+    await scope.captures.store('call-1', {
+      after: {kind: 'after', ts: 1, descriptor: {tagName: 'input', selectorPath: '#agree'}},
+    })
+    await appendPageChange(made.chat.db, id, {verb: 'check', selector: '#agree', args: {}}, 1)
+    const left = async () => [
+      (await made.plane.hydrate(id)).messages.length,
+      (await scope.captures.list()).captures.length,
+      (await scope.page.changes()).length,
+    ]
+    expect(await left()).toEqual([1, 1, 1])
+    const heard: {type: string; data: unknown}[] = []
+    await made.pluginHost.runPromise(
+      Bus.Service.use((bus) => bus.listen((event) => Effect.sync(() => heard.push(event)))),
+    )
+    made.chat.db.run(sql`DROP TABLE drafts`)
+    const failure = await key
+      .run((sessions) => sessions.remove(SessionSchema.Id.make(id)))
+      .then(
+        () => null,
+        (error: unknown) => error,
+      )
+    expect(failure).toBeInstanceOf(Error)
+    expect(failure).not.toBeInstanceOf(AggregateError)
+    expect(failure).toMatchObject({message: expect.stringMatching(/drafts/)})
+    expect(heard.filter((event) => event.type === SessionEvent.Deleted.type)).toEqual([
+      expect.objectContaining({data: {sessionID: id}}),
+    ])
+    expect(await key.fail((sessions) => sessions.get(SessionSchema.Id.make(id)))).toMatchObject({
+      _tag: 'Session.NotFoundError',
+    })
+    expect(await left()).toEqual([0, 0, 0])
+  })
+
   test('a plugin experimental.idle hook fires for a run that completes and not for one that fails or is stopped, while turnEnd fires for all three', async () => {
     const stateRoot = tempDir('conciv-core-unit-')
     const turnEnds: SessionId[] = []
@@ -4096,7 +4312,7 @@ describe('plugin context keys provided by core', () => {
           {action: 'plugin.use', resource: 'blocked-*', effect: 'deny'},
           {action: 'integration.use', resource: 'plugin:legacy', effect: 'deny'},
         ]),
-        provideHarnessModels(listingHarness([OPUS, SONNET, RETIRED], 'sonnet')),
+        provideHarnessModels(listingHarness([OPUS, SONNET, RETIRED], 'sonnet'), UNSTOPPED),
         provideGlobalRoots(home),
       ).pipe(
         Layer.provideMerge(
@@ -4177,7 +4393,9 @@ describe('plugin context keys provided by core', () => {
     expect(await models((service) => service.available(['image']))).toEqual([])
     expect(await models((service) => service.default())).toEqual(filled(SONNET, sonnetVariants))
     const empty = (run: (service: Model.Interface) => Effect.Effect<unknown>) =>
-      Effect.runPromise(Model.Service.use(run).pipe(Effect.provide(provideHarnessModels(listingHarness([])))))
+      Effect.runPromise(
+        Model.Service.use(run).pipe(Effect.provide(provideHarnessModels(listingHarness([]), UNSTOPPED))),
+      )
     expect(await empty((service) => service.available())).toEqual([])
     expect(await empty((service) => service.default())).toBeUndefined()
     const listed = (
@@ -4186,7 +4404,9 @@ describe('plugin context keys provided by core', () => {
       run: (service: Model.Interface) => Effect.Effect<unknown>,
     ) =>
       Effect.runPromise(
-        Model.Service.use(run).pipe(Effect.provide(provideHarnessModels(listingHarness(harnessModels, defaultModel)))),
+        Model.Service.use(run).pipe(
+          Effect.provide(provideHarnessModels(listingHarness(harnessModels, defaultModel), UNSTOPPED)),
+        ),
       )
     expect(await listed([RETIRED, OPUS, SONNET], 'retired', (service) => service.default())).toEqual(filled(OPUS, []))
     expect(await listed([RETIRED, OPUS, SONNET], 'retired', (service) => service.available())).toEqual([
@@ -4250,8 +4470,9 @@ describe('plugin context keys provided by core', () => {
     expect(created.time.created).toBeLessThanOrEqual(created.time.updated)
     expect(await key.run((sessions) => sessions.get(sessionId))).toEqual(created)
 
+    const modelRef = Schema.decodeSync(ModelSchema.Ref)
     await key.run((sessions) =>
-      sessions.switchModel({sessionId, model: {id: 'sonnet', providerId: 'listing-cli', variant: 'high'}}),
+      sessions.switchModel({sessionId, model: modelRef({id: 'sonnet', providerId: 'listing-cli', variant: 'high'})}),
     )
     expect((await key.run((sessions) => sessions.get(sessionId))).model).toEqual({
       id: 'sonnet',
@@ -4260,7 +4481,7 @@ describe('plugin context keys provided by core', () => {
     })
 
     const second = await key.run((sessions) =>
-      sessions.create({model: {id: 'opus', providerId: 'listing-cli'}, location}),
+      sessions.create({model: modelRef({id: 'opus', providerId: 'listing-cli'}), location}),
     )
     expect(second.model).toEqual({id: 'opus', providerId: 'listing-cli'})
     const listed = await key.run((sessions) => sessions.list())
@@ -4272,7 +4493,9 @@ describe('plugin context keys provided by core', () => {
       agent: 'plan',
     })
     expect(
-      await key.fail((sessions) => sessions.create({model: {id: 'gone', providerId: 'listing-cli'}, location})),
+      await key.fail((sessions) =>
+        sessions.create({model: modelRef({id: 'gone', providerId: 'listing-cli'}), location}),
+      ),
     ).toMatchObject({_tag: 'Session.NotFoundError', sessionId: expect.stringMatching(/^conciv_/)})
     expect((await key.run((sessions) => sessions.list())).data.map((session) => session.id).toSorted()).toEqual(
       [sessionId, second.id].toSorted(),
@@ -4309,8 +4532,8 @@ describe('plugin context keys provided by core', () => {
       agent: 'plan',
     })
 
-    const switchedTo = (model: {id: string; providerId: string | undefined; variant?: string}) =>
-      key.fail((sessions) => sessions.switchModel({sessionId, model}))
+    const switchedTo = (model: typeof ModelSchema.Ref.Encoded) =>
+      key.fail((sessions) => sessions.switchModel({sessionId, model: modelRef(model)}))
     expect(await switchedTo({id: 'opus', providerId: 'claude'})).toMatchObject({_tag: 'Session.NotFoundError'})
     expect(await switchedTo({id: 'gone', providerId: 'listing-cli'})).toMatchObject({_tag: 'Session.NotFoundError'})
     expect(await switchedTo({id: 'retired', providerId: 'listing-cli'})).toMatchObject({_tag: 'Session.NotFoundError'})
@@ -4322,7 +4545,9 @@ describe('plugin context keys provided by core', () => {
       providerId: 'listing-cli',
       variant: 'high',
     })
-    await key.run((sessions) => sessions.switchModel({sessionId, model: {id: 'opus', providerId: 'listing-cli'}}))
+    await key.run((sessions) =>
+      sessions.switchModel({sessionId, model: modelRef({id: 'opus', providerId: 'listing-cli'})}),
+    )
     expect((await key.run((sessions) => sessions.get(sessionId))).model).toEqual({
       id: 'opus',
       providerId: 'listing-cli',
@@ -4360,7 +4585,7 @@ describe('plugin context keys provided by core', () => {
         sessions.create({
           id: suppliedId,
           title: 'Overwritten',
-          model: {id: 'sonnet', providerId: 'listing-cli'},
+          model: modelRef({id: 'sonnet', providerId: 'listing-cli'}),
           metadata: {overwritten: true},
           location,
         }),

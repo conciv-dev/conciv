@@ -20,6 +20,7 @@ import {useQuery} from '@conciv/client'
 import type {RpcClient} from '@conciv/contract'
 import {writeClipboardText} from '@conciv/ui-kit-system'
 import {Conciv, type ClientConnectionStatus, type ConcivClient} from '@conciv/plugin'
+import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import type {
   Layout,
   MountedSession,
@@ -445,7 +446,7 @@ export function createPluginAttachment(apis: HostApis) {
         get location() {
           const root = project.isSuccess ? project.data?.project.root : undefined
 
-          return root === undefined ? undefined : {directory: root}
+          return root === undefined ? undefined : {directory: AbsolutePath.make(root)}
         },
       })
     })
