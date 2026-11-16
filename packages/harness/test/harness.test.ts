@@ -1,4 +1,4 @@
-import {describe, expect, it, beforeAll, afterAll, afterEach, test} from 'vitest'
+import {describe, expect, it, beforeAll, afterAll, afterEach, onTestFinished, test} from 'vitest'
 import type {
   HarnessChatDeps,
   HarnessConnectContext,
@@ -59,7 +59,7 @@ import {claudeTtyCommand} from '../src/claude/tty.js'
 import {codex} from '../src/codex/index.js'
 import {codexDefaultModel, codexHome, codexModels} from '../src/codex/models.js'
 import {codexRunAdapter} from '../src/codex/run-adapter.js'
-import {mkdir, open, realpath, symlink, writeFile} from 'node:fs/promises'
+import {mkdir, open, readFile, realpath, symlink, writeFile} from 'node:fs/promises'
 import {DatabaseSync} from 'node:sqlite'
 import {rolloutPath, codexHistory, sessionsRoot, stateDbPath} from '../src/codex/history.js'
 import {codexModels as CODEX_MODELS, makeTextAdapter} from '@conciv/ai/server'
@@ -1742,6 +1742,31 @@ describe('opencode models', () => {
     await fakeOpencode('', 1)
 
     await expect(resolveHarnessModels(opencode, UNSTOPPED)).rejects.toThrow()
+  })
+
+  it('ends the opencode CLI when the signal aborts and settles only once it has exited', async () => {
+    const bin = tempDir('conciv-fake-opencode-')
+    const pidPipe = join(bin, 'pid')
+    execFileSync('mkfifo', [pidPipe])
+    await writeFile(join(bin, 'opencode'), `#!/bin/sh\necho $$ > "${pidPipe}"\nexec cat\n`, {mode: 0o755})
+    process.env.PATH = `${bin}:${savedPath ?? ''}`
+    const stop = new AbortController()
+    const stopped = new Error('the engine stopped')
+    const listing = expect(resolveHarnessModels(opencode, {signal: stop.signal})).rejects.toMatchObject({
+      name: 'AbortError',
+      cause: stopped,
+    })
+    const pid = Number(await readFile(pidPipe, 'utf8'))
+    onTestFinished(() => {
+      try {
+        process.kill(pid)
+      } catch (error) {
+        expect(error).toMatchObject({code: 'ESRCH'})
+      }
+    })
+    stop.abort(stopped)
+    await listing
+    expect(() => process.kill(pid, 0)).toThrow('ESRCH')
   })
 })
 

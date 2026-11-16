@@ -262,7 +262,8 @@ with different rooting rules.
   Promise<HarnessModel[]>` for CLIs whose model list must be fetched
   (`packages/protocol/src/harness-types.ts:26-38`). The engine aborts `signal` when it stops: hand it to
   whatever lists the models (`execFile(..., {signal})`, a `fetch`, an SDK's abort controller) so a
-  listing still running is ended with the engine, and settle only once that child has exited. A `models` that takes no parameter still type-checks.
+  listing still running is ended with the engine, and settle only once that child has exited
+  (`packages/harness/src/opencode/models.ts`). A `models` that takes no parameter still type-checks.
   Read it through `resolveHarnessModels(adapter, {signal})` (`packages/harness/src/registry.ts:28-35`),
   never by branching on `typeof adapter.models` yourself elsewhere.
 - **`tty?: {command(ctx: HarnessConnectContext): TtyCommand}`** — the argv/options for opening the CLI

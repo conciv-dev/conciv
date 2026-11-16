@@ -1,4 +1,4 @@
-import {execFile} from 'node:child_process'
+import {execFile, type ChildProcess} from 'node:child_process'
 import {promisify} from 'node:util'
 import {z} from 'zod'
 import type {HarnessModel} from '@conciv/protocol/harness-types'
@@ -55,11 +55,19 @@ function distinctModels(listed: ListedModel[]): ListedModel[] {
   )
 }
 
-export async function opencodeModels(): Promise<HarnessModel[]> {
-  const {stdout} = await run('opencode', ['models', '--verbose'], {
+function exited(child: ChildProcess): Promise<void> {
+  if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return Promise.resolve()
+  return new Promise((resolve) => child.once('exit', () => resolve()))
+}
+
+export async function opencodeModels({signal}: {signal: AbortSignal}): Promise<HarnessModel[]> {
+  const listing = run('opencode', ['models', '--verbose'], {
     timeout: LISTING_TIMEOUT_MS,
     maxBuffer: LISTING_BUFFER_BYTES,
+    signal,
   })
+  await Promise.allSettled([listing, exited(listing.child)])
+  const {stdout} = await listing
   const listed = distinctModels(
     (stdout.match(MODEL_BLOCK) ?? [])
       .flatMap(parsedBlock)
