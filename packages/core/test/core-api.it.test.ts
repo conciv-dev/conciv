@@ -6383,6 +6383,7 @@ export default {
     expect(seen.plugins.map((plugin) => plugin.id).toSorted()).toEqual([
       'broken',
       'conciv.config.skill',
+      'conciv.page',
       'conciv.skill',
       'conciv.tool.skill',
       'configured',
