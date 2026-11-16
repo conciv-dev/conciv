@@ -2272,12 +2272,18 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@conciv/uno-preset':
+        specifier: workspace:*
+        version: link:../uno-preset
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+      unocss:
+        specifier: 'catalog:'
+        version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)

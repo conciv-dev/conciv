@@ -28,8 +28,10 @@
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
+    "@conciv/uno-preset": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:",
+    "unocss": "catalog:",
     "vite": "catalog:"
   }
 }
