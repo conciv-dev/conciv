@@ -7811,6 +7811,42 @@ module.exports = {default: {setup(ctx) {
     expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:tools'))
   }, 60_000)
 
+  test('its store load cut off by a lost engine waits for the engine and the plugin comes back, while an engine error on that load still fails it', async () => {
+    const CALL_DEADLINE_MS = 3000
+    const CONNECTION_LOSS_RETRY_DELAY_MS = 250
+    const MARGIN_MS = 750
+    const OUTAGE_WINDOW_MS = CALL_DEADLINE_MS + CONNECTION_LOSS_RETRY_DELAY_MS + MARGIN_MS
+    const STORE_READS = 2
+    const STORE_READ = ['settings', 'all']
+    await page.viewport(1000, 900)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const failedRow = () => page.getByText('Failed', {exact: true})
+    const fixtureReload = () => page.getByRole('button', {name: 'Reload', exact: true}).first()
+
+    const reads = await faults.install({kind: 'cut-on-release', path: STORE_READ})
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await coreControl.awaitFaultPending(reads, STORE_READS)
+    const offline = await faults.install({kind: 'offline'})
+    const retries = await faults.install({kind: 'gate', path: STORE_READ})
+    await coreControl.releaseFault(reads)
+
+    await expect(coreControl.awaitFaultPending(retries, 1, OUTAGE_WINDOW_MS)).rejects.toThrow('captured 0 of 1')
+    await expect.element(tab('Fixture tools')).not.toBeInTheDocument()
+
+    await coreControl.releaseFault(retries)
+    await coreControl.releaseFault(offline)
+    await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
+    await expect.element(control('Write a held note')).toBeVisible()
+    await page.getByRole('link', {name: 'Settings'}).click()
+    await tab('Plugins').click()
+    await expect.element(fixtureReload()).toBeVisible()
+    await expect.element(failedRow()).not.toBeInTheDocument()
+
+    await faults.install({kind: 'fail', path: STORE_READ, status: 500})
+    await fixtureReload().click()
+    await expect.element(failedRow(), {timeout: 15_000}).toBeVisible()
+  }, 60_000)
+
   test('a cold link to a tab no panel lists ends on the chat, and a cold link to its tab with the engine unreachable keeps its address under the lost connection notice and opens the tab once the engine is back', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(`${tabPath(sessionId, 'fixture:missing')}?open=true`)
