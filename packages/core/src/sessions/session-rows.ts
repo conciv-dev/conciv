@@ -188,7 +188,7 @@ async function latestRow(scope: RowScope): Promise<SessionRecord | null> {
   return mine ?? null
 }
 
-export async function resolveRow(scope: RowScope, body: {id?: string}): Promise<{sessionId: SessionId}> {
+export async function resolveRow(scope: RowScope, body: {id?: string}): Promise<{sessionId: SessionId} | null> {
   const mint = resolveMintId(scope)
   if (body.id && isSessionId(body.id)) {
     const existing = await rowById(scope.db, body.id)
@@ -200,7 +200,7 @@ export async function resolveRow(scope: RowScope, body: {id?: string}): Promise<
   if (nativeId.success) {
     const ref: NativeSessionRef = {harnessKind: scope.harnessKind, cwd: scope.cwd, nativeId: nativeId.data}
     const wrapped = await rowByNativeRef(scope.db, ref)
-    if (wrapped) return {sessionId: wrapped.id}
+    if (wrapped) return wrapped.deletedAt === null ? {sessionId: wrapped.id} : null
     const claimed = await claimNativeRow(scope, ref, 'external')
     return {sessionId: claimed.id}
   }
