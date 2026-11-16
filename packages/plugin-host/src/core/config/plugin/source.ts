@@ -28,7 +28,7 @@ export interface Interface {
   readonly changes: () => Stream.Stream<void>
 }
 
-export const Service = Context.Service<Interface>('@opencode/ConfigPluginSource')
+export const Service = Context.Service<Interface>('@conciv/ConfigPluginSource')
 
 export const ConfiguredPlugins = Context.Service<readonly ConfigPlugin.Plugin[]>('@conciv/ConfiguredPlugins')
 

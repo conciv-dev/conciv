@@ -6,7 +6,7 @@ import {Effect} from 'effect'
 
 type TempDir = {readonly path: string}
 
-export const tmpdir = async (prefix = 'opencode-core-test-') => {
+export const tmpdir = async (prefix = 'conciv-core-test-') => {
   const dir = await make(prefix)
   return {
     path: dir,
@@ -16,7 +16,7 @@ export const tmpdir = async (prefix = 'opencode-core-test-') => {
   }
 }
 
-export const tmpdirScoped = (prefix = 'opencode-core-test-') =>
+export const tmpdirScoped = (prefix = 'conciv-core-test-') =>
   Effect.acquireRelease(
     Effect.tryPromise(() => make(prefix)),
     (dir) => Effect.tryPromise(() => remove(dir)).pipe(Effect.orDie),
@@ -24,7 +24,7 @@ export const tmpdirScoped = (prefix = 'opencode-core-test-') =>
 
 export const withTempDir = <A, E, R>(body: (tmp: TempDir) => Effect.Effect<A, E, R>) =>
   Effect.acquireUseRelease(
-    Effect.tryPromise(() => make('opencode-core-test-')),
+    Effect.tryPromise(() => make('conciv-core-test-')),
     (path) => body({path}),
     (dir) => Effect.tryPromise(() => remove(dir)).pipe(Effect.orDie),
   )

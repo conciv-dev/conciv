@@ -1,7 +1,7 @@
 {
   "name": "@conciv/plugin-host",
   "version": "0.0.22",
-  "description": "Internal to @conciv/core (installed automatically, do not install directly). The engine-side plugin host: opencode's replayable state, hook registry and tool domain, in Effect.",
+  "description": "Internal to @conciv/core (installed automatically, do not install directly). The engine-side plugin host: replayable plugin state, the hook registry and the tool domain, in Effect.",
   "keywords": [
     "conciv",
     "plugin",

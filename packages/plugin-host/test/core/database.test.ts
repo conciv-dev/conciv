@@ -20,12 +20,12 @@ describe.skipIf(process.platform === 'win32')('Database file permissions', () =>
   test('creates the database and sidecars readable only by the owner', async () => {
     await using tmp = await tmpdir()
 
-    expect(await openModes(path.join(tmp.path, 'opencode.db'))).toEqual([0o600, 0o600, 0o600])
+    expect(await openModes(path.join(tmp.path, 'conciv.db'))).toEqual([0o600, 0o600, 0o600])
   })
 
   test('leaves the modes of a database and sidecars it did not create as they were', async () => {
     await using tmp = await tmpdir()
-    const filename = path.join(tmp.path, 'opencode.db')
+    const filename = path.join(tmp.path, 'conciv.db')
     await Promise.all(
       ['', '-wal', '-shm'].map(async (suffix) => {
         await writeFile(filename + suffix, '')
