@@ -33,6 +33,7 @@ import {
   type Transform,
 } from '../src/promise/index.js'
 import type {ServerRef} from '../src/experimental/index.js'
+import type * as SessionMessage from '../src/schema/session-message.js'
 import type {Accessor} from 'solid-js'
 import * as Experimental from '../src/experimental/index.js'
 import {
@@ -155,6 +156,7 @@ describe('define', () => {
     expectTypeOf<ToolContext['sessionId']>().toEqualTypeOf<SessionId>()
     expectTypeOf<Plugin.Context['bundler']>().toEqualTypeOf<BundlerBridge | undefined>()
     expectTypeOf<Omit<ToolContext, 'signal' | 'progress'>>().toEqualTypeOf<Omit<Tool.Context, 'progress' | 'cancel'>>()
+    expectTypeOf<ToolContext['messageId']>().toEqualTypeOf<SessionMessage.Id | undefined>()
     expect(tool.name).toBe('wait')
   })
 })
