@@ -41,6 +41,7 @@ function retriableDraftSave(failureCount: number, error: unknown): boolean {
 export type AppData = {
   utils: QueryUtils
   client: ConcivClient
+  drafts: DraftStore | null
   invalidateSessions: () => Promise<void>
   invalidateSession: (sessionId: string) => Promise<void>
   seedSession: (row: SessionMeta) => Promise<void>
@@ -149,6 +150,7 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
   return {
     utils,
     client,
+    drafts,
     invalidateSessions: () => invalidate([...listKeys, utils.sessions.get.key()]),
     invalidateSession,
     seedSession,

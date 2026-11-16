@@ -322,6 +322,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     paneAttachments(
       instances.map((instance) => instance.extension),
       imageInput(),
+      appData.drafts,
     ),
   )
   const PaneAttachment = (slotProps: {removable?: boolean}): JSX.Element => (

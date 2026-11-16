@@ -16,7 +16,7 @@ import appManifest from '../package.json' with {type: 'json'}
 import {until} from '@conciv/harness-testkit/until'
 import {formatForDisplay} from '@tanstack/solid-hotkeys'
 import {ChatPane} from '../src/pane/chat-pane.js'
-import {createBrowserDraftStore} from '../src/runtime/persistence/drafts.js'
+import {createBrowserDraftStore, type DraftStore} from '../src/runtime/persistence/drafts.js'
 import {persistStore} from '../src/runtime/persistence/persist.js'
 import {
   bootedCore,
@@ -413,7 +413,7 @@ describe('attachment widget', () => {
     calm.card(() => <span>calm player</span>)
     const extension = defineExtension({name: 'crash-attachment', attachments: [crashing, calm]})
     return {
-      ...paneAttachments([extension], false),
+      ...paneAttachments([extension], false, null),
       crashingFile: new File(['{}'], 'crashing.bin', {type: 'application/x-crashing'}),
       calmFile: new File(['{}'], 'calm.bin', {type: 'application/x-fixture'}),
     }
@@ -8201,6 +8201,46 @@ describe('the local draft store', () => {
     await createBrowserDraftStore().getItem(key)
     expect(await rawRequest((blobs) => blobs.getKey(orphan), 'readonly')).toBeUndefined()
     expect(await rawRequest((blobs) => blobs.getKey(kept.id), 'readonly')).toBe(kept.id)
+  })
+
+  const storedId = async (text: string) =>
+    Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))), (byte) =>
+      byte.toString(16).padStart(2, '0'),
+    ).join('')
+  const picture = (name: string) => ({name, mimeType: 'image/png', text: `the bytes of ${name}`})
+  const chip = (name: string) => page.getByRole('button', {name: `Remove ${name}`})
+
+  function AttachingComposer(props: {store: DraftStore}): JSX.Element {
+    const chat = useChatSession({
+      rpc: makeRpcClient('http://127.0.0.1:9'),
+      apiBase: 'http://127.0.0.1:9',
+      sessionId: 'conciv_widget',
+    })
+    return (
+      <ChatProvider chat={chat}>
+        <ComposerHandlersProvider value={{onSend: () => {}, onCancel: () => {}}}>
+          <Composer attachmentAdapter={paneAttachments([], 'native', props.store).adapter} />
+        </ComposerHandlersProvider>
+      </ChatProvider>
+    )
+  }
+
+  test('an attached image is put in the store when it is attached; guards: the same image removed and attached again, or attached twice, keeps a chip each time', async () => {
+    const store = createBrowserDraftStore()
+    render(() => <AttachingComposer store={store} />)
+    const kept = picture('kept.png')
+
+    await coreControl.chooseFiles('Add an attachment', [kept])
+    await expect.element(chip('kept.png')).toBeVisible()
+    const id = await storedId(kept.text)
+    expect(await rawRequest((blobs) => blobs.getKey(id), 'readonly')).toBe(id)
+
+    await chip('kept.png').click()
+    await expect.element(chip('kept.png')).not.toBeInTheDocument()
+    await coreControl.chooseFiles('Add an attachment', [kept])
+    await expect.element(chip('kept.png')).toBeVisible()
+    await coreControl.chooseFiles('Add an attachment', [kept])
+    await expect.element(chip('kept.png').nth(1)).toBeVisible()
   })
 
   test('treats a corrupt stored document as absent, so the draft starts empty and the next edit is saved', async () => {

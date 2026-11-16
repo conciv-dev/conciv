@@ -11,16 +11,37 @@ import {
   type AttachmentCardSlot,
 } from '@conciv/ui-kit-chat'
 import {guardedAttachmentCards} from '../extension/extension-boundary.js'
+import type {DraftStore} from '../runtime/persistence/drafts.js'
 
 const IMAGE_ATTACHMENT_ADAPTER = createSimpleImageAttachmentAdapter()
 const TEXT_ATTACHMENT_ADAPTER = createTextAttachmentAdapter()
+const MAX_INLINE_BYTES = 20 * 1024 * 1024
+
+function keptInDraftStore(drafts: DraftStore | null): AttachmentAdapter {
+  if (!drafts) return IMAGE_ATTACHMENT_ADAPTER
+  return {
+    ...IMAGE_ATTACHMENT_ADAPTER,
+    add: (state) => {
+      const added = IMAGE_ATTACHMENT_ADAPTER.add(state)
+      if (!(added instanceof Promise) || state.file.size > MAX_INLINE_BYTES) return added
+      return added.then(async (pending) => {
+        const blob = await drafts.putBlob(state.file).catch((error: unknown) => {
+          console.error('[conciv] could not keep the attached image in the local draft store', error)
+          return undefined
+        })
+        return blob ? {...pending, blob} : pending
+      })
+    },
+  }
+}
 
 export function paneAttachments(
   extensions: AnyExtension[],
   imageInput: unknown,
+  drafts: DraftStore | null,
 ): {cards: AttachmentCardSlot[]; chips: AttachmentCardSlot[]; adapter: AttachmentAdapter} {
   const cards = guardedAttachmentCards(extensions, 'card')
-  const image = imageInput === 'native' || imageInput === 'fileRef' ? IMAGE_ATTACHMENT_ADAPTER : undefined
+  const image = imageInput === 'native' || imageInput === 'fileRef' ? keptInDraftStore(drafts) : undefined
   const adapter = composeAttachmentAdapters([
     ...(image ? [image] : []),
     TEXT_ATTACHMENT_ADAPTER,
