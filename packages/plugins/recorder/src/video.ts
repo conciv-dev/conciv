@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {open, rename, stat, unlink, writeFile} from 'node:fs/promises'
-import type {RrwebEvent} from '../shared/protocol.js'
+import type {RrwebEvent} from './shared/protocol.js'
 import type {KeyframeRenderer} from './render.js'
 
 export type VideoPiece = {data: string; eof: boolean}

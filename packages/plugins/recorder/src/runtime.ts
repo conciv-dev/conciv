@@ -1,4 +1,4 @@
-import type {Keyframe, RecorderConfig, RrwebEvent} from '../shared/protocol.js'
+import type {Keyframe, RecorderConfig, RrwebEvent} from './shared/protocol.js'
 import type {ClientRings} from './rings.js'
 import type {CaptureControl} from './capture-control.js'
 import type {KeyframeRenderer} from './render.js'

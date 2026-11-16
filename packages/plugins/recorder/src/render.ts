@@ -4,7 +4,7 @@ import {createRequire} from 'node:module'
 import {dirname, join} from 'node:path'
 import {z} from 'zod'
 import type {Browser} from 'playwright-core'
-import type {Keyframe, RrwebEvent} from '../shared/protocol.js'
+import type {Keyframe, RrwebEvent} from './shared/protocol.js'
 
 export type KeyframeRenderer = {
   render(events: RrwebEvent[], timestamps: number[]): Promise<Keyframe[]>

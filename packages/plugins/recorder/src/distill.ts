@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {ActionLogEntry, RrwebEvent} from '../shared/protocol.js'
+import type {ActionLogEntry, RrwebEvent} from './shared/protocol.js'
 import {createNodeIndex, type NodeIndex} from './node-index.js'
 
 const meta = z.object({href: z.string()})

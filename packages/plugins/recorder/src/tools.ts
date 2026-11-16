@@ -1,6 +1,6 @@
 import {Tool, type ToolDomain} from '@conciv/plugin'
 import {z} from 'zod'
-import {pullWindow, type RecorderRuntime} from './server/runtime.js'
+import {pullWindow, type RecorderRuntime} from './runtime.js'
 
 const options = {namespace: 'recording', codemode: true}
 
