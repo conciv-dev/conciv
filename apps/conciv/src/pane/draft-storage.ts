@@ -1,6 +1,7 @@
 import {z} from 'zod'
 import {isEqual} from 'es-toolkit'
-import {createStore} from 'solid-js/store'
+import {untrack} from 'solid-js'
+import {createStore, unwrap} from 'solid-js/store'
 import type {DraftRow} from '@conciv/contract'
 import type {AttachmentState, ComposerDraft, ComposerDraftWriter} from '@conciv/ui-kit-chat'
 import {persistStore} from '../runtime/persistence/persist.js'
@@ -95,8 +96,10 @@ function makeLocalDraftWriter(
   selection: () => SelectionOffsets | null,
   writable: () => boolean,
 ): LocalDraftWriter {
-  const [document, setDocument] = createStore<{draft: LocalDraft | null}>({draft: null})
-  let files: readonly AttachmentState[] = []
+  const [document, setDocument] = createStore<{draft: LocalDraft | null; files: AttachmentState[]}>({
+    draft: null,
+    files: [],
+  })
   const feed = () => {
     const draft = document.draft
     if (!draft || !writable() || sameAsRow(draft, appData.cachedDraft(sessionId))) return
@@ -108,7 +111,7 @@ function makeLocalDraftWriter(
         selectionStart: draft.selectionStart,
         selectionEnd: draft.selectionEnd,
         attachments: [],
-        pending: [...files],
+        pending: [...unwrap(document.files)],
         updatedAt,
       })
       .then((saved) => {
@@ -121,18 +124,21 @@ function makeLocalDraftWriter(
     name: sessionId,
     storage: NoLocalHydration,
     serialize: (value) => JSON.stringify(value.draft),
-    deserialize: () => ({draft: null}),
+    deserialize: () => ({draft: null, files: []}),
     write: (_value, serialized) => drafts.setDocument(sessionId, JSON.parse(serialized)).finally(feed),
   })
   const writer: ComposerDraftWriter = (_key, draft: ComposerDraft) => {
-    files = draft.attachments
     const offsets = clampSelection(selection(), draft.draft)
+    persisted.setStore(
+      'files',
+      draft.attachments.map((attachment) => structuredClone(unwrap(attachment))),
+    )
     persisted.setStore('draft', {
       text: draft.draft,
       selectionStart: offsets.start,
       selectionEnd: offsets.end,
       attachments: draft.attachments.map(localAttachment),
-      syncedAt: document.draft?.syncedAt,
+      syncedAt: untrack(() => document.draft?.syncedAt),
     })
   }
   return {writer, typed: () => document.draft, feed}
