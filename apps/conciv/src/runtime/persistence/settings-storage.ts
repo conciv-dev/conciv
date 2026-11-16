@@ -1,14 +1,17 @@
+import {ORPCError} from '@orpc/client'
 import type {RpcClient, SettingsScope} from '@conciv/contract'
 import type {AsyncStorage} from '@solid-primitives/storage'
 
 type SettingsTarget = {readonly scope: SettingsScope; readonly namespace: string}
 
-export function settingsStorage(rpc: RpcClient, target: SettingsTarget): AsyncStorage {
+const untilEngineError = (attempt: {readonly error: unknown}) => !(attempt.error instanceof ORPCError)
+
+export function settingsStorage(rpc: RpcClient, target: SettingsTarget, signal?: AbortSignal): AsyncStorage {
   const where = {scope: target.scope, namespace: target.namespace}
 
   return {
     getItem: async (key) => {
-      const snapshot = await rpc.settings.all(where)
+      const snapshot = await rpc.settings.all(where, {signal, context: {shouldRetry: untilEngineError}})
 
       return Object.hasOwn(snapshot.value, key) ? JSON.stringify(snapshot.value[key]) : null
     },

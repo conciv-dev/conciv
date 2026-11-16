@@ -21,6 +21,8 @@ function sendRejection(verdict: Extract<SendVerdict, {ok: false}>): SendRejectio
   return {rejected: true, message: verdict.message, tone: verdict.tone}
 }
 
+const ANSWER_UNSENT = 'Your answer was not sent.'
+
 const WITHDRAWN: SendRejection = {rejected: true, message: null, tone: 'info'}
 
 function failureMessage(failure: unknown): string {
@@ -61,7 +63,7 @@ type PaneMessagingDeps = {
 }
 
 export type PaneMessaging = {
-  uiReply: CreateMutationResult<unknown, Error, {toolCallId: string; value: UiAnswerValue}, unknown>
+  onAnswer: (toolCallId: string, value: UiAnswerValue) => Promise<void>
   compact: CreateMutationResult<unknown, Error, void, CompactContext>
   compacting: () => boolean
   visibleError: () => Error | undefined
@@ -128,6 +130,16 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
     })
   }
 
+  const onAnswer = async (toolCallId: string, value: UiAnswerValue): Promise<void> => {
+    const verdict = checkSendState(sendState(), ANSWER_UNSENT)
+    if (!verdict.ok) {
+      const rejection = sendRejection(verdict)
+      onSendError(rejection)
+      throw rejection
+    }
+    uiReply.mutate({toolCallId, value})
+  }
+
   const onSteer = (): void => {
     const verdict = checkSendState(sendState())
     if (!verdict.ok) throw sendRejection(verdict)
@@ -155,7 +167,7 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
   }
 
   return {
-    uiReply,
+    onAnswer,
     compact,
     compacting,
     visibleError,

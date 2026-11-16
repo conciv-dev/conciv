@@ -350,7 +350,7 @@ export function UiCard(props: ToolCardProps): JSX.Element {
   const [sent, setSent] = createSignal(false)
   const answerWith = (value: UiAnswerValue) => {
     setSent(true)
-    props.addResult(value)
+    void props.addResult(value).catch(() => setSent(false))
   }
   return (
     <div class={CONTAINER}>
