@@ -13,7 +13,6 @@ import {spawn, type ChildProcess} from 'node:child_process'
 import {once} from 'node:events'
 import {request as httpRequest} from 'node:http'
 import {connect, createServer, type Socket} from 'node:net'
-import {tmpdir} from 'node:os'
 import {createRequire} from 'node:module'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -133,7 +132,6 @@ import {WSContext, defineWebSocketHelper} from 'hono/ws'
 import {z} from 'zod'
 import {hostDocument} from '../src/api/native-page.js'
 import {resolveConfig} from '../src/config.js'
-import {symbolicateFrame} from '../src/editor/symbolicate.js'
 import {readDevEndpoint, removeDevEndpoint, writeDevEndpoint} from '../src/lib/dev-endpoint.js'
 import {makeStalenessProbe} from '../src/lib/engine-stamp.js'
 import {homeDbReads} from '../src/lib/home-db-watch.js'
@@ -203,7 +201,7 @@ import {
   pluginInstructions,
   sessionToolDomain,
 } from '../src/runtime/permission-cards.js'
-import {bootMadeApp, chunkWithInlineMap, cleanupChunks, makeChatFixture, requireClaude} from './helpers.js'
+import {bootMadeApp, makeChatFixture, requireClaude} from './helpers.js'
 
 const NO_CAPABILITIES = {
   resume: false,
@@ -583,6 +581,7 @@ describe('chat plane', () => {
       model: () => null,
       staleness: () => unchanged,
       interruptIdle: async () => false,
+      symbolicate: async () => null,
     })
     const mcp = new Hono<{Variables: McpVars}>()
       .use(async (c, next) => {
@@ -1191,24 +1190,6 @@ describe('local state files', () => {
       await Promise.all(engines.map((made) => made.dispose()))
       expect(printed.filter((text) => text.includes('stuck-listing'))).toHaveLength(2)
     })
-  })
-})
-
-describe('editor symbolicate', () => {
-  afterEach(() => cleanupChunks())
-
-  it('reads a React server frame, fetches a loopback http frame, and never fetches another host', async () => {
-    const chunk = await chunkWithInlineMap('app/page.tsx', 17, 4)
-    const fetched: string[] = []
-    const fakeFetch: typeof fetch = async (input) => {
-      fetched.push(String(input))
-      return new Response(readFileSync(chunk, 'utf8'))
-    }
-    const at = (fileName: string) => symbolicateFrame({fileName, line: 2, column: 1}, tmpdir(), fakeFetch)
-    expect((await at(`about://React/Server/file://${chunk}?42`))?.file).toBe('app/page.tsx')
-    expect((await at('http://localhost:3000/src/App.tsx?x=1'))?.file).toBe('app/page.tsx')
-    expect(await at('http://169.254.169.254/latest/meta-data')).toBeNull()
-    expect(fetched.some((url) => url.includes('169.254'))).toBe(false)
   })
 })
 
@@ -2111,6 +2092,7 @@ describe('page bus and the session scope', () => {
         model: () => null,
         staleness: () => fresh,
         interruptIdle: async () => false,
+        symbolicate: async () => null,
       })
       const unsubscribe = primitives.page.bus.subscribe(SESSION_A, (frame) => {
         const requestId = readRequestId(frame)

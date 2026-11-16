@@ -241,6 +241,7 @@ export const supervisorLayer = (
   directory: string,
   options: {
     readonly plugins?: InstancePlugins.List
+    readonly builtin?: InstancePlugins.Builtin
     readonly configured?: readonly ConfigPlugin.Plugin[]
     readonly source?: Layer.Layer<Context.Service.Identifier<typeof ConfigPluginSource.Service>>
   } = {},
@@ -248,7 +249,7 @@ export const supervisorLayer = (
   PluginSupervisor.layer.pipe(
     Layer.provideMerge(
       Layer.mergeAll(
-        InstancePlugins.bound(options.plugins ?? []),
+        InstancePlugins.bound(options.plugins ?? [], options.builtin),
         PluginUpdate.layer,
         options.source ??
           ConfigPluginSource.layer.pipe(
