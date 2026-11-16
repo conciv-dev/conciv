@@ -1302,7 +1302,7 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
       await once(request.end(), 'continue')
       return {context: null}
     })
-    await expect(bootEngine(root, {port: {exact: port}, extensions: [knocking]})).rejects.toThrow()
+    await expect(bootEngine(root, {port: {exact: port}, extensions: [knocking]})).rejects.toThrow(/is not valid JSON/)
     expect(await Promise.all(outcomes)).toEqual([expect.toBeOneOf([500, 'dropped'])])
     const probe = createServer().listen(port, '127.0.0.1')
     await expect(once(probe, 'listening')).resolves.toEqual([])
