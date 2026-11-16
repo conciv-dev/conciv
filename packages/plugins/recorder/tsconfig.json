@@ -1,0 +1,7 @@
+{
+  "extends": "@conciv/tsconfig/tsconfig.solid.json",
+  "compilerOptions": {
+    "lib": ["ES2025", "DOM"],
+    "types": ["node"]
+  }
+}

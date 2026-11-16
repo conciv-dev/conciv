@@ -24,8 +24,8 @@ export function patchInfo(patchText: string): ApplyPatchInfo {
   if (!patchText) return {files: [], added: 0, removed: 0}
   const files = [
     ...new Set(
-      [...patchText.matchAll(/^\*\*\*\s+(?:Update|Add|Delete)\s+File:\s+(.+)$/gm)].map((match) =>
-        basename((match[1] ?? '').trim()),
+      [...patchText.matchAll(/^\*\*\*[ \t]+(?:Update|Add|Delete)[ \t]+File:[ \t]+([^ \t\n\r\u2028\u2029].*)$/gm)].map(
+        (match) => basename((match[1] ?? '').trim()),
       ),
     ),
   ].filter(Boolean)
@@ -39,7 +39,7 @@ export function parseClaudePatchBlocks(patchText: string): ApplyPatchBlock[] {
     .replace(/^\*\*\*\s*Begin Patch\s*$/gm, '')
     .replace(/^\*\*\*\s*End Patch\s*$/gm, '')
     .trim()
-  const headerRegex = /^\*\*\*\s+(Update|Add|Delete)\s+File:\s+(.+)$/gm
+  const headerRegex = /^\*\*\*[ \t]+(Update|Add|Delete)[ \t]+File:[ \t]+([^ \t\n\r\u2028\u2029].*)$/gm
   const blocks: ApplyPatchBlock[] = []
   let lastIndex = 0
   for (const match of cleaned.matchAll(headerRegex)) {
