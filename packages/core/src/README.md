@@ -8,7 +8,7 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 
 - `start(opts: StartOpts): Promise<Engine>` (`start.ts`): `Engine` = {port, stop, cfg, extensionContexts}
 - `StartOpts`, `PortRequest` = {exact}|{preferred}, `composeSystemPrompt` (`start.ts`)
-- `makeApp(opts): Promise<MadeApp>` (`MadeApp.startPlugins` starts the plugin host's supervisor once and resolves when the first generation is active) / `withBuiltinExtensions` / `slug` / `HealthSchema` / `AppType` (`app.ts`)
+- `makeApp(opts): Promise<MadeApp>` (`MadeApp.startPlugins` starts the plugin host's supervisor once and resolves when the first generation is active); `MakeAppOpts.eventHeartbeatIntervalMs` (optional, milliseconds, default 15 000) sets how often `event.subscribe` sends its `server.heartbeat` frame / `withBuiltinExtensions` / `slug` / `HealthSchema` / `AppType` (`app.ts`)
 - Routes (`app.ts`): `GET /health` (`{ok, harness, engine: {stale}, id}`, `id` = the per-start `engineId`), `POST /api/shutdown`, chat-plane routes and WS, push routes and WS, `GET RPC_WS_PATH` (`/rpc-ws`, the browser's one oRPC socket, gated per connection by `rpcSocketGate`), `${RPC_PREFIX}/*` (the HTTP oRPC handler for node callers: CLI, tests, `makeRpcClient`), `/api/mcp`, optional `NATIVE_PAGE_PATH`, `/api/ext/<slug>` per extension
 - `resolveConfig(options, root)` / `ResolvedConcivConfig` / `defineConfig` (`config.ts`)
 - `CoreRuntime`, `EngineScope`, `SessionScope`, `ScopedToolCall`, `session` (`runtime.ts`)

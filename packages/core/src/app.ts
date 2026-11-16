@@ -143,6 +143,8 @@ export type MakeAppOpts = {
 
   firstChunkTimeoutMs?: number
 
+  eventHeartbeatIntervalMs?: number
+
   nativePageDir?: string
 
   nativeUrl?: () => string | undefined
@@ -802,6 +804,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     }),
     queues: primitives.page.queues,
     pluginHost,
+    eventHeartbeatIntervalMs: opts.eventHeartbeatIntervalMs,
     chat: chatDeps,
     search,
     settings,
