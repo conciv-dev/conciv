@@ -2,7 +2,7 @@ import {Effect} from 'effect'
 import {z} from 'zod'
 import {keyBy, omit} from 'es-toolkit'
 import type {ToolCommandSignature} from '@conciv/contract'
-import {Agent, Permission, Plugin, SessionSchema, Tool, ToolRuntime} from '@conciv/plugin-host'
+import {Agent, Permission, Plugin, PluginHooks, SessionSchema, Tool, ToolRuntime} from '@conciv/plugin-host'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {currentToolDomain} from './permission-cards.js'
 import {CLI_HIDDEN_FIELDS, CliTools, Operations, PAGE_NAMESPACE} from '@conciv/plugin-page/rpc'
@@ -65,9 +65,17 @@ export function callPluginTool(
 ): Effect.Effect<
   Tool.NormalizedResult,
   Tool.Error,
-  Plugin.Interface | Tool.Interface | Agent.Interface | Permission.SessionsInterface
+  Plugin.Interface | Tool.Interface | Agent.Interface | Permission.SessionsInterface | PluginHooks.Interface
 > {
-  return currentToolDomain(sessionId).pipe(
+  const admitted = PluginHooks.Service.use((hooks) =>
+    hooks.register('permission', 'evaluate', (event) =>
+      Effect.sync(() => {
+        if (event.source?.id === callId) event.effect = 'allow'
+      }),
+    ),
+  )
+  return admitted.pipe(
+    Effect.andThen(currentToolDomain(sessionId)),
     Effect.flatMap(({snapshot, agent}) => {
       const context: Tool.Context = {
         sessionId: SessionSchema.Id.make(sessionId),
@@ -81,5 +89,6 @@ export function callPluginTool(
         Effect.fail(Tool.makeError({message: `no plugin tool ${name}`}))
       )
     }),
+    Effect.scoped,
   )
 }

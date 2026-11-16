@@ -21,7 +21,7 @@ import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {engineOrigin} from '../src/engine-origin.js'
 import {runLink, runRevoke} from '../src/auth.js'
 import {start as startEngine} from '@conciv/core'
-import {exchangePrintedCode, loginThroughTerminal} from '@conciv/harness-testkit'
+import {approvePending, exchangePrintedCode, loginThroughTerminal} from '@conciv/harness-testkit'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {stdioTransport} from '@tanstack/ai-mcp/stdio'
 import {
@@ -1871,6 +1871,29 @@ describe('cli', () => {
             error: {kind: 'user', code: 'INVALID_ARGS', message: 'page_fill: no element for selector #email'},
           },
         })
+      })
+
+      it('page eval needs the user: refused with a card, and one approval lets exactly one later call run', async () => {
+        const {engine} = held
+        if (engine === undefined) throw new Error('the engine with a tab did not start')
+        const refusal = {
+          code: 1,
+          document: {
+            ok: false,
+            error: {kind: 'user', code: 'APPROVAL_DENIED', message: expect.stringContaining('needs the user')},
+          },
+        }
+        expect(await tools(['eval', '--code', 'document.title'])).toMatchObject(refusal)
+        expect(answering.seen).toEqual([])
+        expect(await approvePending(engine.base, engine.sessionId)).toHaveLength(1)
+        answering.next = {type: 'success', result: {value: {result: 'Example'}, files: []}}
+        expect(await tools(['eval', '--code', 'document.title'])).toEqual({
+          code: 0,
+          document: {ok: true, data: {result: 'Example'}},
+        })
+        expect(answering.seen).toMatchObject([{action: {type: 'eval', code: 'document.title'}}])
+        expect(await tools(['eval', '--code', 'document.title'])).toMatchObject(refusal)
+        expect(answering.seen).toHaveLength(1)
       })
 
       it('page snapshot with no widget fails as a user error with the declared code and exit 1', async () => {
