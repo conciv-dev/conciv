@@ -187,12 +187,14 @@ export const layer = Layer.effect(
     })
 
     function fallbackRules(input: AssertInput, rules: Permission.Ruleset): Permission.Ruleset {
-      if (!input.fallback) return []
-      const unnamed = input.resources.some((resource) => {
-        const rule = evaluate(input.action, resource, rules)
-        return rule.effect === 'allow' && rule.action === '*'
-      })
-      return unnamed ? [{action: input.action, resource: '*', effect: input.fallback}] : []
+      const effect = input.fallback
+      if (!effect) return []
+      return input.resources
+        .filter((resource) => {
+          const rule = evaluate(input.action, resource, rules)
+          return rule.effect === 'allow' && rule.action === '*'
+        })
+        .map((resource) => ({action: input.action, resource, effect}))
     }
 
     function denied(input: Pick<Request, 'action' | 'resources'>, rules: Permission.Ruleset) {
