@@ -36,7 +36,7 @@ type RegistrationGroup = {
   readonly report: (failure: Failure, refresh: Effect.Effect<void>) => void
 }
 
-const CurrentGroup = Context.Reference<RegistrationGroup | undefined>('@opencode/State/CurrentGroup', {
+const CurrentGroup = Context.Reference<RegistrationGroup | undefined>('@conciv/State/CurrentGroup', {
   defaultValue: () => undefined,
 })
 
@@ -65,7 +65,7 @@ type Batch = {
   readonly notifications: Set<Effect.Effect<void>>
 }
 
-const CurrentBatch = Context.Reference<Batch | undefined>('@opencode/State/CurrentBatch', {
+const CurrentBatch = Context.Reference<Batch | undefined>('@conciv/State/CurrentBatch', {
   defaultValue: () => undefined,
 })
 export function batch<A, E, R>(effect: Effect.Effect<A, E, R>) {
