@@ -39,6 +39,8 @@ export const ServersSource = Context.Service<Servers>('@conciv/ServersSource')
 export const HarnessSource = Context.Service<HarnessDomain>('@conciv/HarnessSource')
 export const BundlerSource = Context.Service<BundlerDomain | undefined>('@conciv/BundlerSource')
 export const ExtensionSlugs = Context.Service<ReadonlyArray<string>>('@conciv/ExtensionSlugs')
+export const EditorSource =
+  Context.Service<(file: string, line?: number, column?: number) => void>('@conciv/EditorSource')
 
 export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interface, 'list'>, pluginId: string) {
   const app = yield* App.Service
