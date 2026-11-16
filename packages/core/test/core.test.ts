@@ -3070,6 +3070,24 @@ describe('plugin host bus', () => {
     const afterRefusal = await made.plane.hydrate(refused)
     expect([afterRefusal.messages, afterRefusal.lastRun]).toEqual([beforeRefusal.messages, beforeRefusal.lastRun])
 
+    const resent = await created()
+    const keptTurn = await kit.turn('kept before the delete', {
+      session: resent,
+      runId: 'kept-run',
+      messageId: 'kept-message',
+    })
+    expect((await keptTurn.done()).errors()).toEqual([])
+    await kit.rpc.sessions.delete({sessionId: resent})
+    const beforeResend = await made.plane.hydrate(resent)
+    const resentTurn = await kit.turn('kept before the delete', {
+      session: resent,
+      runId: 'resent-run',
+      messageId: 'kept-message',
+    })
+    expect((await resentTurn.done()).errors()).toEqual([`session "${resent}" does not exist`])
+    const afterResend = await made.plane.hydrate(resent)
+    expect([afterResend.messages, afterResend.lastRun]).toEqual([beforeResend.messages, beforeResend.lastRun])
+
     await kit.rpc.sessions.restore({sessionId: refused})
     const restoredTurn = await kit.turn('sent after the restore', {session: refused, runId: 'restored-run'})
     expect((await restoredTurn.done()).errors()).toEqual([])
