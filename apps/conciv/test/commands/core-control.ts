@@ -338,18 +338,19 @@ function restoreHubCli(state: FileState): void {
 const rpcCallCount: BrowserCommand<[string[], unknown?]> = (ctx, path, input): number =>
   requireCalls(ctx).servedSince(path, input)
 
-const rpcStartedOnceServed: BrowserCommand<[string[], number, string[][]]> = async (
+const rpcStartedOnceServed: BrowserCommand<[string[], number, string[][], unknown?]> = async (
   ctx,
   served,
   count,
   started,
+  input,
 ): Promise<number[]> => {
   const calls = requireCalls(ctx)
   const {rpcObserverFor} = await importTestkit(ctx)
   const observer = rpcObserverFor(ctx.page)
   const settle = async (): Promise<void> => {
-    if (calls.servedSince(served) >= count) return
-    await observer.completed({path: served, served: true, since: observer.mark(), timeout: AWAIT_RPC_TIMEOUT_MS})
+    if (calls.servedSince(served, input) >= count) return
+    await observer.completed({path: served, input, served: true, since: observer.mark(), timeout: AWAIT_RPC_TIMEOUT_MS})
     await settle()
   }
   await settle()

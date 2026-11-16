@@ -580,7 +580,8 @@ describe('chat pane', () => {
       shell.mountShell(`/panel/${sessionId}?open=true`)
       await expect.element(input()).toBeVisible()
       const write = await faults.install({kind: 'gate', path: ['drafts', 'set']})
-      await input().fill('typed just before a quick trip')
+      await userEvent.click(input())
+      await userEvent.keyboard('typed just before a quick trip')
       await expect.element(input()).toHaveTextContent('typed just before a quick trip')
 
       await userEvent.click(page.getByRole('link', {name: 'Settings'}))
@@ -590,6 +591,10 @@ describe('chat pane', () => {
       await coreControl.awaitFaultPending(write, 1)
       await coreControl.releaseFault(write)
       await coreControl.awaitFaultAnswered(write)
+      await coreControl.rpcStartedOnceServed(['drafts', 'set'], 1, [], {
+        sessionId,
+        text: 'typed just before a quick trip',
+      })
       shell.dispose()
       shell.mountShell(`/panel/${sessionId}?open=true`)
 

@@ -88,7 +88,7 @@ declare module 'vitest/internal/browser' {
     fakeHubCli: (outcome: 'ok' | 'fail' | 'hold' | 'hold-remove' | null) => Promise<void>
     setHubConnection: (harness: string, connected: boolean) => Promise<void>
     rpcCallCount: (path: string[], input?: unknown) => Promise<number>
-    rpcStartedOnceServed: (served: string[], count: number, started: string[][]) => Promise<number[]>
+    rpcStartedOnceServed: (served: string[], count: number, started: string[][], input?: unknown) => Promise<number[]>
     installFault: (spec: FaultSpec) => Promise<string>
     releaseFault: (handle: string) => Promise<void>
     faultPending: (handle: string) => Promise<number>
