@@ -529,6 +529,22 @@ describe('cli', () => {
         expect(help).toContain('type a value into a form field')
       })
 
+      it('offers the screenshot verb under page, derived from its declaration', async () => {
+        await bootCli(cleanups)
+        const help = await helpText(['tools', 'page', '--help'])
+        expect(help).toContain('screenshot')
+        expect(help).toContain('capture the visible viewport as a webp image')
+      })
+
+      it('offers the hot update wait under page, derived from its declaration', async () => {
+        await bootCli(cleanups)
+        const help = await helpText(['tools', 'page', '--help'])
+        expect(help).toMatch(/^\s+hmr\s/m)
+        expect(help.replaceAll(/\s+/g, ' ')).toContain(
+          'after editing a file, wait for the hot update to land before reading the page',
+        )
+      })
+
       it('derives a dev-server operation and its positional from the declaration', async () => {
         const reloaded: string[] = []
         const kit = await bootCli(cleanups, {

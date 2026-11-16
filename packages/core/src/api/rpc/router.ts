@@ -37,6 +37,7 @@ import type {SessionScope} from '../../runtime/scope-types.js'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {callTrace} from '../call-trace.js'
 import {openCodeSession, type CodeSandboxSession} from '../mcp.js'
+import {pluginSignatures} from '../../runtime/plugin-signatures.js'
 import type {SessionId} from '@conciv/protocol/chat-types'
 
 export const PAGE_ERROR_NAME = {
@@ -284,7 +285,10 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       set: os.navigation.set.handler(({input}) => engine.navigation.set(input)),
     },
     registry: {
-      catalog: os.registry.catalog.handler(() => engine.catalog()),
+      catalog: os.registry.catalog.handler(async ({signal}) => [
+        ...engine.catalog(),
+        ...(await deps.pluginHost.runPromise(pluginSignatures, {signal})),
+      ]),
       call: toolCallOs.registry.call.handler(async ({input, context, errors, signal, path}) => {
         const assist = deps.assist(context.session.id).find((capability) => capability.name === input.name)
         if (assist === undefined && !context.session.tools.has(input.name)) throw errors.UNKNOWN_TOOL()

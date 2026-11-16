@@ -12,11 +12,15 @@ import {toolGroupRoute} from './tool-group.js'
 
 const SERVER_GROUP = 'server'
 
+const PAGE_GROUP = 'page'
+
+const REACT_CATEGORY = 'react'
+
 const OPEN_TOOL = 'open'
 
 export const toolsRoute = route(
   name('tools'),
-  description('inspect & drive the live dev server: every tool group it serves (server, ...)'),
+  description('inspect & drive the live dev server: every tool group it serves (page, react, server, ...)'),
   envelopeFlag,
   tabFlag,
   dynamic(z.array(ToolCommandSignatureSchema), (catalog) => extend(...catalogRoutes(catalog))),
@@ -32,7 +36,22 @@ function catalogRoutes(catalog: readonly ToolCommandSignature[]): AnyRoute[] {
       call: group === SERVER_GROUP ? callServerTool : callRegistry,
     }),
   )
-  return [...groups, ...single.map(singleCommand)]
+  return [...groups, ...reactView(grouped), ...single.map(singleCommand)]
+}
+
+function reactView(grouped: readonly ToolCommandSignature[]): AnyRoute[] {
+  const signatures = grouped.filter(
+    (signature) => readGroup(signature) === PAGE_GROUP && signature.category === REACT_CATEGORY,
+  )
+  if (signatures.length === 0) return []
+  return [
+    toolGroupRoute({
+      name: REACT_CATEGORY,
+      description: 'inspect & edit live React components; run --help for every capability',
+      signatures,
+      call: callRegistry,
+    }),
+  ]
 }
 
 function singleCommand(signature: ToolCommandSignature): AnyRoute {
