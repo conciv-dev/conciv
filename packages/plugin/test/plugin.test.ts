@@ -762,13 +762,17 @@ describe('host', () => {
       expect(Host.resolve(plugin.target)).toEqual({server: undefined, rpc: undefined, experimental: undefined})
     })
 
-    it('resolves a local folder plugin from its TypeScript source', async () => {
-      await using plugin = await fixture({'index.ts': source, 'rpc.ts': source, 'plugin-experimental.tsx': source})
-      expect(Host.resolve(plugin.target)).toEqual({
-        server: plugin.url('index.ts'),
-        rpc: plugin.url('rpc.ts'),
-        experimental: plugin.url('plugin-experimental.tsx'),
+    it('resolves a local folder engine part from TypeScript source and its app part only from a prebuilt bundle', async () => {
+      await using tsx = await fixture({'index.ts': source, 'rpc.ts': source, 'plugin-experimental.tsx': source})
+      await using ts = await fixture({'index.ts': source, 'plugin-experimental.ts': source})
+      await using bundled = await fixture({'index.ts': source, 'plugin-experimental.cjs': source})
+      expect(Host.resolve(tsx.target)).toEqual({
+        server: tsx.url('index.ts'),
+        rpc: tsx.url('rpc.ts'),
+        experimental: undefined,
       })
+      expect(Host.resolve(ts.target).experimental).toBeUndefined()
+      expect(Host.resolve(bundled.target).experimental).toBe(bundled.url('plugin-experimental.cjs'))
     })
   })
 
