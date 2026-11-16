@@ -1447,6 +1447,29 @@ describe('page bus and the session scope', () => {
     await expect(queues.wait(SESSION_A, running, 0)).rejects.toThrow(`no queue ${running} on this tab`)
   })
 
+  it('a session deleted while a waiter holds a claim on its result: the reply that did not go out puts nothing back', async () => {
+    const bus = makePageBus(2000)
+    const tab = arrivingTab(bus)
+    const queues = pageQueues(bus)
+    const finished = trackFinished(queues)
+    const announced: string[] = []
+    queues.finished((record) => announced.push(record.queueId))
+    const {queueId} = await queues.start(SESSION_A, queueStart([{tool: 'page_check', selector: '#agree'}]))
+    const frame = await tab.frame(0)
+    for (const reply of frame.queue.replies) bus.resolve(SESSION_A, reply, {ok: true, result: {}})
+    await finished(queueId)
+    const reply = Promise.withResolvers<boolean>()
+    expect(await queues.wait(SESSION_A, queueId, 0, undefined, reply.promise)).toMatchObject({queueId})
+    queues.cancelSession(SESSION_A)
+    reply.resolve(false)
+    await setImmediate()
+    expect(announced).toEqual([queueId])
+    expect(queues.owedTurn(SESSION_A)).toEqual([])
+    expect(queues.undelivered(SESSION_A, false)).toEqual([])
+    expect(queues.undelivered(SESSION_A, true)).toEqual([])
+    await expect(queues.wait(SESSION_A, queueId, 0)).rejects.toThrow(`no queue ${queueId} on this tab`)
+  })
+
   it('undelivered results are never evicted: at 1000 owed a new queue is refused before it plays, and delivering one frees a place', async () => {
     const bus = makePageBus(2000)
     const queued = queueingTab(bus)
