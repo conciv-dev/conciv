@@ -7,8 +7,11 @@ import {writeComposerDraft} from './composer-draft-storage.js'
 
 const DRAFT_WRITE_DELAY_MS = 300
 
+export type ComposerDraftWriter = (key: string, draft: ComposerDraft) => void
+
 export type ComposerDraftPersistenceOptions = {
   storage: () => WebStorage | undefined
+  writer?: () => ComposerDraftWriter | undefined
   key: () => string
   draft: () => ComposerDraft
 }
@@ -24,6 +27,11 @@ export function useComposerDraftPersistence(options: ComposerDraftPersistenceOpt
   )
   createEffect<ComposerDraft | undefined>((previous) => {
     const draft = options.draft()
+    const documentWriter = options.writer?.()
+    if (documentWriter) {
+      if (!isCleared(draft) || (previous && !isCleared(previous))) documentWriter(options.key(), draft)
+      return draft
+    }
     const storage = options.storage()
     if (!storage) return previous
     if (!isCleared(draft)) {

@@ -48,6 +48,7 @@ import {AttachmentProvider} from '../src/primitives/attachment/attachment.js'
 import {AttachmentUI} from '../src/styled/attachment-ui.js'
 import {SAMPLE_IMAGE_BASE64, SAMPLE_IMAGE_MIME} from '../src/store/sample-image.fixtures.js'
 import type {WebStorage} from '@conciv/storage-history'
+import type {ComposerDraftWriter} from '../src/behaviors/use-composer-draft.js'
 import {Error as ErrorPrimitive} from '../src/primitives/error/error.js'
 import {Composer} from '../src/styled/composer.js'
 import {createStore} from 'solid-js/store'
@@ -913,16 +914,38 @@ describe('composer completion', () => {
     )
   }
 
-  function ComposerHarness(props: {storage?: WebStorage}): JSX.Element {
+  function ComposerHarness(props: {storage?: WebStorage; writer?: ComposerDraftWriter}): JSX.Element {
     return (
-      <ComposerPrimitive.Root draftStorage={props.storage} draftKey={DRAFT_KEY}>
+      <ComposerPrimitive.Root
+        draftStorage={props.storage}
+        draftWriter={props.writer}
+        draftKey={DRAFT_KEY}
+        attachmentAdapter={createSimpleImageAttachmentAdapter()}
+      >
         <ComposerPrimitive.Input aria-label="Message" />
+        <AttachKeptImage />
         <ComposerPrimitive.Quote />
         <ComposerPrimitive.Send>Send</ComposerPrimitive.Send>
         <ErrorPrimitive.Root>
           <ErrorPrimitive.Message />
         </ErrorPrimitive.Root>
       </ComposerPrimitive.Root>
+    )
+  }
+
+  function AttachKeptImage(): JSX.Element {
+    const composer = useComposerContext()
+    const image = new File(
+      [Uint8Array.from(atob(SAMPLE_IMAGE_BASE64), (character) => character.charCodeAt(0))],
+      'kept.png',
+      {
+        type: SAMPLE_IMAGE_MIME,
+      },
+    )
+    return (
+      <button type="button" onClick={() => void composer.addAttachment(image)}>
+        Attach kept.png
+      </button>
     )
   }
 
@@ -948,6 +971,42 @@ describe('composer completion', () => {
     await expect
       .element(page.getByText(/persisted: .*"text":"a draft that outlives the reload"/), {timeout: 3000})
       .toBeVisible()
+  })
+
+  it('hands every change to the draft writer at once, with its files, and leaves the storage alone', async () => {
+    const probe = createProbeStorage()
+    const [writes, setWrites] = createSignal<readonly string[]>([])
+    const writer: ComposerDraftWriter = (key, draft) => {
+      const files = draft.attachments.map((attachment) =>
+        attachment.file instanceof File ? `${attachment.file.name} as a File` : 'no file',
+      )
+      setWrites((current) => [...current, `${key}: "${draft.draft}" [${files.join(', ')}]`])
+    }
+    mountView(() => (
+      <ChatHost>
+        <ComposerHarness storage={probe.storage} writer={writer} />
+        <p>writes: {writes().length}</p>
+        <p>last write: {writes().at(-1) ?? 'none'}</p>
+        <p>storage: {probe.written() ?? 'untouched'}</p>
+      </ChatHost>
+    ))
+
+    await expect.element(page.getByText('writes: 0')).toBeVisible()
+    await userEvent.click(page.getByRole('textbox', {name: 'Message'}))
+    await userEvent.keyboard('h')
+    await expect.element(page.getByText('writes: 1')).toBeVisible()
+    await expect.element(page.getByText(`last write: ${DRAFT_KEY}: "h" []`)).toBeVisible()
+    await userEvent.keyboard('i')
+    await expect.element(page.getByText('writes: 2')).toBeVisible()
+    await expect.element(page.getByText(`last write: ${DRAFT_KEY}: "hi" []`)).toBeVisible()
+
+    await userEvent.click(page.getByRole('button', {name: 'Attach kept.png'}))
+    await expect.element(page.getByText(`last write: ${DRAFT_KEY}: "hi" [kept.png as a File]`)).toBeVisible()
+
+    await userEvent.click(page.getByRole('textbox', {name: 'Message'}))
+    await userEvent.keyboard('{Backspace}{Backspace}')
+    await expect.element(page.getByText(`last write: ${DRAFT_KEY}: "" [kept.png as a File]`)).toBeVisible()
+    await expect.element(page.getByText('storage: untouched')).toBeVisible()
   })
 
   it('restores a persisted draft and quote when the composer mounts', async () => {
