@@ -25,7 +25,6 @@ export type QueueRecord = {
   queueId: string
   sessionId: SessionId
   toolCallId: string
-  startedBy: 'terminal' | 'agent'
   tools: string[]
   settled: (Settled | undefined)[]
   result: PageQueueResult | null
@@ -43,8 +42,6 @@ type Play = (
 ) => Promise<RequestSettlement>[]
 
 type Origin = {readonly toolCallIds?: readonly string[]; readonly excludeToolCallIds?: readonly string[]}
-
-const TERMINAL_AGENT = 'terminal'
 
 const KEPT_QUEUES = 200
 
@@ -125,8 +122,7 @@ function awaitsDelivery(record: QueueRecord): boolean {
 }
 
 function fromOrigin(record: QueueRecord, origin: Origin): boolean {
-  const included =
-    origin.toolCallIds === undefined ? record.startedBy !== 'terminal' : origin.toolCallIds.includes(record.toolCallId)
+  const included = origin.toolCallIds === undefined || origin.toolCallIds.includes(record.toolCallId)
   return included && origin.excludeToolCallIds?.includes(record.toolCallId) !== true
 }
 
@@ -192,7 +188,6 @@ export function fromPlay(deps: {
       queueId,
       sessionId,
       toolCallId: given.toolCallId,
-      startedBy: given.agentId === TERMINAL_AGENT ? 'terminal' : 'agent',
       tools: actions.map((action) => action.tool),
       settled: actions.map(() => undefined),
       result: null,
