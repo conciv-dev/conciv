@@ -1,6 +1,6 @@
 export * as SdkPlugins from './sdk.js'
 
-import type {Plugin} from '../../plugin/effect/plugin.js'
+import type {Plugin} from '@conciv/plugin/effect/plugin'
 import {Context, Effect, Layer} from 'effect'
 import {Bus} from '../bus.js'
 import type {Generation} from '../plugin.js'
@@ -12,7 +12,7 @@ export interface Interface {
   readonly all: () => readonly Generation[]
 }
 
-export const Service = Context.Service<Interface>('@opencode/SdkPlugins')
+export const Service = Context.Service<Interface>('@conciv/SdkPlugins')
 
 export const layer = Layer.effect(
   Service,

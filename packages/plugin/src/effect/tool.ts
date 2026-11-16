@@ -1,7 +1,7 @@
-import {Tool} from '../../schema/tool.js'
-import type {Agent} from '../../schema/agent.js'
-import type {Session} from '../../schema/session.js'
-import type {SessionMessage} from '../../schema/session-message.js'
+import {Tool} from '../schema/tool.js'
+import type {Agent} from '../schema/agent.js'
+import type {Session} from '../schema/session.js'
+import type {SessionMessage} from '../schema/session-message.js'
 import type {Effect, Types} from 'effect'
 import type {Hooks, Transform} from './registration.js'
 

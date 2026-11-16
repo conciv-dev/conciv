@@ -1,4 +1,5 @@
-import type {Skill} from '@conciv/plugin'
+import {Skill} from '@conciv/plugin'
+import {AbsolutePath} from '@conciv/plugin/schema/schema'
 
 const OPERATIONS = [
   ['canvas_read', 'list the elements of the published canvas, or of the hidden draft with scope "draft"'],
@@ -29,11 +30,11 @@ const OPERATIONS = [
 ]
 
 export const info: Skill.Info = {
-  id: 'whiteboard',
-  name: 'Whiteboard',
+  id: Skill.Id.make('whiteboard'),
+  name: Skill.Name.make('Whiteboard'),
   description:
     'Draw on the Excalidraw canvas shared with the user and leave comments on it, pinned to the canvas or anchored to source. Load it before your first whiteboard tool call.',
-  path: 'skill://whiteboard/SKILL.md',
+  path: AbsolutePath.make('skill://whiteboard/SKILL.md'),
   content: [
     '# Whiteboard',
     '',

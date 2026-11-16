@@ -1,7 +1,7 @@
 export * as Instructions from './index.js'
 
 import {createHash} from 'crypto'
-import {Instruction} from '../../schema/instruction.js'
+import {Instruction} from '@conciv/plugin/schema/instruction'
 import {Data, Effect, Option, Schema} from 'effect'
 import {canonicalJson} from '../util/canonical-json.js'
 

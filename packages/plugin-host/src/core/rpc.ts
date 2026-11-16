@@ -1,11 +1,11 @@
 export * as Rpc from './rpc.js'
-export {define} from '../schema/rpc.js'
-export type {Definition, EventPayload, Failure} from '../schema/rpc.js'
+export {define} from '@conciv/plugin/schema/rpc'
+export type {Definition, EventPayload, Failure} from '@conciv/plugin/schema/rpc'
 
-import type {RpcClient, RpcDomain, RpcHandlers} from '../plugin/effect/rpc.js'
-import type {Rpc} from '../schema/rpc.js'
-import {Event} from '../schema/event.js'
-import type {Tool} from '../schema/tool.js'
+import type {RpcClient, RpcDomain, RpcHandlers} from '@conciv/plugin/effect/rpc'
+import type {Rpc} from '@conciv/plugin/schema/rpc'
+import {Event} from '@conciv/plugin/schema/event'
+import type {Tool} from '@conciv/plugin/schema/tool'
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import {Context, Deferred, Effect, JsonSchema, Layer, Schema, SchemaRepresentation, Stream} from 'effect'
 import {Bus} from './bus.js'
@@ -19,7 +19,7 @@ export interface Interface {
   readonly close: Effect.Effect<void>
 }
 
-export const Service = Context.Service<Interface>('@opencode/Rpc')
+export const Service = Context.Service<Interface>('@conciv/Rpc')
 
 const DeclaredError = Schema.TaggedStruct('Rpc.DeclaredError', {
   type: Schema.String,

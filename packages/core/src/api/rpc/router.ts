@@ -144,6 +144,7 @@ async function resolveCodeSession(
 
 async function eventStream(
   host: PluginHost,
+  heartbeatIntervalMs: number | undefined,
   types: ReadonlyArray<string> | undefined,
   signal: AbortSignal | undefined,
 ) {
@@ -152,7 +153,7 @@ async function eventStream(
   const output = Stream.unwrap(
     feed.subscribe(types).pipe(Effect.map((live) => Stream.make(connected).pipe(Stream.concat(live)))),
   )
-  const heartbeat = Stream.tick('15 seconds').pipe(
+  const heartbeat = Stream.tick(heartbeatIntervalMs ?? 15_000).pipe(
     Stream.drop(1),
     Stream.map(() => ({id: Event.Id.create(), type: 'server.heartbeat', data: {}})),
   )
@@ -335,7 +336,9 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       }),
     },
     event: {
-      subscribe: os.event.subscribe.handler(({input, signal}) => eventStream(deps.pluginHost, input?.types, signal)),
+      subscribe: os.event.subscribe.handler(({input, signal}) =>
+        eventStream(deps.pluginHost, deps.eventHeartbeatIntervalMs, input?.types, signal),
+      ),
     },
     captures: {
       list: os.captures.list.handler(({input}) => deps.runtime.forSession(input.sessionId).captures.list()),
@@ -433,7 +436,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     meta: {
       models: os.meta.models.handler(async ({input}) => {
         const harness = chat.harnessFor(input.sessionId)
-        const models = await resolveHarnessModels(harness)
+        const models = await resolveHarnessModels(harness, {signal: chat.signal})
         return {
           models,
           defaultModel: harness.defaultModel ?? models[0]?.id ?? null,
@@ -441,7 +444,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         }
       }),
       harnesses: os.meta.harnesses.handler(async () => ({
-        harnesses: await Promise.all(chat.harnesses.map(buildHarnessMenuEntry)),
+        harnesses: await Promise.all(chat.harnesses.map((harness) => buildHarnessMenuEntry(harness, chat.signal))),
         defaultHarness: chat.defaultHarness.id,
       })),
       commands: os.meta.commands.handler(({input, context}) =>

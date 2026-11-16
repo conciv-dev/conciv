@@ -5,8 +5,8 @@ import {Effect, Option, Schema} from 'effect'
 import type {Database} from '../database/database.js'
 import type {Bus} from '../bus.js'
 import {Instructions} from '../instructions/index.js'
-import {SessionEvent} from '../../schema/session-event.js'
-import {Session} from '../../schema/session.js'
+import {SessionEvent} from '@conciv/plugin/schema/session-event'
+import {Session} from '@conciv/plugin/schema/session'
 import {InstructionBlobTable, InstructionStateTable} from './sql.js'
 
 type DatabaseService = Database.Interface['db']

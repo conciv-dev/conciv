@@ -32,7 +32,7 @@ export namespace FSUtil {
     readonly scan: (pattern: string, options?: Glob.Options) => Effect.Effect<string[], Error>
   }
 
-  export const Service = Context.Service<Interface>('@opencode/FSUtil')
+  export const Service = Context.Service<Interface>('@conciv/FSUtil')
 
   export const layer = Layer.effect(
     Service,

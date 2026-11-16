@@ -1,6 +1,6 @@
 import {emptyInputJsonSchema, type ToolDefinition} from '../../ai/effect.js'
 import {isRecord} from '../../util/record.js'
-import {Tool} from '../../schema/tool.js'
+import {Tool} from '@conciv/plugin/schema/tool'
 import type {StandardJSONSchemaV1, StandardSchemaV1} from '@standard-schema/spec'
 import {Effect, JsonPointer, JsonSchema, Result, Schema, SchemaIssue, SchemaRepresentation} from 'effect'
 import {$ZodType, toJSONSchema} from 'zod/v4/core'

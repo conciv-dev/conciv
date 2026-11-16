@@ -7479,6 +7479,12 @@ module.exports = {default: {stores: {
     }},
   )
   ctx.add(Slot, {at: 'window.bottom', render: () => engineLine})
+  const readEngineEvents = async () => {
+    for await (const event of ctx.client.event.subscribe({signal: ctx.signal})) void event
+  }
+  readEngineEvents().catch((error) => {
+    if (!ctx.signal.aborted) console.error('[fixture] the engine event reader failed', error)
+  })
   const dialog = (title, body) =>
     ctx.dialogs.open(() => createComponent(ctx.ui.Dialog, {title, get children() { return body() }}))
   const second = () => dialog('Fixture second dialog', () => 'The second dialog is on top')

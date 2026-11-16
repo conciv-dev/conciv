@@ -1,11 +1,12 @@
-import type {Skill} from '@conciv/plugin'
+import {Skill} from '@conciv/plugin'
+import {AbsolutePath} from '@conciv/plugin/schema/schema'
 
 export const info: Skill.Info = {
-  id: 'recorder',
-  name: 'Recorder',
+  id: Skill.Id.make('recorder'),
+  name: Skill.Name.make('Recorder'),
   description:
     "Record what happens on the user's app page and read it back as an action log with keyframe screenshots. Load it before your first recording tool call.",
-  path: 'skill://recorder/SKILL.md',
+  path: AbsolutePath.make('skill://recorder/SKILL.md'),
   content: [
     '# Recorder',
     '',

@@ -1,6 +1,6 @@
 export * as InstancePlugins from './instance.js'
 
-import type {Plugin} from '../../plugin/effect/plugin.js'
+import type {Plugin} from '@conciv/plugin/effect/plugin'
 import {Context, Layer} from 'effect'
 import type {Generation} from '../plugin.js'
 
@@ -10,7 +10,7 @@ export interface Interface {
   readonly all: () => readonly Generation[]
 }
 
-export const Service = Context.Service<Interface>('@opencode/InstancePlugins')
+export const Service = Context.Service<Interface>('@conciv/InstancePlugins')
 
 export const layer = bound([])
 
