@@ -3,7 +3,14 @@ import {coreCommands} from './test/commands/core-control.js'
 import {playwright} from '@vitest/browser-playwright'
 import solidPlugin from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
-import {TANSTACK_AI_SOLID_DEPS, browserOptimizeDeps, ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
+import {
+  HOOK_TIMEOUT_MS,
+  TANSTACK_AI_SOLID_DEPS,
+  TEST_TIMEOUT_MS,
+  browserOptimizeDeps,
+  ciTest,
+  ciTestSolidBrowser,
+} from '@conciv/vitest-config'
 
 const PERF_SUITE = 'test/calm-perf.browser.test.tsx'
 const MASCOT_DEPS = ['@conciv/mascot > gsap', '@conciv/mascot > gsap/MotionPathPlugin']
@@ -70,8 +77,8 @@ export default defineConfig({
             'test/**/*.browser.test.tsx',
             'src/runtime/persistence/**/*.browser.test.ts',
           ],
-          testTimeout: ciTest().testTimeout,
-          hookTimeout: ciTest().hookTimeout,
+          testTimeout: TEST_TIMEOUT_MS,
+          hookTimeout: HOOK_TIMEOUT_MS,
         },
       },
       browserProject('browser', BROWSER_SUITES, [...configDefaults.exclude, PERF_SUITE], ['chromium']),
