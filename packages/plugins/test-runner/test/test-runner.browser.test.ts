@@ -5,6 +5,7 @@ import {fileURLToPath} from 'node:url'
 import {describe} from 'vitest'
 import {expect} from '@playwright/test'
 import {test} from '@conciv/browser-fixture'
+import {connectMcpClient} from '@conciv/harness-testkit'
 import {openPluginWidget} from '@conciv/plugin-testkit/widget-suite'
 import {rpcObserverFor} from '@conciv/plugin-testkit/rpc-observer'
 import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
@@ -28,6 +29,17 @@ test('waits for the release file', async () => {
   watcher.close()
 }, 120_000)
 `
+
+async function runTests(base: string): Promise<unknown> {
+  const mcp = await connectMcpClient(`${base}/api/mcp`)
+  try {
+    const tool = (await mcp.tools()).find((entry) => entry.name === 'test_runner_run')
+    if (!tool) throw new Error('test_runner_run is not a direct tool on /api/mcp')
+    return await tool.execute({})
+  } finally {
+    await mcp.close()
+  }
+}
 
 function fixtureFiles(): Record<string, string> {
   const directory = join(PACKAGE_DIR, 'test', 'fixtures', 'vitest-app')
@@ -62,7 +74,7 @@ describe('the Tests panel of the test-runner plugin', () => {
       await openTests()
       await expect(panel.getByRole('status')).toHaveText('No test run yet')
 
-      await widget.kit.callTool('test_runner_run', {}).then(
+      await runTests(widget.kit.base).then(
         () => undefined,
         () => undefined,
       )
@@ -75,7 +87,7 @@ describe('the Tests panel of the test-runner plugin', () => {
       await expect(panel.getByText(/vitest unavailable/)).toBeVisible()
 
       symlinkSync(join(PACKAGE_DIR, 'node_modules'), join(widget.kit.stateRoot, 'node_modules'), 'dir')
-      const run = widget.kit.callTool('test_runner_run', {})
+      const run = runTests(widget.kit.base)
       await expect(panel.getByRole('status')).toHaveText(/^Running tests/, {timeout: 60_000})
       await expect(panel.getByText('one plus one', {exact: true})).toBeVisible({timeout: 60_000})
       await expect(panel.getByText('this fails on purpose', {exact: true}).first()).toBeVisible({timeout: 60_000})
