@@ -693,7 +693,7 @@
     },
     {
       "file": "packages/plugin-host/src/core/plugin/service.ts",
-      "exports": ["Failure"]
+      "exports": ["Failure", "Plugin"]
     },
     {
       "file": "packages/plugin-host/src/core/config/plugin/skill.ts",
@@ -705,7 +705,7 @@
     },
     {
       "file": "packages/plugin-host/src/core/rpc.ts",
-      "exports": ["Rpc"]
+      "exports": ["Failure", "Rpc"]
     },
     {
       "file": "packages/plugin-host/src/core/session.ts",
@@ -745,18 +745,18 @@
     },
     {
       "file": "packages/plugin-host/src/core/tool/plugin/skill.ts",
-      "exports": ["toModelOutput"]
+      "exports": ["toModelOutput", "Plugin"]
     },
     {
       "file": "packages/plugin-host/src/core/util/wildcard.ts",
       "exports": ["match"]
     },
     {
-      "file": "packages/plugin-host/src/plugin/effect/plugin.ts",
+      "file": "packages/plugin/src/effect/plugin.ts",
       "exports": ["Context", "define"]
     },
     {
-      "file": "packages/plugin-host/src/schema/agent.ts",
+      "file": "packages/plugin/src/schema/agent.ts",
       "exports": ["Agent", "Color", "Event", "Info", "Name"]
     },
     {
@@ -764,23 +764,23 @@
       "exports": ["Entry", "Plugin"]
     },
     {
-      "file": "packages/plugin-host/src/schema/event.ts",
+      "file": "packages/plugin/src/schema/event.ts",
       "exports": ["Data", "Definition", "Event"]
     },
     {
-      "file": "packages/plugin-host/src/schema/instruction-entry.ts",
+      "file": "packages/plugin/src/schema/instruction-entry.ts",
       "exports": ["Info", "InstructionEntry", "Key", "Snapshot"]
     },
     {
-      "file": "packages/plugin-host/src/schema/instruction.ts",
+      "file": "packages/plugin/src/schema/instruction.ts",
       "exports": ["Delta", "Hash", "Key", "Removed", "Values", "removed"]
     },
     {
-      "file": "packages/plugin-host/src/schema/location.ts",
+      "file": "packages/plugin/src/schema/location.ts",
       "exports": ["Info", "Ref"]
     },
     {
-      "file": "packages/plugin-host/src/schema/model.ts",
+      "file": "packages/plugin/src/schema/model.ts",
       "exports": ["Info", "Model", "Ref", "Settings"]
     },
     {
@@ -788,35 +788,35 @@
       "exports": ["Info", "PermissionSaved"]
     },
     {
-      "file": "packages/plugin-host/src/schema/permission.ts",
+      "file": "packages/plugin/src/schema/permission.ts",
       "exports": ["Effect", "Event", "Permission", "Reply", "Request", "Source"]
     },
     {
-      "file": "packages/plugin-host/src/schema/plugin.ts",
+      "file": "packages/plugin/src/schema/plugin.ts",
       "exports": ["Event", "Info", "Plugin", "Source", "State"]
     },
     {
-      "file": "packages/plugin-host/src/schema/provider.ts",
+      "file": "packages/plugin/src/schema/provider.ts",
       "exports": ["Request", "Settings"]
     },
     {
-      "file": "packages/plugin-host/src/schema/rpc.ts",
+      "file": "packages/plugin/src/schema/rpc.ts",
       "exports": ["Definition", "Rpc", "define"]
     },
     {
-      "file": "packages/plugin-host/src/schema/session-event.ts",
+      "file": "packages/plugin/src/schema/session-event.ts",
       "exports": ["Event"]
     },
     {
-      "file": "packages/plugin-host/src/schema/session.ts",
+      "file": "packages/plugin/src/schema/session.ts",
       "exports": ["Session"]
     },
     {
-      "file": "packages/plugin-host/src/schema/skill.ts",
+      "file": "packages/plugin/src/schema/skill.ts",
       "exports": ["DirectorySource", "EmbeddedSource", "Event", "Info", "Name", "Skill", "Source", "UrlSource"]
     },
     {
-      "file": "packages/plugin-host/src/schema/tool.ts",
+      "file": "packages/plugin/src/schema/tool.ts",
       "exports": ["Context", "Error", "Info"]
     },
     {
