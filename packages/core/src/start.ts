@@ -116,10 +116,14 @@ async function servePort(
   fetchHandler: FetchHandler,
   request: PortRequest | undefined,
   state: {file: string; token: string},
-): Promise<Served> {
+): Promise<Served & {restoreRecord: ShutdownStep}> {
   const serving = await serveRequestedPort(fetchHandler, request, state.file)
-  writePersistedPort(state.file, {port: serving.port, token: state.token})
-  return serving
+  try {
+    return {...serving, restoreRecord: writePersistedPort(state.file, {port: serving.port, token: state.token})}
+  } catch (error) {
+    await cleanupAfterFailedStart([serving.close])
+    throw error
+  }
 }
 
 function cleanupAfterFailedStart(steps: readonly ShutdownStep[]): Promise<void> {
@@ -226,15 +230,17 @@ export async function start(opts: StartOpts): Promise<Engine> {
   }
   const madeApp = Promise.withResolvers<MadeApp>()
   madeApp.promise.catch(() => {})
-  const {port, close} = await servePort(
+  const {port, close, restoreRecord} = await servePort(
     (request, env) => madeApp.promise.then((made) => made.fetch(request, env)),
     opts.port,
     {file: paths.server, token: agentToken},
   )
   portRef.port = port
+  const abandonStart = (steps: readonly ShutdownStep[]): Promise<void> =>
+    cleanupAfterFailedStart([close, ...steps, restoreRecord])
   const made = await makeApp(appOpts).catch(async (error: unknown) => {
     madeApp.reject(error)
-    await cleanupAfterFailedStart([close])
+    await abandonStart([])
     throw error
   })
   madeApp.resolve(made)
@@ -251,7 +257,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
       writeDevEndpoint(endpointDir, {apiBase: base, token: agentToken, pid: process.pid})
     }
   } catch (error) {
-    await cleanupAfterFailedStart([close, dispose])
+    await abandonStart([dispose])
     throw error
   }
   const retire = base
@@ -275,7 +281,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   } catch (error) {
     clearEndpoint()
     retire()
-    await cleanupAfterFailedStart([close, dispose])
+    await abandonStart([dispose])
     throw error
   }
   return {
