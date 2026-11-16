@@ -265,10 +265,12 @@ describe('PluginSupervisor reload', () => {
               appendFileSync(${JSON.stringify(starts)}, "x")
               await ctx.tool.transform((editor) => editor.add({ name: "bundled_tool", description: "", input: {}, execute: async () => ({}) }))
             } }`
+        const painted = path.join(directory.path, 'conciv/plugins/painted/plugin-experimental.js')
         const marks = Effect.promise(() => fs.readFile(starts, 'utf8'))
         yield* Effect.promise(async () => {
           await write(entry, source)
           await write(bundle, code)
+          await write(painted, code)
         })
         const bus = yield* Bus.Service
         const watcher = yield* Watcher.Test
@@ -284,6 +286,13 @@ describe('PluginSupervisor reload', () => {
           const plugins = yield* Plugin.Service
           const tools = yield* Tool.Service
           const id = Plugin.Id.make('bundled')
+          const edited = (plugin: Plugin.Id) =>
+            plugins.experimental(plugin).pipe(
+              Effect.flatMap((part) =>
+                part?.code === `${code}\n// edited` ? Effect.succeed(part) : Effect.fail('pending'),
+              ),
+              Effect.retry({times: 80, schedule: Schedule.spaced('25 millis')}),
+            )
           yield* plugins.awaitActivation
           const served = yield* plugins.experimental(id)
           const tool = yield* get(tools, 'bundled_tool')
@@ -294,17 +303,21 @@ describe('PluginSupervisor reload', () => {
 
           yield* Effect.promise(() => write(bundle, `${code}\n// edited`))
           yield* watcher.emit({path: bundle, type: 'update'})
-          const reloaded = yield* plugins.experimental(id).pipe(
-            Effect.flatMap((part) =>
-              part?.code === `${code}\n// edited` ? Effect.succeed(part) : Effect.fail('pending'),
-            ),
-            Effect.retry({times: 80, schedule: Schedule.spaced('25 millis')}),
-          )
+          const reloaded = yield* edited(id)
 
           expect(reloaded.revision).not.toBe(served?.revision)
           expect(yield* marks).toBe('x')
           expect(updates.length).toBe(published + 1)
           expect(yield* get(tools, 'bundled_tool')).toBe(tool)
+
+          const browserOnly = Plugin.Id.make('painted')
+          const paintedServed = yield* plugins.experimental(browserOnly)
+          const paintedPublished = updates.length
+          expect(paintedServed?.code).toBe(code)
+          yield* Effect.promise(() => write(painted, `${code}\n// edited`))
+          yield* watcher.emit({path: painted, type: 'update'})
+          expect((yield* edited(browserOnly)).revision).not.toBe(paintedServed?.revision)
+          expect(updates.length).toBe(paintedPublished + 1)
 
           yield* Effect.promise(async () => {
             await write(entry, `${source}\nexport const edited = true`)
