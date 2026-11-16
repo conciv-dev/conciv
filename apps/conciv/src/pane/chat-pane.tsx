@@ -30,8 +30,8 @@ import {
 import {nowTitle} from '@conciv/ui-kit-chat-tools'
 import {
   PAGE_ACT_TOOL_NAMES,
-  PAGE_RUNNING_TITLES,
   PAGE_TOOL_PREFIX,
+  builtinToolMeta,
   pageSessionEntry,
   pageToolCards,
 } from '@conciv/builtin-plugins/renderer'
@@ -252,7 +252,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   const registryCatalog = useQuery(() => ({...appData.utils.registry.catalog.queryOptions(), enabled: connected()}))
   const catalog: ToolCatalogView = {
     loaded: () => registryCatalog.data !== undefined,
-    meta: (name) => registryCatalog.data?.find((signature) => signature.name === name),
+    meta: (name) => registryCatalog.data?.find((signature) => signature.name === name) ?? builtinToolMeta(name),
   }
   const captures = useSessionCaptures(sessionId)
   const draftStorage = makeDraftStorage(appData, sessionId)
@@ -360,7 +360,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     const NarrationRow = (): JSX.Element => {
       const title = createMemo(() => {
         const call = activeToolCall(lastTurn())
-        if (call) return nowTitle(call, catalog, PAGE_RUNNING_TITLES)
+        if (call) return nowTitle(call, catalog)
         return isThinking() ? THINKING_TITLE : RESPONDING_TITLE
       })
       return (

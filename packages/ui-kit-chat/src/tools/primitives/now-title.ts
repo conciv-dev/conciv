@@ -52,13 +52,7 @@ const TITLE_BY_TOOL: Record<string, (h: HintData) => string> = {
   TodoWrite: () => 'Updating tasks',
 }
 
-export function nowTitle(
-  part: ToolCallPart,
-  catalog: ToolCatalogView,
-  titleByName: Record<string, string> = {},
-): string {
-  const supplied = titleByName[part.name]
-  if (supplied) return supplied
+export function nowTitle(part: ToolCallPart, catalog: ToolCatalogView): string {
   const declared = catalog.meta(part.name)?.label?.running
   if (declared) return declared
   const title = TITLE_BY_TOOL[part.name]
