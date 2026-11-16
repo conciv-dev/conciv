@@ -1,43 +1,74 @@
 ---
 title: Harnesses
-description: The agent behind the chat, and how to pick one.
+description: The agent CLI behind the chat, which ones conciv runs, and what each one can do.
 icon: Bot
 ---
 
-A harness is the headless agent process that powers the chat. Claude is the default.
+A harness is the agent CLI that answers in the chat. conciv runs it on your machine, in your project folder, with
+your own login. Install the CLI and log in to it first; conciv does not log it in for you.
 
-## Select a harness
+## Pick one
+
+`harness` sets the harness a new chat starts with. Claude is the default.
 
 ```ts title="vite.config.ts"
-conciv({
-  harness: 'codex',
-  harnessBin: '/usr/local/bin/codex',
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [conciv({harness: 'codex'})],
 })
 ```
 
-`harness` picks the adapter. `harnessBin` overrides the binary on your `PATH`. See
-[Configuration](/docs/configuration).
+`CONCIV_HARNESS` sets it from the environment when the config does not.
 
-## Available
+The model menu in the panel lists that harness, plus every other harness whose CLI is on the `PATH` of the shell
+that started your dev server. You can switch harness in the menu during a session.
 
-### Claude
+## The harnesses
 
-Default. Full support. Needs the `claude` CLI on your `PATH`.
+| `harness`    | CLI on your `PATH` | Default model                         | Models in the menu                |
+| ------------ | ------------------ | ------------------------------------- | --------------------------------- |
+| `claude`     | `claude`           | `opus`                                | Claude Code's list                |
+| `codex`      | `codex`            | the `model` in `~/.codex/config.toml` | Codex's model cache in `~/.codex` |
+| `opencode`   | `opencode`         | `opencode/claude-sonnet-4-5`          | what `opencode models` lists      |
+| `gemini-cli` | `gemini`           | `gemini-3-pro-preview`                | a fixed list                      |
+| `pi`         | `pi`               | none                                  | none                              |
 
-```ts
-conciv({harness: 'claude'})
-```
+Gemini CLI runs over ACP, as `gemini --acp -m <model>`.
 
-### Codex
+## What each one can do
 
-Full support.
+|                                  | Claude | Codex | OpenCode | Gemini CLI | Pi  |
+| -------------------------------- | ------ | ----- | -------- | ---------- | --- |
+| Chat                             | yes    | yes   | yes      | yes        | no  |
+| Its sessions in the session list | yes    | yes   | yes      | no         | yes |
+| `/` commands from the CLI        | yes    | no    | no       | no         | no  |
+| Image attachments                | yes    | no    | no       | no         | no  |
+| Compress the conversation        | yes    | no    | no       | no         | no  |
+| Permission cards                 | yes    | no    | yes      | yes        | no  |
+| Terminal view                    | yes    | no    | no       | no         | no  |
+| `conciv mcp connect`             | yes    | yes   | yes      | yes        | no  |
 
-```ts
-conciv({harness: 'codex'})
-```
+Permission cards are covered in [Approvals](/docs/usage/approvals). `conciv mcp connect` lets that CLI, run in
+your own terminal, drive your open conciv tabs: see [Connect your agents](/docs/quick-start/agents).
 
-## Planned
+## Claude
+
+Needs `claude` on your `PATH`. conciv runs it in Claude Code's `auto` permission mode and appends conciv's prompt
+to Claude Code's own system prompt.
 
 <Callout type="warn">
-  `gemini-cli`, `opencode`, and `pi` are stubs today. The ids exist but the adapters are not implemented yet.
+  conciv passes Claude Code a plugin folder and a settings file by path. If either path contains a space, the turn fails
+  with an error that names the path and says to move it to a space-free path.
 </Callout>
+
+## Codex
+
+Needs `codex` on your `PATH`. conciv runs it with `approvalPolicy: 'never'` in the `workspace-write` sandbox, so it
+never asks: the sandbox limits what it can do.
+
+## Pi
+
+Pi has no chat in conciv yet. If `pi` is on your `PATH` it still shows in the model menu, and a turn ends with the
+error "pi is not installed or not yet supported". Pi sessions do show in the session list.
