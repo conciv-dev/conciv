@@ -1,27 +1,28 @@
-import {mkdir, mkdtemp, writeFile} from 'node:fs/promises'
-import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {randomUUID} from 'node:crypto'
+import {mkdir, writeFile} from 'node:fs/promises'
+import {extname, join} from 'node:path'
 import {z} from 'zod'
+import {CONCIV_STATE_DIR} from '@conciv/protocol/state-types'
 import {Tool} from '@conciv/plugin'
 import {raise} from './connection.js'
 import {MAX_FILE_BYTES, type File} from './rpc.js'
 
 const Coded = z.object({code: z.string()})
 
-export async function save(files: readonly File[]) {
+const SCREENSHOTS = join(CONCIV_STATE_DIR, 'tmp', 'screenshots')
+
+export async function save(files: readonly File[], root: string) {
   if (files.length === 0) return []
   try {
     if (files.reduce((size, file) => size + file.data.byteLength, 0) > MAX_FILE_BYTES)
       throw new Error(
         'Capture files exceed the 5 MiB total transfer limit. Use a smaller screenshot or a smaller page; do not retry the identical capture.',
       )
-    const directory = await mkdtemp(join(tmpdir(), 'conciv-page-'))
+    await mkdir(join(root, SCREENSHOTS), {recursive: true})
     return await Promise.all(
-      files.map(async (file, index) => {
-        const name = captureName(file.name)
-        await mkdir(join(directory, String(index)))
-        const path = join(directory, String(index), name)
-        await writeFile(path, file.data, {flag: 'wx'})
+      files.map(async (file) => {
+        const path = join(SCREENSHOTS, `${randomUUID()}${extname(captureName(file.name))}`)
+        await writeFile(join(root, path), file.data, {flag: 'wx'})
         return {id: file.id, name: file.name, mime: file.mime, bytes: file.data.byteLength, path}
       }),
     )

@@ -1,6 +1,7 @@
-import {readFile, rm} from 'node:fs/promises'
-import {basename, dirname} from 'node:path'
-import {describe, expect, it, onTestFinished} from 'vitest'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {readFile} from 'node:fs/promises'
+import {dirname, extname, join} from 'node:path'
+import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {PAGE_TOOL_DEFS, pageVerbOfTool} from '@conciv/extension-page/defs'
 import {SessionId} from '@conciv/protocol/chat-types'
@@ -695,17 +696,15 @@ describe('page tools', () => {
       data: new TextEncoder().encode(name),
     })
     const PageFiles = await import('../src/files.js')
-    const saved = await PageFiles.save([file('..'), file('.'), file('CON.txt'), file('lpt1'), file('report.html')])
-    const first = saved[0]?.path ?? ''
-    onTestFinished(() => rm(dirname(dirname(first)), {recursive: true, force: true}))
-    expect(saved.map((capture) => basename(capture.path))).toEqual([
-      'capture',
-      'capture',
-      'capture',
-      'capture',
-      'report.html',
-    ])
+    const root = tempDir('conciv-page-')
+    const saved = await PageFiles.save(
+      [file('..'), file('.'), file('CON.txt'), file('lpt1'), file('report.html')],
+      root,
+    )
+    const screenshots = join('.conciv', 'tmp', 'screenshots')
+    expect(saved.map((capture) => dirname(capture.path))).toEqual(saved.map(() => screenshots))
+    expect(saved.map((capture) => extname(capture.path))).toEqual(['', '', '', '', '.html'])
     expect(saved.map((capture) => capture.name)).toEqual(['..', '.', 'CON.txt', 'lpt1', 'report.html'])
-    expect(await readFile(first, 'utf8')).toBe('..')
+    expect(await readFile(join(root, saved[0]?.path ?? ''), 'utf8')).toBe('..')
   })
 })

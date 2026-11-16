@@ -9,7 +9,7 @@ import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers} from '@conciv/db'
 import type {Router} from '@orpc/server'
 import {Cause, Effect, Exit, Option, Result, Stream} from 'effect'
-import {Event, Location, Plugin, Rpc} from '@conciv/plugin-host'
+import {Event, Location, Plugin, Rpc, Tool} from '@conciv/plugin-host'
 import {EventFeed} from '../../event-feed.js'
 import {
   cappedText,
@@ -88,7 +88,20 @@ async function runPluginTool(
     {signal: call.signal},
   )
   if (Exit.isFailure(exit)) throw pluginToolError(call.name, exit.cause, errors)
-  return exit.value.output
+  return registryAnswer(exit.value)
+}
+
+function registryAnswer(result: Tool.NormalizedResult): unknown {
+  if (!result.content.some((part) => part.type === 'file')) return result.output
+  const [first, ...rest] = result.content
+  return (first?.type === 'text' ? [...rest, first] : result.content).map(contentPart)
+}
+
+function contentPart(part: Tool.Content) {
+  if (part.type === 'text') return {type: 'text', content: part.text}
+  if (!part.mime.startsWith('image/')) return part
+  const value = part.uri.slice(part.uri.indexOf(',') + 1)
+  return {type: 'image', source: {type: 'data', value, mimeType: part.mime}}
 }
 
 function hasErrorCode(error: unknown, code: string): boolean {
