@@ -532,4 +532,14 @@ describe('no hand-made temp dir', () => {
     expect(await outside('hand-made.spec.ts')).toHaveLength(3)
     expect(await outside('hand-made.ts')).toEqual([])
   })
+
+  test('flags a process exit hook in a test or a vitest config, and leaves other events and a shadowing parameter alone', async () => {
+    const inTest = await lintFixture('temp-dir/exit-hook.ts')
+    expect.soft(inTest).toHaveLength(2)
+    expect.soft(inTest[0]).toContain('test-results/conciv-home')
+    const inConfig = (
+      await lintDiagnostics('test/oxlintrc-temp-dir.json', 'fixtures/temp-dir-outside/vitest.config.ts')
+    ).filter((diagnostic) => diagnostic.code === 'conciv(no-hand-made-temp-dir)')
+    expect.soft(inConfig).toHaveLength(1)
+  })
 })
