@@ -12,11 +12,13 @@ async function removeFolderIfEmpty(folder: string): Promise<void> {
   }
 }
 
-export default function stateCleanupReporter(options: {stateDir: string}): Reporter {
+export default function stateCleanupReporter(options: {stateDir: string; appStateFolders: string[]}): Reporter {
   return {
     printsToStdio: () => false,
     onExit: async () => {
-      await rm(options.stateDir, {recursive: true, force: true})
+      await Promise.all(
+        [options.stateDir, ...options.appStateFolders].map((folder) => rm(folder, {recursive: true, force: true})),
+      )
       await removeFolderIfEmpty(dirname(options.stateDir))
     },
   }

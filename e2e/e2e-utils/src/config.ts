@@ -9,10 +9,10 @@ function e2eStateDir(configDir: string): string {
   return join(dirname(configDir), '.conciv-e2e', basename(configDir))
 }
 
-function reporters(configDir: string): ReporterDescription[] {
+function reporters(configDir: string, appStateFolders: string[]): ReporterDescription[] {
   const cleanup: ReporterDescription = [
     join(import.meta.dirname, 'state-cleanup-reporter.ts'),
-    {stateDir: e2eStateDir(configDir)},
+    {stateDir: e2eStateDir(configDir), appStateFolders: appStateFolders.map((folder) => join(configDir, folder))},
   ]
   if (!process.env.GITHUB_ACTIONS) return [['line'], cleanup]
   return [['line'], ['json', {outputFile: 'test-results.json'}], cleanup]
@@ -76,7 +76,7 @@ export function e2eConfig(
     workers: 1,
     timeout,
     expect: {timeout},
-    reporter: reporters(opts.dir),
+    reporter: reporters(opts.dir, ['.conciv']),
     use: {baseURL: `http://localhost:${port}`},
     webServer: serverEntry({
       configDir: opts.dir,
@@ -98,7 +98,7 @@ export function packedE2eConfig(opts: {dir: string}): ReturnType<typeof defineCo
     workers: 1,
     timeout: 90_000,
     expect: {timeout: 90_000},
-    reporter: reporters(opts.dir),
+    reporter: reporters(opts.dir, []),
     projects: [{name: 'packed', use: {...devices['Desktop Chrome']}}],
   })
 }
@@ -137,7 +137,10 @@ export function harnessMatrixConfig(opts: {
     testDir: './test',
     workers: 1,
     timeout: 150_000,
-    reporter: reporters(opts.dir),
+    reporter: reporters(
+      opts.dir,
+      entries.map(([harness]) => `.conciv-${harness}`),
+    ),
     webServer: entries.map(([harness, port]) =>
       serverEntry({
         configDir: opts.dir,
