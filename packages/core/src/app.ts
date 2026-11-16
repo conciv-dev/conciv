@@ -561,6 +561,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
                 background: [],
               }),
             ),
+            {onlyIfMissing: true},
           ).pipe(Effect.flatMap(Fiber.join)),
         )
         .catch((error: unknown) => Exit.die(error))
@@ -633,10 +634,19 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   await pluginHost.context().catch(startFailed([]))
   const idleScope = Effect.runSync(Scope.make())
   const idleTriggers = Effect.runSync(FiberMap.make<SessionId>().pipe(Scope.provide(idleScope)))
-  const interruptIdle = (sessionId: SessionId): Promise<boolean> =>
+  const interruptIdle = (sessionId: SessionId, stopped: boolean): Promise<boolean> =>
     Effect.runPromise(
       FiberMap.has(idleTriggers, sessionId).pipe(
         Effect.tap((running) => (running ? FiberMap.remove(idleTriggers, sessionId) : Effect.void)),
+        Effect.tap((running) =>
+          running || stopped
+            ? FiberMap.run(
+                idleTriggers,
+                sessionId,
+                Effect.promise(() => plane.settled(sessionId)),
+              )
+            : Effect.void,
+        ),
       ),
     )
   const reportToolCollision = memoize((name: string) =>

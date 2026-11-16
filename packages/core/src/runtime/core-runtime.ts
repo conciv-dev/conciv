@@ -21,7 +21,7 @@ export type CoreRuntimeDeps = {
   db: ConcivDb
   model: (sessionId: SessionId) => string | null
   staleness: () => EngineStaleness
-  interruptIdle: (sessionId: SessionId) => Promise<boolean>
+  interruptIdle: (sessionId: SessionId, stopped: boolean) => Promise<boolean>
 }
 
 function catalogSignatures(catalog: ToolCatalog): ToolCommandSignature[] {
@@ -121,11 +121,11 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
     run: {
       stop: async (runIds) => {
         const {stopped} = await deps.plane.stop(id, runIds)
-        const interrupted = await deps.interruptIdle(id)
+        const interrupted = await deps.interruptIdle(id, stopped)
         return {ok: true, stopped: stopped || interrupted}
       },
       compact: async () => {
-        await deps.interruptIdle(id)
+        await deps.interruptIdle(id, true)
         await deps.plane.compact(id)
       },
       live: () => deps.plane.live(id),
