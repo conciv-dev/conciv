@@ -66,7 +66,8 @@ export type PageQueues = {
   hubCall: (sessionId: SessionId, callId: string) => void
   hubReplied: (sessionId: SessionId, callIds: ReadonlySet<string>) => void
   fromHub: (record: QueueRecord) => boolean
-  release: (sessionId: SessionId) => void
+  holds: (record: QueueRecord) => boolean
+  cancelSession: (sessionId: SessionId) => void
 }
 
 const KEPT_QUEUES = 200
@@ -194,8 +195,10 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
       )
   }
 
+  const holds = (record: QueueRecord): boolean => records.get(record.queueId) === record
+
   const announce = (record: QueueRecord): void => {
-    if (record.delivery === 'delivered') return
+    if (record.delivery === 'delivered' || !holds(record)) return
     for (const listener of listeners) {
       try {
         listener(record)
@@ -379,7 +382,11 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
     hubCall: (sessionId, callId) => void sessionSet(inFlightHubCalls, sessionId).add(callId),
     hubReplied,
     fromHub: hubCalled,
-    release: (sessionId) => {
+    holds,
+    cancelSession: (sessionId) => {
+      for (const record of records.values()) {
+        if (record.sessionId === sessionId) records.delete(record.queueId)
+      }
       inFlightHubCalls.delete(sessionId)
       hubQueues.delete(sessionId)
     },
@@ -411,6 +418,7 @@ export async function startQueueFollowUp(
   const notices = results.map(queueNotice).join('\n\n')
   const followUp = asyncRetry(
     async (): Promise<FollowUpOutcome> => {
+      if (!owed.every(({record}) => queues.holds(record))) return {kind: 'stopped'}
       const attempt = await plane.followUp(sessionId, notices)
       if (attempt.kind === 'failed') throw new Error(attempt.error)
       return attempt
