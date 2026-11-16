@@ -21,7 +21,7 @@ export type PushChannel = {
 const MIN_RECONNECT_DELAY_MS = 250
 const MAX_RECONNECT_DELAY_MS = 2000
 const MIN_UPTIME_MS = 1000
-const CONNECTION_TIMEOUT_MS = 2000
+const CONNECTION_TIMEOUT_MS = 30_000
 
 export function pushSocketUrl(apiBase: string, sessionId: string): string {
   const origin = typeof window === 'undefined' ? 'http://127.0.0.1' : window.location.href
