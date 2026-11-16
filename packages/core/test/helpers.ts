@@ -1,5 +1,4 @@
-import {writeFile, rm} from 'node:fs/promises'
-import {tmpdir} from 'node:os'
+import {writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {afterAll, expect} from 'vitest'
 import {type ChatPlane} from '@conciv/chat'
@@ -234,18 +233,11 @@ export async function assertTurnAndResume(opts: ResumeScenarioOpts): Promise<voi
   }
 }
 
-const written: string[] = []
-
 export async function chunkWithInlineMap(source: string, line: number, column: number): Promise<string> {
   const gen = new GenMapping()
   addMapping(gen, {generated: {line: 2, column: 0}, source, original: {line, column}})
   const b64 = Buffer.from(JSON.stringify(toEncodedMap(gen))).toString('base64')
-  const path = join(tmpdir(), `conciv-chunk-${Math.random().toString(36).slice(2)}.js`)
+  const path = join(tempDir('conciv-chunk-'), 'chunk.js')
   await writeFile(path, `"use strict";\nvoid 0;\n//# sourceMappingURL=data:application/json;base64,${b64}`)
-  written.push(path)
   return path
-}
-
-export async function cleanupChunks(): Promise<void> {
-  for (const f of written.splice(0)) await rm(f, {force: true})
 }

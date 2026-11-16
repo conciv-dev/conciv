@@ -200,7 +200,7 @@ import {
   pluginInstructions,
   sessionToolDomain,
 } from '../src/runtime/permission-cards.js'
-import {bootMadeApp, chunkWithInlineMap, cleanupChunks, makeChatFixture, requireClaude} from './helpers.js'
+import {bootMadeApp, chunkWithInlineMap, makeChatFixture, requireClaude} from './helpers.js'
 
 const NO_CAPABILITIES = {
   resume: false,
@@ -1111,8 +1111,6 @@ describe('local state files', () => {
 })
 
 describe('editor symbolicate', () => {
-  afterEach(() => cleanupChunks())
-
   it('reads a React server frame, fetches a loopback http frame, and never fetches another host', async () => {
     const chunk = await chunkWithInlineMap('app/page.tsx', 17, 4)
     const fetched: string[] = []

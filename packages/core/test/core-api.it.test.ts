@@ -168,7 +168,6 @@ import {
   requireTranscriptPath,
   connectWidget,
   chunkWithInlineMap,
-  cleanupChunks,
   hydratedSnapshot,
   runTurn,
   userTexts,
@@ -599,7 +598,7 @@ describe('api installed harnesses', () => {
 })
 
 describe('connect hub', () => {
-  const root = join(realpathSync(tmpdir()), `conciv-connect-hub-${randomUUID()}`)
+  const root = realpathSync(tempDir('conciv-connect-hub-'))
   const engineHome = join(root, 'engine-home')
   const kit = sharedKit(() => bootKit({home: engineHome}, createFakeHarness({id: 'fake-hub'})))
   const saved = {PATH: process.env.PATH, HOME: process.env.HOME, CONCIV_HOME: process.env.CONCIV_HOME}
@@ -1512,10 +1511,6 @@ describe('api native page', () => {
 })
 
 describe('api page open source', () => {
-  afterEach(async () => {
-    await cleanupChunks()
-  })
-
   describe('openSourceFromFrames', () => {
     it('symbolicates frames and opens the resolved file', async () => {
       const opened: {file?: string; line?: number} = {}
@@ -1556,7 +1551,6 @@ describe('api page page', () => {
       state.widget?.end()
       state.widget = undefined
       await kit().rpc.page.clearChanges(undefined)
-      await cleanupChunks()
     })
 
     it('a call its rpc caller aborts drops its page query, so the late reply settles nothing', async () => {
