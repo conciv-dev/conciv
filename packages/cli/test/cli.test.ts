@@ -1896,6 +1896,25 @@ describe('cli', () => {
         expect(answering.seen).toHaveLength(1)
       })
 
+      it('page eval from a caller naming its tab runs with no card', async () => {
+        const {engine} = held
+        if (engine === undefined) throw new Error('the engine with a tab did not start')
+        answering.next = {type: 'success', result: {value: {result: 'Example'}, files: []}}
+        const answered = binCall(
+          tempDir('conciv-elsewhere-'),
+          ['tools', 'page', 'eval', '--code', 'document.title', '--tab', engine.sessionId],
+          {CONCIV_HOME: held.home},
+        )
+        const pending = async () => (await engine.page.chat.hydrate({sessionId: engine.sessionId})).pendingApprovals
+        await vi.waitFor(async () => expect(await pending()).toHaveLength(1), {timeout: 5000})
+        const [ask] = await pending()
+        expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
+        await engine.page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: true})
+        expect(await answered).toEqual({code: 0, document: {ok: true, data: {result: 'Example'}}})
+        expect(answering.seen).toMatchObject([{action: {type: 'eval', code: 'document.title'}}])
+        expect(await pending()).toEqual([])
+      })
+
       it('page snapshot with no widget fails as a user error with the declared code and exit 1', async () => {
         const {engine} = held
         if (engine === undefined) throw new Error('the engine with a tab did not start')
