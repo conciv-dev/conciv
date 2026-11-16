@@ -70,6 +70,7 @@ export type ChatContext = {
   basePath: string
   db: ConcivDb
   plane: ChatPlane
+  signal: AbortSignal
 }
 
 export type RpcDeps = {
@@ -89,6 +90,7 @@ export type RpcDeps = {
   tabs: ReturnType<typeof createTabs>
   queues: Pick<PageQueues, 'wait' | 'cancelSession'>
   pluginHost: PluginHost
+  eventHeartbeatIntervalMs?: number
   answerPermission: PermissionAnswer
 }
 

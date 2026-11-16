@@ -1,5 +1,5 @@
 import type {Effect, Schema} from 'effect'
-import type {StorageScanOptions, StorageScanResult} from '@conciv/plugin'
+import type {StorageScanOptions, StorageScanResult} from '../storage.js'
 
 export interface StorageDomain {
   readonly get: (key: string) => Effect.Effect<Schema.Json | undefined>

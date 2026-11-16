@@ -14,8 +14,8 @@ const provided = new Set<string>([...pluginSharedModules, ...pluginWindowModules
 /**
  * Builds a plugin's `./plugin-experimental` bundle with Vite: compiles Solid JSX, writes a CommonJS entry plus one
  * chunk per dynamic `import()`, which the app loads on demand over its engine socket, with Vite's manifest beside the
- * entry, and keeps the modules the app provides external, with Node built-ins. Another module of Solid or conciv fails
- * the build: the app does not provide it, and a bundled copy would not share the app's instance.
+ * entry, and keeps the modules the app provides external, with Node built-ins. Another module of Effect, Solid or
+ * conciv fails the build: the app does not provide it, and a bundled copy would not share the app's instance.
  *
  * @param options - The entry and the bundle to write.
  * @returns The Vite plugins.
@@ -50,7 +50,7 @@ export function experimental(options: ExperimentalOptions = {}): Plugin[] {
       resolveId(source) {
         if (provided.has(source) || isBuiltin(source)) return {id: source, external: true}
 
-        if (/^(solid-js|@conciv)\//.test(source))
+        if (/^(effect|solid-js|@conciv)\//.test(source))
           this.error(`${source} is not a module the conciv app provides to plugins: ${[...provided].join(', ')}`)
       },
     },

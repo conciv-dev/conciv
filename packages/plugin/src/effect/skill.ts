@@ -1,5 +1,5 @@
-import type {Location} from '../../schema/location.js'
-import {Skill} from '../../schema/skill.js'
+import type {Location} from '../schema/location.js'
+import {Skill} from '../schema/skill.js'
 import type {Effect, Types} from 'effect'
 import type {Transform} from './registration.js'
 
