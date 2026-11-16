@@ -72,6 +72,10 @@
       "types": "./dist/experimental/host.d.ts",
       "import": "./dist/experimental/host.js"
     },
+    "./promise/adapter": {
+      "types": "./dist/promise/adapter.d.ts",
+      "import": "./dist/promise/adapter.js"
+    },
     "./schema/agent": {
       "types": "./dist/schema/agent.d.ts",
       "import": "./dist/schema/agent.js"
@@ -87,6 +91,10 @@
     "./schema/identifier": {
       "types": "./dist/schema/identifier.d.ts",
       "import": "./dist/schema/identifier.js"
+    },
+    "./schema/instruction-entry": {
+      "types": "./dist/schema/instruction-entry.d.ts",
+      "import": "./dist/schema/instruction-entry.js"
     },
     "./schema/instruction": {
       "types": "./dist/schema/instruction.d.ts",

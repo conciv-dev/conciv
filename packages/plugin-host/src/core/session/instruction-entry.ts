@@ -1,7 +1,7 @@
 export * as InstructionEntry from './instruction-entry.js'
 
 import {Context, type Effect, type Schema} from 'effect'
-import {InstructionEntry} from '../../schema/instruction-entry.js'
+import {InstructionEntry} from '@conciv/plugin/schema/instruction-entry'
 import type {Session} from '@conciv/plugin/schema/session'
 
 export const Key = InstructionEntry.Key

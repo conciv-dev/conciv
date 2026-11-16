@@ -759,7 +759,7 @@
       "exports": ["Data", "Definition", "Event"]
     },
     {
-      "file": "packages/plugin-host/src/schema/instruction-entry.ts",
+      "file": "packages/plugin/src/schema/instruction-entry.ts",
       "exports": ["Info", "InstructionEntry", "Key", "Snapshot"]
     },
     {
