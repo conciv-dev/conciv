@@ -3099,6 +3099,28 @@ describe('page session card', () => {
       turn.close()
     }
   })
+
+  test('while a page route read runs, the folded trace line says Reading the route', async () => {
+    const rpc = coreRpc(core())
+    const sessionId = await createSession(rpc)
+    await coreControl.scriptTurn({
+      toolCalls: [{name: 'page_route', input: {}, result: {url: 'http://localhost/form'}}],
+      text: 'On the form.',
+    })
+    await coreControl.holdResults()
+    keep(mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />))
+    const turn = await sendTurn(core(), sessionId, 'where am I')
+    try {
+      await page.getByRole('button', {name: /Hide trace/}).click({timeout: 8000})
+      const folded = page.getByRole('button', {name: /Show trace/})
+      await expect.element(folded).toBeVisible()
+      await expect.element(folded).toHaveAccessibleName(/^Reading the route/)
+    } finally {
+      await coreControl.releaseResults()
+      await turn.awaitTurnEnd()
+      turn.close()
+    }
+  })
 })
 
 describe('pane composer stopping', () => {
