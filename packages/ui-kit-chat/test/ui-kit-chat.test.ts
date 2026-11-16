@@ -20,6 +20,21 @@ import {
   shareGroupNodes,
 } from '../src/store/grouping.js'
 import {createPageSessionGrouper} from '../src/store/page-session.js'
+import {shortToolLabel} from '../src/tools/primitives/tool-row.js'
+
+describe('tool names', () => {
+  it('shortens a tool name into a row label', () => {
+    expect(shortToolLabel('HTMLParser')).toBe('html_parser')
+    expect(shortToolLabel('parseHTMLDocument')).toBe('document')
+    expect(shortToolLabel('XMLHttpRequest')).toBe('http_request')
+    expect(shortToolLabel('getURLForID')).toBe('get')
+    expect(shortToolLabel('ABCdef')).toBe('ab_cdef')
+    expect(shortToolLabel('snake_case_tool')).toBe('case_tool')
+    expect(shortToolLabel('mcp__playwright__browser_take_screenshot')).toBe('shot')
+    expect(shortToolLabel('')).toBe('')
+    expect(shortToolLabel('A'.repeat(240_000))).toBe('aaaaaaaaaaa…')
+  })
+})
 
 describe('attachment adapter', () => {
   describe('attachment adapters', () => {
