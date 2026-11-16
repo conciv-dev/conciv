@@ -62,6 +62,7 @@ export type PageQueues = QueueDelivery & {
     queueId: string,
     waitMs: number,
     signal?: AbortSignal,
+    replied?: Promise<boolean>,
   ) => Promise<PageQueueResult | PageQueueProgress>
   undelivered: (sessionId: SessionId, hub: boolean) => PageQueueResult[]
   startedBy: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => PageQueueHandle[]
@@ -205,7 +206,7 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
   const holds = (record: QueueRecord): boolean => records.get(record.queueId) === record
 
   const announce = (record: QueueRecord): void => {
-    if (record.delivery !== 'owed' || !holds(record)) return
+    if ((record.delivery !== 'owed' && record.delivery !== 'claimed') || !holds(record)) return
     for (const listener of listeners) {
       try {
         listener(record)
@@ -272,6 +273,7 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
     queueId: string,
     waitMs: number,
     signal?: AbortSignal,
+    replied?: Promise<boolean>,
   ): Promise<PageQueueResult | PageQueueProgress> {
     const record = records.get(queueId)
     if (record === undefined || record.sessionId !== sessionId) {
@@ -282,7 +284,8 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
     }
     signal?.throwIfAborted()
     if (record.result !== null) {
-      markDelivered(record)
+      if (replied === undefined) markDelivered(record)
+      else handOver(record, replied)
       return record.result
     }
     return {
@@ -342,6 +345,13 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
   function deliver(record: QueueRecord): boolean {
     if (!awaitsDelivery(record)) return false
     markDelivered(record)
+    return true
+  }
+
+  function handOver(record: QueueRecord, replied: Promise<boolean>): boolean {
+    const before = record.delivery === 'nextReply' ? 'nextReply' : 'owed'
+    if (!claim(record)) return false
+    void replied.catch(() => false).then((sent) => confirm(record, sent ? 'delivered' : before))
     return true
   }
 
