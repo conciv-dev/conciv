@@ -1,6 +1,10 @@
+import {existsSync, realpathSync, unlinkSync} from 'node:fs'
 import {writeFile} from 'node:fs/promises'
-import {join} from 'node:path'
-import {afterAll, expect} from 'vitest'
+import {tmpdir} from 'node:os'
+import {dirname, join} from 'node:path'
+import {uniq} from 'es-toolkit'
+import {afterAll, expect, onTestFinished} from 'vitest'
+import {inside} from '@conciv/harness/cwd'
 import {type ChatPlane} from '@conciv/chat'
 import {type ConcivDb} from '@conciv/db'
 import {type AnyExtension} from '@conciv/extension'
@@ -17,7 +21,7 @@ import {
 } from '@conciv/harness-testkit'
 import {type BundlerBridge} from '@conciv/protocol/bundler-types'
 import {type ChatEvent, ChatEventType} from '@conciv/protocol/chat-event-types'
-import {type HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
+import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {type PageOutcome} from '@conciv/protocol/page-types'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
@@ -40,6 +44,67 @@ export function requireTranscriptPath(adapter: HarnessAdapter): (cwd: string, se
 }
 
 export const runReal = !process.env.CI
+
+const SessionEventSchema = z.object({sessionId: HarnessSessionId}).loose()
+
+const removedTranscripts: string[] = []
+
+afterAll(() => {
+  expect(removedTranscripts.filter((path) => existsSync(path))).toEqual([])
+})
+
+function removeTranscripts(
+  harness: HarnessAdapter,
+  cwd: string,
+  projectExistedBefore: boolean,
+  sessionIds: HarnessSessionId[],
+): void {
+  const history = harness.history
+  if (history?.transcriptPath === undefined) {
+    console.warn(`${harness.id} gives no exact transcript path: left session(s) [${sessionIds.join(', ')}] of ${cwd}`)
+    return
+  }
+  if (sessionIds.length === 0) {
+    console.warn(`${harness.id} turn in ${cwd} returned no session id: removed nothing`)
+    return
+  }
+  if (projectExistedBefore || !inside(realpathSync(tmpdir()), cwd)) {
+    console.warn(`${history.transcriptRoot(cwd)} is not this run's own: left session(s) [${sessionIds.join(', ')}]`)
+    return
+  }
+  const failures = uniq(sessionIds).flatMap((sessionId) => {
+    const path = history.transcriptPath(cwd, sessionId)
+    if (dirname(path) !== history.transcriptRoot(cwd)) return [`${path} is outside ${history.transcriptRoot(cwd)}`]
+    removedTranscripts.push(path)
+    try {
+      unlinkSync(path)
+      return []
+    } catch (error) {
+      return [`${path}: ${String(error)}`]
+    }
+  })
+  if (failures.length > 0) console.warn(`transcripts left in the home:\n${failures.join('\n')}`)
+}
+
+export function removeTurnTranscripts(
+  harness: HarnessAdapter,
+  cwd: string,
+  sessionEvent: string,
+): (events: RunEvents) => void {
+  const realCwd = realpathSync(cwd)
+  const projectExistedBefore =
+    harness.history?.transcriptPath === undefined || existsSync(harness.history.transcriptRoot(realCwd))
+  const sessionIds: HarnessSessionId[] = []
+  onTestFinished(() => removeTranscripts(harness, realCwd, projectExistedBefore, sessionIds))
+  return (events) => {
+    sessionIds.push(
+      ...events.custom(sessionEvent).flatMap((value) => {
+        const parsed = SessionEventSchema.safeParse(value)
+        return parsed.success ? [parsed.data.sessionId] : []
+      }),
+    )
+  }
+}
 
 const MessageSchema = z
   .object({
@@ -212,6 +277,7 @@ export type ResumeScenarioOpts = {
 }
 
 export async function assertTurnAndResume(opts: ResumeScenarioOpts): Promise<void> {
+  const keepTranscripts = removeTurnTranscripts(opts.harness, opts.dir, opts.sessionEvent)
   const kit = await bootKit({cwd: opts.dir}, opts.harness)
   try {
     const sessionId = (await kit.rpc.sessions.resolve({id: opts.sessionId})).sessionId
@@ -219,6 +285,7 @@ export async function assertTurnAndResume(opts: ResumeScenarioOpts): Promise<voi
     const first = await (
       await kit.turn('Remember the token PLUM42. Reply with exactly OK.', {session: sessionId})
     ).done()
+    keepTranscripts(first)
     expect(first.all.at(-1)?.type).toBe(ChatEventType.RUN_FINISHED)
     expect(first.text().length).toBeGreaterThan(0)
     expect(first.custom(opts.sessionEvent).length).toBeGreaterThan(0)
@@ -226,6 +293,7 @@ export async function assertTurnAndResume(opts: ResumeScenarioOpts): Promise<voi
     const second = await (
       await kit.turn('What was the token I asked you to remember? Reply with the token only.', {session: sessionId})
     ).done()
+    keepTranscripts(second)
     expect(second.all.at(-1)?.type).toBe(ChatEventType.RUN_FINISHED)
     expect(second.text()).toContain('PLUM42')
   } finally {
