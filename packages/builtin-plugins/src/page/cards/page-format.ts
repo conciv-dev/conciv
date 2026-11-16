@@ -1,4 +1,4 @@
-import {html} from '#js-beautify-html'
+import {html} from 'js-beautify'
 
 export function formatHtml(src: string): string {
   try {

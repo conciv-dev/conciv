@@ -11,12 +11,6 @@
     "directory": "packages/builtin-plugins"
   },
   "type": "module",
-  "imports": {
-    "#js-beautify-html": {
-      "types": "./src/page/cards/beautifier.d.ts",
-      "default": "js-beautify/js/lib/beautifier.js"
-    }
-  },
   "exports": {
     "./renderer": "./src/renderer.ts"
   },
