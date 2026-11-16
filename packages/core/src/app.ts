@@ -79,7 +79,6 @@ import {
   followPermissionCards,
   pluginInstructions,
   currentToolDomain,
-  sessionToolDomain,
 } from './runtime/permission-cards.js'
 import {makePluginRuntime} from './runtime/plugin-runtime.js'
 import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-types.js'
@@ -571,6 +570,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
                 background: [],
               }),
             ),
+            {onlyIfMissing: true},
           ).pipe(Effect.flatMap(Fiber.join)),
         )
         .catch((error: unknown) => Exit.die(error))
@@ -642,19 +642,28 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   await pluginHost.context().catch(startFailed([]))
   const idleScope = Effect.runSync(Scope.make())
   const idleTriggers = Effect.runSync(FiberMap.make<SessionId>().pipe(Scope.provide(idleScope)))
-  const interruptIdle = (sessionId: SessionId): Promise<boolean> =>
+  const interruptIdle = (sessionId: SessionId, stopped: boolean): Promise<boolean> =>
     Effect.runPromise(
       FiberMap.has(idleTriggers, sessionId).pipe(
         Effect.tap((running) => (running ? FiberMap.remove(idleTriggers, sessionId) : Effect.void)),
+        Effect.tap((running) =>
+          running || stopped
+            ? FiberMap.run(
+                idleTriggers,
+                sessionId,
+                Effect.promise(() => plane.settled(sessionId)),
+              )
+            : Effect.void,
+        ),
       ),
     )
   const reportToolCollision = memoize((name: string) =>
     logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`),
   )
-  const withPluginTools = (sessionId: SessionId, capabilities: CodeCapability[]): CodeCapability[] =>
+  const withPluginTools = async (sessionId: SessionId, capabilities: CodeCapability[]): Promise<CodeCapability[]> =>
     toolDomainCapabilities(
       capabilities,
-      pluginHost.runSync(sessionToolDomain(sessionId)),
+      await pluginHost.runPromise(currentToolDomain(sessionId)),
       currentToolDomain(sessionId),
       (effect, signal) => pluginHost.runPromiseExit(effect, {signal}),
       reportToolCollision,
@@ -663,7 +672,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const extensionFor = (name: string): string | undefined =>
     mounted.find((entry) => entry.registryTools.some((tool) => tool.name === name))?.extensionName
 
-  const codeModeCapabilities = (sessionId: SessionId): CodeCapability[] =>
+  const codeModeCapabilities = (sessionId: SessionId): Promise<CodeCapability[]> =>
     withPluginTools(sessionId, [
       ...registryCapabilities(
         registry.whenPageConnected(() => primitives.page.bus.connected(sessionId)).sandboxTools(),
@@ -771,9 +780,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     finishedQueues: (sessionId, fromHub) => primitives.page.queues.undelivered(sessionId, fromHub),
     startedQueues: (sessionId, toolCallIds) => primitives.page.queues.startedBy(sessionId, toolCallIds),
     admitCall: (sessionId, call) => plane.admitCall(sessionId, call),
-    outsideCapabilities: (sessionId) =>
+    outsideCapabilities: async (sessionId) =>
       outsideRunCapabilities(
-        withPluginTools(sessionId, [
+        await withPluginTools(sessionId, [
           ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall, extensionFor),
           ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
         ]),
