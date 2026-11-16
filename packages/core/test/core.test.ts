@@ -2655,6 +2655,41 @@ describe('plugin host bus', () => {
     }
   })
 
+  test('a listener that reads a session back on session.deleted finds it already gone with its draft, as a reader does after the delete', async () => {
+    const served = await serveCore(tempDir('conciv-core-unit-'), [], {})
+    onTestFinished(() => served.stop())
+    const rpc = makeRpcClient(`${served.origin}/t/${served.made.agentToken}`)
+    const key = sessionKey(served.made)
+    const {sessionId} = await rpc.sessions.create(undefined)
+    await rpc.drafts.set({sessionId, text: 'an unsent draft', selectionStart: 0, selectionEnd: 0})
+    const readBack = () =>
+      Promise.all([
+        key.run((sessions) =>
+          sessions.get(sessionId).pipe(
+            Effect.match({
+              onFailure: (error) => ({gone: error}),
+              onSuccess: (session) => ({alive: session.id}),
+            }),
+          ),
+        ),
+        rpc.drafts.get({sessionId}),
+      ])
+    const heardAt: Awaited<ReturnType<typeof readBack>>[] = []
+    await served.made.pluginHost.runPromise(
+      Bus.Service.use((bus) =>
+        bus.listen((event) =>
+          event.type === SessionEvent.Deleted.type
+            ? Effect.promise(async () => void heardAt.push(await readBack()))
+            : Effect.void,
+        ),
+      ),
+    )
+    await rpc.sessions.delete({sessionId})
+    const afterDelete = await readBack()
+    expect(afterDelete).toEqual([{gone: expect.objectContaining({_tag: 'Session.NotFoundError', sessionId})}, null])
+    expect(heardAt).toEqual([afterDelete])
+  })
+
   test('a plugin experimental.idle hook fires for a run that completes and not for one that fails or is stopped, while turnEnd fires for all three', async () => {
     const stateRoot = tempDir('conciv-core-unit-')
     const turnEnds: SessionId[] = []

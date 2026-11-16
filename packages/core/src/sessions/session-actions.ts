@@ -89,6 +89,8 @@ export async function deleteSession(deletion: SessionDeletion, sessionId: Sessio
   await deletion.plane.endRuns(sessionId)
   deletion.queues.cancelSession(sessionId)
   await deletion.pluginHost.runPromise(KV.Service.use((kv) => removeInstructionEntries(kv, sessionId)))
+  await tombstoneRow(deletion.db, sessionId)
+  await deletion.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
   await deletion.pluginHost.runPromise(
     Bus.Service.use((bus) =>
       bus
@@ -96,8 +98,6 @@ export async function deleteSession(deletion: SessionDeletion, sessionId: Sessio
         .pipe(Effect.andThen(bus.remove(sessionId))),
     ),
   )
-  await tombstoneRow(deletion.db, sessionId)
-  await deletion.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
   await deletion.plane.clear(sessionId)
   await deleteSessionCaptures(deletion.db, sessionId)
   await clearPageChanges(deletion.db, sessionId)
