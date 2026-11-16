@@ -547,6 +547,14 @@ export const Definition = Rpc.define({
       output: z.union([PageQueueResultSchema, PageQueueProgressSchema]),
       errors,
     },
+    'queue.claim': {
+      input: z.object({sessionId: SessionId, queueId: z.string().min(1), waitMs: z.number().int().min(0)}),
+      output: z.union([
+        z.object({result: PageQueueResultSchema, before: z.enum(['owed', 'nextReply']).nullable()}),
+        PageQueueProgressSchema,
+      ]),
+      errors,
+    },
     'queue.startedBy': {
       input: z.object({sessionId: SessionId, toolCallIds: z.array(z.string())}),
       output: z.array(PageQueueHandleSchema),

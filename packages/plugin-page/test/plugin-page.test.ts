@@ -673,6 +673,33 @@ describe('page queue: where it started', () => {
     expect(await queues.wait(sessionId, queueId, 0)).toEqual(result)
   })
 
+  it('queue.claim hands a finished result over claimed, a settle back leaves it owed, and a result already claimed or delivered is handed over with nothing claimed', async () => {
+    const finished = Promise.withResolvers<void>()
+    const queues = PageQueue.fromPlay({
+      play: (_sessionId, play) =>
+        play.actions.map(async () => ({ok: true as const, result: {value: {ok: true}, files: []}})),
+      journal: async () => {},
+      finished: () => finished.resolve(),
+    })
+    const action = Page.Action.parse({type: 'queue_async', actions: [{tool: 'page_click', selector: '#go'}]})
+    if (action.type !== 'queue_async') throw new Error('the action is not a queue')
+    const {queueId} = queues.start(sessionId, {agentId: 'build', action, toolCallId: 'hub-call'})
+    await finished.promise
+    const claimed = await queues.claim(sessionId, queueId, 0)
+    if (!('result' in claimed)) throw new Error('the queue did not finish')
+    expect(claimed).toEqual({result: expect.objectContaining({queueId, status: 'finished'}), before: 'owed'})
+    expect(queues.owed(sessionId, [], false)).toEqual([])
+    expect(await queues.claim(sessionId, queueId, 0)).toEqual({result: claimed.result, before: null})
+    queues.settle(sessionId, [queueId], 'owed')
+    expect(queues.owed(sessionId, [], false)).toEqual([
+      {queueId, toolCallId: 'hub-call', result: claimed.result, before: 'owed'},
+    ])
+    expect(await queues.claim(sessionId, queueId, 0)).toEqual({result: claimed.result, before: 'owed'})
+    queues.settle(sessionId, [queueId], 'delivered')
+    expect(queues.owed(sessionId, [], false)).toEqual([])
+    expect(await queues.claim(sessionId, queueId, 0)).toEqual({result: claimed.result, before: null})
+  })
+
   it('a deleted session drops its queues: a result landing after the delete is never announced or owed, and waiting on it answers no queue', async () => {
     const finished: string[] = []
     const keptAnnounced = Promise.withResolvers<void>()

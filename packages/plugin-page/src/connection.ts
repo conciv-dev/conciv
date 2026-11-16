@@ -250,6 +250,13 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
         return call.error('unavailable', error instanceof Error ? error.message : String(error), {})
       }
     },
+    'queue.claim': async (input, call) => {
+      try {
+        return await queues.claim(input.sessionId, input.queueId, input.waitMs, call.signal)
+      } catch (error) {
+        return call.error('unavailable', error instanceof Error ? error.message : String(error), {})
+      }
+    },
     'queue.startedBy': async (input) => queues.startedBy(input.sessionId, input.toolCallIds),
     'queue.undelivered': async (input) => queues.undelivered(input.sessionId, input),
     'queue.owed': async (input) => queues.owed(input.sessionId, input.excludeToolCallIds, input.claim),

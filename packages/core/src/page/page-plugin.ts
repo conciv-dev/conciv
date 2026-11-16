@@ -3,7 +3,7 @@ import {Effect} from 'effect'
 import {Bus, Rpc} from '@conciv/plugin-host'
 import {Definition, State} from '@conciv/plugin-page/rpc'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import type {PageQueueHandle, PageQueueResult} from '@conciv/protocol/page-types'
+import type {PageQueueHandle, PageQueueProgress, PageQueueResult} from '@conciv/protocol/page-types'
 import type {PluginHost} from '../api/rpc/mount.js'
 import {logError} from '../lib/debug.js'
 import type {OwedQueue, QueueDelivery} from './page-queue.js'
@@ -89,8 +89,31 @@ export function makePagePlugin(host: () => PluginHost) {
   return {
     hmrWait: async (input: Input<'hmr.wait'>, signal?: AbortSignal) =>
       Definition.methods['hmr.wait'].output.parse(await call('hmr.wait', input, signal)),
-    queueWait: async (input: Input<'queue.wait'>, signal?: AbortSignal) =>
-      Definition.methods['queue.wait'].output.parse(await call('queue.wait', input, signal)),
+    queueWait: async (
+      input: Input<'queue.wait'>,
+      signal?: AbortSignal,
+      replied?: Promise<boolean>,
+    ): Promise<PageQueueResult | PageQueueProgress> => {
+      if (replied === undefined)
+        return Definition.methods['queue.wait'].output.parse(await call('queue.wait', input, signal))
+      const handed = Definition.methods['queue.claim'].output.parse(await call('queue.claim', input, signal))
+      if (!('result' in handed)) return handed
+      const {before} = handed
+      if (before !== null)
+        void replied
+          .catch(() => false)
+          .then((sent) =>
+            call('queue.settle', {
+              sessionId: input.sessionId,
+              queueIds: [input.queueId],
+              delivery: sent ? 'delivered' : before,
+            }),
+          )
+          .catch((error: unknown) =>
+            logError(`[core] the queue ${input.queueId} handed to a waiter could not be settled: ${String(error)}`),
+          )
+      return handed.result
+    },
     tabs: async (sessionId: SessionId): Promise<State> => {
       try {
         return State.parse(await call('run', {sessionId, action: {type: 'tabs.list'}}))

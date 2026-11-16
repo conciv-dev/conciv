@@ -87,6 +87,8 @@ import type {HarnessModel} from '@conciv/protocol/harness-types'
 import {
   CHAT_SSE_PATH,
   CHAT_WS_PATH,
+  CONCIV_CLIENT_HEADER,
+  CONCIV_ORIGIN_HEADER,
   CONCIV_SESSION_HEADER,
   HarnessSessionId,
   SessionId,
@@ -1874,6 +1876,82 @@ describe('page bus and the session scope', () => {
     )
     expect(finished).toEqual([])
     expect(runsStarted).toEqual([])
+  })
+
+  it('a hub page.queue.wait whose reply never went out leaves the result owed, and one whose reply went out delivers it', async () => {
+    const stateRoot = tempDir('conciv-core-unit-')
+    const home = tempDir('conciv-core-home-')
+    withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
+    const harness = createTestHarness(requireClaude())
+    const tabs = pageTabs()
+    const {made, origin, stop} = await serveCore(stateRoot, [], {
+      cfg: {...resolveConfig({}, stateRoot), hubAccess: 'open'},
+      harness,
+      home,
+      plugins: [tabs.plugin],
+      print: () => {},
+    })
+    onTestFinished(stop)
+    await made.startPlugins()
+    const id = SessionId.parse('conciv_queue_reply_went_out')
+    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    const held = Promise.withResolvers<string>()
+    const tab = await tabs.open(id, (command, requestId): PageReply | undefined => {
+      if (command.queued === undefined) return {type: 'success', result: {value: {}, files: []}}
+      if (command.queued.index >= 0) {
+        held.resolve(requestId)
+        return undefined
+      }
+      return {type: 'success', result: {value: {queueId: command.queued.id, actions: 1}, files: []}}
+    })
+    onTestFinished(() => tab.end())
+    const response = await fetch(`${origin}/t/${made.agentToken}/api/mcp`, {
+      method: 'POST',
+      headers: {
+        ...JSON_TYPE,
+        accept: 'application/json, text/event-stream',
+        [CONCIV_SESSION_HEADER]: id,
+        [CONCIV_ORIGIN_HEADER]: 'hub',
+        [CONCIV_CLIENT_HEADER]: 'codex',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: 'execute_typescript',
+          arguments: {
+            typescriptCode:
+              "return await external_page_queue_async({actions: [{tool: 'page_check', selector: '#agree'}]})",
+          },
+        },
+      }),
+    })
+    const text = await response.text()
+    const reply = z
+      .object({result: z.object({content: z.array(z.object({text: z.string()}))})})
+      .parse(JSON.parse(text.split('data: ').at(-1) ?? text))
+    const {queueId} = z
+      .object({result: z.object({queueId: z.string()})})
+      .parse(JSON.parse(reply.result.content.map((part) => part.text).join(''))).result
+    const pagePlugin = makePagePlugin(() => made.pluginHost)
+    const notSent = Promise.withResolvers<boolean>()
+    const waiting = pagePlugin.queueWait({sessionId: id, queueId, waitMs: 60_000}, undefined, notSent.promise)
+    await tab.reply(await held.promise, {type: 'success', result: {value: {checked: true}, files: []}})
+    expect(await waiting).toMatchObject({queueId, status: 'finished', played: 1})
+    expect(await pagePlugin.delivery.owed(id, false)).toEqual([])
+    notSent.resolve(false)
+    await vi.waitFor(
+      async () =>
+        expect(await pagePlugin.delivery.owed(id, false)).toEqual([
+          {queueId, result: expect.objectContaining({queueId, status: 'finished'}), before: 'owed'},
+        ]),
+      {timeout: 5_000},
+    )
+    expect(
+      await pagePlugin.queueWait({sessionId: id, queueId, waitMs: 0}, undefined, Promise.resolve(true)),
+    ).toMatchObject({queueId, status: 'finished'})
+    await vi.waitFor(async () => expect(await pagePlugin.delivery.owed(id, false)).toEqual([]), {timeout: 5_000})
   })
 
   it('a queue the page refuses plays nothing: it ends lost with no action counted as played', async () => {

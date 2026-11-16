@@ -215,12 +215,12 @@ export function fromPlay(deps: {
     return {queueId, actions: actions.length}
   }
 
-  async function wait(
+  async function reached(
     sessionId: SessionId,
     queueId: string,
     waitMs: number,
     signal?: AbortSignal,
-  ): Promise<PageQueueResult | PageQueueProgress> {
+  ): Promise<QueueRecord> {
     const record = records.get(queueId)
     if (record === undefined || record.sessionId !== sessionId) {
       throw new Error(`no queue ${queueId} on this tab`)
@@ -229,16 +229,42 @@ export function fromPlay(deps: {
       await Promise.race([record.done, delay(waitMs, signal === undefined ? {} : {signal})]).catch(() => undefined)
     }
     signal?.throwIfAborted()
-    if (record.result !== null) {
-      record.delivery = 'delivered'
-      return record.result
-    }
+    return record
+  }
+
+  function progress(record: QueueRecord): PageQueueProgress {
     return {
-      queueId,
+      queueId: record.queueId,
       status: 'playing',
       done: record.settled.filter((entry) => entry !== undefined).length,
       of: record.tools.length,
     }
+  }
+
+  async function wait(
+    sessionId: SessionId,
+    queueId: string,
+    waitMs: number,
+    signal?: AbortSignal,
+  ): Promise<PageQueueResult | PageQueueProgress> {
+    const record = await reached(sessionId, queueId, waitMs, signal)
+    if (record.result === null) return progress(record)
+    record.delivery = 'delivered'
+    return record.result
+  }
+
+  async function claim(
+    sessionId: SessionId,
+    queueId: string,
+    waitMs: number,
+    signal?: AbortSignal,
+  ): Promise<{result: PageQueueResult; before: 'owed' | 'nextReply' | null} | PageQueueProgress> {
+    const record = await reached(sessionId, queueId, waitMs, signal)
+    if (record.result === null) return progress(record)
+    if (!awaitsDelivery(record)) return {result: record.result, before: null}
+    const before = record.delivery === 'owed' ? 'owed' : 'nextReply'
+    record.delivery = 'claimed'
+    return {result: record.result, before}
   }
 
   async function play(
@@ -295,5 +321,5 @@ export function fromPlay(deps: {
     }
   }
 
-  return {start, play, wait, undelivered, startedBy, owed, settle, cancelSession}
+  return {start, play, wait, claim, undelivered, startedBy, owed, settle, cancelSession}
 }
