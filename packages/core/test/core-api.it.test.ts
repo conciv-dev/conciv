@@ -5678,12 +5678,11 @@ describe('page action queue delivery', () => {
     caller.abort()
     await expect(waiting).rejects.toMatchObject({name: 'AbortError'})
     expect(await typed.tabs.get({sessionId: page.sessionId})).toMatchObject({open: true})
-    await page.finishedEvent(queueId)
     await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
     await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
     await page.finishedEvent(queueId)
     expect(JSON.stringify(await page.hub('return 1'))).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
-  }, 5000)
+  })
 
   it('a page.queue.wait its caller aborts before any play starts keeps the result owed, so it leads the next reply once, with one finished event and one card, while a result a live waiter took gets none', async () => {
     const page = await engineWithTab()
@@ -5703,7 +5702,6 @@ describe('page action queue delivery', () => {
     caller.abort()
     await expect(waiting).rejects.toMatchObject({name: 'AbortError'})
     expect(await typed.tabs.get({sessionId: page.sessionId})).toMatchObject({open: true})
-    await page.finishedEvent(queueId)
     await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
     await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
     await page.finishedEvent(queueId)
@@ -5714,7 +5712,7 @@ describe('page action queue delivery', () => {
     expect(page.cards(queueId)).toHaveLength(1)
     expect(page.queueEvents().filter((event) => event.queueId === taken)).toHaveLength(0)
     expect(page.cards(taken)).toHaveLength(0)
-  }, 5000)
+  })
 
   it('a page.queue.wait over the websocket its caller aborts before the queue finishes keeps the result owed, so it leads the next reply once', async () => {
     const page = await engineWithTab()
@@ -5739,7 +5737,6 @@ describe('page action queue delivery', () => {
     const closed = once(socket, 'close')
     socket.close()
     await closed
-    await page.finishedEvent(queueId)
     await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
     await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
     await page.finishedEvent(queueId)
@@ -5748,13 +5745,12 @@ describe('page action queue delivery', () => {
     expect(JSON.stringify(await page.hub('return 2'))).not.toContain(notice)
     expect(page.queueEvents().filter((event) => event.queueId === queueId)).toHaveLength(1)
     expect(page.cards(queueId)).toHaveLength(1)
-  }, 5000)
+  })
 
   it('a code.execute its caller aborts hands over no finished result, so that result leads the next reply', async () => {
     const page = await engineWithTab()
     const {queueId} = parseHandle(await page.hub(queued()))
     const first = await page.nextQueue()
-    await page.finishedEvent(queueId)
     await page.play(first, 0, {ok: true, result: {ok: true, value: 'Ada'}})
     await page.play(first, 1, {ok: true, result: {ok: true, checked: true}})
     await page.finishedEvent(queueId)
@@ -5771,7 +5767,7 @@ describe('page action queue delivery', () => {
     )
     expect(blocking.id).not.toBe(queueId)
     expect(JSON.stringify(await page.hub('return 1'))).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
-  }, 5000)
+  })
 
   it('a queue a hub request starts stays hub work after a fast finish, an aborted request and a thousand later hub calls', async () => {
     const page = await engineWithTab()
