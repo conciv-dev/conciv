@@ -7,4 +7,4 @@ export {Info, Ref}
 
 export interface Interface extends Info {}
 
-export const Service = Context.Service<Interface>('@opencode/Location')
+export const Service = Context.Service<Interface>('@conciv/Location')

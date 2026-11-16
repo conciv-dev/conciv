@@ -35,7 +35,7 @@ export interface Interface {
   ) => Effect.Effect<Stream.Stream<ConcivEvent, Error>, never, Scope.Scope>
 }
 
-export const Service = Context.Service<Interface>('@opencode/server/EventFeed')
+export const Service = Context.Service<Interface>('@conciv/server/EventFeed')
 
 const ServerEvent = Schema.Union(EventManifest.ServerDefinitions)
 
