@@ -22,10 +22,13 @@ function base(file: string): string {
   return file.split('/').slice(-1)[0] ?? file
 }
 
+const LINE_BREAK = /[\n\r\u2028\u2029]/
+
 export function humanToolName(name: string): string {
-  const mcp = name.match(/^mcp__(.+?)__(.+)$/)
-  if (mcp?.[2]) return mcp[2].replaceAll('_', ' ')
-  return name
+  if (!name.startsWith('mcp__') || LINE_BREAK.test(name)) return name
+  const separator = name.indexOf('__', 6)
+  const tool = separator === -1 ? '' : name.slice(separator + 2)
+  return tool ? tool.replaceAll('_', ' ') : name
 }
 
 type HintData = z.infer<typeof Hint>
