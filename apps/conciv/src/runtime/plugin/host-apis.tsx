@@ -1,4 +1,15 @@
-import {batch, createMemo, createSignal, getOwner, on, onCleanup, runWithOwner, untrack, type Accessor} from 'solid-js'
+import {
+  batch,
+  createMemo,
+  createSignal,
+  from,
+  getOwner,
+  on,
+  onCleanup,
+  runWithOwner,
+  untrack,
+  type Accessor,
+} from 'solid-js'
 import {createStore, produce, type Store} from 'solid-js/store'
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import {createORPCClient} from '@orpc/client'
@@ -8,7 +19,7 @@ import {formatForDisplay} from '@tanstack/solid-hotkeys'
 import {useQuery} from '@conciv/client'
 import type {RpcClient} from '@conciv/contract'
 import {writeClipboardText} from '@conciv/ui-kit-system'
-import {Conciv, type ConcivClient} from '@conciv/plugin'
+import {Conciv, type ClientConnectionStatus, type ConcivClient} from '@conciv/plugin'
 import type {
   Layout,
   MountedSession,
@@ -103,7 +114,6 @@ const HostSettingsTab = z.enum(['general', 'views', 'shortcuts', 'plugins', 'adv
 export function createHostApis() {
   const rpc = useRpc()
   const apiBase = useApiBase()
-  const connection = useConnected()
   const notices = useNotices()
   const systemDark = createMediaQuery('(prefers-color-scheme: dark)')
   const [attachState, setAttachState] = createSignal(createHostApiAttachState<Attached>())
@@ -115,6 +125,10 @@ export function createHostApis() {
   const unavailable = Conciv.make(createORPCClient<RpcClient>({call: () => Promise.reject(new Error(UNAVAILABLE))}))
 
   const engineVersion = useQuery(() => engineVersionQueryOptions(apiBase()))
+  const engineStream = from<ClientConnectionStatus>((set) => {
+    set(client.connection.status())
+    return client.connection.on(set)
+  })
 
   const engine: ServerRef = {
     id: 'engine',
@@ -129,7 +143,7 @@ export function createHostApis() {
       return !(engineVersion.isSuccess && engineOlderThanWidget(engineVersion.data))
     },
     get connected() {
-      return connection()
+      return engineStream() === 'connected'
     },
   }
 
