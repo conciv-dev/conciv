@@ -1,4 +1,6 @@
-import {existsSync} from 'node:fs'
+import {execFileSync} from 'node:child_process'
+import {existsSync, mkdirSync} from 'node:fs'
+import {open} from 'node:fs/promises'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {randomUUID} from 'node:crypto'
@@ -13,6 +15,17 @@ import {tempDir} from '@conciv/vitest-config/temp-dir'
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 const OTHER_ROOM = 'conciv_other_room'
 const PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+
+const APP = [
+  'export function App() {',
+  '  return (',
+  '    <main>',
+  '      <Card title="hello" />',
+  '    </main>',
+  '  )',
+  '}',
+  '',
+].join('\n')
 
 const OFFERED_TOOLS = [
   'whiteboard_anchor_resolve',
@@ -363,19 +376,34 @@ describe('the whiteboard store and its rpc', () => {
     const pin = {...pinRow('kept'), room}
     const {room: _pinRoom, ...pinInsert} = pin
     const element = {elementId: 'kept', data: {type: 'rectangle'}, version: 1}
+    const held = join(folder, 'src', 'Held.tsx')
+    mkdirSync(join(folder, 'src'))
+    execFileSync('mkfifo', [held])
+    const heldComment = {
+      ...commentRow('held'),
+      kind: 'source-linked',
+      anchor: {source: {file: 'src/Held.tsx', line: 4, column: 7}},
+    }
     const fill = async () => {
       await call(first, 'comments.insert', {room, row: commentRow('kept')})
       await call(first, 'pins.insert', {room, row: pinInsert})
       await call(first, 'elements.upsert', {room, scope: 'live', row: element})
-      return board(first, room)
+      await call(first, 'comments.insert', {room, row: heldComment})
+      const enriching = await open(held, 'w')
+      return {board: await board(first, room), enriching}
     }
-    const stored = await fill().finally(() => first.cleanup())
+    const {board: stored, enriching} = await fill().finally(() => first.cleanup())
+    await enriching.writeFile(APP)
+    await enriching.close()
     expect(
       z
         .array(CommentSchema)
         .parse(stored.comments)
-        .map((row) => row.cid),
-    ).toEqual(['kept'])
+        .map((row) => [row.cid, row.anchorHash]),
+    ).toEqual([
+      ['kept', null],
+      ['held', null],
+    ])
     expect(stored.pins).toEqual([pin])
     expect(stored.elements).toEqual([{...element, room}])
 
@@ -616,17 +644,6 @@ describe('the whiteboard comment tools', () => {
 })
 
 describe('the whiteboard anchors', () => {
-  const APP = [
-    'export function App() {',
-    '  return (',
-    '    <main>',
-    '      <Card title="hello" />',
-    '    </main>',
-    '  )',
-    '}',
-    '',
-  ].join('\n')
-
   it('locates a component, anchors a comment to it, follows it when it moves, loses it when it changes, and enriches an inserted comment', async () => {
     const {kit, room} = await boot({'src/App.tsx': APP})
 

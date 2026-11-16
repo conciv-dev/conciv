@@ -26,6 +26,8 @@ export const startCommentEnrichment = (store: Store, cwd: string): (() => void) 
     if (row.kind !== 'source-linked' || attempted.has(row.id) || row.anchorHash) return
     if (!SourceAnchor.safeParse(row.anchor).success) return
     attempted.add(row.id)
-    void enrichRow(store, cwd, row.id, event.room, row.anchor)
+    enrichRow(store, cwd, row.id, event.room, row.anchor).catch((error: unknown) => {
+      console.error(`[whiteboard] comment ${row.id} was not enriched: ${String(error)}`)
+    })
   })
 }
