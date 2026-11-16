@@ -27,11 +27,11 @@ import {InstructionEntry} from '../../../src/core/session/instruction-entry.js'
 import {Skill} from '../../../src/core/skill.js'
 import {Image} from '../../../src/core/image.js'
 import {Tool} from '../../../src/core/tool.js'
-import {InstructionEntry as InstructionEntrySchema} from '../../../src/schema/instruction-entry.js'
-import {ProjectId} from '../../../src/schema/project-id.js'
+import {InstructionEntry as InstructionEntrySchema} from '@conciv/plugin/schema/instruction-entry'
+import {ProjectId} from '@conciv/plugin/schema/project-id'
 import type {ConfigPlugin} from '../../../src/schema/config/plugin.js'
-import {AbsolutePath} from '../../../src/schema/schema.js'
-import {Session as SessionSchema} from '../../../src/schema/session.js'
+import {AbsolutePath} from '@conciv/plugin/schema/schema'
+import {Session as SessionSchema} from '@conciv/plugin/schema/session'
 import {EffectFlock} from '../../../src/util/effect-flock.js'
 import {FSUtil} from '../../../src/util/fs-util.js'
 import {Global} from '../../../src/util/global.js'
@@ -241,6 +241,7 @@ export const supervisorLayer = (
   directory: string,
   options: {
     readonly plugins?: InstancePlugins.List
+    readonly builtin?: InstancePlugins.Builtin
     readonly configured?: readonly ConfigPlugin.Plugin[]
     readonly source?: Layer.Layer<Context.Service.Identifier<typeof ConfigPluginSource.Service>>
   } = {},
@@ -248,7 +249,7 @@ export const supervisorLayer = (
   PluginSupervisor.layer.pipe(
     Layer.provideMerge(
       Layer.mergeAll(
-        InstancePlugins.bound(options.plugins ?? []),
+        InstancePlugins.bound(options.plugins ?? [], options.builtin),
         PluginUpdate.layer,
         options.source ??
           ConfigPluginSource.layer.pipe(

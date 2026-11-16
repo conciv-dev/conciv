@@ -1,7 +1,7 @@
 import {defineConfig} from 'vitest/config'
 import {playwright} from '@vitest/browser-playwright'
 import solidPlugin from 'vite-plugin-solid'
-import {browserOptimizeDeps, ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
+import {browserOptimizeDeps, ciTest, ciTestSolidBrowser, HOOK_TIMEOUT_MS, TEST_TIMEOUT_MS} from '@conciv/vitest-config'
 
 export default defineConfig({
   test: {
@@ -28,8 +28,8 @@ export default defineConfig({
           name: 'node',
           environment: 'node',
           include: ['test/plugin.test.ts', 'test/client/shared-events.test.ts'],
-          testTimeout: ciTest().testTimeout,
-          hookTimeout: ciTest().hookTimeout,
+          testTimeout: TEST_TIMEOUT_MS,
+          hookTimeout: HOOK_TIMEOUT_MS,
         },
       },
     ],

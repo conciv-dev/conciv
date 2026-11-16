@@ -88,6 +88,7 @@ export type BootOverrides = {
   systemPromptText?: string
   home?: string
   plugins?: readonly Plugin.Plugin[]
+  configPlugins?: ResolvedConcivConfig['plugins']
 }
 
 export function bootKit(overrides: BootOverrides = {}, harness: HarnessAdapter = requireClaude()): Promise<Kit> {
@@ -113,7 +114,7 @@ export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): 
     harnessSessionId: undefined,
     systemPrompt: '',
     hubAccess: 'session',
-    plugins: [],
+    plugins: overrides.configPlugins ?? [],
     policies: [],
   }
   const made = await makeApp({
@@ -144,7 +145,8 @@ export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): 
 
 export function bootCoreApp(overrides: BootOverrides = {}): BootApp {
   return async (env) => {
-    const {fetch, dispose, agentToken} = await bootMadeApp(env, overrides)
+    const {fetch, dispose, agentToken, startPlugins} = await bootMadeApp(env, overrides)
+    await startPlugins()
     return {fetch, dispose, agentToken}
   }
 }

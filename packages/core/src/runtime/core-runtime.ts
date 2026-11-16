@@ -1,10 +1,9 @@
 import {eq, lt} from 'drizzle-orm'
 import type {SessionId, NavigationWrite} from '@conciv/protocol/chat-types'
-import type {RawFrame} from '../editor/symbolicate.js'
+import type {RawFrame, SourceLoc} from '@conciv/protocol/page-introspect-types'
 import type {EngineStaleness, ToolCommandSignature} from '@conciv/contract'
 import type {ToolRequest} from '@conciv/extension'
 import {navigation, sessionCaptures, writeToolCapture, type ConcivDb} from '@conciv/db'
-import {symbolicateFrames} from '../editor/symbolicate.js'
 import type {ChatPlane} from '@conciv/chat'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {logError} from '../lib/debug.js'
@@ -22,6 +21,7 @@ export type CoreRuntimeDeps = {
   model: (sessionId: SessionId) => string | null
   staleness: () => EngineStaleness
   interruptIdle: (sessionId: SessionId, stopped: boolean) => Promise<boolean>
+  symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
 }
 
 function catalogSignatures(catalog: ToolCatalog): ToolCommandSignature[] {
@@ -52,7 +52,7 @@ function makeEngineScope(deps: CoreRuntimeDeps): EngineScope {
   return {
     catalog: () => catalogSignatures(deps.primitives.registry.catalog),
     staleness: deps.staleness,
-    symbolicate: (frames: RawFrame[]) => symbolicateFrames(frames, deps.primitives.page.root),
+    symbolicate: deps.symbolicate,
     navigation: {
       get: async () => {
         const rows = await db.select().from(navigation).where(eq(navigation.id, 'navigation'))

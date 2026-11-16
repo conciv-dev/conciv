@@ -33,7 +33,9 @@ export type HarnessModel = {
   efforts?: ReasoningEffort[]
 }
 
-export type HarnessModels = HarnessModel[] | (() => HarnessModel[] | Promise<HarnessModel[]>)
+export type HarnessModels =
+  | HarnessModel[]
+  | ((options: {signal: AbortSignal}) => HarnessModel[] | Promise<HarnessModel[]>)
 
 export type HarnessCommand = {name: string; description?: string; argumentHint?: string}
 

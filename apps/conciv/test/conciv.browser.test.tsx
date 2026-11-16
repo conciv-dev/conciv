@@ -1323,6 +1323,8 @@ describe('model menu', () => {
 
   const core = bootedCore('model-menu', {models: MODELS, commands: HARNESS_COMMANDS, text: REPLY})
   const keep = keptPane()
+  const shell = createShellHarness(core)
+  afterEach(shell.dispose)
   const faults = trackedFaults()
 
   const prompt = (name: string) => page.getByRole('button', {name: `Model: ${name}`})
@@ -1500,6 +1502,26 @@ describe('model menu', () => {
 
     await expect.element(prompt('Sonnet 5.5')).toBeVisible()
     await expect.element(input()).toHaveFocus()
+  })
+
+  test('on a short screen the first and the last model can be seen and picked', async () => {
+    await page.viewport(1000, 400)
+    const sessionId = await createSession(coreRpc(core()))
+    shell.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(input(), {timeout: 15_000}).toBeVisible()
+
+    await userEvent.click(prompt('Opus 5.5'))
+    await expect.element(search()).toBeInViewport({ratio: 1})
+    await expect.element(model('Opus 5.5')).toBeInViewport({ratio: 1})
+    await userEvent.click(older())
+    await expect.element(model('Haiku 4.5')).toBeVisible()
+    await userEvent.click(model('Haiku 4.5'))
+    await expect.element(prompt('Haiku 4.5')).toBeVisible()
+
+    await userEvent.click(prompt('Haiku 4.5'))
+    await expect.element(search()).toBeInViewport({ratio: 1})
+    await userEvent.click(model('Opus 5.5'))
+    await expect.element(prompt('Opus 5.5')).toBeVisible()
   })
 
   test('an older model is reached by keyboard through the Older versions section', async () => {
@@ -5397,6 +5419,12 @@ describe('session selector', () => {
     await expect.element(option('older session 0')).not.toBeInTheDocument()
     await userEvent.hover(option('a minute after midnight'))
     await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeVisible()
+    await page.viewport(390, 500)
+    await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeInViewport({ratio: 1})
+    await expect
+      .element(preview('a minute after midnight').getByRole('button', {name: 'Copy'}).last())
+      .toBeInViewport({ratio: 1})
+    await page.viewport(414, 896)
     await expect.element(preview('a minute after midnight').getByRole('mark').first()).toHaveTextContent('tide')
     await expect.element(search).toHaveFocus()
     await expect.element(preview('a minute after midnight').getByRole('button', {name: 'Copy'}).last()).toBeVisible()
@@ -6692,6 +6720,67 @@ module.exports = {default: {setup(ctx) {
   }, 30_000)
 })
 
+describe('the page contracts reach a plugin', () => {
+  const sourceMap = JSON.stringify({version: 3, sources: ['src/app.tsx'], names: [], mappings: 'AAAA'})
+  const readerBundle = `const {Panel, createKeyed} = require('@conciv/plugin/experimental')
+const {Page, ReactTree} = require('@conciv/plugin/experimental/page')
+module.exports = {default: {setup(ctx) {
+  const body = document.createElement('div')
+  const answer = document.createElement('p')
+  createKeyed(ctx.use(Page), (page) =>
+    createKeyed(ctx.use(ReactTree), (tree) => {
+      const button = document.createElement('button')
+      button.textContent = 'Read the contracts'
+      button.addEventListener('click', () => {
+        const fibers = Array.isArray(tree.rootFibers()) ? 'fibers listed' : 'no fibers'
+        page.symbolicate({frames: [{fileName: 'dist/chunk.js', line: 1, column: 1}]}).then(
+          (source) => (answer.textContent = 'Page and ReactTree, ' + fibers + ', ' + source.file + ':' + source.line + ':' + source.column),
+          (error) => (answer.textContent = String(error)),
+        )
+      })
+      body.replaceChildren(button, answer)
+    }),
+  )
+  ctx.add(Panel, {
+    id: 'reader',
+    region: 'pane',
+    list: () => [{id: 'reader', title: 'Contract reader', pinned: true}],
+    render: () => body,
+  })
+}}}
+`
+  const coreBase = bootedCore('page-contracts', {
+    plugins: ['./reader'],
+    files: {
+      'reader/index.ts': `export default {id: 'reader', async setup() {}}
+`,
+      'reader/plugin-experimental.js': readerBundle,
+      'dist/chunk.js': `console.log('chunk')
+`,
+      'dist/chunk.js.map': sourceMap,
+    },
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  test('a plugin that reads Page and ReactTree gets both, and Page.symbolicate answers from the engine', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    const reader = page.getByRole('tab', {name: 'Contract reader'})
+    await expect.element(reader, {timeout: 15_000}).toBeVisible()
+    await reader.click()
+    const read = page.getByRole('button', {name: 'Read the contracts', exact: true})
+    await expect.element(read).toBeVisible()
+    await read.click()
+
+    await expect
+      .element(page.getByText('Page and ReactTree, fibers listed, src/app.tsx:1:0', {exact: true}))
+      .toBeVisible()
+  }, 30_000)
+})
+
 describe('plugin tool cards', () => {
   const probeBundle = `const {Registry} = require('@conciv/plugin/experimental')
 const ToolCall = Registry.define('tool-call')
@@ -6841,7 +6930,8 @@ module.exports = {default: {setup(ctx) {
   const pill = (name: string) => page.getByRole('button', {name, exact: true})
   const notifications = () => page.getByRole('region', {name: /Notifications/})
 
-  test('the pills a plugin shows sit above the composer in order, a plain pill runs, a rows pill opens its menu, and a menu pill opens its popover', async () => {
+  test('the pills a plugin shows sit above the composer in order, a plain pill runs, a rows pill opens its menu, and a menu pill opens its popover, each fitting a short screen', async () => {
+    await page.viewport(1000, 500)
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(`/panel/${sessionId}?open=true`)
 
@@ -6862,7 +6952,8 @@ module.exports = {default: {setup(ctx) {
     await pill('Checks pill').click()
     const checks = page.getByRole('menu', {name: 'Checks pill', exact: true})
     await expect.element(checks).toBeVisible()
-    await expect.element(checks.getByText('Checks pill', {exact: true})).toBeVisible()
+    await expect.element(checks.getByText('Checks pill', {exact: true})).toBeInViewport({ratio: 1})
+    await expect.element(checks.getByRole('menuitem', {name: /Run the checks/})).toBeInViewport({ratio: 1})
     await expect.element(checks.getByRole('menuitem', {name: /Locked check/})).toHaveAttribute('aria-disabled', 'true')
     await expect.element(checks.getByRole('menuitem', {name: /Run the checks/})).toMatchTextContent(/3 left$/i)
     await checks.getByRole('menuitem', {name: /Run the checks/}).click()
@@ -6877,7 +6968,8 @@ module.exports = {default: {setup(ctx) {
     await pill('Notes pill').click()
     const notes = page.getByRole('dialog', {name: 'Notes pill', exact: true})
     await expect.element(notes).toBeVisible()
-    await expect.element(notes.getByText('Notes for the session', {exact: true})).toBeVisible()
+    await expect.element(notes.getByRole('heading', {name: 'Notes pill'})).toBeInViewport({ratio: 1})
+    await expect.element(notes.getByText('Notes for the session', {exact: true})).toBeInViewport({ratio: 1})
     await notes.getByRole('button', {name: 'Done with the notes', exact: true}).click()
     await expect.element(notes).not.toBeInTheDocument()
   }, 45_000)
@@ -7091,16 +7183,24 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
   })
   const faults = trackedFaults()
   const row = (id: string, enabled: boolean) => ({id, builtin: false, enabled, server: true})
-  const rows = (pane: boolean) => [row('pane', pane), {...row('broken', true), error: expect.stringMatching(/./)}]
+  const builtinPage = {id: 'page', builtin: true, enabled: true}
+  const rows = (pane: boolean) => [
+    builtinPage,
+    row('pane', pane),
+    {...row('broken', true), error: expect.stringMatching(/./)},
+  ]
   const notFound = {code: 'notFound', message: 'notFound'}
   const disabledPlugins = page.getByRole('status', {name: 'disabled plugins'})
 
   test('a plugin that never loaded is listed with its error, and disable, enable and reload act through the store', async () => {
     const base = coreBase()
     await faults.install({kind: 'garble', path: EXPERIMENTAL, input: {id: 'broken'}})
+    const listed = await faults.install({kind: 'gate', path: ['settings', 'changes']})
     const first = bundleSource(base)
     onTestFinished(first.dispose)
     const firstInstalled = recordInstalled(first.manager)
+    expect((await recordPushes(first).nth(1)).plugins.map((plugin) => plugin.id)).toEqual(['pane'])
+    await coreControl.releaseFault(listed)
 
     await firstInstalled.next(rows(true))
     expect(await first.manager.list()).toEqual(rows(true))
@@ -7238,6 +7338,35 @@ describe('installed plugins in settings', () => {
     await expect.element(lateRow(), {timeout: 15_000}).toBeVisible()
     await expect.element(tab('Plugins')).toHaveAttribute('aria-selected', 'true')
   }, 60_000)
+
+  test("the engine's own page plugin has no row a user could reload or switch off", async () => {
+    await page.viewport(1000, 900)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    await coreControl.writeProjectFile(
+      'conciv/plugins/neighbour.ts',
+      "export default {id: 'neighbour', async setup() {}}\n",
+    )
+    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`, [])
+    await expect.element(page.getByText('neighbour', {exact: true}), {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('conciv.page', {exact: true})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('switch', {name: 'conciv.page'})).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('each engine-only plugin a user adds one after another gets its own row', async () => {
+    await page.viewport(1000, 900)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`, [])
+    await expect.element(tab('Plugins'), {timeout: 8000}).toHaveAttribute('aria-selected', 'true')
+
+    await coreControl.writeProjectFile(
+      'conciv/plugins/earlier.ts',
+      "export default {id: 'earlier', async setup() {}}\n",
+    )
+    await expect.element(page.getByText('earlier', {exact: true}), {timeout: 15_000}).toBeVisible()
+
+    await coreControl.writeProjectFile('conciv/plugins/later.ts', "export default {id: 'later', async setup() {}}\n")
+    await expect.element(page.getByText('later', {exact: true}), {timeout: 15_000}).toBeVisible()
+  }, 60_000)
 })
 
 describe('a fixture plugin driven like a user', () => {
@@ -7293,6 +7422,12 @@ module.exports = {default: {stores: {
     }},
   )
   ctx.add(Slot, {at: 'window.bottom', render: () => engineLine})
+  const readEngineEvents = async () => {
+    for await (const event of ctx.client.event.subscribe({signal: ctx.signal})) void event
+  }
+  readEngineEvents().catch((error) => {
+    if (!ctx.signal.aborted) console.error('[fixture] the engine event reader failed', error)
+  })
   const dialog = (title, body) =>
     ctx.dialogs.open(() => createComponent(ctx.ui.Dialog, {title, get children() { return body() }}))
   const second = () => dialog('Fixture second dialog', () => 'The second dialog is on top')

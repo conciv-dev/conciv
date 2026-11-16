@@ -1,3 +1,7 @@
+import type {GrabFrame} from '@conciv/plugin/experimental/grab'
+
+export type {GrabFrame} from '@conciv/plugin/experimental/grab'
+
 export type ElementSource = {
   componentName: string | null
   filePath: string
@@ -38,12 +42,6 @@ export function sourceLabel(source: ElementSource): string {
   if (!source.componentName) return where
   if (where === '') return source.componentName
   return `${source.componentName} at ${where}`
-}
-
-export type GrabFrame = {
-  fileName: string
-  line: number
-  column?: number
 }
 
 export type GrabSourceLoc = {

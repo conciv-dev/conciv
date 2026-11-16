@@ -2,7 +2,14 @@ import {defineConfig} from 'vitest/config'
 import {playwright} from '@vitest/browser-playwright'
 import solidPlugin from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
-import {TANSTACK_AI_SOLID_DEPS, browserOptimizeDeps, ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
+import {
+  browserOptimizeDeps,
+  ciTest,
+  ciTestSolidBrowser,
+  HOOK_TIMEOUT_MS,
+  TANSTACK_AI_SOLID_DEPS,
+  TEST_TIMEOUT_MS,
+} from '@conciv/vitest-config'
 
 const DIFFS_ENTRIES = ['@pierre/diffs', '@pierre/diffs/worker']
 
@@ -32,8 +39,8 @@ export default defineConfig({
           environment: 'node',
           include: ['test/**/*.test.ts'],
           server: {deps: {inline: ['solid-js']}},
-          testTimeout: ciTest().testTimeout,
-          hookTimeout: ciTest().hookTimeout,
+          testTimeout: TEST_TIMEOUT_MS,
+          hookTimeout: HOOK_TIMEOUT_MS,
         },
       },
       {

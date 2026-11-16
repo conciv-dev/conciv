@@ -74,11 +74,11 @@ function labelCandidates(raw: string, tokens: string[]): string[] {
 }
 
 const CAMEL_BOUNDARY = /([a-z0-9])([A-Z])/g
-const ACRONYM_BOUNDARY = /([A-Z]+)([A-Z][a-z])/g
+const ACRONYM_BOUNDARY = /([A-Z])(?=[A-Z][a-z])/g
 
 function labelTokens(segment: string): string[] {
   return segment
-    .replace(ACRONYM_BOUNDARY, '$1_$2')
+    .replace(ACRONYM_BOUNDARY, '$1_')
     .replace(CAMEL_BOUNDARY, '$1_$2')
     .toLowerCase()
     .split(/[_-]/)
