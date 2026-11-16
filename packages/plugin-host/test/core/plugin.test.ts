@@ -119,7 +119,7 @@ it.live("serves a local plugin's experimental bundle, and reloads it alone when 
     const bus = yield* Bus.Service
     yield* plugins.awaitActivation
     const directory = yield* Effect.acquireRelease(
-      Effect.promise(() => mkdtemp(path.join(tmpdir(), 'opencode-plugin-experimental-'))),
+      Effect.promise(() => mkdtemp(path.join(tmpdir(), 'conciv-plugin-experimental-'))),
       (directory) => Effect.promise(() => rm(directory, {recursive: true, force: true})),
     )
     const starts = path.join(directory, 'starts')
@@ -178,7 +178,7 @@ it.live("serves a local plugin's built chunks, each answer pinned to the bytes r
     const plugins = yield* Plugin.Service
     yield* plugins.awaitActivation
     const directory = yield* Effect.acquireRelease(
-      Effect.promise(() => mkdtemp(path.join(tmpdir(), 'opencode-plugin-chunks-'))),
+      Effect.promise(() => mkdtemp(path.join(tmpdir(), 'conciv-plugin-chunks-'))),
       (created) => Effect.promise(() => rm(created, {recursive: true, force: true})),
     )
     const shared = 'exports.shared = "shared"'
