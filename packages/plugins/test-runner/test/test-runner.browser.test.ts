@@ -81,7 +81,9 @@ describe('the Tests panel of the test-runner plugin', () => {
       await expect(panel.getByText('this fails on purpose', {exact: true}).first()).toBeVisible({timeout: 60_000})
 
       await page.reload({waitUntil: 'domcontentloaded'})
-      await openTests()
+      await expect(page.getByRole('button', {name: 'Minimize conciv chat'})).toBeVisible({timeout: 30_000})
+      await testsTab.click()
+      await expect(page.getByRole('tab', {name: 'Tests', exact: true, selected: true})).toBeVisible()
       await expect(panel.getByRole('status')).toHaveText(/^Running tests/, {timeout: 30_000})
       await expect(panel.getByText('one plus one', {exact: true})).toBeVisible()
       await expect(panel.getByText('this fails on purpose', {exact: true}).first()).toBeVisible()
