@@ -856,6 +856,7 @@
     "packages/brand-react/src/conciv-lockup.tsx",
     "packages/brand/src/brand-guidelines.mdx",
     "packages/ui-kit-chat/src/tools.tsx",
+    "packages/ui-kit-chat/src/draft-storage.ts",
     "packages/extension-testkit/src/host/host-entry.tsx",
     "packages/embed/src/native-entry.ts",
     "packages/extensions/tanstack/test/host/main.tsx",
