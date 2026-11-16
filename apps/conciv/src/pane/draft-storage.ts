@@ -92,6 +92,22 @@ function rowLocalDraft(row: DraftRow): LocalDraft {
   }
 }
 
+function readLocalDraft(drafts: DraftStore, sessionId: string): Promise<LocalDraft | null> {
+  return drafts
+    .getItem(sessionId)
+    .then(parseLocalDraft)
+    .catch((error: unknown) => {
+      console.error('[conciv] could not read the local draft', error)
+      return null
+    })
+}
+
+function chosenDraft(verdict: DraftReconcile, stored: LocalDraft | null, row: DraftRow | null): LocalDraft | null {
+  if (verdict.kind === 'local') return stored
+  if (verdict.kind === 'engine' && row) return rowLocalDraft(row)
+  return null
+}
+
 async function readLocalFile(attachment: LocalAttachment): Promise<AttachmentState[]> {
   const blob = attachment.blob
   if (!blob) return []
@@ -201,14 +217,7 @@ function makeLocalDraftWriter(
       syncedAt: untrack(() => document.draft?.syncedAt),
     })
   }
-  const read = () =>
-    drafts
-      .getItem(sessionId)
-      .then(parseLocalDraft)
-      .catch((error: unknown) => {
-        console.error('[conciv] could not read the local draft', error)
-        return null
-      })
+  const read = () => readLocalDraft(drafts, sessionId)
   const settle = (verdict: DraftReconcile, stored: LocalDraft | null, row: DraftRow | null) => {
     if (verdict.kind === 'cleared' && !document.draft) {
       void drafts.removeItem(sessionId).catch((error: unknown) => {
@@ -216,7 +225,7 @@ function makeLocalDraftWriter(
       })
       return
     }
-    const base = verdict.kind === 'local' ? stored : verdict.kind === 'engine' && row ? rowLocalDraft(row) : null
+    const base = chosenDraft(verdict, stored, row)
     if (!base) return
     if (document.draft) return persisted.setStore('draft', 'syncedAt', base.syncedAt)
     persisted.setStore('draft', base)
@@ -264,13 +273,29 @@ async function readRestoredDraft(
 type DraftPlace = 'first' | 'last'
 
 async function keepInDraft(appData: AppData, sessionId: string, text: string, place: DraftPlace): Promise<void> {
-  const row = await appData.readDraft(sessionId).catch((error: unknown) => {
-    console.error('[conciv] could not read the saved draft', error)
-    return null
-  })
-  const saved = row?.text ?? ''
+  const drafts = appData.drafts
+  const [row, stored] = await Promise.all([
+    appData.readDraft(sessionId).catch((error: unknown) => {
+      console.error('[conciv] could not read the saved draft', error)
+      return null
+    }),
+    drafts ? readLocalDraft(drafts, sessionId) : null,
+  ])
+  const base = chosenDraft(reconcileDraft(stored, row, sameAsRow), stored, row)
+  const saved = base?.text ?? ''
   const nextText = saved === '' ? text : place === 'first' ? `${text}\n${saved}` : `${saved}\n${text}`
   const caret = place === 'first' ? text.length : nextText.length
+  await drafts
+    ?.setDocument(sessionId, {
+      text: nextText,
+      selectionStart: caret,
+      selectionEnd: caret,
+      attachments: base?.attachments ?? [],
+      syncedAt: base?.syncedAt,
+    })
+    .catch((error: unknown) => {
+      console.error('[conciv] could not keep the returned text in the local draft', error)
+    })
   await appData.saveDraft({
     sessionId,
     text: nextText,
