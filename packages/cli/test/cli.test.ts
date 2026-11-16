@@ -1648,7 +1648,13 @@ describe('cli', () => {
           c.env.incoming.socket.destroy()
           return c.body(null)
         })
-        .all('*', (c) => proxy(new URL(asked(c.req.url), upstream.origin), {...c.req}))
+        .all('*', (c) => {
+          const requested = new URL(c.req.url)
+          const target = new URL(upstream)
+          target.pathname = requested.pathname
+          target.search = requested.search
+          return proxy(target, {...c.req})
+        })
       const {port, close} = await serveHono({fetch: app.fetch, port: 0})
       const row = withHomeDb(home, listEngines).find((entry) => entry.root === engine.root)
       if (row === undefined) throw new Error('the engine has no row in the home db')
