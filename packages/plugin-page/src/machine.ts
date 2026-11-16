@@ -765,7 +765,6 @@ function dispatchFailed(action: Method, error: unknown) {
 }
 
 function timedOut(action: Method, timeoutMs: number) {
-  return Tool.toolError({
-    message: `[page.timeout] page.${action} did not finish within ${timeoutMs / 1000} seconds; its outcome is unknown. Call page.tabs.list({}) and inspect the page before you repeat a changing action.`,
-  })
+  const message = `[page.timeout] page.${action} did not finish within ${timeoutMs / 1000} seconds; its outcome is unknown. Call page.tabs.list({}) and inspect the page before you repeat a changing action.`
+  return Tool.toolError({message, metadata: {code: 'timeout', message}})
 }
