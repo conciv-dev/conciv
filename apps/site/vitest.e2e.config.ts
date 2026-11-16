@@ -7,6 +7,6 @@ export default defineConfig({
     include: ['test/**/*.it.test.ts'],
     testTimeout: 180_000,
     reporters: ciReporters(),
-    env: ciTest().env,
+    globalSetup: ciTest().globalSetup,
   },
 })

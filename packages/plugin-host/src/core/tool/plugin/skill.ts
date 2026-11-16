@@ -1,6 +1,6 @@
 export * as SkillTool from './skill.js'
 
-import type {Context} from '../../../plugin/effect/plugin.js'
+import type {Context} from '@conciv/plugin/effect/plugin'
 import {makeToolFailure} from '../../../ai/effect.js'
 import {Effect, Schema} from 'effect'
 import {FSUtil} from '../../../util/fs-util.js'

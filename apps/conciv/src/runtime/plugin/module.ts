@@ -10,6 +10,7 @@ import {
 } from '@conciv/plugin/experimental/host'
 
 const modules = {
+  effect: () => import('effect'),
   '@conciv/plugin/experimental': () => import('@conciv/plugin/experimental'),
   '@conciv/plugin/rpc': () => import('@conciv/plugin/rpc'),
   zod: () => import('zod'),
