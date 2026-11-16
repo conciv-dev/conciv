@@ -9,7 +9,7 @@ export type {RequestOptions} from './generated/client.js'
 
 export type ClientConnectionStatus = 'connected' | 'connecting' | 'reconnecting'
 
-type ClientConnectionOptions = {
+export type ClientConnectionOptions = {
   readonly idleTimeout?: number
 }
 
@@ -77,7 +77,7 @@ function makeConnection() {
 }
 
 const reconnectDelay = 1_000
-const defaultIdleTimeout = 45_000
+export const defaultIdleTimeout = 45_000
 
 async function* received(
   raw: RpcClient,
