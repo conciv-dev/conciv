@@ -128,6 +128,7 @@ export async function seedDraft(rpc: RpcClient, sessionId: string, draft: Seeded
     selectionStart: text.length,
     selectionEnd: text.length,
     attachments: draft.attachments ?? [],
+    updatedAt: Date.now(),
   })
 }
 

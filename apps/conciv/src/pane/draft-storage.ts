@@ -75,6 +75,7 @@ async function keepInDraft(appData: AppData, sessionId: string, text: string, pl
     selectionStart: caret,
     selectionEnd: caret,
     attachments: row?.attachments ?? [],
+    updatedAt: Date.now(),
   })
 }
 
@@ -126,7 +127,7 @@ export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraft
     }
   }
   const persist = (draft: PersistedDraft) => {
-    void appData.saveDraft(draftRow(draft))
+    void appData.saveDraft({...draftRow(draft), updatedAt: Date.now()})
   }
   const savedAlready = (draft: PersistedDraft): boolean => {
     const saved = appData.cachedDraft(sessionId)

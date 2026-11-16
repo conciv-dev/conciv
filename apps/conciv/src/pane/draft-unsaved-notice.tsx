@@ -8,17 +8,15 @@ const DRAFT_UNSAVED_KEY = 'draft-unsaved'
 const DRAFT_UNSAVED_MESSAGE =
   'conciv could not save your draft. It is still in the composer, but a reload would lose it.'
 
-const DraftSaveSchema = DraftRowSchema.omit({updatedAt: true})
-
 export function DraftUnsavedNotice(props: {sessionId: string}): JSX.Element {
   const appData = useAppData()
   const notices = useNotices()
   const saves = useMutationState(() => ({
     filters: {
       mutationKey: appData.utils.drafts.set.mutationKey(),
-      predicate: (mutation) => DraftSaveSchema.safeParse(mutation.state.variables).data?.sessionId === props.sessionId,
+      predicate: (mutation) => DraftRowSchema.safeParse(mutation.state.variables).data?.sessionId === props.sessionId,
     },
-    select: (mutation) => ({status: mutation.state.status, draft: DraftSaveSchema.parse(mutation.state.variables)}),
+    select: (mutation) => ({status: mutation.state.status, draft: DraftRowSchema.parse(mutation.state.variables)}),
   }))
   const unsaved = createMemo(() => saves().some((save) => save.status === 'error'))
   const retry = (): void => {

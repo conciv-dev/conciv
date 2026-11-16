@@ -1690,7 +1690,13 @@ describe('api page tool capture', () => {
       const {sessionId, call} = await capturing()
       const asSession = makeRpcClient(kit().base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
       await call('page_fill', {selector: '#email', value: SECRET})
-      await kit().rpc.drafts.set({sessionId, text: 'an unsent draft', selectionStart: 0, selectionEnd: 0})
+      await kit().rpc.drafts.set({
+        sessionId,
+        text: 'an unsent draft',
+        selectionStart: 0,
+        selectionEnd: 0,
+        updatedAt: Date.now(),
+      })
       expect(await kit().rpc.drafts.get({sessionId})).toMatchObject({text: 'an unsent draft'})
       expect(await asSession.page.changes(undefined)).toContainEqual(
         expect.objectContaining({verb: 'page_fill', selector: '#email'}),
@@ -1853,6 +1859,13 @@ describe('rpc wire', () => {
           statuses.push(response.status)
         }
         expect(statuses).toEqual(PAGE_TRANSPORT_ERROR_CODES.map(() => 400))
+      })
+
+      it("drafts.set stores the client's updatedAt as sent, so a browser can match the row to the copy it sent", async () => {
+        const sessionId = SessionId.parse(await kit().session())
+        const updatedAt = 1_700_000_000_000
+        await kit().rpc.drafts.set({sessionId, text: 'a stamped draft', selectionStart: 0, selectionEnd: 0, updatedAt})
+        expect(await kit().rpc.drafts.get({sessionId})).toMatchObject({text: 'a stamped draft', updatedAt})
       })
     })
 
@@ -2033,7 +2046,13 @@ describe('rpc wire', () => {
     describe('turns', () => {
       it('a message streams its reply in one run under the client ids, and a reload shows the same turn', async () => {
         const sessionId = await newSession()
-        await chatKit().rpc.drafts.set({sessionId, text: 'a saved draft', selectionStart: 0, selectionEnd: 0})
+        await chatKit().rpc.drafts.set({
+          sessionId,
+          text: 'a saved draft',
+          selectionStart: 0,
+          selectionEnd: 0,
+          updatedAt: Date.now(),
+        })
         const ended = nextTurnEnd(sessionId)
         const events = await finished(sessionId, 'hello', {runId: 'client-run', messageId: 'client-user'})
         await ended()
@@ -2610,7 +2629,13 @@ describe('rpc wire', () => {
 
       it('an image is stored exactly as sent, ignores the draft, and stays in history for later turns', async () => {
         const sessionId = await newSession()
-        await chatKit().rpc.drafts.set({sessionId, text: 'a saved draft', selectionStart: 0, selectionEnd: 0})
+        await chatKit().rpc.drafts.set({
+          sessionId,
+          text: 'a saved draft',
+          selectionStart: 0,
+          selectionEnd: 0,
+          updatedAt: Date.now(),
+        })
         await finished(sessionId, {content: [{type: 'text', content: 'what color?'}, IMAGE]})
         await finished(sessionId, 'and the shape?')
         const messages = await thread(sessionId)

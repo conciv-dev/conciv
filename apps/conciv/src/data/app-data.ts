@@ -12,7 +12,7 @@ import {Conciv, type ConcivClient} from '@conciv/plugin'
 import type {DraftStore} from '../runtime/persistence/drafts.js'
 import {DraftRowSchema, SessionMetaSchema, type DraftRow, type RpcClient, type SessionMeta} from '@conciv/contract'
 
-type DraftInput = Omit<z.input<typeof DraftRowSchema>, 'updatedAt'>
+type DraftInput = z.input<typeof DraftRowSchema>
 
 const DraftSessionSchema = z.object({sessionId: z.string()})
 
@@ -68,7 +68,7 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
     onMutate: async (input) => {
       const {queryKey} = draftQuery(input.sessionId)
       await queryClient.cancelQueries({queryKey})
-      queryClient.setQueryData(queryKey, DraftRowSchema.parse({...input, updatedAt: Date.now()}))
+      queryClient.setQueryData(queryKey, DraftRowSchema.parse(input))
     },
     onError: (error) => {
       console.error('[conciv] could not save the draft', error)

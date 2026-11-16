@@ -739,6 +739,7 @@ describe('chat pane', () => {
         selectionStart: 0,
         selectionEnd: 0,
         attachments: [persistedGrab('grab-caret', HERO_GRAB)],
+        updatedAt: Date.now(),
       })
       const gate = await faults.install({kind: 'gate', path: DRAFT_GET_PATH})
       mountChatPane(sessionId, grabOptions(HERO_GRAB))
