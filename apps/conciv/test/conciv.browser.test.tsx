@@ -7593,6 +7593,12 @@ module.exports = {default: {setup(ctx) {
   })
 }}}
 `
+  const fragileSecondRevision = fragileBundle.replace(
+    /}}}\n$/,
+    `  ctx.add(Slot, {at: 'window.bottom', render: () => Object.assign(document.createElement('p'), {textContent: 'The fragile second revision'})})
+}}}
+`,
+  )
   const coreBase = bootedCore('plugin-fixture-journey', {
     plugins: ['./fixture', './fragile'],
     files: {
@@ -7962,6 +7968,7 @@ module.exports = {default: {setup(ctx) {
     const reloginNotice = () =>
       page.getByRole('alert').filter({hasText: 'This browser is no longer authorized to use conciv.'})
     const lostNotice = () => page.getByText('conciv lost connection to the engine.')
+    const shownText = (text: string) => page.getByText(text, {exact: true})
     const codeDigit = () => page.getByRole('textbox', {name: 'Digit 1 of 6'})
     const logIn = async (notice: Locator) => {
       await notice.getByRole('button', {name: 'Log in'}).click()
@@ -7987,7 +7994,11 @@ module.exports = {default: {setup(ctx) {
     await coreControl.revokeBrowsers()
     await expect.element(reloginNotice(), {timeout: 15_000}).toBeVisible()
     await expect.element(tab('Fixture tools')).toBeVisible()
+    await expect.element(shownText('Engine detached after 1')).toBeVisible()
+    await coreControl.writeProjectFile('fragile/plugin-experimental.js', fragileSecondRevision)
     await logIn(reloginNotice())
+    await expect.element(shownText('The fragile second revision'), {timeout: 15_000}).toBeVisible()
+    await expect.element(shownText('Engine attached: 2')).toBeVisible()
 
     const offline = await faults.install({kind: 'offline'})
     await expect.element(lostNotice(), {timeout: 15_000}).toBeVisible()
