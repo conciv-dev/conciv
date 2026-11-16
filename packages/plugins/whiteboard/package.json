@@ -1,6 +1,7 @@
 {
   "name": "@conciv/plugin-whiteboard",
   "version": "0.0.22",
+  "private": true,
   "description": "The conciv whiteboard plugin: a canvas the user and the agent share, with source-anchored comments and pins, on the plugin's own libSQL database.",
   "keywords": [
     "canvas",
