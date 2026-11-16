@@ -109,7 +109,10 @@ function makeChildManager(spec: ChildRunnerSpec, cwd: string, options: MakeManag
       })
       return cache.last
     } catch (error) {
-      if (isRunnerUnavailable(error)) cache.unavailable = error.message
+      if (isRunnerUnavailable(error)) {
+        cache.unavailable = error.message
+        emit({type: 'run-unavailable', reason: error.message})
+      }
       throw error
     } finally {
       if (runBuffer.at(-1)?.type !== 'run-end') runBuffer.length = 0
