@@ -31,12 +31,12 @@ const STATE_TONE: Record<TestRow['state'], string> = {
 }
 const STATE_LABEL: Record<TestRow['state'], string> = {pass: 'passed', fail: 'failed', skip: 'skipped'}
 
-export function relativePath(file: string, directory: string): string {
+function relativePath(file: string, directory: string): string {
   const prefix = directory.endsWith('/') ? directory : `${directory}/`
   return directory && file.startsWith(prefix) ? file.slice(prefix.length) : file
 }
 
-export function failureLocation(error: TestError, directory: string): string {
+function failureLocation(error: TestError, directory: string): string {
   const path = relativePath(error.file, directory)
   return error.line === undefined ? path : `${path}:${error.line}`
 }
