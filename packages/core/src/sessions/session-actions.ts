@@ -93,7 +93,13 @@ export async function deleteSession(deletion: SessionDeletion, sessionId: Sessio
   deletion.queues.cancelSession(sessionId)
   await deletion.pluginHost.runPromise(KV.Service.use((kv) => removeInstructionEntries(kv, sessionId)))
   await tombstoneRow(deletion.db, sessionId)
-  await deletion.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
+  const draftFailures = await deletion.db
+    .delete(drafts)
+    .where(eq(drafts.sessionId, sessionId))
+    .then(
+      (): unknown[] => [],
+      (failure: unknown) => [failure],
+    )
   const publishFailures = await deletion.pluginHost
     .runPromise(
       Bus.Service.use((bus) =>
@@ -106,17 +112,20 @@ export async function deleteSession(deletion: SessionDeletion, sessionId: Sessio
       (): unknown[] => [],
       (failure: unknown) => [failure],
     )
-  await runInOrder(
+  const cleanupFailures = await runInOrder(
     [
       () => deletion.plane.clear(sessionId),
       () => deleteSessionCaptures(deletion.db, sessionId),
       () => clearPageChanges(deletion.db, sessionId),
     ],
     deletionFailed,
-  ).catch((cleanup: unknown) => {
-    const cleanupFailures: unknown[] = cleanup instanceof AggregateError ? cleanup.errors : [cleanup]
-    throw new AggregateError([...publishFailures, ...cleanupFailures], deletionFailed)
-  })
-  const [publishFailure] = publishFailures
-  if (publishFailures.length > 0) throw publishFailure
+  ).then(
+    (): unknown[] => [],
+    (cleanup: unknown): unknown[] => (cleanup instanceof AggregateError ? cleanup.errors : [cleanup]),
+  )
+  const failures = [...draftFailures, ...publishFailures, ...cleanupFailures]
+  if (failures.length === 0) return
+  const [onlyFailure] = failures
+  if (failures.length === 1 && cleanupFailures.length === 0) throw onlyFailure
+  throw new AggregateError(failures, deletionFailed)
 }

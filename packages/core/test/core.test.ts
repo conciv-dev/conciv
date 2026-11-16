@@ -2776,6 +2776,49 @@ describe('plugin host bus', () => {
     expect(await left()).toEqual([0, 0])
   })
 
+  test('a delete whose drafts delete fails still publishes session.deleted and clears the messages, captures and page changes, and rejects with the drafts failure', async () => {
+    const stateRoot = tempDir('conciv-core-unit-')
+    const harness = createTestHarness(requireClaude())
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
+    onTestFinished(() => made.dispose())
+    const key = sessionKey(made)
+    const id = SessionId.parse('conciv_deleted_while_drafts_are_broken')
+    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    expect(await made.plane.followUp(id, 'leave a message behind')).toEqual({kind: 'delivered'})
+    const scope = made.runtime.forSession(id)
+    await scope.captures.store('call-1', {
+      after: {kind: 'after', ts: 1, descriptor: {tagName: 'input', selectorPath: '#agree'}},
+    })
+    await appendPageChange(made.chat.db, id, {verb: 'check', selector: '#agree', args: {}}, 1)
+    const left = async () => [
+      (await made.plane.hydrate(id)).messages.length,
+      (await scope.captures.list()).captures.length,
+      (await scope.page.changes()).length,
+    ]
+    expect(await left()).toEqual([1, 1, 1])
+    const heard: {type: string; data: unknown}[] = []
+    await made.pluginHost.runPromise(
+      Bus.Service.use((bus) => bus.listen((event) => Effect.sync(() => heard.push(event)))),
+    )
+    made.chat.db.run(sql`DROP TABLE drafts`)
+    const failure = await key
+      .run((sessions) => sessions.remove(SessionSchema.Id.make(id)))
+      .then(
+        () => null,
+        (error: unknown) => error,
+      )
+    expect(failure).toBeInstanceOf(Error)
+    expect(failure).not.toBeInstanceOf(AggregateError)
+    expect(failure).toMatchObject({message: expect.stringMatching(/drafts/)})
+    expect(heard.filter((event) => event.type === SessionEvent.Deleted.type)).toEqual([
+      expect.objectContaining({data: {sessionID: id}}),
+    ])
+    expect(await key.fail((sessions) => sessions.get(SessionSchema.Id.make(id)))).toMatchObject({
+      _tag: 'Session.NotFoundError',
+    })
+    expect(await left()).toEqual([0, 0, 0])
+  })
+
   test('a plugin experimental.idle hook fires for a run that completes and not for one that fails or is stopped, while turnEnd fires for all three', async () => {
     const stateRoot = tempDir('conciv-core-unit-')
     const turnEnds: SessionId[] = []
