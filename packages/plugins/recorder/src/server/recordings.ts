@@ -48,15 +48,15 @@ async function listByRecency(dir: string): Promise<string[]> {
   return names.filter((name) => name.endsWith('.json')).toSorted((a, b) => b.localeCompare(a))
 }
 
-async function prune(dir: string, reserved: {bytes: number; count: number}): Promise<void> {
+async function prune(dir: string): Promise<void> {
   const names = await listByRecency(dir)
   const sized = await Promise.all(
     names.map(async (name) => ({name, bytes: (await stat(join(dir, name)).catch(() => null))?.size ?? 0})),
   )
-  let total = reserved.bytes
+  let total = 0
   const doomed = sized.filter((entry, index) => {
     total += entry.bytes
-    return index + reserved.count >= MAX_RECORDINGS || total > MAX_TOTAL_RECORDING_BYTES
+    return index >= MAX_RECORDINGS || total > MAX_TOTAL_RECORDING_BYTES
   })
   await Promise.all(doomed.map((entry) => removeRecording(dir, entry.name)))
 }
@@ -71,18 +71,19 @@ export function createRecordingStore(dir: string): RecordingStore {
   let sequence = 0
   const changes = new PQueue({concurrency: 1})
   const publish = async (payload: string): Promise<SaveResult> => {
+    sequence += 1
+    const recordingId = `${Date.now()}-${sequence.toString(36).padStart(6, '0')}-${randomUUID()}`
+    const target = join(dir, `${recordingId}.json`)
     try {
       await mkdir(dir, {recursive: true})
-      await prune(dir, {bytes: Buffer.byteLength(payload, 'utf8'), count: 1})
-      sequence += 1
-      const recordingId = `${Date.now()}-${sequence.toString(36).padStart(6, '0')}-${randomUUID()}`
-      const target = join(dir, `${recordingId}.json`)
       await writeFile(`${target}.tmp`, payload, 'utf8')
       await rename(`${target}.tmp`, target)
-      return {ok: true, recordingId}
     } catch {
+      await unlink(`${target}.tmp`).catch(() => {})
       return {ok: false, reason: 'io-error'}
     }
+    await prune(dir)
+    return {ok: true, recordingId}
   }
   return {
     async save(events) {
@@ -113,7 +114,7 @@ export function createRecordingStore(dir: string): RecordingStore {
         const cutoff = Date.now() - RECORDING_TTL_MS
         const expired = names.filter((name) => parseTimestamp(name) < cutoff)
         await Promise.all(expired.map((name) => removeRecording(dir, name)))
-        await prune(dir, {bytes: 0, count: 0})
+        await prune(dir)
       })
     },
   }
