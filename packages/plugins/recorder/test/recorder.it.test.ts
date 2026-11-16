@@ -15,13 +15,14 @@ function isRecordingWindowRead(call: RpcSocketCall): boolean {
 }
 
 describe('the recorder in the widget', () => {
-  test('is an active plugin with a browser part, and with the old extension Recorder view hidden shows its Recorder tab loading the recording in the panel, then with nothing recorded yet for this page', async ({
+  test('is an active plugin with a browser part, and with the old extension Recorder view hidden shows its Recorder tab loading the recording in the panel, then with nothing recorded yet for this page, then replays what the user does in the page without the widget', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
       id: 'recorder-widget',
       plugins: [PACKAGE_DIR],
       widgetBundle: WIDGET_BUNDLE,
+      body: '<button type="button" onclick="this.textContent = \'Pressed by the user\'">Press me</button>',
     })
     try {
       const page = widget.page
@@ -56,6 +57,13 @@ describe('the recorder in the widget', () => {
       await expect(page.getByText('No recording yet: interact with the page first.', {exact: true})).toBeVisible({
         timeout: 30_000,
       })
+      await page.getByRole('button', {name: 'Press me', exact: true}).click()
+      await expect(page.getByRole('button', {name: 'Pressed by the user', exact: true})).toBeVisible()
+      const replay = page.frameLocator('iframe')
+      await expect(replay.getByRole('button', {name: 'Pressed by the user', exact: true})).toBeAttached({
+        timeout: 30_000,
+      })
+      await expect(replay.getByRole('tab', {name: 'Recorder', exact: true})).toHaveCount(0)
     } finally {
       await widget.close()
     }
