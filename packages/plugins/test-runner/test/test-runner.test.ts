@@ -1,12 +1,12 @@
 import {readdirSync, readFileSync, symlinkSync} from 'node:fs'
-import {mkdtemp, readdir, readFile, rm, watch} from 'node:fs/promises'
-import {tmpdir} from 'node:os'
+import {readdir, readFile, watch} from 'node:fs/promises'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {describe, expect, it, onTestFinished, vi} from 'vitest'
 import {z} from 'zod'
 import {makeDiscoverTools} from '@conciv/harness-testkit'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 const STARTED = 'blocked-test-started'
@@ -95,12 +95,6 @@ async function unavailableError(pending: Promise<unknown>): Promise<string> {
 
 function useTool(kit: CoreKit, name: 'list' | 'run' | 'status', input: {pattern?: string} = {}): Promise<unknown> {
   return kit.callTool(`test_runner_${name}`, input)
-}
-
-async function scratchDirectory(prefix: string): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), prefix))
-  onTestFinished(() => rm(directory, {recursive: true, force: true}))
-  return directory
 }
 
 async function fileAppears(directory: string, name: string, signal: AbortSignal): Promise<void> {
@@ -222,7 +216,7 @@ describe('the test-runner plugin on a vitest project', () => {
 
     expect(RunResultSchema.parse(await useTool(kit, 'status'))).toEqual(pattern)
 
-    const rpcScratch = await scratchDirectory('conciv-test-runner-rpc-stop-')
+    const rpcScratch = tempDir('conciv-test-runner-rpc-stop-')
     await withChildEnvironment({CONCIV_FIXTURE_BLOCKED_FILE: join(rpcScratch, STARTED)}, async () => {
       const stoppedByRpc = await blockedRun(rpcScratch, () => call(kit, 'run', {patterns: ['blocked']}))
       expect(await call(kit, 'stop')).toEqual({ok: true})
@@ -230,7 +224,7 @@ describe('the test-runner plugin on a vitest project', () => {
       processGone(stoppedByRpc.pid)
     })
 
-    const engineScratch = await scratchDirectory('conciv-test-runner-engine-stop-')
+    const engineScratch = tempDir('conciv-test-runner-engine-stop-')
     await withChildEnvironment({CONCIV_FIXTURE_BLOCKED_FILE: join(engineScratch, STARTED)}, async () => {
       const stoppedWithEngine = await blockedRun(engineScratch, () => call(kit, 'run', {patterns: ['blocked']}))
       await stop()
@@ -290,7 +284,7 @@ describe('the test-runner plugin on a playwright project', () => {
     const pattern = RunResultSchema.parse(await useTool(kit, 'run', {pattern: 'pass'}))
     expect(pattern.summary).toMatchObject({passed: 2, failed: 0})
 
-    const scratch = await scratchDirectory('conciv-playwright-stop-')
+    const scratch = tempDir('conciv-playwright-stop-')
     await withChildEnvironment({TMPDIR: scratch, CONCIV_FIXTURE_BLOCKED_FILE: join(scratch, STARTED)}, async () => {
       const blocked = await blockedRun(scratch, () => call(kit, 'run', {patterns: ['blocked']}))
       expect(await call(kit, 'stop')).toEqual({ok: true})
