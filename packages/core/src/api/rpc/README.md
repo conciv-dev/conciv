@@ -40,7 +40,7 @@ oRPC router that implements the `@conciv/contract` procedures for sessions, chat
 - `cleanTitle` (`sessions.ts`): strips control characters, collapses whitespace, truncates to 120 characters
 - `sessions.create` (`sessions.ts`): ids are `conciv_<uuid>` validated with `SessionId.parse`; the row takes the boot (default) harness; it answers the new row (`rpcSessionMeta`) beside the id
 - `sessions.switchHarness` (`sessions.ts`): NOT_FOUND without a row, UNKNOWN_HARNESS outside the available set, a no-op for the current harness (an optional `model` is ignored then), SESSION_RUNNING while a run is active, UNKNOWN_MODEL when `model` is not an enabled model of the target harness; otherwise one transaction sets the harness and the given model (else null), clears the native id and effort, and drops the transcript anchor
-- `buildHarnessMenuEntry` (`sessions.ts`): a harness whose model list throws is logged and listed with no models, `defaultModel` from the adapter (else null) and `modelsFailed: true`; the others still answer
+- `buildHarnessMenuEntry` (`sessions.ts`): a harness whose model list throws is logged (not once the engine has stopped) and listed with no models, `defaultModel` from the adapter (else null) and `modelsFailed: true`; the others still answer
 - `switchSessionModel` / `switchSessionEffort` / `listedSessionPage` / `searchedSessionPage` (`sessions.ts`): what `sessions.model`, `sessions.effort`, `sessions.list` and `sessions.search` do, shared with the plugin host's `Session` key (`runtime/plugin-sessions.ts`)
 - `ChatContext.harnessFor` (`mount.ts`): the session row's harness when it is available, else the default harness
 
