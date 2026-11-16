@@ -95,6 +95,22 @@ describe('reporters', () => {
     writeFileSync(join(root, 'test-results', 'conciv-home', 'home.db'), 'written by this run')
     removeHome()
     expect.soft(existsSync(join(root, 'test-results', 'conciv-home'))).toBe(false)
+    expect.soft(existsSync(join(root, 'test-results'))).toBe(false)
+
+    const sharedRoot = tempDir('package-shared-')
+    const removeSharedHome = setupConcivHome({config: {root: sharedRoot}})
+    mkdirSync(join(sharedRoot, 'test-results', 'playwright-output'), {recursive: true})
+    writeFileSync(join(sharedRoot, 'test-results', 'test-results.json'), '{"numTotalTests":3}')
+    writeFileSync(join(sharedRoot, 'test-results', 'playwright-output', 'trace.zip'), 'a playwright trace')
+    expect.soft(() => removeSharedHome()).not.toThrow()
+    expect.soft(existsSync(join(sharedRoot, 'test-results', 'conciv-home'))).toBe(false)
+    expect
+      .soft(readdirSync(join(sharedRoot, 'test-results')).sort())
+      .toEqual(['playwright-output', 'test-results.json'])
+    expect.soft(readFileSync(join(sharedRoot, 'test-results', 'test-results.json'), 'utf8')).toBe('{"numTotalTests":3}')
+    expect
+      .soft(readFileSync(join(sharedRoot, 'test-results', 'playwright-output', 'trace.zip'), 'utf8'))
+      .toBe('a playwright trace')
   })
 
   test('a fork cap in the environment caps the worker count', () => {
