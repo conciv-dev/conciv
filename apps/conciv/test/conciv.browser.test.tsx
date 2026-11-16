@@ -5478,7 +5478,10 @@ describe('wire name coverage', () => {
     const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
     for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a built-in page tool'})
     for (const tool of BUILTIN_SERVER_TOOLS) {
-      registry.register(tool, {owner: 'a built-in server tool', context: {bundler: () => undefined}})
+      registry.register(tool, {
+        owner: 'a built-in server tool',
+        context: {bundler: () => undefined, hotUpdate: async () => ({applied: false, waitedMs: 0})},
+      })
     }
     registry.register(BUILTIN_OPEN_TOOL, {owner: 'a built-in editor tool', context: {openInEditor: () => {}}})
     return registry
