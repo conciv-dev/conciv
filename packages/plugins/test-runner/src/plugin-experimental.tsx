@@ -13,7 +13,7 @@ import {TestRunner} from './rpc.js'
 import {TestEventSchema, type TestError} from './shared/events.js'
 import {initialRunState, transitionRun, type RunAction} from './panel/run-state.js'
 import {TestsPanel} from './panel/tests-panel.js'
-import {fixPrompt} from './view.js'
+import {fixPrompt, relativePath} from './view.js'
 
 type Client = Context['client']
 
@@ -82,7 +82,7 @@ export default Plugin.define({
     }
 
     const fixFailure = (error: TestError, screen: SessionScreen, session: SessionRef, directory: string) => {
-      screen.composer.insert(fixPrompt(error, directory))
+      screen.composer.insert(fixPrompt(error, relativePath(error.file, directory)))
       ctx.layout.hide(`${ctx.id}:${tab.id}`, session)
     }
 

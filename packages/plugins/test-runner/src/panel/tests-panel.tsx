@@ -96,7 +96,7 @@ function FailureCard(props: {
   onOpen: (error: TestError) => void
   onFix: (error: TestError) => void
 }): JSX.Element {
-  const location = () => failureLocation(props.error, props.directory)
+  const location = () => failureLocation(props.error, relativePath(props.error.file, props.directory))
   return (
     <li class="p-3 border border-chat-danger-line rounded-chat-surface-md bg-chat-danger-10 flex flex-col gap-2">
       <div class="flex gap-2 min-w-0 items-center">

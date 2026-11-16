@@ -2262,6 +2262,9 @@ importers:
       '@conciv/plugin-page':
         specifier: workspace:^
         version: link:../plugin-page
+      '@conciv/plugin-test-runner':
+        specifier: workspace:^
+        version: link:../plugins/test-runner
       '@zumer/snapdom':
         specifier: 'catalog:'
         version: 3.3.3
