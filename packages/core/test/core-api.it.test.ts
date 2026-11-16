@@ -5495,6 +5495,7 @@ describe('page action queue delivery', () => {
     harness = createFakeHarness(),
     plugins: readonly Plugin.Plugin[] = [],
     root = tempDir('conciv-queue-'),
+    holdsUnder: (command: Page.Command) => string | undefined = () => undefined,
   ) {
     const home = tempDir('conciv-queue-home-')
     withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
@@ -5512,6 +5513,12 @@ describe('page action queue delivery', () => {
     const held = new Map<string, string>()
     const arrivals = new EventTarget()
     const answerFor = (command: Page.Command, requestId: string): PageReply | undefined => {
+      const holdKey = holdsUnder(command)
+      if (holdKey !== undefined) {
+        held.set(holdKey, requestId)
+        arrivals.dispatchEvent(new Event('held'))
+        return undefined
+      }
       if (command.queued === undefined) return pageSuccess({})
       const {id, index, of} = command.queued
       if (index >= 0) {
@@ -6119,6 +6126,38 @@ describe('page action queue delivery', () => {
     await events.return(undefined)
     await page.tab.chat.stop({sessionId: page.sessionId, runIds: ['eval-again']})
     await (await nextTurn).text()
+  })
+
+  it('a chat-agent page_eval in the same session during an admitted CLI page_eval is still asked and does not run', async () => {
+    const evals: string[] = []
+    const holdsUnder = (command: Page.Command) => {
+      if (command.action.type !== 'eval') return undefined
+      evals.push(command.action.code)
+      return `eval/${command.action.code}`
+    }
+    const page = await engineWithTab(createFakeHarness(), [], tempDir('conciv-queue-'), holdsUnder)
+    const events = await makeRpcClient(page.base).event.subscribe()
+    const asked = async (): Promise<unknown> => {
+      const next = await events.next()
+      if (next.done === true) return undefined
+      if (next.value.type === 'permission.asked') return next.value.data
+      return asked()
+    }
+    const asking = asked()
+    const cli = makeRpcClient(page.base, {
+      headers: {...HUB, [CONCIV_SESSION_HEADER]: page.sessionId, [CONCIV_NAMED_TAB_HEADER]: '1'},
+    })
+    const admitted = cli.registry.call({name: 'page_eval', input: {code: 'document.title'}})
+    const cliRequest = await page.heldRequest('eval/document.title')
+    const agentTurn = page.inChat('agent-eval', 'return await external_page_eval({code: "document.domain"})')
+    expect(await asking).toMatchObject({sessionId: page.sessionId, action: 'page_eval', resources: ['document.domain']})
+    expect(evals).toEqual(['document.title'])
+    await page.onTab.reply(cliRequest, pageSuccess({result: 'Example'}))
+    await events.return(undefined)
+    await page.tab.chat.stop({sessionId: page.sessionId, runIds: ['agent-eval']})
+    await (await agentTurn).text()
+    expect(await admitted).toEqual({result: 'Example'})
+    expect(evals).toEqual(['document.title'])
   })
 
   it('a user stop starts no follow-up turn: the owed result arrives with the agent next reply', async () => {
