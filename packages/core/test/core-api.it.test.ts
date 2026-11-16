@@ -5475,7 +5475,11 @@ describe('session activity recorded with its chat messages', () => {
     const trace = callTrace((name) => hub[name] ?? null)
     const run = {threadId: sessionId, live: false}
     const before = Date.now()
-    const mirror = trace.mirror(run, {publish: () => {}, record: (chunks) => made().plane.record(sessionId, chunks)})
+    const mirror = trace.mirror(run, {
+      publish: () => {},
+      record: (chunks) => made().plane.record(sessionId, chunks),
+      driving: () => made().plane.driving(sessionId),
+    })
     mirror.publish([...trace.start(run, 'page_route', {}), ...trace.result(run, '{}', false)])
     await mirror.settle()
     const meta = await kit().rpc.sessions.get({sessionId})
@@ -7087,6 +7091,58 @@ export default {
     const text = await turn.ended()
     expect(text).toContain('the first step')
     expect(text).toContain('asker is undefined')
+  })
+})
+
+describe('a hub call while a turn is held in a plugin prompt hook', () => {
+  it('a hub call made while a prompt hook holds a starting turn answers at once, and its record lands after the turn, in order', async () => {
+    const entered = Promise.withResolvers<void>()
+    const gate = Promise.withResolvers<void>()
+    const holder = Plugin.define({
+      id: 'prompt-holder',
+      async setup(ctx) {
+        await ctx.session.hook('prompt', async () => {
+          entered.resolve()
+          await gate.promise
+        })
+      },
+    })
+    const home = tempDir('conciv-prompt-held-home-')
+    withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
+    const engine = await bootAt(home, tempDir('conciv-prompt-held-'), 'open', createFakeHarness(), [holder])
+    onTestFinished(() => engine.stop())
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    const viewer = new AbortController()
+    onTestFinished(() => {
+      gate.resolve()
+      viewer.abort()
+    })
+    const turn = sseTurn(base, sessionId, 'held-run', 'hold me in the prompt hook', viewer.signal)
+    await entered.promise
+    const tab = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+    const hub = makeRpcClient(base, {
+      headers: {[CONCIV_SESSION_HEADER]: sessionId, [CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'},
+    })
+    expect(await hub.page.changes()).toEqual([])
+    gate.resolve()
+    expect(await sseStream(await turn).ended()).toContain('RUN_FINISHED')
+    const {messages} = await tab.chat.hydrate({sessionId})
+    expect(
+      messages.flatMap((message) =>
+        message.parts.flatMap((part) => {
+          if (part.type === 'text') return [`${message.role} text ${part.content}`]
+          if (part.type === 'tool-call') return [`${message.role} call ${part.name}`]
+          if (part.type === 'tool-result') return [`${message.role} result ${part.content}`]
+          return []
+        }),
+      ),
+    ).toEqual([
+      'user text hold me in the prompt hook',
+      'assistant text ok',
+      'assistant call page_changes',
+      'assistant result []',
+    ])
   })
 })
 
