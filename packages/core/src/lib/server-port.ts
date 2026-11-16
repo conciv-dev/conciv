@@ -14,7 +14,7 @@ export function readPersistedPort(file: string): number | undefined {
 }
 
 function hasErrorCode(error: unknown, code: string): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error && error.code === code
+  return z.object({code: z.literal(code)}).safeParse(error).success
 }
 
 function readOptionalText(file: string): string | undefined {
