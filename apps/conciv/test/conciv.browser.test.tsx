@@ -5702,7 +5702,7 @@ describe('tool card dispatch', () => {
 
     await browserPage.getByRole('button').click()
     await expect.element(browserPage.getByText('#cta')).toBeVisible()
-    expect(document.body.textContent).not.toContain('Used tool:')
+    expect(document.body.textContent).not.toContain('Called page_click')
   })
 
   it('a conciv_ui question that already carries its result renders answered, with no controls left to press', async () => {
@@ -5776,15 +5776,12 @@ describe('wire name coverage', () => {
 
   const cardNames = new Set(concivOwnedCards.flatMap((entry) => entry.names))
 
-  it('every model-reachable tool name resolves to a card entry or catalog meta, except the server plugin dev-server tools', () => {
+  it('every model-reachable tool name resolves to a card entry or catalog meta, or is a server plugin tool that draws through the generic card', () => {
     expect(modelReachableNames.length).toBeGreaterThan(10)
-    const unresolved = modelReachableNames.filter(
-      (name) =>
-        !cardNames.has(name) &&
-        !DEV_SERVER_TOOL_NAMES.includes(name) &&
-        registry.catalog.list().every((entry) => entry.name !== name),
+    const drawnByGenericCard = modelReachableNames.filter(
+      (name) => !cardNames.has(name) && registry.catalog.list().every((entry) => entry.name !== name),
     )
-    expect(unresolved).toEqual([])
+    expect(drawnByGenericCard).toEqual(DEV_SERVER_TOOL_NAMES)
   })
 
   it('no conciv-owned card is registered for a name the model can never put on the wire', () => {
@@ -6890,7 +6887,7 @@ module.exports = {default: {setup(ctx) {
   })
 
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
-  const probeCards = () => page.getByText('Tool: plugin_probe', {exact: true})
+  const probeRow = (meta: string) => page.getByText(meta, {exact: true})
 
   test('a plugin draws the body of a finished call it claims, and a declined or failed call keeps the default card', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
@@ -6908,7 +6905,7 @@ module.exports = {default: {setup(ctx) {
     await editor().click()
     await userEvent.keyboard('run the probes{Enter}')
     await expect
-      .element(page.getByRole('button', {name: 'running probe Tool: plugin_probe'}), {timeout: 15_000})
+      .element(page.getByRole('button', {name: 'running probe draw mode=draw'}), {timeout: 15_000})
       .toBeVisible()
     await page.screenshot({path: '__screenshots__/plugin-tool-cards/running.png'})
     await expect.element(page.getByText('Plugin drew the drawn probe')).not.toBeInTheDocument()
@@ -6916,13 +6913,38 @@ module.exports = {default: {setup(ctx) {
     await coreControl.releaseResults()
     await expect.element(page.getByText('the probes are done'), {timeout: 15_000}).toBeVisible()
     await page.screenshot({path: '__screenshots__/plugin-tool-cards/finished.png'})
-    await expect.element(probeCards().nth(2)).toBeVisible()
+    await expect.element(probeRow('mode=draw')).toBeVisible()
+    await expect.element(probeRow('mode=decline')).toBeVisible()
+    await expect.element(probeRow('mode=throw')).toBeVisible()
     await expect.element(page.getByText('Plugin drew the drawn probe')).toBeVisible()
     await expect.element(page.getByText('Plugin drew the declined probe')).not.toBeInTheDocument()
     await expect.element(page.getByText('Plugin drew the thrown probe')).not.toBeInTheDocument()
     await expect.element(page.getByText('"the drawn probe"', {exact: true})).not.toBeInTheDocument()
     await expect.element(page.getByText('"the declined probe"', {exact: true})).toBeVisible()
     await expect.element(page.getByText('"the thrown probe"', {exact: true})).toBeVisible()
+  }, 45_000)
+
+  test('a call no card claims draws the generic card: its row reads the label or first argument with the other arguments beside it, and a call with no input reads its title', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    await coreControl.scriptTurn({
+      toolCalls: [
+        {name: 'server_resolve', input: {spec: 'solid-js'}, result: {resolved: '/node_modules/solid-js'}},
+        {name: 'note_open', input: {path: 'src/a.ts', line: 3, force: true}, result: {opened: true}},
+        {name: 'server_urls', input: {}, result: {urls: []}},
+      ],
+      text: 'the generic calls are done',
+    })
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await editor().click()
+    await userEvent.keyboard('run the generic calls{Enter}')
+    await expect.element(page.getByText('the generic calls are done'), {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('solid-js', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('spec=solid-js', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Called server_resolve', {exact: true})).not.toBeInTheDocument()
+    await expect.element(page.getByText('src/a.ts', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('line=3 force=true', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Called server_urls', {exact: true})).toBeVisible()
   }, 45_000)
 })
 
@@ -8010,11 +8032,13 @@ module.exports = {default: {setup(ctx) {
     await coreControl.releaseFault(catalogHeld)
     await expect.element(shown('page edit').nth(1), {timeout: 15_000}).toBeVisible()
     await expect.element(shown('force a hot update of one module')).toBeVisible()
-    await expect.element(shown('Tool: server_reload')).not.toBeInTheDocument()
+    await expect.element(shown('Called server_reload')).not.toBeInTheDocument()
+    await expect.element(shown('file=src/a.ts mode=draw')).not.toBeInTheDocument()
     await expect.element(shown('Fixture reloaded src/a.ts')).toBeVisible()
     await expect.element(shown('Drawn catalog call asked: 1')).toBeVisible()
     await expect.element(shown('Fixture drew the headline probe')).toBeVisible()
-    await expect.element(shown('Tool: fixture_probe').nth(1)).toBeVisible()
+    await expect.element(shown('mode=draw')).toBeVisible()
+    await expect.element(shown('mode=decline')).toBeVisible()
   }, 60_000)
 
   test('its tab shows once trusted, through a revoke, a lost connection and trust dropped before its enable state, and its tab and settings page keep their place through a revoke and a reopen', async () => {
