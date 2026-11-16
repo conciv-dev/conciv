@@ -133,7 +133,7 @@ describe('define', () => {
     expectTypeOf<Project['canonical']>().toEqualTypeOf<string & import('effect').Brand.Brand<'AbsolutePath'>>()
   })
 
-  it("types execute's input as the input schema's output and its output as the output schema's input from zod, any Standard Schema or a raw JSON Schema, as opencode does", () => {
+  it("types execute's input as the input schema's output and its output as the output schema's input from zod, any Standard Schema or a raw JSON Schema", () => {
     const Limit = z.object({limit: z.string().transform(Number)})
     type LimitTool = Info<typeof Limit, typeof Limit>
     expectTypeOf<Parameters<LimitTool['execute']>[0]>().toEqualTypeOf<{limit: number}>()
@@ -223,7 +223,7 @@ describe('Rpc', () => {
     expectTypeOf<ServerRef['client']['rpc']>().toEqualTypeOf<RpcApi & {call: ServerRef['client']['plugin']['call']}>()
   })
 
-  it('types a contract from any Standard Schema or a raw JSON Schema, as opencode does', () => {
+  it("types a contract's methods, errors and events from any Standard Schema or a raw JSON Schema", () => {
     const Counter = Rpc.define({
       id: 'counter',
       methods: {bump: {input: CountSchema, output: CountSchema, errors: {full: CountSchema}}},

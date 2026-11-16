@@ -19,7 +19,7 @@ export interface Interface {
   }
 }
 
-export const Service = Context.Service<Interface>('@opencode/InstancePlugins')
+export const Service = Context.Service<Interface>('@conciv/InstancePlugins')
 
 export const layer = bound([])
 

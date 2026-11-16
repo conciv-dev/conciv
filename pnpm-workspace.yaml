@@ -59,6 +59,7 @@ catalog:
   '@effect/platform-node': 4.1.0
   '@hono/node-server': '^2.1.5'
   '@iconify-json/ph': '^1.2.2'
+  '@jridgewell/gen-mapping': ^0.3.13
   '@libsql/client': '^0.18.0'
   '@orama/orama': 3.1.18
   '@oxlint/plugins': 1.90.0

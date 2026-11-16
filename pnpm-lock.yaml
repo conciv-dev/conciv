@@ -33,6 +33,9 @@ catalogs:
     '@iconify-json/ph':
       specifier: ^1.2.2
       version: 1.2.2
+    '@jridgewell/gen-mapping':
+      specifier: ^0.3.13
+      version: 0.3.13
     '@libsql/client':
       specifier: ^0.18.0
       version: 0.18.0
@@ -2665,7 +2668,7 @@ importers:
         specifier: workspace:*
         version: link:../vitest-config
       '@jridgewell/gen-mapping':
-        specifier: ^0.3.13
+        specifier: 'catalog:'
         version: 0.3.13
       '@types/node':
         specifier: 'catalog:'
@@ -4668,7 +4671,7 @@ importers:
         specifier: workspace:*
         version: link:../vitest-config
       '@jridgewell/gen-mapping':
-        specifier: ^0.3.13
+        specifier: 'catalog:'
         version: 0.3.13
       '@types/node':
         specifier: 'catalog:'
@@ -4825,6 +4828,9 @@ importers:
       '@tanstack/react-router':
         specifier: '>=1.170.0'
         version: 1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.0
       zod:
         specifier: 'catalog:'
         version: 4.6.7

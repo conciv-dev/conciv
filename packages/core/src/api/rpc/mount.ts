@@ -90,6 +90,7 @@ export type RpcDeps = {
   tabs: ReturnType<typeof createTabs>
   queues: Pick<PageQueues, 'wait' | 'cancelSession'>
   pluginHost: PluginHost
+  eventHeartbeatIntervalMs?: number
   answerPermission: PermissionAnswer
 }
 

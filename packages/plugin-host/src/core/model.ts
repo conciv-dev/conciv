@@ -11,4 +11,4 @@ export interface Interface {
   readonly default: () => Effect.Effect<Info | undefined>
 }
 
-export const Service = Context.Service<Interface>('@opencode/Model')
+export const Service = Context.Service<Interface>('@conciv/Model')
