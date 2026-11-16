@@ -2,8 +2,6 @@ import {Plugin} from '@conciv/plugin'
 import {Definition} from './rpc.js'
 import {symbolicateFrames} from './symbolicate.js'
 
-export {symbolicateFrame, symbolicateFrames} from './symbolicate.js'
-
 export default Plugin.define({
   id: 'conciv.page',
   async setup(ctx) {

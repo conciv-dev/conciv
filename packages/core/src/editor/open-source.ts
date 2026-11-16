@@ -1,7 +1,6 @@
 import type {z} from 'zod'
 import type {OpenSourceResultSchema, OpenSourceSchema} from '@conciv/protocol/page-types'
-import {symbolicateFrames} from '@conciv/plugin-page'
-import type {RawFrame} from '@conciv/protocol/page-introspect-types'
+import type {RawFrame, SourceLoc} from '@conciv/protocol/page-introspect-types'
 import type {OpenInEditor} from './open.js'
 
 export type OpenSourceFrames = z.infer<typeof OpenSourceSchema>['frames']
@@ -9,13 +8,16 @@ export type OpenSourceStatus = z.infer<typeof OpenSourceResultSchema>
 
 export async function openSourceFromFrames(
   frames: OpenSourceFrames,
-  root: string,
+  symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>,
   open: OpenInEditor,
 ): Promise<OpenSourceStatus> {
-  const resolved: RawFrame[] = frames
+  const resolved = frames
     .filter((f): f is typeof f & {fileName: string} => typeof f.fileName === 'string')
     .map((f) => ({fileName: f.fileName, line: f.line ?? 0, column: f.column, fn: f.fn}))
-  const source = await symbolicateFrames(resolved, root)
+  const first = resolved[0]
+  const source = await symbolicate(resolved).catch(() =>
+    first ? {file: first.fileName, line: first.line, column: first.column ?? 0} : null,
+  )
   if (!source) return {status: 'no-source' as const}
   try {
     open(source.file, source.line)
