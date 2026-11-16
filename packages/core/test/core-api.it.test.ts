@@ -277,6 +277,11 @@ async function readSse(response: Response, stopType: string): Promise<void> {
   await stream.cancel()
 }
 
+function registryCall(base: string, sessionId: string) {
+  return (name: string, input: Record<string, unknown>) =>
+    makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}}).registry.call({name, input})
+}
+
 describe('cors', () => {
   const ORIGIN = 'http://localhost:3000'
   const kit = sharedKit(() => bootKit())
@@ -1561,7 +1566,7 @@ describe('api page page', () => {
     source: z.object({file: z.string(), line: z.number(), column: z.number()}).nullish(),
   })
 
-  describe('experimental.page run (IT, real server, typed rpc)', () => {
+  describe('page tools through registry.call (IT, real server, typed rpc)', () => {
     const tabs = pageTabs()
     const kit = sharedKit(() => bootKit({cwd: tmpdir(), plugins: [tabs.plugin]}))
     const state: {tab: PageTab | undefined} = {tab: undefined}
@@ -1569,7 +1574,8 @@ describe('api page page', () => {
     const page = async (method: string, input: Record<string, unknown> = {}): Promise<unknown> =>
       kit().rpc.plugin.call({rpcId: 'experimental.page', method, input: {sessionId: await kit().session(), ...input}})
 
-    const run = (action: Page.Action): Promise<unknown> => page('run', {action})
+    const run = async (name: string, input: Record<string, unknown> = {}): Promise<unknown> =>
+      registryCall(kit().base, await kit().session())(name, input)
 
     afterEach(async () => {
       state.tab?.end()
@@ -1582,8 +1588,8 @@ describe('api page page', () => {
       const sessionId = await kit().session()
       state.tab = await tabs.open(sessionId, () => undefined)
       const calling = new AbortController()
-      const called = kit().rpc.plugin.call(
-        {rpcId: 'experimental.page', method: 'run', input: {sessionId, action: {type: 'route'}}},
+      const called = makeRpcClient(kit().base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}}).registry.call(
+        {name: 'page_route', input: {}},
         {signal: calling.signal},
       )
       const requestId = await state.tab.requested()
@@ -1593,16 +1599,29 @@ describe('api page page', () => {
       await expect(state.tab.command(requestId)).rejects.toThrow('Page request is no longer available.')
     })
 
+    it('run is no page method: an eval through plugin.call is refused as an unknown method and never reaches the tab', async () => {
+      const heard: string[] = []
+      state.tab = await tabs.open(await kit().session(), ({action}) => {
+        heard.push(action.type)
+        return pageSuccess({result: 'conciv'})
+      })
+      await expect(page('run', {action: {type: 'eval', code: 'document.title'}})).rejects.toMatchObject({
+        data: {type: 'rpc.method_not_found'},
+      })
+      expect(heard).toEqual([])
+    })
+
     it('run reports [page.timeout] when the page never replies', async () => {
       state.tab = await tabs.open(await kit().session(), () => undefined)
-      await expect(run({type: 'wait', selector: 'body', timeout: 100})).rejects.toMatchObject({
+      await expect(run('page_wait', {selector: 'body', timeout: 100})).rejects.toMatchObject({
         message: expect.stringContaining('[page.timeout]'),
       })
     })
 
     it('reports [page.disconnected] when no tab is attached', async () => {
-      await expect(run({type: 'route'})).rejects.toMatchObject({
-        message: expect.stringContaining('[page.disconnected]'),
+      await expect(run('page_route')).rejects.toMatchObject({
+        code: 'NO_PAGE_CLIENT',
+        message: 'page_route: no widget connected to session',
       })
     })
 
@@ -1611,7 +1630,7 @@ describe('api page page', () => {
       state.tab = await tabs.open(await kit().session(), () =>
         pageSuccess({component: 'Home', stack: ['Home'], frames: [{fileName: `file://${chunk}`, line: 2, column: 1}]}),
       )
-      const data = LocateSchema.parse(await run({type: 'locate', selector: 'h1'}))
+      const data = LocateSchema.parse(await run('page_locate', {selector: 'h1'}))
       expect(data.component).toBe('Home')
       expect(data.source).toEqual({file: 'app/page.tsx', line: 17, column: 4})
     })
@@ -1622,11 +1641,13 @@ describe('api page page', () => {
           ? {type: 'failure', code: 'handler-error', message: 'handler-error says no'}
           : {type: 'failure', code: 'invalid-args', message: 'no element for selector #email'},
       )
-      await expect(run({type: 'text', selector: '#h'})).rejects.toMatchObject({
-        message: '[page.handler-error] handler-error says no',
+      await expect(run('page_text', {selector: '#h'})).rejects.toMatchObject({
+        code: 'HANDLER_ERROR',
+        message: 'page_text: handler-error says no',
       })
-      await expect(run({type: 'fill', selector: '#email', value: 'a@b.c'})).rejects.toMatchObject({
-        message: '[page.invalid-args] no element for selector #email',
+      await expect(run('page_fill', {selector: '#email', value: 'a@b.c'})).rejects.toMatchObject({
+        code: 'INVALID_ARGS',
+        message: 'page_fill: no element for selector #email',
       })
       expect(ChangesSchema.parse(await page('changes'))).toEqual([])
     })
@@ -1635,8 +1656,8 @@ describe('api page page', () => {
       state.tab = await tabs.open(await kit().session(), ({action}) =>
         action.type === 'text' ? pageSuccess({text: 'hi'}) : pageSuccess({ok: true, value: 'a@b.c'}),
       )
-      await run({type: 'text', selector: '#h'})
-      expect(await run({type: 'fill', selector: '#email', value: 'a@b.c'})).toEqual({
+      await run('page_text', {selector: '#h'})
+      expect(await run('page_fill', {selector: '#email', value: 'a@b.c'})).toEqual({
         ok: true,
         value: 'a@b.c',
       })
@@ -4476,13 +4497,7 @@ describe('outside sessions', () => {
       const second = await browserTab('/second')
       const listedFirst = async () => (await listTabs()).tabs[0]?.browserTabs[0]?.page?.href
       const routed = async () =>
-        z.object({href: z.string()}).parse(
-          await kit().rpc.plugin.call({
-            rpcId: 'experimental.page',
-            method: 'run',
-            input: {sessionId, action: {type: 'route'}},
-          }),
-        ).href
+        z.object({href: z.string()}).parse(await registryCall(kit().base, sessionId)('page_route', {})).href
       await second.report(true)
       expect(await listedFirst()).toBe('http://localhost:5173/second')
       const listing = await listTabs()
@@ -7202,7 +7217,7 @@ export default {
     z.object({ok: z.literal(false), message: z.string(), metadata: z.unknown()}),
   ])
 
-  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs any action through run without asking and with its own id per call, deleting the session ends its tabs and drops its records, and a tab attaching to a never-seen or deleted id gets a new empty session', async () => {
+  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs an action through registry.call with its own id per call, deleting the session ends its tabs and drops its records, and a tab attaching to a never-seen or deleted id gets a new empty session', async () => {
     const [home, root] = [tempDir('conciv-home-'), tempDir('conciv-page-connection-')]
     const files = {'tabs/server.ts': TAB_FIXTURE, 'conciv/plugins/helper.ts': HELPER_FIXTURE, 'chunk.js': CHUNK}
     for (const [path, content] of Object.entries(files)) {
@@ -7303,12 +7318,8 @@ export default {
       message: expect.stringContaining('[page.disconnected]'),
     })
     await expect(
-      rpc.plugin.call({
-        rpcId: 'experimental.page',
-        method: 'run',
-        input: {sessionId: session, action: {type: 'route'}},
-      }),
-    ).rejects.toMatchObject({message: expect.stringContaining('[page.disconnected]')})
+      registryCall(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}`, session)('page_route', {}),
+    ).rejects.toMatchObject({code: 'NO_PAGE_CLIENT', message: 'page_route: no widget connected to session'})
 
     expect(await tabs('open', {sessionId: session, connectionId: 'conn_a'})).toEqual({attached: true})
     expect(await granted()).toHaveLength(1)
@@ -7617,20 +7628,21 @@ export default {
 
     expect(await tabs('open', {sessionId: session, connectionId: 'conn_e'})).toEqual({attached: true})
     const ending = tabs('ended', {connectionId: 'conn_e'})
+    await tabs('report', {sessionId: session, connectionId: 'conn_e', tab})
     expect(await page('captures.list')).toEqual(captured)
-    const ran = (action: Page.Action) => page('run', {action})
-    const evaluated = ran({type: 'eval', code: 'document.cookie'})
+    const ran = registryCall(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}`, session)
+    const evaluated = ran('page_text', {selector: 'h1'})
     const onRun = await next('conn_e')
     expect(onRun.command).toEqual({
-      action: {type: 'eval', code: 'document.cookie'},
-      agentId: 'terminal',
+      action: {type: 'text', selector: 'h1'},
+      agentId: 'build',
       timeoutMs: 5000,
     })
-    await reply('conn_e', onRun.requestId, succeeded({result: 'a=1'}))
-    expect(await evaluated).toEqual({result: 'a=1'})
+    await reply('conn_e', onRun.requestId, succeeded({text: 'a=1'}))
+    expect(await evaluated).toEqual({text: 'a=1'})
     expect(await tabs('waiting', {})).toEqual({waiting: 0})
     for (const text of ['One', 'Two']) {
-      const editing = ran({type: 'settext', selector: 'h1', text})
+      const editing = ran('page_settext', {selector: 'h1', text})
       const onRunEdit = await next('conn_e')
       await reply('conn_e', onRunEdit.requestId, {
         type: 'success',

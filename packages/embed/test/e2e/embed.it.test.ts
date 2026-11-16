@@ -41,13 +41,13 @@ import {GRAB_MIME, parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-a
 import {watchChatWire} from '@conciv/plugin-testkit/chat-wire'
 import recorderServer, {type RecorderRouter} from '@conciv/extension-recorder/server'
 import {SessionCapturesSchema, type SessionCaptures} from '@conciv/protocol/element-capture-types'
-import {CHAT_WS_PATH, SessionId} from '@conciv/protocol/chat-types'
+import {CHAT_WS_PATH, CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
 import {holdRpcCalls, failRpcCalls, gateRpcCalls} from '@conciv/plugin-testkit/rpc-fault'
 import {fileURLToPath} from 'node:url'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import type {PageToNativeMessage} from '@conciv/extension-ios/bridge'
 import {Buffer} from 'node:buffer'
-import type {DraftRow} from '@conciv/contract'
+import {makeRpcClient, type DraftRow} from '@conciv/contract'
 import {watchRpcWire} from '@conciv/plugin-testkit/rpc-wire'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {z} from 'zod'
@@ -1360,8 +1360,12 @@ test.describe('page dispatch parity', () => {
     return kit.rpc.plugin.call({rpcId: 'experimental.page', method, input: {sessionId: await kit.session(), ...input}})
   }
 
-  async function pageRun(kit: EmbedKit, action: Record<string, unknown>): Promise<unknown> {
-    return pageCall(kit, 'run', {action})
+  async function pageRun(kit: EmbedKit, {type, ...input}: {type: string} & Record<string, unknown>): Promise<unknown> {
+    const sessionId = await kit.session()
+    return makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}}).registry.call({
+      name: `page_${type}`,
+      input,
+    })
   }
 
   async function expectClickDispatched(kit: EmbedKit, page: Page): Promise<void> {
