@@ -19,7 +19,7 @@ export interface Interface {
   readonly close: Effect.Effect<void>
 }
 
-export const Service = Context.Service<Interface>('@opencode/Rpc')
+export const Service = Context.Service<Interface>('@conciv/Rpc')
 
 const DeclaredError = Schema.TaggedStruct('Rpc.DeclaredError', {
   type: Schema.String,

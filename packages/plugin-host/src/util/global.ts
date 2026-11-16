@@ -2,7 +2,7 @@ import fs from 'fs'
 import {Context, Effect, Layer} from 'effect'
 import {Flock} from './flock.js'
 
-export const Service = Context.Service<Interface>('@opencode/Global')
+export const Service = Context.Service<Interface>('@conciv/Global')
 
 export interface Interface {
   readonly cache: string

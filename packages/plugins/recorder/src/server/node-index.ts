@@ -83,8 +83,8 @@ export function createNodeIndex(): NodeIndex {
 
   const applyAdds = (adds: Mutation['adds']): void => {
     for (const add of adds) {
-      walk(add.node, add.parentId)
       const parent = add.parentId === undefined ? undefined : byId.get(add.parentId)
+      walk(add.node, add.parentId)
       if (parent) parent.childNodes = [...(parent.childNodes ?? []), add.node]
     }
   }

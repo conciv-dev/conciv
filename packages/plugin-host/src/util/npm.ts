@@ -47,7 +47,7 @@ export interface Interface {
   readonly which: (pkg: string, bin?: string) => Effect.Effect<string | undefined>
 }
 
-export const Service = Context.Service<Interface>('@opencode/Npm')
+export const Service = Context.Service<Interface>('@conciv/Npm')
 
 const illegal = process.platform === 'win32' ? new Set(['<', '>', ':', '"', '|', '?', '*']) : undefined
 

@@ -8,7 +8,7 @@ import {Global} from '../../src/util/global.js'
 
 describe('global', () => {
   test('building layerWith creates service directories and preserves the given roots', async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opencode-global-layer-'))
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'conciv-global-layer-'))
     const directories = {
       cache: path.join(root, 'cache'),
       config: path.join(root, 'config'),
@@ -25,7 +25,7 @@ describe('global', () => {
   })
 
   test('building layerWith points Flock locks without a directory at the state root', async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opencode-global-flock-'))
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'conciv-global-flock-'))
     const directories = {
       cache: path.join(root, 'cache'),
       config: path.join(root, 'config'),
