@@ -570,7 +570,15 @@
     "packages/extensions/tanstack/test/fixtures/**",
     "packages/cli/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",
-    "e2e/*/src",
+    "e2e/solid-start/src",
+    "e2e/svelte/src",
+    "e2e/tanstack-start/src",
+    "e2e/tanstack-start-redact/src",
+    "e2e/vite-preact-component/src",
+    "e2e/vite-react/src",
+    "e2e/vite-react-component/src",
+    "e2e/vite-solid/src",
+    "e2e/vite-solid-component/src",
     "e2e/*/app"
   ]
 }
