@@ -101,6 +101,7 @@ function FileRow(props: {ui: Ui; group: FileGroup; directory: string; running: b
           <props.ui.Icon name={icon()} size="small" />
         </span>
         <span class="text-chat-sm text-chat-text font-chat-mono font-semibold flex-1 min-w-0 truncate">
+          <span class="sr-only">{props.running ? 'Running' : 'Finished'}: </span>
           {relativePath(props.group.file, props.directory)}
         </span>
         <Show when={failed() > 0}>
@@ -219,7 +220,14 @@ export function TestsPanel(props: TestsPanelProps): JSX.Element {
           </h3>
           <ul class="flex flex-col gap-3">
             <For each={groups()}>
-              {(group) => <FileRow ui={props.ui} group={group} directory={props.directory} running={running()} />}
+              {(group) => (
+                <FileRow
+                  ui={props.ui}
+                  group={group}
+                  directory={props.directory}
+                  running={running() && !props.run.endedFiles.includes(group.file)}
+                />
+              )}
             </For>
           </ul>
         </section>
