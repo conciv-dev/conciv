@@ -167,7 +167,7 @@ describe('ServerTools', () => {
     }),
   )
 
-  it.effect('server_restart asks before it restarts, and the terminal method restarts without asking', () =>
+  it.effect('server_restart asks before it restarts, and the server plugin has no restart method to skip the ask', () =>
     Effect.gen(function* () {
       const location = yield* Location.Service
       yield* (yield* Sessions.Service).create({
@@ -199,9 +199,12 @@ describe('ServerTools', () => {
       expect(yield* Fiber.join(refused)).toMatchObject({_tag: 'Tool.Error', message: 'not now'})
       expect(restarts).toEqual([true])
 
-      expect(yield* served.method('restart', {})).toEqual({ok: true})
+      expect(yield* served.method('restart', {}).pipe(Effect.flip)).toEqual({
+        type: 'rpc.method_not_found',
+        message: 'Unknown RPC method: server.restart',
+      })
       expect(yield* permission.forSession(sessionId)).toEqual([])
-      expect(restarts).toEqual([true, false])
+      expect(restarts).toEqual([true])
     }),
   )
 
@@ -226,7 +229,10 @@ describe('ServerTools', () => {
       expect(yield* detached.call('server_restart', {}).pipe(Effect.flip)).toMatchObject({
         metadata: {code: 'BUNDLER_UNAVAILABLE'},
       })
-      expect(yield* detached.method('restart', {}).pipe(Effect.flip)).toMatchObject({type: 'BUNDLER_UNAVAILABLE'})
+      expect(yield* detached.method('restart', {}).pipe(Effect.flip)).toEqual({
+        type: 'rpc.method_not_found',
+        message: 'Unknown RPC method: server.restart',
+      })
     }),
   )
 })

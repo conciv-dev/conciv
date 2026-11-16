@@ -55,6 +55,9 @@ The `Rpc` namespace alone, for the contract module both parts import. `Rpc.defin
 its argument typed and throws when an error name starts with `rpc.` (reserved). Method and event schemas are any
 Standard Schema or a raw JSON Schema object (an event's with `type: 'object'`).
 
+Rpc methods never ask. An operation that must ask is a tool, and gets no rpc method: the server plugin's restart
+is the `server_restart` tool only.
+
 ```ts
 import {z} from 'zod'
 import {Rpc} from '@conciv/plugin/rpc'

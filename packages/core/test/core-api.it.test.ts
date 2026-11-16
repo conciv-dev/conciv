@@ -2012,8 +2012,13 @@ describe('rpc wire', () => {
       const sessionRpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
       await expect(sessionRpc.server.reload({file: 'src/hot.ts'})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
       expect(reloaded).toEqual([])
-      expect(await server('restart', {force: true})).toEqual({ok: true})
-      expect(restarted).toEqual([true])
+      await expect(server('restart', {force: true})).rejects.toMatchObject({
+        status: 400,
+        code: 'PLUGIN_RPC',
+        message: 'Unknown RPC method: server.restart',
+        data: {type: 'rpc.method_not_found', message: 'Unknown RPC method: server.restart'},
+      })
+      expect(restarted).toEqual([])
       await approvePending(kit.base, sessionId)
       expect(await sessionRpc.server.reload({file: 'src/hot.ts'})).toEqual({ok: true})
       expect(reloaded).toEqual(['src/hot.ts'])

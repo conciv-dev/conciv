@@ -78,7 +78,6 @@ const Definition = Rpc.define({
     resolve: {input: ResolveInput, output: Resolved, errors},
     graph: {input: GraphInput, output: Graph, errors},
     transform: {input: TransformInput, output: Transformed, errors},
-    restart: {input: RestartInput, output: Restarted, errors},
     open: {input: OpenInput, output: Opened},
   },
   events: {},
@@ -256,12 +255,6 @@ export const Plugin = {
         transform: (input, {error}) =>
           methodAnswer(
             transform(input),
-            (message) => error('BUNDLER_UNAVAILABLE', message, {}),
-            (message, bundler) => error('BUNDLER_FAILED', message, {message: bundler}),
-          ),
-        restart: (input, {error}) =>
-          methodAnswer(
-            restart(input),
             (message) => error('BUNDLER_UNAVAILABLE', message, {}),
             (message, bundler) => error('BUNDLER_FAILED', message, {message: bundler}),
           ),

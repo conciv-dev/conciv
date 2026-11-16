@@ -31,7 +31,7 @@ as soon as the server mounts it; the CLI itself ships no extension code.
 - `conciv tools react` - inspect and edit live React components
 - `conciv tools design` - match the live page to a design image (when the design extension is mounted)
 - `conciv tools server reload <file>` - force a hot update of one module
-- `conciv plugin call server <method>` - inspect the dev server (`config`, `urls`, `resolve`, `graph`, `transform`), restart it (`restart`) or open a file in the user's editor (`open`); pass the input with `--data '<json>'`
+- `conciv plugin call server <method>` - inspect the dev server (`config`, `urls`, `resolve`, `graph`, `transform`) or open a file in the user's editor (`open`); pass the input with `--data '<json>'`
 - `conciv tools tabs` - list every open conciv tab on this machine, from any folder
 
 Add `--tab <id>` (an id from `conciv tools tabs`) to any command to act on that tab, on whichever dev
@@ -39,9 +39,11 @@ server holds it.
 
 ## Who is asked
 
-Some tools ask first: running code in the page, reloading or restarting the dev server, clearing or
-deleting on the whiteboard, resolving or deleting comments, building or running the iOS app. Who is
-asked depends on how the CLI found the dev server:
+Some tools ask first: running code in the page, reloading the dev server (`conciv tools server reload`),
+clearing or deleting on the whiteboard, resolving or deleting comments, building or running the iOS app.
+Restarting the dev server is the agent's `server_restart` tool and it asks too; the terminal has no restart
+command, so restart your own dev server in your terminal. Who is asked depends on how the CLI found the dev
+server:
 
 - Inside the project, the CLI acts on your latest chat (an agent conciv started acts on its own).
   Unless an earlier approval still covers the call, an asking tool shows the Approve card in the tab,

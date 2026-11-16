@@ -1674,14 +1674,18 @@ describe('cli', () => {
           },
         })
         expect(await pluginCall(attached.root, home, ['server', 'restart', '--data', '{"force":true}'])).toEqual({
-          code: 0,
-          document: {ok: true, data: {ok: true}},
+          code: 1,
+          document: {
+            ok: false,
+            error: {
+              kind: 'user',
+              code: 'PLUGIN_RPC',
+              type: 'rpc.method_not_found',
+              message: 'Unknown RPC method: server.restart',
+            },
+          },
         })
-        expect(await pluginCall(attached.root, home, ['server', 'restart', '--data', '{}'])).toEqual({
-          code: 0,
-          document: {ok: true, data: {ok: true}},
-        })
-        expect(restarts).toEqual([true, false])
+        expect(restarts).toEqual([])
         expect(
           await pluginCall(attached.root, home, [
             'server',
