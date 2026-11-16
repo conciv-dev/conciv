@@ -5819,8 +5819,8 @@ describe('page action queue delivery', () => {
         "for (let call = 0; call < 1001; call += 1) await external_page_queue_async({actions: 'none'}).catch(() => null); return 'called'",
       ),
     ).toContain('called')
-    await playAll(onTab)
     await page.finishedEvent(long)
+    await playAll(onTab)
     expect(await nextHubReply()).toContain(notice(long))
     expect(page.runIds()).toEqual([])
   }, 20000)
