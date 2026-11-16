@@ -97,7 +97,7 @@ function PreviewBody(props: {target: PreviewTarget; input: () => HTMLElement | n
     ],
   })
   return (
-    <div class="flex flex-col h-90 anim-combo">
+    <div class="flex flex-col h-90 min-h-0 anim-combo">
       <header class="px-3 py-2 border-b border-b-chat-line-soft flex gap-2 min-w-0 items-center">
         <Popover.Title class="text-[0.8125rem] text-chat-text-hi font-medium flex-1 min-w-0">
           <span class="sr-only">Preview of </span>
