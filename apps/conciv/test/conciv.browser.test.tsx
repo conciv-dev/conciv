@@ -8002,7 +8002,7 @@ module.exports = {default: {setup(ctx) {
     await expect.element(shownText('The fragile second revision'), {timeout: 15_000}).toBeVisible()
     await expect.element(shownText('Engine attached: 2')).toBeVisible()
     await expect.element(control('Write a plain note')).toBeVisible()
-    await expect.element(tab('Fixture tools')).toHaveAttribute('aria-selected', 'true')
+    await expect.element(page.getByRole('tab', {name: 'Fixture tools', exact: true, selected: true})).toBeVisible()
 
     const offline = await faults.install({kind: 'offline'})
     await expect.element(lostNotice(), {timeout: 15_000}).toBeVisible()
