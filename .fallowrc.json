@@ -10,6 +10,7 @@
     "packages/extensions/design/**",
     "packages/contract/test/helpers/fake-native-socket.ts",
     "packages/extensions/tanstack/test/fixtures/**",
+    "packages/plugins/tanstack/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",
     "packages/cli/test/fixtures/**",
     "packages/unplugin/test/fixtures/extension/**",
@@ -438,6 +439,14 @@
         "maxCognitive": 26,
         "maxCrap": 46,
         "reason": "copied from opencode packages/core/test/plugin/host.ts: host keeps opencode's shape"
+      },
+      {
+        "files": [
+          "packages/plugins/whiteboard/src/anchor/resolver.ts",
+          "packages/plugins/whiteboard/src/anchor/oxc-capture.ts"
+        ],
+        "maxCognitive": 24,
+        "reason": "moved from @conciv/extension-whiteboard src/anchor: resolve and the oxc visitors keep the extension's shape until the extension is removed"
       }
     ]
   },
@@ -463,6 +472,7 @@
     "@tanstack/ai-mcp",
     "@tanstack/ai-event-client",
     "@tanstack/store",
+    "rrweb",
     "collections",
     "@conciv/app-extensions",
     "conciv",
@@ -527,6 +537,8 @@
     "@conciv/unplugin",
     "@conciv/plugin",
     "@conciv/plugin-host",
+    "@conciv/plugin-recorder",
+    "@conciv/plugin-whiteboard",
     "@conciv/preact",
     "@conciv/protocol",
     "@conciv/react",
@@ -836,6 +848,7 @@
     "packages/extensions/try-it/test/fixture/connect-pane-fixture.tsx",
     "e2e/harnesses/vite.*.config.ts",
     "e2e/e2e-utils/src/packed-global-setup.ts",
+    "e2e/e2e-utils/src/state-cleanup-reporter.ts",
     "packages/db/drizzle-home.config.ts",
     "apps/conciv/test/commands/core-control.ts",
     "apps/conciv/test/commands/core-testkit.ts"
