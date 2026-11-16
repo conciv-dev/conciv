@@ -38,10 +38,11 @@ import type {MarkerRow} from '@conciv/contract'
 import type {ChatMessage, SendContent} from '@conciv/protocol/chat-message-types'
 import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
-import {paneAttachments, returnQueueToDraft, type DraftSink} from './pane-attachments.js'
+import {paneAttachments, returnQueueToDraft} from './pane-attachments.js'
 import {useAnnounce, useAppData, useConnected, useInstances, useLiveSessions, useRpc} from '../app/context.js'
 import {useHarnesses, useSessionHarness} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
+import type {PaneDraftSinks} from '../app/live-sessions.js'
 import {usePane} from '../app/pane-context.js'
 import {createToolDurations} from './tool-durations.js'
 import {toolFallbackCard} from './tool-fallback-card.js'
@@ -301,6 +302,11 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     inputHandle()?.append(text)
     focusInput()
   }
+  const insertFirst = (text: string) => {
+    inputHandle()?.select({start: 0, end: 0})
+    inputHandle()?.insert(`${text}\n`)
+    focusInput()
+  }
   const attach = (file: File) => {
     const api = composerApi.current
     if (!api) {
@@ -489,7 +495,10 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                       input={inputHandle}
                       onRestore={restored.resolve}
                     />
-                    <LostQueueReceiver sessionId={sessionId} sink={{insert, addFile: attach}} />
+                    <DraftReturnReceiver
+                      sessionId={sessionId}
+                      sinks={{queue: {insert, addFile: attach}, steered: {insert: insertFirst, addFile: attach}}}
+                    />
                     <Suspense fallback={<ComposerActionsPending />}>
                       <ComposerActions
                         sessionId={sessionId}
@@ -530,7 +539,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
               onSend: sendOrRunCommand,
               onSendError: messaging.onSendError,
               onSteer: messaging.onSteer,
-              onSteerError: messaging.onSendError,
+              onSteerError: messaging.onSteerError,
               onCancel: () => {
                 returnQueueToDraft(chat, {insert, addFile: attach})
                 void chat.stop()
@@ -553,9 +562,9 @@ function ConversationLoading(props: {reopened: boolean; sessionId: string}): JSX
   )
 }
 
-function LostQueueReceiver(props: {sessionId: string; sink: DraftSink}): JSX.Element {
+function DraftReturnReceiver(props: {sessionId: string; sinks: PaneDraftSinks}): JSX.Element {
   const liveSessions = useLiveSessions()
-  onMount(() => liveSessions.receiveLostQueue(props.sessionId, props.sink))
+  onMount(() => liveSessions.receiveDraftReturns(props.sessionId, props.sinks))
   return <></>
 }
 

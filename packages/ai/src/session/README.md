@@ -7,7 +7,7 @@ The Solid client-side chat session. It wraps `useChat` from `@tanstack/ai-solid`
 ## Interface
 
 - `session.ts:createChat` - returns `useChat(options)`.
-- `session.ts:createChatSession` - returns a `ChatSession` with `stop`, `refresh`, `decide`, a `sendMessage` that rejects when a queued Stop took the send back, and accessors `error`, `withdrawn`, `stopping`, `stopped`, `runSource`, `runError`, `sessionRunning`, `runInProgress`, `loadFailed`, `pendingApprovals`, and `readHarness(messageId)`.
+- `session.ts:createChatSession` - returns a `ChatSession` with `stop`, `refresh`, `decide`, a `sendMessage` that rejects when a queued Stop took the send back or the engine refused it, and accessors `error`, `withdrawn`, `stopping`, `stopped`, `runSource`, `runError`, `sessionRunning`, `runInProgress`, `loadFailed`, `pendingApprovals`, and `readHarness(messageId)`.
 - `session.ts:CreateChatSessionOptions` - `sessionId`, `connect(callbacks)`, `stop(runIds)`, `decide(approvalId, approved, scope)`, optional `onError`.
 - `session.ts:ChatSessionConnection` - a `SubscribeConnectionAdapter` plus `refresh(before?)` (the newest page, or the page before a cursor) and `close()`.
 - `session.ts:ChatSessionCallbacks` - `onLifecycle`, `onHydrated`, `onRunError`, `onApprovalAsk`, `joinsRun`.
@@ -30,6 +30,7 @@ The Solid client-side chat session. It wraps `useChat` from `@tanstack/ai-solid`
 ## Side Effects
 
 - `session.ts:createChatSession` - opens the connection through `options.connect` and closes it in `onCleanup`.
+- `session.ts:sendMessage` / `neverLeft` / `answered` - after the library returns, a send that was withdrawn (above) or that raised a new chat error with no assistant content after the last user message (the engine refused it) never left: both go through the one drop (`beforeLastUser`) and reject, the withdrawn one with its own error and the refused one with the chat error, so the composer puts the text back and no ghost turn stays in the log. `answered` is the same test as `answeredLastUserMessage` in `packages/ui-kit-chat/src/primitives/composer/composer.tsx`; a change to one is made to both.
 - `session.ts:stopRun` / `refresh` / `decide` - call the supplied network callbacks and `chat.sendMessage`.
 
 ## Verification

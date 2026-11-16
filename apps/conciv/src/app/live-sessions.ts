@@ -1,17 +1,18 @@
 import {createMemo, createRoot, on, onCleanup, untrack, type Accessor} from 'solid-js'
 import {difference, partition, uniq} from 'es-toolkit'
 import {type QueryClient, useChatSession, type ChatSession, type ChatTransportPreference} from '@conciv/client'
-import {createStore} from 'solid-js/store'
+import {createStore, unwrap} from 'solid-js/store'
 import {browserRpcConnection, type RpcClient} from '@conciv/contract'
 import {isRunPhaseTerminal, type RunLifecycle} from '@conciv/protocol/chat-event-types'
+import type {QueuedMessage} from '@conciv/protocol/chat-message-types'
 import type {AppData} from '../data/app-data.js'
-import {returnQueueToDraft, type DraftSink, type QueueOwner} from '../pane/pane-attachments.js'
-import {draftCacheSink} from '../pane/draft-storage.js'
+import {putBackInDraft, returnQueueToDraft, type DraftSink, type QueueOwner} from '../pane/pane-attachments.js'
+import {appendDraft, draftCacheSink, makeDraftWriteChain, prependDraft} from '../pane/draft-storage.js'
 import {becameTrusted} from './engine-login.js'
 
 export type PaneActivity = 'unmounted' | 'idle' | 'running'
 
-type LostQueueListener = (owner: QueueOwner) => void
+export type PaneDraftSinks = {queue: DraftSink; steered: DraftSink}
 
 export type LiveSessions = {
   activityIn: (sessionId: string | null) => PaneActivity
@@ -20,7 +21,8 @@ export type LiveSessions = {
   open: (sessionId: Accessor<string>) => Accessor<ChatSession>
   reopen: (sessionId: string) => void
   stop: (sessionId: string) => void
-  receiveLostQueue: (sessionId: string, sink: DraftSink) => void
+  receiveDraftReturns: (sessionId: string, sinks: PaneDraftSinks) => void
+  returnSteered: (sessionId: string, owner: QueueOwner, item: QueuedMessage) => void
 }
 
 export type LiveSessionsDeps = {
@@ -48,16 +50,17 @@ function clientWorking(chat: ChatSession): boolean {
 }
 
 export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
+  const keepDraft = makeDraftWriteChain()
   const [state, setState] = createStore<{
     openers: Accessor<string>[]
     runs: Record<string, RunWatch>
     retired: Record<string, ChatSession>
-    lostQueueListeners: Partial<Record<string, LostQueueListener>>
+    paneDraftSinks: Partial<Record<string, PaneDraftSinks>>
   }>({
     openers: [],
     runs: {},
     retired: {},
-    lostQueueListeners: {},
+    paneDraftSinks: {},
   })
   const opened = createMemo(() => state.openers.map((sessionId) => sessionId()))
   const watched = createMemo(() =>
@@ -96,9 +99,10 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
   }
 
   const returnLostQueue = (sessionId: string, session: ChatSession): void => {
-    const listener = state.lostQueueListeners[sessionId]
-    if (listener) return listener(session)
-    returnQueueToDraft(session, draftCacheSink(deps.appData, sessionId))
+    returnQueueToDraft(
+      session,
+      state.paneDraftSinks[sessionId]?.queue ?? draftCacheSink(keepDraft, deps.appData, sessionId, appendDraft),
+    )
   }
 
   const liveChat = (sessionId: string, dispose: () => void): LiveChat => {
@@ -193,13 +197,19 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
     stop(sessionId) {
       void findChat(sessionId)?.chat().stop()
     },
-    receiveLostQueue(sessionId, sink) {
-      const listener: LostQueueListener = (owner) => returnQueueToDraft(owner, sink)
-      setState('lostQueueListeners', sessionId, () => listener)
+    receiveDraftReturns(sessionId, sinks) {
+      setState('paneDraftSinks', sessionId, () => sinks)
       onCleanup(() =>
-        setState('lostQueueListeners', sessionId, (current: LostQueueListener | undefined) =>
-          current === listener ? undefined : current,
+        setState('paneDraftSinks', sessionId, (current: PaneDraftSinks | undefined) =>
+          current !== undefined && unwrap(current) === sinks ? undefined : current,
         ),
+      )
+    },
+    returnSteered(sessionId, owner, item) {
+      if (owner.queue().some((queued) => queued.id === item.id)) return
+      putBackInDraft(
+        [item],
+        state.paneDraftSinks[sessionId]?.steered ?? draftCacheSink(keepDraft, deps.appData, sessionId, prependDraft),
       )
     },
   }
