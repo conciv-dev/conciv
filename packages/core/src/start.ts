@@ -7,7 +7,7 @@ import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {HarnessAdapter} from '@conciv/harness'
 import type {Plugin} from '@conciv/plugin'
 import type {AnyExtension, ExtensionPromptContext} from '@conciv/extension'
-import {makeApp, withBuiltinExtensions, type MakeAppOpts} from './app.js'
+import {makeApp, withBuiltinExtensions, type MadeApp, type MakeAppOpts} from './app.js'
 import {agentPath} from './engine-login.js'
 
 export type {AppType} from './app.js'
@@ -224,17 +224,21 @@ export async function start(opts: StartOpts): Promise<Engine> {
     tokenScopedBase,
     plugins: opts.plugins,
   }
-  const {fetch: fetchHandler, dispose, extensionContexts, trustBrowser, awaitActivation} = await makeApp(appOpts)
-
-  let serving: Served
-  try {
-    serving = await servePort(fetchHandler, opts.port, {file: paths.server, token: agentToken})
-  } catch (error) {
-    await cleanupAfterFailedStart([dispose])
-    throw error
-  }
-  const {port, close} = serving
+  const madeApp = Promise.withResolvers<MadeApp>()
+  madeApp.promise.catch(() => {})
+  const {port, close} = await servePort(
+    (request, env) => madeApp.promise.then((made) => made.fetch(request, env)),
+    opts.port,
+    {file: paths.server, token: agentToken},
+  )
   portRef.port = port
+  const made = await makeApp(appOpts).catch(async (error: unknown) => {
+    madeApp.reject(error)
+    await cleanupAfterFailedStart([close])
+    throw error
+  })
+  madeApp.resolve(made)
+  const {dispose, extensionContexts, trustBrowser, awaitActivation} = made
 
   const endpointDir = opts.devEndpointDir ?? defaultDevEndpointDir()
   const base = tokenScopedBase()
