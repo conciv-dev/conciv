@@ -34,7 +34,7 @@ describe('tool names', () => {
     expect(shortToolLabel('snake_case_tool')).toBe('case_tool')
     expect(shortToolLabel('mcp__playwright__browser_take_screenshot')).toBe('shot')
     expect(shortToolLabel('')).toBe('')
-    expect(shortToolLabel('A'.repeat(240_000))).toBe('aaaaaaaaaaa…')
+    expect(shortToolLabel('A'.repeat(400_000))).toBe('aaaaaaaaaaa…')
   })
 
   it('names an mcp tool by its tool part', () => {
@@ -46,7 +46,7 @@ describe('tool names', () => {
     expect(humanToolName('mcp__srv__')).toBe('mcp__srv__')
     expect(humanToolName('mcp__srv__tool\n')).toBe('mcp__srv__tool\n')
     expect(humanToolName('Bash')).toBe('Bash')
-    const slow = `mcp__${'a__'.repeat(80_000)}\n`
+    const slow = `mcp__${'a__'.repeat(240_000)}\n`
     expect(humanToolName(slow)).toBe(slow)
   })
 })
