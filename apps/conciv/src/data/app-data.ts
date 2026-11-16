@@ -9,7 +9,7 @@ import {
   type QueryKey,
 } from '@conciv/client'
 import {Conciv, type ConcivClient} from '@conciv/plugin'
-import {writeComposerDraft, type AttachmentState} from '@conciv/ui-kit-chat'
+import type {AttachmentState} from '@conciv/ui-kit-chat'
 import type {DraftStore} from '../runtime/persistence/drafts.js'
 import {DraftRowSchema, SessionMetaSchema, type DraftRow, type RpcClient, type SessionMeta} from '@conciv/contract'
 
@@ -31,6 +31,7 @@ const EncodedAttachmentsSchema = DraftRowSchema.pick({attachments: true})
 
 async function encodeAttachments(pending: readonly AttachmentState[]): Promise<DraftRow['attachments']> {
   if (pending.length === 0) return []
+  const {writeComposerDraft} = await import('@conciv/ui-kit-chat')
   const written: string[] = []
   await writeComposerDraft({getItem: () => null, setItem: (_key, value) => written.push(value)}, 'draft', {
     draft: '',
