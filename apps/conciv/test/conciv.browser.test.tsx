@@ -8256,9 +8256,9 @@ describe('the local draft store', () => {
     await expect.element(chip('kept.png').nth(1)).toBeVisible()
   })
 
-  test('a newer conciv tab that bumps the schema is not blocked; the older pane keeps its text and its attachments with no local copy', async () => {
+  test('a newer conciv tab that bumps the schema is not blocked; the older pane keeps its text and its attachments with no local copy, and a pane opened under the newer schema still attaches', async () => {
     const olderStore = createBrowserDraftStore()
-    render(() => <AttachingComposer store={olderStore} />)
+    const older = render(() => <AttachingComposer store={olderStore} />)
     await coreControl.chooseFiles('Add an attachment', [picture('earlier.png')])
     await expect.element(chip('earlier.png')).toBeVisible()
 
@@ -8283,6 +8283,13 @@ describe('the local draft store', () => {
     await expect.element(chip('earlier.png')).toBeVisible()
     await expect.element(message()).toHaveValue('typed after the bump')
     expect(await unstored('later.png')).toBeUndefined()
+
+    older.unmount()
+    const newestStore = createBrowserDraftStore()
+    render(() => <AttachingComposer store={newestStore} />)
+    await coreControl.chooseFiles('Add an attachment', [picture('newest.png')])
+    await expect.element(chip('newest.png')).toBeVisible()
+    expect(await unstored('newest.png')).toBeUndefined()
   })
 
   test('treats a corrupt stored document as absent, so the draft starts empty and the next edit is saved', async () => {

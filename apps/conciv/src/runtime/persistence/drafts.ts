@@ -450,6 +450,9 @@ export function createBrowserDraftStore(): DraftStore {
     })
     request.addEventListener('error', () => reject(request.error))
   })
+  db.catch((error: unknown) => {
+    console.error('[persistence] the draft database did not open; drafts stay engine-only', error)
+  })
 
   const get = async (store: string, key: string) => {
     const result = (await db).transaction(store).objectStore(store).get(key)
