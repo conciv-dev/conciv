@@ -176,13 +176,21 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
   }
   const registration: RpcRegistration<typeof Definition> = await ctx.rpc.register(Definition, {
     attach: async (input, call) => {
-      const session = await ctx.session
+      const opened = await ctx.session
         .get({sessionId: input.sessionId})
-        .catch((error: unknown) =>
-          SessionNotFound.safeParse(error).success ? ctx.session.create({id: input.sessionId}) : undefined,
+        .catch((error: unknown) => {
+          if (SessionNotFound.safeParse(error).success) return ctx.session.create({id: input.sessionId})
+          throw error
+        })
+        .then(
+          (session) => ({session, reason: ''}),
+          (error: unknown) => ({session: undefined, reason: error instanceof Error ? error.message : String(error)}),
         )
-        .catch(() => undefined)
-      if (!session) return call.error('unavailable', 'Session not found.', {})
+      const session = opened.session
+      if (!session) {
+        console.warn(`Page could not open session ${input.sessionId}`, opened.reason)
+        return call.error('unavailable', `Session ${input.sessionId} could not be opened: ${opened.reason}`, {})
+      }
       if (session.location.directory !== ctx.location.directory)
         return call.error('unavailable', 'Session belongs to another location.', {})
       const started = await begin(input.sessionId, input.connectionId)
