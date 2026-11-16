@@ -1,5 +1,5 @@
 import {mkdirSync, rmSync} from 'node:fs'
-import {dirname, join} from 'node:path'
+import {basename, dirname, join} from 'node:path'
 import {defineConfig, devices, type ReporterDescription} from '@playwright/test'
 import {E2E_PORTS, HARNESS_E2E_PORTS, type E2EApp, type HarnessApp} from './ports.js'
 
@@ -11,7 +11,7 @@ function reporters(): ReporterDescription[] {
 }
 
 function e2eStateDir(configDir: string): string {
-  return join(configDir, '.conciv-e2e')
+  return join(dirname(configDir), '.conciv-e2e', basename(configDir))
 }
 
 export function e2eConfigDir(configFile: string | undefined): string {
