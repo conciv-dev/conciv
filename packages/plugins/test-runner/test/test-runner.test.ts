@@ -138,7 +138,7 @@ async function withChildEnvironment<Value>(
 
 async function followRun(kit: CoreKit, start: () => Promise<unknown>) {
   const following = new AbortController()
-  const stream = await kit.rpc.plugin.events({rpcId: 'test-runner', types: ['event']}, {signal: following.signal})
+  const stream = await kit.rpc.event.subscribe({types: ['rpc.test-runner.event']}, {signal: following.signal})
   const progress = {
     runResolved: false,
     testsWhileRunning: 0,
@@ -147,6 +147,7 @@ async function followRun(kit: CoreKit, start: () => Promise<unknown>) {
   }
   const collect = async () => {
     for await (const delivered of stream) {
+      if (delivered.type === 'server.connected' || delivered.type === 'server.heartbeat') continue
       expect(delivered.type).toBe('rpc.test-runner.event')
       const event = LiveEventSchema.parse(delivered.data)
       progress.types.push(event.type)
