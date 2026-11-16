@@ -2062,8 +2062,19 @@ describe('chat history paging', () => {
     await faults.install({kind: 'gate', path: HYDRATE_PATH})
     await userEvent.wheel(thread(), {delta: {y: -1000}})
     await expect.element(loadingOlder()).toBeInTheDocument()
-    await userEvent.hover(thread().getByText('Hello from conciv', {exact: true}).first())
-    await userEvent.click(thread().getByRole('button', {name: 'Copy'}).first())
+    await expectInViewOnly([87, 88], [86, 91])
+    await expect.element(exchange(83)).toBeInTheDocument()
+    await expect.element(exchange(82)).not.toBeInTheDocument()
+    const replyTo88 = thread()
+      .getByText('Hello from conciv', {exact: true})
+      .nth(88 - 83)
+    const copyReplyTo88 = thread()
+      .getByRole('button', {name: 'Copy'})
+      .nth(88 - 83)
+    await expect.element(copyReplyTo88).toBeInViewport({ratio: 1})
+    await userEvent.hover(replyTo88)
+    await expect.element(copyReplyTo88).toBeInViewport({ratio: 1})
+    await userEvent.click(copyReplyTo88)
     const copyOutcome = thread()
       .getByRole('status')
       .filter({hasText: /^(Copied the message|Could not copy the message)$/})
@@ -2867,10 +2878,15 @@ describe('launcher activity', () => {
     expect((await rpc.sessions.get({sessionId})).lastRunAt).toBe(lastRun?.startedAt)
   }, 30_000)
 
+  const SESSION_ROW_PATH = ['sessions', 'get']
+  const ROW_FAILURE_STATUS = 500
+  const QUERY_CORE_BROWSER_DEFAULT_RETRIES = 3
+  const ROW_REFETCH_ATTEMPTS = 1 + QUERY_CORE_BROWSER_DEFAULT_RETRIES
+
   test('a session whose row fails to load says so where the title is, keeps its menu and its chat, and Retry brings the title back', async () => {
     await page.viewport(1000, 900)
     const sessionId = await sessionThatRan('a row that failed to load')
-    const broken = await faults.install({kind: 'fail', path: ['sessions', 'get'], status: 500})
+    const broken = await faults.install({kind: 'fail', path: SESSION_ROW_PATH, status: ROW_FAILURE_STATUS})
 
     harness.mountShell(`/panel/${sessionId}?open=true`)
     const rowAlert = page.getByRole('alert').filter({hasText: 'Couldn’t load this session'})
@@ -2889,12 +2905,17 @@ describe('launcher activity', () => {
     await userEvent.keyboard('{Escape}')
     await expect.element(page.getByRole('dialog', {name: 'Session options'})).not.toBeInTheDocument()
 
+    const beforeTheRunEnds = await coreControl.rpcMark()
     await userEvent.click(composer())
     await userEvent.keyboard('{Enter}')
     await expect.element(page.getByRole('log').getByText('still talking while the row is failed')).toBeVisible()
     await expect.element(page.getByText('Hello from conciv').nth(1), {timeout: 8000}).toBeVisible()
+    await expect
+      .element(page.getByRole('status').filter({hasText: 'conciv replied.'}), {timeout: 8000})
+      .toBeInTheDocument()
+    await coreControl.awaitRpcFailedCount(SESSION_ROW_PATH, ROW_FAILURE_STATUS, ROW_REFETCH_ATTEMPTS, beforeTheRunEnds)
     await expect.element(rowAlert).toBeVisible()
-
+    await expect.element(rowAlert.getByRole('button', {name: 'Retry'})).toBeVisible()
     await coreControl.releaseFault(broken)
     await userEvent.click(rowAlert.getByRole('button', {name: 'Retry'}))
     await expect.element(titleButton('a row that failed to load'), {timeout: 8000}).toBeVisible()
