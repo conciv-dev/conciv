@@ -8,6 +8,7 @@ import * as SolidStore from 'solid-js/store'
 import * as SolidWeb from 'solid-js/web'
 import {build} from 'vite'
 import * as Zod from 'zod'
+import * as Effect from 'effect'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {StandardSchemaV1} from '@standard-schema/spec'
@@ -19,6 +20,7 @@ import {
   Tool,
   type AgentEditor,
   type Hooks,
+  type Info,
   type Registration,
   type Rule,
   type Ruleset,
@@ -32,6 +34,7 @@ import {
   type Transform,
 } from '../src/promise/index.js'
 import type {ServerRef} from '../src/experimental/index.js'
+import type * as SessionMessage from '../src/schema/session-message.js'
 import type {Accessor} from 'solid-js'
 import * as Experimental from '../src/experimental/index.js'
 import {
@@ -124,36 +127,37 @@ describe('define', () => {
     expectTypeOf<undefined>().toExtend<Plugin.Context['session']['synthetic']>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['permission']['hook']>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['model']['transform']>()
-    expectTypeOf<Plugin.Context['location']['project']['id']>().toEqualTypeOf<string>()
-    expectTypeOf<Plugin.Context['location']['project']['canonical']>().toEqualTypeOf<string>()
+    type Project = Plugin.Context['location']['project']
+    expectTypeOf<Project['id']>().toEqualTypeOf<string & import('effect').Brand.Brand<'Project.ID'>>()
+    expectTypeOf<Project['canonical']>().toEqualTypeOf<string & import('effect').Brand.Brand<'AbsolutePath'>>()
   })
 
   it("types execute's input as the input schema's output and its output as the output schema's input from zod, any Standard Schema or a raw JSON Schema, as opencode does", () => {
     const Limit = z.object({limit: z.string().transform(Number)})
-    type LimitTool = Tool.Info<typeof Limit, typeof Limit>
+    type LimitTool = Info<typeof Limit, typeof Limit>
     expectTypeOf<Parameters<LimitTool['execute']>[0]>().toEqualTypeOf<{limit: number}>()
     expectTypeOf<NonNullable<Awaited<ReturnType<LimitTool['execute']>>['output']>>().toEqualTypeOf<{limit: string}>()
-    type CountTool = Tool.Info<typeof CountSchema, typeof CountSchema>
+    type CountTool = Info<typeof CountSchema, typeof CountSchema>
     expectTypeOf<Parameters<CountTool['execute']>[0]>().toEqualTypeOf<Count>()
     expectTypeOf<NonNullable<Awaited<ReturnType<CountTool['execute']>>['output']>>().toEqualTypeOf<Count>()
-    type JsonTool = Tool.Info<typeof CountJsonSchema, typeof CountJsonSchema>
+    type JsonTool = Info<typeof CountJsonSchema, typeof CountJsonSchema>
     expectTypeOf<Parameters<JsonTool['execute']>[0]>().toEqualTypeOf<unknown>()
     expectTypeOf<Awaited<ReturnType<JsonTool['execute']>>['output']>().toEqualTypeOf<any>()
   })
 
   it("gives a tool's execute the call's abort signal", () => {
-    const tool: Tool.Info = {
+    const tool: Info = {
       name: 'wait',
       input: CountJsonSchema,
       output: CountJsonSchema,
       description: 'Wait for a count',
       execute: async (_input, context) => ({output: context.signal.aborted}),
     }
-    expectTypeOf<Parameters<Tool.Info['execute']>[1]['signal']>().toEqualTypeOf<AbortSignal>()
-    expectTypeOf<ToolContext['messageId']>().toEqualTypeOf<string | undefined>()
+    expectTypeOf<Parameters<Info['execute']>[1]['signal']>().toEqualTypeOf<AbortSignal>()
     expectTypeOf<ToolContext['sessionId']>().toEqualTypeOf<SessionId>()
     expectTypeOf<Plugin.Context['bundler']>().toEqualTypeOf<BundlerBridge | undefined>()
-    expectTypeOf<ToolContext>().toEqualTypeOf<Tool.Context>()
+    expectTypeOf<Omit<ToolContext, 'signal' | 'progress'>>().toEqualTypeOf<Omit<Tool.Context, 'progress' | 'cancel'>>()
+    expectTypeOf<ToolContext['messageId']>().toEqualTypeOf<SessionMessage.Id | undefined>()
     expect(tool.name).toBe('wait')
   })
 })
@@ -944,6 +948,7 @@ describe('experimental() build', () => {
   const provided: Record<PluginModule, object> = {
     '@conciv/plugin/experimental': Experimental,
     '@conciv/plugin/rpc': RpcEntry,
+    effect: Effect,
     zod: Zod,
     'solid-js': SolidJs,
     'solid-js/web': SolidWeb,
@@ -982,13 +987,11 @@ describe('experimental() build', () => {
     expect(evaluatePluginBundle(code, {require: provider(real)}).setup).toBeTypeOf('function')
   }, 60_000)
 
-  it('the preset fails the build on a conciv or Solid module the app does not provide', async () => {
-    const root = await project({
-      'src/plugin-experimental.tsx':
-        'import { Button } from "@conciv/ui-kit-system"\nexport default { id: "acme", Button }',
-    })
-
-    await expect(bundle(root)).rejects.toThrow('@conciv/ui-kit-system is not a module the conciv app provides')
+  it('the preset fails the build on an Effect, conciv or Solid module the app does not provide', async () => {
+    for (const source of ['@conciv/ui-kit-system', 'effect/Schema']) {
+      const root = await project({'src/plugin-experimental.tsx': `export * from "${source}"`})
+      await expect(bundle(root)).rejects.toThrow(`${source} is not a module the conciv app provides`)
+    }
   }, 60_000)
 })
 

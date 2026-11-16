@@ -1,29 +1,23 @@
-import {Tool} from '../../schema/tool.js'
-import {Agent} from '../../schema/agent.js'
-import {SessionMessage} from '../../schema/session-message.js'
-import type {Rpc} from '../../schema/rpc.js'
-import {EventManifest} from '../../schema/event-manifest.js'
-import {Location} from '../../schema/location.js'
-import {Model} from '../../schema/model.js'
-import {Permission} from '../../schema/permission.js'
-import {Plugin as PluginSchema} from '../../schema/plugin.js'
-import {Session} from '../../schema/session.js'
-import {Skill} from '../../schema/skill.js'
-import {InstructionEntry} from '../../schema/instruction-entry.js'
-import {PositiveInt} from '../../schema/schema.js'
-import {eventDefinition} from '../../core/rpc.js'
-import type {
-  ConcivEvent,
-  Info,
-  Plugin,
-  RpcCallOptions,
-  RpcDomain,
-  RpcEventPayload,
-  RpcHandlers,
-  SelectedEvent,
-  SubscribeOptions,
-  Tool as PromiseTool,
-} from '@conciv/plugin'
+import {Tool} from '../schema/tool.js'
+import {Agent} from '../schema/agent.js'
+import {SessionMessage} from '../schema/session-message.js'
+import type {Rpc} from '../schema/rpc.js'
+import {EventManifest} from '../schema/event-manifest.js'
+import {Location} from '../schema/location.js'
+import {Model} from '../schema/model.js'
+import {Permission} from '../schema/permission.js'
+import {Plugin as PluginSchema} from '../schema/plugin.js'
+import {Session} from '../schema/session.js'
+import {Skill} from '../schema/skill.js'
+import {InstructionEntry} from '../schema/instruction-entry.js'
+import {optional, PositiveInt} from '../schema/schema.js'
+import {Event} from '../schema/event.js'
+import type {SelectedEvent, SubscribeOptions} from '../client/promise/api.js'
+import type {ConcivEvent} from '../client/promise/index.js'
+import type {RpcCallOptions, RpcEventPayload} from '../client/promise/rpc.js'
+import type * as Plugin from './plugin.js'
+import type {RpcDomain, RpcHandlers} from './rpc.js'
+import type {Info} from './tool.js'
 import {Effect, Schema, Stream} from 'effect'
 import type {Scope} from 'effect'
 import {define} from '../effect/plugin.js'
@@ -117,15 +111,21 @@ const SkillListSchemas = {
   input: Schema.toType(LocationQuery),
   output: Location.response(Schema.Array(Skill.Info)),
 }
-const ServerEvent = Schema.Union(EventManifest.ServerDefinitions)
+const RpcEvent = Schema.Struct({
+  id: Event.Id,
+  created: Schema.Finite,
+  metadata: optional(Schema.Record(Schema.String, Schema.Unknown)),
+  type: Schema.TemplateLiteral(['rpc.', Schema.String]),
+  location: optional(Location.Ref),
+  data: Schema.Record(Schema.String, Schema.Unknown),
+})
+const ServerEvent = Schema.Union([...EventManifest.ServerDefinitions, RpcEvent])
 
 const ToolContextIds = Schema.Struct({
   agent: Agent.Id,
   messageId: Schema.UndefinedOr(SessionMessage.Id),
   id: Tool.CallId,
 })
-
-const isRpcType = (type: string): type is `rpc.${string}` => type.startsWith('rpc.')
 
 interface HostRpcCallContext {
   readonly error: (type: string, message: string, data?: unknown) => unknown
@@ -262,8 +262,7 @@ export function fromPromise(plugin: Plugin.Plugin) {
     id: plugin.id,
     effect: (host) =>
       Effect.gen(function* () {
-        const encodeEvent = (event: {readonly type: string}) =>
-          Schema.encodeUnknownEffect(isRpcType(event.type) ? eventDefinition(event.type) : ServerEvent)(event)
+        const encodeEvent = Schema.encodeUnknownEffect(ServerEvent)
         const runtime = yield* Effect.context<Scope.Scope>()
         const streams = yield* makeStreams()
 
@@ -459,7 +458,7 @@ export function fromPromise(plugin: Plugin.Plugin) {
 
 type RuntimeSchema = Schema.Codec<unknown, unknown>
 
-const standardSchema = (schema: Tool.ValueSchema): PromiseTool.ValueSchema =>
+const standardSchema = (schema: Tool.ValueSchema): Tool.ValueSchema =>
   Schema.isSchema(schema) ? Schema.toStandardSchemaV1(schema) : schema
 
 const promiseSchemas = (tool: Tool.Info) => ({

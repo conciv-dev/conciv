@@ -32,5 +32,5 @@ export interface PermissionDomain {
   readonly reply: (input: PermissionReplyInput, requestOptions?: RequestOptions) => Promise<void>
   /** @remarks Not implemented yet. Always undefined in this version. */
   readonly hook: Hooks<PermissionHooks> | undefined
-  readonly assert: (input: AssertInput) => Promise<void>
+  readonly assert: (input: typeof AssertInput.Encoded) => Promise<void>
 }

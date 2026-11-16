@@ -258,11 +258,15 @@ with different rooting rules.
 
 ## Sidecars
 
-- **`models?: HarnessModels`** — either a plain `HarnessModel[]` or a `() => HarnessModel[] |
+- **`models?: HarnessModels`**: either a plain `HarnessModel[]` or a `({signal}) => HarnessModel[] |
   Promise<HarnessModel[]>` for CLIs whose model list must be fetched
-  (`packages/protocol/src/harness-types.ts:24-33`). Read it through
-  `resolveHarnessModels(adapter)` (`packages/harness/src/registry.ts:25-29`), never by branching on
-  `typeof adapter.models` yourself elsewhere.
+  (`packages/protocol/src/harness-types.ts:26-38`). The engine aborts `signal` when it stops: hand it to
+  whatever lists the models (`execFile(..., {signal})`, a `fetch`, an SDK's abort controller) so a
+  listing still running is ended with the engine, and settle only once that child has exited
+  (`packages/harness/src/opencode/models.ts`). A `models` that takes no parameter still type-checks;
+  the engine's close waits for a listing at most `GROUP_EXIT_TIMEOUT_MS` (5 s) and then goes on without it.
+  Read it through `resolveHarnessModels(adapter, {signal})` (`packages/harness/src/registry.ts:28-35`),
+  never by branching on `typeof adapter.models` yourself elsewhere.
 - **`tty?: {command(ctx: HarnessConnectContext): TtyCommand}`** — the argv/options for opening the CLI
   in the built-in terminal pane.
 - There is no connect/launch-plan sidecar. Outside sessions of a harness (any cwd) reach conciv through the
