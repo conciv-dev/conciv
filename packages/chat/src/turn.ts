@@ -262,6 +262,11 @@ async function recordContext(deps: TurnDeps, sessionId: SessionId): Promise<void
   if (contextTokens !== undefined) await deps.sessions.recordContextTokens(sessionId, contextTokens)
 }
 
+export function sessionDeleted(sessions: SessionPort, sessionId: SessionId): boolean {
+  const row = sessions.row(sessionId)
+  return row !== null && row.deletedAt !== null
+}
+
 export function missingSession(sessionId: SessionId): string {
   return `session "${sessionId}" does not exist`
 }
@@ -274,8 +279,7 @@ export function turnHooks(
   return {
     admit: async (turn) => {
       const sessionId = SessionId.parse(turn.threadId)
-      const row = deps.sessions.row(sessionId)
-      if (row !== null && row.deletedAt !== null) throw new Error(missingSession(sessionId))
+      if (sessionDeleted(deps.sessions, sessionId)) throw new Error(missingSession(sessionId))
     },
     plan: (turn) => {
       const sessionId = SessionId.parse(turn.threadId)

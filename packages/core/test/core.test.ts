@@ -3065,6 +3065,10 @@ describe('plugin host bus', () => {
       {type: ChatEventType.CUSTOM, name: 'run.accepted'},
       {type: ChatEventType.RUN_ERROR, message: `session "${refused}" does not exist`},
     ])
+    expect(await made.plane.followUp(refused, 'a page queue result after the delete')).toEqual({
+      kind: 'failed',
+      error: `session "${refused}" does not exist`,
+    })
     expect(publishedToRefused).toEqual([])
     expect(heardBy(refused)).toEqual(['session.deleted with no run'])
     const afterRefusal = await made.plane.hydrate(refused)
