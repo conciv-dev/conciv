@@ -1,4 +1,4 @@
-import {from, onCleanup, type Accessor} from 'solid-js'
+import {onCleanup} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {createKeyed, type Context} from '@conciv/plugin/experimental'
 import {Page} from '@conciv/plugin/experimental/page'
@@ -9,34 +9,37 @@ import {createFlusher} from './flusher.js'
 
 export type CaptureState = {readonly failed: boolean}
 
-function followLive(ctx: Context): Accessor<boolean | undefined> {
-  const recorder = ctx.client.rpc(Recorder)
-  return from<boolean>((set) => {
-    void recorder.state(undefined, {signal: ctx.signal}).then(
-      (state) => set(state.live),
-      (error: unknown) => console.error('[conciv] the recorder state could not be read', error),
-    )
-    return recorder.events.on(
-      'control',
-      (event) => {
-        if (event.data.live !== undefined) set(event.data.live)
-      },
-      {signal: ctx.signal},
-    )
-  })
-}
-
 export function bootCapture(ctx: Context, clientId: string): CaptureState {
   const recorder = ctx.client.rpc(Recorder)
   const page = ctx.use(Page)
-  const live = followLive(ctx)
-  const [state, setState] = createStore({failed: false})
+  const [state, setState] = createStore({failed: false, live: false})
+  createKeyed(
+    () => (ctx.servers.get('engine')?.connected ? 'engine' : undefined),
+    () => {
+      const reading = new AbortController()
+      onCleanup(() => reading.abort())
+      void recorder.state(undefined, {signal: reading.signal}).then(
+        (current) => setState('live', current.live),
+        (error: unknown) => {
+          if (reading.signal.aborted) return
+          console.error('[conciv] the recorder state could not be read', error)
+        },
+      )
+    },
+  )
+  recorder.events.on(
+    'control',
+    (event) => {
+      if (event.data.live !== undefined) setState('live', event.data.live)
+    },
+    {signal: ctx.signal},
+  )
   const flusher = createFlusher({send: (events) => recorder.flush({clientId, events}).then(() => undefined)})
   onCleanup(() => flusher.dispose())
 
   const exclude = (): string | undefined => {
     const current = page()
-    if (current.status !== 'active' || !live()) return undefined
+    if (current.status !== 'active' || !state.live) return undefined
     return current.value.capture.exclude
   }
 
