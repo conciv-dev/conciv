@@ -1,5 +1,6 @@
 import {once} from 'node:events'
 import {keyBy, Mutex, TimeoutError, withTimeout} from 'es-toolkit'
+import {z} from 'zod'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {PAGE_QUEUE_REFUSED} from '@conciv/protocol/page-types'
 import {Tool, type Plugin, type Rule, type RpcRegistration} from '@conciv/plugin'
@@ -25,6 +26,8 @@ import * as Queue from './queue.js'
 import * as Records from './records.js'
 import {Definition, Operations, type Action, type Command, type Result, type Tab} from './rpc.js'
 import {symbolicateFrames} from './symbolicate.js'
+
+const SessionNotFound = z.object({_tag: z.literal('Session.NotFoundError')})
 
 const DEFAULT_TIMEOUT_MS = 5000
 
@@ -173,7 +176,12 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
   }
   const registration: RpcRegistration<typeof Definition> = await ctx.rpc.register(Definition, {
     attach: async (input, call) => {
-      const session = await ctx.session.get({sessionId: input.sessionId}).catch(() => undefined)
+      const session = await ctx.session
+        .get({sessionId: input.sessionId})
+        .catch((error: unknown) =>
+          SessionNotFound.safeParse(error).success ? ctx.session.create({id: input.sessionId}) : undefined,
+        )
+        .catch(() => undefined)
       if (!session) return call.error('unavailable', 'Session not found.', {})
       if (session.location.directory !== ctx.location.directory)
         return call.error('unavailable', 'Session belongs to another location.', {})

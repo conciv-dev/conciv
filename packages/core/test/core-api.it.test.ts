@@ -7256,7 +7256,7 @@ export default {
     expect(await refusedAfterReload).toMatchObject({ok: false})
     expect(await tabs('open', {sessionId: 'conciv_missing', connectionId: 'conn_x'})).toEqual({attached: true})
     expect(await rpc.sessions.get({sessionId: SessionId.parse('conciv_missing')})).toMatchObject({
-      sessionId: 'conciv_missing',
+      id: 'conciv_missing',
     })
     expect((await rpc.chat.hydrate({sessionId: SessionId.parse('conciv_missing')})).messages).toEqual([])
     expect(await ask({type: 'route'})).toMatchObject({
