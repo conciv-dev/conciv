@@ -13,3 +13,5 @@ If you implement `TurnHooks` yourself, add `admit: async (turn) => {}`. It runs 
 A turn or compaction refused because its session is deleted carries the code `SESSION_DELETED_CODE` (`'session_deleted'`, exported from `@conciv/protocol/chat-event-types` beside `CONTEXT_OVERFLOW_CODE`): on the `RUN_ERROR` frame and on the client's `Error.code`, so a client can tell a deleted session from any other failure.
 
 The RPC `sessions.compact` now declares the contract's `NOT_FOUND` error and answers it for a session that does not exist or is deleted, where it answered an internal server error before.
+
+With hub access `open`, an outside call (an MCP client's `code.execute` or a hub `registry.call`) on a deleted session is refused with `session "<id>" does not exist` too: it no longer runs, and nothing of it is recorded in the deleted session's chat.

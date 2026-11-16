@@ -88,6 +88,8 @@ import type {HarnessModel} from '@conciv/protocol/harness-types'
 import {
   CHAT_SSE_PATH,
   CHAT_WS_PATH,
+  CONCIV_CLIENT_HEADER,
+  CONCIV_ORIGIN_HEADER,
   CONCIV_SESSION_HEADER,
   HarnessSessionId,
   SessionId,
@@ -3163,6 +3165,36 @@ describe('plugin host bus', () => {
     )
     await made.plane.hydrate(quiet)
     expect(currentRow(made.chat.db, quiet)?.updatedAt).toBe(tombstone?.updatedAt)
+
+    const openBooted: MadeApp[] = []
+    const openKit = await createTestkit(harness, async (env) => {
+      const app = await bootMadeApp(env, {hubAccess: 'open'})
+      openBooted.push(app)
+      return app
+    }).setup()
+    onTestFinished(() => openKit.cleanup())
+    const openMade = openBooted[0]
+    if (openMade === undefined) throw new Error('the open hub access kit booted no app')
+    const outsideOnDeleted = SessionId.parse((await openKit.rpc.sessions.create(undefined)).sessionId)
+    await openKit.rpc.sessions.delete({sessionId: outsideOnDeleted})
+    const publishedOutside: ChatEvent[] = []
+    onTestFinished(
+      openMade.runtime.forSession(outsideOnDeleted).stream.listen((chunk) => void publishedOutside.push(chunk)),
+    )
+    const beforeOutside = await openMade.plane.hydrate(outsideOnDeleted)
+    const outsideRpc = makeRpcClient(openKit.base, {
+      headers: {
+        [CONCIV_SESSION_HEADER]: outsideOnDeleted,
+        [CONCIV_ORIGIN_HEADER]: 'hub',
+        [CONCIV_CLIENT_HEADER]: 'terminal',
+      },
+    })
+    await expect(outsideRpc.registry.call({name: 'conciv_extensions', input: {verb: 'catalog'}})).rejects.toMatchObject(
+      {code: 'APPROVAL_DENIED', message: `session "${outsideOnDeleted}" does not exist`},
+    )
+    expect(publishedOutside).toEqual([])
+    const afterOutside = await openMade.plane.hydrate(outsideOnDeleted)
+    expect([afterOutside.messages, afterOutside.lastRun]).toEqual([beforeOutside.messages, beforeOutside.lastRun])
   })
 })
 

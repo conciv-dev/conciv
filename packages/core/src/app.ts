@@ -761,7 +761,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     client: string | null,
     signal: AbortSignal,
   ): Promise<string | null> => {
-    if (opts.cfg.hubAccess === 'open') return null
+    const deleted = (currentRow(db, scope.id)?.deletedAt ?? null) !== null
+    if (opts.cfg.hubAccess === 'open' && !deleted) return null
     const refusal = await plane.admitCall(scope.id, {
       toolName: OUTSIDE_SESSION_TARGET,
       input: {client},

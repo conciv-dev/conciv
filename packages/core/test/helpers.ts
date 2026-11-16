@@ -18,7 +18,7 @@ import {
 } from '@conciv/harness-testkit'
 import {type BundlerBridge} from '@conciv/protocol/bundler-types'
 import {type ChatEvent, ChatEventType} from '@conciv/protocol/chat-event-types'
-import {type HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
+import {type HarnessSessionId, type HubAccess, SessionId} from '@conciv/protocol/chat-types'
 import {type PageOutcome} from '@conciv/protocol/page-types'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
@@ -88,6 +88,7 @@ export type BootOverrides = {
   systemPromptText?: string
   home?: string
   plugins?: readonly Plugin.Plugin[]
+  hubAccess?: HubAccess
 }
 
 export function bootKit(overrides: BootOverrides = {}, harness: HarnessAdapter = requireClaude()): Promise<Kit> {
@@ -112,7 +113,7 @@ export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): 
     sessionId: undefined,
     harnessSessionId: undefined,
     systemPrompt: '',
-    hubAccess: 'session',
+    hubAccess: overrides.hubAccess ?? 'session',
     plugins: [],
     policies: [],
   }
