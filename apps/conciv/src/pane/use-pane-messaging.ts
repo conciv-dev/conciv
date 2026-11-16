@@ -2,9 +2,10 @@ import {createMemo} from 'solid-js'
 import {z} from 'zod'
 import {useMutation, type CreateMutationResult, type ChatSession} from '@conciv/client'
 import type {RpcClient} from '@conciv/contract'
-import type {SendContent} from '@conciv/protocol/chat-message-types'
+import type {QueuedMessage, SendContent} from '@conciv/protocol/chat-message-types'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import type {AppData} from '../data/app-data.js'
+import {useLiveSessions} from '../app/context.js'
 import type {EngineNotices} from '../shell/notice-context.js'
 import {checkSend, checkSendState, type SendState, type SendVerdict} from './send-checks.js'
 
@@ -68,6 +69,7 @@ export type PaneMessaging = {
   onSend: (content: string | SendContent) => Promise<void>
   onSendError: (failure: unknown) => void
   onSteer: () => void
+  onSteerError: (failure: unknown, item: QueuedMessage) => void
   resendAllowed: () => boolean
 }
 
@@ -146,5 +148,22 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
     )
   }
 
-  return {uiReply, compact, compacting, visibleError, retryable, onSend, onSendError, onSteer, resendAllowed}
+  const liveSessions = useLiveSessions()
+  const onSteerError = (failure: unknown, item: QueuedMessage): void => {
+    liveSessions.returnSteered(deps.sessionId, deps.chat, item)
+    onSendError(failure)
+  }
+
+  return {
+    uiReply,
+    compact,
+    compacting,
+    visibleError,
+    retryable,
+    onSend,
+    onSendError,
+    onSteer,
+    onSteerError,
+    resendAllowed,
+  }
 }
