@@ -48,7 +48,11 @@ function partFile(part: ContentPart): File[] {
 export function returnQueueToDraft(owner: QueueOwner, sink: DraftSink): void {
   const queued = owner.queue()
   for (const item of queued) owner.cancelQueued(item.id)
-  const parts = queued.flatMap((item) => visibleParts(item.content))
+  putBackInDraft(queued, sink)
+}
+
+export function putBackInDraft(items: readonly QueuedMessage[], sink: DraftSink): void {
+  const parts = items.flatMap((item) => visibleParts(item.content))
   const text = parts.flatMap((part) => (part.type === 'text' ? [part.content] : []))
   if (text.length > 0) sink.insert(text.join('\n'))
   for (const file of parts.flatMap(partFile)) sink.addFile(file)
