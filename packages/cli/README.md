@@ -85,7 +85,9 @@ first and `permissions` after them; when two rules match, the later one wins.
 
 These rules are a project default for every agent. Approvals given in the tab come after them, and
 the page's own guard comes after both: a config rule never opens the page tools to a chat whose tab
-has not connected. For now a `page_eval` rule in the config is still overridden by the page's own
+has not connected. A blanket allow (`permission: 'allow'`, or a rule whose action is `*`) does not
+switch a tool's own ask off: the config must name the action, `permission: {page_eval: 'allow'}`.
+For now a `page_eval` rule in the config is still overridden by the page's own
 ask, so running code in the page asks until that ask moves onto the tool itself.
 
 ## Call a plugin method
