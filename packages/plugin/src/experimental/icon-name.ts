@@ -33,6 +33,7 @@ export type IconName =
   | 'file-diff'
   | 'file-pen'
   | 'file-text'
+  | 'flask-conical'
   | 'fold-vertical'
   | 'grip-vertical'
   | 'inbox'

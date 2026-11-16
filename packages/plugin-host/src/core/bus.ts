@@ -165,7 +165,7 @@ export interface Interface {
   readonly claim: (aggregateId: string, ownerId: string) => Effect.Effect<void>
 }
 
-export const Service = Context.Service<Interface>('@opencode/Bus')
+export const Service = Context.Service<Interface>('@conciv/Bus')
 
 interface Options {
   readonly beforeAggregateRead?: (aggregateId: string) => Effect.Effect<void>

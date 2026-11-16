@@ -3,15 +3,15 @@
 ## Overview
 
 The engine part of conciv's built-in page plugin: the plugin `conciv.page` (`.`), which registers the RPC
-`experimental.page` (`./rpc`) and answers its one method, `symbolicate`, under the plugin's directory. Core lists it
-before the configured plugins.
+`experimental.page` (`./rpc`) and answers its one method, `symbolicate`, under the plugin's directory. Core passes it
+to the plugin host as a post built-in and asks it over that RPC whenever it needs a frame's source.
 
 ## Interface
 
 - default export (`index.ts`): the engine plugin `conciv.page`
-- `symbolicateFrame` / `symbolicateFrames` (`symbolicate.ts`, exported from `.`): map frames (`RawFrame`) to original
-  source (`SourceLoc`, both from `@conciv/protocol/page-introspect-types`) with @jridgewell/trace-mapping; core reads them
-  for extension symbolication and opening a source in the editor
+- `symbolicateFrame` / `symbolicateFrames` (`symbolicate.ts`, internal): map frames (`RawFrame`) to original source
+  (`SourceLoc`, both from `@conciv/protocol/page-introspect-types`) with @jridgewell/trace-mapping; the `symbolicate`
+  method answers with `symbolicateFrames`
 - `Definition` (`rpc.ts`, `./rpc`): the RPC `experimental.page` with `symbolicate` alone
 
 ## Invariants

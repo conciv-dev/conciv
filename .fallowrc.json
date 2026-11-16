@@ -748,6 +748,10 @@
       "exports": ["Editor", "Snapshot"]
     },
     {
+      "file": "packages/plugin-host/src/core/tool/plugin/server.ts",
+      "exports": ["Plugin"]
+    },
+    {
       "file": "packages/plugin-host/src/core/tool/plugin/skill.ts",
       "exports": ["toModelOutput", "Plugin"]
     },

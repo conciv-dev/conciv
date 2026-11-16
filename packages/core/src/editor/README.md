@@ -2,12 +2,12 @@
 
 ## Overview
 
-Opens source locations in an editor. It debounces repeat opens, symbolicates stack frames with `@conciv/plugin-page`'s `symbolicateFrames`, and opens the first resolved frame outside node_modules.
+Opens source locations in an editor. It debounces repeat opens, asks the page plugin (`conciv.page`, over its `experimental.page` RPC) for the first frame's source outside node_modules, and opens it; when the page plugin cannot answer (removed by config), it opens the first frame as the page gave it.
 
 ## Interface
 
 - `makeEditorOpener(launch, windowMs, now)` / `LaunchFn` / `OpenInEditor` (`open.ts`): skips repeat opens of the same file:line:column within `windowMs`
-- `openSourceFromFrames(frames, root, open)` / `OpenSourceStatus` (`open-source.ts`): 'no-source', 'opened' or 'failed'
+- `openSourceFromFrames(frames, symbolicate, open)` / `OpenSourceStatus` (`open-source.ts`): 'no-source', 'opened' or 'failed'
 
 ## Invariants
 

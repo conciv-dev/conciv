@@ -32,6 +32,10 @@ export function provideBundlerSource(bundler: BundlerBridge | undefined) {
   return Layer.succeed(PluginHost.BundlerSource, bundler)
 }
 
+export function provideEditorSource(openInEditor: (file: string, line?: number, column?: number) => void) {
+  return Layer.succeed(PluginHost.EditorSource, openInEditor)
+}
+
 export function provideExtensionSlugs(slugs: ReadonlyArray<string>) {
   return Layer.succeed(PluginHost.ExtensionSlugs, slugs)
 }

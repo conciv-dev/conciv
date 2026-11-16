@@ -104,7 +104,7 @@
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
-    "@jridgewell/gen-mapping": "^0.3.13",
+    "@jridgewell/gen-mapping": "catalog:",
     "@types/node": "catalog:",
     "@types/ws": "catalog:",
     "@vitest/coverage-v8": "catalog:",
