@@ -99,6 +99,7 @@ import {createToolDurations} from '../src/pane/tool-durations.js'
 import {PendingApprovals} from '../src/pane/pending-approvals.js'
 import {makeToolViewCtx} from '../src/pane/tool-view-ctx.js'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
+import type {EngineLock} from '../src/app/engine-login.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
 import {ChatEventType, type ChatEvent, type RunClockSource, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {SessionSelector} from '../src/composer/session-selector.js'
@@ -774,6 +775,60 @@ describe('chat pane', () => {
     await userEvent.keyboard('{Enter}')
     await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
     await expect.element(refusals).not.toBeInTheDocument()
+  })
+
+  test('a question card answered while the page cannot send says why and takes the answer again, and one the engine refuses stays sent', async () => {
+    const {sessionId} = await newSession()
+    const [connection, setConnection] = createStore<{online: boolean; locked: EngineLock}>({online: true, locked: null})
+    const reachability = {
+      online: () => connection.online,
+      sustainedOffline: () => false,
+      locked: () => connection.locked,
+    }
+    await coreControl.holdResults()
+    await coreControl.scriptTurn({
+      toolCalls: [
+        {name: 'conciv_ui', input: {kind: 'choices', question: 'Ship it or hold?', options: ['ship', 'hold']}},
+      ],
+      text: 'Held until you answer.',
+    })
+    active.pane = mountPane({base: core(), sessionId}, () => (
+      <EngineReachabilityContext.Provider value={reachability}>
+        <ChatPane sessionId={sessionId} />
+      </EngineReachabilityContext.Provider>
+    ))
+    const ship = page.getByRole('button', {name: 'ship', exact: true})
+    const sending = page.getByRole('status').filter({hasText: 'Sending your answer'})
+
+    await userEvent.click(input())
+    await userEvent.keyboard('ask me before shipping{Enter}')
+    await expect.element(ship).toBeEnabled()
+
+    setConnection('locked', 'revoked')
+    await userEvent.click(ship)
+    await expect.element(notifications()).toMatchTextContent(/no longer authorized to use conciv/)
+    await expect.element(sending).not.toBeInTheDocument()
+    await expect.element(ship).toBeEnabled()
+    await expect.element(notifications()).not.toMatchTextContent(/no longer waiting for an answer/)
+
+    setConnection({locked: null, online: false})
+    await userEvent.click(ship)
+    await expect
+      .element(notifications())
+      .toMatchTextContent(/conciv lost connection to the engine\. Your answer was not sent\./)
+    await expect.element(notifications()).not.toMatchTextContent(/still in the composer/)
+    await expect.element(sending).not.toBeInTheDocument()
+    await expect.element(ship).toBeEnabled()
+
+    setConnection('online', true)
+    await faults.install({kind: 'fail', path: ['chat', 'uiReply']})
+    await userEvent.click(ship)
+    await expect.element(notifications()).toMatchTextContent(/That question is no longer waiting for an answer\./)
+    await expect.element(sending).toBeVisible()
+    await expect.element(ship).toBeDisabled()
+
+    await coreControl.releaseResults()
+    await expect.element(page.getByText('Held until you answer.')).toBeVisible()
   })
 
   test('sending announces the settled reply through the live region', async () => {
@@ -4867,34 +4922,30 @@ describe('engine login', () => {
     }, 30_000)
 
     test('logging in while the trust ask the reopened socket sent is still unanswered keeps the page logged in once that ask is refused', async () => {
-      const watch = watchConnection()
-      try {
-        const offline = await faults.install({kind: 'offline'})
-        harness.mountShell('/', [], {login: {apiBase: origin()}})
-        await expect.poll(() => watch.status(), {timeout: 8000}).toBe('unreachable')
-        await opener().click()
-        await expect
-          .element(page.getByRole('alert').filter({hasText: /couldn.t reach the engine/}), {timeout: 8000})
-          .toBeVisible()
-        const trustAsk = await faults.install({kind: 'gate', path: ['auth', 'trust']})
-        await coreControl.releaseFault(offline)
-        await coreControl.awaitFaultPending(trustAsk, 1)
-        const heldAsk = watch.trust.requestTrust()
-        await expect.element(loginNotice(), {timeout: 8000}).toBeVisible()
-        await loginNotice().getByRole('button', {name: 'Log in'}).click()
-        await userEvent.type(firstDigit(), await coreControl.requestCode())
-        await expect.element(dialog()).not.toBeInTheDocument()
-        await expect.poll(() => watch.status()).toBe('trusted')
-        await coreControl.releaseFault(trustAsk)
-        expect(await heldAsk).toBe(false)
-        await watch.trust.requestAuthCode()
-        expect(await coreControl.awaitFaultAnswered(trustAsk)).toEqual({trusted: false})
-        expect(watch.status()).toBe('trusted')
-        await expect.element(loginNotice()).not.toBeInTheDocument()
-        await expect.element(editor()).toBeVisible()
-      } finally {
-        watch.stop()
-      }
+      const offline = await faults.install({kind: 'offline'})
+      harness.mountShell('/', [], {login: {apiBase: origin()}})
+      await opener().click()
+      await expect
+        .element(page.getByRole('alert').filter({hasText: /couldn.t reach the engine/}), {timeout: 8000})
+        .toBeVisible()
+      const trustAsk = await faults.install({kind: 'gate', path: ['auth', 'trust']})
+      await coreControl.releaseFault(offline)
+      await coreControl.awaitFaultPending(trustAsk, 1)
+      await expect.element(loginNotice(), {timeout: 8000}).toBeVisible()
+      await loginNotice().getByRole('button', {name: 'Log in'}).click()
+      await userEvent.type(firstDigit(), await coreControl.requestCode())
+      await expect.element(dialog()).not.toBeInTheDocument()
+      await expect.element(editor(), {timeout: 8000}).toBeVisible()
+
+      await coreControl.releaseFault(trustAsk)
+      expect(await coreControl.awaitFaultAnswered(trustAsk)).toEqual({trusted: false})
+      await coreControl.scriptTurn({toolCalls: [], text: 'answered after the stale refusal'})
+      await userEvent.click(editor())
+      for (const key of 'still logged in') await userEvent.keyboard(key)
+      await userEvent.keyboard('{Enter}')
+      await expect.element(page.getByText('answered after the stale refusal'), {timeout: 8000}).toBeVisible()
+      await expect.element(loginNotice()).not.toBeInTheDocument()
+      await expect.element(editor()).toBeVisible()
     }, 30_000)
 
     test('logging in again after a revoke whose close arrives late sends the code request and the exchange on the reopened socket', async () => {
