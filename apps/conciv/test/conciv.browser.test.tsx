@@ -2815,6 +2815,10 @@ describe('launcher activity', () => {
     await expect.element(page.getByRole('log').getByText('still talking while the row is failed')).toBeVisible()
     await expect.element(page.getByText('Hello from conciv').nth(1), {timeout: 8000}).toBeVisible()
     await expect.element(rowAlert).toBeVisible()
+    await expect
+      .element(page.getByRole('status').filter({hasText: 'conciv replied.'}), {timeout: 8000})
+      .toBeInTheDocument()
+    await expect.element(rowAlert.getByRole('button', {name: 'Retry'}), {timeout: 10_000}).toBeVisible()
 
     await coreControl.releaseFault(broken)
     await userEvent.click(rowAlert.getByRole('button', {name: 'Retry'}))
