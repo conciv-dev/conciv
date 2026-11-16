@@ -8238,7 +8238,7 @@ describe('the local draft store', () => {
     )
   }
 
-  test('an attached image is put in the store when it is attached; guards: the same image removed and attached again, or attached twice, keeps a chip each time', async () => {
+  test('an attached image is put in the store when it is attached; guards: the same image removed and attached again, or attached twice, keeps a chip each time, and an image over the 20 MiB inline limit keeps its chip with no local copy', async () => {
     const store = createBrowserDraftStore()
     render(() => <AttachingComposer store={store} />)
     const kept = picture('kept.png')
@@ -8254,6 +8254,12 @@ describe('the local draft store', () => {
     await expect.element(chip('kept.png')).toBeVisible()
     await coreControl.chooseFiles('Add an attachment', [kept])
     await expect.element(chip('kept.png').nth(1)).toBeVisible()
+
+    const oversized = {name: 'oversized.png', mimeType: 'image/png', text: 'x'.repeat(20 * 1024 * 1024 + 1)}
+    await coreControl.chooseFiles('Add an attachment', [oversized])
+    await expect.element(chip('oversized.png')).toBeVisible()
+    const oversizedId = await storedId(oversized.text)
+    expect(await rawRequest((blobs) => blobs.getKey(oversizedId), 'readonly')).toBeUndefined()
   })
 
   test('a newer conciv tab that bumps the schema is not blocked; the older pane keeps its text and its attachments with no local copy, and a pane opened under the newer schema still attaches', async () => {

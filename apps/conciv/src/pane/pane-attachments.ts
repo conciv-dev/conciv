@@ -23,8 +23,14 @@ function keptInDraftStore(drafts: DraftStore | null): AttachmentAdapter {
     ...IMAGE_ATTACHMENT_ADAPTER,
     add: (state) => {
       const added = IMAGE_ATTACHMENT_ADAPTER.add(state)
-      if (!(added instanceof Promise) || state.file.size > MAX_INLINE_BYTES) return added
+      if (!(added instanceof Promise)) return added
       return added.then(async (pending) => {
+        if (state.file.size > MAX_INLINE_BYTES) {
+          console.warn(
+            `[conciv] ${state.file.name} is over ${MAX_INLINE_BYTES} bytes, so the local draft keeps no copy of it`,
+          )
+          return pending
+        }
         const blob = await drafts.putBlob(state.file).catch((error: unknown) => {
           console.error('[conciv] could not keep the attached image in the local draft store', error)
           return undefined
