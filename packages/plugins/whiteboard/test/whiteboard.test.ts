@@ -245,6 +245,32 @@ async function performPending(kit: CoreKit, room: string, pending: z.infer<typeo
   await call(kit, 'canvasPending.remove', {room, id: pending.id})
 }
 
+const PreviewSchema = z.tuple([z.unknown(), z.object({source: z.object({value: z.string()})})])
+
+async function previewColours(kit: CoreKit, room: string, colours: {fill: string; line: string; text: string}) {
+  const rows = [
+    {elementId: 'box', data: {type: 'rectangle', x: 0, y: 0, width: 20, height: 20, backgroundColor: colours.fill}},
+    {
+      elementId: 'line',
+      data: {
+        type: 'line',
+        x: 0,
+        y: 0,
+        points: [
+          [0, 0],
+          [20, 20],
+        ],
+        strokeColor: colours.line,
+      },
+    },
+    {elementId: 'label', data: {type: 'text', x: 0, y: 30, text: 'hi', strokeColor: colours.text}},
+  ]
+  await call(kit, 'elements.bulkUpsert', {room, scope: 'draft', rows: rows.map((row) => ({...row, version: 1}))})
+  const [, image] = PreviewSchema.parse(await useTool(kit, 'canvas_preview'))
+  await call(kit, 'elements.bulkDelete', {room, scope: 'draft', elementIds: rows.map((row) => row.elementId)})
+  return image.source.value
+}
+
 function openCanvas(kit: CoreKit, room: string): Promise<() => Promise<void>> {
   return followChanges(kit, async (change) => {
     if (change.room !== room || change.table !== 'canvasPending' || change.type !== 'upsert') return
@@ -503,6 +529,11 @@ describe('the whiteboard canvas tools', () => {
     ).toBeTruthy()
     expect(await useTool(kit, 'canvas_discard')).toEqual({discarded: 2})
     expect(await listElements(kit, room, 'draft')).toEqual([])
+
+    const covering = "x'/><rect x='0' y='0' width='999' height='999' fill='#ff0000"
+    expect(
+      await previewColours(kit, room, {fill: covering, line: covering, text: `${covering}'/><text fill='x`}),
+    ).toEqual(await previewColours(kit, room, {fill: 'x', line: 'x', text: 'x'}))
 
     await closeCanvas()
     await rejection(useTool(kit, 'canvas_draw', {elements: [{type: 'ellipse', x: 0, y: 0}]}))

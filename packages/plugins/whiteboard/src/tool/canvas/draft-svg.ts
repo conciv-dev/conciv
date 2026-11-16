@@ -16,7 +16,7 @@ const escape = (value: string): string =>
   value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll("'", '&apos;')
 
 const buildStyle = (element: DraftElement): string =>
-  `fill='${element.backgroundColor ?? 'transparent'}' stroke='${element.strokeColor ?? '#1e1e1e'}' stroke-width='${element.strokeWidth ?? 1}'`
+  `fill='${escape(element.backgroundColor ?? 'transparent')}' stroke='${escape(element.strokeColor ?? '#1e1e1e')}' stroke-width='${element.strokeWidth ?? 1}'`
 
 const rectNode = (element: DraftElement): string =>
   `<rect x='${element.x}' y='${element.y}' width='${element.width ?? 0}' height='${element.height ?? 0}' ${buildStyle(element)}/>`
@@ -28,7 +28,7 @@ const ellipseNode = (element: DraftElement): string => {
 }
 
 const textNode = (element: DraftElement): string =>
-  `<text x='${element.x}' y='${element.y + (element.fontSize ?? 16)}' font-size='${element.fontSize ?? 16}' fill='${element.strokeColor ?? '#1e1e1e'}'>${escape(element.text ?? '')}</text>`
+  `<text x='${element.x}' y='${element.y + (element.fontSize ?? 16)}' font-size='${element.fontSize ?? 16}' fill='${escape(element.strokeColor ?? '#1e1e1e')}'>${escape(element.text ?? '')}</text>`
 
 const serializePoints = (element: DraftElement): string =>
   (element.points ?? []).map(([px = 0, py = 0]) => `${element.x + px},${element.y + py}`).join(' ')
@@ -36,7 +36,7 @@ const serializePoints = (element: DraftElement): string =>
 const polylineNode = (element: DraftElement): string => {
   const points = serializePoints(element)
   if (!points) return ''
-  return `<polyline points='${points}' fill='${element.backgroundColor ?? 'none'}' stroke='${element.strokeColor ?? '#1e1e1e'}' stroke-width='${element.strokeWidth ?? 1}'/>`
+  return `<polyline points='${points}' fill='${escape(element.backgroundColor ?? 'none')}' stroke='${escape(element.strokeColor ?? '#1e1e1e')}' stroke-width='${element.strokeWidth ?? 1}'/>`
 }
 
 const NODE_BUILDERS: Record<string, (element: DraftElement) => string> = {
