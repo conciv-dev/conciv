@@ -2788,10 +2788,14 @@ describe('launcher activity', () => {
     expect((await rpc.sessions.get({sessionId})).lastRunAt).toBe(lastRun?.startedAt)
   }, 30_000)
 
+  const SESSION_ROW_PATH = ['sessions', 'get']
+  const ROW_FAILURE_STATUS = 500
+  const FIRST_ROW_FAILURE = 1
+
   test('a session whose row fails to load says so where the title is, keeps its menu and its chat, and Retry brings the title back', async () => {
     await page.viewport(1000, 900)
     const sessionId = await sessionThatRan('a row that failed to load')
-    const broken = await faults.install({kind: 'fail', path: ['sessions', 'get'], status: 500})
+    const broken = await faults.install({kind: 'fail', path: SESSION_ROW_PATH, status: ROW_FAILURE_STATUS})
 
     harness.mountShell(`/panel/${sessionId}?open=true`)
     const rowAlert = page.getByRole('alert').filter({hasText: 'Couldn’t load this session'})
@@ -2810,17 +2814,18 @@ describe('launcher activity', () => {
     await userEvent.keyboard('{Escape}')
     await expect.element(page.getByRole('dialog', {name: 'Session options'})).not.toBeInTheDocument()
 
+    const beforeTheRunEnds = await coreControl.rpcMark()
     await userEvent.click(composer())
     await userEvent.keyboard('{Enter}')
     await expect.element(page.getByRole('log').getByText('still talking while the row is failed')).toBeVisible()
     await expect.element(page.getByText('Hello from conciv').nth(1), {timeout: 8000}).toBeVisible()
-    await expect.element(rowAlert).toBeVisible()
     await expect
       .element(page.getByRole('status').filter({hasText: 'conciv replied.'}), {timeout: 8000})
       .toBeInTheDocument()
-    await expect.element(rowAlert.getByRole('button', {name: 'Retry'}), {timeout: 10_000}).toBeVisible()
-
+    await coreControl.awaitRpcFailedCount(SESSION_ROW_PATH, ROW_FAILURE_STATUS, FIRST_ROW_FAILURE, beforeTheRunEnds)
     await coreControl.releaseFault(broken)
+    await expect.element(rowAlert).toBeVisible()
+    await expect.element(rowAlert.getByRole('button', {name: 'Retry'})).toBeVisible()
     await userEvent.click(rowAlert.getByRole('button', {name: 'Retry'}))
     await expect.element(titleButton('a row that failed to load'), {timeout: 8000}).toBeVisible()
     await expect.element(rowAlert).not.toBeInTheDocument()
