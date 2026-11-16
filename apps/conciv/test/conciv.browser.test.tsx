@@ -4205,14 +4205,18 @@ describe('panel view tabs', () => {
       await queueRow(steered).getByRole('button', {name: 'Steer'}).click()
       await coreControl.awaitFaultPending(held, 1)
       await switchToOther(titles)
+      const draftWrite = await faults.install({kind: 'gate', path: ['drafts', 'set']})
       await coreControl.releaseFault(held)
 
       await expect
         .element(page.getByRole('region', {name: /Notifications/}))
         .toMatchTextContent(/Internal Server Error|could not be sent/)
       await coreControl.releaseFault(refused)
+      await coreControl.awaitFaultPending(draftWrite, 1)
       await openSessions(titles.other)
       await option(new RegExp(`^${titles.running}`)).click()
+      await expect.element(composer(), {timeout: 8000}).toBeVisible()
+      await coreControl.releaseFault(draftWrite)
       await expect.element(composer(), {timeout: 8000}).toMatchTextContent(new RegExp(`${steered}[\\s\\S]*${waiting}`))
       await expect.element(composer()).not.toMatchTextContent(new RegExp(`${steered}[\\s\\S]*${steered}`))
       expect(page.getByRole('log').getByText(new RegExp(steered)).elements()).toHaveLength(0)
