@@ -18,9 +18,9 @@ export async function completeConnectHandshake(
   })
   await showSession()
   const rpc = makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: session}})
-  await rpc.plugin.call({
-    rpcId: 'experimental.page',
-    method: 'run',
-    input: {sessionId: session, action: {type: 'text', selector: 'html'}},
-  })
+  await expect
+    .poll(() => rpc.plugin.call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}}), {
+      timeout: HANDSHAKE_TIMEOUT_MS,
+    })
+    .toContain(session)
 }
