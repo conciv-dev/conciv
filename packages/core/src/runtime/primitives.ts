@@ -18,13 +18,14 @@ export type SessionPrimitivesDeps = {
   root: string
   storeCapture: CaptureSink
   bundler: () => BundlerBridge | undefined
-  openInEditor: (file: string, line?: number, column?: number) => void
   listTabs: () => Promise<TabsListing>
+  pageReplyTimeoutMs?: number
+  queuedActionTimeoutMs?: number
 }
 
 export function makeSessionPrimitives(deps: SessionPrimitivesDeps): SessionPrimitives {
   const journal = makeJournal(deps.db)
-  const bus = makePageBus()
+  const bus = makePageBus(deps.pageReplyTimeoutMs, deps.queuedActionTimeoutMs)
   const page: PageEnv = {
     journal,
     root: deps.root,
@@ -38,7 +39,6 @@ export function makeSessionPrimitives(deps: SessionPrimitivesDeps): SessionPrimi
     registry: makeBuiltinRegistry({
       page,
       bundler: deps.bundler,
-      openInEditor: deps.openInEditor,
       listTabs: deps.listTabs,
     }),
   }

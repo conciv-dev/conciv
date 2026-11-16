@@ -1,0 +1,35 @@
+{
+  "name": "@conciv/builtin-plugins",
+  "version": "0.0.22",
+  "private": true,
+  "description": "conciv's built-in plugins, written against the public plugin SDK.",
+  "homepage": "https://conciv.dev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/builtin-plugins"
+  },
+  "type": "module",
+  "exports": {
+    "./renderer": "./src/renderer.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint"
+  },
+  "dependencies": {
+    "@conciv/extension": "workspace:^",
+    "@conciv/page": "workspace:^",
+    "@conciv/plugin": "workspace:^",
+    "@conciv/plugin-page": "workspace:^",
+    "@zumer/snapdom": "catalog:",
+    "solid-js": "catalog:"
+  },
+  "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:"
+  }
+}

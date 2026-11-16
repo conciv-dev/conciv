@@ -15,6 +15,8 @@ export default defineConfig({
     'experimental/vite': 'src/experimental/vite.ts',
     'experimental/builtin': 'src/experimental/builtin.ts',
     'experimental/host': 'src/experimental/host.ts',
+    'experimental/grab': 'src/experimental/grab.ts',
+    'experimental/page': 'src/experimental/page.ts',
     'promise/adapter': 'src/promise/adapter.ts',
     'schema/agent': 'src/schema/agent.ts',
     'schema/event': 'src/schema/event.ts',

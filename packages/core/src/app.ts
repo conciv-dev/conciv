@@ -75,6 +75,7 @@ import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
 import {holdForNextReply, owesFollowUp, pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
+import concivPage from '@conciv/plugin-page'
 import {
   answerPermission,
   followPermissionCards,
@@ -84,7 +85,7 @@ import {
 import {makePluginRuntime} from './runtime/plugin-runtime.js'
 import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
-import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
+import {makePagePlugin} from './page/page-plugin.js'
 import {makeRpcRouter} from './api/rpc/router.js'
 import {rpcSessionMeta} from './api/rpc/sessions.js'
 import {
@@ -143,6 +144,12 @@ export type MakeAppOpts = {
   onShutdown?: () => void
 
   firstChunkTimeoutMs?: number
+
+  eventHeartbeatIntervalMs?: number
+
+  pageReplyTimeoutMs?: number
+
+  queuedActionTimeoutMs?: number
 
   nativePageDir?: string
 
@@ -212,15 +219,6 @@ function availableHarnesses(
     withSavedModels(adapter, stateDir, signal),
   )
   return [boot, ...others.filter((other) => other.harness.id !== boot.harness.id)]
-}
-
-function symbolicable(frame: {
-  fileName?: string
-  line?: number
-  column?: number
-  fn?: string
-}): frame is SymbolicableFrame {
-  return typeof frame.fileName === 'string' && typeof frame.line === 'number'
 }
 
 function narrowExtensionApp(name: string, app: unknown): Hono | null {
@@ -475,6 +473,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const systemPromptText = opts.systemPromptText ?? opts.cfg.systemPrompt
 
   const outsideTabs = createOutsideTabs(opts.home)
+  const pagePlugin = makePagePlugin(() => pluginHost)
   const settings = createSettingsStorage(
     settingsOnDisk({global: concivHome({homeDir: opts.home, env: process.env}), project: stateDir}),
   )
@@ -483,8 +482,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     root: opts.cwd,
     storeCapture: (params) => writeToolCapture(db, params),
     bundler: () => opts.bridge,
-    openInEditor: opts.openInEditor,
     listTabs: outsideTabs.list,
+    pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
+    queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
   })
   const {registry, stream} = primitives
   const rows = {db, harnessKind: harness.id, cwd: opts.cwd}
@@ -540,7 +540,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         basePath,
         sessions: serverSessions,
         harness: serverHarness,
-        symbolicate: (frames) => symbolicateFrames(frames.filter(symbolicable), opts.cwd),
+        symbolicate: pagePlugin.symbolicateOrNone,
         bundler: opts.bridge,
         nativeUrl,
         upgradeWebSocket: socketUpgrade,
@@ -628,6 +628,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     engineId,
     config: opts.cfg,
     plugins: opts.plugins ?? [],
+    post: [concivPage],
     harness,
     signal: engineLife.signal,
     harnessSource: {
@@ -636,6 +637,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       tokenScopedBase: opts.tokenScopedBase ?? (() => undefined),
     },
     bundler: opts.bridge,
+    openInEditor: opts.openInEditor,
     extensionSlugs: mounted.map((entry) => slug(entry.extensionName)),
     sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: primitives.page.queues}),
   })
@@ -756,7 +758,15 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     signal: engineLife.signal,
   }
 
-  const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness, interruptIdle})
+  const runtime = makeCoreRuntime({
+    primitives,
+    plane,
+    db,
+    model: sessionModel,
+    staleness,
+    interruptIdle,
+    symbolicate: pagePlugin.symbolicateOrNone,
+  })
 
   function followUpOwedQueues(sessionId: SessionId): void {
     if (planeRef.current === null) return
@@ -824,11 +834,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     }),
     queues: primitives.page.queues,
     pluginHost,
+    eventHeartbeatIntervalMs: opts.eventHeartbeatIntervalMs,
     chat: chatDeps,
     search,
     settings,
     tools: toolList,
-    openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
+    openFromFrames: (frames) => openSourceFromFrames(frames, pagePlugin.symbolicate, opts.openInEditor),
     runtime,
     allowedOrigins: new Set(opts.allowedOrigins),
     staleness,

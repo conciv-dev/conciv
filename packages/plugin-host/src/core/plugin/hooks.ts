@@ -40,7 +40,7 @@ export interface Interface {
   ) => Effect.Effect<Domains[Domain][Name], Failures[Domain][Name]>
 }
 
-export const Service = Context.Service<Interface>('@opencode/PluginHooks')
+export const Service = Context.Service<Interface>('@conciv/PluginHooks')
 
 export const layer = Layer.effect(
   Service,

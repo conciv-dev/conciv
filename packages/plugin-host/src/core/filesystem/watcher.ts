@@ -79,7 +79,7 @@ export interface NativeInterface {
   ) => Effect.Effect<Subscription | undefined>
 }
 
-export const Native = Context.Service<NativeInterface>('@opencode/Watcher/Native')
+export const Native = Context.Service<NativeInterface>('@conciv/Watcher/Native')
 
 export interface Interface {
   readonly subscribe: (input: WatchInput, onReady?: Effect.Effect<void>) => Effect.Effect<Stream.Stream<Update>>
@@ -89,14 +89,14 @@ export interface Options {
   readonly enabled?: boolean
 }
 
-export const Service = Context.Service<Interface>('@opencode/Watcher')
+export const Service = Context.Service<Interface>('@conciv/Watcher')
 
 interface TestInterface extends Interface {
   readonly emit: (update: Update) => Effect.Effect<void>
   readonly subscriptions: () => Effect.Effect<readonly WatchInput[]>
 }
 
-export const Test = Context.Service<TestInterface>('@opencode/Watcher/Test')
+export const Test = Context.Service<TestInterface>('@conciv/Watcher/Test')
 
 export const layer = (options?: Options) =>
   Layer.effect(

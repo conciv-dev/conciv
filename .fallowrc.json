@@ -540,6 +540,7 @@
     "@conciv/unplugin",
     "@conciv/plugin",
     "@conciv/plugin-host",
+    "@conciv/plugin-page",
     "@conciv/plugin-recorder",
     "@conciv/plugin-whiteboard",
     "@conciv/preact",
@@ -745,6 +746,10 @@
     {
       "file": "packages/plugin-host/src/core/tool.ts",
       "exports": ["Editor", "Snapshot"]
+    },
+    {
+      "file": "packages/plugin-host/src/core/tool/plugin/server.ts",
+      "exports": ["Plugin"]
     },
     {
       "file": "packages/plugin-host/src/core/tool/plugin/skill.ts",

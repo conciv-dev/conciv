@@ -114,7 +114,7 @@ import {StatusBar} from '../src/pane/status-bar.jsx'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {coreToolCards, EXECUTE_TOOL_NAME} from '@conciv/core/cards'
 import {concivExtensionsToolDef, concivUiToolDef} from '@conciv/tools/defs'
-import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS} from '@conciv/tools/builtins'
+import {BUILTIN_SERVER_TOOLS} from '@conciv/tools/builtins'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
 import {Conciv} from '@conciv/plugin'
@@ -5620,7 +5620,6 @@ describe('wire name coverage', () => {
     for (const tool of BUILTIN_SERVER_TOOLS) {
       registry.register(tool, {owner: 'a built-in server tool', context: {bundler: () => undefined}})
     }
-    registry.register(BUILTIN_OPEN_TOOL, {owner: 'a built-in editor tool', context: {openInEditor: () => {}}})
     return registry
   }
 
@@ -5628,12 +5627,24 @@ describe('wire name coverage', () => {
 
   const CATALOG_TOOL_NAME = 'catalog'
 
+  const DEV_SERVER_TOOL_NAMES = [
+    'server_config',
+    'server_urls',
+    'server_resolve',
+    'server_graph',
+    'server_transform',
+    'server_restart',
+  ]
+
+  const SERVER_PLUGIN_TOOL_NAMES = [...DEV_SERVER_TOOL_NAMES, 'open']
+
   const modelReachableNames = [
     EXECUTE_TOOL_NAME,
     CATALOG_TOOL_NAME,
     concivUiToolDef.name,
     concivExtensionsToolDef.name,
     ...registry.catalog.list().map((entry) => entry.name),
+    ...SERVER_PLUGIN_TOOL_NAMES,
   ]
 
   const HARNESS_NATIVE_CARD_NAMES = [
@@ -5658,10 +5669,13 @@ describe('wire name coverage', () => {
 
   const cardNames = new Set(concivOwnedCards.flatMap((entry) => entry.names))
 
-  it('every model-reachable tool name resolves to a card entry or catalog meta', () => {
+  it('every model-reachable tool name resolves to a card entry or catalog meta, except the server plugin dev-server tools', () => {
     expect(modelReachableNames.length).toBeGreaterThan(10)
     const unresolved = modelReachableNames.filter(
-      (name) => !cardNames.has(name) && registry.catalog.list().every((entry) => entry.name !== name),
+      (name) =>
+        !cardNames.has(name) &&
+        !DEV_SERVER_TOOL_NAMES.includes(name) &&
+        registry.catalog.list().every((entry) => entry.name !== name),
     )
     expect(unresolved).toEqual([])
   })
@@ -6675,6 +6689,67 @@ module.exports = {default: {setup(ctx) {
   }, 30_000)
 })
 
+describe('the page contracts reach a plugin', () => {
+  const sourceMap = JSON.stringify({version: 3, sources: ['src/app.tsx'], names: [], mappings: 'AAAA'})
+  const readerBundle = `const {Panel, createKeyed} = require('@conciv/plugin/experimental')
+const {Page, ReactTree} = require('@conciv/plugin/experimental/page')
+module.exports = {default: {setup(ctx) {
+  const body = document.createElement('div')
+  const answer = document.createElement('p')
+  createKeyed(ctx.use(Page), (page) =>
+    createKeyed(ctx.use(ReactTree), (tree) => {
+      const button = document.createElement('button')
+      button.textContent = 'Read the contracts'
+      button.addEventListener('click', () => {
+        const fibers = Array.isArray(tree.rootFibers()) ? 'fibers listed' : 'no fibers'
+        page.symbolicate({frames: [{fileName: 'dist/chunk.js', line: 1, column: 1}]}).then(
+          (source) => (answer.textContent = 'Page and ReactTree, ' + fibers + ', ' + source.file + ':' + source.line + ':' + source.column),
+          (error) => (answer.textContent = String(error)),
+        )
+      })
+      body.replaceChildren(button, answer)
+    }),
+  )
+  ctx.add(Panel, {
+    id: 'reader',
+    region: 'pane',
+    list: () => [{id: 'reader', title: 'Contract reader', pinned: true}],
+    render: () => body,
+  })
+}}}
+`
+  const coreBase = bootedCore('page-contracts', {
+    plugins: ['./reader'],
+    files: {
+      'reader/index.ts': `export default {id: 'reader', async setup() {}}
+`,
+      'reader/plugin-experimental.js': readerBundle,
+      'dist/chunk.js': `console.log('chunk')
+`,
+      'dist/chunk.js.map': sourceMap,
+    },
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  test('a plugin that reads Page and ReactTree gets both, and Page.symbolicate answers from the engine', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    const reader = page.getByRole('tab', {name: 'Contract reader'})
+    await expect.element(reader, {timeout: 15_000}).toBeVisible()
+    await reader.click()
+    const read = page.getByRole('button', {name: 'Read the contracts', exact: true})
+    await expect.element(read).toBeVisible()
+    await read.click()
+
+    await expect
+      .element(page.getByText('Page and ReactTree, fibers listed, src/app.tsx:1:0', {exact: true}))
+      .toBeVisible()
+  }, 30_000)
+})
+
 describe('plugin tool cards', () => {
   const probeBundle = `const {Registry} = require('@conciv/plugin/experimental')
 const ToolCall = Registry.define('tool-call')
@@ -7077,16 +7152,24 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
   })
   const faults = trackedFaults()
   const row = (id: string, enabled: boolean) => ({id, builtin: false, enabled, server: true})
-  const rows = (pane: boolean) => [row('pane', pane), {...row('broken', true), error: expect.stringMatching(/./)}]
+  const builtinPage = {id: 'page', builtin: true, enabled: true}
+  const rows = (pane: boolean) => [
+    builtinPage,
+    row('pane', pane),
+    {...row('broken', true), error: expect.stringMatching(/./)},
+  ]
   const notFound = {code: 'notFound', message: 'notFound'}
   const disabledPlugins = page.getByRole('status', {name: 'disabled plugins'})
 
   test('a plugin that never loaded is listed with its error, and disable, enable and reload act through the store', async () => {
     const base = coreBase()
     await faults.install({kind: 'garble', path: EXPERIMENTAL, input: {id: 'broken'}})
+    const listed = await faults.install({kind: 'gate', path: ['settings', 'changes']})
     const first = bundleSource(base)
     onTestFinished(first.dispose)
     const firstInstalled = recordInstalled(first.manager)
+    expect((await recordPushes(first).nth(1)).plugins.map((plugin) => plugin.id)).toEqual(['pane'])
+    await coreControl.releaseFault(listed)
 
     await firstInstalled.next(rows(true))
     expect(await first.manager.list()).toEqual(rows(true))
@@ -7224,9 +7307,40 @@ describe('installed plugins in settings', () => {
     await expect.element(lateRow(), {timeout: 15_000}).toBeVisible()
     await expect.element(tab('Plugins')).toHaveAttribute('aria-selected', 'true')
   }, 60_000)
+
+  test("the engine's own page plugin has no row a user could reload or switch off", async () => {
+    await page.viewport(1000, 900)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    await coreControl.writeProjectFile(
+      'conciv/plugins/neighbour.ts',
+      "export default {id: 'neighbour', async setup() {}}\n",
+    )
+    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`, [])
+    await expect.element(page.getByText('neighbour', {exact: true}), {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('conciv.page', {exact: true})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('switch', {name: 'conciv.page'})).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('each engine-only plugin a user adds one after another gets its own row', async () => {
+    await page.viewport(1000, 900)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`, [])
+    await expect.element(tab('Plugins'), {timeout: 8000}).toHaveAttribute('aria-selected', 'true')
+
+    await coreControl.writeProjectFile(
+      'conciv/plugins/earlier.ts',
+      "export default {id: 'earlier', async setup() {}}\n",
+    )
+    await expect.element(page.getByText('earlier', {exact: true}), {timeout: 15_000}).toBeVisible()
+
+    await coreControl.writeProjectFile('conciv/plugins/later.ts', "export default {id: 'later', async setup() {}}\n")
+    await expect.element(page.getByText('later', {exact: true}), {timeout: 15_000}).toBeVisible()
+  }, 60_000)
 })
 
 describe('a fixture plugin driven like a user', () => {
+  const PLUGIN_CALL = ['plugin', 'call']
+
   const fixtureBundle = `const {Panel, Registry, SettingsPage, Slot, Store, createKeyed, useDrawer, usePanel} = require('@conciv/plugin/experimental')
 const {createComponent} = require('solid-js/web')
 const {createRenderEffect, createSignal} = require('solid-js')
@@ -7250,13 +7364,13 @@ module.exports = {default: {stores: {
   const drawnLine = document.createElement('p')
   drawnLine.textContent = 'Drawn catalog call asked: 0'
   ctx.add(ToolCall, {
-    tools: ['fixture_probe', 'server_resolve'],
+    tools: ['fixture_probe', 'server_reload'],
     render(props) {
-      if (props.tool === 'server_resolve') {
+      if (props.tool === 'server_reload') {
         if (props.input.mode === 'decline') return undefined
         asked.drawn += 1
         drawnLine.textContent = 'Drawn catalog call asked: ' + asked.drawn
-        return Object.assign(document.createElement('p'), {textContent: 'Fixture resolved ' + props.result.output.id})
+        return Object.assign(document.createElement('p'), {textContent: 'Fixture reloaded ' + props.input.file})
       }
       if (props.input.mode !== 'decline') return Object.assign(document.createElement('p'), {textContent: 'Fixture drew ' + props.result.output.drawn})
       asked.declined += 1
@@ -7279,6 +7393,12 @@ module.exports = {default: {stores: {
     }},
   )
   ctx.add(Slot, {at: 'window.bottom', render: () => engineLine})
+  const readEngineEvents = async () => {
+    for await (const event of ctx.client.event.subscribe({signal: ctx.signal})) void event
+  }
+  readEngineEvents().catch((error) => {
+    if (!ctx.signal.aborted) console.error('[fixture] the engine event reader failed', error)
+  })
   const dialog = (title, body) =>
     ctx.dialogs.open(() => createComponent(ctx.ui.Dialog, {title, get children() { return body() }}))
   const second = () => dialog('Fixture second dialog', () => 'The second dialog is on top')
@@ -7308,6 +7428,7 @@ module.exports = {default: {stores: {
       })),
       button('Save a fixture file', () => ctx.system.save({name: 'fixture-note.txt', content: 'saved through the host'})),
       button('Open the engine health page', () => ctx.system.openExternal(new URL('/health', props.session.server.url).href)),
+      button('Open the fixture source', () => ctx.desktop?.launch('src/fixture.ts', {line: 12, column: 3})),
     ],
   })
   ctx.add(Panel, {
@@ -7489,6 +7610,13 @@ module.exports = {default: {setup(ctx) {
     })
 
     expect(await coreControl.openedFrom('Open the engine health page')).toBe(new URL('/health', coreBase()).href)
+
+    const pluginCalls = await coreControl.rpcCallCount(PLUGIN_CALL)
+    await tab('Fixture tools').click()
+    await control('Open the fixture source').click()
+    await coreControl.rpcStartedOnceServed(PLUGIN_CALL, pluginCalls + 1, [])
+    expect(await coreControl.rpcCallCount(PLUGIN_CALL, {rpcId: 'server', method: 'open'})).toBe(1)
+    expect(await coreControl.editorOpened()).toEqual([{file: 'src/fixture.ts', line: 12, column: 3}])
 
     await tab('Fixture tools').click()
     await control('Open the fixture settings').click()
@@ -7701,13 +7829,21 @@ module.exports = {default: {setup(ctx) {
     await expect.element(shown('Visits: 1')).toBeVisible()
   }, 90_000)
 
-  test('its tool cards read the headline of the normal card, and a catalog that arrives late does not ask it again', async () => {
+  test("the row of a card it draws carries the normal card's header from the catalog, and a catalog that arrives late does not ask it again", async () => {
     const base = coreBase()
     const sessionId = await createSession(coreRpc(base))
     await coreControl.scriptTurn({
       toolCalls: [
-        {name: 'server_resolve', input: {spec: 'solid-js', mode: 'draw'}, result: {id: '/solid.js'}},
-        {name: 'server_resolve', input: {spec: 'solid-js', mode: 'decline'}, result: {id: '/solid.js'}},
+        {
+          name: 'server_reload',
+          input: {file: 'src/a.ts', mode: 'draw'},
+          result: {ok: true, applied: true, waitedMs: 1},
+        },
+        {
+          name: 'server_reload',
+          input: {file: 'src/a.ts', mode: 'decline'},
+          result: {ok: true, applied: true, waitedMs: 1},
+        },
         {name: 'fixture_probe', input: {mode: 'draw'}, result: {drawn: 'the headline probe'}},
         {name: 'fixture_probe', input: {mode: 'decline'}, result: {drawn: 'the declined headline probe'}},
       ],
@@ -7723,11 +7859,10 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByRole('status', {name: 'Loading conversation'})).toBeVisible()
 
     await coreControl.releaseFault(catalogHeld)
-    await expect
-      .element(shown('report where an import specifier resolves solid-js').nth(1), {timeout: 15_000})
-      .toBeVisible()
-    await expect.element(shown('Tool: server_resolve')).not.toBeInTheDocument()
-    await expect.element(shown('Fixture resolved /solid.js')).toBeVisible()
+    await expect.element(shown('page edit').nth(1), {timeout: 15_000}).toBeVisible()
+    await expect.element(shown('force a hot update of one module')).toBeVisible()
+    await expect.element(shown('Tool: server_reload')).not.toBeInTheDocument()
+    await expect.element(shown('Fixture reloaded src/a.ts')).toBeVisible()
     await expect.element(shown('Drawn catalog call asked: 1')).toBeVisible()
     await expect.element(shown('Fixture drew the headline probe')).toBeVisible()
     await expect.element(shown('Tool: fixture_probe').nth(1)).toBeVisible()

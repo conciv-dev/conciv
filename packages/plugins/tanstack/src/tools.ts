@@ -1,27 +1,32 @@
 import {z} from 'zod'
-import {Tool, type BundlerDomain, type ToolDomain} from '@conciv/plugin'
+import {Effect} from 'effect'
+import type {BundlerDomain} from '@conciv/plugin'
+import type {Context} from '@conciv/plugin/effect/plugin'
+import {Tool} from '@conciv/plugin/schema/tool'
 import {Definition} from './rpc.js'
 import {buildErrorToAppError, makeDiagnosticsRing} from './server/diagnostics.js'
 import {readRouteManifest} from './server/route-manifest.js'
 import {makeServerFnTraceRing} from './server/serverfn-trace.js'
+import {info} from './skill.js'
 
 const options = {namespace: 'tanstack', codemode: true}
 
-export type Capabilities = ReturnType<typeof capabilities>
-
-export function failureMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+type Failure = {
+  readonly code: 'BUNDLER_UNAVAILABLE' | 'MANIFEST_UNREADABLE'
+  readonly message: string
+  readonly error: unknown
 }
 
-async function answer<Output>(code: string, read: () => Output | Promise<Output>) {
-  try {
-    return {output: await read()}
-  } catch (error) {
-    throw Tool.toolError({message: failureMessage(error), error, metadata: {code}})
-  }
+export type Capabilities = ReturnType<typeof makeCapabilities>
+
+function attempt<Output>(code: Failure['code'], read: () => Output | Promise<Output>) {
+  return Effect.tryPromise({
+    try: async () => read(),
+    catch: (error): Failure => ({code, message: error instanceof Error ? error.message : String(error), error}),
+  })
 }
 
-export function capabilities(bundler: BundlerDomain | undefined, directory: string) {
+function makeCapabilities(bundler: BundlerDomain | undefined, directory: string) {
   const ring = makeDiagnosticsRing()
   const serverFnRing = makeServerFnTraceRing()
   const bundlerAvailable = typeof bundler?.subscribe === 'function'
@@ -30,11 +35,12 @@ export function capabilities(bundler: BundlerDomain | undefined, directory: stri
     serverFnRing.observe(diagnostic)
   })
   return {
-    buildErrors: () => {
-      if (!bundlerAvailable) throw new Error('bundler bridge unavailable')
-      return ring.list()
-    },
-    routeManifest: () => readRouteManifest(directory),
+    buildErrors: () =>
+      attempt('BUNDLER_UNAVAILABLE', () => {
+        if (!bundlerAvailable) throw new Error('bundler bridge unavailable')
+        return ring.list()
+      }),
+    routeManifest: () => attempt('MANIFEST_UNREADABLE', () => readRouteManifest(directory)),
     serverFnTrace: (count: number | undefined) => ({
       traces: serverFnRing.traces(count ?? Number.MAX_SAFE_INTEGER),
       functions: serverFnRing.functions(),
@@ -43,8 +49,23 @@ export function capabilities(bundler: BundlerDomain | undefined, directory: stri
   }
 }
 
-export async function register(tool: ToolDomain, tanstack: Capabilities) {
-  await tool.transform((editor) => {
+export function capabilities(bundler: BundlerDomain | undefined, directory: string) {
+  return Effect.acquireRelease(
+    Effect.sync(() => makeCapabilities(bundler, directory)),
+    (tanstack) => Effect.sync(tanstack.dispose),
+  )
+}
+
+function toolFailure(failure: Failure) {
+  return Tool.toolError({message: failure.message, error: failure.error, metadata: {code: failure.code}})
+}
+
+export const register = Effect.fn('TanstackTools.register')(function* (
+  ctx: Pick<Context, 'tool' | 'skill'>,
+  tanstack: Capabilities,
+) {
+  yield* ctx.skill.transform((editor) => editor.add(info))
+  yield* ctx.tool.transform((editor) => {
     editor.namespace({
       name: 'tanstack',
       description: "The running TanStack app's dev server: build errors, the route manifest and server-function calls.",
@@ -56,7 +77,11 @@ export async function register(tool: ToolDomain, tanstack: Capabilities) {
       input: z.object({}),
       output: Definition.methods.buildErrors.output,
       options,
-      execute: () => answer('BUNDLER_UNAVAILABLE', tanstack.buildErrors),
+      execute: () =>
+        tanstack.buildErrors().pipe(
+          Effect.map((output) => ({output})),
+          Effect.mapError(toolFailure),
+        ),
     })
     editor.add({
       name: 'route_manifest',
@@ -65,7 +90,11 @@ export async function register(tool: ToolDomain, tanstack: Capabilities) {
       input: z.object({}),
       output: Definition.methods.routeManifest.output,
       options,
-      execute: () => answer('MANIFEST_UNREADABLE', tanstack.routeManifest),
+      execute: () =>
+        tanstack.routeManifest().pipe(
+          Effect.map((output) => ({output})),
+          Effect.mapError(toolFailure),
+        ),
     })
     editor.add({
       name: 'server_fn_trace',
@@ -74,7 +103,7 @@ export async function register(tool: ToolDomain, tanstack: Capabilities) {
       input: Definition.methods.serverFnTrace.input,
       output: Definition.methods.serverFnTrace.output,
       options,
-      execute: async ({count}) => ({output: tanstack.serverFnTrace(count)}),
+      execute: ({count}) => Effect.succeed({output: tanstack.serverFnTrace(count)}),
     })
   })
-}
+})

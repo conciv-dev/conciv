@@ -8,7 +8,7 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 ## Interface
 
 - [src/README.md](./src/README.md): tool definitions, sandbox wrappers and the card registry.
-- [src/builtins/README.md](./src/builtins/README.md): `server_config`, `server_urls`, `server_resolve`, `server_graph`, `server_transform`, `server_reload`, `server_restart`, `open`.
+- [src/builtins/README.md](./src/builtins/README.md): `server_reload` and `tabs`.
 - [src/cards/README.md](./src/cards/README.md): `UiCard`, `OpenCard`, `ExtensionsCard`.
 - Exports (`package.json`): `.` -> `dist/tools.js`, `./defs` -> `dist/defs.js`, `./builtins` -> `dist/builtins.js`, `./cards` -> `dist/cards.js` (`browser` and `import` conditions), `./package.json`. No bin.
 - Dependencies: `@conciv/extension`, `@conciv/extension-page`, `@conciv/protocol`, `@conciv/solid-diffs`, `@conciv/ui-kit-chat`, `@conciv/ui-kit-system`, `lucide-solid`, `zod`; peer `solid-js` ^1.9.13.
