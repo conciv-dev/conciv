@@ -224,7 +224,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     tokenScopedBase,
     plugins: opts.plugins,
   }
-  const {fetch: fetchHandler, dispose, extensionContexts, trustBrowser, startPlugins} = await makeApp(appOpts)
+  const {fetch: fetchHandler, dispose, extensionContexts, trustBrowser, awaitActivation} = await makeApp(appOpts)
 
   let serving: Served
   try {
@@ -267,7 +267,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     }
   }
   try {
-    await startPlugins()
+    await awaitActivation()
   } catch (error) {
     clearEndpoint()
     retire()

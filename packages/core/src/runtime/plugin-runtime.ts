@@ -31,7 +31,6 @@ import {
   Watcher,
 } from '@conciv/plugin-host'
 import {Cause, Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
-import {once} from 'es-toolkit'
 import type {PluginHost} from '../api/rpc/mount.js'
 import type {ResolvedConcivConfig} from '../config.js'
 import {logError} from '../lib/debug.js'
@@ -144,7 +143,8 @@ type SessionPrompt = PluginHooks.Domains['session']['prompt']
 
 export type PluginRuntime = {
   runtime: PluginHost
-  startPlugins: () => Promise<void>
+  supervise: () => Promise<void>
+  awaitActivation: () => Promise<void>
   prompt: (event: SessionPrompt, signal: AbortSignal) => Promise<SessionPrompt>
   promptHooked: () => Promise<boolean>
   closeRpc: () => Promise<void>
@@ -157,11 +157,8 @@ export function makePluginRuntime(input: PluginRuntimeInput): PluginRuntime {
   const supervised = Scope.forkUnsafe(runtime.scope, 'sequential')
   return {
     runtime,
-    startPlugins: once(() =>
-      runtime.runPromise(
-        Layer.buildWithScope(PluginSupervisor.layer, supervised).pipe(Effect.andThen(Plugin.awaitActivation)),
-      ),
-    ),
+    supervise: () => runtime.runPromise(Layer.buildWithScope(PluginSupervisor.layer, supervised).pipe(Effect.asVoid)),
+    awaitActivation: () => runtime.runPromise(Plugin.awaitActivation),
     prompt: (event, signal) =>
       runtime.runPromise(
         Plugin.awaitActivation.pipe(

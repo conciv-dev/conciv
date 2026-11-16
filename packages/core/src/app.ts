@@ -395,7 +395,7 @@ export type MadeApp = {
   extensionContexts: Record<string, unknown>
   runtime: CoreRuntime
   pluginHost: PluginHost
-  startPlugins: () => Promise<void>
+  awaitActivation: () => Promise<void>
 }
 
 function makeServerHarness(harness: HarnessAdapter, cwd: string): ServerHarness {
@@ -894,12 +894,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     onTrusted: opts.onTrusted,
   })
 
-  await ensureConfiguredRows(rows, opts.cfg).catch(async (error: unknown) => {
-    await dispose().catch((failure: unknown) =>
-      logError(`[core] disposing after a failed start also failed: ${String(failure)}`),
-    )
-    throw error
-  })
+  await ensureConfiguredRows(rows, opts.cfg)
+    .then(plugins.supervise)
+    .catch(async (error: unknown) => {
+      await dispose().catch((failure: unknown) =>
+        logError(`[core] disposing after a failed start also failed: ${String(failure)}`),
+      )
+      throw error
+    })
 
   return {
     app,
@@ -912,7 +914,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     extensionContexts,
     runtime,
     pluginHost,
-    startPlugins: plugins.startPlugins,
+    awaitActivation: plugins.awaitActivation,
   }
 }
 
