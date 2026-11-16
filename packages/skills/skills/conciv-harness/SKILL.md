@@ -263,7 +263,8 @@ with different rooting rules.
   (`packages/protocol/src/harness-types.ts:26-38`). The engine aborts `signal` when it stops: hand it to
   whatever lists the models (`execFile(..., {signal})`, a `fetch`, an SDK's abort controller) so a
   listing still running is ended with the engine, and settle only once that child has exited
-  (`packages/harness/src/opencode/models.ts`). A `models` that takes no parameter still type-checks.
+  (`packages/harness/src/opencode/models.ts`). A `models` that takes no parameter still type-checks;
+  the engine's close waits for a listing at most `GROUP_EXIT_TIMEOUT_MS` (5 s) and then goes on without it.
   Read it through `resolveHarnessModels(adapter, {signal})` (`packages/harness/src/registry.ts:28-35`),
   never by branching on `typeof adapter.models` yourself elsewhere.
 - **`tty?: {command(ctx: HarnessConnectContext): TtyCommand}`** — the argv/options for opening the CLI
