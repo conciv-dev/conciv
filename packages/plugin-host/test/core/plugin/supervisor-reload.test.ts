@@ -401,6 +401,7 @@ describe('a rule pushed onto every agent', () => {
             Effect.flatMap((tool) => (tool ? Effect.void : Effect.fail('activation pending'))),
             Effect.retry({times: 80, schedule: Schedule.spaced('25 millis')}),
           )
+          yield* plugins.awaitActivation
           expect(yield* get(tools, 'later_v1')).toBeUndefined()
           expect(yield* restartAsLater('call-next-generation')).toBe('asked')
           expect(restarts).toEqual([false, false])
