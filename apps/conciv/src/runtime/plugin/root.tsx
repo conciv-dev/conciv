@@ -2,7 +2,7 @@ import {createMemo, createSignal, lazy, on, onCleanup, Show, Suspense, untrack, 
 import type {Entry} from '@conciv/plugin/experimental/host'
 import type {ConcivClient} from '@conciv/plugin'
 import {useRouteContext} from '@tanstack/solid-router'
-import {useApiBase} from '../../app/context'
+import {useApiBase, useAppData} from '../../app/context'
 import {builtins} from './builtins'
 import {createBundleSource, type BundleSource, type PluginManager} from './bundle-source'
 import {PluginExperimentalLoader, type PluginExperimental, type PluginExperimentalSource} from './plugins'
@@ -67,6 +67,7 @@ export function useHostApis() {
 export function PluginRoot(props: ParentProps) {
   const apis = createHostApis()
   const apiBase = untrack(useApiBase())
+  const appData = useAppData()
   const login = useRouteContext({strict: false, select: (context) => context.login})
   const trusted = createMemo(() => {
     const engine = login()
@@ -88,6 +89,7 @@ export function PluginRoot(props: ParentProps) {
       first.resolve(created)
       onCleanup(created.manager.on((message) => listeners.forEach((listener) => listener(message))))
       onCleanup(created.onPluginListChange(() => pluginListListeners.forEach((listener) => listener())))
+      onCleanup(created.onSessionDeleted((sessionId) => void appData.invalidateSession(sessionId)))
       onCleanup(created.dispose)
 
       return created

@@ -65,6 +65,7 @@ export type PluginManager = InstalledSource & {
 export type BundleSource = PluginExperimentalSource & {
   readonly manager: PluginManager
   readonly onPluginListChange: (listener: () => void) => () => void
+  readonly onSessionDeleted: (listener: (sessionId: string) => void) => () => void
   readonly dispose: () => void
 }
 
@@ -79,6 +80,7 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
   const listeners = new Set<(message: PluginExperimentalsMessage) => void>()
   const installedListeners = new Set<(message: InstalledMessage) => void>()
   const pluginListListeners = new Set<() => void>()
+  const sessionDeletedListeners = new Set<(sessionId: string) => void>()
   const resources: Resources = {}
   const machine = {following: createHostState()}
   const firstListing = Promise.withResolvers<void>()
@@ -157,11 +159,14 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
   }
 
   const readEvents = async (client: ConcivClient, attempt: number, signal: AbortSignal) => {
-    for await (const event of client.event.subscribe({signal}))
+    for await (const event of client.event.subscribe({signal})) {
+      if (event.type === 'session.deleted')
+        sessionDeletedListeners.forEach((listener) => listener(event.data.sessionID))
       if (event.type === 'plugin.updated' || event.type === 'server.connected') {
         pluginListListeners.forEach((listener) => listener())
         dispatch({type: 'relist.requested', watchAttempt: attempt, quitting: false})
       }
+    }
   }
 
   const listPlugins = async (attempt: number, timeoutMs: number) => {
@@ -334,6 +339,11 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
       pluginListListeners.add(listener)
 
       return () => pluginListListeners.delete(listener)
+    },
+    onSessionDeleted(listener) {
+      sessionDeletedListeners.add(listener)
+
+      return () => sessionDeletedListeners.delete(listener)
     },
     manager: {
       initial: loaded.promise,

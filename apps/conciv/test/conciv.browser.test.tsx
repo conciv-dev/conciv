@@ -4474,6 +4474,18 @@ describe('a deleted session', () => {
     await expect.element(editor()).not.toBeInTheDocument()
     await expect.element(movesLine()).not.toBeInTheDocument()
   }, 30_000)
+
+  test('a delete arriving while the session is open turns the pane into the deleted panel', async () => {
+    const rpc = coreRpc(core())
+    const sessionId = await createSession(rpc)
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+
+    await rpc.sessions.delete({sessionId})
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+  }, 30_000)
 })
 
 describe('reachability flows', () => {
