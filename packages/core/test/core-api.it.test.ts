@@ -5813,15 +5813,15 @@ describe('page action queue delivery', () => {
     expect(page.runIds()).toEqual([])
 
     const long = parseHandle(await page.hub(queued())).queueId
-    const onTab = await page.nextQueue()
-    expect(
+    await playAll(await page.nextQueue())
+    await page.finishedEvent(long)
+    const called = JSON.stringify(
       await page.hub(
         "for (let call = 0; call < 1001; call += 1) await external_page_queue_async({actions: 'none'}).catch(() => null); return 'called'",
       ),
-    ).toContain('called')
-    await page.finishedEvent(long)
-    await playAll(onTab)
-    expect(await nextHubReply()).toContain(notice(long))
+    )
+    expect(called).toContain('called')
+    expect(called).toContain(notice(long))
     expect(page.runIds()).toEqual([])
   }, 20000)
 
