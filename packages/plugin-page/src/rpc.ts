@@ -479,6 +479,52 @@ export const Operations = [
 
 export type Operation = (typeof Operations)[number]
 export type Method = Operation['name']
+
+export const RunningLabels: Partial<Record<Method, string>> = {
+  route: 'Reading the route',
+  dom: 'Reading the DOM',
+  query: 'Querying the page',
+  console: 'Reading the console',
+  text: 'Reading text',
+  value: 'Reading a value',
+  attr: 'Reading an attribute',
+  exists: 'Checking existence',
+  snapshot: 'Capturing a snapshot',
+  screenshot: 'Taking a screenshot',
+  hmr: 'Waiting for the hot update',
+  locate: 'Locating the source',
+  tree: 'Reading the page tree',
+  inspect: 'Inspecting a component',
+  override: 'Overriding a value',
+  find: 'Finding components',
+  track: 'Tracking renders',
+  effect: 'Driving an effect',
+  wait: 'Waiting for the page',
+  reload: 'Reloading the page',
+  click: 'Clicking',
+  fill: 'Typing',
+  select: 'Selecting an option',
+  check: 'Checking a box',
+  uncheck: 'Unchecking a box',
+  press: 'Pressing a key',
+  hover: 'Hovering',
+  scroll: 'Scrolling',
+  submit: 'Submitting the form',
+  queue: 'Playing page actions',
+  queue_async: 'Queueing page actions',
+  setattr: 'Setting an attribute',
+  removeattr: 'Removing an attribute',
+  addclass: 'Adding a class',
+  removeclass: 'Removing a class',
+  setstyle: 'Styling an element',
+  settext: 'Setting text',
+  sethtml: 'Setting HTML',
+  remove: 'Removing an element',
+  insert: 'Inserting content',
+  css: 'Injecting CSS',
+  eval: 'Running a script',
+}
+
 const [firstOperation, ...otherOperations] = Operations
 export const Action = z.discriminatedUnion('type', [
   firstOperation.action,

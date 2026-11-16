@@ -28,7 +28,13 @@ import {
   type TurnPrefixSource,
 } from '@conciv/ui-kit-chat'
 import {nowTitle} from '@conciv/ui-kit-chat-tools'
-import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX, pageSessionEntry, pageToolCards} from '@conciv/builtin-plugins/renderer'
+import {
+  PAGE_ACT_TOOL_NAMES,
+  PAGE_RUNNING_TITLES,
+  PAGE_TOOL_PREFIX,
+  pageSessionEntry,
+  pageToolCards,
+} from '@conciv/builtin-plugins/renderer'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
 import {coreToolCards} from '@conciv/core/cards'
@@ -354,7 +360,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     const NarrationRow = (): JSX.Element => {
       const title = createMemo(() => {
         const call = activeToolCall(lastTurn())
-        if (call) return nowTitle(call, catalog)
+        if (call) return nowTitle(call, catalog, PAGE_RUNNING_TITLES)
         return isThinking() ? THINKING_TITLE : RESPONDING_TITLE
       })
       return (
