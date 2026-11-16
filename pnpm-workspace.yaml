@@ -70,6 +70,7 @@ catalog:
   '@parcel/watcher-win32-arm64': 2.5.1
   '@parcel/watcher-win32-x64': 2.5.1
   '@playwright/test': '^1.64.1'
+  '@rrweb/types': '^2.2.0'
   '@shikijs/langs-precompiled': 4.5.0
   '@shikijs/magic-move': '^4.5.0'
   '@silvia-odwyer/photon-node': 0.3.4
@@ -165,6 +166,7 @@ catalog:
   piscina: '^5.3.2'
   pixelmatch: ^8.0.0
   playwright: '^1.64.1'
+  playwright-core: '^1.64.1'
   pngjs: ^7.0.0
   ppu-ocv: 4.0.0
   ppu-paddle-ocr: 6.6.1
@@ -181,6 +183,8 @@ catalog:
   remark-parse: '^11.0.0'
   remark-rehype: '^11.1.2'
   remend: '^1.4.0'
+  rrweb: '^2.2.0'
+  rrweb-player: 2.2.0
   rrweb-snapshot: 2.2.0
   semver: '^7.8.5'
   shiki: '^4.5.0'
