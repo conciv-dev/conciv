@@ -49,20 +49,19 @@ export function make(raw: RpcClient): Omit<RpcClient, 'event'> & {
 }
 
 function makeConnection() {
-  const listeners = new Set<(status: ClientConnectionStatus) => void>()
+  const changes = new EventTarget()
   const current: {status: ClientConnectionStatus} = {status: 'connecting'}
   return {
     status: () => current.status,
     on(listener: (status: ClientConnectionStatus) => void) {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
+      const changed = () => listener(current.status)
+      changes.addEventListener('change', changed)
+      return () => changes.removeEventListener('change', changed)
     },
     set(status: ClientConnectionStatus) {
       if (current.status === status) return
       current.status = status
-      listeners.forEach((listener) => listener(status))
+      changes.dispatchEvent(new Event('change'))
     },
   }
 }
