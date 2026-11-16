@@ -81,6 +81,7 @@ const PREEXISTING_TERM_SITES = [
     paths: [
       'packages/ui-kit-system/src/',
       'packages/extensions/recorder/src/',
+      'packages/plugins/recorder/src/',
       'packages/extensions/whiteboard/src/tool/comment/server.ts',
     ],
   },
@@ -89,6 +90,7 @@ const PREEXISTING_TERM_SITES = [
     paths: [
       'packages/extensions/test-runner/src/',
       'packages/extensions/test-runner/vitest.config.ts',
+      'packages/plugins/test-runner/src/',
       'packages/cli/src/init/',
     ],
   },
