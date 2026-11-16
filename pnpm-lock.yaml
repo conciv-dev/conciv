@@ -5709,9 +5709,6 @@ importers:
 
   packages/ui-kit-chat-tools:
     dependencies:
-      '@conciv/extension-page':
-        specifier: workspace:^
-        version: link:../extensions/page
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
