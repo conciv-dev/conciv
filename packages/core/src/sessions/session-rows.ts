@@ -192,7 +192,7 @@ export async function resolveRow(scope: RowScope, body: {id?: string}): Promise<
   const mint = resolveMintId(scope)
   if (body.id && isSessionId(body.id)) {
     const existing = await rowById(scope.db, body.id)
-    if (existing) return {sessionId: existing.id}
+    if (existing) return existing.deletedAt === null ? {sessionId: existing.id} : null
     await ensureRow(scope.db, body.id, scope.harnessKind, scope.cwd)
     return {sessionId: body.id}
   }
