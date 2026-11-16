@@ -30,6 +30,7 @@ import {
 } from '../src/summary.ts'
 import {assertLockNotDrifted} from '../src/pack.ts'
 import {tempDir} from '../src/temp-dir.ts'
+import setupConcivHome from '../src/setup/conciv-home-setup.ts'
 
 describe('reporters', () => {
   beforeEach(() => {
@@ -64,15 +65,52 @@ describe('reporters', () => {
       hookTimeout: 30_000,
       teardownTimeout: 30_000,
       coverage: {enabled: true, provider: 'v8', reporter: ['json-summary'], reportsDirectory: 'coverage'},
-      env: {CONCIV_HOME: expect.stringContaining(tmpdir())},
+      globalSetup: [join(import.meta.dirname, '..', 'src', 'setup', 'conciv-home-setup.ts')],
     })
   })
 
-  test('every test config gets its own empty conciv home, also set for the main process', () => {
-    const homes = [ciTest().env.CONCIV_HOME, ciTest().env.CONCIV_HOME]
-    expect(new Set(homes).size).toBe(2)
-    expect(homes.map((home) => readdirSync(home))).toEqual([[], []])
-    expect(process.env.CONCIV_HOME).toBe(homes[1])
+  test('the run keeps one conciv home beside the config, emptied at the start and removed at the end by the globalSetup ciTest carries', () => {
+    const packageHome = join(import.meta.dirname, '..', 'test-results', 'conciv-home')
+    expect.soft(process.env.CONCIV_HOME).toBe(packageHome)
+    expect.soft(existsSync(packageHome)).toBe(true)
+
+    const tempHomes = (): string[] => readdirSync(tmpdir()).filter((entry) => entry.startsWith('conciv-home-'))
+    const before = tempHomes()
+    const configs = [ciTest(), ciTest(), ciTest()]
+    expect.soft(tempHomes()).toEqual(before)
+    expect.soft(configs.map((config) => Object.keys(config).includes('env'))).toEqual([false, false, false])
+    expect
+      .soft(configs.map((config) => config.globalSetup.map((file) => existsSync(file))))
+      .toEqual([[true], [true], [true]])
+
+    const root = tempDir('package-')
+    mkdirSync(join(root, 'test-results', 'conciv-home'), {recursive: true})
+    writeFileSync(join(root, 'test-results', 'conciv-home', 'home.db'), 'left by an earlier run')
+    vi.stubEnv('CONCIV_HOME', undefined)
+    const removeHome = setupConcivHome({config: {root}})
+    expect.soft(readdirSync(join(root, 'test-results', 'conciv-home'))).toEqual([])
+    expect.soft(process.env.CONCIV_HOME).toBe(join(root, 'test-results', 'conciv-home'))
+
+    mkdirSync(join(root, 'test-results', 'conciv-home', 'harness-homes', 'claude'), {recursive: true})
+    writeFileSync(join(root, 'test-results', 'conciv-home', 'home.db'), 'written by this run')
+    removeHome()
+    expect.soft(existsSync(join(root, 'test-results', 'conciv-home'))).toBe(false)
+    expect.soft(existsSync(join(root, 'test-results'))).toBe(false)
+
+    const sharedRoot = tempDir('package-shared-')
+    const removeSharedHome = setupConcivHome({config: {root: sharedRoot}})
+    mkdirSync(join(sharedRoot, 'test-results', 'playwright-output'), {recursive: true})
+    writeFileSync(join(sharedRoot, 'test-results', 'test-results.json'), '{"numTotalTests":3}')
+    writeFileSync(join(sharedRoot, 'test-results', 'playwright-output', 'trace.zip'), 'a playwright trace')
+    expect.soft(() => removeSharedHome()).not.toThrow()
+    expect.soft(existsSync(join(sharedRoot, 'test-results', 'conciv-home'))).toBe(false)
+    expect
+      .soft(readdirSync(join(sharedRoot, 'test-results')).sort())
+      .toEqual(['playwright-output', 'test-results.json'])
+    expect.soft(readFileSync(join(sharedRoot, 'test-results', 'test-results.json'), 'utf8')).toBe('{"numTotalTests":3}')
+    expect
+      .soft(readFileSync(join(sharedRoot, 'test-results', 'playwright-output', 'trace.zip'), 'utf8'))
+      .toBe('a playwright trace')
   })
 
   test('a fork cap in the environment caps the worker count', () => {

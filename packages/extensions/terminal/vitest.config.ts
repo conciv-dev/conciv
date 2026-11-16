@@ -6,7 +6,7 @@ import {browserOptimizeDeps, ciTest, ciTestSolidBrowser} from '@conciv/vitest-co
 export default defineConfig({
   test: {
     ...ciTest(),
-    globalSetup: ['test/browser-server.global.ts'],
+    globalSetup: [...ciTest().globalSetup, 'test/browser-server.global.ts'],
     projects: [
       {
         test: {
