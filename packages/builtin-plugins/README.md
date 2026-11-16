@@ -49,7 +49,7 @@ started after the reload waits for activation (opencode `core/src/session/prompt
 
 The engine half's `sessions.attached` answers the session ids with at least one tab attached
 (`plugin-page/src/machine.ts` `selectAttachedSessions`, beside `selectTabs`); core's `tabs.list` walks it and reads each
-session's tabs through `run {type: 'tabs.list'}`, and `tabs.get` answers open when that read has a tab. This is a
+session's tabs through the engine half's own non-asking `tabs.list` method (`selectTabs`), and `tabs.get` answers open when that read has a tab. This is a
 conciv addition: the source has no cross-session listing because it has no tabs listing. Only callers that may call
 `plugin.call` reach it, and the RPC mount refuses `plugin.call` to an outside agent (`core/src/api/rpc/mount.ts`
 `PLUGIN_PROCEDURES`), so it is no wider than `tabs.list`.

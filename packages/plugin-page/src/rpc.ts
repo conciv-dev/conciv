@@ -541,6 +541,7 @@ export const Definition = Rpc.define({
     clearChanges: {input: z.object({sessionId: SessionId}), output: OkResult, errors},
     'captures.list': {input: z.object({sessionId: SessionId}), output: SessionCapturesSchema, errors},
     'sessions.attached': {input: z.object({}), output: z.array(SessionId), errors},
+    'tabs.list': {input: z.object({sessionId: SessionId}), output: State, errors},
     symbolicate: {input: SymbolicateSchema, output: SourceLocSchema.nullable(), errors},
     'queue.wait': {
       input: z.object({sessionId: SessionId, queueId: z.string().min(1), waitMs: z.number().int().min(0)}),

@@ -116,10 +116,9 @@ export function makePagePlugin(host: () => PluginHost) {
     },
     tabs: async (sessionId: SessionId): Promise<State> => {
       try {
-        return State.parse(await call('run', {sessionId, action: {type: 'tabs.list'}}))
+        return Definition.methods['tabs.list'].output.parse(await call('tabs.list', {sessionId}))
       } catch (error) {
-        if (!unlisted(error) && !String(error).includes('[page.disconnected]'))
-          logError(`[core] the page tabs of ${sessionId} could not be read: ${String(error)}`)
+        if (!unlisted(error)) logError(`[core] the page tabs of ${sessionId} could not be read: ${String(error)}`)
         return NO_TABS
       }
     },

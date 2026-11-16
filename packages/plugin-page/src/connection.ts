@@ -250,6 +250,7 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
     },
     'captures.list': (input) => records.captures(input.sessionId),
     'sessions.attached': async () => selectAttachedSessions(machine.state),
+    'tabs.list': async (input) => selectTabs(machine.state, input.sessionId),
     symbolicate: (input) => symbolicateFrames(input.frames, ctx.location.directory),
     'queue.wait': async (input, call) => {
       try {
