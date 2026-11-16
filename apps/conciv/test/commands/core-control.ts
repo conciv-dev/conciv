@@ -600,7 +600,7 @@ function gateChatTurns(ctx: BrowserCommandContext): Promise<Fault> {
   return holdPosts(
     ctx,
     (url) => url.pathname.endsWith(CHAT_SSE_PATH),
-    (route) => route.continue(),
+    (route) => route.fallback(),
   )
 }
 

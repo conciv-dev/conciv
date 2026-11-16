@@ -10,9 +10,11 @@ type Verdict = {row: EngineRow; kind: 'live' | 'retire'} | {row: EngineRow; kind
 
 export async function checkEngines(
   home: string,
-  options: {timeoutMs: number},
+  options: {timeoutMs: number; roots?: string[]},
 ): Promise<{live: EngineRow[]; unreachable: Array<{root: string; error: string}>}> {
-  const rows = withHomeDb(home, listEngines)
+  const listed = withHomeDb(home, listEngines)
+  const roots = options.roots
+  const rows = roots === undefined ? listed : listed.filter((row) => roots.includes(row.root))
   const verdicts = await Promise.all(rows.map((row) => probe(row, options.timeoutMs)))
   const retired = verdicts.filter((verdict) => verdict.kind === 'retire')
   if (retired.length > 0) {
