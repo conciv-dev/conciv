@@ -3137,6 +3137,23 @@ describe('plugin host bus', () => {
     })
     expect((await firstTurn.done()).errors()).toEqual([])
     expect(currentRow(made.chat.db, neverSeen)?.deletedAt).toBeNull()
+
+    const quiet = await created()
+    const quietNative = HarnessSessionId.parse(randomUUID())
+    await recordNativeId(made.chat.db, quiet, harness.id, quietNative)
+    await kit.rpc.sessions.delete({sessionId: quiet})
+    const tombstone = currentRow(made.chat.db, quiet)
+    const quietTranscript = requireTranscriptPath(harness)(made.chat.cwd, quietNative)
+    mkdirSync(dirname(quietTranscript), {recursive: true})
+    writeFileSync(
+      quietTranscript,
+      JSON.stringify({
+        type: 'user',
+        message: {content: 'written in the terminal after the delete'},
+      }),
+    )
+    await made.plane.hydrate(quiet)
+    expect(currentRow(made.chat.db, quiet)?.updatedAt).toBe(tombstone?.updatedAt)
   })
 })
 
