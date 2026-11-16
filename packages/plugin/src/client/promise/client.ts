@@ -9,18 +9,28 @@ export type {RequestOptions} from './generated/client.js'
 
 export type ClientConnectionStatus = 'connected' | 'connecting' | 'reconnecting'
 
+export type ClientConnectionOptions = {
+  readonly idleTimeout?: number
+}
+
 type ClientConnection = {
   status: () => ClientConnectionStatus
   on: (listener: (status: ClientConnectionStatus) => void) => () => void
 }
 
-export function make(raw: RpcClient): Omit<RpcClient, 'event'> & {
+export function make(
+  raw: RpcClient,
+  options: ClientConnectionOptions = {},
+): Omit<RpcClient, 'event'> & {
   rpc: RpcApi & {call: RpcClient['plugin']['call']}
   event: ReturnType<typeof SharedEvents.make<EventSubscribeOutput>>
   connection: ClientConnection
 } {
   const connection = makeConnection()
-  const events = SharedEvents.make((signal, onActivity) => received(raw, signal, onActivity, connection.set))
+  const idleTimeout = options.idleTimeout ?? defaultIdleTimeout
+  const events = SharedEvents.make((signal, onActivity) =>
+    received(raw, signal, onActivity, connection.set, idleTimeout),
+  )
   const groups = {
     auth: raw.auth,
     sessions: raw.sessions,
@@ -67,17 +77,18 @@ function makeConnection() {
 }
 
 const reconnectDelay = 1_000
-const idleTimeout = 45_000
+export const defaultIdleTimeout = 45_000
 
 async function* received(
   raw: RpcClient,
   signal: AbortSignal,
   onActivity: () => void,
   setStatus: (status: ClientConnectionStatus) => void,
+  idleTimeout: number,
 ) {
   signal.addEventListener('abort', () => setStatus('connecting'), {once: true})
   while (!signal.aborted) {
-    yield* attempted(raw, signal, onActivity, setStatus)
+    yield* attempted(raw, signal, onActivity, setStatus, idleTimeout)
     if (signal.aborted) return
     setStatus('reconnecting')
     await wait(reconnectDelay, signal)
@@ -89,17 +100,22 @@ async function* attempted(
   signal: AbortSignal,
   onActivity: () => void,
   setStatus: (status: ClientConnectionStatus) => void,
+  idleTimeout: number,
 ) {
   const attempt = new AbortController()
   const cancel = () => attempt.abort(signal.reason)
   signal.addEventListener('abort', cancel, {once: true})
   let watchdog: ReturnType<typeof setTimeout> | undefined
+  const arm = () => {
+    clearTimeout(watchdog)
+    watchdog = setTimeout(() => attempt.abort(new DOMException('Event stream stalled', 'TimeoutError')), idleTimeout)
+  }
   const touch = () => {
     onActivity()
-    clearTimeout(watchdog)
-    watchdog = setTimeout(() => attempt.abort(new Error('Event stream stalled')), idleTimeout)
+    arm()
   }
   try {
+    arm()
     for await (const event of await raw.event.subscribe(undefined, {signal: attempt.signal, context: {retry: 0}})) {
       touch()
       if (event.type === 'server.heartbeat') continue
@@ -109,7 +125,10 @@ async function* attempted(
     if (!signal.aborted) console.info('[conciv] the event stream ended; subscribing again')
   } catch (error) {
     if (signal.aborted) return
-    console.info('[conciv] the event stream failed; subscribing again', error)
+    console.info(
+      '[conciv] the event stream failed; subscribing again',
+      attempt.signal.aborted ? attempt.signal.reason : error,
+    )
   } finally {
     clearTimeout(watchdog)
     signal.removeEventListener('abort', cancel)
