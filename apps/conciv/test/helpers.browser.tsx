@@ -44,6 +44,7 @@ import {makeRefreshCoordinator} from '../src/pane/refresh-coordinator.js'
 import {NoticeContextProvider, NoticeSurface} from '../src/shell/notice-context.js'
 import {RouterProvider, createMemoryHistory, createRootRoute, createRouter} from '@tanstack/solid-router'
 import {createConcivRouter, disposeConcivRouter} from '../src/router.js'
+import {createBrowserDraftStore} from '../src/runtime/persistence/drafts.js'
 import {createEngineLogin, engineConnected, startEngineLogin} from '../src/app/engine-login.js'
 import {afterAll, afterEach, beforeAll, expect} from 'vitest'
 import {VIRTUALIZE_THRESHOLD} from '@conciv/ui-kit-chat'
@@ -208,7 +209,7 @@ function makeAppContextValue(options: AppContextValueOptions, client: BrowserRpc
   const {rpc} = client
   const queryClient = new QueryClient()
   const announce = options.announce
-  const data = makeAppData(rpc, queryClient)
+  const data = makeAppData(rpc, queryClient, createBrowserDraftStore())
   const connected = () => true
   const liveSessions = makeLiveSessions({
     active: () => null,
@@ -374,6 +375,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     dispose: () => {
       mounted.unmount()
       for (const instance of instances) instance.dispose()
+      chatRoot.app.data.dispose()
       chatRoot.dispose()
       reachabilityRoot.dispose()
       client.close()

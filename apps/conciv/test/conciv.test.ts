@@ -54,7 +54,7 @@ describe('draft storage', () => {
   })
 
   function draftApp(base: string): AppData {
-    return makeAppData(makeRpcClient(base), new QueryClient())
+    return makeAppData(makeRpcClient(base), new QueryClient(), null)
   }
 
   function composerDraft(text: string): string {

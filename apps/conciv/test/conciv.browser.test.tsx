@@ -5151,6 +5151,21 @@ describe('session selector', () => {
     }
   }
 
+  test('a session deleted from the CLI leaves an open picker and its local draft', async () => {
+    const rpc = coreRpc(core())
+    const {sessionId: doomed} = await rpc.sessions.create()
+    await rpc.sessions.rename({sessionId: doomed, title: 'the doomed session'})
+    await createBrowserDraftStore().setItem(doomed, JSON.stringify({text: 'left behind'}))
+    await mountSelector()
+    const doomedOption = page.getByRole('option', {name: /^the doomed session,/})
+
+    await userEvent.click(page.getByRole('button', {name: 'Session: the active session'}))
+    await expect.element(doomedOption).toBeVisible()
+    await rpc.sessions.delete({sessionId: doomed})
+    await expect.element(doomedOption).not.toBeInTheDocument()
+    expect(await createBrowserDraftStore().getItem(doomed)).toBeNull()
+  })
+
   test('a user opens, searches, pages, picks by keyboard and by pointer, and the search follows the index', async () => {
     const mounted = await mountSelector()
     const trigger = page.getByRole('button', {name: 'Session: the active session'})

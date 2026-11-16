@@ -14,6 +14,7 @@ import highlight from './extensions/highlight.js'
 import {PendingPane} from './shell/pending.js'
 import {defaultErrorComponent} from './shell/default-error-component.js'
 import {becameTrusted, type EngineLogin} from './app/engine-login.js'
+import {createBrowserDraftStore, type DraftStore} from './runtime/persistence/drafts.js'
 
 export type ConcivEnvironment = {rootNode: ShadowRoot | Document; document: Document}
 
@@ -71,6 +72,15 @@ function disposeExtensionInstances(instances: ExtensionInstance[]): void {
     } catch (error) {
       console.error('[conciv] extension instance teardown failed', error)
     }
+  }
+}
+
+function openDraftStore(): DraftStore | null {
+  try {
+    return createBrowserDraftStore()
+  } catch (error) {
+    console.error('[conciv] drafts stay engine-only', error)
+    return null
   }
 }
 
@@ -132,7 +142,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
   const queryClient = new QueryClient({
     defaultOptions: {queries: {staleTime: Infinity, refetchOnWindowFocus: 'always'}},
   })
-  const data = makeAppData(config.rpc, queryClient)
+  const data = makeAppData(config.rpc, queryClient, openDraftStore())
   const extensions = [highlight, ...(config.extensions ?? [])]
   const instances = createInstances(extensions)
   const apiBase = config.apiBase ?? (() => '')
@@ -140,7 +150,10 @@ export function createConcivRouter(config: ConcivRouterConfig) {
   const engine = wireEngine(apiBase, () => {
     void queryClient.invalidateQueries({predicate: (query) => query.state.status === 'error'})
   })
-  const disposeInstances = makeGuardedDisposer(instances, engine.dispose)
+  const disposeInstances = makeGuardedDisposer(instances, () => {
+    engine.dispose()
+    data.dispose()
+  })
   function ConcivRouterWrap(props: {children: JSX.Element}): JSX.Element {
     onCleanup(disposeInstances)
     return <>{props.children}</>

@@ -9,6 +9,7 @@ import {
   type QueryKey,
 } from '@conciv/client'
 import {Conciv, type ConcivClient} from '@conciv/plugin'
+import type {DraftStore} from '../runtime/persistence/drafts.js'
 import {DraftRowSchema, SessionMetaSchema, type DraftRow, type RpcClient, type SessionMeta} from '@conciv/contract'
 
 type DraftInput = Omit<z.input<typeof DraftRowSchema>, 'updatedAt'>
@@ -33,10 +34,12 @@ export type AppData = {
   readDraft: (sessionId: string) => Promise<DraftRow | null>
   cachedDraft: (sessionId: string) => DraftRow | null | undefined
   saveDraft: (row: DraftInput) => Promise<void>
+  dispose: () => void
 }
 
-export function makeAppData(rpc: RpcClient, queryClient: QueryClient): AppData {
+export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: DraftStore | null): AppData {
   const utils = makeQueryUtils(rpc)
+  const client = Conciv.make(rpc)
   const listKeys = [utils.sessions.list.key(), utils.sessions.search.key()]
   for (const queryKey of [...listKeys, utils.sessions.get.key()]) {
     queryClient.setQueryDefaults(queryKey, {refetchOnWindowFocus: false})
@@ -101,9 +104,23 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient): AppData {
     void invalidateSession(sessionId)
     return {sessionId}
   }
+  const reading = new AbortController()
+  const forgetDeletedSessions = async () => {
+    for await (const event of client.event.subscribe({signal: reading.signal})) {
+      if (event.type !== 'session.deleted') continue
+      const sessionId = event.data.sessionID
+      await drafts?.removeItem(sessionId).catch((error: unknown) => {
+        console.error('[conciv] could not remove the local draft of a deleted session', error)
+      })
+      await invalidateSession(sessionId)
+    }
+  }
+  forgetDeletedSessions().catch((error: unknown) => {
+    if (!reading.signal.aborted) console.error('[conciv] stopped reading session deletions', error)
+  })
   return {
     utils,
-    client: Conciv.make(rpc),
+    client,
     invalidateSessions: () => invalidate([...listKeys, utils.sessions.get.key()]),
     invalidateSession,
     seedSession,
@@ -112,5 +129,6 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient): AppData {
     readDraft: (sessionId) => queryClient.ensureQueryData(draftQuery(sessionId)),
     cachedDraft: (sessionId) => queryClient.getQueryData(draftQuery(sessionId).queryKey),
     saveDraft,
+    dispose: () => reading.abort(),
   }
 }
