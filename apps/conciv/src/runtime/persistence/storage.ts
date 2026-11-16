@@ -2,7 +2,7 @@ import type {RpcClient, SettingsScope} from '@conciv/contract'
 import type {AsyncStorage} from '@solid-primitives/storage'
 import type {StoreType} from '@conciv/plugin/experimental'
 import type {StandardSchemaV1} from '@standard-schema/spec'
-import type {Accessor} from 'solid-js'
+import {getOwner, onCleanup, type Accessor} from 'solid-js'
 import {createStore, type SetStoreFunction, type Store} from 'solid-js/store'
 import {persistStore} from './persist'
 import {canWriteBackHydration} from './persist-machine'
@@ -167,7 +167,11 @@ export function persisted<S extends StandardSchemaV1<unknown, object>>(
   const store = createStore<StandardSchemaV1.InferOutput<S>>(restore(encode ? encode(initial) : initial))
   const canCommit = () => canWriteBackHydration(persist.state())
 
-  const current = settingsStorage(rpc, config)
+  const reading = new AbortController()
+
+  if (getOwner()) onCleanup(() => reading.abort())
+
+  const current = settingsStorage(rpc, config, reading.signal)
 
   const relocationSources: RelocationSource<AsyncStorage>[] = (config.copyFrom ?? []).map((copy) => ({
     storage: current,

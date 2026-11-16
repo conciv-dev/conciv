@@ -10,6 +10,8 @@ import {z} from 'zod'
 import {connectMcpClient, makeDiscoverTools} from '@conciv/harness-testkit'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {createFlusher} from '../src/client/flusher.js'
+import {MAX_FLUSH_BYTES} from '../src/shared/protocol.js'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 
@@ -700,6 +702,46 @@ describe('the recording store under concurrent saves', () => {
     const stored = await readdir(recordingsDir)
     expect(stored).toContain(`${saved.recordingId}.json`)
     expect(stored).toContain(stuck)
+  })
+})
+
+describe('the page flusher', () => {
+  it('splits a multi-megabyte burst into flushes the engine accepts, delivers an event at the client cap and drops one above it', async () => {
+    const kit = await bootRecorder()
+    const sent = {flushes: 0}
+    const flusherFor = (clientId: string) =>
+      createFlusher({
+        send: async (events) => {
+          sent.flushes += 1
+          await call(kit, 'flush', {clientId, events})
+        },
+      })
+    const padded = (timestamp: number, bytes: number): RrwebEvent => ({
+      type: 3,
+      data: {padding: 'x'.repeat(bytes)},
+      timestamp,
+    })
+    const deliveredCount = async (clientId: string): Promise<number> =>
+      EventWindowSchema.parse(await call(kit, 'since', {clientId, cursor: 0})).events.length
+
+    const burst = flusherFor('burst')
+    onTestFinished(() => burst.dispose())
+    const base = Date.now()
+    for (let index = 0; index < 6; index += 1) burst.push(padded(base + index, 900 * 1024))
+    await burst.flushNow()
+    expect(sent.flushes).toBeGreaterThan(1)
+    expect(await deliveredCount('burst')).toBe(6)
+
+    const capped = flusherFor('capped')
+    onTestFinished(() => capped.dispose())
+    sent.flushes = 0
+    capped.push(padded(base + 10, MAX_FLUSH_BYTES + 1024))
+    await capped.flushNow()
+    expect(sent.flushes).toBe(0)
+    capped.push(padded(base + 11, MAX_FLUSH_BYTES - 4096))
+    await capped.flushNow()
+    expect(sent.flushes).toBe(1)
+    expect(await deliveredCount('capped')).toBe(1)
   })
 })
 

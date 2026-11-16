@@ -99,6 +99,7 @@ import {createToolDurations} from '../src/pane/tool-durations.js'
 import {PendingApprovals} from '../src/pane/pending-approvals.js'
 import {makeToolViewCtx} from '../src/pane/tool-view-ctx.js'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
+import type {EngineLock} from '../src/app/engine-login.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
 import {ChatEventType, type ChatEvent, type RunClockSource, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {SessionSelector} from '../src/composer/session-selector.js'
@@ -774,6 +775,60 @@ describe('chat pane', () => {
     await userEvent.keyboard('{Enter}')
     await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
     await expect.element(refusals).not.toBeInTheDocument()
+  })
+
+  test('a question card answered while the page cannot send says why and takes the answer again, and one the engine refuses stays sent', async () => {
+    const {sessionId} = await newSession()
+    const [connection, setConnection] = createStore<{online: boolean; locked: EngineLock}>({online: true, locked: null})
+    const reachability = {
+      online: () => connection.online,
+      sustainedOffline: () => false,
+      locked: () => connection.locked,
+    }
+    await coreControl.holdResults()
+    await coreControl.scriptTurn({
+      toolCalls: [
+        {name: 'conciv_ui', input: {kind: 'choices', question: 'Ship it or hold?', options: ['ship', 'hold']}},
+      ],
+      text: 'Held until you answer.',
+    })
+    active.pane = mountPane({base: core(), sessionId}, () => (
+      <EngineReachabilityContext.Provider value={reachability}>
+        <ChatPane sessionId={sessionId} />
+      </EngineReachabilityContext.Provider>
+    ))
+    const ship = page.getByRole('button', {name: 'ship', exact: true})
+    const sending = page.getByRole('status').filter({hasText: 'Sending your answer'})
+
+    await userEvent.click(input())
+    await userEvent.keyboard('ask me before shipping{Enter}')
+    await expect.element(ship).toBeEnabled()
+
+    setConnection('locked', 'revoked')
+    await userEvent.click(ship)
+    await expect.element(notifications()).toMatchTextContent(/no longer authorized to use conciv/)
+    await expect.element(sending).not.toBeInTheDocument()
+    await expect.element(ship).toBeEnabled()
+    await expect.element(notifications()).not.toMatchTextContent(/no longer waiting for an answer/)
+
+    setConnection({locked: null, online: false})
+    await userEvent.click(ship)
+    await expect
+      .element(notifications())
+      .toMatchTextContent(/conciv lost connection to the engine\. Your answer was not sent\./)
+    await expect.element(notifications()).not.toMatchTextContent(/still in the composer/)
+    await expect.element(sending).not.toBeInTheDocument()
+    await expect.element(ship).toBeEnabled()
+
+    setConnection('online', true)
+    await faults.install({kind: 'fail', path: ['chat', 'uiReply']})
+    await userEvent.click(ship)
+    await expect.element(notifications()).toMatchTextContent(/That question is no longer waiting for an answer\./)
+    await expect.element(sending).toBeVisible()
+    await expect.element(ship).toBeDisabled()
+
+    await coreControl.releaseResults()
+    await expect.element(page.getByText('Held until you answer.')).toBeVisible()
   })
 
   test('sending announces the settled reply through the live region', async () => {
@@ -1800,6 +1855,41 @@ describe('engine version', () => {
         `This widget is version ${appManifest.version} but the conciv engine is older. Update your @conciv packages to ${appManifest.version}, then restart your dev server.`,
       )
   })
+})
+
+describe('a slow engine', () => {
+  const OLD_CONNECTION_TIMEOUT_MS = 2000
+  const MAX_RECONNECT_DELAY_MS = 2000
+  const MARGIN_MS = 2000
+  const SECOND_HANDSHAKE_WINDOW_MS = OLD_CONNECTION_TIMEOUT_MS + MAX_RECONNECT_DELAY_MS + MARGIN_MS
+  const core = bootedCore('slow-engine')
+  const harness = createShellHarness(core)
+  const faults = trackedFaults()
+
+  afterEach(harness.dispose)
+
+  test('a reconnect whose handshake is slow is waited on, not dropped, and clears the lost connection notice when it opens', async () => {
+    await page.viewport(1000, 900)
+    const lostNotice = () => page.getByText('conciv lost connection to the engine.')
+    const sessionId = await createSession(coreRpc(core()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+
+    const offline = await faults.install({kind: 'offline'})
+    await expect.element(lostNotice(), {timeout: 15_000}).toBeVisible()
+    const handshakes = await faults.install({kind: 'handshake-hold'})
+    await coreControl.releaseFault(offline)
+    await coreControl.awaitFaultPending(handshakes, 1)
+
+    await expect(coreControl.awaitFaultPending(handshakes, 2, SECOND_HANDSHAKE_WINDOW_MS)).rejects.toThrow(
+      'captured 1 of 2',
+    )
+    await expect.element(lostNotice()).toBeVisible()
+
+    await coreControl.releaseFault(handshakes)
+    await expect.element(lostNotice(), {timeout: 15_000}).not.toBeInTheDocument()
+    expect(await coreControl.faultPending(handshakes)).toBe(1)
+  }, 60_000)
 })
 
 describe('helper rpc clients', () => {
@@ -4832,34 +4922,30 @@ describe('engine login', () => {
     }, 30_000)
 
     test('logging in while the trust ask the reopened socket sent is still unanswered keeps the page logged in once that ask is refused', async () => {
-      const watch = watchConnection()
-      try {
-        const offline = await faults.install({kind: 'offline'})
-        harness.mountShell('/', [], {login: {apiBase: origin()}})
-        await expect.poll(() => watch.status(), {timeout: 8000}).toBe('unreachable')
-        await opener().click()
-        await expect
-          .element(page.getByRole('alert').filter({hasText: /couldn.t reach the engine/}), {timeout: 8000})
-          .toBeVisible()
-        const trustAsk = await faults.install({kind: 'gate', path: ['auth', 'trust']})
-        await coreControl.releaseFault(offline)
-        await coreControl.awaitFaultPending(trustAsk, 1)
-        const heldAsk = watch.trust.requestTrust()
-        await expect.element(loginNotice(), {timeout: 8000}).toBeVisible()
-        await loginNotice().getByRole('button', {name: 'Log in'}).click()
-        await userEvent.type(firstDigit(), await coreControl.requestCode())
-        await expect.element(dialog()).not.toBeInTheDocument()
-        await expect.poll(() => watch.status()).toBe('trusted')
-        await coreControl.releaseFault(trustAsk)
-        expect(await heldAsk).toBe(false)
-        await watch.trust.requestAuthCode()
-        expect(await coreControl.awaitFaultAnswered(trustAsk)).toEqual({trusted: false})
-        expect(watch.status()).toBe('trusted')
-        await expect.element(loginNotice()).not.toBeInTheDocument()
-        await expect.element(editor()).toBeVisible()
-      } finally {
-        watch.stop()
-      }
+      const offline = await faults.install({kind: 'offline'})
+      harness.mountShell('/', [], {login: {apiBase: origin()}})
+      await opener().click()
+      await expect
+        .element(page.getByRole('alert').filter({hasText: /couldn.t reach the engine/}), {timeout: 8000})
+        .toBeVisible()
+      const trustAsk = await faults.install({kind: 'gate', path: ['auth', 'trust']})
+      await coreControl.releaseFault(offline)
+      await coreControl.awaitFaultPending(trustAsk, 1)
+      await expect.element(loginNotice(), {timeout: 8000}).toBeVisible()
+      await loginNotice().getByRole('button', {name: 'Log in'}).click()
+      await userEvent.type(firstDigit(), await coreControl.requestCode())
+      await expect.element(dialog()).not.toBeInTheDocument()
+      await expect.element(editor(), {timeout: 8000}).toBeVisible()
+
+      await coreControl.releaseFault(trustAsk)
+      expect(await coreControl.awaitFaultAnswered(trustAsk)).toEqual({trusted: false})
+      await coreControl.scriptTurn({toolCalls: [], text: 'answered after the stale refusal'})
+      await userEvent.click(editor())
+      for (const key of 'still logged in') await userEvent.keyboard(key)
+      await userEvent.keyboard('{Enter}')
+      await expect.element(page.getByText('answered after the stale refusal'), {timeout: 8000}).toBeVisible()
+      await expect.element(loginNotice()).not.toBeInTheDocument()
+      await expect.element(editor()).toBeVisible()
     }, 30_000)
 
     test('logging in again after a revoke whose close arrives late sends the code request and the exchange on the reopened socket', async () => {
@@ -7507,6 +7593,12 @@ module.exports = {default: {setup(ctx) {
   })
 }}}
 `
+  const fragileSecondRevision = fragileBundle.replace(
+    /}}}\n$/,
+    `  ctx.add(Slot, {at: 'window.bottom', render: () => Object.assign(document.createElement('p'), {textContent: 'The fragile second revision'})})
+}}}
+`,
+  )
   const coreBase = bootedCore('plugin-fixture-journey', {
     plugins: ['./fixture', './fragile'],
     files: {
@@ -7725,6 +7817,42 @@ module.exports = {default: {setup(ctx) {
     expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:tools'))
   }, 60_000)
 
+  test('its store load cut off by a lost engine waits for the engine and the plugin comes back, while an engine error on that load still fails it', async () => {
+    const CALL_DEADLINE_MS = 3000
+    const CONNECTION_LOSS_RETRY_DELAY_MS = 250
+    const MARGIN_MS = 750
+    const OUTAGE_WINDOW_MS = CALL_DEADLINE_MS + CONNECTION_LOSS_RETRY_DELAY_MS + MARGIN_MS
+    const STORE_READS = 2
+    const STORE_READ = ['settings', 'all']
+    await page.viewport(1000, 900)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const failedRow = () => page.getByText('Failed', {exact: true})
+    const fixtureReload = () => page.getByRole('button', {name: 'Reload', exact: true}).first()
+
+    const reads = await faults.install({kind: 'cut-on-release', path: STORE_READ})
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await coreControl.awaitFaultPending(reads, STORE_READS)
+    const offline = await faults.install({kind: 'offline'})
+    const retries = await faults.install({kind: 'gate', path: STORE_READ})
+    await coreControl.releaseFault(reads)
+
+    await expect(coreControl.awaitFaultPending(retries, 1, OUTAGE_WINDOW_MS)).rejects.toThrow('captured 0 of 1')
+    await expect.element(tab('Fixture tools')).not.toBeInTheDocument()
+
+    await coreControl.releaseFault(retries)
+    await coreControl.releaseFault(offline)
+    await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
+    await expect.element(control('Write a held note')).toBeVisible()
+    await page.getByRole('link', {name: 'Settings'}).click()
+    await tab('Plugins').click()
+    await expect.element(fixtureReload()).toBeVisible()
+    await expect.element(failedRow()).not.toBeInTheDocument()
+
+    await faults.install({kind: 'fail', path: STORE_READ, status: 500})
+    await fixtureReload().click()
+    await expect.element(failedRow(), {timeout: 15_000}).toBeVisible()
+  }, 60_000)
+
   test('a cold link to a tab no panel lists ends on the chat, and a cold link to its tab with the engine unreachable keeps its address under the lost connection notice and opens the tab once the engine is back', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(`${tabPath(sessionId, 'fixture:missing')}?open=true`)
@@ -7868,7 +7996,7 @@ module.exports = {default: {setup(ctx) {
     await expect.element(shown('Tool: fixture_probe').nth(1)).toBeVisible()
   }, 60_000)
 
-  test('its tab appears once the engine trusts the page, stays through a revoke and a lost connection, and loads again after trust drops before its enable state arrived', async () => {
+  test('its tab shows once trusted, through a revoke, a lost connection and trust dropped before its enable state, and its tab and settings page keep their place through a revoke and a reopen', async () => {
     const origin = new URL(coreBase()).origin
     onTestFinished(() => localStorage.removeItem(`conciv:engine-token:${origin}`))
     const sessionId = await createSession(coreRpc(coreBase()))
@@ -7876,6 +8004,7 @@ module.exports = {default: {setup(ctx) {
     const reloginNotice = () =>
       page.getByRole('alert').filter({hasText: 'This browser is no longer authorized to use conciv.'})
     const lostNotice = () => page.getByText('conciv lost connection to the engine.')
+    const shownText = (text: string) => page.getByText(text, {exact: true})
     const codeDigit = () => page.getByRole('textbox', {name: 'Digit 1 of 6'})
     const logIn = async (notice: Locator) => {
       await notice.getByRole('button', {name: 'Log in'}).click()
@@ -7898,10 +8027,18 @@ module.exports = {default: {setup(ctx) {
     await logIn(reloginNotice())
     await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
 
+    await tab('Fixture tools').click()
+    await expect.element(control('Write a plain note')).toBeVisible()
     await coreControl.revokeBrowsers()
     await expect.element(reloginNotice(), {timeout: 15_000}).toBeVisible()
     await expect.element(tab('Fixture tools')).toBeVisible()
+    await expect.element(shownText('Engine detached after 1')).toBeVisible()
+    await coreControl.writeProjectFile('fragile/plugin-experimental.js', fragileSecondRevision)
     await logIn(reloginNotice())
+    await expect.element(shownText('The fragile second revision'), {timeout: 15_000}).toBeVisible()
+    await expect.element(shownText('Engine attached: 2')).toBeVisible()
+    await expect.element(control('Write a plain note')).toBeVisible()
+    await expect.element(page.getByRole('tab', {name: 'Fixture tools', exact: true, selected: true})).toBeVisible()
 
     const offline = await faults.install({kind: 'offline'})
     await expect.element(lostNotice(), {timeout: 15_000}).toBeVisible()
@@ -7913,6 +8050,28 @@ module.exports = {default: {setup(ctx) {
     await control('Write a plain note').click()
     await tab('Chat').click()
     await expect.element(editor()).toHaveTextContent('plain note')
+
+    await page.viewport(1000, 900)
+    const prefsBody = () => page.getByText('The fixture prefs page', {exact: true})
+    const selectedPrefs = () => page.getByRole('tab', {name: 'Fixture prefs', exact: true, selected: true})
+    await page.getByRole('link', {name: 'Settings'}).click()
+    await tab('Fixture prefs').click()
+    await expect.element(prefsBody()).toBeVisible()
+    await coreControl.revokeBrowsers()
+    await expect.element(reloginNotice(), {timeout: 15_000}).toBeVisible()
+    await logIn(reloginNotice())
+    await expect.element(prefsBody(), {timeout: 15_000}).toBeVisible()
+    await expect.element(selectedPrefs()).toBeVisible()
+
+    harness.dispose()
+    await coreControl.revokeBrowsers()
+    harness.mountShell(`/panel/${sessionId}/settings/plugins/${encodeURIComponent('fixture:prefs')}?open=true`, [], {
+      login: {apiBase: origin},
+    })
+    await expect.element(loginNotice(), {timeout: 15_000}).toBeVisible()
+    await logIn(loginNotice())
+    await expect.element(prefsBody(), {timeout: 15_000}).toBeVisible()
+    await expect.element(selectedPrefs()).toBeVisible()
   }, 90_000)
 
   test('turning it off in Settings removes its tab and slot, turning it on brings them back, and turning it off elsewhere closes its open tab', async () => {

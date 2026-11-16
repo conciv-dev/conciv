@@ -1,4 +1,4 @@
-import {readFileSync} from 'node:fs'
+import {readFileSync, rmSync} from 'node:fs'
 import {z} from 'zod'
 import {writePrivateFile} from './dev-endpoint.js'
 
@@ -13,10 +13,30 @@ export function readPersistedPort(file: string): number | undefined {
   }
 }
 
-export function writePersistedPort(file: string, state: {port: number; token: string}): void {
-  writePrivateFile(file, `${JSON.stringify(state, null, 2)}\n`)
+function hasErrorCode(error: unknown, code: string): boolean {
+  return z.object({code: z.literal(code)}).safeParse(error).success
+}
+
+function readOptionalText(file: string): string | undefined {
+  try {
+    return readFileSync(file, 'utf8')
+  } catch (error) {
+    if (hasErrorCode(error, 'ENOENT')) return undefined
+    throw error
+  }
+}
+
+export function writePersistedPort(file: string, state: {port: number; token: string}): () => void {
+  const previous = readOptionalText(file)
+  const written = `${JSON.stringify(state, null, 2)}\n`
+  writePrivateFile(file, written)
+  return () => {
+    if (readOptionalText(file) !== written) return
+    if (previous === undefined) rmSync(file, {force: true})
+    else writePrivateFile(file, previous)
+  }
 }
 
 export function isAddressInUse(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'EADDRINUSE'
+  return hasErrorCode(error, 'EADDRINUSE')
 }
