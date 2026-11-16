@@ -79,6 +79,7 @@ describe('the Tests panel of the test-runner plugin', () => {
       await expect(panel.getByRole('status')).toHaveText(/^Running tests/, {timeout: 60_000})
       await expect(panel.getByText('one plus one', {exact: true})).toBeVisible({timeout: 60_000})
       await expect(panel.getByText('this fails on purpose', {exact: true}).first()).toBeVisible({timeout: 60_000})
+      await expect(panel.getByRole('listitem').filter({hasText: /^Finished: pass\.test\.ts/})).toBeVisible()
 
       await page.reload({waitUntil: 'domcontentloaded'})
       await expect(page.getByRole('button', {name: 'Minimize conciv chat'})).toBeVisible({timeout: 30_000})
@@ -87,6 +88,7 @@ describe('the Tests panel of the test-runner plugin', () => {
       await expect(panel.getByRole('status')).toHaveText(/^Running tests/, {timeout: 30_000})
       await expect(panel.getByText('one plus one', {exact: true})).toBeVisible()
       await expect(panel.getByText('this fails on purpose', {exact: true}).first()).toBeVisible()
+      await expect(panel.getByRole('listitem').filter({hasText: /^Finished: pass\.test\.ts/})).toBeVisible()
 
       widget.kit.writeProjectFile('release', '')
       await expect(panel.getByRole('status')).toHaveText(/^Test run finished: 4 passed, 1 failed, 0 skipped/, {
