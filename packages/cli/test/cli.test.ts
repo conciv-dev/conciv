@@ -1555,12 +1555,14 @@ describe('cli', () => {
         })
       },
     }
-    const pluginCall = (cwd: string, home: string, args: string[]) =>
+    const binCall = (cwd: string, args: string[], env: Record<string, string>) =>
       new Promise<{code: unknown; document: unknown}>((resolve) =>
-        execFile(process.execPath, [bin, 'plugin', 'call', ...args], {cwd, env: {CONCIV_HOME: home}}, (error, stdout) =>
+        execFile(process.execPath, [bin, ...args], {cwd, env}, (error, stdout) =>
           resolve({code: error === null ? 0 : error.code, document: JSON.parse(stdout)}),
         ),
       )
+    const pluginCall = (cwd: string, home: string, args: string[]) =>
+      binCall(cwd, ['plugin', 'call', ...args], {CONCIV_HOME: home})
     const refused = (message: string | RegExp, type?: string) => ({
       code: 1,
       document: {ok: false, error: {kind: 'user', message, ...(type === undefined ? {} : {type})}},
@@ -1842,28 +1844,31 @@ describe('cli', () => {
       })
       afterAll(async () => held.engine?.engine.stop())
 
+      const tools = async (args: string[]) => {
+        const {engine} = held
+        if (engine === undefined) throw new Error('the engine with a tab did not start')
+        return binCall(engine.root, ['tools', 'page', ...args], {
+          CONCIV_HOME: held.home,
+          CONCIV_SESSION_ID: engine.sessionId,
+        })
+      }
+
       it('page fill drives registry.call and prints one success envelope with exit 0, --json or not', async () => {
         answering.next = {type: 'success', result: {value: {ok: true, value: 'a@b.c'}, files: []}}
-        const answered = await run({type: 'fill', selector: '#email', value: 'a@b.c'})
+        const answered = await tools(['fill', '#email', '--value', 'a@b.c', '--json'])
         expect(answering.seen).toMatchObject([{action: {type: 'fill', selector: '#email', value: 'a@b.c'}}])
         expect(answered).toEqual({code: 0, document: {ok: true, data: {ok: true, value: 'a@b.c'}}})
       })
 
       it('a page verb the browser refuses fails as a user error with the declared code and exit 1', async () => {
         answering.next = {type: 'failure', code: 'invalid-args', message: 'no element for selector #email'}
-        const answered = await run({type: 'fill', selector: '#email', value: 'a@b.c'})
+        const answered = await tools(['fill', '#email', '--value', 'a@b.c'])
         expect(answering.seen).toMatchObject([{action: {type: 'fill', selector: '#email'}}])
         expect(answered).toEqual({
           code: 1,
           document: {
             ok: false,
-            error: {
-              kind: 'user',
-              code: 'PLUGIN_RPC',
-              type: 'unavailable',
-              data: {},
-              message: '[page.invalid-args] no element for selector #email',
-            },
+            error: {kind: 'user', code: 'INVALID_ARGS', message: 'page_fill: no element for selector #email'},
           },
         })
       })

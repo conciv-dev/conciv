@@ -1,14 +1,14 @@
 import {z} from 'zod'
 import {ORPCError} from '@orpc/server'
 import {asc, eq, sql} from 'drizzle-orm'
-import {isPageFailure, type PageErrorCode} from '@conciv/protocol/page-types'
+import {isPageFailure, PAGE_ERROR_CODES, type PageErrorCode} from '@conciv/protocol/page-types'
 import {isPageVerbError, isToolError} from '@conciv/extension'
 import type {RegistryCallGate} from '@conciv/extension/registry'
 import {resolveHarnessModels} from '@conciv/harness'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers} from '@conciv/db'
 import type {Router} from '@orpc/server'
-import {Effect, Result, Stream} from 'effect'
+import {Cause, Effect, Exit, Option, Result, Stream} from 'effect'
 import {Event, Location, Plugin, Rpc} from '@conciv/plugin-host'
 import {EventFeed} from '../../event-feed.js'
 import {
@@ -37,7 +37,7 @@ import type {SessionScope} from '../../runtime/scope-types.js'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {callTrace} from '../call-trace.js'
 import {openCodeSession, type CodeSandboxSession} from '../mcp.js'
-import {pluginSignatures} from '../../runtime/plugin-signatures.js'
+import {callPluginTool, pluginSignature, pluginSignatures} from '../../runtime/plugin-signatures.js'
 import type {SessionId} from '@conciv/protocol/chat-types'
 
 export const PAGE_ERROR_NAME = {
@@ -62,6 +62,31 @@ function registryCallError(error: unknown, errors: RegistryErrors): Error {
   if (isToolError(error)) return new ORPCError(error.code, {message: error.message, data: error.data, cause: error})
   if (error instanceof ORPCError) return error
   return errors.HANDLER_ERROR({message: error instanceof Error ? error.message : String(error), cause: error})
+}
+
+const PluginPageFailure = z.object({code: z.enum(PAGE_ERROR_CODES), message: z.string()})
+
+function pluginToolError(name: string, cause: Cause.Cause<unknown>, errors: RegistryErrors): Error {
+  const failure = Cause.findErrorOption(cause)
+  if (Option.isNone(failure)) return registryCallError(Cause.squash(cause), errors)
+  const page = PluginPageFailure.safeParse(z.object({metadata: z.unknown()}).safeParse(failure.value).data?.metadata)
+  if (page.success) {
+    return errors[PAGE_ERROR_NAME[page.data.code]]({message: `${name}: ${page.data.message}`, cause: failure.value})
+  }
+  return registryCallError(failure.value, errors)
+}
+
+async function runPluginTool(
+  deps: RpcDeps,
+  call: {sessionId: SessionId; name: string; input: unknown; callId: string; signal?: AbortSignal},
+  errors: RegistryErrors,
+): Promise<unknown> {
+  const exit = await deps.pluginHost.runPromiseExit(
+    callPluginTool(call.sessionId, call.name, call.input, call.callId),
+    {signal: call.signal},
+  )
+  if (Exit.isFailure(exit)) throw pluginToolError(call.name, exit.cause, errors)
+  return exit.value.output
 }
 
 function hasErrorCode(error: unknown, code: string): boolean {
@@ -291,7 +316,9 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       ]),
       call: toolCallOs.registry.call.handler(async ({input, context, errors, signal, path}) => {
         const assist = deps.assist(context.session.id).find((capability) => capability.name === input.name)
-        if (assist === undefined && !context.session.tools.has(input.name)) throw errors.UNKNOWN_TOOL()
+        const registered = assist !== undefined || context.session.tools.has(input.name)
+        const plugin = registered ? undefined : await deps.pluginHost.runPromise(pluginSignature(input.name), {signal})
+        if (!registered && plugin === undefined) throw errors.UNKNOWN_TOOL()
         const trace = callTrace((header) => rpcHeader(context, header))
         if (trace.hub !== null) deps.code.hubCall(context.session.id, trace.callId)
         const gate: RegistryCallGate = async (run) => {
@@ -299,14 +326,22 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
           await refuseUnapproved(deps, input.name, input.input, {context, errors, signal})
           return hubTraced(context, input.name, input.input, run, trace)
         }
+        const pluginRun = () =>
+          runPluginTool(
+            deps,
+            {sessionId: context.session.id, name: input.name, input: input.input, callId: trace.callId, signal},
+            errors,
+          )
         const call = (): Promise<unknown> =>
-          assist === undefined
-            ? context.session.tools.call(input.name, input.input, {
-                toolCallId: trace.callId,
-                signal,
-                gate,
-              })
-            : gate(() => assist.execute(input.input))
+          plugin !== undefined
+            ? gate(pluginRun)
+            : assist === undefined
+              ? context.session.tools.call(input.name, input.input, {
+                  toolCallId: trace.callId,
+                  signal,
+                  gate,
+                })
+              : gate(() => assist.execute(input.input))
         return call()
           .catch((error: unknown) => {
             throw registryCallError(error, errors)

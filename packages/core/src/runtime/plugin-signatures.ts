@@ -2,7 +2,9 @@ import {Effect} from 'effect'
 import {z} from 'zod'
 import {keyBy, omit} from 'es-toolkit'
 import type {ToolCommandSignature} from '@conciv/contract'
-import {Plugin, Tool, ToolRuntime} from '@conciv/plugin-host'
+import {Agent, Permission, Plugin, SessionSchema, Tool, ToolRuntime} from '@conciv/plugin-host'
+import type {SessionId} from '@conciv/protocol/chat-types'
+import {currentToolDomain} from './permission-cards.js'
 import {CLI_HIDDEN_FIELDS, CliTools, Operations, PAGE_NAMESPACE} from '@conciv/plugin-page/rpc'
 
 const ObjectSchema = z.looseObject({
@@ -50,3 +52,34 @@ export const pluginSignatures = Plugin.awaitActivation.pipe(
   Effect.andThen(Tool.Service.use((tools) => tools.list())),
   Effect.map((tools) => tools.flatMap(signature)),
 )
+
+export function pluginSignature(name: string) {
+  return pluginSignatures.pipe(Effect.map((signatures) => signatures.find((entry) => entry.name === name)))
+}
+
+export function callPluginTool(
+  sessionId: SessionId,
+  name: string,
+  input: unknown,
+  callId: string,
+): Effect.Effect<
+  Tool.NormalizedResult,
+  Tool.Error,
+  Plugin.Interface | Tool.Interface | Agent.Interface | Permission.SessionsInterface
+> {
+  return currentToolDomain(sessionId).pipe(
+    Effect.flatMap(({snapshot, agent}) => {
+      const context: Tool.Context = {
+        sessionId: SessionSchema.Id.make(sessionId),
+        agent,
+        messageId: undefined,
+        id: Tool.CallId.make(callId),
+        progress: () => Effect.void,
+      }
+      return (
+        snapshot.codeMode?.execute(name, input, context) ??
+        Effect.fail(Tool.makeError({message: `no plugin tool ${name}`}))
+      )
+    }),
+  )
+}

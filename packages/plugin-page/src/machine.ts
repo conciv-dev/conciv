@@ -572,6 +572,7 @@ function settleRequest(
       ok: false,
       error: Tool.toolError({
         message: `[page.${failed.code}] ${failed.message}`,
+        metadata: {code: failed.code, message: failed.message},
         ...(failed.raised ? {error: failed.raised} : {}),
       }),
     }),
