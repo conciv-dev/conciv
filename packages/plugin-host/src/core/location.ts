@@ -1,5 +1,5 @@
 import {Context} from 'effect'
-import {Info, Ref} from '../schema/location.js'
+import {Info, Ref} from '@conciv/plugin/schema/location'
 
 export * as Location from './location.js'
 

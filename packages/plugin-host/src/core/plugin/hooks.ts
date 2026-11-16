@@ -1,8 +1,8 @@
 export * as PluginHooks from './hooks.js'
 
-import type {SessionHooks} from '../../plugin/effect/session.js'
-import type {ToolFailures, ToolHooks} from '../../plugin/effect/tool.js'
-import type {PermissionHooks} from '../../plugin/effect/permission.js'
+import type {SessionHooks} from '@conciv/plugin/effect/session'
+import type {ToolFailures, ToolHooks} from '@conciv/plugin/effect/tool'
+import type {PermissionHooks} from '@conciv/plugin/effect/permission'
 import {Context, Effect, Layer, Scope} from 'effect'
 import {State} from '../state.js'
 

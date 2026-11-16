@@ -7,9 +7,9 @@ import {Location} from '../../../src/core/location.js'
 import {Permission} from '../../../src/core/permission.js'
 import {PermissionSaved} from '../../../src/core/permission/saved.js'
 import {PluginHooks} from '../../../src/core/plugin/hooks.js'
-import {ProjectId} from '../../../src/schema/project-id.js'
-import {AbsolutePath} from '../../../src/schema/schema.js'
-import {Session} from '../../../src/schema/session.js'
+import {ProjectId} from '@conciv/plugin/schema/project-id'
+import {AbsolutePath} from '@conciv/plugin/schema/schema'
+import {Session} from '@conciv/plugin/schema/session'
 import {tmpdirScoped} from './tmpdir'
 
 const SessionMap = Context.Service<Map<Session.Id, Permission.SessionRules>>('@conciv/test/PermissionSessionMap')

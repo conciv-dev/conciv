@@ -1,11 +1,12 @@
-import type {Skill} from '@conciv/plugin'
+import {Skill} from '@conciv/plugin'
+import {AbsolutePath} from '@conciv/plugin/schema/schema'
 
 export const info: Skill.Info = {
-  id: 'tanstack',
-  name: 'TanStack',
+  id: Skill.Id.make('tanstack'),
+  name: Skill.Name.make('TanStack'),
   description:
     "Read a TanStack Router or Start app's dev server: recent build errors, every defined route, and recent server-function calls. Load it before your first tanstack tool call.",
-  path: 'skill://tanstack/SKILL.md',
+  path: AbsolutePath.make('skill://tanstack/SKILL.md'),
   content: [
     '# TanStack',
     '',

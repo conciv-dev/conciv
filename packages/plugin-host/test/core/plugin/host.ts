@@ -1,9 +1,9 @@
-import * as Plugin from '../../../src/plugin/effect/plugin.js'
+import * as Plugin from '@conciv/plugin/effect/plugin'
 import {Agent} from '../../../src/core/agent.js'
 import {Location} from '../../../src/core/location.js'
 import {Model} from '../../../src/core/model.js'
 import {Project} from '../../../src/schema/project.js'
-import {AbsolutePath} from '../../../src/schema/schema.js'
+import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import {Effect, Stream} from 'effect'
 
 type EventSource = ReturnType<Plugin.Context['event']['subscribe']>

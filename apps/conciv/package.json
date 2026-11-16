@@ -55,6 +55,7 @@
     "@tanstack/solid-hotkeys": "catalog:",
     "@tanstack/solid-pacer": "catalog:",
     "@tanstack/solid-router": "catalog:",
+    "effect": "catalog:",
     "es-toolkit": "catalog:",
     "fuzzysort": "catalog:",
     "lucide-solid": "catalog:",

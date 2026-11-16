@@ -1,9 +1,9 @@
 export * as Permission from './permission.js'
 
 import {Context, Deferred, Effect, Layer, Schema} from 'effect'
-import {Permission} from '../schema/permission.js'
-import type {Session} from '../schema/session.js'
-import type {Tool} from '../schema/tool.js'
+import {Permission} from '@conciv/plugin/schema/permission'
+import type {Session} from '@conciv/plugin/schema/session'
+import type {Tool} from '@conciv/plugin/schema/tool'
 import {Bus} from './bus.js'
 import {Location} from './location.js'
 import {Agent} from './agent.js'
@@ -14,7 +14,7 @@ import {PluginHooks} from './plugin/hooks.js'
 
 const PermissionEffect = Permission.Effect
 export {PermissionEffect as Effect}
-export {Rule, Ruleset} from '../schema/permission.js'
+export {Rule, Ruleset} from '@conciv/plugin/schema/permission'
 const missingAgentPermissions: Permission.Ruleset = [{action: '*', resource: '*', effect: 'deny'}]
 
 export const Id = Permission.Id
@@ -51,7 +51,7 @@ export interface AskResult {
   readonly effect: Permission.Effect
 }
 
-export {Event} from '../schema/permission.js'
+export {Event} from '@conciv/plugin/schema/permission'
 
 export interface SessionRules {
   readonly agent?: Agent.Id

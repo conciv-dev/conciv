@@ -1,1 +1,1 @@
-export * as Rpc from './schema/rpc.js'
+export {Rpc} from './schema/rpc.js'

@@ -1,5 +1,5 @@
 import type {Rpc} from '../../schema/rpc.js'
-import type {RpcArguments, RpcCallOptions} from '@conciv/plugin'
+import type {RpcArguments, RpcCallOptions} from '../promise/rpc.js'
 import type {Effect, Schema, Stream} from 'effect'
 
 type DecodeError<S> = S extends Schema.Top ? Schema.SchemaError : never
