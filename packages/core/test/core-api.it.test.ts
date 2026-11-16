@@ -7163,7 +7163,7 @@ export default {
     z.object({ok: z.literal(false), message: z.string(), metadata: z.unknown()}),
   ])
 
-  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs any action through run without asking and with its own id per call, and deleting the session ends its tabs and drops its records', async () => {
+  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs any action through run without asking and with its own id per call, deleting the session ends its tabs and drops its records, and a tab attaching to a never-seen or deleted id gets a new empty session', async () => {
     const [home, root] = [tempDir('conciv-home-'), tempDir('conciv-page-connection-')]
     const files = {'tabs/server.ts': TAB_FIXTURE, 'conciv/plugins/helper.ts': HELPER_FIXTURE, 'chunk.js': CHUNK}
     for (const [path, content] of Object.entries(files)) {
@@ -7254,9 +7254,11 @@ export default {
     const refusedAfterReload = ask({type: 'eval', code: 'document.domain'})
     await decide('document.domain', 'reject')
     expect(await refusedAfterReload).toMatchObject({ok: false})
-    expect(await tabs('open', {sessionId: 'conciv_missing', connectionId: 'conn_x'})).toEqual({
-      error: 'Session not found.',
+    expect(await tabs('open', {sessionId: 'conciv_missing', connectionId: 'conn_x'})).toEqual({attached: true})
+    expect(await rpc.sessions.get({sessionId: SessionId.parse('conciv_missing')})).toMatchObject({
+      sessionId: 'conciv_missing',
     })
+    expect((await rpc.chat.hydrate({sessionId: SessionId.parse('conciv_missing')})).messages).toEqual([])
     expect(await ask({type: 'route'})).toMatchObject({
       ok: false,
       message: expect.stringContaining('[page.disconnected]'),
@@ -7604,8 +7606,17 @@ export default {
     expect(ranCaptures).toHaveLength(4)
     expect(ranIds).toHaveLength(2)
     expect(ranIds).toEqual(ranIds.map(() => expect.stringMatching(/^[0-9a-f-]{36}$/u)))
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    await (await sseTurn(base, session, 'before-delete', 'remember the form')).text()
+    expect((await rpc.chat.hydrate({sessionId: session})).messages).not.toEqual([])
     await rpc.sessions.delete({sessionId: session})
     expect(await ending).toEqual({outcome: 'closed'})
     expect(await page('captures.list')).toEqual({captures: [], cssBundles: {}})
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_r'})).toEqual({attached: true})
+    expect((await rpc.chat.hydrate({sessionId: session})).messages).toEqual([])
+    expect(await page('captures.list')).toEqual({captures: [], cssBundles: {}})
+    await expect(page('queue.wait', {queueId: strandedId, waitMs: 0})).rejects.toMatchObject({
+      cause: expect.objectContaining({message: expect.stringContaining(`no queue ${strandedId}`)}),
+    })
   })
 })
