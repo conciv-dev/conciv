@@ -495,7 +495,7 @@ describe('a rule pushed onto every agent', () => {
   )
 
   it.live(
-    'server_restart still asks when a reload removes the server plugin while the call waits in a before hook',
+    'server_restart stays offered and still asks while a later plugin reloads with the call waiting in a before hook',
     () =>
       Effect.gen(function* () {
         const directory = yield* tmpdirScoped()
@@ -572,7 +572,7 @@ describe('a rule pushed onto every agent', () => {
             }),
           )
           yield* Deferred.await(reloadEntered)
-          expect(yield* restartTool).toBe(false)
+          expect(yield* restartTool).toBe(true)
           expect(restarts).toEqual([])
 
           yield* Deferred.succeed(callGate, undefined)
