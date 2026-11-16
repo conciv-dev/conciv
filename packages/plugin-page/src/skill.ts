@@ -1,14 +1,15 @@
-import type {Skill} from '@conciv/plugin'
+import {Skill} from '@conciv/plugin'
+import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import {Operations} from './rpc.js'
 
 export const id = 'page'
 
 export const info: Skill.Info = {
-  id,
-  name: 'Page',
+  id: Skill.Id.make(id),
+  name: Skill.Name.make('Page'),
   description:
     "Drive the user's live page: read it, act on it with the pointer, restyle it, inspect its React components and wait for hot updates. Load it before your first page tool call.",
-  path: 'skill://page/SKILL.md',
+  path: AbsolutePath.make('skill://page/SKILL.md'),
   content: [
     '# The live page',
     '',
