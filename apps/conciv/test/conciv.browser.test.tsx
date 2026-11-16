@@ -99,6 +99,7 @@ import {createToolDurations} from '../src/pane/tool-durations.js'
 import {PendingApprovals} from '../src/pane/pending-approvals.js'
 import {makeToolViewCtx} from '../src/pane/tool-view-ctx.js'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
+import type {EngineLock} from '../src/app/engine-login.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
 import {ChatEventType, type ChatEvent, type RunClockSource, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {SessionSelector} from '../src/composer/session-selector.js'
@@ -774,6 +775,41 @@ describe('chat pane', () => {
     await userEvent.keyboard('{Enter}')
     await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
     await expect.element(refusals).not.toBeInTheDocument()
+  })
+
+  test('a question card answered while the page is locked says why and can be answered again', async () => {
+    const {sessionId} = await newSession()
+    const [connection, setConnection] = createStore<{locked: EngineLock}>({locked: null})
+    const reachability = {online: () => true, sustainedOffline: () => false, locked: () => connection.locked}
+    await coreControl.holdResults()
+    await coreControl.scriptTurn({
+      toolCalls: [
+        {name: 'conciv_ui', input: {kind: 'choices', question: 'Ship it or hold?', options: ['ship', 'hold']}},
+      ],
+      text: 'Held until you answer.',
+    })
+    active.pane = mountPane({base: core(), sessionId}, () => (
+      <EngineReachabilityContext.Provider value={reachability}>
+        <ChatPane sessionId={sessionId} />
+      </EngineReachabilityContext.Provider>
+    ))
+    const ship = page.getByRole('button', {name: 'ship', exact: true})
+    const sending = page.getByRole('status').filter({hasText: 'Sending your answer'})
+
+    await userEvent.click(input())
+    await userEvent.keyboard('ask me before shipping{Enter}')
+    await expect.element(ship).toBeEnabled()
+
+    setConnection('locked', 'revoked')
+    await userEvent.click(ship)
+    await expect.element(notifications()).toMatchTextContent(/no longer authorized to use conciv/)
+    await expect.element(sending).not.toBeInTheDocument()
+    await expect.element(ship).toBeEnabled()
+    await expect.element(notifications()).not.toMatchTextContent(/no longer waiting for an answer/)
+
+    setConnection('locked', null)
+    await coreControl.releaseResults()
+    await expect.element(page.getByText('Held until you answer.')).toBeVisible()
   })
 
   test('sending announces the settled reply through the live region', async () => {

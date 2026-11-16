@@ -39,7 +39,7 @@ export function createCommentsModel(
     apiBase,
     harnessId: '',
     sendMessage: () => {},
-    addResult: () => {},
+    addResult: () => Promise.resolve(),
     catalog: INERT_TOOL_CATALOG,
   }
 
