@@ -838,6 +838,7 @@
     "packages/extensions/try-it/test/fixture/connect-pane-fixture.tsx",
     "e2e/harnesses/vite.*.config.ts",
     "e2e/e2e-utils/src/packed-global-setup.ts",
+    "e2e/e2e-utils/src/state-cleanup-reporter.ts",
     "packages/db/drizzle-home.config.ts",
     "apps/conciv/test/commands/core-control.ts",
     "apps/conciv/test/commands/core-testkit.ts"
