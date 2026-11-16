@@ -9,6 +9,7 @@ import {
   utimesSync,
   chmodSync,
 } from 'node:fs'
+import {spawn, type ChildProcess} from 'node:child_process'
 import {once} from 'node:events'
 import {request as httpRequest} from 'node:http'
 import {connect, createServer, type Socket} from 'node:net'
@@ -215,6 +216,8 @@ const NO_CAPABILITIES = {
 } as const
 
 const JSON_TYPE = {'content-type': 'application/json'}
+
+const UNSTOPPED = new AbortController().signal
 
 function bootEngine(root: string, overrides: Partial<Parameters<typeof start>[0]> = {}) {
   const options = {harnessBin: 'true', stateRoot: root, systemPrompt: false}
@@ -1075,29 +1078,39 @@ describe('local state files', () => {
         chatConfig: () => ({adapter: fakeText()}),
         capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
       })
-      return withSavedModels(harness, dir)
+      return withSavedModels(harness, dir, UNSTOPPED).harness
     }
 
     it('waits for the first live list, then answers from the saved one at once while a refresh, a failure or an empty list lands', async () => {
       const dir = tempDir('conciv-core-unit-')
       const savedFile = () => JSON.parse(readFileSync(join(dir, 'listing-models.json'), 'utf8'))
-      expect(await resolveHarnessModels(listing(dir, async () => [OPUS]))).toEqual([OPUS])
+      expect(
+        await resolveHarnessModels(
+          listing(dir, async () => [OPUS]),
+          {signal: UNSTOPPED},
+        ),
+      ).toEqual([OPUS])
       expect(savedFile()).toEqual([OPUS])
-      expect(await resolveHarnessModels(listing(dir, () => Promise.reject(new Error('probe failed'))))).toEqual([OPUS])
+      expect(
+        await resolveHarnessModels(
+          listing(dir, () => Promise.reject(new Error('probe failed'))),
+          {signal: UNSTOPPED},
+        ),
+      ).toEqual([OPUS])
       expect(savedFile()).toEqual([OPUS])
       const grown = Promise.withResolvers<Listed[]>()
       const growing = listing(dir, () => grown.promise)
-      expect(await resolveHarnessModels(growing)).toEqual([OPUS])
+      expect(await resolveHarnessModels(growing, {signal: UNSTOPPED})).toEqual([OPUS])
       grown.resolve([OPUS, SONNET])
       await setImmediate()
       expect(savedFile()).toEqual([OPUS, SONNET])
-      expect(await resolveHarnessModels(growing)).toEqual([OPUS, SONNET])
+      expect(await resolveHarnessModels(growing, {signal: UNSTOPPED})).toEqual([OPUS, SONNET])
       const emptied = Promise.withResolvers<Listed[]>()
       const emptying = listing(dir, () => emptied.promise)
-      expect(await resolveHarnessModels(emptying)).toEqual([OPUS, SONNET])
+      expect(await resolveHarnessModels(emptying, {signal: UNSTOPPED})).toEqual([OPUS, SONNET])
       emptied.resolve([])
       await setImmediate()
-      expect(await resolveHarnessModels(emptying)).toEqual([])
+      expect(await resolveHarnessModels(emptying, {signal: UNSTOPPED})).toEqual([])
       expect(savedFile()).toEqual([])
     })
 
@@ -1105,8 +1118,69 @@ describe('local state files', () => {
       const outcomes: Promise<Listed[]>[] = [Promise.reject(new Error('probe failed')), Promise.resolve([OPUS])]
       outcomes[0]?.catch(() => {})
       const harness = listing(tempDir('conciv-core-unit-'), () => outcomes.shift() ?? Promise.resolve([]))
-      await expect(resolveHarnessModels(harness)).rejects.toThrow('probe failed')
-      expect(await resolveHarnessModels(harness)).toEqual([OPUS])
+      await expect(resolveHarnessModels(harness, {signal: UNSTOPPED})).rejects.toThrow('probe failed')
+      expect(await resolveHarnessModels(harness, {signal: UNSTOPPED})).toEqual([OPUS])
+    })
+
+    it('closing the engine ends a listing still running: its child has exited and nothing is saved', async () => {
+      const root = tempDir('conciv-core-unit-')
+      const spawned = Promise.withResolvers<ChildProcess>()
+      const ended: {signal?: NodeJS.Signals | null} = {}
+      const harness = defineHarness({
+        id: 'listing',
+        binName: 'listing',
+        models: ({signal}) =>
+          new Promise<Listed[]>((resolve) => {
+            const child = spawn(process.execPath, ['-e', 'process.stdin.resume()'], {
+              signal,
+              stdio: ['pipe', 'ignore', 'ignore'],
+            })
+            child.on('error', () => {})
+            child.on('spawn', () => spawned.resolve(child))
+            child.on('exit', (_code, exitSignal) => {
+              ended.signal = exitSignal
+              resolve([OPUS])
+            })
+          }),
+        chatConfig: () => ({adapter: fakeText()}),
+        capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
+      })
+      const made = await makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}, harness})
+      const listing = expect(resolveHarnessModels(made.chat.defaultHarness, {signal: UNSTOPPED})).rejects.toThrow(
+        'the engine stopped',
+      )
+      const child = await spawned.promise
+      onTestFinished(() => {
+        child.kill()
+      })
+      await made.dispose()
+      expect(ended).toEqual({signal: 'SIGTERM'})
+      await listing
+      expect(existsSync(join(concivStateDir(root), 'listing-models.json'))).toBe(false)
+    })
+
+    it('closing two engines that share a listing which ignores the stop ends both after the grace and names the harness', async () => {
+      const stuck = new Promise<Listed[]>(() => {})
+      const harness = defineHarness({
+        id: 'stuck-listing',
+        binName: 'stuck-listing',
+        models: () => stuck,
+        chatConfig: () => ({adapter: fakeText()}),
+        capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
+      })
+      const printed: string[] = []
+      const boot = (root: string) =>
+        makeApp({
+          cfg: resolveConfig({}, root),
+          cwd: root,
+          openInEditor: () => {},
+          harness,
+          print: (text) => printed.push(text),
+        })
+      const engines = [await boot(tempDir('conciv-core-unit-')), await boot(tempDir('conciv-core-unit-'))]
+      engines.forEach((made) => void resolveHarnessModels(made.chat.defaultHarness, {signal: UNSTOPPED}))
+      await Promise.all(engines.map((made) => made.dispose()))
+      expect(printed.filter((text) => text.includes('stuck-listing'))).toHaveLength(2)
     })
   })
 })
@@ -4196,7 +4270,7 @@ describe('plugin context keys provided by core', () => {
           {action: 'plugin.use', resource: 'blocked-*', effect: 'deny'},
           {action: 'integration.use', resource: 'plugin:legacy', effect: 'deny'},
         ]),
-        provideHarnessModels(listingHarness([OPUS, SONNET, RETIRED], 'sonnet')),
+        provideHarnessModels(listingHarness([OPUS, SONNET, RETIRED], 'sonnet'), UNSTOPPED),
         provideGlobalRoots(home),
       ).pipe(
         Layer.provideMerge(
@@ -4277,7 +4351,9 @@ describe('plugin context keys provided by core', () => {
     expect(await models((service) => service.available(['image']))).toEqual([])
     expect(await models((service) => service.default())).toEqual(filled(SONNET, sonnetVariants))
     const empty = (run: (service: Model.Interface) => Effect.Effect<unknown>) =>
-      Effect.runPromise(Model.Service.use(run).pipe(Effect.provide(provideHarnessModels(listingHarness([])))))
+      Effect.runPromise(
+        Model.Service.use(run).pipe(Effect.provide(provideHarnessModels(listingHarness([]), UNSTOPPED))),
+      )
     expect(await empty((service) => service.available())).toEqual([])
     expect(await empty((service) => service.default())).toBeUndefined()
     const listed = (
@@ -4286,7 +4362,9 @@ describe('plugin context keys provided by core', () => {
       run: (service: Model.Interface) => Effect.Effect<unknown>,
     ) =>
       Effect.runPromise(
-        Model.Service.use(run).pipe(Effect.provide(provideHarnessModels(listingHarness(harnessModels, defaultModel)))),
+        Model.Service.use(run).pipe(
+          Effect.provide(provideHarnessModels(listingHarness(harnessModels, defaultModel), UNSTOPPED)),
+        ),
       )
     expect(await listed([RETIRED, OPUS, SONNET], 'retired', (service) => service.default())).toEqual(filled(OPUS, []))
     expect(await listed([RETIRED, OPUS, SONNET], 'retired', (service) => service.available())).toEqual([
