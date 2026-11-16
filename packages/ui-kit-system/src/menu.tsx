@@ -23,27 +23,27 @@ function Root(props: ComponentProps<typeof Ark.Root>) {
 
 function Positioner(props: ComponentProps<typeof Ark.Positioner>) {
   const [local, rest] = splitProps(props, ['class'])
-  return <Ark.Positioner {...rest} class={`${POSITIONER}  ${local.class ?? ''}`} />
+  return <Ark.Positioner {...rest} class={[POSITIONER, local.class].filter(Boolean).join(' ')} />
 }
 
 function Content(props: ComponentProps<typeof Ark.Content>) {
   const [local, rest] = splitProps(props, ['class'])
-  return <Ark.Content {...rest} class={`${CONTENT}  ${local.class ?? ''}`} />
+  return <Ark.Content {...rest} class={[CONTENT, local.class].filter(Boolean).join(' ')} />
 }
 
 function Item(props: ComponentProps<typeof Ark.Item>) {
   const [local, rest] = splitProps(props, ['class'])
-  return <Ark.Item {...rest} class={`${ITEM}  ${local.class ?? ''}`} />
+  return <Ark.Item {...rest} class={[ITEM, local.class].filter(Boolean).join(' ')} />
 }
 
 function ItemGroupLabel(props: ComponentProps<typeof Ark.ItemGroupLabel>) {
   const [local, rest] = splitProps(props, ['class'])
-  return <Ark.ItemGroupLabel {...rest} class={`${ITEM_GROUP_LABEL}  ${local.class ?? ''}`} />
+  return <Ark.ItemGroupLabel {...rest} class={[ITEM_GROUP_LABEL, local.class].filter(Boolean).join(' ')} />
 }
 
 function Separator(props: ComponentProps<typeof Ark.Separator>) {
   const [local, rest] = splitProps(props, ['class'])
-  return <Ark.Separator {...rest} class={`${SEPARATOR}  ${local.class ?? ''}`} />
+  return <Ark.Separator {...rest} class={[SEPARATOR, local.class].filter(Boolean).join(' ')} />
 }
 
 export const Menu = Object.assign({}, Ark, {Root, Trigger, Positioner, Content, Item, ItemGroupLabel, Separator})

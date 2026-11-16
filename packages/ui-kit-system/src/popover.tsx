@@ -32,17 +32,17 @@ export function usePopover(props: UsePopoverProps = {}): PopoverMachine {
 
 function Positioner(props: ComponentProps<typeof Ark.Positioner>) {
   const [local, rest] = splitProps(props, ['class'])
-  return <Ark.Positioner {...rest} class={`${POSITIONER}  ${local.class ?? ''}`} />
+  return <Ark.Positioner {...rest} class={[POSITIONER, local.class].filter(Boolean).join(' ')} />
 }
 
 function Content(props: ComponentProps<typeof Ark.Content>) {
   const [local, rest] = splitProps(props, ['class'])
-  return <Ark.Content {...rest} class={`${CONTENT}  ${local.class ?? ''}`} />
+  return <Ark.Content {...rest} class={[CONTENT, local.class].filter(Boolean).join(' ')} />
 }
 
 function ListContent(props: ComponentProps<typeof Ark.Content>) {
   const [local, rest] = splitProps(props, ['class'])
-  return <Ark.Content {...rest} class={`${LIST_CONTENT}  ${local.class ?? ''}`} />
+  return <Ark.Content {...rest} class={[LIST_CONTENT, local.class].filter(Boolean).join(' ')} />
 }
 
 export const Popover = Object.assign({}, Ark, {Root, Positioner, Content, ListContent})
