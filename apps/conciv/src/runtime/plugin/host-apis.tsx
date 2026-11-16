@@ -111,7 +111,7 @@ export function createHostApis() {
   const memory = new Map<string, ReturnType<Storage['memory']>>()
   const current = () => attached()
   const located = createLocatedWrites()
-  const client = Conciv.make(rpc)
+  const client = useAppData().client
   const unavailable = Conciv.make(createORPCClient<RpcClient>({call: () => Promise.reject(new Error(UNAVAILABLE))}))
 
   const engineVersion = useQuery(() => engineVersionQueryOptions(apiBase()))

@@ -8,6 +8,7 @@ import {
   type QueryClient,
   type QueryKey,
 } from '@conciv/client'
+import {Conciv, type ConcivClient} from '@conciv/plugin'
 import {DraftRowSchema, SessionMetaSchema, type DraftRow, type RpcClient, type SessionMeta} from '@conciv/contract'
 
 type DraftInput = Omit<z.input<typeof DraftRowSchema>, 'updatedAt'>
@@ -23,6 +24,7 @@ function retriableDraftSave(failureCount: number, error: unknown): boolean {
 
 export type AppData = {
   utils: QueryUtils
+  client: ConcivClient
   invalidateSessions: () => Promise<void>
   invalidateSession: (sessionId: string) => Promise<void>
   seedSession: (row: SessionMeta) => Promise<void>
@@ -101,6 +103,7 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient): AppData {
   }
   return {
     utils,
+    client: Conciv.make(rpc),
     invalidateSessions: () => invalidate([...listKeys, utils.sessions.get.key()]),
     invalidateSession,
     seedSession,
