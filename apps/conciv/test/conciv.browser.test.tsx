@@ -541,6 +541,34 @@ describe('chat pane', () => {
     await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
   })
 
+  test('a typed draft is kept on this device first and then on the engine with the stamp it sent; after a newer tab closes the device copy, the engine still gets each edit', async () => {
+    const {rpc, sessionId} = await newSession()
+    const DRAFT_SET_PATH = ['drafts', 'set']
+    mountChatPane(sessionId)
+    await expect.element(input()).toBeVisible()
+    const saved = await coreControl.rpcCallCount(DRAFT_SET_PATH)
+
+    await input().fill('kept on this device first')
+    await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, saved + 1, [])
+    const kept = await createBrowserDraftStore().getItem(sessionId)
+    expect(kept === null ? null : JSON.parse(kept)).toMatchObject({text: 'kept on this device first'})
+    expect(await rpc.drafts.get({sessionId})).toMatchObject({text: 'kept on this device first'})
+
+    await coreControl.openNewerDraftTab(2)
+    onTestFinished(async () => {
+      await coreControl.closeNewerDraftTab()
+      await new Promise<void>((resolve, reject) => {
+        const request = indexedDB.deleteDatabase('conciv-drafts')
+        request.addEventListener('success', () => resolve())
+        request.addEventListener('error', () => reject(request.error))
+      })
+    })
+    await input().fill('typed after a newer tab')
+    await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, saved + 2, [])
+    await expect.element(input()).toHaveTextContent('typed after a newer tab')
+    expect(await rpc.drafts.get({sessionId})).toMatchObject({text: 'typed after a newer tab'})
+  })
+
   describe('the composer never waits on the server draft', () => {
     const DRAFT_GET_PATH = ['drafts', 'get']
     const shell = createShellHarness(core)
@@ -552,8 +580,7 @@ describe('chat pane', () => {
       shell.mountShell(`/panel/${sessionId}?open=true`)
       await expect.element(input()).toBeVisible()
       const write = await faults.install({kind: 'gate', path: ['drafts', 'set']})
-      await userEvent.click(input())
-      await userEvent.keyboard('typed just before a quick trip')
+      await input().fill('typed just before a quick trip')
       await expect.element(input()).toHaveTextContent('typed just before a quick trip')
 
       await userEvent.click(page.getByRole('link', {name: 'Settings'}))

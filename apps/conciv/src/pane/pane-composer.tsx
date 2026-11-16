@@ -11,6 +11,7 @@ import {
   useComposer,
   useComposerContext,
   type AttachmentAdapter,
+  type ComposerDraftWriter,
 } from '@conciv/ui-kit-chat'
 import {TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import type {WebStorage} from '@conciv/storage-history'
@@ -25,6 +26,7 @@ import {lockedMessage} from '../shell/engine-lock-messages.js'
 
 export type PaneComposerProps = {
   draftStorage: WebStorage
+  draftWriter?: ComposerDraftWriter
   draftKey: string
   placeholder: string
   inputLabel: string
@@ -122,6 +124,7 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
     <ComposerPrimitive.Root
       attachmentAdapter={props.attachmentAdapter}
       draftStorage={props.draftStorage}
+      draftWriter={props.draftWriter}
       draftKey={props.draftKey}
       class="flex flex-col relative shrink-0 [background:var(--chat-rail-bg)] [border-block-start:1px_solid_var(--chat-line)]"
     >

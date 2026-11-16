@@ -1,6 +1,10 @@
 import {z} from 'zod'
 import {isEqual} from 'es-toolkit'
+import {createStore} from 'solid-js/store'
 import type {DraftRow} from '@conciv/contract'
+import type {AttachmentState, ComposerDraft, ComposerDraftWriter} from '@conciv/ui-kit-chat'
+import {persistStore} from '../runtime/persistence/persist.js'
+import type {DraftStore} from '../runtime/persistence/drafts.js'
 import type {WebStorage} from '@conciv/storage-history'
 import type {AppData} from '../data/app-data.js'
 import type {SelectionOffsets} from './composer-input-adapter.js'
@@ -25,6 +29,7 @@ export type ServerDraft = {snapshot: WebStorage; selection: SelectionOffsets}
 
 export type PaneDraftStorage = {
   storage: WebStorage
+  writer: ComposerDraftWriter | undefined
   noteSelection: (offsets: SelectionOffsets) => void
   restore: (apply: (restored: ServerDraft, edited: boolean) => void, signal: AbortSignal) => Promise<void>
 }
@@ -45,6 +50,92 @@ function isCleared(draft: PersistedDraft): boolean {
 function clampSelection(offsets: SelectionOffsets | null, text: string): SelectionOffsets {
   if (!offsets) return {start: text.length, end: text.length}
   return {start: Math.min(offsets.start, text.length), end: Math.min(offsets.end, text.length)}
+}
+
+type LocalAttachment = {id: string; type: string; name: string; contentType: string | undefined; blob?: {id: string}}
+
+type LocalDraft = {
+  text: string
+  selectionStart: number
+  selectionEnd: number
+  attachments: LocalAttachment[]
+  syncedAt?: number
+}
+
+const NoLocalHydration = {getItem: () => null, setItem: () => {}, removeItem: () => {}}
+
+function localAttachment(attachment: AttachmentState): LocalAttachment {
+  const kept = {id: attachment.id, type: attachment.type, name: attachment.name, contentType: attachment.contentType}
+  return attachment.blob ? {...kept, blob: {id: attachment.blob.id}} : kept
+}
+
+function sameAsRow(draft: LocalDraft, row: DraftRow | null | undefined): boolean {
+  if (!row) return false
+  return (
+    row.text === draft.text &&
+    row.selectionStart === draft.selectionStart &&
+    row.selectionEnd === draft.selectionEnd &&
+    isEqual(
+      row.attachments.map((attachment) => attachment.id),
+      draft.attachments.map((attachment) => attachment.id),
+    )
+  )
+}
+
+type LocalDraftWriter = {
+  writer: ComposerDraftWriter
+  typed: () => {text: string; attachments: readonly unknown[]} | null
+  feed: () => void
+}
+
+function makeLocalDraftWriter(
+  appData: AppData,
+  drafts: DraftStore,
+  sessionId: string,
+  selection: () => SelectionOffsets | null,
+  writable: () => boolean,
+): LocalDraftWriter {
+  const [document, setDocument] = createStore<{draft: LocalDraft | null}>({draft: null})
+  let files: readonly AttachmentState[] = []
+  const feed = () => {
+    const draft = document.draft
+    if (!draft || !writable() || sameAsRow(draft, appData.cachedDraft(sessionId))) return
+    const updatedAt = Date.now()
+    void appData
+      .saveDraft({
+        sessionId,
+        text: draft.text,
+        selectionStart: draft.selectionStart,
+        selectionEnd: draft.selectionEnd,
+        attachments: [],
+        pending: [...files],
+        updatedAt,
+      })
+      .then((saved) => {
+        if (saved) persisted.setStore('draft', 'syncedAt', updatedAt)
+      })
+  }
+  const persisted = persistStore({
+    store: document,
+    setStore: setDocument,
+    name: sessionId,
+    storage: NoLocalHydration,
+    serialize: (value) => JSON.stringify(value.draft),
+    deserialize: () => ({draft: null}),
+    write: (_value, serialized) => drafts.setDocument(sessionId, JSON.parse(serialized)).finally(feed),
+  })
+  const writer: ComposerDraftWriter = (_key, draft: ComposerDraft) => {
+    files = draft.attachments
+    const offsets = clampSelection(selection(), draft.draft)
+    persisted.setStore('draft', {
+      text: draft.draft,
+      selectionStart: offsets.start,
+      selectionEnd: offsets.end,
+      attachments: draft.attachments.map(localAttachment),
+      syncedAt: document.draft?.syncedAt,
+    })
+  }
+  return {writer, typed: () => document.draft, feed}
 }
 
 function serializeRow(row: DraftRow): string {
@@ -129,6 +220,11 @@ export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraft
   const persist = (draft: PersistedDraft) => {
     void appData.saveDraft({...draftRow(draft), updatedAt: Date.now()})
   }
+  const persistTyped = () => {
+    if (local) return local.feed()
+    const typed = cached()
+    if (typed) persist(typed)
+  }
   const savedAlready = (draft: PersistedDraft): boolean => {
     const saved = appData.cachedDraft(sessionId)
     if (!saved) return false
@@ -136,7 +232,18 @@ export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraft
     return isEqual(savedRow, draftRow(draft))
   }
   const cached = () => (cache === null ? null : parseDraft(cache))
+  const local = appData.drafts
+    ? makeLocalDraftWriter(
+        appData,
+        appData.drafts,
+        sessionId,
+        () => selection,
+        () => writable,
+      )
+    : undefined
+  const typedDraft = () => (local ? local.typed() : cached())
   return {
+    writer: local?.writer,
     storage: {
       getItem: () => {
         const row = appData.cachedDraft(sessionId)
@@ -161,13 +268,13 @@ export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraft
         return null
       })
       if (signal.aborted) return
-      const typed = cached()
-      const cleared = typed !== null && isCleared(typed)
+      const typed = typedDraft()
+      const cleared = typed !== null && typed.text === '' && typed.attachments.length === 0
       try {
         if (row && !cleared) apply(serverDraft(row), typed !== null)
       } finally {
         writable = true
-        if (typed && (row || !cleared)) persist(typed)
+        if (typed && (row || !cleared)) persistTyped()
       }
     },
   }

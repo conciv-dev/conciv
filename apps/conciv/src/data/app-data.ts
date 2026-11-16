@@ -9,10 +9,36 @@ import {
   type QueryKey,
 } from '@conciv/client'
 import {Conciv, type ConcivClient} from '@conciv/plugin'
+import {writeComposerDraft, type AttachmentState} from '@conciv/ui-kit-chat'
 import type {DraftStore} from '../runtime/persistence/drafts.js'
 import {DraftRowSchema, SessionMetaSchema, type DraftRow, type RpcClient, type SessionMeta} from '@conciv/contract'
 
-type DraftInput = z.input<typeof DraftRowSchema>
+const PendingAttachmentSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  name: z.string(),
+  contentType: z.string(),
+  file: z.instanceof(File),
+})
+
+export const DraftSaveSchema = DraftRowSchema.extend({
+  pending: z.array(z.custom<AttachmentState>((value) => PendingAttachmentSchema.safeParse(value).success)).default([]),
+})
+
+export type DraftSave = z.input<typeof DraftSaveSchema>
+
+const EncodedAttachmentsSchema = DraftRowSchema.pick({attachments: true})
+
+async function encodeAttachments(pending: readonly AttachmentState[]): Promise<DraftRow['attachments']> {
+  if (pending.length === 0) return []
+  const written: string[] = []
+  await writeComposerDraft({getItem: () => null, setItem: (_key, value) => written.push(value)}, 'draft', {
+    draft: '',
+    quote: null,
+    attachments: [...pending],
+  })
+  return EncodedAttachmentsSchema.parse(JSON.parse(written[0] ?? '{}')).attachments
+}
 
 const DraftSessionSchema = z.object({sessionId: z.string()})
 
@@ -49,7 +75,7 @@ export type AppData = {
   invalidateOutsideAccess: () => Promise<void>
   readDraft: (sessionId: string) => Promise<DraftRow | null>
   cachedDraft: (sessionId: string) => DraftRow | null | undefined
-  saveDraft: (row: DraftInput) => Promise<void>
+  saveDraft: (save: DraftSave) => Promise<boolean>
   dispose: () => void
 }
 
@@ -62,13 +88,27 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
   }
   queryClient.setQueryDefaults(utils.drafts.get.key(), {staleTime: Infinity, gcTime: Infinity, retry: false})
   const draftQuery = (sessionId: string) => utils.drafts.get.queryOptions({input: {sessionId}})
-  queryClient.setMutationDefaults<unknown, Error, DraftInput>(utils.drafts.set.mutationKey(), {
+  queryClient.setMutationDefaults<unknown, Error, DraftSave>(utils.drafts.set.mutationKey(), {
     retry: retriableDraftSave,
     gcTime: Infinity,
+    mutationFn: async (input) => {
+      const {pending, ...row} = DraftSaveSchema.parse(input)
+      const encoded = DraftRowSchema.parse({
+        ...row,
+        attachments: [...row.attachments, ...(await encodeAttachments(pending))],
+      })
+      queryClient.setQueryData(draftQuery(encoded.sessionId).queryKey, encoded)
+      return rpc.drafts.set(encoded)
+    },
     onMutate: async (input) => {
-      const {queryKey} = draftQuery(input.sessionId)
+      const {pending, ...row} = DraftSaveSchema.parse(input)
+      const {queryKey} = draftQuery(row.sessionId)
       await queryClient.cancelQueries({queryKey})
-      queryClient.setQueryData(queryKey, DraftRowSchema.parse(input))
+      const cached = queryClient.getQueryData(queryKey)
+      queryClient.setQueryData(
+        queryKey,
+        pending.length === 0 ? row : {...row, attachments: cached?.attachments ?? row.attachments},
+      )
     },
     onError: (error) => {
       console.error('[conciv] could not save the draft', error)
@@ -86,16 +126,16 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
     onSettled: (_data, _error, input) =>
       queryClient.invalidateQueries({queryKey: draftQuery(input.sessionId).queryKey}),
   })
-  const saveDraft = (row: DraftInput): Promise<void> => {
-    const observer = new QueryMutationObserver(
-      queryClient,
-      utils.drafts.set.mutationOptions({scope: {id: row.sessionId}}),
-    )
+  const saveDraft = (save: DraftSave): Promise<boolean> => {
+    const observer = new QueryMutationObserver<unknown, Error, DraftSave>(queryClient, {
+      mutationKey: utils.drafts.set.mutationKey(),
+      scope: {id: save.sessionId},
+    })
     return observer
-      .mutate(row)
+      .mutate(save)
       .then(
-        () => undefined,
-        () => undefined,
+        () => true,
+        () => false,
       )
       .finally(() => observer.reset())
   }

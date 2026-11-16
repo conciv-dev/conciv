@@ -1,7 +1,7 @@
 import {createEffect, createMemo, onCleanup, type JSX} from 'solid-js'
 import {useMutationState} from '@conciv/client'
-import {DraftRowSchema} from '@conciv/contract'
 import {useAppData} from '../app/context.js'
+import {DraftSaveSchema} from '../data/app-data.js'
 import {useNotices} from '../shell/notice-context.js'
 
 const DRAFT_UNSAVED_KEY = 'draft-unsaved'
@@ -14,9 +14,9 @@ export function DraftUnsavedNotice(props: {sessionId: string}): JSX.Element {
   const saves = useMutationState(() => ({
     filters: {
       mutationKey: appData.utils.drafts.set.mutationKey(),
-      predicate: (mutation) => DraftRowSchema.safeParse(mutation.state.variables).data?.sessionId === props.sessionId,
+      predicate: (mutation) => DraftSaveSchema.safeParse(mutation.state.variables).data?.sessionId === props.sessionId,
     },
-    select: (mutation) => ({status: mutation.state.status, draft: DraftRowSchema.parse(mutation.state.variables)}),
+    select: (mutation) => ({status: mutation.state.status, draft: DraftSaveSchema.parse(mutation.state.variables)}),
   }))
   const unsaved = createMemo(() => saves().some((save) => save.status === 'error'))
   const retry = (): void => {

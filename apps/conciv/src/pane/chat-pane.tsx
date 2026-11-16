@@ -475,6 +475,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                 <Suspense>
                   <PaneComposer
                     draftStorage={draftStorage.storage}
+                    draftWriter={draftStorage.writer}
                     draftKey={sessionId}
                     placeholder={composerPlaceholder()}
                     inputLabel="Message the conciv agent"
