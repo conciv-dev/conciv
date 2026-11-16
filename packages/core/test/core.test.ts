@@ -3072,6 +3072,14 @@ describe('plugin host bus', () => {
     const markersBeforeCompact = await kit.rpc.markers.list({sessionId: refused})
     await expect(made.plane.compact(refused)).rejects.toThrow(`session "${refused}" does not exist`)
     expect(await kit.rpc.markers.list({sessionId: refused})).toEqual(markersBeforeCompact)
+    expect(
+      await made.plane.admitCall(refused, {
+        toolName: 'an outside call',
+        input: {},
+        publish: made.runtime.forSession(refused).stream.publish,
+        until: AbortSignal.abort(),
+      }),
+    ).toEqual({reason: 'missing', message: `session "${refused}" does not exist`})
     expect(publishedToRefused).toEqual([])
     expect(heardBy(refused)).toEqual(['session.deleted with no run'])
     const afterRefusal = await made.plane.hydrate(refused)

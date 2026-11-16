@@ -174,7 +174,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   const normalize = toolNameNormalizer(deps.toolNames)
 
   const admitCall: ChatPlane['admitCall'] = async (sessionId, call) => {
-    if (deps.sessions.row(sessionId) === null) {
+    if (deps.sessions.row(sessionId) === null || sessionDeleted(deps.sessions, sessionId)) {
       return {reason: 'missing', message: missingSession(sessionId)}
     }
     const approvalId = toolApprovalId(call.toolName)
