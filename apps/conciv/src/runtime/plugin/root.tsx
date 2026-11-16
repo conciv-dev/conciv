@@ -159,11 +159,7 @@ export function PluginRoot(props: ParentProps) {
           set: (plugins, reserved) => setLoaded({settled: true, plugins, reserved}),
           reserved: () => loaded().reserved,
           reported: () => {
-            const status = login()?.status() ?? 'trusted'
-
-            if (status === 'checking' || status === 'unreachable') return undefined
-
-            if (status !== 'trusted') return []
+            if ((login()?.status() ?? 'trusted') !== 'trusted') return undefined
 
             return loaded().settled ? loaded().plugins.map((plugin) => plugin.definition.id) : undefined
           },
