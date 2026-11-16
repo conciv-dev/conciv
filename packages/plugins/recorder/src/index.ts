@@ -1,5 +1,7 @@
 import {join} from 'node:path'
-import {Plugin, type Rpc} from '@conciv/plugin'
+import {Plugin, type Rpc} from '@conciv/plugin/effect'
+import type {Context} from '@conciv/plugin/effect/plugin'
+import {Effect, Queue, Stream} from 'effect'
 import {MAX_FILE_BYTES, Recorder} from './rpc.js'
 import {createCaptureControl} from './capture-control.js'
 import {distill} from './distill.js'
@@ -25,92 +27,123 @@ function recordingsDirectory(projectDirectory: string): string {
   return join(projectDirectory, '.conciv', 'recorder', 'recordings')
 }
 
-type Announce = (...event: Rpc.EventInput<typeof Recorder>) => void
+type Announcement = Rpc.EventInput<typeof Recorder>
 
-function registerRpc(rpc: Plugin.Context['rpc'], runtime: RecorderRuntime, announce: Announce) {
+type Announce = (event: Announcement) => void
+
+function reportUndelivered(error: unknown) {
+  return Effect.sync(() => {
+    console.error(`[recorder] a recorder event was not delivered: ${String(error)}`)
+  })
+}
+
+function registerRpc(rpc: Context['rpc'], runtime: RecorderRuntime, announce: Announce) {
   return rpc.register(Recorder, {
-    config: async () => runtime.config,
-    clients: async () => ({clients: runtime.rings.clients()}),
-    flush: async (input) => {
-      runtime.rings.append(input.clientId, input.events)
-      announce('appended', {clientId: input.clientId, cursor: runtime.rings.head(input.clientId)})
-      return OK
-    },
-    window: async (input) => ({
-      events: runtime.rings.window(input, input.clientId),
-      cursor: runtime.rings.head(input.clientId),
-    }),
-    since: async (input) => ({
-      events: runtime.rings.since(input.cursor, input.clientId),
-      cursor: runtime.rings.head(input.clientId),
-    }),
-    state: async () => ({live: runtime.control.isLive()}),
-    presence: async (input) => {
-      if (!input.live) runtime.control.dropViewer(input.viewerId)
-      const joined = input.live ? runtime.control.renewViewer(input.viewerId) : false
-      if (joined) runtime.control.emit({snapshot: true, flush: true})
-      return OK
-    },
-    reset: async () => {
-      runtime.rings.clear()
-      const appendCursor = runtime.control.emit({snapshot: true, flush: true})
-      await runtime.control.awaitAppendAfter(appendCursor, RESET_SNAPSHOT_WAIT_MS)
-      return OK
-    },
-    log: async (input) => ({entries: distill(runtime.rings.window(input, input.clientId))}),
-    'recordings.save': async (input) => {
-      const saved = await runtime.recordings.save(runtime.rings.window(input, input.clientId))
-      return saved.ok ? {recordingId: saved.recordingId} : {error: saved.reason}
-    },
-    'recordings.get': async (input) => {
-      const events = await runtime.recordings.get(input.recordingId)
-      return events ? {events} : EXPIRED
-    },
-    'recordings.exportVideo': async (input, context) => {
-      const file = runtime.recordings.videoFile(input.id)
-      const events = await runtime.recordings.get(input.id)
-      if (!file || !events) return context.error('expired', `The recording ${input.id} has expired`)
-      if (!(await renderedVideo(file, events, runtime.useRenderer)))
-        return context.error('render-failed', `The recording ${input.id} could not be rendered to video`)
-      return {...(await readVideoPiece(file, input.offset, MAX_FILE_BYTES)), ...VIDEO}
-    },
+    config: () => Effect.sync(() => runtime.config),
+    clients: () => Effect.sync(() => ({clients: runtime.rings.clients()})),
+    flush: (input) =>
+      Effect.sync(() => {
+        runtime.rings.append(input.clientId, input.events)
+        announce(['appended', {clientId: input.clientId, cursor: runtime.rings.head(input.clientId)}])
+        return OK
+      }),
+    window: (input) =>
+      Effect.sync(() => ({
+        events: runtime.rings.window(input, input.clientId),
+        cursor: runtime.rings.head(input.clientId),
+      })),
+    since: (input) =>
+      Effect.sync(() => ({
+        events: runtime.rings.since(input.cursor, input.clientId),
+        cursor: runtime.rings.head(input.clientId),
+      })),
+    state: () => Effect.sync(() => ({live: runtime.control.isLive()})),
+    presence: (input) =>
+      Effect.sync(() => {
+        if (!input.live) runtime.control.dropViewer(input.viewerId)
+        const joined = input.live ? runtime.control.renewViewer(input.viewerId) : false
+        if (joined) runtime.control.emit({snapshot: true, flush: true})
+        return OK
+      }),
+    reset: () =>
+      Effect.gen(function* () {
+        runtime.rings.clear()
+        const appendCursor = runtime.control.emit({snapshot: true, flush: true})
+        yield* Effect.promise(() => runtime.control.awaitAppendAfter(appendCursor, RESET_SNAPSHOT_WAIT_MS))
+        return OK
+      }),
+    log: (input) => Effect.sync(() => ({entries: distill(runtime.rings.window(input, input.clientId))})),
+    'recordings.save': (input) =>
+      Effect.promise(() => runtime.recordings.save(runtime.rings.window(input, input.clientId))).pipe(
+        Effect.map((saved) => (saved.ok ? {recordingId: saved.recordingId} : {error: saved.reason})),
+      ),
+    'recordings.get': (input) =>
+      Effect.promise(() => runtime.recordings.get(input.recordingId)).pipe(
+        Effect.map((events) => (events ? {events} : EXPIRED)),
+      ),
+    'recordings.exportVideo': (input, call) =>
+      Effect.gen(function* () {
+        const file = runtime.recordings.videoFile(input.id)
+        const events = yield* Effect.promise(() => runtime.recordings.get(input.id))
+        if (!file || !events) return yield* Effect.fail(call.error('expired', `The recording ${input.id} has expired`))
+        const rendered = yield* Effect.promise(() => renderedVideo(file, events, runtime.useRenderer))
+        if (!rendered)
+          return yield* Effect.fail(
+            call.error('render-failed', `The recording ${input.id} could not be rendered to video`),
+          )
+        const piece = yield* Effect.promise(() => readVideoPiece(file, input.offset, MAX_FILE_BYTES))
+        return {...piece, ...VIDEO}
+      }),
   })
 }
 
 export default Plugin.define({
   id: 'recorder',
-  async setup(ctx) {
-    const config = recorderConfig.parse(ctx.options)
-    const rings = createClientRings({windowMs: config.windowMinutes * 60_000})
-    const control = createCaptureControl(rings)
-    const rendererCache = createRendererCache(createChromiumRenderer)
-    const recordings = createRecordingStore(recordingsDirectory(ctx.location.directory))
-    recordings.sweep().catch((error: unknown) => {
-      console.error(`[recorder] sweeping old recordings failed: ${String(error)}`)
-    })
-    const runtime: RecorderRuntime = {
-      rings,
-      control,
-      config,
-      useRenderer: (work) => rendererCache.use(work),
-      recordings,
-    }
-    const announce: Announce = (...event) => {
-      registration
-        .then((registered) => registered.events.emit(...event))
-        .catch((error: unknown) => {
-          console.error(`[recorder] a recorder event was not delivered: ${String(error)}`)
-        })
-    }
-    await register(ctx.tool, runtime)
-    await ctx.skill.transform((editor) => editor.add(info))
-    const registration = registerRpc(ctx.rpc, runtime, announce)
-    await registration
-    const unsubscribe = control.subscribe((message) => announce('control', message))
-    return async () => {
-      unsubscribe()
-      control.dispose()
-      await rendererCache.dispose()
-    }
-  },
+  effect: (ctx) =>
+    Effect.gen(function* () {
+      const config = yield* Effect.try({try: () => recorderConfig.parse(ctx.options), catch: (error) => error}).pipe(
+        Effect.orDie,
+      )
+      const rings = createClientRings({windowMs: config.windowMinutes * 60_000})
+      const control = createCaptureControl(rings)
+      const rendererCache = createRendererCache(createChromiumRenderer)
+      const recordings = createRecordingStore(recordingsDirectory(ctx.location.directory))
+      yield* Effect.tryPromise({try: () => recordings.sweep(), catch: (error) => error}).pipe(
+        Effect.catch((error) =>
+          Effect.sync(() => {
+            console.error(`[recorder] sweeping old recordings failed: ${String(error)}`)
+          }),
+        ),
+        Effect.forkScoped({startImmediately: true}),
+      )
+      const runtime: RecorderRuntime = {
+        rings,
+        control,
+        config,
+        useRenderer: (work) => rendererCache.use(work),
+        recordings,
+      }
+      const announcements = yield* Queue.unbounded<Announcement>()
+      const announce: Announce = (event) => {
+        Queue.offerUnsafe(announcements, event)
+      }
+      yield* register(ctx, runtime)
+      yield* ctx.skill.transform((editor) => editor.add(info))
+      const registration = yield* registerRpc(ctx.rpc, runtime, announce).pipe(Effect.orDie)
+      yield* Stream.fromQueue(announcements).pipe(
+        Stream.runForEach((event) =>
+          registration.events
+            .emit(...event)
+            .pipe(Effect.catch(reportUndelivered), Effect.catchDefect(reportUndelivered)),
+        ),
+        Effect.forkScoped({startImmediately: true}),
+      )
+      const unsubscribe = control.subscribe((message) => announce(['control', message]))
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          unsubscribe()
+          control.dispose()
+        }).pipe(Effect.andThen(Effect.promise(() => rendererCache.dispose()))),
+      )
+    }),
 })
