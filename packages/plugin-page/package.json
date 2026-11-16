@@ -27,6 +27,10 @@
     "./rpc": {
       "types": "./dist/rpc.d.ts",
       "import": "./dist/rpc.js"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.ts",
+      "import": "./dist/cli.js"
     }
   },
   "publishConfig": {
