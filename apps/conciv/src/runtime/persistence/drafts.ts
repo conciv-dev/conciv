@@ -429,6 +429,7 @@ export function createBrowserDraftStore(): DraftStore {
   const db = new Promise<IDBDatabase>((resolve, reject) => {
     request.addEventListener('success', () => {
       const database = request.result
+      database.addEventListener('versionchange', () => database.close())
       const transaction = database.transaction(['documents', 'blobs'], 'readwrite')
       const documents = transaction.objectStore('documents').getAll()
       documents.addEventListener('success', () => {

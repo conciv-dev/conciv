@@ -8207,8 +8207,21 @@ describe('the local draft store', () => {
     Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))), (byte) =>
       byte.toString(16).padStart(2, '0'),
     ).join('')
+  const openAt = (version: number) =>
+    new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('conciv-drafts', version)
+      request.addEventListener('success', () => resolve(request.result))
+      request.addEventListener('error', () => reject(request.error))
+    })
+  const dropDatabase = () =>
+    new Promise<void>((resolve, reject) => {
+      const request = indexedDB.deleteDatabase('conciv-drafts')
+      request.addEventListener('success', () => resolve())
+      request.addEventListener('error', () => reject(request.error))
+    })
   const picture = (name: string) => ({name, mimeType: 'image/png', text: `the bytes of ${name}`})
   const chip = (name: string) => page.getByRole('button', {name: `Remove ${name}`})
+  const message = () => page.getByRole('textbox', {name: 'Message'})
 
   function AttachingComposer(props: {store: DraftStore}): JSX.Element {
     const chat = useChatSession({
@@ -8241,6 +8254,35 @@ describe('the local draft store', () => {
     await expect.element(chip('kept.png')).toBeVisible()
     await coreControl.chooseFiles('Add an attachment', [kept])
     await expect.element(chip('kept.png').nth(1)).toBeVisible()
+  })
+
+  test('a newer conciv tab that bumps the schema is not blocked; the older pane keeps its text and its attachments with no local copy', async () => {
+    const olderStore = createBrowserDraftStore()
+    render(() => <AttachingComposer store={olderStore} />)
+    await coreControl.chooseFiles('Add an attachment', [picture('earlier.png')])
+    await expect.element(chip('earlier.png')).toBeVisible()
+
+    const newer = await openAt(2)
+    onTestFinished(async () => {
+      newer.close()
+      await dropDatabase()
+    })
+    const unstored = async (name: string) => {
+      const id = await storedId(picture(name).text)
+      return new Promise<unknown>((resolve, reject) => {
+        const request = newer.transaction('blobs').objectStore('blobs').getKey(id)
+        request.addEventListener('success', () => resolve(request.result))
+        request.addEventListener('error', () => reject(request.error))
+      })
+    }
+
+    await message().click()
+    await userEvent.keyboard('typed after the bump')
+    await coreControl.chooseFiles('Add an attachment', [picture('later.png')])
+    await expect.element(chip('later.png')).toBeVisible()
+    await expect.element(chip('earlier.png')).toBeVisible()
+    await expect.element(message()).toHaveValue('typed after the bump')
+    expect(await unstored('later.png')).toBeUndefined()
   })
 
   test('treats a corrupt stored document as absent, so the draft starts empty and the next edit is saved', async () => {
