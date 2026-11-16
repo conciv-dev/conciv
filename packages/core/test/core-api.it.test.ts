@@ -5727,8 +5727,8 @@ describe('page action queue delivery', () => {
     const takenOnTab = await page.nextQueue()
     const taking = typed.page.queue.wait({sessionId: page.sessionId, queueId: taken, waitMs: 60_000})
     expect(await typed.tabs.get({sessionId: page.sessionId})).toMatchObject({open: true})
-    await page.play(takenOnTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
-    await page.play(takenOnTab, 1, {ok: true, result: {ok: true, checked: true}})
+    await page.play(takenOnTab, 0, pageSuccess({ok: true, value: 'Ada'}))
+    await page.play(takenOnTab, 1, pageSuccess({ok: true, checked: true}))
     expect(await taking).toMatchObject({queueId: taken, status: 'finished', played: 2})
     const {queueId} = parseHandle(await page.hub(queued()))
     const onTab = await page.nextQueue()
@@ -5738,8 +5738,8 @@ describe('page action queue delivery', () => {
     caller.abort()
     await expect(waiting).rejects.toMatchObject({name: 'AbortError'})
     expect(await typed.tabs.get({sessionId: page.sessionId})).toMatchObject({open: true})
-    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
-    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    await page.play(onTab, 0, pageSuccess({ok: true, value: 'Ada'}))
+    await page.play(onTab, 1, pageSuccess({ok: true, checked: true}))
     await page.finishedEvent(queueId)
     const notice = `queue ${queueId} finished: 2 played, 0 failed`
     expect(JSON.stringify(await page.hub('return 1'))).toContain(notice)
@@ -5773,8 +5773,8 @@ describe('page action queue delivery', () => {
     const closed = once(socket, 'close')
     socket.close()
     await closed
-    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
-    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    await page.play(onTab, 0, pageSuccess({ok: true, value: 'Ada'}))
+    await page.play(onTab, 1, pageSuccess({ok: true, checked: true}))
     await page.finishedEvent(queueId)
     const notice = `queue ${queueId} finished: 2 played, 0 failed`
     expect(JSON.stringify(await page.hub('return 1'))).toContain(notice)
