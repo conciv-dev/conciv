@@ -1780,6 +1780,35 @@ describe('engine version', () => {
   })
 })
 
+describe('a slow engine', () => {
+  const core = bootedCore('slow-engine')
+  const harness = createShellHarness(core)
+  const faults = trackedFaults()
+
+  afterEach(harness.dispose)
+
+  test('a reconnect whose handshake is slow is waited on, not dropped, and clears the lost connection notice when it opens', async () => {
+    await page.viewport(1000, 900)
+    const lostNotice = () => page.getByText('conciv lost connection to the engine.')
+    const sessionId = await createSession(coreRpc(core()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+
+    const offline = await faults.install({kind: 'offline'})
+    await expect.element(lostNotice(), {timeout: 15_000}).toBeVisible()
+    const handshakes = await faults.install({kind: 'handshake-hold'})
+    await coreControl.releaseFault(offline)
+    await coreControl.awaitFaultPending(handshakes, 1)
+
+    await expect(coreControl.awaitFaultPending(handshakes, 2)).rejects.toThrow('captured 1 of 2')
+    await expect.element(lostNotice()).toBeVisible()
+
+    await coreControl.releaseFault(handshakes)
+    await expect.element(lostNotice(), {timeout: 15_000}).not.toBeInTheDocument()
+    expect(await coreControl.faultPending(handshakes)).toBe(1)
+  }, 60_000)
+})
+
 describe('helper rpc clients', () => {
   const core = bootedCore('helper-rpc-clients')
 

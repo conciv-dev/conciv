@@ -56,6 +56,7 @@ export type FaultSpec =
   | {kind: 'gate'; path?: string[]}
   | {kind: 'chat-refused'; status?: number}
   | {kind: 'offline'}
+  | {kind: 'handshake-hold'}
   | {kind: 'late-close'}
   | {kind: 'detached-sockets'}
   | {kind: 'chat-gate'}
@@ -398,6 +399,25 @@ async function takeEngineOffline(ctx: BrowserCommandContext): Promise<Injector> 
   }
 }
 
+async function holdEngineHandshakes(ctx: BrowserCommandContext): Promise<Fault> {
+  const rpcSocket = (await importTestkit(ctx)).rpcSocketFor(ctx.page)
+  await rpcSocket.installed
+  rpcSocket.holdHandshakes()
+  return {
+    pending: rpcSocket.heldHandshakes,
+    awaitCaptured: rpcSocket.awaitHandshakes,
+    answered: () => Promise.reject(new Error('a held handshake fault has no single call to await')),
+    release: () => {
+      rpcSocket.releaseHandshakes()
+      return Promise.resolve()
+    },
+    dispose: () => {
+      rpcSocket.releaseHandshakes()
+      return Promise.resolve()
+    },
+  }
+}
+
 async function holdEngineCloses(ctx: BrowserCommandContext): Promise<Injector> {
   const rpcSocket = (await importTestkit(ctx)).rpcSocketFor(ctx.page)
   await rpcSocket.installed
@@ -628,6 +648,7 @@ async function createFault(ctx: BrowserCommandContext, handle: string, spec: Fau
   if (spec.kind === 'project-socket-gate') return gateProjectSocket(requireKit(ctx).stateRoot, spec.socket)
   if (spec.kind === 'cut-on-release') return cutOnRelease(ctx, spec.path)
   if (spec.kind === 'detached-sockets') return trackedFault(handle, spec.kind, await detachEngineSockets(ctx))
+  if (spec.kind === 'handshake-hold') return holdEngineHandshakes(ctx)
   if (spec.kind === 'offline') return trackedFault(handle, spec.kind, await takeEngineOffline(ctx))
   if (spec.kind === 'late-close') return trackedFault(handle, spec.kind, await holdEngineCloses(ctx))
   if (spec.kind === 'pre-version-engine') return trackedFault(handle, spec.kind, await preVersionEngine(ctx))
