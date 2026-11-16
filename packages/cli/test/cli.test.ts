@@ -5,7 +5,7 @@ import {isEqual} from 'es-toolkit'
 import {main as cliMain} from '../src/main.js'
 import {runCli} from '../src/run.js'
 import {execFile, execFileSync, spawn, spawnSync} from 'node:child_process'
-import {EventEmitter, once} from 'node:events'
+import {EventEmitter, on, once} from 'node:events'
 import {createServer} from 'node:net'
 import {chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
@@ -1142,6 +1142,87 @@ describe('cli', () => {
     }
   }
 
+  async function startFront(home: string, engine: {root: string; base: string}, given: {hold?: string} = {}) {
+    const upstream = new URL(engine.base)
+    const held = new EventEmitter()
+    const mode = {dropCalls: false, holdWaits: false, held: Promise.withResolvers<void>()}
+    if (given.hold === undefined) mode.held.resolve()
+    const asked = (url: string) => `${new URL(url).pathname}${new URL(url).search}`
+    const app = new Hono<{Bindings: Parameters<ServeFetch>[1]}>()
+      .use(async (c, next) => {
+        if (given.hold === undefined || !asked(c.req.url).endsWith(given.hold)) return next()
+        held.emit('ask')
+        await mode.held.promise
+        return next()
+      })
+      .use(async (c, next) => {
+        if (!mode.holdWaits || !asked(c.req.url).endsWith('/rpc/page/queue/wait')) return next()
+        await once(c.req.raw.signal, 'abort')
+        return c.body(null)
+      })
+      .use(async (c, next) => {
+        if (!mode.dropCalls || !asked(c.req.url).endsWith('/rpc/code/execute')) return next()
+        c.env.incoming.socket.destroy()
+        return c.body(null)
+      })
+      .all('*', (c) => {
+        const requested = new URL(c.req.url)
+        const target = new URL(upstream)
+        target.pathname = requested.pathname
+        target.search = requested.search
+        return proxy(target, {...c.req})
+      })
+    const {port, close} = await serveHono({fetch: app.fetch, port: 0})
+    const row = withHomeDb(home, listEngines).find((entry) => entry.root === engine.root)
+    if (row === undefined) throw new Error('the engine has no row in the home db')
+    const apiBase = `http://127.0.0.1:${port}${upstream.pathname}`
+    withHomeDb(home, (db) => registerEngine(db, {...row, apiBase}))
+    return {
+      dropCalls: (drop: boolean) => {
+        mode.dropCalls = drop
+      },
+      holdWaits: (hold: boolean) => {
+        mode.holdWaits = hold
+      },
+      askedTwice: async () => {
+        const asks = on(held, 'ask')
+        await asks.next()
+        await asks.next()
+        await asks.return?.()
+      },
+      answerHeld: () => mode.held.resolve(),
+      holdAgain: () => {
+        mode.held = Promise.withResolvers<void>()
+      },
+      close,
+    }
+  }
+
+  async function failingEngine(home: string, status: number, given: {healthStatus?: number} = {}) {
+    const id = `failing-engine-${status}`
+    const server = createHttpServer((request, response) => {
+      if (request.url === '/health') {
+        const body = given.healthStatus === undefined ? {ok: true, id} : {}
+        response.writeHead(given.healthStatus ?? 200, {'content-type': 'application/json'}).end(JSON.stringify(body))
+        return
+      }
+      response.writeHead(status).end()
+    })
+    server.listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    const port = z.object({port: z.number()}).parse(server.address()).port
+    const root = tempDir('conciv-failing-')
+    withHomeDb(home, (db) => registerEngine(db, {id, pid: process.pid, root, apiBase: `http://127.0.0.1:${port}`}))
+    return {
+      root,
+      close: async () => {
+        server.closeAllConnections()
+        server.close()
+        await once(server, 'close')
+      },
+    }
+  }
+
   describe('conciv tools on any tab', () => {
     const conciv = (cwd: string, home: string, args: string[], agentEnv: Record<string, string> = {}) =>
       new Promise<unknown>((resolve) =>
@@ -1214,17 +1295,46 @@ describe('cli', () => {
       const home = tempDir('conciv-home-')
       const elsewhere = tempDir('conciv-elsewhere-')
       const {engine, sessionId, page} = await engineWithTab(home)
+      const watched = new AbortController()
       try {
+        const asked = askRaised(page, sessionId, AbortSignal.any([watched.signal, pages.signal]))
         const waiting = conciv(elsewhere, home, ['tools', 'tabs'])
-        await vi.waitFor(async () => expect((await page.chat.hydrate({sessionId})).pendingApprovals).toHaveLength(1), {
-          timeout: 5000,
-        })
+        await expect(Promise.race([asked, waiting])).rejects.toThrow('the CLI asked "Allow terminal to use this tab"')
         const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
         expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
         await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: false})
         expect(await waiting).toMatchObject({ok: false, error: {message: /The user denied terminal access/}})
       } finally {
+        watched.abort()
         await engine.stop()
+      }
+    })
+
+    it('a call through the home db asks the tab of a dev server slow to answer its health check, never the default port', async () => {
+      const home = tempDir('conciv-home-')
+      const elsewhere = tempDir('conciv-elsewhere-')
+      const holder = await engineWithTab(home)
+      const front = await startFront(home, holder, {hold: '/health'})
+      const watched = new AbortController()
+      try {
+        const asked = askRaised(holder.page, holder.sessionId, AbortSignal.any([watched.signal, pages.signal]))
+        const healthAsked = front.askedTwice()
+        const waiting = conciv(elsewhere, home, ['tools', 'tabs'])
+        await Promise.race([healthAsked, waiting])
+        front.answerHeld()
+        await expect(Promise.race([asked, waiting])).rejects.toThrow('the CLI asked "Allow terminal to use this tab"')
+        const [ask] = (await holder.page.chat.hydrate({sessionId: holder.sessionId})).pendingApprovals
+        await holder.page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: false})
+        const denied = await waiting
+        expect(denied).toMatchObject({
+          ok: false,
+          error: {code: 'APPROVAL_DENIED', message: expect.stringMatching(/The user denied terminal access/)},
+        })
+        expect(JSON.stringify(denied)).not.toContain('5173')
+      } finally {
+        watched.abort()
+        await front.close()
+        await holder.engine.stop()
       }
     })
 
@@ -1276,6 +1386,112 @@ describe('cli', () => {
         })
       } finally {
         await Promise.all([cwdEngine.engine.stop(), holder.engine.stop()])
+      }
+    })
+
+    it('names each dev server that did not answer instead of counting 0 running, and never guesses the default port', async () => {
+      const home = tempDir('conciv-home-')
+      const elsewhere = tempDir('conciv-elsewhere-')
+      expect(await conciv(elsewhere, home, ['tools', 'tabs', '--tab', 'conciv_gone'])).toMatchObject({
+        ok: false,
+        error: {
+          kind: 'user',
+          message: `no conciv dev server is running; start one and open its page (conciv home folder read: ${home}).`,
+        },
+      })
+      const silent = await failingEngine(home, 500, {healthStatus: 503})
+      const named = `${silent.root} did not answer (/health answered HTTP 503 without an engine id)`
+      try {
+        const onTab = await conciv(elsewhere, home, ['tools', 'tabs', '--tab', 'conciv_gone'])
+        expect(onTab).toMatchObject({
+          ok: false,
+          error: {kind: 'user', message: `cannot find tab conciv_gone: ${named}.`},
+        })
+        expect(JSON.stringify(onTab)).not.toContain('0 running')
+        await expect(engineOrigin(elsewhere, {CONCIV_HOME: home}, null)).rejects.toThrow(
+          `no conciv dev server answered: ${named}.`,
+        )
+        const unguessed = await conciv(elsewhere, home, ['tools', 'tabs'])
+        expect(unguessed).toMatchObject({
+          ok: false,
+          error: {kind: 'user', message: `no conciv dev server answered: ${named}.`},
+        })
+        expect(JSON.stringify(unguessed)).not.toContain('5173')
+      } finally {
+        await silent.close()
+      }
+    })
+
+    it('a registered dev server whose port is closed is retired, so --tab finds none running and a call without it uses the default port', async () => {
+      const home = tempDir('conciv-home-')
+      const elsewhere = tempDir('conciv-elsewhere-')
+      const closed = createHttpServer()
+      closed.listen(0, '127.0.0.1')
+      await once(closed, 'listening')
+      const port = z.object({port: z.number()}).parse(closed.address()).port
+      closed.close()
+      await once(closed, 'close')
+      const root = tempDir('conciv-closed-')
+      const row = {id: 'closed-port', pid: process.pid, root, apiBase: `http://127.0.0.1:${port}`}
+      withHomeDb(home, (db) => registerEngine(db, row))
+      expect(await conciv(elsewhere, home, ['tools', 'tabs', '--tab', 'conciv_gone'])).toMatchObject({
+        ok: false,
+        error: {
+          kind: 'user',
+          message: `no conciv dev server is running; start one and open its page (conciv home folder read: ${home}).`,
+        },
+      })
+      expect(withHomeDb(home, listEngines)).toEqual([])
+      withHomeDb(home, (db) => registerEngine(db, row))
+      expect(await engineOrigin(elsewhere, {CONCIV_HOME: home}, null)).toEqual({
+        origin: 'http://127.0.0.1:5173',
+        outside: false,
+      })
+      expect(withHomeDb(home, listEngines)).toEqual([])
+    })
+
+    it('--tab runs on an engine that answers its health check only when asked again', async () => {
+      const home = tempDir('conciv-home-')
+      const elsewhere = tempDir('conciv-elsewhere-')
+      const holder = await engineWithTab(home, {hubAccess: 'open'})
+      const front = await startFront(home, holder, {hold: '/health'})
+      try {
+        const asked = front.askedTwice()
+        const answering = conciv(elsewhere, home, ['tools', 'tabs', '--tab', holder.sessionId])
+        await Promise.race([asked, answering])
+        front.answerHeld()
+        expect(await answering).toMatchObject({
+          ok: true,
+          data: {tabs: [expect.objectContaining({tab: holder.sessionId})]},
+        })
+      } finally {
+        await front.close()
+        await holder.engine.stop()
+      }
+    })
+
+    it('--tab asks an engine whose tab check timed out once more, and names it when it never answers', async () => {
+      const home = tempDir('conciv-home-')
+      const elsewhere = tempDir('conciv-elsewhere-')
+      const holder = await engineWithTab(home, {hubAccess: 'open'})
+      const front = await startFront(home, holder, {hold: '/rpc/tabs/get'})
+      try {
+        const asked = front.askedTwice()
+        const answering = conciv(elsewhere, home, ['tools', 'tabs', '--tab', holder.sessionId])
+        await Promise.race([asked, answering])
+        front.answerHeld()
+        expect(await answering).toMatchObject({
+          ok: true,
+          data: {tabs: [expect.objectContaining({tab: holder.sessionId})]},
+        })
+        front.holdAgain()
+        expect(await conciv(elsewhere, home, ['tools', 'tabs', '--tab', holder.sessionId])).toMatchObject({
+          ok: false,
+          error: {kind: 'user', message: expect.stringContaining(`${holder.root} did not answer (`)},
+        })
+      } finally {
+        await front.close()
+        await holder.engine.stop()
       }
     })
 
@@ -1932,38 +2148,6 @@ describe('cli', () => {
       },
     )
 
-    async function startFront(home: string, engine: {root: string; base: string}) {
-      const upstream = new URL(engine.base)
-      const mode = {dropCalls: false, holdWaits: false}
-      const asked = (url: string) => `${new URL(url).pathname}${new URL(url).search}`
-      const app = new Hono<{Bindings: Parameters<ServeFetch>[1]}>()
-        .use(async (c, next) => {
-          if (!mode.holdWaits || !asked(c.req.url).endsWith('/rpc/page/queue/wait')) return next()
-          await once(c.req.raw.signal, 'abort')
-          return c.body(null)
-        })
-        .use(async (c, next) => {
-          if (!mode.dropCalls || !asked(c.req.url).endsWith('/rpc/code/execute')) return next()
-          c.env.incoming.socket.destroy()
-          return c.body(null)
-        })
-        .all('*', (c) => proxy(new URL(asked(c.req.url), upstream.origin), {...c.req}))
-      const {port, close} = await serveHono({fetch: app.fetch, port: 0})
-      const row = withHomeDb(home, listEngines).find((entry) => entry.root === engine.root)
-      if (row === undefined) throw new Error('the engine has no row in the home db')
-      const apiBase = `http://127.0.0.1:${port}${upstream.pathname}`
-      withHomeDb(home, (db) => registerEngine(db, {...row, apiBase}))
-      return {
-        dropCalls: (drop: boolean) => {
-          mode.dropCalls = drop
-        },
-        holdWaits: (hold: boolean) => {
-          mode.holdWaits = hold
-        },
-        close,
-      }
-    }
-
     const ReplySchema = z.object({content: z.array(z.object({type: z.string(), text: z.string().optional()}))})
 
     it('serves only execute_typescript and discover_tools, sends a block with tab to the engine holding it, keeps the engine registered longest ago for the rest, resends only a refused call', async () => {
@@ -2108,30 +2292,6 @@ describe('cli', () => {
       }
     })
 
-    async function failingEngine(home: string, status: number) {
-      const id = `failing-engine-${status}`
-      const server = createHttpServer((request, response) => {
-        if (request.url === '/health') {
-          response.writeHead(200, {'content-type': 'application/json'}).end(JSON.stringify({ok: true, id}))
-          return
-        }
-        response.writeHead(status).end()
-      })
-      server.listen(0, '127.0.0.1')
-      await once(server, 'listening')
-      const port = z.object({port: z.number()}).parse(server.address()).port
-      const root = tempDir('conciv-failing-')
-      withHomeDb(home, (db) => registerEngine(db, {id, pid: process.pid, root, apiBase: `http://127.0.0.1:${port}`}))
-      return {
-        root,
-        close: async () => {
-          server.closeAllConnections()
-          server.close()
-          await once(server, 'close')
-        },
-      }
-    }
-
     async function staleEngine(home: string, given: {id: string; pid: number; root: string}) {
       const server = createHttpServer((request, response) => {
         if (request.url === '/health') {
@@ -2210,13 +2370,124 @@ describe('cli', () => {
           JSON.stringify([
             {
               type: 'text',
-              text: `cannot tell whether tab conciv_gone is open: no engine that answered has it, and the tab probe failed on ${crashing.root} (Internal Server Error); ${old.root} (engine too old; upgrade its @conciv packages); nothing ran`,
+              text: `cannot tell whether tab conciv_gone is open: no engine that answered has it, and ${crashing.root} did not answer (Internal Server Error); ${old.root} (engine too old; upgrade its @conciv packages); nothing ran`,
             },
           ]),
         )
       } finally {
         await client.close()
         await Promise.all([crashing.close(), old.close()])
+        await holder.engine.stop()
+      }
+    })
+
+    it('with every registered engine unreachable the hub names each, never as no dev server running', async () => {
+      const {home, mcp} = fakeClaude()
+      expect(mcp('connect', 'claude')).toMatchObject({status: 0})
+      const silent = await failingEngine(home, 500, {healthStatus: 503})
+      const named = `${silent.root} did not answer (/health answered HTTP 503 without an engine id)`
+      const client = await hub(home)
+      try {
+        const reply = await run(client, 'return 1 + 1')
+        expect(reply).toContain(`no conciv dev server answered: ${named}`)
+        expect(reply).not.toContain('no conciv dev server is running')
+        const onTab = JSON.stringify(
+          await client.callTool('execute_typescript', {typescriptCode: 'return 1 + 1', tab: 'conciv_gone'}),
+        )
+        expect(onTab).toContain(named)
+        expect(onTab).not.toContain('TAB_NOT_OPEN')
+      } finally {
+        await client.close()
+        await silent.close()
+      }
+    })
+
+    it('the hub picks an engine that answers its health check only when asked again, and finds its tab the same way', async () => {
+      const {home, mcp} = fakeClaude()
+      expect(mcp('connect', 'claude')).toMatchObject({status: 0})
+      const holder = await engineWithTab(home, {hubAccess: 'open'})
+      const front = await startFront(home, holder, {hold: '/health'})
+      const asked = front.askedTwice()
+      const starting = hub(home)
+      await Promise.race([asked, starting])
+      front.answerHeld()
+      const client = await starting
+      try {
+        expect(await run(client, 'return 1 + 1')).toContain('\\"result\\":2')
+        front.holdAgain()
+        const askedOnTab = front.askedTwice()
+        const answeringOnTab = client.callTool('execute_typescript', {
+          typescriptCode: 'return 1 + 1',
+          tab: holder.sessionId,
+        })
+        await Promise.race([askedOnTab, answeringOnTab])
+        front.answerHeld()
+        expect(JSON.stringify(await answeringOnTab)).toContain('\\"result\\":2')
+      } finally {
+        await client.close()
+        await front.close()
+        await holder.engine.stop()
+      }
+    })
+
+    it('a tab whose check timed out on its engine is asked once more before the hub answers, and named when it never answers', async () => {
+      const {home, mcp} = fakeClaude()
+      expect(mcp('connect', 'claude')).toMatchObject({status: 0})
+      const holder = await engineWithTab(home, {hubAccess: 'open'})
+      const front = await startFront(home, holder, {hold: '/rpc/tabs/get'})
+      const client = await hub(home)
+      try {
+        const asked = front.askedTwice()
+        const answering = client.callTool('execute_typescript', {typescriptCode: 'return 1 + 1', tab: holder.sessionId})
+        await Promise.race([asked, answering])
+        front.answerHeld()
+        expect(JSON.stringify(await answering)).toContain('\\"result\\":2')
+        front.holdAgain()
+        const unanswered = JSON.stringify(
+          await client.callTool('execute_typescript', {typescriptCode: 'return 1 + 1', tab: 'conciv_gone'}),
+        )
+        expect(unanswered).toContain(`${holder.root} did not answer (`)
+        expect(unanswered).not.toContain('the tab probe failed on')
+      } finally {
+        await client.close()
+        await front.close()
+        await holder.engine.stop()
+      }
+    })
+
+    it('with no usable engine among those that answered, the hub names each it cannot use and each that did not answer', async () => {
+      const {home, mcp} = fakeClaude()
+      expect(mcp('connect', 'claude')).toMatchObject({status: 0})
+      const old = await failingEngine(home, 404)
+      const silent = await failingEngine(home, 500, {healthStatus: 503})
+      const client = await hub(home)
+      try {
+        expect(await run(client, 'return 1 + 1')).toContain(
+          `no conciv dev server this hub can use is running: ${old.root} (engine too old; upgrade its @conciv packages); ${silent.root} did not answer (/health answered HTTP 503 without an engine id)`,
+        )
+      } finally {
+        await client.close()
+        await Promise.all([old.close(), silent.close()])
+      }
+    })
+
+    it('when no engine that answered is usable, the hub picks a slow engine, whichever ask finds it', async () => {
+      const {home, mcp} = fakeClaude()
+      expect(mcp('connect', 'claude')).toMatchObject({status: 0})
+      const old = await failingEngine(home, 404)
+      const holder = await engineWithTab(home, {hubAccess: 'open'})
+      const front = await startFront(home, holder, {hold: '/health'})
+      const asked = front.askedTwice()
+      const starting = hub(home)
+      await Promise.race([asked, starting])
+      front.answerHeld()
+      const client = await starting
+      try {
+        expect(await run(client, 'return 1 + 1')).toContain('\\"result\\":2')
+      } finally {
+        await client.close()
+        await front.close()
+        await old.close()
         await holder.engine.stop()
       }
     })

@@ -142,6 +142,12 @@ function beforeLastUser(messages: readonly ChatMessage[]): ChatMessage[] {
   return lastUser === -1 ? [...messages] : messages.slice(0, lastUser)
 }
 
+function answered(messages: readonly ChatMessage[]): boolean {
+  return messages
+    .slice(beforeLastUser(messages).length + 1)
+    .some((message) => message.role === 'assistant' && message.parts.length > 0)
+}
+
 function stitched(rendered: readonly ChatMessage[], window: readonly ChatMessage[]): ChatMessage[] {
   const cut = rendered.findIndex((message) => message.id === window[0]?.id)
   return cut === -1 ? [...window] : [...rendered.slice(0, cut), ...window]
@@ -320,12 +326,20 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     const current = run()
     return current.phase === 'withdrawn' && current.hidden === chat.error()
   })
+  const neverLeft = (before: RunState, errorBefore: Error | undefined): Error | undefined => {
+    if (run() !== before && withdrawn()) return new Error('The message was taken back before the engine had it')
+    const refused = chat.error()
+    if (refused === undefined || refused === errorBefore || answered(chat.messages())) return undefined
+    return refused
+  }
   const sendMessage: Chat['sendMessage'] = async (...args) => {
     const before = run()
+    const errorBefore = chat.error()
     await chat.sendMessage(...args)
-    if (run() === before || !withdrawn()) return
+    const failure = neverLeft(before, errorBefore)
+    if (failure === undefined) return
     chat.setMessages(beforeLastUser(chat.messages()))
-    throw new Error('The message was taken back before the engine had it')
+    throw failure
   }
   const decide = async (approvalId: string, approved: boolean, scope: ChatApprovalScope): Promise<void> => {
     const ask = served.pending.find((waiting) => waiting.approvalId === approvalId)
