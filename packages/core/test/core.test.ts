@@ -246,6 +246,14 @@ async function serveCore(
   return {made, origin: `http://127.0.0.1:${served.port}`, stop}
 }
 
+async function nextEvent<Value extends {readonly type: string}>(
+  events: AsyncIterator<Value, unknown>,
+): Promise<IteratorResult<Value, unknown>> {
+  const next = await events.next()
+  if (next.done !== true && next.value.type === 'server.heartbeat') return nextEvent(events)
+  return next
+}
+
 function rawRequest(port: number, path: string, headers: Record<string, string> = {}, body?: string) {
   const method = body === undefined ? 'GET' : 'POST'
   const options = {host: '127.0.0.1', port, path, method, agent: false, headers: {...JSON_TYPE, ...headers}}
@@ -3684,7 +3692,7 @@ describe('plugin rpc over the socket', () => {
   })
 
   test('a registered contract answers a socket client, every failure keeps its text, an event reaches two subscribers, and a quiet filtered stream hears the heartbeat', async () => {
-    const served = await serveCore(tempDir('conciv-core-unit-'), [], {})
+    const served = await serveCore(tempDir('conciv-core-unit-'), [], {eventHeartbeatIntervalMs: 100})
     const client = makeBrowserRpcClient(served.origin)
     const connection = browserRpcConnection(served.origin)
     const host = served.made.pluginHost
@@ -3743,10 +3751,10 @@ describe('plugin rpc over the socket', () => {
       const typed = acme.events.subscribe('indexed')[Symbol.asyncIterator]()
       const typedNext = typed.next()
       const all = await client.rpc.event.subscribe({types: ['rpc.acme.indexed']})
-      expect(await all.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
+      expect(await nextEvent(all)).toMatchObject({done: false, value: {type: 'server.connected'}})
       await host.runPromise(registration.events.emit('indexed', {count: 3}))
       const indexed = {done: false, value: expect.objectContaining({type: 'rpc.acme.indexed', data: {count: 3}})}
-      expect(await Promise.all([typedNext, all.next()])).toEqual([indexed, indexed])
+      expect(await Promise.all([typedNext, nextEvent(all)])).toEqual([indexed, indexed])
       expect(await all.next()).toEqual({
         done: false,
         value: {id: expect.stringMatching(/^evt_/), type: 'server.heartbeat', data: {}},
@@ -4242,7 +4250,7 @@ describe('direct tools on the MCP surface', () => {
 })
 
 describe('plugin context keys provided by core', () => {
-  it('instruction entries are kept per session, reach the plugin instructions and leave them on remove, an oversized value is refused, the harness source reads its MCP url lazily, and the bundler, extension slugs, app and configured policies are provided, the model key answers from the harness models filled as opencode fills an unknown model, and the cache and state roots sit under the conciv home', async () => {
+  it('instruction entries are kept per session, reach the plugin instructions and leave them on remove, an oversized value is refused, the harness source reads its MCP url lazily, and the bundler, extension slugs, app and configured policies are provided, the model key answers from the harness models, each filled from the default model info where the harness reports nothing, and the cache and state roots sit under the conciv home', async () => {
     const root = tempDir('conciv-core-unit-')
     const home = join(root, 'home')
     const OPUS = {id: 'opus', name: 'Opus 5.5', contextWindow: 1_000_000}

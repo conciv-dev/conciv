@@ -144,6 +144,7 @@ async function resolveCodeSession(
 
 async function eventStream(
   host: PluginHost,
+  heartbeatIntervalMs: number | undefined,
   types: ReadonlyArray<string> | undefined,
   signal: AbortSignal | undefined,
 ) {
@@ -152,7 +153,7 @@ async function eventStream(
   const output = Stream.unwrap(
     feed.subscribe(types).pipe(Effect.map((live) => Stream.make(connected).pipe(Stream.concat(live)))),
   )
-  const heartbeat = Stream.tick('15 seconds').pipe(
+  const heartbeat = Stream.tick(heartbeatIntervalMs ?? 15_000).pipe(
     Stream.drop(1),
     Stream.map(() => ({id: Event.Id.create(), type: 'server.heartbeat', data: {}})),
   )
@@ -336,7 +337,9 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       }),
     },
     event: {
-      subscribe: os.event.subscribe.handler(({input, signal}) => eventStream(deps.pluginHost, input?.types, signal)),
+      subscribe: os.event.subscribe.handler(({input, signal}) =>
+        eventStream(deps.pluginHost, deps.eventHeartbeatIntervalMs, input?.types, signal),
+      ),
     },
     captures: {
       list: os.captures.list.handler(({input}) => deps.runtime.forSession(input.sessionId).captures.list()),

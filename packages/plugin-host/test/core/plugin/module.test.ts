@@ -165,7 +165,7 @@ it.live('loads an experimental-only package under its package name without runni
         write(
           path.join(experimental, 'package.json'),
           JSON.stringify({
-            name: 'opencode-acme-experimental',
+            name: 'conciv-acme-experimental',
             exports: {'./plugin-experimental': './dist/plugin-experimental.cjs'},
           }),
         ),
@@ -177,7 +177,7 @@ it.live('loads an experimental-only package under its package name without runni
 
     const loaded = yield* modules.load({type: 'add', target: experimental, options: {region: 'eu'}})
     expect(loaded).toMatchObject({
-      id: 'opencode-acme-experimental',
+      id: 'conciv-acme-experimental',
       features: {experimental: true},
       experimental: {options: {region: 'eu'}},
       source: {type: 'local', path: experimental},
@@ -190,7 +190,7 @@ it.live('loads an experimental-only package under its package name without runni
     yield* plugins.awaitActivation
     expect((yield* plugins.list()).filter((plugin) => plugin.source.type === 'local')).toEqual([
       {
-        id: Plugin.Id.make('opencode-acme-experimental'),
+        id: Plugin.Id.make('conciv-acme-experimental'),
         source: {type: 'local', path: experimental},
         state: {status: 'active'},
         features: {experimental: true},
