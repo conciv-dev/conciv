@@ -64,12 +64,22 @@ export function RecorderPanel(props: {clientId: string}): JSX.Element {
   const loadedPlayerKit = (): PlayerKit | undefined => (playerKit.state === 'ready' ? playerKit() : undefined)
 
   async function* follow(cursor: number, signal: AbortSignal): AsyncGenerator<ReplaySource> {
+    const appended = recorder().events.subscribe('appended', {signal})[Symbol.asyncIterator]()
+    let next = appended.next()
     let at = cursor
-    for await (const event of recorder().events.subscribe('appended', {signal})) {
-      if (event.data.clientId !== props.clientId) continue
+    const read = async (): Promise<ReplaySource> => {
       const fresh = await recorder().since({clientId: props.clientId, cursor: at}, {signal})
       at = fresh.cursor
-      yield fresh
+      return fresh
+    }
+    try {
+      yield await read()
+      for (let step = await next; !step.done; step = await next) {
+        next = appended.next()
+        if (step.value.data.clientId === props.clientId) yield await read()
+      }
+    } finally {
+      await appended.return?.()
     }
   }
 
