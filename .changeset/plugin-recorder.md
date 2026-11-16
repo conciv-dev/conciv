@@ -1,5 +1,5 @@
 ---
-'@conciv/plugin-recorder': patch
+'@conciv/extension-recorder': patch
 ---
 
-New package `@conciv/plugin-recorder`: the recorder as a conciv plugin, its engine part and a Recorder tab in the panel that replays the recording live, starts a New recording and exports the recording as a video (Export video). Capture in the page is not shipped yet: the old `@conciv/extension-recorder` still records the page. Enable it with `plugins: ['@conciv/plugin-recorder']` (or `['@conciv/plugin-recorder', {masking, windowMinutes, console}]`). The agent drives it from code mode as `external_recording_start()`, `external_recording_stop({captureId, keyframes?})` and `external_recording_pull({secondsBack?, keyframes?})`, guided by the plugin's `recorder` skill. The `recorder` plugin RPC takes the page's rrweb events (`flush`) and answers `config`, `clients`, `window`, `since`, `log`, `state`, `presence`, `reset`, `recordings.save`, `recordings.get` and `recordings.exportVideo` (the rendered webm, read in pieces); its `control` and `appended` events carry ids and a cursor only.
+`@conciv/extension-recorder` takes its rrweb and playwright-core versions from the workspace catalog. The new `@conciv/plugin-recorder` is internal and not published until capture in the page ships.
