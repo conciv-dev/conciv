@@ -5,6 +5,7 @@ import type {ChatPlane} from '@conciv/chat'
 import {clearPageChanges, deleteSessionCaptures, drafts, markers, sessions, type ConcivDb} from '@conciv/db'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {Bus, KV, SessionEvent, SessionSchema} from '@conciv/plugin-host'
+import {runInOrder} from '../lib/shutdown.js'
 import {removeInstructionEntries} from '../runtime/instruction-entries.js'
 import {createRow, reuseDeletedRow, rowById, tombstoneRow, type FreshRowInput} from './session-rows.js'
 import type {createSessionSearch} from './session-search.js'
@@ -84,6 +85,8 @@ export async function renameSession(
   return {title}
 }
 
+const deletionFailed = 'conciv: deleting the session failed'
+
 export async function deleteSession(deletion: SessionDeletion, sessionId: SessionId): Promise<void> {
   await deletion.runtime.forSession(sessionId).run.stop()
   await deletion.plane.endRuns(sessionId)
@@ -91,17 +94,29 @@ export async function deleteSession(deletion: SessionDeletion, sessionId: Sessio
   await deletion.pluginHost.runPromise(KV.Service.use((kv) => removeInstructionEntries(kv, sessionId)))
   await tombstoneRow(deletion.db, sessionId)
   await deletion.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
-  try {
-    await deletion.pluginHost.runPromise(
+  const publishFailures = await deletion.pluginHost
+    .runPromise(
       Bus.Service.use((bus) =>
         bus
           .publish(SessionEvent.Deleted, {sessionID: SessionSchema.Id.make(sessionId)})
           .pipe(Effect.andThen(bus.remove(sessionId))),
       ),
     )
-  } finally {
-    await deletion.plane.clear(sessionId)
-    await deleteSessionCaptures(deletion.db, sessionId)
-    await clearPageChanges(deletion.db, sessionId)
-  }
+    .then(
+      (): unknown[] => [],
+      (failure: unknown) => [failure],
+    )
+  await runInOrder(
+    [
+      () => deletion.plane.clear(sessionId),
+      () => deleteSessionCaptures(deletion.db, sessionId),
+      () => clearPageChanges(deletion.db, sessionId),
+    ],
+    deletionFailed,
+  ).catch((cleanup: unknown) => {
+    const cleanupFailures: unknown[] = cleanup instanceof AggregateError ? cleanup.errors : [cleanup]
+    throw new AggregateError([...publishFailures, ...cleanupFailures], deletionFailed)
+  })
+  const [publishFailure] = publishFailures
+  if (publishFailures.length > 0) throw publishFailure
 }

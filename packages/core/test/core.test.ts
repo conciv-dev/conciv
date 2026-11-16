@@ -2742,6 +2742,40 @@ describe('plugin host bus', () => {
     expect(await left()).toEqual([0, 0, 0])
   })
 
+  test('a delete whose session.deleted publish and captures cleanup both fail still clears the messages and page changes, and rejects with both failures, the publish first', async () => {
+    const stateRoot = tempDir('conciv-core-unit-')
+    const harness = createTestHarness(requireClaude())
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
+    onTestFinished(() => made.dispose())
+    const key = sessionKey(made)
+    const id = SessionId.parse('conciv_deleted_while_the_bus_and_captures_are_broken')
+    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    expect(await made.plane.followUp(id, 'leave a message behind')).toEqual({kind: 'delivered'})
+    const scope = made.runtime.forSession(id)
+    await appendPageChange(made.chat.db, id, {verb: 'check', selector: '#agree', args: {}}, 1)
+    const left = async () => [(await made.plane.hydrate(id)).messages.length, (await scope.page.changes()).length]
+    expect(await left()).toEqual([1, 1])
+    made.chat.db.run(sql`DROP TABLE event_sequence`)
+    made.chat.db.run(sql`DROP TABLE tool_captures`)
+    const failure = await key
+      .run((sessions) => sessions.remove(SessionSchema.Id.make(id)))
+      .then(
+        () => null,
+        (error: unknown) => error,
+      )
+    expect(failure).toBeInstanceOf(AggregateError)
+    expect(failure).toMatchObject({
+      errors: [
+        expect.objectContaining({message: expect.stringMatching(/event_sequence/)}),
+        expect.objectContaining({message: expect.stringMatching(/tool_captures/)}),
+      ],
+    })
+    expect(await key.fail((sessions) => sessions.get(SessionSchema.Id.make(id)))).toMatchObject({
+      _tag: 'Session.NotFoundError',
+    })
+    expect(await left()).toEqual([0, 0])
+  })
+
   test('a plugin experimental.idle hook fires for a run that completes and not for one that fails or is stopped, while turnEnd fires for all three', async () => {
     const stateRoot = tempDir('conciv-core-unit-')
     const turnEnds: SessionId[] = []
