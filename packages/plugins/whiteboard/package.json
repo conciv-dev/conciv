@@ -1,0 +1,81 @@
+{
+  "name": "@conciv/plugin-whiteboard",
+  "version": "0.0.22",
+  "private": true,
+  "description": "The conciv whiteboard plugin: a canvas the user and the agent share, with source-anchored comments and pins, on the plugin's own libSQL database.",
+  "keywords": [
+    "canvas",
+    "conciv",
+    "conciv-plugin",
+    "plugin",
+    "whiteboard"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/plugins/whiteboard"
+  },
+  "files": [
+    "dist",
+    "drizzle"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./rpc": {
+      "types": "./dist/rpc.d.ts",
+      "import": "./dist/rpc.js"
+    },
+    "./plugin-experimental": "./dist/plugin-experimental.cjs",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && tsc -p tsconfig.build.json && vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only --exclude-entrypoints plugin-experimental"
+  },
+  "dependencies": {
+    "@conciv/protocol": "workspace:^",
+    "@libsql/client": "catalog:",
+    "@takumi-rs/core": "catalog:",
+    "@takumi-rs/helpers": "catalog:",
+    "drizzle-orm": "^0.45.4",
+    "oxc-parser": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@conciv/harness-testkit": "workspace:^",
+    "@conciv/plugin": "workspace:^",
+    "@conciv/plugin-testkit": "workspace:^",
+    "@conciv/tsconfig": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "drizzle-kit": "^0.31.11",
+    "solid-js": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@conciv/plugin": "workspace:^"
+  }
+}

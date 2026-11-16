@@ -1323,6 +1323,8 @@ describe('model menu', () => {
 
   const core = bootedCore('model-menu', {models: MODELS, commands: HARNESS_COMMANDS, text: REPLY})
   const keep = keptPane()
+  const shell = createShellHarness(core)
+  afterEach(shell.dispose)
   const faults = trackedFaults()
 
   const prompt = (name: string) => page.getByRole('button', {name: `Model: ${name}`})
@@ -1500,6 +1502,26 @@ describe('model menu', () => {
 
     await expect.element(prompt('Sonnet 5.5')).toBeVisible()
     await expect.element(input()).toHaveFocus()
+  })
+
+  test('on a short screen the first and the last model can be seen and picked', async () => {
+    await page.viewport(1000, 400)
+    const sessionId = await createSession(coreRpc(core()))
+    shell.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(input(), {timeout: 15_000}).toBeVisible()
+
+    await userEvent.click(prompt('Opus 5.5'))
+    await expect.element(search()).toBeInViewport({ratio: 1})
+    await expect.element(model('Opus 5.5')).toBeInViewport({ratio: 1})
+    await userEvent.click(older())
+    await expect.element(model('Haiku 4.5')).toBeVisible()
+    await userEvent.click(model('Haiku 4.5'))
+    await expect.element(prompt('Haiku 4.5')).toBeVisible()
+
+    await userEvent.click(prompt('Haiku 4.5'))
+    await expect.element(search()).toBeInViewport({ratio: 1})
+    await userEvent.click(model('Opus 5.5'))
+    await expect.element(prompt('Opus 5.5')).toBeVisible()
   })
 
   test('an older model is reached by keyboard through the Older versions section', async () => {
@@ -5352,6 +5374,12 @@ describe('session selector', () => {
     await expect.element(option('older session 0')).not.toBeInTheDocument()
     await userEvent.hover(option('a minute after midnight'))
     await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeVisible()
+    await page.viewport(390, 500)
+    await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeInViewport({ratio: 1})
+    await expect
+      .element(preview('a minute after midnight').getByRole('button', {name: 'Copy'}).last())
+      .toBeInViewport({ratio: 1})
+    await page.viewport(414, 896)
     await expect.element(preview('a minute after midnight').getByRole('mark').first()).toHaveTextContent('tide')
     await expect.element(search).toHaveFocus()
     await expect.element(preview('a minute after midnight').getByRole('button', {name: 'Copy'}).last()).toBeVisible()
@@ -6796,7 +6824,8 @@ module.exports = {default: {setup(ctx) {
   const pill = (name: string) => page.getByRole('button', {name, exact: true})
   const notifications = () => page.getByRole('region', {name: /Notifications/})
 
-  test('the pills a plugin shows sit above the composer in order, a plain pill runs, a rows pill opens its menu, and a menu pill opens its popover', async () => {
+  test('the pills a plugin shows sit above the composer in order, a plain pill runs, a rows pill opens its menu, and a menu pill opens its popover, each fitting a short screen', async () => {
+    await page.viewport(1000, 500)
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(`/panel/${sessionId}?open=true`)
 
@@ -6817,7 +6846,8 @@ module.exports = {default: {setup(ctx) {
     await pill('Checks pill').click()
     const checks = page.getByRole('menu', {name: 'Checks pill', exact: true})
     await expect.element(checks).toBeVisible()
-    await expect.element(checks.getByText('Checks pill', {exact: true})).toBeVisible()
+    await expect.element(checks.getByText('Checks pill', {exact: true})).toBeInViewport({ratio: 1})
+    await expect.element(checks.getByRole('menuitem', {name: /Run the checks/})).toBeInViewport({ratio: 1})
     await expect.element(checks.getByRole('menuitem', {name: /Locked check/})).toHaveAttribute('aria-disabled', 'true')
     await expect.element(checks.getByRole('menuitem', {name: /Run the checks/})).toMatchTextContent(/3 left$/i)
     await checks.getByRole('menuitem', {name: /Run the checks/}).click()
@@ -6832,7 +6862,8 @@ module.exports = {default: {setup(ctx) {
     await pill('Notes pill').click()
     const notes = page.getByRole('dialog', {name: 'Notes pill', exact: true})
     await expect.element(notes).toBeVisible()
-    await expect.element(notes.getByText('Notes for the session', {exact: true})).toBeVisible()
+    await expect.element(notes.getByRole('heading', {name: 'Notes pill'})).toBeInViewport({ratio: 1})
+    await expect.element(notes.getByText('Notes for the session', {exact: true})).toBeInViewport({ratio: 1})
     await notes.getByRole('button', {name: 'Done with the notes', exact: true}).click()
     await expect.element(notes).not.toBeInTheDocument()
   }, 45_000)

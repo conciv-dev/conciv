@@ -9,7 +9,7 @@ export type DragPromptProps = {
   onCancel: () => void
 }
 
-const CONTENT = 'min-w-45 flex flex-col gap-0.5 p-1'
+const CONTENT = 'min-w-45 p-1'
 
 export function DragPrompt(props: DragPromptProps): JSX.Element {
   return (
@@ -24,21 +24,23 @@ export function DragPrompt(props: DragPromptProps): JSX.Element {
     >
       <Popover.Positioner>
         <Popover.Content class={CONTENT} aria-label="Pin drift">
-          <Button
-            ref={(element) => queueMicrotask(() => element.focus())}
-            variant="ghost"
-            size="sm"
-            class="justify-start"
-            onClick={() => props.onDisconnect()}
-          >
-            Disconnect from source
-          </Button>
-          <Button variant="ghost" size="sm" class="justify-start" onClick={() => props.onKeep()}>
-            Keep link, accept drift
-          </Button>
-          <Button variant="ghost" size="sm" class="justify-start" onClick={() => props.onCancel()}>
-            Cancel
-          </Button>
+          <div>
+            <Button
+              ref={(element) => queueMicrotask(() => element.focus())}
+              variant="ghost"
+              size="sm"
+              class="justify-start"
+              onClick={() => props.onDisconnect()}
+            >
+              Disconnect from source
+            </Button>
+            <Button variant="ghost" size="sm" class="justify-start" onClick={() => props.onKeep()}>
+              Keep link, accept drift
+            </Button>
+            <Button variant="ghost" size="sm" class="justify-start" onClick={() => props.onCancel()}>
+              Cancel
+            </Button>
+          </div>
         </Popover.Content>
       </Popover.Positioner>
     </Popover.Root>
