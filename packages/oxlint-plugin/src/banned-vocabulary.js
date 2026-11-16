@@ -82,6 +82,7 @@ const PREEXISTING_TERM_SITES = [
     paths: [
       'packages/ui-kit-system/src/',
       'packages/extensions/recorder/src/',
+      'packages/plugins/recorder/src/',
       'packages/extensions/whiteboard/src/tool/comment/server.ts',
     ],
   },
