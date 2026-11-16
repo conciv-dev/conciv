@@ -1,11 +1,14 @@
 import {describe, expect, expectTypeOf, it, afterAll, beforeAll} from 'vitest'
 import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from '../src/rows.js'
+import {SocketTrustFrameSchema} from '../src/contract.js'
 import type {SessionMeta} from '../src/rows.js'
 import {makeBrowserRpcClient, makeRpcClient, type RpcClient} from '../src/client.js'
 import {createServer, type Server} from 'node:http'
 import {createHash} from 'node:crypto'
 import {EventEmitter, once} from 'node:events'
 import type {Duplex} from 'node:stream'
+import type {IncomingMessage} from 'node:http'
+import {decodeRequestMessage, MessageType} from '@orpc/standard-server-peer'
 import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
 import type {HarnessListCursor} from '@conciv/protocol/harness-types'
 import contractManifest from '../package.json' with {type: 'json'}
@@ -120,9 +123,29 @@ describe('rows', () => {
         hidden: false,
         native: null,
         harnessKind: 'claude',
+        lastRunAt: null,
       })
       expect(parsed.hidden).toBe(false)
       expect(parsed.effort).toBeNull()
+      expect(parsed.lastRunAt).toBeNull()
+    })
+
+    it('a session meta says when its newest run started, and a row without that fact is refused', () => {
+      const meta = {
+        id: 'conciv_1',
+        title: 'hello',
+        updatedAt: 1,
+        running: false,
+        origin: 'conciv',
+        usage: null,
+        model: null,
+        effort: null,
+        hidden: false,
+        native: null,
+        harnessKind: 'claude',
+      }
+      expect(SessionMetaSchema.parse({...meta, lastRunAt: 1_700}).lastRunAt).toBe(1_700)
+      expect(SessionMetaSchema.safeParse(meta).success).toBe(false)
     })
 
     it('rejects an unknown marker kind', () => {
@@ -223,6 +246,36 @@ describe('browser rpc socket closing under a cancelled call', () => {
   }, 15_000)
 })
 
+describe('browser rpc calls cancelled before the socket opens', () => {
+  it('a call cancelled while its connection attempt is held is never sent once the socket opens', async () => {
+    const peer = await closingHandshakeServer()
+    peer.holdUpgrades()
+    const client = makeBrowserRpcClient(peer.base)
+    try {
+      const cancel = new AbortController()
+      const cancelled = client.rpc.sessions.resolve({}, {signal: cancel.signal}).then(
+        () => 'resolved',
+        () => 'rejected',
+      )
+      await peer.upgradeHeld()
+      cancel.abort()
+      const later = client.rpc.meta.harnesses().then(
+        () => 'resolved',
+        () => 'rejected',
+      )
+      peer.releaseUpgrades()
+      await peer.requestSeen('/meta/harnesses')
+      expect(peer.requestPaths().filter((path) => path.endsWith('/sessions/resolve'))).toEqual([])
+      expect(await cancelled).toBe('rejected')
+      client.close()
+      expect(await later).toBe('rejected')
+    } finally {
+      client.close()
+      await peer.close()
+    }
+  }, 15_000)
+})
+
 describe('browser rpc frames that cannot be delivered or read', () => {
   it('a call whose request meets a socket that is not open rejects with the socket error', async () => {
     const vacant = createServer()
@@ -262,17 +315,45 @@ type ClosingHandshakeServer = {
   answerRequestsWith: (text: string) => void
   startClosing: () => void
   finishClosing: () => void
+  holdUpgrades: () => void
+  upgradeHeld: () => Promise<void>
+  releaseUpgrades: () => void
+  requestSeen: (path: string) => Promise<void>
+  requestPaths: () => readonly string[]
   close: () => Promise<void>
 }
+
+type MaskedFrame = {opcode: number; payload: Buffer}
 
 async function closingHandshakeServer(): Promise<ClosingHandshakeServer> {
   const frames = new EventEmitter()
   const seen: number[] = []
   const sockets: Duplex[] = []
   const answer: {text: string | undefined} = {text: undefined}
-  const server = createServer()
-  server.on('upgrade', (request, socket) => {
-    sockets.push(socket)
+  const requests: string[] = []
+  const failures: unknown[] = []
+  const decoding = {tail: Promise.resolve()}
+  const upgrades: {held: boolean; waiting: (() => void)[]} = {held: false, waiting: []}
+  const recordRequest = (payload: Buffer): void => {
+    const text = payload.toString()
+    decoding.tail = decoding.tail
+      .then(async () => {
+        if (SocketTrustFrameSchema.safeParse(JSON.parse(text)).success) return
+        const message = await decodeRequestMessage(text)
+        if (message[1] !== MessageType.REQUEST) return
+        requests.push(message[2].url.pathname)
+        frames.emit('request')
+      })
+      .catch((error: unknown) => {
+        failures.push(error)
+        frames.emit('request')
+      })
+  }
+  const decodeFailure = (): Error | undefined =>
+    failures.length === 0
+      ? undefined
+      : new Error('the test server could not decode a frame the client sent', {cause: failures[0]})
+  const acceptUpgrade = (request: IncomingMessage, socket: Duplex): void => {
     const accept = createHash('sha1')
       .update(`${request.headers['sec-websocket-key']}${WEBSOCKET_GUID}`)
       .digest('base64')
@@ -282,8 +363,9 @@ async function closingHandshakeServer(): Promise<ClosingHandshakeServer> {
     const pending = {buffer: Buffer.alloc(0)}
     socket.on('data', (chunk: Buffer) => {
       pending.buffer = Buffer.concat([pending.buffer, chunk])
-      for (const opcode of takeMaskedFrames(pending)) {
+      for (const {opcode, payload} of takeMaskedFrames(pending)) {
         seen.push(opcode)
+        if (opcode === TEXT_OPCODE) recordRequest(payload)
         if (
           answer.text !== undefined &&
           opcode === TEXT_OPCODE &&
@@ -294,6 +376,16 @@ async function closingHandshakeServer(): Promise<ClosingHandshakeServer> {
         frames.emit('frame')
       }
     })
+  }
+  const server = createServer()
+  server.on('upgrade', (request, socket) => {
+    sockets.push(socket)
+    if (!upgrades.held) {
+      acceptUpgrade(request, socket)
+      return
+    }
+    upgrades.waiting.push(() => acceptUpgrade(request, socket))
+    frames.emit('held')
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
@@ -313,6 +405,28 @@ async function closingHandshakeServer(): Promise<ClosingHandshakeServer> {
     finishClosing: () => {
       for (const socket of sockets) socket.end()
     },
+    holdUpgrades: () => {
+      upgrades.held = true
+    },
+    upgradeHeld: async () => {
+      while (upgrades.waiting.length === 0) await once(frames, 'held')
+    },
+    releaseUpgrades: () => {
+      upgrades.held = false
+      for (const release of upgrades.waiting.splice(0)) release()
+    },
+    requestSeen: async (path) => {
+      while (!requests.some((each) => each.endsWith(path))) {
+        const failure = decodeFailure()
+        if (failure) throw failure
+        await once(frames, 'request')
+      }
+    },
+    requestPaths: () => {
+      const failure = decodeFailure()
+      if (failure) throw failure
+      return requests
+    },
     close: async () => {
       for (const socket of sockets) socket.destroy()
       await new Promise((resolve) => server.close(resolve))
@@ -320,7 +434,7 @@ async function closingHandshakeServer(): Promise<ClosingHandshakeServer> {
   }
 }
 
-function takeMaskedFrames(pending: {buffer: Buffer}): number[] {
+function takeMaskedFrames(pending: {buffer: Buffer}): MaskedFrame[] {
   const {buffer} = pending
   if (buffer.length < 2) return []
   const shortLength = buffer.readUInt8(1) & 0x7f
@@ -329,5 +443,9 @@ function takeMaskedFrames(pending: {buffer: Buffer}): number[] {
   const payloadLength = shortLength === 126 ? buffer.readUInt16BE(2) : shortLength
   if (buffer.length < headerLength + payloadLength) return []
   pending.buffer = buffer.subarray(headerLength + payloadLength)
-  return [buffer.readUInt8(0) & 0x0f, ...takeMaskedFrames(pending)]
+  const mask = buffer.subarray(headerLength - 4, headerLength)
+  const payload = Buffer.from(
+    buffer.subarray(headerLength, headerLength + payloadLength).map((byte, index) => byte ^ (mask[index % 4] ?? 0)),
+  )
+  return [{opcode: buffer.readUInt8(0) & 0x0f, payload}, ...takeMaskedFrames(pending)]
 }

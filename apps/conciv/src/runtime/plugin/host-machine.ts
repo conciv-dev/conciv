@@ -170,7 +170,7 @@ export function isCurrentHostWatch(state: HostState, attempt: number) {
   return state.status === 'following' && state.watch.status === 'streaming' && state.watch.attempt === attempt
 }
 
-export function sameHostEndpoint(first: HostEndpoint | undefined, second: HostEndpoint | undefined) {
+function sameHostEndpoint(first: HostEndpoint | undefined, second: HostEndpoint | undefined) {
   return first?.url === second?.url && first?.authorization === second?.authorization
 }
 

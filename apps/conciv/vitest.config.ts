@@ -64,12 +64,7 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'node',
-          include: [
-            'test/**/*.test.ts',
-            'src/runtime/plugin/**/*.test.ts',
-            'src/runtime/persistence/**/*.test.ts',
-            'src/runtime/server/**/*.test.ts',
-          ],
+          include: ['test/**/*.test.ts', 'src/runtime/plugin/**/*.test.ts', 'src/runtime/persistence/**/*.test.ts'],
           exclude: [
             'test/**/*.browser.test.ts',
             'test/**/*.browser.test.tsx',

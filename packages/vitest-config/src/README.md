@@ -6,7 +6,9 @@ Shared CI tooling for the monorepo: vitest config factories (reporters, coverage
 
 ## Interface
 
-- `ciTest()` (`reporters.ts`): `{reporters, coverage (v8, json-summary, reportsDirectory 'coverage', enabled on CI only), testTimeout/hookTimeout/teardownTimeout 30_000, maxWorkers?, env: {CONCIV_HOME}}`; each call creates an empty temp conciv home and also sets it on the main process `process.env`, so engines started by browser commands and globalSetup never write the real home.
+- `ciTest()` (`reporters.ts`): `{reporters, coverage (v8, json-summary, reportsDirectory 'coverage', enabled on CI only), testTimeout/hookTimeout/teardownTimeout 30_000, maxWorkers?, env: {CONCIV_HOME}}`; each call creates an empty temp conciv home through `processTempDir` and also sets it on the main process `process.env`, so engines started by browser commands and globalSetup never write the real home.
+- `processTempDir(prefix)` (`reporters.ts`): makes a folder under `os.tmpdir()` and removes it when the process that made it exits; for vitest configs and browser commands, which run in the main vitest process.
+- `tempDir(prefix)` (`temp-dir.ts`, export `./temp-dir`): makes a folder inside one `conciv-test-*` folder per test file, which an `afterAll` registered when the module loads removes once that file is done, passed or failed. Every test that needs a temp folder takes it from here.
 - `ciReporters()` (`reporters.ts`): `['default']` locally; on CI adds `github-actions` (jobSummary off) and `json` -> `test-results.json`.
 - `ciTestSolidBrowser()` (`reporters.ts`): `ciTest()` plus `setupFiles: ['@conciv/vitest-config/solid-cleanup']`.
 - `browserOptimizeDeps(alsoInclude = [])`, `TANSTACK_AI_SOLID_DEPS` (`reporters.ts`).
@@ -31,6 +33,7 @@ Shared CI tooling for the monorepo: vitest config factories (reporters, coverage
 
 - Reads `GITHUB_ACTIONS` and `VITEST_MAX_FORKS`; on CI the json reporter writes `test-results.json` and coverage goes to `coverage/` (`reporters.ts`).
 - Registers a global `afterEach(cleanup)` (`solid-cleanup-setup.ts`).
+- `processTempDir` adds a process `exit` listener per folder; `temp-dir.ts` creates its `conciv-test-*` folder and registers its `afterAll` on import.
 - `plan` appends `matrix=<json>` to `$GITHUB_OUTPUT` and prints it; `run` spawns `pnpm exec turbo run <tasks> --filter=<pkg>...` with `execFileSync` and inherited stdio; `report` writes `--output` (default `shard-report.json`); `summarize` appends to `$GITHUB_STEP_SUMMARY` (or stdout) and writes measured timings to `--timings` (`ci-shards.ts`).
 - `ci-summary.ts` appends to `$GITHUB_STEP_SUMMARY` or writes to stdout.
 - `summary.ts` walks directories, reads `test-results.json`, `coverage/coverage-summary.json` and package.json files, and caches owner lookups in the module-level `packageByDir` map; `discoverPackages` reads workspace package.json files (`shards.ts`).

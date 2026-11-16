@@ -22,8 +22,7 @@ import {
 } from '../src/types.js'
 import {Hono} from 'hono'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {mkdir, mkdtemp, readFile, realpath, rm, writeFile} from 'node:fs/promises'
-import {tmpdir} from 'node:os'
+import {mkdir, readFile, realpath, rm, writeFile} from 'node:fs/promises'
 import {dirname, join} from 'node:path'
 import {createServer} from 'vite'
 import {makeViteBridge} from '../src/vite-bridge.js'
@@ -42,6 +41,7 @@ import {
 } from '../src/tool-registry.js'
 import {walkRegistryProcedures} from '../src/registry-walk.js'
 import {type PageErrorCode} from '@conciv/protocol/page-types'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 describe('catalog', () => {
   describe('extension catalog (new contract projection)', () => {
@@ -1368,7 +1368,7 @@ describe('tool registry', () => {
 
 describe('vite bridge', () => {
   it('finds a module by a path relative to the project, by its /src url and by its absolute path, and names a file it does not know', async () => {
-    const root = await realpath(await mkdtemp(join(await realpath(tmpdir()), 'conciv-vite-bridge-')))
+    const root = await realpath(tempDir('conciv-vite-bridge-'))
     await mkdir(join(root, 'src'))
     await writeFile(join(root, 'index.html'), '<!doctype html><script type="module" src="/src/main.ts"></script>')
     await writeFile(join(root, 'src/main.ts'), "import {dep} from './dep'\nexport const main = dep\n")

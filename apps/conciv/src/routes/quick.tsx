@@ -7,7 +7,6 @@ import ChevronUp from 'lucide-solid/icons/chevron-up'
 import Columns2 from 'lucide-solid/icons/columns-2'
 import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
 import X from 'lucide-solid/icons/x'
-import type {RpcClient} from '@conciv/contract'
 import {useAppData, useConnectionGeneration, usePreferences, useRpc, useSuppressed} from '../app/context.js'
 import {toRawHotkey} from '../lib/hotkey.js'
 import {useEngineReachability} from '../app/reachability.js'
@@ -30,7 +29,7 @@ const PANE_ACTION = 'text-chat-text-3 leading-none size-6'
 
 const ADD_PANE_FAILED_MESSAGE = 'conciv could not start a pane. Check the engine connection and retry.'
 
-type StartSession = () => ReturnType<RpcClient['sessions']['resolve']>
+type StartSession = () => Promise<{sessionId: string}>
 
 export const Route = createFileRoute('/quick')({
   validateSearch: QuickSearchSchema,
@@ -140,7 +139,7 @@ function QuickLayer(): JSX.Element {
   })
 
   const resumeLatestPane = useMutation(() => paneStartOptions(() => rpc.sessions.resolve({})))
-  const createFreshPane = useMutation(() => paneStartOptions(() => rpc.sessions.create(undefined)))
+  const createFreshPane = useMutation(() => paneStartOptions(() => appData.createSession()))
 
   const lastPaneStart = () =>
     createFreshPane.submittedAt > resumeLatestPane.submittedAt ? createFreshPane : resumeLatestPane

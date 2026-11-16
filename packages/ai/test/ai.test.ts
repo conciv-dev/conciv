@@ -35,7 +35,7 @@ import {createTextChunks, fakeText, storyConnection} from '../src/testkit.js'
 import {localSandbox} from '../src/server/local-sandbox.js'
 import type {FakeResponse, FakeResponseStep} from '@tanstack/ai/testing'
 import {existsSync, mkdtempSync, readdirSync, readFileSync, renameSync, watch, writeFileSync} from 'node:fs'
-import {readFile} from 'node:fs/promises'
+import {readFile, rm} from 'node:fs/promises'
 import {execFileSync} from 'node:child_process'
 import {tmpdir} from 'node:os'
 import {fileURLToPath} from 'node:url'
@@ -48,6 +48,7 @@ import {Worker} from 'node:worker_threads'
 import {closePool, openPool} from '../src/server/quickjs-thread.js'
 import {createChatSession} from '../src/client.js'
 import {createRoot} from 'solid-js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 describe('chat stores', () => {
   function chatDb() {
@@ -107,6 +108,27 @@ describe('chat stores', () => {
         cursor: 'u1',
       })
       await expect(messages.loadThread('paged')).rejects.toThrow()
+    })
+
+    it('a turn reads only the row of the message it prompts, so unreadable earlier rows do not stop it', async () => {
+      const {db, messages} = await savedThread()
+      db.run(sql`UPDATE chat_messages SET message_json = 'not json' WHERE thread_id = 'paged' AND position < 6`)
+      const prompted = Promise.withResolvers<string>()
+      const hooks = turnHooks(() => ({
+        adapter: scriptedModel([{text: 'ok'}]),
+        prompt: async (message) => {
+          prompted.resolve(`prompted ${message.id}`)
+          return message
+        },
+      }))
+      const server = await chatServer(hooks, () => undefined, db)
+      const reached = Promise.race([
+        prompted.promise,
+        say(server, 'paged', 'run-paged', 'next').then(() => 'ended without a prompt'),
+      ])
+      expect(await reached).toBe('prompted user-next')
+      expect(await messages.loadMessage('paged', 'u2')).toEqual(THREAD[6])
+      expect(await messages.loadMessage('paged', 'gone')).toBeNull()
     })
 
     it('the newest page ends on the last stored message even when a position in between is missing', async () => {
@@ -233,6 +255,7 @@ const watched = require('node:net').connect(data.socket, () => {
       startTimeoutMs?: number,
     ) {
       const dir = mkdtempSync(join(tmpdir(), 'conciv-fake-claude-'))
+      onTestFinished(() => rm(dir, {recursive: true, force: true, maxRetries: 10}))
       const files = {launches: join(dir, 'launches'), gate: join(dir, 'gate'), socket: join(dir, 'agent.sock')}
       const line = (value: unknown) => `${JSON.stringify(value)}\n`
       writeFileSync(
@@ -281,7 +304,7 @@ const watched = require('node:net').connect(data.socket, () => {
         }),
         {end: async (_turn, run) => ended.resolve(run)},
       )
-      const sandbox = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
+      const sandbox = tempDir('conciv-ai-')
       return {
         db,
         sandbox,
@@ -433,7 +456,7 @@ const watched = require('node:net').connect(data.socket, () => {
     })
     const hooks = turnHooks(() => ({
       adapter: scriptedModel([{toolCalls: [{name: 'blocking', input: {}}]}]),
-      asking: [blocking],
+      tools: async () => ({codeMode: [], search: null, asking: [blocking], direct: []}),
       setup: async () => new Map([[toolApprovalId('blocking'), true]]),
     }))
     const server = await chatServer(hooks, () => undefined, db)
@@ -624,10 +647,7 @@ const watched = require('node:net').connect(data.socket, () => {
     return {
       plan: (turn) => ({
         systemPrompts: async () => [],
-        codeMode: [],
-        search: null,
-        asking: [],
-        direct: [],
+        tools: async () => ({codeMode: [], search: null, asking: [], direct: []}),
         setup: async () => new Map(),
         prompt: async (message) => message,
         expand: async (messages) => messages,
@@ -653,7 +673,7 @@ const watched = require('node:net').connect(data.socket, () => {
     log: (message: string) => void,
     db = chatDb(),
     firstOutputTimeoutMs = 30_000,
-    sandbox = mkdtempSync(join(tmpdir(), 'conciv-ai-')),
+    sandbox = tempDir('conciv-ai-'),
     startTimeoutMs = 30_000,
     driver: CodeDriver | null = null,
   ) {
@@ -887,7 +907,7 @@ const watched = require('node:net').connect(data.socket, () => {
         undefined,
         await loadIsolateDriver(log),
       )
-      const onQuickJS = logged.some((message) => message.includes('@tanstack/ai-isolate-node'))
+      expect(logged.filter((message) => message.includes('code mode'))).toEqual([])
       const echo = defineTool({
         name: 'echo',
         description: 'Echoes its input.',
@@ -897,7 +917,7 @@ const watched = require('node:net').connect(data.socket, () => {
       const runner = server.codeRunner([echo], null)
       if (runner === null) throw new Error('code mode found no driver')
       const booted = ours()
-      expect(booted).toHaveLength(onQuickJS ? 1 : 0)
+      expect(booted).toHaveLength(1)
       for (const _ of Array.from({length: 20})) {
         expect(await runner.run('return 1', () => undefined)).toMatchObject({success: true, result: 1})
         expect(ours()).toEqual(booted)
@@ -946,7 +966,7 @@ describe('local sandbox', () => {
     'forgets a finished run, so a destroy that names no cancelled run stops the live one, even a child that outlives SIGTERM',
     {timeout: 15_000},
     async () => {
-      const provider = localSandbox({dir: mkdtempSync(join(tmpdir(), 'conciv-local-sandbox-'))})
+      const provider = localSandbox({dir: tempDir('conciv-local-sandbox-')})
       const finished = await provider.create({})
       await (await finished.process.spawn('true')).wait()
       const live = await provider.create({})

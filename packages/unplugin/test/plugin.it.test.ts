@@ -1,9 +1,9 @@
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {execFileSync} from 'node:child_process'
-import {cp, mkdtemp, realpath, writeFile} from 'node:fs/promises'
+import {cp, realpath, writeFile} from 'node:fs/promises'
 import {
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -14,10 +14,9 @@ import {
 } from 'node:fs'
 import {createServer as createHttpServer, type Server, type ServerResponse} from 'node:http'
 import {createServer as createNetServer} from 'node:net'
-import {tmpdir} from 'node:os'
 import {dirname, isAbsolute, join, relative} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it} from 'vitest'
+import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished} from 'vitest'
 import getPort from 'get-port'
 import {chromium, type Browser, type Page} from 'playwright'
 import {expect as expectLocator} from 'playwright/test'
@@ -32,6 +31,7 @@ import {readTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {rpcObserverFor} from '@conciv/plugin-testkit/rpc-observer'
 import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
+import {createConcivUnplugin} from '../src/index.js'
 import {installConcivBinShim} from '../src/core/bin-shim.js'
 import {makeEngineBooter} from '../src/core/boot.js'
 import {generateExtensionsEntrySource, writeExtensionsEntry} from '../src/core/extensions-entry.js'
@@ -41,12 +41,15 @@ import {makeViteBridge} from '@conciv/extension/vite'
 import {makeViteHook} from '../src/core/vite.js'
 import {EXTENSIONS_ROUTE, type Middleware, makeWidgetInject} from '../src/core/widget-middleware.js'
 import {
+  closeWhenTestFinishes,
   devServers,
   fixtureExtension,
   installConcivPackage,
   installFixtureExtension,
   magicLinkUrl,
   pageApiBase,
+  startTestDevServer,
+  testTempDir,
   type StartedDevServer,
 } from './helpers/dev-servers.js'
 
@@ -55,7 +58,7 @@ const NAVIGATION_SET_PATH = ['navigation', 'set']
 describe('bin shim', () => {
   describe('installConcivBinShim', () => {
     it('symlinks the agent-facing conciv shim to the cli package bin', () => {
-      const stateDir = mkdtempSync(join(tmpdir(), 'conciv-bin-shim-'))
+      const stateDir = tempDir('conciv-bin-shim-')
       const agentPath = installConcivBinShim(stateDir)
       expect(agentPath.startsWith(join(stateDir, 'bin'))).toBe(true)
       const target = realpathSync(join(stateDir, 'bin', 'conciv'))
@@ -87,7 +90,7 @@ describe('bundler diagnostics', () => {
     })
 
     it('captures a real transform error and a real HMR file change through server.bundler.subscribe', async () => {
-      const root = await realpath(await mkdtemp(join(await realpath(tmpdir()), 'conciv-diag-')))
+      const root = await realpath(tempDir('conciv-diag-'))
       await cp(FIXTURE, root, {recursive: true})
       await writeFile(join(root, 'broken.ts'), 'export const broken = = 1\n')
       const server = await createServer({
@@ -134,17 +137,17 @@ describe('bundler diagnostics', () => {
   })
 })
 
-describe('engine port exact', () => {
-  function holdPort(port: number): Promise<() => Promise<void>> {
-    const blocker = createNetServer()
-    return new Promise((resolve, reject) => {
-      blocker.once('error', reject)
-      blocker.listen(port, '127.0.0.1', () => resolve(() => new Promise<void>((done) => blocker.close(() => done()))))
-    })
-  }
+function holdPort(port: number): Promise<() => Promise<void>> {
+  const blocker = createNetServer()
+  return new Promise((resolve, reject) => {
+    blocker.once('error', reject)
+    blocker.listen(port, '127.0.0.1', () => resolve(() => new Promise<void>((done) => blocker.close(() => done()))))
+  })
+}
 
+describe('engine port exact', () => {
   function tempRoot(): string {
-    return mkdtempSync(join(tmpdir(), 'conciv-engine-port-exact-'))
+    return tempDir('conciv-engine-port-exact-')
   }
 
   describe('makeEngineBooter with the exact port policy (Next.js and the generic webpack/rspack plugin)', () => {
@@ -177,6 +180,146 @@ describe('engine port exact', () => {
   })
 })
 
+describe('webpack and rspack hooks', () => {
+  type Taps = {
+    watchRun: Array<() => Promise<void>>
+    watchClose: Array<() => unknown>
+    shutdown: Array<() => Promise<void>>
+  }
+
+  function bundlerCompiler(taps: Taps) {
+    return {
+      hooks: {
+        watchRun: {tapPromise: (_name: string, run: () => Promise<void>) => void taps.watchRun.push(run)},
+        watchClose: {tap: (_name: string, close: () => unknown) => void taps.watchClose.push(close)},
+        shutdown: {tapPromise: (_name: string, close: () => Promise<void>) => void taps.shutdown.push(close)},
+      },
+    }
+  }
+
+  function applyHook(
+    framework: 'webpack' | 'rspack',
+    options: {port: number; stateRoot: string; extensions?: ExtensionPackage[]},
+  ): Taps {
+    const taps: Taps = {watchRun: [], watchClose: [], shutdown: []}
+    const compiler = bundlerCompiler(taps)
+    const meta =
+      framework === 'webpack'
+        ? {framework, versions: {}, webpack: {compiler}}
+        : {framework, versions: {}, rspack: {compiler}}
+    const plugin = createConcivUnplugin().raw(options, meta)
+    if (Array.isArray(plugin)) throw new Error('expected one plugin')
+    plugin[framework]?.(compiler)
+    return taps
+  }
+
+  async function runAll(hooks: Array<() => unknown>): Promise<void> {
+    for (const hook of hooks) await hook()
+  }
+
+  it.each(['webpack', 'rspack'] as const)(
+    '%s starts the engine on the first watch run only, and stops it when watching closes',
+    async (framework) => {
+      const root = tempDir(`conciv-${framework}-hook-`)
+      const serverFile = join(concivStateDir(root), 'server.json')
+      try {
+        const port = await getPort()
+        const taps = applyHook(framework, {port, stateRoot: root})
+        expect(taps.watchRun).toHaveLength(1)
+        expect(existsSync(serverFile)).toBe(false)
+
+        await runAll(taps.watchRun)
+        expect((await fetch(`http://127.0.0.1:${port}/health`)).ok).toBe(true)
+        await runAll(taps.watchRun)
+        expect(JSON.parse(readFileSync(serverFile, 'utf8'))).toMatchObject({port})
+
+        await runAll(taps.watchClose)
+        await expect(fetch(`http://127.0.0.1:${port}/health`)).rejects.toThrow()
+      } finally {
+        rmSync(root, {recursive: true, force: true})
+      }
+    },
+    60_000,
+  )
+
+  it.each(['webpack', 'rspack'] as const)(
+    '%s compiler close settles only after the engine has stopped',
+    async (framework) => {
+      const root = tempDir(`conciv-${framework}-close-`)
+      try {
+        const port = await getPort()
+        const taps = applyHook(framework, {port, stateRoot: root, extensions: [fixtureExtension()]})
+        await runAll(taps.watchRun)
+        expect((await fetch(`http://127.0.0.1:${port}/health`)).ok).toBe(true)
+
+        taps.watchClose.forEach((close) => void close())
+        await runAll(taps.shutdown)
+        expect(existsSync(join(concivStateDir(root), 'fixture-disposed'))).toBe(true)
+        await expect(fetch(`http://127.0.0.1:${port}/health`)).rejects.toThrow()
+      } finally {
+        rmSync(root, {recursive: true, force: true})
+      }
+    },
+    60_000,
+  )
+
+  it.each(['webpack', 'rspack'] as const)(
+    '%s watching again after watching closed boots a new engine, after the old one has stopped',
+    async (framework) => {
+      const root = tempDir(`conciv-${framework}-rewatch-`)
+      const disposed = join(concivStateDir(root), 'fixture-disposed')
+      try {
+        const port = await getPort()
+        const health = `http://127.0.0.1:${port}/health`
+        const taps = applyHook(framework, {port, stateRoot: root, extensions: [fixtureExtension()]})
+        await runAll(taps.watchRun)
+        expect((await fetch(health)).ok).toBe(true)
+
+        await runAll(taps.watchClose)
+        expect(existsSync(disposed)).toBe(true)
+        await expect(fetch(health)).rejects.toThrow()
+
+        await runAll(taps.watchRun)
+        await expect(fetch(health).then((response) => response.ok)).resolves.toBe(true)
+
+        rmSync(disposed)
+        taps.watchClose.forEach((close) => void close())
+        await runAll(taps.watchRun)
+        expect(existsSync(disposed)).toBe(true)
+        await expect(fetch(health).then((response) => response.ok)).resolves.toBe(true)
+
+        taps.watchClose.forEach((close) => void close())
+        await runAll(taps.shutdown)
+        await expect(fetch(health)).rejects.toThrow()
+      } finally {
+        rmSync(root, {recursive: true, force: true})
+      }
+    },
+    60_000,
+  )
+
+  it.each(['webpack', 'rspack'] as const)(
+    '%s keeps watching without an engine when the configured port is taken',
+    async (framework) => {
+      const root = tempDir(`conciv-${framework}-taken-`)
+      const taken = await getPort()
+      const release = await holdPort(taken)
+      try {
+        const taps = applyHook(framework, {port: taken, stateRoot: root})
+        expect(taps.watchRun).toHaveLength(1)
+        await expect(runAll(taps.watchRun)).resolves.toBeUndefined()
+        await expect(runAll(taps.watchRun)).resolves.toBeUndefined()
+        expect(existsSync(join(concivStateDir(root), 'server.json'))).toBe(false)
+        await expect(runAll(taps.watchClose)).resolves.toBeUndefined()
+      } finally {
+        await release()
+        rmSync(root, {recursive: true, force: true})
+      }
+    },
+    60_000,
+  )
+})
+
 describe('engine port fallback', () => {
   describe('two dev servers configured with the same engine port', () => {
     const servers = devServers()
@@ -197,9 +340,25 @@ describe('engine port fallback', () => {
   })
 })
 
+describe('dev server close', () => {
+  const servers = devServers()
+
+  afterEach(() => servers.stopAll())
+
+  it('settles only after the engine has stopped', async () => {
+    const started = await servers.start({widget: false, extensions: [fixtureExtension()]})
+    const apiBase = await pageApiBase(started.server)
+    expect((await fetch(`${apiBase}/health`)).ok).toBe(true)
+
+    await started.server.close()
+    expect(existsSync(join(concivStateDir(started.root), 'fixture-disposed'))).toBe(true)
+    await expect(fetch(`${apiBase}/health`)).rejects.toThrow()
+  }, 30_000)
+})
+
 describe('extensions entry', () => {
   function makeProject(): string {
-    return mkdtempSync(join(tmpdir(), 'conciv-entry-'))
+    return tempDir('conciv-entry-')
   }
 
   function seedExtensionsDir(root: string): string {
@@ -292,7 +451,7 @@ describe('extensions watch', () => {
   })
 
   function makeRoot(): string {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-watch-'))
+    const root = tempDir('conciv-watch-')
     roots.push(root)
     return root
   }
@@ -566,6 +725,7 @@ describe('native page vite boot', () => {
       )
       state.browser = await chromium.launch({headless: true})
       state.page = await state.browser.newPage()
+      await rpcSocketFor(state.page).installed
       state.page.on('console', (message) => {
         if (message.type() === 'error') state.errors.push(message.text())
       })
@@ -583,6 +743,17 @@ describe('native page vite boot', () => {
       if (started === undefined || url === undefined) throw new Error('dev server did not start')
       return magicLinkUrl(started, url)
     }
+
+    const openChat = async (page: Page): Promise<void> => {
+      await rpcSocketFor(page).installed
+      await page.goto(await trustedUrl(), {waitUntil: 'domcontentloaded'})
+      await page.getByRole('button', {name: /conciv chat$/}).click()
+      await page.getByRole('dialog', {name: 'conciv chat agent'}).waitFor({timeout: 15_000})
+      await page.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 15_000})
+    }
+
+    const importSettled = (page: Page, href: string) =>
+      page.evaluate(`import(${JSON.stringify(href)}).then(() => null, () => null)`)
 
     it('mounts the widget without a CommonJS interop error', async () => {
       const page = state.page
@@ -608,24 +779,39 @@ describe('native page vite boot', () => {
     it('opens the panel with the composer, so the embed shares the host Solid and extension singletons', async () => {
       const page = state.page
       if (page === undefined) throw new Error('dev server did not start')
-      await page.getByRole('button', {name: /conciv chat$/}).click()
-      await page.getByRole('dialog', {name: 'conciv chat agent'}).waitFor({timeout: 15_000})
-      await page.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 15_000})
+      await openChat(page)
       expect(state.errors).toEqual([])
+      const saves = rpcObserverFor(page)
+      const beforeMinimize = saves.mark()
+      await page.getByRole('textbox', {name: 'Message the conciv agent'}).press('Escape')
+      await saves.completed({path: NAVIGATION_SET_PATH, input: /^(?!.*open=true)/, since: beforeMinimize})
     }, 30_000)
 
     it('restores the open chat, keeps it usable and names the content blocker when every rrweb module is blocked', async () => {
+      const opener = await state.browser?.newPage()
+      if (opener === undefined) throw new Error('dev server did not start')
+      onTestFinished(() => opener.close())
+      const saves = rpcObserverFor(opener)
+      const beforeOpen = saves.mark()
+      await openChat(opener)
+      await saves.completed({path: NAVIGATION_SET_PATH, input: /open=true/, since: beforeOpen})
+      await opener.close()
       const url = await trustedUrl()
       const blockedPage = await state.browser?.newPage()
       if (blockedPage === undefined) throw new Error('dev server did not start')
+      onTestFinished(() => blockedPage.close())
       await blockedPage.route(/rrweb/, (route) => route.abort('blockedbyclient'))
       await blockedPage.goto(url, {waitUntil: 'domcontentloaded'})
+      const blockerNotice = blockedPage.getByText(/content blocker.*rrweb-snapshot/)
+      await expectLocator(blockerNotice).toBeVisible({timeout: 45_000})
       const chat = blockedPage.getByRole('dialog', {name: 'conciv chat agent'})
       const composer = chat.getByRole('textbox', {name: 'Message the conciv agent'})
       await composer.fill('still usable', {timeout: 45_000})
       await expectLocator(composer).toHaveText('still usable')
       await chat.getByRole('tab', {name: 'Fixture'}).click()
       await expectLocator(chat.getByText('The fixture extension view')).toBeVisible()
+      await expectLocator(blockerNotice).toBeHidden()
+      const stillBlocked = blockedPage.waitForEvent('requestfailed', (request) => /rrweb-snapshot/.test(request.url()))
       const outcome = await blockedPage.evaluate(() =>
         Reflect.get(window, '__CONCIV_PAGE_DRIVER__').execute({
           agentId: 'plugin-it',
@@ -633,10 +819,10 @@ describe('native page vite boot', () => {
           input: {selector: '#probe', text: 'rewritten'},
         }),
       )
-      await expectLocator(blockedPage.getByText(/content blocker.*rrweb-snapshot/)).toBeVisible()
       expect(outcome).toMatchObject({ok: true, capture: {after: {descriptor: {accessibleName: 'rewritten'}}}})
       expect(outcome.capture.after.node).toBeUndefined()
-      await blockedPage.close()
+      await importSettled(blockedPage, (await stillBlocked).url())
+      expect(await blockerNotice.count()).toBe(0)
     }, 90_000)
 
     it('runs a page tool once and promptly while rrweb-snapshot is still loading', async () => {
@@ -683,20 +869,17 @@ describe('native page vite boot', () => {
           }),
         )
 
-      const importSettled = (href: string) =>
-        blockedPage.evaluate(`import(${JSON.stringify(href)}).then(() => null, () => null)`)
-
       const stillBlocked = blockedPage.waitForEvent('requestfailed', (request) => /rrweb-snapshot/.test(request.url()))
       expect((await rewrite()).capture.after.node).toBeUndefined()
       const failedImport = (await stillBlocked).url()
-      await importSettled(failedImport)
+      await importSettled(blockedPage, failedImport)
       expect(await blockerNotice.count()).toBe(0)
 
       gate.open = true
       const unblocked = blockedPage.waitForResponse(/rrweb-snapshot/)
       await rewrite()
       const loadedImport = (await unblocked).url()
-      await importSettled(loadedImport)
+      await importSettled(blockedPage, loadedImport)
       expect((await rewrite()).capture.after.node).toBeDefined()
       await blockedPage.close()
     }, 90_000)
@@ -719,7 +902,7 @@ describe('nextjs config', () => {
       delete process.env[key]
     }
     originalCwd = process.cwd()
-    projectRoot = mkdtempSync(join(tmpdir(), 'conciv-nextcfg-'))
+    projectRoot = tempDir('conciv-nextcfg-')
     process.chdir(projectRoot)
   })
 
@@ -1037,18 +1220,12 @@ describe('widget inject', () => {
 })
 
 describe('vite devtools dock', () => {
-  const servers: ViteDevServer[] = []
-  const dirs = devServers()
   let browser: Browser
 
   beforeAll(async () => {
     browser = await chromium.launch({headless: true})
   })
-  afterAll(async () => {
-    await browser.close()
-    await Promise.all(servers.map((server) => server.close()))
-    await dirs.stopAll()
-  })
+  afterAll(() => browser.close())
 
   function linkConcivIt(root: string): void {
     const embedDir = dirname(dirname(realpathSync(fileURLToPath(import.meta.resolve('@conciv/embed')))))
@@ -1066,14 +1243,15 @@ describe('vite devtools dock', () => {
       join(root, 'index.html'),
       `<!doctype html><html><head><meta charset="utf-8">${hostHead}<title>host</title></head><body><h1>host</h1></body></html>`,
     )
-    const server = await createServer({
-      root,
-      configFile: false,
-      customLogger: createLogger('silent'),
-      server: {host: '127.0.0.1', port: 0, watch: null},
-      plugins,
-    })
-    servers.push(server)
+    const server = closeWhenTestFinishes(
+      await createServer({
+        root,
+        configFile: false,
+        customLogger: createLogger('silent'),
+        server: {host: '127.0.0.1', port: 0, watch: null},
+        plugins,
+      }),
+    )
     await server.listen()
     const address = server.httpServer?.address()
     const url = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}/`
@@ -1093,7 +1271,7 @@ describe('vite devtools dock', () => {
   async function startDockServer(
     widget?: false,
     extensions: readonly ExtensionPackage[] = [],
-    root = realpathSync(dirs.tempDir('conciv-dock-')),
+    root = testTempDir('conciv-dock-'),
     hostHead = '',
     clientAuth = false,
     hostPlugins: Plugin[] = [],
@@ -1130,7 +1308,7 @@ describe('vite devtools dock', () => {
   }, 60_000)
 
   it('trusts the dock through Vite DevTools and records it in the trust file', async () => {
-    const root = realpathSync(dirs.tempDir('conciv-dock-'))
+    const root = testTempDir('conciv-dock-')
     const page = await browser.newPage({viewport: {width: 1280, height: 800}})
     await page.goto(await dockServer(undefined, [], root), {waitUntil: 'domcontentloaded'})
     await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
@@ -1141,7 +1319,7 @@ describe('vite devtools dock', () => {
   }, 60_000)
 
   it('refuses conciv:engine-token to a raw WebSocket that never logged in to Vite DevTools', async () => {
-    const root = realpathSync(dirs.tempDir('conciv-dock-'))
+    const root = testTempDir('conciv-dock-')
     const base = await dockServer(undefined, [], root, '', true)
     await fetch(base)
     const socket = new WebSocket(`${base.replace('http', 'ws')}__devtools/__ws`)
@@ -1302,9 +1480,9 @@ describe('vite devtools dock', () => {
   })
 
   it('shows the chat in the dock when a closed floating widget left its panel route behind', async () => {
-    const root = realpathSync(dirs.tempDir('conciv-dock-'))
+    const root = testTempDir('conciv-dock-')
     writeFileSync(join(root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title>')
-    const floating = await dirs.start(
+    const floating = await startTestDevServer(
       {},
       {
         embedEntry: fileURLToPath(import.meta.resolve('@conciv/embed')),
@@ -1363,7 +1541,7 @@ describe('vite devtools dock', () => {
   ])(
     'mounts one widget, in the dock, when a framework client-entry module also loads on a page with $host',
     async ({hostMeta}) => {
-      const root = realpathSync(dirs.tempDir('conciv-dock-'))
+      const root = testTempDir('conciv-dock-')
       mkdirSync(join(root, 'src'))
       writeFileSync(
         join(root, 'src', 'client-entry.ts'),
@@ -1389,7 +1567,7 @@ describe('vite devtools dock', () => {
   )
 
   it('mounts the floating page widget when the host conciv-widget meta holds null', async () => {
-    const root = realpathSync(dirs.tempDir('conciv-null-meta-'))
+    const root = testTempDir('conciv-null-meta-')
     const started = await startHostServer(root, '<meta name="conciv-widget" content="null">', [concivHook(root, [])])
     const page = await browser.newPage({viewport: {width: 1280, height: 800}})
     const pageErrors: string[] = []
@@ -1411,13 +1589,13 @@ describe('vite devtools dock', () => {
   }, 60_000)
 
   it('shows the inline chat after a pop-out started from the quick terminal of a closed widget closes', async () => {
-    const quickServer = await dirs.start(
+    const quickServer = await startTestDevServer(
       {extensions: [fixtureExtension()]},
       {
         embedEntry: fileURLToPath(import.meta.resolve('@conciv/embed')),
         dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
       },
-      realpathSync(dirs.tempDir('conciv-quick-')),
+      testTempDir('conciv-quick-'),
     )
     const {server} = quickServer
     writeFileSync(join(server.config.root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title>')
@@ -1485,24 +1663,25 @@ describe('vite devtools dock', () => {
   ])(
     'opens the chat and an installed extension on a cold cache of a $layout conciv install with one Solid and without Vite re-optimizing dependencies',
     async ({prepare}) => {
-      const root = realpathSync(dirs.tempDir('conciv-cold-'))
+      const root = testTempDir('conciv-cold-')
       writeFileSync(join(root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title>')
       const {builtins, extensions} = prepare(root)
       const logged: string[] = []
       const remember = (message: string): void => void logged.push(message)
-      const server = await createServer({
-        root,
-        configFile: false,
-        customLogger: {
-          ...createLogger('silent'),
-          info: remember,
-          warn: remember,
-          warnOnce: remember,
-        },
-        server: {host: '127.0.0.1', port: 0},
-        plugins: [makeViteHook({enabled: true, stateRoot: root, extensions}, builtins)],
-      })
-      servers.push(server)
+      const server = closeWhenTestFinishes(
+        await createServer({
+          root,
+          configFile: false,
+          customLogger: {
+            ...createLogger('silent'),
+            info: remember,
+            warn: remember,
+            warnOnce: remember,
+          },
+          server: {host: '127.0.0.1', port: 0},
+          plugins: [makeViteHook({enabled: true, stateRoot: root, extensions}, builtins)],
+        }),
+      )
       await server.listen()
       const url = server.resolvedUrls?.local[0]
       if (url === undefined) throw new Error('dev server did not start')
@@ -1538,8 +1717,7 @@ describe('vite devtools dock', () => {
   )
 
   it('keeps the floating page widget when Vite DevTools is not enabled', async () => {
-    const {server} = await dirs.start()
-    servers.push(server)
+    const {server} = await startTestDevServer()
     const address = server.httpServer?.address()
     const base = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}`
     const source = await (await fetch(`${base}${EXTENSIONS_ROUTE}`)).text()

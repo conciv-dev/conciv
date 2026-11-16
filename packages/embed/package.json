@@ -59,7 +59,6 @@
     "@conciv/ui-kit-system": "workspace:^",
     "@conciv/ui-kit-tap": "workspace:^",
     "@solid-primitives/event-listener": "catalog:",
-    "@tanstack/pacer": "catalog:",
     "@tanstack/solid-router": "catalog:",
     "bippy": "catalog:",
     "react-grab": "catalog:",
@@ -67,6 +66,7 @@
   },
   "devDependencies": {
     "@conciv/app": "workspace:*",
+    "@conciv/browser-fixture": "workspace:*",
     "@conciv/extension-recorder": "workspace:^",
     "@conciv/extension-tanstack": "workspace:^",
     "@conciv/extension-terminal": "workspace:^",

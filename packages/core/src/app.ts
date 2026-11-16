@@ -78,7 +78,7 @@ import {
   answerPermission,
   followPermissionCards,
   pluginInstructions,
-  sessionToolDomain,
+  currentToolDomain,
 } from './runtime/permission-cards.js'
 import {makePluginRuntime} from './runtime/plugin-runtime.js'
 import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-types.js'
@@ -98,7 +98,7 @@ import pageServerExtension from '@conciv/extension-page/server'
 import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
 import {loadIsolateDriver} from '@conciv/ai/server'
-import {runInOrder} from './lib/shutdown.js'
+import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import {
   agentPath,
@@ -570,6 +570,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
                 background: [],
               }),
             ),
+            {onlyIfMissing: true},
           ).pipe(Effect.flatMap(Fiber.join)),
         )
         .catch((error: unknown) => Exit.die(error))
@@ -619,22 +620,51 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: primitives.page.queues}),
   })
   const pluginHost: PluginHost = plugins.runtime
-  await pluginHost.context()
+  const startFailed =
+    (steps: ShutdownStep[]) =>
+    async (error: unknown): Promise<never> => {
+      await runInOrder(
+        [
+          plugins.closeRpc,
+          plugins.closePlugins,
+          plugins.closePermissions,
+          ...steps,
+          ...disposers,
+          settings.close,
+          () => browsers.close(),
+          () => pluginHost.dispose(),
+          () => db.$client.close(),
+        ],
+        'conciv: disposing after a failed start failed',
+      ).catch((failure: unknown) => logError(`[core] ${String(failure)}`))
+      throw error
+    }
+  await pluginHost.context().catch(startFailed([]))
   const idleScope = Effect.runSync(Scope.make())
   const idleTriggers = Effect.runSync(FiberMap.make<SessionId>().pipe(Scope.provide(idleScope)))
-  const interruptIdle = (sessionId: SessionId): Promise<boolean> =>
+  const interruptIdle = (sessionId: SessionId, stopped: boolean): Promise<boolean> =>
     Effect.runPromise(
       FiberMap.has(idleTriggers, sessionId).pipe(
         Effect.tap((running) => (running ? FiberMap.remove(idleTriggers, sessionId) : Effect.void)),
+        Effect.tap((running) =>
+          running || stopped
+            ? FiberMap.run(
+                idleTriggers,
+                sessionId,
+                Effect.promise(() => plane.settled(sessionId)),
+              )
+            : Effect.void,
+        ),
       ),
     )
   const reportToolCollision = memoize((name: string) =>
     logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`),
   )
-  const withPluginTools = (sessionId: SessionId, capabilities: CodeCapability[]): CodeCapability[] =>
+  const withPluginTools = async (sessionId: SessionId, capabilities: CodeCapability[]): Promise<CodeCapability[]> =>
     toolDomainCapabilities(
       capabilities,
-      pluginHost.runSync(sessionToolDomain(sessionId)),
+      await pluginHost.runPromise(currentToolDomain(sessionId)),
+      currentToolDomain(sessionId),
       (effect, signal) => pluginHost.runPromiseExit(effect, {signal}),
       reportToolCollision,
     )
@@ -642,7 +672,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const extensionFor = (name: string): string | undefined =>
     mounted.find((entry) => entry.registryTools.some((tool) => tool.name === name))?.extensionName
 
-  const codeModeCapabilities = (sessionId: SessionId): CodeCapability[] =>
+  const codeModeCapabilities = (sessionId: SessionId): Promise<CodeCapability[]> =>
     withPluginTools(sessionId, [
       ...registryCapabilities(
         registry.whenPageConnected(() => primitives.page.bus.connected(sessionId)).sandboxTools(),
@@ -657,6 +687,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   )
 
   const hub = createHubInstaller(opts.home)
+  const driver = loadIsolateDriver(logError)
   const plane = await createChatPlane({
     cwd: opts.cwd,
     hubAccess: opts.cfg.hubAccess,
@@ -680,16 +711,19 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     capabilities: codeModeCapabilities,
     attachmentExpanders,
     prompt: plugins.prompt,
+    promptHooked: plugins.promptHooked,
     pluginInstructions: (sessionId, reset, inventory) =>
       pluginHost.runPromise(pluginInstructions(sessionId, reset, inventory)),
     firstOutputTimeoutMs: opts.firstChunkTimeoutMs,
     log: logError,
-    driver: await loadIsolateDriver(logError),
-  })
+    driver,
+  }).catch(startFailed([]))
   planeRef.current = plane
-  await pluginHost.runPromise(
-    followPermissionCards({plane, publish: (sessionId, chunk) => stream.publish(sessionId, chunk), log: logError}),
-  )
+  await pluginHost
+    .runPromise(
+      followPermissionCards({plane, publish: (sessionId, chunk) => stream.publish(sessionId, chunk), log: logError}),
+    )
+    .catch(startFailed([() => plane.endAllRuns()]))
   const chatDeps: ChatContext = {
     defaultHarness: harness,
     harnesses,
@@ -703,7 +737,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness, interruptIdle})
 
   function followUpOwedQueues(sessionId: SessionId): void {
-    void startQueueFollowUp(primitives.page.queues, plane, sessionId).catch((error: unknown) =>
+    if (planeRef.current === null) return
+    void startQueueFollowUp(primitives.page.queues, planeRef.current, sessionId).catch((error: unknown) =>
       logError(`[core] the page queue follow-up turn for ${sessionId} could not start: ${String(error)}`),
     )
   }
@@ -745,9 +780,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     finishedQueues: (sessionId, fromHub) => primitives.page.queues.undelivered(sessionId, fromHub),
     startedQueues: (sessionId, toolCallIds) => primitives.page.queues.startedBy(sessionId, toolCallIds),
     admitCall: (sessionId, call) => plane.admitCall(sessionId, call),
-    outsideCapabilities: (sessionId) =>
+    outsideCapabilities: async (sessionId) =>
       outsideRunCapabilities(
-        withPluginTools(sessionId, [
+        await withPluginTools(sessionId, [
           ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall, extensionFor),
           ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
         ]),

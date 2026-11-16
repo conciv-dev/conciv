@@ -1,5 +1,5 @@
 import {expect} from 'vitest'
-import {mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
+import {chmod, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {Deferred, Effect, Fiber, Logger, Schema, Stream} from 'effect'
@@ -159,14 +159,110 @@ it.live("serves a local plugin's experimental bundle, and reloads it alone when 
     expect(yield* plugins.experimental(Plugin.Id.make('missing'))).toBeUndefined()
 
     yield* Effect.promise(() => writeFile(path.join(directory, 'plugin-experimental.js'), `${bundle}\n// edited`))
+    expect(yield* plugins.experimental(id)).toEqual(served)
     const edited = yield* load
     const published = updates.length
     yield* plugins.activate([edited])
+    const reloaded = yield* plugins.experimental(id)
 
     expect(edited.revision).toBe(first.revision)
-    expect((yield* plugins.experimental(id))?.revision).not.toBe(served?.revision)
+    expect(reloaded?.code).toBe(`${bundle}\n// edited`)
+    expect(reloaded?.revision).not.toBe(served?.revision)
     expect(updates.length).toBe(published + 1)
     expect(yield* Effect.promise(() => readFile(starts, 'utf8'))).toBe('x')
+  }).pipe(Effect.scoped),
+)
+
+it.live("serves a local plugin's built chunks, each answer pinned to the bytes read when it loaded", () =>
+  Effect.gen(function* () {
+    const plugins = yield* Plugin.Service
+    yield* plugins.awaitActivation
+    const directory = yield* Effect.acquireRelease(
+      Effect.promise(() => mkdtemp(path.join(tmpdir(), 'opencode-plugin-chunks-'))),
+      (created) => Effect.promise(() => rm(created, {recursive: true, force: true})),
+    )
+    const shared = 'exports.shared = "shared"'
+    const entry = (lazy: string) =>
+      `const require_shared = require("./shared-A.cjs")\nexports.default = {setup() { return Promise.resolve().then(() => require("./${lazy}")) }}`
+    const manifest = (lazy: string) =>
+      JSON.stringify({
+        '_shared-A.cjs': {file: 'shared-A.cjs'},
+        '_deep-C.cjs': {file: 'deep-C.cjs', imports: ['_shared-A.cjs']},
+        'src/entry.ts': {file: 'plugin-experimental.js', isEntry: true, imports: ['_shared-A.cjs']},
+        'src/lazy.ts': {file: lazy, isDynamicEntry: true, imports: ['_deep-C.cjs', '_shared-A.cjs']},
+      })
+    const write = (files: Record<string, string>) =>
+      Effect.promise(() =>
+        Promise.all(Object.entries(files).map(([name, text]) => writeFile(path.join(directory, name), text))),
+      )
+    yield* write({
+      'index.ts': 'export default {id: "fixture.chunks", setup() {}}',
+      'shared-A.cjs': shared,
+      'deep-C.cjs': 'exports.deep = require("./shared-A.cjs").shared',
+      'lazy-B.cjs': 'exports.big = () => require("./deep-C.cjs").deep',
+      'plugin-experimental.js': entry('lazy-B.cjs'),
+      'plugin-experimental.js.manifest.json': manifest('lazy-B.cjs'),
+    })
+    const modules = yield* PluginModule.make().pipe(Effect.provide(Watcher.testLayer))
+    const reload = Effect.gen(function* () {
+      const definition = yield* modules.load({type: 'add', target: directory, options: {}})
+      if ('pending' in definition || 'blocked' in definition) return yield* Effect.die('Local plugin was not loaded')
+      yield* plugins.activate([definition])
+    })
+    yield* reload
+    const id = Plugin.Id.make('fixture.chunks')
+
+    const served = yield* plugins.experimental(id)
+    expect(served).toMatchObject({file: 'plugin-experimental.js', chunks: [{file: 'shared-A.cjs', code: shared}]})
+    const chunk = (file: string) => plugins.experimentalChunk(id, file)
+    const refused = (file: string) => Effect.flip(chunk(file))
+    expect(yield* chunk('lazy-B.cjs')).toEqual({
+      revision: served?.revision,
+      chunks: [
+        {file: 'shared-A.cjs', code: shared},
+        {file: 'deep-C.cjs', code: 'exports.deep = require("./shared-A.cjs").shared'},
+        {file: 'lazy-B.cjs', code: 'exports.big = () => require("./deep-C.cjs").deep'},
+      ],
+    })
+    expect(yield* plugins.experimentalChunk(Plugin.Id.make('missing'), 'lazy-B.cjs')).toBeUndefined()
+    for (const file of ['../package.json', 'plugin-experimental.js', 'plugin-experimental.js.manifest.json', 'x.cjs'])
+      expect(yield* refused(file)).toEqual({_tag: 'Plugin.ChunkNotFound', file})
+
+    yield* write({'lazy-B.cjs': 'exports.big = () => "rewritten"'})
+    expect(yield* refused('lazy-B.cjs')).toEqual({_tag: 'Plugin.ChunkNotFound', file: 'lazy-B.cjs'})
+    yield* write({'shared-A.cjs': 'exports.shared = "rewritten"'})
+    expect(yield* Effect.flip(plugins.experimental(id))).toEqual({_tag: 'Plugin.ChunkNotFound', file: 'shared-A.cjs'})
+
+    yield* write({
+      'lazy-D.cjs': 'exports.big = () => "second"',
+      'plugin-experimental.js': entry('lazy-D.cjs'),
+      'plugin-experimental.js.manifest.json': manifest('lazy-D.cjs'),
+    })
+    yield* reload
+    expect((yield* chunk('lazy-D.cjs'))?.chunks).toEqual([
+      {file: 'shared-A.cjs', code: 'exports.shared = "rewritten"'},
+      {file: 'deep-C.cjs', code: 'exports.deep = require("./shared-A.cjs").shared'},
+      {file: 'lazy-D.cjs', code: 'exports.big = () => "second"'},
+    ])
+    expect(yield* refused('lazy-B.cjs')).toEqual({_tag: 'Plugin.ChunkNotFound', file: 'lazy-B.cjs'})
+
+    const refusal = (records: object) =>
+      write({'plugin-experimental.js.manifest.json': JSON.stringify(records)}).pipe(
+        Effect.andThen(Effect.flip(modules.load({type: 'add', target: directory, options: {}}))),
+        Effect.map((error) => error.message),
+      )
+    const bundle = path.join(directory, 'plugin-experimental.js')
+    const of = `The chunk manifest of ${bundle}`
+    expect(yield* refusal({'src/lazy.ts': {file: '../lazy-D.cjs'}})).toBe(`${of} is malformed`)
+    expect(yield* refusal({'src/lazy.ts': {file: 'lazy-D.cjs', imports: ['_gone.cjs']}})).toBe(
+      `${of} imports _gone.cjs, which it does not list`,
+    )
+    const entryImport = {e: {file: 'plugin-experimental.js', isEntry: true}, b: {file: 'lazy-D.cjs', imports: ['e']}}
+    yield* write({'plugin-experimental.js.manifest.json': JSON.stringify(entryImport)})
+    yield* reload
+    expect((yield* chunk('lazy-D.cjs'))?.chunks).toEqual([{file: 'lazy-D.cjs', code: 'exports.big = () => "second"'}])
+    yield* Effect.promise(() => chmod(bundle, 0))
+    expect(yield* refusal({})).toBe(`The ./plugin-experimental file ${bundle} can't be read`)
   }).pipe(Effect.scoped),
 )
 it.effect('unloading a plugin removes its tools and runs cleanup', () =>

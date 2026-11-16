@@ -9,6 +9,8 @@ export type RpcCallRecord = {
   requestId: string
   input: unknown
   status: number | null
+  output: unknown
+  abandoned: boolean
 }
 
 export type RpcInputPattern = unknown
@@ -93,7 +95,14 @@ export function observeRpc(page: Page): RpcObserver {
   const onEvent = (event: RpcSocketEvent): void => {
     if (event.kind === 'request') {
       const state: CallState = {
-        record: {procedurePath: event.path, requestId: event.requestId, input: event.input, status: null},
+        record: {
+          procedurePath: event.path,
+          requestId: event.requestId,
+          input: event.input,
+          status: null,
+          output: undefined,
+          abandoned: false,
+        },
         startedAt: (sequence.next += 1),
         completedAt: null,
         completed: false,
@@ -102,10 +111,16 @@ export function observeRpc(page: Page): RpcObserver {
       calls.set(event.requestId, state)
       return
     }
+    if (event.kind === 'abort') {
+      const abandoned = calls.get(event.requestId)
+      if (abandoned) abandoned.record.abandoned = true
+      return
+    }
     const state = calls.get(event.requestId)
     if (!state || state.completed) return
     state.completedAt = sequence.next += 1
     state.record.status = event.status
+    state.record.output = event.output
     state.completed = true
     state.served = event.served
     notify(state)

@@ -40,7 +40,7 @@ import type {
   Tool,
 } from '@conciv/plugin-host'
 import type {PermissionAnswer} from '../../runtime/permission-cards.js'
-import type {EventFeed} from '../../runtime/event-feed.js'
+import type {EventFeed} from '../../event-feed.js'
 
 export type PluginHost = ManagedRuntime.ManagedRuntime<
   | Tool.Interface
@@ -87,7 +87,7 @@ export type RpcDeps = {
   assist: (sessionId: SessionId) => readonly ConcivServerTool[]
   code: McpVars['mcp']
   tabs: ReturnType<typeof createTabs>
-  queues: Pick<PageQueues, 'wait' | 'release'>
+  queues: Pick<PageQueues, 'wait' | 'cancelSession'>
   pluginHost: PluginHost
   answerPermission: PermissionAnswer
 }
@@ -159,7 +159,7 @@ const EVENT_PROCEDURES = new Set(['event.subscribe'])
 
 const OUTSIDE_EVENT_REFUSAL = "outside agents can't read the engine's event stream"
 
-const PLUGIN_PROCEDURES = new Set(['plugin.call', 'plugin.list', 'plugin.experimental'])
+const PLUGIN_PROCEDURES = new Set(['plugin.call', 'plugin.list', 'plugin.experimental', 'plugin.experimentalChunk'])
 
 const OUTSIDE_PLUGIN_REFUSAL = "outside agents can't use plugin routes; use the plugin in the tab"
 

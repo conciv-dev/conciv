@@ -1,16 +1,15 @@
-import {mkdtempSync, rmSync} from 'node:fs'
-import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {rmSync} from 'node:fs'
 import {describe, expect, it, onTestFinished} from 'vitest'
 import {quickJSThreadDriver, toolApprovalId} from '@conciv/ai/server'
 import {fakeText} from '@conciv/ai/testkit'
 import {openDb, type ConcivDb} from '@conciv/db'
 import {defineHarness} from '@conciv/harness'
 import {readApprovalAsk, approvalRequestedEvent} from '@conciv/protocol/chat-event-types'
-import {SessionId} from '@conciv/protocol/chat-types'
+import {CHAT_SSE_PATH, SessionId} from '@conciv/protocol/chat-types'
 import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 import {Effect, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {z} from 'zod'
+import {defineWebSocketHelper} from 'hono/ws'
 import {
   Agent,
   Bus,
@@ -24,6 +23,7 @@ import {
   Tool,
 } from '@conciv/plugin-host'
 import {createChatPlane, toolDomainCapabilities, type CodeCapability} from '../src/index.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 const PIXEL_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
 
@@ -56,8 +56,14 @@ const harness = defineHarness({
   },
 })
 
+const NO_EXECUTE: Permission.Ruleset = [{action: 'execute', resource: '*', effect: 'deny'}]
+
+function currentDomain(agent: Agent.Id, rules: Permission.Ruleset = []) {
+  return Tool.Service.use((tools) => tools.snapshot(rules)).pipe(Effect.map((snapshot) => ({snapshot, agent})))
+}
+
 function openDatabase() {
-  const root = mkdtempSync(join(tmpdir(), 'conciv-chat-unit-'))
+  const root = tempDir('conciv-chat-unit-')
   const db = openDb(root)
   onTestFinished(() => {
     db.$client.close()
@@ -88,9 +94,10 @@ function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typ
       onRunEnd: async () => undefined,
     },
     toolNames: new Set(),
-    capabilities: () => [],
+    capabilities: async () => [],
     attachmentExpanders: {},
     prompt: async (event) => event,
+    promptHooked: async () => false,
     pluginInstructions: async () => ({initial: '', update: '', told: async () => undefined}),
     log: () => undefined,
     driver,
@@ -183,7 +190,8 @@ describe('plugin tools in code mode', () => {
     const capabilities = (): CodeCapability[] =>
       toolDomainCapabilities(
         [builtin],
-        {snapshot: host.runSync(Tool.Service.use((tools) => tools.snapshot())), agent: Agent.Id.make('plan')},
+        host.runSync(currentDomain(Agent.Id.make('plan'))),
+        currentDomain(Agent.Id.make('plan')),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         (name) => collisions.push(name),
       )
@@ -259,7 +267,7 @@ describe('plugin tools in code mode', () => {
     )
 
     const {root, db} = openDatabase()
-    const chat = await chatPlane(db, root, {capabilities})
+    const chat = await chatPlane(db, root, {capabilities: async () => capabilities()})
     const runner = await chat.codeRunner(SessionId.parse('conciv_plugin'), () => undefined)
     expect(runner?.code?.capabilities.map((capability) => capability.name)).toEqual([
       'unit_taken',
@@ -387,12 +395,13 @@ describe('plugin tools in code mode', () => {
     const capabilities = (): CodeCapability[] =>
       toolDomainCapabilities(
         [],
-        {snapshot: host.runSync(Tool.Service.use((tools) => tools.snapshot())), agent: Agent.defaultId},
+        host.runSync(currentDomain(Agent.defaultId)),
+        currentDomain(Agent.defaultId),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )
     const {root, db} = openDatabase()
-    const chat = await chatPlane(db, root, {capabilities})
+    const chat = await chatPlane(db, root, {capabilities: async () => capabilities()})
     const runner = await chat.codeRunner(SessionId.parse('conciv_search'), () => undefined)
     await expect(runner?.code?.run('return search({query: "quasar brightness"})', 'parent')).resolves.toMatchObject({
       success: true,
@@ -517,7 +526,8 @@ describe('refusal text', () => {
     )
     const [guarded, promised, wrapped] = toolDomainCapabilities(
       [],
-      {snapshot: host.runSync(Tool.Service.use((tools) => tools.snapshot())), agent: Agent.defaultId},
+      host.runSync(currentDomain(Agent.defaultId)),
+      currentDomain(Agent.defaultId),
       (effect, signal) => host.runPromiseExit(effect, {signal}),
       () => undefined,
     )
@@ -620,14 +630,8 @@ describe('direct tools', () => {
     const capabilities = (sessionId: SessionId): CodeCapability[] =>
       toolDomainCapabilities(
         [builtin],
-        {
-          snapshot: host.runSync(
-            Tool.Service.use((tools) =>
-              tools.snapshot(sessionId === closed ? [{action: 'execute', resource: '*', effect: 'deny'}] : []),
-            ),
-          ),
-          agent: Agent.Id.make('plan'),
-        },
+        host.runSync(currentDomain(Agent.Id.make('plan'), sessionId === closed ? NO_EXECUTE : [])),
+        currentDomain(Agent.Id.make('plan'), sessionId === closed ? NO_EXECUTE : []),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )
@@ -640,7 +644,7 @@ describe('direct tools', () => {
       {name: 'unit_direct_snap', direct: true},
     ])
     const {root, db} = openDatabase()
-    const chat = await chatPlane(db, root, {capabilities})
+    const chat = await chatPlane(db, root, {capabilities: async (sessionId) => capabilities(sessionId)})
     const runner = await chat.codeRunner(shared, () => undefined)
     expect(names(runner?.code?.capabilities)).toEqual(['unit_builtin', 'unit_coded'])
     expect(names(runner?.direct)).toEqual(['unit_direct', 'unit_direct_snap'])
@@ -700,7 +704,7 @@ describe('plugin instructions', () => {
     const inventories: (CodeModeCatalog.Inventory | undefined)[] = []
     const chat = await chatPlane(db, root, {
       systemPrompt: {systemPromptText: 'the base prompt'},
-      capabilities: () => [note],
+      capabilities: async () => [note],
       pluginInstructions: async (_sessionId, _reset, inventory) => {
         inventories.push(inventory)
         return told.shift() ?? {initial: '', update: '', told: settled}
@@ -743,6 +747,63 @@ describe('plugin instructions', () => {
     expect(sent[1]?.systemPrompts).toEqual(['the base prompt', preface])
     expect(lastUserContent(1)).toBe('and again')
     expect(JSON.stringify(sent[1]?.messages)).not.toContain('a skill was added')
+  })
+})
+
+describe('the session prompt hook', () => {
+  it('a turn with no prompt hook never reaches the hook service, and a registered hook rewrites the words the model gets', async () => {
+    const host = ManagedRuntime.make(PluginHooks.layer)
+    onTestFinished(() => host.dispose())
+    const scope = host.runSync(Scope.make())
+    const triggered: string[] = []
+    const {root, db} = openDatabase()
+    const sessionId = SessionId.parse('conciv_prompt_hook')
+    const chat = await chatPlane(db, root, {
+      prompt: (event) => {
+        triggered.push(event.prompt.text)
+        return host.runPromise(PluginHooks.Service.use((hooks) => hooks.trigger('session', 'prompt', event)))
+      },
+      promptHooked: () => host.runPromise(PluginHooks.Service.use((hooks) => hooks.has('session', 'prompt'))),
+    })
+    const sent: unknown[] = []
+    const recorded = ({request}: {request: {messages: ModelMessage[]}}) => {
+      sent.push(request.messages.findLast((message) => message.role === 'user')?.content)
+      return {text: 'done'}
+    }
+    const routes = chat.routes(defineWebSocketHelper(async () => undefined))
+    const say = async (runId: string, text: string) => {
+      const response = await routes.request(CHAT_SSE_PATH, {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({
+          threadId: sessionId,
+          runId,
+          messages: [{id: `${runId}-user`, role: 'user', content: text}],
+          tools: [],
+          context: [],
+        }),
+      })
+      await response.text()
+    }
+
+    model.setResponses([recorded])
+    await say('run-plain', 'plain words')
+    expect(triggered).toEqual([])
+    expect(sent).toEqual(['plain words'])
+
+    await host.runPromise(
+      PluginHooks.Service.use((hooks) =>
+        hooks.register('session', 'prompt', (event) =>
+          Effect.sync(() => {
+            event.prompt.text += ' rewritten'
+          }),
+        ),
+      ).pipe(Scope.provide(scope)),
+    )
+    model.setResponses([recorded])
+    await say('run-hooked', 'hooked words')
+    expect(triggered).toEqual(['hooked words'])
+    expect(sent).toEqual(['plain words', [{type: 'text', content: 'hooked words rewritten'}]])
   })
 })
 

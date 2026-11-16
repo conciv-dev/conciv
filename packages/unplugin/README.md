@@ -8,11 +8,11 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 - `package.json:exports` - `.`, `./vite`, `./webpack`, `./rspack`, `./rollup`, `./esbuild`, `./nextjs`, `./nextjs/widget`.
 - Source: [src](./src/README.md).
-- Test support: `test/fixtures/diagnostics-app/` (the compiling module for the diagnostics tests; the test writes the broken one into its temp copy) and `test/helpers/` (temporary Vite dev servers for the plugin tests).
+- Test support: `test/fixtures/diagnostics-app/` (the compiling module for the diagnostics tests; the test writes the broken one into its temp copy) and `test/helpers/` (temporary Vite dev servers for the plugin tests). An engine these tests boot offers every agent CLI found on its own process `PATH` (`detectedHarnesses` in `packages/core/src/app.ts`), and no conciv config option fixes that set, so the tests run with whatever harness CLIs the machine has installed.
 
 ## Invariants
 
-- webpack and rspack boot the engine only when `enabled !== false`; the Next.js widget starts only in a browser with `NEXT_PUBLIC_CONCIV_PORT` set and `NODE_ENV` not `production`. Full list in [src/README.md](./src/README.md#invariants).
+- webpack and rspack boot the engine only when `enabled !== false` and only while the bundler watches; a taken `port` logs one line and leaves the bundler running; the Next.js widget starts only in a browser with `NEXT_PUBLIC_CONCIV_PORT` set and `NODE_ENV` not `production`. Full list in [src/README.md](./src/README.md#invariants).
 
 ## Side Effects
 

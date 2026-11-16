@@ -1,6 +1,5 @@
 import * as NodeFs from 'node:fs'
-import {mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile} from 'node:fs/promises'
-import {tmpdir} from 'node:os'
+import {mkdir, readdir, readFile, realpath, rm, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {pathToFileURL} from 'node:url'
 import {afterAll, afterEach, beforeEach, describe, expect, expectTypeOf, it, vi} from 'vitest'
@@ -48,6 +47,7 @@ import {
 import {experimental} from '../src/experimental/vite.js'
 import * as RpcEntry from '../src/rpc.js'
 import * as Host from '../src/host.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 type Count = {count: number}
 
@@ -575,7 +575,7 @@ describe('host', () => {
   const name = '@fixture/plugin'
 
   async function fixture(files: Record<string, string>, installed = false) {
-    const root = await realpath(await mkdtemp(path.join(tmpdir(), 'conciv-host-')))
+    const root = await realpath(tempDir('conciv-host-'))
     const directory = installed ? path.join(root, 'node_modules', name) : root
     await Promise.all(
       Object.entries(files).map(async ([file, content]) => {
@@ -796,16 +796,7 @@ describe('host', () => {
       ['counter', {CountSchema}],
     ])
 
-    const evaluate = (code: string) =>
-      evaluatePluginBundle(code, {
-        require: (required) => {
-          const module = modules.get(required)
-
-          if (module) return module
-
-          throw new Error(`not shared: ${required}`)
-        },
-      })
+    const evaluate = (code: string) => evaluatePluginBundle(code, {require: provider(modules)})
 
     it("read the default export's declarations and setups", () => {
       const bundle = evaluate(`
@@ -932,7 +923,7 @@ describe('experimental() build', () => {
   afterAll(() => Promise.all(dirs.map((dir) => rm(dir, {recursive: true, force: true}))))
 
   const project = async (files: Record<string, string>) => {
-    const root = await mkdtemp(path.join(tmpdir(), 'conciv-experimental-vite-'))
+    const root = tempDir('conciv-experimental-vite-')
     dirs.push(root)
     await Promise.all(
       Object.entries(files).map(async ([file, text]) => {
@@ -956,7 +947,7 @@ describe('experimental() build', () => {
   }
   const real = new Map<string, object>([...Object.entries(provided), ['node:fs', NodeFs]])
 
-  it('the preset writes one CommonJS file that requires only what the app provides', async () => {
+  it('the preset writes a CommonJS entry, a chunk for each import() and the manifest, requiring only what the app provides', async () => {
     const hosted = [...pluginSharedModules, ...pluginWindowModules]
     const root = await project({
       'src/plugin-experimental.tsx': [
@@ -969,23 +960,22 @@ describe('experimental() build', () => {
     })
 
     await bundle(root)
-    const code = await readFile(path.join(root, 'dist/plugin-experimental.cjs'), 'utf8')
+    const dist = (file: string) => readFile(path.join(root, 'dist', file), 'utf8')
+    const code = await dist('plugin-experimental.cjs')
+    const manifest = z
+      .record(z.string(), z.object({file: z.string()}))
+      .parse(JSON.parse(await dist('plugin-experimental.cjs.manifest.json')))
+    const chunk = manifest['src/page.tsx']?.file ?? ''
     const required = new Set(Array.from(code.matchAll(/require\("([^"]+)"\)/g), (match) => match[1]))
 
-    expect(await readdir(path.join(root, 'dist'))).toEqual(['plugin-experimental.cjs'])
-    expect(code).toContain('Notes')
-    expect([...required].toSorted()).toEqual([...hosted, 'node:fs'].toSorted())
-    expect(
-      evaluatePluginBundle(code, {
-        require: (name) => {
-          const module = real.get(name)
-
-          if (module) return module
-
-          throw new Error(`not provided: ${name}`)
-        },
-      }).setup,
-    ).toBeTypeOf('function')
+    expect(chunk).toMatch(/^page-[\w-]+\.cjs$/)
+    expect((await readdir(path.join(root, 'dist'))).toSorted()).toEqual(
+      ['plugin-experimental.cjs', 'plugin-experimental.cjs.manifest.json', chunk].toSorted(),
+    )
+    expect(code).not.toContain('Notes')
+    expect(await dist(chunk)).toContain('Notes')
+    expect([...required].toSorted()).toEqual([...hosted, 'node:fs', `./${chunk}`].toSorted())
+    expect(evaluatePluginBundle(code, {require: provider(real)}).setup).toBeTypeOf('function')
   }, 60_000)
 
   it('the preset fails the build on a conciv or Solid module the app does not provide', async () => {
@@ -997,3 +987,13 @@ describe('experimental() build', () => {
     await expect(bundle(root)).rejects.toThrow('@conciv/ui-kit-system is not a module the conciv app provides')
   }, 60_000)
 })
+
+function provider(modules: ReadonlyMap<string, object>) {
+  return (name: string) => {
+    const module = modules.get(name)
+
+    if (module) return module
+
+    throw new Error(`not provided: ${name}`)
+  }
+}

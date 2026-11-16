@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {eq} from 'drizzle-orm'
-import type {ManagedRuntime} from 'effect'
+import {Effect, type ManagedRuntime} from 'effect'
 import type {ChatPlane} from '@conciv/chat'
 import {clearPageChanges, deleteSessionCaptures, drafts, markers, sessions, type ConcivDb} from '@conciv/db'
 import {SessionId} from '@conciv/protocol/chat-types'
@@ -9,14 +9,16 @@ import {removeInstructionEntries} from '../runtime/instruction-entries.js'
 import {createRow, reuseDeletedRow, rowById, tombstoneRow, type FreshRowInput} from './session-rows.js'
 import type {createSessionSearch} from './session-search.js'
 import type {PageQueues} from '../page/page-queue.js'
+import type {CoreRuntime} from '../runtime/scope-types.js'
 
 type SessionRenaming = {db: ConcivDb; search: Pick<ReturnType<typeof createSessionSearch>, 'retitle'>}
 
 type SessionDeletion = {
   db: ConcivDb
-  plane: Pick<ChatPlane, 'clear'>
+  plane: Pick<ChatPlane, 'clear' | 'endRuns'>
+  runtime: Pick<CoreRuntime, 'forSession'>
   pluginHost: ManagedRuntime.ManagedRuntime<Bus.Interface | KV.Interface, never>
-  queues: Pick<PageQueues, 'release'>
+  queues: Pick<PageQueues, 'cancelSession'>
 }
 
 export const newSessionId = (): SessionId => SessionId.parse(`conciv_${randomUUID()}`)
@@ -83,14 +85,20 @@ export async function renameSession(
 }
 
 export async function deleteSession(deletion: SessionDeletion, sessionId: SessionId): Promise<void> {
+  await deletion.runtime.forSession(sessionId).run.stop()
+  await deletion.plane.endRuns(sessionId)
+  deletion.queues.cancelSession(sessionId)
+  await deletion.pluginHost.runPromise(KV.Service.use((kv) => removeInstructionEntries(kv, sessionId)))
+  await deletion.pluginHost.runPromise(
+    Bus.Service.use((bus) =>
+      bus
+        .publish(SessionEvent.Deleted, {sessionID: SessionSchema.Id.make(sessionId)})
+        .pipe(Effect.andThen(bus.remove(sessionId))),
+    ),
+  )
   await tombstoneRow(deletion.db, sessionId)
   await deletion.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
   await deletion.plane.clear(sessionId)
-  deletion.queues.release(sessionId)
   await deleteSessionCaptures(deletion.db, sessionId)
   await clearPageChanges(deletion.db, sessionId)
-  await deletion.pluginHost.runPromise(KV.Service.use((kv) => removeInstructionEntries(kv, sessionId)))
-  await deletion.pluginHost.runPromise(
-    Bus.Service.use((bus) => bus.publish(SessionEvent.Deleted, {sessionID: SessionSchema.Id.make(sessionId)})),
-  )
 }

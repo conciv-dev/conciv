@@ -13,7 +13,8 @@ import {
 } from '@conciv/plugin/experimental/host'
 import {builtins} from './builtins'
 import {createHostState, isCurrentHostWatch, transitionHost, type HostCommand, type HostEvent} from './host-machine'
-import {createManager, pluginError} from './manager'
+import {pluginError} from './error'
+import {createManager} from './manager'
 import type {PluginExperimentalSource} from './plugins'
 import type {InstalledSource} from './startup'
 
@@ -24,8 +25,10 @@ const id = text(256)
 const PluginExperimentalSchema = z.object({
   id,
   revision: text(256),
+  file: text(256),
   code: z.string(),
   options: z.record(z.string(), z.json()),
+  chunks: z.array(z.object({file: text(256), code: z.string()})),
 })
 
 const ReservedSchema = z.array(id)

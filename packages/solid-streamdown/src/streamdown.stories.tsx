@@ -307,12 +307,19 @@ export const RawHtml: Story = {
 
 export const LinkSafety: Story = {
   render: () => (
-    <Streamdown animated={false}>{'[click me](javascript:alert(1)) and [ok](https://example.com)'}</Streamdown>
+    <Streamdown animated={false}>
+      {
+        '[click me](javascript:alert(1)), [data](data:text/html,hi), [vb](vbscript:msgbox(1)) and [ok](https://example.com)'
+      }
+    </Streamdown>
   ),
   play: async ({canvasElement}) => {
-    const hrefs = Array.from(canvasElement.querySelectorAll('a')).map((a) => a.getAttribute('href') ?? '')
-    await expect(hrefs.some((h) => h.startsWith('javascript:'))).toBe(false)
-    await expect(hrefs.some((h) => h.startsWith('https://example.com'))).toBe(true)
+    const links = Array.from(canvasElement.querySelectorAll('a')).map(
+      (a) => new URL(a.getAttribute('href') ?? '', 'https://base.invalid'),
+    )
+    const safeProtocols = ['https:', 'http:', 'irc:', 'ircs:', 'mailto:', 'xmpp:', 'blob:']
+    await expect(links.every((link) => safeProtocols.includes(link.protocol))).toBe(true)
+    await expect(links.some((link) => link.origin === 'https://example.com')).toBe(true)
   },
 }
 

@@ -1,7 +1,7 @@
 import {createMemo, onCleanup, onMount, type JSX} from 'solid-js'
 import {useRouteContext, useRouter, type ErrorComponentProps} from '@tanstack/solid-router'
 import {browserRpcConnection, resetBrowserRpcConnection, type TrustListener} from '@conciv/contract'
-import {engineLocked} from '../app/engine-login.js'
+import {becameTrusted} from '../app/engine-login.js'
 import {ErrorScreen} from './error-screen.js'
 import {classifyRpcError, rpcErrorCode, type RpcErrorClassification} from './rpc-error-message.js'
 
@@ -21,7 +21,7 @@ export function defaultErrorComponent(props: ErrorComponentProps): JSX.Element {
     await router.invalidate()
   }
   const onTrustChange: TrustListener = (status, previous) => {
-    if (status === 'trusted' && engineLocked(previous)) void retry()
+    if (becameTrusted(status, previous)) void retry()
   }
   onMount(() => {
     const {trust, release} = browserRpcConnection(apiBase()?.() ?? '')

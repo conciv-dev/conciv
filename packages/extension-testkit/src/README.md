@@ -32,7 +32,7 @@ The testkit runs the real product path. A page under test talks to the engine th
 
 ## Side Effects
 
-- `bootExtensionServer` (`boot-server.ts`): creates a temp dir `conciv-testkit-*` under os.tmpdir() and starts a core engine HTTP server
+- `bootExtensionServer` (`boot-server.ts`): creates a temp dir `conciv-testkit-*` under os.tmpdir() and starts a core engine HTTP server; `stop` (or a failed start) removes that dir
 - `launch` (`launch.ts`): launches a Chromium browser process and navigates pages
 - `serveDir` (`serve.ts`), `serveHost` (`serve-host.ts`): bind HTTP servers on 127.0.0.1 and read files from disk
 - `mountToolCard` (`card-harness.tsx`): appends to document.body; a module-level vitest afterEach disposes renders and clears document.body

@@ -26,7 +26,7 @@ import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
 import RefreshCw from 'lucide-solid/icons/refresh-cw'
 import ShieldCheck from 'lucide-solid/icons/shield-check'
 import Unplug from 'lucide-solid/icons/unplug'
-import {Show, Suspense, createEffect, createMemo, createSignal, on, onMount, type JSX} from 'solid-js'
+import {Show, Suspense, createEffect, createMemo, createSignal, on, onCleanup, onMount, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {isSessionId} from '@conciv/protocol/chat-types'
 import {
@@ -49,6 +49,7 @@ import {SessionSelector} from '../composer/session-selector.js'
 import {usePanelChrome} from '../app/panel-chrome.js'
 import {ContextSummary} from '../pane/context-tracker.js'
 import {StatusBar, type StatusBarView} from '../pane/status-bar.js'
+import {PaneAlert} from '../pane/pane-alert.js'
 import {makeRefreshCoordinator} from '../pane/refresh-coordinator.js'
 import {SessionPillPending, UsagePending} from '../shell/pending.js'
 import {guardedComponent} from '../extension/extension-boundary.js'
@@ -68,6 +69,9 @@ const RAIL_SEPARATOR = 'chat-rail-context-full [color:var(--chat-separator)] px-
 const RAIL_TITLE_ROW =
   'group flex items-center gap-1 min-w-0 min-h-7 [font-family:var(--chat-font-display)] text-[14.5px] leading-[1.25] font-semibold tracking-[-0.012em] [color:var(--chat-text-hi)]'
 const RAIL_TITLE = 'min-w-0 truncate'
+const RAIL_TITLE_LINE = 'flex items-center gap-2 min-w-0'
+const ROW_FAILED = 'Couldn’t load this session'
+const ROW_FAILED_LABEL = 'This session could not be loaded'
 const RAIL_TITLE_TRIGGER =
   '!justify-start gap-1.5 min-w-0 p-0 text-start [font:inherit] [letter-spacing:inherit] [color:inherit] rounded-[var(--chat-radius-sm)] focus-ring aria-busy:cursor-progress'
 const RAIL_TITLE_RENAME =
@@ -100,6 +104,14 @@ export const Route = createFileRoute('/panel/$sessionId')({
     const {sessionId} = await context.rpc.sessions.resolve({id: params.sessionId})
     throw redirect({to: '/panel/$sessionId', params: {sessionId}, replace: true})
   },
+  loader: async ({context, params}) => {
+    await context.queryClient
+      .query({
+        ...context.data.utils.sessions.get.queryOptions({input: {sessionId: params.sessionId}}),
+        staleTime: 'static',
+      })
+      .catch((error: unknown) => console.error('[conciv] the session row did not load before the panel', error))
+  },
   component: PanelSession,
 })
 
@@ -107,6 +119,7 @@ function SessionTitle(props: {
   sessionId: string
   savedTitle: string | undefined
   loading: boolean
+  failed: boolean
   refreshing: boolean
 }): JSX.Element {
   const appData = useAppData()
@@ -121,9 +134,11 @@ function SessionTitle(props: {
   const title = () => {
     if (rename.isPending && rename.variables?.sessionId === props.sessionId) return rename.variables.title
     if (props.loading) return ''
+    if (props.failed) return 'Session'
     return props.savedTitle || 'New session'
   }
-  const label = () => `${title() || 'Session'}, ${props.refreshing ? 'refreshing the conversation' : 'session options'}`
+  const name = () => (props.failed ? ROW_FAILED_LABEL : title() || 'Session')
+  const label = () => `${name()}, ${props.refreshing ? 'refreshing the conversation' : 'session options'}`
   const commit = (value: string) => {
     const next = value.trim()
     if (!next || next === title()) return
@@ -131,7 +146,7 @@ function SessionTitle(props: {
   }
   return (
     <Editable.Root
-      class={RAIL_TITLE_ROW}
+      class={props.failed ? RAIL_TITLE_ROW : `${RAIL_TITLE_ROW} flex-1`}
       activationMode="none"
       translations={{edit: 'Rename session', input: 'Session title'}}
       onValueCommit={(details) => commit(details.value)}
@@ -249,6 +264,7 @@ function AllowOutsideAgentsRow(props: {sessionId: string}): JSX.Element {
 
 function showPopOutLost(lost: () => boolean, popOut: () => void): void {
   const notices = useNotices()
+  onCleanup(() => notices.remove(POP_OUT_LOST_KEY))
   createEffect(
     on(lost, (isLost) => {
       if (!isLost) {
@@ -331,8 +347,7 @@ function PanelSession(): JSX.Element {
 
   const activate = sessionMenu.activate
   const newSession = async () => {
-    const {sessionId} = await rpc.sessions.create(undefined)
-    void appData.invalidateSession(sessionId)
+    const {sessionId} = await appData.createSession()
     activate(sessionId)
     announce('Started a new session')
   }
@@ -363,6 +378,7 @@ function PanelSession(): JSX.Element {
     stopping: chat().stopping(),
     runError: chat().runError(),
     stopped: chat().stopped(),
+    ran: (row()?.lastRunAt ?? null) !== null || chat().runSource() !== null,
   }))
   // oxlint-disable-next-line solid/reactivity
   const diff = sessionTotals(() => turns())
@@ -371,8 +387,11 @@ function PanelSession(): JSX.Element {
     const state = clock()
     return state.elapsedMs === null ? '--' : formatElapsed(state.elapsedMs)
   }
-  const lastTask = () => sessionStatus().kind === 'done' || sessionStatus().kind === 'stopped'
-  const taskContext = () => (lastTask() ? 'LAST TASK' : 'ACTIVE TASK')
+  const taskContext = () => {
+    const kind = sessionStatus().kind
+    if (kind === 'unstarted') return undefined
+    return kind === 'done' || kind === 'stopped' ? 'LAST' : 'ACTIVE'
+  }
   const statusBarViews = createMemo<StatusBarView[]>(() => [
     {id: 'chat', label: 'Chat'},
     ...views().map((view) => ({
@@ -409,17 +428,29 @@ function PanelSession(): JSX.Element {
         >
           <div class={RAIL_LEFT}>
             <span class={RAIL_MICROLABEL}>
-              <span class="chat-rail-context-full">
-                CONCIV <span class={RAIL_SEPARATOR}>/</span> {taskContext()}
-              </span>
-              <span class="chat-rail-context-narrow">{lastTask() ? 'LAST' : 'ACTIVE'}</span>
+              <Show when={taskContext()} fallback="CONCIV">
+                {(context) => (
+                  <>
+                    <span class="chat-rail-context-full">
+                      CONCIV <span class={RAIL_SEPARATOR}>/</span> {context()} TASK
+                    </span>
+                    <span class="chat-rail-context-narrow">{context()}</span>
+                  </>
+                )}
+              </Show>
             </span>
-            <SessionTitle
-              sessionId={params().sessionId}
-              savedTitle={row()?.title}
-              loading={session.isPending}
-              refreshing={coordinator.isRefreshing()}
-            />
+            <div class={RAIL_TITLE_LINE}>
+              <SessionTitle
+                sessionId={params().sessionId}
+                savedTitle={row()?.title}
+                loading={session.isPending}
+                failed={session.isError}
+                refreshing={coordinator.isRefreshing()}
+              />
+              <Show when={session.isError}>
+                <PaneAlert message={ROW_FAILED} busy={session.isFetching} onRetry={() => void session.refetch()} />
+              </Show>
+            </div>
           </div>
           <Popover.Positioner>
             <Popover.Content aria-label="Session options" class={RAIL_MENU_CONTENT} style={RAIL_MENU_CONTENT_STYLE}>

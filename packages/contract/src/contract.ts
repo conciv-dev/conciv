@@ -250,8 +250,18 @@ const noQueue = {NO_QUEUE: {message: 'no such queue on this tab'}}
 
 const pluginRpcFailed = {
   PLUGIN_RPC: {
+    status: 400,
     message: 'the plugin rpc call failed',
     data: z.object({type: z.string(), message: z.string(), data: z.unknown().optional()}),
+  },
+  PLUGIN_RPC_INTERNAL: {
+    status: 500,
+    message: 'the plugin rpc call failed inside the plugin',
+    data: z.object({
+      type: z.enum(['rpc.internal', 'rpc.invalid_output']),
+      message: z.string(),
+      data: z.unknown().optional(),
+    }),
   },
 }
 
@@ -276,6 +286,14 @@ const pluginNotFound = {
     status: 404,
     message: 'no active plugin with a ./plugin-experimental bundle',
     data: z.object({pluginId: z.string(), message: z.string()}),
+  },
+}
+
+const pluginChunkNotFound = {
+  PLUGIN_CHUNK_NOT_FOUND: {
+    status: 404,
+    message: "no such chunk in the plugin's current build",
+    data: z.object({pluginId: z.string(), file: z.string()}),
   },
 }
 
@@ -312,10 +330,28 @@ const PluginInfoSchema = z.object({
   state: PluginStateSchema,
 })
 
+const PluginChunkFileSchema = z
+  .string()
+  .max(256)
+  .regex(/^[\w.-]+\.cjs$/)
+
+const PluginChunkSchema = z.object({file: PluginChunkFileSchema, code: z.string()})
+
 export const PluginExperimentalBundleSchema = z.object({
+  file: z
+    .string()
+    .min(1)
+    .max(256)
+    .regex(/^[^/\\]+\.c?js$/),
   code: z.string(),
   revision: z.string().min(1).max(256),
   options: z.record(z.string(), z.json()),
+  chunks: z.array(PluginChunkSchema),
+})
+
+export const PluginExperimentalChunksSchema = z.object({
+  revision: z.string().min(1).max(256),
+  chunks: z.array(PluginChunkSchema).min(1),
 })
 
 export const contract = {
@@ -340,7 +376,7 @@ export const contract = {
       .input(SessionIdInput)
       .output(SessionMetaSchema),
     preview: oc.errors(notFound).input(SessionPreviewInput).output(SessionPreviewSchema),
-    create: oc.output(SessionIdInput),
+    create: oc.output(SessionIdInput.extend({session: SessionMetaSchema})),
     resolve: oc.input(z.object({id: z.string().optional()})).output(SessionIdInput),
     open: oc.input(NativeSessionRefSchema).output(SessionIdInput),
     restore: oc.errors(approvalDenied).input(SessionIdInput).output(SessionIdInput),
@@ -505,9 +541,13 @@ export const contract = {
       .output(z.unknown()),
     list: oc.errors(approvalDenied).output(locationResponse(z.array(PluginInfoSchema))),
     experimental: oc
-      .errors({...pluginNotFound, ...approvalDenied})
+      .errors({...pluginNotFound, ...pluginChunkNotFound, ...approvalDenied})
       .input(z.object({id: PluginIdSchema}))
       .output(locationResponse(PluginExperimentalBundleSchema)),
+    experimentalChunk: oc
+      .errors({...pluginNotFound, ...pluginChunkNotFound, ...approvalDenied})
+      .input(z.object({id: PluginIdSchema, file: PluginChunkFileSchema}))
+      .output(locationResponse(PluginExperimentalChunksSchema)),
   },
   event: {
     subscribe: oc
