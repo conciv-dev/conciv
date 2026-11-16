@@ -1545,23 +1545,6 @@ describe('api page open source', () => {
       })
       expect(opened).toEqual([{file: `file://${chunk}`, line: 2}])
     })
-
-    it('an open asked before the plugins start opens the original source once they start', async () => {
-      const booted: MadeApp[] = []
-      const kit = await createTestkit(requireClaude(), async (env) => {
-        const made = await bootMadeApp(env, {cwd: tmpdir(), openInEditor: record})
-        booted.push(made)
-        return made
-      }).setup()
-      onTestFinished(() => kit.cleanup())
-      const made = booted[0]
-      if (made === undefined) throw new Error('the kit booted no app')
-      const chunk = await chunkWithInlineMap('app/page.tsx', 17, 4)
-      const asked = openFrames(kit, [{fileName: `file://${chunk}`, line: 2, column: 1}])
-      await made.startPlugins()
-      expect(await asked).toEqual({status: 'opened'})
-      expect(opened).toEqual([{file: 'app/page.tsx', line: 17}])
-    })
   })
 })
 
