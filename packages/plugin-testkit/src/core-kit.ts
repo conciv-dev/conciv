@@ -11,6 +11,7 @@ import {makeApp} from '@conciv/core/app'
 import type {AnyExtension} from '@conciv/extension'
 import type {CoreRuntime, SessionScope} from '@conciv/core/runtime'
 import type {SessionId} from '@conciv/protocol/chat-types'
+import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 import type {EngineStaleness} from '@conciv/contract'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -48,6 +49,7 @@ export async function bootCoreKit(opts: {
   plugins?: NonNullable<ConcivConfig['plugins']>
   files?: Readonly<Record<string, string>>
   stateRoot?: string
+  bundler?: BundlerBridge
 }): Promise<CoreKit> {
   const harness = createFakeHarness({
     id: opts.id,
@@ -88,6 +90,7 @@ export async function bootCoreKit(opts: {
         staleness: opts.staleness,
         nativePageDir: opts.nativePageDir,
         home: kitHome(env.stateRoot),
+        bridge: opts.bundler,
       })
       captured.runtime = runtime
       await startPlugins()
