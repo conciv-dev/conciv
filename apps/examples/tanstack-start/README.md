@@ -197,7 +197,8 @@ For TanStack Start specific documentation, visit [TanStack Start](https://tansta
 - `vite.config.ts` default export: plugins `devtools`, `tailwindcss`, `tanstackStart`, `viteReact`, `conciv(...)`
 - `conciv({widget: {quickTerminal: {hotkey: 'Alt+k'}}})` (`vite.config.ts`): conciv core on its persisted port (or a free one), quick terminal on `Alt+k`
 - `CONCIV_NITRO` env (`vite.config.ts`): `1` adds the `nitro/vite` plugin
-- scripts (`package.json`): `dev`, `build`, `generate-routes`, `typecheck`, `lint`
+- scripts (`package.json`): `dev`, `build`, `plugin:build`, `plugin:watch`, `generate-routes`, `typecheck`, `lint`
+- While editing the deploy plugin's browser part, run `pnpm plugin:watch` in a second terminal.
 - Subdirectories: [conciv](./conciv/README.md), [src](./src/README.md)
 
 ## Invariants

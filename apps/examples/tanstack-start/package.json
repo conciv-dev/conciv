@@ -7,11 +7,13 @@
     "#/*": "./src/*"
   },
   "scripts": {
-    "dev": "vite dev --port 3000",
+    "plugin:build": "vite build --config conciv/plugins/deploy/vite.config.ts",
+    "plugin:watch": "vite build --watch --config conciv/plugins/deploy/vite.config.ts",
+    "dev": "pnpm run plugin:build && vite dev --port 3000",
     "generate-routes": "tsr generate",
-    "build": "vite build",
+    "build": "pnpm run plugin:build && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p conciv/plugins/deploy/tsconfig.json --noEmit",
     "lint": "oxlint"
   },
   "dependencies": {
