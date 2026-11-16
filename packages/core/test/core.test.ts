@@ -11,7 +11,7 @@ import {
 } from 'node:fs'
 import {once} from 'node:events'
 import {request as httpRequest} from 'node:http'
-import {createServer} from 'node:net'
+import {connect, createServer, type Socket} from 'node:net'
 import {tmpdir} from 'node:os'
 import {createRequire} from 'node:module'
 import {dirname, join} from 'node:path'
@@ -2449,6 +2449,85 @@ describe('browser rpc over one websocket', () => {
       rmSync(root, {recursive: true, force: true})
     }
   }, 20_000)
+})
+
+describe('a stalled event stream gets a new socket', () => {
+  const requester = {browser: 'Chrome 156 | macOS', origin: 'http://localhost:5173'}
+
+  async function relay(target: number) {
+    const flows: {client: Socket; engine: Socket}[] = []
+    const server = createServer((client) => {
+      const engine = connect(target, '127.0.0.1')
+      client.on('error', () => client.destroy())
+      engine.on('error', () => engine.destroy())
+      client.pipe(engine)
+      engine.pipe(client)
+      flows.push({client, engine})
+    })
+    server.listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    const address = server.address()
+    if (address === null || typeof address === 'string') throw new Error('the relay has no port')
+    return {
+      origin: `http://127.0.0.1:${address.port}`,
+      freeze: () => {
+        for (const {client, engine} of flows) {
+          client.unpipe(engine)
+          engine.unpipe(client)
+          client.pause()
+          engine.pause()
+        }
+      },
+      close: async () => {
+        for (const {client, engine} of flows) {
+          client.destroy()
+          engine.destroy()
+        }
+        await new Promise((resolve) => server.close(resolve))
+      },
+    }
+  }
+
+  test('a stream that stalls on a socket that stays open, after or before its first frame, comes back over a new socket, and a quiet healthy stream cut by the same short idle timeout comes back the same way', async () => {
+    const idleTimeoutShorterThanTheHeartbeat = 5_000
+    const root = tempDir('conciv-core-unit-')
+    const made = await makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}})
+    const served = await serveHono({fetch: made.fetch, port: 0})
+    const network = await relay(served.port)
+    const client = makeBrowserRpcClient(network.origin)
+    const connection = browserRpcConnection(network.origin)
+    const conciv = Conciv.make(client.rpc, {idleTimeout: idleTimeoutShorterThanTheHeartbeat})
+    const statuses: string[] = []
+    const stopWatching = conciv.connection.on((status) => statuses.push(status))
+    const lastTwoStatusesOfAnyNumberOfCuts = () => statuses.slice(-2)
+    try {
+      expect(await connection.trust.requestTrustWithToken(made.trustBrowser(requester, Date.now()))).toBe(true)
+      const reader = conciv.event.subscribe()[Symbol.asyncIterator]()
+      expect(await reader.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
+      expect(conciv.connection.status()).toBe('connected')
+
+      network.freeze()
+      expect(await reader.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
+      expect(lastTwoStatusesOfAnyNumberOfCuts()).toEqual(['reconnecting', 'connected'])
+      expect(await client.rpc.sessions.list(undefined)).toMatchObject({sessions: []})
+      await reader.return?.()
+
+      network.freeze()
+      const late = conciv.event.subscribe()[Symbol.asyncIterator]()
+      expect(await late.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
+      expect(lastTwoStatusesOfAnyNumberOfCuts()).toEqual(['reconnecting', 'connected'])
+      expect(await client.rpc.sessions.list(undefined)).toMatchObject({sessions: []})
+      await late.return?.()
+    } finally {
+      stopWatching()
+      connection.release()
+      client.close()
+      await network.close()
+      await served.close()
+      await made.dispose()
+      rmSync(root, {recursive: true, force: true})
+    }
+  }, 30_000)
 })
 
 describe('settings storage', () => {

@@ -412,12 +412,12 @@ describe('Conciv.make event stream', () => {
   const heartbeat = (id: string): Frame => ({id, type: 'server.heartbeat', data: {}})
   const Acme = Rpc.define({id: 'acme', methods: {}, events: {indexed: {schema: z.object({count: z.number()})}}})
 
-  function engine(connect: (signal: AbortSignal) => AsyncIterable<Frame>) {
+  function engine(connect: (signal: AbortSignal) => AsyncIterable<Frame>, options: {idleTimeout?: number} = {}) {
     const serve: NonNullable<RpcClientOptions['interceptors']>[number] = async (options) => {
       if (options.path.join('.') !== 'event.subscribe' || options.signal === undefined) return options.next()
       return connect(options.signal)
     }
-    return Conciv.make(makeRpcClient('http://127.0.0.1:9', {interceptors: [serve]}))
+    return Conciv.make(makeRpcClient('http://127.0.0.1:9', {interceptors: [serve]}), options)
   }
 
   test('a direct reader sees server.connected again and the next event after the stream ends, fails or is refused, and the connection status follows each step', async () => {
@@ -488,7 +488,7 @@ describe('Conciv.make event stream', () => {
 
   test('a heartbeat reaches no reader and counts as activity, and a stream that goes silent is reopened through reconnecting', async () => {
     const events = source<Frame>()
-    const client = engine((signal) => events.connect(signal))
+    const client = engine((signal) => events.connect(signal), {idleTimeout: 2_000})
     const activity = {count: 0}
     const reader = client.event
       .subscribe({
@@ -510,7 +510,8 @@ describe('Conciv.make event stream', () => {
     expect(client.connection.status()).toBe('connected')
     const afterStall = reader.next()
     const second = await events.at(1)
-    expect(first.signal.reason).toEqual(new Error('Event stream stalled'))
+    expect(first.signal.reason).toBeInstanceOf(DOMException)
+    expect(first.signal.reason).toMatchObject({name: 'TimeoutError', message: 'Event stream stalled'})
     expect(client.connection.status()).toBe('reconnecting')
     second.push(connected('second'))
     expect(await afterStall).toEqual({done: false, value: connected('second')})
@@ -519,7 +520,7 @@ describe('Conciv.make event stream', () => {
     await reader.return?.()
     await second.closed
     expect(second.signal.aborted).toBe(true)
-  }, 50_000)
+  }, 10_000)
 
   test('an events.on handler keeps receiving across a reopen and after it throws', async () => {
     const events = source<Frame>()
