@@ -94,12 +94,16 @@ async function* attempted(
   const cancel = () => attempt.abort(signal.reason)
   signal.addEventListener('abort', cancel, {once: true})
   let watchdog: ReturnType<typeof setTimeout> | undefined
-  const touch = () => {
-    onActivity()
+  const arm = () => {
     clearTimeout(watchdog)
     watchdog = setTimeout(() => attempt.abort(new DOMException('Event stream stalled', 'TimeoutError')), idleTimeout)
   }
+  const touch = () => {
+    onActivity()
+    arm()
+  }
   try {
+    arm()
     for await (const event of await raw.event.subscribe(undefined, {signal: attempt.signal})) {
       touch()
       if (event.type === 'server.heartbeat') continue

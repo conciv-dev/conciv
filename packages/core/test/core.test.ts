@@ -2488,7 +2488,7 @@ describe('a stalled event stream gets a new socket', () => {
     }
   }
 
-  test('a stream that stalls on a socket that stays open comes back over a new socket', async () => {
+  test('a stream that stalls on a socket that stays open, after or before its first frame, comes back over a new socket', async () => {
     const root = tempDir('conciv-core-unit-')
     const made = await makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}})
     const served = await serveHono({fetch: made.fetch, port: 0})
@@ -2507,6 +2507,13 @@ describe('a stalled event stream gets a new socket', () => {
       expect(conciv.connection.status()).toBe('connected')
       expect(await client.rpc.sessions.list(undefined)).toMatchObject({sessions: []})
       await reader.return?.()
+
+      network.freeze()
+      const late = conciv.event.subscribe()[Symbol.asyncIterator]()
+      expect(await late.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
+      expect(conciv.connection.status()).toBe('connected')
+      expect(await client.rpc.sessions.list(undefined)).toMatchObject({sessions: []})
+      await late.return?.()
     } finally {
       connection.release()
       client.close()
@@ -2515,7 +2522,7 @@ describe('a stalled event stream gets a new socket', () => {
       await made.dispose()
       rmSync(root, {recursive: true, force: true})
     }
-  }, 60_000)
+  }, 120_000)
 })
 
 describe('settings storage', () => {
