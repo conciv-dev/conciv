@@ -38,6 +38,12 @@ describe('patch headers', () => {
     const unnamed = '*** Add File:\nsrc/next.ts\n+x'
     expect(patchInfo(unnamed).files).toEqual([])
     expect(parseClaudePatchBlocks(unnamed)).toEqual([])
+    const padded = '*** Update File: \t  src/a.ts\n+x'
+    expect(patchInfo(padded).files).toEqual(['a.ts'])
+    expect(parseClaudePatchBlocks(padded)).toEqual([{type: 'Update', path: 'src/a.ts', body: '\n+x'}])
+    const blank = '*** Add File: \t \n+x'
+    expect(patchInfo(blank).files).toEqual([])
+    expect(parseClaudePatchBlocks(blank)).toEqual([])
   })
 })
 

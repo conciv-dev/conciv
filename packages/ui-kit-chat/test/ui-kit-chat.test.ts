@@ -66,6 +66,8 @@ describe('turn rollup', () => {
   it('reads the edited files from patch headers', () => {
     expect(patchTurn('*** Begin Patch\n*** Update File: src/a.ts\n+x\n*** End Patch').files).toEqual(['src/a.ts'])
     expect(patchTurn('*** Add File:\nsrc/next.ts\n+x').files).toEqual([])
+    expect(patchTurn('*** Update File: \t  src/a.ts\n+x').files).toEqual(['src/a.ts'])
+    expect(patchTurn('*** Add File: \t \n+x').files).toEqual([])
   })
 })
 
