@@ -2884,6 +2884,9 @@ importers:
       '@conciv/extension-ios':
         specifier: workspace:^
         version: link:../extensions/ios
+      '@conciv/extension-page':
+        specifier: workspace:^
+        version: link:../extensions/page
       '@conciv/grab':
         specifier: workspace:^
         version: link:../grab
