@@ -2790,7 +2790,8 @@ describe('launcher activity', () => {
 
   const SESSION_ROW_PATH = ['sessions', 'get']
   const ROW_FAILURE_STATUS = 500
-  const FIRST_ROW_FAILURE = 1
+  const QUERY_CORE_BROWSER_DEFAULT_RETRIES = 3
+  const ROW_REFETCH_ATTEMPTS = 1 + QUERY_CORE_BROWSER_DEFAULT_RETRIES
 
   test('a session whose row fails to load says so where the title is, keeps its menu and its chat, and Retry brings the title back', async () => {
     await page.viewport(1000, 900)
@@ -2822,10 +2823,10 @@ describe('launcher activity', () => {
     await expect
       .element(page.getByRole('status').filter({hasText: 'conciv replied.'}), {timeout: 8000})
       .toBeInTheDocument()
-    await coreControl.awaitRpcFailedCount(SESSION_ROW_PATH, ROW_FAILURE_STATUS, FIRST_ROW_FAILURE, beforeTheRunEnds)
-    await coreControl.releaseFault(broken)
+    await coreControl.awaitRpcFailedCount(SESSION_ROW_PATH, ROW_FAILURE_STATUS, ROW_REFETCH_ATTEMPTS, beforeTheRunEnds)
     await expect.element(rowAlert).toBeVisible()
     await expect.element(rowAlert.getByRole('button', {name: 'Retry'})).toBeVisible()
+    await coreControl.releaseFault(broken)
     await userEvent.click(rowAlert.getByRole('button', {name: 'Retry'}))
     await expect.element(titleButton('a row that failed to load'), {timeout: 8000}).toBeVisible()
     await expect.element(rowAlert).not.toBeInTheDocument()
