@@ -93,6 +93,7 @@ async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, cal
 }
 
 async function hubTraced<Result>(
+  deps: RpcDeps,
   context: SessionContext,
   name: string,
   input: unknown,
@@ -102,7 +103,11 @@ async function hubTraced<Result>(
   if (trace.hub === null) return run()
   const scope = context.session
   const mirrored = {threadId: scope.id, live: await scope.run.live()}
-  const mirror = trace.mirror(mirrored, {publish: scope.stream.publish, record: scope.run.record})
+  const mirror = trace.mirror(mirrored, {
+    publish: scope.stream.publish,
+    record: scope.run.record,
+    driving: () => deps.code.driving(scope.id),
+  })
   mirror.publish(trace.start(mirrored, name, input))
   try {
     const value = await run()
@@ -293,7 +298,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         const gate: RegistryCallGate = async (run) => {
           await admitOutsideCall(deps, context, context.session, signal, path.join('.'))
           await refuseUnapproved(deps, input.name, input.input, {context, errors, signal})
-          return hubTraced(context, input.name, input.input, run, trace)
+          return hubTraced(deps, context, input.name, input.input, run, trace)
         }
         const call = (): Promise<unknown> =>
           assist === undefined
@@ -372,10 +377,10 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       },
       symbolicate: os.page.symbolicate.handler(({input}) => engine.symbolicate(input.frames)),
       changes: sessionOs.page.changes.handler(({context}) =>
-        hubTraced(context, 'page_changes', {}, () => context.session.page.changes()),
+        hubTraced(deps, context, 'page_changes', {}, () => context.session.page.changes()),
       ),
       clearChanges: sessionOs.page.clearChanges.handler(({context}) =>
-        hubTraced(context, 'page_clear_changes', {}, async () => {
+        hubTraced(deps, context, 'page_clear_changes', {}, async () => {
           await context.session.page.clearChanges()
           return {ok: true as const}
         }),
@@ -391,7 +396,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     server: {
       reload: sessionOs.server.reload.handler(async ({input, context, errors, signal}) => {
         await refuseUnapproved(deps, BUILTIN_SERVER_TOOL.server_reload.name, input, {context, errors, signal})
-        return hubTraced(context, BUILTIN_SERVER_TOOL.server_reload.name, input, () =>
+        return hubTraced(deps, context, BUILTIN_SERVER_TOOL.server_reload.name, input, () =>
           callTool(BUILTIN_SERVER_TOOL.server_reload, input, errors),
         )
       }),

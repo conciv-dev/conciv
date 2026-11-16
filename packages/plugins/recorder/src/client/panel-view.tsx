@@ -3,8 +3,10 @@ import {createStore} from 'solid-js/store'
 import {z} from 'zod'
 import {makeTimer} from '@solid-primitives/timer'
 import {usePlugin} from '@conciv/plugin/experimental'
+import {Page} from '@conciv/plugin/experimental/page'
 import {Recorder} from '../rpc.js'
 import {REPLAY_MIN_EVENTS, type RrwebEvent} from '../shared/protocol.js'
+import type {CaptureState} from './boot.js'
 import {saveFileToDisk} from './download.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
 import {loadPlayerKit, mountStreamPlayer, type PlayerKit, type StreamPlayerHandle} from './player.js'
@@ -28,8 +30,9 @@ function base64Bytes(data: string): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(atob(data), (character) => character.charCodeAt(0))
 }
 
-export function RecorderPanel(props: {clientId: string}): JSX.Element {
+export function RecorderPanel(props: {clientId: string; capture: CaptureState}): JSX.Element {
   const ctx = usePlugin()
+  const page = ctx.use(Page)
   const recorder = () => ctx.client.rpc(Recorder)
   const viewerId = crypto.randomUUID()
   const [state, setState] = createStore({live: true, exporting: false, resetting: false})
@@ -150,6 +153,15 @@ export function RecorderPanel(props: {clientId: string}): JSX.Element {
   return (
     <div class="p-3 flex flex-1 flex-col gap-3 min-h-0 overflow-hidden">
       <Switch fallback={<RecorderEmptyNotice />}>
+        <Match when={page().status === 'pending'}>
+          <RecorderNotice text="Waiting for the page: nothing is recorded until it connects." />
+        </Match>
+        <Match when={page().status === 'inactive'}>
+          <RecorderNotice text="Recording is off: the page plugin is not active, so nothing is recorded." />
+        </Match>
+        <Match when={props.capture.failed}>
+          <RecorderNotice text="Recording is unavailable: capture failed to start on this page." />
+        </Match>
         <Match when={recording.error}>
           <RecorderErrorNotice retry={retry} />
         </Match>

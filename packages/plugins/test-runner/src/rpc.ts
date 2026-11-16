@@ -18,12 +18,15 @@ const ListInputSchema = z.object({failedOnly: z.boolean().default(false)})
 
 const NoInputSchema = z.unknown()
 
+const CurrentRunSchema = z.object({events: z.array(TestEventSchema).nullable(), unavailable: z.string().nullable()})
+
 const unavailable = {UNAVAILABLE: z.object({available: z.literal(false), error: z.string()})}
 
 export const TestRunner = Rpc.define({
   id: 'test-runner',
   methods: {
     status: {input: NoInputSchema, output: TestRunResultSchema},
+    current: {input: NoInputSchema, output: CurrentRunSchema},
     list: {input: ListInputSchema, output: ListResultSchema, errors: unavailable},
     ui: {input: NoInputSchema, output: UiServerInfoSchema, errors: unavailable},
     run: {input: RunArgsSchema, output: TestRunResultSchema, errors: unavailable},

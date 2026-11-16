@@ -34,7 +34,7 @@ function bootCliApp(extras: BootExtras): BootApp {
       plugins: [],
       policies: [],
     }
-    const {fetch, dispose, agentToken, startPlugins} = await makeApp({
+    const {fetch, dispose, agentToken, awaitActivation} = await makeApp({
       print: env.print,
       cfg,
       cwd: env.cwd,
@@ -43,7 +43,7 @@ function bootCliApp(extras: BootExtras): BootApp {
       bridge: extras.bridge,
       extensions: extras.extensions,
     })
-    await startPlugins()
+    await awaitActivation()
     return {fetch, dispose, agentToken}
   }
 }

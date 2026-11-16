@@ -1200,8 +1200,10 @@ describe('api harness switching', () => {
     await kit().rpc.sessions.delete({sessionId})
     expect(await listings(true)).toEqual({owner: 1, phantoms: 0})
     expect(row(sessionId)?.deletedAt).not.toBeNull()
-    expect(await listings(false)).toEqual({owner: 1, phantoms: 0})
-    expect(row(sessionId)?.deletedAt).toBeNull()
+    expect(await listings(false)).toEqual({owner: 0, phantoms: 0})
+    expect(row(sessionId)).toMatchObject({deletedAt: expect.any(Number)})
+    await kit().rpc.sessions.restore({sessionId})
+    expect(row(sessionId)).toMatchObject({deletedAt: null})
 
     const app = made.app
     if (app === null) throw new Error('the app did not boot')
@@ -1244,7 +1246,8 @@ describe('api harness switching', () => {
     expect(await entries((service) => service.list(id))).toEqual([])
     expect(await key((sessions) => sessions.get(id).pipe(Effect.flip))).toMatchObject({_tag: 'Session.NotFoundError'})
     expect((await kit().rpc.markers.list({sessionId})).map((marker) => marker.id)).toEqual(oldMarkers)
-    expect(await listings(false)).toEqual({owner: 1, phantoms: 0})
+    expect(await listings(false)).toEqual({owner: 0, phantoms: 0})
+    expect(row(sessionId)).toMatchObject({deletedAt: expect.any(Number)})
   })
 
   it('lists the native sessions of every available harness, labelled by harness', async () => {
@@ -1548,6 +1551,23 @@ describe('api page open source', () => {
         status: 'opened',
       })
       expect(opened).toEqual([{file: `file://${chunk}`, line: 2}])
+    })
+
+    it('an open asked while the plugins are still starting opens the original source once they are active', async () => {
+      const booted: MadeApp[] = []
+      const kit = await createTestkit(requireClaude(), async (env) => {
+        const made = await bootMadeApp(env, {cwd: tmpdir(), openInEditor: record})
+        booted.push(made)
+        return made
+      }).setup()
+      onTestFinished(() => kit.cleanup())
+      const made = booted[0]
+      if (made === undefined) throw new Error('the kit booted no app')
+      const chunk = await chunkWithInlineMap('app/page.tsx', 17, 4)
+      const asked = openFrames(kit, [{fileName: `file://${chunk}`, line: 2, column: 1}])
+      await made.awaitActivation()
+      expect(await asked).toEqual({status: 'opened'})
+      expect(opened).toEqual([{file: 'app/page.tsx', line: 17}])
     })
   })
 })
@@ -2872,6 +2892,38 @@ describe('rpc wire', () => {
         const after = await chatKit().rpc.sessions.list({includeHidden: true})
         expect(after.sessions.map((meta) => meta.id)).not.toContain(listed.id)
         expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({id: listed.id})
+      })
+
+      it('a deleted session whose transcript is still on disk stays deleted: the list leaves it out and opening or resolving it by either id is refused', async () => {
+        const kept = claudeId('deleted-native')
+        writeNativeAt(kept, 'a task deleted while its transcript stays', Date.now() + 180_000)
+        const [listed] = (await chatKit().rpc.sessions.list({limit: 1})).sessions
+        expect(listed).toMatchObject({native: {nativeId: kept}})
+        if (!listed?.native) throw new Error('the native session was not listed')
+        await chatKit().rpc.sessions.delete({sessionId: listed.id})
+
+        const after = await chatKit().rpc.sessions.list(undefined)
+        expect(after.sessions.map((meta) => meta.id)).not.toContain(listed.id)
+        expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({id: listed.id, hidden: true})
+        const withHidden = await chatKit().rpc.sessions.list({includeHidden: true})
+        expect(withHidden.sessions.find((meta) => meta.id === listed.id)).toMatchObject({hidden: true})
+        expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({hidden: true})
+        expect(existsSync(resolveTranscriptPath(kept))).toBe(true)
+
+        await expect(chatKit().rpc.sessions.open(listed.native)).rejects.toMatchObject({code: 'NOT_FOUND'})
+        expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({hidden: true})
+        expect(existsSync(resolveTranscriptPath(kept))).toBe(true)
+
+        await expect(chatKit().rpc.sessions.resolve({id: kept})).rejects.toMatchObject({code: 'NOT_FOUND'})
+        await expect(chatKit().rpc.sessions.resolve({id: listed.id})).rejects.toMatchObject({code: 'NOT_FOUND'})
+        expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({hidden: true})
+
+        const neverSeen = claudeId('never-seen-native')
+        const opened = await chatKit().rpc.sessions.open({...listed.native, nativeId: neverSeen})
+        expect(await chatKit().rpc.sessions.get({sessionId: opened.sessionId})).toMatchObject({
+          hidden: false,
+          native: {nativeId: neverSeen},
+        })
       })
 
       it('a page leaves hidden conciv-only sessions out unless asked, and get still answers for them', async () => {
@@ -5448,7 +5500,11 @@ describe('session activity recorded with its chat messages', () => {
     const trace = callTrace((name) => hub[name] ?? null)
     const run = {threadId: sessionId, live: false}
     const before = Date.now()
-    const mirror = trace.mirror(run, {publish: () => {}, record: (chunks) => made().plane.record(sessionId, chunks)})
+    const mirror = trace.mirror(run, {
+      publish: () => {},
+      record: (chunks) => made().plane.record(sessionId, chunks),
+      driving: () => made().plane.driving(sessionId),
+    })
     mirror.publish([...trace.start(run, 'page_route', {}), ...trace.result(run, '{}', false)])
     await mirror.settle()
     const meta = await kit().rpc.sessions.get({sessionId})
@@ -7060,6 +7116,58 @@ export default {
     const text = await turn.ended()
     expect(text).toContain('the first step')
     expect(text).toContain('asker is undefined')
+  })
+})
+
+describe('a hub call while a turn is held in a plugin prompt hook', () => {
+  it('a hub call made while a prompt hook holds a starting turn answers at once, and its record lands after the turn, in order', async () => {
+    const entered = Promise.withResolvers<void>()
+    const gate = Promise.withResolvers<void>()
+    const holder = Plugin.define({
+      id: 'prompt-holder',
+      async setup(ctx) {
+        await ctx.session.hook('prompt', async () => {
+          entered.resolve()
+          await gate.promise
+        })
+      },
+    })
+    const home = tempDir('conciv-prompt-held-home-')
+    withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
+    const engine = await bootAt(home, tempDir('conciv-prompt-held-'), 'open', createFakeHarness(), [holder])
+    onTestFinished(() => engine.stop())
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    const viewer = new AbortController()
+    onTestFinished(() => {
+      gate.resolve()
+      viewer.abort()
+    })
+    const turn = sseTurn(base, sessionId, 'held-run', 'hold me in the prompt hook', viewer.signal)
+    await entered.promise
+    const tab = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+    const hub = makeRpcClient(base, {
+      headers: {[CONCIV_SESSION_HEADER]: sessionId, [CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'},
+    })
+    expect(await hub.page.changes()).toEqual([])
+    gate.resolve()
+    expect(await sseStream(await turn).ended()).toContain('RUN_FINISHED')
+    const {messages} = await tab.chat.hydrate({sessionId})
+    expect(
+      messages.flatMap((message) =>
+        message.parts.flatMap((part) => {
+          if (part.type === 'text') return [`${message.role} text ${part.content}`]
+          if (part.type === 'tool-call') return [`${message.role} call ${part.name}`]
+          if (part.type === 'tool-result') return [`${message.role} result ${part.content}`]
+          return []
+        }),
+      ),
+    ).toEqual([
+      'user text hold me in the prompt hook',
+      'assistant text ok',
+      'assistant call page_changes',
+      'assistant result []',
+    ])
   })
 })
 

@@ -272,7 +272,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     sendMessage: sendFromButton,
     decide: decidedThen(chat, appData.invalidateOutsideAccess),
     onError: () => notices.notify('That permission request is no longer waiting for an answer.', {tone: 'warn'}),
-    addResult: (toolCallId, value) => messaging.uiReply.mutate({toolCallId, value}),
+    addResult: messaging.onAnswer,
     durationFor: createToolDurations(chat.messages, Date.now),
     captureFor: captures.lookup,
   })

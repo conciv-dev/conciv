@@ -1022,7 +1022,7 @@ test.describe('idle fetch heartbeat', () => {
       await openChatPanel(page)
       await wire.sessionsBootTraffic()
 
-      hold.hold()
+      await hold.hold()
 
       const notice = page.getByText('conciv lost connection to the engine.')
       await expect(notice).toBeVisible({timeout: UNREACHABLE_TIMEOUT_MS})
@@ -1063,7 +1063,7 @@ test.describe('mid session outage', () => {
       const composer = chatBox(page)
       await composer.fill('a message queued during the outage')
 
-      hold.hold()
+      await hold.hold()
 
       const notice = page.getByText('conciv lost connection to the engine.')
       await expect(notice).toBeVisible({timeout: MOUNT_TIMEOUT_MS})
