@@ -7038,6 +7038,42 @@ export default {
   })
 })
 
+describe('a hub call while a turn is held in a plugin prompt hook', () => {
+  it('a hub call made while the prompt hook holds a starting turn answers with the hook still held', async () => {
+    const entered = Promise.withResolvers<void>()
+    const gate = Promise.withResolvers<void>()
+    const holder = Plugin.define({
+      id: 'prompt-holder',
+      async setup(ctx) {
+        await ctx.session.hook('prompt', async () => {
+          entered.resolve()
+          await gate.promise
+        })
+      },
+    })
+    const home = tempDir('conciv-prompt-held-home-')
+    withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
+    const engine = await bootAt(home, tempDir('conciv-prompt-held-'), 'open', createFakeHarness(), [holder])
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    const viewer = new AbortController()
+    const turn = sseTurn(base, sessionId, 'held-run', 'hold me in the prompt hook', viewer.signal).catch(
+      (error: unknown) => (viewer.signal.aborted ? undefined : Promise.reject(error)),
+    )
+    onTestFinished(async () => {
+      gate.resolve()
+      viewer.abort()
+      await turn
+      await engine.stop()
+    })
+    await entered.promise
+    const hub = makeRpcClient(base, {
+      headers: {[CONCIV_SESSION_HEADER]: sessionId, [CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'},
+    })
+    expect(await hub.page.changes()).toEqual([])
+  })
+})
+
 describe('engine plugin bundles', () => {
   const server = (id: string) => `export default {id: '${id}', async setup() {}}
 `
