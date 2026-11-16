@@ -42,6 +42,7 @@ import {
   composeAttachmentAdapters,
   createSimpleImageAttachmentAdapter,
   createTextAttachmentAdapter,
+  type AttachmentAdapter,
   type CompleteAttachment,
 } from '../src/primitives/attachment/attachment-adapter.js'
 import {AttachmentProvider} from '../src/primitives/attachment/attachment.js'
@@ -914,13 +915,17 @@ describe('composer completion', () => {
     )
   }
 
-  function ComposerHarness(props: {storage?: WebStorage; writer?: ComposerDraftWriter}): JSX.Element {
+  function ComposerHarness(props: {
+    storage?: WebStorage
+    writer?: ComposerDraftWriter
+    adapter?: AttachmentAdapter
+  }): JSX.Element {
     return (
       <ComposerPrimitive.Root
         draftStorage={props.storage}
         draftWriter={props.writer}
         draftKey={DRAFT_KEY}
-        attachmentAdapter={createSimpleImageAttachmentAdapter()}
+        attachmentAdapter={props.adapter ?? createSimpleImageAttachmentAdapter()}
       >
         <ComposerPrimitive.Input aria-label="Message" />
         <AttachKeptImage />
@@ -1019,6 +1024,36 @@ describe('composer completion', () => {
 
     await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('kept across the reload')
     await expect.element(page.getByText('a quoted line')).toBeVisible()
+  })
+
+  it("keeps a host's blob reference on an attachment through a refused send, untouched", async () => {
+    const images = createSimpleImageAttachmentAdapter()
+    const adapter: AttachmentAdapter = {
+      ...images,
+      add: (state) => {
+        const added = images.add(state)
+        if (!(added instanceof Promise)) return added
+        return added.then((pending) => ({...pending, blob: {id: 'stored-kept', url: ''}}))
+      },
+    }
+    const [blobs, setBlobs] = createSignal('none')
+    const writer: ComposerDraftWriter = (_key, draft) =>
+      setBlobs(draft.attachments.map((attachment) => attachment.blob?.id ?? 'no blob').join(', '))
+    const handlers: ComposerHandlers = {onSend: () => Promise.reject(new Error('the server rejected the send'))}
+    mountView(() => (
+      <ChatHost handlers={handlers}>
+        <ComposerHarness writer={writer} adapter={adapter} />
+        <p>blobs: {blobs()}</p>
+      </ChatHost>
+    ))
+
+    await userEvent.click(page.getByRole('button', {name: 'Attach kept.png'}))
+    await expect.element(page.getByText('blobs: stored-kept')).toBeVisible()
+    await userEvent.click(page.getByRole('textbox', {name: 'Message'}))
+    await userEvent.keyboard('send the image')
+    await userEvent.click(page.getByRole('button', {name: 'Send'}))
+    await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('send the image')
+    await expect.element(page.getByText('blobs: stored-kept')).toBeVisible()
   })
 
   it('restores the draft when the send handler rejects', async () => {
