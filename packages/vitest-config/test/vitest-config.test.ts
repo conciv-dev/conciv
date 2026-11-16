@@ -30,7 +30,7 @@ import {
 } from '../src/summary.ts'
 import {assertLockNotDrifted} from '../src/pack.ts'
 import {tempDir} from '../src/temp-dir.ts'
-import setupConcivHome from '../src/conciv-home-setup.ts'
+import setupConcivHome from '../src/setup/conciv-home-setup.ts'
 
 describe('reporters', () => {
   beforeEach(() => {
@@ -65,7 +65,7 @@ describe('reporters', () => {
       hookTimeout: 30_000,
       teardownTimeout: 30_000,
       coverage: {enabled: true, provider: 'v8', reporter: ['json-summary'], reportsDirectory: 'coverage'},
-      globalSetup: [join(import.meta.dirname, '..', 'src', 'conciv-home-setup.ts')],
+      globalSetup: [join(import.meta.dirname, '..', 'src', 'setup', 'conciv-home-setup.ts')],
     })
   })
 

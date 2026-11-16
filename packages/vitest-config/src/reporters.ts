@@ -16,7 +16,7 @@ export function ciReporters(): CiReporterEntry[] {
 
 export const TEST_TIMEOUT_MS = 30_000
 export const HOOK_TIMEOUT_MS = 30_000
-const CONCIV_HOME_SETUP = fileURLToPath(new URL('conciv-home-setup.ts', import.meta.url))
+const CONCIV_HOME_SETUP = fileURLToPath(new URL('setup/conciv-home-setup.ts', import.meta.url))
 
 function forkCap(): number | undefined {
   const cap = Number(process.env.VITEST_MAX_FORKS)
