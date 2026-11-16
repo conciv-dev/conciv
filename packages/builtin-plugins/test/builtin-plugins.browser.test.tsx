@@ -1000,6 +1000,27 @@ describe('page console', () => {
   })
 })
 
+describe('page effects', () => {
+  it('lists an effect two contributions register under one name exactly once', async () => {
+    const banner = (description: string): PageEffect => ({
+      name: 'banner',
+      description,
+      enabled: () => false,
+      set: () => {},
+    })
+    const contributed = [banner('first banner'), banner('second banner')]
+    function listContributions<T>(registry: Registry<T>): readonly T[]
+    function listContributions(registry: Registry<unknown>): readonly unknown[] {
+      return registry.id === PageEffect.id ? contributed : []
+    }
+    const driver = makePageOperations({list: listContributions})
+    onTestFinished(() => driver.dispose())
+    expect(readValue(await driver.execute(command('effect', {action: 'list'})), 'effect')).toEqual({
+      effects: [{name: 'banner', description: 'first banner', enabled: false}],
+    })
+  })
+})
+
 describe('a capture in every engine', () => {
   const mountProbe = async (layout: string, fill: (box: HTMLElement) => void): Promise<void> => {
     const face = CHAT_FONTS.find((candidate) => candidate.family === 'Archivo' && candidate.weight === 600)

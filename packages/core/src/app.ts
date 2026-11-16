@@ -34,6 +34,7 @@ import {OUTSIDE_SESSION_TARGET, type ChatTool, type HarnessSessionId, type Sessi
 import {
   anonymousExternalRow,
   currentRow,
+  isDeletedRow,
   ensureAgentRow,
   ensureRow,
   nativeIdFor,
@@ -750,13 +751,15 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   function followUpOwedQueues(sessionId: SessionId): void {
     if (planeRef.current === null) return
-    void startQueueFollowUp(pagePlugin.delivery, planeRef.current, sessionId).catch((error: unknown) =>
-      logError(`[core] the page queue follow-up turn for ${sessionId} could not start: ${String(error)}`),
+    void startQueueFollowUp(pagePlugin.delivery, planeRef.current, sessionId, (id) => isDeletedRow(db, id)).catch(
+      (error: unknown) =>
+        logError(`[core] the page queue follow-up turn for ${sessionId} could not start: ${String(error)}`),
     )
   }
 
   await pagePlugin.followFinished((finished) => {
     const {result, sessionId} = finished
+    if (isDeletedRow(db, sessionId)) return
     const scope = runtime.forSession(sessionId)
     const chunks = pageQueueChunks({result, record: finished, live: plane.driving(sessionId)})
     chunks.forEach((chunk) => scope.stream.publish(chunk))

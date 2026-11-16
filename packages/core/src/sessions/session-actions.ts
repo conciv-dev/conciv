@@ -87,7 +87,7 @@ export async function renameSession(
 export async function deleteSession(deletion: SessionDeletion, sessionId: SessionId): Promise<void> {
   await deletion.runtime.forSession(sessionId).run.stop()
   await deletion.plane.endRuns(sessionId)
-  deletion.queues.cancelSession(sessionId)
+  await deletion.queues.cancelSession(sessionId)
   await deletion.pluginHost.runPromise(KV.Service.use((kv) => removeInstructionEntries(kv, sessionId)))
   await deletion.pluginHost.runPromise(
     Bus.Service.use((bus) =>

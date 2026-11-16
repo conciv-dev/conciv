@@ -19,6 +19,7 @@ export type RpcContext = {
   headers: RpcHeaders
   clientVersion?: string
   socket?: RpcSocketTrust
+  replied?: Promise<boolean>
 }
 
 export function rpcHeader(context: RpcContext, name: string): string | null {

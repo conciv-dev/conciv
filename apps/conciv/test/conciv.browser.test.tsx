@@ -653,17 +653,86 @@ describe('chat pane', () => {
     })
   })
 
-  test('a rejected send keeps the draft in the composer and tells the user why', async () => {
+  test('a rejected send keeps the draft in the composer, tells the user why, and a resend makes one turn', async () => {
     const {sessionId} = await newSession()
-    await faults.install({kind: 'chat-refused', status: 500})
+    const refused = await faults.install({kind: 'chat-refused', status: 500})
     mountChatPane(sessionId, {transport: 'fetch'})
+    const typed = 'a message the server refuses'
+    const turns = () => page.getByRole('log').getByText(typed, {exact: true})
+    const replies = () => page.getByRole('log').getByText(UNSCRIPTED_REPLY, {exact: true})
 
     await expect.element(input()).toBeVisible()
-    await input().fill('a message the server refuses')
+    await userEvent.click(input())
+    await userEvent.keyboard(typed)
     await userEvent.keyboard('{Enter}')
 
     await expect.element(notifications()).toMatchTextContent(/Internal Server Error|could not be sent/)
-    await expect.element(input()).toHaveTextContent('a message the server refuses')
+    await expect.element(input()).toHaveTextContent(typed)
+    await expect.element(input()).not.toMatchTextContent(new RegExp(`${typed}[\\s\\S]*${typed}`))
+    expect(turns().elements()).toHaveLength(0)
+
+    await coreControl.releaseFault(refused)
+    await userEvent.click(input())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(replies()).toBeVisible()
+    expect(turns().elements()).toHaveLength(1)
+    expect(replies().elements()).toHaveLength(1)
+
+    active.pane?.dispose()
+    mountChatPane(sessionId, {transport: 'fetch'})
+    await expect.element(replies()).toBeVisible()
+    expect(turns().elements()).toHaveLength(1)
+    expect(replies().elements()).toHaveLength(1)
+  })
+
+  test('a refused steer puts its text back first in the composer, leaves no turn, and a resend makes one', async () => {
+    const {sessionId} = await newSession()
+    await coreControl.holdTurn()
+    const [connection, setConnection] = createStore({online: true})
+    const reachability = {online: () => connection.online, sustainedOffline: () => false, locked: () => null}
+    active.pane = mountPane({base: core(), sessionId, transport: 'fetch'}, () => (
+      <EngineReachabilityContext.Provider value={reachability}>
+        <ChatPane sessionId={sessionId} />
+      </EngineReachabilityContext.Provider>
+    ))
+    const steered = 'steer this one'
+    const waiting = 'wait in line'
+    const queueRow = (text: string) => page.getByRole('listitem').filter({hasText: text})
+    const turns = () => page.getByRole('log').getByText(new RegExp(steered))
+    const replies = () => page.getByRole('log').getByText(UNSCRIPTED_REPLY, {exact: true})
+
+    await userEvent.click(input())
+    await userEvent.keyboard('first turn{Enter}')
+    await expect.element(stopButton()).toBeVisible()
+    await expect.element(replies()).toBeVisible()
+    await userEvent.keyboard(`${steered}{Enter}`)
+    await expect.element(queueRow(steered)).toBeVisible()
+    await userEvent.keyboard(`${waiting}{Enter}`)
+    await expect.element(queueRow(waiting)).toBeVisible()
+
+    setConnection('online', false)
+    await userEvent.click(queueRow(steered).getByRole('button', {name: 'Steer'}))
+    await expect.element(notifications()).toMatchTextContent(/lost connection to the engine/)
+    await expect.element(queueRow(steered)).toBeVisible()
+    await expect.element(input()).not.toMatchTextContent(new RegExp(steered))
+    setConnection('online', true)
+    const refused = await faults.install({kind: 'chat-refused', status: 500})
+
+    await userEvent.click(queueRow(steered).getByRole('button', {name: 'Steer'}))
+
+    await expect.element(notifications()).toMatchTextContent(/Internal Server Error|could not be sent/)
+    await expect.element(input()).toMatchTextContent(new RegExp(`${steered}[\\s\\S]*${waiting}`))
+    await expect.element(input()).not.toMatchTextContent(new RegExp(`${steered}[\\s\\S]*${steered}`))
+    await expect.element(page.getByRole('button', {name: 'Remove from queue'})).not.toBeInTheDocument()
+    expect(turns().elements()).toHaveLength(0)
+
+    await coreControl.releaseFault(refused)
+    await coreControl.releaseTurn()
+    await expect.element(stopButton()).not.toBeInTheDocument()
+    await userEvent.click(input())
+    await userEvent.keyboard('{Enter}')
+    await expect.poll(() => replies().elements()).toHaveLength(2)
+    expect(turns().elements()).toHaveLength(1)
   })
 
   test('a send refused while the connection is lost adds a row only until the lost-connection notice stands', async () => {
@@ -3921,6 +3990,42 @@ describe('panel view tabs', () => {
       await expect.element(chatPanel().getByText('a follow-up that waits in the queue')).toBeVisible()
     }, 30_000)
 
+    test('a steer refused after leaving its session is told and its text waits first in the composer on return', async () => {
+      const {running, titles} = await twoSessions('steered')
+      const steered = 'steer this one away'
+      const waiting = 'wait in line away'
+      const queueRow = (text: string) => page.getByRole('listitem').filter({hasText: text})
+      await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
+      await coreControl.holdTurn()
+      harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+      await composer().fill('start a long turn')
+      await userEvent.keyboard('{Enter}')
+      await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
+      await composer().fill(steered)
+      await userEvent.keyboard('{Enter}')
+      await expect.element(queueRow(steered)).toBeVisible()
+      await composer().fill(waiting)
+      await userEvent.keyboard('{Enter}')
+      await expect.element(queueRow(waiting)).toBeVisible()
+      const refused = await faults.install({kind: 'chat-refused', status: 500})
+      const held = await faults.install({kind: 'chat-gate'})
+
+      await queueRow(steered).getByRole('button', {name: 'Steer'}).click()
+      await coreControl.awaitFaultPending(held, 1)
+      await switchToOther(titles)
+      await coreControl.releaseFault(held)
+
+      await expect
+        .element(page.getByRole('region', {name: /Notifications/}))
+        .toMatchTextContent(/Internal Server Error|could not be sent/)
+      await coreControl.releaseFault(refused)
+      await openSessions(titles.other)
+      await option(new RegExp(`^${titles.running}`)).click()
+      await expect.element(composer(), {timeout: 8000}).toMatchTextContent(new RegExp(`${steered}[\\s\\S]*${waiting}`))
+      await expect.element(composer()).not.toMatchTextContent(new RegExp(`${steered}[\\s\\S]*${steered}`))
+      expect(page.getByRole('log').getByText(new RegExp(steered)).elements()).toHaveLength(0)
+    }, 30_000)
+
     test('a run that ends while the connection is down settles once the replacement client hydrates', async () => {
       const {running, titles} = await twoSessions('offline')
       const [connection, setConnection] = createStore({apiBase: coreBase()})
@@ -5493,7 +5598,10 @@ describe('wire name coverage', () => {
     const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
     for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a built-in page tool'})
     for (const tool of BUILTIN_SERVER_TOOLS) {
-      registry.register(tool, {owner: 'a built-in server tool', context: {bundler: () => undefined}})
+      registry.register(tool, {
+        owner: 'a built-in server tool',
+        context: {bundler: () => undefined, hotUpdate: async () => ({applied: false, waitedMs: 0})},
+      })
     }
     registry.register(BUILTIN_OPEN_TOOL, {owner: 'a built-in editor tool', context: {openInEditor: () => {}}})
     return registry
@@ -7107,7 +7215,7 @@ describe('installed plugins in settings', () => {
 })
 
 describe('a fixture plugin driven like a user', () => {
-  const fixtureBundle = `const {Panel, Registry, SettingsPage, Slot, Store, useDrawer, usePanel} = require('@conciv/plugin/experimental')
+  const fixtureBundle = `const {Panel, Registry, SettingsPage, Slot, Store, createKeyed, useDrawer, usePanel} = require('@conciv/plugin/experimental')
 const {createComponent} = require('solid-js/web')
 const {createRenderEffect, createSignal} = require('solid-js')
 const {z} = require('zod')
@@ -7146,6 +7254,19 @@ module.exports = {default: {stores: {
   })
   ctx.add(Slot, {at: 'window.bottom', render: () => askedLine})
   ctx.add(Slot, {at: 'window.bottom', render: () => drawnLine})
+  const engineLine = document.createElement('p')
+  const engineAttaches = {count: 0}
+  createKeyed(
+    () => (ctx.servers.get('engine')?.connected ? 'engine' : undefined),
+    () => {
+      engineAttaches.count += 1
+      engineLine.textContent = 'Engine attached: ' + engineAttaches.count
+    },
+    {otherwise: () => {
+      engineLine.textContent = 'Engine detached after ' + engineAttaches.count
+    }},
+  )
+  ctx.add(Slot, {at: 'window.bottom', render: () => engineLine})
   const dialog = (title, body) =>
     ctx.dialogs.open(() => createComponent(ctx.ui.Dialog, {title, get children() { return body() }}))
   const second = () => dialog('Fixture second dialog', () => 'The second dialog is on top')
@@ -7280,6 +7401,17 @@ module.exports = {default: {setup(ctx) {
   const dialog = (name: string) => page.getByRole('dialog', {name, exact: true})
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const openedContent = () => page.getByText('The opened tab content', {exact: true})
+
+  test('its engine ref reads the event connection: down while the engine is offline, up again when it returns, and a keyed run attaches again', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    const engineLine = (text: string) => page.getByText(text, {exact: true})
+    await expect.element(engineLine('Engine attached: 1'), {timeout: 15_000}).toBeVisible()
+    const offline = await faults.install({kind: 'offline'})
+    await expect.element(engineLine('Engine detached after 1'), {timeout: 15_000}).toBeVisible()
+    await coreControl.releaseFault(offline)
+    await expect.element(engineLine('Engine attached: 2'), {timeout: 15_000}).toBeVisible()
+  })
 
   test('its dialogs stack and return focus, its composer writes wait for the chat, its opened and renamed tabs show, an unlisted tab goes back to the chat, and its draft opens a new session with its prompt in the composer', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))

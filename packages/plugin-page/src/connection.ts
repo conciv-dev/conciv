@@ -257,6 +257,7 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
       queues.settle(input.sessionId, input.queueIds, input.delivery)
       return {ok: true as const}
     },
+    'queue.cancelSession': async (input) => queues.cancelSession(input.sessionId),
   })
   void watchDeletions()
   async function watchDeletions(): Promise<void> {

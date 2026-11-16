@@ -582,6 +582,7 @@ export const Definition = Rpc.define({
       output: OkResult,
       errors,
     },
+    'queue.cancelSession': {input: z.object({sessionId: SessionId}), output: z.void(), errors},
   },
   events: {
     control: {schema: Control},

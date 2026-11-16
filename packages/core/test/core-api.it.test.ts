@@ -138,11 +138,12 @@ import {
 } from '@conciv/protocol/element-capture-types'
 import {type HarnessChatDeps, type HarnessListCursor, type HarnessModel} from '@conciv/protocol/harness-types'
 import {PageQueueResultSchema, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
-import {type RpcContext} from '@conciv/protocol/rpc-types'
+import {RPC_WS_PATH, type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
 import {createORPCClient} from '@orpc/client'
 import {RPCLink} from '@orpc/client/fetch'
+import {RPCLink as WebsocketRpcLink} from '@orpc/client/websocket'
 import {onError, ORPCError, os, type RouterClient} from '@orpc/server'
 import WebSocket from 'ws'
 import {Effect, ManagedRuntime, Schema} from 'effect'
@@ -5550,6 +5551,10 @@ describe('page action queue delivery', () => {
       if (!pages.signal.aborted) throw error
     })
     const queueEvents = () => seen.flatMap((chunk) => pageQueueEvent.parse(chunk) ?? [])
+    const cards = (queueId: string) =>
+      seen.filter(
+        (chunk) => chunk.type === ChatEventType.TOOL_CALL_START && chunk.toolCallId === `page-queue-${queueId}`,
+      )
     const seenChunk = async (matches: (chunk: ChatEvent) => boolean): Promise<void> => {
       if (seen.some(matches)) return
       await once(arrivals, 'chunk')
@@ -5597,6 +5602,8 @@ describe('page action queue delivery', () => {
       discover,
       close,
       queueEvents,
+      published: () => [...seen],
+      cards,
       finishedEvent,
       followUpFinished,
       runIds,
@@ -5670,9 +5677,23 @@ describe('page action queue delivery', () => {
     const typed = makeRpcClient(page.base, {headers: HUB})
     await typed.code.execute({sessionId: page.sessionId, typescriptCode: queued()})
     const onTab = await page.nextQueue()
+    expect(onTab).toEqual({id: expect.stringMatching(/^q_/), of: 2})
     const requestId = await page.heldRequest(`${onTab.id}/0`)
     await makeRpcClient(page.base).sessions.delete({sessionId: page.sessionId})
+    const publishedBeforeDeleted = page.published().length
     await page.onTab.cancelled(requestId)
+    await expect(
+      typed.page.queue.wait({sessionId: page.sessionId, queueId: onTab.id, waitMs: 0}),
+    ).rejects.toMatchObject({
+      code: 'NO_QUEUE',
+    })
+    await expect(page.onTab.reply(requestId, pageSuccess({ok: true, checked: true}))).rejects.toMatchObject({
+      type: 'unavailable',
+      message: 'Page is unavailable.',
+    })
+    expect(page.published().slice(publishedBeforeDeleted)).toEqual([])
+    const after = await makeRpcClient(page.base).chat.hydrate({sessionId: page.sessionId})
+    expect([after.messages, after.lastRun]).toEqual([[], null])
   })
 
   it('external_page_queue_async answers with a queue id before the tab has played anything', async () => {
@@ -5697,6 +5718,69 @@ describe('page action queue delivery', () => {
     await page.play(onTab, 1, pageSuccess({ok: true, checked: true}))
     await page.finishedEvent(queueId)
     expect(JSON.stringify(await page.hub('return 1'))).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
+  }, 5000)
+
+  it('a page.queue.wait its caller aborts before any play starts keeps the result owed, so it leads the next reply once, with one finished event and one card, while a result a live waiter took gets none', async () => {
+    const page = await engineWithTab()
+    const typed = makeRpcClient(page.base, {headers: HUB})
+    const taken = parseHandle(await page.hub(queued())).queueId
+    const takenOnTab = await page.nextQueue()
+    const taking = typed.page.queue.wait({sessionId: page.sessionId, queueId: taken, waitMs: 60_000})
+    expect(await typed.tabs.get({sessionId: page.sessionId})).toMatchObject({open: true})
+    await page.play(takenOnTab, 0, pageSuccess({ok: true, value: 'Ada'}))
+    await page.play(takenOnTab, 1, pageSuccess({ok: true, checked: true}))
+    expect(await taking).toMatchObject({queueId: taken, status: 'finished', played: 2})
+    const {queueId} = parseHandle(await page.hub(queued()))
+    const onTab = await page.nextQueue()
+    const caller = new AbortController()
+    const waiting = typed.page.queue.wait({sessionId: page.sessionId, queueId, waitMs: 60_000}, {signal: caller.signal})
+    expect(await typed.tabs.get({sessionId: page.sessionId})).toMatchObject({open: true})
+    caller.abort()
+    await expect(waiting).rejects.toMatchObject({name: 'AbortError'})
+    expect(await typed.tabs.get({sessionId: page.sessionId})).toMatchObject({open: true})
+    await page.play(onTab, 0, pageSuccess({ok: true, value: 'Ada'}))
+    await page.play(onTab, 1, pageSuccess({ok: true, checked: true}))
+    await page.finishedEvent(queueId)
+    const notice = `queue ${queueId} finished: 2 played, 0 failed`
+    expect(JSON.stringify(await page.hub('return 1'))).toContain(notice)
+    expect(JSON.stringify(await page.hub('return 2'))).not.toContain(notice)
+    expect(page.queueEvents().filter((event) => event.queueId === queueId)).toHaveLength(1)
+    expect(page.cards(queueId)).toHaveLength(1)
+    expect(page.queueEvents().filter((event) => event.queueId === taken)).toHaveLength(0)
+    expect(page.cards(taken)).toHaveLength(0)
+  }, 5000)
+
+  it('a page.queue.wait over the websocket its caller aborts before the queue finishes keeps the result owed, so it leads the next reply once', async () => {
+    const page = await engineWithTab()
+    const {queueId} = parseHandle(await page.hub(queued()))
+    const onTab = await page.nextQueue()
+    const socket = new WebSocket(`ws://127.0.0.1:${page.engine.port}${RPC_WS_PATH}`, {
+      headers: {authorization: `Bearer ${page.engine.agentToken}`},
+    })
+    await once(socket, 'open')
+    const overSocket = createORPCClient<ReturnType<typeof makeRpcClient>>(
+      new WebsocketRpcLink({websocket: socket, headers: HUB}),
+    )
+    const caller = new AbortController()
+    const waiting = overSocket.page.queue.wait(
+      {sessionId: page.sessionId, queueId, waitMs: 60_000},
+      {signal: caller.signal},
+    )
+    expect(await overSocket.tabs.get({sessionId: page.sessionId})).toMatchObject({open: true})
+    caller.abort()
+    await expect(waiting).rejects.toMatchObject({name: 'AbortError'})
+    expect(await overSocket.tabs.get({sessionId: page.sessionId})).toMatchObject({open: true})
+    const closed = once(socket, 'close')
+    socket.close()
+    await closed
+    await page.play(onTab, 0, pageSuccess({ok: true, value: 'Ada'}))
+    await page.play(onTab, 1, pageSuccess({ok: true, checked: true}))
+    await page.finishedEvent(queueId)
+    const notice = `queue ${queueId} finished: 2 played, 0 failed`
+    expect(JSON.stringify(await page.hub('return 1'))).toContain(notice)
+    expect(JSON.stringify(await page.hub('return 2'))).not.toContain(notice)
+    expect(page.queueEvents().filter((event) => event.queueId === queueId)).toHaveLength(1)
+    expect(page.cards(queueId)).toHaveLength(1)
   }, 5000)
 
   it('a code.execute its caller aborts hands over no finished result, so that result leads the next reply', async () => {
@@ -6580,6 +6664,94 @@ export default {
     expect(await prompted('greet-run')).toContain('<id>greet</id>')
     expect(await load('greet')).toContain('Greet twice.')
   })
+
+  const DEPLOY_RPC = `import {z} from ${JSON.stringify(import.meta.resolve('zod'))}
+import {Rpc} from ${JSON.stringify(import.meta.resolve('@conciv/plugin/rpc'))}
+
+export const Deploy = Rpc.define({
+  id: 'deploy',
+  methods: {run: {input: z.object({env: z.enum(['staging', 'prod'])}), output: z.object({url: z.string()})}},
+  events: {},
+})
+`
+
+  const DEPLOY_INDEX = `import {Plugin} from ${JSON.stringify(import.meta.resolve('@conciv/plugin'))}
+import {Deploy} from './rpc.js'
+
+const description = 'Deploy the current branch'
+
+const run = async ({env}: {env: 'staging' | 'prod'}) => ({url: \`https://\${env}.example.com\`})
+
+export default Plugin.define({
+  id: 'deploy',
+  async setup(ctx) {
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'run',
+        description,
+        input: Deploy.methods.run.input,
+        output: Deploy.methods.run.output,
+        options: {namespace: 'deploy'},
+        execute: async (input) => ({output: await run(input)}),
+      })
+    })
+    await ctx.skill.transform((skills) => {
+      skills.add({
+        id: 'deploy',
+        name: 'Deploy',
+        description: \`\${description}.\`,
+        path: 'skill://deploy/SKILL.md',
+        content: 'You can deploy from code mode with \`external_deploy_run\`.',
+      })
+    })
+    const registration = await ctx.rpc.register(Deploy, {run})
+    return () => registration.dispose()
+  },
+})
+`
+
+  it('a plugin folder in the project offers its deploy tool to code mode, answers its deploy method and teaches its skill', async () => {
+    const root = tempDir('conciv-deploy-')
+    mkdirSync(join(root, 'conciv', 'plugins', 'deploy'), {recursive: true})
+    writeFileSync(join(root, 'conciv', 'plugins', 'deploy', 'index.ts'), DEPLOY_INDEX)
+    writeFileSync(join(root, 'conciv', 'plugins', 'deploy', 'rpc.ts'), DEPLOY_RPC)
+    const engine = await start({
+      options: {stateRoot: root},
+      root,
+      launchEditor: () => {},
+      harness: createFakeHarness(),
+      homeDir: tempDir('conciv-home-'),
+    })
+    onTestFinished(() => engine.stop())
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+
+    expect((await makeRpcClient(base).plugin.list()).data.find((plugin) => plugin.id === 'deploy')).toMatchObject({
+      id: 'deploy',
+      source: {type: 'local', path: join(root, 'conciv', 'plugins', 'deploy')},
+      state: {status: 'active'},
+    })
+    const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    expect(
+      JSON.stringify(
+        await executeOverMcp(
+          base,
+          {[CONCIV_SESSION_HEADER]: sessionId},
+          "return await external_deploy_run({env: 'staging'})",
+        ),
+      ),
+    ).toContain('https://staging.example.com')
+    expect(
+      await makeRpcClient(base).plugin.call(
+        {rpcId: 'deploy', method: 'run', input: {env: 'prod'}},
+        {signal: AbortSignal.timeout(5000)},
+      ),
+    ).toEqual({url: 'https://prod.example.com'})
+    const mcp = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: sessionId})
+    onTestFinished(() => mcp.close())
+    expect(
+      JSON.stringify(await (await mcp.tools()).find((entry) => entry.name === 'skill')?.execute?.({id: 'deploy'})),
+    ).toContain('You can deploy from code mode with `external_deploy_run`.')
+  })
 })
 
 describe('a plugin tool that asks, across a reload of its plugin', () => {
@@ -6803,35 +6975,13 @@ describe('engine plugin bundles', () => {
         code: 'BAD_REQUEST',
       })
 
-    const changes = await rpc.event.subscribe({types: ['plugin.updated']}, options)
+    const listening = new AbortController()
+    onTestFinished(() => listening.abort())
+    const changes = await rpc.event.subscribe({types: ['plugin.updated']}, {signal: listening.signal})
     expect(await changes.next()).toEqual({
       done: false,
       value: {id: expect.stringMatching(/^evt_/), type: 'server.connected', data: {}},
     })
-    const delivered: unknown[] = []
-    const [secondArrival, thirdArrival] = [Promise.withResolvers<void>(), Promise.withResolvers<void>()]
-    const arrivals = [secondArrival, thirdArrival]
-    const consume = async () => {
-      for await (const change of changes) {
-        if (change.type === 'server.heartbeat') continue
-        delivered.push(change)
-        arrivals[delivered.length - 1]?.resolve()
-      }
-    }
-    const consumed = Promise.allSettled([consume()])
-    const rebuilt = async (label: string, arrival: PromiseWithResolvers<void>) => {
-      writeFileSync(join(root, 'pane', 'plugin-experimental.js'), bundle(label))
-      await arrival.promise
-      return (await rpc.plugin.experimental({id: 'pane'}, options)).data
-    }
-    const second = await rebuilt('second', secondArrival)
-    expect(second.code).toBe(bundle('second'))
-    expect(second.revision).not.toBe(first.data.revision)
-    const third = await rebuilt('third', thirdArrival)
-    expect(third.code).toBe(bundle('third'))
-    expect(third.revision).not.toBe(second.revision)
-    await changes.return()
-    const [ended] = await consumed
     const updated = {
       id: expect.stringMatching(/^evt_/),
       type: 'plugin.updated',
@@ -6839,8 +6989,23 @@ describe('engine plugin bundles', () => {
       location: {directory: root},
       data: {},
     }
-    expect(delivered).toEqual([updated, updated])
-    expect(ended).toMatchObject({status: 'rejected', reason: {name: 'AbortError', message: 'Stream was cancelled'}})
+    const rebuilt = async (label: string) => {
+      writeFileSync(join(root, 'pane', 'plugin-experimental.js'), bundle(label))
+      expect(await nextEvent(changes)).toEqual({done: false, value: updated})
+      return (await rpc.plugin.experimental({id: 'pane'}, {signal: AbortSignal.timeout(5000)})).data
+    }
+    const second = await rebuilt('second')
+    expect(second.code).toBe(bundle('second'))
+    expect(second.revision).not.toBe(first.data.revision)
+    writeFileSync(join(root, 'pane', 'plugin-experimental.js'), bundle('third'))
+    expect(await nextEvent(changes)).toEqual({done: false, value: updated})
+    const cancelled = nextEvent(changes)
+    const third = (await rpc.plugin.experimental({id: 'pane'}, {signal: AbortSignal.timeout(5000)})).data
+    expect(third.code).toBe(bundle('third'))
+    expect(third.revision).not.toBe(second.revision)
+    await changes.return()
+    await expect(cancelled).rejects.toMatchObject({name: 'AbortError', message: 'Stream was cancelled'})
+    expect(await changes.next()).toEqual({done: true, value: undefined})
   })
 })
 
