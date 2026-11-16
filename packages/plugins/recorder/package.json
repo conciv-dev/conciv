@@ -47,7 +47,7 @@
     "lint": "oxlint",
     "test": "vitest run",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "attw --pack . --profile esm-only --exclude-entrypoints plugin-experimental"
   },
   "dependencies": {
     "p-queue": "catalog:",
