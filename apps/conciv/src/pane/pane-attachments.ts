@@ -25,6 +25,7 @@ function keptInDraftStore(drafts: DraftStore | null): AttachmentAdapter {
       const added = IMAGE_ATTACHMENT_ADAPTER.add(state)
       if (!(added instanceof Promise)) return added
       return added.then(async (pending) => {
+        if (pending.status.type === 'incomplete') return pending
         if (state.file.size > MAX_INLINE_BYTES) {
           console.warn(
             `[conciv] ${state.file.name} is over ${MAX_INLINE_BYTES} bytes, so the local draft keeps no copy of it`,

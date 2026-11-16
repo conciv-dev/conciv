@@ -21,6 +21,9 @@ relative to `packages/app/src/runtime/persistence/`). Names and shapes are openc
 - The draft database closes itself when another tab opens it at a newer version (`drafts.ts`, the `versionchange`
   listener). The source keeps it open, so one old tab blocks every newer one for as long as it lives. After the close,
   the old tab stays closed: each later write or blob put fails, is logged, and the composer keeps what is on screen.
+- An attached image is put in the draft database only when the composer accepted it (`pane/pane-attachments.ts`,
+  the check on the pending attachment's status). An image the composer refused, such as one over its send limit,
+  keeps its chip and gets no local copy. The source's composer refuses nothing at attach time, so it never needs this.
 - A draft database that does not open is logged once (`drafts.ts`, the catch on `db`). In the source that failure is
   an unhandled rejection whenever nothing reads the store first.
 - A stored draft document is checked with zod, not Effect Schema, because the app checks untrusted input with zod and

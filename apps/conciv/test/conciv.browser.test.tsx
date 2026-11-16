@@ -3,7 +3,7 @@ import 'virtual:uno.css'
 import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe, onTestFinished} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
 import {uniq} from 'es-toolkit'
-import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
+import {HarnessSessionId, MAX_ATTACHMENT_RAW_BYTES, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {CONNECTION_CHANGED_EVENT} from '@conciv/protocol/event-bus'
 import {
   browserRpcConnection,
@@ -8232,7 +8232,7 @@ describe('the local draft store', () => {
     )
   }
 
-  test('an attached image is put in the store when it is attached; guards: the same image removed and attached again, or attached twice, keeps a chip each time, and an image over the 20 MiB inline limit keeps its chip with no local copy', async () => {
+  test('an attached image is put in the store when it is attached; guards: the same image removed and attached again, or attached twice, keeps a chip each time, an image over the 20 MiB inline limit keeps its chip with no local copy, and an image the composer refuses keeps its chip with no local copy', async () => {
     const store = createBrowserDraftStore()
     render(() => <AttachingComposer store={store} />)
     const kept = picture('kept.png')
@@ -8254,6 +8254,12 @@ describe('the local draft store', () => {
     await expect.element(chip('oversized.png')).toBeVisible()
     const oversizedId = await storedId(oversized.text)
     expect(await rawRequest((blobs) => blobs.getKey(oversizedId), 'readonly')).toBeUndefined()
+
+    const refused = {name: 'refused.png', mimeType: 'image/png', text: 'r'.repeat(MAX_ATTACHMENT_RAW_BYTES + 1)}
+    await coreControl.chooseFiles('Add an attachment', [refused])
+    await expect.element(chip('refused.png')).toBeVisible()
+    const refusedId = await storedId(refused.text)
+    expect(await rawRequest((blobs) => blobs.getKey(refusedId), 'readonly')).toBeUndefined()
   })
 
   test('a newer conciv tab that bumps the schema is not blocked; the older pane keeps its text and its attachments with no local copy, and a pane opened under the newer schema still attaches', async () => {
