@@ -1,28 +1,22 @@
 import {readFileSync} from 'node:fs'
-import {rm, writeFile} from 'node:fs/promises'
+import {writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
-import {afterEach, describe, expect, it} from 'vitest'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {describe, expect, it} from 'vitest'
 import {symbolicateFrame} from '../src/symbolicate.js'
-
-const written: string[] = []
 
 async function chunkWithInlineMap(source: string, line: number, column: number): Promise<string> {
   const gen = new GenMapping()
   addMapping(gen, {generated: {line: 2, column: 0}, source, original: {line, column}})
   const b64 = Buffer.from(JSON.stringify(toEncodedMap(gen))).toString('base64')
-  const path = join(tmpdir(), `conciv-chunk-${Math.random().toString(36).slice(2)}.js`)
+  const path = join(tempDir('conciv-chunk-'), 'chunk.js')
   await writeFile(path, `"use strict";\nvoid 0;\n//# sourceMappingURL=data:application/json;base64,${b64}`)
-  written.push(path)
   return path
 }
 
 describe('symbolicate', () => {
-  afterEach(async () => {
-    for (const path of written.splice(0)) await rm(path, {force: true})
-  })
-
   it('reads a React server frame, fetches a loopback http frame, and never fetches another host', async () => {
     const chunk = await chunkWithInlineMap('app/page.tsx', 17, 4)
     const fetched: string[] = []
