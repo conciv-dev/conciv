@@ -1200,8 +1200,10 @@ describe('api harness switching', () => {
     await kit().rpc.sessions.delete({sessionId})
     expect(await listings(true)).toEqual({owner: 1, phantoms: 0})
     expect(row(sessionId)?.deletedAt).not.toBeNull()
-    expect(await listings(false)).toEqual({owner: 1, phantoms: 0})
-    expect(row(sessionId)?.deletedAt).toBeNull()
+    expect(await listings(false)).toEqual({owner: 0, phantoms: 0})
+    expect(row(sessionId)).toMatchObject({deletedAt: expect.any(Number)})
+    await kit().rpc.sessions.restore({sessionId})
+    expect(row(sessionId)).toMatchObject({deletedAt: null})
 
     const app = made.app
     if (app === null) throw new Error('the app did not boot')
@@ -1244,7 +1246,8 @@ describe('api harness switching', () => {
     expect(await entries((service) => service.list(id))).toEqual([])
     expect(await key((sessions) => sessions.get(id).pipe(Effect.flip))).toMatchObject({_tag: 'Session.NotFoundError'})
     expect((await kit().rpc.markers.list({sessionId})).map((marker) => marker.id)).toEqual(oldMarkers)
-    expect(await listings(false)).toEqual({owner: 1, phantoms: 0})
+    expect(await listings(false)).toEqual({owner: 0, phantoms: 0})
+    expect(row(sessionId)).toMatchObject({deletedAt: expect.any(Number)})
   })
 
   it('lists the native sessions of every available harness, labelled by harness', async () => {
@@ -2847,6 +2850,38 @@ describe('rpc wire', () => {
         const after = await chatKit().rpc.sessions.list({includeHidden: true})
         expect(after.sessions.map((meta) => meta.id)).not.toContain(listed.id)
         expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({id: listed.id})
+      })
+
+      it('a deleted session whose transcript is still on disk stays deleted: the list leaves it out and opening or resolving it by either id is refused', async () => {
+        const kept = claudeId('deleted-native')
+        writeNativeAt(kept, 'a task deleted while its transcript stays', Date.now() + 180_000)
+        const [listed] = (await chatKit().rpc.sessions.list({limit: 1})).sessions
+        expect(listed).toMatchObject({native: {nativeId: kept}})
+        if (!listed?.native) throw new Error('the native session was not listed')
+        await chatKit().rpc.sessions.delete({sessionId: listed.id})
+
+        const after = await chatKit().rpc.sessions.list(undefined)
+        expect(after.sessions.map((meta) => meta.id)).not.toContain(listed.id)
+        expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({id: listed.id, hidden: true})
+        const withHidden = await chatKit().rpc.sessions.list({includeHidden: true})
+        expect(withHidden.sessions.find((meta) => meta.id === listed.id)).toMatchObject({hidden: true})
+        expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({hidden: true})
+        expect(existsSync(resolveTranscriptPath(kept))).toBe(true)
+
+        await expect(chatKit().rpc.sessions.open(listed.native)).rejects.toMatchObject({code: 'NOT_FOUND'})
+        expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({hidden: true})
+        expect(existsSync(resolveTranscriptPath(kept))).toBe(true)
+
+        await expect(chatKit().rpc.sessions.resolve({id: kept})).rejects.toMatchObject({code: 'NOT_FOUND'})
+        await expect(chatKit().rpc.sessions.resolve({id: listed.id})).rejects.toMatchObject({code: 'NOT_FOUND'})
+        expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({hidden: true})
+
+        const neverSeen = claudeId('never-seen-native')
+        const opened = await chatKit().rpc.sessions.open({...listed.native, nativeId: neverSeen})
+        expect(await chatKit().rpc.sessions.get({sessionId: opened.sessionId})).toMatchObject({
+          hidden: false,
+          native: {nativeId: neverSeen},
+        })
       })
 
       it('a page leaves hidden conciv-only sessions out unless asked, and get still answers for them', async () => {
