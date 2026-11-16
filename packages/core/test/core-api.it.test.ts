@@ -116,6 +116,7 @@ import {
 } from '@conciv/protocol/chat-event-types'
 import {webSocket} from '@conciv/ai/client'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {
   CHAT_SSE_PATH,
   HarnessSessionId,
@@ -4362,9 +4363,10 @@ function bootAt(
   hubAccess: HubAccess = 'session',
   harness = createFakeHarness(),
   plugins: readonly Plugin.Plugin[] = [],
+  permissions: Pick<ConcivConfig, 'permission' | 'permissions'> = {},
 ): Promise<Engine> {
   return start({
-    options: {stateRoot: root, hubAccess},
+    options: {stateRoot: root, hubAccess, ...permissions},
     root,
     launchEditor: () => {},
     harness,
@@ -5511,11 +5513,12 @@ describe('page action queue delivery', () => {
     plugins: readonly Plugin.Plugin[] = [],
     root = tempDir('conciv-queue-'),
     holdsUnder: (command: Page.Command) => string | undefined = () => undefined,
+    permissions: Pick<ConcivConfig, 'permission' | 'permissions'> = {},
   ) {
     const home = tempDir('conciv-queue-home-')
     withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
     const tabs = pageTabs()
-    const engine = await bootAt(home, root, 'open', harness, [tabs.plugin, ...plugins])
+    const engine = await bootAt(home, root, 'open', harness, [tabs.plugin, ...plugins], permissions)
     engines.push(engine)
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
@@ -6201,6 +6204,69 @@ describe('page action queue delivery', () => {
     await (await agentTurn).text()
     expect(await admitted).toEqual({result: 'Example'})
     expect(evals).toEqual(['document.title'])
+  })
+
+  const configuredEvals = async (permissions: Pick<ConcivConfig, 'permission' | 'permissions'>) => {
+    const evals: string[] = []
+    const page = await engineWithTab(
+      createFakeHarness(),
+      [],
+      tempDir('conciv-queue-'),
+      (command) => {
+        if (command.action.type !== 'eval') return undefined
+        evals.push(command.action.code)
+        return `eval/${command.action.code}`
+      },
+      permissions,
+    )
+    const events = await makeRpcClient(page.base).event.subscribe()
+    onTestFinished(async () => {
+      await events.return(undefined)
+    })
+    const asked = async (): Promise<unknown> => {
+      const next = await events.next()
+      if (next.done === true) return undefined
+      if (next.value.type === 'permission.asked') return next.value.data
+      return asked()
+    }
+    return {page, evals, asked}
+  }
+
+  it('an in-chat page_eval the config allows runs with no ask, and one the config denies is refused (red until the tool own ask lands)', async () => {
+    const {page, evals, asked} = await configuredEvals({
+      permission: {page_eval: {'document.cookie': 'deny'}},
+      permissions: [{action: 'page_eval', resource: 'document.title', effect: 'allow'}],
+    })
+    const asking = asked()
+    const allowed = page.inChat('allowed-eval', 'return await external_page_eval({code: "document.title"})')
+    const first = await Promise.race([
+      asking.then(() => 'asked'),
+      page.heldRequest('eval/document.title').then(() => 'ran'),
+    ])
+    expect(first).toBe('ran')
+    await page.onTab.reply(await page.heldRequest('eval/document.title'), pageSuccess({result: 'Example'}))
+    await (await allowed).text()
+    const denied = page.inChat('denied-eval', 'return await external_page_eval({code: "document.cookie"})')
+    const ended = await Promise.race([asking.then(() => 'asked'), denied.then((turn) => turn.text())])
+    expect(ended).toContain('denied')
+    expect(evals).toEqual(['document.title'])
+  })
+
+  it('config page rules land on every agent before the page guards: page allow keeps the attach gate, and an eval with no rule is asked', async () => {
+    const {page, evals, asked} = await configuredEvals({permission: {page: 'allow'}})
+    const tabless = (await makeRpcClient(page.base).sessions.create(undefined)).sessionId
+    const listed = await executeOverMcp(
+      page.base,
+      {...HUB, [CONCIV_SESSION_HEADER]: tabless},
+      'return Object.keys(globalThis).filter((key) => key.startsWith("external_page_"))',
+    )
+    expect(z.object({result: z.array(z.string())}).parse(JSON.parse(String(listed))).result).toEqual([])
+    const asking = asked()
+    const unruled = page.inChat('unruled-eval', 'return await external_page_eval({code: "document.domain"})')
+    expect(await asking).toMatchObject({sessionId: page.sessionId, action: 'page_eval', resources: ['document.domain']})
+    expect(evals).toEqual([])
+    await page.tab.chat.stop({sessionId: page.sessionId, runIds: ['unruled-eval']})
+    await (await unruled).text()
   })
 
   it('a user stop starts no follow-up turn: the owed result arrives with the agent next reply', async () => {
