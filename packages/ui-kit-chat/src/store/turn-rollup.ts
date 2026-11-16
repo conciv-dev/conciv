@@ -43,7 +43,7 @@ function applyPatchInfo(part: ToolCallPart): FileEditInfo {
   if (!patchText) return {files: [], added: 0, removed: 0}
   const files = [
     ...new Set(
-      [...patchText.matchAll(/^\*\*\*\s+(?:Update|Add|Delete)\s+File:\s+(.+)$/gm)].map((match) =>
+      [...patchText.matchAll(/^\*\*\*[ \t]+(?:Update|Add|Delete)[ \t]+File:[ \t]+(.+)$/gm)].map((match) =>
         (match[1] ?? '').trim(),
       ),
     ),

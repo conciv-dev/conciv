@@ -28,6 +28,18 @@ import {FileReadCard} from '../src/styled/tools/file-read-card.js'
 import {hiddenMatchSummary, type SearchFileGroup} from '../src/styled/tools/search-matches.js'
 import {builtinToolCards} from '../src/styled/tools/builtin-tool-cards.js'
 import {builtinPageRegistry, mountView, registryCatalogView} from './helpers.js'
+import {parseClaudePatchBlocks, patchInfo} from '../src/primitives/tools/apply-patch.js'
+
+describe('patch headers', () => {
+  it('reads a file only from the header line itself', () => {
+    const named = '*** Begin Patch\n*** Update File: src/a.ts\n+x\n*** End Patch'
+    expect(patchInfo(named).files).toEqual(['a.ts'])
+    expect(parseClaudePatchBlocks(named)).toEqual([{type: 'Update', path: 'src/a.ts', body: '\n+x'}])
+    const unnamed = '*** Add File:\nsrc/next.ts\n+x'
+    expect(patchInfo(unnamed).files).toEqual([])
+    expect(parseClaudePatchBlocks(unnamed)).toEqual([])
+  })
+})
 
 describe('standalone outcome headers', () => {
   const REASON = {denied: 'User declined tool execution', cancelled: 'Tool execution cancelled'} as const

@@ -20,6 +20,7 @@ import {
   shareGroupNodes,
 } from '../src/store/grouping.js'
 import {createPageSessionGrouper} from '../src/store/page-session.js'
+import {turnRollup} from '../src/store/turn-rollup.js'
 import {shortToolLabel} from '../src/tools/primitives/tool-row.js'
 import {humanToolName} from '../src/tools/primitives/now-title.js'
 
@@ -47,6 +48,24 @@ describe('tool names', () => {
     expect(humanToolName('Bash')).toBe('Bash')
     const slow = `mcp__${'a__'.repeat(80_000)}\n`
     expect(humanToolName(slow)).toBe(slow)
+  })
+})
+
+describe('turn rollup', () => {
+  function patchTurn(patchText: string) {
+    const call: ToolCallPart = {
+      type: 'tool-call',
+      id: 'p1',
+      name: 'apply_patch',
+      arguments: JSON.stringify({patchText}),
+      state: 'input-complete',
+    }
+    return turnRollup({parts: [call]})
+  }
+
+  it('reads the edited files from patch headers', () => {
+    expect(patchTurn('*** Begin Patch\n*** Update File: src/a.ts\n+x\n*** End Patch').files).toEqual(['src/a.ts'])
+    expect(patchTurn('*** Add File:\nsrc/next.ts\n+x').files).toEqual([])
   })
 })
 
