@@ -139,11 +139,12 @@ import {
   PAGE_TRANSPORT_ERROR_CODES,
 } from '@conciv/protocol/page-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
-import {type RpcContext} from '@conciv/protocol/rpc-types'
+import {RPC_WS_PATH, type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
 import {createORPCClient} from '@orpc/client'
 import {RPCLink} from '@orpc/client/fetch'
+import {RPCLink as WebsocketRpcLink} from '@orpc/client/websocket'
 import {onError, ORPCError, os, type RouterClient} from '@orpc/server'
 import WebSocket from 'ws'
 import {Effect, ManagedRuntime, Schema} from 'effect'
@@ -5542,6 +5543,10 @@ describe('page action queue delivery', () => {
       if (!pages.signal.aborted) throw error
     })
     const queueEvents = () => seen.flatMap((chunk) => pageQueueEvent.parse(chunk) ?? [])
+    const cards = (queueId: string) =>
+      seen.filter(
+        (chunk) => chunk.type === ChatEventType.TOOL_CALL_START && chunk.toolCallId === `page-queue-${queueId}`,
+      )
     const seenChunk = async (matches: (chunk: ChatEvent) => boolean): Promise<void> => {
       if (seen.some(matches)) return
       await once(arrivals, 'chunk')
@@ -5587,6 +5592,7 @@ describe('page action queue delivery', () => {
       discover,
       close,
       queueEvents,
+      cards,
       finishedEvent,
       followUpFinished,
       runIds,
@@ -5676,6 +5682,69 @@ describe('page action queue delivery', () => {
     await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
     await page.finishedEvent(queueId)
     expect(JSON.stringify(await page.hub('return 1'))).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
+  }, 5000)
+
+  it('a page.queue.wait its caller aborts before any play starts keeps the result owed, so it leads the next reply once, with one finished event and one card, while a result a live waiter took gets none', async () => {
+    const page = await engineWithTab()
+    const typed = makeRpcClient(page.base, {headers: HUB})
+    const taken = parseHandle(await page.hub(queued())).queueId
+    const takenOnTab = await page.nextQueue()
+    const taking = typed.page.queue.wait({sessionId: page.sessionId, queueId: taken, waitMs: 60_000})
+    expect(await typed.tabs.get({sessionId: page.sessionId})).toMatchObject({open: true})
+    await page.play(takenOnTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+    await page.play(takenOnTab, 1, {ok: true, result: {ok: true, checked: true}})
+    expect(await taking).toMatchObject({queueId: taken, status: 'finished', played: 2})
+    const {queueId} = parseHandle(await page.hub(queued()))
+    const onTab = await page.nextQueue()
+    const caller = new AbortController()
+    const waiting = typed.page.queue.wait({sessionId: page.sessionId, queueId, waitMs: 60_000}, {signal: caller.signal})
+    expect(await typed.tabs.get({sessionId: page.sessionId})).toMatchObject({open: true})
+    caller.abort()
+    await expect(waiting).rejects.toMatchObject({name: 'AbortError'})
+    expect(await typed.tabs.get({sessionId: page.sessionId})).toMatchObject({open: true})
+    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    await page.finishedEvent(queueId)
+    const notice = `queue ${queueId} finished: 2 played, 0 failed`
+    expect(JSON.stringify(await page.hub('return 1'))).toContain(notice)
+    expect(JSON.stringify(await page.hub('return 2'))).not.toContain(notice)
+    expect(page.queueEvents().filter((event) => event.queueId === queueId)).toHaveLength(1)
+    expect(page.cards(queueId)).toHaveLength(1)
+    expect(page.queueEvents().filter((event) => event.queueId === taken)).toHaveLength(0)
+    expect(page.cards(taken)).toHaveLength(0)
+  }, 5000)
+
+  it('a page.queue.wait over the websocket its caller aborts before the queue finishes keeps the result owed, so it leads the next reply once', async () => {
+    const page = await engineWithTab()
+    const {queueId} = parseHandle(await page.hub(queued()))
+    const onTab = await page.nextQueue()
+    const socket = new WebSocket(`ws://127.0.0.1:${page.engine.port}${RPC_WS_PATH}`, {
+      headers: {authorization: `Bearer ${page.engine.agentToken}`},
+    })
+    await once(socket, 'open')
+    const overSocket = createORPCClient<ReturnType<typeof makeRpcClient>>(
+      new WebsocketRpcLink({websocket: socket, headers: HUB}),
+    )
+    const caller = new AbortController()
+    const waiting = overSocket.page.queue.wait(
+      {sessionId: page.sessionId, queueId, waitMs: 60_000},
+      {signal: caller.signal},
+    )
+    expect(await overSocket.tabs.get({sessionId: page.sessionId})).toMatchObject({open: true})
+    caller.abort()
+    await expect(waiting).rejects.toMatchObject({name: 'AbortError'})
+    expect(await overSocket.tabs.get({sessionId: page.sessionId})).toMatchObject({open: true})
+    const closed = once(socket, 'close')
+    socket.close()
+    await closed
+    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    await page.finishedEvent(queueId)
+    const notice = `queue ${queueId} finished: 2 played, 0 failed`
+    expect(JSON.stringify(await page.hub('return 1'))).toContain(notice)
+    expect(JSON.stringify(await page.hub('return 2'))).not.toContain(notice)
+    expect(page.queueEvents().filter((event) => event.queueId === queueId)).toHaveLength(1)
+    expect(page.cards(queueId)).toHaveLength(1)
   }, 5000)
 
   it('a code.execute its caller aborts hands over no finished result, so that result leads the next reply', async () => {
