@@ -91,7 +91,7 @@ describe('a service the consumer forgot to provide', () => {
       .filter(Context.isKey)
       .filter((service) => !Context.isReference(service))
     const messages = services.map((service) => {
-      const exit = Effect.runSyncExit(service)
+      const exit = Effect.runSyncExit(Effect.map(Effect.context(), (context) => Context.getUnsafe(context, service)))
       return Exit.isFailure(exit) ? Cause.pretty(exit.cause) : ''
     })
     expect(messages.length).toBeGreaterThan(20)
