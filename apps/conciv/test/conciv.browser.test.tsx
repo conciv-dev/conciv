@@ -6780,7 +6780,7 @@ module.exports = {default: {setup(ctx) {
   })
 
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
-  const probeCards = () => page.getByText(/^mode=(draw|decline|throw)$/)
+  const probeRow = (meta: string) => page.getByText(meta, {exact: true})
 
   test('a plugin draws the body of a finished call it claims, and a declined or failed call keeps the default card', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
@@ -6806,7 +6806,9 @@ module.exports = {default: {setup(ctx) {
     await coreControl.releaseResults()
     await expect.element(page.getByText('the probes are done'), {timeout: 15_000}).toBeVisible()
     await page.screenshot({path: '__screenshots__/plugin-tool-cards/finished.png'})
-    await expect.element(probeCards().nth(2)).toBeVisible()
+    await expect.element(probeRow('mode=draw')).toBeVisible()
+    await expect.element(probeRow('mode=decline')).toBeVisible()
+    await expect.element(probeRow('mode=throw')).toBeVisible()
     await expect.element(page.getByText('Plugin drew the drawn probe')).toBeVisible()
     await expect.element(page.getByText('Plugin drew the declined probe')).not.toBeInTheDocument()
     await expect.element(page.getByText('Plugin drew the thrown probe')).not.toBeInTheDocument()
@@ -7881,11 +7883,13 @@ module.exports = {default: {setup(ctx) {
     await coreControl.releaseFault(catalogHeld)
     await expect.element(shown('page edit').nth(1), {timeout: 15_000}).toBeVisible()
     await expect.element(shown('force a hot update of one module')).toBeVisible()
+    await expect.element(shown('Called server_reload')).not.toBeInTheDocument()
     await expect.element(shown('file=src/a.ts mode=draw')).not.toBeInTheDocument()
     await expect.element(shown('Fixture reloaded src/a.ts')).toBeVisible()
     await expect.element(shown('Drawn catalog call asked: 1')).toBeVisible()
     await expect.element(shown('Fixture drew the headline probe')).toBeVisible()
-    await expect.element(page.getByText(/^mode=(draw|decline)$/).nth(1)).toBeVisible()
+    await expect.element(shown('mode=draw')).toBeVisible()
+    await expect.element(shown('mode=decline')).toBeVisible()
   }, 60_000)
 
   test('its tab appears once the engine trusts the page, stays through a revoke and a lost connection, and loads again after trust drops before its enable state arrived', async () => {
