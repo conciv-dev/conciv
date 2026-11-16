@@ -5374,6 +5374,12 @@ describe('session selector', () => {
     await expect.element(option('older session 0')).not.toBeInTheDocument()
     await userEvent.hover(option('a minute after midnight'))
     await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeVisible()
+    await page.viewport(390, 500)
+    await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeInViewport({ratio: 1})
+    await expect
+      .element(preview('a minute after midnight').getByRole('button', {name: 'Copy'}).last())
+      .toBeInViewport({ratio: 1})
+    await page.viewport(414, 896)
     await expect.element(preview('a minute after midnight').getByRole('mark').first()).toHaveTextContent('tide')
     await expect.element(search).toHaveFocus()
     await expect.element(preview('a minute after midnight').getByRole('button', {name: 'Copy'}).last()).toBeVisible()
