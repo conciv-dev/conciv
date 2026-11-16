@@ -50,7 +50,7 @@ Two real, current example extensions ship in this repo's Vite example app. Read 
 your own — the real file additionally defines the inline SVG `RocketIcon` the button renders, trimmed
 below:
 
-```tsx title="apps/examples/tanstack-start/conciv/extensions/deploy-button.tsx:1-53 (trimmed)"
+```tsx title="conciv/extensions/deploy-button.tsx (trimmed)"
 import {z} from 'zod'
 import {defineExtension, defineTool, getExtensionApi} from '@conciv/extension'
 import {ComposerActions} from '@conciv/ui-kit-chat'
@@ -390,7 +390,6 @@ non-installed extensions).
 - `packages/extension-testkit/src/get-extension-test-api.ts`
 - `packages/extension-testkit/src/fixture-host.ts`
 - `packages/protocol/src/tool-view-types.ts`
-- `apps/examples/tanstack-start/conciv/extensions/deploy-button.tsx`
 - `packages/extensions/whiteboard/src/client.tsx`
 - `packages/extensions/whiteboard/src/tool/comment/def.ts`
 - `packages/extensions/terminal/src/client.tsx`
