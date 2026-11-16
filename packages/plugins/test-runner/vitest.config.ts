@@ -6,7 +6,7 @@ export default defineConfig({
     ...ciTest(),
     name: 'plugin-test-runner',
     environment: 'node',
-    include: ['test/test-runner.test.ts'],
+    include: ['test/test-runner.test.ts', 'test/test-runner.browser.test.ts'],
     testTimeout: 120_000,
     fileParallelism: false,
   },
