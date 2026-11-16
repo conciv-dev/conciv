@@ -250,6 +250,77 @@ describe('PluginSupervisor reload', () => {
     30_000,
   )
 
+  it.live(
+    'a changed browser bundle alone is served anew without restarting the plugin, an engine edit restarts it',
+    () =>
+      Effect.gen(function* () {
+        const directory = yield* tmpdirScoped()
+        const root = path.join(directory.path, 'conciv/plugins/bundled')
+        const entry = path.join(root, 'index.ts')
+        const starts = path.join(directory.path, 'starts')
+        const bundle = path.join(root, 'plugin-experimental.js')
+        const code = 'module.exports = { default: function setup() {} }'
+        const source = `import { appendFileSync } from "node:fs"
+            export default { id: "bundled", async setup(ctx) {
+              appendFileSync(${JSON.stringify(starts)}, "x")
+              await ctx.tool.transform((editor) => editor.add({ name: "bundled_tool", description: "", input: {}, execute: async () => ({}) }))
+            } }`
+        const marks = Effect.promise(() => fs.readFile(starts, 'utf8'))
+        yield* Effect.promise(async () => {
+          await write(entry, source)
+          await write(bundle, code)
+        })
+        const bus = yield* Bus.Service
+        const watcher = yield* Watcher.Test
+        const updates: string[] = []
+        yield* Effect.acquireRelease(
+          bus.listen((event) =>
+            Effect.sync(() => void (event.type === Plugin.Event.Updated.type && updates.push(event.type))),
+          ),
+          (unsubscribe) => unsubscribe,
+        )
+        const locations = yield* instances()
+        yield* Effect.gen(function* () {
+          const plugins = yield* Plugin.Service
+          const tools = yield* Tool.Service
+          const id = Plugin.Id.make('bundled')
+          yield* plugins.awaitActivation
+          const served = yield* plugins.experimental(id)
+          const tool = yield* get(tools, 'bundled_tool')
+          const published = updates.length
+          expect(served?.code).toBe(code)
+          expect(tool).toBeDefined()
+          expect(yield* marks).toBe('x')
+
+          yield* Effect.promise(() => write(bundle, `${code}\n// edited`))
+          yield* watcher.emit({path: bundle, type: 'update'})
+          const reloaded = yield* plugins.experimental(id).pipe(
+            Effect.flatMap((part) =>
+              part?.code === `${code}\n// edited` ? Effect.succeed(part) : Effect.fail('pending'),
+            ),
+            Effect.retry({times: 80, schedule: Schedule.spaced('25 millis')}),
+          )
+
+          expect(reloaded.revision).not.toBe(served?.revision)
+          expect(yield* marks).toBe('x')
+          expect(updates.length).toBe(published + 1)
+          expect(yield* get(tools, 'bundled_tool')).toBe(tool)
+
+          yield* Effect.promise(async () => {
+            await write(entry, `${source}\nexport const edited = true`)
+            await fs.utimes(entry, new Date(), new Date(Date.now() + 1000))
+          })
+          yield* watcher.emit({path: entry, type: 'update'})
+          yield* marks.pipe(
+            Effect.flatMap((written) => (written === 'xx' ? Effect.void : Effect.fail('pending'))),
+            Effect.retry({times: 80, schedule: Schedule.spaced('25 millis')}),
+          )
+          expect(yield* marks).toBe('xx')
+        }).pipe(Effect.scoped, Effect.provide(locations.get(directory.path)))
+      }),
+    30_000,
+  )
+
   it.effect(
     'serializes the periodic refresh behind an in-flight reload',
     () =>
