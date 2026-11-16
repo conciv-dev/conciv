@@ -1,0 +1,133 @@
+import {spawn} from 'node:child_process'
+import {createRequire} from 'node:module'
+import {join} from 'node:path'
+import {tmpdir} from 'node:os'
+import {mkdtemp, readFile, rm} from 'node:fs/promises'
+import {writeSync} from 'node:fs'
+import type {Summary, TestError, TestRow} from '../../shared/events.js'
+import type {ChildMessage} from '../../runner/child-protocol.js'
+import {parsePlaywrightReport} from './report.js'
+
+function send(msg: ChildMessage): void {
+  writeSync(3, JSON.stringify(msg) + '\n')
+}
+
+function flagValue(argv: string[], name: string): string | undefined {
+  const i = argv.indexOf(name)
+  return i >= 0 ? argv[i + 1] : undefined
+}
+function flagValues(argv: string[], name: string): string[] {
+  return argv.flatMap((a, i) => {
+    const v = argv[i + 1]
+    return a === name && v !== undefined ? [v] : []
+  })
+}
+
+function resolveCli(cwd: string): string {
+  const req = createRequire(join(cwd, 'noop.js'))
+  for (const id of ['playwright/cli', '@playwright/test/cli']) {
+    try {
+      return req.resolve(id)
+    } catch {}
+  }
+  throw new Error('playwright not found in the app (install @playwright/test)')
+}
+
+type CliOutput = {stdout: string; stderr: string; code: number | null; signal: NodeJS.Signals | null}
+type CliResult = CliOutput & {report: string}
+
+function spawnCli(cwd: string, cliArgs: string[], reportFile: string, signal: AbortSignal): Promise<CliOutput> {
+  const cliPath = resolveCli(cwd)
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [cliPath, 'test', ...cliArgs, '--reporter=json'], {
+      cwd,
+      env: {...process.env, PLAYWRIGHT_JSON_OUTPUT_FILE: reportFile},
+      signal,
+    })
+    let stdout = ''
+    let stderr = ''
+    child.stdout?.on('data', (d: Buffer) => (stdout += d.toString()))
+    child.stderr?.on('data', (d: Buffer) => (stderr += d.toString()))
+    child.on('error', (error) => {
+      if (error.name !== 'AbortError') reject(error)
+    })
+    child.on('close', (code, exitSignal) => resolve({stdout, stderr, code, signal: exitSignal}))
+  })
+}
+
+function emptyWhenMissing(error: unknown): string {
+  if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return ''
+  throw error
+}
+
+async function runCli(cwd: string, cliArgs: string[], signal: AbortSignal): Promise<CliResult> {
+  const reportDir = await mkdtemp(join(tmpdir(), 'conciv-playwright-report-'))
+  try {
+    const reportFile = join(reportDir, 'report.json')
+    const output = await spawnCli(cwd, cliArgs, reportFile, signal)
+    signal.throwIfAborted()
+    const report = await readFile(reportFile, 'utf8').catch(emptyWhenMissing)
+    return {...output, report}
+  } finally {
+    await rm(reportDir, {recursive: true, force: true})
+  }
+}
+
+const OUTPUT_TAIL_LENGTH = 500
+
+function tail(text: string): string {
+  return text.length > OUTPUT_TAIL_LENGTH ? text.slice(-OUTPUT_TAIL_LENGTH) : text
+}
+
+function describeMissingReport(cliResult: CliResult): string {
+  const parts = [`exit code ${cliResult.code}, signal ${cliResult.signal}`]
+  if (cliResult.stderr.trim()) parts.push(`stderr: ${tail(cliResult.stderr.trim())}`)
+  if (cliResult.stdout.trim()) parts.push(`stdout: ${tail(cliResult.stdout.trim())}`)
+  return `playwright produced no JSON report (${parts.join(', ')})`
+}
+
+function summarize(rows: TestRow[]): Summary {
+  const count = (s: TestRow['state']) => rows.filter((r) => r.state === s).length
+  return {
+    passed: count('pass'),
+    failed: count('fail'),
+    skipped: count('skip'),
+    durationMs: rows.reduce((sum, r) => sum + r.durationMs, 0),
+  }
+}
+
+async function runTests(cwd: string, argv: string[], signal: AbortSignal): Promise<void> {
+  const patterns = flagValues(argv, '--pattern')
+  const name = flagValue(argv, '--name')
+  const cliResult = await runCli(cwd, [...patterns, ...(name ? ['-g', name] : [])], signal)
+  if (!cliResult.report.trim().startsWith('{')) throw new Error(describeMissingReport(cliResult))
+  const rows = parsePlaywrightReport(cliResult.report)
+  const files = [...new Set(rows.map((r) => r.file))]
+  send({type: 'run-start', runId: 'pw1', files})
+  for (const row of rows) send({type: 'test', ...row})
+  const failures = rows.map((r) => r.error).filter((e): e is TestError => e !== undefined)
+  send({type: 'run-end', runId: 'pw1', summary: summarize(rows), failures, tests: rows})
+}
+
+async function runList(cwd: string, signal: AbortSignal): Promise<void> {
+  const cliResult = await runCli(cwd, ['--list'], signal)
+  if (!cliResult.report.trim().startsWith('{')) throw new Error(describeMissingReport(cliResult))
+
+  const files = [...new Set(parsePlaywrightReport(cliResult.report).map((r) => r.file))]
+  send({type: 'list', files: files.map((f) => ({file: join(cwd, f), relPath: f}))})
+}
+
+export async function runChild(): Promise<void> {
+  const argv = process.argv.slice(2)
+  const mode = flagValue(argv, '--mode') ?? 'run'
+  const cwd = flagValue(argv, '--cwd') ?? process.cwd()
+  const cancel = new AbortController()
+  process.once('SIGTERM', () => cancel.abort())
+  try {
+    await (mode === 'list' ? runList(cwd, cancel.signal) : runTests(cwd, argv, cancel.signal))
+    process.exit(0)
+  } catch (e) {
+    send({type: 'error', reason: e instanceof Error ? e.message : String(e)})
+    process.exit(1)
+  }
+}
