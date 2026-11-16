@@ -7960,7 +7960,7 @@ module.exports = {default: {setup(ctx) {
     await expect.element(shown('Tool: fixture_probe').nth(1)).toBeVisible()
   }, 60_000)
 
-  test('its tab appears once the engine trusts the page, stays through a revoke and a lost connection, and loads again after trust drops before its enable state arrived', async () => {
+  test('its tab shows once trusted, through a revoke, a lost connection and trust dropped before its enable state, and its tab and settings page keep their place through a revoke and a reopen', async () => {
     const origin = new URL(coreBase()).origin
     onTestFinished(() => localStorage.removeItem(`conciv:engine-token:${origin}`))
     const sessionId = await createSession(coreRpc(coreBase()))
@@ -7991,6 +7991,8 @@ module.exports = {default: {setup(ctx) {
     await logIn(reloginNotice())
     await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
 
+    await tab('Fixture tools').click()
+    await expect.element(control('Write a plain note')).toBeVisible()
     await coreControl.revokeBrowsers()
     await expect.element(reloginNotice(), {timeout: 15_000}).toBeVisible()
     await expect.element(tab('Fixture tools')).toBeVisible()
@@ -7999,6 +8001,8 @@ module.exports = {default: {setup(ctx) {
     await logIn(reloginNotice())
     await expect.element(shownText('The fragile second revision'), {timeout: 15_000}).toBeVisible()
     await expect.element(shownText('Engine attached: 2')).toBeVisible()
+    await expect.element(control('Write a plain note')).toBeVisible()
+    await expect.element(tab('Fixture tools')).toHaveAttribute('aria-selected', 'true')
 
     const offline = await faults.install({kind: 'offline'})
     await expect.element(lostNotice(), {timeout: 15_000}).toBeVisible()
@@ -8010,6 +8014,28 @@ module.exports = {default: {setup(ctx) {
     await control('Write a plain note').click()
     await tab('Chat').click()
     await expect.element(editor()).toHaveTextContent('plain note')
+
+    await page.viewport(1000, 900)
+    const prefsBody = () => page.getByText('The fixture prefs page', {exact: true})
+    const selectedPrefs = () => page.getByRole('tab', {name: 'Fixture prefs', exact: true, selected: true})
+    await page.getByRole('link', {name: 'Settings'}).click()
+    await tab('Fixture prefs').click()
+    await expect.element(prefsBody()).toBeVisible()
+    await coreControl.revokeBrowsers()
+    await expect.element(reloginNotice(), {timeout: 15_000}).toBeVisible()
+    await logIn(reloginNotice())
+    await expect.element(prefsBody(), {timeout: 15_000}).toBeVisible()
+    await expect.element(selectedPrefs()).toBeVisible()
+
+    harness.dispose()
+    await coreControl.revokeBrowsers()
+    harness.mountShell(`/panel/${sessionId}/settings/plugins/${encodeURIComponent('fixture:prefs')}?open=true`, [], {
+      login: {apiBase: origin},
+    })
+    await expect.element(loginNotice(), {timeout: 15_000}).toBeVisible()
+    await logIn(loginNotice())
+    await expect.element(prefsBody(), {timeout: 15_000}).toBeVisible()
+    await expect.element(selectedPrefs()).toBeVisible()
   }, 90_000)
 
   test('turning it off in Settings removes its tab and slot, turning it on brings them back, and turning it off elsewhere closes its open tab', async () => {
