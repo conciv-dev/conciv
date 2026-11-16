@@ -390,7 +390,18 @@
       }
     },
     {
-      "files": ["apps/site/test/helpers.ts", "e2e/nextjs/test/packed-closure.spec.ts"],
+      "files": [
+        "apps/site/test/helpers.ts",
+        "e2e/nextjs/test/packed-closure.spec.ts",
+        "e2e/nextjs/packed/harness.ts",
+        "e2e/nextjs/packed/trust-policy.ts"
+      ],
+      "rules": {
+        "conciv/no-hand-made-temp-dir": "off"
+      }
+    },
+    {
+      "files": ["packages/harness-testkit/src/create-testkit.ts", "packages/extension-testkit/src/boot-server.ts"],
       "rules": {
         "conciv/no-hand-made-temp-dir": "off"
       }
