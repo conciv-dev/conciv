@@ -512,6 +512,27 @@ describe('the recording video export', () => {
     expect(bytes.equals(await readFile(join(recordingsDirectory(kit), `${saved.recordingId}.webm`)))).toBe(true)
   })
 
+  it('answers every one of several exports of one uncached recording started at once with a complete video, also while another export still holds a temporary file beside it', async () => {
+    const folder = tempDir('conciv-recorder-racing-video-')
+    const recordingsDir = join(folder, '.conciv', 'recorder', 'recordings')
+    const id = `${Date.now()}-000001-racing`
+    const heldTemporary = join(recordingsDir, `${id}.webm.tmp`)
+    await mkdir(heldTemporary, {recursive: true})
+    await writeFile(
+      join(recordingsDir, `${id}.json`),
+      JSON.stringify({events: renderStream(Date.now() - 2000)}),
+      'utf8',
+    )
+    const kit = await bootRecorder(folder)
+
+    const reads = await Promise.all(Array.from({length: 4}, () => readVideo(kit, 'racing-video', id)))
+    const webmHeader = Buffer.from([0x1a, 0x45, 0xdf, 0xa3])
+    for (const read of reads) expect(read.bytes.subarray(0, 4).equals(webmHeader)).toBe(true)
+    const published = await readFile(join(recordingsDir, `${id}.webm`))
+    expect(reads.map((read) => read.bytes.equals(published))).toContain(true)
+    expect(await filesNamed(recordingsDir, '.tmp')).toEqual([heldTemporary])
+  })
+
   it('reads a stored video larger than the cap back byte-identical in pieces within the cap, answers a read past the end as empty and done, and refuses an unknown recording', async () => {
     const folder = tempDir('conciv-recorder-pieces-')
     const recordingsDir = join(folder, '.conciv', 'recorder', 'recordings')
@@ -536,6 +557,56 @@ describe('the recording video export', () => {
     expect(
       await failureType(call(kit, 'recordings.exportVideo', {clientId: 'stored', id: 'missing-recording', offset: 0})),
     ).toBe('expired')
+  })
+})
+
+describe('the recording store under concurrent saves', () => {
+  it('keeps the newest 50 when saves race the count cap, and keeps every racing save', async () => {
+    const folder = tempDir('conciv-recorder-race-')
+    const recordingsDir = join(folder, '.conciv', 'recorder', 'recordings')
+    await mkdir(recordingsDir, {recursive: true})
+    const now = Date.now()
+    const seeded = Array.from(
+      {length: 49},
+      (_, index) => `${now - 60_000 + index}-${String(index).padStart(6, '0')}-seed`,
+    )
+    await Promise.all(
+      seeded.map((id) =>
+        writeFile(join(recordingsDir, `${id}.json`), JSON.stringify({events: fixtureStream(now)}), 'utf8'),
+      ),
+    )
+    const kit = await bootRecorder(folder)
+    expect(await call(kit, 'flush', {clientId: 'race', events: fixtureStream(Date.now())})).toEqual({ok: true})
+
+    const racing = await Promise.all(
+      Array.from({length: 5}, async () => SavedSchema.parse(await call(kit, 'recordings.save', {clientId: 'race'}))),
+    )
+    const stored = (await readdir(recordingsDir)).filter((name) => name.endsWith('.json'))
+    expect(stored).toHaveLength(50)
+    expect(stored).toEqual(expect.arrayContaining(racing.map((saved) => `${saved.recordingId}.json`)))
+  })
+
+  it('answers a save that is stored as saved when pruning an old recording fails', async () => {
+    const folder = tempDir('conciv-recorder-stuck-')
+    const recordingsDir = join(folder, '.conciv', 'recorder', 'recordings')
+    const now = Date.now()
+    const stuck = `${now - 120_000}-000000-stuck.json`
+    await mkdir(join(recordingsDir, stuck, 'held'), {recursive: true})
+    await Promise.all(
+      Array.from({length: 49}, (_, index) =>
+        writeFile(
+          join(recordingsDir, `${now - 60_000 + index}-${String(index).padStart(6, '0')}-seed.json`),
+          JSON.stringify({events: fixtureStream(now)}),
+          'utf8',
+        ),
+      ),
+    )
+    const kit = await bootRecorder(folder)
+
+    const saved = await flushAndSave(kit, 'stuck', fixtureStream(Date.now()))
+    const stored = await readdir(recordingsDir)
+    expect(stored).toContain(`${saved.recordingId}.json`)
+    expect(stored).toContain(stuck)
   })
 })
 

@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto'
-import {mkdir, readFile, readdir, rename, stat, unlink, writeFile} from 'node:fs/promises'
+import {mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
+import PQueue from 'p-queue'
 import {z} from 'zod'
 import {RrwebEventSchema, jsonByteLength, type RrwebEvent} from '../shared/protocol.js'
 
@@ -23,7 +24,7 @@ const RECORDING_ID = /^[A-Za-z0-9-]+$/
 
 function removeRecording(dir: string, name: string): Promise<void> {
   const video = join(dir, `${name.slice(0, -'.json'.length)}.webm`)
-  return Promise.all([unlink(join(dir, name)).catch(() => {}), unlink(video).catch(() => {})]).then(() => undefined)
+  return Promise.all([rm(join(dir, name), {force: true}), rm(video, {force: true})]).then(() => undefined)
 }
 
 function trimToCap(events: RrwebEvent[]): RrwebEvent[] | null {
@@ -47,15 +48,15 @@ async function listByRecency(dir: string): Promise<string[]> {
   return names.filter((name) => name.endsWith('.json')).toSorted((a, b) => b.localeCompare(a))
 }
 
-async function prune(dir: string, reserved: {bytes: number; count: number}): Promise<void> {
+async function prune(dir: string): Promise<void> {
   const names = await listByRecency(dir)
   const sized = await Promise.all(
     names.map(async (name) => ({name, bytes: (await stat(join(dir, name)).catch(() => null))?.size ?? 0})),
   )
-  let total = reserved.bytes
+  let total = 0
   const doomed = sized.filter((entry, index) => {
     total += entry.bytes
-    return index + reserved.count >= MAX_RECORDINGS || total > MAX_TOTAL_RECORDING_BYTES
+    return index >= MAX_RECORDINGS || total > MAX_TOTAL_RECORDING_BYTES
   })
   await Promise.all(doomed.map((entry) => removeRecording(dir, entry.name)))
 }
@@ -68,24 +69,31 @@ async function clearStrayTmp(dir: string): Promise<void> {
 
 export function createRecordingStore(dir: string): RecordingStore {
   let sequence = 0
+  const changes = new PQueue({concurrency: 1})
+  const publish = async (payload: string): Promise<SaveResult> => {
+    sequence += 1
+    const recordingId = `${Date.now()}-${sequence.toString(36).padStart(6, '0')}-${randomUUID()}`
+    const target = join(dir, `${recordingId}.json`)
+    try {
+      await mkdir(dir, {recursive: true})
+      await writeFile(`${target}.tmp`, payload, 'utf8')
+      await rename(`${target}.tmp`, target)
+    } catch {
+      await unlink(`${target}.tmp`).catch(() => {})
+      return {ok: false, reason: 'io-error'}
+    }
+    await prune(dir).catch((error: unknown) => {
+      console.error(`[recorder] pruning old recordings failed: ${String(error)}`)
+    })
+    return {ok: true, recordingId}
+  }
   return {
     async save(events) {
       if (events.length < 2) return {ok: false, reason: 'empty'}
       const trimmed = trimToCap(events)
       if (!trimmed || trimmed.length < 2) return {ok: false, reason: 'too-large'}
       const payload = JSON.stringify({events: trimmed})
-      try {
-        await mkdir(dir, {recursive: true})
-        await prune(dir, {bytes: Buffer.byteLength(payload, 'utf8'), count: 1})
-        sequence += 1
-        const recordingId = `${Date.now()}-${sequence.toString(36).padStart(6, '0')}-${randomUUID()}`
-        const target = join(dir, `${recordingId}.json`)
-        await writeFile(`${target}.tmp`, payload, 'utf8')
-        await rename(`${target}.tmp`, target)
-        return {ok: true, recordingId}
-      } catch {
-        return {ok: false, reason: 'io-error'}
-      }
+      return changes.add(() => publish(payload))
     },
     async get(id) {
       if (!RECORDING_ID.test(id)) return null
@@ -101,13 +109,15 @@ export function createRecordingStore(dir: string): RecordingStore {
     videoFile(id) {
       return RECORDING_ID.test(id) ? join(dir, `${id}.webm`) : null
     },
-    async sweep() {
-      await clearStrayTmp(dir)
-      const names = await listByRecency(dir)
-      const cutoff = Date.now() - RECORDING_TTL_MS
-      const expired = names.filter((name) => parseTimestamp(name) < cutoff)
-      await Promise.all(expired.map((name) => removeRecording(dir, name)))
-      await prune(dir, {bytes: 0, count: 0})
+    sweep() {
+      return changes.add(async () => {
+        await clearStrayTmp(dir)
+        const names = await listByRecency(dir)
+        const cutoff = Date.now() - RECORDING_TTL_MS
+        const expired = names.filter((name) => parseTimestamp(name) < cutoff)
+        await Promise.all(expired.map((name) => removeRecording(dir, name)))
+        await prune(dir)
+      })
     },
   }
 }

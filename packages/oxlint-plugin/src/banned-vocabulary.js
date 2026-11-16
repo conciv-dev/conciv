@@ -90,6 +90,7 @@ const PREEXISTING_TERM_SITES = [
     paths: [
       'packages/extensions/test-runner/src/',
       'packages/extensions/test-runner/vitest.config.ts',
+      'packages/plugins/test-runner/src/',
       'packages/cli/src/init/',
     ],
   },

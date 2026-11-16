@@ -47,6 +47,9 @@ async function renderFrames(
   const lastTs = events.at(-1)?.timestamp ?? 0
   const frames = await runtime
     .useRenderer((renderer) => renderer.render(events, pickKeyframeTimestamps(log, lastTs, keyframeCount)))
-    .catch(() => null)
+    .catch((error: unknown) => {
+      console.error(`[recorder] rendering the keyframes failed: ${String(error)}`)
+      return null
+    })
   return frames ?? []
 }

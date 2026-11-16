@@ -15,6 +15,10 @@ const VIEWER_RENEW_MS = 7000
 
 const SavedRecording = z.object({recordingId: z.string()})
 
+const AppendedHere = z.object({clientId: z.string()})
+
+const APPENDED_EVENT = 'rpc.recorder.appended'
+
 type ReplaySource = {events: RrwebEvent[]; cursor: number}
 
 function recordingWithEnoughEvents(recording: ReplaySource | undefined): ReplaySource | undefined {
@@ -66,11 +70,26 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState}):
   const [playerKit] = createResource(loadPlayerKit)
   const loadedPlayerKit = (): PlayerKit | undefined => (playerKit.state === 'ready' ? playerKit() : undefined)
 
+  const readSince = (cursor: number, signal: AbortSignal): Promise<ReplaySource | undefined> =>
+    recorder()
+      .since({clientId: props.clientId, cursor}, {signal})
+      .then(
+        (fresh): ReplaySource | undefined => fresh,
+        (error: unknown) => {
+          if (!signal.aborted) console.error('[conciv] the recorder replay could not read new events', error)
+          return undefined
+        },
+      )
+
+  const cuesRead = (event: {type: string; data?: unknown}): boolean =>
+    event.type === 'server.connected' || AppendedHere.safeParse(event.data).data?.clientId === props.clientId
+
   async function* follow(cursor: number, signal: AbortSignal): AsyncGenerator<ReplaySource> {
     let at = cursor
-    for await (const event of recorder().events.subscribe('appended', {signal})) {
-      if (event.data.clientId !== props.clientId) continue
-      const fresh = await recorder().since({clientId: props.clientId, cursor: at}, {signal})
+    for await (const event of ctx.client.event.subscribe({types: [APPENDED_EVENT], signal})) {
+      if (!cuesRead(event)) continue
+      const fresh = await readSince(at, signal)
+      if (!fresh) continue
       at = fresh.cursor
       yield fresh
     }
