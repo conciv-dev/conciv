@@ -72,7 +72,6 @@ import {formatDuration, INERT_TOOL_CTX, ToolCallCard, ToolTraceRow} from '@conci
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
 import pageExtensionEntry from '@conciv/extension-page'
-import pageExtension from '@conciv/extension-page/client'
 import {GRAB_FILE_NAME} from '@conciv/grab/grab-attachment'
 import type {Grab} from '@conciv/grab'
 import {QueueStrip} from '../src/pane/queue-strip.js'
@@ -493,8 +492,8 @@ describe('chat pane', () => {
     return {rpc, sessionId: await createSession(rpc)}
   }
 
-  function grabOptions(...grabs: Grab[]): Pick<PaneMountOptions, 'grabProvider' | 'extensions'> {
-    return {grabProvider: grabProviderFor(...grabs), extensions: [pageExtension]}
+  function grabOptions(...grabs: Grab[]): Pick<PaneMountOptions, 'grabProvider'> {
+    return {grabProvider: grabProviderFor(...grabs)}
   }
 
   function mountChatPane(
@@ -1739,9 +1738,7 @@ describe('grab staging', () => {
 
   test('the grab api an extension receives can stage, read and clear, as the terminal does', async () => {
     const sessionId = await createSession(coreRpc(core()))
-    const mount = mountPane({base: core(), sessionId, extensions: [pageExtension]}, () => (
-      <ChatPane sessionId={sessionId} />
-    ))
+    const mount = mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />)
     keep(mount)
     await expect.element(input()).toBeVisible()
     const api = makePaneGrabApi(mount.pane.grabStaging, mount.pane.grabProvider)

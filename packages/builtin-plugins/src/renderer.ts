@@ -9,4 +9,4 @@ export const builtins = compose({
   },
 })
 
-export {pageSessionEntry, pageToolCards} from './page/cards/page-tool-cards.js'
+export {pageAttachmentCards, pageSessionEntry, pageToolCards} from './page/cards/page-tool-cards.js'

@@ -1,10 +1,12 @@
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
 import {PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
-import {PAGE_SESSION_GROUP_KEY, type GroupEntry} from '@conciv/ui-kit-chat'
+import {PAGE_SESSION_GROUP_KEY, type AttachmentCardSlot, type GroupEntry} from '@conciv/ui-kit-chat'
+import {GRAB_MIME} from '@conciv/grab/grab-attachment'
 import {actCard} from './act-card.js'
 import {consoleCard} from './console-card.js'
 import {editLiveCard} from './edit-live-card.js'
 import {effectCard} from './effect-card.js'
+import {GrabCard} from './grab-card.js'
 import {reactCard} from './react-card.js'
 import {readBulkCard} from './read-bulk-card.js'
 import {readValueCard} from './read-value-card.js'
@@ -56,3 +58,5 @@ export const pageToolCards: ToolCardEntry[] = [
 ]
 
 export const pageSessionEntry: GroupEntry = {key: PAGE_SESSION_GROUP_KEY, render: SessionCard}
+
+export const pageAttachmentCards: AttachmentCardSlot[] = [{mime: GRAB_MIME, render: GrabCard}]
