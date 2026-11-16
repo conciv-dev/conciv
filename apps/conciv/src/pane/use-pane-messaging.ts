@@ -8,6 +8,7 @@ import type {AppData} from '../data/app-data.js'
 import {useLiveSessions} from '../app/context.js'
 import type {EngineNotices} from '../shell/notice-context.js'
 import {checkSend, checkSendState, type SendState, type SendVerdict} from './send-checks.js'
+import {SESSION_DELETED_MESSAGE, sessionDeleted} from './run-error-row.js'
 
 const SendRejectionSchema = z.object({
   rejected: z.literal(true),
@@ -24,6 +25,7 @@ function sendRejection(verdict: Extract<SendVerdict, {ok: false}>): SendRejectio
 const WITHDRAWN: SendRejection = {rejected: true, message: null, tone: 'info'}
 
 function failureMessage(failure: unknown): string {
+  if (sessionDeleted(failure)) return SESSION_DELETED_MESSAGE
   if (failure instanceof Error && failure.message.length > 0) return failure.message
   return 'The message could not be sent.'
 }

@@ -4442,13 +4442,16 @@ describe('quick refresh', () => {
 describe('a deleted session', () => {
   const core = bootedCore('deleted-session')
   const harness = createShellHarness(core)
+  const faults = trackedFaults()
 
   afterEach(harness.dispose)
 
+  const NOT_SENT = 'This session was deleted, so your message was not sent.'
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const deletedTitle = () => page.getByText('This session was deleted.', {exact: true})
   const movesLine = () => page.getByText('Your text moves to the new session.', {exact: true})
   const newSessionButton = () => page.getByRole('button', {name: 'New session', exact: true})
+  const notifications = () => page.getByRole('region', {name: /Notifications/})
 
   test('a session opened after it was deleted shows the deleted panel in place of the chat, and New session opens a fresh one', async () => {
     const rpc = coreRpc(core())
@@ -4486,6 +4489,33 @@ describe('a deleted session', () => {
     await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
     await expect.element(editor()).not.toBeInTheDocument()
   }, 30_000)
+
+  test('a message sent as its session is deleted says it was not sent, offers no Retry, and the text moves to a new session', async () => {
+    const rpc = coreRpc(core())
+    const deletedId = await createSession(rpc)
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+
+    const rowRead = await faults.install({kind: 'gate', path: ['sessions', 'get']})
+    const frame = await faults.install({kind: 'chat-frame-gate', onRelease: 'deliver'})
+    await userEvent.click(editor())
+    await userEvent.keyboard('keep this text')
+    await userEvent.keyboard('{Enter}')
+    await coreControl.awaitFaultPending(frame, 1)
+    await rpc.sessions.delete({sessionId: deletedId})
+    await coreControl.releaseFault(frame)
+
+    const errorRow = page.getByRole('log').getByRole('alert')
+    await expect.element(errorRow.getByText(NOT_SENT, {exact: true}), {timeout: 8000}).toBeVisible()
+    await expect.element(errorRow.getByRole('button', {name: 'Retry'})).not.toBeInTheDocument()
+    await expect.element(notifications().getByText(NOT_SENT, {exact: true})).toBeVisible()
+    await expect.element(editor().getByText('keep this text')).toBeVisible()
+
+    await coreControl.releaseFault(rowRead)
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+  }, 40_000)
 })
 
 describe('reachability flows', () => {

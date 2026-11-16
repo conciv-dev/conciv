@@ -65,7 +65,7 @@ import type {ComposerInputHandle} from './composer-input-adapter.js'
 import {PaneComposer} from './pane-composer.js'
 import {OlderMessages} from './older-messages.js'
 import {usePaneMessaging} from './use-pane-messaging.js'
-import {RunErrorRow} from './run-error-row.js'
+import {RunErrorRow, sessionDeleted} from './run-error-row.js'
 import {DeletedSessionPanel} from './deleted-session-panel.js'
 import {PaneAlert} from './pane-alert.js'
 import {viewTabPanelAttributes} from './view-tab-ids.js'
@@ -447,7 +447,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     <Show when={messaging.visibleError()}>
                       {(error) => (
                         <Show
-                          when={!chat.loadFailed()}
+                          when={!chat.loadFailed() || sessionDeleted(error())}
                           fallback={<LoadFailedAlert busy={false} sessionId={sessionId} />}
                         >
                           <RunErrorRow
