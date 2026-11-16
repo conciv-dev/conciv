@@ -31,7 +31,7 @@ const PANEL_BODY = 'flex flex-col items-start gap-2 px-2.5 pb-2 min-w-0 max-h-80
 
 const MENU = 'w-max max-w-[calc(100vw-2rem)] max-h-80 overflow-y-auto overscroll-contain'
 
-const HEADING = `${LIST_PANEL_GROUP_LABEL} block line-clamp-3 [overflow-wrap:anywhere]`
+const HEADING = `${LIST_PANEL_GROUP_LABEL} block shrink-0 line-clamp-3 [overflow-wrap:anywhere]`
 
 const PLACEMENT = {placement: 'top-start'} as const
 
