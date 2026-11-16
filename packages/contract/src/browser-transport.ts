@@ -21,6 +21,7 @@ import {
   type EncodedMessage,
 } from '@orpc/standard-server-peer'
 import ReconnectingWebSocket from 'partysocket/ws'
+import {AsyncRetryer} from '@tanstack/pacer'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {contract, SOCKET_TRUST_FRAME, type ExchangeResult} from './contract.js'
@@ -36,6 +37,8 @@ const MAX_RECONNECT_DELAY_MS = 2000
 const MIN_UPTIME_MS = 1000
 const CONNECTION_TIMEOUT_MS = 30_000
 const ENSURE_TRUSTED_TIMEOUT_MS = 60_000
+const TRUST_RECHECK_MS = 10_000
+const TRUST_UNANSWERED_MESSAGE = 'the dev server has not answered the trust check yet'
 const TOKEN_STORAGE_PREFIX = 'conciv:engine-token:'
 const MAGIC_LINK_PARAM = 'conciv_otp'
 const UNAUTHORIZED_STATUS = 401
@@ -474,8 +477,22 @@ function socketConnection(key: string, state: TrustState): ConnectionEntry {
     },
   }
   const trust = makeEngineTrust(key, state, link)
+  const recheck = new AsyncRetryer(
+    async () => {
+      await trust.requestTrust()
+      if (state.status === 'unreachable') throw new Error(TRUST_UNANSWERED_MESSAGE)
+    },
+    {backoff: 'fixed', baseWait: TRUST_RECHECK_MS, maxAttempts: Number.POSITIVE_INFINITY, throwOnError: false},
+  )
+  const askUntilAnswered = (): void => {
+    if (socket.readyState === socket.OPEN && !lifetime.signal.aborted) void recheck.execute()
+  }
   socket.addEventListener('open', () => {
-    if (state.status === 'unreachable') void trust.requestTrust()
+    if (state.status === 'unreachable') askUntilAnswered()
+  })
+  socket.addEventListener('close', () => recheck.abort())
+  trust.subscribe((status) => {
+    if (status === 'unreachable') askUntilAnswered()
   })
   return {
     link,
@@ -487,6 +504,7 @@ function socketConnection(key: string, state: TrustState): ConnectionEntry {
     },
     close: () => {
       lifetime.abort()
+      recheck.abort()
       socket.close()
       state.asking = undefined
     },

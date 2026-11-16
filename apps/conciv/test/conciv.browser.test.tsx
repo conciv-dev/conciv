@@ -1807,6 +1807,22 @@ describe('a slow engine', () => {
     await expect.element(lostNotice(), {timeout: 15_000}).not.toBeInTheDocument()
     expect(await coreControl.faultPending(handshakes)).toBe(1)
   }, 60_000)
+
+  test('a trust check the engine answers too late is asked again on the open socket, and the login notice shows', async () => {
+    const origin = new URL(core()).origin
+    localStorage.removeItem(`conciv:engine-token:${origin}`)
+    onTestFinished(() => localStorage.removeItem(`conciv:engine-token:${origin}`))
+    const loginNotice = () => page.getByRole('alert').filter({hasText: 'Log in to use conciv on this page.'})
+    const sessionId = await createSession(coreRpc(core()))
+    const trustChecks = await faults.install({kind: 'gate', path: ['auth', 'trust']})
+
+    harness.mountShell(`/panel/${sessionId}?open=true`, [], {login: {apiBase: origin}})
+    await coreControl.awaitFaultPending(trustChecks, 1)
+    await coreControl.awaitFaultPending(trustChecks, 2)
+
+    await coreControl.releaseFault(trustChecks)
+    await expect.element(loginNotice(), {timeout: 15_000}).toBeVisible()
+  }, 60_000)
 })
 
 describe('helper rpc clients', () => {

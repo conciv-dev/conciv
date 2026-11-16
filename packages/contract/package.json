@@ -41,6 +41,7 @@
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
     "@orpc/standard-server-peer": "catalog:",
+    "@tanstack/pacer": "catalog:",
     "partysocket": "catalog:",
     "zod": "catalog:"
   },
