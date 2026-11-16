@@ -265,6 +265,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       return {ok: true, stopped}
     },
     compact: async (sessionId) => {
+      if (sessionDeleted(deps.sessions, sessionId)) throw new Error(missingSession(sessionId))
       await server.stop(sessionId)
       const {messages} = await hydrate(sessionId)
       const afterMessageId = messages.at(-1)?.id ?? null

@@ -3069,6 +3069,9 @@ describe('plugin host bus', () => {
       kind: 'failed',
       error: `session "${refused}" does not exist`,
     })
+    const markersBeforeCompact = await kit.rpc.markers.list({sessionId: refused})
+    await expect(made.plane.compact(refused)).rejects.toThrow(`session "${refused}" does not exist`)
+    expect(await kit.rpc.markers.list({sessionId: refused})).toEqual(markersBeforeCompact)
     expect(publishedToRefused).toEqual([])
     expect(heardBy(refused)).toEqual(['session.deleted with no run'])
     const afterRefusal = await made.plane.hydrate(refused)
