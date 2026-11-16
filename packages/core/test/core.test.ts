@@ -592,6 +592,7 @@ describe('chat plane', () => {
           startedQueues: () => [],
           outsideCapabilities: async () => [],
           admitCall: (id, call) => withoutDriver.admitCall(id, call),
+          driving: (id) => withoutDriver.driving(id),
           resolveSession: async () => runtime.forSession(codeless),
           admitOutside: async () => null,
           hubRefusal: () => null,

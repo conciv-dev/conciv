@@ -812,6 +812,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     finishedQueues: (sessionId, fromHub) => primitives.page.queues.undelivered(sessionId, fromHub),
     startedQueues: (sessionId, toolCallIds) => primitives.page.queues.startedBy(sessionId, toolCallIds),
     admitCall: (sessionId, call) => plane.admitCall(sessionId, call),
+    driving: (sessionId) => plane.driving(sessionId),
     outsideCapabilities: async (sessionId) =>
       outsideRunCapabilities(
         await withPluginTools(sessionId, [
