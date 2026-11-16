@@ -21,6 +21,7 @@ import {
 } from '../src/store/grouping.js'
 import {createPageSessionGrouper} from '../src/store/page-session.js'
 import {shortToolLabel} from '../src/tools/primitives/tool-row.js'
+import {humanToolName} from '../src/tools/primitives/now-title.js'
 
 describe('tool names', () => {
   it('shortens a tool name into a row label', () => {
@@ -33,6 +34,19 @@ describe('tool names', () => {
     expect(shortToolLabel('mcp__playwright__browser_take_screenshot')).toBe('shot')
     expect(shortToolLabel('')).toBe('')
     expect(shortToolLabel('A'.repeat(240_000))).toBe('aaaaaaaaaaa…')
+  })
+
+  it('names an mcp tool by its tool part', () => {
+    expect(humanToolName('mcp__github__create_pull_request')).toBe('create pull request')
+    expect(humanToolName('mcp__srv__tool__with__extra')).toBe('tool  with  extra')
+    expect(humanToolName('mcp___a__b')).toBe('b')
+    expect(humanToolName('mcp__a____')).toBe('  ')
+    expect(humanToolName('mcp____x')).toBe('mcp____x')
+    expect(humanToolName('mcp__srv__')).toBe('mcp__srv__')
+    expect(humanToolName('mcp__srv__tool\n')).toBe('mcp__srv__tool\n')
+    expect(humanToolName('Bash')).toBe('Bash')
+    const slow = `mcp__${'a__'.repeat(80_000)}\n`
+    expect(humanToolName(slow)).toBe(slow)
   })
 })
 
