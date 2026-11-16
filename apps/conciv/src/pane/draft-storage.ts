@@ -1,15 +1,16 @@
 import {z} from 'zod'
-import {isEqual} from 'es-toolkit'
+import {differenceBy, intersectionBy, isEqual} from 'es-toolkit'
 import {untrack} from 'solid-js'
 import {createStore, unwrap} from 'solid-js/store'
 import type {DraftRow} from '@conciv/contract'
 import type {AttachmentState, ComposerDraft, ComposerDraftWriter} from '@conciv/ui-kit-chat'
 import {persistStore} from '../runtime/persistence/persist.js'
-import type {DraftStore} from '../runtime/persistence/drafts.js'
+import {resolveBlobUrl, type DraftStore} from '../runtime/persistence/drafts.js'
 import type {WebStorage} from '@conciv/storage-history'
 import type {AppData, PendingDraftAttachment} from '../data/app-data.js'
 import type {SelectionOffsets} from './composer-input-adapter.js'
 import type {DraftSink} from './pane-attachments.js'
+import {reconcileDraft, type DraftReconcile} from './draft-reconcile.js'
 
 const PersistedAttachmentSchema = z.object({
   id: z.string(),
@@ -26,13 +27,13 @@ const PersistedDraftSchema = z.object({
 
 type PersistedDraft = z.infer<typeof PersistedDraftSchema>
 
-export type ServerDraft = {snapshot: WebStorage; selection: SelectionOffsets}
+export type RestoredDraft = {snapshot: WebStorage; selection: SelectionOffsets; attachments: AttachmentState[]}
 
 export type PaneDraftStorage = {
   storage: WebStorage
   writer: ComposerDraftWriter | undefined
   noteSelection: (offsets: SelectionOffsets) => void
-  restore: (apply: (restored: ServerDraft, edited: boolean) => void, signal: AbortSignal) => Promise<void>
+  restore: (apply: (restored: RestoredDraft, edited: boolean) => void, signal: AbortSignal) => Promise<void>
 }
 
 function parseDraft(raw: string): PersistedDraft | null {
@@ -53,14 +54,71 @@ function clampSelection(offsets: SelectionOffsets | null, text: string): Selecti
   return {start: Math.min(offsets.start, text.length), end: Math.min(offsets.end, text.length)}
 }
 
-type LocalAttachment = {id: string; type: string; name: string; contentType: string | undefined; blob?: {id: string}}
+const LocalAttachmentSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  name: z.string(),
+  contentType: z.string().optional(),
+  blob: z.object({id: z.string()}).optional(),
+})
 
-type LocalDraft = {
-  text: string
-  selectionStart: number
-  selectionEnd: number
-  attachments: LocalAttachment[]
-  syncedAt?: number
+const LocalDraftSchema = z.object({
+  text: z.string(),
+  selectionStart: z.number(),
+  selectionEnd: z.number(),
+  attachments: z.array(LocalAttachmentSchema),
+  syncedAt: z.number().optional(),
+})
+
+type LocalAttachment = z.infer<typeof LocalAttachmentSchema>
+
+type LocalDraft = z.infer<typeof LocalDraftSchema>
+
+function parseLocalDraft(raw: string | null): LocalDraft | null {
+  if (raw === null) return null
+  const parsed = LocalDraftSchema.safeParse(JSON.parse(raw))
+  if (parsed.success) return parsed.data
+  console.error('[conciv] the local draft is not a draft, read as absent', parsed.error)
+  return null
+}
+
+function rowLocalDraft(row: DraftRow): LocalDraft {
+  return {
+    text: row.text,
+    selectionStart: row.selectionStart,
+    selectionEnd: row.selectionEnd,
+    attachments: row.attachments.map(({id, type, name, contentType}) => ({id, type, name, contentType})),
+    syncedAt: row.updatedAt,
+  }
+}
+
+async function readLocalFile(attachment: LocalAttachment): Promise<AttachmentState[]> {
+  const blob = attachment.blob
+  if (!blob) return []
+  const url = await resolveBlobUrl(blob)
+  if (!url) {
+    console.error(`[conciv] the local draft has no bytes for ${attachment.name}`)
+    return []
+  }
+  const bytes = await fetch(url).then((response) => response.blob())
+  return [
+    {
+      id: attachment.id,
+      type: attachment.type,
+      name: attachment.name,
+      contentType: attachment.contentType,
+      blob: {id: blob.id, url},
+      file: new File([bytes], attachment.name, {type: attachment.contentType ?? bytes.type}),
+      status: {type: 'requires-action', reason: 'composer-send'},
+    },
+  ]
+}
+
+function readLocalFiles(attachment: LocalAttachment): Promise<AttachmentState[]> {
+  return readLocalFile(attachment).catch((error: unknown) => {
+    console.error(`[conciv] could not read ${attachment.name} from the local draft`, error)
+    return []
+  })
 }
 
 const NoLocalHydration = {getItem: () => null, setItem: () => {}, removeItem: () => {}}
@@ -87,6 +145,8 @@ type LocalDraftWriter = {
   writer: ComposerDraftWriter
   typed: () => {text: string; attachments: readonly unknown[]} | null
   feed: () => void
+  read: () => Promise<LocalDraft | null>
+  settle: (verdict: DraftReconcile, stored: LocalDraft | null, row: DraftRow | null) => void
 }
 
 function makeLocalDraftWriter(
@@ -141,19 +201,64 @@ function makeLocalDraftWriter(
       syncedAt: untrack(() => document.draft?.syncedAt),
     })
   }
-  return {writer, typed: () => document.draft, feed}
+  const read = () =>
+    drafts
+      .getItem(sessionId)
+      .then(parseLocalDraft)
+      .catch((error: unknown) => {
+        console.error('[conciv] could not read the local draft', error)
+        return null
+      })
+  const settle = (verdict: DraftReconcile, stored: LocalDraft | null, row: DraftRow | null) => {
+    if (verdict.kind === 'cleared' && !document.draft) {
+      void drafts.removeItem(sessionId).catch((error: unknown) => {
+        console.error('[conciv] could not clear the local draft the engine dropped', error)
+      })
+      return
+    }
+    const base = verdict.kind === 'local' ? stored : verdict.kind === 'engine' && row ? rowLocalDraft(row) : null
+    if (!base) return
+    if (document.draft) return persisted.setStore('draft', 'syncedAt', base.syncedAt)
+    persisted.setStore('draft', base)
+  }
+  return {writer, typed: () => document.draft, feed, read, settle}
+}
+
+function serializeDraft(text: string, attachments: DraftRow['attachments']): string {
+  return JSON.stringify({text, quote: null, attachments})
 }
 
 function serializeRow(row: DraftRow): string {
-  return JSON.stringify({text: row.text, quote: null, attachments: row.attachments})
+  return serializeDraft(row.text, row.attachments)
 }
 
-function serverDraft(row: DraftRow): ServerDraft {
-  const serialized = serializeRow(row)
+function restoredDraft(
+  text: string,
+  offsets: SelectionOffsets,
+  encoded: DraftRow['attachments'],
+  attachments: AttachmentState[],
+): RestoredDraft {
+  const serialized = serializeDraft(text, encoded)
   return {
     snapshot: {getItem: () => serialized, setItem: () => {}},
-    selection: clampSelection({start: row.selectionStart, end: row.selectionEnd}, row.text),
+    selection: clampSelection(offsets, text),
+    attachments,
   }
+}
+
+async function readRestoredDraft(
+  verdict: DraftReconcile,
+  stored: LocalDraft | null,
+  row: DraftRow | null,
+): Promise<RestoredDraft | null> {
+  if (verdict.kind === 'engine' && row) {
+    return restoredDraft(row.text, {start: row.selectionStart, end: row.selectionEnd}, row.attachments, [])
+  }
+  if (verdict.kind !== 'local' || !stored) return null
+  const kept = (await Promise.all(stored.attachments.map(readLocalFiles))).flat()
+  const missing = differenceBy(stored.attachments, kept, (attachment) => attachment.id)
+  const fromRow = intersectionBy(row?.attachments ?? [], missing, (attachment) => attachment.id)
+  return restoredDraft(stored.text, {start: stored.selectionStart, end: stored.selectionEnd}, fromRow, kept)
 }
 
 type DraftPlace = 'first' | 'last'
@@ -269,15 +374,22 @@ export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraft
       selection = offsets
     },
     restore: async (apply, signal) => {
-      const row = await appData.readDraft(sessionId).catch((error: unknown) => {
-        if (!signal.aborted) console.error('[conciv] could not read the saved draft', error)
-        return null
-      })
+      const [row, stored] = await Promise.all([
+        appData.readDraft(sessionId).catch((error: unknown) => {
+          if (!signal.aborted) console.error('[conciv] could not read the saved draft', error)
+          return null
+        }),
+        local ? local.read() : null,
+      ])
+      if (signal.aborted) return
+      const verdict = reconcileDraft(stored, row, sameAsRow)
+      const restored = await readRestoredDraft(verdict, stored, row)
       if (signal.aborted) return
       const typed = typedDraft()
       const cleared = typed !== null && typed.text === '' && typed.attachments.length === 0
       try {
-        if (row && !cleared) apply(serverDraft(row), typed !== null)
+        local?.settle(verdict, stored, row)
+        if (restored && !cleared) apply(restored, typed !== null)
       } finally {
         writable = true
         if (typed && (row || !cleared)) persistTyped()

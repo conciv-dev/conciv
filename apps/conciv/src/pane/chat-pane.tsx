@@ -140,7 +140,7 @@ function DraftRestore(props: {
       const draft = readComposerDraft(restored.snapshot, draftKey)
       if (!draft) return
       const untouched = !edited && context.snapshotDraft().draft === ''
-      context.restoreDraft(draft)
+      context.restoreDraft({...draft, attachments: [...restored.attachments, ...draft.attachments]})
       if (untouched) input()?.select(restored.selection)
     }, controller.signal)
     props.onRestore(restoring)

@@ -4,7 +4,7 @@ export type DraftReconcile =
   | {kind: 'cleared'}
   | {kind: 'empty'}
 
-export function reconcileDraft<Local extends {syncedAt: number | undefined}, Row extends {updatedAt: number}>(
+export function reconcileDraft<Local extends {syncedAt?: number | undefined}, Row extends {updatedAt: number}>(
   local: Local | null,
   row: Row | null,
   same: (local: Local, row: Row) => boolean,

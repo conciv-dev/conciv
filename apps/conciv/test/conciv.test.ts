@@ -1,7 +1,7 @@
 import {expect, test as baseTest, describe, it, test} from 'vitest'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
-import {appendDraft, makeDraftStorage, type ServerDraft} from '../src/pane/draft-storage.js'
+import {appendDraft, makeDraftStorage, type RestoredDraft} from '../src/pane/draft-storage.js'
 import {QueryClient} from '@conciv/client'
 import {makeAppData, type AppData} from '../src/data/app-data.js'
 import {createSession, seedDraft, proxyTo, type ProxyCore} from './helpers.node.js'
@@ -101,7 +101,7 @@ describe('draft storage', () => {
 
     draftStorage.storage.setItem('any', composerDraft('typed early'))
     draftStorage.storage.setItem('any', composerDraft(''))
-    const restored: ServerDraft[] = []
+    const restored: RestoredDraft[] = []
     await draftStorage.restore((draft) => restored.push(draft), new AbortController().signal)
     await core.awaitRequest(DRAFTS_SET_PATH)
 
@@ -153,7 +153,7 @@ describe('draft storage', () => {
     core.fail(DRAFTS_GET_PATH)
 
     const draftStorage = makeDraftStorage(app, sessionId)
-    const restored: ServerDraft[] = []
+    const restored: RestoredDraft[] = []
     await draftStorage.restore((draft) => restored.push(draft), new AbortController().signal)
 
     expect(restored).toEqual([])
