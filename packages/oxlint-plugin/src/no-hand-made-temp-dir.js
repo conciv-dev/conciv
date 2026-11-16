@@ -123,9 +123,9 @@ export default {
     type: 'problem',
     messages: {
       handMadeTempDir:
-        'A test that makes its own folder under the OS temp dir leaks it when the test fails before removing it. Take it from tempDir(prefix) (@conciv/vitest-config/temp-dir: one folder per test file, removed after the file) or, in a vitest config or browser command, a folder under test-results/conciv-home beside the config (the CONCIV_HOME of the run, emptied at the start of every run by the globalSetup ciTest() carries).',
+        'A test that makes its own folder under the OS temp dir leaks it when the test fails before removing it. Take it from tempDir(prefix) (@conciv/vitest-config/temp-dir: one folder per test file, removed after the file) or, in a vitest config or browser command, a folder under test-results/conciv-home beside the config (the CONCIV_HOME of the run, emptied at the start and removed at the end of every run by the globalSetup ciTest() carries).',
       exitHook:
-        'A process exit hook is cleanup that a crashed or killed run can skip, and the folder it removes is usually under the OS temp dir. In a test take the folder from tempDir(prefix) (@conciv/vitest-config/temp-dir); in a vitest config or browser command put it under test-results/conciv-home beside the config, which the globalSetup ciTest() carries empties at the start of every run.',
+        'A process exit hook is cleanup that a crashed or killed run can skip, and the folder it removes is usually under the OS temp dir. In a test take the folder from tempDir(prefix) (@conciv/vitest-config/temp-dir); in a vitest config or browser command put it under test-results/conciv-home beside the config, which the globalSetup ciTest() carries empties at the start and removes at the end of every run.',
     },
     schema: [],
   },

@@ -69,7 +69,7 @@ describe('reporters', () => {
     })
   })
 
-  test('the run keeps one conciv home beside the config, emptied at the start by the globalSetup ciTest carries', () => {
+  test('the run keeps one conciv home beside the config, emptied at the start and removed at the end by the globalSetup ciTest carries', () => {
     const packageHome = join(import.meta.dirname, '..', 'test-results', 'conciv-home')
     expect.soft(process.env.CONCIV_HOME).toBe(packageHome)
     expect.soft(existsSync(packageHome)).toBe(true)
@@ -87,9 +87,14 @@ describe('reporters', () => {
     mkdirSync(join(root, 'test-results', 'conciv-home'), {recursive: true})
     writeFileSync(join(root, 'test-results', 'conciv-home', 'home.db'), 'left by an earlier run')
     vi.stubEnv('CONCIV_HOME', undefined)
-    setupConcivHome({config: {root}})
+    const removeHome = setupConcivHome({config: {root}})
     expect.soft(readdirSync(join(root, 'test-results', 'conciv-home'))).toEqual([])
     expect.soft(process.env.CONCIV_HOME).toBe(join(root, 'test-results', 'conciv-home'))
+
+    mkdirSync(join(root, 'test-results', 'conciv-home', 'harness-homes', 'claude'), {recursive: true})
+    writeFileSync(join(root, 'test-results', 'conciv-home', 'home.db'), 'written by this run')
+    removeHome()
+    expect.soft(existsSync(join(root, 'test-results', 'conciv-home'))).toBe(false)
   })
 
   test('a fork cap in the environment caps the worker count', () => {
