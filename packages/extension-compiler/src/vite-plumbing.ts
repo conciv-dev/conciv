@@ -56,7 +56,8 @@ export function dropIncludedFromExcludes(
 }
 
 export function resolveExtensionsModule(id: string): string | null {
-  const bareId = id.replace(/[?#].*$/, '')
+  const cut = id.search(/[?#]/)
+  const bareId = cut === -1 ? id : id.slice(0, cut)
   if (bareId === EXTENSIONS_DOCK_ROUTE) return EXTENSIONS_DOCK_RESOLVED_ID
   return bareId === EXTENSIONS_VIRTUAL_ID || bareId === EXTENSIONS_ROUTE ? EXTENSIONS_RESOLVED_ID : null
 }
