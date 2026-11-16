@@ -1,6 +1,6 @@
 export * as Plugin from './service.js'
 
-import {Plugin} from '../../schema/plugin.js'
+import {Plugin} from '@conciv/plugin/schema/plugin'
 import type {Plugin as PluginDefinition} from '../../plugin/effect/plugin.js'
 import {Context, type Effect, type Exit} from 'effect'
 

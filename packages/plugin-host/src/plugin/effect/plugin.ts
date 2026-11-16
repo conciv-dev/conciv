@@ -1,5 +1,5 @@
-import type {Location} from '../../schema/location.js'
-import type {Plugin as PluginSchema} from '../../schema/plugin.js'
+import type {Location} from '@conciv/plugin/schema/location'
+import type {Plugin as PluginSchema} from '@conciv/plugin/schema/plugin'
 import type {Effect, Scope} from 'effect'
 import type {App, BundlerDomain, HarnessDomain, PluginOptions, Servers} from '@conciv/plugin'
 import type {AgentDomain} from './agent.js'

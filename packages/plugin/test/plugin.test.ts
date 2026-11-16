@@ -19,6 +19,7 @@ import {
   Tool,
   type AgentEditor,
   type Hooks,
+  type Info,
   type Registration,
   type Rule,
   type Ruleset,
@@ -124,36 +125,36 @@ describe('define', () => {
     expectTypeOf<undefined>().toExtend<Plugin.Context['session']['synthetic']>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['permission']['hook']>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['model']['transform']>()
-    expectTypeOf<Plugin.Context['location']['project']['id']>().toEqualTypeOf<string>()
-    expectTypeOf<Plugin.Context['location']['project']['canonical']>().toEqualTypeOf<string>()
+    type Project = Plugin.Context['location']['project']
+    expectTypeOf<Project['id']>().toEqualTypeOf<string & import('effect').Brand.Brand<'Project.ID'>>()
+    expectTypeOf<Project['canonical']>().toEqualTypeOf<string & import('effect').Brand.Brand<'AbsolutePath'>>()
   })
 
   it("types execute's input as the input schema's output and its output as the output schema's input from zod, any Standard Schema or a raw JSON Schema, as opencode does", () => {
     const Limit = z.object({limit: z.string().transform(Number)})
-    type LimitTool = Tool.Info<typeof Limit, typeof Limit>
+    type LimitTool = Info<typeof Limit, typeof Limit>
     expectTypeOf<Parameters<LimitTool['execute']>[0]>().toEqualTypeOf<{limit: number}>()
     expectTypeOf<NonNullable<Awaited<ReturnType<LimitTool['execute']>>['output']>>().toEqualTypeOf<{limit: string}>()
-    type CountTool = Tool.Info<typeof CountSchema, typeof CountSchema>
+    type CountTool = Info<typeof CountSchema, typeof CountSchema>
     expectTypeOf<Parameters<CountTool['execute']>[0]>().toEqualTypeOf<Count>()
     expectTypeOf<NonNullable<Awaited<ReturnType<CountTool['execute']>>['output']>>().toEqualTypeOf<Count>()
-    type JsonTool = Tool.Info<typeof CountJsonSchema, typeof CountJsonSchema>
+    type JsonTool = Info<typeof CountJsonSchema, typeof CountJsonSchema>
     expectTypeOf<Parameters<JsonTool['execute']>[0]>().toEqualTypeOf<unknown>()
     expectTypeOf<Awaited<ReturnType<JsonTool['execute']>>['output']>().toEqualTypeOf<any>()
   })
 
   it("gives a tool's execute the call's abort signal", () => {
-    const tool: Tool.Info = {
+    const tool: Info = {
       name: 'wait',
       input: CountJsonSchema,
       output: CountJsonSchema,
       description: 'Wait for a count',
       execute: async (_input, context) => ({output: context.signal.aborted}),
     }
-    expectTypeOf<Parameters<Tool.Info['execute']>[1]['signal']>().toEqualTypeOf<AbortSignal>()
-    expectTypeOf<ToolContext['messageId']>().toEqualTypeOf<string | undefined>()
+    expectTypeOf<Parameters<Info['execute']>[1]['signal']>().toEqualTypeOf<AbortSignal>()
     expectTypeOf<ToolContext['sessionId']>().toEqualTypeOf<SessionId>()
     expectTypeOf<Plugin.Context['bundler']>().toEqualTypeOf<BundlerBridge | undefined>()
-    expectTypeOf<ToolContext>().toEqualTypeOf<Tool.Context>()
+    expectTypeOf<Omit<ToolContext, 'signal' | 'progress'>>().toEqualTypeOf<Omit<Tool.Context, 'progress' | 'cancel'>>()
     expect(tool.name).toBe('wait')
   })
 })

@@ -1,4 +1,4 @@
-import type {Session} from '../../schema/session.js'
+import type {Session} from '@conciv/plugin/schema/session'
 import type {Effect} from 'effect'
 import type {
   InstructionEntryInfo,

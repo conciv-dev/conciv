@@ -47,6 +47,82 @@
     "./experimental/host": {
       "types": "./dist/experimental/host.d.ts",
       "import": "./dist/experimental/host.js"
+    },
+    "./schema/agent": {
+      "types": "./dist/schema/agent.d.ts",
+      "import": "./dist/schema/agent.js"
+    },
+    "./schema/event": {
+      "types": "./dist/schema/event.d.ts",
+      "import": "./dist/schema/event.js"
+    },
+    "./schema/event-manifest": {
+      "types": "./dist/schema/event-manifest.d.ts",
+      "import": "./dist/schema/event-manifest.js"
+    },
+    "./schema/identifier": {
+      "types": "./dist/schema/identifier.d.ts",
+      "import": "./dist/schema/identifier.js"
+    },
+    "./schema/instruction": {
+      "types": "./dist/schema/instruction.d.ts",
+      "import": "./dist/schema/instruction.js"
+    },
+    "./schema/location": {
+      "types": "./dist/schema/location.d.ts",
+      "import": "./dist/schema/location.js"
+    },
+    "./schema/model": {
+      "types": "./dist/schema/model.d.ts",
+      "import": "./dist/schema/model.js"
+    },
+    "./schema/permission": {
+      "types": "./dist/schema/permission.d.ts",
+      "import": "./dist/schema/permission.js"
+    },
+    "./schema/plugin": {
+      "types": "./dist/schema/plugin.d.ts",
+      "import": "./dist/schema/plugin.js"
+    },
+    "./schema/project-id": {
+      "types": "./dist/schema/project-id.d.ts",
+      "import": "./dist/schema/project-id.js"
+    },
+    "./schema/rpc": {
+      "types": "./dist/schema/rpc.d.ts",
+      "import": "./dist/schema/rpc.js"
+    },
+    "./schema/schema": {
+      "types": "./dist/schema/schema.d.ts",
+      "import": "./dist/schema/schema.js"
+    },
+    "./schema/session": {
+      "types": "./dist/schema/session.d.ts",
+      "import": "./dist/schema/session.js"
+    },
+    "./schema/session-event": {
+      "types": "./dist/schema/session-event.d.ts",
+      "import": "./dist/schema/session-event.js"
+    },
+    "./schema/session-id": {
+      "types": "./dist/schema/session-id.d.ts",
+      "import": "./dist/schema/session-id.js"
+    },
+    "./schema/session-message": {
+      "types": "./dist/schema/session-message.d.ts",
+      "import": "./dist/schema/session-message.js"
+    },
+    "./schema/skill": {
+      "types": "./dist/schema/skill.d.ts",
+      "import": "./dist/schema/skill.js"
+    },
+    "./schema/tool": {
+      "types": "./dist/schema/tool.d.ts",
+      "import": "./dist/schema/tool.js"
+    },
+    "./schema/workspace-id": {
+      "types": "./dist/schema/workspace-id.d.ts",
+      "import": "./dist/schema/workspace-id.js"
     }
   },
   "publishConfig": {
@@ -64,6 +140,7 @@
     "@conciv/contract": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@standard-schema/spec": "catalog:",
+    "effect": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

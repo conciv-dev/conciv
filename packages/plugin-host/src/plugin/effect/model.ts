@@ -1,5 +1,5 @@
-import type {Location} from '../../schema/location.js'
-import type {Model} from '../../schema/model.js'
+import type {Location} from '@conciv/plugin/schema/location'
+import type {Model} from '@conciv/plugin/schema/model'
 import type {Effect} from 'effect'
 
 export interface ModelDomain {

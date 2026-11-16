@@ -1,6 +1,6 @@
-import type {Event} from '../../schema/event.js'
-import type {EventManifest} from '../../schema/event-manifest.js'
-import type {Location} from '../../schema/location.js'
+import type {Event} from '@conciv/plugin/schema/event'
+import type {EventManifest} from '@conciv/plugin/schema/event-manifest'
+import type {Location} from '@conciv/plugin/schema/location'
 import type {Stream} from 'effect'
 
 type RpcEvent = {

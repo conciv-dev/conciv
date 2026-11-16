@@ -2,6 +2,7 @@ import {describe, expect, test} from 'vitest'
 import {z} from 'zod'
 import {makeRpcClient, type RpcClientOptions} from '@conciv/contract'
 import {SharedEvents} from '../../src/client/shared-events.js'
+import {AbsolutePath} from '../../src/schema/schema.js'
 import {Conciv, Rpc, type EventSubscribeOutput} from '../../src/promise/index.js'
 
 type Event = {readonly type: string; readonly value?: number}
@@ -405,7 +406,7 @@ describe('Conciv.make event stream', () => {
     id: `indexed-${count}`,
     created: count,
     type: 'rpc.acme.indexed',
-    location: {directory: '/workspace'},
+    location: {directory: AbsolutePath.make('/workspace')},
     data: {count},
   })
   type Frame = EventSubscribeOutput | {readonly id: string; readonly type: 'server.heartbeat'; readonly data: {}}

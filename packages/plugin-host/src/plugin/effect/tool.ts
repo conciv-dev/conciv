@@ -1,7 +1,7 @@
-import {Tool} from '../../schema/tool.js'
-import type {Agent} from '../../schema/agent.js'
-import type {Session} from '../../schema/session.js'
-import type {SessionMessage} from '../../schema/session-message.js'
+import {Tool} from '@conciv/plugin/schema/tool'
+import type {Agent} from '@conciv/plugin/schema/agent'
+import type {Session} from '@conciv/plugin/schema/session'
+import type {SessionMessage} from '@conciv/plugin/schema/session-message'
 import type {Effect, Types} from 'effect'
 import type {Hooks, Transform} from './registration.js'
 

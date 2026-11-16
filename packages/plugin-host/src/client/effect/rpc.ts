@@ -1,4 +1,4 @@
-import type {Rpc} from '../../schema/rpc.js'
+import type {Rpc} from '@conciv/plugin/schema/rpc'
 import type {RpcArguments, RpcCallOptions} from '@conciv/plugin'
 import type {Effect, Schema, Stream} from 'effect'
 
