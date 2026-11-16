@@ -1418,7 +1418,10 @@ test.describe('page dispatch parity', () => {
         window.concivTestHandle = window.ConcivHandle.makeConnectHandle()
         void window.concivTestHandle.mount(el)
       })
-      await completeConnectHandshake(page, kit.base, await kit.session())
+      const shown = await kit.session()
+      const title = `page dispatch ${shown.slice(-12)}`
+      await kit.rpc.sessions.rename({sessionId: shown, title})
+      await completeConnectHandshake(page, kit.base, shown, () => switchToSessionByTitle(page, title))
     })
 
     test.afterAll(async () => {
