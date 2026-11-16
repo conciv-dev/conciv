@@ -34,6 +34,7 @@ async function guarded<Value, Failure>(
 function registerRpc(rpc: Plugin.Context['rpc'], manager: TestRunnerManager) {
   return rpc.register(TestRunner, {
     status: async () => manager.status(),
+    current: async () => manager.current(),
     list: (input, {error}) =>
       guarded(
         () => manager.list(input.failedOnly),

@@ -22,7 +22,7 @@ SolidJS tool-card renderers for the chat thread. `UiCard` renders interactive pr
 
 ## Side Effects
 
-- `UiCard` calls `props.addResult(value)` to send the user's answer to the tool call.
+- `UiCard` calls `props.addResult(value)` to send the user's answer to the tool call; when that promise rejects (the host refused to send the answer), the card takes answers again.
 - Renders Solid components into the DOM.
 
 ## Verification

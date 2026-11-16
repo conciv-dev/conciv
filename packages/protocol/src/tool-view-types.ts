@@ -33,7 +33,7 @@ export type ToolViewCtx = {
   harnessId: string
   sendMessage: (text: string) => void
   catalog: ToolCatalogView
-  addResult: (toolCallId: string, value: UiAnswerValue) => void
+  addResult: (toolCallId: string, value: UiAnswerValue) => Promise<void>
 
   respondApproval?: (approvalId: string, approved: boolean, scope: PermissionScope) => void
   durationFor?: (toolCallId: string) => number | undefined
@@ -44,7 +44,7 @@ export type ToolCardProps = {
   part: ToolCallPart
   result: ToolResultPart | undefined
   ctx: ToolViewCtx
-  addResult: (value: UiAnswerValue) => void
+  addResult: (value: UiAnswerValue) => Promise<void>
   durationMs?: number
   capture?: ToolCaptureView
   body?: JSX.Element

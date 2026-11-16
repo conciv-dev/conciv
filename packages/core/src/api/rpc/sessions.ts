@@ -270,8 +270,16 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       if (session === null) throw new Error(`the session row ${sessionId} vanished right after it was created`)
       return {sessionId, session}
     }),
-    resolve: os.sessions.resolve.handler(({input}) => resolveRow(scope, input)),
-    open: os.sessions.open.handler(({input}) => openNativeRow(scope, input)),
+    resolve: os.sessions.resolve.handler(async ({input, errors}) => {
+      const resolved = await resolveRow(scope, input)
+      if (resolved === null) throw errors.NOT_FOUND()
+      return resolved
+    }),
+    open: os.sessions.open.handler(async ({input, errors}) => {
+      const opened = await openNativeRow(scope, input)
+      if (opened === null) throw errors.NOT_FOUND()
+      return opened
+    }),
     restore: os.sessions.restore.handler(async ({input}) => {
       await restoreRow(db, input.sessionId)
       return {sessionId: input.sessionId}

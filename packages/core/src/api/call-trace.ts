@@ -18,7 +18,11 @@ type CallMarker = z.infer<typeof OutsideCallMetadataSchema> | null
 
 type CallRun = {threadId: string; live: boolean}
 
-type MirrorSink = {publish: (chunk: ChatEvent) => void; record: (chunks: readonly ChatEvent[]) => Promise<void>}
+type MirrorSink = {
+  publish: (chunk: ChatEvent) => void
+  record: (chunks: readonly ChatEvent[]) => Promise<void>
+  driving: () => boolean
+}
 
 export function callTrace(header: (name: string) => string | null) {
   const hub = hubOrigin(header)
@@ -54,7 +58,7 @@ function mirrorRun(run: CallRun, outside: boolean, sink: MirrorSink) {
     },
     settle: async (): Promise<void> => {
       if (!kept) return
-      if (run.live) {
+      if (run.live || sink.driving()) {
         void save()
         return
       }
