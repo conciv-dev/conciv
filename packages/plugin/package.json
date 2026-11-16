@@ -32,6 +32,30 @@
       "types": "./dist/host.d.ts",
       "import": "./dist/host.js"
     },
+    "./effect": {
+      "types": "./dist/effect/index.d.ts",
+      "import": "./dist/effect/index.js"
+    },
+    "./effect/permission": {
+      "types": "./dist/effect/permission.d.ts",
+      "import": "./dist/effect/permission.js"
+    },
+    "./effect/plugin": {
+      "types": "./dist/effect/plugin.d.ts",
+      "import": "./dist/effect/plugin.js"
+    },
+    "./effect/rpc": {
+      "types": "./dist/effect/rpc.d.ts",
+      "import": "./dist/effect/rpc.js"
+    },
+    "./effect/session": {
+      "types": "./dist/effect/session.d.ts",
+      "import": "./dist/effect/session.js"
+    },
+    "./effect/tool": {
+      "types": "./dist/effect/tool.d.ts",
+      "import": "./dist/effect/tool.js"
+    },
     "./experimental": {
       "types": "./dist/experimental/index.d.ts",
       "import": "./dist/experimental/index.js"

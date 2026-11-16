@@ -1,6 +1,6 @@
 export * as ConfigSkillPlugin from './skill.js'
 
-import {define} from '../../../plugin/effect/plugin.js'
+import {define} from '@conciv/plugin/effect/plugin'
 import {FSUtil} from '../../../util/fs-util.js'
 import {Global} from '../../../util/global.js'
 import path from 'path'

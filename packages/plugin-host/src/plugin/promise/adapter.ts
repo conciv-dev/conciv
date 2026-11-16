@@ -26,8 +26,8 @@ import type {
 } from '@conciv/plugin'
 import {Effect, Schema, Stream} from 'effect'
 import type {Scope} from 'effect'
-import {define} from '../effect/plugin.js'
-import type {ToolFailures, ToolHooks} from '../effect/tool.js'
+import {define} from '@conciv/plugin/effect/plugin'
+import type {ToolFailures, ToolHooks} from '@conciv/plugin/effect/tool'
 import {AssertInput} from '../permission.js'
 
 type HostRegistration = {readonly dispose: Effect.Effect<void>}

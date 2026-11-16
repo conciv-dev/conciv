@@ -1,16 +1,16 @@
-import type {Session} from '@conciv/plugin/schema/session'
+import type {Session} from '../schema/session.js'
 import type {Effect} from 'effect'
+import type {Model} from '../schema/model.js'
+import type {PromptInput} from '../promise/session.js'
 import type {
   InstructionEntryInfo,
-  Model,
-  PromptInput,
   SessionCreateInput,
   SessionInboxCompaction,
   SessionInboxDelivery,
   SessionInfo,
   SessionListInput,
   SessionUpdateInput,
-} from '@conciv/plugin'
+} from '../client/promise/generated/types.js'
 import type {ModelHooks} from './registration.js'
 
 type SessionId = SessionInfo['id']

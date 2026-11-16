@@ -2,7 +2,7 @@ export * as Rpc from './rpc.js'
 export {define} from '@conciv/plugin/schema/rpc'
 export type {Definition, EventPayload, Failure} from '@conciv/plugin/schema/rpc'
 
-import type {RpcClient, RpcDomain, RpcHandlers} from '../plugin/effect/rpc.js'
+import type {RpcClient, RpcDomain, RpcHandlers} from '@conciv/plugin/effect/rpc'
 import type {Rpc} from '@conciv/plugin/schema/rpc'
 import {Event} from '@conciv/plugin/schema/event'
 import type {Tool} from '@conciv/plugin/schema/tool'

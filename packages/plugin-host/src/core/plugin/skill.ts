@@ -1,6 +1,6 @@
 export * as SkillPlugin from './skill.js'
 
-import {define, type Context} from '../../plugin/effect/plugin.js'
+import {define, type Context} from '@conciv/plugin/effect/plugin'
 import {Effect} from 'effect'
 import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import {Skill} from '../skill.js'

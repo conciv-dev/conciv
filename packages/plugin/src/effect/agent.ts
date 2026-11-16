@@ -1,4 +1,4 @@
-import type {Agent} from '@conciv/plugin/schema/agent'
+import type {Agent} from '../schema/agent.js'
 import type {Types} from 'effect'
 import type {Transform} from './registration.js'
 

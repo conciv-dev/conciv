@@ -2,7 +2,7 @@ export * as PluginHost from './host.js'
 
 import {mkdirSync} from 'node:fs'
 import path from 'node:path'
-import * as Plugin from '../../plugin/effect/plugin.js'
+import {Plugin} from '@conciv/plugin/effect'
 import {EventManifest} from '@conciv/plugin/schema/event-manifest'
 import type {Event} from '@conciv/plugin/schema/event'
 import {App} from '../app.js'

@@ -1,6 +1,6 @@
 export * as PluginModule from './module.js'
 
-import type {Plugin} from '../../plugin/effect/plugin.js'
+import type {Plugin} from '@conciv/plugin/effect/plugin'
 import * as Host from '@conciv/plugin/host'
 import {ExperimentalBundle, type Source} from '@conciv/plugin/schema/plugin'
 import {createPluginSources} from '../../plugin/source.js'
