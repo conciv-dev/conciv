@@ -7,7 +7,7 @@ import {isRunPhaseTerminal, type RunLifecycle} from '@conciv/protocol/chat-event
 import type {QueuedMessage} from '@conciv/protocol/chat-message-types'
 import type {AppData} from '../data/app-data.js'
 import {putBackInDraft, returnQueueToDraft, type DraftSink, type QueueOwner} from '../pane/pane-attachments.js'
-import {appendDraft, draftCacheSink, prependDraft} from '../pane/draft-storage.js'
+import {appendDraft, draftCacheSink, makeDraftWriteChain, prependDraft} from '../pane/draft-storage.js'
 import {becameTrusted} from './engine-login.js'
 
 export type PaneActivity = 'unmounted' | 'idle' | 'running'
@@ -50,6 +50,7 @@ function clientWorking(chat: ChatSession): boolean {
 }
 
 export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
+  const keepDraft = makeDraftWriteChain()
   const [state, setState] = createStore<{
     openers: Accessor<string>[]
     runs: Record<string, RunWatch>
@@ -100,7 +101,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
   const returnLostQueue = (sessionId: string, session: ChatSession): void => {
     returnQueueToDraft(
       session,
-      state.paneDraftSinks[sessionId]?.queue ?? draftCacheSink(deps.appData, sessionId, appendDraft),
+      state.paneDraftSinks[sessionId]?.queue ?? draftCacheSink(keepDraft, deps.appData, sessionId, appendDraft),
     )
   }
 
@@ -208,7 +209,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
       if (owner.queue().some((queued) => queued.id === item.id)) return
       putBackInDraft(
         [item],
-        state.paneDraftSinks[sessionId]?.steered ?? draftCacheSink(deps.appData, sessionId, prependDraft),
+        state.paneDraftSinks[sessionId]?.steered ?? draftCacheSink(keepDraft, deps.appData, sessionId, prependDraft),
       )
     },
   }

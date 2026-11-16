@@ -87,15 +87,25 @@ export function prependDraft(appData: AppData, sessionId: string, text: string):
 
 type DraftWrite = (appData: AppData, sessionId: string, text: string) => Promise<void>
 
-let cacheWrites = Promise.resolve()
+export type DraftWriteChain = (write: () => Promise<void>) => void
 
-export function draftCacheSink(appData: AppData, sessionId: string, write: DraftWrite): DraftSink {
+export function makeDraftWriteChain(): DraftWriteChain {
+  let written = Promise.resolve()
+  return (write) => {
+    written = written
+      .then(write)
+      .catch((error: unknown) => console.error('[conciv] could not keep the queued message as a draft', error))
+  }
+}
+
+export function draftCacheSink(
+  keep: DraftWriteChain,
+  appData: AppData,
+  sessionId: string,
+  write: DraftWrite,
+): DraftSink {
   return {
-    insert: (text) => {
-      cacheWrites = cacheWrites
-        .then(() => write(appData, sessionId, text))
-        .catch((error: unknown) => console.error('[conciv] could not keep the queued message as a draft', error))
-    },
+    insert: (text) => keep(() => write(appData, sessionId, text)),
     addFile: () => {},
   }
 }
