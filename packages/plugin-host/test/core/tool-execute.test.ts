@@ -1,10 +1,10 @@
 import {expect, test} from 'vitest'
 import {Tool} from '../../src/core/tool.js'
 import {execute} from '../../src/core/tool/runtime.js'
-import {Agent} from '../../src/schema/agent.js'
-import {Session} from '../../src/schema/session.js'
-import {SessionMessage} from '../../src/schema/session-message.js'
-import type {Info} from '../../src/schema/tool.js'
+import {Agent} from '@conciv/plugin/schema/agent'
+import {Session} from '@conciv/plugin/schema/session'
+import {SessionMessage} from '@conciv/plugin/schema/session-message'
+import type {Info} from '@conciv/plugin/schema/tool'
 import {Effect, Schema} from 'effect'
 
 const context = {

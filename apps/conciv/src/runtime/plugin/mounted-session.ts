@@ -13,6 +13,7 @@ import {
   type Accessor,
 } from 'solid-js'
 import type {Composer, MountedSession, SessionScreen} from '@conciv/plugin/experimental'
+import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import {useQuery} from '@conciv/client'
 import {useAppData, useConnected} from '../../app/context'
 import {usePluginAttachment} from './attachment'
@@ -183,7 +184,7 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
       visit: input.visit,
       server: engine,
       pending: false,
-      location: {directory},
+      location: {directory: AbsolutePath.make(directory)},
       directory,
       local: undefined,
     })

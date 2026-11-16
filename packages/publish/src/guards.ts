@@ -288,6 +288,7 @@ export async function assertPublicDepsPublic(cwd: string): Promise<void> {
 
 const CATALOG_EXEMPTIONS: Record<string, string[]> = {
   'packages/extensions/whiteboard': ['drizzle-kit', 'drizzle-orm'],
+  'packages/plugins/whiteboard': ['drizzle-kit', 'drizzle-orm'],
 }
 
 type DependencyUse = {name: string; manifestDir: string; spec: string}

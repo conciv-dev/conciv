@@ -6,7 +6,7 @@ import {Database} from '../../src/core/database/database.js'
 import {Location} from '../../src/core/location.js'
 import {Rpc} from '../../src/core/rpc.js'
 import {Project} from '../../src/schema/project.js'
-import {AbsolutePath} from '../../src/schema/schema.js'
+import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import {tmpdirScoped} from './fixture/tmpdir'
 import {testEffect} from './lib/effect'
 

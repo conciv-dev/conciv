@@ -108,8 +108,15 @@ function rememberModels(models: ModelInfo[]): void {
 
 const modelsCache: {pending?: Promise<HarnessModel[]>} = {}
 
-export function claudeSdkModels(): Promise<HarnessModel[]> {
-  modelsCache.pending ??= probe({cwd: process.cwd()})
+function followSignal(signal: AbortSignal): AbortController {
+  const controller = new AbortController()
+  if (signal.aborted) controller.abort(signal.reason)
+  signal.addEventListener('abort', () => controller.abort(signal.reason), {once: true})
+  return controller
+}
+
+export function claudeSdkModels({signal}: {signal: AbortSignal}): Promise<HarnessModel[]> {
+  modelsCache.pending ??= probe({cwd: process.cwd(), abortController: followSignal(signal)})
     .then((init) => listedModels(init.models))
     .catch((error: unknown) => {
       delete modelsCache.pending
