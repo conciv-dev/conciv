@@ -356,7 +356,6 @@ describe('now line', () => {
     mountView(() => framed(<NowLine title="Running pnpm test" />))
 
     await expect.element(page.getByText('Running pnpm test', {exact: true})).toBeVisible()
-    await page.screenshot({path: '__screenshots__/now-line/quiet-narration-line.png'})
     await expect.element(spinnerGlyph(), {timeout: TIMEOUT_MS}).toBeVisible()
   })
 
@@ -375,7 +374,6 @@ describe('now line', () => {
     const stop = page.getByRole('button', {name: 'Stop generating'})
     await expect.element(stop).toBeVisible()
     await expect.element(stop).toHaveTextContent('Stop')
-    await page.screenshot({path: '__screenshots__/now-line/with-stop.png'})
 
     await userEvent.click(stop)
     await expect.element(page.getByText('Running pnpm test', {exact: true})).toBeVisible()
@@ -773,7 +771,6 @@ describe('thinking narration', () => {
       .toBeVisible()
     await userEvent.click(traceTrigger())
     await expect.element(page.getByText('reasoning', {exact: true})).toBeVisible()
-    await page.screenshot({path: '__screenshots__/thinking-narration/reasoning-only-trace.png'})
   })
 
   const RUNNING_TOOL_CHUNKS = [
@@ -789,7 +786,6 @@ describe('thinking narration', () => {
     await userEvent.click(traceTrigger())
     await expect.element(traceTrigger()).toHaveAttribute('data-state', 'closed')
     await expect.element(page.getByText('Running ls', {exact: true}), {timeout: TIMEOUT_MS}).toBeVisible()
-    await page.screenshot({path: '__screenshots__/thinking-narration/collapsed-activity-line.png'})
 
     await haltRun()
   })
@@ -889,14 +885,11 @@ describe('thread session log', () => {
     const trigger = page.getByRole('button', {name: /trace/i})
     await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'closed')
     await expect.element(page.getByText('checking the event listeners first'), {timeout: 3000}).not.toBeInTheDocument()
-    await page.screenshot({path: '__screenshots__/thread-session-log/collapsed-record.png'})
 
     await trigger.click()
 
     await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'open')
     await expect.element(page.getByText('checking the event listeners first'), {timeout: 3000}).toBeVisible()
-    await new Promise((resolve) => setTimeout(resolve, 900))
-    await page.screenshot({path: '__screenshots__/thread-session-log/expanded-record.png'})
   })
 
   function messagesWithTwoSegments(): ChatMessage[] {
@@ -1026,7 +1019,6 @@ describe('thread session log', () => {
     mountView(() => <OutsideJourney />)
 
     await expect.element(page.getByText('Fixed the type on line 9, the build is green.'), {timeout: 3000}).toBeVisible()
-    await page.screenshot({path: '__screenshots__/thread-session-log/padding-normal-chat.png'})
 
     await page.getByRole('button', {name: 'outside agent drives the tab'}).click()
 
@@ -1039,7 +1031,6 @@ describe('thread session log', () => {
     await expect.element(page.getByText('from claude').nth(2)).toBeVisible()
     await expect.element(page.getByRole('button', {name: /Show trace/})).not.toBeInTheDocument()
     await expect.element(page.getByRole('button', {name: /Hide trace/})).not.toBeInTheDocument()
-    await page.screenshot({path: '__screenshots__/thread-session-log/padding-outside-calls.png'})
 
     const toolbars = page.getByRole('toolbar', {name: 'Message actions'})
     await expect.element(toolbars.nth(3)).toBeInTheDocument()
@@ -1049,7 +1040,6 @@ describe('thread session log', () => {
     await expect.element(outsideActions.getByRole('button', {name: 'Copy'})).toBeVisible()
     await expect.element(outsideActions.getByRole('button', {name: /Refresh|Reload/})).not.toBeInTheDocument()
     await expect.element(toolbars.nth(3).getByRole('button', {name: /Refresh|Reload/})).toBeVisible()
-    await page.screenshot({path: '__screenshots__/thread-session-log/padding-outside-copy-row.png'})
 
     await outsideActions.getByRole('button', {name: 'Copy'}).click()
     await expect.element(outsideActions.getByRole('status')).toHaveTextContent('Could not copy the message')
@@ -1084,7 +1074,6 @@ describe('thread session log', () => {
     expect(triggerIndex).toBeGreaterThan(firstTextIndex)
     expect(answerIndex).toBeGreaterThan(triggerIndex)
     expect(answerIndex).toBe(contentRows.length - 1)
-    await page.screenshot({path: '__screenshots__/thread-session-log/interleaved-turn-order.png'})
   })
 })
 
