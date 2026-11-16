@@ -16,6 +16,25 @@ type DraftInput = Omit<z.input<typeof DraftRowSchema>, 'updatedAt'>
 
 const DraftSessionSchema = z.object({sessionId: z.string()})
 
+const ListedSessionsSchema = z.looseObject({sessions: z.array(z.looseObject({id: z.string()}))})
+
+const ListedSessionPagesSchema = z.looseObject({pages: z.array(ListedSessionsSchema)})
+
+type ListedSessions = z.infer<typeof ListedSessionsSchema>
+
+function withoutListedSession(page: ListedSessions, sessionId: string): ListedSessions {
+  return {...page, sessions: page.sessions.filter((session) => session.id !== sessionId)}
+}
+
+function withoutSession(data: unknown, sessionId: string): unknown {
+  const pages = ListedSessionPagesSchema.safeParse(data)
+  if (pages.success)
+    return {...pages.data, pages: pages.data.pages.map((page) => withoutListedSession(page, sessionId))}
+  const page = ListedSessionsSchema.safeParse(data)
+  if (page.success) return withoutListedSession(page.data, sessionId)
+  return data
+}
+
 const DRAFT_SAVE_RETRIES = 3
 
 function retriableDraftSave(failureCount: number, error: unknown): boolean {
@@ -112,7 +131,9 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
       await drafts?.removeItem(sessionId).catch((error: unknown) => {
         console.error('[conciv] could not remove the local draft of a deleted session', error)
       })
-      await invalidateSession(sessionId)
+      for (const queryKey of listKeys)
+        queryClient.setQueriesData<unknown>({queryKey}, (data: unknown) => withoutSession(data, sessionId))
+      queryClient.removeQueries({queryKey: sessionKey(sessionId)})
     }
   }
   forgetDeletedSessions().catch((error: unknown) => {
