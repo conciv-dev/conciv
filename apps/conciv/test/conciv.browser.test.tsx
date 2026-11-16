@@ -777,10 +777,14 @@ describe('chat pane', () => {
     await expect.element(refusals).not.toBeInTheDocument()
   })
 
-  test('a question card answered while the page is locked says why and can be answered again', async () => {
+  test('a question card answered while the page cannot send says why and takes the answer again, and one the engine refuses stays sent', async () => {
     const {sessionId} = await newSession()
-    const [connection, setConnection] = createStore<{locked: EngineLock}>({locked: null})
-    const reachability = {online: () => true, sustainedOffline: () => false, locked: () => connection.locked}
+    const [connection, setConnection] = createStore<{online: boolean; locked: EngineLock}>({online: true, locked: null})
+    const reachability = {
+      online: () => connection.online,
+      sustainedOffline: () => false,
+      locked: () => connection.locked,
+    }
     await coreControl.holdResults()
     await coreControl.scriptTurn({
       toolCalls: [
@@ -807,7 +811,22 @@ describe('chat pane', () => {
     await expect.element(ship).toBeEnabled()
     await expect.element(notifications()).not.toMatchTextContent(/no longer waiting for an answer/)
 
-    setConnection('locked', null)
+    setConnection({locked: null, online: false})
+    await userEvent.click(ship)
+    await expect
+      .element(notifications())
+      .toMatchTextContent(/conciv lost connection to the engine\. Your answer was not sent\./)
+    await expect.element(notifications()).not.toMatchTextContent(/still in the composer/)
+    await expect.element(sending).not.toBeInTheDocument()
+    await expect.element(ship).toBeEnabled()
+
+    setConnection('online', true)
+    await faults.install({kind: 'fail', path: ['chat', 'uiReply']})
+    await userEvent.click(ship)
+    await expect.element(notifications()).toMatchTextContent(/That question is no longer waiting for an answer\./)
+    await expect.element(sending).toBeVisible()
+    await expect.element(ship).toBeDisabled()
+
     await coreControl.releaseResults()
     await expect.element(page.getByText('Held until you answer.')).toBeVisible()
   })

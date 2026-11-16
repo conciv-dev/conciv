@@ -21,6 +21,8 @@ function sendRejection(verdict: Extract<SendVerdict, {ok: false}>): SendRejectio
   return {rejected: true, message: verdict.message, tone: verdict.tone}
 }
 
+const ANSWER_UNSENT = 'Your answer was not sent.'
+
 const WITHDRAWN: SendRejection = {rejected: true, message: null, tone: 'info'}
 
 function failureMessage(failure: unknown): string {
@@ -129,13 +131,13 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
   }
 
   const onAnswer = async (toolCallId: string, value: UiAnswerValue): Promise<void> => {
-    const verdict = checkSendState(sendState())
+    const verdict = checkSendState(sendState(), ANSWER_UNSENT)
     if (!verdict.ok) {
       const rejection = sendRejection(verdict)
       onSendError(rejection)
       throw rejection
     }
-    await uiReply.mutateAsync({toolCallId, value})
+    uiReply.mutate({toolCallId, value})
   }
 
   const onSteer = (): void => {
