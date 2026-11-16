@@ -5597,6 +5597,7 @@ describe('page action queue delivery', () => {
       discover,
       close,
       queueEvents,
+      published: () => [...seen],
       finishedEvent,
       followUpFinished,
       runIds,
@@ -5670,14 +5671,23 @@ describe('page action queue delivery', () => {
     const typed = makeRpcClient(page.base, {headers: HUB})
     await typed.code.execute({sessionId: page.sessionId, typescriptCode: queued()})
     const onTab = await page.nextQueue()
+    expect(onTab).toEqual({id: expect.stringMatching(/^q_/), of: 2})
     const requestId = await page.heldRequest(`${onTab.id}/0`)
     await makeRpcClient(page.base).sessions.delete({sessionId: page.sessionId})
+    const publishedBeforeDeleted = page.published().length
     await page.onTab.cancelled(requestId)
     await expect(
       typed.page.queue.wait({sessionId: page.sessionId, queueId: onTab.id, waitMs: 0}),
     ).rejects.toMatchObject({
       code: 'NO_QUEUE',
     })
+    await expect(page.onTab.reply(requestId, pageSuccess({ok: true, checked: true}))).rejects.toMatchObject({
+      type: 'unavailable',
+      message: 'Page is unavailable.',
+    })
+    expect(page.published().slice(publishedBeforeDeleted)).toEqual([])
+    const after = await makeRpcClient(page.base).chat.hydrate({sessionId: page.sessionId})
+    expect([after.messages, after.lastRun]).toEqual([[], null])
   })
 
   it('external_page_queue_async answers with a queue id before the tab has played anything', async () => {
