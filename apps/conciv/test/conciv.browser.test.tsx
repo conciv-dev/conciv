@@ -6658,7 +6658,7 @@ module.exports = {default: {setup(ctx) {
 
     await expect.element(counted(0), {timeout: 15_000}).toBeVisible()
     await counted(0).click()
-    await expect.element(page.getByRole('tab', {name: 'Counter', exact: true, selected: true})).toBeVisible()
+    await expect.element(page.getByRole('tab', {name: /^Counted 1/, selected: true})).toBeVisible()
     await expect.element(counted(1)).toBeVisible()
 
     await page.getByRole('button', {name: 'Open notes', exact: true}).click()

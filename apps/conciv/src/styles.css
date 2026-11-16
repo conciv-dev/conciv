@@ -119,11 +119,4 @@
   .chat-view-btn-label {
     display: none;
   }
-  .chat-view-btn-label:has(svg) {
-    display: block;
-    font-size: 0;
-  }
-  .chat-view-btn-label:has(svg) svg {
-    margin-inline-end: 0;
-  }
 }
