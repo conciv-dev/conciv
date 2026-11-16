@@ -39,13 +39,13 @@ export type DraftStore = AsyncStorage & {
   putBlob(blob: Blob): Promise<BlobReference>
   setDocument(key: string, document: unknown): Promise<void>
 }
-export const draftTextThreshold = 16 * 1024
+const draftTextThreshold = 16 * 1024
 
-export const draftTextChunk = 64 * 1024
+const draftTextChunk = 64 * 1024
 
 const textCacheLimit = 64
 
-export const retainedBlobGrace = RETAINED_BLOB_GRACE_MS
+const retainedBlobGrace = RETAINED_BLOB_GRACE_MS
 
 let retention = createDraftRetentionState()
 
@@ -134,14 +134,7 @@ async function detach(blob: Blob) {
   return blob instanceof File ? new Blob([await blob.arrayBuffer()], {type: blob.type}) : blob
 }
 
-export async function createBlobReference(source: Blob): Promise<BlobReference> {
-  const blob = await detach(source)
-  const id = await blobID(blob)
-
-  return {id, url: blobUrl(id, blob)}
-}
-
-export function createDraftStore(driver: Driver, options: {grace?: number} = {}): DraftStore {
+function createDraftStore(driver: Driver, options: {grace?: number} = {}): DraftStore {
   const grace = options.grace ?? retainedBlobGrace
   const storeId = retention.nextStoreId
   dispatch({type: 'store.registered'})
@@ -526,21 +519,4 @@ function referenced(json: string) {
   })
 
   return ids
-}
-export async function blobDataUrl(blob: BlobReference, mime: string) {
-  const kept = selectRetainedBlob(retention, blob.id)
-  const url = kept ? undefined : await resolveBlobUrl(blob)
-
-  if (!kept && !url) throw new Error(`Attachment ${blob.id} has no stored bytes`)
-  const data = kept ? kept.blob : await fetch(url!).then((response) => response.blob())
-
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader()
-    reader.addEventListener('error', () => reject(reader.error))
-    reader.addEventListener('load', () => {
-      const value = typeof reader.result === 'string' ? reader.result : ''
-      resolve(`data:${mime};base64,${value.slice(value.indexOf(',') + 1)}`)
-    })
-    reader.readAsDataURL(data)
-  })
 }
