@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {accessSync, constants, existsSync} from 'node:fs'
 import {delimiter, join} from 'node:path'
+import {setTimeout as delay} from 'node:timers/promises'
 import {Hono} from 'hono'
 import {z} from 'zod'
 import {EngineStalenessSchema, type EngineStaleness} from '@conciv/contract'
@@ -97,7 +98,7 @@ import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
 import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
-import {loadIsolateDriver} from '@conciv/ai/server'
+import {GROUP_EXIT_TIMEOUT_MS, loadIsolateDriver} from '@conciv/ai/server'
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import {
@@ -456,9 +457,15 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const socketUpgrade = trustingUpgrade(upgradeWebSocket, trust)
   const listings = availableHarnesses(boot, opts, stateDir, engineLife.signal)
   const harnesses = listings.map((listing) => listing.harness)
+  const print = opts.print ?? ((text: string) => console.log(text))
+  const endListing = async (listing: SavedModelsHarness): Promise<void> => {
+    const ended = listing.settled().then(() => true)
+    if (await Promise.race([ended, delay(GROUP_EXIT_TIMEOUT_MS, false, {ref: false})])) return
+    print(`[core] the ${listing.harness.id} model listing did not end when the engine stopped; closing without it`)
+  }
   const endListings = async (): Promise<void> => {
     engineLife.abort(new Error('conciv: the engine stopped'))
-    await Promise.all(listings.map((listing) => listing.settled()))
+    await Promise.all(listings.map(endListing))
   }
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb(opts.cfg.stateRoot)
@@ -831,7 +838,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     answerPermission: (sessionId, requestId, reply) =>
       pluginHost.runPromise(answerPermission(sessionId, requestId, reply)),
     auth: makeAuthRouter({
-      codes: makeCodeStore({now: Date.now, print: opts.print ?? ((text) => console.log(text))}),
+      codes: makeCodeStore({now: Date.now, print}),
       trust,
       browsers,
       now: Date.now,

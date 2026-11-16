@@ -3,7 +3,7 @@ import {RUN_CANCEL_REASON} from '@tanstack/ai'
 import type {SandboxHandle, SandboxProvider, SpawnHandle} from '@tanstack/ai-sandbox'
 import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
 
-const GROUP_EXIT_TIMEOUT_MS = 5_000
+export const GROUP_EXIT_TIMEOUT_MS = 5_000
 
 const GROUP_POLL_MS = 100
 

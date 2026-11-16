@@ -1157,6 +1157,30 @@ describe('local state files', () => {
       await listing
       expect(existsSync(join(concivStateDir(root), 'listing-models.json'))).toBe(false)
     })
+
+    it('closing two engines that share a listing which ignores the stop ends both after the grace and names the harness', async () => {
+      const stuck = new Promise<Listed[]>(() => {})
+      const harness = defineHarness({
+        id: 'stuck-listing',
+        binName: 'stuck-listing',
+        models: () => stuck,
+        chatConfig: () => ({adapter: fakeText()}),
+        capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
+      })
+      const printed: string[] = []
+      const boot = (root: string) =>
+        makeApp({
+          cfg: resolveConfig({}, root),
+          cwd: root,
+          openInEditor: () => {},
+          harness,
+          print: (text) => printed.push(text),
+        })
+      const engines = [await boot(tempDir('conciv-core-unit-')), await boot(tempDir('conciv-core-unit-'))]
+      engines.forEach((made) => void resolveHarnessModels(made.chat.defaultHarness, {signal: UNSTOPPED}))
+      await Promise.all(engines.map((made) => made.dispose()))
+      expect(printed.filter((text) => text.includes('stuck-listing'))).toHaveLength(2)
+    })
   })
 })
 
