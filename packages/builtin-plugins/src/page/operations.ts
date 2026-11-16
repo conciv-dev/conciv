@@ -694,7 +694,8 @@ function failure(error: unknown): Outcome {
 export function makePageOperations(ctx: Pick<BaseContext, 'list'>): PageOperations {
   const refs: Refs = {map: new Map(), n: 0}
   const {buf: consoleBuf, dispose: disposeConsoleBuffer} = startConsoleBuffer()
-  const effects = () => ctx.list(PageEffect)
+  const effects = () =>
+    ctx.list(PageEffect).filter((effect, index, all) => all.findIndex((other) => other.name === effect.name) === index)
   void loadSnapshotLibrary()
 
   async function dispatch(command: Command, signal: AbortSignal | undefined): Promise<Outcome> {

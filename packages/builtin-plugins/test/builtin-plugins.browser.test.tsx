@@ -19,7 +19,8 @@ import {endTask, mountSimulator, startTask} from '../src/page/simulator.js'
 import {aimCursor, CursorLook, dropCursor, windowAt} from '../src/page/agent-cursor.js'
 import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
 import {makeReactTree, pageMembers} from '../src/page/contracts.js'
-import type {ReactFiber} from '@conciv/plugin/experimental/page'
+import {PageEffect, type ReactFiber} from '@conciv/plugin/experimental/page'
+import type {Registry} from '@conciv/plugin/experimental'
 
 const inFirefox = server.browser === 'firefox'
 
@@ -896,6 +897,27 @@ describe('page console', () => {
     expect({uncaught: recorded('page-boom-uncaught'), unhandled: recorded('page-boom-unhandled')}).toEqual({
       uncaught: ['uncaught'],
       unhandled: ['unhandled'],
+    })
+  })
+})
+
+describe('page effects', () => {
+  it('lists an effect two contributions register under one name exactly once', async () => {
+    const banner = (description: string): PageEffect => ({
+      name: 'banner',
+      description,
+      enabled: () => false,
+      set: () => {},
+    })
+    const contributed = [banner('first banner'), banner('second banner')]
+    function listContributions<T>(registry: Registry<T>): readonly T[]
+    function listContributions(registry: Registry<unknown>): readonly unknown[] {
+      return registry.id === PageEffect.id ? contributed : []
+    }
+    const driver = makePageOperations({list: listContributions})
+    onTestFinished(() => driver.dispose())
+    expect(readValue(await driver.execute(command('effect', {action: 'list'})), 'effect')).toEqual({
+      effects: [{name: 'banner', description: 'first banner', enabled: false}],
     })
   })
 })
