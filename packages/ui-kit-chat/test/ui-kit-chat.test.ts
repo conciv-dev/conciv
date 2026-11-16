@@ -20,6 +20,56 @@ import {
   shareGroupNodes,
 } from '../src/store/grouping.js'
 import {createPageSessionGrouper} from '../src/store/page-session.js'
+import {turnRollup} from '../src/store/turn-rollup.js'
+import {shortToolLabel} from '../src/tools/primitives/tool-row.js'
+import {humanToolName} from '../src/tools/primitives/now-title.js'
+
+describe('tool names', () => {
+  it('shortens a tool name into a row label', () => {
+    expect(shortToolLabel('HTMLParser')).toBe('html_parser')
+    expect(shortToolLabel('parseHTMLDocument')).toBe('document')
+    expect(shortToolLabel('XMLHttpRequest')).toBe('http_request')
+    expect(shortToolLabel('getURLForID')).toBe('get')
+    expect(shortToolLabel('ABCdef')).toBe('ab_cdef')
+    expect(shortToolLabel('snake_case_tool')).toBe('case_tool')
+    expect(shortToolLabel('mcp__playwright__browser_take_screenshot')).toBe('shot')
+    expect(shortToolLabel('')).toBe('')
+    expect(shortToolLabel('A'.repeat(400_000))).toBe('aaaaaaaaaaa…')
+  })
+
+  it('names an mcp tool by its tool part', () => {
+    expect(humanToolName('mcp__github__create_pull_request')).toBe('create pull request')
+    expect(humanToolName('mcp__srv__tool__with__extra')).toBe('tool  with  extra')
+    expect(humanToolName('mcp___a__b')).toBe('b')
+    expect(humanToolName('mcp__a____')).toBe('  ')
+    expect(humanToolName('mcp____x')).toBe('mcp____x')
+    expect(humanToolName('mcp__srv__')).toBe('mcp__srv__')
+    expect(humanToolName('mcp__srv__tool\n')).toBe('mcp__srv__tool\n')
+    expect(humanToolName('Bash')).toBe('Bash')
+    const slow = `mcp__${'a__'.repeat(240_000)}\n`
+    expect(humanToolName(slow)).toBe(slow)
+  })
+})
+
+describe('turn rollup', () => {
+  function patchTurn(patchText: string) {
+    const call: ToolCallPart = {
+      type: 'tool-call',
+      id: 'p1',
+      name: 'apply_patch',
+      arguments: JSON.stringify({patchText}),
+      state: 'input-complete',
+    }
+    return turnRollup({parts: [call]})
+  }
+
+  it('reads the edited files from patch headers', () => {
+    expect(patchTurn('*** Begin Patch\n*** Update File: src/a.ts\n+x\n*** End Patch').files).toEqual(['src/a.ts'])
+    expect(patchTurn('*** Add File:\nsrc/next.ts\n+x').files).toEqual([])
+    expect(patchTurn('*** Update File: \t  src/a.ts\n+x').files).toEqual(['src/a.ts'])
+    expect(patchTurn('*** Add File: \t \n+x').files).toEqual([])
+  })
+})
 
 describe('attachment adapter', () => {
   describe('attachment adapters', () => {
