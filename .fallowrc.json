@@ -453,6 +453,14 @@
         "maxCognitive": 26,
         "maxCrap": 46,
         "reason": "copied from opencode packages/core/test/plugin/host.ts: host keeps opencode's shape"
+      },
+      {
+        "files": [
+          "packages/plugins/whiteboard/src/anchor/resolver.ts",
+          "packages/plugins/whiteboard/src/anchor/oxc-capture.ts"
+        ],
+        "maxCognitive": 24,
+        "reason": "moved from @conciv/extension-whiteboard src/anchor: resolve and the oxc visitors keep the extension's shape until the extension is removed"
       }
     ]
   },
@@ -544,6 +552,7 @@
     "@conciv/plugin",
     "@conciv/plugin-host",
     "@conciv/plugin-recorder",
+    "@conciv/plugin-whiteboard",
     "@conciv/preact",
     "@conciv/protocol",
     "@conciv/react",

@@ -78,7 +78,7 @@ const RAIL_TITLE_RENAME =
   'size-7 shrink-0 [&[hidden]]:hidden opacity-0 [transition:opacity_120ms_var(--chat-ease)] motion-reduce:[transition:none] group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100'
 const GHOST =
   'bg-transparent border border-transparent text-chat-text-2 cursor-pointer inline-flex items-center justify-center size-7 rounded-[var(--chat-radius-sm)] [transition:background-color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill)] hover:[border-color:var(--chat-line-soft)] hover:text-chat-text'
-const RAIL_MENU_CONTENT = 'p-2 flex flex-col gap-1 w-72'
+const RAIL_MENU_CONTENT = 'p-2 w-72'
 const RAIL_MENU_CONTENT_STYLE = {
   background: 'var(--chat-bg)',
   'border-color': 'var(--chat-line)',
@@ -454,48 +454,53 @@ function PanelSession(): JSX.Element {
           </div>
           <Popover.Positioner>
             <Popover.Content aria-label="Session options" class={RAIL_MENU_CONTENT} style={RAIL_MENU_CONTENT_STYLE}>
-              <span class={RAIL_MENU_LABEL}>Session</span>
-              <Suspense fallback={<SessionPillPending variant="bar" />}>
-                <SessionSelector
-                  variant="bar"
-                  activeId={() => params().sessionId}
-                  onActivate={activate}
-                  onNewSession={() => void newSession()}
-                />
-              </Suspense>
-              <hr class={RAIL_MENU_SEPARATOR} />
-              <span class={RAIL_MENU_LABEL}>Context</span>
-              <Suspense fallback={<UsagePending />}>
-                <ContextSummary usage={usage()} />
-              </Suspense>
-              <hr class={RAIL_MENU_SEPARATOR} />
-              <Show when={activeView() === 'chat'}>
-                <Popover.CloseTrigger
-                  asChild={(closeProps) => (
-                    <Button
-                      {...closeProps({'aria-label': 'Refresh the conversation', onClick: () => coordinator.refresh()})}
-                      variant="plain"
-                      size="none"
-                      class={RAIL_MENU_ROW}
-                      disabled={chat().runInProgress() || coordinator.isRefreshing()}
-                    >
-                      <RefreshCw class="size-4 block shrink-0" aria-hidden="true" />
-                      Refresh the conversation
-                    </Button>
-                  )}
-                />
-              </Show>
-              <AllowOutsideAgentsRow sessionId={params().sessionId} />
-              <Button variant="plain" size="none" class={RAIL_MENU_ROW} onClick={popOut}>
-                <PictureInPicture2 class="size-4 block shrink-0" aria-hidden="true" />
-                Pop out to a window
-              </Button>
-              <Show when={connectMode && disconnect}>
-                <Button variant="plain" size="none" class={RAIL_MENU_ROW} onClick={() => disconnect?.()}>
-                  <Unplug class="size-4 block shrink-0" aria-hidden="true" />
-                  Disconnect this machine
+              <div>
+                <span class={RAIL_MENU_LABEL}>Session</span>
+                <Suspense fallback={<SessionPillPending variant="bar" />}>
+                  <SessionSelector
+                    variant="bar"
+                    activeId={() => params().sessionId}
+                    onActivate={activate}
+                    onNewSession={() => void newSession()}
+                  />
+                </Suspense>
+                <hr class={RAIL_MENU_SEPARATOR} />
+                <span class={RAIL_MENU_LABEL}>Context</span>
+                <Suspense fallback={<UsagePending />}>
+                  <ContextSummary usage={usage()} />
+                </Suspense>
+                <hr class={RAIL_MENU_SEPARATOR} />
+                <Show when={activeView() === 'chat'}>
+                  <Popover.CloseTrigger
+                    asChild={(closeProps) => (
+                      <Button
+                        {...closeProps({
+                          'aria-label': 'Refresh the conversation',
+                          onClick: () => coordinator.refresh(),
+                        })}
+                        variant="plain"
+                        size="none"
+                        class={RAIL_MENU_ROW}
+                        disabled={chat().runInProgress() || coordinator.isRefreshing()}
+                      >
+                        <RefreshCw class="size-4 block shrink-0" aria-hidden="true" />
+                        Refresh the conversation
+                      </Button>
+                    )}
+                  />
+                </Show>
+                <AllowOutsideAgentsRow sessionId={params().sessionId} />
+                <Button variant="plain" size="none" class={RAIL_MENU_ROW} onClick={popOut}>
+                  <PictureInPicture2 class="size-4 block shrink-0" aria-hidden="true" />
+                  Pop out to a window
                 </Button>
-              </Show>
+                <Show when={connectMode && disconnect}>
+                  <Button variant="plain" size="none" class={RAIL_MENU_ROW} onClick={() => disconnect?.()}>
+                    <Unplug class="size-4 block shrink-0" aria-hidden="true" />
+                    Disconnect this machine
+                  </Button>
+                </Show>
+              </div>
             </Popover.Content>
           </Popover.Positioner>
         </Popover.Root>
