@@ -14,3 +14,4 @@ todos.json
 test-results
 playwright-report
 .playwright
+conciv/plugins/deploy/plugin-experimental.cjs*

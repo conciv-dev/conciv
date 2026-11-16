@@ -2,8 +2,7 @@
 
 ## Overview
 
-Holds the conciv extension folder for the TanStack Start example.
+The conciv project folder for the TanStack Start example.
 
-## Subdirectories & Boundaries
-
-- extensions: [extensions/README.md](./extensions/README.md) - Conciv extensions loaded by the TanStack Start example: the TanStack extension and a sample deploy tool and button.
+`plugins/deploy` is a conciv plugin: it gives the agent a deploy tool and adds a Deploy pill and the status text `env: staging` to the chat composer.
+Run it from the terminal with `conciv plugin call deploy run --data '{"env":"staging"}'`.
