@@ -23,25 +23,24 @@ export default Plugin.define({
     const [run, setRun] = createStore(initialRunState)
     const dispatch = (action: RunAction) => setRun(reconcile(transitionRun(unwrap(run), action), {key: 'id'}))
 
-    const refreshStatus = (client: Client, signal: AbortSignal) =>
-      client
-        .rpc(TestRunner)
-        .status(undefined, {signal})
-        .then(
-          (result) => {
-            if (!signal.aborted) dispatch({type: 'status', result})
-          },
-          (error: unknown) => {
-            if (!signal.aborted) console.error('[test-runner] the last test run could not be read', error)
-          },
-        )
+    const load = async (client: Client, signal: AbortSignal) => {
+      try {
+        const runner = client.rpc(TestRunner)
+        const result = await runner.status(undefined, {signal})
+        if (!signal.aborted) dispatch({type: 'status', result})
+        const current = await runner.current(undefined, {signal})
+        if (!signal.aborted) dispatch({type: 'current', ...current})
+      } catch (error) {
+        if (!signal.aborted) console.error('[test-runner] the test run could not be read', error)
+      }
+    }
 
     const follow = async (client: Client, signal: AbortSignal) => {
       try {
         for await (const event of client.event.subscribe({types: ['rpc.test-runner.event'], signal})) {
           if (event.type === 'server.connected') {
             dispatch({type: 'connected'})
-            void refreshStatus(client, signal)
+            void load(client, signal)
             continue
           }
           const parsed = TestEventSchema.safeParse(event.data)

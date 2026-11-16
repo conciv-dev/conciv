@@ -9,10 +9,12 @@ export type RunState = {
   readonly reason: string
 }
 
-export type RunAction =
-  | TestEvent
+type LoadAction =
   | {readonly type: 'connected'}
   | {readonly type: 'status'; readonly result: TestRunResult}
+  | {readonly type: 'current'; readonly events: readonly TestEvent[] | null; readonly unavailable: string | null}
+
+export type RunAction = TestEvent | LoadAction
 
 const EMPTY_SUMMARY: Summary = {passed: 0, failed: 0, skipped: 0, durationMs: 0}
 
@@ -44,19 +46,35 @@ function withTest(state: RunState, event: Extract<TestEvent, {type: 'test'}>): R
   return running(state.phase === 'running' ? upsert(state.tests, row) : [row])
 }
 
-function afterConnected(state: RunState): RunState {
-  return state.phase === 'running' ? initialRunState : state
+function unavailable(reason: string): RunState {
+  return {...initialRunState, phase: 'unavailable', reason}
 }
 
-function afterStatus(state: RunState, result: TestRunResult): RunState {
-  return state.phase === 'running' ? state : settled(result)
+function transitionEvent(state: RunState, event: TestEvent): RunState {
+  if (event.type === 'run-start') return running([])
+  if (event.type === 'test') return withTest(state, event)
+  if (event.type === 'run-end') return settled(event)
+  if (event.type === 'run-unavailable') return unavailable(event.reason)
+  return state
+}
+
+function replay(state: RunState, events: readonly TestEvent[]): RunState {
+  return events.reduce(
+    (folded, event) =>
+      event.type === 'run-start' && folded.phase === 'running' ? folded : transitionEvent(folded, event),
+    state,
+  )
+}
+
+function transitionLoad(state: RunState, action: LoadAction): RunState {
+  if (action.type === 'connected') return state.phase === 'running' ? initialRunState : state
+  if (action.type === 'status') return state.phase === 'running' ? state : settled(action.result)
+  if (action.events !== null) return replay(state, action.events)
+  return action.unavailable !== null && state.phase !== 'running' ? unavailable(action.unavailable) : state
 }
 
 export function transitionRun(state: RunState, action: RunAction): RunState {
-  if (action.type === 'connected') return afterConnected(state)
-  if (action.type === 'status') return afterStatus(state, action.result)
-  if (action.type === 'run-start') return running([])
-  if (action.type === 'test') return withTest(state, action)
-  if (action.type === 'run-end') return settled(action)
-  return state
+  if (action.type === 'connected' || action.type === 'status' || action.type === 'current')
+    return transitionLoad(state, action)
+  return transitionEvent(state, action)
 }
