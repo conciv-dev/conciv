@@ -211,7 +211,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
     {equals: (previous, next) => previous?.chat === next?.chat},
   )
   return (
-    <Show when={!deleted()} fallback={<DeletedSessionPanel />}>
+    <Show when={!deleted()} fallback={<DeletedSessionPanel sessionId={props.sessionId} />}>
       <Show when={opened()} keyed>
         {(current) => <OpenedChatPane opened={current} sessionId={props.sessionId} viewTab={props.viewTab} />}
       </Show>
