@@ -681,17 +681,22 @@ const awaitFaultAnswered: BrowserCommand<[string]> = (ctx, handle): Promise<unkn
 
 const faultPending: BrowserCommand<[string]> = (ctx, handle): number => requireFault(ctx, handle).pending()
 
-const awaitFaultPending: BrowserCommand<[string, number]> = async (ctx, handle, count): Promise<void> => {
+const awaitFaultPending: BrowserCommand<[string, number, number?]> = async (
+  ctx,
+  handle,
+  count,
+  timeoutMs = AWAIT_RPC_TIMEOUT_MS,
+): Promise<void> => {
   const timer: {value: ReturnType<typeof setTimeout> | null} = {value: null}
   const deadline = new Promise<never>((_, reject) => {
     timer.value = setTimeout(
       () =>
         reject(
           new Error(
-            `the fault "${handle}" captured ${requireFault(ctx, handle).pending()} of ${count} pending requests within ${AWAIT_RPC_TIMEOUT_MS}ms`,
+            `the fault "${handle}" captured ${requireFault(ctx, handle).pending()} of ${count} pending requests within ${timeoutMs}ms`,
           ),
         ),
-      AWAIT_RPC_TIMEOUT_MS,
+      timeoutMs,
     )
   })
   try {

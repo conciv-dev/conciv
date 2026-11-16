@@ -1803,6 +1803,10 @@ describe('engine version', () => {
 })
 
 describe('a slow engine', () => {
+  const OLD_CONNECTION_TIMEOUT_MS = 2000
+  const MAX_RECONNECT_DELAY_MS = 2000
+  const MARGIN_MS = 2000
+  const SECOND_HANDSHAKE_WINDOW_MS = OLD_CONNECTION_TIMEOUT_MS + MAX_RECONNECT_DELAY_MS + MARGIN_MS
   const core = bootedCore('slow-engine')
   const harness = createShellHarness(core)
   const faults = trackedFaults()
@@ -1822,7 +1826,9 @@ describe('a slow engine', () => {
     await coreControl.releaseFault(offline)
     await coreControl.awaitFaultPending(handshakes, 1)
 
-    await expect(coreControl.awaitFaultPending(handshakes, 2)).rejects.toThrow('captured 1 of 2')
+    await expect(coreControl.awaitFaultPending(handshakes, 2, SECOND_HANDSHAKE_WINDOW_MS)).rejects.toThrow(
+      'captured 1 of 2',
+    )
     await expect.element(lostNotice()).toBeVisible()
 
     await coreControl.releaseFault(handshakes)
