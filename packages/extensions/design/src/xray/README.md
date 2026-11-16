@@ -9,7 +9,7 @@ entry.tsx mounts a TanStack Solid router on the `[data-design-xray]` element in 
 - `loadXray` (`data.ts`): loads the report for an id, its sibling targets on the same route and their reports, then calls `assemble`
 - `assemble` (`data.ts`): builds `XrayData` (target, report, image urls, widths sorted ascending with off counts, ranAt)
 - `runDiff` (`data.ts`): calls `rpc.registry.call({name: 'design_diff', ...})` with the target id and width
-- `openInEditor` (`data.ts`): calls `rpc.editor.open({file, line})`
+- `openInEditor` (`data.ts`): calls `rpc.plugin.call({rpcId: 'server', method: 'open', input: {file, line}})`, the engine's server plugin
 - `reportRows` / `rowAboveTolerance` / `sourceLabel` / `diffCommand` (`data.ts`): turn reports into rows, apply the tolerance check, format a label, and build the `conciv tools design diff --target <id> --width <w>` command string
 - `Row`, `WidthTab`, `XrayImages`, `XrayData`, `ReportResponse`, `Delta` (`data.ts`): view-model types
 - `loadFixture` (`dev-fixture.ts`): returns static XrayData for three targets (390/1280/2560) with SVG data-url images
@@ -38,7 +38,7 @@ entry.tsx mounts a TanStack Solid router on the `[data-design-xray]` element in 
 ## Side Effects
 
 - Network: `loadXray` (`data.ts`) calls the extension RPC `xray.report` and `xray.targets` under slug 'design', based on `window.location.href`
-- Network: `runDiff` (`data.ts`) invokes the design_diff tool through `registry.call`; `openInEditor` (`data.ts`) calls `editor.open`, which opens a file in the user's editor
+- Network: `runDiff` (`data.ts`) invokes the design_diff tool through `registry.call`; `openInEditor` (`data.ts`) calls the server plugin's `open` method through `plugin.call`, which opens a file in the user's editor
 - DOM: `entry.tsx` renders into the `[data-design-xray]` element; `createShortcuts` (`shortcuts.ts`) adds a window keydown listener
 - DOM: `Stage` (`stage.tsx`) attaches a ResizeObserver, captures pointers and changes viewport scrollLeft/scrollTop; `ComponentList` rows (`list.tsx`) call scrollIntoView when selected
 - Global state: `createXrayRouter` (`router.tsx`) reads `window.location.pathname` and rewrites the browser URL

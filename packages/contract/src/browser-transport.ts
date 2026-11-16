@@ -34,8 +34,7 @@ const CALL_DEADLINE_MS = 3000
 const MIN_RECONNECT_DELAY_MS = 250
 const MAX_RECONNECT_DELAY_MS = 2000
 const MIN_UPTIME_MS = 1000
-const CONNECTION_TIMEOUT_MS = 2000
-const ENSURE_TRUSTED_TIMEOUT_MS = 60_000
+const CONNECTION_TIMEOUT_MS = 30_000
 const TOKEN_STORAGE_PREFIX = 'conciv:engine-token:'
 const MAGIC_LINK_PARAM = 'conciv_otp'
 const UNAUTHORIZED_STATUS = 401
@@ -61,7 +60,6 @@ export type EngineTrust = {
   requestTrustWithToken: (token: string) => Promise<boolean>
   requestTrustWithCode: (code: string) => Promise<ExchangeResult>
   requestAuthCode: (options?: {reissue?: boolean}) => Promise<void>
-  ensureTrusted: (timeoutMs?: number) => Promise<boolean>
 }
 
 type TrustState = {
@@ -418,22 +416,6 @@ function makeEngineTrust(key: string, state: TrustState, link: ClientLink<RpcCli
     requestAuthCode: async (options = {}) => {
       await auth.requestCode({reissue: options.reissue ?? false}, {signal: AbortSignal.timeout(CALL_DEADLINE_MS)})
     },
-    ensureTrusted: (timeoutMs = ENSURE_TRUSTED_TIMEOUT_MS) =>
-      new Promise<boolean>((resolve) => {
-        if (state.status === 'trusted') {
-          resolve(true)
-          return
-        }
-        const settle = (trusted: boolean): void => {
-          clearTimeout(timer)
-          unsubscribe()
-          resolve(trusted)
-        }
-        const timer = setTimeout(() => settle(false), timeoutMs)
-        const unsubscribe = subscribe((status) => {
-          if (status === 'trusted') settle(true)
-        })
-      }),
   }
 }
 
@@ -485,9 +467,14 @@ function socketConnection(key: string, state: TrustState): ConnectionEntry {
         return rpc.call(path, input, options)
       }
       const deadline = performance.now() + CALL_DEADLINE_MS
-      const shouldRetry = (attempt: ClientRetryPluginAttemptOptions<RpcClientContext>): boolean =>
-        performance.now() < deadline && retriable(lifetime.signal, attempt)
-      return rpc.call(path, input, {...options, context: {shouldRetry, ...options.context}})
+      const asked = options.context.shouldRetry
+      const callerRetries = async (attempt: ClientRetryPluginAttemptOptions<RpcClientContext>): Promise<boolean> => {
+        if (asked === undefined) return performance.now() < deadline && retriable(lifetime.signal, attempt)
+        return typeof asked === 'function' ? asked(attempt) : asked
+      }
+      const shouldRetry = async (attempt: ClientRetryPluginAttemptOptions<RpcClientContext>): Promise<boolean> =>
+        !lifetime.signal.aborted && (await callerRetries(attempt))
+      return rpc.call(path, input, {...options, context: {...options.context, shouldRetry}})
     },
   }
   const trust = makeEngineTrust(key, state, link)

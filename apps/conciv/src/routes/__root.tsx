@@ -219,8 +219,8 @@ function AppRoot() {
                       apiBase={app.apiBase}
                       toast={showToast}
                       openEditor={(file, line) =>
-                        void app.rpc.editor
-                          .open({file, line})
+                        void app.rpc.plugin
+                          .call({rpcId: 'server', method: 'open', input: {file, ...(line === undefined ? {} : {line})}})
                           .catch(() => showToast(`could not open ${file} in the editor`, 'error'))
                       }
                       registerLayer={(isOpen, hides) => layers.register(isOpen, hides)}

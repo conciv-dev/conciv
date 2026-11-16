@@ -571,7 +571,6 @@ describe('chat plane', () => {
       root,
       storeCapture: () => Promise.resolve(),
       bundler: () => undefined,
-      openInEditor: () => {},
       listTabs: async () => ({tabs: [], unreachable: []}),
     })
     const runtime = makeCoreRuntime({
@@ -593,6 +592,7 @@ describe('chat plane', () => {
           startedQueues: () => [],
           outsideCapabilities: async () => [],
           admitCall: (id, call) => withoutDriver.admitCall(id, call),
+          driving: (id) => withoutDriver.driving(id),
           resolveSession: async () => runtime.forSession(codeless),
           admitOutside: async () => null,
           hubRefusal: () => null,
@@ -1214,7 +1214,12 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
       const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
       const {sessionId} = await makeRpcClient(base).sessions.create(undefined)
       const rpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
-      const open = (column?: number) => rpc.editor.open({file: 'src/a.ts', line: 3, column})
+      const open = (column?: number) =>
+        rpc.plugin.call({
+          rpcId: 'server',
+          method: 'open',
+          input: {file: 'src/a.ts', line: 3, ...(column === undefined ? {} : {column})},
+        })
       await open(9)
       await open(9)
       expect(launched).toEqual([['src/a.ts', 3, 9]])
@@ -1240,10 +1245,27 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
     await once(probe.close(), 'close')
   })
 
-  it('a taken port fails start with the bind error even when disposing an extension also fails', async () => {
+  it('a taken port fails start with the bind error before any extension is built', async () => {
     const port = await getPort()
     const taken = createServer().listen(port, '127.0.0.1')
     await once(taken, 'listening')
+    const built: string[] = []
+    const counted = defineExtension({name: 'counted'}).server(() => {
+      built.push('counted')
+      return {context: null}
+    })
+    try {
+      const booting = bootEngine(tempDir('conciv-core-unit-'), {port: {exact: port}, extensions: [counted]})
+      await expect(booting).rejects.toMatchObject({code: 'EADDRINUSE'})
+      expect(built).toEqual([])
+    } finally {
+      await once(taken.close(), 'close')
+    }
+  })
+
+  it('a failed endpoint write fails start with its own error even when disposing an extension also fails', async () => {
+    const root = tempDir('conciv-core-unit-')
+    mkdirSync(join(statePaths(root).dir, 'mcp-endpoint.json'), {recursive: true})
     const written = vi.spyOn(console, 'error')
     const failingDispose = defineExtension({name: 'failing-dispose'}).server(() => ({
       context: null,
@@ -1252,16 +1274,70 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
       },
     }))
     try {
-      const booting = bootEngine(tempDir('conciv-core-unit-'), {port: {exact: port}, extensions: [failingDispose]})
-      await expect(booting).rejects.toMatchObject({code: 'EADDRINUSE'})
+      await expect(bootEngine(root, {extensions: [failingDispose]})).rejects.toMatchObject({syscall: 'rename'})
       const logged = written.mock.calls.flat().map(String).join('\n')
       expect.soft(logged).toContain('conciv: cleanup after a failed start also failed')
       expect.soft(logged).toContain('extension dispose failed')
     } finally {
       written.mockRestore()
-      await once(taken.close(), 'close')
     }
   })
+
+  it('a request that reaches the engine while its app is failing to build fails instead of hanging, and the port is released', async () => {
+    const port = await getPort()
+    const root = tempDir('conciv-core-unit-')
+    const seeded = openDb(root)
+    seeded.run(
+      sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+    )
+    seeded.$client.close()
+    const outcomes: Array<Promise<number | 'dropped'>> = []
+    const knocking = defineExtension({name: 'knocking'}).server(async () => {
+      const request = httpRequest({host: '127.0.0.1', port, path: '/health', headers: {expect: '100-continue'}})
+      outcomes.push(
+        new Promise((resolve) => {
+          request.on('response', (response) => resolve(response.statusCode ?? 0))
+          request.on('error', () => resolve('dropped'))
+        }),
+      )
+      await once(request.end(), 'continue')
+      return {context: null}
+    })
+    await expect(bootEngine(root, {port: {exact: port}, extensions: [knocking]})).rejects.toThrow(/is not valid JSON/)
+    expect(await Promise.all(outcomes)).toEqual([expect.toBeOneOf([500, 'dropped'])])
+    const probe = createServer().listen(port, '127.0.0.1')
+    await expect(once(probe, 'listening')).resolves.toEqual([])
+    await once(probe.close(), 'close')
+  }, 20_000)
+
+  it('a start that fails to build its app leaves server.json as it found it: absent when there was none, and naming the engine still running in that project', async () => {
+    const seedUnreadableRun = (root: string): void => {
+      const seeded = openDb(root)
+      seeded.run(
+        sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+      )
+      seeded.$client.close()
+    }
+    const RecordSchema = z.object({port: z.number(), token: z.string()})
+    const readRecord = (root: string) =>
+      RecordSchema.parse(JSON.parse(readFileSync(join(concivStateDir(root), 'server.json'), 'utf8')))
+
+    const fresh = tempDir('conciv-core-unit-')
+    seedUnreadableRun(fresh)
+    await expect(bootEngine(fresh)).rejects.toThrow(/is not valid JSON/)
+    expect.soft(existsSync(join(concivStateDir(fresh), 'server.json'))).toBe(false)
+
+    const root = tempDir('conciv-core-unit-')
+    const running = await bootEngine(root)
+    onTestFinished(() => running.stop())
+    expect(readRecord(root)).toEqual({port: running.port, token: running.agentToken})
+    seedUnreadableRun(root)
+    await expect(bootEngine(root)).rejects.toThrow(/is not valid JSON/)
+    const record = readRecord(root)
+    expect.soft(record).toEqual({port: running.port, token: running.agentToken})
+    const health = await fetch(`http://127.0.0.1:${record.port}/health`)
+    expect(await health.json()).toMatchObject({ok: true})
+  }, 20_000)
 })
 
 describe('configured session rows', () => {
@@ -2073,7 +2149,6 @@ describe('page bus and the session scope', () => {
         root: fixture.stateRoot,
         storeCapture: () => Promise.resolve(),
         bundler: () => undefined,
-        openInEditor: () => {},
         listTabs: async () => ({tabs: [], unreachable: []}),
       })
       const clicker = defineTool({
@@ -3168,7 +3243,7 @@ describe('plugin host bus', () => {
     onTestFinished(() => kit.cleanup())
     const made = booted[0]
     if (made === undefined) throw new Error('the deletion kit booted no app')
-    await made.startPlugins()
+    await made.awaitActivation()
     const created = async () => SessionId.parse((await kit.rpc.sessions.create(undefined)).sessionId)
     const running = await created()
     const idling = await created()
@@ -3371,7 +3446,7 @@ describe('session prompt hook', () => {
     onTestFinished(() => kit.cleanup())
     const made = booted[0]
     if (made === undefined) throw new Error('the prompt kit booted no app')
-    if (started) await made.startPlugins()
+    if (started) await made.awaitActivation()
     return {kit, made, asked}
   }
 
@@ -3507,7 +3582,7 @@ describe('session prompt hook', () => {
     })
     const {kit, made, asked} = await promptKit([plugin], false)
     const session = await kit.session()
-    const activating = made.startPlugins()
+    const activating = made.awaitActivation()
     await entered.promise
 
     const turn = await kit.turn('Original', {session})
@@ -4014,8 +4089,22 @@ describe('direct tools on the MCP surface', () => {
 
   it('a codemode false tool is its own MCP tool that runs without an approval card, an outside run keeps it, and a session that denies execute lists every plugin tool directly and no execute tool', async () => {
     const root = tempDir('conciv-core-unit-')
-    const {made, origin, stop} = await serveCore(root, [], {})
+    const restarts: boolean[] = []
+    const bridge = defineBundlerBridge({
+      id: 'unit-direct-bundler',
+      config: () => ({root, base: '/', mode: 'development', aliases: [], plugins: []}),
+      resolve: async (spec) => ({id: spec}),
+      moduleGraph: () => [],
+      transform: async () => ({code: null}),
+      urls: () => ({local: [], network: []}),
+      reload: async () => undefined,
+      restart: async (force) => {
+        restarts.push(force ?? false)
+      },
+    })
+    const {made, origin, stop} = await serveCore(root, [], {bridge})
     onTestFinished(stop)
+    await made.awaitActivation()
     const id = SessionId.parse('conciv_mcp_direct')
     await ensureRow(made.chat.db, id, made.chat.defaultHarness.id, root)
     const scope = made.pluginHost.runSync(Scope.make())
@@ -4122,13 +4211,14 @@ describe('direct tools on the MCP surface', () => {
       'external_server_config',
       'external_server_graph',
       'external_server_resolve',
+      'external_server_restart',
       'external_server_transform',
       'external_server_urls',
       'external_tabs',
       'external_unit_coded',
     ])
     expect(execute).toMatch(/^- page \(41 tools/m)
-    expect(execute).toMatch(/^- server \(5 tools/m)
+    expect(execute).toMatch(/^- server \(6 tools/m)
     expect(execute).toMatch(/^- conciv \(2 tools/m)
     const searched = ToolCalled.parse(
       await post('tools/call', {
@@ -4140,6 +4230,18 @@ describe('direct tools on the MCP surface', () => {
     const called = ToolCalled.parse(await post('tools/call', {name: 'unit_direct', arguments: {text: 'hi'}}))
     expect(called.result.isError).not.toBe(true)
     expect(called.result.content.map((part) => part.text).join('')).toContain('direct hi')
+    expect((await made.plane.hydrate(id)).pendingApprovals).toEqual([])
+    const restarting = post('tools/call', {
+      name: 'execute_typescript',
+      arguments: {typescriptCode: 'return await external_server_restart({force: true})'},
+    })
+    await vi.waitFor(async () => expect((await made.plane.hydrate(id)).pendingApprovals).toHaveLength(1))
+    expect(restarts).toEqual([])
+    const [restartAsk] = (await made.plane.hydrate(id)).pendingApprovals
+    const widget = makeRpcClient(`${origin}/t/${made.agentToken}`, {headers: {[CONCIV_SESSION_HEADER]: id}})
+    await widget.chat.permissionDecision({approvalId: restartAsk?.approvalId ?? '', approved: true})
+    expect(ToolCalled.parse(await restarting).result.isError).not.toBe(true)
+    expect(restarts).toEqual([true])
     expect((await made.plane.hydrate(id)).pendingApprovals).toEqual([])
 
     const direct: CodeCapability = {
@@ -4158,11 +4260,22 @@ describe('direct tools on the MCP surface', () => {
     })
 
     await setPermissions(made.chat.db, id, [{action: 'execute', resource: '*', effect: 'deny'}])
-    expect((await listed()).toSorted()).toEqual(['unit_coded', 'unit_direct'])
+    expect((await listed()).toSorted()).toEqual([
+      'open',
+      'server_config',
+      'server_graph',
+      'server_resolve',
+      'server_restart',
+      'server_transform',
+      'server_urls',
+      'skill',
+      'unit_coded',
+      'unit_direct',
+    ])
     const shut = ToolCalled.parse(await post('tools/call', {name: 'unit_coded', arguments: {text: 'shut'}}))
     expect(shut.result.content.map((part) => part.text).join('')).toContain('coded shut')
 
-    const builtIn = open.filter((name) => name !== 'unit_direct')
+    const builtIn = open.filter((name) => name !== 'unit_direct' && name !== 'skill')
     const searchedCoded = async () =>
       ToolCalled.parse(
         await post('tools/call', {

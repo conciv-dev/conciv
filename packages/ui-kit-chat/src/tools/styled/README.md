@@ -6,7 +6,7 @@ Themed tool-call cards and building blocks: the generic tool card and fallback, 
 
 ## Interface
 
-- `tool-card.tsx:ToolCard`; `tool-fallback.tsx:ToolFallback`, `toolFallbackCardView`, `toolFallbackHasEmbeddedBody`; `tool-call-card.tsx:ToolCallCard`, `ToolTraceRow`.
+- `tool-card.tsx:ToolCard`; `tool-fallback.tsx:ToolFallback`, `toolFallbackCardView`, `toolFallbackHasEmbeddedBody`; `generic-tool-headline.ts:genericToolHeadline` (as opencode's GenericTool: title 'Called <tool>', subtitle from the first non-empty of description, query, url, path, pattern, name, and up to three other scalar inputs as `key=value`), `genericToolRowProjection`; `tool-call-card.tsx:ToolCallCard`, `ToolTraceRow` (a row whose card published no header and has no catalog meta is drawn from `genericToolRowProjection`: the subtitle or first argument, then the arguments).
 - `card-shell.tsx:CardShell`, `cardHeader`, `detailChips`; `card-chrome.tsx:CardChromeProvider`, `useCardChrome`, `useEmbeddedCard`; `card-headline.tsx:CardHeadline`; `collapsible-card.tsx:CollapsibleCard` (kit-internal).
 - `meta-tool-card.tsx:MetaToolCard`, `metaToolHasEmbeddedBody`; `permission-card.tsx:PermissionCard`.
 - `chip.tsx:Chip`, `ChipRow`, `ChipGroup`, `CHIP`; `code-block.tsx:CodeBlock`, `DiffBlock`, `diffBlockClass`; `json-tree.tsx:JsonTree`; `shaped-content.tsx:ShapedValue`; `error-block.tsx:ErrorBlock`; `result-image.tsx:ResultImage`.

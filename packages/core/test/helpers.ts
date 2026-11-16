@@ -18,7 +18,7 @@ import {
 } from '@conciv/harness-testkit'
 import {type BundlerBridge} from '@conciv/protocol/bundler-types'
 import {type ChatEvent, ChatEventType} from '@conciv/protocol/chat-event-types'
-import {type HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
+import {type HarnessSessionId, type HubAccess, SessionId} from '@conciv/protocol/chat-types'
 import {type PageOutcome} from '@conciv/protocol/page-types'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
@@ -84,6 +84,9 @@ export type BootOverrides = {
   openInEditor?: (file: string, line?: number, column?: number) => void
   bridge?: BundlerBridge
   firstChunkTimeoutMs?: number
+  pageReplyTimeoutMs?: number
+  queuedActionTimeoutMs?: number
+  hubAccess?: HubAccess
   harnesses?: HarnessAdapter[]
   systemPromptText?: string
   home?: string
@@ -113,7 +116,7 @@ export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): 
     sessionId: undefined,
     harnessSessionId: undefined,
     systemPrompt: '',
-    hubAccess: 'session',
+    hubAccess: overrides.hubAccess ?? 'session',
     plugins: overrides.configPlugins ?? [],
     policies: [],
   }
@@ -127,6 +130,8 @@ export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): 
     extensionConfig: overrides.extensionConfig,
     bridge: overrides.bridge,
     firstChunkTimeoutMs: overrides.firstChunkTimeoutMs,
+    pageReplyTimeoutMs: overrides.pageReplyTimeoutMs,
+    queuedActionTimeoutMs: overrides.queuedActionTimeoutMs,
     harnesses: overrides.harnesses,
     systemPromptText: overrides.systemPromptText,
     home: overrides.home,
@@ -145,8 +150,8 @@ export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): 
 
 export function bootCoreApp(overrides: BootOverrides = {}): BootApp {
   return async (env) => {
-    const {fetch, dispose, agentToken, startPlugins} = await bootMadeApp(env, overrides)
-    await startPlugins()
+    const {fetch, dispose, agentToken, awaitActivation} = await bootMadeApp(env, overrides)
+    await awaitActivation()
     return {fetch, dispose, agentToken}
   }
 }

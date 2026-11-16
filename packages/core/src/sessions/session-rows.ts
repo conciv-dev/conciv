@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {and, desc, eq, getTableColumns, inArray, isNotNull, isNull, lt, max, notInArray, or, sql} from 'drizzle-orm'
+import {and, desc, eq, getTableColumns, inArray, isNull, lt, max, notInArray, or, sql} from 'drizzle-orm'
 import {keyBy, mapValues, uniqBy} from 'es-toolkit'
 import {z} from 'zod'
 import type {SessionHit, SessionMeta} from '@conciv/contract'
@@ -25,7 +25,7 @@ import type {
   HarnessSessionMeta,
   HarnessSessionPage,
 } from '@conciv/protocol/harness-types'
-import {anchorKey, chatMetadata, chatRuns, markers, sessions, TRANSCRIPT_NAMESPACE, type ConcivDb} from '@conciv/db'
+import {anchorKey, chatMetadata, chatRuns, sessions, TRANSCRIPT_NAMESPACE, type ConcivDb} from '@conciv/db'
 import {realpathOrSelf, sameCwd} from '@conciv/harness/cwd'
 import {pageAfter} from '@conciv/harness/page'
 import {logError} from '../lib/debug.js'
@@ -115,21 +115,6 @@ export async function createRow(db: ConcivDb, input: FreshRowInput): Promise<Ses
   return record
 }
 
-export function reuseDeletedRow(db: ConcivDb, input: FreshRowInput): SessionRecord {
-  const record = freshRecord(input)
-  db.transaction((tx) => {
-    tx.delete(markers).where(eq(markers.sessionId, record.id)).run()
-    tx.delete(chatMetadata)
-      .where(and(eq(chatMetadata.namespace, EARLIER_NATIVES_NAMESPACE), eq(chatMetadata.key, record.id)))
-      .run()
-    tx.update(sessions)
-      .set(record)
-      .where(and(eq(sessions.id, record.id), isNotNull(sessions.deletedAt)))
-      .run()
-  })
-  return record
-}
-
 async function claimNativeRow(
   scope: RowScope,
   ref: NativeSessionRef,
@@ -203,11 +188,11 @@ async function latestRow(scope: RowScope): Promise<SessionRecord | null> {
   return mine ?? null
 }
 
-export async function resolveRow(scope: RowScope, body: {id?: string}): Promise<{sessionId: SessionId}> {
+export async function resolveRow(scope: RowScope, body: {id?: string}): Promise<{sessionId: SessionId} | null> {
   const mint = resolveMintId(scope)
   if (body.id && isSessionId(body.id)) {
     const existing = await rowById(scope.db, body.id)
-    if (existing) return {sessionId: existing.id}
+    if (existing) return existing.deletedAt === null ? {sessionId: existing.id} : null
     await ensureRow(scope.db, body.id, scope.harnessKind, scope.cwd)
     return {sessionId: body.id}
   }
@@ -215,7 +200,7 @@ export async function resolveRow(scope: RowScope, body: {id?: string}): Promise<
   if (nativeId.success) {
     const ref: NativeSessionRef = {harnessKind: scope.harnessKind, cwd: scope.cwd, nativeId: nativeId.data}
     const wrapped = await rowByNativeRef(scope.db, ref)
-    if (wrapped) return {sessionId: wrapped.id}
+    if (wrapped) return wrapped.deletedAt === null ? {sessionId: wrapped.id} : null
     const claimed = await claimNativeRow(scope, ref, 'external')
     return {sessionId: claimed.id}
   }
@@ -226,14 +211,9 @@ export async function resolveRow(scope: RowScope, body: {id?: string}): Promise<
   return {sessionId: minted}
 }
 
-export async function openNativeRow(scope: RowScope, ref: NativeSessionRef): Promise<{sessionId: SessionId}> {
+export async function openNativeRow(scope: RowScope, ref: NativeSessionRef): Promise<{sessionId: SessionId} | null> {
   const existing = await rowByNativeRef(scope.db, ref)
-  if (existing) {
-    if (existing.deletedAt !== null) {
-      await scope.db.update(sessions).set({deletedAt: null, updatedAt: Date.now()}).where(eq(sessions.id, existing.id))
-    }
-    return {sessionId: existing.id}
-  }
+  if (existing) return existing.deletedAt === null ? {sessionId: existing.id} : null
   const claimed = await claimNativeRow(scope, ref, 'external')
   return {sessionId: claimed.id}
 }
@@ -571,30 +551,30 @@ async function listedNative(
   earlierOwner: SessionRecord | undefined,
 ): Promise<ListedHit | null> {
   const preview = {harnessKind: native.harnessKind, cwd: resolveHome(native, input), nativeId: native.meta.id}
-  if (owner) return {row: await visibleRow(owner, input), native: native.meta, found: native.found, preview}
+  if (owner) return isListed(owner, input) ? {row: owner, native: native.meta, found: native.found, preview} : null
   if (earlierOwner) {
-    const row = await visibleRow(earlierOwner, input)
-    return input.search === null ? null : {row, native: undefined, found: native.found, preview}
+    if (!isListed(earlierOwner, input) || input.search === null) return null
+    return {row: earlierOwner, native: undefined, found: native.found, preview}
   }
-  return {row: await materializedRow(native, input), native: native.meta, found: native.found, preview}
+  const row = await materializedRow(native, input)
+  return row === null ? null : {row, native: native.meta, found: native.found, preview}
 }
 
-async function visibleRow(row: SessionRecord, input: SessionListInput): Promise<SessionRecord> {
-  if (row.deletedAt === null || input.includeHidden) return row
-  await restoreRow(input.db, row.id)
-  return {...row, deletedAt: null}
+function isListed(row: SessionRecord, input: SessionListInput): boolean {
+  return row.deletedAt === null || input.includeHidden
 }
 
-async function materializedRow(native: NativeSession, input: SessionListInput): Promise<SessionRecord> {
+async function materializedRow(native: NativeSession, input: SessionListInput): Promise<SessionRecord | null> {
   const cwd = resolveHome(native, input)
   const scope: RowScope = {db: input.db, harnessKind: native.harnessKind, cwd}
-  const {sessionId} = await openNativeRow(scope, {
+  const opened = await openNativeRow(scope, {
     harnessKind: native.harnessKind,
     cwd,
     nativeId: native.meta.id,
   })
-  const row = await rowById(input.db, sessionId)
-  if (row === null) throw new Error(`session row "${sessionId}" vanished while listing native sessions`)
+  if (opened === null) return null
+  const row = await rowById(input.db, opened.sessionId)
+  if (row === null) throw new Error(`session row "${opened.sessionId}" vanished while listing native sessions`)
   return row
 }
 
