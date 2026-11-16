@@ -52,23 +52,29 @@ function revokeOnCleanup(source: string | undefined): void {
   onCleanup(() => URL.revokeObjectURL(source))
 }
 
+function refusalReason(attachment: AttachmentState): string | undefined {
+  if (attachment.status.type !== 'incomplete') return undefined
+  return attachment.status.message ?? `${attachment.name} could not be attached`
+}
+
 export function AttachmentUI(props: {removable?: boolean; failure?: string}): JSX.Element {
   const draft = useAttachment()
   const localSrc = localImageSrc(draft)
   const previewSrc = imageSrc(draft) ?? localSrc
   revokeOnCleanup(localSrc)
-  const label = () => props.failure ?? draft.name
+  const failure = () => props.failure ?? refusalReason(draft)
+  const label = () => failure() ?? draft.name
   return (
     <Tooltip.Root positioning={{strategy: 'fixed', placement: 'top', gutter: 6}}>
       <Attachment.Root class={TILE}>
         <Show
-          when={props.failure ? undefined : previewSrc}
+          when={failure() ? undefined : previewSrc}
           fallback={
             <Tooltip.Trigger type="button" class={`size-full block ${FOCUS_INSET}`} aria-label={label()}>
               <span
-                class={`flex size-full items-center justify-center ${props.failure ? '[color:var(--chat-danger)]' : '[color:var(--chat-text-3)]'}`}
+                class={`flex size-full items-center justify-center ${failure() ? '[color:var(--chat-danger)]' : '[color:var(--chat-text-3)]'}`}
               >
-                <Show when={props.failure} fallback={<FileText size={28} />}>
+                <Show when={failure()} fallback={<FileText size={28} />}>
                   <TriangleAlert size={28} />
                 </Show>
               </span>
