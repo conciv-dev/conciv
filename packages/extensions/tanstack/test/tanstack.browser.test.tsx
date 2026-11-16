@@ -114,7 +114,7 @@ describe('router card', () => {
     apiBase: '',
     harnessId: 'claude',
     sendMessage: () => {},
-    addResult: () => {},
+    addResult: () => Promise.resolve(),
     catalog: {loaded: () => true, meta: (name) => metaByName.get(name)},
   }
 
@@ -410,7 +410,7 @@ describe('server card', () => {
     apiBase: '',
     harnessId: 'claude',
     sendMessage: () => {},
-    addResult: () => {},
+    addResult: () => Promise.resolve(),
     catalog: {loaded: () => true, meta: (name) => metaByName.get(name)},
   }
 

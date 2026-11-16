@@ -26,6 +26,7 @@ Server helpers for the core engine: loopback-only Host/Origin CORS middleware, t
 - `removeDevEndpoint` (`dev-endpoint.ts`): deletes only when the file is absent or invalid or its pid matches the caller
 - `writePrivateFile` (`dev-endpoint.ts`): mode 0600, temp file plus rename; removes the temp file on failure
 - `readPersistedPort` (`server-port.ts`): an integer 1-65535 or undefined
+- `writePersistedPort` (`server-port.ts`): returns a step that puts back the record it replaced (or removes the file when there was none), only while the file still holds what this write put there, so it never touches a record another engine wrote since
 - `withSavedModels` (`saved-models.ts`): a saved file is used only when it parses as a model list; every successful live list overwrites it, an empty one included (a harness with nothing usable, such as OpenCode with no credentials, stops offering models), while a failed probe never replaces a good list; once `signal` is aborted no refresh starts, a listing that answers anyway is not saved, and its failure is not logged as a failed refresh; a static `models` array passes through untouched
 - `makeStalenessProbe` (`engine-stamp.ts`): the fingerprint is the first 12 hex chars of sha256 over current digests
 
