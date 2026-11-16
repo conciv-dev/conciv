@@ -7211,7 +7211,7 @@ describe('installed plugins in settings', () => {
 describe('a fixture plugin driven like a user', () => {
   const PLUGIN_CALL = ['plugin', 'call']
 
-  const fixtureBundle = `const {Panel, Registry, SettingsPage, Slot, Store, useDrawer, usePanel} = require('@conciv/plugin/experimental')
+  const fixtureBundle = `const {Panel, Registry, SettingsPage, Slot, Store, createKeyed, useDrawer, usePanel} = require('@conciv/plugin/experimental')
 const {createComponent} = require('solid-js/web')
 const {createRenderEffect, createSignal} = require('solid-js')
 const {z} = require('zod')
@@ -7250,6 +7250,19 @@ module.exports = {default: {stores: {
   })
   ctx.add(Slot, {at: 'window.bottom', render: () => askedLine})
   ctx.add(Slot, {at: 'window.bottom', render: () => drawnLine})
+  const engineLine = document.createElement('p')
+  const engineAttaches = {count: 0}
+  createKeyed(
+    () => (ctx.servers.get('engine')?.connected ? 'engine' : undefined),
+    () => {
+      engineAttaches.count += 1
+      engineLine.textContent = 'Engine attached: ' + engineAttaches.count
+    },
+    {otherwise: () => {
+      engineLine.textContent = 'Engine detached after ' + engineAttaches.count
+    }},
+  )
+  ctx.add(Slot, {at: 'window.bottom', render: () => engineLine})
   const dialog = (title, body) =>
     ctx.dialogs.open(() => createComponent(ctx.ui.Dialog, {title, get children() { return body() }}))
   const second = () => dialog('Fixture second dialog', () => 'The second dialog is on top')
@@ -7379,6 +7392,17 @@ module.exports = {default: {setup(ctx) {
   const dialog = (name: string) => page.getByRole('dialog', {name, exact: true})
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const openedContent = () => page.getByText('The opened tab content', {exact: true})
+
+  test('its engine ref reads the event connection: down while the engine is offline, up again when it returns, and a keyed run attaches again', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    const engineLine = (text: string) => page.getByText(text, {exact: true})
+    await expect.element(engineLine('Engine attached: 1'), {timeout: 15_000}).toBeVisible()
+    const offline = await faults.install({kind: 'offline'})
+    await expect.element(engineLine('Engine detached after 1'), {timeout: 15_000}).toBeVisible()
+    await coreControl.releaseFault(offline)
+    await expect.element(engineLine('Engine attached: 2'), {timeout: 15_000}).toBeVisible()
+  })
 
   test('its dialogs stack and return focus, its composer writes wait for the chat, its opened and renamed tabs show, an unlisted tab goes back to the chat, and its draft opens a new session with its prompt in the composer', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
