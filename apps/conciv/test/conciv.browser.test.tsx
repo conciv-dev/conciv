@@ -59,19 +59,13 @@ import {
 } from '@conciv/ui-kit-chat'
 import '@conciv/ui-kit-chat/theme/tokens.css'
 import {useChatSession} from '@conciv/client'
-import {
-  defineAttachment,
-  defineExtension,
-  collectToolRenderers,
-  getExtensionApi,
-  type RegisterExtension,
-} from '@conciv/extension'
+import {defineAttachment, defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/extension'
 import {paneAttachments, returnQueueToDraft} from '../src/pane/pane-attachments.js'
 import type {ChatMessage, ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {formatDuration, INERT_TOOL_CTX, ToolCallCard, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
-import pageExtensionEntry from '@conciv/extension-page'
+import {PAGE_TOOL_PREFIX, builtinToolMeta, pageToolCards} from '@conciv/builtin-plugins/renderer'
 import {GRAB_FILE_NAME} from '@conciv/grab/grab-attachment'
 import type {Grab} from '@conciv/grab'
 import {QueueStrip} from '../src/pane/queue-strip.js'
@@ -115,7 +109,7 @@ import {coreToolCards, EXECUTE_TOOL_NAME} from '@conciv/core/cards'
 import {concivExtensionsToolDef, concivUiToolDef} from '@conciv/tools/defs'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS} from '@conciv/tools/builtins'
 import {createToolRegistry} from '@conciv/extension/registry'
-import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
+import {Operations} from '@conciv/plugin-page/rpc'
 import {Conciv} from '@conciv/plugin'
 import {pluginEnabled, type EnableState} from '@conciv/plugin/experimental/host'
 import {createManager} from '../src/runtime/plugin/manager.js'
@@ -5600,10 +5594,8 @@ describe('tool card dispatch', () => {
 
   const allTools = () => [...concivToolCards, ...builtinToolCards]
 
-  const realPageRenderers = collectToolRenderers([pageExtensionEntry])
-
-  it('an extension-supplied .render() card wins over builtinToolCards for the same tool', async () => {
-    const tools = [...realPageRenderers, ...builtinToolCards]
+  it('a built-in page card wins over builtinToolCards for the same tool', async () => {
+    const tools = [...pageToolCards, ...builtinToolCards]
 
     mount(() => (
       <ToolCallCard
@@ -5637,7 +5629,6 @@ describe('tool card dispatch', () => {
 describe('wire name coverage', () => {
   function realRegistry(): ReturnType<typeof createToolRegistry> {
     const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
-    for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a built-in page tool'})
     for (const tool of BUILTIN_SERVER_TOOLS) {
       registry.register(tool, {
         owner: 'a built-in server tool',
@@ -5657,6 +5648,7 @@ describe('wire name coverage', () => {
     CATALOG_TOOL_NAME,
     concivUiToolDef.name,
     concivExtensionsToolDef.name,
+    ...Operations.map((operation) => `${PAGE_TOOL_PREFIX}${operation.name}`),
     ...registry.catalog.list().map((entry) => entry.name),
   ]
 
@@ -5674,7 +5666,7 @@ describe('wire name coverage', () => {
   ]
 
   const concivOwnedCards: ToolCardEntry[] = [
-    ...collectToolRenderers([pageExtensionEntry]),
+    ...pageToolCards,
     ...concivToolCards,
     ...coreToolCards,
     ...builtinToolCards,
@@ -5685,7 +5677,10 @@ describe('wire name coverage', () => {
   it('every model-reachable tool name resolves to a card entry or catalog meta', () => {
     expect(modelReachableNames.length).toBeGreaterThan(10)
     const unresolved = modelReachableNames.filter(
-      (name) => !cardNames.has(name) && registry.catalog.list().every((entry) => entry.name !== name),
+      (name) =>
+        !cardNames.has(name) &&
+        builtinToolMeta(name) === undefined &&
+        registry.catalog.list().every((entry) => entry.name !== name),
     )
     expect(unresolved).toEqual([])
   })
