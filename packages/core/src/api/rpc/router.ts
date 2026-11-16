@@ -37,7 +37,7 @@ import type {SessionScope} from '../../runtime/scope-types.js'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {callTrace} from '../call-trace.js'
 import {openCodeSession, type CodeSandboxSession} from '../mcp.js'
-import {callPluginTool, pluginSignature, pluginSignatures} from '../../runtime/plugin-signatures.js'
+import {callPluginTool, isPageTool, pluginSignature, pluginSignatures} from '../../runtime/plugin-signatures.js'
 import type {SessionId} from '@conciv/protocol/chat-types'
 
 export const PAGE_ERROR_NAME = {
@@ -81,7 +81,7 @@ async function runPluginTool(
   call: {sessionId: SessionId; name: string; input: unknown; callId: string; signal?: AbortSignal},
   errors: RegistryErrors,
 ): Promise<unknown> {
-  if (!(await deps.queues.attachedSessions()).includes(call.sessionId))
+  if (isPageTool(call.name) && !(await deps.queues.attachedSessions()).includes(call.sessionId))
     throw errors.NO_PAGE_CLIENT({message: `${call.name}: no widget connected to session`, cause: undefined})
   const exit = await deps.pluginHost.runPromiseExit(
     callPluginTool(call.sessionId, call.name, call.input, call.callId),

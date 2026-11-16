@@ -16,6 +16,10 @@ const pageOperations = keyBy(Operations, (operation) =>
   ToolRuntime.effectiveName({name: operation.name, options: {namespace: PAGE_NAMESPACE}}),
 )
 
+export function isPageTool(name: string): boolean {
+  return CliTools[pageOperations[name]?.name ?? '']?.terminal === true
+}
+
 function cliInput(schema: unknown) {
   const parsed = ObjectSchema.parse(schema)
   return {
