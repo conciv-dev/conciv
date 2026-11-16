@@ -18,6 +18,10 @@ function reporters(configDir: string): ReporterDescription[] {
   return [['line'], ['json', {outputFile: 'test-results.json'}], cleanup]
 }
 
+function legacyStateDir(configDir: string): string {
+  return join(configDir, '.conciv-e2e')
+}
+
 export function e2eConfigDir(configFile: string | undefined): string {
   if (configFile === undefined) throw new Error('the e2e state folder needs a Playwright config file')
   return dirname(configFile)
@@ -35,7 +39,7 @@ function serverEntry(entry: {
   env: {CONCIV_HOME: string} & Record<string, string>
 }) {
   return {
-    command: `${entry.prepare} && (${entry.command}) 2>&1 | tee '${e2eServerLog(entry.configDir, entry.port)}'`,
+    command: `rm -rf '${legacyStateDir(entry.configDir)}' && ${entry.prepare} && (${entry.command}) 2>&1 | tee '${e2eServerLog(entry.configDir, entry.port)}'`,
     url: `http://localhost:${entry.port}`,
     reuseExistingServer: !process.env.CI,
     stdout: 'pipe' as const,
@@ -55,6 +59,7 @@ function runConcivHome(configDir: string): {CONCIV_HOME: string} {
 }
 
 export function emptyE2eState(configDir: string): void {
+  rmSync(legacyStateDir(configDir), {recursive: true, force: true})
   rmSync(e2eStateDir(configDir), {recursive: true, force: true})
   mkdirSync(e2eStateDir(configDir), {recursive: true})
 }
