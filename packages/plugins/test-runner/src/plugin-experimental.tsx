@@ -16,10 +16,19 @@ import {fixPrompt, TestsPanel} from './panel/tests-panel.js'
 
 type Client = Context['client']
 
-const TAB: PanelTab = {id: 'tests', title: 'Tests', pinned: true}
-
 export default Plugin.define({
   setup(ctx) {
+    const tab: PanelTab = {
+      id: 'tests',
+      title: 'Tests',
+      pinned: true,
+      label: () => (
+        <span class="inline-flex gap-1.5 items-center">
+          <ctx.ui.Icon name="flask-conical" size="small" />
+          Tests
+        </span>
+      ),
+    }
     const [run, setRun] = createStore(initialRunState)
     const dispatch = (action: RunAction) => setRun(reconcile(transitionRun(unwrap(run), action), {key: 'id'}))
 
@@ -73,13 +82,13 @@ export default Plugin.define({
 
     const fixFailure = (error: TestError, screen: SessionScreen, session: SessionRef, directory: string) => {
       screen.composer.insert(fixPrompt(error, directory))
-      ctx.layout.hide(`${ctx.id}:${TAB.id}`, session)
+      ctx.layout.hide(`${ctx.id}:${tab.id}`, session)
     }
 
     ctx.add(Panel, {
       id: 'tests',
       region: 'pane',
-      list: () => [TAB],
+      list: () => [tab],
       render: (props) => (
         <TestsPanel
           ui={ctx.ui}
