@@ -1,9 +1,11 @@
+import {execFile} from 'node:child_process'
 import {existsSync} from 'node:fs'
 import {randomBytes} from 'node:crypto'
-import {chmod, mkdir, readFile, readdir, writeFile} from 'node:fs/promises'
+import {chmod, mkdir, readFile, readdir, rm, symlink, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {describe, expect, it, onTestFinished} from 'vitest'
+import {promisify} from 'node:util'
+import {describe, expect, it, onTestFinished, vi} from 'vitest'
 import {z} from 'zod'
 import {connectMcpClient, makeDiscoverTools} from '@conciv/harness-testkit'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
@@ -16,6 +18,7 @@ const EventWindowSchema = z.object({events: z.array(RrwebEventSchema), cursor: z
 const LogSchema = z.object({entries: z.array(z.object({ts: z.number(), kind: z.string(), detail: z.string()}))})
 const SavedSchema = z.object({recordingId: z.string()})
 const RpcFailureSchema = z.object({data: z.object({type: z.string()})})
+const RpcErrorSchema = z.object({code: z.string(), status: z.number(), message: z.string(), data: z.unknown()})
 
 type RrwebEvent = z.infer<typeof RrwebEventSchema>
 
@@ -89,10 +92,14 @@ const WitnessSchema = z.object({
 
 const RECORDER_KIT = {id: 'fake', plugins: ['./witness', PACKAGE_DIR], files: {'witness/index.ts': WITNESS}}
 
-async function bootRecorder(stateRoot?: string): Promise<CoreKit> {
-  const kit = await bootCoreKit(stateRoot ? {...RECORDER_KIT, stateRoot} : RECORDER_KIT)
+async function bootRecorderKit(options: Parameters<typeof bootCoreKit>[0]): Promise<CoreKit> {
+  const kit = await bootCoreKit(options)
   onTestFinished(() => kit.cleanup())
   return kit
+}
+
+function bootRecorder(stateRoot?: string): Promise<CoreKit> {
+  return bootRecorderKit(stateRoot ? {...RECORDER_KIT, stateRoot} : RECORDER_KIT)
 }
 
 async function followEvents(kit: CoreKit): Promise<() => Promise<z.infer<typeof RecorderEventSchema>>> {
@@ -117,13 +124,21 @@ function useTool(kit: CoreKit, name: 'start' | 'stop' | 'pull', input: unknown =
   return kit.callTool(`recording_${name}`, input)
 }
 
-async function toolFailure(pending: Promise<unknown>): Promise<string> {
-  const failure = await pending.then(
-    () => new Error('the tool answered instead of failing'),
+function rejection(pending: Promise<unknown>, answered: string): Promise<unknown> {
+  return pending.then(
+    () => new Error(answered),
     (error: unknown) => error,
   )
+}
+
+async function toolFailureBody(pending: Promise<unknown>): Promise<unknown> {
+  const failure = await rejection(pending, 'the tool answered instead of failing')
   if (!(failure instanceof Error)) throw new Error(`the tool failed with a non-error: ${String(failure)}`)
-  return ExecuteFailureSchema.parse(JSON.parse(failure.message)).error.message
+  return JSON.parse(failure.message)
+}
+
+async function toolFailure(pending: Promise<unknown>): Promise<string> {
+  return ExecuteFailureSchema.parse(await toolFailureBody(pending)).error.message
 }
 
 const CodeResultSchema = z.object({result: z.string()})
@@ -181,11 +196,11 @@ function call(kit: CoreKit, method: string, input: unknown = {}): Promise<unknow
 }
 
 async function failureType(pending: Promise<unknown>): Promise<string> {
-  const failure = await pending.then(
-    () => new Error('the call answered instead of failing'),
-    (error: unknown) => error,
-  )
-  return RpcFailureSchema.parse(failure).data.type
+  return RpcFailureSchema.parse(await rejection(pending, 'the call answered instead of failing')).data.type
+}
+
+async function rpcFailure(pending: Promise<unknown>): Promise<z.infer<typeof RpcErrorSchema>> {
+  return RpcErrorSchema.parse(await rejection(pending, 'the call answered instead of failing'))
 }
 
 const RECORDING_CAP_BYTES = 16 * 1024 * 1024
@@ -619,5 +634,189 @@ describe('the recorder skill', () => {
     for (const name of ['external_recording_start', 'external_recording_stop', 'external_recording_pull']) {
       expect(loaded).toContain(name)
     }
+  })
+})
+
+const VIEWER_LEASE_PASSED_MS = 25_000
+const CAPTURE_TTL_PASSED_MS = 10 * 60_000 + 10_000
+const RELOAD_MARKER = `export default {id: 'reload-marker', async setup() {}}\n`
+const MARKER_FILE = 'conciv/plugins/before-recorder/index.ts'
+
+function useSweepClock(): void {
+  vi.useFakeTimers({toFake: ['setInterval', 'clearInterval', 'Date']})
+  onTestFinished(() => {
+    vi.useRealTimers()
+  })
+}
+
+function control(data: Record<string, boolean>): z.infer<typeof ControlEventSchema> {
+  return {type: 'rpc.recorder.control', data}
+}
+
+async function chromiumChildren(): Promise<number[]> {
+  const {stdout} = await promisify(execFile)('ps', ['-A', '-o', 'ppid=,pid=,comm='])
+  return stdout.split('\n').flatMap((line) => {
+    const [parent, pid, ...command] = line.trim().split(/\s+/)
+    const chromium = /chrom/i.test(command.join(' '))
+    return chromium && Number(parent) === process.pid ? [Number(pid)] : []
+  })
+}
+
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function bootLinkedRecorder(): Promise<{kit: CoreKit; link: string}> {
+  const folder = tempDir('conciv-recorder-lifecycle-')
+  const marker = join(folder, MARKER_FILE)
+  await mkdir(join(marker, '..'), {recursive: true})
+  await writeFile(marker, RELOAD_MARKER, 'utf8')
+  const link = join(folder, 'conciv', 'plugins', 'recorder')
+  await symlink(PACKAGE_DIR, link)
+  return {kit: await bootRecorderKit({id: 'fake', stateRoot: folder}), link}
+}
+
+async function renderedBy(kit: CoreKit, nextEvent: () => Promise<unknown>): Promise<number[]> {
+  const before = await chromiumChildren()
+  await call(kit, 'flush', {clientId: 'render', events: renderStream(Date.now() - 2000)})
+  expect(await nextEvent()).toMatchObject({type: 'rpc.recorder.appended'})
+  const [, ...images] = ModelPartsSchema.parse(await useTool(kit, 'pull', {secondsBack: 60, keyframes: 1}))
+  expect(images.map((image) => image.type)).toEqual(['image'])
+  return (await chromiumChildren()).filter((pid) => !before.includes(pid))
+}
+
+async function servedFresh(kit: CoreKit): Promise<void> {
+  await expect.poll(() => call(kit, 'state'), {timeout: 15_000}).toEqual({live: false})
+}
+
+describe('the recorder across a reload and an unload', () => {
+  it('closes its Chromium renderer, clears its sweep and drops its control listener when the host reloads it and when it is unloaded, and the next generation serves, renders and announces alone', async () => {
+    useSweepClock()
+    const {kit, link} = await bootLinkedRecorder()
+    const nextEvent = await followEvents(kit)
+    const intervals = vi.getTimerCount()
+
+    const first = await renderedBy(kit, nextEvent)
+    expect(first).toHaveLength(1)
+    expect(await call(kit, 'presence', {viewerId: 'first', live: true})).toEqual({ok: true})
+    expect(await nextEvent()).toEqual(control({live: true}))
+    expect(await nextEvent()).toEqual(control({snapshot: true, flush: true}))
+
+    kit.writeProjectFile(MARKER_FILE, `${RELOAD_MARKER}\n`)
+    await expect.poll(() => first.filter(alive), {timeout: 15_000}).toEqual([])
+    await servedFresh(kit)
+    expect(vi.getTimerCount()).toBe(intervals)
+    await vi.advanceTimersByTimeAsync(VIEWER_LEASE_PASSED_MS)
+    const second = await renderedBy(kit, nextEvent)
+    expect(second).toHaveLength(1)
+    expect(second).not.toEqual(first)
+    expect(await call(kit, 'presence', {viewerId: 'second', live: true})).toEqual({ok: true})
+    expect(await nextEvent()).toEqual(control({live: true}))
+    expect(await nextEvent()).toEqual(control({snapshot: true, flush: true}))
+
+    await rm(link)
+    await expect.poll(() => second.filter(alive), {timeout: 15_000}).toEqual([])
+    await expect
+      .poll(async () => (await kit.rpc.plugin.list()).data.map((entry) => entry.id), {timeout: 15_000})
+      .not.toContain('recorder')
+    expect(vi.getTimerCount()).toBe(intervals - 1)
+    await vi.advanceTimersByTimeAsync(VIEWER_LEASE_PASSED_MS)
+
+    await symlink(PACKAGE_DIR, link)
+    await servedFresh(kit)
+    expect(vi.getTimerCount()).toBe(intervals)
+    expect(await call(kit, 'presence', {viewerId: 'third', live: true})).toEqual({ok: true})
+    expect(await nextEvent()).toEqual(control({live: true}))
+  })
+})
+
+describe('the recorder failure shapes', () => {
+  it('hands the agent a refused stop and an internal tool rejection as tool errors, and the caller a render failure and a handler throw as plugin rpc errors', async () => {
+    const folder = tempDir('conciv-recorder-failures-')
+    const recordingsDir = join(folder, '.conciv', 'recorder', 'recordings')
+    await mkdir(recordingsDir, {recursive: true})
+    const locked = `${Date.now()}-000001-locked`
+    await writeFile(join(recordingsDir, `${locked}.json`), JSON.stringify({events: renderStream(Date.now())}), 'utf8')
+    await writeFile(join(recordingsDir, `${locked}.webm`), 'video', 'utf8')
+    const flat = `${Date.now()}-000002-flat`
+    await writeFile(
+      join(recordingsDir, `${flat}.json`),
+      JSON.stringify({events: fixtureStream(Date.now()).filter((event) => event.type !== 2)}),
+      'utf8',
+    )
+    await chmod(join(recordingsDir, `${locked}.webm`), 0o000)
+    onTestFinished(() => chmod(join(recordingsDir, `${locked}.webm`), 0o600))
+    const kit = await bootRecorder(folder)
+
+    expect(await toolFailureBody(useTool(kit, 'stop', {captureId: 'not-a-capture', keyframes: 0}))).toEqual({
+      error: {message: 'no active capture not-a-capture', name: 'Error'},
+    })
+
+    const base = Date.now()
+    await call(kit, 'flush', {
+      clientId: 'looped',
+      events: [
+        {type: 2, data: {node: pageFixture([buttonFixture(4, 5, 'Loop')])}, timestamp: base},
+        {
+          type: 3,
+          data: {source: 0, adds: [{parentId: 4, node: {id: 4, type: 2, tagName: 'button'}}]},
+          timestamp: base + 1,
+        },
+        {type: 3, data: {source: 2, type: 2, id: 4}, timestamp: base + 2},
+      ],
+    })
+    expect(await toolFailureBody(useTool(kit, 'pull', {secondsBack: 60, keyframes: 0}))).toEqual({
+      error: {message: 'Maximum call stack size exceeded', name: 'Error'},
+    })
+
+    expect(await rpcFailure(call(kit, 'recordings.exportVideo', {clientId: 'flat', id: flat, offset: 0}))).toEqual({
+      code: 'PLUGIN_RPC',
+      status: 400,
+      message: `The recording ${flat} could not be rendered to video`,
+      data: {type: 'render-failed', message: `The recording ${flat} could not be rendered to video`},
+    })
+
+    expect(await rpcFailure(call(kit, 'recordings.exportVideo', {clientId: 'locked', id: locked, offset: 0}))).toEqual({
+      code: 'PLUGIN_RPC_INTERNAL',
+      status: 500,
+      message: 'RPC call failed',
+      data: {type: 'rpc.internal', message: 'RPC call failed'},
+    })
+  })
+})
+
+describe('the recorder capture sweep', () => {
+  it('turns capture off once when a viewer lease runs out, ahead of a tool start after it, turns an expired capture off once, then refuses to stop it', async () => {
+    useSweepClock()
+    const kit = await bootRecorder()
+    const nextEvent = await followEvents(kit)
+
+    expect(await call(kit, 'presence', {viewerId: 'leased', live: true})).toEqual({ok: true})
+    expect(await nextEvent()).toEqual(control({live: true}))
+    expect(await nextEvent()).toEqual(control({snapshot: true, flush: true}))
+    await vi.advanceTimersByTimeAsync(VIEWER_LEASE_PASSED_MS)
+    expect(await call(kit, 'state')).toEqual({live: false})
+    await vi.advanceTimersByTimeAsync(VIEWER_LEASE_PASSED_MS)
+
+    const starting = useTool(kit, 'start')
+    expect(await nextEvent()).toEqual(control({live: false}))
+    expect(await nextEvent()).toEqual(control({live: true, snapshot: true, flush: true}))
+    await call(kit, 'flush', {clientId: 'page', events: fixtureStream(Date.now())})
+    const started = StartedSchema.parse(await starting)
+    expect(await nextEvent()).toMatchObject({type: 'rpc.recorder.appended'})
+
+    await vi.advanceTimersByTimeAsync(CAPTURE_TTL_PASSED_MS)
+    expect(await call(kit, 'state')).toEqual({live: false})
+    expect(await toolFailure(useTool(kit, 'stop', {captureId: started.captureId, keyframes: 0}))).toBe(
+      `no active capture ${started.captureId}`,
+    )
+    expect(await call(kit, 'presence', {viewerId: 'returning', live: true})).toEqual({ok: true})
+    expect(await nextEvent()).toEqual(control({live: false}))
+    expect(await nextEvent()).toEqual(control({live: true}))
   })
 })
