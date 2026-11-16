@@ -56,7 +56,7 @@ function finished(entry: Minted): boolean {
   return entry.spawned.every((spawned) => !groupAlive(spawned.pid))
 }
 
-async function killLeftovers(spawned: SpawnHandle): Promise<void> {
+export async function killLeftovers(spawned: {pid: number; kill: (signal: NodeJS.Signals) => unknown}): Promise<void> {
   if (await groupExited(spawned.pid)) return
   await spawned.kill('SIGKILL')
   await groupExited(spawned.pid)

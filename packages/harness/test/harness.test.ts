@@ -1768,6 +1768,33 @@ describe('opencode models', () => {
     await listing
     expect(() => process.kill(pid, 0)).toThrow('ESRCH')
   })
+
+  it('ends an opencode CLI that ignores the stop: the aborted listing settles and its process group is gone', async () => {
+    const bin = tempDir('conciv-fake-opencode-')
+    const pidPipe = join(bin, 'pid')
+    execFileSync('mkfifo', [pidPipe])
+    await writeFile(join(bin, 'opencode'), `#!/bin/sh\ntrap '' TERM\necho $$ > "${pidPipe}"\nexec cat\n`, {
+      mode: 0o755,
+    })
+    process.env.PATH = `${bin}:${savedPath ?? ''}`
+    const stop = new AbortController()
+    const stopped = new Error('the engine stopped')
+    const listing = expect(resolveHarnessModels(opencode, {signal: stop.signal})).rejects.toMatchObject({
+      name: 'AbortError',
+      cause: stopped,
+    })
+    const pid = Number(await readFile(pidPipe, 'utf8'))
+    onTestFinished(() => {
+      try {
+        process.kill(pid, 'SIGKILL')
+      } catch (error) {
+        expect(error).toMatchObject({code: 'ESRCH'})
+      }
+    })
+    stop.abort(stopped)
+    await listing
+    expect(() => process.kill(-pid, 0)).toThrow('ESRCH')
+  })
 })
 
 describe('opencode history', () => {
