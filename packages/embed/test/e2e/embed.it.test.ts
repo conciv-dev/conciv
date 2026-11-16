@@ -1404,6 +1404,31 @@ test.describe('page dispatch parity', () => {
     test('act: page_click acts on the page, journals, and shows the agent cursor', async () => {
       await expectClickDispatched(kit, page)
     })
+
+    test('page reload: a page_reload run from the chat resolves on initiation and the page really reloads', async () => {
+      const sessionId = await kit.session()
+      await page.getByRole('button', {name: 'Press target'}).click()
+      await expect(page.getByText('clicked', {exact: true})).toBeVisible()
+      const toolCallId = kit.harness.script.scriptToolCall('execute_typescript', {
+        typescriptCode: 'return await external_page_reload({})',
+      })
+      await page.getByRole('textbox', {name: 'Message the conciv agent'}).fill('reload the page')
+      await page.getByRole('button', {name: 'Send message'}).click()
+      await expect(page.getByText('clicked', {exact: true})).toBeHidden()
+      await expect(page.getByRole('button', {name: 'Press target'})).toBeVisible()
+      await expect
+        .poll(async () => {
+          const {messages} = await kit.rpc.chat.hydrate({sessionId})
+          return messages
+            .flatMap((message) =>
+              message.parts.flatMap((part) =>
+                part.type === 'tool-result' && part.toolCallId === toolCallId ? [part.content] : [],
+              ),
+            )
+            .join('\n')
+        })
+        .toContain('"initiated":true')
+    })
   })
 
   test.describe('bootConnect: the connect handle serves page tools through the dispatcher', () => {
