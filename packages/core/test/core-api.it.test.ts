@@ -6623,6 +6623,94 @@ export default {
     expect(await prompted('greet-run')).toContain('<id>greet</id>')
     expect(await load('greet')).toContain('Greet twice.')
   })
+
+  const DEPLOY_RPC = `import {z} from ${JSON.stringify(import.meta.resolve('zod'))}
+import {Rpc} from ${JSON.stringify(import.meta.resolve('@conciv/plugin/rpc'))}
+
+export const Deploy = Rpc.define({
+  id: 'deploy',
+  methods: {run: {input: z.object({env: z.enum(['staging', 'prod'])}), output: z.object({url: z.string()})}},
+  events: {},
+})
+`
+
+  const DEPLOY_INDEX = `import {Plugin} from ${JSON.stringify(import.meta.resolve('@conciv/plugin'))}
+import {Deploy} from './rpc.js'
+
+const description = 'Deploy the current branch'
+
+const run = async ({env}: {env: 'staging' | 'prod'}) => ({url: \`https://\${env}.example.com\`})
+
+export default Plugin.define({
+  id: 'deploy',
+  async setup(ctx) {
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'run',
+        description,
+        input: Deploy.methods.run.input,
+        output: Deploy.methods.run.output,
+        options: {namespace: 'deploy'},
+        execute: async (input) => ({output: await run(input)}),
+      })
+    })
+    await ctx.skill.transform((skills) => {
+      skills.add({
+        id: 'deploy',
+        name: 'Deploy',
+        description: \`\${description}.\`,
+        path: 'skill://deploy/SKILL.md',
+        content: 'You can deploy from code mode with \`external_deploy_run\`.',
+      })
+    })
+    const registration = await ctx.rpc.register(Deploy, {run})
+    return () => registration.dispose()
+  },
+})
+`
+
+  it('a plugin folder in the project offers its deploy tool to code mode, answers its deploy method and teaches its skill', async () => {
+    const root = tempDir('conciv-deploy-')
+    mkdirSync(join(root, 'conciv', 'plugins', 'deploy'), {recursive: true})
+    writeFileSync(join(root, 'conciv', 'plugins', 'deploy', 'index.ts'), DEPLOY_INDEX)
+    writeFileSync(join(root, 'conciv', 'plugins', 'deploy', 'rpc.ts'), DEPLOY_RPC)
+    const engine = await start({
+      options: {stateRoot: root},
+      root,
+      launchEditor: () => {},
+      harness: createFakeHarness(),
+      homeDir: tempDir('conciv-home-'),
+    })
+    onTestFinished(() => engine.stop())
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+
+    expect((await makeRpcClient(base).plugin.list()).data.find((plugin) => plugin.id === 'deploy')).toMatchObject({
+      id: 'deploy',
+      source: {type: 'local', path: join(root, 'conciv', 'plugins', 'deploy')},
+      state: {status: 'active'},
+    })
+    const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    expect(
+      JSON.stringify(
+        await executeOverMcp(
+          base,
+          {[CONCIV_SESSION_HEADER]: sessionId},
+          "return await external_deploy_run({env: 'staging'})",
+        ),
+      ),
+    ).toContain('https://staging.example.com')
+    expect(
+      await makeRpcClient(base).plugin.call(
+        {rpcId: 'deploy', method: 'run', input: {env: 'prod'}},
+        {signal: AbortSignal.timeout(5000)},
+      ),
+    ).toEqual({url: 'https://prod.example.com'})
+    const mcp = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: sessionId})
+    onTestFinished(() => mcp.close())
+    expect(
+      JSON.stringify(await (await mcp.tools()).find((entry) => entry.name === 'skill')?.execute?.({id: 'deploy'})),
+    ).toContain('You can deploy from code mode with `external_deploy_run`.')
+  })
 })
 
 describe('a plugin tool that asks, across a reload of its plugin', () => {
