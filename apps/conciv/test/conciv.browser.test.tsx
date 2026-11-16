@@ -7170,6 +7170,22 @@ describe('installed plugins in settings', () => {
     await expect.element(page.getByText('conciv.page', {exact: true})).not.toBeInTheDocument()
     await expect.element(page.getByRole('switch', {name: 'conciv.page'})).not.toBeInTheDocument()
   }, 60_000)
+
+  test('each engine-only plugin a user adds one after another gets its own row', async () => {
+    await page.viewport(1000, 900)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`, [])
+    await expect.element(tab('Plugins'), {timeout: 8000}).toHaveAttribute('aria-selected', 'true')
+
+    await coreControl.writeProjectFile(
+      'conciv/plugins/earlier.ts',
+      "export default {id: 'earlier', async setup() {}}\n",
+    )
+    await expect.element(page.getByText('earlier', {exact: true}), {timeout: 15_000}).toBeVisible()
+
+    await coreControl.writeProjectFile('conciv/plugins/later.ts', "export default {id: 'later', async setup() {}}\n")
+    await expect.element(page.getByText('later', {exact: true}), {timeout: 15_000}).toBeVisible()
+  }, 60_000)
 })
 
 describe('a fixture plugin driven like a user', () => {
