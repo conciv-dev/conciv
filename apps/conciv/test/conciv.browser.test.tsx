@@ -4222,6 +4222,89 @@ describe('panel view tabs', () => {
       expect(page.getByRole('log').getByText(new RegExp(steered)).elements()).toHaveLength(0)
     }, 30_000)
 
+    describe('the queue and a refused steer returned while their pane is away', () => {
+      const DRAFT_SET_PATH = ['drafts', 'set']
+
+      async function steerAwayWhileSaving(
+        tag: string,
+        draftFault: {kind: 'gate' | 'fail'; path: string[]},
+      ): Promise<{running: string; titles: Titles; joined: string; inOrder: RegExp; draftWrite: string}> {
+        const {running, titles} = await twoSessions(tag)
+        const steered = `steer the ${tag} one away`
+        const waiting = `wait in the ${tag} line`
+        const queueRow = (text: string) => page.getByRole('listitem').filter({hasText: text})
+        await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
+        await coreControl.holdTurn()
+        harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+        await composer().fill('start a long turn')
+        await userEvent.keyboard('{Enter}')
+        await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
+        await composer().fill(steered)
+        await userEvent.keyboard('{Enter}')
+        await expect.element(queueRow(steered)).toBeVisible()
+        await composer().fill(waiting)
+        await userEvent.keyboard('{Enter}')
+        await expect.element(queueRow(waiting)).toBeVisible()
+        const refused = await faults.install({kind: 'chat-refused', status: 500})
+        const held = await faults.install({kind: 'chat-gate'})
+        await queueRow(steered).getByRole('button', {name: 'Steer'}).click()
+        await coreControl.awaitFaultPending(held, 1)
+        await switchToOther(titles)
+        const draftWrite = await faults.install(draftFault)
+        await coreControl.releaseFault(held)
+        await expect
+          .element(page.getByRole('region', {name: /Notifications/}))
+          .toMatchTextContent(/Internal Server Error|could not be sent/)
+        await coreControl.releaseFault(refused)
+        return {
+          running,
+          titles,
+          joined: `${steered}\n${waiting}`,
+          inOrder: new RegExp(`${steered}[\\s\\S]*${waiting}`),
+          draftWrite,
+        }
+      }
+
+      async function goBack(titles: Titles): Promise<void> {
+        await openSessions(titles.other)
+        await option(new RegExp(`^${titles.running}`)).click()
+      }
+
+      test('with the first save held, both texts are in the composer at once and reach the engine in order', async () => {
+        const {running, titles, joined, inOrder, draftWrite} = await steerAwayWhileSaving('held', {
+          kind: 'gate',
+          path: DRAFT_SET_PATH,
+        })
+        await coreControl.awaitFaultPending(draftWrite, 1)
+
+        await goBack(titles)
+
+        await expect.element(composer(), {timeout: 8000}).toMatchTextContent(inOrder)
+        await coreControl.releaseFault(draftWrite)
+        await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, 1, [], {sessionId: running, text: joined})
+        expect(await coreRpc(coreBase()).drafts.get({sessionId: running})).toMatchObject({text: joined})
+      }, 30_000)
+
+      test('with the first save refused, the notice says so, both texts stay in the composer, and Retry saves them', async () => {
+        const {running, titles, joined, inOrder, draftWrite} = await steerAwayWhileSaving('refused', {
+          kind: 'fail',
+          path: DRAFT_SET_PATH,
+        })
+        const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
+
+        await goBack(titles)
+
+        await expect.element(composer(), {timeout: 8000}).toMatchTextContent(inOrder)
+        await expect.element(unsaved, {timeout: 30_000}).toBeVisible()
+        await expect.element(composer()).toMatchTextContent(inOrder)
+        await coreControl.releaseFault(draftWrite)
+        await userEvent.click(unsaved.getByRole('button', {name: 'Retry'}))
+        await expect.element(unsaved).not.toBeInTheDocument()
+        await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, 1, [], {sessionId: running, text: joined})
+        expect(await coreRpc(coreBase()).drafts.get({sessionId: running})).toMatchObject({text: joined})
+      }, 60_000)
+    })
+
     test('a run that ends while the connection is down settles once the replacement client hydrates', async () => {
       const {running, titles} = await twoSessions('offline')
       const [connection, setConnection] = createStore({apiBase: coreBase()})
