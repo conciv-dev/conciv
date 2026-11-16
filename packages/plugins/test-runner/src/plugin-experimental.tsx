@@ -23,10 +23,10 @@ export default Plugin.define({
       title: 'Tests',
       pinned: true,
       label: () => (
-        <span class="inline-flex gap-1.5 items-center">
+        <>
           <ctx.ui.Icon name="flask-conical" size="small" />
           Tests
-        </span>
+        </>
       ),
     }
     const [run, setRun] = createStore(initialRunState)
