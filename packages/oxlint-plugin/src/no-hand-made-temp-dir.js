@@ -82,25 +82,40 @@ function isUndeclared(identifier, sourceCode) {
   return (reference?.resolved?.defs.length ?? 0) === 0
 }
 
+function isGlobalProcess(object, sourceCode) {
+  return object.name === 'process' && isUndeclared(object, sourceCode)
+}
+
+function isExitEvent(argument) {
+  return argument?.type === 'Literal' && argument.value === 'exit'
+}
+
 function isExitHook(node, sourceCode) {
   const {callee} = node
-  if (!isNamedMember(callee, EXIT_LISTENERS) || callee.object.name !== 'process') return false
-  if (!isUndeclared(callee.object, sourceCode)) return false
-  const [event] = node.arguments
-  return event?.type === 'Literal' && event.value === 'exit'
+  return (
+    isNamedMember(callee, EXIT_LISTENERS) &&
+    isGlobalProcess(callee.object, sourceCode) &&
+    isExitEvent(node.arguments[0])
+  )
+}
+
+function isHandMadeTempDir(node, sourceCode) {
+  return (
+    isModuleFunction(node.callee, sourceCode, FS_SOURCES, MKDTEMP_NAMES) &&
+    isBuiltOnTmpdir(node.arguments[0], sourceCode)
+  )
+}
+
+function findingFor(node, sourceCode, inTestFile) {
+  if (isExitHook(node, sourceCode)) return 'exitHook'
+  if (inTestFile && isHandMadeTempDir(node, sourceCode)) return 'handMadeTempDir'
+  return undefined
 }
 
 function reportHandMade(node, context, inTestFile) {
   if (node.type !== 'CallExpression') return
-  const {sourceCode} = context
-  if (isExitHook(node, sourceCode)) {
-    context.report({node, messageId: 'exitHook'})
-    return
-  }
-  if (!inTestFile) return
-  if (!isModuleFunction(node.callee, sourceCode, FS_SOURCES, MKDTEMP_NAMES)) return
-  if (!isBuiltOnTmpdir(node.arguments[0], sourceCode)) return
-  context.report({node, messageId: 'handMadeTempDir'})
+  const messageId = findingFor(node, context.sourceCode, inTestFile)
+  if (messageId !== undefined) context.report({node, messageId})
 }
 
 export default {
