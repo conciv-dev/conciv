@@ -1,6 +1,7 @@
 import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
+import {fileURLToPath} from 'node:url'
 
 type CiReporterEntry = 'default' | ['github-actions', {jobSummary: {enabled: boolean}}] | ['json', {outputFile: string}]
 
@@ -22,6 +23,10 @@ export function processTempDir(prefix: string): string {
   return dir
 }
 
+export const TEST_TIMEOUT_MS = 30_000
+export const HOOK_TIMEOUT_MS = 30_000
+const CONCIV_HOME_SETUP = fileURLToPath(new URL('conciv-home-setup.ts', import.meta.url))
+
 function forkCap(): number | undefined {
   const cap = Number(process.env.VITEST_MAX_FORKS)
   if (!Number.isInteger(cap) || cap < 1) return undefined
@@ -35,15 +40,13 @@ export function ciTest(): {
   hookTimeout: number
   teardownTimeout: number
   maxWorkers?: number
-  env: {CONCIV_HOME: string}
+  globalSetup: string[]
 } {
   const maxWorkers = forkCap()
-  const home = processTempDir('conciv-home-')
-  process.env.CONCIV_HOME = home
   return {
     reporters: ciReporters(),
-    testTimeout: 30_000,
-    hookTimeout: 30_000,
+    testTimeout: TEST_TIMEOUT_MS,
+    hookTimeout: HOOK_TIMEOUT_MS,
     teardownTimeout: 30_000,
     coverage: {
       enabled: Boolean(process.env.GITHUB_ACTIONS),
@@ -51,7 +54,7 @@ export function ciTest(): {
       reporter: ['json-summary'],
       reportsDirectory: 'coverage',
     },
-    env: {CONCIV_HOME: home},
+    globalSetup: [CONCIV_HOME_SETUP],
     ...(maxWorkers === undefined ? {} : {maxWorkers}),
   }
 }
@@ -65,7 +68,7 @@ export function ciTestSolidBrowser(): {
   hookTimeout: number
   teardownTimeout: number
   maxWorkers?: number
-  env: {CONCIV_HOME: string}
+  globalSetup: string[]
   setupFiles: string[]
 } {
   return {

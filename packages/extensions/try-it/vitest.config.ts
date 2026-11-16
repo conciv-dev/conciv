@@ -6,7 +6,7 @@ import {ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
 export default defineConfig({
   test: {
     ...ciTest(),
-    globalSetup: ['test/health-server.global.ts'],
+    globalSetup: [...ciTest().globalSetup, 'test/health-server.global.ts'],
     projects: [
       {
         test: {
