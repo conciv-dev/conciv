@@ -243,20 +243,14 @@ describe('the recorder RPC', () => {
         .clients.map((client) => client.id),
     ).toEqual(['mine', 'other'])
 
-    const span = (id: number, children: unknown[]) => ({
+    const element = (tagName: string, id: number, children: unknown[]) => ({
       id,
       type: 2,
-      tagName: 'span',
+      tagName,
       attributes: {},
       childNodes: children,
     })
-    const looped = {
-      id: 4,
-      type: 2,
-      tagName: 'button',
-      attributes: {},
-      childNodes: [span(6, [{id: 9, type: 3, textContent: 'Looped'}])],
-    }
+    const looped = element('button', 4, [element('span', 6, [{id: 9, type: 3, textContent: 'Looped'}])])
     const addUnder = (parentId: number, node: unknown) => ({
       source: 0,
       adds: [{parentId, node}],
@@ -271,9 +265,7 @@ describe('the recorder RPC', () => {
         {
           type: 2,
           data: {
-            node: pageFixture([
-              {...buttonFixture(4, 5, 'Buy'), childNodes: [span(6, [{id: 5, type: 3, textContent: 'Buy'}])]},
-            ]),
+            node: pageFixture([element('button', 4, [element('span', 6, [{id: 5, type: 3, textContent: 'Buy'}])])]),
           },
           timestamp: base + 10,
         },
