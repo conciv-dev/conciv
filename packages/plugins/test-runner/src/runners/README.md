@@ -23,4 +23,4 @@ Every adapter is registered in runner/registry.ts. jest and node-test call `defi
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/extension-test-runner` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run test --filter=@conciv/plugin-test-runner` from the repo root (turbo builds the package and its dependencies first)
