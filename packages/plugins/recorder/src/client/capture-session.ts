@@ -50,8 +50,10 @@ export function createCaptureSession(opts: {
           if (generation !== resumedGeneration) return
           stopRecord = startCapture(opts.library, resumedConfig, opts.exclude, (event) => flusher.push(event))
         })
-        .catch(() => {
-          if (generation === resumedGeneration) opts.onFailed()
+        .catch((error: unknown) => {
+          if (generation !== resumedGeneration) return
+          console.error('[conciv] the page capture could not resume', error)
+          opts.onFailed()
         })
     },
   })
