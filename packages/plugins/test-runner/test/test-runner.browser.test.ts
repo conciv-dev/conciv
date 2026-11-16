@@ -116,3 +116,83 @@ describe('the Tests panel of the test-runner plugin', () => {
     }
   }, 240_000)
 })
+
+describe('the test card of the test-runner plugin', () => {
+  test('draws a finished run in the thread: the summary, the files as disclosures the keyboard toggles, the failure that opens its file and prefills a fix', async ({
+    browser,
+  }) => {
+    const stateRoot = realpathSync(tempDir('conciv-test-runner-card-'))
+    const failure = {
+      file: join(stateRoot, 'fail.test.ts'),
+      name: 'this fails on purpose',
+      message: 'expected 200 to be 401 // Object.is equality',
+      stack: 'at fail.test.ts:4:15',
+      line: 4,
+    }
+    const result = {
+      summary: {passed: 1, failed: 1, skipped: 1, durationMs: 638},
+      failures: [failure],
+      tests: [
+        {id: 'pass-1', file: join(stateRoot, 'pass.test.ts'), name: 'one plus one', state: 'pass', durationMs: 2},
+        {id: 'pass-2', file: join(stateRoot, 'pass.test.ts'), name: 'a later idea', state: 'skip', durationMs: 0},
+        {id: 'fail-1', file: failure.file, name: failure.name, state: 'fail', durationMs: 4, error: failure},
+      ],
+    }
+    const widget = await openPluginWidget(browser, {
+      id: 'fake',
+      plugins: [PACKAGE_DIR],
+      widgetBundle: WIDGET_BUNDLE,
+      files: fixtureFiles(),
+      stateRoot,
+    })
+    try {
+      const page = widget.page
+      const observer = rpcObserverFor(page)
+      await rpcSocketFor(page).installed
+      await page.reload({waitUntil: 'domcontentloaded'})
+      widget.kit.harness.script.scriptTurn({
+        toolCalls: [{name: 'test_runner_run', input: {}, result}],
+        text: 'The run has one failing test',
+      })
+
+      await page.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 30_000})
+      const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+      await composer.click()
+      await composer.pressSequentially('run the tests')
+      await composer.press('Enter')
+      await expect(page.getByText('The run has one failing test', {exact: true})).toBeVisible({timeout: 30_000})
+
+      await expect(page.getByText('1 passed', {exact: true})).toBeVisible()
+      await expect(page.getByText('1 failed', {exact: true})).toBeVisible()
+      await expect(page.getByText('1 skipped', {exact: true})).toBeVisible()
+      const passFile = page.getByRole('group', {name: 'pass.test.ts', exact: true})
+      const failFile = page.getByRole('group', {name: 'fail.test.ts', exact: true})
+      await expect(passFile.and(page.getByRole('group', {expanded: true}))).toBeVisible()
+      await expect(failFile.and(page.getByRole('group', {expanded: true}))).toBeVisible()
+      await expect(passFile.getByText('one plus one', {exact: true})).toBeVisible()
+      await expect(failFile.getByRole('group', {name: 'this fails on purpose', expanded: true})).toBeVisible()
+      await expect(failFile.getByText('expected 200 to be 401 // Object.is equality')).toBeVisible()
+
+      await failFile.getByRole('button', {name: 'Open fail.test.ts:4', exact: true}).click()
+      const opened = await observer.completed({
+        path: ['plugin', 'call'],
+        input: {rpcId: 'server', method: 'open', input: {file: /fail\.test\.ts$/, line: 4}},
+      })
+      expect(opened.status).toBe(200)
+
+      await page.keyboard.press('Shift+Tab')
+      await page.keyboard.press('Shift+Tab')
+      await page.keyboard.press('Enter')
+      await expect(failFile.and(page.getByRole('group', {expanded: false}))).toBeVisible()
+      await expect(failFile.getByText('expected 200 to be 401 // Object.is equality')).toBeHidden()
+      await page.keyboard.press('Space')
+      await expect(failFile.and(page.getByRole('group', {expanded: true}))).toBeVisible()
+      await expect(failFile.getByText('expected 200 to be 401 // Object.is equality')).toBeVisible()
+
+      await failFile.getByRole('button', {name: 'Fix this', exact: true}).click()
+      await expect(composer).toContainText('The test "this fails on purpose" in fail.test.ts is failing')
+    } finally {
+      await widget.close()
+    }
+  }, 240_000)
+})
