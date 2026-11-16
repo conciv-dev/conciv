@@ -422,6 +422,33 @@ describe('Permission', () => {
     }),
   )
 
+  it.effect(
+    'an always-allow for one resource approves a pending fallback call whose other resource has a named allow',
+    () =>
+      Effect.gen(function* () {
+        yield* setup([
+          ...Agent.Info.default(testAgent).permissions,
+          {action: 'server_restart', resource: 'vite', effect: 'allow'},
+        ])
+        const other = yield* waitForRequest({
+          action: 'server_restart',
+          resources: ['webpack'],
+          save: ['webpack'],
+          fallback: 'ask',
+        })
+        const restart = yield* waitForRequest({
+          id: Permission.Id.create('per_restart'),
+          action: 'server_restart',
+          resources: ['vite', 'webpack'],
+          fallback: 'ask',
+        })
+        yield* other.service.reply({requestId: other.request.id, reply: 'always'})
+        yield* Fiber.join(other.fiber)
+        expect(yield* other.service.list()).toEqual([])
+        yield* Fiber.join(restart.fiber)
+      }),
+  )
+
   for (const guard of ['configured deny', 'missing Session'] as const) {
     it.effect(`skips pending auto-approval after always for ${guard}`, () =>
       Effect.gen(function* () {
