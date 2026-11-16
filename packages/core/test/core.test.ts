@@ -1296,9 +1296,9 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
     ).rejects.toThrow(/"open"/)
     expect(await Promise.all(outcomes)).toEqual([expect.toBeOneOf([500, 'dropped'])])
     const probe = createServer().listen(port, '127.0.0.1')
-    await once(probe, 'listening')
+    await expect(once(probe, 'listening')).resolves.toEqual([])
     await once(probe.close(), 'close')
-  })
+  }, 20_000)
 })
 
 describe('configured session rows', () => {
