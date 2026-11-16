@@ -52,6 +52,7 @@ export type OwedQueue = {queueId: string; result: PageQueueResult; before: 'owed
 export type QueueDelivery = {
   owed: (sessionId: SessionId, claim: boolean) => Promise<OwedQueue[]>
   settle: (sessionId: SessionId, queueIds: string[], delivery: Exclude<Delivery, 'claimed'>) => Promise<void>
+  holds: (sessionId: SessionId, queueIds: readonly string[]) => boolean
 }
 
 export type PageQueues = QueueDelivery & {
@@ -72,7 +73,7 @@ export type PageQueues = QueueDelivery & {
   hubCall: (sessionId: SessionId, callId: string) => void
   hubReplied: (sessionId: SessionId, callIds: ReadonlySet<string>) => void
   fromHub: (record: QueueRecord) => boolean
-  release: (sessionId: SessionId) => void
+  cancelSession: (sessionId: SessionId) => void
 }
 
 const KEPT_QUEUES = 200
@@ -202,8 +203,10 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
       )
   }
 
+  const holds = (record: QueueRecord): boolean => records.get(record.queueId) === record
+
   const announce = (record: QueueRecord): void => {
-    if (record.delivery !== 'owed') return
+    if (record.delivery !== 'owed' || !holds(record)) return
     for (const listener of listeners) {
       try {
         listener(record)
@@ -398,7 +401,15 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
     hubCall: (sessionId, callId) => void sessionSet(inFlightHubCalls, sessionId).add(callId),
     hubReplied,
     fromHub: hubCalled,
-    release: (sessionId) => {
+    holds: (sessionId, queueIds) =>
+      queueIds.every((queueId) => {
+        const record = records.get(queueId)
+        return record !== undefined && record.sessionId === sessionId && holds(record)
+      }),
+    cancelSession: (sessionId) => {
+      for (const record of records.values()) {
+        if (record.sessionId === sessionId) records.delete(record.queueId)
+      }
       inFlightHubCalls.delete(sessionId)
       hubQueues.delete(sessionId)
     },
@@ -429,6 +440,8 @@ export async function startQueueFollowUp(
   const notices = owed.map((queue) => queueNotice(queue.result)).join('\n\n')
   const followUp = asyncRetry(
     async (): Promise<FollowUpOutcome> => {
+      const claimed = owed.map((queue) => queue.queueId)
+      if (!queues.holds(sessionId, claimed)) return {kind: 'stopped'}
       const attempt = await plane.followUp(sessionId, notices)
       if (attempt.kind === 'failed') throw new Error(attempt.error)
       return attempt

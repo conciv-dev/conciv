@@ -264,6 +264,7 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
     try {
       for await (const event of events) {
         lanes.delete(event.data.sessionID)
+        queues.cancelSession(event.data.sessionID)
         await records.forget(event.data.sessionID)
         await dispatch({type: 'session.deleted', sessionId: event.data.sessionID})
       }

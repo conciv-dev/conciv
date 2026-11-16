@@ -158,8 +158,10 @@ export function fromPlay(deps: {
       .catch((error: unknown) => console.warn(`Journaling queued action ${index} of ${record.queueId} failed`, error))
   }
 
+  const holds = (record: QueueRecord): boolean => records.get(record.queueId) === record
+
   const announce = (record: QueueRecord): void => {
-    if (record.delivery !== 'owed') return
+    if (record.delivery !== 'owed' || !holds(record)) return
     try {
       deps.finished(record)
     } catch (error) {
@@ -287,5 +289,11 @@ export function fromPlay(deps: {
     })
   }
 
-  return {start, play, wait, undelivered, startedBy, owed, settle}
+  function cancelSession(sessionId: SessionId): void {
+    for (const record of records.values()) {
+      if (record.sessionId === sessionId) records.delete(record.queueId)
+    }
+  }
+
+  return {start, play, wait, undelivered, startedBy, owed, settle, cancelSession}
 }

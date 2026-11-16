@@ -92,6 +92,7 @@ import {
   SessionId,
 } from '@conciv/protocol/chat-types'
 import {ConcivConfigSchema} from '@conciv/protocol/config-types'
+import {PAGE_QUEUE_ASYNC_TOOL} from '@conciv/protocol/page-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
 import {eq, sql} from 'drizzle-orm'
 import {
@@ -181,6 +182,7 @@ import {
 } from '../src/sessions/session-rows.js'
 import {provideInstructionEntries} from '../src/runtime/instruction-entries.js'
 import {provideSessions} from '../src/runtime/plugin-sessions.js'
+import {deleteSession} from '../src/sessions/session-actions.js'
 import {createSessionSearch} from '../src/sessions/session-search.js'
 import {
   provideApp,
@@ -1432,16 +1434,17 @@ describe('page bus and the session scope', () => {
     queues.hubReplied(SESSION_A, new Set(['hub-replied']))
     queues.hubCall(SESSION_A, 'hub-running')
     const {queueId: running} = await queues.start(SESSION_A, {...queueStart(check), toolCallId: 'hub-running'})
-    queues.release(SESSION_A)
-    await playOut(1)
-    await finished(replied)
-    await playOut(2)
-    await finished(running)
+    queues.cancelSession(SESSION_A)
+    const answered = async (index: number): Promise<boolean[]> => {
+      const frame = await tab.frame(index)
+      return frame.queue.replies.map((reply) => bus.resolve(SESSION_A, reply, {ok: true, result: {}}))
+    }
+    expect(await answered(1)).toEqual([true])
+    expect(await answered(2)).toEqual([true])
+    expect(queues.owedTurn(SESSION_A)).toEqual([])
     expect(queues.undelivered(SESSION_A, true)).toEqual([])
-    expect(queues.owedTurn(SESSION_A).map((record) => [record.queueId, record.result?.status])).toEqual([
-      [replied, 'finished'],
-      [running, 'finished'],
-    ])
+    await expect(queues.wait(SESSION_A, replied, 0)).rejects.toThrow(`no queue ${replied} on this tab`)
+    await expect(queues.wait(SESSION_A, running, 0)).rejects.toThrow(`no queue ${running} on this tab`)
   })
 
   it('undelivered results are never evicted: at 1000 owed a new queue is refused before it plays, and delivering one frees a place', async () => {
@@ -1713,6 +1716,38 @@ describe('page bus and the session scope', () => {
       kind: 'failed',
       error: expect.stringContaining('the harness could not launch'),
     })
+  })
+
+  it('a follow-up admitted in the same tick as the runs of its session end (not held in its read), or deleted while its turn is in flight, starts no other turn, and its queue is gone', async () => {
+    const {fixture, queues, played, runStatuses} = await followUpFixture()
+    const admitted = fixture.plane.followUp(fixture.sessionId, 'admitted just before the session ends')
+    const ended = fixture.plane.endRuns(fixture.sessionId)
+    expect(await admitted).toEqual({kind: 'stopped'})
+    await ended
+    expect(runStatuses()).toEqual([])
+    const owed = await played()
+    const turns: string[] = []
+    const answering = Promise.withResolvers<FollowUpOutcome>()
+    const entered = Promise.withResolvers<void>()
+    const plane = {
+      live: fixture.plane.live,
+      followUp: (sessionId: SessionId, input: string): Promise<FollowUpOutcome> => {
+        turns.push(input)
+        entered.resolve()
+        return turns.length === 1 ? answering.promise : fixture.plane.followUp(sessionId, input)
+      },
+    }
+    const following = startQueueFollowUp(queues, plane, fixture.sessionId)
+    await entered.promise
+    await deleteSession(
+      {db: fixture.db, plane: fixture.plane, runtime: fixture.runtime, pluginHost: fixture.pluginHost, queues},
+      fixture.sessionId,
+    )
+    answering.resolve({kind: 'failed', error: 'the harness could not launch'})
+    await following
+    expect(turns).toHaveLength(1)
+    expect(runStatuses()).toEqual([])
+    await expect(queues.wait(fixture.sessionId, owed, 0)).rejects.toThrow(`no queue ${owed} on this tab`)
   })
 
   it('a queue the page refuses plays nothing: it ends lost with no action counted as played', async () => {
@@ -2802,6 +2837,197 @@ describe('plugin host bus', () => {
     expect(
       await key.fail((sessions) => sessions.compact({sessionId: SessionSchema.Id.make('conciv_no_such_session')})),
     ).toMatchObject({_tag: 'Session.NotFoundError', sessionId: 'conciv_no_such_session'})
+  })
+  test('deleting a session stops its run, its idle hook and a preparing turn first, so plugins hear Deleted last with no run left and nothing of that session after it', async () => {
+    const harness = createTestHarness(requireClaude())
+    const booted: MadeApp[] = []
+    const ending = SessionId.parse('conciv_deleted_while_its_turn_ends')
+    const endingGates: {entered: PromiseWithResolvers<void>; held: PromiseWithResolvers<void>}[] = []
+    const endingIdleHolds: Promise<void>[] = []
+    const turnEndHolder = defineExtension({name: 'turn-end-holder'}).server(() => ({
+      context: {},
+      turnEnd: async (sessionId) => {
+        if (sessionId !== ending) return
+        const gate = endingGates.shift()
+        if (gate === undefined) return
+        gate.entered.resolve()
+        await gate.held.promise
+      },
+    }))
+    const kit = await createTestkit(harness, async (env) => {
+      const made = await bootMadeApp(env, {extensions: [turnEndHolder]})
+      booted.push(made)
+      return made
+    }).setup()
+    onTestFinished(() => kit.cleanup())
+    const made = booted[0]
+    if (made === undefined) throw new Error('the deletion kit booted no app')
+    await made.startPlugins()
+    const created = async () => SessionId.parse((await kit.rpc.sessions.create(undefined)).sessionId)
+    const running = await created()
+    const idling = await created()
+    const preparing = await created()
+    const entries = (sessionId: SessionId) =>
+      made.pluginHost.runPromise(
+        InstructionEntry.Service.use((service) => service.list(SessionSchema.Id.make(sessionId))),
+      )
+    const brief = (sessionId: SessionId) =>
+      made.pluginHost.runPromise(
+        InstructionEntry.Service.use((service) =>
+          service.put({sessionId: SessionSchema.Id.make(sessionId), key: 'brief', value: 'ship it'}),
+        ),
+      )
+    await brief(running)
+    await brief(idling)
+    const seen: {sessionId: SessionId; what: string}[] = []
+    const heardBy = (sessionId: SessionId) =>
+      seen.filter((entry) => entry.sessionId === sessionId).map((entry) => entry.what)
+    const idleEntered = Promise.withResolvers<void>()
+    const idleHeld = Promise.withResolvers<void>()
+    const promptEntered = Promise.withResolvers<void>()
+    const scopedEvent = z.object({sessionID: z.string()})
+    await made.pluginHost.runPromise(
+      Bus.Service.use((bus) =>
+        bus.listen((event) =>
+          Effect.sync(() => {
+            const scoped = scopedEvent.safeParse(event.data)
+            if (!scoped.success) return
+            const sessionId = SessionId.parse(scoped.data.sessionID)
+            seen.push({
+              sessionId,
+              what: `${event.type} ${made.plane.driving(sessionId) ? 'during a run' : 'with no run'}`,
+            })
+            if (event.type === SessionEvent.Deleted.type) idleHeld.resolve()
+          }),
+        ),
+      ),
+    )
+    await made.pluginHost.runPromise(
+      PluginHooks.Service.use((hooks) =>
+        Effect.all([
+          hooks.register('session', 'experimental.idle', (event) =>
+            event.sessionId !== idling
+              ? Effect.void
+              : Effect.sync(() => idleEntered.resolve()).pipe(
+                  Effect.andThen(Effect.promise(() => idleHeld.promise)),
+                  Effect.ensuring(
+                    Effect.promise(async () => {
+                      const read = await entries(idling)
+                      seen.push({sessionId: idling, what: `idle hook ended reading ${JSON.stringify(read)}`})
+                    }),
+                  ),
+                ),
+          ),
+          hooks.register('session', 'prompt', (event) =>
+            event.sessionId !== preparing
+              ? Effect.void
+              : Effect.sync(() => {
+                  seen.push({sessionId: preparing, what: 'prompt hook entered'})
+                  promptEntered.resolve()
+                }).pipe(Effect.andThen(Effect.never)),
+          ),
+          hooks.register('session', 'experimental.idle', (event) =>
+            event.sessionId !== ending
+              ? Effect.void
+              : Effect.sync(() => seen.push({sessionId: ending, what: 'idle hook entered'})).pipe(
+                  Effect.andThen(Effect.promise(() => endingIdleHolds.shift() ?? Promise.resolve())),
+                ),
+          ),
+        ]),
+      ).pipe(Scope.provide(made.pluginHost.runSync(Scope.make()))),
+    )
+
+    const answered = made.plane.followUp(idling, 'answer, then the idle hook holds')
+    await idleEntered.promise
+    await kit.rpc.sessions.delete({sessionId: idling})
+    expect(heardBy(idling)).toEqual([
+      'session.instructions.updated during a run',
+      'idle hook ended reading [{"key":"brief","value":"ship it"}]',
+      'session.deleted with no run',
+    ])
+    expect(await answered).toEqual({kind: 'delivered'})
+    expect(await entries(idling)).toEqual([])
+
+    const held = await kit.turn('never admitted', {session: preparing, runId: 'preparing-run'})
+    await promptEntered.promise
+    await kit.rpc.sessions.delete({sessionId: preparing})
+    expect(heardBy(preparing)).toEqual(['prompt hook entered', 'session.deleted with no run'])
+    expect((await held.done()).errors()).toHaveLength(1)
+    expect(made.plane.driving(preparing)).toBe(false)
+    const unadmitted = await made.plane.hydrate(preparing)
+    expect([unadmitted.messages, unadmitted.lastRun]).toEqual([[], null])
+
+    harness.script.hold()
+    const inFlight = await kit.turn('keep going until the session is deleted', {session: running, runId: 'deleted-run'})
+    await inFlight.waitForRunStart({runId: 'deleted-run'})
+    await kit.rpc.sessions.delete({sessionId: running})
+    expect(heardBy(running)).toEqual(['session.deleted with no run'])
+    expect(made.plane.driving(running)).toBe(false)
+    expect(await entries(running)).toEqual([])
+    await inFlight.done()
+    harness.script.release()
+
+    const queueing = await created()
+    const queueingScope = made.runtime.forSession(queueing)
+    const tabClosed = new AbortController()
+    onTestFinished(() => tabClosed.abort())
+    const queries = queueingScope.page.queries(tabClosed.signal)
+    const offered = queries.next()
+    const queueStarted = queueingScope.tools.call(PAGE_QUEUE_ASYNC_TOOL, {
+      actions: [{tool: 'page_check', selector: '#agree'}],
+    })
+    const offer = z
+      .object({requestId: z.string(), query: z.object({queue: z.object({replies: z.array(z.string())})})})
+      .parse((await offered).value)
+    expect(queueingScope.page.reply(offer.requestId, {ok: true, result: {}})).toBe(true)
+    const {queueId} = z.object({queueId: z.string()}).parse(await queueStarted)
+    await kit.rpc.sessions.delete({sessionId: queueing})
+    const publishedAfterDeleted: ChatEvent[] = []
+    onTestFinished(queueingScope.stream.listen((chunk) => void publishedAfterDeleted.push(chunk)))
+    await expect(kit.rpc.page.queue.wait({sessionId: queueing, queueId, waitMs: 0})).rejects.toMatchObject({
+      code: 'NO_QUEUE',
+    })
+    expect(queueingScope.page.reply(offer.query.queue.replies[0] ?? '', {ok: true, result: {checked: true}})).toBe(true)
+    await queries.return(undefined)
+
+    await ensureRow(made.chat.db, ending, harness.id, made.chat.cwd)
+    const stoppedGate = {entered: Promise.withResolvers<void>(), held: Promise.withResolvers<void>()}
+    endingGates.push(stoppedGate)
+    const stoppedWhileEnding = made.plane.followUp(ending, 'answer, then a stop arrives while the turn ends')
+    await stoppedGate.entered.promise
+    expect(await made.runtime.forSession(ending).run.stop()).toEqual({ok: true, stopped: true})
+    stoppedGate.held.resolve()
+    expect(await stoppedWhileEnding).toEqual({kind: 'delivered'})
+    expect(heardBy(ending)).toEqual(['session.instructions.updated during a run'])
+
+    const heardBeforeDelete = heardBy(ending).length
+    const deletedGate = {entered: Promise.withResolvers<void>(), held: Promise.withResolvers<void>()}
+    const idleHeldPastDelete = Promise.withResolvers<void>()
+    onTestFinished(() => idleHeldPastDelete.resolve())
+    endingGates.push(deletedGate)
+    endingIdleHolds.push(idleHeldPastDelete.promise)
+    const deletedWhileEnding = made.plane.followUp(ending, 'answer, then the session is deleted while the turn ends')
+    await deletedGate.entered.promise
+    const deleting = kit.rpc.sessions.delete({sessionId: ending})
+    deletedGate.held.resolve()
+    await deleting
+    expect([['session.deleted with no run'], ['idle hook entered', 'session.deleted with no run']]).toContainEqual(
+      heardBy(ending).slice(heardBeforeDelete),
+    )
+    expect(await deletedWhileEnding).toEqual({kind: 'delivered'})
+
+    expect(publishedAfterDeleted).toEqual([])
+    const queueingAfter = await made.plane.hydrate(queueing)
+    expect([queueingAfter.messages, queueingAfter.lastRun]).toEqual([[], null])
+    expect(seen.filter((entry) => entry.sessionId !== ending)).toEqual([
+      {sessionId: idling, what: 'session.instructions.updated during a run'},
+      {sessionId: idling, what: 'idle hook ended reading [{"key":"brief","value":"ship it"}]'},
+      {sessionId: idling, what: 'session.deleted with no run'},
+      {sessionId: preparing, what: 'prompt hook entered'},
+      {sessionId: preparing, what: 'session.deleted with no run'},
+      {sessionId: running, what: 'session.deleted with no run'},
+      {sessionId: queueing, what: 'session.deleted with no run'},
+    ])
   })
 })
 
