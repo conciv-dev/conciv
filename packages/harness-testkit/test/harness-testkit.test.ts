@@ -35,10 +35,11 @@ import {setFlagsFromString} from 'node:v8'
 import {runInNewContext} from 'node:vm'
 
 describe('call tool', () => {
-  it('harnessAvailable returns a boolean for any adapter', () => {
+  it('harnessAvailable returns a boolean for any adapter and never hands the bin name to a shell', () => {
     const claude = getHarness('claude')
     if (!claude) throw new Error('claude adapter not registered')
     expect(typeof harnessAvailable(claude)).toBe('boolean')
+    expect(harnessAvailable({...claude, binName: 'conciv-no-such-bin; exit 0'})).toBe(false)
   })
 
   it('makeCallTool returns a caller', () => {
