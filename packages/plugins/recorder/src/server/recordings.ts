@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {mkdir, readFile, readdir, rename, stat, unlink, writeFile} from 'node:fs/promises'
+import {mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import PQueue from 'p-queue'
 import {z} from 'zod'
@@ -24,7 +24,7 @@ const RECORDING_ID = /^[A-Za-z0-9-]+$/
 
 function removeRecording(dir: string, name: string): Promise<void> {
   const video = join(dir, `${name.slice(0, -'.json'.length)}.webm`)
-  return Promise.all([unlink(join(dir, name)).catch(() => {}), unlink(video).catch(() => {})]).then(() => undefined)
+  return Promise.all([rm(join(dir, name), {force: true}), rm(video, {force: true})]).then(() => undefined)
 }
 
 function trimToCap(events: RrwebEvent[]): RrwebEvent[] | null {
@@ -82,7 +82,9 @@ export function createRecordingStore(dir: string): RecordingStore {
       await unlink(`${target}.tmp`).catch(() => {})
       return {ok: false, reason: 'io-error'}
     }
-    await prune(dir)
+    await prune(dir).catch((error: unknown) => {
+      console.error(`[recorder] pruning old recordings failed: ${String(error)}`)
+    })
     return {ok: true, recordingId}
   }
   return {

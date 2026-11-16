@@ -583,6 +583,29 @@ describe('the recording store under concurrent saves', () => {
     expect(stored).toHaveLength(50)
     expect(stored).toEqual(expect.arrayContaining(racing.map((saved) => `${saved.recordingId}.json`)))
   })
+
+  it('answers a save that is stored as saved when pruning an old recording fails', async () => {
+    const folder = tempDir('conciv-recorder-stuck-')
+    const recordingsDir = join(folder, '.conciv', 'recorder', 'recordings')
+    const now = Date.now()
+    const stuck = `${now - 120_000}-000000-stuck.json`
+    await mkdir(join(recordingsDir, stuck, 'held'), {recursive: true})
+    await Promise.all(
+      Array.from({length: 49}, (_, index) =>
+        writeFile(
+          join(recordingsDir, `${now - 60_000 + index}-${String(index).padStart(6, '0')}-seed.json`),
+          JSON.stringify({events: fixtureStream(now)}),
+          'utf8',
+        ),
+      ),
+    )
+    const kit = await bootRecorder(folder)
+
+    const saved = await flushAndSave(kit, 'stuck', fixtureStream(Date.now()))
+    const stored = await readdir(recordingsDir)
+    expect(stored).toContain(`${saved.recordingId}.json`)
+    expect(stored).toContain(stuck)
+  })
 })
 
 describe('the recorder skill', () => {
