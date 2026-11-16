@@ -5599,15 +5599,16 @@ describe('wire name coverage', () => {
 
   const CATALOG_TOOL_NAME = 'catalog'
 
-  const SERVER_PLUGIN_TOOL_NAMES = [
+  const DEV_SERVER_TOOL_NAMES = [
     'server_config',
     'server_urls',
     'server_resolve',
     'server_graph',
     'server_transform',
     'server_restart',
-    'open',
   ]
+
+  const SERVER_PLUGIN_TOOL_NAMES = [...DEV_SERVER_TOOL_NAMES, 'open']
 
   const modelReachableNames = [
     EXECUTE_TOOL_NAME,
@@ -5640,12 +5641,12 @@ describe('wire name coverage', () => {
 
   const cardNames = new Set(concivOwnedCards.flatMap((entry) => entry.names))
 
-  it('every model-reachable tool name resolves to a card entry or catalog meta, except the server plugin tools', () => {
+  it('every model-reachable tool name resolves to a card entry or catalog meta, except the server plugin dev-server tools', () => {
     expect(modelReachableNames.length).toBeGreaterThan(10)
     const unresolved = modelReachableNames.filter(
       (name) =>
         !cardNames.has(name) &&
-        !SERVER_PLUGIN_TOOL_NAMES.includes(name) &&
+        !DEV_SERVER_TOOL_NAMES.includes(name) &&
         registry.catalog.list().every((entry) => entry.name !== name),
     )
     expect(unresolved).toEqual([])
