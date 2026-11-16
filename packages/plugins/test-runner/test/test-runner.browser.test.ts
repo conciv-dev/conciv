@@ -105,6 +105,9 @@ describe('the Tests panel of the test-runner plugin', () => {
       await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toContainText(
         'The test "this fails on purpose" in fail.test.ts is failing',
       )
+
+      await page.setViewportSize({width: 360, height: 800})
+      await expect(testsTab).toBeVisible()
     } finally {
       await widget.close()
     }
