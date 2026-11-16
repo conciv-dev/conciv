@@ -735,8 +735,32 @@ const openedFrom: BrowserCommand<[name: string]> = async (ctx, name): Promise<st
   return url
 }
 
+const newerDraftTabs = new WeakMap<BrowserCommandContext['page'], BrowserCommandContext['page']>()
+
+const openNewerDraftTab: BrowserCommand<[version: number]> = async (ctx, version) => {
+  const tab = await ctx.page.context().newPage()
+  newerDraftTabs.set(ctx.page, tab)
+  await tab.goto(new URL('/conciv-newer-tab', ctx.page.url()).href, {waitUntil: 'domcontentloaded'})
+  await tab.evaluate(
+    (wanted) =>
+      new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open('conciv-drafts', wanted)
+        request.addEventListener('success', () => resolve())
+        request.addEventListener('error', () => reject(request.error))
+      }),
+    version,
+  )
+}
+
+const closeNewerDraftTab: BrowserCommand<[]> = async (ctx) => {
+  await newerDraftTabs.get(ctx.page)?.close()
+  newerDraftTabs.delete(ctx.page)
+}
+
 export const coreCommands = {
   chooseFiles,
+  openNewerDraftTab,
+  closeNewerDraftTab,
   openedFrom,
   downloadFrom,
   dragButton,

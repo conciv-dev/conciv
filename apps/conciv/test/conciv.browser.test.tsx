@@ -8207,12 +8207,6 @@ describe('the local draft store', () => {
     Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))), (byte) =>
       byte.toString(16).padStart(2, '0'),
     ).join('')
-  const openAt = (version: number) =>
-    new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open('conciv-drafts', version)
-      request.addEventListener('success', () => resolve(request.result))
-      request.addEventListener('error', () => reject(request.error))
-    })
   const dropDatabase = () =>
     new Promise<void>((resolve, reject) => {
       const request = indexedDB.deleteDatabase('conciv-drafts')
@@ -8268,18 +8262,14 @@ describe('the local draft store', () => {
     await coreControl.chooseFiles('Add an attachment', [picture('earlier.png')])
     await expect.element(chip('earlier.png')).toBeVisible()
 
-    const newer = await openAt(2)
+    await coreControl.openNewerDraftTab(2)
     onTestFinished(async () => {
-      newer.close()
+      await coreControl.closeNewerDraftTab()
       await dropDatabase()
     })
     const unstored = async (name: string) => {
       const id = await storedId(picture(name).text)
-      return new Promise<unknown>((resolve, reject) => {
-        const request = newer.transaction('blobs').objectStore('blobs').getKey(id)
-        request.addEventListener('success', () => resolve(request.result))
-        request.addEventListener('error', () => reject(request.error))
-      })
+      return rawRequest((blobs) => blobs.getKey(id), 'readonly')
     }
 
     await message().click()

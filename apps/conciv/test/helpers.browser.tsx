@@ -58,6 +58,8 @@ declare module 'vitest/internal/browser' {
   interface BrowserCommands {
     bootCore: (input: BootCoreInput) => Promise<BootCoreResult>
     chooseFiles: (name: string, chosen: ChosenFile[]) => Promise<void>
+    openNewerDraftTab: (version: number) => Promise<void>
+    closeNewerDraftTab: () => Promise<void>
     downloadFrom: (name: string) => Promise<{name: string; text: string}>
     openedFrom: (name: string) => Promise<string>
     dragButton: (drag: PointerDrag) => Promise<void>
