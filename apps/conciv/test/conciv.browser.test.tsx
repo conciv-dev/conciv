@@ -4439,6 +4439,43 @@ describe('quick refresh', () => {
   }, 30_000)
 })
 
+describe('a deleted session', () => {
+  const core = bootedCore('deleted-session')
+  const harness = createShellHarness(core)
+
+  afterEach(harness.dispose)
+
+  const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const deletedTitle = () => page.getByText('This session was deleted.', {exact: true})
+  const movesLine = () => page.getByText('Your text moves to the new session.', {exact: true})
+  const newSessionButton = () => page.getByRole('button', {name: 'New session', exact: true})
+
+  test('a session opened after it was deleted shows the deleted panel in place of the chat, and New session opens a fresh one', async () => {
+    const rpc = coreRpc(core())
+    const deletedId = await createSession(rpc)
+    await rpc.sessions.delete({sessionId: deletedId})
+
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    await expect.element(newSessionButton()).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+
+    await userEvent.click(newSessionButton())
+
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    await expect.element(deletedTitle()).not.toBeInTheDocument()
+    expect(harness.pathname()).not.toBe(`/panel/${deletedId}`)
+
+    harness.dispose()
+    harness.mountShell(`/quick?panes=${deletedId}&focus=0`)
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+    await expect.element(movesLine()).not.toBeInTheDocument()
+  }, 30_000)
+})
+
 describe('reachability flows', () => {
   const core = bootedCore('reachability-flows')
   const harness = createShellHarness(core)
