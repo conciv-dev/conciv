@@ -56,7 +56,7 @@ export interface Interface {
   readonly remove: (id: Id) => Effect.Effect<void>
 }
 
-export const Service = Context.Service<Interface>('@opencode/PermissionSaved')
+export const Service = Context.Service<Interface>('@conciv/PermissionSaved')
 
 export const layer = Layer.effect(
   Service,

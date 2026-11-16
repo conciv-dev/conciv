@@ -133,7 +133,7 @@ export interface Interface {
   readonly list: () => Effect.Effect<ReadonlyArray<Request>>
 }
 
-export const Service = Context.Service<Interface>('@opencode/Permission')
+export const Service = Context.Service<Interface>('@conciv/Permission')
 
 interface Pending {
   readonly request: Request

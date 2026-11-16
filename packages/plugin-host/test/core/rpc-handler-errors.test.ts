@@ -1,6 +1,7 @@
-import {expect} from 'vitest'
-import {Effect, Layer, Logger, Schema} from 'effect'
+import {describe, expect, test} from 'vitest'
+import {Cause, Context, Effect, Exit, Layer, Logger, Schema} from 'effect'
 import {openDb} from '@conciv/db'
+import * as PluginHostEntry from '../../src/index.js'
 import {Bus} from '../../src/core/bus.js'
 import {Database} from '../../src/core/database/database.js'
 import {Location} from '../../src/core/location.js'
@@ -82,3 +83,19 @@ for (const method of ['dies', 'throws', 'raw', 'undeclared', 'invalidError'] as 
     }),
   )
 }
+
+describe('a service the consumer forgot to provide', () => {
+  test('is named under the conciv scope, never another project scope, in the error the consumer sees', () => {
+    const services = Object.values(PluginHostEntry)
+      .flatMap((namespace) => Object.values(namespace))
+      .filter(Context.isKey)
+      .filter((service) => !Context.isReference(service))
+    const messages = services.map((service) => {
+      const exit = Effect.runSyncExit(service)
+      return Exit.isFailure(exit) ? Cause.pretty(exit.cause) : ''
+    })
+    expect(messages.length).toBeGreaterThan(20)
+    expect(messages.filter((message) => !message.includes('Service not found: '))).toEqual([])
+    expect(messages.filter((message) => /Service not found: @(?!conciv\/)/.test(message))).toEqual([])
+  })
+})

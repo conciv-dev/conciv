@@ -43,7 +43,7 @@ export interface Interface extends State.Transformable<Editor> {
   readonly list: () => Effect.Effect<Info[]>
 }
 
-export const Service = Context.Service<Interface>('@opencode/Agent')
+export const Service = Context.Service<Interface>('@conciv/Agent')
 
 export const layer = Layer.effect(
   Service,

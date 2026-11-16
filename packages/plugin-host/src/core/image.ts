@@ -63,7 +63,7 @@ export interface Interface extends State.Transformable<Editor> {
   >
 }
 
-export const Service = Context.Service<Interface>('@opencode/Image')
+export const Service = Context.Service<Interface>('@conciv/Image')
 
 export const layer = Layer.effect(
   Service,

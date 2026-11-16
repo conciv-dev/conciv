@@ -12,7 +12,7 @@ export interface Interface {
   readonly all: () => readonly Generation[]
 }
 
-export const Service = Context.Service<Interface>('@opencode/SdkPlugins')
+export const Service = Context.Service<Interface>('@conciv/SdkPlugins')
 
 export const layer = Layer.effect(
   Service,
