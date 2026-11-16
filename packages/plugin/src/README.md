@@ -359,6 +359,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - The dialog stack (`apps/conciv/src/runtime/plugin/dialog-stack.tsx`, `dialog-stack-machine.ts`) is opencode's `ui/src/context/dialog.tsx` and `dialog-machine.ts`. It lives in the app, not the kit: the kit is flat and its `dialog.tsx` is the Dialog component, its test-file budget is full, and it takes no app plumbing.
 - `packages/plugin-host/test/codemode/codemode.test.ts` carries 11 of the 57 cases of opencode's `codemode/test/codemode.test.ts`. The other 46 are not applicable: each runs a program through opencode's interpreter, which conciv did not port (TanStack's code mode runs programs).
 - For the same reason `toolExpression` (`packages/plugin-host/src/codemode/tool-runtime.ts`) answers `external_x_y` where opencode answers `tools.x.y`: in TanStack's code mode a tool is a global function and there is no `tools` object.
+- A discovered plugin's mtime leaves its browser bundle out (`packages/plugin-host/src/core/config/plugin/source.ts`), so a bundle edit reloads the browser part only. The source's `core/src/config/plugin/source.ts:180-191` includes it, although `core/src/plugin.ts:44-45` and the docs (`gui/index.mdx:225`) say a changed bundle restarts nothing.
 
 ## Declared, not implemented
 
