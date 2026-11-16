@@ -7,7 +7,7 @@ import {SessionId} from '@conciv/protocol/chat-types'
 import {Bus, KV, SessionEvent, SessionSchema} from '@conciv/plugin-host'
 import {runInOrder} from '../lib/shutdown.js'
 import {removeInstructionEntries} from '../runtime/instruction-entries.js'
-import {createRow, reuseDeletedRow, rowById, tombstoneRow, type FreshRowInput} from './session-rows.js'
+import {createRow, rowById, tombstoneRow, type FreshRowInput} from './session-rows.js'
 import type {createSessionSearch} from './session-search.js'
 import type {PageQueues} from '../page/page-queue.js'
 import type {CoreRuntime} from '../runtime/scope-types.js'
@@ -50,16 +50,6 @@ export async function createChatSession(
   sessionId: SessionId = newSessionId(),
 ): Promise<{sessionId: SessionId}> {
   await createRow(db, chatRow(scope, sessionId))
-  await markNew(db, sessionId)
-  return {sessionId}
-}
-
-export async function reuseDeletedChatSession(
-  db: ConcivDb,
-  scope: ChatSessionScope,
-  sessionId: SessionId,
-): Promise<{sessionId: SessionId}> {
-  reuseDeletedRow(db, chatRow(scope, sessionId))
   await markNew(db, sessionId)
   return {sessionId}
 }

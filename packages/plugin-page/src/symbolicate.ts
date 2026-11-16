@@ -3,8 +3,7 @@ import {fileURLToPath} from 'node:url'
 import {resolve, sep} from 'node:path'
 import {AnyMap, originalPositionFor} from '@jridgewell/trace-mapping'
 
-export type RawFrame = {fileName: string; line: number; column?: number; fn?: string}
-export type SourceLoc = {file: string; line: number; column: number}
+import type {RawFrame, SourceLoc} from '@conciv/protocol/page-introspect-types'
 
 const SERVER_PREFIX = /^about:\/\/React\/Server\//
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]'])
@@ -50,12 +49,14 @@ export async function symbolicateFrame(
   root: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<SourceLoc | null> {
+  const {fileName, line} = frame
+  if (fileName === undefined || line === undefined) return null
   try {
-    const map = await loadSourceMap(frame.fileName, root, fetchImpl)
+    const map = await loadSourceMap(fileName, root, fetchImpl)
     const tm = new AnyMap(map as never)
     for (const col of [(frame.column ?? 1) - 1, frame.column ?? 0, 0]) {
-      const pos = originalPositionFor(tm, {line: frame.line, column: Math.max(0, col)})
-      if (pos.source) return {file: pos.source, line: pos.line ?? frame.line, column: pos.column ?? 0}
+      const pos = originalPositionFor(tm, {line, column: Math.max(0, col)})
+      if (pos.source) return {file: pos.source, line: pos.line ?? line, column: pos.column ?? 0}
     }
   } catch {
     return null

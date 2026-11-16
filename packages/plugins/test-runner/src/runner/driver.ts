@@ -5,7 +5,9 @@ import {Readable} from 'node:stream'
 import type {Summary, TestRunResult, TestEvent, FileState} from '../shared/events.js'
 import {
   defineRunner,
+  isRunnerUnavailable,
   runnerUnavailableError,
+  type CurrentRun,
   type RunArgs,
   type ListResult,
   type UiServerInfo,
@@ -31,9 +33,10 @@ function makeChildManager(spec: ChildRunnerSpec, cwd: string, options: MakeManag
   const spawnRunner = options.spawnRunner ?? defaultSpawnRunner(spec.childUrl)
   const subscribers = new Set<(e: TestEvent) => void>()
 
-  const cache: {last: TestRunResult; files: Map<string, FileState>} = {
+  const cache: {last: TestRunResult; files: Map<string, FileState>; unavailable: string | null} = {
     last: {summary: EMPTY_SUMMARY, failures: [], tests: []},
     files: new Map(),
+    unavailable: null,
   }
 
   const runBuffer: TestEvent[] = []
@@ -85,6 +88,7 @@ function makeChildManager(spec: ChildRunnerSpec, cwd: string, options: MakeManag
   function updateCache(e: TestEvent): void {
     if (e.type === 'run-start') {
       cache.files.clear()
+      cache.unavailable = null
       runBuffer.length = 0
     }
     if (e.type === 'file-end')
@@ -98,11 +102,26 @@ function makeChildManager(spec: ChildRunnerSpec, cwd: string, options: MakeManag
   }
 
   async function run(args: RunArgs): Promise<TestRunResult> {
-    await driveChild(spec.buildRunArgs(args, cwd), (e) => {
-      updateCache(e)
-      emit(e)
-    })
-    return cache.last
+    try {
+      await driveChild(spec.buildRunArgs(args, cwd), (e) => {
+        updateCache(e)
+        emit(e)
+      })
+      return cache.last
+    } catch (error) {
+      if (isRunnerUnavailable(error)) {
+        cache.unavailable = error.message
+        emit({type: 'run-unavailable', reason: error.message})
+      }
+      throw error
+    } finally {
+      if (runBuffer.at(-1)?.type !== 'run-end') runBuffer.length = 0
+    }
+  }
+
+  function current(): CurrentRun {
+    const ended = runBuffer.length === 0 || runBuffer.at(-1)?.type === 'run-end'
+    return {events: ended ? null : [...runBuffer], unavailable: cache.unavailable}
   }
 
   async function list(failedOnly = false): Promise<ListResult> {
@@ -134,7 +153,7 @@ function makeChildManager(spec: ChildRunnerSpec, cwd: string, options: MakeManag
     return {available: false}
   }
 
-  return {list, run, status, subscribeRaw, emitSnapshot, openUiServer, stop}
+  return {list, run, status, current, subscribeRaw, emitSnapshot, openUiServer, stop}
 }
 
 export function defineChildRunner<T extends ChildRunnerSpec>(spec: T): TestRunnerAdapter {

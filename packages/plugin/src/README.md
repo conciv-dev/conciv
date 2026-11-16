@@ -66,6 +66,9 @@ The `Rpc` namespace alone, for the contract module both parts import. `Rpc.defin
 its argument typed and throws when an error name starts with `rpc.` (reserved). Method and event schemas are any
 Standard Schema or a raw JSON Schema object (an event's with `type: 'object'`).
 
+Rpc methods never ask. An operation that must ask is a tool, and gets no rpc method: the server plugin's restart
+is the `server_restart` tool only.
+
 ```ts
 import {z} from 'zod'
 import {Rpc} from '@conciv/plugin/rpc'
@@ -123,6 +126,19 @@ plugins.
 
 The first-party tier, for conciv's own plugins only: `onIdle` and the `ToolCall` registry, which fills the body of a
 finished tool call's card (`ToolCallProps`).
+
+### `@conciv/plugin/experimental/page` (`experimental/page.ts`)
+
+What the built-in page plugin offers other plugins' browser parts, shaped as opencode's `gui/browser.ts` (interface and
+const of one name): the `Page` contract (`symbolicate`, `toast`, `capture` with `exclude` and `plugins`, snapdom's own
+`SnapdomPlugin` type, so `@zumer/snapdom` is a dependency) and the `ReactTree` contract (`page.react`: `rootFibers`,
+`dehydrate`, `describe`, `locate`, `frames`), with `PageToastTone`, `PageCapture`, `DehydrateOptions`, `ReactFiber` and
+`ReactComponentInfo`.
+
+### `@conciv/plugin/experimental/grab` (`experimental/grab.ts`)
+
+`GrabFrame`, one unresolved stack frame (`fileName`, `line`, `column?`): the input of `Page.symbolicate`, which
+`@conciv/grab` re-exports.
 
 ### `@conciv/plugin/host` (`host.ts`)
 
@@ -194,7 +210,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - `evaluatePluginBundle` checks the definition with zod (`stores` entries need a `global`, `project` or `session` scope and a Standard Schema, a value whose `~standard.validate` is a function, where source checks `Schema.isSchema`; `setup` must be a function) and puts `z.prettifyError`'s field path in the message where source puts Effect's `Cause.pretty`. Its texts are source's with the entry name and package: "A plugin's ./plugin-experimental bundle must default-export a `Plugin.define` from `@conciv/plugin/experimental`: <problem>" and "A plugin's ./plugin-experimental bundle must have a window `setup`" (source: "A plugin's GUI must have a window `setup`, a `main` setup, or both").
 - A type guard over the zod check stands in for source's `Schema.is` plus its two `SAFETY` casts; source's `//` comments are dropped.
 - `mainOnlyModule` and `inertModule` are kept: the page's `require` gives a bundle an inert placeholder for Node built-ins, as opencode's window does. `mainOnlyModule` no longer counts `electron` (no desktop app). JSDoc speaks of the browser in place of the window and main processes.
-- `modules.ts` keeps source's split: `pluginSharedModules` is `effect`, `@conciv/plugin/experimental`, `@conciv/plugin/rpc`, `zod`; `pluginWindowModules` is `solid-js`, `solid-js/web`, `solid-js/store` (the spec's list for outside plugins). With no main process the split only separates Solid from the rest. Absent: `@opencode/plugin/gui/main`, `@opencode/schema/rpc` (conciv's contract module is `@conciv/plugin/rpc`), `@opencode/client`, `@opencode/client/effect`, `@opencode/client/solid`, and the `gui/file`, `gui/review`, `gui/browser` contract modules (not ported).
+- `modules.ts` keeps source's split: `pluginSharedModules` is `effect`, `@conciv/plugin/experimental`, `@conciv/plugin/rpc`, `zod`; `pluginWindowModules` is `solid-js`, `solid-js/web`, `solid-js/store` (the spec's list for outside plugins) and the contract module `@conciv/plugin/experimental/page` (source lists `gui/browser` there). With no main process the split only separates Solid and the window contracts from the rest. Absent: `@opencode/plugin/gui/main`, `@opencode/schema/rpc` (conciv's contract module is `@conciv/plugin/rpc`), `@opencode/client`, `@opencode/client/effect`, `@opencode/client/solid`, and the `gui/file`, `gui/review`, `gui/browser` contract modules (not ported; conciv's page contracts are its own).
 
 ### Building an app part (`experimental/vite.ts`)
 
@@ -271,7 +287,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - A file a hook adds must be a `data:<mime>;base64,<payload>` URI: an image mime becomes an `image` part, any other a `document` part, checked against the chat part schema. Any other URI (`file:`, `media:`) fails the prompt with `Unsupported attachment URI`: conciv has no `materializeAttachment` (`core/src/session/prompt.ts:93-146`), so no file reading, size cap, mime sniffing or image resizing.
 - `SessionIdle.background` is always empty: conciv keeps no background jobs; the CLI owns that work.
 - `session.create` fails with `Session.AgentNotFoundError` for an agent other than `build`, and with `Session.NotFoundError` for a model the session's harness does not list (or lists disabled, or without the given `variant`), as `switchAgent` and `switchModel` do; nothing is created. The source accepts both unchecked (`core/src/session/session.ts:290-310`) and fails at run time, which conciv has no place to do. The errors' `sessionId` is the supplied `id`, or the id the call minted for the new session.
-- `session.create`'s `id` is `string | undefined` (a `null` id is rejected, as the source). The Promise adapter decodes the `id` only, with the host's Session id schema, and passes the rest of the input through untouched, so a bad id fails the call before the session key's `create` runs; the source decodes its whole payload (`plugin/src/promise/adapter.ts:635` with `protocol/src/groups/session.ts:169`), and conciv has no schema for the rest. An `id` naming a live session returns that session unchanged, as the source (`core/src/session.ts:291-293`). An `id` naming a deleted session makes a new session under that id, as the source (which keeps no deleted sessions): nothing of the old session is kept, its markers and earlier native transcripts included, and the old session can no longer be restored.
+- `session.create`'s `id` is `string | undefined` (a `null` id is rejected, as the source). The Promise adapter decodes the `id` only, with the host's Session id schema, and passes the rest of the input through untouched, so a bad id fails the call before the session key's `create` runs; the source decodes its whole payload (`plugin/src/promise/adapter.ts:635` with `protocol/src/groups/session.ts:169`), and conciv has no schema for the rest. An `id` naming a live session returns that session unchanged, as the source (`core/src/session.ts:291-293`). An `id` naming a deleted session is refused with `Session.NotFoundError` (the same error `session.get` answers for it), and the deleted session is left as it was, so it can still be restored; an `id` naming no session at all creates a new session under that id. This differs from the source: it deletes the row outright when a session is removed (`core/src/session/projector.ts:963-966`), so its `create` with that id finds nothing and makes a fresh session (`core/src/session.ts:290-293`); conciv keeps the deleted session.
 - The other session calls (`list`, `get`, `remove`, `switchAgent`, `switchModel`, `compact`, `interrupt`, `update`, `wait`, `instructions.entry.list`, `put`, `remove`) validate their input at the Promise adapter as opencode's endpoints do (`protocol/src/groups/session.ts`): the session id with the host's Session id schema, and each field the call reads with the source's schema (`list` `limit` a positive whole number, `search` a string, `archived` a boolean; `switchAgent` `agent`; `switchModel` `model` a model reference; `compact` `id` a message id; `interrupt` `resume` a boolean; `update` `title` a string, `metadata` JSON values by key, `permissions` a permission ruleset, `archived` a boolean; an instruction entry's `key` and JSON `value`). A bad value fails the call with a `SchemaError` before the session key runs; keys a call does not declare pass through untouched (the source drops them). Not validated, because conciv has no schema for them: `list`'s `order`, `parentId` (the source's id-or-null union) and `cursor` (the source's `SessionsCursor`; conciv's cursor is its own JSON, which the key refuses with `Session.InvalidListCursorError`), and `compact`'s `delivery` (the source's `SessionInbox.Delivery`); the key reads none of them except `cursor`. The SDK types stay as the source's: a `limit` that is not a positive whole number and a compact `id` that does not start with `msg_` are typed `number` and `string` but refused.
 - `SessionDomain` has no `move` (not ours: one directory per engine).
 - The session list input has no `directory`, `project` or `subpath`, and the session create input no `location` (one project per engine).
@@ -322,7 +338,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - `SessionScreen` has `composer` only: `file` (`Files`, `FileState`, `FileContent`, `FileNode`, `LineRange`) and `comment` (`Comments`, `Comment`) are not ours (audit rows `screen.file.*`, `screen.comment.*`).
 - `MountedSession` keeps `visit` and `directory`; `local` is declared, not implemented; `background` and `BackgroundTask` are absent (subagents run inside the CLI); `listedProject` is absent (no sidebar; audit row `layout.sidebar.opened`); `project` is not available yet.
 - `Layout`: `side` and `sidebar` are absent: conciv has no side region (`apps/conciv/src/pane/status-bar.tsx:48`, a panel replaces the chat; `apps/conciv/src/routes/panel-height.ts:8`). This settles the audit's UNSURE `layout.side.width` row and drops `side.menu` with `MenuItem`. `project` is absent (one directory per engine).
-- `Desktop`: no `os`, no `zoom`; `launch(path, position?)` takes a `{line, column?}` position in place of source's `app?` argument, backed by the engine's open-in-editor (`packages/contract/src/contract.ts:410`, `editor.open`).
+- `Desktop`: no `os`, no `zoom`; `launch(path, position?)` takes a `{line, column?}` position in place of source's `app?` argument, backed by the engine's open-in-editor through the engine's server plugin (`plugin.call` with rpc id `server`, method `open`, `packages/plugin-host/src/core/tool/plugin/server.ts`).
 - `StorageScope` keeps source's `{server, directory?}` scope; a conciv server is an engine, which runs in one project. It adds `'project'` (the repo the engine runs in), so `Storage.store` opens a declared `project` store with its own scope.
 - `System.save` and `openExternal` JSDoc describe the web only (download, new tab).
 - `Layout.draft` opens a draft only on the one engine (`server` `engine`) in its project root: a `server` or `directory` other than those is refused, logged with the plugin's id, and nothing is created (source: any listed server, any directory).

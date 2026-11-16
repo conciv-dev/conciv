@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {and, desc, eq, getTableColumns, inArray, isNotNull, isNull, lt, max, notInArray, or, sql} from 'drizzle-orm'
+import {and, desc, eq, getTableColumns, inArray, isNull, lt, max, notInArray, or, sql} from 'drizzle-orm'
 import {keyBy, mapValues, uniqBy} from 'es-toolkit'
 import {z} from 'zod'
 import type {SessionHit, SessionMeta} from '@conciv/contract'
@@ -25,7 +25,7 @@ import type {
   HarnessSessionMeta,
   HarnessSessionPage,
 } from '@conciv/protocol/harness-types'
-import {anchorKey, chatMetadata, chatRuns, markers, sessions, TRANSCRIPT_NAMESPACE, type ConcivDb} from '@conciv/db'
+import {anchorKey, chatMetadata, chatRuns, sessions, TRANSCRIPT_NAMESPACE, type ConcivDb} from '@conciv/db'
 import {realpathOrSelf, sameCwd} from '@conciv/harness/cwd'
 import {pageAfter} from '@conciv/harness/page'
 import {logError} from '../lib/debug.js'
@@ -112,21 +112,6 @@ function freshRecord(input: FreshRowInput): SessionRecord {
 export async function createRow(db: ConcivDb, input: FreshRowInput): Promise<SessionRecord> {
   const record = freshRecord(input)
   await db.insert(sessions).values(record)
-  return record
-}
-
-export function reuseDeletedRow(db: ConcivDb, input: FreshRowInput): SessionRecord {
-  const record = freshRecord(input)
-  db.transaction((tx) => {
-    tx.delete(markers).where(eq(markers.sessionId, record.id)).run()
-    tx.delete(chatMetadata)
-      .where(and(eq(chatMetadata.namespace, EARLIER_NATIVES_NAMESPACE), eq(chatMetadata.key, record.id)))
-      .run()
-    tx.update(sessions)
-      .set(record)
-      .where(and(eq(sessions.id, record.id), isNotNull(sessions.deletedAt)))
-      .run()
-  })
   return record
 }
 

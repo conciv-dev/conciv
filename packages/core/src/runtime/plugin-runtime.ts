@@ -43,6 +43,7 @@ import {
   provideApp,
   provideBundlerSource,
   provideConfiguredPolicies,
+  provideEditorSource,
   provideExtensionSlugs,
   provideGlobalRoots,
   provideHarnessSource,
@@ -59,10 +60,12 @@ export type PluginRuntimeInput = {
   engineId: string
   config: Pick<ResolvedConcivConfig, 'plugins' | 'policies'>
   plugins: readonly PluginDefinition.Plugin[]
+  post: readonly PluginDefinition.Plugin[]
   harness: HarnessAdapter
   signal: AbortSignal
   harnessSource: Parameters<typeof provideHarnessSource>[0]
   bundler: BundlerBridge | undefined
+  openInEditor: (file: string, line?: number, column?: number) => void
   extensionSlugs: ReadonlyArray<string>
   sessions: Parameters<typeof provideSessions>[0]
 }
@@ -91,7 +94,12 @@ function pluginHostLayer(input: PluginRuntimeInput) {
   return Layer.mergeAll(
     Plugin.layer,
     SdkPlugins.layer,
-    InstancePlugins.bound(input.plugins.map((plugin) => PluginPromise.fromPromise(plugin))),
+    InstancePlugins.bound(
+      input.plugins.map((plugin) => PluginPromise.fromPromise(plugin)),
+      {
+        post: input.post.map((plugin) => PluginPromise.fromPromise(plugin)),
+      },
+    ),
     PluginUpdate.layer,
     ConfigPluginSource.layer,
   ).pipe(
@@ -115,6 +123,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
         provideServersSource({home: input.home, engineId: input.engineId}),
         provideHarnessSource(input.harnessSource),
         provideBundlerSource(input.bundler),
+        provideEditorSource(input.openInEditor),
         provideExtensionSlugs(input.extensionSlugs),
         provideConfiguredPolicies(input.config.policies),
         Layer.succeed(ConfigPluginSource.ConfiguredPlugins, input.config.plugins),
