@@ -53,6 +53,8 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/browser-fixture": "workspace:*",
+    "@conciv/embed": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-testkit": "workspace:^",
@@ -61,6 +63,7 @@
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "playwright": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
