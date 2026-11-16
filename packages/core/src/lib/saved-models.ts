@@ -9,6 +9,8 @@ import {writePrivateFile} from './dev-endpoint.js'
 
 const SavedModelsSchema = z.array(HarnessModelSchema)
 
+export type SavedModelsHarness = {harness: HarnessAdapter; settled: () => Promise<void>}
+
 function readSaved(path: string): HarnessModel[] | null {
   try {
     const parsed = SavedModelsSchema.safeParse(JSON.parse(readFileSync(path, 'utf8')))
@@ -26,13 +28,18 @@ function writeSaved(path: string, models: HarnessModel[]): void {
   }
 }
 
-export function withSavedModels(adapter: HarnessAdapter, stateDir: string, signal: AbortSignal): HarnessAdapter {
-  if (typeof adapter.models !== 'function') return adapter
+export function withSavedModels(adapter: HarnessAdapter, stateDir: string, signal: AbortSignal): SavedModelsHarness {
+  if (typeof adapter.models !== 'function') return {harness: adapter, settled: () => Promise.resolve()}
   const path = join(stateDir, `${adapter.id}-models.json`)
   const state: {saved: HarnessModel[] | null; refreshing?: Promise<HarnessModel[]>} = {saved: readSaved(path)}
+  async function listLive(): Promise<HarnessModel[]> {
+    signal.throwIfAborted()
+    return resolveHarnessModels(adapter, {signal})
+  }
   function refresh(): Promise<HarnessModel[]> {
-    state.refreshing ??= resolveHarnessModels(adapter, {signal})
+    state.refreshing ??= listLive()
       .then((listed) => {
+        signal.throwIfAborted()
         state.saved = listed
         writeSaved(path, listed)
         return listed
@@ -46,8 +53,13 @@ export function withSavedModels(adapter: HarnessAdapter, stateDir: string, signa
   function models(): Promise<HarnessModel[]> {
     const fresh = refresh()
     if (state.saved === null) return fresh
-    fresh.catch((error: unknown) => logError(`[core] the model list could not be refreshed: ${String(error)}`))
+    fresh.catch((error: unknown) => {
+      if (!signal.aborted) logError(`[core] the model list could not be refreshed: ${String(error)}`)
+    })
     return Promise.resolve(state.saved)
   }
-  return {...adapter, models}
+  async function settled(): Promise<void> {
+    await Promise.allSettled([state.refreshing])
+  }
+  return {harness: {...adapter, models}, settled}
 }

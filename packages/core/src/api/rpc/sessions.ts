@@ -157,7 +157,7 @@ export async function buildHarnessMenuEntry(harness: HarnessAdapter, signal: Abo
       modelsFailed: false,
     }
   } catch (error) {
-    logError(`[core] listing the ${harness.id} models failed: ${String(error)}`)
+    if (!signal.aborted) logError(`[core] listing the ${harness.id} models failed: ${String(error)}`)
     return {...buildHarnessMeta(harness), models: [], defaultModel: harness.defaultModel ?? null, modelsFailed: true}
   }
 }

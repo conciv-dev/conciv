@@ -9,6 +9,7 @@ import {
   utimesSync,
   chmodSync,
 } from 'node:fs'
+import {spawn, type ChildProcess} from 'node:child_process'
 import {once} from 'node:events'
 import {request as httpRequest} from 'node:http'
 import {createServer} from 'node:net'
@@ -1076,7 +1077,7 @@ describe('local state files', () => {
         chatConfig: () => ({adapter: fakeText()}),
         capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
       })
-      return withSavedModels(harness, dir, UNSTOPPED)
+      return withSavedModels(harness, dir, UNSTOPPED).harness
     }
 
     it('waits for the first live list, then answers from the saved one at once while a refresh, a failure or an empty list lands', async () => {
@@ -1118,6 +1119,43 @@ describe('local state files', () => {
       const harness = listing(tempDir('conciv-core-unit-'), () => outcomes.shift() ?? Promise.resolve([]))
       await expect(resolveHarnessModels(harness, {signal: UNSTOPPED})).rejects.toThrow('probe failed')
       expect(await resolveHarnessModels(harness, {signal: UNSTOPPED})).toEqual([OPUS])
+    })
+
+    it('closing the engine ends a listing still running: its child has exited and nothing is saved', async () => {
+      const root = tempDir('conciv-core-unit-')
+      const spawned = Promise.withResolvers<ChildProcess>()
+      const ended: {signal?: NodeJS.Signals | null} = {}
+      const harness = defineHarness({
+        id: 'listing',
+        binName: 'listing',
+        models: ({signal}) =>
+          new Promise<Listed[]>((resolve) => {
+            const child = spawn(process.execPath, ['-e', 'process.stdin.resume()'], {
+              signal,
+              stdio: ['pipe', 'ignore', 'ignore'],
+            })
+            child.on('error', () => {})
+            child.on('spawn', () => spawned.resolve(child))
+            child.on('exit', (_code, exitSignal) => {
+              ended.signal = exitSignal
+              resolve([OPUS])
+            })
+          }),
+        chatConfig: () => ({adapter: fakeText()}),
+        capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
+      })
+      const made = await makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}, harness})
+      const listing = expect(resolveHarnessModels(made.chat.defaultHarness, {signal: UNSTOPPED})).rejects.toThrow(
+        'the engine stopped',
+      )
+      const child = await spawned.promise
+      onTestFinished(() => {
+        child.kill()
+      })
+      await made.dispose()
+      expect(ended).toEqual({signal: 'SIGTERM'})
+      await listing
+      expect(existsSync(join(concivStateDir(root), 'listing-models.json'))).toBe(false)
     })
   })
 })

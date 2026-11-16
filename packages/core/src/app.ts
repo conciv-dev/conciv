@@ -26,7 +26,7 @@ import {
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness, listHarnesses, transcriptPathWithin} from '@conciv/harness'
-import {withSavedModels} from './lib/saved-models.js'
+import {withSavedModels, type SavedModelsHarness} from './lib/saved-models.js'
 import {createSessionSearch} from './sessions/session-search.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '@conciv/tools'
@@ -202,15 +202,15 @@ function detectedHarnesses(): HarnessAdapter[] {
 }
 
 function availableHarnesses(
-  boot: HarnessAdapter,
+  boot: SavedModelsHarness,
   opts: MakeAppOpts,
   stateDir: string,
   signal: AbortSignal,
-): HarnessAdapter[] {
+): SavedModelsHarness[] {
   const others = (opts.harnesses ?? (opts.harness ? [] : detectedHarnesses())).map((adapter) =>
     withSavedModels(adapter, stateDir, signal),
   )
-  return [boot, ...others.filter((adapter) => adapter.id !== boot.id)]
+  return [boot, ...others.filter((other) => other.harness.id !== boot.harness.id)]
 }
 
 function symbolicable(frame: {
@@ -447,13 +447,19 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const stateDir = concivStateDir(opts.cfg.stateRoot)
   const engineLife = new AbortController()
-  const harness = withSavedModels(opts.harness ?? requireHarness(opts.cfg.harness), stateDir, engineLife.signal)
+  const boot = withSavedModels(opts.harness ?? requireHarness(opts.cfg.harness), stateDir, engineLife.signal)
+  const harness = boot.harness
   const agentToken = opts.agentToken ?? randomUUID()
   const basePath = agentPath(agentToken)
   const browsers = watchTrustedBrowsers(stateDir)
   const trust = makeConnectionTrust(agentToken, browsers)
   const socketUpgrade = trustingUpgrade(upgradeWebSocket, trust)
-  const harnesses = availableHarnesses(harness, opts, stateDir, engineLife.signal)
+  const listings = availableHarnesses(boot, opts, stateDir, engineLife.signal)
+  const harnesses = listings.map((listing) => listing.harness)
+  const endListings = async (): Promise<void> => {
+    engineLife.abort(new Error('conciv: the engine stopped'))
+    await Promise.all(listings.map((listing) => listing.settled()))
+  }
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb(opts.cfg.stateRoot)
   const planeRef: {current: ChatPlane | null} = {current: null}
@@ -632,6 +638,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     async (error: unknown): Promise<never> => {
       await runInOrder(
         [
+          endListings,
           plugins.closeRpc,
           plugins.closePlugins,
           plugins.closePermissions,
@@ -878,6 +885,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const dispose = (): Promise<void> =>
     runInOrder(
       [
+        endListings,
         plugins.closeRpc,
         plugins.closePlugins,
         () => Effect.runPromise(Scope.close(idleScope, Exit.void)),
