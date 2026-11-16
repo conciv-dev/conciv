@@ -5,7 +5,7 @@ import {isPageFailure, type PageErrorCode} from '@conciv/protocol/page-types'
 import {isPageVerbError, isToolError} from '@conciv/extension'
 import type {RegistryCallGate} from '@conciv/extension/registry'
 import {resolveHarnessModels} from '@conciv/harness'
-import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
+import {BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers} from '@conciv/db'
 import type {Router} from '@orpc/server'
 import {Effect, Result, Stream} from 'effect'
@@ -389,48 +389,14 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       }),
     },
     server: {
-      config: sessionOs.server.config.handler(({context, errors}) =>
-        hubTraced(context, BUILTIN_SERVER_TOOL.server_config.name, {}, () =>
-          callTool(BUILTIN_SERVER_TOOL.server_config, {}, errors),
-        ),
-      ),
-      resolve: sessionOs.server.resolve.handler(({input, context, errors}) =>
-        hubTraced(context, BUILTIN_SERVER_TOOL.server_resolve.name, input, () =>
-          callTool(BUILTIN_SERVER_TOOL.server_resolve, input, errors),
-        ),
-      ),
-      graph: sessionOs.server.graph.handler(({input, context, errors}) =>
-        hubTraced(context, BUILTIN_SERVER_TOOL.server_graph.name, input, () =>
-          callTool(BUILTIN_SERVER_TOOL.server_graph, input, errors),
-        ),
-      ),
-      transform: sessionOs.server.transform.handler(({input, context, errors}) =>
-        hubTraced(context, BUILTIN_SERVER_TOOL.server_transform.name, input, () =>
-          callTool(BUILTIN_SERVER_TOOL.server_transform, input, errors),
-        ),
-      ),
-      urls: sessionOs.server.urls.handler(({context, errors}) =>
-        hubTraced(context, BUILTIN_SERVER_TOOL.server_urls.name, {}, () =>
-          callTool(BUILTIN_SERVER_TOOL.server_urls, {}, errors),
-        ),
-      ),
       reload: sessionOs.server.reload.handler(async ({input, context, errors, signal}) => {
         await refuseUnapproved(deps, BUILTIN_SERVER_TOOL.server_reload.name, input, {context, errors, signal})
         return hubTraced(context, BUILTIN_SERVER_TOOL.server_reload.name, input, () =>
           callTool(BUILTIN_SERVER_TOOL.server_reload, input, errors),
         )
       }),
-      restart: sessionOs.server.restart.handler(async ({input, context, errors, signal}) => {
-        await refuseUnapproved(deps, BUILTIN_SERVER_TOOL.server_restart.name, input, {context, errors, signal})
-        return hubTraced(context, BUILTIN_SERVER_TOOL.server_restart.name, input, () =>
-          callTool(BUILTIN_SERVER_TOOL.server_restart, input, errors),
-        )
-      }),
     },
     editor: {
-      open: sessionOs.editor.open.handler(({input, context}) =>
-        hubTraced(context, BUILTIN_OPEN_TOOL.name, input, () => callTool(BUILTIN_OPEN_TOOL, input)),
-      ),
       openFromFrames: os.editor.openFromFrames.handler(({input}) => deps.openFromFrames(input.frames)),
     },
     meta: {
