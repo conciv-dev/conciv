@@ -106,10 +106,10 @@ async function* attempted(
       if (event.type === 'server.connected') setStatus('connected')
       yield event as EventSubscribeOutput
     }
-    if (!signal.aborted) console.warn('[conciv] the event stream ended; subscribing again')
+    if (!signal.aborted) console.info('[conciv] the event stream ended; subscribing again')
   } catch (error) {
     if (signal.aborted) return
-    console.error('[conciv] the event stream failed; subscribing again', error)
+    console.info('[conciv] the event stream failed; subscribing again', error)
   } finally {
     clearTimeout(watchdog)
     signal.removeEventListener('abort', cancel)
