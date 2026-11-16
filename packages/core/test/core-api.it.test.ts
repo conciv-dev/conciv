@@ -1232,16 +1232,20 @@ describe('api harness switching', () => {
     expect(await entries((service) => service.list(id))).toEqual([{key: 'brief', value: 'the old session'}])
     await key((sessions) => sessions.remove(id))
     const location = Schema.decodeSync(Location.Ref)({directory: app.chat.cwd})
-    const reused = await key((sessions) => sessions.create({id, title: 'A new session on an old id', location}))
-    expect(reused).toMatchObject({id, title: 'A new session on an old id', metadata: undefined, permissions: undefined})
-    expect(reused.time.created).toEqual(expect.any(Number))
-    expect(reused.time.created).toBeGreaterThanOrEqual(old.time.updated)
-    expect(await key((sessions) => sessions.get(id))).toEqual(reused)
+    const refused = await key((sessions) =>
+      sessions.create({id, title: 'A new session on an old id', location}).pipe(Effect.flip),
+    )
+    expect(refused).toMatchObject({_tag: 'Session.NotFoundError', sessionId: id})
+    expect(row(sessionId)?.deletedAt).not.toBeNull()
+    expect(row(sessionId)?.title).not.toBe('A new session on an old id')
+    expect(row(sessionId)).toMatchObject({
+      metadata: {ticket: 7},
+      permissions: [{action: 'bash', resource: '*', effect: 'deny'}],
+    })
     expect(await entries((service) => service.list(id))).toEqual([])
-    expect(row(sessionId)).toMatchObject({harnessKind: 'alpha', harnessSessionId: null, deletedAt: null})
-    const newMarkers = (await kit().rpc.markers.list({sessionId})).map((marker) => marker.id)
-    expect(newMarkers.filter((marker) => oldMarkers.includes(marker))).toEqual([])
-    expect(await listings(false)).toEqual({owner: 1, phantoms: 1})
+    expect(await key((sessions) => sessions.get(id).pipe(Effect.flip))).toMatchObject({_tag: 'Session.NotFoundError'})
+    expect((await kit().rpc.markers.list({sessionId})).map((marker) => marker.id)).toEqual(oldMarkers)
+    expect(await listings(false)).toEqual({owner: 1, phantoms: 0})
   })
 
   it('lists the native sessions of every available harness, labelled by harness', async () => {
