@@ -5,7 +5,10 @@ in a sliding window per page client; the agent pulls a distilled action log (and
 Chromium) from code mode. Its browser part adds a Recorder tab to the panel: it replays the recording live, starts a
 New recording, and exports the recording as a video (Export video).
 
-Not shipped yet: capture in the page. Until it lands, the old `@conciv/extension-recorder` is what records the page.
+Not shipped yet: capture in the page. Until it ships, the Recorder tab (replay, New recording, Export video) and the
+agent tools are in place but stay empty: nothing reaches this plugin's engine part. The old `@conciv/extension-recorder`
+still records the page, into its own tab and its own tools, not this plugin's. Don't enable both until capture ships:
+two Recorder tabs show, and two tool sets. The package is internal and not published to npm until capture ships.
 
 ```ts
 plugins: ['@conciv/plugin-recorder']
