@@ -24,7 +24,12 @@ const CREATED_PATH_ARGUMENT = new Map([
   ['symlinkSync', 1],
 ])
 const CREATING_NAMES = new Set(CREATED_PATH_ARGUMENT.keys())
+const SOURCE_PLACES = [
+  [E2E_FILE, 'e2e'],
+  [TESTKIT_SOURCE, 'testkit'],
+]
 const ENV_NAMES = new Set(['env'])
+const TMPDIR_ENV_NAMES = new Set(['TMPDIR'])
 const SYSTEM_TEMP = /^\/tmp(?:\/|$)/
 const TMPDIR_NAMES = new Set(['tmpdir'])
 const EXIT_LISTENERS = new Set(['on', 'once'])
@@ -39,15 +44,18 @@ function isTestFile(filename) {
 
 function findFilePlace(filename) {
   if (HELPER_FILE.test(filename)) return undefined
-  if (E2E_FILE.test(filename)) return 'e2e'
-  if (TESTKIT_SOURCE.test(filename)) return 'testkit'
-  if (isTestFile(filename)) return 'test'
-  return undefined
+  const place = SOURCE_PLACES.find(([pattern]) => pattern.test(filename))
+  if (place !== undefined) return place[1]
+  return isTestFile(filename) ? 'test' : undefined
+}
+
+function resolveDefinition(identifier, sourceCode) {
+  const reference = sourceCode.getScope(identifier).references.find((entry) => entry.identifier === identifier)
+  return reference?.resolved?.defs[0]
 }
 
 function resolveImport(identifier, sourceCode) {
-  const reference = sourceCode.getScope(identifier).references.find((entry) => entry.identifier === identifier)
-  const definition = reference?.resolved?.defs[0]
+  const definition = resolveDefinition(identifier, sourceCode)
   if (definition?.type !== 'ImportBinding') return undefined
   const specifier = definition.node
   return {
@@ -70,12 +78,17 @@ function isModuleObject(identifier, sourceCode, sources) {
   return binding !== undefined && sources.has(binding.source) && binding.imported === undefined
 }
 
-function hasNamedProperty(member, names) {
-  return isIdentifier(member.object) && isIdentifier(member.property) && names.has(member.property.name)
+function isNamedProperty(member, names) {
+  return (
+    member.type === 'MemberExpression' &&
+    !member.computed &&
+    isIdentifier(member.property) &&
+    names.has(member.property.name)
+  )
 }
 
 function isNamedMember(callee, names) {
-  return callee.type === 'MemberExpression' && !callee.computed && hasNamedProperty(callee, names)
+  return isNamedProperty(callee, names) && isIdentifier(callee.object)
 }
 
 function isModuleFunction(callee, sourceCode, sources, names) {
@@ -89,57 +102,63 @@ function isTmpdirCall(node, sourceCode) {
 
 function isTmpdirEnv(node, sourceCode) {
   return (
-    node.type === 'MemberExpression' &&
-    !node.computed &&
-    isIdentifier(node.property) &&
-    node.property.name === 'TMPDIR' &&
+    isNamedProperty(node, TMPDIR_ENV_NAMES) &&
     isNamedMember(node.object, ENV_NAMES) &&
     isGlobalProcess(node.object.object, sourceCode)
   )
 }
 
+function readStaticPrefix(node) {
+  if (node.type === 'TemplateLiteral') return String(node.quasis[0].value.cooked)
+  if (node.type === 'Literal' && typeof node.value === 'string') return node.value
+  return ''
+}
+
 function isSystemTempText(node) {
-  if (node.type === 'Literal') return typeof node.value === 'string' && SYSTEM_TEMP.test(node.value)
-  return node.type === 'TemplateLiteral' && SYSTEM_TEMP.test(node.quasis[0]?.value.cooked ?? '')
+  return SYSTEM_TEMP.test(readStaticPrefix(node))
 }
 
 function isTempRoot(node, sourceCode) {
   return isTmpdirCall(node, sourceCode) || isTmpdirEnv(node, sourceCode) || isSystemTempText(node)
 }
 
-function containsTempRoot(argument, sourceCode) {
+function containsNode(root, matches) {
   let found = false
-  walk(argument, (node) => {
-    if (!isTempRoot(node, sourceCode)) return undefined
+  walk(root, (node) => {
+    if (!matches(node)) return undefined
     found = true
     return 'skip'
   })
   return found
 }
 
-function constInitializer(identifier, sourceCode) {
-  const reference = sourceCode.getScope(identifier).references.find((entry) => entry.identifier === identifier)
-  const definition = reference?.resolved?.defs[0]
-  if (definition?.type !== 'Variable' || definition.parent.kind !== 'const') return undefined
-  const initializer = definition.node.init ?? undefined
-  if (isMadeFolder(initializer, sourceCode)) return undefined
-  return initializer
+function isConstDefinition(definition) {
+  return definition?.type === 'Variable' && definition.parent.kind === 'const' && Boolean(definition.node.init)
+}
+
+function unwrapAwait(node) {
+  return node.type === 'AwaitExpression' ? node.argument : node
 }
 
 function isMadeFolder(initializer, sourceCode) {
-  const call = initializer?.type === 'AwaitExpression' ? initializer.argument : initializer
-  return call?.type === 'CallExpression' && createdPathArgument(call, sourceCode) !== undefined
+  const call = unwrapAwait(initializer)
+  return call.type === 'CallExpression' && createdPathArgument(call, sourceCode) !== undefined
+}
+
+function constInitializer(identifier, sourceCode) {
+  const definition = resolveDefinition(identifier, sourceCode)
+  if (!isConstDefinition(definition)) return undefined
+  return isMadeFolder(definition.node.init, sourceCode) ? undefined : definition.node.init
+}
+
+function isConstOnTempRoot(node, sourceCode) {
+  if (!isIdentifier(node)) return false
+  const initializer = constInitializer(node, sourceCode)
+  return containsNode(initializer, (child) => isTempRoot(child, sourceCode))
 }
 
 function isBuiltOnTmpdir(argument, sourceCode) {
-  let found = false
-  walk(argument, (node) => {
-    const initializer = isIdentifier(node) ? constInitializer(node, sourceCode) : undefined
-    if (!isTempRoot(node, sourceCode) && !containsTempRoot(initializer, sourceCode)) return undefined
-    found = true
-    return 'skip'
-  })
-  return found
+  return containsNode(argument, (node) => isTempRoot(node, sourceCode) || isConstOnTempRoot(node, sourceCode))
 }
 
 function isConfigFile(filename) {
