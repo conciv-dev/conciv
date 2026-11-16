@@ -97,7 +97,7 @@ async function* attempted(
   const touch = () => {
     onActivity()
     clearTimeout(watchdog)
-    watchdog = setTimeout(() => attempt.abort(new Error('Event stream stalled')), idleTimeout)
+    watchdog = setTimeout(() => attempt.abort(new DOMException('Event stream stalled', 'TimeoutError')), idleTimeout)
   }
   try {
     for await (const event of await raw.event.subscribe(undefined, {signal: attempt.signal})) {
