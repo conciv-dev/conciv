@@ -9,7 +9,7 @@ import {
   type QueryKey,
 } from '@conciv/client'
 import {Conciv, type ConcivClient} from '@conciv/plugin'
-import type {AttachmentState} from '@conciv/ui-kit-chat'
+import {encodeAttachments} from '@conciv/ui-kit-chat/draft-storage'
 import type {DraftStore} from '../runtime/persistence/drafts.js'
 import {DraftRowSchema, SessionMetaSchema, type DraftRow, type RpcClient, type SessionMeta} from '@conciv/contract'
 
@@ -17,29 +17,14 @@ const PendingAttachmentSchema = z.object({
   id: z.string(),
   type: z.string(),
   name: z.string(),
-  contentType: z.string(),
   file: z.instanceof(File),
 })
 
-export const DraftSaveSchema = DraftRowSchema.extend({
-  pending: z.array(z.custom<AttachmentState>((value) => PendingAttachmentSchema.safeParse(value).success)).default([]),
-})
+export const DraftSaveSchema = DraftRowSchema.extend({pending: z.array(PendingAttachmentSchema).default([])})
 
 export type DraftSave = z.input<typeof DraftSaveSchema>
 
-const EncodedAttachmentsSchema = DraftRowSchema.pick({attachments: true})
-
-async function encodeAttachments(pending: readonly AttachmentState[]): Promise<DraftRow['attachments']> {
-  if (pending.length === 0) return []
-  const {writeComposerDraft} = await import('@conciv/ui-kit-chat')
-  const written: string[] = []
-  await writeComposerDraft({getItem: () => null, setItem: (_key, value) => written.push(value)}, 'draft', {
-    draft: '',
-    quote: null,
-    attachments: [...pending],
-  })
-  return EncodedAttachmentsSchema.parse(JSON.parse(written[0] ?? '{}')).attachments
-}
+export type PendingDraftAttachment = z.infer<typeof PendingAttachmentSchema>
 
 const DraftSessionSchema = z.object({sessionId: z.string()})
 

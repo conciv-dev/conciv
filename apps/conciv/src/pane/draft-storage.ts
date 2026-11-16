@@ -7,7 +7,7 @@ import type {AttachmentState, ComposerDraft, ComposerDraftWriter} from '@conciv/
 import {persistStore} from '../runtime/persistence/persist.js'
 import type {DraftStore} from '../runtime/persistence/drafts.js'
 import type {WebStorage} from '@conciv/storage-history'
-import type {AppData} from '../data/app-data.js'
+import type {AppData, PendingDraftAttachment} from '../data/app-data.js'
 import type {SelectionOffsets} from './composer-input-adapter.js'
 import type {DraftSink} from './pane-attachments.js'
 
@@ -96,7 +96,7 @@ function makeLocalDraftWriter(
   selection: () => SelectionOffsets | null,
   writable: () => boolean,
 ): LocalDraftWriter {
-  const [document, setDocument] = createStore<{draft: LocalDraft | null; files: AttachmentState[]}>({
+  const [document, setDocument] = createStore<{draft: LocalDraft | null; files: PendingDraftAttachment[]}>({
     draft: null,
     files: [],
   })
@@ -131,7 +131,7 @@ function makeLocalDraftWriter(
     const offsets = clampSelection(selection(), draft.draft)
     persisted.setStore(
       'files',
-      draft.attachments.map((attachment) => structuredClone(unwrap(attachment))),
+      draft.attachments.flatMap(({id, type, name, file}) => (file ? [{id, type, name, file}] : [])),
     )
     persisted.setStore('draft', {
       text: draft.draft,
