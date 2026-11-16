@@ -1384,6 +1384,11 @@ test.describe('page dispatch parity', () => {
       )
       page = await browser.newPage()
       await openPagePlaneHost(page, kit, host.base)
+      const shown = await kit.session()
+      const title = `page dispatch ${shown.slice(-12)}`
+      await kit.rpc.sessions.rename({sessionId: shown, title})
+      await openPanel(page)
+      await switchToSessionByTitle(page, title)
     })
 
     test.afterAll(async () => {
