@@ -78,6 +78,16 @@ export async function rowById(db: ConcivDb, id: SessionId): Promise<SessionRecor
   return rows[0] ? sessionRecord(rows[0]) : null
 }
 
+export function isDeletedRow(db: ConcivDb, id: SessionId): boolean {
+  return (
+    db
+      .select({id: sessions.id})
+      .from(sessions)
+      .where(and(eq(sessions.id, id), isNotNull(sessions.deletedAt)))
+      .get() !== undefined
+  )
+}
+
 export function currentRow(db: ConcivDb, id: SessionId): SessionRecord | null {
   const row = db.select(sessionColumns).from(sessions).where(eq(sessions.id, id)).get()
   return row === undefined ? null : sessionRecord(row)

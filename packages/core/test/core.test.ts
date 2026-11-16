@@ -137,7 +137,8 @@ import {homeDbReads} from '../src/lib/home-db-watch.js'
 import {withSavedModels} from '../src/lib/saved-models.js'
 import {statePaths} from '../src/lib/state-paths.js'
 import {makeJournal, makePageBus} from '../src/page/page-bus.js'
-import {makePageQueues, startQueueFollowUp, type PageQueues} from '../src/page/page-queue.js'
+import {makePageQueues, owesFollowUp, startQueueFollowUp, type PageQueues} from '../src/page/page-queue.js'
+import {makePagePlugin} from '../src/page/page-plugin.js'
 import {makeCoreRuntime} from '../src/runtime/core-runtime.js'
 import {provideHarnessModels} from '../src/runtime/harness-models.js'
 import {makeSessionPrimitives} from '../src/runtime/primitives.js'
@@ -174,6 +175,7 @@ import coreManifest from '../package.json' with {type: 'json'}
 import {
   currentRow,
   ensureRow,
+  isDeletedRow,
   nativeIdFor,
   recordNativeId,
   rowById,
@@ -1565,7 +1567,7 @@ describe('page bus and the session scope', () => {
         return turns.length === 1 ? starting.promise : {kind: 'delivered'}
       },
     }
-    const following = startQueueFollowUp(queues, plane, SESSION_A)
+    const following = startQueueFollowUp(queues, plane, SESSION_A, () => false)
     await entered.promise
     for (const _ of Array.from({length: 205})) {
       const queueId = await played(true)
@@ -1574,7 +1576,7 @@ describe('page bus and the session scope', () => {
     starting.resolve({kind: 'busy'})
     await following
     expect(queues.owedTurn(SESSION_A).map((record) => record.queueId)).toEqual([owed])
-    await startQueueFollowUp(queues, plane, SESSION_A)
+    await startQueueFollowUp(queues, plane, SESSION_A, () => false)
     expect(turns).toHaveLength(2)
     expect(turns[1]).toContain(`queue ${owed} finished`)
     expect(queues.owedTurn(SESSION_A)).toEqual([])
@@ -1621,7 +1623,9 @@ describe('page bus and the session scope', () => {
     const {fixture, queues, played, owedIds, runStatuses} = await followUpFixture()
     await played()
     fixture.harness.script.scriptError('the harness could not launch')
-    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
+    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
+      isDeletedRow(fixture.db, sessionId),
+    )
     expect(runStatuses()).toEqual(['failed', 'completed'])
     expect(owedIds()).toEqual([])
     expect(queues.undelivered(fixture.sessionId, false)).toEqual([])
@@ -1631,10 +1635,14 @@ describe('page bus and the session scope', () => {
     const {fixture, queues, played, runStatuses} = await followUpFixture()
     const owed = await played()
     for (const attempt of [1, 2, 3]) fixture.harness.script.scriptError(`launch failure ${attempt}`)
-    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
+    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
+      isDeletedRow(fixture.db, sessionId),
+    )
     expect(runStatuses()).toEqual(['failed', 'failed', 'failed'])
     expect(queues.owedTurn(fixture.sessionId).map((record) => record.delivery)).toEqual(['nextReply'])
-    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
+    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
+      isDeletedRow(fixture.db, sessionId),
+    )
     expect(runStatuses()).toEqual(['failed', 'failed', 'failed'])
     expect(queues.undelivered(fixture.sessionId, false).map((result) => result.queueId)).toEqual([owed])
     expect(queues.undelivered(fixture.sessionId, false)).toEqual([])
@@ -1645,9 +1653,13 @@ describe('page bus and the session scope', () => {
     const stranded = await played()
     const [record] = queues.owedTurn(fixture.sessionId)
     for (const attempt of [1, 2, 3]) fixture.harness.script.scriptError(`launch failure ${attempt}`)
-    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
+    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
+      isDeletedRow(fixture.db, sessionId),
+    )
     expect(record?.delivery).toBe('nextReply')
-    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
+    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
+      isDeletedRow(fixture.db, sessionId),
+    )
     expect(runStatuses()).toEqual(['failed', 'failed', 'failed'])
     const later = await played()
     const inputs: string[] = []
@@ -1658,7 +1670,7 @@ describe('page bus and the session scope', () => {
         return fixture.plane.followUp(sessionId, input)
       },
     }
-    await startQueueFollowUp(queues, plane, fixture.sessionId)
+    await startQueueFollowUp(queues, plane, fixture.sessionId, (sessionId) => isDeletedRow(fixture.db, sessionId))
     expect(runStatuses()).toEqual(['failed', 'failed', 'failed', 'completed'])
     expect(inputs).toHaveLength(1)
     expect(inputs[0]).toContain(`queue ${stranded} finished`)
@@ -1676,7 +1688,9 @@ describe('page bus and the session scope', () => {
       if (sessionRunEvent.parse(chunk) !== null) started.resolve()
     })
     onTestFinished(unlisten)
-    const following = startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
+    const following = startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
+      isDeletedRow(fixture.db, sessionId),
+    )
     await started.promise
     await fixture.plane.stop(fixture.sessionId)
     fixture.harness.script.release()
@@ -1699,7 +1713,7 @@ describe('page bus and the session scope', () => {
         return declined
       },
     }
-    await startQueueFollowUp(queues, plane, fixture.sessionId)
+    await startQueueFollowUp(queues, plane, fixture.sessionId, (sessionId) => isDeletedRow(fixture.db, sessionId))
     expect(runStatuses()).toEqual(['completed'])
     expect(owedIds()).toEqual([owed])
   })
@@ -1707,7 +1721,9 @@ describe('page bus and the session scope', () => {
   it('a follow-up run that finishes confirms its result delivered', async () => {
     const {fixture, queues, played, owedIds} = await followUpFixture()
     await played()
-    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId)
+    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
+      isDeletedRow(fixture.db, sessionId),
+    )
     expect(owedIds()).toEqual([])
     expect(queues.undelivered(fixture.sessionId, false)).toEqual([])
     expect(await fixture.plane.followUp(fixture.sessionId, 'queue q_a finished')).toEqual({kind: 'delivered'})
@@ -1737,7 +1753,9 @@ describe('page bus and the session scope', () => {
         return turns.length === 1 ? answering.promise : fixture.plane.followUp(sessionId, input)
       },
     }
-    const following = startQueueFollowUp(queues, plane, fixture.sessionId)
+    const following = startQueueFollowUp(queues, plane, fixture.sessionId, (sessionId) =>
+      isDeletedRow(fixture.db, sessionId),
+    )
     await entered.promise
     await deleteSession(
       {db: fixture.db, plane: fixture.plane, runtime: fixture.runtime, pluginHost: fixture.pluginHost, queues},
@@ -1748,6 +1766,33 @@ describe('page bus and the session scope', () => {
     expect(turns).toHaveLength(1)
     expect(runStatuses()).toEqual([])
     await expect(queues.wait(fixture.sessionId, owed, 0)).rejects.toThrow(`no queue ${owed} on this tab`)
+  })
+
+  it('a queue result still kept after its session is deleted, as when the page plugin has not yet heard session.deleted, starts no turn', async () => {
+    const {fixture, queues, played, runStatuses} = await followUpFixture()
+    await played()
+    const turns: string[] = []
+    const plane = {
+      live: fixture.plane.live,
+      followUp: (sessionId: SessionId, input: string): Promise<FollowUpOutcome> => {
+        turns.push(input)
+        return fixture.plane.followUp(sessionId, input)
+      },
+    }
+    await deleteSession(
+      {
+        db: fixture.db,
+        plane: fixture.plane,
+        runtime: fixture.runtime,
+        pluginHost: fixture.pluginHost,
+        queues: makePagePlugin(() => fixture.pluginHost),
+      },
+      fixture.sessionId,
+    )
+    expect(await owesFollowUp(queues, fixture.sessionId)).toBe(true)
+    await startQueueFollowUp(queues, plane, fixture.sessionId, (sessionId) => isDeletedRow(fixture.db, sessionId))
+    expect(turns).toEqual([])
+    expect(runStatuses()).toEqual([])
   })
 
   it('a queue the page refuses plays nothing: it ends lost with no action counted as played', async () => {

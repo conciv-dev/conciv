@@ -36,7 +36,6 @@ async function orNone<Value>(work: Promise<Value[]>, what: string): Promise<Valu
 export function makePagePlugin(host: () => PluginHost) {
   const inFlightHubCalls = new Map<SessionId, Set<string>>()
   const heldHubCalls = new Map<SessionId, Set<string>>()
-  const claimedQueues = new Map<SessionId, Set<string>>()
 
   const call = (method: keyof Methods, input: unknown, signal?: AbortSignal) =>
     host().runPromise(
@@ -67,14 +66,7 @@ export function makePagePlugin(host: () => PluginHost) {
           .map(({queueId, result, before}) => ({queueId, result, before})),
       ),
       `the queue results owed to ${sessionId}`,
-    ).then((listed) => {
-      if (claim && listed.length > 0) {
-        const claimed = claimedQueues.get(sessionId) ?? new Set<string>()
-        listed.forEach((queue) => claimed.add(queue.queueId))
-        claimedQueues.set(sessionId, claimed)
-      }
-      return listed
-    })
+    )
 
   const holding = async (sessionId: SessionId, callIds: readonly string[]): Promise<Set<string>> => {
     const finished = Definition.methods['queue.owed'].output.parse(
@@ -90,12 +82,8 @@ export function makePagePlugin(host: () => PluginHost) {
   const delivery: QueueDelivery = {
     owed,
     settle: async (sessionId, queueIds, settled) => {
-      const claimed = claimedQueues.get(sessionId)
-      queueIds.forEach((queueId) => claimed?.delete(queueId))
-      if (claimed?.size === 0) claimedQueues.delete(sessionId)
       await call('queue.settle', {sessionId, queueIds, delivery: settled})
     },
-    holds: (sessionId, queueIds) => queueIds.every((queueId) => claimedQueues.get(sessionId)?.has(queueId) === true),
   }
 
   return {
@@ -147,7 +135,6 @@ export function makePagePlugin(host: () => PluginHost) {
     cancelSession: (sessionId: SessionId): void => {
       inFlightHubCalls.delete(sessionId)
       heldHubCalls.delete(sessionId)
-      claimedQueues.delete(sessionId)
     },
     followFinished: (listener: (finished: QueueFinished) => void) =>
       host().runPromise(
