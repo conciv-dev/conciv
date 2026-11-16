@@ -383,8 +383,7 @@
         "packages/plugin-host/test/core/database-drizzle.test.ts",
         "packages/plugin-host/test/core/fixture/tmpdir.ts",
         "packages/plugin-host/test/core/plugin.test.ts",
-        "packages/plugin-host/test/core/util/effect-flock.test.ts",
-        "packages/plugin-host/test/util/global.test.ts"
+        "packages/plugin-host/test/core/util/effect-flock.test.ts"
       ],
       "rules": {
         "conciv/no-hand-made-temp-dir": "off"
