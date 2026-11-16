@@ -1,6 +1,6 @@
 import {readdirSync, readFileSync, realpathSync, symlinkSync} from 'node:fs'
 import {createRequire} from 'node:module'
-import {dirname, join} from 'node:path'
+import {basename, dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {describe} from 'vitest'
 import {expect} from '@playwright/test'
@@ -177,15 +177,23 @@ describe('the test card of the test-runner plugin', () => {
       await expect(page.getByText('1 passed', {exact: true})).toBeVisible()
       await expect(page.getByText('1 failed', {exact: true})).toBeVisible()
       await expect(page.getByText('1 skipped', {exact: true})).toBeVisible()
-      const passFile = page.getByRole('group', {name: 'pass.test.ts', exact: true})
-      const failFile = page.getByRole('group', {name: 'fail.test.ts', exact: true})
-      await expect(passFile.and(page.getByRole('group', {expanded: true}))).toBeVisible()
-      await expect(failFile.and(page.getByRole('group', {expanded: true}))).toBeVisible()
+      await expect(
+        page.getByRole('status').getByText('Test run finished: 1 passed, 1 failed, 1 skipped', {exact: true}),
+      ).toBeAttached()
+      const folder = basename(stateRoot)
+      const passFile = page.getByRole('group', {name: `${folder}/pass.test.ts`, exact: true})
+      const failFile = page.getByRole('group', {name: `${folder}/fail.test.ts`, exact: true})
+      const failingTest = failFile.getByRole('group', {name: 'this fails on purpose', exact: true})
+      const failureText = failFile.getByText('expected 200 to be 401 // Object.is equality')
       await expect(passFile.getByText('one plus one', {exact: true})).toBeVisible()
-      await expect(failFile.getByRole('group', {name: 'this fails on purpose', expanded: true})).toBeVisible()
-      await expect(failFile.getByText('expected 200 to be 401 // Object.is equality')).toBeVisible()
+      await expect(passFile.getByText('a later idea', {exact: true})).toBeVisible()
+      await expect(failingTest).toBeVisible()
+      await expect(failureText).toBeHidden()
 
-      await failFile.getByRole('button', {name: 'Open fail.test.ts:4', exact: true}).click()
+      await failingTest.getByText('this fails on purpose', {exact: true}).click()
+      await expect(failureText).toBeVisible()
+
+      await failFile.getByRole('button', {name: `Open ${folder}/fail.test.ts:4`, exact: true}).click()
       const opened = await observer.completed({
         path: ['plugin', 'call'],
         input: {rpcId: 'server', method: 'open', input: {file: /fail\.test\.ts$/, line: 4}},
@@ -195,14 +203,14 @@ describe('the test card of the test-runner plugin', () => {
       await page.keyboard.press('Shift+Tab')
       await page.keyboard.press('Shift+Tab')
       await page.keyboard.press('Enter')
-      await expect(failFile.and(page.getByRole('group', {expanded: false}))).toBeVisible()
-      await expect(failFile.getByText('expected 200 to be 401 // Object.is equality')).toBeHidden()
+      await expect(failingTest).toBeHidden()
+      await expect(failureText).toBeHidden()
       await page.keyboard.press('Space')
-      await expect(failFile.and(page.getByRole('group', {expanded: true}))).toBeVisible()
-      await expect(failFile.getByText('expected 200 to be 401 // Object.is equality')).toBeVisible()
+      await expect(failingTest).toBeVisible()
+      await expect(failureText).toBeVisible()
 
       await failFile.getByRole('button', {name: 'Fix this', exact: true}).click()
-      await expect(composer).toContainText('The test "this fails on purpose" in fail.test.ts is failing')
+      await expect(composer).toContainText(`The test "this fails on purpose" in ${folder}/fail.test.ts is failing`)
     } finally {
       await widget.close()
     }
