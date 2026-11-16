@@ -1757,6 +1757,24 @@ describe('grab staging', () => {
     await expect.element(removeGrab()).not.toBeInTheDocument()
     expect(api.staged()).toHaveLength(0)
   })
+
+  test('a grabbed element in a sent message shows its grab card', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    const mount = mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />)
+    keep(mount)
+    await expect.element(input()).toBeVisible()
+    makePaneGrabApi(mount.pane.grabStaging, mount.pane.grabProvider).stage(HERO_GRAB)
+    await expect.element(removeGrab()).toBeVisible()
+
+    await input().fill('what is this element')
+    await userEvent.keyboard('{Enter}')
+
+    const thread = page.getByRole('log')
+    await expect.element(thread.getByText('what is this element')).toBeVisible()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+    await expect.element(thread.getByTitle('Grabbed element snapshot')).toBeVisible()
+    await expect.element(thread.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+  })
 })
 
 describe('chat history paging', () => {
