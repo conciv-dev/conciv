@@ -30,7 +30,7 @@ import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import type {CodeModeCatalog} from '@conciv/plugin-host'
 import {clearThread, metadataKeysEndingWith, runningThreadIds} from './stores.js'
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
-import {firstUserTitle, missingSession, sessionDeleted, turnHooks, type TurnDeps} from './turn.js'
+import {deletedSessionError, firstUserTitle, missingSession, sessionDeleted, turnHooks, type TurnDeps} from './turn.js'
 
 export {
   assistCapabilities,
@@ -265,7 +265,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       return {ok: true, stopped}
     },
     compact: async (sessionId) => {
-      if (sessionDeleted(deps.sessions, sessionId)) throw new Error(missingSession(sessionId))
+      if (sessionDeleted(deps.sessions, sessionId)) throw deletedSessionError(sessionId)
       await server.stop(sessionId)
       const {messages} = await hydrate(sessionId)
       const afterMessageId = messages.at(-1)?.id ?? null

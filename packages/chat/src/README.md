@@ -30,7 +30,7 @@ The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run tu
 - `turn.ts:turnHooks` - every hook resolves the adapter with `deps.harnessFor(sessionId)`; a native id is resumed only when the row's `harnessKind` is that adapter, otherwise the full history is replayed.
 - `index.ts:hydrate` - takes an optional `{limit, before}` window and returns that page plus `page`; `messageHarness` maps each assistant message id of the page to the harness that produced it: the `chat_runs.harness_id` of its run, else its import stamp. `pendingApprovals` and `lastRun` are never paged.
 - `turn.ts:turnHooks` - throws `the message is empty` for an empty user message.
-- `turn.ts:turnHooks.admit` - refuses a turn on a deleted session (`deps.sessions.row` has a non-null `deletedAt`) with `session "<id>" does not exist` (`missingSession`, the text `admitCall` answers for a missing row), before anything of the turn is stored or published; a row that does not exist is admitted, so the first send to a new id creates the session.
+- `turn.ts:turnHooks.admit` - refuses a turn on a deleted session (`deps.sessions.row` has a non-null `deletedAt`) with an Error whose message is `session "<id>" does not exist` (`missingSession`, the text `admitCall` answers for a missing row) and whose `code` is `SESSION_DELETED_CODE` (`deletedSessionError`; the library copies it onto the `RUN_ERROR` frame), before anything of the turn is stored or published; a row that does not exist is admitted, so the first send to a new id creates the session.
 - `turn.ts:turnHooks.end` - passes the run's `RunLifecycle` from the chat server's end hook on to `deps.sessions.onRunEnd(sessionId, run)`, so the caller knows whether the run completed, failed or was aborted.
 - `turn.ts:turnHooks` - hands the harness the session row's `effort` as `HarnessChatDeps.effort`, or none when it is null (the CLI's default); `chat()` gets no `reasoning`, so the harness is the one place the effort reaches the CLI.
 - `code-mode.ts:chatToolSet` - a non-lazy tool result goes through `cappedValue` from `@conciv/contract`.
@@ -38,7 +38,7 @@ The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run tu
 ## Side Effects
 
 - `stores.ts:clearThread` - one SQLite transaction deletes the thread's rows from the `@conciv/db` tables `runs`, `chatRuns`, `chatMessages`, `runMessages`, `sessionHistory`, and its `chatMetadata` keys prefixed `<threadId>:`.
-- `index.ts:ChatPlane.compact` - inserts a row with `kind: 'compact'` into the `@conciv/db` `markers` table. For a deleted session it rejects with `session "<id>" does not exist` before it stops anything or writes the marker.
+- `index.ts:ChatPlane.compact` - inserts a row with `kind: 'compact'` into the `@conciv/db` `markers` table. For a deleted session it rejects with `deletedSessionError` (`session "<id>" does not exist`, `code` `SESSION_DELETED_CODE`) before it stops anything or writes the marker.
 - `index.ts:followUp` - a follow-up for a deleted session (`sessionDeleted`: its row has a `deletedAt`) answers `{kind: 'failed', error: 'session "<id>" does not exist'}` before `server.drive`, so no run is started.
 - `approvals.ts:createUiChannel` - sets a `setTimeout` per wait that resolves with a fallback value.
 - `turn.ts:turnHooks` - passes `deps.harnessEnv?.(sessionId) ?? process.env` to the harness process.

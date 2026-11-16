@@ -3,6 +3,7 @@ import {readFile} from 'node:fs/promises'
 import {
   readApprovalAsk,
   ChatEventType,
+  SESSION_DELETED_CODE,
   sessionRunEvent,
   type ChatEvent,
   type RunLifecycle,
@@ -271,6 +272,10 @@ export function missingSession(sessionId: SessionId): string {
   return `session "${sessionId}" does not exist`
 }
 
+export function deletedSessionError(sessionId: SessionId): Error {
+  return Object.assign(new Error(missingSession(sessionId)), {code: SESSION_DELETED_CODE})
+}
+
 export function turnHooks(
   deps: TurnDeps,
   context: {approvals: ApprovalStore; ui: UiChannel; transcripts: TranscriptImporter; codeMode: boolean},
@@ -279,7 +284,7 @@ export function turnHooks(
   return {
     admit: async (turn) => {
       const sessionId = SessionId.parse(turn.threadId)
-      if (sessionDeleted(deps.sessions, sessionId)) throw new Error(missingSession(sessionId))
+      if (sessionDeleted(deps.sessions, sessionId)) throw deletedSessionError(sessionId)
     },
     plan: (turn) => {
       const sessionId = SessionId.parse(turn.threadId)

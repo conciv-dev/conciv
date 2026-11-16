@@ -10,6 +10,8 @@ export const ChatEventType = EventType
 
 export {CONTEXT_OVERFLOW_CODE} from '@tanstack/ai'
 
+export const SESSION_DELETED_CODE = 'session_deleted'
+
 export type ChatEventDefinition<Name extends string, Schema extends z.ZodType> = {
   name: Name
   create: (value: z.input<Schema>) => ChatCustomEvent

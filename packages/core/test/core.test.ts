@@ -79,6 +79,7 @@ import {
   idleFailedEvent,
   readApprovalAsk,
   readApprovalSettled,
+  SESSION_DELETED_CODE,
   sessionRunEvent,
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
@@ -3040,7 +3041,13 @@ describe('plugin host bus', () => {
     onTestFinished(made.runtime.forSession(refused).stream.listen((chunk) => void publishedToRefused.push(chunk)))
     const beforeRefusal = await made.plane.hydrate(refused)
     const refusedTurn = await kit.turn('sent to a deleted session', {session: refused, runId: 'refused-run'})
-    expect((await refusedTurn.done()).errors()).toHaveLength(1)
+    const refusedEvents = await refusedTurn.done()
+    expect(refusedEvents.errors()).toHaveLength(1)
+    expect(
+      refusedEvents.all.flatMap((chunk) =>
+        chunk.type === ChatEventType.RUN_ERROR ? [{message: chunk.message, code: chunk.code}] : [],
+      ),
+    ).toEqual([{message: `session "${refused}" does not exist`, code: SESSION_DELETED_CODE}])
     const sseRefusal = await kit.post(
       CHAT_SSE_PATH,
       {
@@ -3063,7 +3070,7 @@ describe('plugin host bus', () => {
       .flatMap((line) => (line.startsWith('data: ') ? [sseFrame.parse(JSON.parse(line.slice('data: '.length)))] : []))
     expect(sseFrames).toEqual([
       {type: ChatEventType.CUSTOM, name: 'run.accepted'},
-      {type: ChatEventType.RUN_ERROR, message: `session "${refused}" does not exist`},
+      {type: ChatEventType.RUN_ERROR, message: `session "${refused}" does not exist`, code: SESSION_DELETED_CODE},
     ])
     expect(await made.plane.followUp(refused, 'a page queue result after the delete')).toEqual({
       kind: 'failed',
@@ -3071,6 +3078,7 @@ describe('plugin host bus', () => {
     })
     const markersBeforeCompact = await kit.rpc.markers.list({sessionId: refused})
     await expect(made.plane.compact(refused)).rejects.toThrow(`session "${refused}" does not exist`)
+    await expect(made.plane.compact(refused)).rejects.toMatchObject({code: SESSION_DELETED_CODE})
     expect(await kit.rpc.markers.list({sessionId: refused})).toEqual(markersBeforeCompact)
     expect(
       await made.plane.admitCall(refused, {
