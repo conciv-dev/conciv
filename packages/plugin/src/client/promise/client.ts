@@ -7,11 +7,20 @@ import {makeRpc, type RpcApi} from './rpc.js'
 
 export type {RequestOptions} from './generated/client.js'
 
+export type ClientConnectionStatus = 'connected' | 'connecting' | 'reconnecting'
+
+type ClientConnection = {
+  status: () => ClientConnectionStatus
+  on: (listener: (status: ClientConnectionStatus) => void) => () => void
+}
+
 export function make(raw: RpcClient): Omit<RpcClient, 'event'> & {
   rpc: RpcApi & {call: RpcClient['plugin']['call']}
   event: ReturnType<typeof SharedEvents.make<EventSubscribeOutput>>
+  connection: ClientConnection
 } {
-  const events = SharedEvents.make((signal, onActivity) => received(raw, signal, onActivity))
+  const connection = makeConnection()
+  const events = SharedEvents.make((signal, onActivity) => received(raw, signal, onActivity, connection.set))
   const groups = {
     auth: raw.auth,
     sessions: raw.sessions,
@@ -35,39 +44,75 @@ export function make(raw: RpcClient): Omit<RpcClient, 'event'> & {
     ...groups,
     rpc: Object.assign(makeRpc(raw, events), {call: raw.plugin.call}),
     event: events,
+    connection: {status: connection.status, on: connection.on},
+  }
+}
+
+function makeConnection() {
+  const changes = new EventTarget()
+  const current: {status: ClientConnectionStatus} = {status: 'connecting'}
+  return {
+    status: () => current.status,
+    on(listener: (status: ClientConnectionStatus) => void) {
+      const changed = () => listener(current.status)
+      changes.addEventListener('change', changed)
+      return () => changes.removeEventListener('change', changed)
+    },
+    set(status: ClientConnectionStatus) {
+      if (current.status === status) return
+      current.status = status
+      changes.dispatchEvent(new Event('change'))
+    },
   }
 }
 
 const reconnectDelay = 1_000
 const idleTimeout = 45_000
 
-async function* received(raw: RpcClient, signal: AbortSignal, onActivity: () => void) {
+async function* received(
+  raw: RpcClient,
+  signal: AbortSignal,
+  onActivity: () => void,
+  setStatus: (status: ClientConnectionStatus) => void,
+) {
+  signal.addEventListener('abort', () => setStatus('connecting'), {once: true})
   while (!signal.aborted) {
-    const attempt = new AbortController()
-    const cancel = () => attempt.abort(signal.reason)
-    signal.addEventListener('abort', cancel, {once: true})
-    let watchdog: ReturnType<typeof setTimeout> | undefined
-    const touch = () => {
-      onActivity()
-      clearTimeout(watchdog)
-      watchdog = setTimeout(() => attempt.abort(new Error('Event stream stalled')), idleTimeout)
-    }
-    try {
-      for await (const event of await raw.event.subscribe(undefined, {signal: attempt.signal})) {
-        touch()
-        if (event.type === 'server.heartbeat') continue
-        yield event as EventSubscribeOutput
-      }
-      if (!signal.aborted) console.warn('[conciv] the event stream ended; subscribing again')
-    } catch (error) {
-      if (signal.aborted) return
-      console.error('[conciv] the event stream failed; subscribing again', error)
-    } finally {
-      clearTimeout(watchdog)
-      signal.removeEventListener('abort', cancel)
-    }
+    yield* attempted(raw, signal, onActivity, setStatus)
     if (signal.aborted) return
+    setStatus('reconnecting')
     await wait(reconnectDelay, signal)
+  }
+}
+
+async function* attempted(
+  raw: RpcClient,
+  signal: AbortSignal,
+  onActivity: () => void,
+  setStatus: (status: ClientConnectionStatus) => void,
+) {
+  const attempt = new AbortController()
+  const cancel = () => attempt.abort(signal.reason)
+  signal.addEventListener('abort', cancel, {once: true})
+  let watchdog: ReturnType<typeof setTimeout> | undefined
+  const touch = () => {
+    onActivity()
+    clearTimeout(watchdog)
+    watchdog = setTimeout(() => attempt.abort(new Error('Event stream stalled')), idleTimeout)
+  }
+  try {
+    for await (const event of await raw.event.subscribe(undefined, {signal: attempt.signal})) {
+      touch()
+      if (event.type === 'server.heartbeat') continue
+      if (event.type === 'server.connected') setStatus('connected')
+      yield event as EventSubscribeOutput
+    }
+    if (!signal.aborted) console.warn('[conciv] the event stream ended; subscribing again')
+  } catch (error) {
+    if (signal.aborted) return
+    console.error('[conciv] the event stream failed; subscribing again', error)
+  } finally {
+    clearTimeout(watchdog)
+    signal.removeEventListener('abort', cancel)
   }
 }
 
