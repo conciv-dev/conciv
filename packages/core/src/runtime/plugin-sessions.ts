@@ -11,6 +11,8 @@ import {
   type SessionRecord,
 } from '@conciv/protocol/chat-types'
 import {Agent, type Bus, type KV, Session, SessionErrors} from '@conciv/plugin-host'
+import {Model} from '@conciv/plugin/schema/model'
+import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import type {ChatContext} from '../api/rpc/mount.js'
 import {listedSessionPage, searchedSessionPage, switchSessionEffort, switchSessionModel} from '../api/rpc/sessions.js'
 import {
@@ -55,7 +57,11 @@ const NO_USAGE = {
 
 function sessionModel(chat: ChatContext, row: SessionRecord): ModelRef | undefined {
   if (row.model === null) return undefined
-  return {id: row.model, providerId: chat.harnessFor(row.id).id, variant: row.effort ?? undefined}
+  return {
+    id: Model.Id.make(row.model),
+    providerId: Model.Ref.fields.providerId.make(chat.harnessFor(row.id).id),
+    variant: row.effort === null ? undefined : Model.VariantId.make(row.effort),
+  }
 }
 
 function sessionInfo(chat: ChatContext, row: SessionRecord): SessionInfo {
@@ -76,7 +82,7 @@ function sessionInfo(chat: ChatContext, row: SessionRecord): SessionInfo {
     title: row.title ?? undefined,
     metadata: row.metadata ?? undefined,
     permissions: row.permissions ?? undefined,
-    location: {directory: row.cwd},
+    location: {directory: AbsolutePath.make(row.cwd)},
   }
 }
 

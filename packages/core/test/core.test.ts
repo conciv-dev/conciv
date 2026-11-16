@@ -123,6 +123,7 @@ import {
   Tool,
 } from '@conciv/plugin-host'
 import {Conciv, Plugin, Rpc as PluginRpc} from '@conciv/plugin'
+import {Model as ModelSchema} from '@conciv/plugin/schema/model'
 import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {isEqual, once as onceOnly} from 'es-toolkit'
 import getPort from 'get-port'
@@ -4130,8 +4131,9 @@ describe('plugin context keys provided by core', () => {
     expect(created.time.created).toBeLessThanOrEqual(created.time.updated)
     expect(await key.run((sessions) => sessions.get(sessionId))).toEqual(created)
 
+    const modelRef = Schema.decodeSync(ModelSchema.Ref)
     await key.run((sessions) =>
-      sessions.switchModel({sessionId, model: {id: 'sonnet', providerId: 'listing-cli', variant: 'high'}}),
+      sessions.switchModel({sessionId, model: modelRef({id: 'sonnet', providerId: 'listing-cli', variant: 'high'})}),
     )
     expect((await key.run((sessions) => sessions.get(sessionId))).model).toEqual({
       id: 'sonnet',
@@ -4140,7 +4142,7 @@ describe('plugin context keys provided by core', () => {
     })
 
     const second = await key.run((sessions) =>
-      sessions.create({model: {id: 'opus', providerId: 'listing-cli'}, location}),
+      sessions.create({model: modelRef({id: 'opus', providerId: 'listing-cli'}), location}),
     )
     expect(second.model).toEqual({id: 'opus', providerId: 'listing-cli'})
     const listed = await key.run((sessions) => sessions.list())
@@ -4152,7 +4154,9 @@ describe('plugin context keys provided by core', () => {
       agent: 'plan',
     })
     expect(
-      await key.fail((sessions) => sessions.create({model: {id: 'gone', providerId: 'listing-cli'}, location})),
+      await key.fail((sessions) =>
+        sessions.create({model: modelRef({id: 'gone', providerId: 'listing-cli'}), location}),
+      ),
     ).toMatchObject({_tag: 'Session.NotFoundError', sessionId: expect.stringMatching(/^conciv_/)})
     expect((await key.run((sessions) => sessions.list())).data.map((session) => session.id).toSorted()).toEqual(
       [sessionId, second.id].toSorted(),
@@ -4189,8 +4193,8 @@ describe('plugin context keys provided by core', () => {
       agent: 'plan',
     })
 
-    const switchedTo = (model: {id: string; providerId: string | undefined; variant?: string}) =>
-      key.fail((sessions) => sessions.switchModel({sessionId, model}))
+    const switchedTo = (model: typeof ModelSchema.Ref.Encoded) =>
+      key.fail((sessions) => sessions.switchModel({sessionId, model: modelRef(model)}))
     expect(await switchedTo({id: 'opus', providerId: 'claude'})).toMatchObject({_tag: 'Session.NotFoundError'})
     expect(await switchedTo({id: 'gone', providerId: 'listing-cli'})).toMatchObject({_tag: 'Session.NotFoundError'})
     expect(await switchedTo({id: 'retired', providerId: 'listing-cli'})).toMatchObject({_tag: 'Session.NotFoundError'})
@@ -4202,7 +4206,9 @@ describe('plugin context keys provided by core', () => {
       providerId: 'listing-cli',
       variant: 'high',
     })
-    await key.run((sessions) => sessions.switchModel({sessionId, model: {id: 'opus', providerId: 'listing-cli'}}))
+    await key.run((sessions) =>
+      sessions.switchModel({sessionId, model: modelRef({id: 'opus', providerId: 'listing-cli'})}),
+    )
     expect((await key.run((sessions) => sessions.get(sessionId))).model).toEqual({
       id: 'opus',
       providerId: 'listing-cli',
@@ -4240,7 +4246,7 @@ describe('plugin context keys provided by core', () => {
         sessions.create({
           id: suppliedId,
           title: 'Overwritten',
-          model: {id: 'sonnet', providerId: 'listing-cli'},
+          model: modelRef({id: 'sonnet', providerId: 'listing-cli'}),
           metadata: {overwritten: true},
           location,
         }),
