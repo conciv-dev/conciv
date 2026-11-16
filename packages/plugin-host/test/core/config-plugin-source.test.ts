@@ -1,7 +1,7 @@
 import {describe, expect} from 'vitest'
 import {NodeFileSystem} from '@effect/platform-node'
 import {Deferred, Effect, Fiber, Layer, Queue, Schedule, Stream} from 'effect'
-import {mkdir, mkdtemp, realpath, rm, utimes, writeFile} from 'node:fs/promises'
+import {mkdir, mkdtemp, realpath, rm, symlink, utimes, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {ConfigPluginSource} from '../../src/core/config/plugin/source.js'
@@ -128,6 +128,45 @@ describe('ConfigPluginSource', () => {
           yield* Queue.clear(changes)
           yield* fs.ensureDir(plugins)
           expect(yield* untilState([])).toEqual([])
+        }).pipe(Effect.provide(services(root, [])))
+      }),
+    5_000,
+  )
+  it.live(
+    'picks up a second plugin file added after the first in a project opened through a symlink',
+    () =>
+      Effect.gen(function* () {
+        const temporary = yield* temporaryProject
+        const real = path.join(temporary, 'real')
+        const root = path.join(temporary, 'link')
+        yield* Effect.promise(() => mkdir(real).then(() => symlink(real, root)))
+        const plugins = path.join(root, 'conciv', 'plugins')
+        const alpha = path.join(plugins, 'alpha.ts')
+        const beta = path.join(plugins, 'beta.ts')
+
+        yield* Effect.gen(function* () {
+          const source = yield* ConfigPluginSource.Service
+          const changes = yield* Queue.unbounded<void>()
+          yield* source.changes().pipe(
+            Stream.runForEach((change) => Queue.offer(changes, change)),
+            Effect.forkScoped({startImmediately: true}),
+          )
+          const untilSeen = (file: string, expected: readonly string[]) =>
+            Effect.gen(function* () {
+              yield* Queue.clear(changes)
+              const writes = yield* Effect.promise(() =>
+                mkdir(plugins, {recursive: true}).then(() => writeFile(file, 'export default {}\n')),
+              ).pipe(Effect.repeat(Schedule.spaced('10 millis')), Effect.forkScoped)
+              return yield* Queue.take(changes).pipe(
+                Effect.andThen(source.operations()),
+                Effect.map((operations) => operations.map(({target}) => target)),
+                Effect.repeat({until: (targets) => targets.join('\n') === expected.join('\n')}),
+                Effect.ensuring(Fiber.interrupt(writes)),
+              )
+            })
+
+          expect(yield* untilSeen(alpha, [alpha])).toEqual([alpha])
+          expect(yield* untilSeen(beta, [alpha, beta])).toEqual([alpha, beta])
         }).pipe(Effect.provide(services(root, [])))
       }),
     5_000,
