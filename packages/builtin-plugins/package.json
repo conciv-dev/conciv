@@ -11,6 +11,12 @@
     "directory": "packages/builtin-plugins"
   },
   "type": "module",
+  "imports": {
+    "#js-beautify-html": {
+      "types": "./src/page/cards/beautifier.d.ts",
+      "default": "js-beautify/js/lib/beautifier.js"
+    }
+  },
   "exports": {
     "./renderer": "./src/renderer.ts"
   },
@@ -21,22 +27,25 @@
   },
   "dependencies": {
     "@conciv/extension": "workspace:^",
+    "@conciv/extension-page": "workspace:^",
     "@conciv/page": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-page": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@conciv/ui-kit-chat": "workspace:*",
+    "@conciv/ui-kit-system": "workspace:^",
     "@solid-primitives/map": "catalog:",
     "@tanstack/hotkeys": "catalog:",
     "@tanstack/solid-pacer": "catalog:",
     "@zumer/snapdom": "catalog:",
     "ai-motion": "catalog:",
+    "js-beautify": "^2.0.3",
+    "lucide-solid": "catalog:",
     "solid-js": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/ui-kit-chat": "workspace:*",
-    "@conciv/ui-kit-system": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
@@ -45,6 +54,7 @@
     "@tiptap/extension-paragraph": "catalog:",
     "@tiptap/extension-text": "catalog:",
     "@tiptap/pm": "catalog:",
+    "@types/js-beautify": "^1.14.3",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
@@ -52,6 +62,8 @@
     "playwright": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "storybook": "catalog:",
+    "storybook-solidjs-vite": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",
     "vite": "catalog:",

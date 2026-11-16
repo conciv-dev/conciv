@@ -2235,6 +2235,9 @@ importers:
       '@conciv/extension':
         specifier: workspace:^
         version: link:../extension
+      '@conciv/extension-page':
+        specifier: workspace:^
+        version: link:../extensions/page
       '@conciv/page':
         specifier: workspace:^
         version: link:../page
@@ -2247,6 +2250,12 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@conciv/ui-kit-chat':
+        specifier: workspace:*
+        version: link:../ui-kit-chat
+      '@conciv/ui-kit-system':
+        specifier: workspace:^
+        version: link:../ui-kit-system
       '@solid-primitives/map':
         specifier: 'catalog:'
         version: 0.7.4(solid-js@1.9.17)
@@ -2262,6 +2271,12 @@ importers:
       ai-motion:
         specifier: 'catalog:'
         version: 0.4.8
+      js-beautify:
+        specifier: ^2.0.3
+        version: 2.0.3
+      lucide-solid:
+        specifier: 'catalog:'
+        version: 1.66.0(solid-js@1.9.17)
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
@@ -2272,12 +2287,6 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@conciv/ui-kit-chat':
-        specifier: workspace:*
-        version: link:../ui-kit-chat
-      '@conciv/ui-kit-system':
-        specifier: workspace:^
-        version: link:../ui-kit-system
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
@@ -2302,6 +2311,9 @@ importers:
       '@tiptap/pm':
         specifier: 'catalog:'
         version: 3.32.1
+      '@types/js-beautify':
+        specifier: ^1.14.3
+        version: 1.14.3
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -2323,6 +2335,12 @@ importers:
       react-dom:
         specifier: 'catalog:'
         version: 19.3.1(react@19.3.1)
+      storybook:
+        specifier: 'catalog:'
+        version: 10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      storybook-solidjs-vite:
+        specifier: 'catalog:'
+        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -3391,9 +3409,6 @@ importers:
       '@solid-primitives/map':
         specifier: 'catalog:'
         version: 0.7.4(solid-js@1.9.17)
-      '@tanstack/hotkeys':
-        specifier: 'catalog:'
-        version: 0.18.0
       '@tanstack/solid-pacer':
         specifier: 'catalog:'
         version: 0.24.0(solid-js@1.9.17)
@@ -3403,9 +3418,6 @@ importers:
       ai-motion:
         specifier: 'catalog:'
         version: 0.4.8
-      js-beautify:
-        specifier: ^2.0.3
-        version: 2.0.3
       lucide-solid:
         specifier: 'catalog:'
         version: 1.66.0(solid-js@1.9.17)
@@ -3440,9 +3452,6 @@ importers:
       '@tiptap/pm':
         specifier: 'catalog:'
         version: 3.32.1
-      '@types/js-beautify':
-        specifier: ^1.14.3
-        version: 1.14.3
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6

@@ -28,7 +28,7 @@ import {
   type TurnPrefixSource,
 } from '@conciv/ui-kit-chat'
 import {nowTitle} from '@conciv/ui-kit-chat-tools'
-import {pageSessionEntry} from '@conciv/extension-page/client'
+import {pageSessionEntry, pageToolCards} from '@conciv/builtin-plugins/renderer'
 import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
@@ -280,6 +280,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   const tools = (): ToolCardEntry[] => [
     ...pluginToolCards(),
     ...extensionToolCards,
+    ...pageToolCards,
     ...concivToolCards,
     ...coreToolCards,
     ...builtinToolCards,
