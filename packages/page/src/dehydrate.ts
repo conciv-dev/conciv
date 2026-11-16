@@ -1,14 +1,7 @@
+import type {DehydrateOptions} from '@conciv/plugin/experimental/page'
+
 const REACT_ELEMENT = Symbol.for('react.element')
 const REACT_TRANSITIONAL_ELEMENT = Symbol.for('react.transitional.element')
-
-export type DehydrateOptions = {
-  maxDepth?: number
-  maxItems?: number
-  stringCap?: number
-  maxNodes?: number
-
-  redact?: RegExp | null
-}
 
 const DEFAULT_REDACT =
   /pass(word|wd)?|secret|token|api[-_]?key|authorization|bearer|jwt|cookie|credential|private[-_]?key|session/i

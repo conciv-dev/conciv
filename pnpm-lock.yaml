@@ -33,6 +33,9 @@ catalogs:
     '@iconify-json/ph':
       specifier: ^1.2.2
       version: 1.2.2
+    '@jridgewell/gen-mapping':
+      specifier: ^0.3.13
+      version: 0.3.13
     '@libsql/client':
       specifier: ^0.18.0
       version: 0.18.0
@@ -655,6 +658,9 @@ importers:
       '@conciv/ai':
         specifier: workspace:^
         version: link:../../packages/ai
+      '@conciv/builtin-plugins':
+        specifier: workspace:*
+        version: link:../../packages/builtin-plugins
       '@conciv/client':
         specifier: workspace:^
         version: link:../../packages/client
@@ -2242,6 +2248,40 @@ importers:
         specifier: 'catalog:'
         version: 7.0.2
 
+  packages/builtin-plugins:
+    dependencies:
+      '@conciv/extension':
+        specifier: workspace:^
+        version: link:../extension
+      '@conciv/page':
+        specifier: workspace:^
+        version: link:../page
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../plugin
+      '@conciv/plugin-page':
+        specifier: workspace:^
+        version: link:../plugin-page
+      '@zumer/snapdom':
+        specifier: 'catalog:'
+        version: 3.3.3
+      solid-js:
+        specifier: 'catalog:'
+        version: 1.9.17
+    devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
+
   packages/bundle-size:
     devDependencies:
       '@conciv/tsconfig':
@@ -2548,6 +2588,9 @@ importers:
       '@conciv/plugin-host':
         specifier: workspace:^
         version: link:../plugin-host
+      '@conciv/plugin-page':
+        specifier: workspace:^
+        version: link:../plugin-page
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -2566,9 +2609,6 @@ importers:
       '@effect/platform-node':
         specifier: 'catalog:'
         version: 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
-      '@jridgewell/trace-mapping':
-        specifier: 0.3.31
-        version: 0.3.31
       '@orama/orama':
         specifier: 'catalog:'
         version: 3.1.18
@@ -2628,7 +2668,7 @@ importers:
         specifier: workspace:*
         version: link:../vitest-config
       '@jridgewell/gen-mapping':
-        specifier: ^0.3.13
+        specifier: 'catalog:'
         version: 0.3.13
       '@types/node':
         specifier: 'catalog:'
@@ -2751,6 +2791,9 @@ importers:
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../plugin
+      '@conciv/plugin-page':
+        specifier: workspace:^
+        version: link:../plugin-page
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -4042,6 +4085,9 @@ importers:
 
   packages/grab:
     dependencies:
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../plugin
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -4358,6 +4404,9 @@ importers:
       '@conciv/grab':
         specifier: workspace:^
         version: link:../grab
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../plugin
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -4434,6 +4483,9 @@ importers:
       '@standard-schema/spec':
         specifier: 'catalog:'
         version: 1.1.0
+      '@zumer/snapdom':
+        specifier: 'catalog:'
+        version: 3.3.3
       effect:
         specifier: 'catalog:'
         version: 4.1.0
@@ -4596,6 +4648,43 @@ importers:
       '@parcel/watcher-win32-x64':
         specifier: 'catalog:'
         version: 2.5.1
+
+  packages/plugin-page:
+    dependencies:
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../plugin
+      '@conciv/protocol':
+        specifier: workspace:^
+        version: link:../protocol
+      '@jridgewell/trace-mapping':
+        specifier: 0.3.31
+        version: 0.3.31
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+    devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@conciv/vitest-config':
+        specifier: workspace:*
+        version: link:../vitest-config
+      '@jridgewell/gen-mapping':
+        specifier: 'catalog:'
+        version: 0.3.13
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
 
   packages/plugin-testkit:
     dependencies:
