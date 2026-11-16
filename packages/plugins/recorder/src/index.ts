@@ -9,7 +9,7 @@ import {createRendererCache} from './renderer-cache.js'
 import {createClientRings} from './rings.js'
 import {readVideoPiece, renderedVideo} from './video.js'
 import type {RecorderRuntime} from './runtime.js'
-import {recorderConfig} from './shared/protocol.js'
+import {recorderConfig} from './protocol.js'
 import {info} from './skill.js'
 import {register} from './tools.js'
 

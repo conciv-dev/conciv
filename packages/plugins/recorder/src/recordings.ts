@@ -3,7 +3,7 @@ import {mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile} from 'nod
 import {join} from 'node:path'
 import PQueue from 'p-queue'
 import {z} from 'zod'
-import {RrwebEventSchema, jsonByteLength, type RrwebEvent} from './shared/protocol.js'
+import {RrwebEventSchema, jsonByteLength, type RrwebEvent} from './protocol.js'
 
 const StoredRecording = z.object({events: z.array(RrwebEventSchema)})
 const MAX_RECORDINGS = 50

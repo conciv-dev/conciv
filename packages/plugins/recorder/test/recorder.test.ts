@@ -11,7 +11,7 @@ import {connectMcpClient, makeDiscoverTools} from '@conciv/harness-testkit'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {createFlusher} from '../src/client/flusher.js'
-import {MAX_FLUSH_BYTES} from '../src/shared/protocol.js'
+import {MAX_FLUSH_BYTES} from '../src/protocol.js'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 
