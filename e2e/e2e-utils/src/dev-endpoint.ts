@@ -1,4 +1,6 @@
-import {tmpdir} from 'node:os'
 import {join} from 'node:path'
+import {e2eStateDir} from './state-dir.js'
 
-export const E2E_DEV_ENDPOINT_DIR = join(tmpdir(), 'conciv-it-dev-endpoint')
+export function e2eDevEndpointDir(configDir: string): string {
+  return join(e2eStateDir(configDir), 'dev-endpoint')
+}

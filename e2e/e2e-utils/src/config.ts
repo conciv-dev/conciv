@@ -1,18 +1,18 @@
 import {mkdirSync, rmSync} from 'node:fs'
-import {basename, dirname, join} from 'node:path'
+import {dirname, join} from 'node:path'
 import {defineConfig, devices, type ReporterDescription} from '@playwright/test'
 import {E2E_PORTS, HARNESS_E2E_PORTS, type E2EApp, type HarnessApp} from './ports.js'
+import {e2eStateDir} from './state-dir.js'
 
 const PACKED_SPECS = '**/packed-*.spec.ts'
 
-function e2eStateDir(configDir: string): string {
-  return join(dirname(configDir), '.conciv-e2e', basename(configDir))
-}
-
-function reporters(configDir: string, appStateFolders: string[]): ReporterDescription[] {
+function reporters(configDir: string, appStateFolders: string[], runFolders: string[] = []): ReporterDescription[] {
   const cleanup: ReporterDescription = [
     join(import.meta.dirname, 'state-cleanup-reporter.ts'),
-    {stateDir: e2eStateDir(configDir), appStateFolders: appStateFolders.map((folder) => join(configDir, folder))},
+    {
+      stateDir: e2eStateDir(configDir),
+      appStateFolders: [...appStateFolders.map((folder) => join(configDir, folder)), ...runFolders],
+    },
   ]
   if (!process.env.GITHUB_ACTIONS) return [['line'], cleanup]
   return [['line'], ['json', {outputFile: 'test-results.json'}], cleanup]
@@ -66,7 +66,7 @@ export function emptyE2eState(configDir: string): void {
 
 export function e2eConfig(
   app: E2EApp,
-  opts: {dir: string; command: (port: number) => string; timeout?: number},
+  opts: {dir: string; command: (port: number) => string; timeout?: number; runFolders?: string[]},
 ): ReturnType<typeof defineConfig> {
   const port = E2E_PORTS[app]
   const timeout = opts.timeout ?? 90_000
@@ -76,7 +76,7 @@ export function e2eConfig(
     workers: 1,
     timeout,
     expect: {timeout},
-    reporter: reporters(opts.dir, ['.conciv']),
+    reporter: reporters(opts.dir, ['.conciv'], opts.runFolders),
     use: {baseURL: `http://localhost:${port}`},
     webServer: serverEntry({
       configDir: opts.dir,
