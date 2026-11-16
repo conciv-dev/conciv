@@ -59,6 +59,7 @@ declare module 'vitest/internal/browser' {
     chooseFiles: (name: string, chosen: ChosenFile[]) => Promise<void>
     downloadFrom: (name: string) => Promise<{name: string; text: string}>
     openedFrom: (name: string) => Promise<string>
+    editorOpened: () => Promise<ReadonlyArray<{file: string; line?: number; column?: number}>>
     dragButton: (drag: PointerDrag) => Promise<void>
     hoverButton: (hover: PointerHover) => Promise<void>
     closeCore: () => Promise<void>
