@@ -41,7 +41,7 @@ function serverEntry(entry: {
   return {
     command: `rm -rf '${legacyStateDir(entry.configDir)}' && ${entry.prepare} && (${entry.command}) 2>&1 | tee '${e2eServerLog(entry.configDir, entry.port)}'`,
     url: `http://localhost:${entry.port}`,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     stdout: 'pipe' as const,
     timeout: 180_000,
     env: entry.env,
@@ -66,7 +66,7 @@ export function emptyE2eState(configDir: string): void {
 
 export function e2eConfig(
   app: E2EApp,
-  opts: {dir: string; command: (port: number) => string; timeout?: number; reuseExistingServer?: boolean},
+  opts: {dir: string; command: (port: number) => string; timeout?: number},
 ): ReturnType<typeof defineConfig> {
   const port = E2E_PORTS[app]
   const timeout = opts.timeout ?? 90_000
@@ -78,16 +78,13 @@ export function e2eConfig(
     expect: {timeout},
     reporter: reporters(opts.dir),
     use: {baseURL: `http://localhost:${port}`},
-    webServer: {
-      ...serverEntry({
-        configDir: opts.dir,
-        prepare: freshFolder(e2eStateDir(opts.dir)),
-        command: `rm -rf .conciv && ${opts.command(port)}`,
-        port,
-        env: runConcivHome(opts.dir),
-      }),
-      ...(opts.reuseExistingServer === undefined ? {} : {reuseExistingServer: opts.reuseExistingServer}),
-    },
+    webServer: serverEntry({
+      configDir: opts.dir,
+      prepare: freshFolder(e2eStateDir(opts.dir)),
+      command: `rm -rf .conciv && ${opts.command(port)}`,
+      port,
+      env: runConcivHome(opts.dir),
+    }),
     projects: [{name: 'chromium', use: {...devices['Desktop Chrome']}}],
   })
 }
