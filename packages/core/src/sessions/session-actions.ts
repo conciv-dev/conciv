@@ -5,6 +5,7 @@ import type {ChatPlane} from '@conciv/chat'
 import {clearPageChanges, deleteSessionCaptures, drafts, markers, sessions, type ConcivDb} from '@conciv/db'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {Bus, KV, SessionEvent, SessionSchema} from '@conciv/plugin-host'
+import {runInOrder} from '../lib/shutdown.js'
 import {removeInstructionEntries} from '../runtime/instruction-entries.js'
 import {createRow, reuseDeletedRow, rowById, tombstoneRow, type FreshRowInput} from './session-rows.js'
 import type {createSessionSearch} from './session-search.js'
@@ -84,21 +85,47 @@ export async function renameSession(
   return {title}
 }
 
+const deletionFailed = 'conciv: deleting the session failed'
+
 export async function deleteSession(deletion: SessionDeletion, sessionId: SessionId): Promise<void> {
   await deletion.runtime.forSession(sessionId).run.stop()
   await deletion.plane.endRuns(sessionId)
   await deletion.queues.cancelSession(sessionId)
   await deletion.pluginHost.runPromise(KV.Service.use((kv) => removeInstructionEntries(kv, sessionId)))
-  await deletion.pluginHost.runPromise(
-    Bus.Service.use((bus) =>
-      bus
-        .publish(SessionEvent.Deleted, {sessionID: SessionSchema.Id.make(sessionId)})
-        .pipe(Effect.andThen(bus.remove(sessionId))),
-    ),
-  )
   await tombstoneRow(deletion.db, sessionId)
-  await deletion.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
-  await deletion.plane.clear(sessionId)
-  await deleteSessionCaptures(deletion.db, sessionId)
-  await clearPageChanges(deletion.db, sessionId)
+  const draftFailures = await deletion.db
+    .delete(drafts)
+    .where(eq(drafts.sessionId, sessionId))
+    .then(
+      (): unknown[] => [],
+      (failure: unknown) => [failure],
+    )
+  const publishFailures = await deletion.pluginHost
+    .runPromise(
+      Bus.Service.use((bus) =>
+        bus
+          .publish(SessionEvent.Deleted, {sessionID: SessionSchema.Id.make(sessionId)})
+          .pipe(Effect.andThen(bus.remove(sessionId))),
+      ),
+    )
+    .then(
+      (): unknown[] => [],
+      (failure: unknown) => [failure],
+    )
+  const cleanupFailures = await runInOrder(
+    [
+      () => deletion.plane.clear(sessionId),
+      () => deleteSessionCaptures(deletion.db, sessionId),
+      () => clearPageChanges(deletion.db, sessionId),
+    ],
+    deletionFailed,
+  ).then(
+    (): unknown[] => [],
+    (cleanup: unknown): unknown[] => (cleanup instanceof AggregateError ? cleanup.errors : [cleanup]),
+  )
+  const failures = [...draftFailures, ...publishFailures, ...cleanupFailures]
+  if (failures.length === 0) return
+  const [onlyFailure] = failures
+  if (failures.length === 1 && cleanupFailures.length === 0) throw onlyFailure
+  throw new AggregateError(failures, deletionFailed)
 }

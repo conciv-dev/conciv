@@ -8,12 +8,12 @@ export {
   Info,
   Source,
   State,
-} from '../schema/plugin.js'
+} from '@conciv/plugin/schema/plugin'
 
 import {readFile} from 'node:fs/promises'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {Plugin} from '../schema/plugin.js'
+import {Plugin} from '@conciv/plugin/schema/plugin'
 import {Hash} from '../util/hash.js'
 import {Cause, Context, Effect, Exit, Latch, Layer, Logger, Queue, References, Scope, Semaphore} from 'effect'
 import {Bus} from './bus.js'

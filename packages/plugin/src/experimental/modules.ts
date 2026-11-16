@@ -1,4 +1,4 @@
-export const pluginSharedModules = ['@conciv/plugin/experimental', '@conciv/plugin/rpc', 'zod'] as const
+export const pluginSharedModules = ['effect', '@conciv/plugin/experimental', '@conciv/plugin/rpc', 'zod'] as const
 
 export const pluginWindowModules = [
   'solid-js',

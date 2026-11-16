@@ -1,8 +1,8 @@
 import {Agent} from '../../../src/core/agent.js'
 import type {Permission} from '../../../src/core/permission.js'
-import {SessionMessage} from '../../../src/schema/session-message.js'
+import {SessionMessage} from '@conciv/plugin/schema/session-message'
 import {Tool} from '../../../src/core/tool.js'
-import type {Context} from '../../../src/plugin/effect/plugin.js'
+import type {Context} from '@conciv/plugin/effect/plugin'
 import {Effect, type Scope} from 'effect'
 import {host} from '../plugin/host'
 

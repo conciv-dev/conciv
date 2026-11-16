@@ -2,7 +2,7 @@ import {defineConfig} from 'vitest/config'
 import {playwright} from '@vitest/browser-playwright'
 import solidPlugin from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
-import {browserOptimizeDeps, ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
+import {browserOptimizeDeps, ciTest, ciTestSolidBrowser, HOOK_TIMEOUT_MS, TEST_TIMEOUT_MS} from '@conciv/vitest-config'
 
 export default defineConfig({
   resolve: {conditions: ['browser', 'development']},
@@ -17,8 +17,8 @@ export default defineConfig({
         test: {
           name: 'ui-kit-chat-tools-browser',
           include: ['test/**/*.browser.test.tsx'],
-          testTimeout: ciTest().testTimeout,
-          hookTimeout: ciTest().hookTimeout,
+          testTimeout: TEST_TIMEOUT_MS,
+          hookTimeout: HOOK_TIMEOUT_MS,
           setupFiles: ciTestSolidBrowser().setupFiles,
           fileParallelism: false,
           browser: {

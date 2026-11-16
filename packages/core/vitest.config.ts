@@ -1,10 +1,9 @@
-import {realpathSync} from 'node:fs'
 import {join} from 'node:path'
 import {defineConfig} from 'vitest/config'
-import {ciTest, processTempDir} from '@conciv/vitest-config'
+import {ciTest} from '@conciv/vitest-config'
 
-function fixtureHarnessHomes(): Record<string, string> {
-  const fixtureHomes = realpathSync(processTempDir('conciv-harness-homes-'))
+function fixtureHarnessHomes(project: string): Record<string, string> {
+  const fixtureHomes = join(import.meta.dirname, 'test-results', 'conciv-home', 'harness-homes', project)
   return {
     CLAUDE_CONFIG_DIR: join(fixtureHomes, 'claude'),
     CODEX_HOME: join(fixtureHomes, 'codex'),
@@ -26,7 +25,7 @@ export default defineConfig({
           include: ['test/**/*.test.ts'],
           exclude: ['test/fixtures/**', 'node_modules/**', 'dist/**', realHarnessTests],
           execArgv: ['--expose-gc'],
-          env: fixtureHarnessHomes(),
+          env: fixtureHarnessHomes('node'),
         },
       },
       {
@@ -39,7 +38,7 @@ export default defineConfig({
           name: 'node-quickjs-worker',
           include: ['test/core-api.it.test.ts'],
           execArgv: ['--expose-gc', '--no-addons'],
-          env: fixtureHarnessHomes(),
+          env: fixtureHarnessHomes('node-quickjs-worker'),
         },
       },
     ],

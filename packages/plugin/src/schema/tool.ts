@@ -1,19 +1,23 @@
+export * as Tool from './tool.js'
+
+import {Effect, JsonSchema, Schema} from 'effect'
 import type {StandardSchemaV1} from '@standard-schema/spec'
-import {z} from 'zod'
-import type {SessionId} from '@conciv/protocol/chat-types'
+import type {Agent} from './agent.js'
+import type {Session} from './session.js'
+import type {SessionMessage} from './session-message.js'
 
-export type Metadata = Readonly<Record<string, unknown>>
+export type Metadata = Readonly<Record<string, any>>
 
-export type CallId = string
+export const CallId = Schema.String.pipe(Schema.brand('Tool.CallID'))
+export type CallId = typeof CallId.Type
 
 export interface Context {
-  readonly sessionId: SessionId
-  readonly agent: string
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly messageId: string | undefined
+  readonly sessionId: Session.Id
+  readonly agent: Agent.Id
+  readonly messageId: SessionMessage.Id | undefined
   readonly id: CallId
-  readonly signal: AbortSignal
-  readonly progress: (update: Metadata) => Promise<void>
+  readonly progress: (update: Metadata) => Effect.Effect<void>
+  readonly cancel?: Effect.Effect<void>
 }
 
 export interface Namespace {
@@ -38,68 +42,73 @@ export type Options = BaseOptions &
       }
   )
 
-interface JsonSchema {
-  [x: string]: unknown
+export type ValueSchema<A = unknown> = Schema.Codec<A, any> | StandardSchemaV1<any, A> | JsonSchema.JsonSchema
+
+type InputValue<S> = 0 extends 1 & S
+  ? any
+  : S extends Schema.Codec<infer A, any>
+    ? A
+    : S extends StandardSchemaV1<any, infer A>
+      ? A
+      : unknown
+type OutputValue<S> = S extends undefined
+  ? never
+  : S extends Schema.Codec<infer A, any>
+    ? A
+    : S extends StandardSchemaV1<infer A, any>
+      ? A
+      : any
+
+export const Error = Schema.TaggedStruct('Tool.Error', {
+  message: Schema.String,
+  error: Schema.optional(Schema.Defect()),
+  metadata: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+})
+export type Error = typeof Error.Type & globalThis.Error
+
+export const makeError = (fields: Omit<typeof Error.Type, '_tag'>): Error =>
+  Object.assign(new globalThis.Error(fields.message), Error.make(fields), {name: 'Tool.Error'})
+
+export function toolError(input: Omit<typeof Error.Type, '_tag'>): Error {
+  const fields: typeof Error.Type = {...input, _tag: 'Tool.Error'}
+  return Object.assign(new globalThis.Error(input.message), fields, {name: 'Tool.Error'})
 }
 
-export type ValueSchema<A = unknown> = StandardSchemaV1<any, A> | JsonSchema
+export const isToolError = Schema.is(Error)
 
-type InputValue<S> = 0 extends 1 & S ? any : S extends StandardSchemaV1<any, infer A> ? A : unknown
-type OutputValue<S> = S extends undefined ? never : S extends StandardSchemaV1<infer A, any> ? A : any
+export interface TextContent extends Schema.Schema.Type<typeof TextContent> {}
+export const TextContent = Schema.Struct({
+  type: Schema.Literal('text'),
+  text: Schema.String,
+}).annotate({identifier: 'Tool.TextContent'})
 
-export type Error = {
-  readonly _tag: 'Tool.Error'
-  readonly message: string
-  readonly error?: unknown
-  readonly metadata?: Record<string, unknown> | undefined
-}
+export interface FileContent extends Schema.Schema.Type<typeof FileContent> {}
+export const FileContent = Schema.Struct({
+  type: Schema.Literal('file'),
+  uri: Schema.String,
+  mime: Schema.String,
+  name: Schema.optional(Schema.String),
+}).annotate({identifier: 'Tool.FileContent'})
 
-const ErrorSchema = z
-  .object({
-    _tag: z.literal('Tool.Error'),
-    message: z.string(),
-    error: z.unknown().optional(),
-    metadata: z.record(z.string(), z.unknown()).optional(),
-  })
-  .readonly() satisfies z.ZodType<Error>
+export const Content = Schema.Union([TextContent, FileContent])
+  .pipe(Schema.toTaggedUnion('type'))
+  .annotate({identifier: 'Tool.Content'})
+export type Content = Schema.Schema.Type<typeof Content>
 
-export interface TextContent {
-  readonly type: 'text'
-  readonly text: string
-}
-
-export interface FileContent {
-  readonly type: 'file'
-  readonly uri: string
-  readonly mime: string
-  readonly name?: string
-}
-
-export type Content = TextContent | FileContent
-
-export interface Result<Output extends ValueSchema | undefined = ValueSchema | undefined> {
+export interface Result<Output extends ValueSchema<any> | undefined = ValueSchema<any> | undefined> {
   readonly output?: OutputValue<Output>
-  readonly content?: string | readonly Content[]
+  readonly content?: string | ReadonlyArray<Content>
   readonly metadata?: Metadata
 }
 
 export type Info<
-  Input extends ValueSchema = ValueSchema,
-  Output extends ValueSchema | undefined = ValueSchema | undefined,
+  Input extends ValueSchema<any> = ValueSchema<any>,
+  Output extends ValueSchema<any> | undefined = ValueSchema<any> | undefined,
 > = {
   readonly name: string
   readonly input: Input
   readonly description: string
-  execute(input: InputValue<Input>, context: Context): Promise<Result<Output>>
+  readonly execute: (input: InputValue<Input>, context: Context) => Effect.Effect<Result<Output>, Error>
   readonly output?: Output
   readonly options?: Options
-}
-
-export function toolError(input: Omit<Error, '_tag'>): Error & globalThis.Error {
-  const fields: Error = {...input, _tag: 'Tool.Error'}
-  return Object.assign(new globalThis.Error(input.message), fields, {name: 'Tool.Error'})
-}
-
-export function isToolError(value: unknown): value is Error {
-  return ErrorSchema.safeParse(value).success
 }

@@ -4,7 +4,7 @@ import path from 'path'
 import {isRecord} from '../../../util/record.js'
 import {Result, Schema, type SchemaIssue, SchemaParser} from 'effect'
 import {ConfigMarkdown} from '../markdown.js'
-import {AbsolutePath} from '../../../schema/schema.js'
+import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import {Skill} from '../../skill.js'
 
 const Frontmatter = Schema.Struct({
