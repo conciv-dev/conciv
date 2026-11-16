@@ -5527,7 +5527,9 @@ describe('page action queue delivery', () => {
     const accepted: QueuedOnTab[] = []
     const held = new Map<string, string>()
     const arrivals = new EventTarget()
+    const arrived: string[] = []
     const answerFor = (command: Page.Command, requestId: string): PageReply | undefined => {
+      arrived.push(command.queued === undefined ? command.action.type : `queued ${command.queued.index}`)
       const holdKey = holdsUnder(command)
       if (holdKey !== undefined) {
         held.set(holdKey, requestId)
@@ -5631,6 +5633,7 @@ describe('page action queue delivery', () => {
       runIds,
       seenChunk,
       inChat,
+      arrived,
     }
   }
 
@@ -5723,6 +5726,31 @@ describe('page action queue delivery', () => {
     const handle = parseHandle(await page.hub(queued()))
     expect(handle).toEqual({queueId: expect.stringMatching(/^q_/), actions: 2})
     expect((await page.nextQueue()).id).toBe(handle.queueId)
+  })
+
+  it('a queue the page refuses to accept runs none of its actions, and each says it did not run', async () => {
+    const page = await engineWithTab(createFakeHarness(), [], tempDir('conciv-queue-'), (command) =>
+      command.queued?.index === -1 ? 'acceptance' : undefined,
+    )
+    const typed = makeRpcClient(page.base, {headers: HUB})
+    const {queueId} = parseHandle(await page.hub(queued()))
+    await page.onTab.reply(await page.heldRequest('acceptance'), {
+      type: 'failure',
+      code: 'handler-error',
+      message: 'the tab is busy',
+    })
+    const refusal = expect.stringContaining('the page refused the queue, so this action did not run: ')
+    expect(await typed.page.queue.wait({sessionId: page.sessionId, queueId, waitMs: 5000})).toMatchObject({
+      queueId,
+      status: 'lost',
+      played: 0,
+      failed: 0,
+      outcomes: [
+        {index: 0, ok: false, error: refusal},
+        {index: 1, ok: false, error: refusal},
+      ],
+    })
+    expect(page.arrived).toEqual(['queued -1'])
   })
 
   it('a page.queue.wait its caller aborts stops waiting, so the result it never handed over leads the next reply', async () => {
