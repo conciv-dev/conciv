@@ -318,6 +318,25 @@ describe('webpack and rspack hooks', () => {
     },
     60_000,
   )
+
+  it.each(['webpack', 'rspack'] as const)(
+    '%s keeps watching without an engine when the conciv state folder cannot be created',
+    async (framework) => {
+      const root = tempDir(`conciv-${framework}-unwritable-`)
+      const stateRoot = join(root, 'a-file-not-a-folder')
+      writeFileSync(stateRoot, '')
+      try {
+        const port = await getPort()
+        const taps = applyHook(framework, {port, stateRoot})
+        await expect(runAll(taps.watchRun)).resolves.toBeUndefined()
+        await expect(fetch(`http://127.0.0.1:${port}/health`)).rejects.toThrow()
+        await expect(runAll(taps.watchClose)).resolves.toBeUndefined()
+      } finally {
+        rmSync(root, {recursive: true, force: true})
+      }
+    },
+    60_000,
+  )
 })
 
 describe('engine port fallback', () => {
