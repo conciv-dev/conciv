@@ -272,48 +272,50 @@ async function readRestoredDraft(
 
 type DraftPlace = 'first' | 'last'
 
+const EMPTY_LOCAL_DRAFT: LocalDraft = {text: '', selectionStart: 0, selectionEnd: 0, attachments: []}
+
+function isEmptied(typed: {text: string; attachments: readonly unknown[]}): boolean {
+  return typed.text === '' && typed.attachments.length === 0
+}
+
 async function readKeptBase(
   appData: AppData,
   sessionId: string,
-): Promise<{base: LocalDraft | null; row: DraftRow | null | undefined}> {
+): Promise<{base: LocalDraft; encoded: DraftRow['attachments']}> {
   const stored = appData.drafts ? await readLocalDraft(appData.drafts, sessionId) : null
   if (!stored) {
     const row = await appData.readDraft(sessionId).catch((error: unknown) => {
       console.error('[conciv] could not read the saved draft', error)
       return null
     })
-    return {base: row ? rowLocalDraft(row) : null, row}
+    return row ? {base: rowLocalDraft(row), encoded: row.attachments} : {base: EMPTY_LOCAL_DRAFT, encoded: []}
   }
   const row = appData.cachedDraft(sessionId)
-  const dropped = stored.syncedAt !== undefined && row === null
-  return {base: dropped ? null : stored, row}
+  const encoded = row?.attachments ?? []
+  if (stored.syncedAt !== undefined && row === null) return {base: EMPTY_LOCAL_DRAFT, encoded}
+  return {base: stored, encoded}
+}
+
+function joinReturned(saved: string, text: string, place: DraftPlace): {text: string; caret: number} {
+  if (saved === '') return {text, caret: text.length}
+  if (place === 'first') return {text: `${text}\n${saved}`, caret: text.length}
+  const joined = `${saved}\n${text}`
+  return {text: joined, caret: joined.length}
+}
+
+function keepLocally(drafts: DraftStore, sessionId: string, draft: LocalDraft): Promise<void> {
+  return drafts.setDocument(sessionId, draft).catch((error: unknown) => {
+    console.error('[conciv] could not keep the returned text in the local draft', error)
+  })
 }
 
 async function keepInDraft(appData: AppData, sessionId: string, text: string, place: DraftPlace): Promise<void> {
   const drafts = appData.drafts
-  const {base, row} = await readKeptBase(appData, sessionId)
-  const saved = base?.text ?? ''
-  const nextText = saved === '' ? text : place === 'first' ? `${text}\n${saved}` : `${saved}\n${text}`
-  const caret = place === 'first' ? text.length : nextText.length
-  await drafts
-    ?.setDocument(sessionId, {
-      text: nextText,
-      selectionStart: caret,
-      selectionEnd: caret,
-      attachments: base?.attachments ?? [],
-      syncedAt: base?.syncedAt,
-    })
-    .catch((error: unknown) => {
-      console.error('[conciv] could not keep the returned text in the local draft', error)
-    })
-  const saving = appData.saveDraft({
-    sessionId,
-    text: nextText,
-    selectionStart: caret,
-    selectionEnd: caret,
-    attachments: row?.attachments ?? [],
-    updatedAt: Date.now(),
-  })
+  const {base, encoded} = await readKeptBase(appData, sessionId)
+  const {text: nextText, caret} = joinReturned(base.text, text, place)
+  const selection = {text: nextText, selectionStart: caret, selectionEnd: caret}
+  if (drafts) await keepLocally(drafts, sessionId, {...base, ...selection})
+  const saving = appData.saveDraft({sessionId, ...selection, attachments: encoded, updatedAt: Date.now()})
   if (!drafts) await saving
 }
 
@@ -389,6 +391,28 @@ export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraft
       )
     : undefined
   const typedDraft = () => (local ? local.typed() : cached())
+  const readStored = () => (local ? local.read() : Promise.resolve(null))
+  const land = (
+    settle: () => void,
+    restored: RestoredDraft | null,
+    row: DraftRow | null,
+    apply: (restored: RestoredDraft, edited: boolean) => void,
+  ) => {
+    const typed = typedDraft()
+    const cleared = typed !== null && isEmptied(typed)
+    try {
+      settle()
+      if (restored && !cleared) apply(restored, typed !== null)
+    } finally {
+      writable = true
+      if (typed && (row || !cleared)) persistTyped()
+    }
+  }
+  const readRow = (signal: AbortSignal) =>
+    appData.readDraft(sessionId).catch((error: unknown) => {
+      if (!signal.aborted) console.error('[conciv] could not read the saved draft', error)
+      return null
+    })
   return {
     writer: local?.writer,
     storage: {
@@ -410,26 +434,12 @@ export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraft
       selection = offsets
     },
     restore: async (apply, signal) => {
-      const [row, stored] = await Promise.all([
-        appData.readDraft(sessionId).catch((error: unknown) => {
-          if (!signal.aborted) console.error('[conciv] could not read the saved draft', error)
-          return null
-        }),
-        local ? local.read() : null,
-      ])
+      const [row, stored] = await Promise.all([readRow(signal), readStored()])
       if (signal.aborted) return
       const verdict = reconcileDraft(stored, row, sameAsRow)
       const restored = await readRestoredDraft(verdict, stored, row)
       if (signal.aborted) return
-      const typed = typedDraft()
-      const cleared = typed !== null && typed.text === '' && typed.attachments.length === 0
-      try {
-        local?.settle(verdict, stored, row)
-        if (restored && !cleared) apply(restored, typed !== null)
-      } finally {
-        writable = true
-        if (typed && (row || !cleared)) persistTyped()
-      }
+      land(() => local?.settle(verdict, stored, row), restored, row, apply)
     },
   }
 }
