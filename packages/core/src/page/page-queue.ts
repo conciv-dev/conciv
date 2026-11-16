@@ -198,7 +198,7 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
   const holds = (record: QueueRecord): boolean => records.get(record.queueId) === record
 
   const announce = (record: QueueRecord): void => {
-    if (record.delivery === 'delivered' || !holds(record)) return
+    if ((record.delivery !== 'owed' && record.delivery !== 'claimed') || !holds(record)) return
     for (const listener of listeners) {
       try {
         listener(record)
@@ -319,8 +319,7 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
   function undelivered(sessionId: SessionId, hub: boolean): PageQueueResult[] {
     return [...records.values()].flatMap((record) => {
       if (record.sessionId !== sessionId || hubCalled(record) !== hub || record.result === null) return []
-      const handed = deliver(record)
-      return handed ? [record.result] : []
+      return deliver(record) ? [record.result] : []
     })
   }
 
