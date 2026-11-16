@@ -15,9 +15,6 @@ import {
 } from './contract.js'
 import {ChildMessageSchema, type ChildMessage} from './child-protocol.js'
 
-export {isRunnerUnavailable, runnerUnavailableError} from './contract.js'
-export type {RunnerUnavailableError} from './contract.js'
-
 export type ChildRunnerSpec = {
   id: string
   capabilities: TestRunnerCapabilities
@@ -26,14 +23,10 @@ export type ChildRunnerSpec = {
   buildListArgs: (failedOnly: boolean, cwd: string) => string[]
 }
 
-export type SpawnRunner = (args: string[], cwd: string) => ChildProcess
-export type MakeManagerOptions = {spawnRunner?: SpawnRunner}
+type SpawnRunner = (args: string[], cwd: string) => ChildProcess
+type MakeManagerOptions = {spawnRunner?: SpawnRunner}
 
-export function makeChildManager(
-  spec: ChildRunnerSpec,
-  cwd: string,
-  options: MakeManagerOptions = {},
-): TestRunnerManager {
+function makeChildManager(spec: ChildRunnerSpec, cwd: string, options: MakeManagerOptions = {}): TestRunnerManager {
   const unavailable = (reason: string) => runnerUnavailableError(spec.id, reason)
   const spawnRunner = options.spawnRunner ?? defaultSpawnRunner(spec.childUrl)
   const subscribers = new Set<(e: TestEvent) => void>()

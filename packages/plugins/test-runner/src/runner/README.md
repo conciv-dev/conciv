@@ -10,12 +10,11 @@ contract.ts defines the manager and adapter types and the tagged runner-unavaila
 - `runnerUnavailableError(runnerId, reason)` (`contract.ts`): returns an Error with message `${id} unavailable: ${reason}`, tagged `conciv:runner-unavailable`
 - `isRunnerUnavailable(e)` (`contract.ts`): type guard that checks the tag with zod
 - `defineRunner(adapter)` (`contract.ts`): validates an adapter
-- `ChildRunnerSpec`, `SpawnRunner`, `MakeManagerOptions` types (`driver.ts`)
-- `makeChildManager(spec, cwd, {spawnRunner?})` (`driver.ts`): builds a TestRunnerManager on top of a child process
-- `defineChildRunner(spec)` (`driver.ts`): returns an adapter whose `create` is `makeChildManager`
+- `ChildRunnerSpec` type (`driver.ts`)
+- `defineChildRunner(spec)` (`driver.ts`): returns an adapter whose `create` is `makeChildManager`, which builds a TestRunnerManager on top of a child process
 - `defineStubRunner({id, capabilities, reason})` (`driver.ts`): returns an adapter whose `create()` throws `reason`
-- `ChildMessageSchema`, `ListMessageSchema`, `ErrorMessageSchema`, `ChildMessage` (`child-protocol.ts`): the union of a TestEvent, a `list` message and an `error` message
-- `adapters` = [vitest, jest, nodeTest, playwright] and `getRunner(id)` (`registry.ts`)
+- `ChildMessageSchema`, `ChildMessage` (`child-protocol.ts`): the union of a TestEvent, a `list` message and an `error` message
+- `getRunner(id)` (`registry.ts`): finds one of vitest, jest, nodeTest, playwright
 
 ## Invariants
 
