@@ -56,7 +56,7 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 ## Side Effects
 
 - `ensureEffectsSurface` (`client-host.ts`): appends a fixed div with an open shadow root and a style element to document.body
-- `openSource` (`client-host.ts`): calls rpc.editor.open / rpc.editor.openFromFrames
+- `openSource` (`client-host.ts`): calls the server plugin's `open` method through `rpc.plugin.call` for a located source, else rpc.editor.openFromFrames
 - `makeExtRpcClient` (`ext-rpc.ts`): HTTP RPC with the session header; the node path (no global `location`) also sends `x-conciv-version` (the extension package.json version), the browser path goes through `dynamicBrowserRpcLink` and sends no version header
 - `collectClientEffects` (`collect-client.ts`): console.warn on duplicate effect names
 - `rpcWebsocketRoute` (`rpc-mount.ts`): closes the socket with 1011 on a rejected frame; a `{type: 'conciv:trust', token}` frame never reaches oRPC, it goes to the optional per-connection `gate` (dropped when there is none)

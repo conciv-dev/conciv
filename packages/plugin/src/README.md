@@ -66,6 +66,9 @@ The `Rpc` namespace alone, for the contract module both parts import. `Rpc.defin
 its argument typed and throws when an error name starts with `rpc.` (reserved). Method and event schemas are any
 Standard Schema or a raw JSON Schema object (an event's with `type: 'object'`).
 
+Rpc methods never ask. An operation that must ask is a tool, and gets no rpc method: the server plugin's restart
+is the `server_restart` tool only.
+
 ```ts
 import {z} from 'zod'
 import {Rpc} from '@conciv/plugin/rpc'
@@ -335,7 +338,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - `SessionScreen` has `composer` only: `file` (`Files`, `FileState`, `FileContent`, `FileNode`, `LineRange`) and `comment` (`Comments`, `Comment`) are not ours (audit rows `screen.file.*`, `screen.comment.*`).
 - `MountedSession` keeps `visit` and `directory`; `local` is declared, not implemented; `background` and `BackgroundTask` are absent (subagents run inside the CLI); `listedProject` is absent (no sidebar; audit row `layout.sidebar.opened`); `project` is not available yet.
 - `Layout`: `side` and `sidebar` are absent: conciv has no side region (`apps/conciv/src/pane/status-bar.tsx:48`, a panel replaces the chat; `apps/conciv/src/routes/panel-height.ts:8`). This settles the audit's UNSURE `layout.side.width` row and drops `side.menu` with `MenuItem`. `project` is absent (one directory per engine).
-- `Desktop`: no `os`, no `zoom`; `launch(path, position?)` takes a `{line, column?}` position in place of source's `app?` argument, backed by the engine's open-in-editor (`packages/contract/src/contract.ts:410`, `editor.open`).
+- `Desktop`: no `os`, no `zoom`; `launch(path, position?)` takes a `{line, column?}` position in place of source's `app?` argument, backed by the engine's open-in-editor through the engine's server plugin (`plugin.call` with rpc id `server`, method `open`, `packages/plugin-host/src/core/tool/plugin/server.ts`).
 - `StorageScope` keeps source's `{server, directory?}` scope; a conciv server is an engine, which runs in one project. It adds `'project'` (the repo the engine runs in), so `Storage.store` opens a declared `project` store with its own scope.
 - `System.save` and `openExternal` JSDoc describe the web only (download, new tab).
 - `Layout.draft` opens a draft only on the one engine (`server` `engine`) in its project root: a `server` or `directory` other than those is refused, logged with the plugin's id, and nothing is created (source: any listed server, any directory).
