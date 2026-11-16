@@ -44,7 +44,7 @@ type Play = (
 
 type Origin = {readonly toolCallIds?: readonly string[]; readonly excludeToolCallIds?: readonly string[]}
 
-export const TERMINAL_AGENT = 'terminal'
+const TERMINAL_AGENT = 'terminal'
 
 const KEPT_QUEUES = 200
 

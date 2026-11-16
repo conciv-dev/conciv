@@ -45,11 +45,6 @@ type SyncEffect = Extract<ConnectionEffect, {readonly type: 'sync-permissions'}>
 
 type Call = {readonly agentId: string; readonly signal?: AbortSignal | undefined}
 
-export type Run = (
-  action: Action,
-  call: {readonly sessionId: SessionId; readonly agent: string; readonly id: string; readonly signal: AbortSignal},
-) => Promise<unknown>
-
 export type Connection = Awaited<ReturnType<typeof make>>
 
 export function raise(error: Tool.Error): Error {
@@ -81,7 +76,6 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
       ),
   )
   const machine = {state: createConnectionState()}
-  const runner = Promise.withResolvers<Run>()
   const records = Records.fromStorage(ctx.storage)
   const queues = Queue.fromPlay({
     play: (sessionId, play) => playQueue(sessionId, play),
@@ -233,20 +227,6 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
           signal: call.signal,
         })
         return Definition.methods['hmr.wait'].output.parse(result.value)
-      } catch (error) {
-        return call.error('unavailable', error instanceof Error ? error.message : String(error), {})
-      }
-    },
-    run: async (input, call) => {
-      try {
-        const run = await runner.promise
-        const output = await run(input.action, {
-          sessionId: input.sessionId,
-          agent: Queue.TERMINAL_AGENT,
-          id: crypto.randomUUID(),
-          signal: call.signal,
-        })
-        return Definition.methods.run.output.parse(output)
       } catch (error) {
         return call.error('unavailable', error instanceof Error ? error.message : String(error), {})
       }
@@ -437,7 +417,6 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
     queues,
     records,
     tabs: (sessionId: SessionId): {tabs: Tab[]; focusedTabId: string | null} => selectTabs(machine.state, sessionId),
-    serve: (run: Run) => runner.resolve(run),
     dispose: async (): Promise<void> => {
       await dispatch({type: 'disposed'})
       await drained.promise

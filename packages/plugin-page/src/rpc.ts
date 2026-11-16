@@ -537,7 +537,6 @@ export const Definition = Rpc.define({
       output: z.object({applied: z.boolean(), waitedMs: z.number()}),
       errors,
     },
-    run: {input: z.object({sessionId: SessionId, action: Action}), output: z.json(), errors},
     changes: {input: z.object({sessionId: SessionId}), output: z.array(PageChangeEntrySchema), errors},
     clearChanges: {input: z.object({sessionId: SessionId}), output: OkResult, errors},
     'captures.list': {input: z.object({sessionId: SessionId}), output: SessionCapturesSchema, errors},
