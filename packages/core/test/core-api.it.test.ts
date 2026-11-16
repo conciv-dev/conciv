@@ -1611,10 +1611,11 @@ describe('api page page', () => {
       expect(heard).toEqual([])
     })
 
-    it('run reports [page.timeout] when the page never replies', async () => {
+    it('registry.call reports PAGE_TIMEOUT when the page never replies', async () => {
       state.tab = await tabs.open(await kit().session(), () => undefined)
       await expect(run('page_wait', {selector: 'body', timeout: 100})).rejects.toMatchObject({
-        message: expect.stringContaining('[page.timeout]'),
+        code: 'PAGE_TIMEOUT',
+        message: expect.stringContaining('page_wait: [page.timeout]'),
       })
     })
 
