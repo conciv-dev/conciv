@@ -2496,25 +2496,30 @@ describe('a stalled event stream gets a new socket', () => {
     const client = makeBrowserRpcClient(network.origin)
     const connection = browserRpcConnection(network.origin)
     const conciv = Conciv.make(client.rpc)
+    const statuses: string[] = []
+    const stopWatching = conciv.connection.on((status) => statuses.push(status))
     try {
       expect(await connection.trust.requestTrustWithToken(made.trustBrowser(requester, Date.now()))).toBe(true)
       const reader = conciv.event.subscribe()[Symbol.asyncIterator]()
       expect(await reader.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
       expect(conciv.connection.status()).toBe('connected')
 
+      const beforeFirstFreeze = statuses.length
       network.freeze()
       expect(await reader.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
-      expect(conciv.connection.status()).toBe('connected')
+      expect(statuses.slice(beforeFirstFreeze)).toEqual(['reconnecting', 'connected'])
       expect(await client.rpc.sessions.list(undefined)).toMatchObject({sessions: []})
       await reader.return?.()
 
       network.freeze()
+      const beforeLateStall = statuses.length
       const late = conciv.event.subscribe()[Symbol.asyncIterator]()
       expect(await late.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
-      expect(conciv.connection.status()).toBe('connected')
+      expect(statuses.slice(beforeLateStall).slice(-2)).toEqual(['reconnecting', 'connected'])
       expect(await client.rpc.sessions.list(undefined)).toMatchObject({sessions: []})
       await late.return?.()
     } finally {
+      stopWatching()
       connection.release()
       client.close()
       await network.close()

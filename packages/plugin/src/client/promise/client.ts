@@ -113,7 +113,10 @@ async function* attempted(
     if (!signal.aborted) console.warn('[conciv] the event stream ended; subscribing again')
   } catch (error) {
     if (signal.aborted) return
-    console.error('[conciv] the event stream failed; subscribing again', error)
+    console.error(
+      '[conciv] the event stream failed; subscribing again',
+      attempt.signal.aborted ? attempt.signal.reason : error,
+    )
   } finally {
     clearTimeout(watchdog)
     signal.removeEventListener('abort', cancel)
