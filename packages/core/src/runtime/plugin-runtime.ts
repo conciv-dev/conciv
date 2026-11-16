@@ -60,6 +60,7 @@ export type PluginRuntimeInput = {
   engineId: string
   config: Pick<ResolvedConcivConfig, 'plugins' | 'policies'>
   plugins: readonly PluginDefinition.Plugin[]
+  post: readonly PluginDefinition.Plugin[]
   harness: HarnessAdapter
   signal: AbortSignal
   harnessSource: Parameters<typeof provideHarnessSource>[0]
@@ -93,7 +94,12 @@ function pluginHostLayer(input: PluginRuntimeInput) {
   return Layer.mergeAll(
     Plugin.layer,
     SdkPlugins.layer,
-    InstancePlugins.bound(input.plugins.map((plugin) => PluginPromise.fromPromise(plugin))),
+    InstancePlugins.bound(
+      input.plugins.map((plugin) => PluginPromise.fromPromise(plugin)),
+      {
+        post: input.post.map((plugin) => PluginPromise.fromPromise(plugin)),
+      },
+    ),
     PluginUpdate.layer,
     ConfigPluginSource.layer,
   ).pipe(

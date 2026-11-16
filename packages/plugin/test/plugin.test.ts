@@ -48,6 +48,7 @@ import {
   type PluginModule,
 } from '../src/experimental/host.js'
 import {experimental} from '../src/experimental/vite.js'
+import * as PageModule from '../src/experimental/page.js'
 import * as RpcEntry from '../src/rpc.js'
 import * as Host from '../src/host.js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
@@ -953,6 +954,7 @@ describe('experimental() build', () => {
     'solid-js': SolidJs,
     'solid-js/web': SolidWeb,
     'solid-js/store': SolidStore,
+    '@conciv/plugin/experimental/page': PageModule,
   }
   const real = new Map<string, object>([...Object.entries(provided), ['node:fs', NodeFs]])
 

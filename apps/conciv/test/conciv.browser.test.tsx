@@ -6689,6 +6689,67 @@ module.exports = {default: {setup(ctx) {
   }, 30_000)
 })
 
+describe('the page contracts reach a plugin', () => {
+  const sourceMap = JSON.stringify({version: 3, sources: ['src/app.tsx'], names: [], mappings: 'AAAA'})
+  const readerBundle = `const {Panel, createKeyed} = require('@conciv/plugin/experimental')
+const {Page, ReactTree} = require('@conciv/plugin/experimental/page')
+module.exports = {default: {setup(ctx) {
+  const body = document.createElement('div')
+  const answer = document.createElement('p')
+  createKeyed(ctx.use(Page), (page) =>
+    createKeyed(ctx.use(ReactTree), (tree) => {
+      const button = document.createElement('button')
+      button.textContent = 'Read the contracts'
+      button.addEventListener('click', () => {
+        const fibers = Array.isArray(tree.rootFibers()) ? 'fibers listed' : 'no fibers'
+        page.symbolicate({frames: [{fileName: 'dist/chunk.js', line: 1, column: 1}]}).then(
+          (source) => (answer.textContent = 'Page and ReactTree, ' + fibers + ', ' + source.file + ':' + source.line + ':' + source.column),
+          (error) => (answer.textContent = String(error)),
+        )
+      })
+      body.replaceChildren(button, answer)
+    }),
+  )
+  ctx.add(Panel, {
+    id: 'reader',
+    region: 'pane',
+    list: () => [{id: 'reader', title: 'Contract reader', pinned: true}],
+    render: () => body,
+  })
+}}}
+`
+  const coreBase = bootedCore('page-contracts', {
+    plugins: ['./reader'],
+    files: {
+      'reader/index.ts': `export default {id: 'reader', async setup() {}}
+`,
+      'reader/plugin-experimental.js': readerBundle,
+      'dist/chunk.js': `console.log('chunk')
+`,
+      'dist/chunk.js.map': sourceMap,
+    },
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  test('a plugin that reads Page and ReactTree gets both, and Page.symbolicate answers from the engine', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    const reader = page.getByRole('tab', {name: 'Contract reader'})
+    await expect.element(reader, {timeout: 15_000}).toBeVisible()
+    await reader.click()
+    const read = page.getByRole('button', {name: 'Read the contracts', exact: true})
+    await expect.element(read).toBeVisible()
+    await read.click()
+
+    await expect
+      .element(page.getByText('Page and ReactTree, fibers listed, src/app.tsx:1:0', {exact: true}))
+      .toBeVisible()
+  }, 30_000)
+})
+
 describe('plugin tool cards', () => {
   const probeBundle = `const {Registry} = require('@conciv/plugin/experimental')
 const ToolCall = Registry.define('tool-call')
@@ -7091,16 +7152,24 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
   })
   const faults = trackedFaults()
   const row = (id: string, enabled: boolean) => ({id, builtin: false, enabled, server: true})
-  const rows = (pane: boolean) => [row('pane', pane), {...row('broken', true), error: expect.stringMatching(/./)}]
+  const builtinPage = {id: 'page', builtin: true, enabled: true}
+  const rows = (pane: boolean) => [
+    builtinPage,
+    row('pane', pane),
+    {...row('broken', true), error: expect.stringMatching(/./)},
+  ]
   const notFound = {code: 'notFound', message: 'notFound'}
   const disabledPlugins = page.getByRole('status', {name: 'disabled plugins'})
 
   test('a plugin that never loaded is listed with its error, and disable, enable and reload act through the store', async () => {
     const base = coreBase()
     await faults.install({kind: 'garble', path: EXPERIMENTAL, input: {id: 'broken'}})
+    const listed = await faults.install({kind: 'gate', path: ['settings', 'changes']})
     const first = bundleSource(base)
     onTestFinished(first.dispose)
     const firstInstalled = recordInstalled(first.manager)
+    expect((await recordPushes(first).nth(1)).plugins.map((plugin) => plugin.id)).toEqual(['pane'])
+    await coreControl.releaseFault(listed)
 
     await firstInstalled.next(rows(true))
     expect(await first.manager.list()).toEqual(rows(true))
@@ -7237,6 +7306,35 @@ describe('installed plugins in settings', () => {
 
     await expect.element(lateRow(), {timeout: 15_000}).toBeVisible()
     await expect.element(tab('Plugins')).toHaveAttribute('aria-selected', 'true')
+  }, 60_000)
+
+  test("the engine's own page plugin has no row a user could reload or switch off", async () => {
+    await page.viewport(1000, 900)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    await coreControl.writeProjectFile(
+      'conciv/plugins/neighbour.ts',
+      "export default {id: 'neighbour', async setup() {}}\n",
+    )
+    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`, [])
+    await expect.element(page.getByText('neighbour', {exact: true}), {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('conciv.page', {exact: true})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('switch', {name: 'conciv.page'})).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('each engine-only plugin a user adds one after another gets its own row', async () => {
+    await page.viewport(1000, 900)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`, [])
+    await expect.element(tab('Plugins'), {timeout: 8000}).toHaveAttribute('aria-selected', 'true')
+
+    await coreControl.writeProjectFile(
+      'conciv/plugins/earlier.ts',
+      "export default {id: 'earlier', async setup() {}}\n",
+    )
+    await expect.element(page.getByText('earlier', {exact: true}), {timeout: 15_000}).toBeVisible()
+
+    await coreControl.writeProjectFile('conciv/plugins/later.ts', "export default {id: 'later', async setup() {}}\n")
+    await expect.element(page.getByText('later', {exact: true}), {timeout: 15_000}).toBeVisible()
   }, 60_000)
 })
 

@@ -540,6 +540,7 @@
     "@conciv/unplugin",
     "@conciv/plugin",
     "@conciv/plugin-host",
+    "@conciv/plugin-page",
     "@conciv/plugin-recorder",
     "@conciv/plugin-whiteboard",
     "@conciv/preact",
