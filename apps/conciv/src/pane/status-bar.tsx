@@ -54,7 +54,7 @@ const VIEW_INDICATOR =
 const VIEW_HINT =
   'chat-view-btn-hint [font-family:var(--chat-mono)] text-[9px] [color:var(--chat-hint)] ps-[9px] [border-inline-start:1px_solid_var(--chat-frame-line)]'
 const VIEW_LABEL = 'chat-view-btn-label [font-family:var(--chat-font)] truncate max-w-24'
-const PLUGIN_LABEL = 'flex items-center gap-1.5 min-w-0 [&_svg]:size-3 [&_svg]:shrink-0'
+const PLUGIN_LABEL = `${VIEW_LABEL} [&_svg]:inline-block [&_svg]:size-3 [&_svg]:align-middle [&_svg]:me-1.5`
 
 function chipStatus(status: SessionStatus): ChipStatus | undefined {
   if (status.kind === 'unstarted') return undefined
@@ -99,19 +99,12 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
               const content = untrack(view).content
               const locked = createMemo(() => props.disabled && view().id !== props.activeView)
               return (
-                <Tabs.Trigger
-                  class={VIEW_BTN}
-                  value={view().id}
-                  disabled={locked()}
-                  aria-label={content ? (view().missing ? view().label : undefined) : view().label}
-                >
+                <Tabs.Trigger class={VIEW_BTN} value={view().id} disabled={locked()} aria-label={view().label}>
                   <Show when={view().icon}>
                     {(icon) => <Dynamic component={icon()} class="size-3" aria-hidden="true" />}
                   </Show>
                   {content ? (
-                    <span class={VIEW_LABEL}>
-                      <span class={PLUGIN_LABEL}>{content()}</span>
-                    </span>
+                    <span class={PLUGIN_LABEL}>{content()}</span>
                   ) : (
                     <TruncatedText class={VIEW_LABEL} text={view().label} />
                   )}
