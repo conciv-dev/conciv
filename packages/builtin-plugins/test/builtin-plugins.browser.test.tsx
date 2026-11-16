@@ -19,6 +19,9 @@ import {endTask, mountSimulator, startTask} from '../src/page/simulator.js'
 import {aimCursor, CursorLook, dropCursor, windowAt} from '../src/page/agent-cursor.js'
 import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
 import {makeReactTree, pageMembers} from '../src/page/contracts.js'
+import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
+import {INERT_TOOL_CTX, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
+import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ReactFiber} from '@conciv/plugin/experimental/page'
 
 const inFirefox = server.browser === 'firefox'
@@ -1349,5 +1352,32 @@ describe('the page contracts another plugin reads', () => {
       expect(tree.rootFibers().flatMap(labels)).toContainEqual({label: 'A'})
       expect(tree.dehydrate({label: 'A', run: function run() {}})).toEqual({label: 'A', run: 'ƒ run()'})
     })
+  })
+})
+
+describe('the page cards in the chat', () => {
+  it('draws a page call as its own card, and every page tool has one', async () => {
+    const {pageToolCards} = await import('../src/renderer.js')
+    const claimed = pageToolCards.flatMap((card) => card.names).toSorted()
+    const drawn = PAGE_TOOL_DEFS.map((definition) => definition.name).filter((name) => name !== 'page_queue_async')
+    expect(claimed).toEqual(drawn.toSorted())
+    const part: ToolCallPart = {
+      type: 'tool-call',
+      id: 'r1',
+      name: 'page_route',
+      arguments: '{}',
+      input: {},
+      state: 'complete',
+    }
+    const route = {pathname: '/checkout', href: 'http://shop.test/checkout', title: 'Checkout'}
+    const result: ToolResultPart = {
+      type: 'tool-result',
+      toolCallId: 'r1',
+      content: JSON.stringify(route),
+      state: 'complete',
+    }
+    const ctx = {...INERT_TOOL_CTX, catalog: {loaded: () => true, meta: () => undefined}}
+    render(() => <ToolTraceRow part={part} result={result} ctx={ctx} tools={() => pageToolCards} />)
+    await expect.element(page.getByRole('treeitem', {name: 'pathname: "/checkout"'})).toBeVisible()
   })
 })
