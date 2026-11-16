@@ -12,7 +12,7 @@ export default function load() {
   const require = createRequire(import.meta.url)
   const libc = typeof CONCIV_LIBC === 'undefined' ? detectedLibc(require) : CONCIV_LIBC
   return require(
-    process.env.OPENCODE_PARCEL_WATCHER_PATH ??
+    process.env.CONCIV_PARCEL_WATCHER_PATH ??
       `@parcel/watcher-${process.platform}-${process.arch}${process.platform === 'linux' ? `-${libc || 'glibc'}` : ''}`,
   )
 }
