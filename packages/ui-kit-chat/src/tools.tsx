@@ -1,5 +1,6 @@
 export {INERT_ADD_RESULT, INERT_TOOL_CTX} from './store/tool-context.js'
 export {ToolFallback, toolFallbackCardView, toolFallbackHasEmbeddedBody} from './tools/styled/tool-fallback.js'
+export {genericToolHeadline, type GenericToolHeadline} from './tools/styled/generic-tool-headline.js'
 
 export {toolStatus, type ToolStatus} from './tools/primitives/tool-status.js'
 export {StatusVisual} from './tools/primitives/status-visual.js'
