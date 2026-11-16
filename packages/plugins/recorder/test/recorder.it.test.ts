@@ -130,7 +130,7 @@ describe('the recorder in the widget', () => {
     }
   }, 120_000)
 
-  test('follows the recording live: an append landing after the window read and before the replay subscribes still reaches the player', async ({
+  test('follows the recording live: an append landing after the window read and before the replay subscribes still reaches the player, appends made while the socket was down reach it once it is back, and a failed incremental read resumes from the last good cursor on the next append', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -170,6 +170,26 @@ describe('the recorder in the widget', () => {
       playerChunks.resolve()
       await expect(replayed(page, 'Before')).toBeAttached({timeout: 30_000})
       await expect(replayed(page, 'Between')).toBeAttached({timeout: 10_000})
+
+      const opened = socket.opened()
+      socket.hold()
+      await flush(clientId, [addedParagraph(20, 'While away')])
+      socket.release()
+      await expect(replayed(page, 'While away')).toBeAttached({timeout: 30_000})
+      expect(socket.opened()).toBeGreaterThan(opened)
+
+      const failedRead = Promise.withResolvers<void>()
+      const stopFailing = socket.rule((call) => {
+        if (recorderMethod(call)?.method !== 'since') return 'pass'
+        stopFailing()
+        void call.reply(500).then(() => failedRead.resolve())
+        return 'handled'
+      })
+      await flush(clientId, [addedParagraph(30, 'Lost read')])
+      await failedRead.promise
+      await flush(clientId, [addedParagraph(40, 'After')])
+      await expect(replayed(page, 'Lost read')).toBeAttached({timeout: 10_000})
+      await expect(replayed(page, 'After')).toBeAttached({timeout: 10_000})
     } finally {
       await widget.close()
     }
