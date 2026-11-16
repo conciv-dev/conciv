@@ -4739,6 +4739,9 @@ importers:
       '@tanstack/react-router':
         specifier: '>=1.170.0'
         version: 1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.0
       zod:
         specifier: 'catalog:'
         version: 4.6.7
