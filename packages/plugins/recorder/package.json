@@ -64,6 +64,7 @@
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
+    "@rrweb/rrweb-plugin-console-record": "catalog:",
     "@rrweb/types": "catalog:",
     "@solid-primitives/timer": "catalog:",
     "@types/node": "catalog:",
