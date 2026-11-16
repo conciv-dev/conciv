@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto'
 import {open, rename, stat, unlink, writeFile} from 'node:fs/promises'
 import type {RrwebEvent} from '../shared/protocol.js'
 import type {KeyframeRenderer} from './render.js'
@@ -11,12 +12,13 @@ export async function renderedVideo(file: string, events: RrwebEvent[], useRende
   if (existing?.isFile()) return true
   const video = await useRenderer((renderer) => renderer.renderVideo(events))
   if (!video) return false
-  return writeFile(`${file}.tmp`, video)
-    .then(() => rename(`${file}.tmp`, file))
+  const temporary = `${file}.${randomUUID()}.tmp`
+  return writeFile(temporary, video)
+    .then(() => rename(temporary, file))
     .then(
       () => true,
       () =>
-        unlink(`${file}.tmp`).then(
+        unlink(temporary).then(
           () => false,
           () => false,
         ),
