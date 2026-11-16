@@ -194,7 +194,11 @@ function mountHost(
         rpc={rpc}
         apiBase={() => apiBase}
         toast={showToast}
-        openEditor={(file, line) => void rpc.editor.open({file, line}).catch(() => {})}
+        openEditor={(file, line) =>
+          void rpc.plugin
+            .call({rpcId: 'server', method: 'open', input: {file, ...(line === undefined ? {} : {line})}})
+            .catch(() => {})
+        }
         registerLayer={() => () => {}}
         dialog={Dialog}
         popover={Popover}

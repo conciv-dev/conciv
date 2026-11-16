@@ -166,7 +166,7 @@ export async function runDiff(input: {target: TargetRecord; session: string | un
 
 export async function openInEditor(input: {source: SourceLoc; session: string | undefined}): Promise<void> {
   const rpc = await sessionClient(input.session)
-  await rpc.editor.open({file: input.source.file, line: input.source.line})
+  await rpc.plugin.call({rpcId: 'server', method: 'open', input: {file: input.source.file, line: input.source.line}})
 }
 
 export function diffCommand(target: TargetRecord): string {

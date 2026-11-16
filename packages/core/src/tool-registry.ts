@@ -3,7 +3,7 @@ import {isPageFailure, PAGE_QUEUE_ASYNC_TOOL, PAGE_QUEUE_TOOL} from '@conciv/pro
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {pageVerbError, toolError, type ToolRequest} from '@conciv/extension'
 import {createToolRegistry, type ForwardedPageTool, type ToolRegistry} from '@conciv/extension/registry'
-import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS, BUILTIN_TABS_TOOL} from '@conciv/tools/builtins'
+import {BUILTIN_SERVER_TOOLS, BUILTIN_TABS_TOOL} from '@conciv/tools/builtins'
 import type {TabsListing} from '@conciv/protocol/chat-types'
 import type {PageAnswer, PageEnv} from './page/page-bus.js'
 import {session} from './runtime/session-context.js'
@@ -12,7 +12,6 @@ import {logError} from './lib/debug.js'
 export type BuiltinRegistryDeps = {
   page: PageEnv
   bundler: () => BundlerBridge | undefined
-  openInEditor: (file: string, line?: number, column?: number) => void
   listTabs: () => Promise<TabsListing>
 }
 
@@ -24,7 +23,6 @@ export function makeBuiltinRegistry(deps: BuiltinRegistryDeps): ToolRegistry {
   for (const tool of BUILTIN_SERVER_TOOLS) {
     registry.register(tool, {owner: 'a built-in server tool', context: {bundler: deps.bundler}})
   }
-  registry.register(BUILTIN_OPEN_TOOL, {owner: 'a built-in editor tool', context: {openInEditor: deps.openInEditor}})
   registry.register(BUILTIN_TABS_TOOL, {owner: 'a built-in tabs tool', context: {listTabs: deps.listTabs}})
   return registry
 }
