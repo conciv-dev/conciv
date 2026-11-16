@@ -1308,6 +1308,35 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
     await expect(once(probe, 'listening')).resolves.toEqual([])
     await once(probe.close(), 'close')
   }, 20_000)
+
+  it('a start that fails to build its app leaves server.json as it found it: absent when there was none, and naming the engine still running in that project', async () => {
+    const seedUnreadableRun = (root: string): void => {
+      const seeded = openDb(root)
+      seeded.run(
+        sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+      )
+      seeded.$client.close()
+    }
+    const RecordSchema = z.object({port: z.number(), token: z.string()})
+    const readRecord = (root: string) =>
+      RecordSchema.parse(JSON.parse(readFileSync(join(concivStateDir(root), 'server.json'), 'utf8')))
+
+    const fresh = tempDir('conciv-core-unit-')
+    seedUnreadableRun(fresh)
+    await expect(bootEngine(fresh)).rejects.toThrow(/is not valid JSON/)
+    expect.soft(existsSync(join(concivStateDir(fresh), 'server.json'))).toBe(false)
+
+    const root = tempDir('conciv-core-unit-')
+    const running = await bootEngine(root)
+    onTestFinished(() => running.stop())
+    expect(readRecord(root)).toEqual({port: running.port, token: running.agentToken})
+    seedUnreadableRun(root)
+    await expect(bootEngine(root)).rejects.toThrow(/is not valid JSON/)
+    const record = readRecord(root)
+    expect.soft(record).toEqual({port: running.port, token: running.agentToken})
+    const health = await fetch(`http://127.0.0.1:${record.port}/health`)
+    expect(await health.json()).toMatchObject({ok: true})
+  }, 20_000)
 })
 
 describe('configured session rows', () => {
