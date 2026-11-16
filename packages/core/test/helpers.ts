@@ -145,8 +145,8 @@ export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): 
 
 export function bootCoreApp(overrides: BootOverrides = {}): BootApp {
   return async (env) => {
-    const {fetch, dispose, agentToken, startPlugins} = await bootMadeApp(env, overrides)
-    await startPlugins()
+    const {fetch, dispose, agentToken, awaitActivation} = await bootMadeApp(env, overrides)
+    await awaitActivation()
     return {fetch, dispose, agentToken}
   }
 }
