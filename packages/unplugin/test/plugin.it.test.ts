@@ -41,12 +41,15 @@ import {makeViteBridge} from '@conciv/extension/vite'
 import {makeViteHook} from '../src/core/vite.js'
 import {EXTENSIONS_ROUTE, type Middleware, makeWidgetInject} from '../src/core/widget-middleware.js'
 import {
+  closeWhenTestFinishes,
   devServers,
   fixtureExtension,
   installConcivPackage,
   installFixtureExtension,
   magicLinkUrl,
   pageApiBase,
+  startTestDevServer,
+  testTempDir,
   type StartedDevServer,
 } from './helpers/dev-servers.js'
 
@@ -1217,18 +1220,12 @@ describe('widget inject', () => {
 })
 
 describe('vite devtools dock', () => {
-  const servers: ViteDevServer[] = []
-  const dirs = devServers()
   let browser: Browser
 
   beforeAll(async () => {
     browser = await chromium.launch({headless: true})
   })
-  afterAll(async () => {
-    await browser.close()
-    await Promise.all(servers.map((server) => server.close()))
-    await dirs.stopAll()
-  })
+  afterAll(() => browser.close())
 
   function linkConcivIt(root: string): void {
     const embedDir = dirname(dirname(realpathSync(fileURLToPath(import.meta.resolve('@conciv/embed')))))
@@ -1246,14 +1243,15 @@ describe('vite devtools dock', () => {
       join(root, 'index.html'),
       `<!doctype html><html><head><meta charset="utf-8">${hostHead}<title>host</title></head><body><h1>host</h1></body></html>`,
     )
-    const server = await createServer({
-      root,
-      configFile: false,
-      customLogger: createLogger('silent'),
-      server: {host: '127.0.0.1', port: 0, watch: null},
-      plugins,
-    })
-    servers.push(server)
+    const server = closeWhenTestFinishes(
+      await createServer({
+        root,
+        configFile: false,
+        customLogger: createLogger('silent'),
+        server: {host: '127.0.0.1', port: 0, watch: null},
+        plugins,
+      }),
+    )
     await server.listen()
     const address = server.httpServer?.address()
     const url = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}/`
@@ -1273,7 +1271,7 @@ describe('vite devtools dock', () => {
   async function startDockServer(
     widget?: false,
     extensions: readonly ExtensionPackage[] = [],
-    root = realpathSync(dirs.tempDir('conciv-dock-')),
+    root = testTempDir('conciv-dock-'),
     hostHead = '',
     clientAuth = false,
     hostPlugins: Plugin[] = [],
@@ -1310,7 +1308,7 @@ describe('vite devtools dock', () => {
   }, 60_000)
 
   it('trusts the dock through Vite DevTools and records it in the trust file', async () => {
-    const root = realpathSync(dirs.tempDir('conciv-dock-'))
+    const root = testTempDir('conciv-dock-')
     const page = await browser.newPage({viewport: {width: 1280, height: 800}})
     await page.goto(await dockServer(undefined, [], root), {waitUntil: 'domcontentloaded'})
     await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
@@ -1321,7 +1319,7 @@ describe('vite devtools dock', () => {
   }, 60_000)
 
   it('refuses conciv:engine-token to a raw WebSocket that never logged in to Vite DevTools', async () => {
-    const root = realpathSync(dirs.tempDir('conciv-dock-'))
+    const root = testTempDir('conciv-dock-')
     const base = await dockServer(undefined, [], root, '', true)
     await fetch(base)
     const socket = new WebSocket(`${base.replace('http', 'ws')}__devtools/__ws`)
@@ -1482,9 +1480,9 @@ describe('vite devtools dock', () => {
   })
 
   it('shows the chat in the dock when a closed floating widget left its panel route behind', async () => {
-    const root = realpathSync(dirs.tempDir('conciv-dock-'))
+    const root = testTempDir('conciv-dock-')
     writeFileSync(join(root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title>')
-    const floating = await dirs.start(
+    const floating = await startTestDevServer(
       {},
       {
         embedEntry: fileURLToPath(import.meta.resolve('@conciv/embed')),
@@ -1543,7 +1541,7 @@ describe('vite devtools dock', () => {
   ])(
     'mounts one widget, in the dock, when a framework client-entry module also loads on a page with $host',
     async ({hostMeta}) => {
-      const root = realpathSync(dirs.tempDir('conciv-dock-'))
+      const root = testTempDir('conciv-dock-')
       mkdirSync(join(root, 'src'))
       writeFileSync(
         join(root, 'src', 'client-entry.ts'),
@@ -1569,7 +1567,7 @@ describe('vite devtools dock', () => {
   )
 
   it('mounts the floating page widget when the host conciv-widget meta holds null', async () => {
-    const root = realpathSync(dirs.tempDir('conciv-null-meta-'))
+    const root = testTempDir('conciv-null-meta-')
     const started = await startHostServer(root, '<meta name="conciv-widget" content="null">', [concivHook(root, [])])
     const page = await browser.newPage({viewport: {width: 1280, height: 800}})
     const pageErrors: string[] = []
@@ -1591,13 +1589,13 @@ describe('vite devtools dock', () => {
   }, 60_000)
 
   it('shows the inline chat after a pop-out started from the quick terminal of a closed widget closes', async () => {
-    const quickServer = await dirs.start(
+    const quickServer = await startTestDevServer(
       {extensions: [fixtureExtension()]},
       {
         embedEntry: fileURLToPath(import.meta.resolve('@conciv/embed')),
         dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
       },
-      realpathSync(dirs.tempDir('conciv-quick-')),
+      testTempDir('conciv-quick-'),
     )
     const {server} = quickServer
     writeFileSync(join(server.config.root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title>')
@@ -1665,24 +1663,25 @@ describe('vite devtools dock', () => {
   ])(
     'opens the chat and an installed extension on a cold cache of a $layout conciv install with one Solid and without Vite re-optimizing dependencies',
     async ({prepare}) => {
-      const root = realpathSync(dirs.tempDir('conciv-cold-'))
+      const root = testTempDir('conciv-cold-')
       writeFileSync(join(root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title>')
       const {builtins, extensions} = prepare(root)
       const logged: string[] = []
       const remember = (message: string): void => void logged.push(message)
-      const server = await createServer({
-        root,
-        configFile: false,
-        customLogger: {
-          ...createLogger('silent'),
-          info: remember,
-          warn: remember,
-          warnOnce: remember,
-        },
-        server: {host: '127.0.0.1', port: 0},
-        plugins: [makeViteHook({enabled: true, stateRoot: root, extensions}, builtins)],
-      })
-      servers.push(server)
+      const server = closeWhenTestFinishes(
+        await createServer({
+          root,
+          configFile: false,
+          customLogger: {
+            ...createLogger('silent'),
+            info: remember,
+            warn: remember,
+            warnOnce: remember,
+          },
+          server: {host: '127.0.0.1', port: 0},
+          plugins: [makeViteHook({enabled: true, stateRoot: root, extensions}, builtins)],
+        }),
+      )
       await server.listen()
       const url = server.resolvedUrls?.local[0]
       if (url === undefined) throw new Error('dev server did not start')
@@ -1718,8 +1717,7 @@ describe('vite devtools dock', () => {
   )
 
   it('keeps the floating page widget when Vite DevTools is not enabled', async () => {
-    const {server} = await dirs.start()
-    servers.push(server)
+    const {server} = await startTestDevServer()
     const address = server.httpServer?.address()
     const base = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}`
     const source = await (await fetch(`${base}${EXTENSIONS_ROUTE}`)).text()
