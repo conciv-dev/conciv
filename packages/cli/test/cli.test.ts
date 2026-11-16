@@ -11,7 +11,10 @@ import {delimiter, dirname, join, relative, resolve as resolvePath} from 'node:p
 import {fileURLToPath} from 'node:url'
 import {z} from 'zod'
 import {defineExtension, defineTool} from '@conciv/extension'
-import {createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
+import {createServer as createHttpServer, type Server} from 'node:http'
+import {Hono} from 'hono'
+import {proxy} from 'hono/proxy'
+import {serveHono, type ServeFetch} from '@conciv/serve'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {engineOrigin} from '../src/engine-origin.js'
 import {runLink, runRevoke} from '../src/auth.js'
@@ -1185,49 +1188,31 @@ describe('cli', () => {
     }
   }
 
-  async function forwardTo(upstream: URL, request: IncomingMessage, body: Buffer, response: ServerResponse) {
-    const headers = Object.fromEntries(
-      Object.entries(request.headers).flatMap(([key, value]) =>
-        typeof value === 'string' && !['host', 'connection', 'content-length'].includes(key) ? [[key, value]] : [],
-      ),
-    )
-    const answer = await fetch(new URL(request.url ?? '/', upstream.origin), {
-      method: request.method,
-      headers,
-      ...(body.length === 0 ? {} : {body}),
-    }).catch(() => null)
-    if (answer === null) {
-      response.destroy()
-      return
-    }
-    const kept = [...answer.headers].filter(([key]) => !['content-encoding', 'content-length'].includes(key))
-    response.writeHead(answer.status, Object.fromEntries(kept))
-    response.end(Buffer.from(await answer.arrayBuffer()))
-  }
-
   async function startFront(home: string, engine: {root: string; base: string}, given: {hold?: string} = {}) {
     const upstream = new URL(engine.base)
     const held = new EventEmitter()
     const mode = {dropCalls: false, holdWaits: false, held: Promise.withResolvers<void>()}
     if (given.hold === undefined) mode.held.resolve()
-    const front = createHttpServer(async (request, response) => {
-      const chunks: Buffer[] = []
-      for await (const chunk of request) chunks.push(Buffer.from(chunk))
-      const body = Buffer.concat(chunks)
-      if (given.hold !== undefined && request.url?.endsWith(given.hold)) {
+    const asked = (url: string) => `${new URL(url).pathname}${new URL(url).search}`
+    const app = new Hono<{Bindings: Parameters<ServeFetch>[1]}>()
+      .use(async (c, next) => {
+        if (given.hold === undefined || !asked(c.req.url).endsWith(given.hold)) return next()
         held.emit('ask')
         await mode.held.promise
-      }
-      if (mode.holdWaits && request.url?.endsWith('/rpc/page/queue/wait')) return
-      if (mode.dropCalls && request.url?.endsWith('/rpc/code/execute')) {
-        request.socket.destroy()
-        return
-      }
-      await forwardTo(upstream, request, body, response)
-    })
-    front.listen(0, '127.0.0.1')
-    await once(front, 'listening')
-    const port = z.object({port: z.number()}).parse(front.address()).port
+        return next()
+      })
+      .use(async (c, next) => {
+        if (!mode.holdWaits || !asked(c.req.url).endsWith('/rpc/page/queue/wait')) return next()
+        await once(c.req.raw.signal, 'abort')
+        return c.body(null)
+      })
+      .use(async (c, next) => {
+        if (!mode.dropCalls || !asked(c.req.url).endsWith('/rpc/code/execute')) return next()
+        c.env.incoming.socket.destroy()
+        return c.body(null)
+      })
+      .all('*', (c) => proxy(new URL(asked(c.req.url), upstream.origin), {...c.req}))
+    const {port, close} = await serveHono({fetch: app.fetch, port: 0})
     const row = withHomeDb(home, listEngines).find((entry) => entry.root === engine.root)
     if (row === undefined) throw new Error('the engine has no row in the home db')
     const apiBase = `http://127.0.0.1:${port}${upstream.pathname}`
@@ -1249,11 +1234,7 @@ describe('cli', () => {
       holdAgain: () => {
         mode.held = Promise.withResolvers<void>()
       },
-      close: async () => {
-        front.closeAllConnections()
-        front.close()
-        await once(front, 'close')
-      },
+      close,
     }
   }
 

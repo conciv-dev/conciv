@@ -56,10 +56,12 @@
     "@conciv/core": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
+    "@conciv/serve": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "hono": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
