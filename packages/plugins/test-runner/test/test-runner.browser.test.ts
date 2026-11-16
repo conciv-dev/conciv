@@ -68,6 +68,11 @@ describe('the Tests panel of the test-runner plugin', () => {
       )
       await expect(panel.getByRole('status')).toHaveText('The test runner is unavailable', {timeout: 60_000})
       await expect(panel.getByText(/vitest unavailable/)).toBeVisible()
+      await page.getByRole('tab', {name: 'Chat', exact: true}).click()
+      await expect(page.getByRole('tab', {name: 'Chat', exact: true, selected: true})).toBeVisible()
+      await testsTab.click()
+      await expect(panel.getByRole('status')).toHaveText('The test runner is unavailable')
+      await expect(panel.getByText(/vitest unavailable/)).toBeVisible()
 
       symlinkSync(join(PACKAGE_DIR, 'node_modules'), join(widget.kit.stateRoot, 'node_modules'), 'dir')
       const run = widget.kit.callTool('test_runner_run', {})
