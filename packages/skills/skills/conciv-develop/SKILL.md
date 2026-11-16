@@ -46,9 +46,9 @@ every host hook.
 
 ## Your first extension, trimmed for brevity
 
-Two real, current example extensions ship in this repo's Vite example app. Read both before writing
-your own — the real file additionally defines the inline SVG `RocketIcon` the button renders, trimmed
-below:
+The example below is shown inline, with the inline SVG `RocketIcon` the button renders trimmed. One
+real extension remains in this repo, `apps/conciv/src/extensions/highlight.tsx`. Read both before
+writing your own:
 
 ```tsx title="conciv/extensions/deploy-button.tsx (trimmed)"
 import {z} from 'zod'
