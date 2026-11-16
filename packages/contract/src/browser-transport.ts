@@ -467,9 +467,14 @@ function socketConnection(key: string, state: TrustState): ConnectionEntry {
         return rpc.call(path, input, options)
       }
       const deadline = performance.now() + CALL_DEADLINE_MS
-      const shouldRetry = (attempt: ClientRetryPluginAttemptOptions<RpcClientContext>): boolean =>
-        performance.now() < deadline && retriable(lifetime.signal, attempt)
-      return rpc.call(path, input, {...options, context: {shouldRetry, ...options.context}})
+      const asked = options.context.shouldRetry
+      const callerRetries = async (attempt: ClientRetryPluginAttemptOptions<RpcClientContext>): Promise<boolean> => {
+        if (asked === undefined) return performance.now() < deadline && retriable(lifetime.signal, attempt)
+        return typeof asked === 'function' ? asked(attempt) : asked
+      }
+      const shouldRetry = async (attempt: ClientRetryPluginAttemptOptions<RpcClientContext>): Promise<boolean> =>
+        !lifetime.signal.aborted && (await callerRetries(attempt))
+      return rpc.call(path, input, {...options, context: {...options.context, shouldRetry}})
     },
   }
   const trust = makeEngineTrust(key, state, link)
