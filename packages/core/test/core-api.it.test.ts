@@ -3602,7 +3602,7 @@ return seen`
         expect(results).not.toContain('z'.repeat(60_000))
       })
 
-      it('a page screenshot from code mode is written to a temporary file, and the result names it beside the image', async () => {
+      it('a page screenshot lands in a gitignored project file, and the result names it beside the image', async () => {
         const sessionId = await chatKit().session()
         const shot = {id: `file_${randomUUID()}`, name: 'screenshot.webp', mime: 'image/webp', data: ONE_PIXEL_WEBP}
         const tab = await chatTabs.open(sessionId, () => ({
@@ -3615,10 +3615,9 @@ return seen`
         const results = collectResults(await thread(sessionId))
         expect(results).toContain(ONE_PIXEL_WEBP)
         expect(results).toContain('"mimeType":"image/webp"')
-        const saved = /"path":"([^"]+\/conciv-page-[\w-]+\/0\/screenshot\.webp)"/.exec(results)?.[1]
+        const saved = /\.conciv\/tmp\/screenshots\/[\w-]+\.webp/.exec(results)?.[0]
         if (saved === undefined) throw new Error(`no screenshot path in: ${results.slice(0, 300)}`)
-        expect(saved.startsWith(join(tmpdir(), 'conciv-page-'))).toBe(true)
-        expect(readFileSync(saved).toString('base64')).toBe(ONE_PIXEL_WEBP)
+        expect(readFileSync(join(chatKit().stateRoot, saved)).toString('base64')).toBe(ONE_PIXEL_WEBP)
       })
 
       it('the tool bridge hands the CLI an image block, with the text capped apart from it', async () => {
