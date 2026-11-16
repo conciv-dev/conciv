@@ -51,6 +51,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "p-queue": "catalog:",
     "playwright-core": "catalog:",
     "rrweb": "catalog:",
     "zod": "catalog:"

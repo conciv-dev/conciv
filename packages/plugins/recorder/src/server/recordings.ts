@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {mkdir, readFile, readdir, rename, stat, unlink, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
+import PQueue from 'p-queue'
 import {z} from 'zod'
 import {RrwebEventSchema, jsonByteLength, type RrwebEvent} from '../shared/protocol.js'
 
@@ -68,24 +69,28 @@ async function clearStrayTmp(dir: string): Promise<void> {
 
 export function createRecordingStore(dir: string): RecordingStore {
   let sequence = 0
+  const changes = new PQueue({concurrency: 1})
+  const publish = async (payload: string): Promise<SaveResult> => {
+    try {
+      await mkdir(dir, {recursive: true})
+      await prune(dir, {bytes: Buffer.byteLength(payload, 'utf8'), count: 1})
+      sequence += 1
+      const recordingId = `${Date.now()}-${sequence.toString(36).padStart(6, '0')}-${randomUUID()}`
+      const target = join(dir, `${recordingId}.json`)
+      await writeFile(`${target}.tmp`, payload, 'utf8')
+      await rename(`${target}.tmp`, target)
+      return {ok: true, recordingId}
+    } catch {
+      return {ok: false, reason: 'io-error'}
+    }
+  }
   return {
     async save(events) {
       if (events.length < 2) return {ok: false, reason: 'empty'}
       const trimmed = trimToCap(events)
       if (!trimmed || trimmed.length < 2) return {ok: false, reason: 'too-large'}
       const payload = JSON.stringify({events: trimmed})
-      try {
-        await mkdir(dir, {recursive: true})
-        await prune(dir, {bytes: Buffer.byteLength(payload, 'utf8'), count: 1})
-        sequence += 1
-        const recordingId = `${Date.now()}-${sequence.toString(36).padStart(6, '0')}-${randomUUID()}`
-        const target = join(dir, `${recordingId}.json`)
-        await writeFile(`${target}.tmp`, payload, 'utf8')
-        await rename(`${target}.tmp`, target)
-        return {ok: true, recordingId}
-      } catch {
-        return {ok: false, reason: 'io-error'}
-      }
+      return changes.add(() => publish(payload))
     },
     async get(id) {
       if (!RECORDING_ID.test(id)) return null
@@ -101,13 +106,15 @@ export function createRecordingStore(dir: string): RecordingStore {
     videoFile(id) {
       return RECORDING_ID.test(id) ? join(dir, `${id}.webm`) : null
     },
-    async sweep() {
-      await clearStrayTmp(dir)
-      const names = await listByRecency(dir)
-      const cutoff = Date.now() - RECORDING_TTL_MS
-      const expired = names.filter((name) => parseTimestamp(name) < cutoff)
-      await Promise.all(expired.map((name) => removeRecording(dir, name)))
-      await prune(dir, {bytes: 0, count: 0})
+    sweep() {
+      return changes.add(async () => {
+        await clearStrayTmp(dir)
+        const names = await listByRecency(dir)
+        const cutoff = Date.now() - RECORDING_TTL_MS
+        const expired = names.filter((name) => parseTimestamp(name) < cutoff)
+        await Promise.all(expired.map((name) => removeRecording(dir, name)))
+        await prune(dir, {bytes: 0, count: 0})
+      })
     },
   }
 }

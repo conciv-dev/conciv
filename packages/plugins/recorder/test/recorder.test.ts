@@ -558,6 +558,33 @@ describe('the recording video export', () => {
   })
 })
 
+describe('the recording store under concurrent saves', () => {
+  it('keeps the newest 50 when saves race the count cap, and keeps every racing save', async () => {
+    const folder = tempDir('conciv-recorder-race-')
+    const recordingsDir = join(folder, '.conciv', 'recorder', 'recordings')
+    await mkdir(recordingsDir, {recursive: true})
+    const now = Date.now()
+    const seeded = Array.from(
+      {length: 49},
+      (_, index) => `${now - 60_000 + index}-${String(index).padStart(6, '0')}-seed`,
+    )
+    await Promise.all(
+      seeded.map((id) =>
+        writeFile(join(recordingsDir, `${id}.json`), JSON.stringify({events: fixtureStream(now)}), 'utf8'),
+      ),
+    )
+    const kit = await bootRecorder(folder)
+    expect(await call(kit, 'flush', {clientId: 'race', events: fixtureStream(Date.now())})).toEqual({ok: true})
+
+    const racing = await Promise.all(
+      Array.from({length: 5}, async () => SavedSchema.parse(await call(kit, 'recordings.save', {clientId: 'race'}))),
+    )
+    const stored = (await readdir(recordingsDir)).filter((name) => name.endsWith('.json'))
+    expect(stored).toHaveLength(50)
+    expect(stored).toEqual(expect.arrayContaining(racing.map((saved) => `${saved.recordingId}.json`)))
+  })
+})
+
 describe('the recorder skill', () => {
   it('is loadable and names the three tools', async () => {
     const kit = await bootRecorder()
