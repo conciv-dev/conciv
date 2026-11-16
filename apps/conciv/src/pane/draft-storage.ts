@@ -272,16 +272,26 @@ async function readRestoredDraft(
 
 type DraftPlace = 'first' | 'last'
 
-async function keepInDraft(appData: AppData, sessionId: string, text: string, place: DraftPlace): Promise<void> {
-  const drafts = appData.drafts
-  const [row, stored] = await Promise.all([
-    appData.readDraft(sessionId).catch((error: unknown) => {
+async function readKeptBase(
+  appData: AppData,
+  sessionId: string,
+): Promise<{base: LocalDraft | null; row: DraftRow | null | undefined}> {
+  const stored = appData.drafts ? await readLocalDraft(appData.drafts, sessionId) : null
+  if (!stored) {
+    const row = await appData.readDraft(sessionId).catch((error: unknown) => {
       console.error('[conciv] could not read the saved draft', error)
       return null
-    }),
-    drafts ? readLocalDraft(drafts, sessionId) : null,
-  ])
-  const base = chosenDraft(reconcileDraft(stored, row, sameAsRow), stored, row)
+    })
+    return {base: row ? rowLocalDraft(row) : null, row}
+  }
+  const row = appData.cachedDraft(sessionId)
+  const dropped = stored.syncedAt !== undefined && row === null
+  return {base: dropped ? null : stored, row}
+}
+
+async function keepInDraft(appData: AppData, sessionId: string, text: string, place: DraftPlace): Promise<void> {
+  const drafts = appData.drafts
+  const {base, row} = await readKeptBase(appData, sessionId)
   const saved = base?.text ?? ''
   const nextText = saved === '' ? text : place === 'first' ? `${text}\n${saved}` : `${saved}\n${text}`
   const caret = place === 'first' ? text.length : nextText.length
@@ -296,7 +306,7 @@ async function keepInDraft(appData: AppData, sessionId: string, text: string, pl
     .catch((error: unknown) => {
       console.error('[conciv] could not keep the returned text in the local draft', error)
     })
-  await appData.saveDraft({
+  const saving = appData.saveDraft({
     sessionId,
     text: nextText,
     selectionStart: caret,
@@ -304,6 +314,7 @@ async function keepInDraft(appData: AppData, sessionId: string, text: string, pl
     attachments: row?.attachments ?? [],
     updatedAt: Date.now(),
   })
+  if (!drafts) await saving
 }
 
 export function appendDraft(appData: AppData, sessionId: string, text: string): Promise<void> {
