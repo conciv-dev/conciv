@@ -28,8 +28,7 @@ import {
   type TurnPrefixSource,
 } from '@conciv/ui-kit-chat'
 import {nowTitle} from '@conciv/ui-kit-chat-tools'
-import {pageSessionEntry, pageToolCards} from '@conciv/builtin-plugins/renderer'
-import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
+import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX, pageSessionEntry, pageToolCards} from '@conciv/builtin-plugins/renderer'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
 import {coreToolCards} from '@conciv/core/cards'

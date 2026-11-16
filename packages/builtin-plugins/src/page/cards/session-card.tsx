@@ -36,7 +36,8 @@ import {
   ToolCard,
   type ToolStatus,
 } from '@conciv/ui-kit-chat/tools'
-import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX, pageVerbGerund} from '@conciv/extension-page/defs'
+import {pageVerbGerund} from '@conciv/extension-page/defs'
+import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX} from './page-tool-names.js'
 import {cardErrorMessage, mutatingBadge} from './shared.js'
 import {pageSessionScripted, pageSessionSteps, type PageSessionStep} from './session-steps.js'
 

@@ -1,5 +1,4 @@
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
-import {PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
 import {PAGE_SESSION_GROUP_KEY, type AttachmentCardSlot, type GroupEntry} from '@conciv/ui-kit-chat'
 import {GRAB_MIME} from '@conciv/grab/grab-attachment'
 import {actCard} from './act-card.js'
@@ -11,6 +10,7 @@ import {reactCard} from './react-card.js'
 import {readBulkCard} from './read-bulk-card.js'
 import {readValueCard} from './read-value-card.js'
 import {SessionCard} from './session-card.js'
+import {PAGE_TOOL_PREFIX} from './page-tool-names.js'
 
 function pageNames(verbs: string[]): string[] {
   return verbs.map((verb) => `${PAGE_TOOL_PREFIX}${verb}`)

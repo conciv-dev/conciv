@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ToolCaptureView} from '@conciv/protocol/element-capture-types'
-import {pageVerbOfTool} from '@conciv/extension-page/defs'
+import {pageVerbOfTool} from './page-tool-names.js'
 
 export type PageSessionStep = {
   verb: string

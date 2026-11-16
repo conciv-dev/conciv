@@ -27,13 +27,12 @@ import {Document} from '@tiptap/extension-document'
 import {Paragraph} from '@tiptap/extension-paragraph'
 import {Text} from '@tiptap/extension-text'
 import {makePageOperations, type PageOperations} from '../src/page/operations.js'
-import {Command, Operations, type Outcome} from '@conciv/plugin-page/rpc'
+import {Command, Operations, PAGE_NAMESPACE, type Outcome} from '@conciv/plugin-page/rpc'
 import {watchHotUpdates, type HotSurface} from '../src/page/hmr.js'
 import {endTask, mountSimulator, startTask} from '../src/page/simulator.js'
 import {aimCursor, CursorLook, dropCursor, windowAt} from '../src/page/agent-cursor.js'
 import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
 import {makeReactTree, pageMembers} from '../src/page/contracts.js'
-import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
 import {INERT_TOOL_CTX, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import type {ChatPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {PageEffect, type ReactFiber} from '@conciv/plugin/experimental/page'
@@ -1457,7 +1456,10 @@ describe('the page cards in the chat', () => {
   it('draws a page call as its own card, and every page tool has one', async () => {
     const {pageToolCards} = await import('../src/renderer.js')
     const claimed = pageToolCards.flatMap((card) => card.names).toSorted()
-    const drawn = PAGE_TOOL_DEFS.map((definition) => definition.name).filter((name) => name !== 'page_queue_async')
+    const uncarded = ['queue_async', 'tabs.list', 'fill_form']
+    const drawn = Operations.flatMap((operation) =>
+      uncarded.includes(operation.name) ? [] : [`${PAGE_NAMESPACE}_${operation.name}`],
+    )
     expect(claimed).toEqual(drawn.toSorted())
     const part: ToolCallPart = {
       type: 'tool-call',

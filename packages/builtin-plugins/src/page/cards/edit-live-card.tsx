@@ -11,7 +11,7 @@ import {
   MUTATING_BADGE,
   cardHeader,
 } from '@conciv/ui-kit-chat/tools'
-import {pageVerbOfTool} from '@conciv/extension-page/defs'
+import {pageVerbOfTool} from './page-tool-names.js'
 import {cardErrorMessage, toolInput} from './shared.js'
 
 const CODE_VERBS = new Set(['eval', 'css'])
