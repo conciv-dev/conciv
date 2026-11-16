@@ -2,7 +2,7 @@ import {mkdirSync, rmSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {defineConfig, devices, type ReporterDescription} from '@playwright/test'
 import {E2E_PORTS, HARNESS_E2E_PORTS, type E2EApp, type HarnessApp} from './ports.js'
-import {e2eStateDir} from './state-dir.js'
+import {e2eStateDir} from './dev-endpoint.js'
 
 const PACKED_SPECS = '**/packed-*.spec.ts'
 
