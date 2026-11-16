@@ -1,7 +1,6 @@
 import {execFile} from 'node:child_process'
 import {copyFileSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
-import {mkdtemp, realpath, rm} from 'node:fs/promises'
-import {tmpdir} from 'node:os'
+import {realpath} from 'node:fs/promises'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {createServer, type ViteDevServer} from 'vite'
@@ -11,6 +10,7 @@ import {makeViteBridge} from '@conciv/extension/vite'
 import {connectMcpClient, makeDiscoverTools} from '@conciv/harness-testkit'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import type {BundlerBridge, BundlerDiagnostic} from '@conciv/protocol/bundler-types'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 const FIXTURES = join(PACKAGE_DIR, 'test', 'fixtures')
@@ -57,12 +57,6 @@ function fixtureFiles(name: string): Record<string, string> {
         return [path.slice(directory.length + 1), readFileSync(path, 'utf8')]
       }),
   )
-}
-
-async function scratchDirectory(prefix: string): Promise<string> {
-  const directory = await realpath(await mkdtemp(join(await realpath(tmpdir()), prefix)))
-  onTestFinished(() => rm(directory, {recursive: true, force: true}))
-  return directory
 }
 
 async function startVite(root: string): Promise<{vite: ViteDevServer; viteBase: string}> {
@@ -174,20 +168,26 @@ describe('the tanstack plugin without a bundler', () => {
     expect(unreadable).toContain('routeTree.gen.ts')
     expect(await terminalCall(kit, 'routeManifest')).toEqual({
       ok: false,
-      error: {kind: 'user', message: unreadable, code: 'PLUGIN_RPC'},
+      error: {kind: 'user', message: unreadable, code: 'PLUGIN_RPC', type: 'MANIFEST_UNREADABLE', data: {}},
     })
 
     expect(await toolFailure(useTool(kit, 'build_errors'))).toBe('bundler bridge unavailable')
     expect(await terminalCall(kit, 'buildErrors')).toEqual({
       ok: false,
-      error: {kind: 'user', message: 'bundler bridge unavailable', code: 'PLUGIN_RPC'},
+      error: {
+        kind: 'user',
+        message: 'bundler bridge unavailable',
+        code: 'PLUGIN_RPC',
+        type: 'BUNDLER_UNAVAILABLE',
+        data: {},
+      },
     })
   })
 })
 
 describe('the tanstack plugin on a real Vite dev server', () => {
   it('reads a real transform error and decodes server-function requests, also under a basepath', async () => {
-    const root = await scratchDirectory('conciv-tanstack-vite-')
+    const root = await realpath(tempDir('conciv-tanstack-vite-'))
     copyFileSync(join(FIXTURES, 'serverfn-app', 'index.html'), join(root, 'index.html'))
     writeFileSync(join(root, 'broken.ts'), 'export const broken = = 1\n')
     const {vite, viteBase} = await startVite(root)
