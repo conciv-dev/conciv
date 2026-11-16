@@ -97,7 +97,10 @@ describe('the Tests panel of the test-runner plugin', () => {
       await run
 
       await panel.getByRole('button', {name: 'Open fail.test.ts:4', exact: true}).click()
-      const opened = await observer.completed({path: ['editor', 'open'], input: {file: /fail\.test\.ts$/, line: 4}})
+      const opened = await observer.completed({
+        path: ['plugin', 'call'],
+        input: {rpcId: 'server', method: 'open', input: {file: /fail\.test\.ts$/, line: 4}},
+      })
       expect(opened.status).toBe(200)
 
       await panel.getByRole('button', {name: 'Fix this', exact: true}).click()
