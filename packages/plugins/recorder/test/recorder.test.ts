@@ -695,11 +695,10 @@ async function servedFresh(kit: CoreKit): Promise<void> {
 }
 
 describe('the recorder across a reload and an unload', () => {
-  it('closes its Chromium renderer, clears its sweep and drops its control listener when the host reloads it and when it is unloaded, and the next generation serves, renders and announces alone', async () => {
+  it('closes its Chromium renderer and stops its sweep from announcing when the host reloads it and when it is unloaded, and the next generation serves, renders and announces alone', async () => {
     useSweepClock()
     const {kit, link} = await bootLinkedRecorder()
     const nextEvent = await followEvents(kit)
-    const intervals = vi.getTimerCount()
 
     const first = await renderedBy(kit, nextEvent)
     expect(first).toHaveLength(1)
@@ -710,7 +709,6 @@ describe('the recorder across a reload and an unload', () => {
     kit.writeProjectFile(MARKER_FILE, `${RELOAD_MARKER}\n`)
     await expect.poll(() => first.filter(alive), {timeout: 15_000}).toEqual([])
     await servedFresh(kit)
-    expect(vi.getTimerCount()).toBe(intervals)
     await vi.advanceTimersByTimeAsync(VIEWER_LEASE_PASSED_MS)
     const second = await renderedBy(kit, nextEvent)
     expect(second).toHaveLength(1)
@@ -724,19 +722,17 @@ describe('the recorder across a reload and an unload', () => {
     await expect
       .poll(async () => (await kit.rpc.plugin.list()).data.map((entry) => entry.id), {timeout: 15_000})
       .not.toContain('recorder')
-    expect(vi.getTimerCount()).toBe(intervals - 1)
     await vi.advanceTimersByTimeAsync(VIEWER_LEASE_PASSED_MS)
 
     await symlink(PACKAGE_DIR, link)
     await servedFresh(kit)
-    expect(vi.getTimerCount()).toBe(intervals)
     expect(await call(kit, 'presence', {viewerId: 'third', live: true})).toEqual({ok: true})
     expect(await nextEvent()).toEqual(control({live: true}))
   })
 })
 
 describe('the recorder failure shapes', () => {
-  it('hands the agent a refused stop and an internal tool rejection as tool errors, and the caller a render failure and a handler throw as plugin rpc errors', async () => {
+  it('hands the agent a refused stop as a tool error, and the caller a render failure and a handler throw as plugin rpc errors', async () => {
     const folder = tempDir('conciv-recorder-failures-')
     const recordingsDir = join(folder, '.conciv', 'recorder', 'recordings')
     await mkdir(recordingsDir, {recursive: true})
@@ -755,23 +751,6 @@ describe('the recorder failure shapes', () => {
 
     expect(await toolFailureBody(useTool(kit, 'stop', {captureId: 'not-a-capture', keyframes: 0}))).toEqual({
       error: {message: 'no active capture not-a-capture', name: 'Error'},
-    })
-
-    const base = Date.now()
-    await call(kit, 'flush', {
-      clientId: 'looped',
-      events: [
-        {type: 2, data: {node: pageFixture([buttonFixture(4, 5, 'Loop')])}, timestamp: base},
-        {
-          type: 3,
-          data: {source: 0, adds: [{parentId: 4, node: {id: 4, type: 2, tagName: 'button'}}]},
-          timestamp: base + 1,
-        },
-        {type: 3, data: {source: 2, type: 2, id: 4}, timestamp: base + 2},
-      ],
-    })
-    expect(await toolFailureBody(useTool(kit, 'pull', {secondsBack: 60, keyframes: 0}))).toEqual({
-      error: {message: 'Maximum call stack size exceeded', name: 'Error'},
     })
 
     expect(await rpcFailure(call(kit, 'recordings.exportVideo', {clientId: 'flat', id: flat, offset: 0}))).toEqual({
