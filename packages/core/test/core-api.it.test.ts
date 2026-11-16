@@ -1201,9 +1201,9 @@ describe('api harness switching', () => {
     expect(await listings(true)).toEqual({owner: 1, phantoms: 0})
     expect(row(sessionId)?.deletedAt).not.toBeNull()
     expect(await listings(false)).toEqual({owner: 0, phantoms: 0})
-    expect(row(sessionId)?.deletedAt).not.toBeNull()
+    expect(row(sessionId)).toMatchObject({deletedAt: expect.any(Number)})
     await kit().rpc.sessions.restore({sessionId})
-    expect(row(sessionId)?.deletedAt).toBeNull()
+    expect(row(sessionId)).toMatchObject({deletedAt: null})
 
     const app = made.app
     if (app === null) throw new Error('the app did not boot')
@@ -1247,7 +1247,7 @@ describe('api harness switching', () => {
     expect(await key((sessions) => sessions.get(id).pipe(Effect.flip))).toMatchObject({_tag: 'Session.NotFoundError'})
     expect((await kit().rpc.markers.list({sessionId})).map((marker) => marker.id)).toEqual(oldMarkers)
     expect(await listings(false)).toEqual({owner: 0, phantoms: 0})
-    expect(row(sessionId)?.deletedAt).not.toBeNull()
+    expect(row(sessionId)).toMatchObject({deletedAt: expect.any(Number)})
   })
 
   it('lists the native sessions of every available harness, labelled by harness', async () => {

@@ -271,7 +271,11 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       return {sessionId, session}
     }),
     resolve: os.sessions.resolve.handler(({input}) => resolveRow(scope, input)),
-    open: os.sessions.open.handler(({input}) => openNativeRow(scope, input)),
+    open: os.sessions.open.handler(async ({input, errors}) => {
+      const opened = await openNativeRow(scope, input)
+      if (opened === null) throw errors.NOT_FOUND()
+      return opened
+    }),
     restore: os.sessions.restore.handler(async ({input}) => {
       await restoreRow(db, input.sessionId)
       return {sessionId: input.sessionId}

@@ -1,0 +1,6 @@
+---
+'@conciv/core': patch
+'@conciv/contract': patch
+---
+
+A deleted session whose Claude Code or Codex transcript is still on disk no longer comes back the next time the session list loads. Opening it again answers "session not found", like any other deleted session, and the transcript file is left as it was. A native session that conciv has never seen still opens as before.
