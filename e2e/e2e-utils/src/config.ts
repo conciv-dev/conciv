@@ -5,13 +5,17 @@ import {E2E_PORTS, HARNESS_E2E_PORTS, type E2EApp, type HarnessApp} from './port
 
 const PACKED_SPECS = '**/packed-*.spec.ts'
 
-function reporters(): ReporterDescription[] {
-  if (!process.env.GITHUB_ACTIONS) return [['line']]
-  return [['line'], ['json', {outputFile: 'test-results.json'}]]
-}
-
 function e2eStateDir(configDir: string): string {
   return join(dirname(configDir), '.conciv-e2e', basename(configDir))
+}
+
+function reporters(configDir: string): ReporterDescription[] {
+  const cleanup: ReporterDescription = [
+    join(import.meta.dirname, 'state-cleanup-reporter.ts'),
+    {stateDir: e2eStateDir(configDir)},
+  ]
+  if (!process.env.GITHUB_ACTIONS) return [['line'], cleanup]
+  return [['line'], ['json', {outputFile: 'test-results.json'}], cleanup]
 }
 
 export function e2eConfigDir(configFile: string | undefined): string {
@@ -67,7 +71,7 @@ export function e2eConfig(
     workers: 1,
     timeout,
     expect: {timeout},
-    reporter: reporters(),
+    reporter: reporters(opts.dir),
     use: {baseURL: `http://localhost:${port}`},
     webServer: {
       ...serverEntry({
@@ -92,7 +96,7 @@ export function packedE2eConfig(opts: {dir: string}): ReturnType<typeof defineCo
     workers: 1,
     timeout: 90_000,
     expect: {timeout: 90_000},
-    reporter: reporters(),
+    reporter: reporters(opts.dir),
     projects: [{name: 'packed', use: {...devices['Desktop Chrome']}}],
   })
 }
@@ -131,7 +135,7 @@ export function harnessMatrixConfig(opts: {
     testDir: './test',
     workers: 1,
     timeout: 150_000,
-    reporter: reporters(),
+    reporter: reporters(opts.dir),
     webServer: entries.map(([harness, port]) =>
       serverEntry({
         configDir: opts.dir,
