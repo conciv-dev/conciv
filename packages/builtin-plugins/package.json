@@ -25,6 +25,8 @@
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-page": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@conciv/ui-kit-system": "workspace:^",
+    "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/map": "catalog:",
     "@tanstack/hotkeys": "catalog:",
     "@tanstack/solid-pacer": "catalog:",
@@ -36,7 +38,6 @@
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
     "@conciv/ui-kit-chat": "workspace:*",
-    "@conciv/ui-kit-system": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",

@@ -1,6 +1,7 @@
 import {defineConfig} from 'vitest/config'
 import {playwright} from '@vitest/browser-playwright'
 import solidPlugin from 'vite-plugin-solid'
+import UnoCSS from 'unocss/vite'
 import {ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
 
 const browserTest = {
@@ -14,7 +15,7 @@ export default defineConfig({
     ...ciTest(),
     projects: [
       {
-        plugins: [solidPlugin()],
+        plugins: [solidPlugin(), UnoCSS()],
         resolve: {conditions: ['browser', 'development']},
         optimizeDeps: {
           include: [
@@ -32,7 +33,7 @@ export default defineConfig({
         },
       },
       {
-        plugins: [solidPlugin()],
+        plugins: [solidPlugin(), UnoCSS()],
         resolve: {conditions: ['browser', 'development']},
         optimizeDeps: {
           include: [
