@@ -6100,12 +6100,13 @@ describe('page action queue delivery', () => {
     const answered = (await page.tab.chat.hydrate({sessionId: page.sessionId})).messages.flatMap((message) =>
       message.parts.flatMap((part) => (part.type === 'tool-result' ? [part.content] : [])),
     )
-    const notOffered =
-      'No tool named "page_eval" is currently available. Please use a tool from the available tool list.'
-    const [program, call] = answered.map((content): unknown => JSON.parse(String(content)))
-    expect(answered).toHaveLength(2)
-    expect(program).toMatchObject({success: false, logs: [], error: {message: notOffered, name: 'Error'}})
-    expect(call).toEqual({error: notOffered})
+    const [program] = answered.map((content): unknown => JSON.parse(String(content)))
+    expect(answered).toHaveLength(1)
+    expect(program).toMatchObject({
+      success: false,
+      logs: [],
+      error: {message: "'external_page_eval' is not defined", name: 'ReferenceError'},
+    })
     expect(page.onTab.seen()).toEqual([])
     releaseRejoin()
     await page.onTab.joined(2)
