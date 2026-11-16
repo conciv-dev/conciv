@@ -1244,10 +1244,27 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
     await once(probe.close(), 'close')
   })
 
-  it('a taken port fails start with the bind error even when disposing an extension also fails', async () => {
+  it('a taken port fails start with the bind error before any extension is built', async () => {
     const port = await getPort()
     const taken = createServer().listen(port, '127.0.0.1')
     await once(taken, 'listening')
+    const built: string[] = []
+    const counted = defineExtension({name: 'counted'}).server(() => {
+      built.push('counted')
+      return {context: null}
+    })
+    try {
+      const booting = bootEngine(tempDir('conciv-core-unit-'), {port: {exact: port}, extensions: [counted]})
+      await expect(booting).rejects.toMatchObject({code: 'EADDRINUSE'})
+      expect(built).toEqual([])
+    } finally {
+      await once(taken.close(), 'close')
+    }
+  })
+
+  it('a failed endpoint write fails start with its own error even when disposing an extension also fails', async () => {
+    const root = tempDir('conciv-core-unit-')
+    mkdirSync(join(statePaths(root).dir, 'mcp-endpoint.json'), {recursive: true})
     const written = vi.spyOn(console, 'error')
     const failingDispose = defineExtension({name: 'failing-dispose'}).server(() => ({
       context: null,
@@ -1256,16 +1273,70 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
       },
     }))
     try {
-      const booting = bootEngine(tempDir('conciv-core-unit-'), {port: {exact: port}, extensions: [failingDispose]})
-      await expect(booting).rejects.toMatchObject({code: 'EADDRINUSE'})
+      await expect(bootEngine(root, {extensions: [failingDispose]})).rejects.toMatchObject({syscall: 'rename'})
       const logged = written.mock.calls.flat().map(String).join('\n')
       expect.soft(logged).toContain('conciv: cleanup after a failed start also failed')
       expect.soft(logged).toContain('extension dispose failed')
     } finally {
       written.mockRestore()
-      await once(taken.close(), 'close')
     }
   })
+
+  it('a request that reaches the engine while its app is failing to build fails instead of hanging, and the port is released', async () => {
+    const port = await getPort()
+    const root = tempDir('conciv-core-unit-')
+    const seeded = openDb(root)
+    seeded.run(
+      sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+    )
+    seeded.$client.close()
+    const outcomes: Array<Promise<number | 'dropped'>> = []
+    const knocking = defineExtension({name: 'knocking'}).server(async () => {
+      const request = httpRequest({host: '127.0.0.1', port, path: '/health', headers: {expect: '100-continue'}})
+      outcomes.push(
+        new Promise((resolve) => {
+          request.on('response', (response) => resolve(response.statusCode ?? 0))
+          request.on('error', () => resolve('dropped'))
+        }),
+      )
+      await once(request.end(), 'continue')
+      return {context: null}
+    })
+    await expect(bootEngine(root, {port: {exact: port}, extensions: [knocking]})).rejects.toThrow(/is not valid JSON/)
+    expect(await Promise.all(outcomes)).toEqual([expect.toBeOneOf([500, 'dropped'])])
+    const probe = createServer().listen(port, '127.0.0.1')
+    await expect(once(probe, 'listening')).resolves.toEqual([])
+    await once(probe.close(), 'close')
+  }, 20_000)
+
+  it('a start that fails to build its app leaves server.json as it found it: absent when there was none, and naming the engine still running in that project', async () => {
+    const seedUnreadableRun = (root: string): void => {
+      const seeded = openDb(root)
+      seeded.run(
+        sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+      )
+      seeded.$client.close()
+    }
+    const RecordSchema = z.object({port: z.number(), token: z.string()})
+    const readRecord = (root: string) =>
+      RecordSchema.parse(JSON.parse(readFileSync(join(concivStateDir(root), 'server.json'), 'utf8')))
+
+    const fresh = tempDir('conciv-core-unit-')
+    seedUnreadableRun(fresh)
+    await expect(bootEngine(fresh)).rejects.toThrow(/is not valid JSON/)
+    expect.soft(existsSync(join(concivStateDir(fresh), 'server.json'))).toBe(false)
+
+    const root = tempDir('conciv-core-unit-')
+    const running = await bootEngine(root)
+    onTestFinished(() => running.stop())
+    expect(readRecord(root)).toEqual({port: running.port, token: running.agentToken})
+    seedUnreadableRun(root)
+    await expect(bootEngine(root)).rejects.toThrow(/is not valid JSON/)
+    const record = readRecord(root)
+    expect.soft(record).toEqual({port: running.port, token: running.agentToken})
+    const health = await fetch(`http://127.0.0.1:${record.port}/health`)
+    expect(await health.json()).toMatchObject({ok: true})
+  }, 20_000)
 })
 
 describe('configured session rows', () => {
@@ -3171,7 +3242,7 @@ describe('plugin host bus', () => {
     onTestFinished(() => kit.cleanup())
     const made = booted[0]
     if (made === undefined) throw new Error('the deletion kit booted no app')
-    await made.startPlugins()
+    await made.awaitActivation()
     const created = async () => SessionId.parse((await kit.rpc.sessions.create(undefined)).sessionId)
     const running = await created()
     const idling = await created()
@@ -3374,7 +3445,7 @@ describe('session prompt hook', () => {
     onTestFinished(() => kit.cleanup())
     const made = booted[0]
     if (made === undefined) throw new Error('the prompt kit booted no app')
-    if (started) await made.startPlugins()
+    if (started) await made.awaitActivation()
     return {kit, made, asked}
   }
 
@@ -3510,7 +3581,7 @@ describe('session prompt hook', () => {
     })
     const {kit, made, asked} = await promptKit([plugin], false)
     const session = await kit.session()
-    const activating = made.startPlugins()
+    const activating = made.awaitActivation()
     await entered.promise
 
     const turn = await kit.turn('Original', {session})
@@ -4032,7 +4103,7 @@ describe('direct tools on the MCP surface', () => {
     })
     const {made, origin, stop} = await serveCore(root, [], {bridge})
     onTestFinished(stop)
-    await made.startPlugins()
+    await made.awaitActivation()
     const id = SessionId.parse('conciv_mcp_direct')
     await ensureRow(made.chat.db, id, made.chat.defaultHarness.id, root)
     const scope = made.pluginHost.runSync(Scope.make())
