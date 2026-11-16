@@ -5673,6 +5673,11 @@ describe('page action queue delivery', () => {
     const requestId = await page.heldRequest(`${onTab.id}/0`)
     await makeRpcClient(page.base).sessions.delete({sessionId: page.sessionId})
     await page.onTab.cancelled(requestId)
+    await expect(
+      typed.page.queue.wait({sessionId: page.sessionId, queueId: onTab.id, waitMs: 0}),
+    ).rejects.toMatchObject({
+      code: 'NO_QUEUE',
+    })
   })
 
   it('external_page_queue_async answers with a queue id before the tab has played anything', async () => {

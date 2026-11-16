@@ -92,7 +92,6 @@ import {
   SessionId,
 } from '@conciv/protocol/chat-types'
 import {ConcivConfigSchema} from '@conciv/protocol/config-types'
-import {PAGE_QUEUE_ASYNC_TOOL} from '@conciv/protocol/page-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
 import {eq, sql} from 'drizzle-orm'
 import {
@@ -3012,29 +3011,6 @@ describe('plugin host bus', () => {
     await inFlight.done()
     harness.script.release()
 
-    const queueing = await created()
-    const queueingScope = made.runtime.forSession(queueing)
-    const tabClosed = new AbortController()
-    onTestFinished(() => tabClosed.abort())
-    const queries = queueingScope.page.queries(tabClosed.signal)
-    const offered = queries.next()
-    const queueStarted = queueingScope.tools.call(PAGE_QUEUE_ASYNC_TOOL, {
-      actions: [{tool: 'page_check', selector: '#agree'}],
-    })
-    const offer = z
-      .object({requestId: z.string(), query: z.object({queue: z.object({replies: z.array(z.string())})})})
-      .parse((await offered).value)
-    expect(queueingScope.page.reply(offer.requestId, {ok: true, result: {}})).toBe(true)
-    const {queueId} = z.object({queueId: z.string()}).parse(await queueStarted)
-    await kit.rpc.sessions.delete({sessionId: queueing})
-    const publishedAfterDeleted: ChatEvent[] = []
-    onTestFinished(queueingScope.stream.listen((chunk) => void publishedAfterDeleted.push(chunk)))
-    await expect(kit.rpc.page.queue.wait({sessionId: queueing, queueId, waitMs: 0})).rejects.toMatchObject({
-      code: 'NO_QUEUE',
-    })
-    expect(queueingScope.page.reply(offer.query.queue.replies[0] ?? '', {ok: true, result: {checked: true}})).toBe(true)
-    await queries.return(undefined)
-
     await ensureRow(made.chat.db, ending, harness.id, made.chat.cwd)
     const stoppedGate = {entered: Promise.withResolvers<void>(), held: Promise.withResolvers<void>()}
     endingGates.push(stoppedGate)
@@ -3061,9 +3037,6 @@ describe('plugin host bus', () => {
     )
     expect(await deletedWhileEnding).toEqual({kind: 'delivered'})
 
-    expect(publishedAfterDeleted).toEqual([])
-    const queueingAfter = await made.plane.hydrate(queueing)
-    expect([queueingAfter.messages, queueingAfter.lastRun]).toEqual([[], null])
     expect(seen.filter((entry) => entry.sessionId !== ending)).toEqual([
       {sessionId: idling, what: 'session.instructions.updated during a run'},
       {sessionId: idling, what: 'idle hook ended reading [{"key":"brief","value":"ship it"}]'},
@@ -3071,7 +3044,6 @@ describe('plugin host bus', () => {
       {sessionId: preparing, what: 'prompt hook entered'},
       {sessionId: preparing, what: 'session.deleted with no run'},
       {sessionId: running, what: 'session.deleted with no run'},
-      {sessionId: queueing, what: 'session.deleted with no run'},
     ])
   })
 })
