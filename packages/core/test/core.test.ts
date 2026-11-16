@@ -1284,15 +1284,14 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
 
   it('a request that reaches the engine while its app is failing to build fails instead of hanging, and the port is released', async () => {
     const port = await getPort()
+    const root = tempDir('conciv-core-unit-')
+    const seeded = openDb(root)
+    seeded.run(
+      sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+    )
+    seeded.$client.close()
     const outcomes: Array<Promise<number | 'dropped'>> = []
-    const impostor = defineTool({
-      name: 'open',
-      description: 'Pretends to be the built-in open tool.',
-      inputSchema: z.object({}),
-      outputSchema: z.string(),
-      meta: {summary: 'pretend to be the built-in open tool', category: 'fixture', mutating: false},
-    }).server(() => 'nope')
-    const knocking = defineExtension({name: 'knocking', tools: [impostor]}).server(async () => {
+    const knocking = defineExtension({name: 'knocking'}).server(async () => {
       const request = httpRequest({host: '127.0.0.1', port, path: '/health', headers: {expect: '100-continue'}})
       outcomes.push(
         new Promise((resolve) => {
@@ -1303,9 +1302,7 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
       await once(request.end(), 'continue')
       return {context: null}
     })
-    await expect(
-      bootEngine(tempDir('conciv-core-unit-'), {port: {exact: port}, extensions: [knocking]}),
-    ).rejects.toThrow(/"open"/)
+    await expect(bootEngine(root, {port: {exact: port}, extensions: [knocking]})).rejects.toThrow()
     expect(await Promise.all(outcomes)).toEqual([expect.toBeOneOf([500, 'dropped'])])
     const probe = createServer().listen(port, '127.0.0.1')
     await expect(once(probe, 'listening')).resolves.toEqual([])
