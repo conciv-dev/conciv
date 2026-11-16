@@ -1460,6 +1460,56 @@ test.describe('page dispatch parity', () => {
       await expect(page.locator('[data-conciv-capture]')).toHaveCount(0, {timeout: 10_000})
     })
   })
+
+  test.describe('a tab open on a session when it is deleted', () => {
+    const AttachedSchema = z.array(z.string())
+    let kit: EmbedKit
+    let host: {base: string; close: () => Promise<void>}
+    let page: Page
+    let title: string
+
+    test.beforeAll(async ({browser}) => {
+      kit = await bootEmbedKit()
+      host = await serveWidgetHost(() =>
+        hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
+      )
+      page = await browser.newPage()
+      await openPagePlaneHost(page, kit, host.base)
+      const shown = await kit.session()
+      title = `deleted while open ${shown.slice(-12)}`
+      await kit.rpc.sessions.rename({sessionId: shown, title})
+      await openPanel(page)
+      await switchToSessionByTitle(page, title)
+    })
+
+    test.afterAll(async () => {
+      await page.close()
+      await host.close()
+      await kit.cleanup()
+    })
+
+    test('does not attach again by itself, so no empty row comes back into the session list', async () => {
+      const deleted = await kit.session()
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      await kit.rpc.sessions.delete({sessionId: deleted})
+      await expect(page.getByRole('button', {name: `${title}, session options`})).toBeHidden({timeout: 30_000})
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await openPanel(page)
+      const attached = {sessions: AttachedSchema.parse([])}
+      await until(
+        async () => {
+          attached.sessions = AttachedSchema.parse(
+            await kit.rpc.plugin.call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}}),
+          )
+          return attached.sessions.length > 0
+        },
+        {hangGuardMs: 30_000, intervalMs: 200},
+      )
+      expect(attached.sessions).not.toContain(deleted)
+      const {sessions} = await kit.rpc.sessions.list({includeHidden: true})
+      expect(sessions.map((session) => session.id)).not.toContain(deleted)
+    })
+  })
 })
 
 test.describe('panel focus', () => {
