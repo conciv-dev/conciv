@@ -8,10 +8,11 @@ import {Bus} from '../../src/core/bus.js'
 import {Permission} from '../../src/core/permission.js'
 import {PermissionTable} from '../../src/core/permission/sql.js'
 import {PermissionSaved} from '../../src/core/permission/saved.js'
+import {PluginHooks} from '../../src/core/plugin/hooks.js'
 import {ProjectId} from '@conciv/plugin/schema/project-id'
 import {Session} from '@conciv/plugin/schema/session'
 import {eq} from 'drizzle-orm'
-import {permissionLayer, removeSession, sessionId, setRules, setSession, setup} from './fixture/permission'
+import {permissionLayer, removeSession, sessionId, setRules, setSession, setup, testAgent} from './fixture/permission'
 import {testEffect} from './lib/effect'
 
 const it = testEffect(permissionLayer)
@@ -351,6 +352,73 @@ describe('Permission', () => {
       expect(
         yield* saved.update({id: PermissionSaved.Id.make('psv_missing'), action: 'edit'}).pipe(Effect.flip),
       ).toMatchObject({_tag: 'PermissionSaved.NotFoundError'})
+    }),
+  )
+
+  it.effect("a fallback ask beats only the agent's built-in default, never a rule the user gave", () =>
+    Effect.gen(function* () {
+      const builtIn = Agent.Info.default(testAgent).permissions
+      yield* setup(builtIn)
+      const service = yield* Permission.Service
+      const effect = (input: Partial<Permission.AssertInput> = {}) =>
+        Effect.map(
+          service.ask(
+            assertion({id: undefined, action: 'server_restart', resources: ['vite'], fallback: 'ask', ...input}),
+          ),
+          (result) => result.effect,
+        )
+
+      expect(yield* effect({fallback: undefined})).toBe('allow')
+      expect(yield* effect()).toBe('ask')
+      yield* setRules([...builtIn, {action: 'server_restart', resource: '*', effect: 'allow'}])
+      expect(yield* effect()).toBe('allow')
+      yield* setRules([...builtIn, {action: 'server_restart', resource: '*', effect: 'deny'}])
+      expect(yield* effect()).toBe('deny')
+      yield* setRules([...builtIn, {action: '*', resource: '*', effect: 'deny'}])
+      expect(yield* effect()).toBe('deny')
+      yield* setRules(builtIn)
+      yield* setSession({permissions: [{action: 'server_restart', resource: '*', effect: 'allow'}]})
+      expect(yield* effect()).toBe('allow')
+      yield* setSession({permissions: [{action: 'server_restart', resource: '*', effect: 'deny'}]})
+      expect(yield* effect()).toBe('deny')
+      yield* setSession({permissions: []})
+      yield* (yield* PermissionSaved.Service).add({
+        projectId: ProjectId.global,
+        action: 'server_restart',
+        resources: ['vite'],
+      })
+      expect(yield* effect()).toBe('allow')
+      expect(yield* effect({resources: ['webpack']})).toBe('ask')
+      yield* setSession({agent: Agent.Id.make('missing')})
+      expect(yield* effect({resources: ['webpack']})).toBe('deny')
+      yield* setSession({agent: testAgent, permissions: [{action: 'server_restart', resource: '*', effect: 'allow'}]})
+      yield* setRules([...builtIn, {action: 'server_restart', resource: '*', effect: 'allow'}])
+      expect(yield* effect()).toBe('allow')
+      yield* (yield* PluginHooks.Service).register('permission', 'evaluate', (event) =>
+        Effect.sync(() => {
+          if (event.action === 'server_restart') event.effect = 'deny'
+        }),
+      )
+      expect(yield* effect()).toBe('deny')
+    }),
+  )
+
+  it.effect('a pending ask with a fallback stays pending when another request is always allowed', () =>
+    Effect.gen(function* () {
+      yield* setup()
+      const other = yield* waitForRequest({action: 'other', save: ['*']})
+      const restart = yield* waitForRequest({
+        id: Permission.Id.create('per_restart'),
+        action: 'server_restart',
+        resources: ['vite'],
+        fallback: 'ask',
+      })
+      yield* setRules([{action: '*', resource: '*', effect: 'allow'}])
+      yield* other.service.reply({requestId: other.request.id, reply: 'always'})
+      yield* Fiber.join(other.fiber)
+      expect(yield* other.service.list()).toEqual([restart.request])
+      expect(restart.fiber.pollUnsafe()).toBeUndefined()
+      yield* Fiber.interrupt(restart.fiber)
     }),
   )
 

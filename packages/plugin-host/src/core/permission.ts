@@ -32,6 +32,7 @@ export type Reply = typeof Reply.Type
 export interface AssertInput extends Omit<Request, 'id' | 'message'> {
   readonly id?: Id
   readonly agent?: Agent.Id
+  readonly fallback?: 'ask'
 }
 
 export const invocation = (context: Pick<Tool.Context, 'sessionId' | 'agent' | 'messageId' | 'id'>) => ({
@@ -138,6 +139,7 @@ export const Service = Context.Service<Interface>('@conciv/Permission')
 interface Pending {
   readonly request: Request
   readonly agent?: Agent.Id
+  readonly fallback?: 'ask'
   readonly deferred: Deferred.Deferred<void, DeclinedError | CorrectedError>
 }
 
@@ -176,12 +178,22 @@ export const layer = Layer.effect(
       }))
     })
 
-    const configured = Effect.fnUntraced(function* (sessionId: Session.Id, agentId?: Agent.Id) {
-      const session = yield* sessions.get(sessionId)
-      if (!session) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
-      const agent = yield* agents.resolve(agentId ?? session.agent)
-      return merge(agent?.permissions ?? missingAgentPermissions, session.permissions ?? [])
+    const configured = Effect.fnUntraced(function* (input: AssertInput) {
+      const session = yield* sessions.get(input.sessionId)
+      if (!session) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: input.sessionId}))
+      const agent = yield* agents.resolve(input.agent ?? session.agent)
+      if (!agent) return merge(missingAgentPermissions, session.permissions ?? [])
+      return merge(agent.permissions, fallbackRules(input, agent.permissions), session.permissions ?? [])
     })
+
+    function fallbackRules(input: AssertInput, rules: Permission.Ruleset): Permission.Ruleset {
+      if (!input.fallback) return []
+      const unnamed = input.resources.some((resource) => {
+        const rule = evaluate(input.action, resource, rules)
+        return rule.effect === 'allow' && rule.action === '*'
+      })
+      return unnamed ? [{action: input.action, resource: '*', effect: input.fallback}] : []
+    }
 
     function denied(input: Pick<Request, 'action' | 'resources'>, rules: Permission.Ruleset) {
       return input.resources.some((resource) => evaluate(input.action, resource, rules).effect === 'deny')
@@ -192,7 +204,7 @@ export const layer = Layer.effect(
     }
 
     const evaluateInput = Effect.fnUntraced(function* (input: AssertInput) {
-      const rules = yield* configured(input.sessionId, input.agent)
+      const rules = yield* configured(input)
       if (denied(input, rules)) return {effect: 'deny' as const, rules}
       const all = [...rules, ...(yield* savedRules())]
       const effects = input.resources.map((resource) => evaluate(input.action, resource, all).effect)
@@ -224,11 +236,11 @@ export const layer = Layer.effect(
       }
     }
 
-    const create = (request: Request, agent?: Agent.Id) =>
+    const create = (request: Request, input: Pick<AssertInput, 'agent' | 'fallback'>) =>
       Effect.uninterruptible(
         Effect.gen(function* () {
           const deferred = yield* Deferred.make<void, DeclinedError | CorrectedError>()
-          const item = {request, agent, deferred}
+          const item: Pending = {request, agent: input.agent, fallback: input.fallback, deferred}
           if (closed) {
             yield* Deferred.fail(deferred, makeDeclinedError())
             return item
@@ -247,7 +259,7 @@ export const layer = Layer.effect(
       if (closed) return {id: input.id ?? Id.create(), effect: 'deny' as const}
       const result = yield* evaluateInput(input)
       const value = request(input, result.message)
-      if (result.effect === 'ask') yield* create(value, input.agent)
+      if (result.effect === 'ask') yield* create(value, input)
       return {id: value.id, effect: result.effect}
     })
 
@@ -268,7 +280,7 @@ export const layer = Layer.effect(
               )
             }
             if (result.effect === 'allow') return
-            const item = yield* create(request(input, result.message), input.agent)
+            const item = yield* create(request(input, result.message), input)
             return yield* restore(Deferred.await(item.deferred)).pipe(
               Effect.catchTag('Permission.DeclinedError', (error) => Effect.die(error)),
               Effect.ensuring(
@@ -345,7 +357,7 @@ export const layer = Layer.effect(
           if (input.reply !== 'always' || !existing.request.save?.length) return
 
           for (const [id, item] of pending) {
-            const result = yield* evaluateInput({...item.request, agent: item.agent}).pipe(
+            const result = yield* evaluateInput({...item.request, agent: item.agent, fallback: item.fallback}).pipe(
               Effect.catchTag('Session.NotFoundError', () => Effect.undefined),
             )
             if (result?.effect !== 'allow') continue

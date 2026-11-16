@@ -2,7 +2,7 @@ import {describe, expect} from 'vitest'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {setTimeout} from 'node:timers/promises'
-import {Cause, Deferred, Duration, Effect, Fiber, Layer, LayerMap, Logger, Queue, Schedule} from 'effect'
+import {Cause, Deferred, Duration, Effect, Exit, Fiber, Layer, LayerMap, Logger, Queue, Schedule} from 'effect'
 import {z} from 'zod'
 import {TestClock} from 'effect/testing'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
@@ -526,7 +526,6 @@ describe('a rule pushed onto every agent', () => {
         yield* Effect.gen(function* () {
           const plugins = yield* Plugin.Service
           const tools = yield* Tool.Service
-          const agents = yield* Agent.Service
           const permission = yield* Permission.Service
           const location = yield* Location.Service
           const sessionId = Session.Id.make('conciv_held_call_test')
@@ -541,12 +540,13 @@ describe('a rule pushed onto every agent', () => {
               : Effect.void,
           )
           yield* Effect.addFinalizer(() => unsubscribe)
-          const restartRule = Effect.map(agents.get(Agent.Id.make('held')), (agent) =>
-            agent?.permissions.find((rule) => rule.action === 'server_restart'),
+          const restartTool = Effect.map(
+            tools.snapshot(),
+            (snapshot) => snapshot.codeMode?.tools.has('server_restart') === true,
           )
           restarts.length = 0
           yield* plugins.awaitActivation
-          expect(yield* restartRule).toEqual({action: 'server_restart', resource: '*', effect: 'ask'})
+          expect(yield* restartTool).toBe(true)
 
           const codeMode = (yield* tools.snapshot()).codeMode
           if (!codeMode) return yield* Effect.die(new Error('code mode is off'))
@@ -572,7 +572,7 @@ describe('a rule pushed onto every agent', () => {
             }),
           )
           yield* Deferred.await(reloadEntered)
-          expect(yield* restartRule).toBeUndefined()
+          expect(yield* restartTool).toBe(false)
           expect(restarts).toEqual([])
 
           yield* Deferred.succeed(callGate, undefined)
@@ -586,8 +586,90 @@ describe('a rule pushed onto every agent', () => {
           if (request) yield* permission.reply({requestId: request.id, reply: 'once'})
           yield* Fiber.join(running)
           yield* plugins.awaitActivation
-          expect(yield* restartRule).toEqual({action: 'server_restart', resource: '*', effect: 'ask'})
+          expect(yield* restartTool).toBe(true)
           expect({first, restartsAtDecision}).toEqual({first: 'asked', restartsAtDecision: []})
+        }).pipe(Effect.scoped, Effect.provide(locations.get(directory.path)))
+      }),
+    30_000,
+  )
+
+  it.live(
+    "an agent rule a plugin pushes for server_restart beats the tool's own ask, in either direction",
+    () =>
+      Effect.gen(function* () {
+        const directory = yield* tmpdirScoped()
+        const sdk = yield* SdkPlugins.Service
+        const pushRule = (effect: 'allow' | 'deny') =>
+          sdk.register(
+            define({
+              id: 'user-rules',
+              effect: (ctx) =>
+                ctx.agent.transform((editor) =>
+                  editor
+                    .list()
+                    .forEach((agent) => agent.permissions.push({action: 'server_restart', resource: '*', effect})),
+                ),
+            }),
+          )
+        yield* pushRule('allow')
+        const bus = yield* Bus.Service
+        const locations = yield* LayerMap.make((root: string) => supervisorLayer(root, {bundler}), {
+          idleTimeToLive: Duration.infinity,
+        })
+        yield* Effect.gen(function* () {
+          const plugins = yield* Plugin.Service
+          const tools = yield* Tool.Service
+          const agents = yield* Agent.Service
+          const location = yield* Location.Service
+          const sessionId = Session.Id.make('conciv_user_rule_test')
+          yield* (yield* Sessions.Service).create({
+            id: sessionId,
+            location: Location.Ref.make({directory: location.directory}),
+          })
+          const asked = yield* Queue.unbounded<void>()
+          const unsubscribe = yield* bus.listen((event) =>
+            event.type === Permission.Event.Asked.type
+              ? Queue.offer(asked, undefined).pipe(Effect.asVoid)
+              : Effect.void,
+          )
+          yield* Effect.addFinalizer(() => unsubscribe)
+          const restartAsBuild = (call: string) =>
+            Effect.gen(function* () {
+              const codeMode = (yield* tools.snapshot()).codeMode
+              if (!codeMode) return yield* Effect.die(new Error('code mode is off'))
+              const running = yield* codeMode
+                .execute(
+                  'server_restart',
+                  {},
+                  {
+                    sessionId,
+                    agent: Agent.defaultId,
+                    messageId: undefined,
+                    id: ToolSchema.CallId.make(call),
+                    progress: () => Effect.void,
+                  },
+                )
+                .pipe(Effect.forkScoped)
+              return yield* Effect.raceFirst(
+                Queue.take(asked).pipe(Effect.as('asked')),
+                Fiber.await(running).pipe(Effect.map((exit) => (Exit.isSuccess(exit) ? 'ran' : 'refused'))),
+              )
+            })
+          restarts.length = 0
+          yield* plugins.awaitActivation
+          expect(yield* restartAsBuild('call-allowed')).toBe('ran')
+          expect(restarts).toEqual([false])
+
+          yield* pushRule('deny')
+          yield* agents.get(Agent.defaultId).pipe(
+            Effect.flatMap((agent) =>
+              agent?.permissions.at(-1)?.effect === 'deny' ? Effect.void : Effect.fail('activation pending'),
+            ),
+            Effect.retry({times: 80, schedule: Schedule.spaced('25 millis')}),
+          )
+          yield* plugins.awaitActivation
+          expect(yield* restartAsBuild('call-denied')).toBe('refused')
+          expect(restarts).toEqual([false])
         }).pipe(Effect.scoped, Effect.provide(locations.get(directory.path)))
       }),
     30_000,
