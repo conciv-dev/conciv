@@ -112,8 +112,12 @@ export const layer = Layer.effect(
       changes: () =>
         Stream.merge(
           Stream.fromPubSub(watchUpdates).pipe(
-            Stream.filter(
-              (update) => update.path === concivDirectory || isDirectorySource(concivDirectory, update.path),
+            Stream.filterEffect((update) =>
+              Effect.map(fs.resolve(concivDirectory), (realConcivDirectory) =>
+                [concivDirectory, realConcivDirectory].some(
+                  (directory) => update.path === directory || isDirectorySource(directory, update.path),
+                ),
+              ),
             ),
             Stream.map(() => undefined),
           ),
