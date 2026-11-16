@@ -513,7 +513,7 @@ describe('no hand-made temp dir', () => {
     const findings = await lintFixture('temp-dir/hand-made.ts')
     expect(findings).toHaveLength(3)
     expect(findings[0]).toContain('tempDir(prefix)')
-    expect(findings[0]).toContain('processTempDir(prefix)')
+    expect(findings[0]).toContain('test-results/conciv-home')
     expect(await lintFixture('temp-dir/helpers.ts')).toEqual([])
     expect(await lintFixture('packages/vitest-config/src/temp-dir.ts')).toEqual([])
   })

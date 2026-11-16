@@ -1,6 +1,3 @@
-import {mkdtempSync, rmSync} from 'node:fs'
-import {tmpdir} from 'node:os'
-import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 
 type CiReporterEntry = 'default' | ['github-actions', {jobSummary: {enabled: boolean}}] | ['json', {outputFile: string}]
@@ -15,12 +12,6 @@ type CiCoverage = {
 export function ciReporters(): CiReporterEntry[] {
   if (!process.env.GITHUB_ACTIONS) return ['default']
   return ['default', ['github-actions', {jobSummary: {enabled: false}}], ['json', {outputFile: 'test-results.json'}]]
-}
-
-export function processTempDir(prefix: string): string {
-  const dir = mkdtempSync(join(tmpdir(), prefix))
-  process.once('exit', () => rmSync(dir, {recursive: true, force: true, maxRetries: 10}))
-  return dir
 }
 
 export const TEST_TIMEOUT_MS = 30_000

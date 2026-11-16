@@ -84,7 +84,7 @@ export default {
     type: 'problem',
     messages: {
       handMadeTempDir:
-        'A test that makes its own folder under the OS temp dir leaks it when the test fails before removing it. Take it from tempDir(prefix) (@conciv/vitest-config/temp-dir: one folder per test file, removed after the file) or, in a vitest config or browser command, processTempDir(prefix) (@conciv/vitest-config: removed when the process exits).',
+        'A test that makes its own folder under the OS temp dir leaks it when the test fails before removing it. Take it from tempDir(prefix) (@conciv/vitest-config/temp-dir: one folder per test file, removed after the file) or, in a vitest config or browser command, a folder under test-results/conciv-home beside the config (the CONCIV_HOME of the run, emptied at the start of every run by the globalSetup ciTest() carries).',
     },
     schema: [],
   },
