@@ -3080,6 +3080,25 @@ describe('page session card', () => {
     await expect.element(page.getByText('Typed')).not.toBeInTheDocument()
     await expect.element(page.getByRole('button', {name: '2 steps'})).not.toBeInTheDocument()
   })
+
+  test('while a page click runs, the now line says Clicking', async () => {
+    const rpc = coreRpc(core())
+    const sessionId = await createSession(rpc)
+    await coreControl.scriptTurn({
+      toolCalls: [{name: 'page_click', input: {selector: '#save'}, result: {ok: true}}],
+      text: 'Saved.',
+    })
+    await coreControl.holdResults()
+    keep(mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />))
+    const turn = await sendTurn(core(), sessionId, 'save the form')
+    try {
+      await expect.element(page.getByText('Clicking', {exact: true}), {timeout: 8000}).toBeVisible()
+    } finally {
+      await coreControl.releaseResults()
+      await turn.awaitTurnEnd()
+      turn.close()
+    }
+  })
 })
 
 describe('pane composer stopping', () => {
