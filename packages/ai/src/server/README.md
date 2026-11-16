@@ -8,7 +8,7 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 
 - `chat-server.ts:createChatServer` - async factory returning a `ChatServer` (delivery plus `stop`, `endRuns`, `endAllRuns` (ends every live run on every thread the way `endRuns` does, waits for all of them to settle, disposes the code mode driver, then rethrows any failed cancel writes and a failed driver dispose together as one `AggregateError`), `settled`, `hydrate`, `record`, `codeRunner`).
 - `chat-server.ts:record` - folds the given chunks through a `StreamProcessor` and appends the assistant messages to the thread the same way a stopped turn is saved, skipping tool calls the thread already holds.
-- `chat-server.ts:ChatStores` / `TurnHooks` / `TurnPlan` / `ChatServerConfig` / `ChatThread` / `CodeRunner` / `Approvals` - exported types.
+- `chat-server.ts:ChatStores` / `TurnHooks` / `TurnPlan` / `ChatServerConfig` / `ChatThread` / `CodeRunner` / `Approvals` - exported types. `TurnPlan.prompt(message, signal)` receives the run's abort signal; the engine still races the call against that signal, so a stopped turn ends at once even when a plan ignores it.
 - `code-mode.ts:codeModeTools` - the code-mode `discover_tools` carries our own short description (`DISCOVER_DESCRIPTION`) in place of the library's, which embeds the whole capability catalog; the same tool serves chat turns and MCP.
 - `chat-server.ts:toolApprovalId` - `approvalId({provider: 'conciv', kind: 'tool', target: name})`.
 - `chat-server.ts:approvalNeeded` - returns an Error telling the model to retry once the user approves.
