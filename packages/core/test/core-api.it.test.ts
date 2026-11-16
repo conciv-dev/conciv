@@ -2852,7 +2852,7 @@ describe('rpc wire', () => {
         expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({id: listed.id})
       })
 
-      it('a deleted session whose transcript is still on disk stays deleted: the list leaves it out and opening or resolving it is refused', async () => {
+      it('a deleted session whose transcript is still on disk stays deleted: the list leaves it out and opening or resolving it by either id is refused', async () => {
         const kept = claudeId('deleted-native')
         writeNativeAt(kept, 'a task deleted while its transcript stays', Date.now() + 180_000)
         const [listed] = (await chatKit().rpc.sessions.list({limit: 1})).sessions
@@ -2873,6 +2873,7 @@ describe('rpc wire', () => {
         expect(existsSync(resolveTranscriptPath(kept))).toBe(true)
 
         await expect(chatKit().rpc.sessions.resolve({id: kept})).rejects.toMatchObject({code: 'NOT_FOUND'})
+        await expect(chatKit().rpc.sessions.resolve({id: listed.id})).rejects.toMatchObject({code: 'NOT_FOUND'})
         expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({hidden: true})
 
         const neverSeen = claudeId('never-seen-native')
