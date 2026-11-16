@@ -3079,6 +3079,7 @@ describe('plugin host bus', () => {
     const markersBeforeCompact = await kit.rpc.markers.list({sessionId: refused})
     await expect(made.plane.compact(refused)).rejects.toThrow(`session "${refused}" does not exist`)
     await expect(made.plane.compact(refused)).rejects.toMatchObject({code: SESSION_DELETED_CODE})
+    await expect(kit.rpc.sessions.compact({sessionId: refused})).rejects.toMatchObject({code: 'NOT_FOUND'})
     expect(await kit.rpc.markers.list({sessionId: refused})).toEqual(markersBeforeCompact)
     expect(
       await made.plane.admitCall(refused, {

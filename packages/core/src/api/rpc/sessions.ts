@@ -316,7 +316,9 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       switchRowHarness(db, input.sessionId, target.id, model)
       return {harnessId: target.id}
     }),
-    compact: os.sessions.compact.handler(async ({input}) => {
+    compact: os.sessions.compact.handler(async ({input, errors}) => {
+      const row = await rowById(db, input.sessionId)
+      if (row === null || row.deletedAt !== null) throw errors.NOT_FOUND()
       await deps.runtime.forSession(input.sessionId).run.compact()
       return {ok: true as const}
     }),
