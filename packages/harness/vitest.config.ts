@@ -1,9 +1,8 @@
-import {realpathSync} from 'node:fs'
 import {join} from 'node:path'
 import {defineConfig} from 'vitest/config'
-import {ciTest, processTempDir} from '@conciv/vitest-config'
+import {ciTest} from '@conciv/vitest-config'
 
-const fixtureHomes = realpathSync(processTempDir('conciv-harness-homes-'))
+const fixtureHomes = join(import.meta.dirname, 'test-results', 'conciv-home', 'harness-homes')
 
 export default defineConfig({
   test: {

@@ -437,6 +437,20 @@ function makeEngineTrust(key: string, state: TrustState, link: ClientLink<RpcCli
   }
 }
 
+function stalled(reason: unknown): boolean {
+  return reason instanceof DOMException && reason.name === 'TimeoutError'
+}
+
+function reconnectWhenStalled(socket: ReconnectingWebSocket, lifetime: AbortSignal, call: AbortSignal | undefined) {
+  call?.addEventListener(
+    'abort',
+    () => {
+      if (stalled(call.reason) && socket.readyState === socket.OPEN && !lifetime.aborted) socket.reconnect()
+    },
+    {once: true},
+  )
+}
+
 function socketConnection(key: string, state: TrustState): ConnectionEntry {
   const lifetime = new AbortController()
   const socket = new ReconnectingWebSocket(rpcSocketUrl(key), [], {
@@ -466,7 +480,10 @@ function socketConnection(key: string, state: TrustState): ConnectionEntry {
   const link: ClientLink<RpcClientContext> = {
     call: (path, input, options) => {
       if (!socket.shouldReconnect && !lifetime.signal.aborted) socket.reconnect()
-      if (isStreamingCall(path)) return rpc.call(path, input, options)
+      if (isStreamingCall(path)) {
+        reconnectWhenStalled(socket, lifetime.signal, options.signal)
+        return rpc.call(path, input, options)
+      }
       const deadline = performance.now() + CALL_DEADLINE_MS
       const shouldRetry = (attempt: ClientRetryPluginAttemptOptions<RpcClientContext>): boolean =>
         performance.now() < deadline && retriable(lifetime.signal, attempt)

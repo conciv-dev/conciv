@@ -1,9 +1,9 @@
-import {execFile} from 'node:child_process'
-import {promisify} from 'node:util'
+import {spawn, type ChildProcess} from 'node:child_process'
+import {once} from 'node:events'
+import type {Readable} from 'node:stream'
 import {z} from 'zod'
+import {killLeftovers} from '@conciv/ai/server'
 import type {HarnessModel} from '@conciv/protocol/harness-types'
-
-const run = promisify(execFile)
 
 const LISTING_TIMEOUT_MS = 30_000
 
@@ -55,11 +55,62 @@ function distinctModels(listed: ListedModel[]): ListedModel[] {
   )
 }
 
-export async function opencodeModels(): Promise<HarnessModel[]> {
-  const {stdout} = await run('opencode', ['models', '--verbose'], {
-    timeout: LISTING_TIMEOUT_MS,
-    maxBuffer: LISTING_BUFFER_BYTES,
-  })
+const GoneSchema = z.object({code: z.literal('ESRCH')})
+
+function signalGroup(group: number, groupSignal: NodeJS.Signals): void {
+  try {
+    process.kill(-group, groupSignal)
+  } catch (error) {
+    if (!GoneSchema.safeParse(error).success) throw error
+  }
+}
+
+function exited(child: ChildProcess): Promise<void> {
+  if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return Promise.resolve()
+  return new Promise((resolve) => child.once('exit', () => resolve()))
+}
+
+async function endGroup(child: ChildProcess): Promise<void> {
+  const group = child.pid
+  if (group === undefined) return
+  signalGroup(group, 'SIGTERM')
+  await killLeftovers({pid: group, kill: (groupSignal) => signalGroup(group, groupSignal)})
+  await exited(child)
+}
+
+async function readCapped(stream: Readable): Promise<string> {
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for await (const chunk of stream) {
+    if (!(chunk instanceof Uint8Array)) continue
+    size += chunk.byteLength
+    if (size > LISTING_BUFFER_BYTES) {
+      throw new RangeError(`opencode models printed more than ${LISTING_BUFFER_BYTES} bytes`)
+    }
+    chunks.push(chunk)
+  }
+  return Buffer.concat(chunks).toString('utf8')
+}
+
+async function listingOutput(signal: AbortSignal): Promise<string> {
+  const child = spawn('opencode', ['models', '--verbose'], {detached: true})
+  try {
+    const [stdout, stderr] = await Promise.all([
+      readCapped(child.stdout),
+      readCapped(child.stderr),
+      once(child, 'close', {signal: AbortSignal.any([signal, AbortSignal.timeout(LISTING_TIMEOUT_MS)])}),
+    ])
+    if (child.exitCode !== 0) {
+      throw new Error(`opencode models failed (${child.exitCode ?? child.signalCode}): ${stderr.trim()}`)
+    }
+    return stdout
+  } finally {
+    await endGroup(child)
+  }
+}
+
+export async function opencodeModels({signal}: {signal: AbortSignal}): Promise<HarnessModel[]> {
+  const stdout = await listingOutput(signal)
   const listed = distinctModels(
     (stdout.match(MODEL_BLOCK) ?? [])
       .flatMap(parsedBlock)

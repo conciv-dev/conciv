@@ -70,6 +70,7 @@ export type ChatContext = {
   basePath: string
   db: ConcivDb
   plane: ChatPlane
+  signal: AbortSignal
 }
 
 export type RpcDeps = {

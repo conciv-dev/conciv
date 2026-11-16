@@ -25,10 +25,13 @@ export function listHarnesses(): HarnessAdapter[] {
   return [...registry.values()]
 }
 
-export async function resolveHarnessModels(adapter: HarnessAdapter): Promise<HarnessModel[]> {
+export async function resolveHarnessModels(
+  adapter: HarnessAdapter,
+  options: {signal: AbortSignal},
+): Promise<HarnessModel[]> {
   const models = adapter.models
   if (!models) return []
-  return typeof models === 'function' ? models() : models
+  return typeof models === 'function' ? models(options) : models
 }
 
 for (const adapter of [claude, codex, geminiCli, opencode, pi]) registerHarness(adapter)

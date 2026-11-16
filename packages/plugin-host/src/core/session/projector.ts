@@ -3,7 +3,7 @@ export * as SessionProjector from './projector.js'
 import {Effect, Layer} from 'effect'
 import {Database} from '../database/database.js'
 import {Bus} from '../bus.js'
-import {SessionEvent} from '../../schema/session-event.js'
+import {SessionEvent} from '@conciv/plugin/schema/session-event'
 import {InstructionState} from './instruction-state.js'
 
 export const layer = Layer.effectDiscard(

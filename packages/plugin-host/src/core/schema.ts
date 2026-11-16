@@ -1,4 +1,4 @@
-import {optional, statics} from '../schema/schema.js'
+import {optional, statics} from '@conciv/plugin/schema/schema'
 
 export {optional, statics}
 
