@@ -200,7 +200,14 @@ import {
   pluginInstructions,
   sessionToolDomain,
 } from '../src/runtime/permission-cards.js'
-import {bootMadeApp, chunkWithInlineMap, cleanupChunks, makeChatFixture, requireClaude} from './helpers.js'
+import {
+  bootMadeApp,
+  chunkWithInlineMap,
+  cleanupChunks,
+  makeChatFixture,
+  requireClaude,
+  requireTranscriptPath,
+} from './helpers.js'
 
 const NO_CAPABILITIES = {
   resume: false,
@@ -851,7 +858,7 @@ describe('chat plane', () => {
 
   function sessionPort(nativeId: HarnessSessionId | null = null, harnessKind = 'fake-cli'): SessionPort {
     return {
-      row: () => ({model: null, effort: null, nativeId, cwd: '/workspace', harnessKind}),
+      row: () => ({model: null, effort: null, nativeId, cwd: '/workspace', harnessKind, deletedAt: null}),
       ensure: async () => undefined,
       recordNativeId: async () => undefined,
       recordUsage: async () => undefined,
@@ -3026,6 +3033,77 @@ describe('plugin host bus', () => {
       {sessionId: running, what: 'session.deleted with no run'},
       {sessionId: queueing, what: 'session.deleted with no run'},
     ])
+
+    const refused = await created()
+    await kit.rpc.sessions.delete({sessionId: refused})
+    const publishedToRefused: ChatEvent[] = []
+    onTestFinished(made.runtime.forSession(refused).stream.listen((chunk) => void publishedToRefused.push(chunk)))
+    const beforeRefusal = await made.plane.hydrate(refused)
+    const refusedTurn = await kit.turn('sent to a deleted session', {session: refused, runId: 'refused-run'})
+    expect((await refusedTurn.done()).errors()).toHaveLength(1)
+    const sseRefusal = await kit.post(
+      CHAT_SSE_PATH,
+      {
+        threadId: refused,
+        runId: 'refused-sse-run',
+        messages: [{id: 'refused-sse-user', role: 'user', content: 'sent over SSE to a deleted session'}],
+        tools: [],
+        context: [],
+      },
+      refused,
+    )
+    const sseFrame = z.object({
+      type: z.string(),
+      name: z.string().optional(),
+      message: z.string().optional(),
+      code: z.string().optional(),
+    })
+    const sseFrames = (await sseRefusal.text())
+      .split('\n')
+      .flatMap((line) => (line.startsWith('data: ') ? [sseFrame.parse(JSON.parse(line.slice('data: '.length)))] : []))
+    expect(sseFrames).toEqual([
+      {type: ChatEventType.CUSTOM, name: 'run.accepted'},
+      {type: ChatEventType.RUN_ERROR, message: `session "${refused}" does not exist`},
+    ])
+    expect(publishedToRefused).toEqual([])
+    expect(heardBy(refused)).toEqual(['session.deleted with no run'])
+    const afterRefusal = await made.plane.hydrate(refused)
+    expect([afterRefusal.messages, afterRefusal.lastRun]).toEqual([beforeRefusal.messages, beforeRefusal.lastRun])
+
+    await kit.rpc.sessions.restore({sessionId: refused})
+    const restoredTurn = await kit.turn('sent after the restore', {session: refused, runId: 'restored-run'})
+    expect((await restoredTurn.done()).errors()).toEqual([])
+
+    const reused = await created()
+    await kit.rpc.sessions.delete({sessionId: reused})
+    const location = Schema.decodeSync(Location.Ref)({directory: made.chat.cwd})
+    await sessionKey(made).run((sessions) =>
+      sessions.create({id: SessionSchema.Id.make(reused), title: 'a new session on a deleted id', location}),
+    )
+    const reusedTurn = await kit.turn('sent after a plugin created the id again', {
+      session: reused,
+      runId: 'reused-run',
+    })
+    expect((await reusedTurn.done()).errors()).toEqual([])
+
+    const listed = await created()
+    const listedNative = HarnessSessionId.parse(randomUUID())
+    await recordNativeId(made.chat.db, listed, harness.id, listedNative)
+    const transcript = requireTranscriptPath(harness)(made.chat.cwd, listedNative)
+    mkdirSync(dirname(transcript), {recursive: true})
+    writeFileSync(transcript, JSON.stringify({type: 'user', message: {content: 'a task written in the terminal'}}))
+    await kit.rpc.sessions.delete({sessionId: listed})
+    expect((await kit.rpc.sessions.list(undefined)).sessions.map((meta) => meta.id)).toContain(listed)
+    const listedTurn = await kit.turn('sent after a listing restored it', {session: listed, runId: 'listed-run'})
+    expect((await listedTurn.done()).errors()).toEqual([])
+
+    const neverSeen = SessionId.parse('conciv_never_seen_before_its_first_send')
+    const firstTurn = await kit.turn('the first message to an id no session had', {
+      session: neverSeen,
+      runId: 'never-seen-run',
+    })
+    expect((await firstTurn.done()).errors()).toEqual([])
+    expect(currentRow(made.chat.db, neverSeen)?.deletedAt).toBeNull()
   })
 })
 

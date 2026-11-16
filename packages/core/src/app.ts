@@ -287,6 +287,7 @@ function sessionPort(
             nativeId: row.harnessSessionId,
             cwd: row.cwd,
             harnessKind: row.harnessKind,
+            deletedAt: row.deletedAt,
           }
     },
     ensure: (sessionId) => ensureRow(db, sessionId, rows.harnessKind, rows.cwd),

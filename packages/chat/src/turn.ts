@@ -32,6 +32,7 @@ export type SessionRow = {
   nativeId: HarnessSessionId | null
   cwd: string
   harnessKind: string
+  deletedAt: number | null
 }
 
 export type SessionPort = {
@@ -261,12 +262,21 @@ async function recordContext(deps: TurnDeps, sessionId: SessionId): Promise<void
   if (contextTokens !== undefined) await deps.sessions.recordContextTokens(sessionId, contextTokens)
 }
 
+export function missingSession(sessionId: SessionId): string {
+  return `session "${sessionId}" does not exist`
+}
+
 export function turnHooks(
   deps: TurnDeps,
   context: {approvals: ApprovalStore; ui: UiChannel; transcripts: TranscriptImporter; codeMode: boolean},
 ): TurnHooks {
   const normalize = toolNameNormalizer(deps.toolNames)
   return {
+    admit: async (turn) => {
+      const sessionId = SessionId.parse(turn.threadId)
+      const row = deps.sessions.row(sessionId)
+      if (row !== null && row.deletedAt !== null) throw new Error(missingSession(sessionId))
+    },
     plan: (turn) => {
       const sessionId = SessionId.parse(turn.threadId)
       const harness = deps.harnessFor(sessionId)

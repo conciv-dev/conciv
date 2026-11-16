@@ -83,7 +83,7 @@ function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typ
     harnessFor: () => harness,
     systemPrompt: {},
     sessions: {
-      row: () => ({model: null, effort: null, nativeId: null, cwd: '/workspace', harnessKind: 'fake'}),
+      row: () => ({model: null, effort: null, nativeId: null, cwd: '/workspace', harnessKind: 'fake', deletedAt: null}),
       ensure: async () => undefined,
       recordNativeId: async () => undefined,
       recordUsage: async () => undefined,

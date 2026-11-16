@@ -30,7 +30,7 @@ import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import type {CodeModeCatalog} from '@conciv/plugin-host'
 import {clearThread, metadataKeysEndingWith, runningThreadIds} from './stores.js'
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
-import {firstUserTitle, turnHooks, type TurnDeps} from './turn.js'
+import {firstUserTitle, missingSession, turnHooks, type TurnDeps} from './turn.js'
 
 export {
   assistCapabilities,
@@ -175,7 +175,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
 
   const admitCall: ChatPlane['admitCall'] = async (sessionId, call) => {
     if (deps.sessions.row(sessionId) === null) {
-      return {reason: 'missing', message: `session "${sessionId}" does not exist`}
+      return {reason: 'missing', message: missingSession(sessionId)}
     }
     const approvalId = toolApprovalId(call.toolName)
     const settled = new AbortController()
