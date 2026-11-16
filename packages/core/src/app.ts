@@ -482,7 +482,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     root: opts.cwd,
     storeCapture: (params) => writeToolCapture(db, params),
     bundler: () => opts.bridge,
-    openInEditor: opts.openInEditor,
     listTabs: outsideTabs.list,
     pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
     queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
@@ -638,6 +637,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       tokenScopedBase: opts.tokenScopedBase ?? (() => undefined),
     },
     bundler: opts.bridge,
+    openInEditor: opts.openInEditor,
     extensionSlugs: mounted.map((entry) => slug(entry.extensionName)),
     sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: primitives.page.queues}),
   })

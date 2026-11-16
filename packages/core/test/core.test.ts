@@ -571,7 +571,6 @@ describe('chat plane', () => {
       root,
       storeCapture: () => Promise.resolve(),
       bundler: () => undefined,
-      openInEditor: () => {},
       listTabs: async () => ({tabs: [], unreachable: []}),
     })
     const runtime = makeCoreRuntime({
@@ -1214,7 +1213,12 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
       const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
       const {sessionId} = await makeRpcClient(base).sessions.create(undefined)
       const rpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
-      const open = (column?: number) => rpc.editor.open({file: 'src/a.ts', line: 3, column})
+      const open = (column?: number) =>
+        rpc.plugin.call({
+          rpcId: 'server',
+          method: 'open',
+          input: {file: 'src/a.ts', line: 3, ...(column === undefined ? {} : {column})},
+        })
       await open(9)
       await open(9)
       expect(launched).toEqual([['src/a.ts', 3, 9]])
@@ -2073,7 +2077,6 @@ describe('page bus and the session scope', () => {
         root: fixture.stateRoot,
         storeCapture: () => Promise.resolve(),
         bundler: () => undefined,
-        openInEditor: () => {},
         listTabs: async () => ({tabs: [], unreachable: []}),
       })
       const clicker = defineTool({
@@ -4014,8 +4017,22 @@ describe('direct tools on the MCP surface', () => {
 
   it('a codemode false tool is its own MCP tool that runs without an approval card, an outside run keeps it, and a session that denies execute lists every plugin tool directly and no execute tool', async () => {
     const root = tempDir('conciv-core-unit-')
-    const {made, origin, stop} = await serveCore(root, [], {})
+    const restarts: boolean[] = []
+    const bridge = defineBundlerBridge({
+      id: 'unit-direct-bundler',
+      config: () => ({root, base: '/', mode: 'development', aliases: [], plugins: []}),
+      resolve: async (spec) => ({id: spec}),
+      moduleGraph: () => [],
+      transform: async () => ({code: null}),
+      urls: () => ({local: [], network: []}),
+      reload: async () => undefined,
+      restart: async (force) => {
+        restarts.push(force ?? false)
+      },
+    })
+    const {made, origin, stop} = await serveCore(root, [], {bridge})
     onTestFinished(stop)
+    await made.startPlugins()
     const id = SessionId.parse('conciv_mcp_direct')
     await ensureRow(made.chat.db, id, made.chat.defaultHarness.id, root)
     const scope = made.pluginHost.runSync(Scope.make())
@@ -4122,13 +4139,14 @@ describe('direct tools on the MCP surface', () => {
       'external_server_config',
       'external_server_graph',
       'external_server_resolve',
+      'external_server_restart',
       'external_server_transform',
       'external_server_urls',
       'external_tabs',
       'external_unit_coded',
     ])
     expect(execute).toMatch(/^- page \(41 tools/m)
-    expect(execute).toMatch(/^- server \(5 tools/m)
+    expect(execute).toMatch(/^- server \(6 tools/m)
     expect(execute).toMatch(/^- conciv \(2 tools/m)
     const searched = ToolCalled.parse(
       await post('tools/call', {
@@ -4140,6 +4158,18 @@ describe('direct tools on the MCP surface', () => {
     const called = ToolCalled.parse(await post('tools/call', {name: 'unit_direct', arguments: {text: 'hi'}}))
     expect(called.result.isError).not.toBe(true)
     expect(called.result.content.map((part) => part.text).join('')).toContain('direct hi')
+    expect((await made.plane.hydrate(id)).pendingApprovals).toEqual([])
+    const restarting = post('tools/call', {
+      name: 'execute_typescript',
+      arguments: {typescriptCode: 'return await external_server_restart({force: true})'},
+    })
+    await vi.waitFor(async () => expect((await made.plane.hydrate(id)).pendingApprovals).toHaveLength(1))
+    expect(restarts).toEqual([])
+    const [restartAsk] = (await made.plane.hydrate(id)).pendingApprovals
+    const widget = makeRpcClient(`${origin}/t/${made.agentToken}`, {headers: {[CONCIV_SESSION_HEADER]: id}})
+    await widget.chat.permissionDecision({approvalId: restartAsk?.approvalId ?? '', approved: true})
+    expect(ToolCalled.parse(await restarting).result.isError).not.toBe(true)
+    expect(restarts).toEqual([true])
     expect((await made.plane.hydrate(id)).pendingApprovals).toEqual([])
 
     const direct: CodeCapability = {
@@ -4158,11 +4188,22 @@ describe('direct tools on the MCP surface', () => {
     })
 
     await setPermissions(made.chat.db, id, [{action: 'execute', resource: '*', effect: 'deny'}])
-    expect((await listed()).toSorted()).toEqual(['unit_coded', 'unit_direct'])
+    expect((await listed()).toSorted()).toEqual([
+      'open',
+      'server_config',
+      'server_graph',
+      'server_resolve',
+      'server_restart',
+      'server_transform',
+      'server_urls',
+      'skill',
+      'unit_coded',
+      'unit_direct',
+    ])
     const shut = ToolCalled.parse(await post('tools/call', {name: 'unit_coded', arguments: {text: 'shut'}}))
     expect(shut.result.content.map((part) => part.text).join('')).toContain('coded shut')
 
-    const builtIn = open.filter((name) => name !== 'unit_direct')
+    const builtIn = open.filter((name) => name !== 'unit_direct' && name !== 'skill')
     const searchedCoded = async () =>
       ToolCalled.parse(
         await post('tools/call', {
