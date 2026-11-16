@@ -44,7 +44,7 @@ export type RpcSocket = {
   rule: (rule: RpcSocketRule) => () => void
   listen: (listener: RpcSocketListener) => () => void
   opened: () => number
-  hold: () => void
+  hold: () => Promise<void>
   release: () => void
   holdCloses: () => void
   releaseCloses: () => void
@@ -104,10 +104,11 @@ export function rpcSocketFor(page: Page): RpcSocket {
       }
     },
     opened: () => state.opened,
-    hold: () => {
+    hold: async () => {
       state.held = true
-      for (const route of state.live) void route.close({code: CUT_CLOSE_CODE})
+      const closing = [...state.live].map((route) => route.close({code: CUT_CLOSE_CODE}))
       state.live.clear()
+      await Promise.all(closing)
     },
     release: () => {
       state.held = false

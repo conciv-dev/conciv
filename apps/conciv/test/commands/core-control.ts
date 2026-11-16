@@ -392,7 +392,7 @@ async function takeEngineOffline(ctx: BrowserCommandContext): Promise<Injector> 
   const rpcSocket = (await importTestkit(ctx)).rpcSocketFor(ctx.page)
   const matcher = (url: URL): boolean => url.origin === origin
   await ctx.page.route(matcher, (route) => (offline.value ? route.abort('connectionrefused') : route.continue()))
-  rpcSocket.hold()
+  await rpcSocket.hold()
   return {
     repair: () => {
       offline.value = false
