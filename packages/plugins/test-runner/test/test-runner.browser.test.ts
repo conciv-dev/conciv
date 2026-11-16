@@ -35,7 +35,7 @@ function fixtureFiles(): Record<string, string> {
 }
 
 describe('the Tests panel of the test-runner plugin', () => {
-  test('lists the Tests tab, shows a run the agent starts live then its summary, opens a failing test and prefills a fix', async ({
+  test('lists the Tests tab, shows a failed start, a run the agent starts live, the run so far after a reload, its summary, opens a failing test and prefills a fix', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -46,31 +46,41 @@ describe('the Tests panel of the test-runner plugin', () => {
       stateRoot: realpathSync(tempDir('conciv-test-runner-panel-')),
     })
     try {
-      symlinkSync(join(PACKAGE_DIR, 'node_modules'), join(widget.kit.stateRoot, 'node_modules'), 'dir')
       const page = widget.page
       const observer = rpcObserverFor(page)
       await rpcSocketFor(page).installed
       await page.reload({waitUntil: 'domcontentloaded'})
 
-      await page.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 30_000})
       const testsTab = page.getByRole('tab', {name: 'Tests', exact: true})
-      await expect(testsTab).toBeVisible({timeout: 30_000})
-      await testsTab.click()
-      await expect(page.getByRole('tab', {name: 'Tests', exact: true, selected: true})).toBeVisible()
       const panel = page.getByRole('tabpanel', {name: 'Tests'})
-      await expect(panel.getByText('No test run yet', {exact: true})).toBeVisible()
+      const openTests = async () => {
+        await page.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 30_000})
+        await expect(testsTab).toBeVisible({timeout: 30_000})
+        await testsTab.click()
+        await expect(page.getByRole('tab', {name: 'Tests', exact: true, selected: true})).toBeVisible()
+      }
+      await openTests()
+      await expect(panel.getByRole('status')).toHaveText('No test run yet')
 
+      await widget.kit.callTool('test_runner_run', {}).then(
+        () => undefined,
+        () => undefined,
+      )
+      await expect(panel.getByRole('status')).toHaveText('The test runner is unavailable', {timeout: 60_000})
+      await expect(panel.getByText(/vitest unavailable/)).toBeVisible()
+
+      symlinkSync(join(PACKAGE_DIR, 'node_modules'), join(widget.kit.stateRoot, 'node_modules'), 'dir')
       const run = widget.kit.callTool('test_runner_run', {})
       await expect(panel.getByRole('status')).toHaveText(/^Running tests/, {timeout: 60_000})
       await expect(panel.getByText('one plus one', {exact: true})).toBeVisible({timeout: 60_000})
-      await expect(panel.getByText('this fails on purpose', {exact: true}).first()).toBeVisible()
+      await expect(panel.getByText('this fails on purpose', {exact: true}).first()).toBeVisible({timeout: 60_000})
       await expect(panel.getByText('waits for the release file', {exact: true})).toBeVisible()
 
-      await page.getByRole('tab', {name: 'Chat', exact: true}).click()
-      await expect(page.getByRole('tab', {name: 'Chat', exact: true, selected: true})).toBeVisible()
-      await testsTab.click()
-      await expect(panel.getByRole('status')).toHaveText(/^Running tests/)
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await openTests()
+      await expect(panel.getByRole('status')).toHaveText(/^Running tests/, {timeout: 30_000})
       await expect(panel.getByText('one plus one', {exact: true})).toBeVisible()
+      await expect(panel.getByText('this fails on purpose', {exact: true}).first()).toBeVisible()
 
       widget.kit.writeProjectFile('release', '')
       await expect(panel.getByRole('status')).toHaveText(/^Test run finished: 4 passed, 1 failed, 0 skipped/, {
