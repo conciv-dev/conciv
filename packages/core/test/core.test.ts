@@ -2865,7 +2865,7 @@ describe('plugin host bus', () => {
     onTestFinished(() => kit.cleanup())
     const made = booted[0]
     if (made === undefined) throw new Error('the deletion kit booted no app')
-    await made.awaitActivation()
+    await made.startPlugins()
     const created = async () => SessionId.parse((await kit.rpc.sessions.create(undefined)).sessionId)
     const running = await created()
     const idling = await created()
@@ -3068,7 +3068,7 @@ describe('session prompt hook', () => {
     onTestFinished(() => kit.cleanup())
     const made = booted[0]
     if (made === undefined) throw new Error('the prompt kit booted no app')
-    if (started) await made.awaitActivation()
+    if (started) await made.startPlugins()
     return {kit, made, asked}
   }
 
@@ -3204,7 +3204,7 @@ describe('session prompt hook', () => {
     })
     const {kit, made, asked} = await promptKit([plugin], false)
     const session = await kit.session()
-    const activating = made.awaitActivation()
+    const activating = made.startPlugins()
     await entered.promise
 
     const turn = await kit.turn('Original', {session})

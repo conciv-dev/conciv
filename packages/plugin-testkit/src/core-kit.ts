@@ -66,7 +66,7 @@ export async function bootCoreKit(opts: {
     harness,
     async (env) => {
       for (const [path, content] of Object.entries(opts.files ?? {})) writeInside(env.cwd, path, content)
-      const {fetch, dispose, runtime, agentToken, awaitActivation} = await makeApp({
+      const {fetch, dispose, runtime, agentToken, startPlugins} = await makeApp({
         print: env.print,
         cfg: {
           enabled: true,
@@ -93,7 +93,7 @@ export async function bootCoreKit(opts: {
         bridge: opts.bundler,
       })
       captured.runtime = runtime
-      await awaitActivation()
+      await startPlugins()
       return {
         fetch,
         dispose,
