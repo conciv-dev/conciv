@@ -138,6 +138,7 @@ import {statePaths} from '../src/lib/state-paths.js'
 import {makeJournal, makePageBus} from '../src/page/page-bus.js'
 import {makePageQueues, owesFollowUp, startQueueFollowUp, type PageQueues} from '../src/page/page-queue.js'
 import {makePagePlugin} from '../src/page/page-plugin.js'
+import {pageTabs, type PageReply} from '@conciv/plugin-page-testkit/page-tabs'
 import {makeCoreRuntime} from '../src/runtime/core-runtime.js'
 import {provideHarnessModels} from '../src/runtime/harness-models.js'
 import {makeSessionPrimitives} from '../src/runtime/primitives.js'
@@ -1792,6 +1793,64 @@ describe('page bus and the session scope', () => {
     await startQueueFollowUp(queues, plane, fixture.sessionId, (sessionId) => isDeletedRow(fixture.db, sessionId))
     expect(turns).toEqual([])
     expect(runStatuses()).toEqual([])
+  })
+
+  it('a queue result landing after the delete cancels the session queues and before the tombstone starts no turn: the page plugin no longer holds the queue', async () => {
+    const stateRoot = tempDir('conciv-core-unit-')
+    const harness = createTestHarness(requireClaude())
+    const tabs = pageTabs()
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}}, {plugins: [tabs.plugin]})
+    onTestFinished(() => made.dispose())
+    await made.startPlugins()
+    const id = SessionId.parse('conciv_queue_cancelled_on_delete')
+    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    const offered = Promise.withResolvers<string>()
+    const held = Promise.withResolvers<string>()
+    const tab = await tabs.open(id, (command, requestId): PageReply | undefined => {
+      if (command.queued === undefined) return {type: 'success', result: {value: {}, files: []}}
+      if (command.queued.index >= 0) {
+        held.resolve(requestId)
+        return undefined
+      }
+      offered.resolve(command.queued.id)
+      return {type: 'success', result: {value: {queueId: command.queued.id, actions: 1}, files: []}}
+    })
+    onTestFinished(() => tab.end())
+    harness.script.scriptToolCall('execute_typescript', {
+      typescriptCode: "return await external_page_queue_async({actions: [{tool: 'page_check', selector: '#agree'}]})",
+    })
+    expect(await made.plane.followUp(id, 'tick the box')).toEqual({kind: 'delivered'})
+    const queueId = await offered.promise
+    const requestId = await held.promise
+    const runsStarted: unknown[] = []
+    onTestFinished(
+      made.runtime.forSession(id).stream.listen((chunk) => {
+        if (sessionRunEvent.parse(chunk) !== null) runsStarted.push(chunk)
+      }),
+    )
+    const finished: string[] = []
+    const pagePlugin = makePagePlugin(() => made.pluginHost)
+    await pagePlugin.followFinished((event) => finished.push(event.queueId))
+    await deleteSession(
+      {
+        db: made.chat.db,
+        plane: made.plane,
+        runtime: made.runtime,
+        pluginHost: made.pluginHost,
+        queues: {
+          cancelSession: async (sessionId: SessionId) => {
+            await pagePlugin.cancelSession(sessionId)
+            await expect(pagePlugin.queueWait({sessionId, queueId, waitMs: 0})).rejects.toThrow(
+              `no queue ${queueId} on this tab`,
+            )
+            await tab.reply(requestId, {type: 'success', result: {value: {checked: true}, files: []}})
+          },
+        },
+      },
+      id,
+    )
+    expect(finished).toEqual([])
+    expect(runsStarted).toEqual([])
   })
 
   it('a queue the page refuses plays nothing: it ends lost with no action counted as played', async () => {

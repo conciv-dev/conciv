@@ -22,7 +22,8 @@ await.
 A queue the terminal starts keeps that it was started there (`plugin-page/src/queue.ts` `startedBy`): `queue.owed`
 never offers or claims it, `queue.undelivered` returns it only when its id is asked for by name, so its finish starts
 no follow-up turn in the chat; `queue.wait` still delivers its result.
-When the page plugin hears `session.deleted` it drops that session's queue records (`queue.ts` `cancelSession`), as
+The engine's session delete calls `queue.cancelSession {sessionId}` before it tombstones the row, and the page plugin
+also runs it when it hears `session.deleted`: it drops that session's queue records (`queue.ts` `cancelSession`), as
 the source's `jobs.cancelSession` does on delete: a result that lands later is never announced or owed, and
 `queue.wait` on it answers `no queue <id> on this tab`.
 `conciv plugin call experimental.page queue.wait` from a terminal is a peek: a caller who leaves (Ctrl-C) as the queue

@@ -72,7 +72,7 @@ export type PageQueues = QueueDelivery & {
   hubCall: (sessionId: SessionId, callId: string) => void
   hubReplied: (sessionId: SessionId, callIds: ReadonlySet<string>) => void
   fromHub: (record: QueueRecord) => boolean
-  cancelSession: (sessionId: SessionId) => void
+  cancelSession: (sessionId: SessionId) => Promise<void>
 }
 
 const KEPT_QUEUES = 200
@@ -400,7 +400,7 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
     hubCall: (sessionId, callId) => void sessionSet(inFlightHubCalls, sessionId).add(callId),
     hubReplied,
     fromHub: hubCalled,
-    cancelSession: (sessionId) => {
+    cancelSession: async (sessionId) => {
       for (const record of records.values()) {
         if (record.sessionId === sessionId) records.delete(record.queueId)
       }
