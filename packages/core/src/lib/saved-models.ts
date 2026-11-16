@@ -26,12 +26,12 @@ function writeSaved(path: string, models: HarnessModel[]): void {
   }
 }
 
-export function withSavedModels(adapter: HarnessAdapter, stateDir: string): HarnessAdapter {
+export function withSavedModels(adapter: HarnessAdapter, stateDir: string, signal: AbortSignal): HarnessAdapter {
   if (typeof adapter.models !== 'function') return adapter
   const path = join(stateDir, `${adapter.id}-models.json`)
   const state: {saved: HarnessModel[] | null; refreshing?: Promise<HarnessModel[]>} = {saved: readSaved(path)}
   function refresh(): Promise<HarnessModel[]> {
-    state.refreshing ??= resolveHarnessModels(adapter)
+    state.refreshing ??= resolveHarnessModels(adapter, {signal})
       .then((listed) => {
         state.saved = listed
         writeSaved(path, listed)

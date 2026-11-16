@@ -80,8 +80,8 @@ function sessionInfo(chat: ChatContext, row: SessionRecord): SessionInfo {
   }
 }
 
-function modelChoice(harness: HarnessAdapter, ref: ModelRef) {
-  return Effect.promise(() => resolveHarnessModels(harness)).pipe(
+function modelChoice(harness: HarnessAdapter, ref: ModelRef, signal: AbortSignal) {
+  return Effect.promise(() => resolveHarnessModels(harness, {signal})).pipe(
     Effect.map((models): ModelChoice | null => {
       if (ref.providerId !== harness.id) return null
       const listed = models.find((candidate) => candidate.id === ref.id && candidate.disabled !== true)
@@ -110,7 +110,7 @@ function createdModel(chat: ChatContext, input: CreateInput, sessionId: SessionI
     }
     const model = given(input.model)
     if (model === undefined) return null
-    const choice = yield* modelChoice(chat.defaultHarness, model)
+    const choice = yield* modelChoice(chat.defaultHarness, model, chat.signal)
     if (choice === null) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
     return choice
   })
@@ -212,7 +212,7 @@ export function provideSessions(started: () => SessionKeyDeps) {
         Effect.gen(function* () {
           const {chat} = started()
           yield* found(input.sessionId)
-          const choice = yield* modelChoice(chat.harnessFor(input.sessionId), input.model)
+          const choice = yield* modelChoice(chat.harnessFor(input.sessionId), input.model, chat.signal)
           if (choice === null || !(yield* applyModelChoice(chat, input.sessionId, choice))) {
             return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: input.sessionId}))
           }

@@ -147,9 +147,9 @@ export function buildHarnessMeta(harness: HarnessAdapter): HarnessMeta {
   }
 }
 
-export async function buildHarnessMenuEntry(harness: HarnessAdapter): Promise<HarnessMenuEntry> {
+export async function buildHarnessMenuEntry(harness: HarnessAdapter, signal: AbortSignal): Promise<HarnessMenuEntry> {
   try {
-    const models = await resolveHarnessModels(harness)
+    const models = await resolveHarnessModels(harness, {signal})
     return {
       ...buildHarnessMeta(harness),
       models,
@@ -179,7 +179,7 @@ export async function switchSessionModel(
 ): Promise<'switched' | 'missing' | 'unknown'> {
   const row = await ensuredRow(chat, sessionId)
   if (!row) return 'missing'
-  const models = await resolveHarnessModels(chat.harnessFor(sessionId))
+  const models = await resolveHarnessModels(chat.harnessFor(sessionId), {signal: chat.signal})
   const found = models.find((candidate) => candidate.id === model && !candidate.disabled)
   if (!found) return 'unknown'
   const effort = row.effort !== null && found.efforts?.includes(row.effort) ? row.effort : null
@@ -200,7 +200,7 @@ export async function switchSessionEffort(
   if (!row) return 'missing'
   if (effort !== null) {
     const harness = chat.harnessFor(sessionId)
-    const models = await resolveHarnessModels(harness)
+    const models = await resolveHarnessModels(harness, {signal: chat.signal})
     const modelId = row.model ?? harness.defaultModel ?? models[0]?.id
     const current = models.find((model) => model.id === modelId)
     if (!current?.efforts?.includes(effort)) return 'unsupported'
@@ -309,7 +309,7 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       if (await chat.plane.live(input.sessionId)) throw errors.SESSION_RUNNING()
       const model = input.model ?? null
       if (model !== null) {
-        const models = await resolveHarnessModels(target)
+        const models = await resolveHarnessModels(target, {signal: chat.signal})
         if (!models.some((listed) => listed.id === model && !listed.disabled)) throw errors.UNKNOWN_MODEL()
       }
       if (chat.plane.driving(input.sessionId)) throw errors.SESSION_RUNNING()

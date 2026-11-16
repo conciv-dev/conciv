@@ -84,6 +84,8 @@ const OPENCODE_TABLES = [
 
 const FIRST_PAGE: HarnessListPage = {after: null, limit: 30}
 
+const UNSTOPPED = {signal: new AbortController().signal}
+
 const PAGED_IDS = {newest: 'newest', tieHigh: 'tie-b', tieLow: 'tie-a', oldest: 'oldest'}
 
 function blockingTranscript(path: string, mtimeSec: number): void {
@@ -202,6 +204,24 @@ describe('capability matrix', () => {
   })
 })
 
+describe('harness models', () => {
+  it('a function-form models gets the caller signal and an array-form one answers as it is', async () => {
+    const stop = new AbortController()
+    const listing = resolveHarnessModels(
+      {
+        ...opencode,
+        models: ({signal}) =>
+          new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason))),
+      },
+      {signal: stop.signal},
+    )
+    stop.abort(new Error('the engine stopped'))
+    await expect(listing).rejects.toThrow('the engine stopped')
+    const listed = [{id: 'opus', name: 'Opus 5.5'}]
+    expect(await resolveHarnessModels({...opencode, models: listed}, {signal: stop.signal})).toEqual(listed)
+  })
+})
+
 describe('claude adapter', () => {
   describe('claude harness adapter', () => {
     it('is a single harness on the tanstack chatConfig path', () => {
@@ -228,12 +248,12 @@ describe('claude adapter', () => {
 
     it('is registered and resolves models', async () => {
       expect(getHarness('claude')).toBe(claude)
-      const models = await resolveHarnessModels(claude)
+      const models = await resolveHarnessModels(claude, UNSTOPPED)
       expect(models.map((model) => model.id)).toContain('sonnet')
     })
 
     it('lists the effort levels each model supports, and a model without effort carries none', async () => {
-      const models = await resolveHarnessModels(claude)
+      const models = await resolveHarnessModels(claude, UNSTOPPED)
       expect(models.find((model) => model.id === 'opus')?.efforts).toEqual(['low', 'medium', 'high', 'xhigh', 'max'])
       expect(models.every((model) => model.efforts === undefined || model.efforts.length > 0)).toBe(true)
     })
@@ -1607,7 +1627,7 @@ describe('opencode models', () => {
       ]),
     )
 
-    expect(await resolveHarnessModels(opencode)).toEqual([
+    expect(await resolveHarnessModels(opencode, UNSTOPPED)).toEqual([
       {
         id: 'anthropic/claude-opus-4-5',
         name: 'Claude Opus 4.5 · anthropic',
@@ -1684,7 +1704,7 @@ describe('opencode models', () => {
       ]),
     )
 
-    expect(await resolveHarnessModels(opencode)).toEqual([
+    expect(await resolveHarnessModels(opencode, UNSTOPPED)).toEqual([
       {
         id: 'amazon-bedrock/global.anthropic.claude-haiku-5-5',
         name: 'Claude Haiku 5.5 · amazon-bedrock',
@@ -1721,7 +1741,7 @@ describe('opencode models', () => {
   it('rejects when the opencode CLI fails, so the saved list stays in use', async () => {
     await fakeOpencode('', 1)
 
-    await expect(resolveHarnessModels(opencode)).rejects.toThrow()
+    await expect(resolveHarnessModels(opencode, UNSTOPPED)).rejects.toThrow()
   })
 })
 

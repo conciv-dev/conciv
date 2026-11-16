@@ -19,8 +19,8 @@ function harnessModelInfo(harnessId: string, model: HarnessModel): Model.Info {
   }
 }
 
-function listedModels(harness: HarnessAdapter) {
-  return Effect.promise(() => buildHarnessMenuEntry(harness)).pipe(
+function listedModels(harness: HarnessAdapter, signal: AbortSignal) {
+  return Effect.promise(() => buildHarnessMenuEntry(harness, signal)).pipe(
     Effect.map((entry) => {
       const all = entry.models.map((model) => harnessModelInfo(harness.id, model))
       return {all, available: all.filter((model) => model.enabled), defaultModel: entry.defaultModel}
@@ -28,12 +28,12 @@ function listedModels(harness: HarnessAdapter) {
   )
 }
 
-export function provideHarnessModels(harness: HarnessAdapter) {
+export function provideHarnessModels(harness: HarnessAdapter, signal: AbortSignal) {
   return Layer.succeed(
     Model.Service,
     Model.Service.of({
       available: (types) =>
-        listedModels(harness).pipe(
+        listedModels(harness, signal).pipe(
           Effect.map(({available}) =>
             types === undefined || types.length === 0
               ? available
@@ -41,7 +41,7 @@ export function provideHarnessModels(harness: HarnessAdapter) {
           ),
         ),
       default: () =>
-        listedModels(harness).pipe(
+        listedModels(harness, signal).pipe(
           Effect.map(({all, available, defaultModel}) => {
             const requested = all.find((model) => model.id === defaultModel)
             return requested?.enabled ? requested : available[0]

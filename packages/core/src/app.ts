@@ -201,9 +201,14 @@ function detectedHarnesses(): HarnessAdapter[] {
   return listHarnesses().filter((adapter) => onPath(adapter.binName))
 }
 
-function availableHarnesses(boot: HarnessAdapter, opts: MakeAppOpts, stateDir: string): HarnessAdapter[] {
+function availableHarnesses(
+  boot: HarnessAdapter,
+  opts: MakeAppOpts,
+  stateDir: string,
+  signal: AbortSignal,
+): HarnessAdapter[] {
   const others = (opts.harnesses ?? (opts.harness ? [] : detectedHarnesses())).map((adapter) =>
-    withSavedModels(adapter, stateDir),
+    withSavedModels(adapter, stateDir, signal),
   )
   return [boot, ...others.filter((adapter) => adapter.id !== boot.id)]
 }
@@ -441,13 +446,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   assertUniqueExtensionSlugs(extensions)
 
   const stateDir = concivStateDir(opts.cfg.stateRoot)
-  const harness = withSavedModels(opts.harness ?? requireHarness(opts.cfg.harness), stateDir)
+  const engineLife = new AbortController()
+  const harness = withSavedModels(opts.harness ?? requireHarness(opts.cfg.harness), stateDir, engineLife.signal)
   const agentToken = opts.agentToken ?? randomUUID()
   const basePath = agentPath(agentToken)
   const browsers = watchTrustedBrowsers(stateDir)
   const trust = makeConnectionTrust(agentToken, browsers)
   const socketUpgrade = trustingUpgrade(upgradeWebSocket, trust)
-  const harnesses = availableHarnesses(harness, opts, stateDir)
+  const harnesses = availableHarnesses(harness, opts, stateDir, engineLife.signal)
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb(opts.cfg.stateRoot)
   const planeRef: {current: ChatPlane | null} = {current: null}
@@ -610,6 +616,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     config: opts.cfg,
     plugins: opts.plugins ?? [],
     harness,
+    signal: engineLife.signal,
     harnessSource: {
       harness: serverHarness,
       sessions: serverSessions,
@@ -732,6 +739,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     basePath,
     db,
     plane,
+    signal: engineLife.signal,
   }
 
   const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness, interruptIdle})
