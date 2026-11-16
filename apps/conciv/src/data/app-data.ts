@@ -16,23 +16,19 @@ type DraftInput = Omit<z.input<typeof DraftRowSchema>, 'updatedAt'>
 
 const DraftSessionSchema = z.object({sessionId: z.string()})
 
-const ListedSessionsSchema = z.looseObject({sessions: z.array(z.looseObject({id: z.string()}))})
+type SessionPage = Awaited<ReturnType<RpcClient['sessions']['list']>>
 
-const ListedSessionPagesSchema = z.looseObject({pages: z.array(ListedSessionsSchema)})
-
-type ListedSessions = z.infer<typeof ListedSessionsSchema>
-
-function withoutListedSession(page: ListedSessions, sessionId: string): ListedSessions {
+function withoutSessionOnPage<Page extends {sessions: readonly {id: string}[]}>(page: Page, sessionId: string): Page {
+  if (!page.sessions.some((session) => session.id === sessionId)) return page
   return {...page, sessions: page.sessions.filter((session) => session.id !== sessionId)}
 }
 
-function withoutSession(data: unknown, sessionId: string): unknown {
-  const pages = ListedSessionPagesSchema.safeParse(data)
-  if (pages.success)
-    return {...pages.data, pages: pages.data.pages.map((page) => withoutListedSession(page, sessionId))}
-  const page = ListedSessionsSchema.safeParse(data)
-  if (page.success) return withoutListedSession(page.data, sessionId)
-  return data
+function withoutSessionInPages<Pages extends {pages: readonly {sessions: readonly {id: string}[]}[]}>(
+  data: Pages | undefined,
+  sessionId: string,
+): Pages | undefined {
+  if (!data?.pages.some((page) => page.sessions.some((session) => session.id === sessionId))) return data
+  return {...data, pages: data.pages.map((page) => withoutSessionOnPage(page, sessionId))}
 }
 
 const DRAFT_SAVE_RETRIES = 3
@@ -123,6 +119,9 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
     void invalidateSession(sessionId)
     return {sessionId}
   }
+  type ListedPages<Procedure extends 'list' | 'search'> = NonNullable<
+    ReturnType<typeof queryClient.getQueryData<unknown, ReturnType<(typeof utils.sessions)[Procedure]['infiniteKey']>>>
+  >
   const reading = new AbortController()
   const forgetDeletedSessions = async () => {
     for await (const event of client.event.subscribe({signal: reading.signal})) {
@@ -131,8 +130,16 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
       await drafts?.removeItem(sessionId).catch((error: unknown) => {
         console.error('[conciv] could not remove the local draft of a deleted session', error)
       })
-      for (const queryKey of listKeys)
-        queryClient.setQueriesData<unknown>({queryKey}, (data: unknown) => withoutSession(data, sessionId))
+      queryClient.setQueriesData<SessionPage>({queryKey: utils.sessions.list.key({type: 'query'})}, (data) =>
+        data ? withoutSessionOnPage(data, sessionId) : data,
+      )
+      queryClient.setQueriesData<ListedPages<'list'>>({queryKey: utils.sessions.list.key({type: 'infinite'})}, (data) =>
+        withoutSessionInPages(data, sessionId),
+      )
+      queryClient.setQueriesData<ListedPages<'search'>>(
+        {queryKey: utils.sessions.search.key({type: 'infinite'})},
+        (data) => withoutSessionInPages(data, sessionId),
+      )
       queryClient.removeQueries({queryKey: sessionKey(sessionId)})
     }
   }
