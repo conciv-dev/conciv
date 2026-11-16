@@ -33,6 +33,7 @@
   "dependencies": {
     "@conciv/extension": "workspace:^",
     "@conciv/grab": "workspace:^",
+    "@conciv/plugin": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "bippy": "catalog:",
     "p-queue": "catalog:",

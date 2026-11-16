@@ -34,6 +34,6 @@ export type Chunks = {
   readonly files: ReadonlyMap<string, {readonly sha256: string; readonly imports: readonly string[]}>
 }
 
-export const Service = Context.Service<Interface>('@opencode/Plugin')
+export const Service = Context.Service<Interface>('@conciv/Plugin')
 
 export const awaitActivation = Service.use((plugins) => plugins.awaitActivation)

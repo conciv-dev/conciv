@@ -30,7 +30,7 @@ export interface Interface {
   readonly scan: (options: ScanOptions) => Effect.Effect<ScanResult>
 }
 
-export const Service = Context.Service<Interface>('@opencode/KV')
+export const Service = Context.Service<Interface>('@conciv/KV')
 
 export const layer = Layer.effect(
   Service,

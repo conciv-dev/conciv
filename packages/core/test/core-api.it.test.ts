@@ -152,7 +152,6 @@ import {z} from 'zod'
 import {makeApp, type MadeApp} from '../src/app.js'
 import {callTrace} from '../src/api/call-trace.js'
 import {resolveConfig} from '../src/config.js'
-import {openSourceFromFrames} from '../src/editor/open-source.js'
 import {originAllowed} from '../src/lib/cors.js'
 import {provideSessions} from '../src/runtime/plugin-sessions.js'
 import {provideServersSource} from '../src/runtime/servers-source.js'
@@ -1516,20 +1515,35 @@ describe('api page open source', () => {
     await cleanupChunks()
   })
 
-  describe('openSourceFromFrames', () => {
-    it('symbolicates frames and opens the resolved file', async () => {
-      const opened: {file?: string; line?: number} = {}
+  describe('editor.openFromFrames', () => {
+    const opened: Array<{file: string; line?: number}> = []
+    const record = (file: string, line?: number) => opened.push({file, ...(line === undefined ? {} : {line})})
+    const withPage = sharedKit(() => bootKit({cwd: tmpdir(), openInEditor: record}))
+    const withoutPage = sharedKit(() => bootKit({cwd: tmpdir(), openInEditor: record, configPlugins: ['-conciv.page']}))
+
+    beforeEach(() => {
+      opened.splice(0)
+    })
+
+    async function openFrames(kit: Kit, frames: {fileName: string; line: number; column: number}[]) {
+      const rpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: await kit.session()}})
+      return rpc.editor.openFromFrames({frames})
+    }
+
+    it('opens the original source a bundled frame points at', async () => {
       const chunk = await chunkWithInlineMap('app/page.tsx', 17, 4)
-      const result = await openSourceFromFrames(
-        [{fileName: `file://${chunk}`, line: 2, column: 1}],
-        tmpdir(),
-        (file, line) => {
-          opened.file = file
-          opened.line = line
-        },
-      )
-      expect(result).toEqual({status: 'opened'})
-      expect(opened).toEqual({file: 'app/page.tsx', line: 17})
+      expect(await openFrames(withPage(), [{fileName: `file://${chunk}`, line: 2, column: 1}])).toEqual({
+        status: 'opened',
+      })
+      expect(opened).toEqual([{file: 'app/page.tsx', line: 17}])
+    })
+
+    it('with the page plugin removed by config, opens the frame as the page gave it', async () => {
+      const chunk = await chunkWithInlineMap('app/page.tsx', 17, 4)
+      expect(await openFrames(withoutPage(), [{fileName: `file://${chunk}`, line: 2, column: 1}])).toEqual({
+        status: 'opened',
+      })
+      expect(opened).toEqual([{file: `file://${chunk}`, line: 2}])
     })
   })
 })
@@ -6381,6 +6395,7 @@ export default {
     expect(seen.plugins.map((plugin) => plugin.id).toSorted()).toEqual([
       'broken',
       'conciv.config.skill',
+      'conciv.page',
       'conciv.skill',
       'conciv.tool.skill',
       'configured',
