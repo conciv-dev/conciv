@@ -18,6 +18,7 @@ The `conciv` CLI, routed with `@bomb.sh/router`. Five top-level commands: `init`
 - `conciv tools` (`tools.ts`): `toolsRoute`, whose children come from the running engine's registry catalog through `dynamic()`: one group per tool-name prefix (`page_snapshot` is `page snapshot`, `acme_beacon` is `acme beacon`; the `page_*` tools are the page plugin's, from core's catalog), a `react` view of the `page_*` tools in category 'react', and one command per prefix-less tool (`open`, and `tabs`: the registry `tabs` tool, every open tab of every live engine)
 - `conciv tools server <op>` (`server.ts`): the catalog's `server_*` tools, each calling `rpc.server[op]` (`callServerOperation`)
 - `conciv tools open <file>` (`open.ts`): the catalog's `open` tool with `file` as its positional; validates with `EditorOpenInputSchema` and calls `rpc.editor.open`
+- `conciv tools page changes [--clear]` (`page.ts`): `pageChangesCommand`, added to the `page` group; calls `rpc.page.changes` or `rpc.page.clearChanges`
 - every other group verb calls `rpc.registry.call({name, input})`
 - `envelopeFlag` (`envelope.ts`): the --json toggle accepted on every route that does not declare its own `json`
 - `tabFlag` (`tab-flag.ts`): `--tab <id>`, zod-parsed as `SessionId`, declared on the root, the tools routes and every tool command that does not declare its own `tab`; `runCli` refuses route models whose `tab`s differ from the flagged one and hands handlers a `CliTarget`

@@ -87,7 +87,7 @@ export type RpcDeps = {
   assist: (sessionId: SessionId) => readonly ConcivServerTool[]
   code: McpVars['mcp']
   tabs: ReturnType<typeof createTabs>
-  queues: Pick<PagePlugin, 'cancelSession'>
+  queues: Pick<PagePlugin, 'cancelSession' | 'changes' | 'clearChanges' | 'attachedSessions'>
   queueWait: PagePlugin['queueWait']
   pluginHost: PluginHost
   answerPermission: PermissionAnswer

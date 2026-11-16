@@ -122,6 +122,10 @@ export function makePagePlugin(host: () => PluginHost) {
         return NO_TABS
       }
     },
+    changes: async (sessionId: SessionId) =>
+      Definition.methods.changes.output.parse(await call('changes', {sessionId})),
+    clearChanges: async (sessionId: SessionId) =>
+      Definition.methods.clearChanges.output.parse(await call('clearChanges', {sessionId})),
     attachedSessions: async (): Promise<SessionId[]> =>
       orNone(
         call('sessions.attached', {}).then((listed) => Definition.methods['sessions.attached'].output.parse(listed)),

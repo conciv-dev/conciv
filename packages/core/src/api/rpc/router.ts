@@ -81,6 +81,8 @@ async function runPluginTool(
   call: {sessionId: SessionId; name: string; input: unknown; callId: string; signal?: AbortSignal},
   errors: RegistryErrors,
 ): Promise<unknown> {
+  if (!(await deps.queues.attachedSessions()).includes(call.sessionId))
+    throw errors.NO_PAGE_CLIENT({message: `${call.name}: no widget connected to session`, cause: undefined})
   const exit = await deps.pluginHost.runPromiseExit(
     callPluginTool(call.sessionId, call.name, call.input, call.callId),
     {signal: call.signal},
@@ -407,6 +409,12 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         ),
       },
       symbolicate: os.page.symbolicate.handler(({input}) => engine.symbolicate(input.frames)),
+      changes: sessionOs.page.changes.handler(({context}) =>
+        hubTraced(context, 'page_changes', {}, () => deps.queues.changes(context.session.id)),
+      ),
+      clearChanges: sessionOs.page.clearChanges.handler(({context}) =>
+        hubTraced(context, 'page_clear_changes', {}, () => deps.queues.clearChanges(context.session.id)),
+      ),
       queries: sessionOs.page.queries.handler(({context, signal}) =>
         context.session.page.queries(signal ?? new AbortController().signal),
       ),

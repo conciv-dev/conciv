@@ -709,6 +709,7 @@ export function selectTarget(
       error: Tool.toolError({
         message:
           '[page.disconnected] No page is open in this session. Ask the user to open the page with the conciv panel and wait for it to connect. Then call page.tabs.list({}). Repeating page actions while disconnected will not help.',
+        metadata: {code: 'no-widget', message: 'no widget connected to session'},
       }),
     }
 

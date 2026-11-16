@@ -1,7 +1,7 @@
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, test, vi} from 'vitest'
 import {randomUUID} from 'node:crypto'
-import {isEqual} from 'es-toolkit'
+import {differenceBy, isEqual} from 'es-toolkit'
 import {main as cliMain} from '../src/main.js'
 import {runCli} from '../src/run.js'
 import {execFile, execFileSync, spawn, spawnSync} from 'node:child_process'
@@ -1710,7 +1710,23 @@ describe('cli', () => {
       {row: 'conciv tools page eval', action: {type: 'eval', code: 'document.title'}, value: {result: 'Example'}},
     ]
 
-    describe('every conciv tools page row runs through conciv plugin call experimental.page run', () => {
+    const pageTools = async (held: {engine?: {root: string; sessionId: string}; home: string}, args: string[]) => {
+      const {engine} = held
+      if (engine === undefined) throw new Error('the engine with a tab did not start')
+      return binCall(engine.root, ['tools', 'page', ...args], {
+        CONCIV_HOME: held.home,
+        CONCIV_SESSION_ID: engine.sessionId,
+      })
+    }
+    const pageArguments = ({type, selector, ...flags}: {type: string} & Record<string, unknown>): string[] => [
+      type,
+      ...(typeof selector === 'string' ? [selector] : []),
+      ...Object.entries(flags).flatMap(([flag, given]) =>
+        [given].flat().flatMap((value) => [`--${flag}`, typeof value === 'string' ? value : JSON.stringify(value)]),
+      ),
+    ]
+
+    describe('every conciv tools page row runs through conciv tools page', () => {
       const seen = new Map<string, unknown>()
       const queues = new EventTarget()
       const accepted: Array<{id: string; of: number}> = []
@@ -1748,11 +1764,16 @@ describe('cli', () => {
       })
       afterAll(async () => held.engine?.engine.stop())
 
+      const tools = async (args: string[]) => pageTools(held, args)
+
       it.each(PAGE_ROWS)('$row', async ({action, value}) => {
         const {engine} = held
         if (engine === undefined) throw new Error('the engine with a tab did not start')
-        const data = JSON.stringify({sessionId: engine.sessionId, action})
-        const calling = pluginCall(engine.root, held.home, ['experimental.page', 'run', '--data', data])
+        if (action.type === 'eval') {
+          expect(await tools(pageArguments(action))).toMatchObject({code: 1, document: {ok: false}})
+          expect(await approvePending(engine.base, engine.sessionId)).toHaveLength(1)
+        }
+        const calling = tools(pageArguments(action))
         const queued = action.type === 'queue' || action.type === 'queue_async' ? await nextQueue() : undefined
         if (action.type === 'queue' && queued !== undefined) await answerPlayed(queued.id)
         if (action.type === 'queue_async') expect(queued).toMatchObject({of: 1})
@@ -1785,13 +1806,9 @@ describe('cli', () => {
       it('conciv plugin call experimental.page queue.wait is a peek: a second call answers the result the first delivered', async () => {
         const {engine} = held
         if (engine === undefined) throw new Error('the engine with a tab did not start')
-        const action = {type: 'queue_async', actions: [{tool: 'page_click', selector: 'button'}]}
-        const starting = pluginCall(engine.root, held.home, [
-          'experimental.page',
-          'run',
-          '--data',
-          JSON.stringify({sessionId: engine.sessionId, action}),
-        ])
+        const starting = tools(
+          pageArguments({type: 'queue_async', actions: [{tool: 'page_click', selector: 'button'}]}),
+        )
         const queue = await nextQueue()
         expect(await starting).toMatchObject({code: 0, document: {ok: true}})
         await answerPlayed(queue.id)
@@ -1816,12 +1833,6 @@ describe('cli', () => {
       const held: {engine?: Awaited<ReturnType<typeof engineWithTab>>; home: string} = {
         home: tempDir('conciv-home-'),
       }
-      const run = async (action: Record<string, unknown>, sessionId?: string) => {
-        const {engine} = held
-        if (engine === undefined) throw new Error('the engine with a tab did not start')
-        const data = JSON.stringify({sessionId: sessionId ?? engine.sessionId, action})
-        return pluginCall(engine.root, held.home, ['experimental.page', 'run', '--data', data])
-      }
       const method = async (name: string) => {
         const {engine} = held
         if (engine === undefined) throw new Error('the engine with a tab did not start')
@@ -1844,14 +1855,7 @@ describe('cli', () => {
       })
       afterAll(async () => held.engine?.engine.stop())
 
-      const tools = async (args: string[]) => {
-        const {engine} = held
-        if (engine === undefined) throw new Error('the engine with a tab did not start')
-        return binCall(engine.root, ['tools', 'page', ...args], {
-          CONCIV_HOME: held.home,
-          CONCIV_SESSION_ID: engine.sessionId,
-        })
-      }
+      const tools = async (args: string[]) => pageTools(held, args)
 
       it('page fill drives registry.call and prints one success envelope with exit 0, --json or not', async () => {
         answering.next = {type: 'success', result: {value: {ok: true, value: 'a@b.c'}, files: []}}
@@ -1899,27 +1903,32 @@ describe('cli', () => {
       it('page eval from a caller naming its tab runs with no card', async () => {
         const {engine} = held
         if (engine === undefined) throw new Error('the engine with a tab did not start')
+        const pending = async () => (await engine.page.chat.hydrate({sessionId: engine.sessionId})).pendingApprovals
+        const before = await pending()
         answering.next = {type: 'success', result: {value: {result: 'Example'}, files: []}}
         const answered = binCall(
           tempDir('conciv-elsewhere-'),
           ['tools', 'page', 'eval', '--code', 'document.title', '--tab', engine.sessionId],
           {CONCIV_HOME: held.home},
         )
-        const pending = async () => (await engine.page.chat.hydrate({sessionId: engine.sessionId})).pendingApprovals
-        await vi.waitFor(async () => expect(await pending()).toHaveLength(1), {timeout: 5000})
-        const [ask] = await pending()
+        const asked = async () => differenceBy(await pending(), before, (ask) => ask.approvalId)
+        await vi.waitFor(async () => expect(await asked()).toHaveLength(1), {timeout: 5000})
+        const [ask] = await asked()
         expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
         await engine.page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: true})
         expect(await answered).toEqual({code: 0, document: {ok: true, data: {result: 'Example'}}})
         expect(answering.seen).toMatchObject([{action: {type: 'eval', code: 'document.title'}}])
-        expect(await pending()).toEqual([])
+        expect(await pending()).toEqual(before)
       })
 
       it('page snapshot with no widget fails as a user error with the declared code and exit 1', async () => {
         const {engine} = held
         if (engine === undefined) throw new Error('the engine with a tab did not start')
         const {sessionId} = await makeRpcClient(engine.base).sessions.create(undefined)
-        const answered = await run({type: 'snapshot'}, sessionId)
+        const answered = await binCall(engine.root, ['tools', 'page', 'snapshot'], {
+          CONCIV_HOME: held.home,
+          CONCIV_SESSION_ID: sessionId,
+        })
         expect(answering.seen).toEqual([])
         expect(answered).toMatchObject({
           code: 1,
@@ -1927,17 +1936,15 @@ describe('cli', () => {
             ok: false,
             error: {
               kind: 'user',
-              code: 'PLUGIN_RPC',
-              type: 'unavailable',
-              data: {},
-              message: expect.stringContaining('[page.disconnected] No page is open in this session'),
+              code: 'NO_PAGE_CLIENT',
+              message: expect.stringContaining('page_snapshot: no widget connected to session'),
             },
           },
         })
       })
 
       it('page wait with an invalid --state is a user error before any rpc call', async () => {
-        const answered = await run({type: 'wait', selector: '#x', state: 'bogus'})
+        const answered = await tools(['wait', '#x', '--state', 'bogus'])
         expect(answered.code).toBe(1)
         expect(answering.seen).toEqual([])
         expect(answered.document).toMatchObject({ok: false, error: {kind: 'user'}})
@@ -1947,14 +1954,14 @@ describe('cli', () => {
 
       it('page changes lists the journal in an envelope and --clear resets it', async () => {
         answering.next = {type: 'success', result: {value: {ok: true, value: 'Ada'}, files: []}}
-        await run({type: 'fill', selector: '#name', value: 'Ada'})
+        await tools(['fill', '#name', '--value', 'Ada'])
         expect(answering.seen).toMatchObject([{action: {type: 'fill'}}])
-        expect(await method('changes')).toMatchObject({
+        expect(await tools(['changes'])).toMatchObject({
           code: 0,
           document: {ok: true, data: [{verb: 'page_fill', selector: '#name'}]},
         })
-        expect(await method('clearChanges')).toEqual({code: 0, document: {ok: true, data: {ok: true}}})
-        expect(await method('changes')).toEqual({code: 0, document: {ok: true, data: []}})
+        expect(await tools(['changes', '--clear'])).toEqual({code: 0, document: {ok: true, data: {ok: true}}})
+        expect(await tools(['changes'])).toEqual({code: 0, document: {ok: true, data: []}})
       })
     })
 
