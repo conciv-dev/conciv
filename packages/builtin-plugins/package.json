@@ -21,7 +21,6 @@
   },
   "dependencies": {
     "@conciv/extension": "workspace:^",
-    "@conciv/extension-page": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/page": "workspace:^",
     "@conciv/plugin": "workspace:^",
