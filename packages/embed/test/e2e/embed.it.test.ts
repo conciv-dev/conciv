@@ -40,7 +40,7 @@ import {until} from '@conciv/harness-testkit/until'
 import {GRAB_MIME, parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-attachment'
 import {watchChatWire} from '@conciv/plugin-testkit/chat-wire'
 import recorderServer, {type RecorderRouter} from '@conciv/extension-recorder/server'
-import type {SessionCaptures} from '@conciv/protocol/element-capture-types'
+import {SessionCapturesSchema, type SessionCaptures} from '@conciv/protocol/element-capture-types'
 import {CHAT_WS_PATH, SessionId} from '@conciv/protocol/chat-types'
 import {holdRpcCalls, failRpcCalls, gateRpcCalls} from '@conciv/plugin-testkit/rpc-fault'
 import {fileURLToPath} from 'node:url'
@@ -569,11 +569,9 @@ test.describe('element capture', () => {
 
   let kit: EmbedKit
   let host: {base: string; close: () => Promise<void>}
-  let sessionId: string
 
   test.beforeAll(async () => {
     kit = await bootEmbedKit()
-    sessionId = await kit.session()
     host = await serveWidgetHost(() =>
       hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
     )
@@ -590,6 +588,39 @@ test.describe('element capture', () => {
     return stored.captures.map((row) => `${row.toolCallId}:${row.kind}:${JSON.stringify(row.capture)}`).toSorted()
   }
 
+  async function storedCaptures(capturesSessionId: string): Promise<SessionCaptures> {
+    return SessionCapturesSchema.parse(
+      await kit.rpc.plugin.call({
+        rpcId: 'experimental.page',
+        method: 'captures.list',
+        input: {sessionId: capturesSessionId},
+      }),
+    )
+  }
+
+  async function openSessionPanel(page: Page, label: string): Promise<string> {
+    const fresh = await kit.rpc.sessions.create()
+    const title = `${label} ${fresh.sessionId.slice(-12)}`
+    await kit.rpc.sessions.rename({sessionId: fresh.sessionId, title})
+    await openHostPage(page)
+    await openPanel(page)
+    await switchToSessionByTitle(page, title)
+    return fresh.sessionId
+  }
+
+  async function runInChat(page: Page, chatSessionId: string, typescriptCode: string): Promise<string> {
+    const toolCallId = kit.harness.script.scriptToolCall('execute_typescript', {typescriptCode})
+    await sendAndSettle(page, 'run the page tool')
+    const {messages} = await kit.rpc.chat.hydrate({sessionId: chatSessionId})
+    return messages
+      .flatMap((message) =>
+        message.parts.flatMap((part) =>
+          part.type === 'tool-result' && part.toolCallId === toolCallId ? [part.content] : [],
+        ),
+      )
+      .join('\n')
+  }
+
   async function sendAndSettle(page: Page, message: string): Promise<void> {
     await page.getByRole('textbox', {name: 'Message the conciv agent'}).fill(message)
     await page.getByRole('button', {name: 'Send message'}).click()
@@ -599,9 +630,13 @@ test.describe('element capture', () => {
   test.describe('a page tool run through the widget stores a frozen picture of the element it touched', () => {
     test('never lets a password value reach the stored capture or the tool result', async ({page}) => {
       test.setTimeout(90_000)
-      await openHostPage(page)
-      const result = await kit.callTool('page_fill', {selector: '#secret', value: 'typed by the agent'}, sessionId)
-      const stored: SessionCaptures = await kit.rpc.captures.list({sessionId})
+      const chatSessionId = await openSessionPanel(page, 'password fill')
+      const result = await runInChat(
+        page,
+        chatSessionId,
+        "return await external_page_fill({selector: '#secret', value: 'typed by the agent'})",
+      )
+      const stored = await storedCaptures(chatSessionId)
       const secretCaptures = stored.captures.filter((row) => row.capture.descriptor.selectorPath.includes('secret'))
       expect(secretCaptures.map((row) => row.kind).toSorted()).toEqual(['after'])
       for (const row of secretCaptures) expect(JSON.stringify(row.capture)).not.toContain(PASSWORD)
@@ -611,8 +646,9 @@ test.describe('element capture', () => {
 
     test('hands the harness a result with no capture in it', async ({page}) => {
       test.setTimeout(90_000)
-      await openHostPage(page)
-      const result = await kit.callTool('page_click', {selector: '#cta'}, sessionId)
+      const chatSessionId = await openSessionPanel(page, 'harness result')
+      const result = await runInChat(page, chatSessionId, "return await external_page_click({selector: '#cta'})")
+      expect(result).toContain('"success":true')
       expect(JSON.stringify(result)).not.toContain('cssBundleId')
       expect(JSON.stringify(result)).not.toContain('selectorPath')
       expect(JSON.stringify(result)).not.toContain('data-rr-target')
@@ -620,10 +656,11 @@ test.describe('element capture', () => {
 
     test('takes no capture for a read verb', async ({page}) => {
       test.setTimeout(90_000)
-      await openHostPage(page)
-      const before: SessionCaptures = await kit.rpc.captures.list({sessionId})
-      await kit.callTool('page_text', {selector: '#cta'}, sessionId)
-      const after: SessionCaptures = await kit.rpc.captures.list({sessionId})
+      const chatSessionId = await openSessionPanel(page, 'read verb')
+      const before = await storedCaptures(chatSessionId)
+      const result = await runInChat(page, chatSessionId, "return await external_page_text({selector: '#cta'})")
+      expect(result).toContain('"success":true')
+      const after = await storedCaptures(chatSessionId)
       expect(rowIdentities(after)).toEqual(rowIdentities(before))
     })
 
