@@ -569,6 +569,37 @@ describe('chat pane', () => {
     expect(await rpc.drafts.get({sessionId})).toMatchObject({text: 'typed after a newer tab'})
   })
 
+  test('a draft the engine never took comes back from this device when the pane mounts again, with its image', async () => {
+    const {sessionId} = await newSession()
+    const write = await faults.install({kind: 'gate', path: ['drafts', 'set']})
+    mountChatPane(sessionId)
+    await userEvent.click(input())
+    await userEvent.keyboard('typed while the engine held every save')
+    await coreControl.awaitFaultPending(write, 1)
+    active.pane?.dispose()
+
+    mountChatPane(sessionId)
+
+    await expect.element(input()).toHaveTextContent('typed while the engine held every save')
+    await coreControl.awaitFaultPending(write, 2)
+    active.pane?.dispose()
+    const store = createBrowserDraftStore()
+    const image = await store.putBlob(new Blob(['the bytes of kept.png'], {type: 'image/png'}))
+    await store.setDocument(sessionId, {
+      text: 'typed while the engine held every save',
+      selectionStart: 0,
+      selectionEnd: 0,
+      attachments: [
+        {id: 'kept-image', type: 'image', name: 'kept.png', contentType: 'image/png', blob: {id: image.id}},
+      ],
+    })
+
+    mountChatPane(sessionId)
+
+    await expect.element(page.getByRole('button', {name: 'Remove kept.png'})).toBeVisible()
+    await expect.element(input()).toHaveTextContent('typed while the engine held every save')
+  })
+
   describe('the composer never waits on the server draft', () => {
     const DRAFT_GET_PATH = ['drafts', 'get']
     const shell = createShellHarness(core)
