@@ -61,6 +61,8 @@ import {
 } from '../src/tools/element-capture.fixtures.js'
 import {ElementPreview} from '../src/tools/styled/element-preview.js'
 import {ModelSelector, type ModelOption} from '../src/primitives/model-selector/model-selector.js'
+import {Thread as ThreadPrimitive} from '../src/primitives/thread/thread.js'
+import {Suggestion} from '../src/primitives/suggestion/suggestion.js'
 
 describe('action bar copy', () => {
   const COPIED_MS = 2_000
@@ -1624,5 +1626,58 @@ describe('model selector', () => {
 
     await expect.element(page.getByText('Claude Sonnet 4.6'), {timeout: 2000}).toBeVisible()
     await expect.element(page.getByText('Claude Haiku 4.5'), {timeout: 2000}).toBeVisible()
+  })
+})
+
+describe('suggestions', () => {
+  it('a suggestion the engine refuses reports the refusal through the send error path', async () => {
+    const [failures, setFailures] = createStore<string[]>([])
+    const hydration: ChatSessionHydration = {messages: [], messageHarness: {}, lastRun: null, pendingApprovals: []}
+    const refusingConnection = (): ChatSessionConnection => ({
+      subscribe: async function* (signal) {
+        await new Promise((resolve) => signal?.addEventListener('abort', resolve, {once: true}))
+        yield* []
+      },
+      send: () => Promise.reject(new Error('the engine refused the send')),
+      refresh: () => Promise.resolve(hydration),
+      close: () => undefined,
+    })
+    function RefusingHost(): JSX.Element {
+      const session = createChatSession({
+        sessionId: 'suggestions-refused',
+        connect: refusingConnection,
+        stop: () => Promise.resolve(),
+        decide: () => Promise.resolve({startsTurn: false}),
+      })
+      const handlers: ComposerHandlers = {
+        onSendError: (error) => setFailures(failures.length, error instanceof Error ? error.message : String(error)),
+      }
+      return (
+        <ChatProvider chat={session}>
+          <ComposerHandlersProvider value={handlers}>
+            <ThreadPrimitive.Suggestions each={[{title: 'Explain', label: 'the code', prompt: 'explain the code'}]}>
+              {() => (
+                <Suggestion.Trigger send>
+                  <Suggestion.Title />
+                </Suggestion.Trigger>
+              )}
+            </ThreadPrimitive.Suggestions>
+            <ThreadPrimitive.Suggestion prompt="fix the bug" send>
+              Fix the bug
+            </ThreadPrimitive.Suggestion>
+            <For each={failures}>{(failure) => <p>send failed: {failure}</p>}</For>
+          </ComposerHandlersProvider>
+        </ChatProvider>
+      )
+    }
+    mountView(() => <RefusingHost />)
+    const refusals = page.getByText('send failed: the engine refused the send')
+
+    await userEvent.click(page.getByRole('button', {name: 'Explain'}))
+    await expect.element(refusals).toBeVisible()
+    expect(refusals.elements()).toHaveLength(1)
+
+    await userEvent.click(page.getByRole('button', {name: 'Fix the bug'}))
+    await expect.poll(() => refusals.elements()).toHaveLength(2)
   })
 })
