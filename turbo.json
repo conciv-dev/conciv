@@ -4,7 +4,7 @@
   "globalPassThroughEnv": ["PLAYWRIGHT_BROWSERS_PATH"],
   "concurrency": "50%",
   "cacheMaxAge": "7d",
-  "cacheMaxSize": "10GB",
+  "cacheMaxSize": "5GB",
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
