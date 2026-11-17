@@ -7628,9 +7628,11 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
   const row = (id: string, enabled: boolean) => ({id, builtin: false, enabled, server: true})
   const builtinPage = {id: 'page', builtin: true, enabled: true}
   const builtinTestRunnerCard = {id: 'test-runner-card', builtin: true, enabled: true}
+  const builtinTerminal = {id: 'terminal', builtin: true, enabled: true}
   const rows = (pane: boolean) => [
     builtinPage,
     builtinTestRunnerCard,
+    builtinTerminal,
     row('pane', pane),
     {...row('broken', true), error: expect.stringMatching(/./)},
   ]
