@@ -1,7 +1,6 @@
 {
   "name": "@conciv/plugin-test-runner",
   "version": "0.0.22",
-  "private": true,
   "description": "The conciv test-runner plugin: runs the project's tests (vitest, playwright) from code mode and streams live results over plugin RPC.",
   "keywords": [
     "conciv",
@@ -52,7 +51,7 @@
     "lint": "oxlint",
     "test": "vitest run",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "attw --pack . --profile esm-only --exclude-entrypoints plugin-experimental"
   },
   "dependencies": {
     "zod": "catalog:"

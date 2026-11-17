@@ -541,6 +541,7 @@
     "@conciv/plugin-host",
     "@conciv/plugin-page",
     "@conciv/plugin-recorder",
+    "@conciv/plugin-test-runner",
     "@conciv/plugin-whiteboard",
     "@conciv/preact",
     "@conciv/protocol",
