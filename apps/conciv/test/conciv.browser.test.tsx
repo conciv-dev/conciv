@@ -4604,7 +4604,9 @@ describe('a deleted session', () => {
     expect(harness.href()).not.toContain(deletedId)
   }, 40_000)
 
-  test('compacting a session deleted elsewhere says it cannot be compacted', async () => {
+  test('compacting a session deleted elsewhere and compacting an id no session ever had both say the session no longer exists', async () => {
+    const NO_LONGER_EXISTS = 'This session no longer exists.'
+    const OLD_DELETED_SENTENCE = 'This session was deleted, so it cannot be compacted.'
     const rpc = coreRpc(core())
     const sessionId = await createSession(rpc)
     harness.mountShell(`/panel/${sessionId}?open=true`)
@@ -4615,11 +4617,19 @@ describe('a deleted session', () => {
     await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
     await userEvent.click(page.getByRole('menuitem', {name: 'Compress the conversation'}))
 
-    await expect
-      .element(notifications().getByText('This session was deleted, so it cannot be compacted.', {exact: true}), {
-        timeout: 8000,
-      })
-      .toBeVisible()
+    await expect.element(notifications().getByText(NO_LONGER_EXISTS, {exact: true}), {timeout: 8000}).toBeVisible()
+    await expect.element(notifications().getByText(OLD_DELETED_SENTENCE, {exact: true})).not.toBeInTheDocument()
+
+    harness.dispose()
+    await faults.releaseAll()
+    harness.mountShell(`/panel/conciv_${crypto.randomUUID()}?open=true`)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+
+    await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
+    await userEvent.click(page.getByRole('menuitem', {name: 'Compress the conversation'}))
+
+    await expect.element(notifications().getByText(NO_LONGER_EXISTS, {exact: true}), {timeout: 8000}).toBeVisible()
+    await expect.element(notifications().getByText(OLD_DELETED_SENTENCE, {exact: true})).not.toBeInTheDocument()
   }, 30_000)
 })
 

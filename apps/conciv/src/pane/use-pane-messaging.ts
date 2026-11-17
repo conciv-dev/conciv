@@ -9,7 +9,7 @@ import {useLiveSessions} from '../app/context.js'
 import type {EngineNotices} from '../shell/notice-context.js'
 import {checkSend, checkSendState, type SendState, type SendVerdict} from './send-checks.js'
 import {SESSION_DELETED_MESSAGE, sessionDeleted} from './run-error-row.js'
-import {rpcErrorCode} from '../shell/rpc-error-message.js'
+import {rpcErrorCode, SESSION_NOT_FOUND_MESSAGE} from '../shell/rpc-error-message.js'
 
 const SendRejectionSchema = z.object({
   rejected: z.literal(true),
@@ -24,7 +24,7 @@ function sendRejection(verdict: Extract<SendVerdict, {ok: false}>): SendRejectio
 }
 
 function compactFailureMessage(error: unknown): string {
-  if (rpcErrorCode(error) === 'NOT_FOUND') return 'This session was deleted, so it cannot be compacted.'
+  if (rpcErrorCode(error) === 'NOT_FOUND') return SESSION_NOT_FOUND_MESSAGE
   return 'Compaction failed. The session may be busy. Try again in a moment.'
 }
 
