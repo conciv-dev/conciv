@@ -91,9 +91,14 @@ test('the widget start requests only the libraries every session needs', async (
   const failures = collectFailures(page)
   await loginWidget(page)
   await expectWidgetBoots(page, failures)
-  await expect(page.getByRole('tab', {name: 'Terminal'})).toBeVisible()
-  const sources = optimizedSources(e2eConfigDir(test.info().config.configFile))
-  expect(requestedLibraries(paths, sources)).toEqual(START_LIBRARIES)
+  const terminalTab = page.getByRole('tab', {name: 'Terminal'})
+  await expect(terminalTab).toBeVisible()
+  const configDir = e2eConfigDir(test.info().config.configFile)
+  expect(requestedLibraries(paths, optimizedSources(configDir))).toEqual(START_LIBRARIES)
+
+  await terminalTab.click()
+  await expect(page.getByRole('textbox', {name: 'Terminal input'})).toBeAttached()
+  expect(requestedLibraries(paths, optimizedSources(configDir))).toContain('@xterm/xterm')
 })
 
 test('files a harness writes into its e2e home do not reload the page', async ({page}) => {
