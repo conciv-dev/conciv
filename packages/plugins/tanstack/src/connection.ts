@@ -23,6 +23,15 @@ import {Definition, type Action, type Result} from './rpc.js'
 
 const Options = z.object({replyTimeoutMs: z.number().int().positive().default(5000)})
 
+const SessionNotFound = z.object({_tag: z.literal('Session.NotFoundError')})
+
+function refusalReason(sessionId: SessionId, error: unknown): Effect.Effect<string> {
+  if (SessionNotFound.safeParse(error).success) return Effect.succeed(`session "${sessionId}" does not exist`)
+  return Effect.logWarning(`TanStack could not open session ${sessionId}`, error).pipe(
+    Effect.as(`Session ${sessionId} could not be opened: ${error instanceof Error ? error.message : String(error)}`),
+  )
+}
+
 const TRANSPORT_CODES: readonly string[] = ['disconnected', 'connecting', 'timeout', 'tab_unavailable']
 
 type SyncEffect = Extract<ConnectionEffect, {readonly type: 'sync-permissions'}>
@@ -120,7 +129,13 @@ export const make = Effect.fn('TanstackConnection.make')(function* (
         Effect.gen(function* () {
           const session = yield* ctx.session
             .get({sessionId: input.sessionId})
-            .pipe(Effect.mapError(() => call.error('unavailable', 'Session not found.', {})))
+            .pipe(
+              Effect.catch((error) =>
+                refusalReason(input.sessionId, error).pipe(
+                  Effect.flatMap((reason) => Effect.fail(call.error('unavailable', reason, {}))),
+                ),
+              ),
+            )
           if (session.location.directory !== ctx.location.directory)
             return yield* Effect.fail(call.error('unavailable', 'Session belongs to another location.', {}))
           return yield* Effect.acquireUseRelease(
