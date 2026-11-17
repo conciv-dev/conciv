@@ -50,13 +50,14 @@ function NoteChip(props: {note: NoteComment}): JSX.Element {
 }
 
 function PluginNoteCard(props: {
-  note: NoteCardProps['note']
+  note: NoteComment
   session: MountedSession | undefined
   remove?: {label: string; onRemove: () => void}
 }): JSX.Element {
   const host = usePluginHost()
   const [state, setState] = createStore({declined: false})
   const decline = () => setState('declined', true)
+  const pluginNote = createMemo((): NoteCardProps['note'] => ({...props.note, icon: noteIcon(props.note.icon)}))
   const claimant = createMemo(() =>
     state.declined ? undefined : host.items(NoteCard).find((item) => item.value.origins.includes(props.note.origin)),
   )
@@ -69,7 +70,7 @@ function PluginNoteCard(props: {
             {() => {
               const drawn = item.value.render({
                 get note() {
-                  return props.note
+                  return pluginNote()
                 },
                 get session() {
                   return props.session
@@ -94,9 +95,7 @@ function PluginNoteCard(props: {
 
 export function ComposerNotes(props: {session: Accessor<MountedSession | undefined>; onRemoved: () => void}) {
   const context = useComposerContext()
-  const notes = createMemo(() =>
-    decodeNotes(context.items()).map((entry) => ({...entry, note: {...entry.note, icon: noteIcon(entry.note.icon)}})),
-  )
+  const notes = createMemo(() => decodeNotes(context.items()))
   const remove = (key: string) => {
     context.removeItem(key)
     props.onRemoved()
@@ -138,15 +137,11 @@ export function SentNotes(props: {
       <div class="flex flex-col items-start gap-2 w-full max-w-80">
         <ul aria-label="Notes on this message" class="flex flex-col gap-2 w-full list-none p-0">
           <For each={shown()}>
-            {(note) => {
-              const shownNote = {...note, icon: noteIcon(note.icon)}
-
-              return (
-                <li class="flex flex-col">
-                  <PluginNoteCard note={shownNote} session={props.session()} />
-                </li>
-              )
-            }}
+            {(note) => (
+              <li class="flex flex-col">
+                <PluginNoteCard note={note} session={props.session()} />
+              </li>
+            )}
           </For>
         </ul>
         <Show when={collapsed() && notes().length > SENT_NOTE_BOUND}>
