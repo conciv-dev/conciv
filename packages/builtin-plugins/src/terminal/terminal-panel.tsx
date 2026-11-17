@@ -12,15 +12,24 @@ type TerminalSize = {readonly cols: number; readonly rows: number}
 
 type PtyRequest = {readonly sessionId: string; readonly size: TerminalSize; readonly model: string | undefined}
 
+function resolvedColor(probe: HTMLElement, token: string): string | undefined {
+  probe.style.color = `var(${token})`
+  const color = getComputedStyle(probe).color
+  return color === '' ? undefined : color
+}
+
 function readTerminalTheme(element: Element): TerminalTheme {
-  const style = getComputedStyle(element)
-  const resolved = (value: string) => (value === '' ? undefined : value)
-  return {
-    background: resolved(style.backgroundColor),
-    foreground: resolved(style.color),
-    cursor: resolved(style.color),
-    selectionBackground: resolved(style.borderTopColor),
+  const probe = document.createElement('span')
+  element.append(probe)
+  const text = resolvedColor(probe, '--chat-text-hi')
+  const theme = {
+    background: resolvedColor(probe, '--chat-panel'),
+    foreground: text,
+    cursor: text,
+    selectionBackground: resolvedColor(probe, '--chat-fill-strong'),
   }
+  probe.remove()
+  return theme
 }
 
 async function openPty(server: ServerRef, request: PtyRequest): Promise<{ptyId: string; url: string}> {
@@ -111,7 +120,7 @@ export function TerminalPanel(props: {session: MountedSession; terminal: Termina
       ref={(element) => {
         host.element = element
       }}
-      class="text-chat-text-hi border-chat-fill-strong bg-chat-panel flex flex-1 flex-col min-h-0"
+      class="bg-chat-panel flex flex-1 flex-col min-h-0"
     >
       <Show
         when={failure()}
