@@ -57,10 +57,8 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
   if (options.enabled === false) return {...nextConfig, env: baseEnv, serverExternalPackages}
   const port = options.port ?? CONCIV_DEFAULT_PORT
   const resolved: ConcivConfig = {...options, port}
-  const concivEnv = {
-    NEXT_PUBLIC_CONCIV_PORT: String(port),
-    CONCIV_OPTIONS: JSON.stringify(resolved),
-  }
+  const widgetEnv = options.widget === false ? {} : {NEXT_PUBLIC_CONCIV_PORT: String(port)}
+  const concivEnv = {...widgetEnv, CONCIV_OPTIONS: JSON.stringify(resolved)}
   for (const [key, value] of Object.entries(concivEnv)) {
     if (process.env[key] === undefined) process.env[key] = value
   }

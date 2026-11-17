@@ -89,14 +89,15 @@ export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<
     }
     const serveWidgetInDevelopment = (compiler: BundlerCompiler) => {
       if (options.enabled === false || (compiler.options.mode ?? 'production') === 'production') return
-      const client = writeWidgetClient(compiler.context, bundlerOptions.port)
-      compiler.options.resolve.alias = withAlias(compiler.options.resolve.alias, APP_EXTENSIONS_SPECIFIER, client)
-      new compiler.webpack.EntryPlugin(compiler.context, client, {name: undefined}).apply(compiler)
       compiler.hooks.watchRun.tapPromise('conciv', async () => {
         await startEngine()
       })
       compiler.hooks.watchClose.tap('conciv', stopEngine)
       compiler.hooks.shutdown.tapPromise('conciv', stopEngine)
+      if (options.widget === false) return
+      const client = writeWidgetClient(compiler.context, bundlerOptions.port)
+      compiler.options.resolve.alias = withAlias(compiler.options.resolve.alias, APP_EXTENSIONS_SPECIFIER, client)
+      new compiler.webpack.EntryPlugin(compiler.context, client, {name: undefined}).apply(compiler)
     }
 
     return {
