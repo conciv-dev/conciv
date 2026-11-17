@@ -11,35 +11,12 @@ import {connectMcpClient, makeDiscoverTools} from '@conciv/harness-testkit'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import type {BundlerBridge, BundlerDiagnostic} from '@conciv/protocol/bundler-types'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {Definition} from '../src/rpc.js'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 const FIXTURES = join(PACKAGE_DIR, 'test', 'fixtures')
 const CLI_BIN = fileURLToPath(import.meta.resolve('@conciv/cli/bin'))
 
-const RoutesSchema = z.array(
-  z.object({path: z.string(), kind: z.string(), dynamic: z.boolean(), file: z.string().nullable()}),
-)
-const AppErrorsSchema = z.array(
-  z.object({
-    kind: z.string(),
-    message: z.string(),
-    source: z.object({file: z.string(), line: z.number(), column: z.number()}).nullable(),
-  }),
-)
-const TracePayloadSchema = z.object({
-  traces: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string(),
-      durationMs: z.number(),
-      status: z.enum(['ok', 'error']),
-      at: z.number(),
-    }),
-  ),
-  functions: z.array(
-    z.object({id: z.string(), name: z.string(), route: z.string().nullable(), file: z.string().nullable()}),
-  ),
-})
 const ExecuteFailureSchema = z.object({error: z.object({message: z.string(), name: z.literal('Error')})})
 
 const SERVER_FN = {file: '/src/x.ts', export: 'getThing_createServerFn_handler'}
@@ -142,7 +119,7 @@ describe('the tanstack plugin without a bundler', () => {
       expect(loaded).toContain(name)
     }
 
-    const routes = RoutesSchema.parse(await useTool(kit, 'route_manifest'))
+    const routes = Definition.methods.routeManifest.output.parse(await useTool(kit, 'route_manifest'))
     expect(routes.map((route) => route.path)).toEqual(expect.arrayContaining(['/', '/about', '/form']))
     expect(routes.find((route) => route.kind === 'layout')?.file).toContain('__root')
     const about = routes.find((route) => route.path === '/about')
@@ -156,7 +133,7 @@ describe('the tanstack plugin without a bundler', () => {
       'src/routeTree.gen.ts',
       fixtureFiles('double-quoted-manifest-app')['src/routeTree.gen.ts'] ?? 'missing fixture',
     )
-    const quoted = RoutesSchema.parse(await useTool(kit, 'route_manifest'))
+    const quoted = Definition.methods.routeManifest.output.parse(await useTool(kit, 'route_manifest'))
     expect(quoted.map((route) => route.path)).toEqual(expect.arrayContaining(['/', '/posts/$postId']))
     const dynamic = quoted.find((route) => route.path === '/posts/$postId')
     expect(dynamic?.kind).toBe('page')
@@ -394,7 +371,7 @@ describe('the tanstack plugin on a real Vite dev server', () => {
     await fetch(`${viteBase}/broken.ts`, {headers: {'sec-fetch-dest': 'script'}}).catch(() => undefined)
     await failed
     const buildErrors = await useTool(kit, 'build_errors')
-    const buildError = AppErrorsSchema.parse(buildErrors).find((error) => error.kind === 'build')
+    const buildError = Definition.methods.buildErrors.output.parse(buildErrors).find((error) => error.kind === 'build')
     expect(buildError?.message.length).toBeGreaterThan(0)
     expect(buildError?.source?.file).toContain('broken.ts')
     expect(await terminalCall(kit, 'buildErrors')).toEqual({ok: true, data: buildErrors})
@@ -406,7 +383,7 @@ describe('the tanstack plugin on a real Vite dev server', () => {
     await fetch(`${viteBase}/`).catch(() => undefined)
     await fetch(`${viteBase}/_serverFn/${SERVER_FN_ID}`).catch(() => undefined)
     await traced
-    const payload = TracePayloadSchema.parse(await useTool(kit, 'server_fn_trace'))
+    const payload = Definition.methods.serverFnTrace.output.parse(await useTool(kit, 'server_fn_trace'))
     expect(payload.traces.map((trace) => trace.name)).toEqual([SERVER_FN.export])
     expect(payload.traces[0]?.durationMs).toBeGreaterThanOrEqual(0)
     expect(payload.functions).toEqual([{id: SERVER_FN_ID, name: SERVER_FN.export, route: null, file: SERVER_FN.file}])
@@ -418,7 +395,7 @@ describe('the tanstack plugin on a real Vite dev server', () => {
     )
     await fetch(`${viteBase}/app/_serverFn/${BASEPATH_FN_ID}`).catch(() => undefined)
     await underBase
-    const based = TracePayloadSchema.parse(await useTool(kit, 'server_fn_trace', {count: 1}))
+    const based = Definition.methods.serverFnTrace.output.parse(await useTool(kit, 'server_fn_trace', {count: 1}))
     expect(based.traces.map((trace) => trace.id)).toEqual([BASEPATH_FN_ID])
     expect(based.functions.find((serverFunction) => serverFunction.name === BASEPATH_FN.export)).toEqual({
       id: BASEPATH_FN_ID,

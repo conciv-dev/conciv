@@ -12,32 +12,18 @@ import {magicLink} from '@conciv/harness-testkit/login'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {serveStaticDir} from '@conciv/plugin-testkit/widget-suite'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {AppError, CacheEntry, Control, RouterCurrent, State} from '../src/rpc.js'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 const HOST_ENTRY = fileURLToPath(new URL('./host/app.ts', import.meta.url))
 const WIDGET_DIR = dirname(createRequire(import.meta.url).resolve('@conciv/embed'))
 const CHIP = 'TanStack inspector active'
 
-const RouterStateSchema = z.object({
-  location: z.object({pathname: z.string(), search: z.string(), hash: z.string()}),
-  matches: z.array(
-    z.object({
-      routeId: z.string(),
-      params: z.record(z.string(), z.unknown()),
-      search: z.record(z.string(), z.unknown()),
-    }),
-  ),
-})
+const ErrorsSchema = z.object({errors: z.array(AppError)})
 
-const ControlSchema = z.object({type: z.string(), connectionId: z.string()})
+const QueryCacheSchema = z.object({queries: z.array(CacheEntry)})
 
-const TabsSchema = z.object({tabs: z.array(z.object({id: z.string(), url: z.string()}))})
-
-const ErrorsSchema = z.object({errors: z.array(z.object({kind: z.string(), message: z.string()}))})
-
-const QueryCacheSchema = z.object({queries: z.array(z.object({key: z.string()}))})
-
-const DataEntriesSchema = z.object({entries: z.array(z.object({key: z.string(), state: z.string()}))})
+const DataEntriesSchema = z.object({entries: z.array(CacheEntry)})
 
 const ExecuteFailureSchema = z.object({error: z.object({message: z.string()})})
 
@@ -88,7 +74,7 @@ async function attachedControls(kit: CoreKit): Promise<() => Promise<string>> {
   const next = async (): Promise<string> => {
     const frame = await stream.next()
     if (frame.done) throw new Error('the control stream ended')
-    const control = ControlSchema.safeParse(frame.value.data)
+    const control = Control.safeParse(frame.value.data)
     if (control.success && control.data.type === 'attached') return control.data.connectionId
     return next()
   }
@@ -125,14 +111,14 @@ describe('the tanstack plugin in the page', () => {
     await expect(page.getByText('Hello from conciv').first()).toBeVisible({timeout: 30_000})
     await attached()
 
-    const state = RouterStateSchema.parse(await call('tanstack_router_state', {}))
+    const state = RouterCurrent.parse(await call('tanstack_router_state', {}))
     expect(state.location.pathname).toBe('/')
     expect(state.matches.map((match) => match.routeId)).toEqual(['__root__', '/'])
 
     expect(await call('tanstack_navigate', {to: '/about'})).toEqual({ok: true, to: '/about'})
     await expect(page.getByRole('heading', {name: 'About this app'})).toBeVisible()
     await expect(page.getByText('Fetches: 1')).toBeVisible()
-    const moved = RouterStateSchema.parse(await call('tanstack_router_state', {}))
+    const moved = RouterCurrent.parse(await call('tanstack_router_state', {}))
     expect(moved.location.pathname).toBe('/about')
 
     expect(await call('tanstack_query_refetch', {key: '["spike","demo"]'})).toEqual({ok: true})
@@ -157,7 +143,7 @@ describe('the tanstack plugin in the page', () => {
       }),
     ).toEqual({ok: true, to: '/reset/$token'})
     await expect(page.getByRole('heading', {name: 'Reset password'})).toBeVisible()
-    const reset = RouterStateSchema.parse(await call('tanstack_router_state', {}))
+    const reset = RouterCurrent.parse(await call('tanstack_router_state', {}))
     expect(reset.matches.at(-1)).toMatchObject({
       routeId: '/reset/$token',
       params: {token: '[redacted]'},
@@ -169,7 +155,7 @@ describe('the tanstack plugin in the page', () => {
 
     await page.getByRole('link', {name: 'Signed in'}).click()
     await expect(page.getByRole('heading', {name: 'TanStack inspection home'})).toBeVisible()
-    const signedIn = RouterStateSchema.parse(await call('tanstack_router_state', {}))
+    const signedIn = RouterCurrent.parse(await call('tanstack_router_state', {}))
     expect(signedIn.location.hash).toContain('redacted')
     expect(JSON.stringify(signedIn)).not.toContain('secret-hash-value')
 
@@ -200,7 +186,7 @@ describe('the tanstack plugin in the page', () => {
     await expect(bare.page.getByRole('button', {name: 'Minimize conciv chat'})).toBeVisible({timeout: 30_000})
     await expect(bare.page.getByRole('status', {name: CHIP})).toBeVisible({timeout: 30_000})
     await attached()
-    const tabs = TabsSchema.parse(await call('tanstack_tabs_list', {}))
+    const tabs = State.parse(await call('tanstack_tabs_list', {}))
     const bareTab = tabs.tabs.find((entry) => entry.url.startsWith(bare.base))
     if (!bareTab) throw new Error(`the router-less tab is not listed among ${JSON.stringify(tabs.tabs)}`)
     expect(await toolFailure(call('tanstack_router_state', {tabId: bareTab.id}))).toBe(

@@ -1,4 +1,4 @@
-import type {AppError} from '@conciv/protocol/framework-types'
+import type {AppError} from '../rpc.js'
 
 const CAPACITY = 50
 
