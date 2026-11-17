@@ -743,30 +743,37 @@ const awaitFaultAnswered: BrowserCommand<[string]> = (ctx, handle): Promise<unkn
 
 const faultPending: BrowserCommand<[string]> = (ctx, handle): number => requireFault(ctx, handle).pending()
 
-const awaitFaultPending: BrowserCommand<[string, number, number?]> = async (
-  ctx,
-  handle,
-  count,
-  timeoutMs = AWAIT_RPC_TIMEOUT_MS,
-): Promise<void> => {
+async function withinDeadline(waiting: Promise<void>, timeoutMs: number, missed: () => string): Promise<void> {
   const timer: {value: ReturnType<typeof setTimeout> | null} = {value: null}
   const deadline = new Promise<never>((_, reject) => {
-    timer.value = setTimeout(
-      () =>
-        reject(
-          new Error(
-            `the fault "${handle}" captured ${requireFault(ctx, handle).pending()} of ${count} pending requests within ${timeoutMs}ms`,
-          ),
-        ),
-      timeoutMs,
-    )
+    timer.value = setTimeout(() => reject(new Error(missed())), timeoutMs)
   })
   try {
-    await Promise.race([requireFault(ctx, handle).awaitCaptured(count), deadline])
+    await Promise.race([waiting, deadline])
   } finally {
     if (timer.value) clearTimeout(timer.value)
   }
 }
+
+const awaitFaultPending: BrowserCommand<[string, number, number?]> = (
+  ctx,
+  handle,
+  count,
+  timeoutMs = AWAIT_RPC_TIMEOUT_MS,
+): Promise<void> =>
+  withinDeadline(
+    requireFault(ctx, handle).awaitCaptured(count),
+    timeoutMs,
+    () =>
+      `the fault "${handle}" captured ${requireFault(ctx, handle).pending()} of ${count} pending requests within ${timeoutMs}ms`,
+  )
+
+const awaitPushSocketLive: BrowserCommand<[]> = (ctx): Promise<void> =>
+  withinDeadline(
+    requirePush(ctx).awaitLive(),
+    AWAIT_RPC_TIMEOUT_MS,
+    () => `no push socket was live within ${AWAIT_RPC_TIMEOUT_MS}ms`,
+  )
 
 const buttonBox = async (ctx: BrowserCommandContext, name: string) => {
   const box = await ctx.iframe.getByRole('button', {name, exact: true}).boundingBox()
@@ -842,6 +849,7 @@ export const coreCommands = {
   writeProjectFile,
   pushSocketsOpened,
   pushSocketsLive,
+  awaitPushSocketLive,
   rpcSocketsOpened,
   printedCode,
   requestCode,

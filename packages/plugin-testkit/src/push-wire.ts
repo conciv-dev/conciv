@@ -5,6 +5,7 @@ import {PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
 export type PushWireWatch = {
   opened: () => number
   liveSockets: () => number
+  awaitLive: () => Promise<void>
   approvalIdsPushed: () => readonly string[]
 }
 
@@ -25,9 +26,11 @@ function approvalsIn(payload: string): string[] {
 export function watchPushWire(page: Page): PushWireWatch {
   const sockets = {count: 0, closed: 0}
   const approvals: string[] = []
+  const liveWaiters: (() => void)[] = []
   const onSocket = (socket: PageWebSocket): void => {
     if (!socket.url().includes(PUSH_WS_PATH)) return
     sockets.count += 1
+    for (const deliver of liveWaiters.splice(0)) deliver()
     socket.on('close', () => {
       sockets.closed += 1
     })
@@ -39,6 +42,8 @@ export function watchPushWire(page: Page): PushWireWatch {
   return {
     opened: () => sockets.count,
     liveSockets: () => sockets.count - sockets.closed,
+    awaitLive: () =>
+      sockets.count > sockets.closed ? Promise.resolve() : new Promise((resolve) => liveWaiters.push(resolve)),
     approvalIdsPushed: () => approvals,
   }
 }
