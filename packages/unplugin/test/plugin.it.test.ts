@@ -1,7 +1,8 @@
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {execFileSync} from 'node:child_process'
-import {cp, readFile, realpath, writeFile} from 'node:fs/promises'
+import {cp, readdir, readFile, realpath, writeFile} from 'node:fs/promises'
 import {
+  appendFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -222,7 +223,13 @@ describe('webpack and rspack', () => {
     return publicDir
   }
 
-  function createBundlerCompiler(bundler: Bundler, root: string, mode: Mode, options: PluginOptions): CompilerLike {
+  function createBundlerCompiler(
+    bundler: Bundler,
+    root: string,
+    mode: Mode,
+    options: PluginOptions,
+    cacheDirectory?: string,
+  ): CompilerLike {
     const config: {
       context: string
       mode: Mode
@@ -241,11 +248,16 @@ describe('webpack and rspack', () => {
     if (bundler === 'webpack') {
       return webpack({
         ...config,
-        cache: {type: 'filesystem', cacheDirectory: webpackCache},
+        cache: {type: 'filesystem', cacheDirectory: cacheDirectory ?? webpackCache},
         plugins: [createConcivUnplugin().webpack(options)],
       })
     }
-    return rspack({...config, plugins: [createConcivUnplugin().rspack(options)]})
+    if (cacheDirectory === undefined) return rspack({...config, plugins: [createConcivUnplugin().rspack(options)]})
+    return rspack({
+      ...config,
+      cache: {type: 'persistent', storage: {type: 'filesystem', directory: cacheDirectory}},
+      plugins: [createConcivUnplugin().rspack(options)],
+    })
   }
 
   function settle(resolve: () => void, reject: (error: Error) => void) {
@@ -258,8 +270,14 @@ describe('webpack and rspack', () => {
     return Array.from(stats.compilation.fileDependencies)
   }
 
-  function testCompiler(bundler: Bundler, root: string, mode: Mode, options: PluginOptions): TestCompiler {
-    const compiler = createBundlerCompiler(bundler, root, mode, options)
+  function testCompiler(
+    bundler: Bundler,
+    root: string,
+    mode: Mode,
+    options: PluginOptions,
+    cacheDirectory?: string,
+  ): TestCompiler {
+    const compiler = createBundlerCompiler(bundler, root, mode, options, cacheDirectory)
     const closing: {watches: Array<() => Promise<void>>; compiler?: Promise<void>} = {watches: []}
     const close = () => {
       closing.compiler ??= Promise.all(closing.watches.map((closeWatch) => closeWatch())).then(
@@ -527,6 +545,44 @@ describe('webpack and rspack', () => {
         expect(JSON.parse(readFileSync(join(concivStateDir(root), 'server.json'), 'utf8'))).toMatchObject({port})
         await watch.close()
         await compiler.close()
+      },
+      60_000,
+    )
+  })
+
+  describe('a second dev run on another port, on the same persistent cache', () => {
+    const widgetStartCall = (port: number) => new RegExp(`startConcivWidget\\)?\\(${String(port)}\\)`)
+
+    it.each(bundlers)(
+      '%s builds the new port into the page and rebuilds after a save',
+      async (bundler) => {
+        const root = testTempDir(`conciv-${bundler}-port-change-`)
+        const publicDir = writeFixtureApp(root)
+        const emittedScripts = async () =>
+          (await readdir(publicDir)).filter((file) => file.endsWith('.js')).map((file) => join(publicDir, file))
+        const cacheDirectory = join(root, 'node_modules', '.cache', bundler)
+        const firstPort = await getPort()
+        const secondPort = await getPort()
+        const first = testCompiler(bundler, root, 'development', {port: firstPort, stateRoot: root}, cacheDirectory)
+        const firstWatch = first.watch()
+        expect(await readWidgetClient(await firstWatch.next())).toContain(`startConcivWidget(${String(firstPort)})`)
+        await firstWatch.close()
+        await first.close()
+        for (const file of await emittedScripts()) rmSync(file)
+
+        const second = testCompiler(bundler, root, 'development', {port: secondPort, stateRoot: root}, cacheDirectory)
+        const secondWatch = second.watch()
+        const files = await secondWatch.next()
+        expect(files).toContain(join(root, generatedClient(secondPort)))
+        expect(files).not.toContain(join(root, generatedClient(firstPort)))
+        const bundle = (await Promise.all((await emittedScripts()).map((file) => readFile(file, 'utf8')))).join('\n')
+        expect(bundle).toMatch(widgetStartCall(secondPort))
+        expect(bundle).not.toMatch(widgetStartCall(firstPort))
+
+        appendFileSync(join(root, 'index.js'), `console.log('saved')\n`)
+        await expect(secondWatch.next()).resolves.toContain(join(root, 'index.js'))
+        await secondWatch.close()
+        await second.close()
       },
       60_000,
     )
