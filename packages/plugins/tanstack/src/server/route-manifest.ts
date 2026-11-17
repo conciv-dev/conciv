@@ -1,6 +1,7 @@
 import {existsSync} from 'node:fs'
 import {readFile} from 'node:fs/promises'
 import {dirname, join, resolve} from 'node:path'
+import {Effect} from 'effect'
 import type {ServerRouteInfo, ServerRouteKind} from '@conciv/protocol/framework-types'
 
 const FILE_EXTENSIONS = ['.tsx', '.ts', '.jsx', '.js'] as const
@@ -78,8 +79,8 @@ function parseRouteManifest(source: string, baseDir: string): ServerRouteInfo[] 
   return routes
 }
 
-export async function readRouteManifest(cwd: string): Promise<ServerRouteInfo[]> {
+export const readRouteManifest = Effect.fn('TanstackRouteManifest.read')(function* (cwd: string) {
   const genPath = join(cwd, 'src', 'routeTree.gen.ts')
-  const source = await readFile(genPath, 'utf8')
+  const source = yield* Effect.tryPromise({try: () => readFile(genPath, 'utf8'), catch: (error) => error})
   return parseRouteManifest(source, dirname(genPath))
-}
+})
