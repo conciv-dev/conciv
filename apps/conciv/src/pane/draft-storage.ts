@@ -1,6 +1,7 @@
 import {z} from 'zod'
 import {uniqBy} from 'es-toolkit'
-import {DraftItemSchema, type DraftItem, type DraftRow} from '@conciv/contract'
+import type {DraftRow} from '@conciv/contract'
+import {DraftItemSchema, type DraftItem} from '@conciv/protocol/chat-types'
 import type {WebStorage} from '@conciv/storage-history'
 import type {AppData} from '../data/app-data.js'
 import type {SelectionOffsets} from './composer-input-adapter.js'

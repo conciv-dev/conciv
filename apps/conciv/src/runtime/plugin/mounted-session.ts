@@ -13,7 +13,7 @@ import {
   type Accessor,
 } from 'solid-js'
 import type {Composer, MountedSession, SessionScreen} from '@conciv/plugin/experimental'
-import type {ComposerItem} from '@conciv/ui-kit-chat'
+import type {DraftItem} from '@conciv/protocol/chat-types'
 import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import {useQuery} from '@conciv/client'
 import {useAppData, useConnected, useLiveSessions} from '../../app/context'
@@ -34,13 +34,13 @@ type ComposerTarget = {
   readonly text: Accessor<string>
   readonly setText: (value: string) => void
   readonly insert: (text: string) => void
-  readonly items: Accessor<ComposerItem[]>
-  readonly addItem: (item: ComposerItem) => void
-  readonly updateItem: (key: string, value: ComposerItem['value']) => void
+  readonly items: Accessor<DraftItem[]>
+  readonly addItem: (item: DraftItem) => void
+  readonly updateItem: (key: string, value: DraftItem['value']) => void
   readonly removeItem: (key: string) => void
 }
 
-const commentNotes = (items: readonly ComposerItem[], commentId: string) =>
+const commentNotes = (items: readonly DraftItem[], commentId: string) =>
   items.flatMap((item) => {
     const note = NoteContextItem.safeParse(item.value)
 

@@ -20,7 +20,8 @@ import {useChatContext, useComposer} from '../../store/chat-context.js'
 import {readComposerDraft} from '../../behaviors/composer-draft-storage.js'
 import {useComposerDraftPersistence} from '../../behaviors/use-composer-draft.js'
 import {Primitive} from '../util/primitive.js'
-import {ComposerProvider, useComposerContext, type ComposerDraft, type ComposerItem} from './composer-context.js'
+import type {DraftItem} from '@conciv/protocol/chat-types'
+import {ComposerProvider, useComposerContext, type ComposerDraft} from './composer-context.js'
 import {AttachmentProvider} from '../attachment/attachment.js'
 import {
   fileMatchesAccept,
@@ -44,7 +45,7 @@ type FormProps = JSX.HTMLAttributes<HTMLFormElement> & {
 type ComposerState = {
   attachments: Attachment[]
   quote: string | null
-  items: ComposerItem[]
+  items: DraftItem[]
   editing: boolean
   dictating: boolean
   sendingAttachments: boolean
@@ -290,14 +291,14 @@ function Root(props: FormProps): JSX.Element {
     chat.setView('draft', '')
     setState({attachments: [], quote: null, items: []})
   }
-  const addItem = (item: ComposerItem) => {
+  const addItem = (item: DraftItem) => {
     if (state.items.some((value) => value.key === item.key)) return
     setState('items', (current) => [...current, item])
   }
   const removeItem = (key: string) => {
     setState('items', (current) => current.filter((value) => value.key !== key))
   }
-  const updateItem = (key: string, value: ComposerItem['value']) => {
+  const updateItem = (key: string, value: DraftItem['value']) => {
     setState('items', (current) => current.map((item) => (item.key === key ? {key, value} : item)))
   }
   onMount(() => {
