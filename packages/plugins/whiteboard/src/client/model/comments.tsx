@@ -1,18 +1,23 @@
 import {createContext, untrack, useContext, type Accessor, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {useLiveQuery} from '@tanstack/solid-db'
-import type {Viewport} from '../../canvas/coords.js'
+import {screenToScene, type Viewport} from '../../canvas/coords.js'
 import type {CommentRow, PinRow, ReadRow} from '../../shared/rows.js'
 import {useWhiteboardDb} from '../db.js'
 
 export type Comment = CommentRow
 export type Pin = PinRow
+export type CommentSource = {file: string; line: number | null} | null
+export type ComposeTarget = {source: CommentSource; screen: {x: number; y: number}}
 
 export type CommentsModel = ReturnType<typeof createCommentsModel>
 
 const newest = (dates: number[]): number | undefined => (dates.length === 0 ? undefined : Math.max(...dates))
 
-export function createCommentsModel(room: Accessor<string>) {
+export function createCommentsModel(
+  room: Accessor<string>,
+  onComposeSettled: (outcome: 'added' | 'cancelled') => void,
+) {
   const db = useWhiteboardDb()
   const accountId = (): string => db.accountId()
 
@@ -23,9 +28,14 @@ export function createCommentsModel(room: Accessor<string>) {
   const pins = (): PinRow[] => pinRows() ?? []
   const reads = (): ReadRow[] => readRows() ?? []
 
-  const [state, setState] = createStore<{openCid: string | null; viewport: Viewport | undefined}>({
+  const [state, setState] = createStore<{
+    openCid: string | null
+    viewport: Viewport | undefined
+    composeTarget: ComposeTarget | null
+  }>({
     openCid: null,
     viewport: undefined,
+    composeTarget: null,
   })
 
   const findRoot = (cid: string): Comment | undefined => comments().find((comment) => comment.cid === cid)
@@ -65,6 +75,59 @@ export function createCommentsModel(room: Accessor<string>) {
     if (pin) db.pins.update(pin.id, (draft) => void Object.assign(draft, patch))
   }
 
+  const startCompose = (target: ComposeTarget): void => void setState('composeTarget', target)
+  const cancelCompose = (): void => {
+    setState('composeTarget', null)
+    onComposeSettled('cancelled')
+  }
+  const newComment = (target: ComposeTarget, cid: string, text: string): void => {
+    const now = Date.now()
+    db.comments.insert({
+      id: crypto.randomUUID(),
+      sessionId: room(),
+      cid,
+      threadId: cid,
+      parentId: null,
+      parts: [{type: 'text', text}],
+      authorKind: 'human',
+      authorModel: null,
+      authorId: accountId(),
+      authorName: null,
+      authorAvatar: null,
+      status: 'open',
+      kind: target.source ? 'source-linked' : 'floating',
+      anchor: target.source ? {source: {file: target.source.file, line: target.source.line ?? 1, column: 1}} : null,
+      anchorFile: target.source?.file ?? null,
+      anchorComponent: null,
+      anchorHash: null,
+      createdAt: now,
+      updatedAt: now,
+      resolvedAt: null,
+    })
+  }
+  const newPin = (target: ComposeTarget, cid: string): void => {
+    const view = state.viewport
+    const center = view ? screenToScene(view, target.screen.x, target.screen.y) : target.screen
+    db.pins.insert({
+      id: crypto.randomUUID(),
+      room: room(),
+      cid,
+      x: center.x,
+      y: center.y,
+      elementId: null,
+      pinState: 'locked',
+      anchorX: null,
+      anchorY: null,
+    })
+  }
+  const createComment = (target: ComposeTarget, text: string): void => {
+    const cid = crypto.randomUUID()
+    newComment(target, cid, text)
+    newPin(target, cid)
+    setState('composeTarget', null)
+    onComposeSettled('added')
+  }
+
   return {
     comments,
     pins,
@@ -76,6 +139,10 @@ export function createCommentsModel(room: Accessor<string>) {
     movePin,
     isUnread,
     markRead,
+    composeTarget: () => state.composeTarget,
+    startCompose,
+    cancelCompose,
+    createComment,
     viewport: () => state.viewport,
     setViewport: (viewport: Viewport) => void setState('viewport', viewport),
   }
@@ -83,8 +150,12 @@ export function createCommentsModel(room: Accessor<string>) {
 
 const CommentsContext = createContext<CommentsModel>()
 
-export function CommentsProvider(props: {room: Accessor<string>; children: JSX.Element}): JSX.Element {
-  const model = untrack(() => createCommentsModel(props.room))
+export function CommentsProvider(props: {
+  room: Accessor<string>
+  onComposeSettled: (outcome: 'added' | 'cancelled') => void
+  children: JSX.Element
+}): JSX.Element {
+  const model = untrack(() => createCommentsModel(props.room, props.onComposeSettled))
   return <CommentsContext.Provider value={model}>{props.children}</CommentsContext.Provider>
 }
 

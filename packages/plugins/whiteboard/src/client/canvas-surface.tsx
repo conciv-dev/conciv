@@ -1,10 +1,10 @@
-import {onCleanup, onMount, type JSX} from 'solid-js'
+import {onMount, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import excalidrawCss from '@excalidraw/excalidraw/index.css?inline'
 import type {Context} from '@conciv/plugin/experimental'
 import {Island} from '../canvas/island.js'
-import {useWhiteboardDb, WhiteboardDbProvider} from './db.js'
+import {WhiteboardDbProvider} from './db.js'
 import {CommentsProvider, useComments} from './model/comments.js'
 import {PinsLayer} from './pins/pins.js'
 
@@ -44,16 +44,8 @@ type SurfaceProps = {
   close: () => void
 }
 
-function CanvasView(props: Pick<SurfaceProps, 'ui' | 'toast' | 'room' | 'visible' | 'layer'>): JSX.Element {
+function CanvasView(props: Pick<SurfaceProps, 'ui' | 'room' | 'visible' | 'layer'>): JSX.Element {
   const model = useComments()
-  const db = useWhiteboardDb()
-  // oxlint-disable-next-line solid/reactivity -- a change subscription reads the canvas state when a change lands
-  const added = db.comments.subscribeChanges((changes) => {
-    if (props.visible || !db.comments.isReady()) return
-    if (changes.some((change) => change.type === 'insert' && change.value.parentId === null))
-      props.toast.show({title: 'Comment added to the whiteboard', variant: 'success'})
-  })
-  onCleanup(() => added.unsubscribe())
   return (
     <>
       <Island doc={document} room={props.room} theme="dark" visible={props.visible} onViewport={model.setViewport} />
@@ -66,6 +58,10 @@ function CanvasView(props: Pick<SurfaceProps, 'ui' | 'toast' | 'room' | 'visible
 
 export default function CanvasSurface(props: SurfaceProps): JSX.Element {
   injectExcalidrawCss(document)
+  const onComposeSettled = (outcome: 'added' | 'cancelled'): void => {
+    if (outcome === 'added' && !props.visible)
+      props.toast.show({title: 'Comment added to the whiteboard', variant: 'success'})
+  }
   onMount(() =>
     makeEventListener(
       window,
@@ -81,8 +77,8 @@ export default function CanvasSurface(props: SurfaceProps): JSX.Element {
   )
   return (
     <WhiteboardDbProvider client={props.client} room={props.room} catchUpRetryMs={props.catchUpRetryMs}>
-      <CommentsProvider room={() => props.room}>
-        <CanvasView ui={props.ui} toast={props.toast} room={props.room} visible={props.visible} layer={props.layer} />
+      <CommentsProvider room={() => props.room} onComposeSettled={onComposeSettled}>
+        <CanvasView ui={props.ui} room={props.room} visible={props.visible} layer={props.layer} />
       </CommentsProvider>
     </WhiteboardDbProvider>
   )

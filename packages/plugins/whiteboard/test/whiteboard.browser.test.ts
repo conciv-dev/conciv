@@ -480,7 +480,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
 })
 
 describe('the comments of the whiteboard plugin', () => {
-  test('an agent comment becomes an unread pin on the open canvas, clicking the pin marks its thread read, a dragged pin lands on the engine, only comments from others make a thread unread again, and with the canvas closed an agent comment toasts', async ({
+  test('an agent comment becomes an unread pin on the open canvas, clicking the pin marks its thread read, a dragged pin lands on the engine, and only comments from others make a thread unread again', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -595,21 +595,6 @@ describe('the comments of the whiteboard plugin', () => {
       await page.mouse.click(400, 200)
       await expect(page.getByRole('button', {name: 'AI comment, open', exact: true})).toHaveCount(2)
       await expect(unread).toHaveCount(0)
-
-      const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
-      await composer.click()
-      await page.keyboard.press('Escape')
-      await expect(page.getByRole('radio', {name: /Rectangle/})).toBeHidden()
-      await expect(readPin).toHaveCount(0)
-      await widget.kit.callTool('whiteboard_comment_create', {
-        cid: 'agent-while-closed',
-        kind: 'floating',
-        parts: [{type: 'text', text: 'the canvas is closed'}],
-        x: 200,
-        y: 200,
-        authorKind: 'ai',
-      })
-      await expect(page.getByText('Comment added to the whiteboard')).toBeVisible()
     } finally {
       await widget.close()
     }
