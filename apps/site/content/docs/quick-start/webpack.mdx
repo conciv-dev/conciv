@@ -3,8 +3,10 @@ title: webpack
 description: Add conciv to a webpack app.
 ---
 
-In a development build the webpack plugin starts the engine and puts the widget on every page of your
-app. You add nothing else. A production build carries neither.
+In a development build the webpack plugin puts the widget on every page of your app, and in watch mode
+(the dev server or `--watch`) it also starts the engine. A one-shot development build only adds the
+widget, so run the dev server or turn on watch mode. A production build carries neither, and a config
+without `mode: 'development'` counts as production.
 
 <Tabs items={['init', 'Manual']}>
 
@@ -42,6 +44,7 @@ npm install -D @conciv/it
 const conciv = require('@conciv/it/plugin/webpack')
 
 module.exports = {
+  mode: 'development',
   plugins: [conciv.default()],
 }
 ```
