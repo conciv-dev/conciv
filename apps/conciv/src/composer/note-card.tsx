@@ -4,7 +4,7 @@ import {Dynamic} from 'solid-js/web'
 import {Key} from '@solid-primitives/keyed'
 import XIcon from 'lucide-solid/icons/x'
 import {Button, TooltipIconButton, TruncatedText} from '@conciv/ui-kit-system'
-import {useComposerContext} from '@conciv/ui-kit-chat'
+import {NoteFrame, useComposerContext} from '@conciv/ui-kit-chat'
 import {NoteCard, type IconName, type MountedSession, type NoteCardProps} from '@conciv/plugin/experimental'
 import {usePluginHost} from '../runtime/plugin/host'
 import {Contribution} from '../runtime/plugin/render'
@@ -16,10 +16,6 @@ import {readPromptPresentation} from './comment-note'
 const FALLBACK_ICON: IconName = 'message-square'
 const SENT_NOTE_BOUND = 5
 
-const CARD =
-  'flex flex-col justify-center gap-0.5 h-14 px-2.5 rounded-chat-surface-sm border border-chat-line bg-chat-fill'
-const STAGED_CARD = `${CARD} min-w-24 max-w-56`
-const SENT_CARD = `${CARD} w-full`
 const HEADING = 'block truncate text-chat-sm text-chat-text-hi'
 const META = 'flex items-center gap-1 min-w-0 text-chat-xs text-chat-text-3'
 
@@ -39,15 +35,15 @@ function noteSubtitle(note: NoteComment): string {
   return note.subtitle?.trim() || note.label
 }
 
-function NoteChip(props: {note: NoteComment; wide?: boolean}): JSX.Element {
+function NoteChip(props: {note: NoteComment}): JSX.Element {
   return (
-    <div class={props.wide ? SENT_CARD : STAGED_CARD}>
+    <>
       <TruncatedText class={HEADING} text={noteHeading(props.note)} />
       <span class={META}>
         <Dynamic component={icons[noteIcon(props.note.icon)]} size={12} class="shrink-0" aria-hidden="true" />
         <TruncatedText class="block truncate" text={noteSubtitle(props.note)} />
       </span>
-    </div>
+    </>
   )
 }
 
@@ -64,31 +60,30 @@ function PluginNoteCard(props: {
   )
 
   return (
-    <Show when={claimant()} keyed fallback={<NoteChip note={props.note} wide={props.wide} />}>
-      {(item) => (
-        <Contribution plugin={item.plugin} failed={decline}>
-          {() => {
-            const drawn = item.value.render({
-              get note() {
-                return props.note
-              },
-              get session() {
-                return props.session
-              },
-            })
+    <NoteFrame wide={props.wide}>
+      <Show when={claimant()} keyed fallback={<NoteChip note={props.note} />}>
+        {(item) => (
+          <Contribution plugin={item.plugin} failed={decline}>
+            {() => {
+              const drawn = item.value.render({
+                get note() {
+                  return props.note
+                },
+                get session() {
+                  return props.session
+                },
+              })
 
-            return (
-              <Show
-                when={drawn !== undefined && drawn !== null}
-                fallback={<NoteChip note={props.note} wide={props.wide} />}
-              >
-                {drawn}
-              </Show>
-            )
-          }}
-        </Contribution>
-      )}
-    </Show>
+              return (
+                <Show when={drawn !== undefined && drawn !== null} fallback={<NoteChip note={props.note} />}>
+                  {drawn}
+                </Show>
+              )
+            }}
+          </Contribution>
+        )}
+      </Show>
+    </NoteFrame>
   )
 }
 
