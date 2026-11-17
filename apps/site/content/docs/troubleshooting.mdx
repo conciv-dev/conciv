@@ -40,10 +40,11 @@ conciv({port: 7378})
 On the Vite dev server, the pinned port is a preference. When a second project already holds it,
 the engine logs `port 7378 is already in use, the engine is listening on http://127.0.0.1:<other>
 instead` and the page is stamped with the port it actually bound, so two dev servers can run side
-by side. The Next.js integration and the generic webpack/rspack plugin are the exception: their
-clients learn the port before the engine ever boots (Next inlines it into `next.config`'s env, and
-the webpack/Rspack plugin builds it into the widget it adds to your dev build), so a taken port
-fails the boot instead of silently pointing the widget at another project's engine.
+by side. The Next.js integration and the webpack/Rspack plugin are the exception: they do not pick
+another port when theirs is taken. Their clients learn the port before the engine boots (Next inlines
+it into `next.config`'s env, and the webpack/Rspack plugin builds it into the widget it adds to your
+dev build), so on a taken port the engine does not start and the widget still points at that port,
+which may be another project's engine. Pin a free port with `conciv({port})`.
 
 </Accordion>
 
