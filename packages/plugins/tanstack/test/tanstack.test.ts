@@ -185,6 +185,39 @@ describe('the tanstack plugin without a bundler', () => {
   })
 })
 
+const ENGINE_TOOLS = ['tanstack_build_errors', 'tanstack_route_manifest', 'tanstack_server_fn_trace']
+const BROWSER_TOOLS = [
+  'tabs_list',
+  'detect',
+  'router_state',
+  'route_tree',
+  'data_entries',
+  'loader_data',
+  'data_invalidate',
+  'errors_snapshot',
+  'query_cache',
+  'query_invalidate',
+  'query_refetch',
+  'navigate',
+  'router_invalidate',
+  'back',
+].map((name) => `tanstack_${name}`)
+
+function pluginCall(kit: CoreKit, method: string, input: unknown, signal?: AbortSignal): Promise<unknown> {
+  return kit.rpc.plugin.call({rpcId: 'experimental.tanstack', method, input}, signal ? {signal} : {})
+}
+
+describe('the tanstack plugin before a page attaches', () => {
+  it('offers its 3 engine tools while the browser tools are denied and no tab is listed', async () => {
+    const kit = await bootProject({})
+    const session = await kit.session()
+
+    const discovered = await makeDiscoverTools(kit.base, session)([...ENGINE_TOOLS, ...BROWSER_TOOLS])
+    expect(discovered.tools.map((tool) => tool.name)).toEqual(ENGINE_TOOLS.map((name) => `external_${name}`))
+    expect(await pluginCall(kit, 'tabs.list', {sessionId: session})).toEqual({tabs: [], focusedTabId: null})
+  })
+})
+
 describe('the tanstack plugin on a real Vite dev server', () => {
   it('reads a real transform error and decodes server-function requests, also under a basepath', async () => {
     const root = await realpath(tempDir('conciv-tanstack-vite-'))
