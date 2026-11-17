@@ -8099,6 +8099,9 @@ module.exports = {default: {setup(ctx) {
     await userEvent.click(editor())
     await userEvent.keyboard('{Enter}')
     await expect.element(sentCard('alone note 6')).toBeVisible()
+    await expect
+      .element(page.getByRole('article', {name: 'You: 6 notes', exact: true}))
+      .toMatchTextContent(/alone note 1[\s\S]*alone note 6/)
     await expect.element(control('Show more')).not.toBeInTheDocument()
 
     await tab('Fixture tools').click()
